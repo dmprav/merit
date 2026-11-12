@@ -1,0 +1,43 @@
+{
+  "files": [
+    {
+      "path": ".agents/skills/build-feature/review.md",
+      "description": "Feature review rubric: the questions every product change is checked against for behavior, UI, reuse, architecture, code, and tests, plus known escapes."
+    },
+    {
+      "path": "docs/foundations/architecture.md",
+      "description": "Architecture principles: where business rules live and how capabilities, interfaces, and shared foundations depend on each other."
+    },
+    {
+      "path": "docs/guides/web-features.md",
+      "description": "Which layer owns a web feature change: views, controllers, data adapters, interface server code.",
+      "scope": ["capabilities/*/web/**", "interfaces/**"]
+    },
+    {
+      "path": "docs/guides/testing.md",
+      "description": "How to choose the owning test layer, avoid duplicated coverage, and test behavior rather than implementation.",
+      "scope": [
+        "**/*.test.ts",
+        "**/*.test.tsx",
+        "**/*.integration.ts",
+        "**/*.spec.ts",
+        "**/*.stories.tsx"
+      ]
+    },
+    {
+      "path": "docs/guides/coding-conventions.md",
+      "description": "Coding conventions for abstraction level, function size, readability, and safety."
+    },
+    {
+      "path": "docs/guides/ui.md",
+      "description": "Shared components and patterns to reuse when composing screens.",
+      "scope": [
+        "capabilities/*/web/**",
+        "interfaces/**",
+        "foundation/ui/**",
+        "**/*.tsx",
+        "**/*.css"
+      ]
+    }
+  ]
+}
