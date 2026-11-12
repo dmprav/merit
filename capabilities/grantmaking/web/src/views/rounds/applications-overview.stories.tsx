@@ -89,6 +89,7 @@ const meta = {
 
 export default meta;
 
+export const Populated: StoryObj<typeof meta> = {};
 export const AcrossRounds: StoryObj<typeof meta> = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);

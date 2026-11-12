@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 
+import { sql } from "drizzle-orm";
 import { assert, describe, expect } from "vite-plus/test";
 
 import { materialVersionSchema } from "@merit/applications/domain";
@@ -263,5 +264,52 @@ describe("workspace activity", () => {
       people: [{ id: "birch-manager", name: "Birch manager" }],
     });
     expect(await a.read({ workspaceSlug: "birch" })).toEqual({ status: "not_found" });
+  });
+
+  it("reads with a restricted runtime role that needs only SELECT on audit_events", async ({
+    db,
+    activity: a,
+  }) => {
+    const role = `runtime_test_${randomUUID().replaceAll("-", "")}`;
+    const rollback = new Error("Roll back the temporary runtime role and its grants");
+
+    await expect(
+      db.transaction(async (tx) => {
+        await tx.execute(
+          sql.raw(
+            `CREATE ROLE ${role} NOLOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS`,
+          ),
+        );
+        await tx.execute(sql.raw(`GRANT USAGE ON SCHEMA public TO ${role}`));
+        await tx.execute(
+          sql.raw(
+            `GRANT SELECT ON app_users, memberships, organizations, funding_rounds, application_cases, material_versions, assessments TO ${role}`,
+          ),
+        );
+        await tx.execute(sql.raw(`SET LOCAL ROLE ${role}`));
+        await expect(
+          listWorkspaceActivity(tx, actor, { workspaceSlug, roundId: a.roundId }),
+        ).rejects.toMatchObject({ cause: { code: "42501" } });
+
+        await tx.execute(sql`SET LOCAL ROLE NONE`);
+        await tx.execute(sql.raw(`GRANT SELECT ON audit_events TO ${role}`));
+        await tx.execute(sql.raw(`SET LOCAL ROLE ${role}`));
+        const result = await listWorkspaceActivity(tx, actor, {
+          workspaceSlug,
+          roundId: a.roundId,
+        });
+
+        assert(result.status === "ok");
+        expect(result.entries.length).toBeGreaterThan(0);
+        expect(
+          (
+            await tx.execute(
+              sql`SELECT has_table_privilege(current_user, 'audit_events', 'INSERT') AS insert`,
+            )
+          ).rows,
+        ).toEqual([{ insert: false }]);
+        throw rollback;
+      }),
+    ).rejects.toBe(rollback);
   });
 });

@@ -211,7 +211,7 @@ describe("workspace MCP contracts", () => {
       await client.close();
     }
   });
-  it("lists workspace activity with record links, without people or filters, and follows its cursor", async () => {
+  it("lists workspace activity with record links, people and filters, and follows its cursor", async () => {
     const operations = testOperations();
     const entry = {
       id: "00000000-0000-4000-a000-000000000009",
@@ -238,11 +238,19 @@ describe("workspace MCP contracts", () => {
     try {
       const result = await client.callTool({
         name: "list_workspace_activity",
-        arguments: { workspaceSlug: "alder", after: "previous", limit: 3 },
+        arguments: {
+          workspaceSlug: "alder",
+          roundId: id,
+          personId: "dana",
+          after: "previous",
+          limit: 3,
+        },
       });
 
       expect(operations.workspace.listWorkspaceActivity).toHaveBeenCalledWith(actor, {
         workspaceSlug: "alder",
+        roundId: id,
+        personId: "dana",
         after: "previous",
         limit: 3,
       });
@@ -270,11 +278,10 @@ describe("workspace MCP contracts", () => {
             },
           },
         ],
+        people: [{ id: "private-person", name: "Private Person" }],
         nextCursor: "cursor",
       });
-      expect(JSON.stringify(result)).not.toContain("Private Person");
-      // Person and round filters are web page state, not part of this tool.
-      for (const filter of [{ personId: "dana" }, { roundId: id }]) {
+      for (const filter of [{ personId: "" }, { roundId: "not-an-id" }]) {
         expect(
           (
             await client.callTool({

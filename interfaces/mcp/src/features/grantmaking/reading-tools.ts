@@ -21,6 +21,7 @@ import {
   readingErrorSchema,
   activityEntrySchema,
   workspaceActivityInput,
+  workspaceActivitySchema,
 } from "@merit/grantmaking/api";
 
 import type { RegisterTool } from "../../components/register-tool";
@@ -235,8 +236,8 @@ const registerActivityTool = (
     {
       ...read,
       description:
-        "List who changed shared grant work in a workspace, newest first. Covers application creation, readiness, revisions, corrections and deletion; round creation, budget, criteria, manager and deletion; recorded and submitted assessments; and saved recommendations. Content edits, working revisions, drafts and invitations are not listed; read an application's or round's history for those. Each entry gives the recorded person's name (null when none was recorded), the web or MCP-client provenance, the stored action name, and the record's current title and url, or a null record when it no longer exists. Follow nextCursor as after until null. Current program managers only.",
-      inputSchema: workspaceActivityInput.omit({ roundId: true, personId: true }),
+        "List who changed shared grant work in a workspace, newest first. Covers application creation, readiness, revisions, corrections and deletion; round creation, budget, criteria, manager and deletion; recorded and submitted assessments; and saved recommendations. Content edits, working revisions, drafts and invitations are not listed; read an application's or round's history for those. Each entry gives the recorded person's name (null when none was recorded), the web or MCP-client provenance, the stored action name, and the record's current title and url, or a null record when it no longer exists. Optional roundId (the round, its applications, and their assessments and recommendations) and personId (a person from `people`) filters narrow the list; `people` lists everyone with recorded activity. Follow nextCursor as after until null with the same filters; the cursor applies to the filtered list. Current program managers only.",
+      inputSchema: workspaceActivityInput,
       outputSchema: z.object({
         status: z.literal("ok"),
         entries: z.array(
@@ -244,6 +245,7 @@ const registerActivityTool = (
             record: activityEntrySchema.shape.record.unwrap().extend({ url: z.url() }).nullable(),
           }),
         ),
+        people: workspaceActivitySchema.shape.people,
         nextCursor: z.string().nullable(),
       }),
     },
@@ -253,6 +255,7 @@ const registerActivityTool = (
         ? {
             status: result.status,
             nextCursor: result.nextCursor,
+            people: result.people,
             entries: result.entries.map((entry) => ({
               ...entry,
               record: entry.record && {

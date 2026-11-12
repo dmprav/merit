@@ -85,7 +85,10 @@ with the same ID remain distinct.
 
 To catch up on recent changes across a workspace, call `list_workspace_activity`.
 It returns who changed shared grant work, newest first, in pages of up to 50
-entries; pass `nextCursor` as `after` until it is `null`. Each entry carries the
+entries; pass `nextCursor` as `after` until it is `null`. Optional `roundId` (the round,
+its applications, and their assessments and recommendations) and `personId` filters
+narrow the list, as on the web; take person IDs from the returned `people`, and keep
+the same filters while following a cursor. Each entry carries the
 recorded person's name, web or MCP-client provenance, a stored action name, and the
 record's current title and browser link, or a null record that no longer exists.
 Only current program managers can read it. Edits that stay in an application's or
