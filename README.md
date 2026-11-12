@@ -76,8 +76,7 @@ To develop in a protected workspace, use a
 [seeded identity without Clerk](docs/guides/development.md#protected-workspace).
 
 Run `vp run ready` with PostgreSQL and Mailpit running for the full build, formatting, lint,
-type, migration, security, and test checks. Install
-[Betterleaks](docs/guides/development.md#security-tools) for security checks and the commit hook.
+type, migration, security, and test checks.
 Follow [local development](docs/guides/development.md)
 for setup and [verification](docs/guides/verification.md) for targeted checks.
 

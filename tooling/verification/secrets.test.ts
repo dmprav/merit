@@ -130,12 +130,13 @@ it("detects secrets removed from the current files but retained in Git history",
   expect(leaked.output).not.toContain(secret);
 });
 
-it("fails when the scanner is missing instead of treating the check as clean", () => {
+it("fails when Git cannot list files instead of treating the check as clean", () => {
   const repo = repository();
-  const result = repo.scan("files", { ...process.env, PATH: repo.cwd });
+  rmSync(join(repo.cwd, ".git"), { recursive: true, force: true });
+  const result = repo.scan("files", { ...process.env, GIT_CEILING_DIRECTORIES: dirname(repo.cwd) });
 
   expect(result.status).not.toBe(0);
-  expect(result.output).toContain("Install Betterleaks 1.10.0");
+  expect(result.output).toContain("not a git repository");
 });
 
 it("allows exact local fixtures while detecting other credentials in the same files", () => {

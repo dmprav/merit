@@ -35,17 +35,6 @@ jobs:
       - name: Install dependencies
         run: vp install --frozen-lockfile
 
-      - name: Install Betterleaks
-        working-directory: ${{ runner.temp }}
-        run: |
-          archive=betterleaks_1.10.0_linux_x64.tar.gz
-          curl --fail --silent --show-error --location --retry 3 \
-            "https://github.com/betterleaks/betterleaks/releases/download/v1.10.0/$archive" --output "$archive"
-          printf '%s  %s\n' '9d9ad503cd5d80d18a939352266c3fcca52f10da9b83cd5cfe646989b13940fe' "$archive" | sha256sum --check --strict
-          tar -xzf "$archive" betterleaks
-          install -Dm755 betterleaks "$RUNNER_TEMP/bin/betterleaks"
-          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
-
       - name: Start PostgreSQL and Mailpit
         run: docker compose up -d --wait
 
