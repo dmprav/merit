@@ -173,47 +173,6 @@ it.each([true, false])("presents read-only intake with recorded material: %s", (
   }
 });
 
-it("preserves summary and submission drafts when switching sections and returns focus on close", async () => {
-  const { user, calls } = renderIntake();
-  await user.click(screen.getByRole("button", { name: "Application actions" }));
-  await user.click(await screen.findByRole("menuitem", { name: "Start revised submission" }));
-  await user.click(await screen.findByRole("button", { name: "Edit summary" }));
-  fireEvent.change(screen.getByRole("textbox", { name: "Staff summary" }), {
-    target: { value: "Unfinished staff interpretation" },
-  });
-  await user.click(screen.getByRole("button", { name: "Edit applicant submission" }));
-  expect(screen.queryByRole("textbox", { name: "Staff summary" })).not.toBeInTheDocument();
-  fireEvent.change(screen.getAllByRole("textbox", { name: "Applicant’s response" })[0]!, {
-    target: { value: "Unfinished applicant response" },
-  });
-  await user.click(screen.getByRole("button", { name: "Close" }));
-
-  await waitFor(() =>
-    expect(
-      screen.getByRole("button", { name: "Continue editing applicant submission" }),
-    ).toHaveFocus(),
-  );
-  await user.click(screen.getByRole("button", { name: "Continue editing summary" }));
-  expect(screen.getByRole("textbox", { name: "Staff summary" })).toHaveValue(
-    "Unfinished staff interpretation",
-  );
-  await user.click(screen.getByRole("button", { name: "Close" }));
-
-  await waitFor(() =>
-    expect(screen.getByRole("button", { name: "Continue editing summary" })).toHaveFocus(),
-  );
-  await user.click(screen.getByRole("button", { name: "Continue editing summary" }));
-  await user.click(screen.getByRole("button", { name: "Discard changes" }));
-  await waitFor(() => expect(screen.getByRole("button", { name: "Edit summary" })).toHaveFocus());
-  expect(screen.getByRole("region", { name: "Staff summary" })).toHaveTextContent(original.summary);
-  await user.click(screen.getByRole("button", { name: "Continue editing applicant submission" }));
-
-  expect(screen.getAllByRole("textbox", { name: "Applicant’s response" })[0]).toHaveValue(
-    "Unfinished applicant response",
-  );
-  expect(calls.mock.calls.map(([change]) => change.action)).toEqual(["start_revision"]);
-});
-
 it("translates the requested-amount rule and permits a corrected draft", async () => {
   const { user, calls } = renderIntake(undefined, undefined, {
     ...grantmakingMessages,

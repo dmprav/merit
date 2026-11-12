@@ -7,7 +7,13 @@ import { actor, workspaceTest as it, workspaceSlug } from "@merit/organizations/
 
 import type { ContactCommand } from "../src/api/commands";
 import type { ContactGrantWork } from "../src/server/grant-work";
-import { changeWorkspaceContact, getContactDetails, listContactChanges } from "../src/server/index";
+import {
+  changeWorkspaceContact,
+  getContactDetails,
+  listContactChanges,
+  listContactSummaries,
+  listWorkspaceContacts,
+} from "../src/server/index";
 
 const grantWork: ContactGrantWork = {
   applicationTitles: async () => new Map<string, string[]>(),
@@ -135,6 +141,94 @@ it.for([
     expect(await read()).toEqual(saved);
   },
 );
+
+it("preserves archive state and details across lifecycle changes and rejects a stale one", async ({
+  db,
+}) => {
+  const { address, change, read } = await setup(db);
+  expect(await change({ ...address, action: "archive", expectedContactRevision: 0 })).toMatchObject(
+    { status: "ok", contact: { ...details, archived: true, revision: 1 } },
+  );
+  const archived = await read();
+
+  expect(await change({ ...address, action: "restore", expectedContactRevision: 0 })).toEqual({
+    status: "conflict",
+  });
+  expect(await read()).toEqual(archived);
+
+  const renamed = { ...details, name: "Samuel" };
+  expect(
+    await change({ ...address, action: "update", expectedContactRevision: 1, details: renamed }),
+  ).toMatchObject({ status: "ok", contact: { ...renamed, archived: true, revision: 2 } });
+  expect(await change({ ...address, action: "restore", expectedContactRevision: 2 })).toMatchObject(
+    { status: "ok", contact: { ...renamed, archived: false, revision: 3 } },
+  );
+});
+
+it("pages contact history by revision and summaries without history", async ({ db }) => {
+  const { address, change } = await setup(db);
+  await change({ ...address, action: "archive", expectedContactRevision: 0 });
+  await change({ ...address, action: "restore", expectedContactRevision: 1 });
+  await change({ ...address, action: "archive", expectedContactRevision: 2 });
+
+  const first = await listContactChanges(db, actor, { ...address, limit: 2 });
+  assert(first.status === "ok");
+  expect(first.entries.map((entry) => entry.revision)).toEqual([0, 1]);
+  expect(first.nextRevision).toBe(1);
+  const rest = await listContactChanges(db, actor, { ...address, limit: 2, afterRevision: 1 });
+  assert(rest.status === "ok");
+  expect(rest.entries.map((entry) => entry.revision)).toEqual([2, 3]);
+  expect(rest.nextRevision).toBeNull();
+
+  await setup(db);
+  const summaries = await listContactSummaries(db, actor, { workspaceSlug, limit: 1 });
+  assert(summaries.status === "ok");
+  expect(summaries.contacts).toHaveLength(1);
+  expect(summaries.contacts[0]).not.toHaveProperty("history");
+  expect(summaries.nextCursor).toBe(summaries.contacts[0]?.contactId);
+});
+
+it("conceals contacts from other workspaces and from administrators without program management", async ({
+  db,
+  database,
+}) => {
+  const { address, change, read } = await setup(db);
+  const before = await read();
+  const birch = { userId: "birch-manager" };
+  const guessed = { workspaceSlug: "birch", contactId: address.contactId };
+
+  expect(await getContactDetails(db, birch, address)).toEqual({ status: "not_found" });
+  expect(await getContactDetails(db, birch, guessed)).toEqual({ status: "not_found" });
+  expect(await listContactChanges(db, birch, guessed)).toEqual({ status: "not_found" });
+
+  const archive = (contactId: string) =>
+    changeWorkspaceContact(
+      db,
+      birch,
+      { workspaceSlug: "birch", contactId, action: "archive", expectedContactRevision: 0 },
+      grantWork,
+    );
+
+  expect(await archive(address.contactId)).toEqual(await archive(randomUUID()));
+
+  await database.client.query(
+    "UPDATE memberships SET role = 'member', administration = 'owner' WHERE user_id = 'dana'",
+  );
+  expect(await change({ ...address, action: "archive", expectedContactRevision: 0 })).toEqual({
+    status: "not_found",
+  });
+  expect(await listWorkspaceContacts(db, actor, { workspaceSlug }, grantWork)).toEqual({
+    status: "not_found",
+  });
+  expect(await listContactSummaries(db, actor, { workspaceSlug })).toEqual({
+    status: "not_found",
+  });
+
+  await database.client.query(
+    "UPDATE memberships SET role = 'program_manager', administration = 'none' WHERE user_id = 'dana'",
+  );
+  expect(await read()).toEqual(before);
+});
 
 it.for(["create", "update"] as const)(
   "rolls back contact %s when its history cannot be recorded",
