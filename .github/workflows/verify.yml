@@ -24,6 +24,29 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 2
+
+      - name: Detect Renovate configuration changes
+        id: renovate
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          if [[ "$EVENT_NAME" == pull_request ]]; then
+            # Checkout uses the PR merge commit; its first parent is the base branch.
+            changed_files="$(git diff --name-only HEAD^1 HEAD -- renovate.json .github/workflows/verify.yml)"
+          else
+            changed_files=manual
+          fi
+          if [[ -n "$changed_files" ]]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Validate Renovate configuration
+        if: steps.renovate.outputs.changed == 'true'
+        uses: docker://ghcr.io/renovatebot/renovate:44.236.4@sha256:c00542ee2c0ca5623fd9e98b3878ae175ddc7b6a695c7bd04aceba8a9b44d0e4
+        with:
+          entrypoint: renovate-config-validator
+          args: --strict --no-global renovate.json
 
       - name: Set up Vite+, Node.js, and pnpm
         uses: voidzero-dev/setup-vp@cab1ab9eaff52d4857875f4f2c016e36af8f2c76 # v1.22.0

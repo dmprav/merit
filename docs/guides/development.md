@@ -400,6 +400,30 @@ reporting link in [the security policy](../../SECURITY.md) current. These settin
 complement the [local security checks](verification.md#security-checks).
 Committing documentation does not enable them.
 
+### Dependency updates
+
+[Renovate configuration](../../renovate.json) allows new update branches on
+weekdays from midnight to 06:00 in Europe/Berlin, with at most five ordinary
+update PRs open. Lockfile maintenance runs in the Monday window. These windows
+allow work when Renovate runs; they do not trigger a run. Vulnerability fixes
+bypass the ordinary schedule and receive the `security` label.
+
+Updates require manual merging, and major upgrades require approval in the
+Dependency Dashboard before Renovate opens a PR. The Playwright ceiling preserves
+the [Firefox workaround](verification.md#browser-compatibility); remove it only
+after verifying a stable upstream fix. The npm release-age preset delays ordinary
+updates for three days, but does not enforce that age for dependencies selected
+during lockfile maintenance. OSV alerts supplement the existing dependency audit;
+they cover direct npm dependencies and remain experimental.
+
+The required Verify job validates changes to `renovate.json` or its own workflow
+with Renovate's strict repository-config validator, using a version- and
+digest-pinned container. Manual Verify runs also validate the configuration.
+Warnings, errors, and required configuration migrations fail the check. Use
+**Actions → Verify → Run workflow** to recheck the configuration. Review the
+onboarding preview or Dependency Dashboard as well: validation checks configuration
+validity, not whether package rules select the intended updates.
+
 ### Pull-request verification
 
 The [Verify workflow](../../.github/workflows/verify.yml) uses one Ubuntu 24.04 job
