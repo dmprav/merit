@@ -1,6 +1,34 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "config:recommended"
+    "config:recommended",
+    ":semanticCommits",
+    ":semanticCommitTypeAll(chore)",
+    ":configMigration",
+    "helpers:pinGitHubActionDigests",
+    "docker:pinDigests",
+    "security:minimumReleaseAgeNpm"
+  ],
+  "timezone": "Europe/Berlin",
+  "schedule": ["* 0-5 * * 1-5"],
+  "prConcurrentLimit": 5,
+  "automerge": false,
+  "osvVulnerabilityAlerts": true,
+  "vulnerabilityAlerts": {
+    "labels": ["security"]
+  },
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["* 0-5 * * 1"]
+  },
+  "major": {
+    "dependencyDashboardApproval": true
+  },
+  "packageRules": [
+    {
+      "description": "Keep the Firefox accessibility workaround until a stable fix for microsoft/playwright#43967 is verified; then remove this rule.",
+      "matchPackageNames": ["@playwright/test"],
+      "allowedVersions": "<1.65.0"
+    }
   ]
 }
