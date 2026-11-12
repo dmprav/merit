@@ -2,6 +2,7 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite-plus";
 
 import { reactCompilerOptions } from "../../tooling/react-compiler";
+import { componentTestTimeout } from "../../tooling/testing/component-tests";
 
 export default defineConfig({
   run: { tasks: { test: "vp test" } },
@@ -9,6 +10,7 @@ export default defineConfig({
   test: {
     allowOnly: false,
     environment: "jsdom",
+    testTimeout: componentTestTimeout,
     include: ["src/**/*.test.tsx"],
     setupFiles: ["./tests/setup.ts"],
   },

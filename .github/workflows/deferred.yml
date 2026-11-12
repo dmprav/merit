@@ -1,6 +1,6 @@
 name: Deferred verification
 
-# Runs the full `ready` milestone, including the suites deferred from the required
+# Runs every stage of the `ready` milestone, including the suites deferred from the required
 # PR gate, to measure their reliability on CI. Not a required check.
 on:
   pull_request:
@@ -47,7 +47,7 @@ jobs:
 
       - name: Restore Playwright browsers
         id: browsers
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
@@ -56,6 +56,14 @@ jobs:
         if: steps.browsers.outputs.cache-hit != 'true'
         run: pnpm --filter @merit/test-support exec playwright install --with-deps chromium firefox webkit
 
+      # Saved before verification so a failing run still reuses the download.
+      - name: Save Playwright browsers
+        if: steps.browsers.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ steps.browsers.outputs.cache-primary-key }}
+
       - name: Install Playwright system dependencies
         if: steps.browsers.outputs.cache-hit == 'true'
         run: pnpm --filter @merit/test-support exec playwright install-deps chromium firefox webkit
@@ -63,11 +71,55 @@ jobs:
       - name: Start PostgreSQL and Mailpit
         run: docker compose up -d --wait
 
-      - name: Run full verification
+      # The `ready` stages run one at a time, each after a failed stage too, so one
+      # failure cannot hide the result of another. Stages and order follow `ready`.
+      - name: Build
+        id: build
+        env:
+          TMPDIR: ${{ runner.temp }}
+        run: vp run --no-cache ready:build 2>&1 | tee "$RUNNER_TEMP/verify.log"
+
+      - name: Static checks
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         env:
           TMPDIR: ${{ runner.temp }}
           MERIT_BROWSER_RETRIES: "2"
-        run: vp run --no-cache ready 2>&1 | tee "$RUNNER_TEMP/verify.log"
+        run: vp run --no-cache --ignore-depends-on ready:static 2>&1 | tee -a "$RUNNER_TEMP/verify.log"
+
+      - name: Package tests
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        env:
+          TMPDIR: ${{ runner.temp }}
+          MERIT_BROWSER_RETRIES: "2"
+        run: vp run --no-cache --ignore-depends-on ready:tests 2>&1 | tee -a "$RUNNER_TEMP/verify.log"
+
+      - name: Runtime suites
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        env:
+          TMPDIR: ${{ runner.temp }}
+          MERIT_BROWSER_RETRIES: "2"
+        run: vp run --no-cache --ignore-depends-on ready:runtime 2>&1 | tee -a "$RUNNER_TEMP/verify.log"
+
+      - name: Tooling self-tests
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        env:
+          TMPDIR: ${{ runner.temp }}
+          MERIT_BROWSER_RETRIES: "2"
+        run: vp run --no-cache --ignore-depends-on ready:tooling 2>&1 | tee -a "$RUNNER_TEMP/verify.log"
+
+      - name: Security checks
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        env:
+          TMPDIR: ${{ runner.temp }}
+          MERIT_BROWSER_RETRIES: "2"
+        run: vp run --no-cache --ignore-depends-on check:security 2>&1 | tee -a "$RUNNER_TEMP/verify.log"
+
+      - name: Source-modifying probes
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        env:
+          TMPDIR: ${{ runner.temp }}
+          MERIT_BROWSER_RETRIES: "2"
+        run: vp run --no-cache --ignore-depends-on ready 2>&1 | tee -a "$RUNNER_TEMP/verify.log"
 
       - name: Collect service logs
         if: always()

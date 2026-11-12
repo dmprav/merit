@@ -2,6 +2,7 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite-plus";
 
 import { reactCompilerOptions } from "../react-compiler";
+import { componentTestTimeout } from "./component-tests";
 
 export const webTestConfig = () =>
   defineConfig({
@@ -25,6 +26,7 @@ export const webTestConfig = () =>
           test: {
             name: "ui",
             environment: "jsdom",
+            testTimeout: componentTestTimeout,
             environmentOptions: { jsdom: { url: "http://localhost:3000/" } },
             include: ["src/**/*.test.tsx"],
             setupFiles: ["./tests/setup-ui.ts"],

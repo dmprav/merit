@@ -249,6 +249,13 @@ after unmounting React. Keep a one-line import in the package's setup file so it
 TypeScript program includes the matcher declarations. The drafts library keeps
 its own storage setup to test that foundation independently of the consumer harness.
 
+jsdom projects share a 15-second
+[component test timeout](../../tooling/testing/component-tests.ts) instead of Vitest's
+5-second default. On CI, where package suites run in parallel, view journeys take about
+three times as long as locally and reached the default. A test that times out keeps
+running and can type into the next test's view, so one slow test can fail the rest of
+its file. Look for the first timeout before investigating the others.
+
 Run `vp run @merit/test-support#test` when changing shared component setup, along
 with the affected consumers. Browser suites cover actual layout and responsive
 behavior; the jsdom substitutes do not model them.

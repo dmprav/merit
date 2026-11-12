@@ -1,5 +1,7 @@
 import { defineConfig } from "vite-plus";
 
+import { componentTestTimeout } from "../../tooling/testing/component-tests";
+
 const policyTests = ["src/store.test.ts", "src/sessions.test.ts", "src/format.test.ts"];
 
 export default defineConfig({
@@ -16,6 +18,7 @@ export default defineConfig({
         test: {
           name: "browser",
           environment: "jsdom",
+          testTimeout: componentTestTimeout,
           include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
           exclude: policyTests,
           setupFiles: ["./tests/setup.ts"],
