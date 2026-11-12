@@ -80,10 +80,14 @@ verification tools themselves; the retained checks do not replace them.
 Normal parallel scheduling is restored, with no CI-specific worker cap.
 `ready` still runs every suite locally, including its final source-modifying probes.
 
-The [deferred verification workflow](../../.github/workflows/deferred.yml) runs the
-full `ready` milestone on CI for pull requests targeting `main`, nightly, and on
+The [deferred verification workflow](../../.github/workflows/deferred.yml) runs every
+stage of the `ready` milestone on CI for pull requests targeting `main`, nightly, and on
 demand. It is not a required check, so its result does not block merging. It
-measures whether the deferred suites are reliable on CI: Playwright retries failed
+measures whether the deferred suites are reliable on CI. After the build, it runs
+each `ready` stage as a separate step, one at a time and in `ready`'s order, and runs
+later stages even when an earlier one fails, so a failing package test cannot keep
+the browser suites from reporting. The step results show which stages failed, and
+the `test:ci` guard keeps those steps in line with `ready`. Playwright retries failed
 browser tests twice there (`MERIT_BROWSER_RETRIES`) and reports passing retries as
 flaky, and its log and browser traces are kept even when it passes. Fix the
 underlying cause of each flaky or failing test; retries apply only to this

@@ -1,5 +1,7 @@
 import { defineConfig } from "vite-plus";
 
+import { componentTestTimeout } from "./component-tests";
+
 export default defineConfig({
   run: {
     tasks: {
@@ -17,6 +19,7 @@ export default defineConfig({
   test: {
     allowOnly: false,
     environment: "jsdom",
+    testTimeout: componentTestTimeout,
     environmentOptions: { jsdom: { url: "http://localhost:3000/" } },
     include: ["ui/**/*.test.ts"],
     setupFiles: ["./ui/setup-workspace.ts"],
