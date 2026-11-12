@@ -1,0 +1,137 @@
+import { Canvas, Meta } from "@storybook/addon-docs/blocks";
+import * as Editing from "./editing.stories";
+import * as PropertyButtons from "./property-button.stories";
+
+<Meta of={Editing} />
+
+# Edit and resume work
+
+Choose the interaction by the scope of the change and the reference material the
+person needs. This pattern defines editing behavior across Merit, applying the
+[experience principles](../../../../../docs/foundations/experience.md#make-editing-predictable).
+Workflows own business prerequisites and their specific conflict resolution.
+
+## Save, close, or discard
+
+For multi-field forms and authored content:
+
+- **Save** commits the stated change. Confirm success only after commitment.
+- **Close** hides the editor and preserves unfinished writing. The close control,
+  Escape, and any supported outside dismissal have the same effect.
+- **Discard changes** or **Discard draft** removes local edits and closes the
+  editor, leaving saved work unchanged.
+- **Resume…** reopens unfinished work through its original entry point.
+
+Use a specific Save label when it clarifies scope, such as **Save working revision**.
+A server-saved working revision is shared work; discarding it is a separate business
+action defined by the workflow, not the local Discard control.
+
+Returning to a page opens its reading view so people can inspect current information
+before resuming. Opening and closing an untouched editor leaves no draft indicator.
+Keep reference material and reading position when an editor closes.
+
+## Change one property
+
+Use `PropertyButton` from `@merit/ui/property-button` when activating a displayed
+value opens its editor. Supply the value, an accessible label naming the action
+and value, and `action="choose"` for a picker or `action="edit"` for an editor.
+It owns wrapping, typography, spacing, and the visible cue. Use `PersonIdentity`
+inside it for a person and `draftLabel` for retained unsaved changes. Keep these
+controls aligned with other property values; feature CSS arranges their container.
+
+<Canvas of={PropertyButtons.Person} />
+<Canvas of={PropertyButtons.LongName} />
+
+Use `InlineName` for a short name and `DateChoice` for a calendar date. `DateChoice`
+composes the shared [date field](../../components/fields/date-field/date-field.mdx) and calendar,
+keeping an unsuccessful choice visible for retry. Typed values
+have inline check (**Save**) and × (**Cancel**) icon controls, accessible names,
+and tooltips. Enter saves and Escape cancels; neither blur nor an undisclosed
+shortcut is the only save route. Cancel abandons this small edit.
+
+A calendar date or person choice can commit immediately when its scope is clear,
+with feedback and recovery such as undo. Explain additional consequences before
+commitment. The feature owns saving, conflicts, and revision-checked undo.
+
+<Canvas of={Editing.InlineNameEditor} />
+<Canvas of={Editing.DateChoiceEditor} />
+
+Use `ChoiceList` for a searchable property picker. Its selection commits through
+the owning workflow. Present these small pickers in `PopoverDialog` with
+`appearance="compact"`; the dialog retains an accessible name without repeating
+the field label in a separate heading. `DateChoice` supplies its own Cancel
+control. Pass the dialog's `closeButton` to `ChoiceList.headerActions` to keep
+search and dismissal together.
+
+<Canvas of={Editing.ChoiceListPicker} />
+
+## Write or edit several fields
+
+Use `Form` and `FormActions` from `@merit/forms`. Form footers use labelled buttons:
+primary Save, secondary Close, and quieter Discard separated from the commit controls.
+Use `cancelVariant="quiet"` when Close should have less visual emphasis, as in
+the inline intake editors.
+Keep actions reachable within the editor's scroll area. A dialog header can use
+an × close icon; secondary footer actions use labels with the rest of that group.
+For a bounded editing task, wrap the feature's `Form` in `FormDialog` from `@merit/forms`.
+It supplies a context header, scrollable fields, a tinted footer with persistent
+actions, and Cmd/Ctrl+Enter submission together. The form can remain inside a
+feature component; it inherits these conventions without repeating presentation
+props. The [form dialog examples](?path=/docs/patterns-form-dialog--docs) show compact
+and wide forms, context wrapping, validation, and pending and failed saves.
+`Form` uses the shared `DialogContent` layout for its bounded body and footer;
+feature styles arrange fields within that body. Nested editors retain their own
+form presentation and submit independently.
+The default width fits short forms, such as requesting a review. Choose
+`size="wide"` for sustained writing, such as recording one. Use `ModalDialog` for
+other bounded content, or an inline editor or adjacent writing panel when
+reference material is needed. The container does not change Close semantics.
+
+Beside headings, use a pencil icon to edit or resume, with an accessible action
+name and tooltip. Set `data-draft` on the shared `Button` for a visible draft dot
+and change the name and tooltip to **Resume…**. Existing creation actions change
+their label to **Resume…** when they have a draft. Contact pickers also reopen
+unfinished work through the original entry point.
+
+The feature owns draft values separately from whether the editor is open. Connect
+`useForm.onChange` to that draft and restore it when reopening. A successful save
+clears the committed draft; failures retain it. While saving, prevent duplicate
+submissions and dismissal that could hide an uncertain outcome.
+The dialog's `isDismissDisabled` and inline close controls must share that pending
+guard. Closing restores focus to the trigger or another useful control if it is gone.
+
+## Recover safely
+
+Workspace and administration drafts belong to the current account and browser
+profile. Preserve them through navigation, reload, and reopening the browser on
+the same device. Clear them after successful
+commitment, explicit discard, or an account change. These drafts provide local
+recovery; they are not shared or server-saved records. Public invitation requests
+retain their short email entry only while closed on the current page. Standalone
+previews and Storybook drafts remain in memory.
+
+`useDrafts` from `@merit/drafts` provides this recovery through IndexedDB. Keep
+schemas, format versions, and workspace-qualified record keys with
+the feature. The [draft package](../../../../drafts/README.md) owns storage and
+account cleanup. Storage accepts unfinished values, including invalid inputs;
+submission validates the commitment. Retain original revisions and retry identities;
+reopening a draft must never silently advance its baseline. Mount the store for its
+account scope and share it across entry points for the same record. Wait for
+restoration before mounting editors. If storage fails, retain edits in
+memory and explain that recovery requires keeping the tab open. Separate tabs
+can save different drafts. If another tab changes the same local draft, preserve
+its recovery copy and keep this tab’s edits in memory with a warning to save or
+discard before closing. Discarding this tab’s edits leaves the other tab’s copy
+intact. Browser storage may be cleared by the browser or the person using it;
+local persistence does not establish server commitment.
+
+Conflicts preserve the draft and require explicit reconciliation or discard.
+A committed write followed by a failed refresh remains a successful save: retain
+the known result and offer a refresh without repeating the write. The
+[web feature guide](../../../../../docs/guides/web-features.md#find-an-existing-workflow)
+explains how controllers and data adapters carry these separate outcomes.
+
+Verify close and reopen, discard, navigation and reload, failed saves, concurrent
+changes, and account isolation. Check draft markers, Resume names, and keyboard
+focus as well as stored values. Feature tests exercise these boundaries through
+their actual forms.

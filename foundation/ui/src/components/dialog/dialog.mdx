@@ -1,0 +1,87 @@
+import { Canvas, Meta } from "@storybook/addon-docs/blocks";
+import * as Dialog from "./dialog.stories";
+
+<Meta of={Dialog} />
+
+# Frame a focused task
+
+Use a dialog for a bounded task or reference material that should preserve the
+surrounding work. Choose the composition by what the person needs to do:
+
+| Task                                 | Composition                                                                |
+| ------------------------------------ | -------------------------------------------------------------------------- |
+| Read short information               | `ModalDialog` with `DialogContent`.                                        |
+| Read substantial evidence or history | A wide `ModalDialog` with `DialogContent`; use `reading` for prose.        |
+| Create or edit a record              | [Form dialog](?path=/docs/patterns-form-dialog--docs), sized for the task. |
+| Authorize a consequential action     | [Confirmation dialog](?path=/docs/patterns-confirmation-dialog--docs).     |
+| Work beside an individual value      | `PopoverDialog`, with content and actions appropriate to that small task.  |
+
+The shared frame owns the backdrop, focus containment, accessible title, close
+control, and motion. Centered dialogs and standard popovers have a compact tinted
+header. Navigation drawers retain their edge placement and navigation layout.
+
+## Work beside a value
+
+`PopoverDialog` keeps a compact heading and close control visible above a
+keyboard-scrollable body. Pass content directly: the standard appearance supplies
+its own `DialogContent`. Group related information with spacing. Pass utility
+content through `footer` to group it in a tinted area below the body. When a
+footer is present, it scrolls with the content so utilities cannot squeeze out
+the reading area. The heading stays visible. Long titles wrap beside the close
+control.
+
+The compact appearance lets pickers supply their own heading and place the
+provided `closeButton` alongside it.
+
+<Canvas of={Dialog.Popover} />
+
+<Canvas of={Dialog.FloatingLongContent} />
+
+## Keep content and actions reachable
+
+`DialogContent` owns the scrollable body and optional persistent footer. Use its
+`label` to name the keyboard-focusable region, put reference material in its
+children, and pass feedback and actions through `footer`. It supplies padding,
+scrollbar and focus treatment, and the footer separator. The content can grow to
+the available height while the header and actions stay visible.
+When enlarged text or long translations leave too little space for the body,
+the centered dialog scrolls as one surface instead. The heading, fields, feedback,
+and actions remain reachable without squeezing the work into a single line.
+
+<Canvas of={Dialog.WithActions} />
+
+For sustained reading, use `size="wide"` on the frame and `reading` on its content.
+Reading typography and line length belong to that content; compact metadata and
+comparisons can retain their own typography. Features arrange their information
+inside the body without implementing another scroll container or footer.
+
+<Canvas of={Dialog.LongContent} />
+
+The same layout also works inside a form. `Form` in `@merit/forms` consumes it
+inside `FormDialog`, preserving one native form around its fields and submit
+controls. The form pattern owns validation and submission; the dialog layout
+owns presentation. Form dialogs share their desktop position, responsive gutters,
+and tinted footer through this layout, with width chosen for the task.
+
+## Preserve context and dismissal meaning
+
+For work within a fixed parent, supply `context` and a localized `contextLabel`
+when the relationship needs naming, such as “Round: Community grants”. The title
+and context share a compact row where space permits; long context wraps while
+the close control stays reachable. Omit context when it adds no useful orientation.
+
+Supply `closeLabel` from the message catalog. The close control and Escape use
+the same dismissal path. Enable backdrop dismissal only when it fits the task.
+Use `isDismissDisabled` while an operation must remain visible; it guards the
+header close control, Escape, and outside dismissal together.
+
+Features own what closing means for their draft and what success commits. Follow
+the [editing pattern](?path=/docs/patterns-editing--docs) for Close, Discard, and
+Resume behavior. Shared modal dialogs fade in with a small upward movement;
+navigation drawers slide from their edge, and popover dialogs use a smaller,
+quicker entrance. Closing starts gently and accelerates out. Focus and input remain
+available during entrance, and reduced-motion preferences skip the transitions.
+
+The dialog retains its last open content until the exit finishes, so callers can
+clear their drafts on dismissal without collapsing the visible form. Focus returns
+to the trigger when it remains available.

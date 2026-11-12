@@ -1,0 +1,48 @@
+{
+  "name": "@merit/rounds-web",
+  "version": "0.0.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "type": "module",
+  "exports": {
+    "./preparation": "./src/preparation.ts",
+    "./messages": "./src/messages.tsx",
+    "./contracts": "./src/contracts.ts",
+    "./work": "./src/work.ts",
+    "./drafts": "./src/drafts.ts",
+    "./message-content": "./src/message-content.ts",
+    "./data": "./src/data/preparation/workspace-data.ts"
+  },
+  "dependencies": {
+    "@merit/contacts-web": "workspace:*",
+    "@merit/drafts": "workspace:*",
+    "@merit/forms": "workspace:*",
+    "@merit/grantmaking": "workspace:*",
+    "@merit/i18n": "workspace:*",
+    "@merit/money": "workspace:*",
+    "@merit/query": "workspace:*",
+    "@merit/rounds": "workspace:*",
+    "@merit/ui": "workspace:*",
+    "@tanstack/react-query": "catalog:",
+    "i18next": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "react-i18next": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@merit/test-support": "workspace:*",
+    "@storybook/react-vite": "catalog:",
+    "@testing-library/dom": "catalog:",
+    "@testing-library/react": "catalog:",
+    "@testing-library/user-event": "catalog:",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "jsdom": "catalog:",
+    "storybook": "catalog:",
+    "typescript": "^7.0.2",
+    "vite": "catalog:",
+    "vite-plus": "catalog:"
+  }
+}

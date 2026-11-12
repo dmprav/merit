@@ -1,0 +1,55 @@
+.editingAction {
+  /* Reserve the action's space so opening the editor does not move the header. */
+  visibility: hidden;
+}
+
+.header {
+  margin-bottom: var(--space-5);
+}
+
+.empty {
+  color: var(--muted);
+  font-size: var(--text-body);
+}
+
+.budgetPreview {
+  flex: 1;
+  font-size: var(--text-caption);
+  color: var(--muted);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.budgetPreview strong {
+  color: var(--foreground);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.budgetPreview .overBudget {
+  color: var(--warning);
+}
+
+.allocationFields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.fields > [role="status"]:empty {
+  display: none;
+}
+
+.budgetContext {
+  border-block: 1px solid var(--border);
+  padding-block: var(--space-3);
+}
+
+@media (max-width: 1100px) {
+  .allocationFields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

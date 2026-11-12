@@ -1,0 +1,51 @@
+import { ArgTypes, Canvas, Meta } from "@storybook/addon-docs/blocks";
+import * as Layout from "./layout.stories";
+
+<Meta of={Layout} />
+
+# Layout primitives
+
+Use these building blocks for recurring flow and line length inside a component.
+The [foundations](?path=/docs/foundations-tokens--docs) own the
+spacing scale; [page composition](?path=/docs/patterns-page-composition--docs)
+explains page framing and arrangements for reading, comparison, and editing.
+
+## Compose simple flows
+
+Import `Stack` and `Inline` from `@merit/ui/layout`. `Stack` arranges direct children
+vertically with a default `space-4` gap. `Inline` centers children vertically and
+wraps them in reading order with a default `space-2` gap. Its wrapping responds to
+the available space, including in a narrow panel on a wide screen. Set `gap` to a
+step in the spacing scale when a group needs a different rhythm.
+
+Choose an appropriate element with `as`: label sections, preserve article semantics,
+and supply `li` children for lists. These components add no headings or landmarks
+automatically. Keep DOM order meaningful for reading and keyboard navigation.
+Use `className` for placement and feature presentation, such as a reading width
+or attribution indentation. Keep columns, unequal row and column gaps, and
+breakpoint-dependent changes in local CSS.
+
+<Canvas of={Layout.Narrow} story={{ inline: true, height: "480px" }} />
+
+Use `align="start"` when a short action should sit at the top of multiline content,
+and `align="baseline"` when differently sized text should share a baseline.
+Use `justify="between"` to separate context from its action while they fit on one
+line; a wrapped item starts a new line in reading order. Use `justify="end"` for
+an action group aligned to the end of its available space. Alignment applies to
+each line, so check the wrapped result as well as the wide arrangement.
+
+<Canvas of={Layout.Alignment} story={{ inline: true, height: "340px" }} />
+
+## Constrain reading
+
+Import `Reading` from `@merit/ui/layout` to constrain prose to `measure-reading`
+inside a page or panel. Choose its element with `as`, and apply reading typography
+in the content's CSS Module. It adds no spacing, headings, or landmarks by default.
+Constrain the prose itself so surrounding actions, comparison columns, and tables
+can use their available width.
+
+<Canvas of={Layout.ReadingWidth} />
+
+## Flow controls
+
+<ArgTypes of={Layout} />

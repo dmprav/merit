@@ -1,0 +1,46 @@
+.variants {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-6);
+}
+
+.variant > * + * {
+  margin-top: var(--space-3);
+}
+
+.description {
+  font-size: var(--text-body);
+  line-height: 1.25rem;
+  color: var(--muted);
+}
+
+.examples > * + * {
+  margin-top: var(--space-8);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.stack > * + * {
+  margin-top: var(--space-4);
+}
+
+.row {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.narrow {
+  max-width: 16rem;
+}
+
+.mutedSurface {
+  --button-quiet-background: var(--surface);
+  padding: var(--space-4);
+  background: var(--surface-muted);
+}

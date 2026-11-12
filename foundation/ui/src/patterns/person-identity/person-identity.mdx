@@ -1,0 +1,42 @@
+import { ArgTypes, Canvas, Meta } from "@storybook/addon-docs/blocks";
+import * as People from "./person-identity.stories";
+
+<Meta of={People} />
+
+# Identify people consistently
+
+Use `PersonIdentity` for a person in property values, lists, attribution, and
+account controls. It pairs the visible name with decorative initials; the name
+carries the accessible identity. Keep prose mentions and audit sentences as text,
+and workspace marks separate from people.
+
+## Fit identity to its context
+
+Compact names use a 24 px avatar, an 8 px gap, and the surrounding typography.
+Names with supporting details or an explicit `nameAs` heading use the 28 px form.
+Use `nameAs` when the name itself introduces a section. Supporting content must
+be phrasing content, such as text, spans, links, or badges.
+
+<Canvas of={People.Compact} />
+<Canvas of={People.Reviewer} />
+
+Wrap the component in a real link for navigation. Keep account menus, review
+outcomes, and domain status logic with the feature.
+
+<Canvas of={People.Linked} />
+
+## Align and wrap the whole identity
+
+Align the whole avatar/name group with other values. In compact property groups,
+use the same 32 px minimum row height for text and people, center content vertically,
+and avoid adding a second layer of vertical padding around an identity control.
+Let long names wrap and rows grow; keep touch targets at the shared control size.
+Supporting content beneath a person aligns with the name using the shared avatar
+size and spacing variables. Features arrange the group; avatar dimensions belong
+to the shared component, without local overrides.
+
+<Canvas of={People.LongName} />
+
+## Component options
+
+<ArgTypes of={People} />

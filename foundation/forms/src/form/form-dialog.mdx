@@ -1,0 +1,64 @@
+import { Canvas, Meta } from "@storybook/addon-docs/blocks";
+import * as FormDialogs from "./form-dialog.stories";
+
+<Meta of={FormDialogs} />
+
+# Create and edit in a dialog
+
+Wrap a feature's `Form` in `FormDialog` for a bounded editing task. The form
+inherits a scrolling body, persistent feedback and actions, and Cmd/Ctrl+Enter
+submission. Its fields and submit controls remain in one native form, so keyboard
+submission follows the same validation as the visible button.
+
+## Choose the space for the task
+
+All form dialogs share a stable desktop position, context header, backdrop,
+responsive spacing, and tinted footer. The default width fits shorter forms,
+such as inviting a member or entering contact details. Use `size="wide"` for
+sustained writing, such as creating an application or recording a review. Size
+changes the available width within the same
+[content layout](?path=/docs/components-dialog--docs).
+
+<Canvas of={FormDialogs.Compact} />
+<Canvas of={FormDialogs.Wide} />
+
+Supply the parent context when it helps someone identify the record they are
+working within. Long names wrap without hiding the close control.
+
+<Canvas of={FormDialogs.LongContext} />
+
+The body scrolls independently of the title, feedback, and actions. Features
+arrange their fields inside it; they do not need their own scroll or footer CSS.
+Shared forms separate their children by `space-2` (8 px); individual fields own
+label and feedback spacing, as described by the [field guidance](?path=/docs/components-fields--docs).
+Nested forms retain their own presentation and submit independently.
+
+<Canvas of={FormDialogs.LongContent} />
+
+## Keep commitment and recovery explicit
+
+`Form` focuses the first invalid field after an unsuccessful validation and
+announces save errors. `FormActions` presents the primary commit action, Close,
+and optional Discard. Supply task-specific labels and callbacks; the optional
+`discard` action pairs its label with its callback. Closing preserves
+unfinished work; discarding removes it. Features own draft persistence, business
+validation, saving, and the outcome after commitment, as described by the
+[editing pattern](?path=/docs/patterns-editing--docs).
+
+<Canvas of={FormDialogs.RequiredTitle} />
+
+Pass the operation's pending state to `FormDialog.isDismissDisabled`. `Form` and
+`FormActions` use their submission state to disable editing and duplicate submits.
+Field adapters inherit pending state from their nearest `Form`, including options
+and calendars rendered in a popup. Use a field's `isDisabled` prop for additional
+restrictions. A nested form owns its own pending state. The dialog guard covers
+the header close control and Escape; keep all dismissal routes tied to the same
+operation. Keep failed saves open with their input intact.
+
+<Canvas of={FormDialogs.Pending} />
+<Canvas of={FormDialogs.Failure} />
+
+These examples use the public form pattern. Feature stories should render their
+real feature flow and replace transport, persistence, or navigation with isolated
+fixtures. Close, Discard, validation, and pending behavior remain live interactions
+rather than preview-only substitutes.

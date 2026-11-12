@@ -1,0 +1,17 @@
+.guide {
+  font-size: var(--text-body);
+  line-height: 1.55;
+}
+
+.title {
+  font-weight: 600;
+}
+
+.workspaceActions {
+  margin-inline-start: calc(-1 * var(--space-3));
+}
+
+.expiry {
+  font-size: var(--text-caption);
+  color: var(--muted);
+}

@@ -1,0 +1,61 @@
+import { Canvas, Meta } from "@storybook/addon-docs/blocks";
+import * as Notices from "../../components/notice/notice.stories";
+import * as Status from "../status-message/status-message.stories";
+import * as States from "../state-message/state-message.stories";
+
+<Meta title="Patterns/Feedback" />
+
+# Explain outcomes and recovery
+
+Choose feedback by the actual result and the work that remains possible. Features
+supply outcomes and recovery actions; shared controls own presentation and accessible
+announcements. Confirm success only after commitment, and retain unfinished work
+when an action fails.
+
+## Choose and place feedback
+
+| Situation                                                 | Presentation                                               |
+| --------------------------------------------------------- | ---------------------------------------------------------- |
+| A completed action needs a brief confirmation             | `StatusMessage` with `confirmation`                        |
+| An update needs announcing without a visible confirmation | `StatusMessage`                                            |
+| A concern or failure needs explanation and a next action  | A persistent `Notice` beside the affected work             |
+| The page cannot show its initial content                  | `StateMessage` inside the available page or recovery frame |
+
+Place persistent feedback beside the work it affects. Choose a Notice tone that
+matches the meaning and include an explanation and useful next action.
+See [Notices](?path=/docs/components-notice--docs) for tone and announcement guidance and
+[Status messages](?path=/docs/patterns-status-message--docs) for brief confirmations.
+Position workspace confirmations with the `confirmation` class from
+`application-shell.module.css`; the status component owns their lifetime and
+announcement behavior.
+
+Keep `StatusMessage` mounted before messages arrive, and supply a new `eventId`
+for each event, including repeated messages. Its
+[API contract](?path=/docs/patterns-status-message--docs) owns announcement and lifetime behavior.
+
+<Canvas of={Status.InWorkspace} story={{ inline: false, height: "380px" }} />
+
+## Recover the affected work
+
+Show failures when they affect the person's work or next decision. A background
+refresh with usable content can remain quiet. Failed saves and uncertain outcomes
+need feedback beside the action and must retain the draft.
+After a confirmed save, keep the success feedback and explain a failed refresh
+only when the missing information affects subsequent work.
+
+Use the existing recovery view when an initial read fails, including offline.
+Retry the affected read or route without reloading the document. Show progress on
+the retry button and prevent repeated activation while it runs. Routine background
+reads need no loading indicator.
+
+Keep workspace navigation and account controls when a page fails inside an
+accessible workspace. When the workspace itself is inaccessible, use the
+[application shell's recovery frame](?path=/docs/patterns-application-shell--docs)
+with account controls and a return link. The interface supplies a destination the
+person can access. Explain which resource is affected and keep retry or sign-in
+actions beside the problem. Preserve surrounding context and unfinished work
+wherever it remains usable.
+
+<Canvas of={Notices.WithRecovery} />
+
+<Canvas of={States.Recovery} />

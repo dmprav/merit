@@ -1,0 +1,11 @@
+.content {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.description {
+  font-size: var(--text-body);
+  line-height: 1.5;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}

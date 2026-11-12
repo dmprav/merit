@@ -1,0 +1,18 @@
+.resizeControl {
+  margin-bottom: var(--space-4);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--text-body);
+  line-height: 1.25rem;
+}
+
+.narrow {
+  max-width: 16rem;
+}
+
+.status {
+  margin-bottom: var(--space-4);
+  font-size: var(--text-body);
+  line-height: 1.25rem;
+}

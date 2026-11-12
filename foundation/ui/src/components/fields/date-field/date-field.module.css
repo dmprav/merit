@@ -1,0 +1,19 @@
+.controls {
+  font-variant-numeric: tabular-nums;
+}
+
+.trigger[data-icon-only] {
+  min-height: calc(var(--control-height-small) - 2px);
+  border-radius: calc(var(--control-radius) - 1px);
+}
+
+.trigger[data-focus-visible] {
+  background: color-mix(in srgb, var(--field-focus) 10%, var(--surface));
+  color: var(--field-focus);
+}
+
+@media (pointer: coarse) {
+  .trigger[data-icon-only] {
+    min-height: var(--target-touch);
+  }
+}

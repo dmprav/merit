@@ -1,0 +1,59 @@
+.trigger[data-variant] {
+  display: inline;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  letter-spacing: inherit;
+  line-height: inherit;
+  white-space: normal;
+  text-align: left;
+}
+
+.trigger svg {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  margin-left: var(--space-2);
+  color: var(--muted);
+  vertical-align: middle;
+}
+
+.editor {
+  display: inline-grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  max-width: 100%;
+  gap: var(--space-1);
+}
+
+.input {
+  min-width: 0;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  border-bottom: 1px solid var(--focus);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  line-height: inherit;
+  outline: none;
+}
+
+.input:focus-visible {
+  box-shadow: 0 1px 0 var(--focus);
+}
+
+.actions {
+  display: inline-flex;
+  margin-inline-start: auto;
+}
+
+.error {
+  grid-column: 1 / -1;
+  width: 100%;
+  font-size: var(--text-detail);
+  font-weight: 400;
+  color: var(--danger);
+}

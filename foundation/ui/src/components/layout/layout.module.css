@@ -1,0 +1,33 @@
+.stack {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+}
+
+.inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  min-width: 0;
+}
+
+.inline[data-align="start"] {
+  align-items: flex-start;
+}
+
+.inline[data-align="baseline"] {
+  align-items: baseline;
+}
+
+.inline[data-justify="end"] {
+  justify-content: flex-end;
+}
+
+.inline[data-justify="between"] {
+  justify-content: space-between;
+}
+
+.reading {
+  min-width: 0;
+  max-width: var(--measure-reading);
+}

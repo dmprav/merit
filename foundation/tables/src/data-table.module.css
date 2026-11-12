@@ -1,0 +1,243 @@
+.container {
+  container: merit-table / inline-size;
+  min-width: 0;
+}
+
+.scrollArea {
+  overflow-x: auto;
+}
+
+.scrollArea[data-scroll="page"] {
+  overflow: visible;
+}
+
+.scrollArea[data-scroll="table"] {
+  overflow: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: auto;
+  font-size: var(--text-detail);
+}
+
+.table th {
+  font-size: var(--text-caption);
+  font-weight: 500;
+  color: var(--muted);
+  text-align: left;
+  padding: var(--space-2) var(--space-4) var(--space-2) 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.table th .sortButton {
+  max-width: 100%;
+  padding-inline: var(--space-1);
+  margin-inline: calc(-1 * var(--space-1));
+  border: 0;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  justify-content: flex-start;
+}
+
+.sortButton > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.table th .sortButton:not([data-focus-visible]):is([data-hovered], [data-pressed]),
+.table th[aria-sort] .sortButton:not([data-focus-visible]) {
+  color: var(--foreground);
+  background: var(--surface-muted);
+}
+
+.table [data-align="end"] .sortButton {
+  flex-direction: row-reverse;
+}
+
+.sortIcon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  opacity: 0.65;
+}
+
+.table th[aria-sort] .sortIcon,
+.sortButton:is([data-hovered], [data-focus-visible]) .sortIcon {
+  opacity: 1;
+}
+
+.table td {
+  padding: var(--space-3) var(--space-4) var(--space-3) 0;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.table [data-align="end"] {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+@container merit-table (width > 760px) {
+  .table[data-sticky] {
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+
+  .table[data-sticky] thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--surface);
+    box-shadow: 0 1px 0 var(--border);
+  }
+
+  .table [data-wrap="false"],
+  .table [data-row-actions] {
+    white-space: nowrap;
+  }
+
+  .table[data-density="compact"] tbody td {
+    padding-block: var(--space-2);
+  }
+
+  .table :is(th, td):first-child {
+    padding-left: var(--space-4);
+  }
+}
+
+.table tbody tr:not(.emptyRow):hover,
+.table tbody tr:not(.emptyRow):focus-within {
+  background: var(--surface-muted);
+}
+
+.table [data-primary] a {
+  font-weight: 500;
+  text-underline-offset: 3px;
+}
+
+.table [data-primary] a:is(:hover, :focus-visible) {
+  color: var(--action);
+  text-decoration-line: underline;
+}
+
+.message {
+  color: var(--muted);
+  font-size: var(--text-detail);
+  margin-bottom: var(--space-3);
+}
+
+.message[role="alert"] {
+  color: var(--danger);
+}
+
+.emptyCell .message {
+  margin: 0;
+  padding-block: var(--space-4);
+  text-align: center;
+}
+
+.mobileSorting,
+.mobileHeader,
+.mobileLabel {
+  display: none;
+}
+
+@container merit-table (max-width: 760px) {
+  .table {
+    display: block;
+  }
+
+  .table [data-primary] a {
+    display: inline-block;
+    padding-block: var(--space-1);
+  }
+
+  .mobileSorting {
+    display: block;
+    margin-bottom: var(--space-4);
+    max-width: 24rem;
+  }
+
+  .desktopHeader {
+    display: none;
+  }
+
+  .mobileHeader {
+    display: inline;
+  }
+
+  .table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .table tbody {
+    display: block;
+  }
+
+  .table tbody tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--space-3) var(--space-4);
+    padding: var(--space-4);
+    border-top: 1px solid var(--border);
+  }
+
+  .table td {
+    display: grid;
+    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+    gap: var(--space-4);
+    grid-column: 1 / -1;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  .cellContent {
+    min-width: 0;
+  }
+
+  .mobileLabel {
+    display: block;
+    color: var(--muted);
+    text-align: left;
+  }
+
+  .table [data-identity],
+  .table [data-row-actions],
+  .table .emptyCell {
+    display: block;
+  }
+
+  .table tr:has([data-row-actions]) > [data-identity] {
+    grid-column: 1;
+  }
+
+  .table [data-row-actions] {
+    grid-column: 2;
+    grid-row: 1;
+  }
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.hidden {
+  display: none;
+}

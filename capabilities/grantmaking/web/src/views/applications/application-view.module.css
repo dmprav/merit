@@ -1,0 +1,74 @@
+/* The shared reference workspace owns the frame; this wrapper only scopes content typography. */
+.view {
+  display: contents;
+}
+
+.view h2,
+.view h3 {
+  font-size: var(--text-section);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.headerMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-4);
+  font-size: var(--text-detail);
+}
+
+.headerMeta strong {
+  color: var(--foreground);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.context {
+  display: grid;
+  gap: var(--space-6);
+}
+
+.context > button {
+  justify-self: start;
+}
+
+.context h2 {
+  font-size: var(--text-detail);
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.recommendation {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+
+.recommendation > form {
+  min-height: 0;
+  flex: 1;
+  margin: 0;
+}
+
+.historyHeading {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-5);
+  margin-bottom: var(--space-6);
+}
+
+.historyHeading > button {
+  margin-left: calc(-1 * var(--space-3));
+}
+
+.historyHeading h2:focus {
+  outline: none;
+}
+
+@media (forced-colors: active) {
+  .historyHeading h2:focus {
+    outline: 2px solid Highlight;
+  }
+}

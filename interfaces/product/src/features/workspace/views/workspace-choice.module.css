@@ -1,0 +1,8 @@
+.administration {
+  border-top: 1px solid var(--border);
+  padding-top: var(--space-4);
+}
+
+.content {
+  width: 100%;
+}

@@ -1,0 +1,51 @@
+.field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--text-control);
+  line-height: 1.5;
+}
+
+.label {
+  font-size: var(--text-label);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.required {
+  margin-inline-start: var(--space-2);
+  font-size: var(--text-caption);
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.description {
+  font-size: var(--text-caption);
+  color: var(--muted);
+}
+
+.feedback {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 1rem;
+  font-size: var(--text-caption);
+  overflow-wrap: anywhere;
+}
+
+.feedback:empty {
+  display: none;
+}
+
+.feedback > * {
+  grid-area: 1 / 1;
+}
+
+.feedback:has(.error) .description {
+  visibility: hidden;
+}
+
+.error {
+  display: block;
+  color: var(--danger);
+}

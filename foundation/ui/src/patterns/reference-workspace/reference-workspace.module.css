@@ -1,0 +1,276 @@
+.view {
+  --pane-inset: var(--page-gutter, var(--space-8));
+}
+
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(22rem, 1fr);
+  border-top: 1px solid var(--border);
+  align-items: start;
+}
+
+.workspace > * {
+  min-width: 0;
+}
+
+/* A work pane without reference material uses the full width. */
+.workspace:not(:has(> .reference)) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.workspace:not(:has(> .reference)) > .work {
+  border-left: 0;
+}
+
+.toolbar {
+  min-height: 49px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--pane-inset);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.reference > .toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.toolbar[data-title] {
+  justify-content: space-between;
+}
+
+/* Pane titles stay quieter than the content headings beneath them. */
+.toolbar[data-title] h2 {
+  font-size: var(--text-detail);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+.toolbar[data-title] h2:focus {
+  outline: none;
+  color: var(--action);
+}
+
+.meta {
+  color: var(--muted);
+  font-size: var(--text-caption);
+  line-height: 1.6;
+}
+
+.reference > .content {
+  padding: var(--space-7) var(--pane-inset) var(--space-8);
+}
+
+.content > [hidden] {
+  display: none;
+}
+
+.work {
+  position: sticky;
+  top: 0;
+  max-height: 100dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-left: 1px solid var(--border);
+  scroll-margin-top: var(--space-4);
+}
+
+.work > .content {
+  padding: var(--space-6) var(--pane-inset);
+}
+
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--pane-inset);
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+}
+
+.jump {
+  display: none;
+  color: var(--action);
+  font-size: var(--text-detail);
+  align-items: center;
+  gap: var(--space-2);
+  padding-block: var(--space-3);
+}
+
+/* Positioned descendants, such as visually hidden live regions, stay inside their pane. */
+.content {
+  position: relative;
+}
+
+/* The footer shares the scrollbar styling so its reserved gutter matches the content. */
+.content,
+.footer {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--border-control) 55%, transparent) transparent;
+}
+
+@supports selector(::-webkit-scrollbar) {
+  @media (forced-colors: none) {
+    .content,
+    .footer {
+      scrollbar-width: auto;
+      scrollbar-color: auto;
+    }
+
+    .content::-webkit-scrollbar,
+    .footer::-webkit-scrollbar {
+      width: 10px;
+      height: 10px;
+    }
+
+    .content::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .content::-webkit-scrollbar-thumb {
+      background: color-mix(in srgb, var(--border-control) 55%, transparent);
+      border: 2px solid transparent;
+      border-radius: 10px;
+      background-clip: padding-box;
+    }
+
+    .content::-webkit-scrollbar-thumb:hover {
+      background-color: var(--border-control);
+    }
+
+    .content::-webkit-scrollbar-thumb:active {
+      background-color: var(--muted);
+    }
+  }
+}
+
+@media (min-width: 901px) and (min-height: 600px) {
+  .view {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+  }
+
+  .header {
+    padding-inline: var(--pane-inset);
+  }
+
+  .workspace {
+    flex: 1;
+    min-height: 0;
+    align-items: stretch;
+  }
+
+  .reference,
+  .work {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .work {
+    position: static;
+    max-height: none;
+  }
+
+  .reference > .toolbar {
+    position: static;
+  }
+
+  .toolbar,
+  .footer {
+    flex-shrink: 0;
+  }
+
+  /* Reserve the same gutter as the scrolling content so actions align with fields. */
+  .footer {
+    overflow: hidden;
+    scrollbar-gutter: stable;
+  }
+
+  .content {
+    min-height: 0;
+    flex: 1;
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+    overscroll-behavior: contain;
+  }
+
+  .reference > .content,
+  .work > .content {
+    padding-bottom: var(--space-6);
+  }
+
+  .content[data-fill] {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .work > .content[data-fill] {
+    padding-bottom: 0;
+  }
+}
+
+@media (max-width: 1100px) {
+  .workspace {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 900px), (max-height: 599px) {
+  .jump {
+    display: inline-flex;
+  }
+
+  .workspace,
+  .workspace:not(:has(> .reference)) {
+    grid-template-columns: 1fr;
+  }
+
+  .reference > .content,
+  .work > .content,
+  .toolbar,
+  .footer {
+    padding-inline: 0;
+  }
+
+  .work {
+    position: static;
+    max-height: none;
+    overflow: visible;
+    border-left: 0;
+    border-top: 1px solid var(--border);
+  }
+
+  /* Stacked work keeps its commitment actions in reach while the document scrolls. */
+  .footer {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+  }
+}
+
+@media (forced-colors: active) {
+  .content,
+  .footer {
+    scrollbar-color: auto;
+  }
+
+  .toolbar[data-title] h2:focus {
+    outline: 2px solid Highlight;
+  }
+}
+
+.content:focus-visible {
+  outline: 1px solid var(--action);
+  outline-offset: -1px;
+}

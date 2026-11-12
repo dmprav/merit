@@ -1,0 +1,45 @@
+.example {
+  max-width: 60rem;
+  padding: var(--space-2);
+  font-size: var(--text-body);
+}
+
+.example h1,
+.example h2 {
+  font-weight: 600;
+}
+
+.example h1 {
+  font-size: var(--text-page);
+}
+
+.example > p {
+  margin-block: var(--space-2) var(--space-6);
+  color: var(--muted);
+}
+
+.columns {
+  display: grid;
+  gap: var(--space-6);
+}
+
+.stack {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-4);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+@media (min-width: 720px) {
+  .columns {
+    grid-template-columns: 1fr 1fr;
+  }
+}

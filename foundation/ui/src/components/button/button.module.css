@@ -1,0 +1,192 @@
+.button {
+  display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
+  min-height: var(--control-height-small);
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--control-radius);
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-control);
+  font-weight: 500;
+  line-height: 1.5;
+  text-align: center;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+  transition:
+    background-color var(--motion-fast),
+    border-color var(--motion-fast),
+    color var(--motion-fast);
+}
+
+.button[data-variant="primary"] {
+  background: var(--action);
+  color: var(--on-action);
+}
+
+.button[data-variant="primary"]:is([data-hovered], a:hover):where(:not([aria-disabled="true"])) {
+  background: var(--action-hover);
+}
+
+.button[data-variant="primary"]:is([data-pressed], a:active):where(:not([aria-disabled="true"])) {
+  background: color-mix(in srgb, var(--action-hover) 85%, var(--foreground));
+}
+
+.button[data-variant="destructive"] {
+  background: var(--danger);
+  color: var(--on-danger);
+}
+
+.button[data-variant="destructive"]:is([data-hovered], a:hover):where(
+    :not([aria-disabled="true"])
+  ) {
+  background: var(--danger-hover);
+}
+
+.button[data-variant="destructive"]:is([data-pressed], a:active):where(
+    :not([aria-disabled="true"])
+  ) {
+  background: color-mix(in srgb, var(--danger-hover) 85%, var(--foreground));
+}
+
+.button[data-variant="secondary"] {
+  border-color: var(--border-control);
+  background: var(--surface);
+  color: var(--foreground);
+}
+
+.button[data-variant="quiet"] {
+  background: transparent;
+  color: var(--foreground);
+}
+
+.button[data-variant="quiet"]:is([data-hovered], a:hover, [aria-expanded="true"]):where(
+    :not([data-disabled], [aria-disabled="true"])
+  ) {
+  background: var(--button-quiet-background, var(--surface-muted));
+}
+
+.button[data-variant="secondary"]:is([data-hovered], a:hover):where(:not([aria-disabled="true"])) {
+  background: var(--surface-muted);
+  border-color: var(--muted);
+}
+
+/* React Aria also marks open triggers pressed; quiet triggers retain their expanded fill. */
+.button:is([data-variant="secondary"], [data-variant="quiet"]):is([data-pressed], a:active):where(
+    :not([aria-disabled="true"], [data-variant="quiet"][aria-expanded="true"])
+  ) {
+  background: var(--border);
+}
+
+.button[data-size="small"] {
+  min-height: var(--control-height-small);
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-caption);
+}
+
+.button[data-icon-only] {
+  width: var(--control-height-small);
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.button[data-size="large"] {
+  min-height: var(--target-touch);
+  padding: var(--space-2) var(--space-5);
+  font-size: var(--text-body);
+}
+
+.button[data-size="large"][data-icon-only] {
+  width: var(--target-touch);
+  padding: 0;
+}
+
+.button:is([data-focus-visible], a:focus-visible) {
+  outline: none;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+
+.button:is([data-variant="secondary"], [data-variant="quiet"]):is(
+    [data-focus-visible],
+    a:focus-visible
+  ) {
+  background: var(--action-subtle);
+  color: var(--action);
+}
+
+.button[data-icon-only]:is([data-focus-visible], a:focus-visible) {
+  box-shadow: inset 0 -3px currentColor;
+}
+
+.button[data-disabled] {
+  cursor: not-allowed;
+}
+
+.button[aria-disabled="true"]:not([data-pending]) {
+  cursor: default;
+}
+
+.button:is([data-disabled], [aria-disabled="true"]:not([data-pending])) {
+  border-color: var(--border);
+  background: var(--surface-muted);
+  color: var(--muted);
+}
+
+.button[data-variant="quiet"]:is([data-disabled], [aria-disabled="true"]:not([data-pending])) {
+  border-color: transparent;
+  background: transparent;
+}
+
+.button[data-pending] {
+  cursor: wait;
+}
+
+.spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .button {
+    transition: none;
+  }
+
+  .spinner {
+    animation: none;
+  }
+}
+
+@media (pointer: coarse) {
+  .button,
+  .button[data-size="small"] {
+    min-height: var(--target-touch);
+  }
+
+  .button[data-icon-only] {
+    width: var(--target-touch);
+  }
+}
+
+.button[data-draft] {
+  position: relative;
+}
+
+.button[data-draft]::after {
+  content: "";
+  position: absolute;
+  inset-block-start: 2px;
+  inset-inline-end: 2px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}

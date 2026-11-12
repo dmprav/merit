@@ -1,0 +1,55 @@
+import { Canvas, Meta } from "@storybook/addon-docs/blocks";
+import * as TextFields from "./text-field/text-field.stories";
+
+<Meta title="Components/Fields" />
+
+# Label fields and explain validation
+
+Shared text fields, date fields, and selects keep labels, requirements, and feedback
+consistent. Choose the control for the value and use `@merit/forms` when connecting
+it to a form's validation and submission. Features supply localized labels, errors,
+and validation; the owning workflow determines what the action requires.
+
+## Choose the right field state
+
+Use read-only fields for fixed values within an editing task, where people may
+need to focus and copy the value. For information outside editing, use static
+text or a [description list](?path=/docs/components-description-list--docs).
+Use disabled controls for unavailable interaction. Explain restrictions when their
+reason is unclear and offer a remedy when missing data blocks progress.
+
+Use `isRequired` for input needed by the current action. Editable required fields
+show accessible semantics and a quiet **Required** label, including after the
+person fills the field. Read-only and disabled fields omit the visible marker;
+the underlying requirement still applies. Leave optional fields unmarked.
+
+<Canvas of={TextFields.States} />
+
+## Keep feedback beside the field
+
+Give empty or malformed values specific corrective messages and preserve entries
+after an unsuccessful save. Keep forms focused on labels, values, and corrective
+feedback; broader explanations belong in user guides. Add inline explanation when
+it helps the person understand the current action.
+
+Field labels use control typography at medium weight; requirements and feedback
+use caption text. Field parts use `space-1` gaps. Errors replace helper text in a
+shared feedback area, retaining the helper's height so short errors do not shift
+the following control. Longer errors grow and wrap, including unbroken addresses
+and identifiers. Fields without feedback leave no empty row.
+
+<Canvas of={TextFields.Validation} />
+
+## Allow content to grow
+
+Multiline text fields default to five rows and a 120 px minimum, with vertical
+resizing and 8 px vertical padding. Labels, values, and feedback wrap or grow with
+long content and enlarged text. Shared [density and focus conventions](?path=/docs/foundations-tokens--docs)
+keep field states consistent with the surrounding controls.
+
+<Canvas of={TextFields.LongContent} />
+
+Use the [date field guidance](?path=/docs/components-date-field--docs) for calendar
+entry and the [select examples](?path=/docs/components-select--docs) for choosing
+values. The [editing pattern](?path=/docs/patterns-editing--docs) owns when a change
+commits and how unfinished work survives dismissal.

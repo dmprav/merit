@@ -1,0 +1,26 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2023", "DOM"],
+    "types": ["vite/client", "node"],
+    "jsx": "react-jsx",
+    "allowArbitraryExtensions": true,
+    "moduleDetection": "force"
+  },
+  "include": [
+    "src",
+    "tests",
+    "scripts",
+    "*.ts",
+    "../interfaces/product/src",
+    "../interfaces/admin/src",
+    "../interfaces/site/src",
+    ".cloudflare/types",
+    "../interfaces/product/tests",
+    "../interfaces/product/*.ts",
+    "../interfaces/admin/tests",
+    "../interfaces/admin/*.ts",
+    "../interfaces/site/tests",
+    "../interfaces/site/*.ts"
+  ]
+}

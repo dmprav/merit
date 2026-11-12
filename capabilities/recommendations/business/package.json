@@ -1,0 +1,33 @@
+{
+  "name": "@merit/recommendations",
+  "version": "0.0.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "type": "module",
+  "exports": {
+    "./domain": "./src/domain/index.ts",
+    "./api": "./src/api/index.ts",
+    "./server": "./src/server/index.ts",
+    "./schema": "./src/server/persistence/schema.ts",
+    "./scope": "./src/server/persistence/projections.ts",
+    "./encoding": "./src/server/persistence/encoding.ts"
+  },
+  "dependencies": {
+    "@merit/applications": "workspace:*",
+    "@merit/auth": "workspace:*",
+    "@merit/dates": "workspace:*",
+    "@merit/db": "workspace:*",
+    "@merit/money": "workspace:*",
+    "@merit/organizations": "workspace:*",
+    "@merit/rounds": "workspace:*",
+    "drizzle-orm": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@types/pg": "catalog:",
+    "pg": "catalog:",
+    "typescript": "catalog:",
+    "vite-plus": "catalog:"
+  }
+}

@@ -1,0 +1,23 @@
+.avatar {
+  width: var(--avatar-compact-size);
+  height: var(--avatar-compact-size);
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--action-subtle);
+  color: var(--action);
+  font-size: var(--text-meta);
+  font-weight: 500;
+  line-height: 1;
+}
+
+.avatar[data-size="regular"] {
+  width: var(--avatar-regular-size);
+  height: var(--avatar-regular-size);
+}
+
+/* Initials decorate the adjacent name; they are not additional button-label text. */
+.avatar::before {
+  content: attr(data-initials);
+}

@@ -1,0 +1,30 @@
+.overview {
+  max-width: 44rem;
+  font-size: var(--text-body);
+}
+
+.title {
+  font-size: var(--text-page);
+  font-weight: 600;
+}
+
+.description {
+  margin-top: var(--space-2);
+  color: var(--muted);
+}
+
+.example {
+  border-top: 1px solid var(--border);
+  padding-top: var(--space-4);
+}
+
+.label {
+  color: var(--muted);
+  font-size: var(--text-caption);
+  font-weight: 500;
+}
+
+.narrow {
+  max-width: 18rem;
+  font-size: var(--text-body);
+}

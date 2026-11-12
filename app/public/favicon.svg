@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <title>Merit</title>
+  <rect width="100" height="100" rx="22" fill="#455779"/>
+  <path transform="translate(11 11) scale(.78)" fill="#f7f6f2" fill-rule="evenodd" d="M41 19C51.23 19 72 42.45 72 54S51.23 89 41 89S10 65.55 10 54S30.77 19 41 19ZM59 11C69.23 11 90 34.45 90 46S69.23 81 59 81S28 57.55 28 46S48.77 11 59 11Z"/>
+</svg>

@@ -1,0 +1,56 @@
+.button {
+  /* stylelint-disable-next-line property-no-unknown -- CSS Modules shares button styles with native links. */
+  composes: button from "../button/button.module.css";
+}
+
+.text {
+  color: var(--action);
+  text-decoration-line: underline;
+  text-decoration-color: color-mix(in srgb, currentColor 60%, transparent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+  overflow-wrap: anywhere;
+  transition:
+    color var(--motion-fast),
+    text-decoration-color var(--motion-fast);
+}
+
+@media (hover: hover) {
+  .text:hover {
+    color: var(--action-hover);
+    text-decoration-color: currentColor;
+  }
+}
+
+.text:active {
+  color: var(--action-hover);
+  text-decoration-color: currentColor;
+}
+
+.text:focus-visible {
+  text-decoration-color: currentColor;
+  text-decoration-thickness: 2px;
+}
+
+.standalone {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  max-width: 100%;
+  min-height: var(--control-height-small);
+  font-size: var(--text-control);
+  font-weight: 500;
+}
+
+@media (pointer: coarse) {
+  .standalone {
+    min-height: var(--target-touch);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .text {
+    transition: none;
+  }
+}

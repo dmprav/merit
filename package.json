@@ -1,0 +1,47 @@
+{
+  "name": "merit",
+  "version": "0.0.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "type": "module",
+  "scripts": {
+    "prepare": "vp config --no-agent"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "catalog:",
+    "@commitlint/config-conventional": "catalog:",
+    "@merit/grantmaking": "workspace:*",
+    "@secretlint/core": "catalog:",
+    "@secretlint/formatter": "catalog:",
+    "@secretlint/secretlint-rule-preset-recommend": "catalog:",
+    "@secretlint/types": "catalog:",
+    "@stylistic/eslint-plugin": "catalog:",
+    "@types/node": "catalog:",
+    "@types/pg": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "drizzle-orm": "catalog:",
+    "eslint-plugin-boundaries": "catalog:",
+    "fallow": "catalog:",
+    "pg": "catalog:",
+    "remark": "catalog:",
+    "remark-cli": "catalog:",
+    "remark-gfm": "catalog:",
+    "remark-mdx": "catalog:",
+    "remark-validate-links": "catalog:",
+    "stylelint": "catalog:",
+    "unified": "catalog:",
+    "unrs-resolver": "catalog:",
+    "vite-plus": "catalog:",
+    "zod": "catalog:"
+  },
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "12.18.0",
+      "onFail": "download"
+    }
+  },
+  "engines": {
+    "node": "^22.23.0 || ^24.22.0 || ^26.12.0"
+  }
+}

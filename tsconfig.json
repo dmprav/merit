@@ -1,0 +1,77 @@
+{
+  "files": [],
+  "references": [
+    {
+      "path": "app"
+    },
+    {
+      "path": "capabilities/access"
+    },
+    {
+      "path": "capabilities/audit/business"
+    },
+    {
+      "path": "capabilities/contacts/business"
+    },
+    {
+      "path": "capabilities/contacts/web"
+    },
+    {
+      "path": "capabilities/grantmaking/business"
+    },
+    {
+      "path": "capabilities/grantmaking/web"
+    },
+    {
+      "path": "capabilities/organizations/business"
+    },
+    {
+      "path": "capabilities/organizations/web"
+    },
+    {
+      "path": "foundation/auth"
+    },
+    {
+      "path": "foundation/dates"
+    },
+    {
+      "path": "foundation/db"
+    },
+    {
+      "path": "foundation/drafts"
+    },
+    {
+      "path": "foundation/forms"
+    },
+    {
+      "path": "foundation/i18n"
+    },
+    {
+      "path": "foundation/money"
+    },
+    {
+      "path": "foundation/query"
+    },
+    {
+      "path": "foundation/tables"
+    },
+    {
+      "path": "foundation/ui"
+    },
+    {
+      "path": "interfaces/emails"
+    },
+    {
+      "path": "interfaces/mcp"
+    },
+    {
+      "path": "tooling"
+    },
+    {
+      "path": "tooling/storybook"
+    },
+    {
+      "path": "tooling/testing"
+    }
+  ]
+}

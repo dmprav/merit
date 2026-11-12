@@ -1,0 +1,10 @@
+APP_ORIGIN=http://localhost:3000
+CLERK_PUBLISHABLE_KEY=
+CLERK_SECRET_KEY=
+CLERK_ISSUER=
+
+# Server-only Clerk user IDs, separated by commas. Empty denies all operators.
+MERIT_OPERATOR_USER_IDS=
+MAILPIT_URL=http://127.0.0.1:8025
+EMAIL_FROM=invitations@merit.local
+RESEND_API_KEY=

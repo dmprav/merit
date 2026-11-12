@@ -1,0 +1,59 @@
+import { Meta, Canvas, Description, ArgTypes } from "@storybook/addon-docs/blocks";
+import * as TooltipStories from "./tooltip.stories";
+
+<Meta of={TooltipStories} />
+
+# Tooltip
+
+Answer a brief, optional question about a control. The control retains its own
+clear label; the tooltip supplements that label with plain text. Keep requirements,
+consequences, and recovery instructions visible beside the task.
+
+<Canvas of={TooltipStories.Default} />
+
+## Choose the right kind of help
+
+Use tooltips sparingly to name ambiguous icon actions. Clear text labels usually
+need no tooltip, and explanatory copy should not become a row of help icons.
+Use field descriptions for input guidance and native `details` and `summary` for
+supporting material such as budget history. Longer concepts and workflows belong
+in user documentation, accessible through the sidebar's Docs link.
+
+[React Aria tooltips](https://react-aria.adobe.com/Tooltip) appear on keyboard focus
+and after a hover delay, and dismiss with Escape or when the person leaves both
+the trigger and tooltip. They do not appear on touch interactions. Keep the task usable without
+them and make any additional explanation available through visible text,
+expandable help, or documentation as well. Do not attach the only explanation of
+an unavailable action to a disabled button, which cannot receive keyboard focus.
+
+## Keyboard and pointer
+
+Tooltips use the same neutral surface, detail text, and corner radius as Merit's
+other floating controls, with tighter padding and lighter elevation to keep a
+short label quiet. A 350 ms hover delay avoids flashing across nearby actions;
+keyboard focus opens immediately. A short closing delay lets the pointer reach
+the tooltip to keep reading. The 120 ms fade follows the shared motion token and
+is skipped when reduced motion is preferred.
+
+The child must be a focusable React Aria control, such as Merit's `Button`, with
+its own accessible name. React Aria connects the explanation to the trigger and
+positions it within the viewport. `content` accepts text only so the tooltip
+cannot become an inaccessible container for links or buttons.
+
+<Canvas of={TooltipStories.Keyboard} />
+<Canvas of={TooltipStories.Hover} />
+
+## Content and placement
+
+Prefer a short phrase or sentence. Longer text wraps within a bounded width,
+including when text is enlarged. Keep essential explanations in the page itself.
+Use the placement that leaves nearby work visible; React Aria can flip it when
+the viewport edge leaves too little room.
+
+<Canvas of={TooltipStories.LongContent} />
+<Canvas of={TooltipStories.Placements} />
+
+## API
+
+<Description of={TooltipStories} />
+<ArgTypes of={TooltipStories} />

@@ -1,0 +1,34 @@
+.introduction {
+  margin-bottom: var(--space-6);
+}
+
+.title {
+  margin-bottom: var(--space-3);
+  font-size: var(--text-page);
+  line-height: 1.2;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+}
+
+.description {
+  color: var(--muted);
+}
+
+.form,
+.card {
+  width: 100%;
+  min-width: 0;
+}
+
+.card {
+  border: 1px solid var(--border);
+  border-radius: var(--panel-radius);
+  box-shadow: none;
+}
+
+.demo {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-1);
+  margin-top: var(--space-6);
+}

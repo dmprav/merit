@@ -1,0 +1,39 @@
+{
+  "name": "@merit/grantmaking",
+  "version": "0.0.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "type": "module",
+  "exports": {
+    "./api": "./src/api/index.ts",
+    "./server": "./src/server/index.ts",
+    "./examples": "./src/examples/get-example-round.ts",
+    "./testing": "./testing/seed-example-rounds.ts",
+    "./testing/fixtures": "./tests/fixtures.ts",
+    "./testing/rounds": "./tests/round-test.ts",
+    "./server/demo": "./src/server/demo.ts",
+    "./server/integrations": "./src/server/integrations.ts"
+  },
+  "dependencies": {
+    "@merit/applications": "workspace:*",
+    "@merit/auth": "workspace:*",
+    "@merit/contacts": "workspace:*",
+    "@merit/db": "workspace:*",
+    "@merit/money": "workspace:*",
+    "@merit/organizations": "workspace:*",
+    "@merit/recommendations": "workspace:*",
+    "@merit/reviews": "workspace:*",
+    "@merit/rounds": "workspace:*",
+    "drizzle-orm": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@merit/audit": "workspace:*",
+    "@merit/test-support": "workspace:*",
+    "@types/node": "catalog:",
+    "@types/pg": "catalog:",
+    "pg": "catalog:",
+    "typescript": "catalog:",
+    "vite-plus": "catalog:"
+  }
+}

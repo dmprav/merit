@@ -1,0 +1,114 @@
+packages:
+  - app
+  - capabilities/access
+  - interfaces/*
+  - foundation/*
+  - capabilities/*/business
+  - capabilities/*/web
+  - tooling/storybook
+  - tooling/testing
+
+catalogMode: prefer
+
+allowBuilds:
+  esbuild: true
+  workerd: true
+
+catalog:
+  dexie: 4.4.7
+  fake-indexeddb: 6.2.8
+  "@tanstack/react-query": 5.107.1
+  "@tanstack/react-query-devtools": 5.107.1
+  "@tanstack/react-router-ssr-query": 1.167.3
+  "@tanstack/react-devtools": 0.10.14
+  "@tanstack/react-router-devtools": 1.167.3
+  "@internationalized/date": 3.12.4
+  storybook: 10.6.6
+  "@storybook/react-vite": 10.6.6
+  "@storybook/addon-docs": 10.6.6
+  "@storybook/addon-a11y": 10.6.6
+  cf: 1.0.0-beta.28
+  "@clerk/backend": ^3.27.0
+  "@clerk/tanstack-react-start": ^1.7.11
+  "@cloudflare/vite-plugin": 2.0.0-beta.v.12
+  "@modelcontextprotocol/client": ^2.4.0
+  "@modelcontextprotocol/server": ^2.4.0
+  "@tanstack/react-table": ^9.3.1
+  "@tanstack/react-form": ^1.33.5
+  "@tanstack/react-router": ^1.170.46
+  "@tanstack/react-start": ^1.169.4
+  "@tanstack/virtual-file-routes": ^1.162.0
+  "@testing-library/dom": ^10.4.2
+  "@testing-library/jest-dom": ^7.0.1
+  "@testing-library/react": ^16.3.3
+  "@testing-library/user-event": ^14.6.8
+  "@types/node": ^24
+  "@types/pg": ^8.23.1
+  "@types/react": ^19.3.0
+  "@types/react-dom": ^19.3.0
+  "@vitejs/plugin-react": ^6.2.1
+  drizzle-kit: ^0.31.11
+  drizzle-orm: ^0.45.4
+  jsdom: ^31.0.0
+  pg: ^8.23.1
+  react-email: 6.11.8
+  "@react-email/ui": 6.11.8
+  react: ^19.3.1
+  react-aria-components: ^1.22.1
+  react-dom: ^19.3.1
+  typescript: ^7.0.2
+  vite: npm:@voidzero-dev/vite-plus-core@1.5.0
+  vite-plus: 1.5.0
+  zod: ^4.6.7
+  i18next: ^26.7.2
+  react-i18next: ^17.1.13
+  oxc-transform-react: 0.156.0
+  lucide-react: ^1.70.0
+  fallow: 3.41.0
+  # shortcut: 1.65.0 crashes Firefox accessibility checks; upgrade when https://github.com/microsoft/playwright/issues/43967 ships in a stable release.
+  "@playwright/test": 1.64.1
+  "@axe-core/playwright": ^4.14.0
+  "@storybook/addon-vitest": 10.6.6
+  "@vitest/browser-playwright": 5.1.0
+  vitest: 5.1.0
+  "@stylistic/eslint-plugin": 5.10.0
+  stylelint: ^18.0.0
+  "@vitest/coverage-v8": 5.1.0
+  eslint-plugin-boundaries: 7.4.2
+  unrs-resolver: 1.13.0
+  remark-cli: ^12.0.1
+  remark-gfm: ^4.0.1
+  remark-mdx: ^3.1.1
+  remark-validate-links: ^13.1.0
+  remark: ^15.0.1
+  unified: ^11.0.5
+  "@commitlint/cli": ^21.2.4
+  "@commitlint/config-conventional": ^21.2.4
+  "@secretlint/core": 13.1.0
+  "@secretlint/formatter": 13.1.0
+  "@secretlint/secretlint-rule-preset-recommend": 13.1.0
+  "@secretlint/types": 13.1.0
+overrides:
+  vite@*: "catalog:"
+  # Patch tooling dependencies until their parents adopt fixed versions.
+  # https://github.com/advisories/GHSA-3g3m-2fjr-6pw4
+  "glob@>=9.0.0 <=14.0.1": 14.0.4
+  # https://github.com/advisories/GHSA-g3hv-75wg-m249
+  "minimatch@>=7.0.0 <11.0.1": 11.0.5
+  "@esbuild-kit/core-utils>esbuild": 0.28.2
+peerDependencyRules:
+  allowAny:
+    - vite
+  allowedVersions:
+    vite: "*"
+minimumReleaseAgeExclude:
+  - "@fallow-cli/darwin-arm64@3.41.0"
+  - "@fallow-cli/darwin-x64@3.41.0"
+  - "@fallow-cli/linux-arm64-gnu@3.41.0"
+  - "@fallow-cli/linux-arm64-musl@3.41.0"
+  - "@fallow-cli/linux-x64-gnu@3.41.0"
+  - "@fallow-cli/linux-x64-musl@3.41.0"
+  - "@fallow-cli/win32-arm64-msvc@3.41.0"
+  - "@fallow-cli/win32-x64-msvc@3.41.0"
+  - fallow-type-aware@3.41.0
+  - fallow@3.41.0

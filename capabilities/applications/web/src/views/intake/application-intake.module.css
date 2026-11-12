@@ -1,0 +1,67 @@
+.intake {
+  display: grid;
+  gap: var(--space-3);
+  margin-bottom: 0;
+  padding-bottom: var(--space-5);
+  border-bottom: 1px solid var(--border);
+}
+
+.status,
+.actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.status h2,
+.changeReason h3 {
+  font-size: var(--text-caption);
+  font-weight: 500;
+}
+
+.hint {
+  font-size: var(--text-caption);
+  color: var(--muted);
+  line-height: var(--leading-reading);
+}
+
+.preview {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.preview > div h3 {
+  font-size: var(--text-body);
+  font-weight: 500;
+  margin-bottom: var(--space-1);
+}
+
+.reading {
+  font-size: var(--text-reading);
+  line-height: var(--leading-reading);
+  max-width: var(--measure-reading);
+}
+
+.reading h4 {
+  font-size: var(--text-body);
+  font-weight: 500;
+  margin-bottom: var(--space-2);
+}
+
+.reading p,
+.changeReason p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.changeReason {
+  border-top: 1px solid var(--border);
+  padding-top: var(--space-4);
+}
+
+.changeReason p {
+  font-size: var(--text-caption);
+  line-height: var(--leading-reading);
+  margin-top: var(--space-2);
+}

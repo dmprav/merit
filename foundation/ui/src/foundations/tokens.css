@@ -1,0 +1,81 @@
+:root {
+  /* Color roles */
+  --background: #f8f8f5;
+  --surface: #ffffff;
+  --surface-muted: #f1f2ed;
+  --foreground: #292d29;
+  --muted: #62685f;
+  --border: #e0e3dc;
+  --border-control: #899184;
+  --action: #455779;
+  --action-hover: #354563;
+  --on-action: #ffffff;
+  --focus: var(--action);
+  --action-subtle: #edf0f7;
+  --success: #365e42;
+  --success-subtle: #eaf2e9;
+  --warning: #805a10;
+  --warning-subtle: #fff3d6;
+  --danger: #9e3434;
+  --danger-hover: #852b2b;
+  --on-danger: #ffffff;
+  --danger-subtle: #fcecec;
+  --overlay: #20283959;
+
+  /* Shape and focus */
+  --control-radius: 0.375rem;
+  --control-focus-width: 2px;
+  --panel-radius: 0.625rem;
+
+  /* Spacing */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-7: 1.75rem;
+  --space-8: 2rem;
+
+  /* Page frame */
+  --measure-page: 75rem;
+
+  /* Typography */
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --text-meta: 0.6875rem;
+  --text-caption: 0.75rem;
+  --text-detail: 0.8125rem;
+  --text-body: 0.875rem;
+  --text-reading: 0.9375rem;
+  --leading-reading: 1.7;
+  --measure-reading: 65ch;
+  --text-section: 0.875rem;
+  --text-page: 1.5rem;
+  --text-page-compact: 1.375rem;
+  --text-display: clamp(1.875rem, 4vw, 2.5rem);
+  --text-control: var(--text-body);
+  --text-label: var(--text-body);
+
+  /* Shared control and identity sizes */
+  --control-height: 2.25rem;
+  --control-height-small: 2rem;
+  --avatar-compact-size: 24px;
+  --avatar-regular-size: 28px;
+  --target-touch: 2.75rem;
+
+  /* Motion and elevation */
+  --motion-fast: 120ms;
+  --dialog-shadow: 0 16px 64px #20283926;
+  --popover-shadow: 0 4px 12px #20283914, 0 1px 3px #20283914;
+}
+
+[data-product-theme] {
+  --text-control: var(--text-detail);
+  --text-label: var(--text-detail);
+  --background: #ffffff;
+  --surface-muted: #f6f6f3;
+  --success: #3d644a;
+  --success-subtle: #edf3ed;
+  --warning: #805b1c;
+  --warning-subtle: #fbf6e9;
+}

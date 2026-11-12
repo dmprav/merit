@@ -1,0 +1,27 @@
+{
+  "name": "@merit/emails",
+  "version": "0.0.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "type": "module",
+  "exports": {
+    "./reviewer": "./src/features/reviews/reviewer-email.tsx",
+    "./server": "./src/features/organizations/render-invitation.tsx"
+  },
+  "dependencies": {
+    "@merit/i18n": "workspace:*",
+    "@merit/organizations": "workspace:*",
+    "@merit/reviews": "workspace:*",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "react-email": "catalog:",
+    "react-i18next": "catalog:"
+  },
+  "devDependencies": {
+    "@react-email/ui": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "typescript": "catalog:",
+    "vite-plus": "catalog:"
+  }
+}
