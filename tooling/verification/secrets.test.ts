@@ -13,6 +13,17 @@ const directories: string[] = [];
 // Never issued by a provider; scans must detect its shape without contacting GitHub.
 const token = () => `ghp_${randomBytes(18).toString("hex")}`;
 
+const alphanumeric = (length: number) =>
+  Array.from(
+    randomBytes(length),
+    (byte) => "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"[byte % 62],
+  ).join("");
+
+// Assembled at runtime so this file never contains a provider-shaped literal.
+const resendKey = () => ["re", alphanumeric(8), alphanumeric(24)].join("_");
+
+const clerkKey = (mode: "live" | "test") => ["sk", mode, alphanumeric(40)].join("_");
+
 const repository = () => {
   const cwd = mkdtempSync(join(tmpdir(), "merit-secrets-"));
   directories.push(cwd);
@@ -178,4 +189,39 @@ it("rejects a different database password even at the allowed loopback address",
   expect(result.status, result.output).toBe(1);
   expect(result.output).toContain("database.ts");
   expect(result.output).not.toContain(secret);
+});
+
+it.each([
+  { rule: "merit/resend-api-key", secret: resendKey },
+  { rule: "merit/clerk-secret-key", secret: () => clerkKey("live") },
+  { rule: "merit/clerk-secret-key", secret: () => clerkKey("test") },
+])("detects a key with $rule", ({ rule, secret }) => {
+  const repo = repository();
+  const value = secret();
+  repo.write(".dev.vars.example", `KEY=${value}\n`);
+
+  const result = repo.scan();
+  expect(result.status, result.output).toBe(1);
+  expect(result.output).toContain(rule);
+  expect(result.output).not.toContain(value);
+});
+
+it("ignores provider prefixes inside identifiers and short placeholders", () => {
+  const repo = repository();
+  repo.write(
+    "near-miss.ts",
+    [
+      // Prefixes preceded by identifier characters are part of a longer name.
+      `const value = "pre${resendKey()}";`,
+      `const value = "task${clerkKey("live").slice(2)}";`,
+      // Documentation placeholders do not have the issued key shape.
+      `const value = "${["re", "123456789"].join("_")}";`,
+      `const value = "${["re", alphanumeric(8), alphanumeric(12)].join("_")}";`,
+      `const value = "${["sk", "test", "x".repeat(8)].join("_")}";`,
+      "",
+    ].join("\n"),
+  );
+
+  const result = repo.scan();
+  expect(result.status, result.output).toBe(0);
 });

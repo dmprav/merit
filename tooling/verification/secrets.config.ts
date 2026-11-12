@@ -1,3 +1,4 @@
+import { creator as pattern } from "@secretlint/secretlint-rule-pattern";
 import { creator as recommended } from "@secretlint/secretlint-rule-preset-recommend";
 import type { SecretLintCoreConfig } from "@secretlint/types";
 
@@ -5,6 +6,14 @@ import type { SecretLintCoreConfig } from "@secretlint/types";
 // matches extend to the next whitespace, so allow the closing quote or punctuation that follows.
 const exact = (value: string) =>
   `/^${value.replaceAll(/[.*+?^${}()|[\]\\/]/g, "\\$&")}(?:["'\`;,)]*)$/`;
+
+// Masking hides every message value, so a distinct rule ID is what names the provider in findings.
+// The boundaries keep a prefix from matching inside a longer identifier.
+const provider = (id: string, expression: RegExp): SecretLintCoreConfig["rules"][number] => ({
+  id,
+  rule: { ...pattern, meta: { ...pattern.meta, id } },
+  options: { patterns: [{ name: id, patterns: [String(expression)] }] },
+});
 
 export const config: SecretLintCoreConfig = {
   rules: [
@@ -25,5 +34,16 @@ export const config: SecretLintCoreConfig = {
         },
       ],
     },
+    // Rules for providers Merit uses that the recommended preset does not cover explicitly.
+    provider(
+      "merit/resend-api-key",
+      // `re_`, eight characters, `_`, then twenty-four characters.
+      /(?<![A-Za-z0-9_])re_[A-Za-z0-9]{8}_[A-Za-z0-9]{24}(?![A-Za-z0-9_])/g,
+    ),
+    provider(
+      "merit/clerk-secret-key",
+      // Clerk shares Stripe's prefixes; this keeps detection independent of the Stripe rule.
+      /(?<![A-Za-z0-9_])sk_(?:live|test)_[A-Za-z0-9]{24,}(?![A-Za-z0-9_])/g,
+    ),
   ],
 };
