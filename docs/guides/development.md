@@ -413,6 +413,14 @@ continues to own check ordering, parallelism, and coverage requirements.
 CI uses the normal parallel task scheduling and no extra Vitest worker cap.
 Browser installation is deferred with the browser suites.
 
+The non-required [Deferred verification workflow](../../.github/workflows/deferred.yml)
+runs `vp run --no-cache ready` with the same setup on pull requests, nightly at
+09:17 UTC, and through **Actions → Deferred verification**. It installs Chromium,
+Firefox, and WebKit and caches them by the locked Playwright version, and it
+uploads the `deferred-verification` artifact for fourteen days after every run.
+[Verification](verification.md#temporary-pr-verification-exception) explains how
+its results decide when to restore the full required gate.
+
 New commits cancel the previous run for that PR. Failed runs retain verification
 and service logs, browser screenshots, and traces in the `verification-failure`
 artifact for seven days. A manual run is also available through **Actions → Verify**

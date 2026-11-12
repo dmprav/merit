@@ -79,8 +79,16 @@ remain required. This defers presentation checks and regression tests of the
 verification tools themselves; the retained checks do not replace them.
 Normal parallel scheduling is restored, with no CI-specific worker cap.
 `ready` still runs every suite locally, including its final source-modifying probes.
-Restore the workflow to `ready` and remove the temporary CI targets once the
-follow-up establishes reliable presentation and tooling self-tests.
+
+The [deferred verification workflow](../../.github/workflows/deferred.yml) runs the
+full `ready` milestone on CI for pull requests targeting `main`, nightly, and on
+demand. It is not a required check, so its result does not block merging. It
+measures whether the deferred suites are reliable on CI: Playwright retries failed
+browser tests twice there (`MERIT_BROWSER_RETRIES`) and reports passing retries as
+flaky, and its log and browser traces are kept even when it passes. Fix the
+underlying cause of each flaky or failing test; retries apply only to this
+workflow. Restore the required workflow to `ready` and remove the temporary CI
+targets once this workflow passes consistently without flaky retries.
 
 ### While developing
 
