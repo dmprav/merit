@@ -28,22 +28,12 @@ pin and run `vp run ready` before committing the update.
 
 ### Security tools
 
-Install [Betterleaks 1.10.0](https://github.com/betterleaks/betterleaks/releases/tag/v1.10.0)
-before committing or running full verification. On macOS, the official v1 cask
-provides the `betterleaks-v1` command:
-
-```sh
-brew install --cask betterleaks/tap/betterleaks@1
-betterleaks-v1 version
-```
-
-On other platforms, download the matching release archive, verify it against the
-release's `checksums.txt`, and put its `betterleaks` executable on `PATH`. The
-[scanner command](../../tooling/verification/secrets.ts) requires exactly 1.10.0;
-if the cask advances, install the pinned release binary as `betterleaks-v1` instead.
-Upgrade the pin deliberately with the scanner's regression tests. V2 uses a
-different CLI and configuration; its main-branch documentation does not describe
-this integration.
+Secret scanning needs no separate installation. The
+[scanner command](../../tooling/verification/secrets.ts) runs
+[secretlint](https://github.com/secretlint/secretlint) from the workspace
+dependencies, so the lockfile pins the same rule set for every contributor and CI.
+Update it like any other catalog dependency and run `vp run test:security` with the
+upgrade.
 
 Dependency auditing uses the workspace's existing pnpm and needs access to the
 npm advisory registry. [Security checks](verification.md#security-checks) explain
@@ -417,8 +407,7 @@ to run `vp run ready:ci` with fresh task results (`--no-cache`). This temporaril
 excludes presentation and tooling self-tests under the
 [approved verification exception](verification.md#temporary-pr-verification-exception).
 Only downloaded dependencies are cached between CI runs. It reads the existing
-Vite+, Node.js, and pnpm pins, installs dependencies with the frozen lockfile, verifies the Betterleaks
-download checksum,
+Vite+, Node.js, and pnpm pins, installs dependencies with the frozen lockfile,
 and starts PostgreSQL and Mailpit through `compose.yaml`. The root task configuration
 continues to own check ordering, parallelism, and coverage requirements.
 CI uses the normal parallel task scheduling and no extra Vitest worker cap.

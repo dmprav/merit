@@ -132,16 +132,17 @@ The suite also runs in `ready:tooling`; it does not create commits.
 ## Check security enforcement
 
 The root configuration owns the uncached security tasks. The
-[secret scanner command](../../tooling/verification/secrets.ts) owns the exact
-Betterleaks version, local-only invocation, redaction, and Git-aware file selection;
-[`.betterleaks.toml`](../../.betterleaks.toml) extends the provider rules.
+[secret scanner command](../../tooling/verification/secrets.ts) owns local-only
+invocation, redaction, and Git-aware file and history selection;
+[its configuration](../../tooling/verification/secrets.config.ts) enables secretlint's
+recommended provider rules and records exceptions.
 [Security verification](verification.md#security-checks) owns operational scope
-and finding handling; [setup](development.md#security-tools) explains installation.
+and finding handling; [setup](development.md#security-tools) explains how the scanner is pinned.
 
 Run `vp run test:security` after changing the scanner, its configuration, or its
 version. The suite uses disposable Git repositories and synthetic credentials to
 check untracked and ignored files, force-added files, staged snapshots before the
-first commit, removed historical secrets, redaction, and missing-tool failure.
+first commit, removed historical secrets, redaction, and failure outside Git.
 It never validates credentials against providers. Run `vp run check:security` to
 scan the actual workspace and query current advisories.
 

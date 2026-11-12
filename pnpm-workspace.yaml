@@ -84,6 +84,10 @@ catalog:
   unified: ^11.0.5
   "@commitlint/cli": ^21.2.4
   "@commitlint/config-conventional": ^21.2.4
+  "@secretlint/core": 13.1.0
+  "@secretlint/formatter": 13.1.0
+  "@secretlint/secretlint-rule-preset-recommend": 13.1.0
+  "@secretlint/types": 13.1.0
 overrides:
   vite@*: "catalog:"
   # Patch tooling dependencies until their parents adopt fixed versions.

@@ -40,8 +40,7 @@ tests, builds the application, and checks formatting, TypeScript and CSS lint,
 independent capability types, dependency boundaries, unused code, and production
 function complexity. It also runs tests (including core coverage checks and all Storybook stories), checks migration
 metadata, scans for secrets and dependency advisories, and verifies representative
-browser flows. Install [Betterleaks](development.md#security-tools) as described in
-setup, and install the browsers once with
+browser flows. Install the browsers once with
 `pnpm --filter @merit/test-support exec playwright install chromium firefox webkit`.
 
 Every check in a full run is required, and any failed task makes `ready` fail.
@@ -137,12 +136,12 @@ change independently of tracked source. Security lint rules run with `check:code
 and staged-file linting: they reject raw HTML injection, script URLs (including
 the shared `Link` component), and unsafe iframe sandboxing.
 
-| Scope                                          | Command                        |
-| ---------------------------------------------- | ------------------------------ |
-| Current repository files                       | `vp run check:secrets`         |
-| Staged changes, as the commit hook sees them   | `vp run check:secrets:staged`  |
-| All local Git history, including merge patches | `vp run check:secrets:history` |
-| Known dependency vulnerabilities               | `vp run check:dependencies`    |
+| Scope                                        | Command                        |
+| -------------------------------------------- | ------------------------------ |
+| Current repository files                     | `vp run check:secrets`         |
+| Staged changes, as the commit hook sees them | `vp run check:secrets:staged`  |
+| Every file version in local Git history      | `vp run check:secrets:history` |
+| Known dependency vulnerabilities             | `vp run check:dependencies`    |
 
 The current-file scan includes tracked files and new files not ignored by Git.
 It excludes ignored local credentials and generated output, but still checks
@@ -151,12 +150,18 @@ commit; changing a working copy does not hide a staged secret. Run the history
 scan when adopting the check in an existing repository or investigating a leak.
 Full verification checks current files; it does not rescan all history.
 
-Betterleaks runs locally with credential validation disabled and redacts findings.
+Secretlint runs locally, never contacts providers, and masks findings. The staged
+scan checks the full staged content of each added or modified file. The history
+scan checks every file version reachable from local refs and labels findings with
+their blob; `git log --all --find-object=<blob>` lists the commits that contain one.
+Binary files are skipped. GitHub secret scanning and push protection cover the
+remote side.
+
 If it reports a real credential, revoke or rotate it and remove it from source;
 deleting the current line does not remove earlier commits. Review false positives
-individually and document narrowly scoped exceptions in
-[`.betterleaks.toml`](../../.betterleaks.toml). Keep provider rules enabled and
-avoid excluding entire source or test directories.
+individually and record exceptions as exact values in
+[the scanner configuration](../../tooling/verification/secrets.config.ts). Keep
+provider rules enabled and avoid excluding entire source or test directories.
 
 The dependency audit includes production and development dependencies. High and
 critical advisories fail the check; registry failures also fail it. Run
