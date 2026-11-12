@@ -1,0 +1,10 @@
+.fields > * + * {
+  margin-top: var(--space-4);
+}
+
+.status {
+  min-height: var(--space-5);
+  font-size: var(--text-body);
+  line-height: 1.25rem;
+  color: var(--success);
+}

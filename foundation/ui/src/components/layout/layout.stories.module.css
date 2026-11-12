@@ -1,0 +1,32 @@
+.preview {
+  max-width: var(--measure-reading);
+}
+
+.heading {
+  font-size: var(--text-section);
+  font-weight: 600;
+}
+
+.reading {
+  font-size: var(--text-reading);
+  line-height: var(--leading-reading);
+}
+
+.steps {
+  list-style: decimal;
+  padding-inline-start: var(--space-6);
+}
+
+.narrow {
+  max-width: 18rem;
+}
+
+.context {
+  max-width: 20rem;
+  font-size: var(--text-detail);
+}
+
+.caption {
+  font-size: var(--text-caption);
+  color: var(--muted);
+}

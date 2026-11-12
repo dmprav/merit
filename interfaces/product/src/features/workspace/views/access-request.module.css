@@ -1,0 +1,21 @@
+.trigger {
+  padding-inline: 0;
+  color: var(--action);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.content {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.content p {
+  margin: 0;
+}
+
+.note {
+  color: var(--muted);
+  font-size: var(--text-detail);
+  line-height: var(--leading-reading);
+}

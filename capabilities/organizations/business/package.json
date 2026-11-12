@@ -1,0 +1,31 @@
+{
+  "name": "@merit/organizations",
+  "version": "0.0.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "type": "module",
+  "exports": {
+    "./server": "./src/server/index.ts",
+    "./domain": "./src/domain/index.ts",
+    "./schema": "./src/server/persistence/membership-schema.ts",
+    "./scope": "./src/server/persistence/scope.ts",
+    "./locks": "./src/server/persistence/commands/locks.ts",
+    "./testing": "./tests/seed-workspace.ts",
+    "./testing/workspace": "./tests/workspace-test.ts",
+    "./api": "./src/api/index.ts",
+    "./server/demo": "./src/server/demo.ts"
+  },
+  "dependencies": {
+    "@merit/access": "workspace:*",
+    "@merit/auth": "workspace:*",
+    "@merit/db": "workspace:*",
+    "drizzle-orm": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@merit/test-support": "workspace:*",
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vite-plus": "catalog:"
+  }
+}

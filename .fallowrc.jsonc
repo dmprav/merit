@@ -1,0 +1,76 @@
+{
+  "$schema": "./node_modules/fallow/schema.json",
+  "minimumVersion": "3.41.0",
+  "failOnParseError": true,
+  "health": {
+    "maxCognitive": 15,
+    "maxCyclomatic": 20,
+    "maxCrap": 0,
+    "maxFileLines": 0,
+    "thresholdOverrides": [
+      {
+        "files": ["capabilities/reviews/web/src/controllers/reviewer/use-reviewer.ts"],
+        "functions": ["useReviewer"],
+        "maxCognitive": 20,
+        "reason": "Named save, response, submission, and recovery closures share one reviewer session and its retry receipts without passing mutable state between helpers.",
+      },
+    ],
+    "ignore": [
+      "**/*.gen.ts",
+      "**/*.d.ts",
+      "**/*.{test,spec,stories}.{ts,tsx}",
+      "**/tests/**",
+      "**/fixtures/**",
+      "**/__fixtures__/**",
+      "**/__mocks__/**",
+      "tooling/**",
+    ],
+    "suggestInlineSuppression": false,
+  },
+  "supportEntry": [
+    // The shared web-test preset resolves setup relative to each capability.
+    "capabilities/*/web/tests/setup-ui.ts",
+    "app/cloudflare.config.ts",
+    "app/tests/browser/workspace.playwright.config.ts",
+    // JS Boundaries loads the configured resolver through its plugin host.
+    "tooling/verification/architecture/resolver.mjs",
+    // React Email discovers preview default exports through its CLI directory.
+    "interfaces/emails/src/features/organizations/previews/*.tsx",
+    // Storybook resolves adjacent manual mocks from sb.mock registrations.
+    "interfaces/{product,admin}/src/**/__mocks__/*.{ts,tsx}",
+    // The app integration runner includes these suites across workspace packages.
+    "capabilities/*/business/tests/**/*.integration.ts",
+    "capabilities/access/tests/**/*.integration.ts",
+    "foundation/auth/tests/**/*.integration.ts",
+  ],
+  "workspaces": {
+    "settings": {
+      "interfaces/emails": {
+        // The email CLI resolves its version-matched preview UI dynamically.
+        "ignoreDependencies": ["@react-email/ui"],
+      },
+      "capabilities/*/business": {
+        "includeEntryExports": true,
+      },
+      "capabilities/*/web": {
+        "includeEntryExports": true,
+      },
+      "capabilities/access": {
+        "includeEntryExports": true,
+      },
+    },
+  },
+  "rules": {
+    "complexity-cognitive": "error",
+    "complexity-cyclomatic": "error",
+    "unused-dev-dependencies": "error",
+    "unused-catalog-entries": "error",
+    "unused-component-props": "error",
+    "package-cycles": "error",
+    "re-export-cycles": "error",
+    "policy-violation": "off",
+    "duplicate-exports": "off",
+    "stale-suppressions": "error",
+    "require-suppression-reason": "error",
+  },
+}

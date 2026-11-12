@@ -1,0 +1,31 @@
+.property[data-size][data-variant] {
+  display: inline-grid;
+  grid-template-columns: minmax(0, auto) 13px;
+  justify-content: start;
+  max-width: 100%;
+  margin-inline-start: calc(-1 * var(--space-2));
+  border-width: 0;
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-detail);
+  font-weight: 400;
+  text-align: left;
+  white-space: normal;
+}
+
+.value {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.cue {
+  flex-shrink: 0;
+  color: var(--muted);
+  width: 13px;
+  height: 13px;
+}
+
+.draft {
+  grid-column: 1 / -1;
+  font-size: var(--text-caption);
+  color: var(--muted);
+}

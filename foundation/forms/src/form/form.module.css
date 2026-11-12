@@ -1,0 +1,43 @@
+.fields {
+  min-width: 0;
+}
+
+.fields > * + * {
+  margin-top: var(--space-2);
+}
+
+.error {
+  font-size: var(--text-body);
+  line-height: 1.25rem;
+  color: var(--danger);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}
+
+.footer {
+  min-width: 0;
+}
+
+.inlineFooter {
+  margin-top: var(--space-4);
+}
+
+.footer > * + * {
+  margin-top: var(--space-3);
+}
+
+.scrollFields {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.discard {
+  margin-right: auto;
+}

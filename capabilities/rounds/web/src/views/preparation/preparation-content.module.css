@@ -1,0 +1,56 @@
+.overview {
+  max-width: 760px;
+}
+
+.deleted {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-7) var(--space-5);
+}
+
+.detailSection + .detailSection {
+  margin-top: var(--space-7);
+}
+
+.detailSection p,
+.detailSection li {
+  font-size: var(--text-reading);
+  line-height: var(--leading-reading);
+  max-width: var(--measure-reading);
+  white-space: pre-line;
+}
+
+.detailSection .criteria {
+  list-style: none;
+  padding: 0;
+}
+
+.criteria h3 {
+  font-size: var(--text-detail);
+  font-weight: 500;
+  margin-bottom: var(--space-1);
+}
+
+.criteria li + li {
+  margin-top: var(--space-5);
+}
+
+.warning {
+  color: var(--warning);
+}
+
+.muted {
+  color: var(--muted);
+}
+
+@media (max-width: 1350px) {
+  .properties {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .properties {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

@@ -1,0 +1,4 @@
+.prose {
+  font-size: var(--text-reading);
+  line-height: var(--leading-reading);
+}

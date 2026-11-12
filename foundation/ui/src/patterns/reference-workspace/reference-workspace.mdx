@@ -1,0 +1,55 @@
+import { Canvas, Meta } from "@storybook/addon-docs/blocks";
+import * as Workspace from "./reference-workspace.stories";
+
+<Meta of={Workspace} />
+
+# Work beside reference material
+
+Use `ReferenceWorkspace` when a task needs reading and writing at the same time,
+such as assessing an application or drafting a recommendation. It applies the
+experience principle of keeping
+[references accessible during consequential work](../../../../../docs/foundations/experience.md#keep-people-oriented):
+the reference stays readable while the work stays in reach.
+
+<Canvas of={Workspace.WorkBesideReference} story={{ inline: false, height: "620px" }} />
+
+## Compose the panes
+
+Place the workspace in a contained `ApplicationPage`. On desktop, the header stays
+in place and each pane scrolls on its own, so reading further never moves the
+fields or their actions. Narrow and short screens stack the panes in reading order,
+and links named by `toWorkLabel` and `toReferenceLabel` move between them.
+
+- `header` takes a compact `PageHeader` with the facts people need while working.
+  Put occasional, consequential actions in its **More actions** menu instead of
+  scattering buttons across the page.
+- `ReferencePane` holds the material people consult. Add a `ReferenceSwitcher`
+  when there is more than one kind of material, such as the application and its
+  criteria. Keep each choice mounted with `hidden` so reading positions and
+  unfinished input survive switching.
+- `WorkPane` holds the task. A `title` gives it a pane header for state actions,
+  such as closing an editor or starting an amendment. `footer` keeps status and
+  the commitment action visible; on stacked screens it stays at the bottom of the
+  viewport. Choose `fill` when the child, such as a `Form`, owns its own scrolling
+  body and footer.
+
+Use `as="section"` for a work pane that is the page's main task, and the default
+`aside` when it supports the reference. Supply a `WorkPane` alone when no reference
+material is available yet, such as before a reviewer accepts an invitation; it
+then uses the full width.
+
+<Canvas of={Workspace.WorkOnly} story={{ inline: false, height: "320px" }} />
+
+## Keep reading position and focus
+
+`useReferenceViewport` tracks the chosen reference and restores each one's scroll
+position when people return to it. Switching moves focus to the reference viewport
+so keyboard users can scroll it. Pass `focusViewport: false` while an editor beside
+it should keep focus. The feature owns which references exist, any URL state that
+selects them, and focus targets inside its content.
+
+The [application overview](?path=/story/features-applications-overview--evidence),
+[recommendation editor](?path=/story/features-applications-recommendation--resume-editing),
+and [reviewer assessment](?path=/story/features-applications-participate-in-review--writing)
+use this pattern with real feature content. Check them with long material, enlarged
+text, and narrow screens when changing the shared frame.

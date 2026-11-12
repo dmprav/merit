@@ -1,0 +1,21 @@
+.preview {
+  max-width: 28rem;
+}
+
+.examples > * + * {
+  margin-top: var(--space-4);
+}
+
+.examples {
+  background: var(--surface);
+  padding: var(--space-6);
+  color: var(--foreground);
+}
+
+.groupTitle {
+  margin-bottom: var(--space-3);
+  font-size: var(--text-caption);
+  line-height: 1rem;
+  font-weight: 500;
+  color: var(--muted);
+}

@@ -1,0 +1,115 @@
+import { Canvas, Meta } from "@storybook/addon-docs/blocks";
+import * as Foundations from "./foundations.stories";
+
+<Meta of={Foundations} />
+
+# Foundations
+
+Merit uses ink and stone: restrained blue actions on warm neutral surfaces, with
+compact controls and comfortable reading space. Shared design tokens name the
+colors, spacing, typography, and sizes used throughout the interface; themes supply
+their values. Use the theme toolbar to compare the product and site themes.
+
+These conventions apply Merit's experience principles across controls and patterns.
+Component guidance owns detailed behavior; patterns explain how to use that language
+in recurring situations.
+
+## Color and meaning
+
+Use `action` for actionable emphasis and `action-subtle` for selection, including
+navigation. Success, warning, and danger describe outcomes or concerns; keep
+them distinct from selection and brand identity. A recommendation to fund is a
+judgment, not a successful system action. Pair meaningful color with text or another cue.
+
+Use surfaces, alignment, and spacing to establish hierarchy. Reserve shadows for
+overlays. Keep controls distinguishable from surrounding surfaces and keep source
+attribution readable even when it is secondary to the evidence.
+
+## Typography and reading
+
+Use `text-body` (14 px) for ordinary UI content, `text-detail` (13 px) for compact
+lists, and `text-caption` (12 px) for supporting labels and metadata. Headings
+establish structure through size, weight, and spacing rather than color alone.
+
+Submitted material, assessments, reasoning, and multiline writing use
+`text-reading` (15 px) with `leading-reading` (1.7). Limit prose to
+`measure-reading` (65 characters) where the layout permits. Tables and reference
+panels keep their compact typography. Align amounts with tabular numerals.
+Buttons and fields share `text-control`: 13 px in the product and 14 px on the
+site. The [field guidance](?path=/docs/components-fields--docs) explains labels and
+feedback; [button examples](?path=/docs/components-button--docs) show action emphasis
+and size variations.
+Density follows the activity: finding work, reading evidence, comparing judgments,
+editing, and authorizing changes can need different arrangements in one workspace.
+
+## Spacing and grouping
+
+Use the shared 4 px spacing scale to show relationships. Start with `space-1` or
+`space-2` within a control or a compact action group, `space-3` or `space-4` between
+related content, and `space-5` through `space-8` between larger groups or sections.
+Choose the gap for the relationship and the activity; reading a review needs more
+room than scanning its metadata. Preserve the tighter spacing inside shared forms.
+
+Let the parent own the gap between its children. Account for the margins already
+provided by headings and controls before adding another gap.
+[Layout primitives](?path=/docs/components-layout-primitives--docs) apply this scale
+to simple flows. [Page composition](?path=/docs/patterns-page-composition--docs)
+explains how arrangements support reading, comparison, and editing; specialized
+grids and scrolling stay with the feature that owns the task.
+
+## Density
+
+Desktop buttons and fields use a 32 px minimum height; small buttons keep that
+height with smaller text and horizontal padding. Single-line tabs use 36 px.
+Large buttons and button-shaped links use a 44 px minimum for prominent site
+entry points. Coarse pointers get at least 44 px targets. Heights are minimums so enlarged text
+and wrapping labels can grow without clipping.
+Let content determine the space it needs. [Fields](?path=/docs/components-fields--docs)
+and [forms](?path=/docs/patterns-form-dialog--docs) own their internal spacing and
+feedback arrangements while preserving these shared target sizes.
+
+## Motion
+
+Buttons distinguish hover from press with surface changes, keeping their labels
+and position steady. Pending actions retain their color and show a spinner;
+icon-only actions replace their glyph with the spinner. Unavailable actions use
+muted text and neutral surfaces so progress remains distinct from unavailability.
+
+Use brief transitions to make opening and closing a working surface feel continuous.
+Keep focus and input available during the entrance, preserve the surface throughout
+its exit, and skip transitions when the person prefers reduced motion.
+[Dialogs](?path=/docs/components-dialog--docs) own their entrance, exit, and
+content-retention behavior.
+
+## Focus
+
+Shared controls integrate focus into their appearance.
+Keyboard focus underlines action labels; secondary and quiet actions also receive
+the subtle action fill. Icon-only buttons use an inset bottom marker in their
+foreground color. Button-shaped links underline, while navigation and menu options
+use a side marker so keyboard focus remains distinct from the current selection.
+
+Text fields and select triggers show an ink border, faint tinted fill, and inset
+bottom marker whenever focused, including pointer editing and restored focus after
+a select closes. Currency prefixes share the field's boundary. Invalid fields keep
+danger-colored borders and focus markers; read-only fields remain focusable and
+disabled controls are skipped. Focus takes precedence over hover and read-only styling.
+
+Tab labels use a tinted fill and text underline, retaining the separate selection
+underline. Focused scrolling panels use an inset side marker. React Aria supplies
+the control state attributes; native links use `:focus-visible`. Native content
+without a specialized treatment retains the ink-colored outline fallback, including
+links and summaries. Remove that outline only when the appearance supplies a visible
+replacement: an underline on a link does not reach nested flex content such as the
+brand or a person identity.
+
+Keep indicators visible without moving content or clipping them in scroll areas.
+Forced-colors mode uses system outlines because fills and shadows may be suppressed.
+
+Foundations / Focus compares the control family with real keyboard and pointer
+interaction. Use both themes and check hover, invalid and read-only states,
+forced colors, and clipping when changing the focus convention.
+
+<Canvas of={Foundations.Overview} />
+
+[Try the focus comparison](?path=/story/foundations-focus--comparison).

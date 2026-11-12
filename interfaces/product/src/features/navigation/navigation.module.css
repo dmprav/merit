@@ -1,0 +1,67 @@
+.section {
+  min-width: 0;
+}
+
+.section + .section {
+  margin-top: var(--space-2);
+}
+
+.pins {
+  list-style: none;
+  padding: 0;
+  margin: var(--space-1) 0 var(--space-2) var(--space-4);
+  border-left: 1px solid var(--border);
+}
+
+.pin {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.pin > a {
+  flex: 1;
+  min-width: 0;
+}
+
+.pinLabel {
+  display: grid;
+  min-width: 0;
+}
+
+.pinLabel > span {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.pinLabel > small {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--muted);
+  font-size: var(--text-meta);
+  font-weight: 400;
+}
+
+.error {
+  padding: var(--space-2);
+  color: var(--danger);
+  font-size: var(--text-caption);
+}
+
+.secondary {
+  display: grid;
+  gap: var(--space-1);
+  margin-top: var(--space-6);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+}
+
+.groupLabel {
+  color: var(--muted);
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-meta);
+}

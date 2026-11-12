@@ -1,0 +1,111 @@
+/* The shared reference workspace owns the frame; this wrapper only scopes content typography. */
+.screen {
+  display: contents;
+}
+
+.screen h2,
+.screen h3 {
+  font-size: var(--text-section);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.headerMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-4);
+  font-size: var(--text-detail);
+  overflow-wrap: anywhere;
+}
+
+.headerMeta strong {
+  color: var(--foreground);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.working {
+  color: var(--muted);
+  font-size: var(--text-detail);
+}
+
+.working:empty {
+  display: none;
+}
+
+.referenceHeading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-4);
+}
+
+.referenceHeading span,
+.intro,
+.hint {
+  color: var(--muted);
+  font-size: var(--text-detail);
+}
+
+.intro {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.footerFeedback {
+  display: grid;
+  gap: var(--space-2);
+  flex-basis: 100%;
+}
+
+/* Position and amount read as one judgment; auto-fit stacks them when the pane is narrow. */
+.judgment {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.notes {
+  padding-block-start: var(--space-4);
+  border-block-start: 1px solid var(--border);
+}
+
+.notes h3 {
+  margin-bottom: var(--space-1);
+}
+
+.noteTitle {
+  font-size: var(--text-detail);
+  font-weight: 600;
+}
+
+.history summary {
+  cursor: pointer;
+  color: var(--action);
+  font-size: var(--text-detail);
+  margin-bottom: var(--space-4);
+}
+
+.comparison {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+  gap: var(--space-5);
+}
+
+.footerFeedback:empty {
+  display: none;
+}
+
+.writing {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.assignment {
+  border-block-start: 1px solid var(--border);
+  padding-block: var(--space-4);
+  overflow-wrap: anywhere;
+}

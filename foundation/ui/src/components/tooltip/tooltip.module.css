@@ -1,0 +1,45 @@
+.tooltip {
+  z-index: 50;
+  width: max-content;
+  max-width: min(18rem, calc(100vw - 32px));
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--control-radius);
+  background: var(--surface);
+  color: var(--foreground);
+  box-shadow: 0 2px 4px color-mix(in srgb, var(--foreground) 8%, transparent);
+  font-family: var(--font-sans);
+  font-size: var(--text-detail);
+  font-weight: 400;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .tooltip[data-entering]:not([data-exiting]) {
+    animation: tooltip-in var(--motion-fast) ease-out;
+  }
+
+  .tooltip[data-exiting] {
+    animation: tooltip-in var(--motion-fast) ease-in reverse forwards;
+  }
+}
+
+@media (forced-colors: active) {
+  .tooltip {
+    border-color: CanvasText;
+    background: Canvas;
+    color: CanvasText;
+    box-shadow: none;
+  }
+}
+
+@keyframes tooltip-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}

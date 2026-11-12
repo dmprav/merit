@@ -1,0 +1,59 @@
+.notice {
+  --notice-accent: var(--muted);
+
+  min-width: 0;
+  background: var(--surface-muted);
+  color: var(--foreground);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--notice-accent) 20%, transparent);
+  border-radius: var(--control-radius);
+  font-size: var(--text-body);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.notice[data-tone="success"] {
+  --notice-accent: var(--success);
+
+  background: var(--success-subtle);
+}
+
+.notice[data-tone="warning"] {
+  --notice-accent: var(--warning);
+
+  background: var(--warning-subtle);
+}
+
+.notice[data-tone="danger"] {
+  --notice-accent: var(--danger);
+
+  background: var(--danger-subtle);
+}
+
+.notice:where(div) > * + * {
+  margin-block-start: var(--space-2);
+}
+
+.notice:where(ul) {
+  padding-inline-start: var(--space-8);
+  list-style-type: disc;
+}
+
+.notice :where(ul, ol) {
+  padding-inline-start: var(--space-4);
+  list-style-type: disc;
+}
+
+.notice ol {
+  list-style-type: decimal;
+}
+
+.notice li + li {
+  margin-top: var(--space-1);
+}
+
+@media (forced-colors: active) {
+  .notice {
+    border-color: CanvasText;
+  }
+}

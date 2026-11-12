@@ -1,0 +1,51 @@
+.document {
+  display: grid;
+  gap: var(--space-6);
+}
+
+.prose {
+  font-size: var(--text-reading);
+  line-height: var(--leading-reading);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.meta {
+  color: var(--muted);
+  font-size: var(--text-caption);
+  line-height: 1.6;
+}
+
+.sectionHeading {
+  margin-bottom: var(--space-3);
+}
+
+.summary {
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--border);
+}
+
+.submissionActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.summary .sectionHeading h2 {
+  color: var(--muted);
+  font-size: var(--text-detail);
+  font-weight: 500;
+}
+
+.summary > .meta {
+  margin-top: var(--space-3);
+}
+
+.evidenceSection {
+  scroll-margin-block: var(--space-6);
+  padding-bottom: var(--space-4);
+}
+
+.evidenceSection h3 {
+  margin-bottom: var(--space-3);
+}

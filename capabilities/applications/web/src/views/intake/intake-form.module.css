@@ -1,0 +1,80 @@
+.form {
+  min-height: 0;
+  gap: var(--space-5);
+}
+
+.longEditor > fieldset {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  padding-block: var(--space-3);
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.longEditor :is(input, textarea, button) {
+  scroll-margin-bottom: 5rem;
+}
+
+.fields {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.metadataField > label,
+.contactField > div > div > span:first-child {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.amountField {
+  max-width: 12rem;
+}
+
+.section {
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-4) 0 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+  display: grid;
+  gap: var(--space-3);
+}
+
+.sectionHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  font-size: var(--text-caption);
+  color: var(--muted);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.hint {
+  font-size: var(--text-caption);
+  color: var(--muted);
+  line-height: var(--leading-reading);
+}
+
+.latest {
+  margin-block: var(--space-3);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+@media (min-width: 901px) and (min-height: 600px) {
+  .longEditor > fieldset {
+    /* Reach the pane edge past its bottom content padding. */
+    bottom: calc(-1 * var(--space-6));
+  }
+}

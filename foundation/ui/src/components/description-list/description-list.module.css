@@ -1,0 +1,28 @@
+.list {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-5);
+  margin: 0;
+  font-size: var(--text-detail);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.item {
+  min-width: 0;
+}
+
+.label {
+  margin-bottom: var(--space-1);
+  font-size: var(--text-caption);
+  color: var(--muted);
+}
+
+.value {
+  margin: 0;
+  min-height: var(--control-height-small);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+}
