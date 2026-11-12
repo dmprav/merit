@@ -24,11 +24,13 @@ justify it. Report the checks performed and any remaining verification gaps.
 Run full workspace verification with `vp run ready` before merging or releasing
 completed changes, when explicitly requested, or when a change has broad effects
 that targeted checks cannot adequately cover. The
-[PR workflow](../../.github/workflows/verify.yml) runs the same complete suite
-with `--no-cache` on Ubuntu for pull requests targeting `main`. Its `verify` check
+[PR workflow](../../.github/workflows/verify.yml) runs `ready:ci`
+with `--no-cache` on Ubuntu for pull requests targeting `main`, subject to the
+[temporary exception below](#temporary-pr-verification-exception). Its `verify` check
 is required by the [branch rules](development.md#branch-protection); pending or
 failed verification blocks merging. A passing run on the current PR commit
-satisfies full verification while its inputs remain unchanged.
+satisfies the required PR gate while its inputs remain unchanged; it does not
+establish the deferred browser, component, and tooling self-tests.
 Targeted checks can defer discovery of unrelated regressions to that milestone.
 All existing suites and coverage thresholds remain part of full verification.
 
@@ -54,6 +56,32 @@ always execute when selected. Use `vp run --no-cache ready` when a fresh run of
 every check is needed, and `vp run --last-details` to inspect cache hits and misses.
 Run cached checks through
 `vp run`; calling a tool directly, such as `vp check`, bypasses task caching.
+
+### Temporary PR verification exception
+
+On November 12, 2026, the owner approved temporarily deferring browser and
+component tests and other flaky checks to a CI reliability follow-up after flaky interaction tests and
+Linux browser failures in
+[run 43276352387](https://github.com/dmprav/merit/actions/runs/43276352387).
+
+`ready:ci` skips Storybook, the drafts browser project, and all package
+`*.test.tsx` files, plus all Playwright suites: shared browser fixtures, Storybook, the public app,
+and persisted workspaces. Packages with only deferred tests may have no selected
+tests. Core package tests retain their existing coverage scopes and thresholds.
+Tooling self-tests (`ready:tooling` and the source-modifying `test:checks` probes)
+are also deferred after architecture and commit-lint fixture timeouts in
+[runs 43285882908](https://github.com/dmprav/merit/actions/runs/43285882908)
+and [43287235717](https://github.com/dmprav/merit/actions/runs/43287235717).
+The lightweight `test:ci` configuration guard remains required.
+
+Builds, lint and types, repository architecture enforcement (including TypeScript
+isolation tests), security scans, core tests and coverage, and database integration
+remain required. This defers presentation checks and regression tests of the
+verification tools themselves; the retained checks do not replace them.
+Normal parallel scheduling is restored, with no CI-specific worker cap.
+`ready` still runs every suite locally, including its final source-modifying probes.
+Restore the workflow to `ready` and remove the temporary CI targets once the
+follow-up establishes reliable presentation and tooling self-tests.
 
 ### While developing
 

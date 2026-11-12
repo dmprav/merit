@@ -18,6 +18,7 @@ import type { CreationDraft, CreationTarget } from "../../contracts/creation";
 import styles from "./creation-composer.module.css";
 
 type CreationFormProps = {
+  titleId?: string;
   draft: CreationDraft;
   target: CreationTarget;
   onChange: (draft: CreationDraft) => void;
@@ -27,6 +28,7 @@ type CreationFormProps = {
 };
 
 export const CreationForm = ({
+  titleId,
   draft,
   target,
   onChange,
@@ -70,6 +72,7 @@ export const CreationForm = ({
         <form.Field name="title">
           {(field) => (
             <FormTextField
+              id={titleId}
               field={field}
               label={titleLabel}
               autoFocus

@@ -1,4 +1,4 @@
-import { useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 
 import { Button } from "../../components/button/button";
 import { Icon } from "../../components/icon/icon";
@@ -31,11 +31,19 @@ export const InlineName = ({
   const [error, setError] = useState<string | null>(null);
   const saveAtOpen = useRef(onSave);
   const trigger = useRef<HTMLButtonElement>(null);
+  const restoreFocus = useRef(false);
+
+  useEffect(() => {
+    if (restoreFocus.current && trigger.current) {
+      trigger.current.focus();
+      restoreFocus.current = false;
+    }
+  });
 
   const close = () => {
+    restoreFocus.current = true;
     setEditing(false);
     setError(null);
-    requestAnimationFrame(() => trigger.current?.focus());
   };
 
   const save = async () => {

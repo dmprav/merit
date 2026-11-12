@@ -364,7 +364,7 @@ owner's access. Keep the merge restriction separate from **Protect main** so its
 exception cannot bypass the shared protections. GitHub applies
 [both rulesets together](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/about-rulesets).
 
-The [PR verification workflow](../../.github/workflows/verify.yml) runs `vp run --no-cache ready`
+The [PR verification workflow](../../.github/workflows/verify.yml) runs `vp run --no-cache ready:ci`
 for pull requests targeting `main`. **Protect main** requires its `verify` check
 from GitHub Actions (integration ID `15368`); a pending or failed check blocks
 merging, including for administrators.
@@ -413,12 +413,16 @@ Committing documentation does not enable them.
 ### Pull-request verification
 
 The [Verify workflow](../../.github/workflows/verify.yml) uses one Ubuntu 24.04 job
-to run the complete `vp run ready` suite with fresh task results (`--no-cache`).
+to run `vp run ready:ci` with fresh task results (`--no-cache`). This temporarily
+excludes presentation and tooling self-tests under the
+[approved verification exception](verification.md#temporary-pr-verification-exception).
 Only downloaded dependencies are cached between CI runs. It reads the existing
 Vite+, Node.js, and pnpm pins, installs dependencies with the frozen lockfile, verifies the Betterleaks
-download checksum, installs the locked browser engines and system dependencies,
+download checksum,
 and starts PostgreSQL and Mailpit through `compose.yaml`. The root task configuration
 continues to own check ordering, parallelism, and coverage requirements.
+CI uses the normal parallel task scheduling and no extra Vitest worker cap.
+Browser installation is deferred with the browser suites.
 
 New commits cancel the previous run for that PR. Failed runs retain verification
 and service logs, browser screenshots, and traces in the `verification-failure`

@@ -333,13 +333,17 @@ it.each([false, true])(
         "Created successfully, but the page could not open. Use the link above to continue.",
       ),
     ).toBeVisible();
-    await user.click(dialog.getByRole("button", { name: "Dismiss confirmation" }));
+    // Dismissal must keep focus usable even before the dialog's next animation frame.
+    const frame = vi.spyOn(window, "requestAnimationFrame").mockReturnValue(0);
+    try {
+      await user.click(dialog.getByRole("button", { name: "Dismiss confirmation" }));
+      expect(dialog.getByRole("textbox", { name: fieldLabel })).toHaveFocus();
+    } finally {
+      frame.mockRestore();
+    }
     expect(dialog.queryByRole("link", { name: openLabel })).not.toBeInTheDocument();
     expect(dialog.getByRole("textbox", { name: fieldLabel })).toHaveValue("Next draft");
-    // Removing the focused confirmation button restores dialog focus on the next frame.
-    await waitFor(() =>
-      expect(screen.getByRole("dialog").contains(document.activeElement)).toBe(true),
-    );
+    await waitFor(() => expect(dialog.getByRole("textbox", { name: fieldLabel })).toHaveFocus());
     await user.keyboard("{Escape}");
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     await user.click(

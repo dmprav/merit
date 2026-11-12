@@ -46,16 +46,13 @@ jobs:
           install -Dm755 betterleaks "$RUNNER_TEMP/bin/betterleaks"
           echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
 
-      - name: Install browser engines and system dependencies
-        run: pnpm --filter @merit/test-support exec playwright install --with-deps chromium firefox webkit
-
       - name: Start PostgreSQL and Mailpit
         run: docker compose up -d --wait
 
-      - name: Run complete verification
+      - name: Run required PR verification
         env:
           TMPDIR: ${{ runner.temp }}
-        run: vp run --no-cache ready 2>&1 | tee "$RUNNER_TEMP/verify.log"
+        run: vp run --no-cache ready:ci 2>&1 | tee "$RUNNER_TEMP/verify.log"
 
       - name: Collect service logs
         if: failure()

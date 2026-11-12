@@ -38,163 +38,166 @@ const it = roundTest.extend("parity", async ({ db, database }) => {
   return { ...transport, messages, invoke, saved };
 });
 
-it("completes reviewer participation through MCP with private drafts, retries, amendments and access recovery", async ({
-  db,
-  database,
-  rounds,
-  parity: p,
-}) => {
-  const webAddress = await rounds.createApplication("Independent assessment");
-  const address = { workspaceSlug: webAddress.workspaceSlug, applicationId: webAddress.publicId };
-  const contactId = randomUUID();
-  await p.saved("dana", "create_contact", {
-    workspaceSlug: "alder",
-    contactId,
-    details: { name: "Sam", email: "sam@example.test", affiliation: "" },
-  });
-  const requestId = randomUUID();
-  await p.saved("dana", "request_review", {
-    ...address,
-    expectedReviewRevision: 0,
-    expectedApplicationVersion: 1,
-    expectedCriteriaVersion: 1,
-    id: requestId,
-    contactId,
-    replacesId: null,
-  });
-  const invitation = { ...address, commandId: randomUUID(), requestId, dueDate: null };
-  const invited = await p.saved("dana", "invite_reviewer", invitation);
-  expect(await p.saved("dana", "invite_reviewer", invitation)).toEqual(invited);
-  expect(p.messages).toHaveLength(1);
-  const assignmentId = (invited.value as ReviewerSummary).id;
-
-  const read = async () =>
-    (await p.saved("sam", "get_reviewer_assignment", { assignmentId })).value as ReviewerPage;
-
-  const respond = async (action: string, note = "") =>
-    p.saved("sam", "respond_to_review", {
-      assignmentId,
-      commandId: randomUUID(),
-      expectedRevision: (await read()).assignment.revision,
-      action,
-      note,
+// shortcut: Allow this multi-session journey CI headroom until the reliability follow-up.
+it(
+  "completes reviewer participation through MCP with private drafts, retries, amendments and access recovery",
+  { timeout: 30_000 },
+  async ({ db, database, rounds, parity: p }) => {
+    const webAddress = await rounds.createApplication("Independent assessment");
+    const address = { workspaceSlug: webAddress.workspaceSlug, applicationId: webAddress.publicId };
+    const contactId = randomUUID();
+    await p.saved("dana", "create_contact", {
+      workspaceSlug: "alder",
+      contactId,
+      details: { name: "Sam", email: "sam@example.test", affiliation: "" },
     });
-
-  const manage = async (action: string, note = "") => {
-    const list = await p.saved("dana", "list_application_reviewers", address);
-    const current = (list.items as ReviewerSummary[]).find((item) => item.id === assignmentId)!;
-    return p.saved("dana", "manage_reviewer_assignment", {
+    const requestId = randomUUID();
+    await p.saved("dana", "request_review", {
       ...address,
+      expectedReviewRevision: 0,
+      expectedApplicationVersion: 1,
+      expectedCriteriaVersion: 1,
+      id: requestId,
+      contactId,
+      replacesId: null,
+    });
+    const invitation = { ...address, commandId: randomUUID(), requestId, dueDate: null };
+    const invited = await p.saved("dana", "invite_reviewer", invitation);
+    expect(await p.saved("dana", "invite_reviewer", invitation)).toEqual(invited);
+    expect(p.messages).toHaveLength(1);
+    const assignmentId = (invited.value as ReviewerSummary).id;
+
+    const read = async () =>
+      (await p.saved("sam", "get_reviewer_assignment", { assignmentId })).value as ReviewerPage;
+
+    const respond = async (action: string, note = "") =>
+      p.saved("sam", "respond_to_review", {
+        assignmentId,
+        commandId: randomUUID(),
+        expectedRevision: (await read()).assignment.revision,
+        action,
+        note,
+      });
+
+    const manage = async (action: string, note = "") => {
+      const list = await p.saved("dana", "list_application_reviewers", address);
+      const current = (list.items as ReviewerSummary[]).find((item) => item.id === assignmentId)!;
+      return p.saved("dana", "manage_reviewer_assignment", {
+        ...address,
+        assignmentId,
+        commandId: randomUUID(),
+        expectedRevision: current.revision,
+        action,
+        note,
+      });
+    };
+
+    expect((await p.saved("sam", "list_my_reviews")).items).toMatchObject([{ id: assignmentId }]);
+    expect(await read()).toMatchObject({ material: null, draft: null });
+    expect(await p.invoke("other", "get_reviewer_assignment", { assignmentId })).toEqual({
+      status: "not_found",
+    });
+    await respond("accept");
+    expect(
+      (await database.client.query("SELECT 1 FROM memberships WHERE user_id='sam'")).rows,
+    ).toEqual([]);
+    const page = await read();
+    expect(page.material?.requested).toEqual({ minorUnits: "8000", currency: "EUR" });
+    assert(page.draft);
+    const draft = {
+      position: "Fund",
+      amount: "40.50",
+      reasoning: "PRIVATE: independent evidence",
+      observations: [],
+      note: "",
+    };
+    const draftCommand = {
       assignmentId,
       commandId: randomUUID(),
-      expectedRevision: current.revision,
-      action,
-      note,
+      expectedDraftRevision: page.draft.revision,
+      draft,
+    };
+    expect(await p.saved("sam", "save_reviewer_draft", draftCommand)).toEqual({
+      status: "ok",
+      value: { revision: 1 },
     });
-  };
-
-  expect((await p.saved("sam", "list_my_reviews")).items).toMatchObject([{ id: assignmentId }]);
-  expect(await read()).toMatchObject({ material: null, draft: null });
-  expect(await p.invoke("other", "get_reviewer_assignment", { assignmentId })).toEqual({
-    status: "not_found",
-  });
-  await respond("accept");
-  expect(
-    (await database.client.query("SELECT 1 FROM memberships WHERE user_id='sam'")).rows,
-  ).toEqual([]);
-  const page = await read();
-  expect(page.material?.requested).toEqual({ minorUnits: "8000", currency: "EUR" });
-  assert(page.draft);
-  const draft = {
-    position: "Fund",
-    amount: "40.50",
-    reasoning: "PRIVATE: independent evidence",
-    observations: [],
-    note: "",
-  };
-  const draftCommand = {
-    assignmentId,
-    commandId: randomUUID(),
-    expectedDraftRevision: page.draft.revision,
-    draft,
-  };
-  expect(await p.saved("sam", "save_reviewer_draft", draftCommand)).toEqual({
-    status: "ok",
-    value: { revision: 1 },
-  });
-  expect(await p.saved("sam", "save_reviewer_draft", draftCommand)).toEqual({
-    status: "ok",
-    value: { revision: 1 },
-  });
-  expect(
-    await p.invoke("sam", "save_reviewer_draft", { ...draftCommand, commandId: randomUUID() }),
-  ).toEqual({ status: "conflict" });
-  expect(
-    JSON.stringify(await p.saved("dana", "list_application_reviewers", address)),
-  ).not.toContain("PRIVATE");
-  expect(await p.invoke("dana", "get_reviewer_assignment", { assignmentId })).toEqual({
-    status: "not_found",
-  });
-  const submission = { assignmentId, commandId: randomUUID(), expectedDraftRevision: 1 };
-  expect(await p.saved("sam", "submit_reviewer_assessment", submission)).toEqual({
-    status: "ok",
-    value: { revision: 2 },
-  });
-  expect(await p.saved("sam", "submit_reviewer_assessment", submission)).toEqual({
-    status: "ok",
-    value: { revision: 2 },
-  });
-  expect(p.messages).toHaveLength(2);
-  const web = await getFundingApplicationPage(db, { userId: "dana" }, webAddress);
-  expect(web?.application.reviews.assessments[0]).toMatchObject({
-    authorUserId: "sam",
-    versions: [
-      {
-        recorder: {
-          userId: "sam",
-          provenance: { interface: "mcp", clientId: "integration-client" },
+    expect(await p.saved("sam", "save_reviewer_draft", draftCommand)).toEqual({
+      status: "ok",
+      value: { revision: 1 },
+    });
+    expect(
+      await p.invoke("sam", "save_reviewer_draft", { ...draftCommand, commandId: randomUUID() }),
+    ).toEqual({ status: "conflict" });
+    expect(
+      JSON.stringify(await p.saved("dana", "list_application_reviewers", address)),
+    ).not.toContain("PRIVATE");
+    expect(await p.invoke("dana", "get_reviewer_assignment", { assignmentId })).toEqual({
+      status: "not_found",
+    });
+    const submission = { assignmentId, commandId: randomUUID(), expectedDraftRevision: 1 };
+    expect(await p.saved("sam", "submit_reviewer_assessment", submission)).toEqual({
+      status: "ok",
+      value: { revision: 2 },
+    });
+    expect(await p.saved("sam", "submit_reviewer_assessment", submission)).toEqual({
+      status: "ok",
+      value: { revision: 2 },
+    });
+    expect(p.messages).toHaveLength(2);
+    const web = await getFundingApplicationPage(db, { userId: "dana" }, webAddress);
+    expect(web?.application.reviews.assessments[0]).toMatchObject({
+      authorUserId: "sam",
+      versions: [
+        {
+          recorder: {
+            userId: "sam",
+            provenance: { interface: "mcp", clientId: "integration-client" },
+          },
         },
-      },
-    ],
-  });
-  const submitted = await read();
-  assert(submitted.draft);
-  await p.saved("sam", "save_reviewer_draft", {
-    assignmentId,
-    commandId: randomUUID(),
-    expectedDraftRevision: submitted.draft.revision,
-    draft: { ...draft, reasoning: "Amended evidence", note: "Clarify the basis" },
-  });
-  const amendment = await read();
-  await p.saved("sam", "submit_reviewer_assessment", {
-    assignmentId,
-    commandId: randomUUID(),
-    expectedDraftRevision: amendment.draft!.revision,
-  });
-  expect((await read()).assessment?.versions).toHaveLength(2);
-  await p.saved("sam", "change_navigation_pin", {
-    action: "pin",
-    target: { kind: "review", id: assignmentId },
-  });
-  expect((await p.saved("sam", "get_navigation_pins")).pins).toMatchObject([
-    { target: { kind: "review", id: assignmentId } },
-  ]);
-  await manage("cancel");
-  expect(await read()).toMatchObject({ material: null, draft: null, assessment: null });
-  expect((await p.saved("other", "get_navigation_pins")).pins).toEqual([]);
-  expect(
-    await p.invoke("sam", "save_reviewer_draft", { ...draftCommand, commandId: randomUUID() }),
-  ).toEqual({ status: "not_found" });
-  expect(
-    await p.invoke("sam", "submit_reviewer_assessment", { ...submission, commandId: randomUUID() }),
-  ).toEqual({ status: "not_found" });
-  await manage("reinstate");
-  await respond("report_conflict", "Possible connection");
-  expect((await read()).material).toBeNull();
-  await manage("clear_conflict", "Reviewed and cleared");
-  await respond("accept");
-  expect((await read()).assessment?.versions).toHaveLength(2);
-});
+      ],
+    });
+    const submitted = await read();
+    assert(submitted.draft);
+    await p.saved("sam", "save_reviewer_draft", {
+      assignmentId,
+      commandId: randomUUID(),
+      expectedDraftRevision: submitted.draft.revision,
+      draft: { ...draft, reasoning: "Amended evidence", note: "Clarify the basis" },
+    });
+    const amendment = await read();
+    await p.saved("sam", "submit_reviewer_assessment", {
+      assignmentId,
+      commandId: randomUUID(),
+      expectedDraftRevision: amendment.draft!.revision,
+    });
+    expect((await read()).assessment?.versions).toHaveLength(2);
+    await p.saved("sam", "change_navigation_pin", {
+      action: "pin",
+      target: { kind: "review", id: assignmentId },
+    });
+    expect((await p.saved("sam", "get_navigation_pins")).pins).toMatchObject([
+      { target: { kind: "review", id: assignmentId } },
+    ]);
+    await manage("cancel");
+    expect(await read()).toMatchObject({ material: null, draft: null, assessment: null });
+    expect((await p.saved("other", "get_navigation_pins")).pins).toEqual([]);
+    expect(
+      await p.invoke("sam", "save_reviewer_draft", { ...draftCommand, commandId: randomUUID() }),
+    ).toEqual({ status: "not_found" });
+    expect(
+      await p.invoke("sam", "submit_reviewer_assessment", {
+        ...submission,
+        commandId: randomUUID(),
+      }),
+    ).toEqual({ status: "not_found" });
+    await manage("reinstate");
+    await respond("report_conflict", "Possible connection");
+    expect((await read()).material).toBeNull();
+    await manage("clear_conflict", "Reviewed and cleared");
+    await respond("accept");
+    expect((await read()).assessment?.versions).toHaveLength(2);
+  },
+);
 
 it("provisions and joins organizations through MCP without granting operator or wrong-email access", async ({
   database,

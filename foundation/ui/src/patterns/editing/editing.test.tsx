@@ -20,6 +20,7 @@ it("renames with Enter using the save boundary captured when editing began", asy
   };
   const view = render(<InlineName {...props} onSave={before} />);
   const user = userEvent.setup();
+  expect(screen.getByRole("button", { name: "Community grants" })).not.toHaveFocus();
   await user.click(screen.getByRole("button", { name: "Community grants" }));
 
   expect(screen.getByRole("button", { name: "Save name" })).toHaveAttribute(
@@ -31,7 +32,16 @@ it("renames with Enter using the save boundary captured when editing began", asy
   await user.clear(screen.getByRole("textbox", { name: "Rename round" }));
   await user.type(screen.getByRole("textbox"), "New name");
   view.rerender(<InlineName {...props} onSave={after} />);
-  await user.keyboard("{Enter}");
+  // A frame may run before React commits the button that replaces the editor.
+  const frame = vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+    callback(0);
+    return 0;
+  });
+  try {
+    await user.keyboard("{Enter}");
+  } finally {
+    frame.mockRestore();
+  }
 
   await waitFor(() => expect(before).toHaveBeenCalledWith("New name"));
   expect(after).not.toHaveBeenCalled();
@@ -44,6 +54,7 @@ it("renames with Enter using the save boundary captured when editing began", asy
   await user.keyboard("{Escape}");
 
   expect(after).not.toHaveBeenCalled();
+  expect(screen.getByRole("button", { name: "Community grants" })).toHaveFocus();
 });
 
 it("preserves a failed rename and exposes the recovery message", async () => {

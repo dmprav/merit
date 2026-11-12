@@ -1,5 +1,27 @@
 import { test, expect, checkPage } from "@merit/test-support/browser";
 
+test(
+  "inline name restores focus after saving and cancelling",
+  { tag: "@cross-browser" },
+  async ({ page }) => {
+    await page.goto("/iframe.html?id=patterns-editing--inline-name-editor&viewMode=story");
+    await expect(page.locator("#storybook-root")).toHaveAttribute("data-story-ready", "true");
+    const input = page.getByRole("textbox", { name: "Rename round" });
+    await expect(input).toBeFocused();
+    await input.fill("Renamed round");
+    await input.press("Enter");
+
+    const trigger = page.getByRole("button", { name: "Renamed round", exact: true });
+    await expect(trigger).toBeFocused();
+    await trigger.press("Enter");
+    await input.fill("Cancelled name");
+    await input.press("Escape");
+
+    await expect(trigger).toBeFocused();
+    await checkPage(page);
+  },
+);
+
 for (const theme of ["product", "site"]) {
   test(
     `tooltips remain readable with enlarged text in narrow ${theme} layouts`,

@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import { FormDialog } from "@merit/forms";
@@ -26,11 +26,19 @@ export const CreateAction = ({ data, renderCreatedLink }: CreationActionProps) =
 const CreationComposer = ({ data, renderCreatedLink }: CreationActionProps) => {
   const { t } = useTranslation("fundingRounds");
   const creation = useCreation(data);
+  const focusId = useId();
   const { draft, target, open, created, saving, changeOpen, save, update, close, discard } =
     creation;
   const label = t(target.kind === "round" ? "preparation.create" : "intake.add");
   const feedback = created && (
-    <CreationFeedback creation={creation} renderCreatedLink={renderCreatedLink} />
+    <CreationFeedback
+      creation={creation}
+      renderCreatedLink={renderCreatedLink}
+      onDismiss={() => {
+        document.getElementById(`${focusId}-${open ? "title" : "trigger"}`)?.focus();
+        creation.dismiss();
+      }}
+    />
   );
 
   return (
@@ -49,7 +57,7 @@ const CreationComposer = ({ data, renderCreatedLink }: CreationActionProps) => {
         isOpen={open}
         isDismissDisabled={saving}
         onOpenChange={changeOpen}
-        trigger={<CreationTrigger creation={creation} label={label} />}
+        trigger={<CreationTrigger id={`${focusId}-trigger`} creation={creation} label={label} />}
       >
         <StatusMessage
           eventId={created?.publicId ?? ""}
@@ -59,6 +67,7 @@ const CreationComposer = ({ data, renderCreatedLink }: CreationActionProps) => {
         {draft && (
           <CreationForm
             key={draft.requestId}
+            titleId={`${focusId}-title`}
             draft={draft}
             target={target}
             onChange={update}
@@ -75,9 +84,13 @@ const CreationComposer = ({ data, renderCreatedLink }: CreationActionProps) => {
 const CreationFeedback = ({
   creation,
   renderCreatedLink,
-}: Pick<CreationActionProps, "renderCreatedLink"> & { creation: CreationController }) => {
+  onDismiss,
+}: Pick<CreationActionProps, "renderCreatedLink"> & {
+  creation: CreationController;
+  onDismiss: () => void;
+}) => {
   const { t } = useTranslation("fundingRounds");
-  const { created, target, refreshFailed, openFailed, dismiss, refresh } = creation;
+  const { created, target, refreshFailed, openFailed, refresh } = creation;
   if (!created) {
     return null;
   }
@@ -95,7 +108,7 @@ const CreationFeedback = ({
           variant="quiet"
           iconOnly
           aria-label={t("creation.dismiss")}
-          onPress={dismiss}
+          onPress={onDismiss}
         >
           <Icon name="close" />
         </Button>
@@ -113,12 +126,21 @@ const CreationFeedback = ({
   );
 };
 
-const CreationTrigger = ({ creation, label }: { creation: CreationController; label: string }) => {
+const CreationTrigger = ({
+  id,
+  creation,
+  label,
+}: {
+  id: string;
+  creation: CreationController;
+  label: string;
+}) => {
   const { t } = useTranslation("fundingRounds");
   const { target, resumable, openEditor } = creation;
 
   return (
     <Button
+      id={id}
       size={target.kind === "application" ? "small" : undefined}
       variant={target.kind === "application" ? "secondary" : "primary"}
       onPress={openEditor}

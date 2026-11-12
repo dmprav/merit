@@ -1,5 +1,40 @@
 import { test, expect, checkPage } from "@merit/test-support/browser";
 
+for (const application of [false, true]) {
+  test(
+    `creation confirmation dismissal restores useful focus (application: ${application})`,
+    { tag: "@cross-browser" },
+    async ({ page }) => {
+      const story = application ? "applications" : "funding-rounds";
+      const createLabel = application ? "Add application" : "Create funding round";
+      const titleLabel = application ? "Project title" : "Round name";
+      await page.goto(`/iframe.html?id=features-${story}-create--default&viewMode=story`);
+      await expect(page.locator("#storybook-root")).toHaveAttribute("data-story-ready", "true");
+      const input = page.getByRole("textbox", { name: titleLabel });
+      await input.fill("Saved record");
+      await page.getByRole("button", { name: createLabel, exact: true }).click();
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+      await page.getByRole("button", { name: createLabel, exact: true }).click();
+      await input.fill("Next draft");
+      await page.getByRole("button", { name: "Dismiss confirmation" }).click();
+
+      await expect(input).toBeFocused();
+      await input.press("Escape");
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+      await page
+        .getByRole("button", { name: application ? "Resume application" : "Resume funding round" })
+        .click();
+      await expect(input).toHaveValue("Next draft");
+      await page.getByRole("button", { name: createLabel, exact: true }).click();
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+      await page.getByRole("button", { name: "Dismiss confirmation" }).click();
+
+      await expect(page.getByRole("button", { name: createLabel, exact: true })).toBeFocused();
+      await checkPage(page);
+    },
+  );
+}
+
 test(
   "date calendars limit selection and navigation to full surrounding years",
   { tag: "@cross-browser" },
