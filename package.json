@@ -13,6 +13,7 @@
     "@merit/grantmaking": "workspace:*",
     "@secretlint/core": "catalog:",
     "@secretlint/formatter": "catalog:",
+    "@secretlint/secretlint-rule-pattern": "catalog:",
     "@secretlint/secretlint-rule-preset-recommend": "catalog:",
     "@secretlint/types": "catalog:",
     "@stylistic/eslint-plugin": "catalog:",
