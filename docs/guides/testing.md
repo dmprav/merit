@@ -19,12 +19,8 @@ unauthorized writes or excluding staff judgments from application material. Stat
 that rule in the test name and use current inputs. Preserve the agreed guarantees
 and follow the [coverage policy](#coverage-policy-changes) when removing protection.
 
-Use pure tests for rule variations, PostgreSQL integration tests for persistence,
-permissions, and transactions, and browser tests for navigation, layout, focus,
-and complete user flows. Check internal collaborations through their results;
-outgoing effects such as invitation delivery have observable recipients and content
-worth asserting. Keep detailed timer checks in component tests with controlled
-time so browser checks do not repeat them through real waits.
+Check internal collaborations through their results; outgoing effects such as
+invitation delivery have observable recipients and content worth asserting.
 
 Keep protocol validation and response formatting in fast adapter tests. Verify
 command translation through real operations and persisted outcomes, including
@@ -33,6 +29,49 @@ names or call counts. The [MCP contract tests](../../interfaces/mcp/src/app/serv
 and [persisted intake command tests](../../app/tests/mcp-intake.integration.ts) exercise
 these boundaries separately. Identity-unavailable checks that substitute all
 services belong in adapter suites and need no database setup.
+
+## Choose the owning layer
+
+**Verify each behavior at the lowest layer that can observe its outcome, in the
+package that owns the rule.** Another copy of the same scenario adds run time and
+another place to update when the rule changes, without adding evidence. Higher
+layers check that the parts connect rather than repeating rule variations.
+
+| Layer                                     | Owns                                                                                      |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------- |
+| Pure tests in the owning package          | Rule variations, validation, encoding, and formatting.                                    |
+| Capability integration tests              | Persistence, transactions, retries, authorization, and tenant scope of its operations.    |
+| Application integration tests             | Composition across capabilities, transports, identity modes, demo seeding, and email.     |
+| Adapter tests (MCP, server functions)     | Protocol validation, response contracts, and error containment with substituted services. |
+| Component tests (jsdom)                   | Rendered states, form logic, command payloads, failure and retry paths, controlled time.  |
+| Browser tests (Storybook and application) | Real focus, layout, responsive and cross-browser interaction, and complete user flows.    |
+
+A suite that composes another capability should assert what the composition adds.
+For example, the contacts capability owns contact revisions, history, and access;
+grantmaking tests check that applications resolve live contact details and that
+outstanding review requests block archival.
+
+### Justify overlapping coverage
+
+**Repeat a scenario at another layer only when that layer can detect a failure the
+lower one cannot.** Overlap is justified for:
+
+- **Boundary translation:** an MCP command test confirms that the caller's revision
+  and authenticated author reach the persisted outcome, although the capability
+  owns the conflict rule.
+- **Representative journeys:** the MCP grant-work journey and `@cross-browser`
+  flows confirm that the parts connect; independent rules keep focused tests.
+- **Different failure modes:** a component test injects a failed save and checks
+  the retried command, while a browser test checks the same screen's real focus.
+  Keep detailed timer checks in component tests with controlled time so browser
+  checks do not repeat them through real waits.
+- **Guarantees with severe regressions:** tenant isolation, authorization, money,
+  and audit history can be asserted at both the service and transport boundaries.
+
+Before removing a duplicate, confirm that a remaining test asserts each guarantee
+it covered, and move any unique assertion to the owning layer. Name where each
+behavior remains verified in the change description. Removing the only test of a
+guarantee follows the [coverage policy](#coverage-policy-changes).
 
 ## Core test coverage
 
