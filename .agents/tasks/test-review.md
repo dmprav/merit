@@ -17,8 +17,8 @@ If an open pull request is titled `test: review tests`, stop and report it.
 ## 2. Find where the last review stopped
 
 Each review leaves a record, either at the end of its pull request's **Why**
-section or, when it found nothing to fix, as a comment on the most recent review
-pull request:
+section or, when it found nothing to fix, as a comment on the open issue titled
+`test: review records`:
 
 ```text
 Review record: reviewed through <commit SHA>
@@ -51,8 +51,10 @@ git log --reverse --first-parent --format='%h %s' <recorded commit>..origin/main
 Skip commits titled `test: review tests`. Each remaining commit selects the
 slices whose files, tests included, it changed; a change to `app/tests` selects
 the slices whose behavior those tests exercise. Stop after the commit that
-brings the total to three slices. The last commit you finished is this review's
-record; later commits wait for the next run.
+brings the total to three or more slices; review every slice that commit
+selects, even past three, so a recorded commit is always fully reviewed. The
+last commit you finished is this review's record; later commits wait for the
+next run.
 
 Then add today's rotation slice. List the slices in a stable order:
 
@@ -61,8 +63,9 @@ git ls-files 'capabilities/*' 'foundation/*' 'interfaces/*' | cut -d/ -f1-2 | so
 ```
 
 Count the days from 2026-11-13 to today in UTC, divide by the number of slices,
-and take the slice at the position of the remainder, counting from zero. If it
-was already selected, take the next one.
+and take the slice at the position of the remainder, counting from zero. While
+it is already selected, advance to the next slice, wrapping to the start of the
+list when needed. If every slice is already selected, add no rotation slice.
 
 ## 5. Review each slice as a whole
 
@@ -130,4 +133,5 @@ If there is something to fix:
    finding.
 
 If there is nothing to fix, open no pull request. Post this review's record as a
-comment on the most recent `test: review tests` pull request, if one exists.
+comment on the open issue titled `test: review records`, creating the issue if
+it doesn't exist, so the next run continues from it.
