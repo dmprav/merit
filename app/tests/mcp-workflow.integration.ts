@@ -217,21 +217,58 @@ it("completes grant work through MCP with shared web state, safe retries, and ve
   expect(audit.rows).toEqual([
     { provenance: { interface: "mcp", clientId: "integration-client" } },
   ]);
+  const mcpProvenance = { interface: "mcp", clientId: "integration-client" };
   expect(
     (
       await database.client.query(
-        "SELECT actor_user_id, provenance, action, target_type, target_revision FROM audit_events WHERE target_id=$1",
+        "SELECT actor_user_id, provenance, action, target_type, target_revision FROM audit_events WHERE target_id=$1 ORDER BY action",
         [applicationAddress.applicationId],
       )
     ).rows,
   ).toEqual([
     {
       actor_user_id: "dana",
-      provenance: { interface: "mcp", clientId: "integration-client" },
+      provenance: mcpProvenance,
+      action: "application.create",
+      target_type: "application",
+      target_revision: 0,
+    },
+    {
+      actor_user_id: "dana",
+      provenance: mcpProvenance,
+      action: "application.mark_ready",
+      target_type: "application",
+      target_revision: 2,
+    },
+    {
+      actor_user_id: "dana",
+      provenance: mcpProvenance,
       action: "recommendation.saved",
       target_type: "recommendation",
       target_revision: 1,
     },
+  ]);
+
+  // The same events, newest first, are what a program manager catches up on.
+  const activity = await saved("list_workspace_activity", { workspaceSlug: "alder" });
+  expect(activity.nextCursor).toBeNull();
+  expect(activity.entries).toMatchObject([
+    {
+      action: "recommendation.saved",
+      actor: "Dana Reed",
+      provenance: mcpProvenance,
+      record: {
+        kind: "application",
+        id: applicationAddress.applicationId,
+        url: `http://localhost:3000/app/alder/applications/${applicationAddress.applicationId}`,
+      },
+    },
+    { action: "assessment.recorded", provenance: mcpProvenance },
+    { action: "application.mark_ready" },
+    { action: "application.create" },
+    { action: "round.budget", record: { kind: "round", id: address.roundId } },
+    { action: "round.create", record: { kind: "round", id: address.roundId } },
+    { action: "round.create", record: { kind: "round", id: pageInput.publicId } },
   ]);
 
   await database.client.query("DELETE FROM memberships WHERE user_id='dana'");

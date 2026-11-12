@@ -141,6 +141,7 @@ describe("workspace switching", () => {
     );
     expect(screen.queryByRole("link", { name: "Funding rounds" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Applications" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Activity" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Contacts" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Administration" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Workspace settings" })).toHaveAttribute(
@@ -201,6 +202,22 @@ describe("personal review navigation", () => {
     expect(navigation.queryByRole("link", { name: "Workspace settings" })).not.toBeInTheDocument();
   });
 
+  it("lists Activity after Applications, without pins, for people who work on grants", async () => {
+    await renderWithRouter(
+      <AppShell current={{ kind: "workspace", workspace: alder }}>Workspace</AppShell>,
+      "/app/alder/rounds",
+    );
+    const navigation = within(screen.getByRole("navigation", { name: "Main navigation" }));
+    const names = navigation.getAllByRole("link").map((link) => link.textContent);
+
+    expect(names.indexOf("Activity")).toBe(names.indexOf("Applications") + 1);
+    expect(navigation.getByRole("link", { name: "Activity" })).toHaveAttribute(
+      "href",
+      "/app/alder/activity",
+    );
+    expect(navigation.queryByRole("button", { name: /Activity/ })).not.toBeInTheDocument();
+  });
+
   it("links to My reviews from real workspaces but not from a demo", async () => {
     const { unmount } = await renderWithRouter(
       <AppShell current={{ kind: "workspace", workspace: alder }}>Workspace</AppShell>,
@@ -230,6 +247,7 @@ describe("workspace navigation selection", () => {
     ["/app/alder/applications", "Applications"],
     ["/app/alder/applications/", "Applications"],
     ["/app/alder/applications/workshop-saturdays-b8q3w5j7c2df", "Applications"],
+    ["/app/alder/activity", "Activity"],
     ["/app/alder/contacts", "Contacts"],
     ["/app/alder/settings/members", "Workspace settings"],
   ])("marks only %s's section as current", async (path, selected) => {
@@ -249,7 +267,13 @@ describe("workspace navigation selection", () => {
     );
     const navigation = within(screen.getByRole("navigation", { name: "Main navigation" }));
 
-    for (const name of ["Applications", "Contacts", "Workspace settings", "Funding rounds"]) {
+    for (const name of [
+      "Applications",
+      "Activity",
+      "Contacts",
+      "Workspace settings",
+      "Funding rounds",
+    ]) {
       await user.click(navigation.getByRole("link", { name }));
 
       expect(navigation.getByRole("link", { current: "page" })).toHaveAccessibleName(name);

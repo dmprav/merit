@@ -55,3 +55,12 @@ export {
   applicationOverviewSchema,
   type ApplicationOverview,
 } from "./queries/application-overview";
+
+export {
+  workspaceActivityInput,
+  workspaceActivitySchema,
+  activityEntrySchema,
+  type ActivityEntry,
+  type ActivityPerson,
+  type WorkspaceActivity,
+} from "./queries/activity";

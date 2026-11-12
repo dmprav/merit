@@ -4,6 +4,7 @@ import type { Database } from "@merit/db";
 import type { NavigationService } from "../api/navigation";
 import type { GrantmakingQueries } from "../api/service";
 import { changeNavigationPin } from "./commands/navigation";
+import { listWorkspaceActivity } from "./queries/activity";
 import { listWorkspaceApplications } from "./queries/application-overview";
 import { readNavigationPins } from "./queries/navigation";
 import { getFundingApplicationPage, getFundingRoundPage, listFundingRounds } from "./queries/pages";
@@ -46,6 +47,8 @@ export const createGrantmakingService = ({ database }: Dependencies): Grantmakin
   readRoundPage: (actor, input) => database((db) => getFundingRoundPage(db, actor, input)),
   listWorkspaceApplications: (actor, slug) =>
     database((db) => listWorkspaceApplications(db, actor, slug)),
+  listWorkspaceActivity: (actor, input) =>
+    database((db) => listWorkspaceActivity(db, actor, input)),
   listRounds: (actor, input) => database((db) => listFundingRounds(db, actor, input)),
   listReviews: (actor, input) => database((db) => listApplicationReviewSummaries(db, actor, input)),
   listContactApplications: (actor, input) =>

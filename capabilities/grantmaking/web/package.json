@@ -14,7 +14,8 @@
     "./applications": "./src/applications.ts",
     "./rounds": "./src/rounds.ts",
     "./contracts/pages": "./src/contracts/pages.ts",
-    "./data/creation": "./src/data/creation/workspace-data.ts"
+    "./data/creation": "./src/data/creation/workspace-data.ts",
+    "./activity": "./src/activity.ts"
   },
   "dependencies": {
     "@merit/applications": "workspace:*",

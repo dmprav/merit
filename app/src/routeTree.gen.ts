@@ -37,6 +37,7 @@ import { Route as ReviewsDotassignmentIdRouteImport } from './../../interfaces/p
 import { Route as AdminDotorganizationsDotindexRouteImport } from './../../interfaces/admin/src/routes/admin.organizations.index'
 import { Route as AdminDotorganizationsDotorganizationIdRouteImport } from './../../interfaces/admin/src/routes/admin.organizations.$organizationId'
 import { Route as AdminDotorganizationsDotnewRouteImport } from './../../interfaces/admin/src/routes/admin.organizations.new'
+import { Route as AppDotworkspaceSlugDotactivityRouteImport } from './../../interfaces/product/src/routes/app.$workspaceSlug.activity'
 import { Route as AppDotworkspaceSlugDotcontactsRouteImport } from './../../interfaces/product/src/routes/app.$workspaceSlug.contacts'
 import { Route as AppDotworkspaceSlugDotteamRouteImport } from './../../interfaces/product/src/routes/app.$workspaceSlug.team'
 import { Route as AppDotworkspaceSlugDotapplicationsDotindexRouteImport } from './../../interfaces/product/src/routes/app.$workspaceSlug.applications.index'
@@ -190,6 +191,12 @@ const AdminDotorganizationsDotnewRoute =
     path: '/admin/organizations/new',
     getParentRoute: () => interfacesAdminSrcAppLayoutRoute,
   } as any)
+const AppDotworkspaceSlugDotactivityRoute =
+  AppDotworkspaceSlugDotactivityRouteImport.update({
+    id: '/activity',
+    path: '/activity',
+    getParentRoute: () => AppDotworkspaceSlugRoute,
+  } as any)
 const AppDotworkspaceSlugDotcontactsRoute =
   AppDotworkspaceSlugDotcontactsRouteImport.update({
     id: '/contacts',
@@ -265,6 +272,7 @@ export interface FileRoutesByFullPath {
   '/reviews/': typeof ReviewsDotindexRoute
   '/admin/organizations/$organizationId': typeof AdminDotorganizationsDotorganizationIdRoute
   '/admin/organizations/new': typeof AdminDotorganizationsDotnewRoute
+  '/app/$workspaceSlug/activity': typeof AppDotworkspaceSlugDotactivityRoute
   '/app/$workspaceSlug/contacts': typeof AppDotworkspaceSlugDotcontactsRoute
   '/app/$workspaceSlug/team': typeof AppDotworkspaceSlugDotteamRoute
   '/admin/organizations/': typeof AdminDotorganizationsDotindexRoute
@@ -300,6 +308,7 @@ export interface FileRoutesByTo {
   '/reviews': typeof ReviewsDotindexRoute
   '/admin/organizations/$organizationId': typeof AdminDotorganizationsDotorganizationIdRoute
   '/admin/organizations/new': typeof AdminDotorganizationsDotnewRoute
+  '/app/$workspaceSlug/activity': typeof AppDotworkspaceSlugDotactivityRoute
   '/app/$workspaceSlug/contacts': typeof AppDotworkspaceSlugDotcontactsRoute
   '/app/$workspaceSlug/team': typeof AppDotworkspaceSlugDotteamRoute
   '/admin/organizations': typeof AdminDotorganizationsDotindexRoute
@@ -339,6 +348,7 @@ export interface FileRoutesById {
   '/_product/reviews/': typeof ReviewsDotindexRoute
   '/_administration/admin/organizations/$organizationId': typeof AdminDotorganizationsDotorganizationIdRoute
   '/_administration/admin/organizations/new': typeof AdminDotorganizationsDotnewRoute
+  '/_product/app/$workspaceSlug/activity': typeof AppDotworkspaceSlugDotactivityRoute
   '/_product/app/$workspaceSlug/contacts': typeof AppDotworkspaceSlugDotcontactsRoute
   '/_product/app/$workspaceSlug/team': typeof AppDotworkspaceSlugDotteamRoute
   '/_administration/admin/organizations/': typeof AdminDotorganizationsDotindexRoute
@@ -377,6 +387,7 @@ export interface FileRouteTypes {
     | '/reviews/'
     | '/admin/organizations/$organizationId'
     | '/admin/organizations/new'
+    | '/app/$workspaceSlug/activity'
     | '/app/$workspaceSlug/contacts'
     | '/app/$workspaceSlug/team'
     | '/admin/organizations/'
@@ -412,6 +423,7 @@ export interface FileRouteTypes {
     | '/reviews'
     | '/admin/organizations/$organizationId'
     | '/admin/organizations/new'
+    | '/app/$workspaceSlug/activity'
     | '/app/$workspaceSlug/contacts'
     | '/app/$workspaceSlug/team'
     | '/admin/organizations'
@@ -450,6 +462,7 @@ export interface FileRouteTypes {
     | '/_product/reviews/'
     | '/_administration/admin/organizations/$organizationId'
     | '/_administration/admin/organizations/new'
+    | '/_product/app/$workspaceSlug/activity'
     | '/_product/app/$workspaceSlug/contacts'
     | '/_product/app/$workspaceSlug/team'
     | '/_administration/admin/organizations/'
@@ -676,6 +689,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminDotorganizationsDotnewRouteImport
       parentRoute: typeof interfacesAdminSrcAppLayoutRoute
     }
+    '/_product/app/$workspaceSlug/activity': {
+      id: '/_product/app/$workspaceSlug/activity'
+      path: '/activity'
+      fullPath: '/app/$workspaceSlug/activity'
+      preLoaderRoute: typeof AppDotworkspaceSlugDotactivityRouteImport
+      parentRoute: typeof AppDotworkspaceSlugRoute
+    }
     '/_product/app/$workspaceSlug/contacts': {
       id: '/_product/app/$workspaceSlug/contacts'
       path: '/contacts'
@@ -772,6 +792,7 @@ const ReviewsRouteWithChildren =
   ReviewsRoute._addFileChildren(ReviewsRouteChildren)
 
 interface AppDotworkspaceSlugRouteChildren {
+  AppDotworkspaceSlugDotactivityRoute: typeof AppDotworkspaceSlugDotactivityRoute
   AppDotworkspaceSlugDotcontactsRoute: typeof AppDotworkspaceSlugDotcontactsRoute
   AppDotworkspaceSlugDotteamRoute: typeof AppDotworkspaceSlugDotteamRoute
   AppDotworkspaceSlugDotapplicationsDotapplicationRefRoute: typeof AppDotworkspaceSlugDotapplicationsDotapplicationRefRoute
@@ -783,6 +804,7 @@ interface AppDotworkspaceSlugRouteChildren {
 }
 
 const AppDotworkspaceSlugRouteChildren: AppDotworkspaceSlugRouteChildren = {
+  AppDotworkspaceSlugDotactivityRoute: AppDotworkspaceSlugDotactivityRoute,
   AppDotworkspaceSlugDotcontactsRoute: AppDotworkspaceSlugDotcontactsRoute,
   AppDotworkspaceSlugDotteamRoute: AppDotworkspaceSlugDotteamRoute,
   AppDotworkspaceSlugDotapplicationsDotapplicationRefRoute:

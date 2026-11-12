@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { assert, expect } from "vite-plus/test";
 
 import { roundHasApplications } from "@merit/applications/server/integrations";
+import { recordAuditEvent } from "@merit/audit/server/record";
 import { getFundingRoundPage } from "@merit/grantmaking/server";
 import { actor, workspaceTest as it, workspaceSlug } from "@merit/organizations/testing/workspace";
 import { createFundingRound, deleteFundingRound, editFundingRound } from "@merit/rounds/server";
@@ -15,7 +16,7 @@ it.for(["criteria_versions", "round_changes"])(
       `ALTER TABLE ${table} ADD CONSTRAINT reject_preparation_recording CHECK (false) NOT VALID`,
     );
     try {
-      await expect(createFundingRound(db, actor, request)).rejects.toThrow();
+      await expect(createFundingRound(db, actor, request, recordAuditEvent)).rejects.toThrow();
       expect((await database.client.query("SELECT id FROM funding_rounds")).rows).toEqual([]);
       expect((await database.client.query("SELECT round_id FROM criteria_versions")).rows).toEqual(
         [],
@@ -27,9 +28,9 @@ it.for(["criteria_versions", "round_changes"])(
       );
     }
 
-    const created = await createFundingRound(db, actor, request);
+    const created = await createFundingRound(db, actor, request, recordAuditEvent);
     expect(created.status).toBe("ok");
-    expect(await createFundingRound(db, actor, request)).toEqual(created);
+    expect(await createFundingRound(db, actor, request, recordAuditEvent)).toEqual(created);
     expect((await database.client.query("SELECT action FROM round_changes")).rows).toEqual([
       { action: "create" },
     ]);
@@ -39,11 +40,16 @@ it.for(["criteria_versions", "round_changes"])(
 it.for(["criteria_versions", "round_changes"])(
   "rolls back preparation, revision, criteria versions, and history when %s cannot be recorded",
   async (table, { db, database }) => {
-    const created = await createFundingRound(db, actor, {
-      workspaceSlug,
-      requestId: randomUUID(),
-      title: "Neighbourhood grants",
-    });
+    const created = await createFundingRound(
+      db,
+      actor,
+      {
+        workspaceSlug,
+        requestId: randomUUID(),
+        title: "Neighbourhood grants",
+      },
+      recordAuditEvent,
+    );
     assert(created.status === "ok");
     const address = { workspaceSlug, publicId: created.publicId };
     const before = await getFundingRoundPage(db, actor, { ...address, kind: "round" });
@@ -54,20 +60,25 @@ it.for(["criteria_versions", "round_changes"])(
     );
     try {
       await expect(
-        editFundingRound(db, actor, {
-          ...address,
-          expectedRevision: 0,
-          change: {
-            section: "criteria",
-            criteria: [
-              {
-                id: "69ab841a-4705-57f6-aa41-875e8fa4ad4a",
-                title: "Fit",
-                description: "Community benefit",
-              },
-            ],
+        editFundingRound(
+          db,
+          actor,
+          {
+            ...address,
+            expectedRevision: 0,
+            change: {
+              section: "criteria",
+              criteria: [
+                {
+                  id: "69ab841a-4705-57f6-aa41-875e8fa4ad4a",
+                  title: "Fit",
+                  description: "Community benefit",
+                },
+              ],
+            },
           },
-        }),
+          recordAuditEvent,
+        ),
       ).rejects.toThrow();
       expect(await getFundingRoundPage(db, actor, { ...address, kind: "round" })).toEqual(before);
       expect((await database.client.query("SELECT * FROM round_changes")).rows).toEqual(history);
@@ -84,7 +95,7 @@ it.for(["criteria_versions", "round_changes"])(
 
 it("rolls back deletion history when removing the round fails", async ({ db, database }) => {
   const request = { workspaceSlug, requestId: randomUUID(), title: "Neighbourhood grants" };
-  const created = await createFundingRound(db, actor, request);
+  const created = await createFundingRound(db, actor, request, recordAuditEvent);
   assert(created.status === "ok");
   const address = { workspaceSlug, publicId: created.publicId };
   const before = await getFundingRoundPage(db, actor, { ...address, kind: "round" });
@@ -98,11 +109,17 @@ it("rolls back deletion history when removing the round fails", async ({ db, dat
   `);
   try {
     await expect(
-      deleteFundingRound(db, actor, { ...address, expectedRevision: 0 }, roundHasApplications),
+      deleteFundingRound(
+        db,
+        actor,
+        { ...address, expectedRevision: 0 },
+        roundHasApplications,
+        recordAuditEvent,
+      ),
     ).rejects.toThrow();
     expect(await getFundingRoundPage(db, actor, { ...address, kind: "round" })).toEqual(before);
     expect((await database.client.query("SELECT * FROM round_changes")).rows).toEqual(history);
-    expect(await createFundingRound(db, actor, request)).toEqual(created);
+    expect(await createFundingRound(db, actor, request, recordAuditEvent)).toEqual(created);
   } finally {
     await database.client.query("DROP TRIGGER reject_round_deletion ON funding_rounds");
     await database.client.query("DROP FUNCTION reject_round_deletion()");
@@ -123,15 +140,20 @@ it("records preparation snapshots with their action, reason, actor, and verified
     title: "Neighbourhood grants",
     budget: "100.25",
   };
-  const created = await createFundingRound(db, recorder, request);
+  const created = await createFundingRound(db, recorder, request, recordAuditEvent);
   assert(created.status === "ok");
   const address = { workspaceSlug, publicId: created.publicId };
   expect(
-    await editFundingRound(db, recorder, {
-      ...address,
-      expectedRevision: 0,
-      change: { section: "budget", amount: "200.50", reason: "Additional allocation" },
-    }),
+    await editFundingRound(
+      db,
+      recorder,
+      {
+        ...address,
+        expectedRevision: 0,
+        change: { section: "budget", amount: "200.50", reason: "Additional allocation" },
+      },
+      recordAuditEvent,
+    ),
   ).toEqual({ status: "ok", revision: 1 });
 
   await database.client.query("INSERT INTO app_users (id, name) VALUES ('pat', 'Pat Taylor')");
@@ -139,11 +161,16 @@ it("records preparation snapshots with their action, reason, actor, and verified
     "INSERT INTO memberships (organization_id, user_id, role) VALUES ('alder', 'pat', 'program_manager')",
   );
   expect(
-    await editFundingRound(db, recorder, {
-      ...address,
-      expectedRevision: 1,
-      change: { section: "manager", userId: "pat" },
-    }),
+    await editFundingRound(
+      db,
+      recorder,
+      {
+        ...address,
+        expectedRevision: 1,
+        change: { section: "manager", userId: "pat" },
+      },
+      recordAuditEvent,
+    ),
   ).toEqual({ status: "ok", revision: 2 });
   expect(
     await deleteFundingRound(
@@ -151,6 +178,7 @@ it("records preparation snapshots with their action, reason, actor, and verified
       recorder,
       { ...address, expectedRevision: 2 },
       roundHasApplications,
+      recordAuditEvent,
     ),
   ).toEqual({
     status: "ok",
@@ -206,7 +234,7 @@ it("records preparation snapshots with their action, reason, actor, and verified
       provenance: recorder.provenance,
     })),
   );
-  expect(await createFundingRound(db, recorder, request)).toEqual({
+  expect(await createFundingRound(db, recorder, request, recordAuditEvent)).toEqual({
     status: "invalid",
     error: "round_deleted",
   });

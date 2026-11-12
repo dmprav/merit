@@ -34,15 +34,16 @@ export const createApplicationServices = ({
 }) => {
   const grantmaking = {
     ...createGrantmakingService({ database }),
-    ...createRoundsService({ database, roundHasApplications }),
-    ...createApplicationsService({ database, work: applicationWork }),
+    ...createRoundsService({ database, roundHasApplications, recordAuditEvent }),
+    ...createApplicationsService({ database, work: applicationWork, recordAuditEvent }),
     ...createRecommendationsService({ database, recordAuditEvent }),
-    ...createReviewService({ database }),
+    ...createReviewService({ database, recordAuditEvent }),
   };
   const navigation = createNavigationService({ database, verifiedEmails: identity.verifiedEmails });
   const reviewer = createReviewerService({
     database,
     verifiedEmails: identity.verifiedEmails,
+    recordAuditEvent,
     reviewerUrl: (id) => new URL(productLinks.review(id), invitationOrigin).href,
     managerUrl: (slug, id) =>
       new URL(

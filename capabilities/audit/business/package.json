@@ -6,7 +6,8 @@
   "type": "module",
   "exports": {
     "./server/record": "./src/server/integrations.ts",
-    "./server/demo": "./src/server/demo.ts"
+    "./server/demo": "./src/server/demo.ts",
+    "./server/read": "./src/server/read.ts"
   },
   "dependencies": {
     "@merit/auth": "workspace:*",

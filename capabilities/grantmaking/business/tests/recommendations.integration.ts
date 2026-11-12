@@ -45,21 +45,26 @@ const createRecommendedApplication = async (
   title: string,
   allocation: bigint,
 ) => {
-  const created = await createFundingApplication(db, actor, {
-    workspaceSlug,
-    publicId: roundId,
-    requestId: randomUUID(),
-    title,
-    applicant: "Community group",
-    requested: "80.00",
-    answers: [
-      {
-        questionId: "a62d30ed-37a4-57ff-9c98-2d5ecaaed7bd",
-        question: "Purpose",
-        response: "Weekly community activities.",
-      },
-    ],
-  });
+  const created = await createFundingApplication(
+    db,
+    actor,
+    {
+      workspaceSlug,
+      publicId: roundId,
+      requestId: randomUUID(),
+      title,
+      applicant: "Community group",
+      requested: "80.00",
+      answers: [
+        {
+          questionId: "a62d30ed-37a4-57ff-9c98-2d5ecaaed7bd",
+          question: "Purpose",
+          response: "Weekly community activities.",
+        },
+      ],
+    },
+    recordAuditEvent,
+  );
   assert(created.status === "ok", "Could not create the application fixture");
   const address = { workspaceSlug, publicId: created.publicId };
   const ready = await editFundingApplication(
@@ -71,6 +76,7 @@ const createRecommendedApplication = async (
       change: { action: "mark_ready" },
     },
     applicationWork,
+    recordAuditEvent,
   );
   assert(ready.status === "ok", "Could not mark the application fixture ready");
   const recommended = await saveFundingRecommendation(
@@ -110,12 +116,17 @@ const readAudit = async (client: PgClient) =>
   ).rows;
 
 const it = grantTest.extend("scenario", async ({ db, database }) => {
-  const round = await createFundingRound(db, actor, {
-    workspaceSlug,
-    requestId: randomUUID(),
-    title: "Recommendation budget",
-    budget: "100.00",
-  });
+  const round = await createFundingRound(
+    db,
+    actor,
+    {
+      workspaceSlug,
+      requestId: randomUUID(),
+      title: "Recommendation budget",
+      budget: "100.00",
+    },
+    recordAuditEvent,
+  );
   assert(round.status === "ok", "Could not create the funding-round fixture");
 
   // Each application starts at version 1 with recommendation revision 1 and its audit entry.
@@ -458,6 +469,7 @@ describe("persisted recommendations", () => {
             change: { action: "start_revision", kind: "revision" },
           },
           applicationWork,
+          recordAuditEvent,
         );
         assert(started.status === "ok");
         const drafted = await editFundingApplication(
@@ -476,6 +488,7 @@ describe("persisted recommendations", () => {
             },
           },
           applicationWork,
+          recordAuditEvent,
         );
         assert(drafted.status === "ok");
         expect(
@@ -488,6 +501,7 @@ describe("persisted recommendations", () => {
               change: { action: "publish_revision" },
             },
             applicationWork,
+            recordAuditEvent,
           ),
         ).toMatchObject({ status: "ok" });
       }

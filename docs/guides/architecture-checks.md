@@ -138,9 +138,12 @@ export redirected to command persistence also fails the check.
 Application permissions are limited to the service composition in
 `app/src/server/services.server.ts`, demo composition in `app/src/server/demo.server.ts`, and demo cleanup
 in `app/scripts/clean-demos.ts`. Each location has its own permitted entries.
-Service composition supplies audit's recorder through Recommendations'
-`RecordRecommendationAudit` contract. Recommendation commands cannot import audit's
-implementation; they pass their existing transaction to the injected recorder.
+Service composition supplies audit's recorder through each recording capability's
+own contract, such as Recommendations' `RecordRecommendationAudit`. Commands cannot
+import audit's implementation; they pass their existing transaction to the injected
+recorder. Grantmaking's query layer alone reads activity through `@merit/audit/server/read`,
+since audit imports no capability and relies on its caller to resolve record titles
+and round membership.
 Interface adapters use the services supplied by assembly and browser-safe API
 types; they cannot instantiate capability services through direct server imports.
 

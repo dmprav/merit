@@ -4,6 +4,7 @@ import { assert, expect } from "vite-plus/test";
 import { z } from "zod";
 
 import { editFundingApplication } from "@merit/applications/server";
+import { recordAuditEvent } from "@merit/audit/server/record";
 import { migrate } from "@merit/db/migrate";
 import { encodeRoundOverview } from "@merit/grantmaking/api";
 import { getExampleRound } from "@merit/grantmaking/examples";
@@ -234,6 +235,7 @@ it("resolves public identities under current permissions and preserves them acro
       change: { action: "start_revision", kind: "correction" },
     },
     applicationWork,
+    recordAuditEvent,
   );
   assert(started.status === "ok");
   const drafted = await editFundingApplication(
@@ -252,6 +254,7 @@ it("resolves public identities under current permissions and preserves them acro
       },
     },
     applicationWork,
+    recordAuditEvent,
   );
   assert(drafted.status === "ok");
   expect(
@@ -264,6 +267,7 @@ it("resolves public identities under current permissions and preserves them acro
         change: { action: "publish_revision" },
       },
       applicationWork,
+      recordAuditEvent,
     ),
   ).toMatchObject({ status: "ok" });
   await database.client.query(

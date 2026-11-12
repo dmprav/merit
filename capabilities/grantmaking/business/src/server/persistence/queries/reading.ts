@@ -61,6 +61,7 @@ const access = (actor: string, slug: string) =>
 export const readGrantWorkspaceAccess = async (db: Database, actor: string, slug: string) => {
   const [row] = await db
     .select({
+      organizationId: organizations.id,
       allowed: sql<boolean>`${organizationScope(actor, "work_on_grants", organizations.id)}`,
     })
     .from(organizations)

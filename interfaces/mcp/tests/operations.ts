@@ -62,6 +62,7 @@ export const testOperations = () => ({
     applicationHistory: vi.fn<WorkspaceOperations["applicationHistory"]>(),
     saveRecommendation: vi.fn<WorkspaceOperations["saveRecommendation"]>(),
     listRounds: vi.fn<WorkspaceOperations["listRounds"]>(),
+    listWorkspaceActivity: vi.fn<WorkspaceOperations["listWorkspaceActivity"]>(),
   },
   team: {
     workspacesPage: vi.fn<TeamOperations["workspacesPage"]>(),

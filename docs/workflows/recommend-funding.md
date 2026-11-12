@@ -58,8 +58,8 @@ record the actor, timestamp, and before/after recommendation together.
 Each successful save also records a compact workspace audit event referencing the
 saved recommendation revision. Its actor name and web or MCP provenance are captured
 at the time of the save. Both records commit together; a history or audit failure
-leaves the recommendation unchanged. The shared audit trail covers new saves from
-its deployment onward; earlier recommendation versions remain in grantmaking history.
+leaves the recommendation unchanged. Managers read these events in
+[Activity](review-and-decide.md#catch-up-on-shared-changes).
 
 The [recommendation presentation guide](../../capabilities/recommendations/web/src/views/recommendations/README.md)
 owns summary composition, editor labels, contextual help, and the screen examples.

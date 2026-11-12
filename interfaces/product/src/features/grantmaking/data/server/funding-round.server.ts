@@ -1,5 +1,11 @@
+import type { z } from "zod";
+
 import { withActor } from "@merit/auth/request";
-import type { ApplicationRequest, PublicRoundRequest } from "@merit/grantmaking/api";
+import type {
+  ApplicationRequest,
+  PublicRoundRequest,
+  workspaceActivityInput,
+} from "@merit/grantmaking/api";
 
 import type { WorkspaceServices } from "../../../../shared/request-context";
 
@@ -42,6 +48,21 @@ export const loadWorkspaceApplications = (
 ) =>
   withActor(services.currentIdentity, async (actor) => {
     const result = await services.listWorkspaceApplications(actor, workspaceSlug);
+    if (result.status === "not_found") {
+      return { status: "workspace_not_found" } as const;
+    }
+    if (result.status === "forbidden") {
+      return { status: "not_found" } as const;
+    }
+    return result;
+  });
+
+export const loadWorkspaceActivity = (
+  input: z.input<typeof workspaceActivityInput>,
+  services: Pick<WorkspaceServices, "currentIdentity" | "listWorkspaceActivity">,
+) =>
+  withActor(services.currentIdentity, async (actor) => {
+    const result = await services.listWorkspaceActivity(actor, input);
     if (result.status === "not_found") {
       return { status: "workspace_not_found" } as const;
     }

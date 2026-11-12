@@ -4,6 +4,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { drizzle } from "drizzle-orm/node-postgres";
 
 import { createFundingApplication } from "@merit/applications/server";
+import { recordAuditEvent } from "@merit/audit/server/record";
 import { createFundingRound } from "@merit/rounds/server";
 import { openNavigation, closeNavigation } from "@merit/test-support/browser/navigation";
 
@@ -15,20 +16,30 @@ test("deleting preparation returns to the workspace applications list", async ({
 }) => {
   const db = drizzle(workspaceDatabase);
   const actor = { userId: "dana" };
-  const round = await createFundingRound(db, actor, {
-    workspaceSlug: "alder",
-    requestId: randomUUID(),
-    title: "Intake",
-  });
+  const round = await createFundingRound(
+    db,
+    actor,
+    {
+      workspaceSlug: "alder",
+      requestId: randomUUID(),
+      title: "Intake",
+    },
+    recordAuditEvent,
+  );
   if (round.status !== "ok") {
     throw new Error("Could not create the round fixture");
   }
-  const application = await createFundingApplication(db, actor, {
-    workspaceSlug: "alder",
-    publicId: round.publicId,
-    requestId: randomUUID(),
-    title: "Unused preparation",
-  });
+  const application = await createFundingApplication(
+    db,
+    actor,
+    {
+      workspaceSlug: "alder",
+      publicId: round.publicId,
+      requestId: randomUUID(),
+      title: "Unused preparation",
+    },
+    recordAuditEvent,
+  );
   if (application.status !== "ok") {
     throw new Error("Could not create the application fixture");
   }
@@ -54,21 +65,31 @@ test(
   async ({ page, workspaceDatabase }, testInfo) => {
     const db = drizzle(workspaceDatabase);
     const actor = { userId: "dana" };
-    const round = await createFundingRound(db, actor, {
-      workspaceSlug: "alder",
-      requestId: randomUUID(),
-      title: "Community grants 2028",
-    });
+    const round = await createFundingRound(
+      db,
+      actor,
+      {
+        workspaceSlug: "alder",
+        requestId: randomUUID(),
+        title: "Community grants 2028",
+      },
+      recordAuditEvent,
+    );
     expect(round.status).toBe("ok");
     if (round.status !== "ok") {
       throw new Error("Could not create the round fixture");
     }
-    await createFundingApplication(db, actor, {
-      workspaceSlug: "alder",
-      publicId: round.publicId,
-      requestId: randomUUID(),
-      title: "Next year's meals",
-    });
+    await createFundingApplication(
+      db,
+      actor,
+      {
+        workspaceSlug: "alder",
+        publicId: round.publicId,
+        requestId: randomUUID(),
+        title: "Next year's meals",
+      },
+      recordAuditEvent,
+    );
     await page.goto("/app/alder/rounds");
     const navigation = await openNavigation(page);
     await navigation.getByRole("link", { name: "Applications", exact: true }).click();
@@ -412,6 +433,7 @@ test("personal pins stay under their object type and survive reloads @cross-brow
       requestId: randomUUID(),
       title: "Community grants 2028",
     },
+    recordAuditEvent,
   );
   if (round.status !== "ok") {
     throw new Error("Could not create the round fixture");

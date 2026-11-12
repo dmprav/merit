@@ -4,6 +4,7 @@ import type { WorkspaceServices } from "../../../../shared/request-context";
 import {
   loadFundingRoundPage,
   loadFundingRounds,
+  loadWorkspaceActivity,
   loadWorkspaceApplications,
 } from "./funding-round.server";
 
@@ -123,3 +124,46 @@ it.each(["signed_out", "unavailable"] as const)(
     expect(services.readRoundPage).not.toHaveBeenCalled();
   },
 );
+
+const manager = { status: "authenticated", actor: { userId: "manager" } } as const;
+
+it.each([
+  { outcome: "forbidden", status: "not_found" },
+  { outcome: "not_found", status: "workspace_not_found" },
+] as const)("presents $outcome activity as $status", async ({ outcome, status }) => {
+  expect(
+    await loadWorkspaceActivity(
+      { workspaceSlug: "alder" },
+      {
+        currentIdentity: async () => manager,
+        listWorkspaceActivity: async () => ({ status: outcome }),
+      },
+    ),
+  ).toEqual({ status });
+});
+
+it("reads the selected workspace's activity as the authenticated actor, with filters from the request", async () => {
+  const page = { status: "ok" as const, entries: [], people: [], nextCursor: null };
+  const listWorkspaceActivity = vi.fn(async () => page);
+  const input = { workspaceSlug: "alder", roundId: "k7m2p9x4n6rt", personId: "dana", limit: 50 };
+
+  expect(
+    await loadWorkspaceActivity(input, {
+      currentIdentity: async () => manager,
+      listWorkspaceActivity,
+    }),
+  ).toEqual(page);
+  expect(listWorkspaceActivity).toHaveBeenCalledWith({ userId: "manager" }, input);
+});
+
+it("does not read activity for a signed-out visitor", async () => {
+  const listWorkspaceActivity = vi.fn();
+
+  expect(
+    await loadWorkspaceActivity(
+      { workspaceSlug: "alder" },
+      { currentIdentity: async () => ({ status: "signed_out" }), listWorkspaceActivity },
+    ),
+  ).toEqual({ status: "signed_out" });
+  expect(listWorkspaceActivity).not.toHaveBeenCalled();
+});

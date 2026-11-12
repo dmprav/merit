@@ -19,6 +19,7 @@ export type WorkspaceServices = Pick<
   | "saveRecommendation"
   | "listRounds"
   | "listWorkspaceApplications"
+  | "listWorkspaceActivity"
 > &
   Pick<ContactService, "listContacts" | "changeContact"> & {
     currentIdentity: () => Promise<Identity>;

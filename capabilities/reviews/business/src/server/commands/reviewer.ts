@@ -43,6 +43,7 @@ import {
   reviewerMembership,
   type ReviewerRecord,
 } from "../persistence/reviewer-records";
+import type { RecordAssessmentAudit } from "./reviews";
 
 const expires = () => new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
@@ -292,10 +293,23 @@ export const saveReviewerDraft = async (
   });
 };
 
+const submittedEvent = (
+  organizationId: string,
+  actor: Actor,
+  user: { name: string | null },
+  assessment: { assessmentId: string; version: number },
+): Parameters<RecordAssessmentAudit>[1] => ({
+  organizationId,
+  actor: { userId: actor.userId, name: user.name, provenance: actorProvenance(actor) },
+  action: "assessment.submitted",
+  target: { type: "assessment", id: assessment.assessmentId, revision: assessment.version },
+});
+
 export const submitReviewerAssessment = async (
   db: Database,
   actor: Actor,
   input: Parameters<ReviewerService["submit"]>[1],
+  recordAuditEvent: RecordAssessmentAudit,
 ): ReturnType<ReviewerService["submit"]> => {
   const parsed = submitReviewerSchema.safeParse(input);
   if (!parsed.success) {
@@ -359,6 +373,7 @@ export const submitReviewerAssessment = async (
     if (recorded.status !== "ok") {
       return recorded;
     }
+    await recordAuditEvent(tx, submittedEvent(assignment.organizationId, actor, user, recorded));
     return completeReviewerSubmission(tx, {
       assignment,
       draft,
@@ -473,6 +488,7 @@ const recordOwnAssessment = async (
 ) => {
   const assignment = record.assignment;
   let next = structuredClone(row.reviews);
+  let version = 1;
   if (assignment.assessmentId) {
     const assessment = next.assessments.find((value) => value.id === assignment.assessmentId);
     if (!assessment || assessment.authorUserId !== recorder.userId) {
@@ -486,6 +502,7 @@ const recordOwnAssessment = async (
       note: note.trim(),
     });
     next.revision++;
+    version = assessment.versions.length;
   } else {
     const result = prepareReviewChange(
       next,
@@ -514,7 +531,11 @@ const recordOwnAssessment = async (
     next.assessments.find((value) => value.id === assignment.id)!.authorUserId = recorder.userId;
   }
   await recordReviewChange(tx, row, next);
-  return { status: "ok" } as const;
+  return {
+    status: "ok",
+    assessmentId: assignment.assessmentId ?? assignment.id,
+    version,
+  } as const;
 };
 
 const applyManagerAction = async (

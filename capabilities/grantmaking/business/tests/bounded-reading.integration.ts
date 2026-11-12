@@ -5,6 +5,7 @@ import { assert, expect } from "vite-plus/test";
 
 import { createFundingApplication, editFundingApplication } from "@merit/applications/server";
 import { roundHasApplications } from "@merit/applications/server/integrations";
+import { recordAuditEvent } from "@merit/audit/server/record";
 import {
   listContactApplications,
   listApplicationReviewSummaries,
@@ -28,23 +29,33 @@ import { applicationWork } from "../src/server/persistence/commands/application-
 it("paginates independently of exact whole-round totals and enforces current access", async ({
   db,
 }) => {
-  const created = await createFundingRound(db, actor, {
-    workspaceSlug,
-    requestId: randomUUID(),
-    title: "Bounded reads",
-    budget: "90071992547409.93",
-  });
+  const created = await createFundingRound(
+    db,
+    actor,
+    {
+      workspaceSlug,
+      requestId: randomUUID(),
+      title: "Bounded reads",
+      budget: "90071992547409.93",
+    },
+    recordAuditEvent,
+  );
   assert(created.status === "ok");
   const address = { workspaceSlug, roundId: created.publicId };
   const ids = [];
   for (const requested of ["100.01", "", "200.02"]) {
-    const result = await createFundingApplication(db, actor, {
-      workspaceSlug,
-      publicId: address.roundId,
-      requestId: randomUUID(),
-      title: `Application ${requested}`,
-      requested,
-    });
+    const result = await createFundingApplication(
+      db,
+      actor,
+      {
+        workspaceSlug,
+        publicId: address.roundId,
+        requestId: randomUUID(),
+        title: `Application ${requested}`,
+        requested,
+      },
+      recordAuditEvent,
+    );
     assert(result.status === "ok");
     ids.push(result.publicId);
   }
@@ -95,22 +106,32 @@ it("paginates independently of exact whole-round totals and enforces current acc
 it("bounds Unicode content at the database boundary, preserves all evidence and rejects mixed revisions", async ({
   db,
 }) => {
-  const round = await createFundingRound(db, actor, {
-    workspaceSlug,
-    requestId: randomUUID(),
-    title: "Evidence",
-  });
+  const round = await createFundingRound(
+    db,
+    actor,
+    {
+      workspaceSlug,
+      requestId: randomUUID(),
+      title: "Evidence",
+    },
+    recordAuditEvent,
+  );
   assert(round.status === "ok");
   const response = "Evidence 🪴 ".repeat(1800).trim();
-  const created = await createFundingApplication(db, actor, {
-    workspaceSlug,
-    publicId: round.publicId,
-    requestId: randomUUID(),
-    title: "Long source",
-    applicant: "Applicant",
-    requested: "1",
-    answers: [{ questionId: "e34860fd-d4e1-52b9-8f1c-90089da14a56", question: "Why", response }],
-  });
+  const created = await createFundingApplication(
+    db,
+    actor,
+    {
+      workspaceSlug,
+      publicId: round.publicId,
+      requestId: randomUUID(),
+      title: "Long source",
+      applicant: "Applicant",
+      requested: "1",
+      answers: [{ questionId: "e34860fd-d4e1-52b9-8f1c-90089da14a56", question: "Why", response }],
+    },
+    recordAuditEvent,
+  );
   assert(created.status === "ok");
   const address = { workspaceSlug, applicationId: created.publicId };
   const context = await getFundingApplicationContext(db, actor, address);
@@ -184,6 +205,7 @@ it("bounds Unicode content at the database boundary, preserves all evidence and 
       },
     },
     applicationWork,
+    recordAuditEvent,
   );
   assert(edited.status === "ok");
   expect(
@@ -197,18 +219,28 @@ it("bounds Unicode content at the database boundary, preserves all evidence and 
 });
 
 it("keeps historical evidence addressable after eligible records are deleted", async ({ db }) => {
-  const round = await createFundingRound(db, actor, {
-    workspaceSlug,
-    requestId: randomUUID(),
-    title: "Temporary",
-  });
+  const round = await createFundingRound(
+    db,
+    actor,
+    {
+      workspaceSlug,
+      requestId: randomUUID(),
+      title: "Temporary",
+    },
+    recordAuditEvent,
+  );
   assert(round.status === "ok");
-  const created = await createFundingApplication(db, actor, {
-    workspaceSlug,
-    publicId: round.publicId,
-    requestId: randomUUID(),
-    title: "Unused",
-  });
+  const created = await createFundingApplication(
+    db,
+    actor,
+    {
+      workspaceSlug,
+      publicId: round.publicId,
+      requestId: randomUUID(),
+      title: "Unused",
+    },
+    recordAuditEvent,
+  );
   assert(created.status === "ok");
   expect(
     (
@@ -222,6 +254,7 @@ it("keeps historical evidence addressable after eligible records are deleted", a
           change: { action: "delete" },
         },
         applicationWork,
+        recordAuditEvent,
       )
     ).status,
   ).toBe("ok");
@@ -255,6 +288,7 @@ it("keeps historical evidence addressable after eligible records are deleted", a
           expectedRevision: 0,
         },
         roundHasApplications,
+        recordAuditEvent,
       )
     ).status,
   ).toBe("ok");

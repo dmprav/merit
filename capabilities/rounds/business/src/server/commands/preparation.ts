@@ -1,4 +1,4 @@
-import type { Actor } from "@merit/auth";
+import { actorProvenance, type Actor, type Provenance } from "@merit/auth";
 import type { Database } from "@merit/db";
 import { lockGrantWorkspace } from "@merit/organizations/locks";
 
@@ -23,7 +23,31 @@ import {
 } from "../persistence/commands/preparation";
 import { allocatePublicId } from "../persistence/identifiers";
 
-export const createFundingRound = async (db: Database, actor: Actor, input: CreateRoundRequest) => {
+type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
+
+/** Append in the supplied transaction; failure must roll back the round change. */
+export type RecordRoundAudit = (
+  tx: Transaction,
+  event: {
+    organizationId: string;
+    actor: { userId: string; name: string | null; provenance: Provenance };
+    action: `round.${"create" | "budget" | "criteria" | "manager" | "delete"}`;
+    target: { type: "round"; id: string; revision: number };
+  },
+) => Promise<void>;
+
+const auditActor = (access: { actor: { userId: string; name: string | null } }, actor: Actor) => ({
+  userId: access.actor.userId,
+  name: access.actor.name,
+  provenance: actorProvenance(actor),
+});
+
+export const createFundingRound = async (
+  db: Database,
+  actor: Actor,
+  input: CreateRoundRequest,
+  recordAuditEvent: RecordRoundAudit,
+) => {
   const parsed = createRoundRequestSchema.safeParse(input);
   if (!parsed.success) {
     return { status: "invalid", error: "invalid_round" } as const;
@@ -57,12 +81,23 @@ export const createFundingRound = async (db: Database, actor: Actor, input: Crea
       actor,
       request.requestId,
     );
+    await recordAuditEvent(tx, {
+      organizationId: access.organization.id,
+      actor: auditActor(access, actor),
+      action: "round.create",
+      target: { type: "round", id: publicId, revision: 0 },
+    });
 
     return { status: "ok", publicId } as const;
   });
 };
 
-export const editFundingRound = async (db: Database, actor: Actor, input: EditRoundRequest) => {
+export const editFundingRound = async (
+  db: Database,
+  actor: Actor,
+  input: EditRoundRequest,
+  recordAuditEvent: RecordRoundAudit,
+) => {
   const parsed = editRoundRequestSchema.safeParse(input);
   if (!parsed.success) {
     return { status: "invalid", error: "invalid_round" } as const;
@@ -102,6 +137,15 @@ export const editFundingRound = async (db: Database, actor: Actor, input: EditRo
     }
 
     const revision = await recordPreparationChange(tx, row, { ...result, round: updated }, actor);
+    // Detail edits stay in preparation history; unchanged saves keep their revision.
+    if (result.action !== "details" && revision !== row.revision) {
+      await recordAuditEvent(tx, {
+        organizationId: row.organizationId,
+        actor: auditActor(access, actor),
+        action: `round.${result.action}`,
+        target: { type: "round", id: row.id, revision },
+      });
+    }
 
     return { status: "ok", revision } as const;
   });
@@ -112,6 +156,7 @@ export const deleteFundingRound = async (
   actor: Actor,
   input: DeleteRoundRequest,
   roundHasApplications: RoundApplications,
+  recordAuditEvent: RecordRoundAudit,
 ) => {
   const parsed = deleteRoundRequestSchema.safeParse(input);
   if (!parsed.success) {
@@ -138,6 +183,12 @@ export const deleteFundingRound = async (
     }
 
     await recordPreparationDeletion(tx, row, actor);
+    await recordAuditEvent(tx, {
+      organizationId: row.organizationId,
+      actor: auditActor(access, actor),
+      action: "round.delete",
+      target: { type: "round", id: row.id, revision: row.revision + 1 },
+    });
     return { status: "ok" } as const;
   });
 };

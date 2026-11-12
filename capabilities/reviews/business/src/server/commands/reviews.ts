@@ -1,10 +1,10 @@
 import { lockApplicationCase } from "@merit/applications/locks";
-import { actorProvenance, type Actor } from "@merit/auth";
+import { actorProvenance, type Actor, type Provenance } from "@merit/auth";
 import { readContact } from "@merit/contacts/scope";
 import type { Database } from "@merit/db";
 
 import { saveReviewRequestSchema, type SaveReviewRequest } from "../../api/commands/reviews";
-import { prepareReviewChange } from "../../domain/reviews";
+import { prepareReviewChange, type ReviewState } from "../../domain/reviews";
 import { assignmentForRequest, cancelParticipatingRequest } from "../persistence/commands/reviewer";
 import {
   readReviewState,
@@ -13,10 +13,53 @@ import {
   recordReviewChange,
 } from "../persistence/commands/reviews";
 
+/** Append in the supplied transaction; failure must roll back the assessment. */
+export type RecordAssessmentAudit = (
+  tx: Parameters<Parameters<Database["transaction"]>[0]>[0],
+  event: {
+    organizationId: string;
+    actor: { userId: string; name: string | null; provenance: Provenance };
+    action: "assessment.recorded" | "assessment.submitted";
+    target: { type: "assessment"; id: string; revision: number };
+  },
+) => Promise<void>;
+
+/** Each new assessment version is one event; requests and cancellations are not assessments. */
+const recordAssessmentVersion = async (
+  tx: Parameters<Parameters<Database["transaction"]>[0]>[0],
+  recordAuditEvent: RecordAssessmentAudit,
+  saved: {
+    access: { organizationId: string; actor: { userId: string; name: string | null } };
+    actor: Actor;
+  },
+  change: SaveReviewRequest["change"],
+  [before, after]: [ReviewState, ReviewState],
+) => {
+  const assessment =
+    (change.action === "record" || change.action === "edit") && after.revision !== before.revision
+      ? after.assessments.find((value) => value.id === change.id)
+      : undefined;
+  if (!assessment) {
+    return;
+  }
+
+  await recordAuditEvent(tx, {
+    organizationId: saved.access.organizationId,
+    actor: {
+      userId: saved.access.actor.userId,
+      name: saved.access.actor.name,
+      provenance: actorProvenance(saved.actor),
+    },
+    action: "assessment.recorded",
+    target: { type: "assessment", id: assessment.id, revision: assessment.versions.length },
+  });
+};
+
 export const saveApplicationReview = async (
   db: Database,
   actor: Actor,
   input: SaveReviewRequest,
+  recordAuditEvent: RecordAssessmentAudit,
 ) => {
   const parsed = saveReviewRequestSchema.safeParse(input);
   if (!parsed.success) {
@@ -85,6 +128,10 @@ export const saveApplicationReview = async (
     }
 
     await recordReviewChange(tx, row, result.state);
+    await recordAssessmentVersion(tx, recordAuditEvent, { access, actor }, change, [
+      state,
+      result.state,
+    ]);
     await syncAssignmentCancellation(
       tx,
       row.publicId,

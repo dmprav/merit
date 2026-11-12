@@ -81,7 +81,7 @@ schema `public` `USAGE`, and any missing table privileges:
 | `organizations`                                                                                           | `UPDATE (name)`                                                     |
 | `contacts`                                                                                                | `SELECT`, `INSERT`, `UPDATE`                                        |
 | `contact_changes`                                                                                         | `INSERT`                                                            |
-| `audit_events`                                                                                            | `INSERT`                                                            |
+| `audit_events`                                                                                            | `SELECT`, `INSERT`                                                  |
 | `access_requests`                                                                                         | `SELECT`, `INSERT`, `UPDATE (reviewed_at, reviewed_by)`             |
 | `access_request_limits`                                                                                   | `SELECT`, `INSERT`, `UPDATE`, `DELETE`                              |
 
@@ -93,8 +93,8 @@ Review revisions live in `review_states`; recommendation revisions belong to
 `recommendation_versions`. Application cases own only their intake revision.
 
 Team history additionally requires `SELECT` on `organization_events`.
-Grant `INSERT` on `audit_events` for audited writes. A missing audit grant fails
-the entire save. Audit events reject updates; deletion is restricted to expired
+Grant `INSERT` on `audit_events` for audited writes and `SELECT` for the Activity
+page and MCP tool. A missing `INSERT` grant fails the entire save. Audit events reject updates; deletion is restricted to expired
 demos and the cleanup operator requires `DELETE` on `audit_events`. The
 [audit capability guide](../../capabilities/audit/business/README.md) explains its
 recording and retention contract.

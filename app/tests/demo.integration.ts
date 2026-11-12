@@ -189,6 +189,7 @@ test("reset is scoped and retryable, and old workspace requests cannot write", a
         requestId: crypto.randomUUID(),
         title: "Old tab",
       },
+      recordAuditEvent,
     ),
   ).toEqual({ status: "not_found" });
 

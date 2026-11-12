@@ -28,11 +28,16 @@ import { createFundingRound, editFundingRound, deleteFundingRound } from "@merit
 import { applicationWork } from "../src/server/persistence/commands/application-work";
 
 const create = async (db: NodePgDatabase) => {
-  const result = await createFundingRound(db, actor, {
-    workspaceSlug,
-    requestId: randomUUID(),
-    title: "Neighbourhood grants",
-  });
+  const result = await createFundingRound(
+    db,
+    actor,
+    {
+      workspaceSlug,
+      requestId: randomUUID(),
+      title: "Neighbourhood grants",
+    },
+    recordAuditEvent,
+  );
 
   if (result.status !== "ok") {
     throw new Error("Creation failed");
@@ -42,21 +47,26 @@ const create = async (db: NodePgDatabase) => {
 };
 
 const createApplication = async (db: NodePgDatabase, roundId: string) => {
-  const result = await createFundingApplication(db, actor, {
-    workspaceSlug,
-    publicId: roundId,
-    requestId: randomUUID(),
-    title: "Community meals",
-    applicant: "Neighbourhood Kitchen",
-    requested: "100.00",
-    answers: [
-      {
-        questionId: "874c0657-ef06-5758-b59b-66279007d89e",
-        question: "Plan",
-        response: "Weekly shared meals.",
-      },
-    ],
-  });
+  const result = await createFundingApplication(
+    db,
+    actor,
+    {
+      workspaceSlug,
+      publicId: roundId,
+      requestId: randomUUID(),
+      title: "Community meals",
+      applicant: "Neighbourhood Kitchen",
+      requested: "100.00",
+      answers: [
+        {
+          questionId: "874c0657-ef06-5758-b59b-66279007d89e",
+          question: "Plan",
+          response: "Weekly shared meals.",
+        },
+      ],
+    },
+    recordAuditEvent,
+  );
 
   assert(result.status === "ok");
   return { workspaceSlug, publicId: result.publicId };
@@ -85,6 +95,7 @@ const createReadyApplication = async (db: NodePgDatabase, roundId: string) => {
       change: { action: "mark_ready" },
     },
     applicationWork,
+    recordAuditEvent,
   );
 
   assert(result.status === "ok");
@@ -118,6 +129,7 @@ describe("funding-round preparation", () => {
         await tx.execute(sql.raw(`GRANT UPDATE (user_id) ON memberships TO ${role}`));
         await tx.execute(sql.raw(`GRANT INSERT, DELETE, UPDATE ON funding_rounds TO ${role}`));
         await tx.execute(sql.raw(`GRANT SELECT, INSERT ON round_changes TO ${role}`));
+        await tx.execute(sql.raw(`GRANT SELECT, INSERT ON audit_events TO ${role}`));
         await tx.execute(sql.raw(`GRANT INSERT ON criteria_versions TO ${role}`));
         await tx.execute(sql.raw(`SET LOCAL ROLE ${role}`));
 
@@ -126,22 +138,27 @@ describe("funding-round preparation", () => {
         ).toEqual([{ rolsuper: false }]);
 
         const request = { workspaceSlug, requestId: randomUUID(), title: "Runtime grants" };
-        const created = await createFundingRound(tx, actor, request);
+        const created = await createFundingRound(tx, actor, request, recordAuditEvent);
 
         expect(created.status).toBe("ok");
         if (created.status !== "ok") {
           throw new Error("Creation failed");
         }
-        expect(await createFundingRound(tx, actor, request)).toEqual(created);
+        expect(await createFundingRound(tx, actor, request, recordAuditEvent)).toEqual(created);
 
         const address = { workspaceSlug, publicId: created.publicId };
 
         expect(
-          await editFundingRound(tx, actor, {
-            ...address,
-            expectedRevision: 0,
-            change: { section: "budget", amount: "100.25", reason: "" },
-          }),
+          await editFundingRound(
+            tx,
+            actor,
+            {
+              ...address,
+              expectedRevision: 0,
+              change: { section: "budget", amount: "100.25", reason: "" },
+            },
+            recordAuditEvent,
+          ),
         ).toEqual({ status: "ok", revision: 1 });
 
         // Editing needs only the round; the page also reads application content.
@@ -163,12 +180,13 @@ describe("funding-round preparation", () => {
             actor,
             { ...address, expectedRevision: 1 },
             roundHasApplications,
+            recordAuditEvent,
           ),
         ).toEqual({
           status: "ok",
         });
         expect(await getFundingRoundPage(tx, actor, { ...address, kind: "round" })).toBeNull();
-        expect(await createFundingRound(tx, actor, request)).toEqual({
+        expect(await createFundingRound(tx, actor, request, recordAuditEvent)).toEqual({
           status: "invalid",
           error: "round_deleted",
         });
@@ -196,10 +214,10 @@ describe("funding-round preparation", () => {
     database,
   }) => {
     const request = { workspaceSlug, requestId: randomUUID(), title: "  New round  " };
-    const first = await createFundingRound(db, actor, request);
+    const first = await createFundingRound(db, actor, request, recordAuditEvent);
 
     expect(first.status).toBe("ok");
-    expect(await createFundingRound(db, actor, request)).toEqual(first);
+    expect(await createFundingRound(db, actor, request, recordAuditEvent)).toEqual(first);
     if (first.status !== "ok") {
       throw new Error("Creation failed");
     }
@@ -237,9 +255,10 @@ describe("funding-round preparation", () => {
           expectedRevision: 0,
         },
         roundHasApplications,
+        recordAuditEvent,
       ),
     ).toEqual({ status: "ok" });
-    expect(await createFundingRound(db, actor, request)).toEqual({
+    expect(await createFundingRound(db, actor, request, recordAuditEvent)).toEqual({
       status: "invalid",
       error: "round_deleted",
     });
@@ -258,7 +277,9 @@ describe("funding-round preparation", () => {
   }) => {
     const request = { workspaceSlug, requestId: randomUUID(), title: "New round" };
 
-    expect(await createFundingRound(db, { userId: "birch-manager" }, request)).toEqual({
+    expect(
+      await createFundingRound(db, { userId: "birch-manager" }, request, recordAuditEvent),
+    ).toEqual({
       status: "not_found",
     });
 
@@ -269,6 +290,7 @@ describe("funding-round preparation", () => {
         db,
         { userId: "birch-manager" },
         { ...address, expectedRevision: 0, change: { section: "budget", amount: "1", reason: "" } },
+        recordAuditEvent,
       ),
     ).toEqual({ status: "not_found" });
     expect(
@@ -277,6 +299,7 @@ describe("funding-round preparation", () => {
         { userId: "birch-manager" },
         { ...address, expectedRevision: 0 },
         roundHasApplications,
+        recordAuditEvent,
       ),
     ).toEqual({ status: "not_found" });
 
@@ -284,13 +307,20 @@ describe("funding-round preparation", () => {
       "UPDATE memberships SET role = 'member', administration = 'administrator' WHERE user_id = 'dana'",
     );
 
-    expect(await createFundingRound(db, actor, request)).toEqual({ status: "not_found" });
+    expect(await createFundingRound(db, actor, request, recordAuditEvent)).toEqual({
+      status: "not_found",
+    });
     expect(
-      await editFundingRound(db, actor, {
-        ...address,
-        expectedRevision: 0,
-        change: { section: "budget", amount: "1", reason: "" },
-      }),
+      await editFundingRound(
+        db,
+        actor,
+        {
+          ...address,
+          expectedRevision: 0,
+          change: { section: "budget", amount: "1", reason: "" },
+        },
+        recordAuditEvent,
+      ),
     ).toEqual({ status: "not_found" });
   });
 
@@ -298,32 +328,52 @@ describe("funding-round preparation", () => {
     const address = await create(db);
 
     expect(
-      await editFundingRound(db, actor, {
-        ...address,
-        expectedRevision: 0,
-        change: { section: "budget", amount: "100.25", reason: "" },
-      }),
+      await editFundingRound(
+        db,
+        actor,
+        {
+          ...address,
+          expectedRevision: 0,
+          change: { section: "budget", amount: "100.25", reason: "" },
+        },
+        recordAuditEvent,
+      ),
     ).toEqual({ status: "ok", revision: 1 });
     expect(
-      await editFundingRound(db, actor, {
-        ...address,
-        expectedRevision: 0,
-        change: { section: "details", title: "Stale", purpose: "", meetingDate: null },
-      }),
+      await editFundingRound(
+        db,
+        actor,
+        {
+          ...address,
+          expectedRevision: 0,
+          change: { section: "details", title: "Stale", purpose: "", meetingDate: null },
+        },
+        recordAuditEvent,
+      ),
     ).toEqual({ status: "conflict" });
     expect(
-      await editFundingRound(db, actor, {
-        ...address,
-        expectedRevision: 1,
-        change: { section: "budget", amount: "200", reason: "" },
-      }),
+      await editFundingRound(
+        db,
+        actor,
+        {
+          ...address,
+          expectedRevision: 1,
+          change: { section: "budget", amount: "200", reason: "" },
+        },
+        recordAuditEvent,
+      ),
     ).toEqual({ status: "invalid", error: "budget_reason_required" });
     expect(
-      await editFundingRound(db, actor, {
-        ...address,
-        expectedRevision: 1,
-        change: { section: "budget", amount: "200", reason: "Additional allocation" },
-      }),
+      await editFundingRound(
+        db,
+        actor,
+        {
+          ...address,
+          expectedRevision: 1,
+          change: { section: "budget", amount: "200", reason: "Additional allocation" },
+        },
+        recordAuditEvent,
+      ),
     ).toEqual({ status: "ok", revision: 2 });
 
     const page = (await getFundingRoundPage(db, actor, { ...address, kind: "round" }))!;
@@ -340,6 +390,7 @@ describe("funding-round preparation", () => {
         actor,
         { ...address, expectedRevision: 1 },
         roundHasApplications,
+        recordAuditEvent,
       ),
     ).toEqual({
       status: "conflict",
@@ -350,12 +401,17 @@ describe("funding-round preparation", () => {
     db,
   }) => {
     for (const budget of [undefined, "0"]) {
-      const created = await createFundingRound(db, actor, {
-        workspaceSlug,
-        requestId: randomUUID(),
-        title: "Budget recovery",
-        budget,
-      });
+      const created = await createFundingRound(
+        db,
+        actor,
+        {
+          workspaceSlug,
+          requestId: randomUUID(),
+          title: "Budget recovery",
+          budget,
+        },
+        recordAuditEvent,
+      );
 
       if (created.status !== "ok") {
         throw new Error("Creation failed");
@@ -366,40 +422,65 @@ describe("funding-round preparation", () => {
 
       if (budget === undefined) {
         expect(
-          await editFundingRound(db, actor, {
-            ...address,
-            expectedRevision: revision++,
-            change: { section: "budget", amount: "100", reason: "" },
-          }),
+          await editFundingRound(
+            db,
+            actor,
+            {
+              ...address,
+              expectedRevision: revision++,
+              change: { section: "budget", amount: "100", reason: "" },
+            },
+            recordAuditEvent,
+          ),
         ).toEqual({ status: "ok", revision });
       }
       expect(
-        await editFundingRound(db, actor, {
-          ...address,
-          expectedRevision: revision++,
-          change: { section: "budget", amount: "", reason: "Awaiting allocation" },
-        }),
+        await editFundingRound(
+          db,
+          actor,
+          {
+            ...address,
+            expectedRevision: revision++,
+            change: { section: "budget", amount: "", reason: "Awaiting allocation" },
+          },
+          recordAuditEvent,
+        ),
       ).toEqual({ status: "ok", revision });
       expect(
-        await editFundingRound(db, actor, {
-          ...address,
-          expectedRevision: revision,
-          change: { section: "budget", amount: "250", reason: "" },
-        }),
+        await editFundingRound(
+          db,
+          actor,
+          {
+            ...address,
+            expectedRevision: revision,
+            change: { section: "budget", amount: "250", reason: "" },
+          },
+          recordAuditEvent,
+        ),
       ).toEqual({ status: "invalid", error: "budget_reason_required" });
       expect(
-        await editFundingRound(db, actor, {
-          ...address,
-          expectedRevision: revision,
-          change: { section: "budget", amount: "", reason: "" },
-        }),
+        await editFundingRound(
+          db,
+          actor,
+          {
+            ...address,
+            expectedRevision: revision,
+            change: { section: "budget", amount: "", reason: "" },
+          },
+          recordAuditEvent,
+        ),
       ).toEqual({ status: "ok", revision });
       expect(
-        await editFundingRound(db, actor, {
-          ...address,
-          expectedRevision: revision++,
-          change: { section: "budget", amount: "250", reason: "Replacement approved" },
-        }),
+        await editFundingRound(
+          db,
+          actor,
+          {
+            ...address,
+            expectedRevision: revision++,
+            change: { section: "budget", amount: "250", reason: "Replacement approved" },
+          },
+          recordAuditEvent,
+        ),
       ).toEqual({ status: "ok", revision });
 
       const page = await getFundingRoundPage(db, actor, { ...address, kind: "round" });
@@ -424,26 +505,41 @@ describe("funding-round preparation", () => {
       { section: "budget", amount: "", reason: "" },
     ] satisfies RoundChange[]) {
       expect(
-        await editFundingRound(db, actor, {
-          ...address,
-          expectedRevision: 0,
-          change: { ...change },
-        }),
+        await editFundingRound(
+          db,
+          actor,
+          {
+            ...address,
+            expectedRevision: 0,
+            change: { ...change },
+          },
+          recordAuditEvent,
+        ),
       ).toEqual({ status: "ok", revision: 0 });
     }
 
-    await editFundingRound(db, actor, {
-      ...address,
-      expectedRevision: 0,
-      change: { section: "budget", amount: "100", reason: "" },
-    });
+    await editFundingRound(
+      db,
+      actor,
+      {
+        ...address,
+        expectedRevision: 0,
+        change: { section: "budget", amount: "100", reason: "" },
+      },
+      recordAuditEvent,
+    );
 
     expect(
-      await editFundingRound(db, actor, {
-        ...address,
-        expectedRevision: 1,
-        change: { section: "budget", amount: "100.00", reason: "Unnecessary reason" },
-      }),
+      await editFundingRound(
+        db,
+        actor,
+        {
+          ...address,
+          expectedRevision: 1,
+          change: { section: "budget", amount: "100.00", reason: "Unnecessary reason" },
+        },
+        recordAuditEvent,
+      ),
     ).toEqual({ status: "ok", revision: 1 });
     expect(
       (
@@ -465,11 +561,16 @@ describe("funding-round preparation", () => {
         description: "Connection to the round's purpose",
       },
     ];
-    const prepared = await editFundingRound(db, actor, {
-      ...address,
-      expectedRevision: 0,
-      change: { section: "criteria", criteria },
-    });
+    const prepared = await editFundingRound(
+      db,
+      actor,
+      {
+        ...address,
+        expectedRevision: 0,
+        change: { section: "criteria", criteria },
+      },
+      recordAuditEvent,
+    );
     assert(prepared.status === "ok");
     const applicationAddress = await createApplication(db, address.publicId);
     const contact = await changeWorkspaceContact(
@@ -484,42 +585,52 @@ describe("funding-round preparation", () => {
       fundingRoundContactUsage,
     );
     assert(contact.status === "ok");
-    const recorded = await saveApplicationReview(db, actor, {
-      ...applicationAddress,
-      expectedRevision: reviewRevisionSchema.parse(0),
-      expectedApplicationVersion: materialVersionSchema.parse(1),
-      expectedCriteriaVersion: criteriaVersionSchema.parse(2),
-      change: {
-        action: "record",
-        id: randomUUID(),
-        contactId: contact.contact.id,
-        requestId: null,
-        previousId: null,
-        content: {
-          applicationVersion: materialVersionSchema.parse(1),
-          criteriaVersion: criteriaVersionSchema.parse(2),
-          date: null,
-          position: null,
-          amount: null,
-          reasoning: "The meals support the round's purpose.",
-          observations: [
-            {
-              criterionId: criteria[0]!.id,
-              criterion: criteria[0]!.title,
-              text: "Strong connection.",
-            },
-          ],
+    const recorded = await saveApplicationReview(
+      db,
+      actor,
+      {
+        ...applicationAddress,
+        expectedRevision: reviewRevisionSchema.parse(0),
+        expectedApplicationVersion: materialVersionSchema.parse(1),
+        expectedCriteriaVersion: criteriaVersionSchema.parse(2),
+        change: {
+          action: "record",
+          id: randomUUID(),
+          contactId: contact.contact.id,
+          requestId: null,
+          previousId: null,
+          content: {
+            applicationVersion: materialVersionSchema.parse(1),
+            criteriaVersion: criteriaVersionSchema.parse(2),
+            date: null,
+            position: null,
+            amount: null,
+            reasoning: "The meals support the round's purpose.",
+            observations: [
+              {
+                criterionId: criteria[0]!.id,
+                criterion: criteria[0]!.title,
+                text: "Strong connection.",
+              },
+            ],
+          },
         },
       },
-    });
+      recordAuditEvent,
+    );
     assert(recorded.status === "ok");
 
     expect(
-      await editFundingRound(db, actor, {
-        ...address,
-        expectedRevision: 1,
-        change: { section: "criteria", criteria: [] },
-      }),
+      await editFundingRound(
+        db,
+        actor,
+        {
+          ...address,
+          expectedRevision: 1,
+          change: { section: "criteria", criteria: [] },
+        },
+        recordAuditEvent,
+      ),
     ).toEqual({ status: "ok", revision: 2 });
 
     const page = await getFundingApplicationPage(db, actor, applicationAddress);
@@ -562,6 +673,7 @@ describe("funding-round preparation", () => {
         actor,
         { ...address, expectedRevision: 0 },
         roundHasApplications,
+        recordAuditEvent,
       ),
     ).toEqual({
       status: "invalid",
@@ -592,6 +704,7 @@ describe("funding-round preparation", () => {
         actor,
         { ...address, expectedRevision: 0 },
         roundHasApplications,
+        recordAuditEvent,
       ),
     ).toEqual({
       status: "invalid",
@@ -620,11 +733,16 @@ describe("funding-round preparation", () => {
     const address = await create(db);
 
     expect(
-      await editFundingRound(db, actor, {
-        ...address,
-        expectedRevision: 0,
-        change: { section: "manager", userId: "birch-manager" },
-      }),
+      await editFundingRound(
+        db,
+        actor,
+        {
+          ...address,
+          expectedRevision: 0,
+          change: { section: "manager", userId: "birch-manager" },
+        },
+        recordAuditEvent,
+      ),
     ).toEqual({ status: "invalid", error: "manager_unavailable" });
 
     expect(await getFundingRoundPage(db, actor, { ...address, kind: "round" })).toMatchObject({
@@ -653,11 +771,16 @@ describe("funding-round preparation", () => {
     assert(saved.status === "ok");
 
     expect(
-      await editFundingRound(db, actor, {
-        ...address,
-        expectedRevision: 0,
-        change: { section: "manager", userId: "pat" },
-      }),
+      await editFundingRound(
+        db,
+        actor,
+        {
+          ...address,
+          expectedRevision: 0,
+          change: { section: "manager", userId: "pat" },
+        },
+        recordAuditEvent,
+      ),
     ).toEqual({ status: "ok", revision: 1 });
 
     const page = await getFundingRoundPage(db, actor, { ...address, kind: "round" });
@@ -732,20 +855,27 @@ it("creates optional round details atomically and validates dates and budgets be
   };
 
   expect(
-    await createFundingRound(db, actor, { ...request, meetingDate: "2027-02-30" }),
+    await createFundingRound(
+      db,
+      actor,
+      { ...request, meetingDate: "2027-02-30" },
+      recordAuditEvent,
+    ),
   ).toMatchObject({ status: "invalid" });
-  expect(await createFundingRound(db, actor, { ...request, budget: "-1" })).toMatchObject({
+  expect(
+    await createFundingRound(db, actor, { ...request, budget: "-1" }, recordAuditEvent),
+  ).toMatchObject({
     status: "invalid",
   });
 
-  const created = await createFundingRound(db, actor, request);
+  const created = await createFundingRound(db, actor, request, recordAuditEvent);
 
   if (created.status !== "ok") {
     throw new Error("Creation failed");
   }
-  expect(await createFundingRound(db, actor, { ...request, purpose: "Changed retry" })).toEqual(
-    created,
-  );
+  expect(
+    await createFundingRound(db, actor, { ...request, purpose: "Changed retry" }, recordAuditEvent),
+  ).toEqual(created);
 
   const page = (await getFundingRoundPage(db, actor, {
     workspaceSlug,
@@ -769,19 +899,29 @@ it("retains IDs through renaming and reordering criteria with duplicate titles",
   const first = { id: randomUUID(), title: "Fit", description: "Purpose" };
   const second = { id: randomUUID(), title: "Fit", description: "Participation" };
   expect(
-    await editFundingRound(db, actor, {
-      ...address,
-      expectedRevision: 0,
-      change: { section: "criteria", criteria: [first, second] },
-    }),
+    await editFundingRound(
+      db,
+      actor,
+      {
+        ...address,
+        expectedRevision: 0,
+        change: { section: "criteria", criteria: [first, second] },
+      },
+      recordAuditEvent,
+    ),
   ).toEqual({ status: "ok", revision: 1 });
   const renamed = { ...first, title: "Purpose" };
   expect(
-    await editFundingRound(db, actor, {
-      ...address,
-      expectedRevision: 1,
-      change: { section: "criteria", criteria: [second, renamed] },
-    }),
+    await editFundingRound(
+      db,
+      actor,
+      {
+        ...address,
+        expectedRevision: 1,
+        change: { section: "criteria", criteria: [second, renamed] },
+      },
+      recordAuditEvent,
+    ),
   ).toEqual({ status: "ok", revision: 2 });
   const page = await getFundingRoundPage(db, actor, { ...address, kind: "round" });
   expect(page?.round).toMatchObject({
