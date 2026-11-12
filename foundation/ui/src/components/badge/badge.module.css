@@ -1,0 +1,39 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  inline-size: fit-content;
+  max-inline-size: 100%;
+  min-inline-size: 0;
+  min-block-size: 1.25rem;
+  border: 1px solid color-mix(in srgb, currentColor 12%, transparent);
+  border-radius: 0.25rem;
+  padding: 0 6px;
+  font-size: var(--text-caption);
+  line-height: 1.5;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+  background: var(--surface-muted);
+  color: var(--muted);
+}
+
+.badge[data-tone="success"] {
+  background: var(--success-subtle);
+  color: var(--success);
+}
+
+.badge[data-tone="warning"] {
+  background: var(--warning-subtle);
+  color: var(--warning);
+}
+
+.badge[data-tone="danger"] {
+  background: var(--danger-subtle);
+  color: var(--danger);
+}
+
+@media (forced-colors: active) {
+  .badge {
+    border-color: CanvasText;
+  }
+}

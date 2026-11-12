@@ -1,0 +1,239 @@
+.landing {
+  overflow-wrap: anywhere;
+}
+
+.hero {
+  padding-top: clamp(2.5rem, 5vw, 4.5rem);
+}
+
+.introduction {
+  max-width: 47.5rem;
+}
+
+.heroTitle {
+  font-size: clamp(2.25rem, 4.8vw, 4rem);
+  line-height: 1.08;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  text-wrap: balance;
+}
+
+.titleText {
+  display: inline;
+}
+
+.projectNote {
+  margin-inline-start: calc(-1 * var(--space-2));
+  vertical-align: super;
+}
+
+.asterisk {
+  font-size: 2.25rem;
+  line-height: 1;
+}
+
+.description {
+  max-width: 38rem;
+  margin-top: var(--space-5);
+  font-size: clamp(1.0625rem, 1.6vw, 1.25rem);
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+.action {
+  margin-top: var(--space-6);
+}
+
+.demoNote {
+  margin-top: var(--space-3);
+  color: var(--muted);
+  font-size: var(--text-detail);
+}
+
+.productPreview {
+  margin-top: clamp(2rem, 4vw, 3rem);
+}
+
+.meta {
+  color: var(--muted);
+  font-size: var(--text-detail);
+}
+
+.overview {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: clamp(2rem, 6vw, 5rem);
+  margin-block: var(--space-8) clamp(2rem, 4vw, 3rem);
+}
+
+.overview h2 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+
+.overview p {
+  margin-top: var(--space-2);
+  max-width: 32rem;
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.evidenceSection {
+  border-top: 1px solid var(--border);
+  padding-top: clamp(2rem, 4vw, 3rem);
+}
+
+.sectionHeading {
+  max-width: 45rem;
+  margin-bottom: var(--space-8);
+}
+
+.sectionHeading h2,
+.invitation h2 {
+  font-size: clamp(1.75rem, 3vw, 2.5rem);
+  font-weight: 500;
+  letter-spacing: -0.035em;
+  line-height: 1.2;
+  text-wrap: balance;
+}
+
+.sectionHeading > p,
+.invitationDescription {
+  margin-top: var(--space-4);
+  color: var(--muted);
+  font-size: 1.0625rem;
+  line-height: 1.65;
+}
+
+.comparison {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-5);
+}
+
+.detailPanel {
+  display: grid;
+  grid-row: span 3;
+  grid-template-rows: subgrid;
+  min-width: 0;
+  padding: clamp(1.25rem, 2.5vw, 2rem);
+  border: 1px solid var(--border);
+  border-radius: var(--panel-radius);
+  background: var(--surface);
+}
+
+.detailHeading {
+  align-self: start;
+}
+
+.detailHeading h3 {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.detailHeading .meta {
+  margin-top: var(--space-2);
+}
+
+.evidence,
+.reviewReason {
+  align-self: start;
+  padding-left: var(--space-4);
+  border-left: 2px solid var(--border-control);
+  font-size: 1rem;
+  line-height: var(--leading-reading);
+}
+
+.evidence {
+  border-left-color: var(--action);
+}
+
+.assessmentDetails {
+  display: grid;
+  gap: var(--space-3);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border);
+}
+
+.reviewOutcome {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--text-body);
+}
+
+.reviewOutcome > p {
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.highlight {
+  background: var(--warning-subtle);
+  color: inherit;
+  box-decoration-break: clone;
+}
+
+.takeaway {
+  margin-top: var(--space-5);
+  max-width: var(--measure-reading);
+  color: var(--muted);
+  line-height: var(--leading-reading);
+}
+
+.invitation {
+  --background: #354563;
+  --foreground: #ffffff;
+  --muted: #dce3ef;
+  --action: #ffffff;
+  --on-action: #354563;
+  --action-hover: #edf0f7;
+  --surface-muted: #455779;
+  --action-subtle: #455779;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 15rem;
+  align-items: center;
+  gap: clamp(2rem, 5vw, 4rem);
+  margin-block: clamp(3rem, 7vw, 6rem);
+  padding: clamp(1.5rem, 4vw, 3rem);
+  border-radius: var(--panel-radius);
+  background: var(--background);
+  color: var(--foreground);
+}
+
+.invitationDescription {
+  max-width: 38rem;
+}
+
+.invitationActions {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-6);
+}
+
+.invitationRequest {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-2);
+  color: var(--muted);
+  font-size: var(--text-body);
+}
+
+@media (max-width: 700px) {
+  .comparison,
+  .overview,
+  .invitation {
+    grid-template-columns: 1fr;
+  }
+
+  .detailPanel {
+    grid-row: auto;
+    grid-template-rows: auto;
+    gap: var(--space-5);
+  }
+
+  .overview {
+    gap: var(--space-6);
+  }
+}

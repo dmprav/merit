@@ -1,0 +1,10 @@
+.reading {
+  font-size: var(--text-reading);
+  line-height: var(--leading-reading);
+  max-width: var(--measure-reading);
+}
+
+.reading p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

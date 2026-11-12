@@ -1,0 +1,59 @@
+import { Canvas, Meta } from "@storybook/addon-docs/blocks";
+import * as Shell from "./application-shell.stories";
+
+<Meta of={Shell} />
+
+# Frame an application
+
+Keep the person's workspace, location, and a useful route back clear as they move
+between tasks. Each interface supplies its identity, destinations, and account actions;
+the shell owns their shared presentation and responsive navigation.
+
+Use `ApplicationShell` with `ApplicationContext` for the workspace identity above
+navigation and `ApplicationAccount` below it. Supply real workspace links containing
+`ApplicationContextOption` when switching is available; mark the current link with
+`aria-current` to show its selection and checkmark. The compact popup keeps long
+names readable and supports Tab navigation, Escape, and outside dismissal. A single
+workspace stays static. The interface supplies destinations and account actions
+according to the current session.
+
+Supply translated navigation labels and a current context label for the compact
+header. The shell owns the mobile drawer and its focus behavior; `ApplicationPage`
+provides the main landmark that receives focus after navigation. Optional utilities,
+such as the demo guide, remain accessible in the compact header. The
+[shell examples](?path=/story/patterns-application-shell--workspace) show composition,
+long names, and account loading. The [open workspace switcher](?path=/story/patterns-application-shell--workspace-switcher)
+and [long-name variation](?path=/story/patterns-application-shell--workspace-switcher-long-name)
+show the choices in context. Compare their density with the
+[action menu](?path=/story/components-action-menu--keyboard) and their selection
+cue with the [select](?path=/story/components-select--open), while preserving real
+links for workspace navigation.
+
+<Canvas of={Shell.Workspace} story={{ inline: false, height: "540px" }} />
+
+## Preserve navigation and context
+
+Use meaningful parent destinations in the page's breadcrumb trail. The feature
+chooses which context a parent link restores; [breadcrumbs](?path=/docs/components-breadcrumbs--docs)
+own the trail's presentation. Pass the current location through `locationKey` so
+page navigation can move focus to the main landmark.
+
+`ApplicationPage` supplies responsive gutters and standard or full width. The
+[page composition pattern](?path=/docs/patterns-page-composition--docs)
+explains width, title density, and content hierarchy. Use `contained` for a workspace
+whose desktop panes stay within the viewport; its feature owns the pane arrangement.
+Compact screens return to document scrolling.
+
+Keep account controls available while account details load. The
+[loading account](?path=/story/patterns-application-shell--loading-account) and
+[account menu](?path=/story/patterns-application-shell--account-menu) examples show
+loading, available actions, and sign-out recovery.
+
+## Recover within the available frame
+
+Keep usable navigation when a page fails inside an accessible workspace. Use
+`ApplicationRecovery` when the whole workspace is inaccessible, supplying account
+controls and a useful return link. The [feedback pattern](?path=/docs/patterns-feedback--docs)
+explains placement and recovery behavior; the interface determines accessible destinations.
+
+<Canvas of={Shell.InaccessibleWorkspace} story={{ inline: false, height: "460px" }} />

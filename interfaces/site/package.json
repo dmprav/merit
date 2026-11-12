@@ -1,0 +1,33 @@
+{
+  "name": "@merit/site",
+  "version": "0.0.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "type": "module",
+  "exports": {
+    "./routing": "./routing.ts"
+  },
+  "dependencies": {
+    "@merit/grantmaking": "workspace:*",
+    "@merit/grantmaking-web": "workspace:*",
+    "@merit/i18n": "workspace:*",
+    "@merit/money": "workspace:*",
+    "@merit/product": "workspace:*",
+    "@merit/recommendations": "workspace:*",
+    "@merit/reviews": "workspace:*",
+    "@merit/ui": "workspace:*",
+    "@tanstack/react-router": "catalog:",
+    "i18next": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "react-i18next": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vite-plus": "catalog:"
+  }
+}

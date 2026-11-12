@@ -1,0 +1,37 @@
+import { ArgTypes, Canvas, Description, Meta } from "@storybook/addon-docs/blocks";
+import * as Confirmation from "./confirmation-dialog.stories";
+
+<Meta of={Confirmation} />
+
+# Confirm a consequential action
+
+Use confirmation when a person needs to review consequences before committing,
+such as removing access or discarding a shared working revision. Routine,
+recoverable edits should proceed without confirmation. An explicitly labelled
+Discard action in an editor clears only that local draft; Close preserves it.
+See the [editing pattern](../editing/editing.mdx) for these distinct actions.
+
+Name the affected person or work, explain what changes, and give the confirmation
+button a specific action label. Use destructive intent for removal or loss.
+Cancellation receives initial focus so opening the dialog does not commit the action.
+
+<Canvas of={Confirmation.Open} />
+
+## Pending and recovery
+
+Show progress for the confirmed operation, with a label such as “Revoking invitation…”.
+Pending prevents confirmation and dismissal. Keep failures visible with a useful
+recovery action and preserve enough context to retry.
+
+<Canvas of={Confirmation.Retry} />
+
+The Retry example fails on its first attempt and succeeds on its second. Reopen it
+to try again. Inspect the [pending](?path=/story/patterns-confirmation-dialog--pending),
+[failure](?path=/story/patterns-confirmation-dialog--failure), and
+[long-content](?path=/story/patterns-confirmation-dialog--long-content) states independently.
+
+## Caller contract
+
+<Description of={Confirmation} />
+
+<ArgTypes of={Confirmation} />

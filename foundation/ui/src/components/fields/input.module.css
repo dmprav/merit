@@ -1,0 +1,89 @@
+.input,
+.inputGroup {
+  --field-focus: var(--focus);
+  outline: none;
+  min-width: 0;
+  min-height: var(--control-height-small);
+  width: 100%;
+  border: 1px solid var(--border-control);
+  border-radius: var(--control-radius);
+  background: var(--surface);
+  padding: var(--space-1) var(--space-3);
+  color: var(--foreground);
+  transition:
+    background-color var(--motion-fast),
+    border-color var(--motion-fast);
+}
+
+.input::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+
+.input:where(:read-write)[data-hovered],
+.inputGroup:has(.input:where(:read-write)[data-hovered]) {
+  border-color: var(--muted);
+}
+
+.input:read-only,
+.inputGroup:has(.input:read-only) {
+  border-color: var(--border);
+  background: var(--surface-muted);
+}
+
+.input[data-focused],
+.inputGroup:focus-within {
+  border-color: var(--field-focus);
+  background: color-mix(in srgb, var(--field-focus) 5%, var(--surface));
+  box-shadow: inset 0 -2px var(--field-focus);
+}
+
+.input[data-invalid],
+.inputGroup:has(.input[data-invalid]) {
+  --field-focus: var(--danger);
+  border-color: var(--danger);
+}
+
+.input[data-disabled],
+.inputGroup:has(.input[data-disabled]) {
+  cursor: not-allowed;
+  color: var(--muted);
+}
+
+.inputGroup {
+  display: flex;
+  align-items: center;
+  padding: 0;
+}
+
+.inputGroup .input {
+  min-width: 0;
+  min-height: calc(var(--control-height-small) - 2px);
+  border: 0;
+  outline: none;
+  box-shadow: none;
+  background: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .input,
+  .inputGroup {
+    transition: none;
+  }
+}
+
+@media (pointer: coarse) {
+  .input,
+  .inputGroup {
+    font-size: 1rem;
+  }
+
+  .input:not(textarea),
+  .inputGroup {
+    min-height: var(--target-touch);
+  }
+
+  .inputGroup .input {
+    min-height: calc(var(--target-touch) - 2px);
+  }
+}

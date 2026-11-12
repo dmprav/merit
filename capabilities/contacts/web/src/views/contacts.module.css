@@ -1,0 +1,84 @@
+.toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 30rem) minmax(8rem, 10rem);
+  align-items: end;
+  gap: var(--space-3);
+}
+
+.searchControls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: var(--space-2);
+}
+
+.identity strong {
+  font-weight: 500;
+}
+
+.identityDetails {
+  margin-inline-start: calc(var(--avatar-compact-size) + var(--space-2));
+}
+
+.identityActions {
+  margin-inline-start: calc(-1 * var(--space-3));
+}
+
+.history {
+  font-size: var(--text-detail);
+}
+
+.history > li + li {
+  margin-top: var(--space-5);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--border);
+}
+
+.historyComparison {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: var(--space-5);
+}
+
+.historyComparison h3 {
+  font-weight: 500;
+}
+
+.savedDetails {
+  display: grid;
+  gap: var(--space-1);
+  margin-block: var(--space-2);
+  font-size: var(--text-detail);
+  overflow-wrap: anywhere;
+}
+
+.savedDetails > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--control-height-small);
+}
+
+.savedDetails dt {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--muted);
+}
+
+.savedDetails dd {
+  margin: 0;
+}
+
+@media (max-width: 600px) {
+  .toolbar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.meta {
+  color: var(--muted);
+  font-size: var(--text-detail);
+}

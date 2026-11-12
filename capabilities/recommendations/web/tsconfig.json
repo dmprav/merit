@@ -1,0 +1,12 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "lib": ["ES2023", "DOM"],
+    "types": ["vite/client", "node"],
+    "allowArbitraryExtensions": true,
+    "moduleDetection": "force",
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": ["src", "tests", "*.ts"]
+}

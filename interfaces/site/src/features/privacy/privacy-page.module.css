@@ -1,0 +1,28 @@
+.article {
+  max-width: 43rem;
+  margin-inline: auto;
+  padding-block: clamp(2.5rem, 5vw, 4rem);
+  font-size: 1rem;
+  line-height: var(--leading-reading);
+}
+
+.article > * + * {
+  margin-top: var(--space-8);
+}
+
+.article h1 {
+  font-size: clamp(1.875rem, 3vw, 2.5rem);
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  line-height: 1.2;
+}
+
+.article h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.article p {
+  margin-top: var(--space-3);
+}

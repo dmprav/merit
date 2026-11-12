@@ -1,0 +1,43 @@
+.popover {
+  z-index: 50;
+  /* Keep measurement independent of the remaining space beside the trigger. */
+  width: max-content;
+  min-width: 160px;
+  max-width: calc(100vw - 32px);
+  padding: var(--space-1);
+  border: 1px solid var(--border);
+  border-radius: var(--control-radius);
+  background: var(--surface);
+  color: var(--foreground);
+  box-shadow: var(--popover-shadow);
+}
+
+.menu {
+  outline: none;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  min-height: var(--control-height-small);
+  padding: var(--space-1) var(--space-3);
+  border-radius: calc(var(--control-radius) - 2px);
+  font-size: var(--text-detail);
+  cursor: pointer;
+  outline: none;
+}
+
+.item[data-focused] {
+  background: var(--surface-muted);
+}
+
+.item[data-focus-visible] {
+  background: var(--action-subtle);
+  box-shadow: inset 3px 0 var(--focus);
+}
+
+@media (pointer: coarse) {
+  .item {
+    min-height: var(--target-touch);
+  }
+}

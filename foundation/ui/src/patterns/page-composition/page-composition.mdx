@@ -1,0 +1,118 @@
+import { Canvas, Meta } from "@storybook/addon-docs/blocks";
+import * as Pages from "./page-composition.stories";
+import * as PageLayout from "./page-layout.stories";
+
+<Meta of={Pages} />
+
+# Compose a page
+
+Start with the person's task and put its title, context, status, and primary action
+in a `PageHeader`. Keep domain content and page layout in the feature. Status sits
+beside the title so it remains distinct from the heading's accessible name.
+
+`Tabs` accepts actions outside the tablist so common list actions can share the
+tab row without joining its arrow-key navigation.
+
+<Canvas of={Pages.Overview} story={{ inline: false, height: "340px" }} />
+
+## Choose the layout owner
+
+Compose the component that owns the content's meaning before adding layout around it.
+Keep a layout decision with the behavior that would make it change.
+
+| Need                                                    | Owner                                       |
+| ------------------------------------------------------- | ------------------------------------------- |
+| Workspace navigation, page width, and outer padding     | `ApplicationShell` and `ApplicationPage`    |
+| Title, status, section count, and related actions       | `PageHeader` and `SectionHeader`            |
+| Vertical rhythm or a wrapping row within a component    | `Stack` and `Inline`                        |
+| A readable line length inside a wider page or panel     | `Reading`                                   |
+| Read-only facts with labels above their values          | `DescriptionList` and `DescriptionListItem` |
+| Fields, validation feedback, and editing actions        | The shared `Form` and editing components    |
+| Sustained work beside reference material                | `ReferenceWorkspace`                        |
+| Comparison columns and other feature-specific scrolling | The feature's CSS Module                    |
+
+Use the [application shell](?path=/docs/patterns-application-shell--docs) for navigation
+and [layout primitives](?path=/docs/components-layout-primitives--docs) for simple flows.
+The shared frame supports different tasks; each feature owns its particular arrangement.
+
+## Organize sections
+
+Use `SectionHeader` for sections beneath the page heading. Connect the section's
+`aria-labelledby` to the header's `id`. Use `count` for a simple count that belongs
+with the heading; put qualified summaries and actions in `aside`.
+
+Let long headings and actions wrap. Check the page with missing information and
+narrow widths so its hierarchy stays readable throughout the task.
+
+<Canvas of={Pages.SectionHeaders} story={{ inline: false, height: "540px" }} />
+
+## Choose space for the task
+
+`ApplicationPage` owns the page's outer padding and available width. Its standard
+width uses `measure-page`; choose `width="full"` for tables, comparisons, and work
+that benefits from the available space. Both widths share responsive gutters with
+the breadcrumb bar, keeping the page heading and content aligned as people move
+between screens. Keep this frame in the interface's page assembly.
+
+Use the default `PageHeader` for ordinary pages. Choose `density="compact"` for a
+sustained workspace where the heading shares the viewport with reference material
+and editing. The header owns typography, wrapping action groups, and the space
+before content. Its `className` supports placement, such as an inset in a workspace
+with separate scrolling panes; feature CSS should not restyle its internal heading.
+
+<Canvas of={PageLayout.Standard} story={{ inline: false, height: "460px" }} />
+
+<Canvas of={PageLayout.FullWidth} story={{ inline: false, height: "460px" }} />
+
+Use [Reading](?path=/docs/components-layout-primitives--docs) for
+prose inside a wider page, leaving controls and comparison columns their available space.
+
+The [long-title example](?path=/story/patterns-page-composition--long-title) shows title and
+action wrapping, and the [compact header](?path=/story/patterns-page-composition--compact)
+shows the denser presentation. View both at narrow widths when changing the frame.
+
+| Activity                      | Arrangement                                                                                                                                                                                                                                         |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Read evidence or reasoning    | Keep paragraphs at `measure-reading`, using the reading typography. Keep source and author beside the material.                                                                                                                                     |
+| Compare versions or judgments | Use the available width for adjacent columns. Give each column room to shrink with `minmax(0, 1fr)` and let long content wrap. When the comparison becomes cramped, stack each before/after pair in reading order with its labels intact.           |
+| Edit with reference material  | Keep related fields and their feedback together, with evidence available beside or above the editor. Use the [reference workspace](?path=/docs/patterns-reference-workspace--docs) so each side scrolls independently and actions remain reachable. |
+
+Choose responsive changes where the content stops being usable. Container queries
+help a comparison adapt inside either a wide page or a narrow panel. Keep column
+ratios, breakpoints, and scroll regions in the owning feature's CSS Module, where
+their relationship to the task is visible.
+
+The [version history](?path=/story/features-applications-version-history--across-three-versions),
+[review content](?path=/story/features-applications-overview--reviews), and
+[recommendation editor](?path=/story/features-applications-recommendation--resume-editing)
+show these arrangements with real feature components. Check them with long content,
+missing information, enlarged text, and narrow widths when changing shared layout.
+
+## Present facts and editable properties
+
+Use [DescriptionList](?path=/docs/components-description-list--docs) for read-only facts
+with labels above their values. It owns the native description-list structure,
+typography, value height, and wrapping; a feature can place the list in a sidebar
+or arrange its items into responsive columns.
+
+Keep editable property rows with their editing component. Their arrangement needs
+control labels, feedback, and responsive behavior suited to the task. Use native
+`dl`, `dt`, and `dd` for factual structure, and keep field labels associated with
+their controls. A description term alone does not label an input. Follow the
+[editing pattern](?path=/docs/patterns-editing--docs) for commitment and draft behavior.
+
+## Read evidence beside a consequential action
+
+Give evidence a readable line length and keep its source and author nearby. A
+reference panel can summarize the proposed change, its financial effect, and the
+person's next action. Show consequences before opening the shared confirmation
+dialog, then repeat the exact commitment in that dialog.
+
+The following fictional award amendment explores this composition beyond the
+current application workflow. It demonstrates shared components and local example
+state; award amendments are not available product functionality.
+
+<Canvas of={Pages.AwardAmendment} story={{ inline: false, height: "780px" }} />
+
+Use the [confirmation pattern](?path=/docs/patterns-confirmation-dialog--docs) for the
+commitment and [feedback pattern](?path=/docs/patterns-feedback--docs) for its outcome.

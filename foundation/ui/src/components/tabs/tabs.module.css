@@ -1,0 +1,220 @@
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: var(--space-2) var(--space-4);
+  margin-bottom: var(--space-6);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-inline-start: auto;
+  padding-block: 2px;
+}
+
+.rail {
+  /* Keep a readable strip when panel actions need to wrap onto another row. */
+  flex: 1 1 12rem;
+  display: flex;
+  min-width: 0;
+  align-items: stretch;
+  border-bottom: 1px solid var(--border);
+}
+
+.list {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  gap: var(--space-1);
+  overflow-x: auto;
+}
+
+.list[data-overflow] {
+  scrollbar-width: none;
+}
+
+.list[data-overflow]::-webkit-scrollbar {
+  display: none;
+}
+
+.tab {
+  display: flex;
+  min-height: var(--control-height);
+  max-width: var(--tab-max-width);
+  flex-shrink: 0;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  border-bottom: 2px solid transparent;
+  padding: 2px var(--space-1) var(--space-1);
+  font-size: var(--text-detail);
+  font-weight: 500;
+  color: var(--muted);
+  outline: none;
+}
+
+.tab[data-selected] {
+  border-color: var(--action);
+  color: var(--foreground);
+}
+
+.tab[data-disabled] {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.label {
+  min-width: 0;
+  border-radius: var(--control-radius);
+  padding: var(--space-1) var(--space-2);
+  text-align: center;
+  overflow-wrap: anywhere;
+  transition:
+    background-color var(--motion-fast),
+    color var(--motion-fast);
+}
+
+.tab[data-hovered] .label {
+  background: var(--surface-muted);
+  color: var(--foreground);
+}
+
+.tab[data-pressed] .label {
+  background: var(--border);
+  color: var(--foreground);
+}
+
+.count {
+  display: inline-block;
+  min-width: 1.25rem;
+  margin-inline-start: var(--space-1);
+  border-radius: var(--space-1);
+  padding-inline: 6px;
+  background: var(--surface-muted);
+  color: var(--muted);
+  font-size: var(--text-caption);
+  font-weight: 500;
+  line-height: 1.25rem;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.tab[data-selected] .count {
+  background: var(--action-subtle);
+  color: var(--action);
+}
+
+.tab .count[data-warning] {
+  background: var(--warning-subtle);
+  color: var(--warning);
+}
+
+.tab[data-focus-visible] .label {
+  background: var(--action-subtle);
+  color: var(--action);
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+
+.controls {
+  display: flex;
+  flex-shrink: 0;
+  align-self: center;
+  gap: 2px;
+  padding-inline-start: var(--space-1);
+  padding-block: 2px;
+}
+
+.direction:dir(rtl) {
+  transform: rotate(180deg);
+}
+
+.panel[data-focus-visible] {
+  outline: none;
+  box-shadow: inset 2px 0 var(--focus);
+}
+
+.scrollPanels > .panel {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--border-control) 55%, transparent) transparent;
+}
+/* Native thumb states keep emphasis on the scrollbar, not the reading surface. */
+@supports selector(::-webkit-scrollbar) {
+  @media (forced-colors: none) {
+    .scrollPanels > .panel {
+      scrollbar-width: auto;
+      scrollbar-color: auto;
+    }
+
+    .scrollPanels > .panel::-webkit-scrollbar {
+      width: 10px;
+      height: 10px;
+    }
+
+    .scrollPanels > .panel::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .scrollPanels > .panel::-webkit-scrollbar-thumb {
+      background: color-mix(in srgb, var(--border-control) 55%, transparent);
+      border: 2px solid transparent;
+      border-radius: 10px;
+      background-clip: padding-box;
+    }
+
+    .scrollPanels > .panel::-webkit-scrollbar-thumb:hover {
+      background-color: var(--border-control);
+    }
+
+    .scrollPanels > .panel::-webkit-scrollbar-thumb:active {
+      background-color: var(--muted);
+    }
+  }
+}
+
+@media (forced-colors: active) {
+  .scrollPanels > .panel {
+    scrollbar-color: auto;
+  }
+}
+
+@media (pointer: coarse) {
+  .tab {
+    min-height: var(--target-touch);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .label {
+    transition: none;
+  }
+}
+
+@media (min-width: 901px) and (min-height: 600px) {
+  .scrollPanels {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+  }
+
+  .scrollPanels > .toolbar {
+    flex-shrink: 0;
+    margin-inline: var(--tabs-panel-inset, 0px);
+    margin-bottom: 0;
+  }
+
+  .scrollPanels > .panel {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    scrollbar-gutter: stable;
+    padding: var(--space-6) max(8px, var(--tabs-panel-inset, 0px)) var(--space-6)
+      max(2px, var(--tabs-panel-inset, 0px));
+  }
+}

@@ -1,0 +1,38 @@
+.panel {
+  box-sizing: border-box;
+  height: 100%;
+  overflow: auto;
+  padding: 20px;
+  background: var(--surface);
+  color: var(--foreground);
+  font:
+    14px/1.5 system-ui,
+    sans-serif;
+}
+
+.panel h2 {
+  margin: 0 0 12px;
+  font-size: 16px;
+}
+
+.panel p {
+  margin: 12px 0;
+}
+
+.people,
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.hint {
+  max-width: 65ch;
+  color: var(--muted);
+}
+
+.links a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}

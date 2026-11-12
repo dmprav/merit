@@ -1,0 +1,43 @@
+:root {
+  color-scheme: light;
+}
+
+html {
+  line-height: 1.5;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  text-underline-offset: 4px;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+a:focus-visible,
+summary:focus-visible {
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+
+::selection {
+  background: var(--action-subtle);
+  color: var(--foreground);
+}
+
+/* System outlines remain visible when forced colors suppress fills and shadows. */
+@media (forced-colors: active) {
+  :is(:focus-visible, [data-focus-visible]) {
+    outline: 2px solid Highlight !important;
+    outline-offset: -2px !important;
+  }
+}

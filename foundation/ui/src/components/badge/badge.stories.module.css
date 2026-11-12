@@ -1,0 +1,9 @@
+.mutedSurface {
+  padding: var(--space-3);
+  background: var(--surface-muted);
+  border-radius: var(--panel-radius);
+}
+
+.narrow {
+  max-inline-size: 12rem;
+}

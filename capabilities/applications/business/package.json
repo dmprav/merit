@@ -1,0 +1,39 @@
+{
+  "name": "@merit/applications",
+  "version": "0.0.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "type": "module",
+  "exports": {
+    "./domain": "./src/domain/index.ts",
+    "./api": "./src/api/index.ts",
+    "./server": "./src/server/index.ts",
+    "./schema": "./src/server/persistence/schema.ts",
+    "./scope": "./src/server/persistence/projections.ts",
+    "./encoding": "./src/server/persistence/encoding.ts",
+    "./locks": "./src/server/persistence/locks.ts",
+    "./server/grant-work": "./src/server/grant-work.ts",
+    "./server/demo": "./src/server/demo.ts",
+    "./server/integrations": "./src/server/integrations.ts",
+    "./history": "./src/server/persistence/history-encoding.ts",
+    "./testing/history": "./tests/fixtures/application-history.json"
+  },
+  "dependencies": {
+    "@merit/auth": "workspace:*",
+    "@merit/contacts": "workspace:*",
+    "@merit/dates": "workspace:*",
+    "@merit/db": "workspace:*",
+    "@merit/money": "workspace:*",
+    "@merit/organizations": "workspace:*",
+    "@merit/rounds": "workspace:*",
+    "drizzle-orm": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@types/pg": "catalog:",
+    "pg": "catalog:",
+    "typescript": "catalog:",
+    "vite-plus": "catalog:"
+  }
+}

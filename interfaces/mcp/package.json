@@ -1,0 +1,29 @@
+{
+  "name": "@merit/mcp",
+  "version": "0.0.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@merit/applications": "workspace:*",
+    "@merit/auth": "workspace:*",
+    "@merit/contacts": "workspace:*",
+    "@merit/grantmaking": "workspace:*",
+    "@merit/money": "workspace:*",
+    "@merit/organizations": "workspace:*",
+    "@merit/recommendations": "workspace:*",
+    "@merit/reviews": "workspace:*",
+    "@merit/rounds": "workspace:*",
+    "@modelcontextprotocol/server": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/client": "catalog:",
+    "@types/node": "catalog:",
+    "typescript": "^7.0.2",
+    "vite-plus": "catalog:"
+  }
+}

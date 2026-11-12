@@ -1,0 +1,70 @@
+.preview {
+  max-width: 52rem;
+}
+
+.description {
+  font-size: var(--text-body);
+  color: var(--muted);
+}
+
+.notice {
+  margin-top: var(--space-6);
+}
+
+.section + .section {
+  margin-top: var(--space-6);
+}
+
+.narrow {
+  max-width: 22rem;
+}
+
+.amendment {
+  max-width: 70rem;
+}
+
+.decisionLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(17rem, 0.65fr);
+  gap: var(--space-8);
+  align-items: start;
+}
+
+.reading {
+  font-size: var(--text-reading);
+  line-height: var(--leading-reading);
+  max-width: var(--measure-reading);
+}
+
+.reading section {
+  margin-top: var(--space-7);
+}
+
+.reading blockquote {
+  border-left: 2px solid var(--border);
+  padding-left: var(--space-4);
+}
+
+.reading .source {
+  margin-top: var(--space-3);
+  font-size: var(--text-caption);
+  color: var(--muted);
+}
+
+.consequences {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  border-radius: var(--panel-radius);
+  background: var(--surface-muted);
+}
+
+.consequences dd {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 760px) {
+  .decisionLayout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

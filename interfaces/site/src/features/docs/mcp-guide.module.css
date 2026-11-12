@@ -1,0 +1,26 @@
+.endpoint {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--panel-radius);
+  background: var(--surface);
+}
+
+.endpoint code {
+  overflow-wrap: anywhere;
+  min-width: 0;
+  font-size: var(--text-body);
+}
+
+.copyStatus {
+  font-size: var(--text-detail);
+  color: var(--muted);
+}
+
+.accessTable th {
+  overflow-wrap: normal;
+}

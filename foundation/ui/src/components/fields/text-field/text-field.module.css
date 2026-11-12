@@ -1,0 +1,22 @@
+.prefix {
+  padding-inline-start: var(--space-3);
+  color: var(--muted);
+  cursor: inherit;
+}
+
+.prefixGroup:not([data-prefix-hidden]) > input {
+  padding-inline-start: var(--space-2);
+}
+
+.multiline {
+  font-size: var(--text-reading);
+  line-height: var(--leading-reading);
+  min-height: 7.5rem;
+  padding-block: var(--space-2);
+}
+
+@media (pointer: coarse) {
+  .multiline {
+    font-size: 1rem;
+  }
+}

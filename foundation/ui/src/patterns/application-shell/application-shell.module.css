@@ -1,0 +1,512 @@
+.shell {
+  --sidebar-width: 210px;
+  display: grid;
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+  min-height: 100dvh;
+  background: var(--surface);
+  font-size: var(--text-body);
+  line-height: 1.55;
+}
+
+.skip {
+  position: fixed;
+  top: -5rem;
+  left: 1rem;
+  z-index: 100;
+  padding: 0.75rem;
+  background: var(--surface);
+  border-radius: var(--control-radius);
+}
+
+.skip:focus {
+  top: 1rem;
+}
+
+.sidebar,
+.drawerContent,
+.mobileHeader {
+  --button-quiet-background: var(--surface);
+}
+
+.sidebar {
+  position: sticky;
+  top: 0;
+  height: 100dvh;
+  overflow-y: auto;
+  background: var(--surface-muted);
+  border-right: 1px solid var(--border);
+  padding: 16px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.brand {
+  padding: 0 10px;
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 24px;
+  letter-spacing: -0.8px;
+}
+
+.workspace,
+button.contextTrigger {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  margin-top: var(--space-2);
+  padding: var(--space-2);
+  min-width: 0;
+  text-align: left;
+}
+
+.workspaceAvatar {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: var(--control-radius);
+  background: var(--surface);
+  color: var(--action);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.workspaceCopy {
+  min-width: 0;
+  flex: 1;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  font-size: var(--text-caption);
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.contextPopover {
+  z-index: 50;
+  width: max(16rem, var(--trigger-width));
+  max-width: calc(100vw - 32px);
+  max-height: var(--available-height);
+  overflow-y: auto;
+  padding: var(--space-1);
+  border: 1px solid var(--border);
+  border-radius: var(--control-radius);
+  background: var(--surface);
+  color: var(--foreground);
+  box-shadow: var(--popover-shadow);
+}
+
+.contextDialog {
+  outline: none;
+}
+
+.contextLinks {
+  display: grid;
+}
+
+.contextLinks a {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--control-height-small);
+  padding: var(--space-1) var(--space-2);
+  border-radius: calc(var(--control-radius) - 2px);
+  font-size: var(--text-detail);
+}
+
+.contextLinks a:hover {
+  background: var(--surface-muted);
+}
+
+.contextLinks a[aria-current]:not([aria-current="false"]) {
+  background: var(--action-subtle);
+  color: var(--action);
+  font-weight: 500;
+}
+
+.contextLinks a:focus-visible {
+  outline: none;
+  background: var(--action-subtle);
+  box-shadow: inset 3px 0 var(--focus);
+  text-decoration: none;
+}
+
+.contextLinks .workspaceAvatar {
+  width: 24px;
+  height: 24px;
+}
+
+.contextLinks .workspaceCopy {
+  display: block;
+  overflow: visible;
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: 1.5;
+}
+
+.contextCheck {
+  visibility: hidden;
+}
+
+.contextLinks a[aria-current]:not([aria-current="false"]) .contextCheck {
+  visibility: visible;
+}
+
+@media (pointer: coarse) {
+  .contextLinks a {
+    min-height: var(--target-touch);
+  }
+}
+
+.nav {
+  display: grid;
+  gap: 2px;
+}
+
+.nav a {
+  border-radius: var(--control-radius);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  text-align: left;
+  min-height: 32px;
+  padding: 6px 10px;
+  font-size: var(--text-detail);
+}
+
+.nav a:hover {
+  background: var(--surface);
+}
+
+.nav a.navigationGroupStart {
+  margin-top: var(--space-2);
+}
+
+.nav a[aria-current="page"] {
+  background: var(--action-subtle);
+  color: var(--action);
+  font-weight: 600;
+}
+
+.sidebarBottom {
+  margin-top: auto;
+  display: grid;
+  gap: 14px;
+}
+
+.account {
+  width: 100%;
+  min-height: 58px;
+  border-top: 1px solid var(--border);
+  padding-top: var(--space-3);
+  display: grid;
+  gap: var(--space-2);
+}
+
+.documentationLink {
+  padding: 8px 10px;
+  color: var(--muted);
+  font-size: var(--text-detail);
+  border-radius: var(--control-radius);
+}
+
+.documentationLink:hover {
+  color: var(--foreground);
+  background: var(--surface);
+}
+
+button.accountTrigger,
+.accountIdentity {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 36px;
+  width: 100%;
+  min-width: 0;
+  padding: var(--space-2);
+  font-size: var(--text-detail);
+  text-align: left;
+}
+
+.accountTrigger > :first-child {
+  flex: 1;
+}
+
+.accountLoading {
+  color: var(--muted);
+}
+
+.mobileHeader {
+  display: none;
+}
+
+.drawerContent {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.stage {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.topbar,
+.content,
+.status {
+  --page-gutter: 36px;
+}
+
+.topbar {
+  min-height: 56px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: var(--space-3) var(--page-gutter);
+  font-size: var(--text-caption);
+}
+
+.content {
+  width: 100%;
+  max-width: var(--measure-page);
+  padding: var(--space-8) var(--page-gutter);
+  outline: none;
+  flex: 1;
+}
+
+.status {
+  padding: var(--space-3) var(--page-gutter);
+  font-size: var(--text-caption);
+  color: var(--danger);
+  border-bottom: 1px solid var(--border);
+}
+
+.shell .confirmation {
+  position: fixed;
+  z-index: 30;
+  bottom: var(--space-4);
+  left: calc(50% + var(--sidebar-width, 0px) / 2);
+  transform: translateX(-50%);
+  max-width: min(28rem, calc(100vw - var(--sidebar-width, 0px) - 2 * var(--space-4)));
+}
+
+@media (min-width: 1400px) {
+  .topbar,
+  .content,
+  .status {
+    --page-gutter: 44px;
+  }
+
+  .content {
+    padding-block: 36px;
+  }
+}
+
+@media (max-width: 1000px) {
+  .shell {
+    --sidebar-width: 180px;
+  }
+}
+
+@media (max-width: 760px) {
+  .topbar,
+  .content,
+  .status {
+    --page-gutter: var(--space-6);
+  }
+
+  .content {
+    padding-block: var(--space-6);
+  }
+}
+
+@media (max-width: 600px) {
+  .shell {
+    --sidebar-width: 0px;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .stage {
+    flex: 1;
+  }
+
+  .sidebar {
+    display: none;
+  }
+
+  .mobileHeader {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: 60px;
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--border);
+    background: var(--surface-muted);
+  }
+
+  .mobileHeader > button {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  .mobileContext {
+    min-width: 0;
+    flex: 1;
+    font-size: var(--text-detail);
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .drawerContent .nav a {
+    min-height: 44px;
+  }
+
+  .topbar,
+  .content,
+  .status {
+    --page-gutter: var(--space-4);
+  }
+
+  .topbar {
+    align-items: flex-start;
+  }
+}
+
+/* Keep desktop detail work inside the viewport; compact screens retain document scrolling. */
+@media (min-width: 901px) and (min-height: 600px) {
+  .shell:has(.contained) {
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .shell:has(.contained) .stage {
+    min-height: 0;
+  }
+
+  .contained {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    max-width: none;
+    padding-inline: 0;
+    padding-bottom: 0;
+  }
+
+  .shell:has(.contained) .topbar,
+  .shell:has(.contained) .status {
+    flex-shrink: 0;
+  }
+}
+
+.wide {
+  max-width: none;
+}
+
+.centered {
+  max-width: none;
+  display: grid;
+  place-items: center;
+}
+
+.recovery {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  font-size: var(--text-body);
+  line-height: 1.5;
+}
+
+.recoveryHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-6) var(--space-8);
+}
+
+.recoveryReturn {
+  flex-shrink: 0;
+}
+
+.recoveryReturn a {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 36px;
+  color: var(--muted);
+}
+
+.recoveryReturn a:hover {
+  color: var(--foreground);
+}
+
+.recoveryAccount {
+  min-width: 0;
+  max-width: 20rem;
+}
+
+.recoveryAccount .account {
+  border: 0;
+  padding-top: 0;
+  min-height: 0;
+}
+
+.recoveryContent {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-8);
+  padding: var(--space-8) var(--space-6) max(var(--space-8), 16dvh);
+  outline: none;
+}
+
+.recoveryBrand {
+  font-size: 28px;
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: -1px;
+}
+
+@media (max-width: 600px) {
+  .recoveryHeader {
+    padding: var(--space-4);
+    gap: var(--space-2);
+  }
+
+  .recoveryReturn a {
+    min-height: 44px;
+  }
+
+  .recoveryAccount {
+    max-width: 55%;
+  }
+}
+
+.workspaceAvatar::before {
+  content: attr(data-initials);
+}
+
+.nav a:focus-visible {
+  outline: none;
+  background: var(--action-subtle);
+  color: var(--action);
+  box-shadow: inset 3px 0 var(--focus);
+  text-decoration: none;
+}

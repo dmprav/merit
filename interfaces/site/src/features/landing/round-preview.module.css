@@ -1,0 +1,264 @@
+.productPreview {
+  border: 1px solid color-mix(in srgb, var(--border-control) 35%, var(--border));
+  border-radius: var(--panel-radius);
+  background: var(--surface);
+  overflow: hidden;
+  font-size: var(--text-body);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--foreground) 5%, transparent);
+}
+
+.productContext {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-5);
+  padding: var(--space-4) var(--space-7);
+  background: var(--surface-muted);
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+  font-size: var(--text-detail);
+}
+
+.productContext span + span {
+  border-left: 1px solid var(--border-control);
+  padding-left: var(--space-5);
+}
+
+.productContent {
+  padding: var(--space-7);
+}
+
+.roundHeading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.roundHeading h2 {
+  font-size: 1.375rem;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+}
+
+.roundHeading .meta {
+  margin-top: var(--space-1);
+}
+
+.meta {
+  color: var(--muted);
+  font-size: var(--text-detail);
+}
+
+.roundBudget {
+  font-variant-numeric: tabular-nums;
+}
+
+.roundBudget span {
+  margin-right: var(--space-2);
+  color: var(--muted);
+  font-size: var(--text-detail);
+}
+
+.totals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-5) clamp(2rem, 5vw, 4rem);
+  margin-block: var(--space-7);
+}
+
+.totals dt {
+  flex: 1;
+  color: var(--muted);
+  font-size: var(--text-detail);
+}
+
+.totals > div {
+  display: flex;
+  flex-direction: column;
+}
+
+.totals dd {
+  margin-top: var(--space-1);
+  font-size: 1.25rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.proposedTotal dd {
+  font-size: 1.75rem;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+}
+
+.applications {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.applications th,
+.applications td {
+  padding: var(--space-4) var(--space-3);
+  border-bottom: 1px solid var(--border);
+}
+
+.applications thead th {
+  padding-top: 0;
+  color: var(--muted);
+  font-size: var(--text-detail);
+  font-weight: 400;
+}
+
+.applications tbody th {
+  font-weight: 500;
+}
+
+.applications th:last-child,
+.applications td:last-child {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.applications tbody tr:last-child > * {
+  border-bottom: 0;
+}
+
+.attentionRow {
+  background: color-mix(in srgb, var(--warning-subtle) 55%, var(--surface));
+}
+
+.attentionRow th {
+  border-left: 2px solid var(--warning);
+}
+
+.tableLabel {
+  display: none;
+}
+
+.reviewStatus {
+  color: var(--muted);
+  font-size: var(--text-detail);
+}
+
+.attentionRow .reviewStatus {
+  color: var(--warning);
+}
+
+@media (max-width: 700px) {
+  .productContext,
+  .productContent {
+    padding: var(--space-5);
+  }
+
+  .productContext {
+    column-gap: var(--space-2);
+  }
+
+  .productContext span + span {
+    padding-left: var(--space-3);
+  }
+
+  .roundHeading h2 {
+    font-size: 1.25rem;
+  }
+
+  .totals {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(5.5rem, 1fr));
+    gap: var(--space-3);
+  }
+
+  .totals dd {
+    font-size: 1.125rem;
+  }
+
+  .proposedTotal dd {
+    font-size: 1.375rem;
+  }
+
+  .applications thead th:nth-child(2),
+  .applications thead th:nth-child(3) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .applications,
+  .applications thead,
+  .applications tbody {
+    display: block;
+  }
+
+  .applications tr {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    padding: var(--space-4) var(--space-3);
+    border-top: 1px solid var(--border);
+  }
+
+  .applications .attentionRow {
+    border-left: 2px solid var(--warning);
+  }
+
+  .applications thead tr {
+    border-top: 0;
+    padding-top: 0;
+    padding-bottom: var(--space-3);
+  }
+
+  .applications thead th:last-child {
+    margin-left: auto;
+  }
+
+  .applications th,
+  .applications td {
+    padding: 0;
+    border: 0;
+  }
+
+  .applications tbody th {
+    flex: 1 1 8rem;
+    align-self: center;
+  }
+
+  .applications td {
+    text-align: left;
+  }
+
+  .reviewCell {
+    flex-basis: 100%;
+    order: 1;
+  }
+
+  .recommendationCell {
+    flex-basis: 100%;
+    order: 2;
+    font-size: var(--text-detail);
+  }
+
+  .applications .amountCell {
+    align-self: center;
+    margin-left: auto;
+    text-align: right;
+    font-weight: 500;
+  }
+
+  .tableLabel {
+    display: inline;
+    color: var(--muted);
+    font-size: var(--text-caption);
+    font-weight: 400;
+  }
+
+  .recommendationCell .tableLabel {
+    margin-right: var(--space-1);
+  }
+}

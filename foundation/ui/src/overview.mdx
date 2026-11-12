@@ -1,0 +1,47 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Overview" />
+
+# Choose an interface pattern
+
+Start with the person's task. Foundations establish the visual language;
+components supply building blocks; patterns explain recurring interactions and
+presentation. Feature stories show these choices in real product work. Guidance
+lives with the responsibility it explains, whether or not it needs shared code.
+
+## Choose controls by outcome
+
+Start with what activating an item does. Controls with similar popup shapes can
+have different navigation, selection, and commitment behavior.
+
+| The person needs to…                                   | Use…                                                                                                                                                              | Keep clear…                                                                      |
+| ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| Go to a destination                                    | [Real links](?path=/docs/components-link--docs), with `ApplicationContext` for [workspace switching](?path=/story/patterns-application-shell--workspace-switcher) | The current destination and normal link behavior, including opening another tab. |
+| Choose a value                                         | [Select](?path=/docs/components-select--docs) in a form, or the [editing pattern's choice controls](?path=/docs/patterns-editing--docs) for a property            | The selected value and when the change is committed.                             |
+| Run a command                                          | A labeled [Button](?path=/docs/components-button--docs), or [ActionMenu](?path=/docs/components-action-menu--docs) for secondary commands                         | What the command does; keep important actions visible.                           |
+| Edit information or inspect focused reference material | The [editing pattern](?path=/docs/patterns-editing--docs), using a [dialog](?path=/docs/components-dialog--docs) when the task needs its own surface              | The task's context, dismissal, and treatment of unfinished work.                 |
+| Authorize a consequential action                       | [ConfirmationDialog](?path=/docs/patterns-confirmation-dialog--docs)                                                                                              | The consequence, commitment, and recovery if it fails.                           |
+
+Simple destination and value choices use compact rows with visible current or
+selected state. Dialog headings, close controls, and content spacing support a
+task or reference surface. Choose that framing when the content needs it. If an
+existing component cannot preserve the required semantics, extend the owning
+shared pattern while keeping the related controls' appearance consistent.
+
+## Find the relevant convention
+
+| To decide…                                            | Read…                                                                 |
+| ----------------------------------------------------- | --------------------------------------------------------------------- |
+| Color, typography, spacing, density, motion, or focus | [Foundations](?path=/docs/foundations-tokens--docs)                   |
+| Flow, wrapping, and reading width within a component  | [Layout primitives](?path=/docs/components-layout-primitives--docs)   |
+| Page hierarchy, width, and related information        | [Page composition](?path=/docs/patterns-page-composition--docs)       |
+| Sustained work beside reference material              | [Reference workspace](?path=/docs/patterns-reference-workspace--docs) |
+| Workspace navigation and account controls             | [Application shell](?path=/docs/patterns-application-shell--docs)     |
+| Labels, field states, and validation feedback         | [Fields](?path=/docs/components-fields--docs)                         |
+| Save, close, discard, and resume behavior             | [Editing](?path=/docs/patterns-editing--docs)                         |
+| Confirmations, failure, and recovery                  | [Feedback](?path=/docs/patterns-feedback--docs)                       |
+| Names, avatars, and supporting details                | [Person identity](?path=/docs/patterns-person-identity--docs)         |
+
+For contribution boundaries and package exports, start with `foundation/ui/README.md`.
+The repository's `docs/guides/ui.md` connects these choices to feature implementation
+and verification.

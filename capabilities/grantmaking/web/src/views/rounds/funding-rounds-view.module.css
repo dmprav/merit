@@ -1,0 +1,29 @@
+.title {
+  font-size: var(--text-detail);
+  font-weight: 500;
+}
+
+.applications a:hover {
+  color: var(--action);
+  text-decoration-line: underline;
+  text-underline-offset: 3px;
+}
+
+.applications a {
+  text-decoration-line: underline;
+  text-decoration-color: var(--border-control);
+  text-underline-offset: 3px;
+}
+
+@media (max-width: 760px) {
+  .applications a {
+    display: inline-block;
+    padding-block: var(--space-1);
+  }
+}
+
+.organization {
+  color: var(--muted);
+  font-size: var(--text-caption);
+  margin-top: var(--space-1);
+}
