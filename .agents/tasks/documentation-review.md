@@ -3,7 +3,7 @@
 Review Merit's documentation and propose improvements as one pull request. This
 task runs daily on a schedule, and anyone can also run it by hand. Each run
 covers everything that changed since the previous review and rereads one area
-in full, so the whole documentation set gets a complete reread every few days.
+in full, so the whole documentation set gets a complete reread every eight days.
 
 The [documentation guide](../../docs/guides/documentation.md) is the standard
 for every finding and change. Read it in full first, along with
@@ -12,8 +12,9 @@ Judge findings against that guide, not general style preferences.
 
 ## Areas
 
-Reread one area per run, in this order, starting again from the first after the
-last:
+Each run rereads one area, chosen by date so the rotation advances even when a
+run opens no pull request. Count the days from 2026-11-13 to the run's date in
+UTC, divide by 8, and reread the area numbered one more than the remainder:
 
 1. Entry points: the project README, the documentation index, and each area index.
 2. `docs/foundations/`
@@ -36,9 +37,8 @@ Review record: baseline <commit SHA> · area <number and name>
 
 - If an open pull request has that title, stop and report it.
 - Otherwise read the record of the most recently merged review. Its baseline
-  starts this run's change range. This run's area is the next one in the list.
-- If no review has been merged, reread the entry points and skip the
-  change-range step.
+  starts this run's change range.
+- If no review has been merged, skip the change-range step.
 
 ## 2. Review changes since the baseline
 
