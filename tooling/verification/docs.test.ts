@@ -109,6 +109,7 @@ it("checks Markdown and MDX links while ignoring examples, runtime URLs, and gen
 
 it.each([
   ["broken.md", "[Missing file](missing.md)", "missing-file"],
+  [".agents/tasks/broken.md", "[Missing file](missing.md)", "missing-file"],
   ["broken.md", "[Missing MDX anchor](component.mdx#missing)", "missing-heading-in-file"],
   ["broken.mdx", "[Missing Markdown anchor](README.md#missing)", "missing-heading-in-file"],
 ])("rejects %s containing %s", (file, link, rule) => {
