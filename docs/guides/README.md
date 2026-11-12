@@ -28,12 +28,13 @@ repository root unless a guide says otherwise.
 
 ## Operate and maintain Merit
 
-| To…                                                           | Read…                               |
-| ------------------------------------------------------------- | ----------------------------------- |
-| Connect an authenticated client to workspace data and actions | [MCP connections](mcp.md)           |
-| Configure MCP authentication and verify delegated access      | [MCP operations](mcp-operations.md) |
-| Configure hosting, preview, and publish the application       | [Deployment](deployment.md)         |
-| Write and maintain useful documentation                       | [Documentation](documentation.md)   |
-| Provision organizations and verify invitation emails          | [Organizations](organizations.md)   |
+| To…                                                           | Read…                                           |
+| ------------------------------------------------------------- | ----------------------------------------------- |
+| Connect an authenticated client to workspace data and actions | [MCP connections](mcp.md)                       |
+| Configure MCP authentication and verify delegated access      | [MCP operations](mcp-operations.md)             |
+| Configure hosting, preview, and publish the application       | [Deployment](deployment.md)                     |
+| Write and maintain useful documentation                       | [Documentation](documentation.md)               |
+| Review documentation for drift and coherence                  | [Documentation review](documentation-review.md) |
+| Provision organizations and verify invitation emails          | [Organizations](organizations.md)               |
 
 [All documentation](../README.md)

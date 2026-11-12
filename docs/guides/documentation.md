@@ -123,6 +123,9 @@ sequence, terminology, and level of detail. Verify links and consistency with
 related documents. The result should give readers a clear answer and enough
 understanding to use it in their next decision or task.
 
+A recurring [documentation review](documentation-review.md) checks the
+documentation affected by recent changes and rereads one area in depth.
+
 Run `vp run check:docs` after changing documentation, moving a linked file, or
 renaming a heading. Remark checks Markdown links and images in `.md` and `.mdx`
 files against local files and heading anchors, including links between documents.
