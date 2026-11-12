@@ -322,6 +322,12 @@ rebase before merging. The hook checks message syntax; reviewers still assess
 scope, clarity, and migration instructions. Validation is local and does not
 enforce messages created through GitHub.
 
+Pull requests are squash-merged. GitHub uses the PR title as the commit subject
+and the description as its body, so the description is the lasting record of
+why the change was made; the [PR template](../../.github/pull_request_template.md)
+explains what to include. Edit the message in the merge box when the description
+holds anything that won't stay true, such as notes for the reviewer.
+
 ## GitHub repository rules
 
 The public GitHub repository is [dmprav/merit](https://github.com/dmprav/merit),

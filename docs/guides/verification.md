@@ -20,6 +20,8 @@ Stop once the applicable checks pass. Reuse passing results while their relevant
 source, dependencies, configuration, and runtime conditions remain unchanged.
 Repeat or broaden checks when subsequent edits, failures, or unresolved risks
 justify it. Report the checks performed and any remaining verification gaps.
+In a pull request, mention only checks CI doesn't run, such as a manual mutation
+check, and the gaps; the required `verify` check reports the rest.
 
 Run full workspace verification with `vp run ready` before merging or releasing
 completed changes, when explicitly requested, or when a change has broad effects
