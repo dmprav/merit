@@ -19,8 +19,8 @@ it.
 ## 2. Find where the last review stopped
 
 Each review leaves a record, either at the end of its pull request's **Why**
-section or, when it found nothing to fix, as a comment on the most recent review
-pull request:
+section or, when it found nothing to fix, as a comment on the open issue titled
+`docs: review records`:
 
 ```text
 Review record: reviewed through <commit SHA>
@@ -59,7 +59,10 @@ git ls-files '*.md' '*.mdx' ':!:.github/**' ':!:.agents/**'
 
 Count the days from 2026-11-13 to today in UTC, divide by the number of
 documents, and take the document at the position of the remainder, counting
-from zero. Reread it in full and fix where it doesn't follow the guide.
+from zero. While it was already reviewed in step 3, advance to the next
+document, wrapping to the start of the list when needed. If every document was
+already reviewed, skip this step. Reread the chosen document in full and fix
+where it doesn't follow the guide.
 
 ## 5. Keep changes to what the guide asks for
 
@@ -89,5 +92,5 @@ If there is something to fix:
 5. In **Follow-ups**, list missing documentation and unresolved disagreements.
 
 If there is nothing to fix, open no pull request. Post this review's record as a
-comment on the most recent `docs: review documentation` pull request, if one
-exists.
+comment on the open issue titled `docs: review records`, creating the issue if
+it doesn't exist, so the next run continues from it.
