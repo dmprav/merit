@@ -348,7 +348,8 @@ write access to the upstream repository.
 Two rulesets enforce this policy together:
 
 - [Protect main](../../.github/rulesets/main.json) requires pull requests
-  and resolved review conversations, and blocks force pushes and deletion of `main`.
+  and resolved review conversations, a passing `verify` check from GitHub Actions
+  against the latest `main`, and blocks force pushes and deletion of `main`.
   It requires no approving reviews so a sole maintainer can merge their own work.
   The bypass list is empty, so administrators follow the same merge rules.
 - [Restrict main merges](../../.github/rulesets/main-merge-access.json) restricts
@@ -364,9 +365,9 @@ exception cannot bypass the shared protections. GitHub applies
 [both rulesets together](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/about-rulesets).
 
 The [PR verification workflow](../../.github/workflows/verify.yml) runs `vp run --no-cache ready`
-for pull requests targeting `main`. There are no required status checks yet;
-continue full local verification until the workflow has passed on GitHub and
-`verify` is required by **Protect main**.
+for pull requests targeting `main`. **Protect main** requires its `verify` check
+from GitHub Actions (integration ID `15368`); a pending or failed check blocks
+merging, including for administrators.
 
 These JSON files record the ruleset configurations; committing changes to them
 does not update GitHub. Update the existing rulesets through the repository's
@@ -382,9 +383,9 @@ GitHub and target `main`. Verify that the owner can merge a PR with resolved
 conversations, while a bot using its own identity cannot merge it. Confirm that
 direct pushes remain blocked for the owner as well. For later changes, update
 the existing ruleset and its JSON together rather than creating a duplicate.
-After the first successful workflow run, add `verify` as a required status check
-from GitHub Actions in **Protect main**, then export the updated ruleset to
-`.github/rulesets/main.json`. Confirm that a failing or pending check blocks merging.
+When renaming the workflow job, update the required check and
+`.github/rulesets/main.json` together. Confirm that a failing or pending check
+blocks merging.
 
 ### Security reports and alerts
 
@@ -398,8 +399,7 @@ The following settings are enabled in **Settings → Advanced Security**:
 - **Dependabot security updates**, which propose fixes through pull requests.
 - **Secret scanning** and repository **push protection**.
 - **CodeQL default setup** with the default query suite. Setup is configured,
-  but scanning awaits supported source code; the repository was initialized with
-  an empty commit.
+  and scans begin when supported source code reaches the default branch.
 
 Follow GitHub's [security settings guide](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/enabling-features-for-your-repository/managing-security-and-analysis-settings-for-your-repository)
 and [private reporting setup](https://docs.github.com/en/code-security/how-tos/report-and-fix-vulnerabilities/configure-vulnerability-reporting/configure-for-a-repository).

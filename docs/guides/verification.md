@@ -25,9 +25,10 @@ Run full workspace verification with `vp run ready` before merging or releasing
 completed changes, when explicitly requested, or when a change has broad effects
 that targeted checks cannot adequately cover. The
 [PR workflow](../../.github/workflows/verify.yml) runs the same complete suite
-with `--no-cache` on Ubuntu for pull requests targeting `main`. Until its first
-successful GitHub run and activation as a required check, full verification
-remains a local responsibility.
+with `--no-cache` on Ubuntu for pull requests targeting `main`. Its `verify` check
+is required by the [branch rules](development.md#branch-protection); pending or
+failed verification blocks merging. A passing run on the current PR commit
+satisfies full verification while its inputs remain unchanged.
 Targeted checks can defer discovery of unrelated regressions to that milestone.
 All existing suites and coverage thresholds remain part of full verification.
 
