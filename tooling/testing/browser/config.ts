@@ -32,11 +32,11 @@ export const browserProjects: PlaywrightTestProject[] = [
 ];
 
 // Only the non-blocking deferred workflow sets retries, so it can report flaky tests.
-const retries = Number(process.env.MERIT_BROWSER_RETRIES ?? 0);
+export const browserRetries = Number(process.env.MERIT_BROWSER_RETRIES ?? 0);
 
 export const browserConfig = defineConfig({
   forbidOnly: true,
-  retries,
+  retries: browserRetries,
   testDir: ".",
   outputDir: join(tmpdir(), "merit-browser-results"),
   fullyParallel: true,

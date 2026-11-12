@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 
 import { defineConfig } from "@playwright/test";
 
-import { browserProjects } from "@merit/test-support/browser/config";
+import { browserProjects, browserRetries } from "@merit/test-support/browser/config";
 
 const host = fileURLToPath(new URL("../..", import.meta.url));
 
@@ -24,6 +24,7 @@ export default defineConfig({
   ],
   outputDir: join(tmpdir(), "merit-workspace-browser-results"),
   reporter: "list",
+  retries: browserRetries,
   // Each test resets the isolated database used by the shared host.
   workers: 1,
   use: {
