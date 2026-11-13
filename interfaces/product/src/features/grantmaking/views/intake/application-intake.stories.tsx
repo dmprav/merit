@@ -21,6 +21,7 @@ import { readContacts } from "../../../contacts/data/server/contacts.functions";
 import { workspaceIntakeData } from "../../data/intake/workspace-data";
 import { applicationOptions } from "../../data/queries";
 import { readFundingApplicationPage } from "../../data/server/funding-round.functions";
+import { readApplicationHistory } from "../../data/server/history.functions";
 import { editApplication } from "../../data/server/intake/intake.functions";
 
 const round = { ...getExampleRound(), id: "k7m2p9x4n6rt" };
@@ -94,7 +95,7 @@ const fixture = (
           ? [
               {
                 revision: 2,
-                action: "revision",
+                action: "application.revision_recorded",
                 actor: "Dana Reed",
                 provenance: { interface: "mcp", clientId: "example-client" },
                 reason: revision.reason,
@@ -164,6 +165,11 @@ const meta = {
   parameters: { layout: "fullscreen", controls: { disable: true } },
   beforeEach: ({ args }) => {
     let page = fixture(args.state ?? "incomplete");
+    mocked(readApplicationHistory).mockImplementation(async () => ({
+      status: "ok",
+      entries: page.intake.history,
+      nextCursor: null,
+    }));
     mocked(readContacts).mockResolvedValue({
       status: "ok",
       workspaceName: "Alder Foundation",

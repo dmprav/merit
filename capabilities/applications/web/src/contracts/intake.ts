@@ -7,6 +7,7 @@ import type {
 import type { IntakeSaveError } from "@merit/applications/api";
 import type { IntakeChange } from "@merit/applications/domain";
 import type { IntakeState } from "@merit/grantmaking/api";
+import type { PageSource } from "@merit/query/contracts";
 
 export type { IntakeState } from "@merit/grantmaking/api";
 
@@ -18,6 +19,7 @@ export type IntakeSaveResult =
 export type IntakeFailure = Exclude<IntakeSaveResult, { status: "ok" }> | { status: "busy" };
 
 export type IntakeData = {
+  historySource?: PageSource<IntakeState["history"][number]>;
   draftKey: string;
   workspaceSlug: string;
   publicId: string;

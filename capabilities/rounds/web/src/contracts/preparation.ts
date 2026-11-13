@@ -1,6 +1,7 @@
 import type { z } from "zod";
 
 import type { PreparationState } from "@merit/grantmaking/api";
+import type { PageSource } from "@merit/query/contracts";
 import type { editRoundRequestSchema, deleteRoundRequestSchema } from "@merit/rounds/api";
 import type { PreparationSaveError } from "@merit/rounds/api";
 import type { RoundChange } from "@merit/rounds/domain";
@@ -12,6 +13,7 @@ export type PreparationFailure =
   | { status: "conflict" | "not_found" | "signed_out" | "unavailable" };
 
 export type PreparationData = {
+  historySource?: PageSource<PreparationState["budgetHistory"][number]>;
   draftKey: string;
   state: PreparationState;
   save: (

@@ -18,6 +18,7 @@ import type { organizationIdInput, invitationTokenInput, teamInput } from "./ide
 import type {
   workspacePageInput,
   teamPageInput,
+  teamHistoryInput,
   invitationPageInput,
   teamEventInput,
   OrganizationSummary,
@@ -72,7 +73,7 @@ export interface OrganizationService {
   ) => Promise<Result<InvitationPage>>;
   teamHistoryPage: (
     actor: Actor,
-    input: z.input<typeof teamPageInput>,
+    input: z.input<typeof teamHistoryInput>,
   ) => Promise<Result<TeamHistoryPage>>;
   teamEvent: (
     actor: Actor,

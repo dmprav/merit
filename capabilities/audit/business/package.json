@@ -7,17 +7,17 @@
   "exports": {
     "./server/record": "./src/server/integrations.ts",
     "./server/demo": "./src/server/demo.ts",
-    "./server/read": "./src/server/read.ts"
+    "./server/read": "./src/server/read.ts",
+    "./schema": "./src/server/persistence/schema.ts",
+    "./api": "./src/domain/activity.ts"
   },
   "dependencies": {
     "@merit/auth": "workspace:*",
     "@merit/db": "workspace:*",
-    "@merit/organizations": "workspace:*",
     "drizzle-orm": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@merit/test-support": "workspace:*",
     "@types/node": "catalog:",
     "typescript": "catalog:",
     "vite-plus": "catalog:"

@@ -196,7 +196,9 @@ it("completes grant work through MCP with shared web state, safe retries, and ve
     history: "intake",
   });
   expect(history.entries).toEqual(
-    expect.arrayContaining([expect.objectContaining({ action: "start_revision" })]),
+    expect.arrayContaining([
+      expect.objectContaining({ action: "application_working_revision.started" }),
+    ]),
   );
   const refreshed = (await getFundingApplicationPage(db, actor, webApplicationAddress))!;
   expect(mcpApplication.application).toMatchObject({
@@ -229,21 +231,35 @@ it("completes grant work through MCP with shared web state, safe retries, and ve
     {
       actor_user_id: "dana",
       provenance: mcpProvenance,
-      action: "application.create",
+      action: "application.contact_changed",
+      target_type: "application",
+      target_revision: 1,
+    },
+    {
+      actor_user_id: "dana",
+      provenance: mcpProvenance,
+      action: "application.created",
       target_type: "application",
       target_revision: 0,
     },
     {
       actor_user_id: "dana",
       provenance: mcpProvenance,
-      action: "application.mark_ready",
+      action: "application.marked_ready",
       target_type: "application",
       target_revision: 2,
     },
     {
       actor_user_id: "dana",
       provenance: mcpProvenance,
-      action: "recommendation.saved",
+      action: "application_working_revision.started",
+      target_type: "application",
+      target_revision: 3,
+    },
+    {
+      actor_user_id: "dana",
+      provenance: mcpProvenance,
+      action: "recommendation.recorded",
       target_type: "recommendation",
       target_revision: 1,
     },
@@ -253,8 +269,9 @@ it("completes grant work through MCP with shared web state, safe retries, and ve
   const activity = await saved("list_workspace_activity", { workspaceSlug: "alder" });
   expect(activity.nextCursor).toBeNull();
   expect(activity.entries).toMatchObject([
+    { action: "application_working_revision.started" },
     {
-      action: "recommendation.saved",
+      action: "recommendation.recorded",
       actor: "Dana Reed",
       provenance: mcpProvenance,
       record: {
@@ -264,11 +281,13 @@ it("completes grant work through MCP with shared web state, safe retries, and ve
       },
     },
     { action: "assessment.recorded", provenance: mcpProvenance },
-    { action: "application.mark_ready" },
-    { action: "application.create" },
-    { action: "round.budget", record: { kind: "round", id: address.roundId } },
-    { action: "round.create", record: { kind: "round", id: address.roundId } },
-    { action: "round.create", record: { kind: "round", id: pageInput.publicId } },
+    { action: "review_request.created", provenance: mcpProvenance },
+    { action: "application.marked_ready" },
+    { action: "application.contact_changed" },
+    { action: "application.created" },
+    { action: "round.budget_changed", record: { kind: "round", id: address.roundId } },
+    { action: "round.created", record: { kind: "round", id: address.roundId } },
+    { action: "round.created", record: { kind: "round", id: pageInput.publicId } },
   ]);
 
   await database.client.query("DELETE FROM memberships WHERE user_id='dana'");

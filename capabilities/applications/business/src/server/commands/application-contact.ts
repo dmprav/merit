@@ -48,7 +48,7 @@ export const selectApplicationContact = async (
       {
         application: withIntakeContact(row.application, request.contactId, contact ?? null),
         workingRevision: row.workingRevision,
-        action: "details",
+        action: "contact",
         reason: null,
       },
       actor,

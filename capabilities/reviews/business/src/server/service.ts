@@ -16,11 +16,12 @@ import {
   submitReviewerAssessment,
 } from "./commands/reviewer";
 import { deliverReviewerMessages } from "./commands/reviewer-delivery";
-import { saveApplicationReview, type RecordAssessmentAudit } from "./commands/reviews";
+import { saveApplicationReview } from "./commands/reviews";
 import {
   listReviewerAssignments,
   readReviewerAssignment,
   managerReviewerAssignments,
+  managerReviewerHistory,
 } from "./queries/reviewer";
 
 type Dependencies = { database: <T>(operation: (db: Database) => Promise<T>) => Promise<T> };
@@ -28,13 +29,12 @@ type Dependencies = { database: <T>(operation: (db: Database) => Promise<T>) => 
 export const createReviewerService = (
   dependencies: Dependencies & {
     verifiedEmails: (actor: Actor) => Promise<string[]>;
-    recordAuditEvent: RecordAssessmentAudit;
     send: (message: ReviewerMessage) => Promise<void>;
     reviewerUrl: (id: string) => string;
     managerUrl: (slug: string, applicationId: string) => string;
   },
 ): ReviewerService => {
-  const { database, verifiedEmails, recordAuditEvent } = dependencies;
+  const { database, verifiedEmails } = dependencies;
 
   const read: ReviewerService["read"] = async (actor, input) => {
     const parsed = reviewerAddressSchema.safeParse(input);
@@ -63,6 +63,7 @@ export const createReviewerService = (
   };
 
   return {
+    history: (actor, input) => database((db) => managerReviewerHistory(db, actor, input)),
     read,
     forApplication,
     list: async (actor) => {
@@ -99,9 +100,7 @@ export const createReviewerService = (
     },
     saveDraft: (actor, input) => database((db) => saveReviewerDraft(db, actor, input)),
     submit: async (actor, input) => {
-      const result = await database((db) =>
-        submitReviewerAssessment(db, actor, input, recordAuditEvent),
-      );
+      const result = await database((db) => submitReviewerAssessment(db, actor, input));
       if (result.status === "ok") {
         await deliverReviewerMessages(dependencies, input.assignmentId);
       }
@@ -110,10 +109,6 @@ export const createReviewerService = (
   };
 };
 
-export const createReviewService = ({
-  database,
-  recordAuditEvent,
-}: Dependencies & { recordAuditEvent: RecordAssessmentAudit }): ReviewService => ({
-  saveReview: (actor, input) =>
-    database((db) => saveApplicationReview(db, actor, input, recordAuditEvent)),
+export const createReviewService = ({ database }: Dependencies): ReviewService => ({
+  saveReview: (actor, input) => database((db) => saveApplicationReview(db, actor, input)),
 });

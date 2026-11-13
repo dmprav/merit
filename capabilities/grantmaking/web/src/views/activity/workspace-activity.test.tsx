@@ -13,7 +13,15 @@ const entry = (id: number, overrides: Partial<ActivityEntry> = {}): ActivityEntr
   recordedAt: "2027-01-20T12:00:00.000Z",
   actor: "Dana Reed",
   provenance: { interface: "web" },
-  action: "application.create",
+  action: "application.created",
+  subject: {
+    type: "application",
+    id: "b8q3w5j7c2df",
+    revision: 0,
+    name: null,
+    roundId: null,
+    applicationId: "b8q3w5j7c2df",
+  },
   record: { kind: "application", id: "b8q3w5j7c2df", title: "Workshop Saturdays" },
   ...overrides,
 });
@@ -42,7 +50,7 @@ it("shows when, who, what and the current record, linking to it", () => {
   show({
     entries: [
       entry(1, {
-        action: "round.budget",
+        action: "round.budget_changed",
         provenance: { interface: "mcp", clientId: "grant-assistant" },
         record: { kind: "round", id: "k7m2p9x4n6rt", title: "Local Connections 2027" },
       }),
@@ -66,7 +74,7 @@ it("names an unrecorded person, labels unknown actions generically and marks mis
     entries: [
       entry(1, { actor: null }),
       entry(2, { action: "widget.polished", record: null }),
-      entry(3, { action: "application.delete", record: null }),
+      entry(3, { action: "application.deleted", record: null }),
     ],
   });
 
@@ -79,19 +87,19 @@ it("names an unrecorded person, labels unknown actions generically and marks mis
 
 it("labels every action the workspace records", () => {
   const actions = [
-    "application.create",
-    "application.mark_ready",
-    "application.revision",
-    "application.correction",
-    "application.delete",
-    "round.create",
-    "round.budget",
-    "round.criteria",
-    "round.manager",
-    "round.delete",
+    "application.created",
+    "application.marked_ready",
+    "application.revision_recorded",
+    "application.correction_recorded",
+    "application.deleted",
+    "round.created",
+    "round.budget_changed",
+    "round.criteria_changed",
+    "round.manager_changed",
+    "round.deleted",
     "assessment.recorded",
     "assessment.submitted",
-    "recommendation.saved",
+    "recommendation.recorded",
   ];
   show({ entries: actions.map((action, index) => entry(index + 1, { action })) });
 

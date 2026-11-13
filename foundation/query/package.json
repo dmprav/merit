@@ -6,13 +6,18 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./refresh": "./src/workflow-refresh.ts"
+    "./refresh": "./src/workflow-refresh.ts",
+    "./contracts": "./src/contracts.ts",
+    "./pages": "./src/pages.ts"
   },
   "dependencies": {
     "@tanstack/react-query": "catalog:"
   },
   "devDependencies": {
+    "@testing-library/react": "catalog:",
     "@types/react": "catalog:",
+    "jsdom": "catalog:",
+    "react-dom": "catalog:",
     "typescript": "^7.0.2",
     "vite-plus": "catalog:"
   },

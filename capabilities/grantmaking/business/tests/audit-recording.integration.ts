@@ -6,7 +6,6 @@ import { assert, expect } from "vite-plus/test";
 import { materialVersionSchema, type IntakeChange } from "@merit/applications/domain";
 import { createFundingApplication, editFundingApplication } from "@merit/applications/server";
 import { roundHasApplications } from "@merit/applications/server/integrations";
-import { recordAuditEvent } from "@merit/audit/server/record";
 import type { Actor } from "@merit/auth";
 import { changeWorkspaceContact } from "@merit/contacts/server";
 import { getFundingApplicationPage, getFundingRoundPage } from "@merit/grantmaking/server";
@@ -22,7 +21,7 @@ import { criteriaVersionSchema, type RoundChange } from "@merit/rounds/domain";
 import { createFundingRound, deleteFundingRound, editFundingRound } from "@merit/rounds/server";
 
 import { applicationWork } from "../src/server/persistence/commands/application-work";
-import { failingRecorder, recordedEvents } from "./audit-events";
+import { withAuditFailure, recordedEvents } from "./audit-events";
 
 const assistant: Actor = {
   userId: "dana",
@@ -43,12 +42,11 @@ const content = {
 };
 
 const createRound = async (db: NodePgDatabase, as: Actor = actor) => {
-  const round = await createFundingRound(
-    db,
-    as,
-    { workspaceSlug, requestId: randomUUID(), title: "Neighbourhood grants" },
-    recordAuditEvent,
-  );
+  const round = await createFundingRound(db, as, {
+    workspaceSlug,
+    requestId: randomUUID(),
+    title: "Neighbourhood grants",
+  });
   assert(round.status === "ok");
   return { workspaceSlug, publicId: round.publicId };
 };
@@ -58,12 +56,13 @@ const createApplication = async (
   round: { publicId: string },
   overrides: Partial<Parameters<typeof createFundingApplication>[2]> = {},
 ) => {
-  const created = await createFundingApplication(
-    db,
-    actor,
-    { workspaceSlug, publicId: round.publicId, requestId: randomUUID(), ...content, ...overrides },
-    recordAuditEvent,
-  );
+  const created = await createFundingApplication(db, actor, {
+    workspaceSlug,
+    publicId: round.publicId,
+    requestId: randomUUID(),
+    ...content,
+    ...overrides,
+  });
   assert(created.status === "ok");
   return { workspaceSlug, publicId: created.publicId };
 };
@@ -74,23 +73,19 @@ const intake = (db: NodePgDatabase, address: { workspaceSlug: string; publicId: 
 
   const change = async (
     change: IntakeChange,
-    options: { as?: Actor; expectedRevision?: number; recorder?: typeof recordAuditEvent } = {},
+    options: { as?: Actor; expectedRevision?: number } = {},
   ) =>
     editFundingApplication(
       db,
       options.as ?? actor,
       { ...address, expectedRevision: options.expectedRevision ?? (await revision()), change },
       applicationWork,
-      options.recorder ?? recordAuditEvent,
     );
 
   return { change, revision };
 };
 
-it("records only intake milestones, once each, with the case revision", async ({
-  db,
-  database,
-}) => {
+it("records each persisted intake change once with its case revision", async ({ db, database }) => {
   const round = await createRound(db);
   const address = await createApplication(db, round);
   const id = address.publicId;
@@ -98,7 +93,7 @@ it("records only intake milestones, once each, with the case revision", async ({
 
   const events = (where = "target_type = 'application'") => recordedEvents(database.client, where);
 
-  expect(await events()).toEqual([`application.create application/${id}@0`]);
+  expect(await events()).toEqual([`application.created application/${id}@0`]);
   expect(
     (await database.client.query("SELECT * FROM audit_events WHERE target_type = 'application'"))
       .rows,
@@ -111,20 +106,26 @@ it("records only intake milestones, once each, with the case revision", async ({
     },
   ]);
 
-  // Content and detail saves stay in the application's own history.
+  // Material and staff summary changes use the shared history.
   await change({ action: "save_content", content: { title: "Community meals together" } });
   await change({ action: "details", summary: "A strong local proposal." });
-  expect(await events()).toEqual([`application.create application/${id}@0`]);
+  expect(await events()).toEqual(
+    [
+      `application.created application/${id}@0`,
+      `application.material_changed application/${id}@1`,
+      `application.summary_changed application/${id}@2`,
+    ].sort(),
+  );
 
   const ready = await change({ action: "mark_ready" }, { as: assistant });
   assert(ready.status === "ok");
-  expect(await events("action = 'application.mark_ready'")).toEqual([
-    `application.mark_ready application/${id}@${ready.revision}`,
+  expect(await events("action = 'application.marked_ready'")).toEqual([
+    `application.marked_ready application/${id}@${ready.revision}`,
   ]);
   expect(
     (
       await database.client.query(
-        "SELECT provenance FROM audit_events WHERE action = 'application.mark_ready'",
+        "SELECT provenance FROM audit_events WHERE action = 'application.marked_ready'",
       )
     ).rows,
   ).toEqual([{ provenance: assistant.provenance }]);
@@ -134,14 +135,14 @@ it("records only intake milestones, once each, with the case revision", async ({
     revision: ready.revision,
   });
 
-  // Working revisions are not milestones until published.
+  // Persisted working revision changes are recorded; replayed saves are not.
   await change({ action: "start_revision", kind: "revision" });
   await change({
     action: "save_revision",
     draft: { kind: "revision", reason: "Scope grew", content: { requested: "25000.00" } },
   });
   await change({ action: "discard_revision" });
-  expect(await events()).toHaveLength(2);
+  expect(await events()).toHaveLength(7);
 
   const published: Record<string, number> = {};
   for (const [kind, requested] of [
@@ -159,10 +160,19 @@ it("records only intake milestones, once each, with the case revision", async ({
   }
   expect(await events()).toEqual(
     [
-      `application.create application/${id}@0`,
-      `application.mark_ready application/${id}@${ready.revision}`,
-      `application.revision application/${id}@${published.revision}`,
-      `application.correction application/${id}@${published.correction}`,
+      `application.created application/${id}@0`,
+      `application.material_changed application/${id}@1`,
+      `application.summary_changed application/${id}@2`,
+      `application_working_revision.started application/${id}@4`,
+      `application_working_revision.updated application/${id}@5`,
+      `application_working_revision.discarded application/${id}@6`,
+      `application_working_revision.started application/${id}@7`,
+      `application_working_revision.updated application/${id}@8`,
+      `application_working_revision.started application/${id}@10`,
+      `application_working_revision.updated application/${id}@11`,
+      `application.marked_ready application/${id}@${ready.revision}`,
+      `application.revision_recorded application/${id}@${published.revision}`,
+      `application.correction_recorded application/${id}@${published.correction}`,
     ].sort(),
   );
   expect(await revision()).toBe(published.correction);
@@ -171,8 +181,8 @@ it("records only intake milestones, once each, with the case revision", async ({
   const removed = await intake(db, deletable).change({ action: "delete" });
   assert(removed.status === "ok");
   expect(await events(`target_id = '${deletable.publicId}'`)).toEqual([
-    `application.create application/${deletable.publicId}@0`,
-    `application.delete application/${deletable.publicId}@${removed.revision}`,
+    `application.created application/${deletable.publicId}@0`,
+    `application.deleted application/${deletable.publicId}@${removed.revision}`,
   ]);
   expect(removed.revision).toBe(1);
 });
@@ -188,9 +198,9 @@ it("records nothing for creation retries or rejected, conflicting and unauthoriz
     requestId: randomUUID(),
     ...content,
   };
-  const created = await createFundingApplication(db, actor, request, recordAuditEvent);
+  const created = await createFundingApplication(db, actor, request);
   assert(created.status === "ok");
-  expect(await createFundingApplication(db, actor, request, recordAuditEvent)).toEqual(created);
+  expect(await createFundingApplication(db, actor, request)).toEqual(created);
   const address = { workspaceSlug, publicId: created.publicId };
   const { change } = intake(db, address);
   const before = await recordedEvents(database.client, "target_type = 'application'");
@@ -200,19 +210,13 @@ it("records nothing for creation retries or rejected, conflicting and unauthoriz
     status: "conflict",
   });
   expect(
-    await createFundingApplication(
-      db,
-      actor,
-      { ...request, requestId: randomUUID(), title: "" },
-      recordAuditEvent,
-    ),
+    await createFundingApplication(db, actor, { ...request, requestId: randomUUID(), title: "" }),
   ).toEqual({ status: "invalid", error: "invalid_application" });
   expect(
     await createFundingApplication(
       db,
       { userId: "birch-manager" },
       { ...request, requestId: randomUUID() },
-      recordAuditEvent,
     ),
   ).toEqual({ status: "not_found" });
   expect(
@@ -221,7 +225,6 @@ it("records nothing for creation retries or rejected, conflicting and unauthoriz
       { userId: "birch-manager" },
       { ...address, expectedRevision: 0, change: { action: "mark_ready" } },
       applicationWork,
-      recordAuditEvent,
     ),
   ).toEqual({ status: "not_found" });
 
@@ -259,18 +262,24 @@ it("rolls back intake changes when the recorder fails after appending", async ({
     requestId: randomUUID(),
     ...content,
   };
-  await expect(createFundingApplication(db, actor, request, failingRecorder)).rejects.toThrow(
-    "Recorder failed",
-  );
+  await expect(
+    withAuditFailure(database.client, () => createFundingApplication(db, actor, request)),
+  ).rejects.toMatchObject({ cause: { message: "Audit recording failed" } });
   expect((await database.client.query("SELECT id FROM application_cases")).rows).toEqual([]);
-  expect((await database.client.query("SELECT case_id FROM case_changes")).rows).toEqual([]);
+  expect(
+    (
+      await database.client.query(
+        "SELECT target_id FROM audit_events WHERE target_type='application'",
+      )
+    ).rows,
+  ).toEqual([]);
   expect(await recordedEvents(database.client, "target_type = 'application'")).toEqual([]);
 
   const address = await createApplication(db, round);
   const { change, revision } = intake(db, address);
-  await expect(change({ action: "mark_ready" }, { recorder: failingRecorder })).rejects.toThrow(
-    "Recorder failed",
-  );
+  await expect(
+    withAuditFailure(database.client, () => change({ action: "mark_ready" })),
+  ).rejects.toMatchObject({ cause: { message: "Audit recording failed" } });
   expect(await revision()).toBe(0);
   expect(
     (
@@ -279,32 +288,28 @@ it("rolls back intake changes when the recorder fails after appending", async ({
       ])
     ).rows,
   ).toEqual([{ intake_status: "in_preparation" }]);
-  expect(await recordedEvents(database.client, "action = 'application.mark_ready'")).toEqual([]);
+  expect(await recordedEvents(database.client, "action = 'application.marked_ready'")).toEqual([]);
 });
 
 const roundChange = (
   db: NodePgDatabase,
   address: { workspaceSlug: string; publicId: string },
-  options: { as?: Actor; recorder?: typeof recordAuditEvent } = {},
+  options: { as?: Actor } = {},
 ) => {
   const revision = async () =>
     (await getFundingRoundPage(db, actor, { ...address, kind: "round" }))!.preparation.revision;
 
   const edit = async (change: RoundChange, expectedRevision?: number) =>
-    editFundingRound(
-      db,
-      options.as ?? actor,
-      { ...address, expectedRevision: expectedRevision ?? (await revision()), change },
-      options.recorder ?? recordAuditEvent,
-    );
+    editFundingRound(db, options.as ?? actor, {
+      ...address,
+      expectedRevision: expectedRevision ?? (await revision()),
+      change,
+    });
 
   return { edit, revision };
 };
 
-it("records round creation, budget, criteria, manager and deletion but not detail edits", async ({
-  db,
-  database,
-}) => {
+it("records all round preparation changes, including details", async ({ db, database }) => {
   await database.client.query("INSERT INTO app_users (id, name) VALUES ('pat', 'Pat Taylor')");
   await database.client.query(
     "INSERT INTO memberships (organization_id, user_id, role) VALUES ('alder', 'pat', 'program_manager')",
@@ -315,7 +320,7 @@ it("records round creation, budget, criteria, manager and deletion but not detai
 
   const events = (where = `target_id = '${id}'`) => recordedEvents(database.client, where);
 
-  expect(await events()).toEqual([`round.create round/${id}@0`]);
+  expect(await events()).toEqual([`round.created round/${id}@0`]);
   expect(
     (await database.client.query("SELECT * FROM audit_events WHERE target_id = $1", [id])).rows,
   ).toMatchObject([
@@ -330,7 +335,7 @@ it("records round creation, budget, criteria, manager and deletion but not detai
   ]);
 
   await edit({ section: "details", title: "Renamed grants", purpose: "New purpose" });
-  expect(await events()).toHaveLength(1);
+  expect(await events()).toHaveLength(2);
 
   const budget = await edit({ section: "budget", amount: "5000.00", reason: "" });
   const criteria = await edit({
@@ -344,10 +349,11 @@ it("records round creation, budget, criteria, manager and deletion but not detai
   expect(await edit({ section: "budget", amount: "5000.00", reason: "" })).toEqual(manager);
   expect(await events()).toEqual(
     [
-      `round.create round/${id}@0`,
-      `round.budget round/${id}@${budget.revision}`,
-      `round.criteria round/${id}@${criteria.revision}`,
-      `round.manager round/${id}@${manager.revision}`,
+      `round.created round/${id}@0`,
+      `round.details_changed round/${id}@1`,
+      `round.budget_changed round/${id}@${budget.revision}`,
+      `round.criteria_changed round/${id}@${criteria.revision}`,
+      `round.manager_changed round/${id}@${manager.revision}`,
     ].sort(),
   );
 
@@ -359,12 +365,11 @@ it("records round creation, budget, criteria, manager and deletion but not detai
       actor,
       { ...empty, expectedRevision: current },
       roundHasApplications,
-      recordAuditEvent,
     ),
   ).toEqual({ status: "ok" });
   expect(await events(`target_id = '${empty.publicId}'`)).toEqual([
-    `round.create round/${empty.publicId}@0`,
-    `round.delete round/${empty.publicId}@${current + 1}`,
+    `round.created round/${empty.publicId}@0`,
+    `round.deleted round/${empty.publicId}@${current + 1}`,
   ]);
 });
 
@@ -392,12 +397,7 @@ it("records nothing for rejected, conflicting or blocked round writes and rolls 
     ),
   ).toEqual({ status: "not_found" });
   expect(
-    await createFundingRound(
-      db,
-      actor,
-      { workspaceSlug, requestId: randomUUID(), title: "" },
-      recordAuditEvent,
-    ),
+    await createFundingRound(db, actor, { workspaceSlug, requestId: randomUUID(), title: "" }),
   ).toEqual({ status: "invalid", error: "invalid_round" });
   expect(
     await deleteFundingRound(
@@ -405,36 +405,34 @@ it("records nothing for rejected, conflicting or blocked round writes and rolls 
       actor,
       { ...address, expectedRevision: await revision() },
       roundHasApplications,
-      recordAuditEvent,
     ),
   ).toEqual({ status: "invalid", error: "round_not_empty" });
   expect(await recordedEvents(database.client, "target_type = 'round'")).toEqual(baseline);
 
-  const rolledBack = roundChange(db, address, { recorder: failingRecorder });
-  await expect(rolledBack.edit({ section: "budget", amount: "10.00", reason: "" })).rejects.toThrow(
-    "Recorder failed",
-  );
+  const rolledBack = roundChange(db, address);
+  await expect(
+    withAuditFailure(database.client, () =>
+      rolledBack.edit({ section: "budget", amount: "10.00", reason: "" }),
+    ),
+  ).rejects.toMatchObject({ cause: { message: "Audit recording failed" } });
   expect(await revision()).toBe(0);
   await expect(
-    createFundingRound(
-      db,
-      actor,
-      { workspaceSlug, requestId: randomUUID(), title: "Never saved" },
-      failingRecorder,
+    withAuditFailure(database.client, () =>
+      createFundingRound(db, actor, {
+        workspaceSlug,
+        requestId: randomUUID(),
+        title: "Never saved",
+      }),
     ),
-  ).rejects.toThrow("Recorder failed");
+  ).rejects.toMatchObject({ cause: { message: "Audit recording failed" } });
   expect((await database.client.query("SELECT id FROM funding_rounds")).rows).toHaveLength(1);
 
   const doomed = await createRound(db);
   await expect(
-    deleteFundingRound(
-      db,
-      actor,
-      { ...doomed, expectedRevision: 0 },
-      roundHasApplications,
-      failingRecorder,
+    withAuditFailure(database.client, () =>
+      deleteFundingRound(db, actor, { ...doomed, expectedRevision: 0 }, roundHasApplications),
     ),
-  ).rejects.toThrow("Recorder failed");
+  ).rejects.toMatchObject({ cause: { message: "Audit recording failed" } });
   expect(
     (await database.client.query("SELECT id FROM funding_rounds WHERE id = $1", [doomed.publicId]))
       .rows,
@@ -465,23 +463,17 @@ const assessmentScenario = async (db: NodePgDatabase) => {
     change: ReviewChange,
     options: {
       as?: Actor;
-      recorder?: typeof recordAuditEvent;
       expectedRevision?: ReviewRevision;
     } = {},
   ) => {
     const page = (await getFundingApplicationPage(db, actor, address))!;
-    return saveApplicationReview(
-      db,
-      options.as ?? actor,
-      {
-        ...address,
-        expectedRevision: options.expectedRevision ?? page.application.reviews.revision,
-        expectedApplicationVersion: page.application.version,
-        expectedCriteriaVersion: page.round.criteriaVersion,
-        change,
-      },
-      options.recorder ?? recordAuditEvent,
-    );
+    return saveApplicationReview(db, options.as ?? actor, {
+      ...address,
+      expectedRevision: options.expectedRevision ?? page.application.reviews.revision,
+      expectedApplicationVersion: page.application.version,
+      expectedCriteriaVersion: page.round.criteriaVersion,
+      change,
+    });
   };
 
   const assessment = {
@@ -546,7 +538,7 @@ it("records each saved assessment version on the assessment, not review requests
   // An edit that changes nothing creates no version and no event.
   await review({ action: "edit", id, content: edited, note: "" });
   expect(await events()).toEqual(
-    [`assessment.recorded assessment/${id}@1`, `assessment.recorded assessment/${id}@2`].sort(),
+    [`assessment.recorded assessment/${id}@1`, `assessment.corrected assessment/${id}@2`].sort(),
   );
 });
 
@@ -579,9 +571,9 @@ it("records no assessment event for rejected or conflicting reviews, and rolls b
     status: "not_found",
   });
   const failed = randomUUID();
-  await expect(review(input(failed), { recorder: failingRecorder })).rejects.toThrow(
-    "Recorder failed",
-  );
+  await expect(
+    withAuditFailure(database.client, () => review(input(failed))),
+  ).rejects.toMatchObject({ cause: { message: "Audit recording failed" } });
   expect(await recordedEvents(database.client, "target_type = 'assessment'")).toEqual([]);
   expect((await database.client.query("SELECT id FROM assessments")).rows).toEqual([]);
   expect((await database.client.query("SELECT case_id FROM review_states")).rows).toEqual([]);

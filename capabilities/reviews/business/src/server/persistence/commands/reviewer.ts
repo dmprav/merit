@@ -1,6 +1,7 @@
 import { and, eq, sql, desc } from "drizzle-orm";
 
 import { applicationCases } from "@merit/applications/schema";
+import { recordAuditEvent } from "@merit/audit/server/record";
 import { actorProvenance, type Actor } from "@merit/auth";
 import { contacts } from "@merit/contacts/schema";
 import type { Database } from "@merit/db";
@@ -11,7 +12,7 @@ import { readReviewerRecord } from "../reviewer-records";
 import {
   reviewerDrafts,
   reviewAssignments,
-  reviewerEvents,
+  reviewerCommandReceipts,
   reviewerMessages,
 } from "../reviewer-schema";
 import { reviewRequests, reviewStates } from "../schema";
@@ -51,35 +52,78 @@ export const reviewerReceipt = async (tx: Database, assignmentId: string, comman
   (
     await tx
       .select()
-      .from(reviewerEvents)
+      .from(reviewerCommandReceipts)
       .where(
-        and(eq(reviewerEvents.assignmentId, assignmentId), eq(reviewerEvents.commandId, commandId)),
+        and(
+          eq(reviewerCommandReceipts.assignmentId, assignmentId),
+          eq(reviewerCommandReceipts.commandId, commandId),
+        ),
       )
   )[0];
 
+const reviewerActions = {
+  invite: "invited",
+  resend: "invitation_renewed",
+  accept: "accepted",
+  decline: "declined",
+  report_conflict: "conflict_reported",
+  clear_conflict: "conflict_cleared",
+  cancel: "access_ended",
+  reinstate: "reinstated",
+} as const;
+
 export const recordReviewerEvent = async (
-  tx: Database,
+  tx: ReviewerTransaction,
   input: {
     assignmentId: string;
-    commandId: string;
     actor: Actor;
     name: string;
-    action: string;
+    action: keyof typeof reviewerActions;
     note?: string;
-    revision: number;
   },
 ) => {
-  await tx.insert(reviewerEvents).values({
-    assignmentId: input.assignmentId,
-    commandId: input.commandId,
-    actorUserId: input.actor.userId,
-    actorName: input.name,
-    provenance: actorProvenance(input.actor),
-    action: input.action,
-    note: input.note ?? "",
-    resultRevision: input.revision,
+  const record = await readReviewerRecord(tx, input.assignmentId);
+  if (!record) {
+    throw new Error("Reviewer assignment disappeared while recording its action");
+  }
+  await recordAuditEvent(tx, {
+    organizationId: record.assignment.organizationId,
+    actor: {
+      userId: input.actor.userId,
+      name: input.name,
+      provenance: actorProvenance(input.actor),
+    },
+    action: `review_assignment.${input.action === "decline" && record.assignment.acceptedAt ? "withdrawn" : reviewerActions[input.action]}`,
+    target: {
+      type: "review_assignment",
+      id: input.assignmentId,
+      revision: record.assignment.revision,
+      name: record.title,
+    },
+    context: {
+      roundId: record.criteriaRoundId,
+      applicationId: record.assignment.caseId,
+      assignmentId: input.assignmentId,
+    },
+    details: {
+      note: input.note ?? "",
+      requestId: record.assignment.requestId,
+      reviewer: record.reviewer,
+      applicationVersion: record.applicationVersion,
+      criteriaVersion: record.criteriaVersion,
+    },
   });
 };
+
+export const recordReviewerReceipt = (
+  tx: Database,
+  input: { assignmentId: string; commandId: string; revision: number },
+) =>
+  tx.insert(reviewerCommandReceipts).values({
+    assignmentId: input.assignmentId,
+    commandId: input.commandId,
+    resultRevision: input.revision,
+  });
 
 export const reviewContact = async (tx: Database, organizationId: string, contactId: string) =>
   (
@@ -190,7 +234,7 @@ export const assignmentForRequest = async (tx: Database, caseId: string, request
   )[0];
 
 export const cancelParticipatingRequest = async (
-  tx: Database,
+  tx: ReviewerTransaction,
   caseId: string,
   requestId: string,
   actor: Actor,
@@ -206,10 +250,8 @@ export const cancelParticipatingRequest = async (
   });
   await recordReviewerEvent(tx, {
     assignmentId: assignment.id,
-    commandId: crypto.randomUUID(),
     actor,
     name,
     action: "cancel",
-    revision: assignment.revision + 1,
   });
 };

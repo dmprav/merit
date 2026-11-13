@@ -285,7 +285,6 @@ export const prepareIntakeChange = (
     ok: true,
     application,
     workingRevision,
-    action: change.action,
     reason: null,
   } as const;
 
@@ -300,6 +299,7 @@ export const prepareIntakeChange = (
 
       return {
         ...unchanged,
+        action: change.action,
         application: { ...application, intakeStatus: "ready" },
       } as const;
 
@@ -310,6 +310,7 @@ export const prepareIntakeChange = (
 
       return {
         ...unchanged,
+        action: change.action,
         workingRevision: { kind: change.kind, reason: "", content: intakeContent(application) },
       };
 
@@ -320,6 +321,7 @@ export const prepareIntakeChange = (
 
       return {
         ...unchanged,
+        action: change.action,
         workingRevision: {
           ...change.draft,
           content: mergeIntakeContent(workingRevision.content, change.draft.content),
@@ -330,17 +332,18 @@ export const prepareIntakeChange = (
       return prepareRevisionPublication(application, workingRevision);
 
     case "discard_revision":
-      return { ...unchanged, workingRevision: null };
+      return { ...unchanged, action: change.action, workingRevision: null };
 
     case "delete":
       if (!canDeleteApplication(application, usage)) {
         return invalidIntakeChange("application_in_use");
       }
-      return unchanged;
+      return { ...unchanged, action: change.action };
 
     case "details":
       return {
         ...unchanged,
+        action: change.action,
         application: {
           ...application,
           summary: change.summary,

@@ -32,6 +32,8 @@ export const readRecommendationState = async (
 ) => {
   const [row] = await db
     .select({
+      title: sql<string>`${currentMaterial}->>'title'`,
+      roundId: fundingRounds.id,
       application: sql<unknown>`jsonb_build_object('version', ${applicationCases.materialVersion}, 'managerRecommendation', ${currentRecommendation}, 'requested', (${currentMaterial})->'requested', 'intakeStatus', ${applicationCases.intakeStatus})`,
       round: sql<unknown>`jsonb_build_object('budget', ${sql`case when ${fundingRounds.budget} is null then null else jsonb_build_object('minorUnits', ${fundingRounds.budget}::text, 'currency', 'EUR') end`})`,
       allocations: roundAllocations,
@@ -68,6 +70,8 @@ export const readRecommendationState = async (
     .parse(row.application);
   return {
     recommendationVersion: row.recommendationVersion,
+    title: row.title,
+    roundId: row.roundId,
     application: {
       ...application,
       managerRecommendation:

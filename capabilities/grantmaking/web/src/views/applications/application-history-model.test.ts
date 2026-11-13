@@ -29,7 +29,7 @@ const snapshot = (version: number, title = original.title) =>
 
 const entry = (revision: number, from: number, to: number): ApplicationHistoryEntry => ({
   revision,
-  action: "revision",
+  action: "application.revision_recorded",
   actor: "Dana Reed",
   provenance: { interface: "web" },
   reason: `Update ${revision}`,

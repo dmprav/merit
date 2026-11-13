@@ -1,11 +1,18 @@
 import type { Client } from "pg";
 
-import { recordAuditEvent } from "@merit/audit/server/record";
-
-/** Appends the event, then fails, as a recorder can after a partial write. */
-export const failingRecorder: typeof recordAuditEvent = async (tx, event) => {
-  await recordAuditEvent(tx, event);
-  throw new Error("Recorder failed");
+/** Fail at commit, after the event and business writes have both happened. */
+export const withAuditFailure = async <T>(client: Client, operation: () => Promise<T>) => {
+  await client.query(`CREATE FUNCTION reject_test_audit() RETURNS trigger LANGUAGE plpgsql AS $$
+    BEGIN RAISE EXCEPTION 'Audit recording failed'; END $$;
+    CREATE CONSTRAINT TRIGGER reject_test_audit AFTER INSERT ON audit_events
+    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION reject_test_audit()`);
+  try {
+    return await operation();
+  } finally {
+    await client.query(
+      "DROP TRIGGER reject_test_audit ON audit_events; DROP FUNCTION reject_test_audit()",
+    );
+  }
 };
 
 /** Recorded events as `action type/id@revision`, sorted so ties in time do not matter. */

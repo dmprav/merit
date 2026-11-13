@@ -35,6 +35,7 @@ export const useWorkspaceTeam = (
   };
 
   return {
+    historySource: transport.history?.(initial.organization.slug),
     team: query.data.status === "ok" ? query.data.value : initial,
     fetching: query.isFetching,
     invite: (input) => mutation.mutateAsync(() => transport.invite(input)),

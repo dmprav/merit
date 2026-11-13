@@ -10,6 +10,7 @@ export const testOperations = () => ({
   reviewer: {
     list: vi.fn<McpOperations["reviewer"]["list"]>(),
     read: vi.fn<McpOperations["reviewer"]["read"]>(),
+    history: vi.fn<McpOperations["reviewer"]["history"]>(),
     forApplication: vi.fn<McpOperations["reviewer"]["forApplication"]>(),
     invite: vi.fn<McpOperations["reviewer"]["invite"]>(),
     manage: vi.fn<McpOperations["reviewer"]["manage"]>(),

@@ -3,7 +3,6 @@ import { randomUUID } from "node:crypto";
 import { assert, expect, vi } from "vite-plus/test";
 
 import { createFundingApplication, editFundingApplication } from "@merit/applications/server";
-import { recordAuditEvent } from "@merit/audit/server/record";
 import { AuthenticationError } from "@merit/auth";
 import { getFundingRoundPage, listFundingRounds } from "@merit/grantmaking/server";
 import { applicationWork } from "@merit/grantmaking/server/integrations";
@@ -268,7 +267,7 @@ it("serves workspace activity to program managers and withholds it from everyone
   const web = await loadWorkspaceActivity({ workspaceSlug: "alder" }, services);
   assert(web.status === "ok");
   expect(web.entries).toMatchObject([
-    { action: "round.create", actor: "Dana Reed", record: { title: "Community grants" } },
+    { action: "round.created", actor: "Dana Reed", record: { title: "Community grants" } },
   ]);
   const mcp = (await callMcp(actor.userId, { workspaceSlug: "alder" }, "list_workspace_activity"))
     .structuredContent;
@@ -319,26 +318,21 @@ it.for(["administrator", "owner"])(
     administration,
     { db, database, rounds: { pageInput }, transport: { services, callMcp } },
   ) => {
-    const application = await createFundingApplication(
-      db,
-      actor,
-      {
-        workspaceSlug: "alder",
-        publicId: pageInput.publicId,
-        requestId: randomUUID(),
-        title: "Access check",
-        applicant: "Community group",
-        requested: "80.00",
-        answers: [
-          {
-            questionId: "3c2131d3-d474-5e8e-bbe8-a56867995ea5",
-            question: "Purpose",
-            response: "Community activities.",
-          },
-        ],
-      },
-      recordAuditEvent,
-    );
+    const application = await createFundingApplication(db, actor, {
+      workspaceSlug: "alder",
+      publicId: pageInput.publicId,
+      requestId: randomUUID(),
+      title: "Access check",
+      applicant: "Community group",
+      requested: "80.00",
+      answers: [
+        {
+          questionId: "3c2131d3-d474-5e8e-bbe8-a56867995ea5",
+          question: "Purpose",
+          response: "Community activities.",
+        },
+      ],
+    });
     assert(application.status === "ok");
     const address = { workspaceSlug: "alder", publicId: application.publicId };
     const ready = await editFundingApplication(
@@ -350,7 +344,6 @@ it.for(["administrator", "owner"])(
         change: { action: "mark_ready" },
       },
       applicationWork,
-      recordAuditEvent,
     );
     assert(ready.status === "ok");
     const request: SaveRecommendationRequest = {
@@ -381,7 +374,7 @@ it.for(["administrator", "owner"])(
         })
       ).isError,
     ).toBe(true);
-    expect(await saveFundingRecommendation(db, actor, request, recordAuditEvent)).toEqual({
+    expect(await saveFundingRecommendation(db, actor, request)).toEqual({
       status: "not_found",
     });
     expect(await loadWorkspace(services, "alder")).toMatchObject({

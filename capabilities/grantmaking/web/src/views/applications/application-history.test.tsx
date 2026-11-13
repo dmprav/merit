@@ -39,7 +39,7 @@ const application = (
 
 const entry = (from: number, to: number): ApplicationHistoryEntry => ({
   revision: to,
-  action: "revision",
+  action: "application.revision_recorded",
   actor: "Dana Reed",
   provenance: { interface: "web" },
   reason: `Reason for version ${to}.`,

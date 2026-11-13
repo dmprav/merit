@@ -288,7 +288,22 @@ export const managerTransport = (
         value: [
           {
             ...changed,
-            history: [{ action, note, actor: "Dana Reed", at: "2027-01-16T10:00:00Z" }],
+            history:
+              action === "retry_notification"
+                ? []
+                : [
+                    {
+                      action: {
+                        cancel: "review_assignment.access_ended",
+                        reinstate: "review_assignment.reinstated",
+                        clear_conflict: "review_assignment.conflict_cleared",
+                        resend: "review_assignment.invitation_renewed",
+                      }[action],
+                      note,
+                      actor: "Dana Reed",
+                      at: "2027-01-16T10:00:00Z",
+                    },
+                  ],
           },
         ],
       };

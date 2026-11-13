@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { permits } from "@merit/access";
+import { readAuditHistory } from "@merit/audit/server/read";
 import { readTransaction, type Database } from "@merit/db";
 
 import type { Team } from "../../api/queries";
@@ -22,7 +23,7 @@ export const readTeam = (db: Database, slug: string, actor: string): Promise<Tea
       ? await persistence.readPendingInvitations(tx, organization.id)
       : [];
     const history = permits(member, "manage_members", member)
-      ? await persistence.readTeamHistory(tx, organization.id)
+      ? (await teamHistory(tx, organization.id)).entries
       : [];
 
     return {
@@ -30,11 +31,7 @@ export const readTeam = (db: Database, slug: string, actor: string): Promise<Tea
       subject: member,
       members: people,
       invitations: invites,
-      history: history.map((entry) => ({
-        ...entry,
-        recordedAt: entry.recordedAt.toISOString(),
-        details: z.json().parse(entry.details),
-      })),
+      history,
     };
   });
 
@@ -87,11 +84,11 @@ export const readHistoryPage = (
     if (!permits(member, "manage_members", member)) {
       fail("forbidden");
     }
-    const rows = await persistence.readTeamHistoryPage(tx, organization.id, input);
-    const entries = rows
-      .slice(0, input.limit)
-      .map((row) => ({ ...row, recordedAt: row.recordedAt.toISOString() }));
-    return { entries, nextCursor: rows.length > input.limit ? entries.at(-1)!.eventId : null };
+    const page = await teamHistory(tx, organization.id, input);
+    return {
+      ...page,
+      entries: page.entries.map(({ id, ...entry }) => ({ ...entry, eventId: id })),
+    };
   });
 
 export const readEventContent = (
@@ -116,3 +113,26 @@ export const readEventContent = (
       nextOffset: end < row.totalCharacters ? end : null,
     };
   });
+
+const teamHistory = async (
+  tx: Transaction,
+  organizationId: string,
+  page: { after?: string; limit?: number } = {},
+) => {
+  const result = await readAuditHistory(tx, {
+    ...page,
+    organizationId,
+    targetTypes: ["organization", "team_invitation", "membership"],
+  });
+  return {
+    ...result,
+    entries: result.entries.map((entry) => ({
+      id: entry.id,
+      action: entry.action,
+      actor: entry.actorName,
+      provenance: entry.provenance,
+      recordedAt: entry.recordedAt.toISOString(),
+      details: z.json().parse(entry.details),
+    })),
+  };
+};

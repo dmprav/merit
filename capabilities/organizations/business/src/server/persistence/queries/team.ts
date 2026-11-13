@@ -1,9 +1,11 @@
-import { and, eq, sql, desc, gt } from "drizzle-orm";
+import { inArray } from "drizzle-orm";
+import { and, eq, sql, gt } from "drizzle-orm";
 
+import { auditEvents } from "@merit/audit/schema";
 import { appUsers } from "@merit/auth/schema";
 
 import { memberships, organizations } from "../membership-schema";
-import { invitations, organizationEvents } from "../schema";
+import { invitations } from "../schema";
 import { subjectQuery, pending } from "../team";
 import type { Transaction } from "../transaction";
 
@@ -73,45 +75,6 @@ export const readPendingInvitations = (
   return page ? query.limit(page.limit + 1) : query;
 };
 
-export const readTeamHistory = (tx: Transaction, organizationId: string) =>
-  tx
-    .select({
-      id: organizationEvents.id,
-      action: organizationEvents.action,
-      actor: appUsers.name,
-      provenance: organizationEvents.provenance,
-      recordedAt: organizationEvents.recordedAt,
-      details: organizationEvents.details,
-    })
-    .from(organizationEvents)
-    .leftJoin(appUsers, eq(appUsers.id, organizationEvents.actorUserId))
-    .where(eq(organizationEvents.organizationId, organizationId))
-    .orderBy(desc(organizationEvents.recordedAt), organizationEvents.id);
-
-export const readTeamHistoryPage = (
-  tx: Transaction,
-  organizationId: string,
-  page: { after?: string; limit: number },
-) =>
-  tx
-    .select({
-      eventId: organizationEvents.id,
-      action: organizationEvents.action,
-      actor: appUsers.name,
-      provenance: organizationEvents.provenance,
-      recordedAt: organizationEvents.recordedAt,
-    })
-    .from(organizationEvents)
-    .leftJoin(appUsers, eq(appUsers.id, organizationEvents.actorUserId))
-    .where(
-      and(
-        eq(organizationEvents.organizationId, organizationId),
-        page.after ? gt(organizationEvents.id, page.after) : undefined,
-      ),
-    )
-    .orderBy(organizationEvents.id)
-    .limit(page.limit + 1);
-
 export const readTeamEvent = async (
   tx: Transaction,
   organizationId: string,
@@ -120,14 +83,15 @@ export const readTeamEvent = async (
   (
     await tx
       .select({
-        content: sql<string>`substring(${organizationEvents.details}::text from ${input.offset + 1}::integer for ${input.length}::integer)`,
-        totalCharacters: sql<number>`char_length(${organizationEvents.details}::text)`,
+        content: sql<string>`substring(${auditEvents.details}::text from ${input.offset + 1}::integer for ${input.length}::integer)`,
+        totalCharacters: sql<number>`char_length(${auditEvents.details}::text)`,
       })
-      .from(organizationEvents)
+      .from(auditEvents)
       .where(
         and(
-          eq(organizationEvents.organizationId, organizationId),
-          eq(organizationEvents.id, input.eventId),
+          eq(auditEvents.organizationId, organizationId),
+          inArray(auditEvents.targetType, ["organization", "team_invitation", "membership"]),
+          eq(auditEvents.id, input.eventId),
         ),
       )
   )[0];

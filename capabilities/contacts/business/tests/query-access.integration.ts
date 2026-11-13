@@ -77,8 +77,8 @@ it("contact queries see caller-owned changes without committing them", async ({ 
       assert(directory.status === "ok");
       expect(directory.contacts.find((contact) => contact.id === id)).toMatchObject({
         name: "Uncommitted contact",
-        history: [{ revision: 0 }],
       });
+      expect(directory.contacts.find((contact) => contact.id === id)).not.toHaveProperty("history");
       throw rollback;
     }),
   ).rejects.toBe(rollback);

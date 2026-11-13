@@ -18,6 +18,7 @@ import { PageHeader } from "@merit/ui/page-header";
 
 import { StoryEnvironment } from "../../../../../tests/storybook";
 import { workspacePreparationData } from "../../data/preparation/workspace-data";
+import { readBudgetHistory } from "../../data/server/history.functions";
 import { deleteRound, editRound } from "../../data/server/preparation/preparation.functions";
 
 const example = { ...getExampleRound(), managerUserId: "dana" };
@@ -132,6 +133,11 @@ const meta = {
   component: RoundManagementPreview,
   parameters: { layout: "fullscreen", controls: { disable: true } },
   beforeEach: () => {
+    mocked(readBudgetHistory).mockResolvedValue({
+      status: "ok",
+      entries: preparation.budgetHistory,
+      nextCursor: null,
+    });
     mocked(editRound).mockResolvedValue({ status: "unavailable" });
     mocked(deleteRound).mockResolvedValue({ status: "unavailable" });
   },

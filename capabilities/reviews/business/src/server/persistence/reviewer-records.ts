@@ -14,7 +14,7 @@ import { currentCriteria } from "@merit/rounds/scope";
 import { reviewerDraftSchema } from "../../domain/reviewer";
 import { reviewStateSchema } from "../../domain/reviews";
 import { assessmentRecord } from "./projections";
-import { reviewAssignments, reviewerDrafts, reviewerEvents } from "./reviewer-schema";
+import { reviewAssignments, reviewerDrafts } from "./reviewer-schema";
 import { reviewRequests, assessments } from "./schema";
 
 const reviewerRecordQuery = (db: Database) =>
@@ -143,7 +143,7 @@ export const listReviewerRecords = (db: Database, userId: string, emails: string
 export const listManagerReviewerRecords = (
   db: Database,
   userId: string,
-  input: { workspaceSlug: string; publicId: string },
+  input: { workspaceSlug: string; publicId: string; assignmentId?: string },
 ) =>
   reviewerRecordQuery(db)
     .innerJoin(memberships, eq(memberships.organizationId, organizations.id))
@@ -152,22 +152,11 @@ export const listManagerReviewerRecords = (
       and(
         eq(organizations.slug, input.workspaceSlug),
         eq(reviewAssignments.caseId, input.publicId),
+        input.assignmentId ? eq(reviewAssignments.id, input.assignmentId) : undefined,
         organizationScope(userId, "work_on_grants", organizations.id),
       ),
     )
     .orderBy(reviewAssignments.createdAt);
-
-export const reviewerHistory = (db: Database, id: string) =>
-  db
-    .select({
-      action: reviewerEvents.action,
-      actor: reviewerEvents.actorName,
-      at: reviewerEvents.recordedAt,
-      note: reviewerEvents.note,
-    })
-    .from(reviewerEvents)
-    .where(eq(reviewerEvents.assignmentId, id))
-    .orderBy(reviewerEvents.recordedAt);
 
 export const readPrivateReviewerDraft = async (db: Database, id: string) => {
   const [row] = await db.select().from(reviewerDrafts).where(eq(reviewerDrafts.assignmentId, id));

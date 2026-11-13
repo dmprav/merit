@@ -1,6 +1,6 @@
 import { and, eq, sql } from "drizzle-orm";
 
-import { applicationCases } from "@merit/applications/schema";
+import { applicationCases, materialVersions } from "@merit/applications/schema";
 import { workingRevision } from "@merit/applications/scope";
 import { appUsers } from "@merit/auth/schema";
 import type { Database } from "@merit/db";
@@ -68,12 +68,16 @@ export const readApplicationDetail = async (
   const [row] = await db
     .select({
       application: currentApplicationRecord,
+      organizationId: applicationCases.organizationId,
       round: roundRecord,
       allocations: roundAllocations,
       workspaceSlug: organizations.slug,
       publicId: applicationCases.id,
       recommendationVersion: recommendationRevision,
       intakeRevision: applicationCases.revision,
+      materialVersions: sql<
+        number[]
+      >`(select coalesce(jsonb_agg(${materialVersions.version} order by ${materialVersions.version}), '[]'::jsonb) from ${materialVersions} where ${materialVersions.caseId} = ${applicationCases.id})`,
       workingRevision,
     })
     .from(applicationCases)

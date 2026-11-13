@@ -68,3 +68,17 @@ Query does not own those drafts or permission rules.
 
 See [architecture](../../docs/foundations/architecture.md) and the
 [development checks](../../docs/guides/verification.md#verification).
+
+## Bounded collections
+
+`PageSource` from `@merit/query/contracts` carries the private query key and a
+cursor-based read. Capability data adapters bind it to their authorized transport.
+Return `null` for missing or denied resources, and throw for a retryable read
+failure. Include the record identity and revision where a successful write changes
+the collection; use the same invalidation scope as the owning workflow.
+
+`usePagedContent` from `@merit/query/pages` accumulates pages, retries the failed
+read, and hides all previously loaded entries if a later read denies access.
+`PagedContent` from `@merit/ui/paged-content` supplies history loading, retry, and
+older-entry controls around capability-owned rendering. It starts its read when
+the history is opened; static examples can supply entries directly.

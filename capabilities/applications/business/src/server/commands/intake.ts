@@ -1,4 +1,4 @@
-import { actorProvenance, type Actor, type Provenance } from "@merit/auth";
+import { type Actor } from "@merit/auth";
 import { readContact } from "@merit/contacts/scope";
 import type { Database } from "@merit/db";
 import { lockGrantWorkspace } from "@merit/organizations/locks";
@@ -29,26 +29,6 @@ import { lockApplicationCase } from "../persistence/locks";
 
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
-/** Append in the supplied transaction; failure must roll back the intake change. */
-export type RecordApplicationAudit = (
-  tx: Transaction,
-  event: {
-    organizationId: string;
-    actor: { userId: string; name: string | null; provenance: Provenance };
-    action: `application.${"create" | "mark_ready" | "revision" | "correction" | "delete"}`;
-    target: { type: "application"; id: string; revision: number };
-  },
-) => Promise<void>;
-
-// Only milestones reach the shared trail; content saves and working revisions stay in
-// the application's own history. Keys are the stored case action names.
-const auditedActions: Readonly<Record<string, Parameters<RecordApplicationAudit>[1]["action"]>> = {
-  mark_ready: "application.mark_ready",
-  revision: "application.revision",
-  correction: "application.correction",
-  delete: "application.delete",
-};
-
 const resolveIntakeContactChange = async (
   tx: Transaction,
   organizationId: string,
@@ -73,40 +53,10 @@ const resolveIntakeContactChange = async (
   return { status: "changed", contactId, contact } as const;
 };
 
-/** Unchanged saves keep their revision and record nothing. */
-const recordMilestone = async (
-  tx: Transaction,
-  recordAuditEvent: RecordApplicationAudit,
-  saved: {
-    access: { organizationId: string; actor: { userId: string; name: string | null } };
-    actor: Actor;
-    row: { id: string; revision: number };
-  },
-  action: string,
-  revision: number,
-) => {
-  const { access, row } = saved;
-  if (!Object.hasOwn(auditedActions, action) || revision === row.revision) {
-    return;
-  }
-
-  await recordAuditEvent(tx, {
-    organizationId: access.organizationId,
-    actor: {
-      userId: access.actor.userId,
-      name: access.actor.name,
-      provenance: actorProvenance(saved.actor),
-    },
-    action: auditedActions[action]!,
-    target: { type: "application", id: row.id, revision },
-  });
-};
-
 export const createFundingApplication = async (
   db: Database,
   actor: Actor,
   input: CreateApplicationRequest,
-  recordAuditEvent: RecordApplicationAudit,
 ) => {
   const parsed = createApplicationRequestSchema.safeParse(input);
   if (!parsed.success) {
@@ -150,16 +100,6 @@ export const createFundingApplication = async (
       actor,
       request.requestId,
     );
-    await recordAuditEvent(tx, {
-      organizationId: access.organization.id,
-      actor: {
-        userId: access.actor.userId,
-        name: access.actor.name,
-        provenance: actorProvenance(actor),
-      },
-      action: "application.create",
-      target: { type: "application", id: publicId, revision: 0 },
-    });
     return { status: "ok", publicId } as const;
   });
 };
@@ -169,7 +109,6 @@ export const editFundingApplication = async (
   actor: Actor,
   input: EditApplicationRequest,
   work: ApplicationWork,
-  recordAuditEvent: RecordApplicationAudit,
 ) => {
   const parsed = editApplicationRequestSchema.safeParse(input);
   if (!parsed.success) {
@@ -245,7 +184,6 @@ export const editFundingApplication = async (
       },
       actor,
     );
-    await recordMilestone(tx, recordAuditEvent, { access, actor, row }, result.action, revision);
 
     return { status: "ok", revision } as const;
   };

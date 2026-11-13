@@ -37,3 +37,9 @@ export const removeMember = fn<
 >(async () => {
   throw new Error("Configure removeMember in the story");
 });
+
+export const readTeamHistory = fn<
+  (...args: Parameters<typeof actual.readTeamHistory>) => ReturnType<typeof actual.readTeamHistory>
+>(async () => {
+  throw new Error("Configure readTeamHistory in the story");
+});

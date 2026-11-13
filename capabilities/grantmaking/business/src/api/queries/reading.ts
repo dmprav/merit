@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { materialVersionSchema } from "@merit/applications/domain";
+import { auditPageInput } from "@merit/audit/api";
 import { moneyDataSchema } from "@merit/money";
 import { workspaceSlugSchema } from "@merit/organizations/api";
 import { reviewRevisionSchema } from "@merit/reviews/domain";
@@ -141,3 +142,6 @@ export const reviewSummarySchema = z.object({
   recordedCriteriaVersion: criteriaVersionSchema.nullable(),
   freshness: z.enum(["current", "outdated", "outstanding", "unknown"]),
 });
+
+export const applicationAuditInput = applicationReadInput.extend(auditPageInput.shape);
+export const roundBudgetHistoryInput = roundReadInput.extend(auditPageInput.shape);

@@ -6,7 +6,7 @@ import type { ManagerReviewerData } from "../../contracts/reviewer";
 
 export const useManagerReviewers = (data: ManagerReviewerData, reviewRevision: number) => {
   const [assignments, setAssignments] = useState<
-    (ReviewerSummary & { history: ReviewerEvent[] })[]
+    (ReviewerSummary & { history?: ReviewerEvent[] })[]
   >([]);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);

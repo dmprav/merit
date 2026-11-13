@@ -1,9 +1,6 @@
-import { workingRevisionSchema } from "@merit/applications/domain";
-import { encodeIntakeApplication } from "@merit/applications/encoding";
-import { decodeApplicationHistory } from "@merit/applications/history";
+import { workingRevisionSchema, materialVersionSchema } from "@merit/applications/domain";
 import type { Actor } from "@merit/auth";
 import { readTransaction, type Database } from "@merit/db";
-import { moneyDataSchema } from "@merit/money";
 import { workspaceSlugSchema } from "@merit/organizations/api";
 import { readManagerCandidates } from "@merit/rounds/readers";
 
@@ -19,12 +16,12 @@ import type { IntakeState, PreparationState } from "../../api/queries/editing-st
 import { roundView } from "../../api/queries/round-view";
 import { applicationView } from "../../api/queries/round-view";
 import { decodeApplication, decodeRoundOverview } from "../persistence/encoding";
-import { readApplicationHistory, readRoundHistory } from "../persistence/history";
 import {
   readApplicationDetail,
   readPublicRound,
   listRoundSummaries,
 } from "../persistence/queries/pages";
+import { readApplicationHistory, readRoundHistory } from "./history-records";
 
 export const listFundingRounds = async (db: Database, actor: Actor, workspaceSlug: string) => {
   return readTransaction(db, async (tx) => {
@@ -62,7 +59,7 @@ export const getFundingRoundPage = async (
     const round = roundView(decodeRoundOverview(row.snapshot));
     const [managers, history] = await Promise.all([
       readManagerCandidates(tx, row.organizationId),
-      readRoundHistory(tx, round.id),
+      readRoundHistory(tx, row.organizationId, round.id),
     ]);
 
     return {
@@ -71,12 +68,7 @@ export const getFundingRoundPage = async (
       preparation: {
         revision: row.revision,
         managers,
-        budgetHistory: history.map((entry) => ({
-          ...entry,
-          recordedAt: entry.recordedAt.toISOString(),
-          before: moneyDataSchema.nullable().parse(entry.before),
-          after: moneyDataSchema.nullable().parse(entry.after),
-        })),
+        budgetHistory: history.entries,
       } satisfies PreparationState,
     };
   });
@@ -94,23 +86,18 @@ export const getFundingApplicationPage = async (
       return null;
     }
 
-    const history = await readApplicationHistory(tx, row.publicId);
+    const history = await readApplicationHistory(tx, row.organizationId, row.publicId);
     const round = decodeApplicationContext(row.round, row.allocations);
-
-    const historical = (value: unknown) =>
-      value === null ? null : encodeIntakeApplication(decodeApplicationHistory(value).application);
 
     return {
       intake: {
+        materialVersions: row.materialVersions.map((version) =>
+          materialVersionSchema.parse(version),
+        ),
         revision: row.intakeRevision,
         workingRevision:
           row.workingRevision === null ? null : workingRevisionSchema.parse(row.workingRevision),
-        history: history.map((entry) => ({
-          ...entry,
-          recordedAt: entry.recordedAt.toISOString(),
-          before: historical(entry.before),
-          after: historical(entry.after),
-        })),
+        history: history.entries,
       } satisfies IntakeState,
       application: applicationView(
         decodeApplication(row.application),

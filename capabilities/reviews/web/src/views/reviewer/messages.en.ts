@@ -134,6 +134,8 @@ export const en = {
   limited:
     "Please wait before sending another invitation. Invitation sending is limited to protect recipients.",
   event: {
+    withdrawn: "Withdrew",
+    changed: "Assignment changed",
     invite: "Invited",
     accept: "Accepted",
     decline: "Declined",
@@ -144,7 +146,6 @@ export const en = {
     resend: "Resent invitation",
     submit: "Submitted assessment",
     amend: "Submitted amendment",
-    retry_notification: "Retried notification",
   },
   leaveTitle: "Leave with unsaved changes?",
   leaveHelp:

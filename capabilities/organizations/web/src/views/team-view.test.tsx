@@ -33,7 +33,7 @@ it("shows the recorded target, actor, interface, and UTC time in access history"
   showHistory([
     {
       id: "removed",
-      action: "member_removed",
+      action: "membership.removed",
       actor: "Dana Reed",
       provenance: { interface: "mcp", clientId: "review-client" },
       recordedAt: "2026-11-11T10:30:00+02:00",
@@ -64,7 +64,7 @@ it.each<{ details: Team["history"][number]["details"]; label: string }>([
     showHistory([
       {
         id: "revoked",
-        action: "revoked",
+        action: "team_invitation.revoked",
         actor: null,
         provenance: null,
         recordedAt: "2026-11-11T08:30:00Z",

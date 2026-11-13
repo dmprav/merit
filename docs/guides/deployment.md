@@ -71,16 +71,14 @@ schema `public` `USAGE`, and any missing table privileges:
 | `material_versions`, `criteria_versions`, `assessment_versions`, `recommendation_versions`, `assessments` | `INSERT`                                                            |
 | `review_assignments`, `reviewer_drafts`, `reviewer_messages`                                              | `SELECT`, `INSERT`, `UPDATE`                                        |
 | `grant_navigation_pins`                                                                                   | `SELECT`, `INSERT`, `UPDATE`, `DELETE`                              |
-| `reviewer_events`                                                                                         | `INSERT`                                                            |
 | `review_states`, `review_requests`                                                                        | `SELECT`, `INSERT`, `UPDATE`                                        |
-| `round_changes`, `case_changes`                                                                           | `INSERT`                                                            |
 | `memberships`                                                                                             | `UPDATE (user_id, role, administration, version)`, `DELETE`         |
 | `app_users`                                                                                               | `UPDATE (id, name)`                                                 |
-| `organizations`, `app_users`, `memberships`, `organization_invitations`, `organization_events`            | `INSERT`                                                            |
+| `organizations`, `app_users`, `memberships`, `organization_invitations`                                   | `INSERT`                                                            |
 | `organization_invitations`                                                                                | `SELECT`, `UPDATE (revoked_at, accepted_at, accepted_by, delivery)` |
 | `organizations`                                                                                           | `UPDATE (name)`                                                     |
 | `contacts`                                                                                                | `SELECT`, `INSERT`, `UPDATE`                                        |
-| `contact_changes`                                                                                         | `INSERT`                                                            |
+| `application_creation_receipts`, `round_creation_receipts`, `reviewer_command_receipts`                   | `SELECT`, `INSERT`                                                  |
 | `audit_events`                                                                                            | `SELECT`, `INSERT`                                                  |
 | `access_requests`                                                                                         | `SELECT`, `INSERT`, `UPDATE (reviewed_at, reviewed_by)`             |
 | `access_request_limits`                                                                                   | `SELECT`, `INSERT`, `UPDATE`, `DELETE`                              |
@@ -92,7 +90,9 @@ check these operations with restricted runtime grants.
 Review revisions live in `review_states`; recommendation revisions belong to
 `recommendation_versions`. Application cases own only their intake revision.
 
-Team history additionally requires `SELECT` on `organization_events`.
+All audit history views read `audit_events`. Application and round creation receipts
+and reviewer command receipts require `SELECT` and `INSERT`; they do not carry
+audit payloads.
 Grant `INSERT` on `audit_events` for audited writes and `SELECT` for the Activity
 page and MCP tool. A missing `INSERT` grant fails the entire save. Audit events reject updates; deletion is restricted to expired
 demos and the cleanup operator requires `DELETE` on `audit_events`. The

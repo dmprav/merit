@@ -14,7 +14,6 @@ import {
 } from "drizzle-orm/pg-core";
 
 import { applicationCases } from "@merit/applications/schema";
-import type { Provenance } from "@merit/auth";
 import { appUsers } from "@merit/auth/schema";
 
 import type { ReviewerDraft, ReviewerStatus } from "../../domain/reviewer";
@@ -90,24 +89,16 @@ export const reviewerDrafts = pgTable(
   (t) => [check("reviewer_draft_revision", sql`${t.revision} >= 0`)],
 );
 
-export const reviewerEvents = pgTable(
-  "reviewer_events",
+export const reviewerCommandReceipts = pgTable(
+  "reviewer_command_receipts",
   {
     assignmentId: uuid("assignment_id")
       .notNull()
       .references(() => reviewAssignments.id, { onDelete: "cascade" }),
     commandId: uuid("command_id").notNull(),
-    actorUserId: text("actor_user_id")
-      .notNull()
-      .references(() => appUsers.id),
-    actorName: text("actor_name").notNull(),
-    provenance: jsonb().$type<Provenance>().notNull(),
-    action: text().notNull(),
-    note: text().notNull().default(""),
     resultRevision: integer("result_revision").notNull(),
-    recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [unique("reviewer_events_command_key").on(t.assignmentId, t.commandId)],
+  (t) => [unique("reviewer_receipts_command_key").on(t.assignmentId, t.commandId)],
 );
 
 export const reviewerMessages = pgTable(

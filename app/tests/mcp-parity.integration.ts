@@ -246,7 +246,7 @@ it("provisions and joins organizations through MCP without granting operator or 
     expect.arrayContaining([expect.objectContaining({ slug: "new-trust" })]),
   );
   const history = await database.client.query(
-    "SELECT provenance FROM organization_events WHERE organization_id=$1 ORDER BY recorded_at",
+    "SELECT provenance FROM audit_events WHERE organization_id=$1 ORDER BY recorded_at",
     [organizationId],
   );
   expect(history.rows).toHaveLength(3);
@@ -268,14 +268,16 @@ it("provisions and joins organizations through MCP without granting operator or 
   });
   await p.saved("dana", "revoke_owner_invitation", { organizationId: pendingId });
   const pendingHistory = await database.client.query(
-    "SELECT action, provenance FROM organization_events WHERE organization_id=$1 ORDER BY recorded_at",
+    "SELECT action, provenance FROM audit_events WHERE organization_id=$1 ORDER BY recorded_at",
     [pendingId],
   );
   expect(pendingHistory.rows).toEqual(
-    ["created", "invited", "revoked"].map((action) => ({
-      action,
-      provenance: { interface: "mcp", clientId: "integration-client" },
-    })),
+    ["organization.created", "team_invitation.replaced", "team_invitation.revoked"].map(
+      (action) => ({
+        action,
+        provenance: { interface: "mcp", clientId: "integration-client" },
+      }),
+    ),
   );
   await p.saved("sam", "request_workspace_access", { email: "sam@example.test" });
   expect((await p.saved("dana", "list_access_requests")).items).toMatchObject([

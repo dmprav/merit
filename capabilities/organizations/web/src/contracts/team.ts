@@ -8,6 +8,7 @@ import type {
   memberInput,
   teamInvitationInput,
 } from "@merit/organizations/api";
+import type { PageSource } from "@merit/query/contracts";
 
 export type { Team } from "@merit/organizations/api";
 
@@ -26,6 +27,7 @@ export type InviteInput = z.infer<typeof inviteMemberInput>;
 export type ChangeMemberInput = z.infer<typeof changeMemberInput>;
 
 export type TeamData = {
+  historySource?: PageSource<Team["history"][number]>;
   team: Team;
   fetching: boolean;
   invite: (input: InviteInput) => Promise<MutationResult>;
@@ -45,5 +47,6 @@ export type TeamTransport = Pick<
   TeamData,
   "invite" | "changeMember" | "removeMember" | "resend" | "revoke"
 > & {
+  history?: (workspaceSlug: string) => PageSource<Team["history"][number]>;
   read: (workspaceSlug: string, signal?: AbortSignal) => Promise<TeamReadResult>;
 };

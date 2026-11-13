@@ -98,7 +98,7 @@ it.for([
     const history = await listContactChanges(db, actor, address);
     assert(history.status === "ok");
 
-    expect(history.entries).toMatchObject([
+    expect(history.entries.toReversed()).toMatchObject([
       {
         revision: 0,
         actorUserId: actor.userId,
@@ -165,7 +165,7 @@ it("preserves archive state and details across lifecycle changes and rejects a s
   );
 });
 
-it("pages contact history by revision and summaries without history", async ({ db }) => {
+it("pages contact history newest first and summaries without history", async ({ db }) => {
   const { address, change } = await setup(db);
   await change({ ...address, action: "archive", expectedContactRevision: 0 });
   await change({ ...address, action: "restore", expectedContactRevision: 1 });
@@ -173,12 +173,16 @@ it("pages contact history by revision and summaries without history", async ({ d
 
   const first = await listContactChanges(db, actor, { ...address, limit: 2 });
   assert(first.status === "ok");
-  expect(first.entries.map((entry) => entry.revision)).toEqual([0, 1]);
-  expect(first.nextRevision).toBe(1);
-  const rest = await listContactChanges(db, actor, { ...address, limit: 2, afterRevision: 1 });
+  expect(first.entries.map((entry) => entry.revision)).toEqual([3, 2]);
+  assert(first.nextCursor);
+  const rest = await listContactChanges(db, actor, {
+    ...address,
+    limit: 2,
+    after: first.nextCursor,
+  });
   assert(rest.status === "ok");
-  expect(rest.entries.map((entry) => entry.revision)).toEqual([2, 3]);
-  expect(rest.nextRevision).toBeNull();
+  expect(rest.entries.map((entry) => entry.revision)).toEqual([1, 0]);
+  expect(rest.nextCursor).toBeNull();
 
   await setup(db);
   const summaries = await listContactSummaries(db, actor, { workspaceSlug, limit: 1 });
@@ -256,7 +260,7 @@ it.for(["create", "update"] as const)(
           };
 
     await database.client.query(
-      "ALTER TABLE contact_changes ADD CONSTRAINT reject_contact_history CHECK (false) NOT VALID",
+      "ALTER TABLE audit_events ADD CONSTRAINT reject_contact_history CHECK (false) NOT VALID",
     );
     try {
       await expect(changeWorkspaceContact(db, actor, request, grantWork)).rejects.toMatchObject({
@@ -266,7 +270,7 @@ it.for(["create", "update"] as const)(
       expect(await listContactChanges(db, actor, address)).toEqual(history);
     } finally {
       await database.client.query(
-        "ALTER TABLE contact_changes DROP CONSTRAINT reject_contact_history",
+        "ALTER TABLE audit_events DROP CONSTRAINT reject_contact_history",
       );
     }
   },

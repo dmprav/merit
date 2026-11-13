@@ -31,9 +31,17 @@ export const activityEntrySchema = z.object({
   recordedAt: z.iso.datetime(),
   /** The name recorded with the event; null when none was recorded. */
   actor: z.string().nullable(),
-  provenance: provenanceSchema,
-  /** A stored action name such as `application.create`; interfaces label unknown names generically. */
+  provenance: provenanceSchema.nullable(),
+  /** A stored action name such as `application.created`; interfaces label unknown names generically. */
   action: z.string(),
+  subject: z.object({
+    type: z.string(),
+    id: z.string(),
+    revision: z.number().int().nullable(),
+    name: z.string().nullable(),
+    roundId: z.string().nullable(),
+    applicationId: z.string().nullable(),
+  }),
   /** The record's current identity, or null when it no longer exists. */
   record: activityRecordSchema.nullable(),
 });
