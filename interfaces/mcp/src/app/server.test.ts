@@ -296,26 +296,27 @@ describe("workspace MCP contracts", () => {
       await client.close();
     }
   });
-  it.each([{ status: "not_found" as const }, { status: "forbidden" as const }])(
-    "retains activity outcome $status",
-    async (outcome) => {
-      const operations = testOperations();
-      operations.workspace.listWorkspaceActivity.mockResolvedValue(outcome);
-      const client = await connect(operations);
-      try {
-        expect(
-          (
-            await client.callTool({
-              name: "list_workspace_activity",
-              arguments: { workspaceSlug: "alder" },
-            })
-          ).structuredContent,
-        ).toEqual(outcome);
-      } finally {
-        await client.close();
-      }
-    },
-  );
+  it.each([
+    { status: "not_found" as const },
+    { status: "forbidden" as const },
+    { status: "invalid" as const },
+  ])("retains activity outcome $status", async (outcome) => {
+    const operations = testOperations();
+    operations.workspace.listWorkspaceActivity.mockResolvedValue(outcome);
+    const client = await connect(operations);
+    try {
+      expect(
+        (
+          await client.callTool({
+            name: "list_workspace_activity",
+            arguments: { workspaceSlug: "alder" },
+          })
+        ).structuredContent,
+      ).toEqual(outcome);
+    } finally {
+      await client.close();
+    }
+  });
   it("requires the grant read scope for workspace activity", async () => {
     const operations = testOperations();
     const response = await handleWorkspaceMcp(

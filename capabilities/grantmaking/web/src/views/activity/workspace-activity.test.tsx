@@ -109,7 +109,7 @@ it("labels every action the workspace records", () => {
 it("explains an empty workspace without offering to clear filters", () => {
   show({ entries: [] });
 
-  expect(screen.getByText("No activity yet")).toBeVisible();
+  expect(screen.getByText("No activity yet.")).toBeVisible();
   expect(screen.queryByRole("button", { name: "Clear filters" })).not.toBeInTheDocument();
 });
 

@@ -110,6 +110,9 @@ describe("reading workspace activity", () => {
     });
     assert(second.status === "ok");
     expect(second.nextCursor).toBeNull();
+    // Later pages omit the filter choices the first page carries.
+    expect(first.people).toHaveLength(1);
+    expect(second.people).toEqual([]);
 
     const all = [...first.events, ...second.events];
     expect(all).toHaveLength(6);
@@ -280,8 +283,8 @@ describe("reading workspace activity", () => {
     expect(result.events).toMatchObject([
       { actorName: "Dana Reed", provenance: { interface: "mcp", clientId: "verified-client" } },
     ]);
-    await expect(
-      readWorkspaceActivity(db, manager, { workspaceSlug: "alder", after: "not-a-cursor" }),
-    ).rejects.toThrow();
+    expect(
+      await readWorkspaceActivity(db, manager, { workspaceSlug: "alder", after: "not-a-cursor" }),
+    ).toEqual({ status: "invalid" });
   });
 });

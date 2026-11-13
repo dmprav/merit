@@ -63,6 +63,9 @@ export const loadWorkspaceActivity = (
 ) =>
   withActor(services.currentIdentity, async (actor) => {
     const result = await services.listWorkspaceActivity(actor, input);
+    if (result.status === "invalid") {
+      return { status: "unavailable" } as const;
+    }
     if (result.status === "not_found") {
       return { status: "workspace_not_found" } as const;
     }

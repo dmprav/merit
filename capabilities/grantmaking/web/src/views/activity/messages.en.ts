@@ -8,7 +8,7 @@ export const activityMessages = {
     what: "What",
     record: "Record",
     unavailableRecord: "No longer available",
-    empty: "No activity yet",
+    empty: "No activity yet.",
     noMatches: "No activity matches these filters.",
     clearFilters: "Clear filters",
     showOlder: "Show older activity",

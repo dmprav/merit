@@ -170,7 +170,7 @@ export const MissingTarget: StoryObj<typeof meta> = {
 export const Empty: StoryObj<typeof meta> = {
   args: { entries: [], people: [], rounds: [] },
   play: async ({ canvasElement }) => {
-    await expect(within(canvasElement).getByText("No activity yet")).toBeVisible();
+    await expect(within(canvasElement).getByText("No activity yet.")).toBeVisible();
   },
 };
 
@@ -188,7 +188,7 @@ export const ClearFilters: StoryObj<typeof meta> = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await userEvent.click(canvas.getByRole("button", { name: "Clear filters" }));
-    await expect(canvas.getByText("No activity yet")).toBeVisible();
+    await expect(canvas.getByText("No activity yet.")).toBeVisible();
     await expect(canvas.queryByRole("button", { name: "Clear filters" })).not.toBeInTheDocument();
   },
 };

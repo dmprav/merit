@@ -91,7 +91,7 @@ export interface GrantmakingQueries {
   listWorkspaceActivity: (
     actor: Actor,
     input: z.input<typeof workspaceActivityInput>,
-  ) => Promise<WorkspaceActivity | NotFound | { status: "forbidden" }>;
+  ) => Promise<WorkspaceActivity | NotFound | { status: "forbidden" | "invalid" }>;
   listReviews: (
     actor: Actor,
     input: z.input<typeof reviewListInput>,

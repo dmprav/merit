@@ -23,7 +23,11 @@ export const readWorkspaceActivity = (
 ) =>
   readTransaction(db, async (tx) => {
     const { workspaceSlug, ...filter } = input;
-    const request = activityInputSchema.parse(filter);
+    const parsed = activityInputSchema.safeParse(filter);
+    if (!parsed.success) {
+      return { status: "invalid" } as const;
+    }
+    const request = parsed.data;
     const access = await readActivityAccess(
       tx,
       actor.userId,
@@ -42,7 +46,8 @@ export const readWorkspaceActivity = (
     });
     const events = rows.slice(0, request.limit);
     const last = events.at(-1);
-    const people = (await readActivityPeople(tx, access.organizationId)).sort(
+    // People are for choosing a filter, so only the first page carries them.
+    const people = (request.after ? [] : await readActivityPeople(tx, access.organizationId)).sort(
       (left, right) =>
         (left.name ?? "").localeCompare(right.name ?? "", "en") ||
         left.userId.localeCompare(right.userId, "en"),

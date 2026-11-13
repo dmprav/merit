@@ -215,6 +215,14 @@ describe("workspace activity", () => {
     expect(seen).toEqual(all.map((entry) => entry.id));
   });
 
+  it("treats an undecodable cursor as invalid input rather than a failure", async ({
+    activity: a,
+  }) => {
+    expect(await a.read({ after: "abc" })).toEqual({ status: "invalid" });
+    // A malformed shape never reaches audit.
+    await expect(a.read({ after: "***" })).rejects.toThrow();
+  });
+
   it("filters by round, matching its applications, assessments and recommendations", async ({
     activity: a,
   }) => {

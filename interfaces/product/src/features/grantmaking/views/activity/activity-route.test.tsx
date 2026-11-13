@@ -218,3 +218,24 @@ it("reports a failed page, keeps the entries, and retries", async () => {
 
   await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
 });
+
+it("keeps the filters on the page when a filter change fails, and retries", async () => {
+  const { user } = await renderActivity();
+  await screen.findByRole("table", { name: "Activity" });
+  vi.mocked(readWorkspaceActivity).mockImplementation(async ({ data }) =>
+    data.personId ? ({ status: "unavailable" } as never) : first,
+  );
+
+  await user.click(screen.getByRole("button", { name: "All people Person" }));
+  await user.click(screen.getByRole("option", { name: "Dana Reed" }));
+
+  expect(await screen.findByRole("alert")).toHaveTextContent("Activity could not be loaded.");
+  expect(screen.getByRole("button", { name: "Dana Reed Person" })).toBeVisible();
+  expect(screen.getByRole("button", { name: "Clear filters" })).toBeVisible();
+
+  vi.mocked(readWorkspaceActivity).mockImplementation(async () => first);
+  await user.click(screen.getByRole("button", { name: "Try again" }));
+
+  await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+  expect(screen.getByText("Workshop Saturdays")).toBeVisible();
+});
