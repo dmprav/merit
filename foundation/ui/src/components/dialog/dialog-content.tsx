@@ -1,4 +1,11 @@
-import { createContext, useContext, useLayoutEffect, useRef, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useLayoutEffect,
+  useRef,
+  type FocusEvent,
+  type ReactNode,
+} from "react";
 
 import styles from "./dialog-content.module.css";
 
@@ -15,6 +22,23 @@ type DialogContentProps = {
   footer?: ReactNode;
   reading?: boolean;
   role?: "region" | "group";
+};
+
+/**
+ * Reveals a focused control fully, including its scroll padding. WebKit's own focus
+ * scrolling ignores scroll padding and can align only a field's text area with the
+ * scrolling edge, which leaves the field's border clipped.
+ */
+const revealFocusedControl = (event: FocusEvent<HTMLDivElement>) => {
+  const content = event.currentTarget;
+  const target = event.target;
+  if (
+    target instanceof HTMLElement &&
+    content.contains(target) &&
+    !target.hasAttribute("data-dialog-body")
+  ) {
+    target.scrollIntoView({ block: "nearest" });
+  }
 };
 
 export const DialogContent = ({
@@ -98,6 +122,7 @@ export const DialogContent = ({
       className={styles.content}
       data-appearance={appearance}
       data-dialog-content
+      onFocus={revealFocusedControl}
     >
       <DialogLayoutContext value="default">
         <div

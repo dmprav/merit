@@ -24,6 +24,7 @@ describe("workspace UI test isolation", () => {
       record: { value: "Draft" },
     });
     window.scrollTo(0, 100);
+    screen.getByText("Mounted content").scrollIntoView({ block: "nearest" });
     expect(window.matchMedia("(max-width: 600px)").matches).toBe(false);
   });
 });

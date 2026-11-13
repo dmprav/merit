@@ -1,10 +1,10 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it, vi } from "vite-plus/test";
 
 import { Button } from "../button/button";
-import { ModalDialog } from "./dialog";
+import { DialogContent, ModalDialog } from "./dialog";
 
 it.each([
   { contextLabel: "Round", labelCount: 1 },
@@ -164,4 +164,44 @@ describe.each([true, false])("controlled dialog with trigger %s", (withTrigger) 
       expect(screen.getByText("Dialog is open.")).toBeInTheDocument();
     },
   );
+});
+
+it("reveals focused controls within the content but leaves the scrolling region in place", async () => {
+  const reveal = vi.spyOn(Element.prototype, "scrollIntoView");
+  const user = userEvent.setup();
+  render(
+    <ModalDialog title="Request access" closeLabel="Close dialog" trigger={null} defaultOpen>
+      <DialogContent label="Request details" footer={<Button>Send request</Button>}>
+        <label>
+          Email address
+          <input type="email" />
+        </label>
+      </DialogContent>
+    </ModalDialog>,
+  );
+  const dialog = screen.getByRole("dialog", { name: "Request access" });
+  await waitFor(() => expect(dialog).toHaveFocus());
+
+  await user.tab();
+
+  expect(within(dialog).getByRole("button", { name: "Close dialog" })).toHaveFocus();
+
+  await user.tab();
+
+  expect(within(dialog).getByRole("region", { name: "Request details" })).toHaveFocus();
+  expect(reveal).not.toHaveBeenCalled();
+
+  await user.tab();
+
+  expect(within(dialog).getByRole("textbox", { name: "Email address" })).toHaveFocus();
+  expect(reveal).toHaveBeenLastCalledWith({ block: "nearest" });
+  expect(reveal.mock.contexts.at(-1)).toBe(within(dialog).getByRole("textbox"));
+
+  await user.tab();
+
+  expect(within(dialog).getByRole("button", { name: "Send request" })).toHaveFocus();
+  expect(reveal.mock.contexts.at(-1)).toBe(
+    within(dialog).getByRole("button", { name: "Send request" }),
+  );
+  reveal.mockRestore();
 });
