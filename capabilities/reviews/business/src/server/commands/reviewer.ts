@@ -1,6 +1,5 @@
 import { lockApplicationCase } from "@merit/applications/locks";
-import type { Actor } from "@merit/auth";
-import { actorProvenance } from "@merit/auth";
+import { actorProvenance, type Actor, type Provenance } from "@merit/auth";
 import type { Database } from "@merit/db";
 import { lockGrantWorkspace } from "@merit/organizations/locks";
 
@@ -295,12 +294,11 @@ export const saveReviewerDraft = async (
 
 const submittedEvent = (
   organizationId: string,
-  actor: Actor,
-  user: { name: string | null },
+  recorder: { userId: string; name: string; provenance: Provenance },
   assessment: { assessmentId: string; version: number },
 ): Parameters<RecordAssessmentAudit>[1] => ({
   organizationId,
-  actor: { userId: actor.userId, name: user.name, provenance: actorProvenance(actor) },
+  actor: { userId: recorder.userId, name: recorder.name, provenance: recorder.provenance },
   action: "assessment.submitted",
   target: { type: "assessment", id: assessment.assessmentId, revision: assessment.version },
 });
@@ -373,7 +371,7 @@ export const submitReviewerAssessment = async (
     if (recorded.status !== "ok") {
       return recorded;
     }
-    await recordAuditEvent(tx, submittedEvent(assignment.organizationId, actor, user, recorded));
+    await recordAuditEvent(tx, submittedEvent(assignment.organizationId, recorder, recorded));
     return completeReviewerSubmission(tx, {
       assignment,
       draft,

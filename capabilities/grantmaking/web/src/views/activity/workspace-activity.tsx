@@ -15,10 +15,10 @@ export type ActivityFilters = { roundId: string; personId: string };
 type ActivityRecord = NonNullable<ActivityEntry["record"]>;
 
 const actionLabels = {
-  "application.create": "activity.actions.applicationCreate",
-  "application.mark_ready": "activity.actions.applicationMarkReady",
-  "application.revision": "activity.actions.applicationRevision",
-  "application.correction": "activity.actions.applicationCorrection",
+  "application.create": "intake.eventCreate",
+  "application.mark_ready": "intake.eventReady",
+  "application.revision": "intake.eventRevision",
+  "application.correction": "intake.eventCorrection",
   "application.delete": "activity.actions.applicationDelete",
   "round.create": "activity.actions.roundCreate",
   "round.budget": "activity.actions.roundBudget",
@@ -62,7 +62,7 @@ export const WorkspaceActivity = ({
   onRetry,
   renderRecordLink,
 }: WorkspaceActivityProps) => {
-  const { t } = useTranslation("fundingRounds");
+  const { t } = useTranslation(["fundingRounds", "contacts"]);
   const columns = useActivityColumns(renderRecordLink);
   const filtered = Boolean(filters.roundId || filters.personId);
 
@@ -120,7 +120,7 @@ const FilterControls = ({
   filters,
   onFiltersChange,
 }: Pick<WorkspaceActivityProps, "people" | "rounds" | "filters" | "onFiltersChange">) => {
-  const { t } = useTranslation("fundingRounds");
+  const { t } = useTranslation(["fundingRounds", "contacts"]);
 
   return (
     <div className={styles.controls}>
@@ -130,9 +130,6 @@ const FilterControls = ({
         onSelectionChange={(id) => onFiltersChange({ ...filters, roundId: id === "all" ? "" : id })}
         items={[
           { id: "all", label: t("overview.allRounds") },
-          ...(filters.roundId && !rounds.some((round) => round.id === filters.roundId)
-            ? [{ id: filters.roundId, label: t("overview.unavailableRound") }]
-            : []),
           ...rounds.map((round) => ({ id: round.id, label: round.title })),
         ]}
       />
@@ -146,7 +143,7 @@ const FilterControls = ({
           { id: "all", label: t("activity.allPeople") },
           ...people.map((person) => ({
             id: person.id,
-            label: person.name || t("activity.unknownPerson"),
+            label: person.name || t("contacts:unknownPerson"),
           })),
         ]}
       />
@@ -160,7 +157,7 @@ const FilterControls = ({
 };
 
 const useActivityColumns = (renderRecordLink: WorkspaceActivityProps["renderRecordLink"]) => {
-  const { t } = useTranslation("fundingRounds");
+  const { t } = useTranslation(["fundingRounds", "contacts"]);
   const { formatLocale } = useLocaleSettings();
 
   return [
@@ -180,7 +177,7 @@ const useActivityColumns = (renderRecordLink: WorkspaceActivityProps["renderReco
       layout: { width: "24%" },
       cell: (row) => (
         <div className={styles.who}>
-          <span className={styles.text}>{row.actor || t("activity.unknownPerson")}</span>
+          <span className={styles.text}>{row.actor || t("contacts:unknownPerson")}</span>
           <ActionProvenance value={row.provenance} />
         </div>
       ),

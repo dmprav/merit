@@ -11,7 +11,12 @@ export const workspaceActivityInput = z.strictObject({
   roundId: publicIdSchema.optional(),
   /** The recorded person's user ID; interfaces send it in a request body, never a URL. */
   personId: z.string().min(1).max(200).optional(),
-  after: z.string().min(1).max(200).optional(),
+  /** An opaque cursor from a previous page: URL-safe base64. */
+  after: z
+    .string()
+    .max(200)
+    .regex(/^[A-Za-z0-9_-]+$/)
+    .optional(),
   limit: z.number().int().min(1).max(50).default(50),
 });
 

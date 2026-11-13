@@ -184,6 +184,11 @@ describe("workspace activity", () => {
     );
     const { entries } = await a.ok();
 
+    // Deleted records belong to no round, so the Round filter omits their events.
+    const inRound = (await a.ok({ roundId: a.roundId })).entries.map((entry) => entry.action);
+    expect(inRound).not.toContain("application.delete");
+    expect(inRound.filter((action) => action === "application.create")).toHaveLength(1);
+
     expect(
       entries
         .filter((entry) => entry.record === null)

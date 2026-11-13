@@ -152,7 +152,7 @@ it("keeps entries visible while loading and offers a retry after a failure", asy
   const onRetry = vi.fn();
   show({ status: "failed", hasMore: true, onRetry });
 
-  expect(screen.getByRole("alert")).toHaveTextContent("Activity could not be loaded. Try again.");
+  expect(screen.getByRole("alert")).toHaveTextContent("Activity could not be loaded.");
   expect(screen.getByText("Workshop Saturdays")).toBeVisible();
   expect(screen.queryByRole("button", { name: "Show older activity" })).not.toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "Try again" }));

@@ -250,6 +250,20 @@ describe("reading workspace activity", () => {
     ]);
   });
 
+  test("filters by a record set larger than the protocol's parameter limit", async ({ db }) => {
+    await db.transaction((tx) => record(tx));
+    const ids = Array.from({ length: 70_000 }, (_, index) => `other-${index}`);
+
+    const read = (matching: string[]) =>
+      readWorkspaceActivity(db, manager, {
+        workspaceSlug: "alder",
+        targets: [{ type: "recommendation", ids: [...ids, ...matching] }],
+      });
+
+    expect(await read([])).toMatchObject({ status: "ok", events: [] });
+    expect(await read([event.target.id])).toMatchObject({ events: [{ action: event.action }] });
+  });
+
   test("keeps the recorded name and provenance after profile changes and rejects a malformed cursor", async ({
     db,
     database,

@@ -31,7 +31,7 @@ const activityPageSize = 50;
 
 /** Records whose events a reader may return; the owning capability resolves membership. */
 const activityTargetsSchema = z
-  .array(z.strictObject({ type: identifier, ids: z.array(identifier).max(10_000) }))
+  .array(z.strictObject({ type: identifier, ids: z.array(identifier) }))
   .max(8);
 
 /** Narrowing and paging for a workspace's events; the reader adds the workspace. */

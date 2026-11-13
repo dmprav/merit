@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, or, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, or, sql, type SQL } from "drizzle-orm";
 
 import { appUsers } from "@merit/auth/schema";
 import type { Database } from "@merit/db";
@@ -31,7 +31,11 @@ const targetFilter = (targets: NonNullable<ActivityInput["targets"]>): SQL => {
   const groups = targets
     .filter((target) => target.ids.length > 0)
     .map((target) =>
-      and(eq(auditEvents.targetType, target.type), inArray(auditEvents.targetId, target.ids)),
+      and(
+        eq(auditEvents.targetType, target.type),
+        // One JSON parameter, so large rounds stay under the protocol's parameter limit.
+        sql`${auditEvents.targetId} in (select jsonb_array_elements_text(${JSON.stringify(target.ids)}::jsonb))`,
+      ),
     );
   return or(...groups) ?? sql`false`;
 };

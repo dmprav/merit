@@ -1,5 +1,6 @@
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 
+import type { ActivityFilters } from "@merit/grantmaking-web/activity";
 import { workspaceSlugSchema } from "@merit/organizations/api";
 import { available } from "@merit/query";
 
@@ -54,10 +55,6 @@ export const applicationsOptions = (workspaceSlug: string) =>
     queryFn: async ({ signal }) =>
       available(await readWorkspaceApplications({ signal, data: workspaceSlug })),
   });
-
-/** Filters are page state. They select the cache entry and travel in the request body,
- * never in the address, so a person's identifier stays out of URLs and history. */
-export type ActivityFilters = { roundId: string; personId: string };
 
 export const activityOptions = (workspaceSlug: string, filters: ActivityFilters) =>
   infiniteQueryOptions({

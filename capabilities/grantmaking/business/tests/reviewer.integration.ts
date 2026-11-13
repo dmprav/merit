@@ -301,6 +301,24 @@ it("rolls back a reviewer's submission when its audit event cannot be recorded",
   expect(await recordedEvents(database.client, "target_type = 'assessment'")).toHaveLength(1);
 });
 
+it("records a submission under the name the assessment carries when the profile has none", async ({
+  database,
+  reviewerScenario: s,
+}) => {
+  await database.client.query("UPDATE app_users SET name = NULL WHERE id = 'sam'");
+  expect(await s.respond("accept")).toMatchObject({ status: "ok" });
+  expect(await s.save()).toMatchObject({ status: "ok" });
+  expect(await s.submit()).toMatchObject({ status: "ok" });
+
+  expect(
+    (
+      await database.client.query(
+        "SELECT actor_name FROM audit_events WHERE action = 'assessment.submitted'",
+      )
+    ).rows,
+  ).toEqual([{ actor_name: "Sam Morgan" }]);
+});
+
 it("pauses conflicts and revokes immediately while preserving private drafts for explicit reinstatement", async ({
   database,
   reviewerScenario: s,

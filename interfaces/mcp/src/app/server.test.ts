@@ -281,7 +281,7 @@ describe("workspace MCP contracts", () => {
         people: [{ id: "private-person", name: "Private Person" }],
         nextCursor: "cursor",
       });
-      for (const filter of [{ personId: "" }, { roundId: "not-an-id" }]) {
+      for (const filter of [{ personId: "" }, { roundId: "not-an-id" }, { after: "***" }]) {
         expect(
           (
             await client.callTool({

@@ -6,6 +6,11 @@
   margin-bottom: var(--space-5);
 }
 
+.controls > :first-child {
+  min-width: min(15rem, 100%);
+  max-width: 100%;
+}
+
 .muted {
   color: var(--muted);
 }
