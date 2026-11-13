@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 
+import { encodeActivityCursor } from "@merit/audit/api";
+
 import {
   contactsRequestSchema,
   contactListInput,
@@ -68,16 +70,20 @@ describe("contact read addresses", () => {
     );
   });
 
-  it("accepts a nonnegative integer history cursor without coercing or rounding it", () => {
-    for (const afterRevision of [0, 7]) {
-      expect(contactHistoryInput.parse({ ...address, afterRevision })).toEqual({
-        ...address,
-        afterRevision,
-        limit: 20,
-      });
-    }
-    for (const afterRevision of [-1, 0.5, "0", null]) {
-      expect(contactHistoryInput.safeParse({ ...address, afterRevision }).success).toBe(false);
-    }
+  it("preserves an opaque history cursor", () => {
+    const after = encodeActivityCursor({
+      recordedAt: new Date("2026-11-13T12:00:00.123Z"),
+      id: "60000000-0000-4000-8000-000000000002",
+    });
+
+    expect(contactHistoryInput.parse({ ...address, after })).toEqual({
+      ...address,
+      after,
+      limit: 20,
+    });
+  });
+
+  it.each([0, 7, -1, 0.5, "0", "", null])("rejects invalid history cursor %j", (after) => {
+    expect(contactHistoryInput.safeParse({ ...address, after }).success).toBe(false);
   });
 });
