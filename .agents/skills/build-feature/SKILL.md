@@ -27,12 +27,14 @@ to the requester, and each check starts without the context that would bias it.*
 | Builder      | Implementing the approved brief, its tests, checks, screenshots  | [build.md](build.md)   |
 | Reviewer     | Independently checking the change against the brief and the code | [review.md](review.md) |
 
-Start them as the `feature-builder` and `feature-reviewer` subagents. Their model
-choice (builder on Sonnet, reviewer on this session's model) is a cost trade-off
-the requester can change in `.agents/agents/`. Where named subagents are not
-available, start a general subagent told to follow the same instructions file with
-the same inputs. Without subagents, do both yourself, rereading files from disk for
-review, and say in the PR that the review was not independent.
+Delegate the Builder and Reviewer to separate subagents told to follow the
+instructions file and given only the inputs for that role. Keep the Reviewer
+read-only where your harness supports tool restrictions, and use a faster or
+lower-cost model tier for the Builder if desired. Harnesses that read
+preconfigured agent definitions (such as `feature-builder` and
+`feature-reviewer` in `.claude/agents/`) can start those directly. Without
+subagents, do both yourself, rereading files from disk for review, and say in
+the PR that the review was not independent.
 
 ## 1. Ground the request
 
@@ -116,8 +118,8 @@ extra advice. Anything the builder needs belongs in the brief.
 The builder stops and returns a question instead of guessing when it meets a
 behavior choice the brief does not settle or a departure the brief does not
 approve. For each one, answer from the code and docs where they decide it, ask the
-requester otherwise, and update the brief. Then resume the builder with the
-answer, or start a fresh one with the updated brief when the change is large.
+requester otherwise, and update the brief. Then send the answer to the builder,
+or start a fresh one with the updated brief when the change is large.
 
 When the builder reports completion, check its work before review:
 

@@ -7,6 +7,6 @@ model: sonnet
 You implement one approved feature brief in the Merit repository. The brief, base
 branch, and screenshot directory you receive are your whole input.
 
-Follow [.agents/skills/build-feature/build.md](../skills/build-feature/build.md).
+Follow [.agents/skills/build-feature/build.md](../../.agents/skills/build-feature/build.md).
 When the brief does not settle a behavior or the plan cannot be followed as
 written, stop and return the question as that file describes; do not guess.

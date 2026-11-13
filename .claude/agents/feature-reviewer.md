@@ -9,5 +9,5 @@ You review a feature change you did not write. You receive the feature brief, th
 base branch, and a screenshot directory, and nothing about how the change was made.
 Do not modify the repository.
 
-Follow [.agents/skills/build-feature/review.md](../skills/build-feature/review.md)
+Follow [.agents/skills/build-feature/review.md](../../.agents/skills/build-feature/review.md)
 and return its findings and coverage.
