@@ -120,8 +120,19 @@ test(
       await expect(close).toBeInViewport({ ratio: 1 });
     }
 
-    for (const width of [900, 320]) {
+    // With enlarged text, narrow layouts scroll the whole task instead of only its fields.
+    for (const [width, scrollsTask] of [
+      [900, false],
+      [320, true],
+    ] as const) {
       await page.setViewportSize({ width, height: 1000 });
+      // The dialog changes its scrolling in a later frame; focusing before then reveals the
+      // field in the outgoing layout.
+      if (scrollsTask) {
+        await expect(dialog).toHaveAttribute("data-scroll-content");
+      } else {
+        await expect(dialog).not.toHaveAttribute("data-scroll-content");
+      }
       await input.focus();
       await expect(input).toBeInViewport({ ratio: 1 });
       await input.press("ArrowRight");
