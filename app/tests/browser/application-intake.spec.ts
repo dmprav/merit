@@ -1,3 +1,5 @@
+import { calendarDay } from "@merit/test-support/browser/calendar";
+
 import { test, expect } from "./workspace-test.ts";
 
 test("record, complete, recommend, and revise an application without a budget", async ({
@@ -296,7 +298,7 @@ test("create and continue preparing a round and application", async ({ page }, t
   await dialog.getByLabel("Committee date", { exact: true }).fill("2027-03-14");
   await dialog.getByRole("button", { name: "Choose date for Committee date" }).click();
   const calendar = page.getByRole("dialog", { name: "Committee date", exact: true });
-  await calendar.getByRole("button", { name: "Monday, 15 March 2027" }).click();
+  await calendar.getByRole("button", { name: calendarDay("Monday, 15 March 2027") }).click();
 
   await expect(calendar).toHaveCount(0);
   await expect(dialog).toBeVisible();
