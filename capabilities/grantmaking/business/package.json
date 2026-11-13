@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@merit/applications": "workspace:*",
+    "@merit/audit": "workspace:*",
     "@merit/auth": "workspace:*",
     "@merit/contacts": "workspace:*",
     "@merit/db": "workspace:*",
@@ -28,7 +29,6 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@merit/audit": "workspace:*",
     "@merit/test-support": "workspace:*",
     "@types/node": "catalog:",
     "@types/pg": "catalog:",

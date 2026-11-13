@@ -938,6 +938,9 @@ importers:
       '@merit/applications':
         specifier: workspace:*
         version: link:../../applications/business
+      '@merit/audit':
+        specifier: workspace:*
+        version: link:../../audit/business
       '@merit/auth':
         specifier: workspace:*
         version: link:../../../foundation/auth
@@ -969,9 +972,6 @@ importers:
         specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
-      '@merit/audit':
-        specifier: workspace:*
-        version: link:../../audit/business
       '@merit/test-support':
         specifier: workspace:*
         version: link:../../../tooling/testing

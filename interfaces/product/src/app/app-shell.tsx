@@ -160,6 +160,12 @@ const AppNavigation = ({ workspace }: { workspace?: ShellWorkspace }) => {
               params: { workspaceSlug: grantWork },
             }}
           />
+          <section aria-label={t("navigation.activity")} className={navigationStyles.section}>
+            <Link to="/app/$workspaceSlug/activity" params={{ workspaceSlug: grantWork }}>
+              <Icon name="activity" />
+              {t("navigation.activity")}
+            </Link>
+          </section>
         </>
       )}
       {reviews && (

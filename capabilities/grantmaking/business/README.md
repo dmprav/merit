@@ -80,7 +80,12 @@ Application assembly injects the recorder through Recommendations'
 `RecordRecommendationAudit` contract; the command supplies its transaction and
 propagates recording failures so the whole save rolls back.
 Recommendations retains the full recommendation versions; the shared event references
-the saved recommendation revision and captures the actor and interface.
+the saved recommendation revision and captures the actor and interface. Applications,
+Rounds, and Reviews record their milestones the same way (see the
+[audit capability](../../audit/business/README.md#record-an-accepted-action)), and
+`listWorkspaceActivity` reads them back: it resolves round membership,
+assessment-to-application links, and current titles around audit's reader, since audit
+imports no capability.
 
 Creation receipts live in change history and survive eligible record deletion.
 Retrying a creation reads that receipt, including after the created record has

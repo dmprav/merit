@@ -10,7 +10,11 @@ import { applicationWork } from "@merit/grantmaking/server/integrations";
 import { handleWorkspaceMcp } from "@merit/mcp";
 import { encodeMoney } from "@merit/money";
 import { actor } from "@merit/organizations/testing/workspace";
-import { loadFundingRoundPage, loadFundingRounds } from "@merit/product/grantmaking";
+import {
+  loadFundingRoundPage,
+  loadFundingRounds,
+  loadWorkspaceActivity,
+} from "@merit/product/grantmaking";
 import { loadWorkspace } from "@merit/product/workspace";
 import { type SaveRecommendationRequest } from "@merit/recommendations/api";
 import { saveFundingRecommendation } from "@merit/recommendations/server";
@@ -257,6 +261,41 @@ it("denies round discovery to a reviewer even in an empty workspace", async ({
   ).toEqual({ status: "forbidden" });
 });
 
+it("serves workspace activity to program managers and withholds it from everyone else through both interfaces", async ({
+  database,
+  transport: { services, callMcp },
+}) => {
+  const web = await loadWorkspaceActivity({ workspaceSlug: "alder" }, services);
+  assert(web.status === "ok");
+  expect(web.entries).toMatchObject([
+    { action: "round.create", actor: "Dana Reed", record: { title: "Community grants" } },
+  ]);
+  const mcp = (await callMcp(actor.userId, { workspaceSlug: "alder" }, "list_workspace_activity"))
+    .structuredContent;
+  expect(mcp).toMatchObject({
+    status: "ok",
+    entries: web.entries.map(({ id, action }) => ({ id, action })),
+  });
+
+  await database.client.query("UPDATE memberships SET role = 'reviewer' WHERE user_id = 'dana'");
+  expect(await loadWorkspaceActivity({ workspaceSlug: "alder" }, services)).toEqual({
+    status: "not_found",
+  });
+  expect(
+    (await callMcp(actor.userId, { workspaceSlug: "alder" }, "list_workspace_activity"))
+      .structuredContent,
+  ).toEqual({ status: "forbidden" });
+
+  await database.client.query("DELETE FROM memberships WHERE user_id = 'dana'");
+  expect(await loadWorkspaceActivity({ workspaceSlug: "alder" }, services)).toEqual({
+    status: "workspace_not_found",
+  });
+  expect(
+    (await callMcp(actor.userId, { workspaceSlug: "alder" }, "list_workspace_activity"))
+      .structuredContent,
+  ).toEqual({ status: "not_found" });
+});
+
 it("conceals an empty workspace from a nonmember through both interfaces", async ({
   db,
   database,
@@ -280,21 +319,26 @@ it.for(["administrator", "owner"])(
     administration,
     { db, database, rounds: { pageInput }, transport: { services, callMcp } },
   ) => {
-    const application = await createFundingApplication(db, actor, {
-      workspaceSlug: "alder",
-      publicId: pageInput.publicId,
-      requestId: randomUUID(),
-      title: "Access check",
-      applicant: "Community group",
-      requested: "80.00",
-      answers: [
-        {
-          questionId: "3c2131d3-d474-5e8e-bbe8-a56867995ea5",
-          question: "Purpose",
-          response: "Community activities.",
-        },
-      ],
-    });
+    const application = await createFundingApplication(
+      db,
+      actor,
+      {
+        workspaceSlug: "alder",
+        publicId: pageInput.publicId,
+        requestId: randomUUID(),
+        title: "Access check",
+        applicant: "Community group",
+        requested: "80.00",
+        answers: [
+          {
+            questionId: "3c2131d3-d474-5e8e-bbe8-a56867995ea5",
+            question: "Purpose",
+            response: "Community activities.",
+          },
+        ],
+      },
+      recordAuditEvent,
+    );
     assert(application.status === "ok");
     const address = { workspaceSlug: "alder", publicId: application.publicId };
     const ready = await editFundingApplication(
@@ -306,6 +350,7 @@ it.for(["administrator", "owner"])(
         change: { action: "mark_ready" },
       },
       applicationWork,
+      recordAuditEvent,
     );
     assert(ready.status === "ok");
     const request: SaveRecommendationRequest = {

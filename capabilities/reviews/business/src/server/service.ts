@@ -16,7 +16,7 @@ import {
   submitReviewerAssessment,
 } from "./commands/reviewer";
 import { deliverReviewerMessages } from "./commands/reviewer-delivery";
-import { saveApplicationReview } from "./commands/reviews";
+import { saveApplicationReview, type RecordAssessmentAudit } from "./commands/reviews";
 import {
   listReviewerAssignments,
   readReviewerAssignment,
@@ -28,12 +28,13 @@ type Dependencies = { database: <T>(operation: (db: Database) => Promise<T>) => 
 export const createReviewerService = (
   dependencies: Dependencies & {
     verifiedEmails: (actor: Actor) => Promise<string[]>;
+    recordAuditEvent: RecordAssessmentAudit;
     send: (message: ReviewerMessage) => Promise<void>;
     reviewerUrl: (id: string) => string;
     managerUrl: (slug: string, applicationId: string) => string;
   },
 ): ReviewerService => {
-  const { database, verifiedEmails } = dependencies;
+  const { database, verifiedEmails, recordAuditEvent } = dependencies;
 
   const read: ReviewerService["read"] = async (actor, input) => {
     const parsed = reviewerAddressSchema.safeParse(input);
@@ -51,6 +52,16 @@ export const createReviewerService = (
       : Promise.resolve({ status: "invalid" });
   };
 
+  const managerAssignment = async (
+    actor: Actor,
+    { workspaceSlug, publicId }: { workspaceSlug: string; publicId: string },
+    id: string,
+  ) => {
+    const rows = await forApplication(actor, { workspaceSlug, publicId });
+    const value = rows.status === "ok" ? rows.value.find((row) => row.id === id) : undefined;
+    return value ? ({ status: "ok", value } as const) : ({ status: "not_found" } as const);
+  };
+
   return {
     read,
     forApplication,
@@ -65,13 +76,7 @@ export const createReviewerService = (
         return result;
       }
       await deliverReviewerMessages(dependencies, result.id);
-      const rows = await forApplication(actor, {
-        workspaceSlug: input.workspaceSlug,
-        publicId: input.publicId,
-      });
-      const value =
-        rows.status === "ok" ? rows.value.find((row) => row.id === result.id) : undefined;
-      return value ? { status: "ok", value } : { status: "not_found" };
+      return managerAssignment(actor, input, result.id);
     },
     manage: async (actor, input) => {
       const result = await database((db) => manageReviewer(db, actor, input));
@@ -81,13 +86,7 @@ export const createReviewerService = (
       if (input.action === "resend" || input.action === "retry_notification") {
         await deliverReviewerMessages(dependencies, result.id);
       }
-      const rows = await forApplication(actor, {
-        workspaceSlug: input.workspaceSlug,
-        publicId: input.publicId,
-      });
-      const value =
-        rows.status === "ok" ? rows.value.find((row) => row.id === result.id) : undefined;
-      return value ? { status: "ok", value } : { status: "not_found" };
+      return managerAssignment(actor, input, result.id);
     },
     respond: async (actor, input) => {
       const emails = await verifiedEmails(actor);
@@ -100,7 +99,9 @@ export const createReviewerService = (
     },
     saveDraft: (actor, input) => database((db) => saveReviewerDraft(db, actor, input)),
     submit: async (actor, input) => {
-      const result = await database((db) => submitReviewerAssessment(db, actor, input));
+      const result = await database((db) =>
+        submitReviewerAssessment(db, actor, input, recordAuditEvent),
+      );
       if (result.status === "ok") {
         await deliverReviewerMessages(dependencies, input.assignmentId);
       }
@@ -109,6 +110,10 @@ export const createReviewerService = (
   };
 };
 
-export const createReviewService = ({ database }: Dependencies): ReviewService => ({
-  saveReview: (actor, input) => database((db) => saveApplicationReview(db, actor, input)),
+export const createReviewService = ({
+  database,
+  recordAuditEvent,
+}: Dependencies & { recordAuditEvent: RecordAssessmentAudit }): ReviewService => ({
+  saveReview: (actor, input) =>
+    database((db) => saveApplicationReview(db, actor, input, recordAuditEvent)),
 });

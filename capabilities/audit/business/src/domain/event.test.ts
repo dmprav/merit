@@ -18,6 +18,10 @@ it("requires explicit attribution and a compact reference to the affected record
       target: { ...record.target, revision: null },
     }),
   ).toMatchObject({ actor: { name: null }, target: { revision: null } });
+  // Creation is revision zero of its record.
+  expect(auditRecordSchema.parse({ ...record, target: { ...record.target, revision: 0 } })).toEqual(
+    { ...record, target: { ...record.target, revision: 0 } },
+  );
   for (const input of [
     { ...record, organizationId: "" },
     { ...record, actor: { ...record.actor, userId: "" } },
@@ -26,7 +30,7 @@ it("requires explicit attribution and a compact reference to the affected record
     { ...record, action: "Recommendation saved" },
     { ...record, target: { ...record.target, id: "" } },
     { ...record, target: { ...record.target, type: "" } },
-    { ...record, target: { ...record.target, revision: 0 } },
+    { ...record, target: { ...record.target, revision: -1 } },
     { ...record, target: { ...record.target, revision: 1.5 } },
     { ...record, content: "Full application material" },
   ]) {

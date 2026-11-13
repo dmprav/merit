@@ -26,6 +26,17 @@ contact changes use the product's shared grant-work scope. Query infrastructure
 owns the [account and fetched-data lifecycle](../../../foundation/query/README.md).
 Capability messages are exposed through `/messages` for interface composition.
 
+## Show workspace activity
+
+`@merit/grantmaking-web/activity` exports `WorkspaceActivity`, a presentational
+table of who changed shared grant work. The product route supplies the entries,
+the Round and Person options, the filter values, and link renderers, as it does for
+the Applications overview. Filters are page state: keep them in component state and
+send them in a request body so a person's identifier never reaches a URL. See the
+[workflow](../../../docs/workflows/review-and-decide.md#catch-up-on-shared-changes)
+for what Activity lists and the [stories](src/views/activity/workspace-activity.stories.tsx)
+for each state.
+
 ## Scope drafts and examples
 
 Mount [GrantmakingDrafts](src/views/drafts.tsx) from `/drafts` around editable

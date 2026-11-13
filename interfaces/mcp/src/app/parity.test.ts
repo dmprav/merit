@@ -121,6 +121,12 @@ it("discovers and dispatches every new workflow with verified identity and origi
       result: { status: "ok", value: { revision: 9 } },
     },
     {
+      name: "list_workspace_activity",
+      args: { workspaceSlug: "alder", roundId: applicationId, personId: "dana", limit: 25 },
+      fn: operations.workspace.listWorkspaceActivity,
+      result: { status: "ok", entries: [], people: [], nextCursor: null },
+    },
+    {
       name: "get_navigation_pins",
       args: {},
       fn: operations.navigation.read,

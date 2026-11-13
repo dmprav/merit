@@ -27,6 +27,7 @@ export const roundTest = workspaceTest.extend("rounds", { auto: true }, async ({
         budget: "100.00",
         meetingDate: "2027-04-15",
       },
+      recordAuditEvent,
     );
     assert(created.status === "ok", "Could not create the round fixture");
     if (workspace.id === "alder") {
@@ -38,21 +39,26 @@ export const roundTest = workspaceTest.extend("rounds", { auto: true }, async ({
   assert.isDefined(pageInput, "Could not create the Alder round fixture");
 
   const createApplication = async (title: string) => {
-    const created = await createFundingApplication(db, actor, {
-      workspaceSlug: "alder",
-      publicId: pageInput.publicId,
-      requestId: randomUUID(),
-      title,
-      applicant: "Community group",
-      requested: "80.00",
-      answers: [
-        {
-          questionId: "0e03fcf9-a422-5c35-9ac4-27be275d2f3e",
-          question: "Purpose",
-          response: "Weekly community activities.",
-        },
-      ],
-    });
+    const created = await createFundingApplication(
+      db,
+      actor,
+      {
+        workspaceSlug: "alder",
+        publicId: pageInput.publicId,
+        requestId: randomUUID(),
+        title,
+        applicant: "Community group",
+        requested: "80.00",
+        answers: [
+          {
+            questionId: "0e03fcf9-a422-5c35-9ac4-27be275d2f3e",
+            question: "Purpose",
+            response: "Weekly community activities.",
+          },
+        ],
+      },
+      recordAuditEvent,
+    );
     assert(created.status === "ok", "Could not create the application fixture");
     return { workspaceSlug: "alder", publicId: created.publicId };
   };
@@ -70,6 +76,7 @@ export const roundTest = workspaceTest.extend("rounds", { auto: true }, async ({
         change: { action: "mark_ready" },
       },
       applicationWork,
+      recordAuditEvent,
     );
     assert(ready.status === "ok", "Could not mark the application fixture ready");
     const recommended = await saveFundingRecommendation(

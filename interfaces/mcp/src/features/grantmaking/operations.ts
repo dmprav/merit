@@ -17,6 +17,7 @@ export type FundingRoundOperations = Pick<
   | "applicationContent"
   | "roundHistory"
   | "applicationHistory"
+  | "listWorkspaceActivity"
   | "saveRecommendation"
 > & {
   listRounds: GrantmakingService["listRoundSummaries"];

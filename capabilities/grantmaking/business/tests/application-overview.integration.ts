@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { assert, expect } from "vite-plus/test";
 
 import { createFundingApplication } from "@merit/applications/server";
+import { recordAuditEvent } from "@merit/audit/server/record";
 import { getFundingRoundPage, listWorkspaceApplications } from "@merit/grantmaking/server";
 import { fundingExampleIds } from "@merit/grantmaking/server/demo";
 import { seedExampleRounds } from "@merit/grantmaking/testing";
@@ -88,10 +89,15 @@ it("uses the latest assessment version and counts a replacement only once", asyn
     expectedApplicationVersion: application.version,
     expectedCriteriaVersion: page.round.criteriaVersion,
   };
-  const edited = await saveApplicationReview(db, actor, {
-    ...input,
-    change: { action: "edit", id: assessment.id, content, note: "Basis not supplied" },
-  });
+  const edited = await saveApplicationReview(
+    db,
+    actor,
+    {
+      ...input,
+      change: { action: "edit", id: assessment.id, content, note: "Basis not supplied" },
+    },
+    recordAuditEvent,
+  );
   assert(edited.status === "ok");
   let result = await listWorkspaceApplications(db, actor, "alder");
   assert(result.status === "ok");
@@ -102,18 +108,23 @@ it("uses the latest assessment version and counts a replacement only once", asyn
     outstanding: 0,
   });
 
-  const replaced = await saveApplicationReview(db, actor, {
-    ...input,
-    expectedRevision: edited.revision,
-    change: {
-      action: "record",
-      id: randomUUID(),
-      contactId: assessment.contactId,
-      requestId: null,
-      previousId: assessment.id,
-      content: assessment.versions.at(-1)!.content,
+  const replaced = await saveApplicationReview(
+    db,
+    actor,
+    {
+      ...input,
+      expectedRevision: edited.revision,
+      change: {
+        action: "record",
+        id: randomUUID(),
+        contactId: assessment.contactId,
+        requestId: null,
+        previousId: assessment.id,
+        content: assessment.versions.at(-1)!.content,
+      },
     },
-  });
+    recordAuditEvent,
+  );
   assert(replaced.status === "ok");
   result = await listWorkspaceApplications(db, actor, "alder");
   assert(result.status === "ok");
@@ -123,21 +134,26 @@ it("uses the latest assessment version and counts a replacement only once", asyn
     outdated: 0,
     outstanding: 0,
   });
-  const revised = await editFundingRound(db, actor, {
-    workspaceSlug: "alder",
-    publicId: roundId,
-    expectedRevision: page.preparation.revision,
-    change: {
-      section: "criteria",
-      criteria: [
-        {
-          id: "20000000-0000-4000-8000-000000000001",
-          title: "Venue",
-          description: "Check the replacement venue.",
-        },
-      ],
+  const revised = await editFundingRound(
+    db,
+    actor,
+    {
+      workspaceSlug: "alder",
+      publicId: roundId,
+      expectedRevision: page.preparation.revision,
+      change: {
+        section: "criteria",
+        criteria: [
+          {
+            id: "20000000-0000-4000-8000-000000000001",
+            title: "Venue",
+            description: "Check the replacement venue.",
+          },
+        ],
+      },
     },
-  });
+    recordAuditEvent,
+  );
   assert(revised.status === "ok");
   result = await listWorkspaceApplications(db, actor, "alder");
   assert(result.status === "ok");
@@ -168,12 +184,17 @@ it("keeps unknown applicants distinct from known applicants", async ({
   db,
   rounds: { pageInput },
 }) => {
-  const created = await createFundingApplication(db, actor, {
-    workspaceSlug: pageInput.workspaceSlug,
-    publicId: pageInput.publicId,
-    requestId: randomUUID(),
-    title: "Title only",
-  });
+  const created = await createFundingApplication(
+    db,
+    actor,
+    {
+      workspaceSlug: pageInput.workspaceSlug,
+      publicId: pageInput.publicId,
+      requestId: randomUUID(),
+      title: "Title only",
+    },
+    recordAuditEvent,
+  );
   assert(created.status === "ok");
   const result = await listWorkspaceApplications(db, actor, "alder");
   assert(result.status === "ok");

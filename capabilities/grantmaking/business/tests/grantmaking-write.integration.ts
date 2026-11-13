@@ -1,6 +1,7 @@
 import { assert, expect } from "vite-plus/test";
 
 import { editFundingApplication } from "@merit/applications/server";
+import { recordAuditEvent } from "@merit/audit/server/record";
 import { getFundingApplicationPage } from "@merit/grantmaking/server";
 import { fundingExampleIds } from "@merit/grantmaking/server/demo";
 import { seedExampleRounds } from "@merit/grantmaking/testing";
@@ -134,6 +135,7 @@ it("keeps staff summary edits out of material versions and review bases", async 
         change: { action: "details", summary: "Staff interpretation after discussion." },
       },
       applicationWork,
+      recordAuditEvent,
     ),
   ).toMatchObject({ status: "ok", revision: before.intake.revision + 1 });
   expect(

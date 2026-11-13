@@ -21,11 +21,16 @@ import { createFundingRound, deleteFundingRound } from "@merit/rounds/server";
 import { applicationWork } from "../src/server/persistence/commands/application-work";
 
 const setup = async (db: NodePgDatabase) => {
-  const round = await createFundingRound(db, actor, {
-    workspaceSlug,
-    title: "Intake round",
-    requestId: randomUUID(),
-  });
+  const round = await createFundingRound(
+    db,
+    actor,
+    {
+      workspaceSlug,
+      title: "Intake round",
+      requestId: randomUUID(),
+    },
+    recordAuditEvent,
+  );
 
   if (round.status !== "ok") {
     throw new Error("Round creation failed");
@@ -37,7 +42,7 @@ const setup = async (db: NodePgDatabase) => {
     title: "Community meals",
     requestId: randomUUID(),
   };
-  const created = await createFundingApplication(db, actor, request);
+  const created = await createFundingApplication(db, actor, request, recordAuditEvent);
 
   if (created.status !== "ok") {
     throw new Error("Application creation failed");
@@ -57,6 +62,7 @@ const setup = async (db: NodePgDatabase) => {
         change,
       },
       applicationWork,
+      recordAuditEvent,
     );
 
   return { round, request, created, address, read, change };
@@ -244,6 +250,7 @@ it.for([
           change: edit,
         },
         applicationWork,
+        recordAuditEvent,
       ),
     ).toEqual({ status: "conflict" });
     expect(await change(edit)).toEqual({ status: "invalid", error: "contact_unavailable" });
@@ -275,6 +282,7 @@ it("saves partial intake fields and still rejects stale revisions", async ({ db 
         change: { action: "save_content", content: { applicant: "Stale applicant" } },
       },
       applicationWork,
+      recordAuditEvent,
     ),
   ).toEqual({ status: "conflict" });
   expect(await read()).toEqual(renamed);
@@ -342,7 +350,7 @@ it("retries empty application creation without adding content or history", async
   const { request, created, read } = await setup(db);
   const before = await read();
 
-  expect(await createFundingApplication(db, actor, request)).toEqual(created);
+  expect(await createFundingApplication(db, actor, request, recordAuditEvent)).toEqual(created);
   expect(await read()).toEqual(before);
   expect(before.application).toMatchObject({
     requested: null,
@@ -513,7 +521,9 @@ it("rejects concurrent edits, preserves the winner, and checks current tenant an
     change: { action: "save_content" as const, content },
   };
 
-  expect(await editFundingApplication(db, actor, edit, applicationWork)).toMatchObject({
+  expect(
+    await editFundingApplication(db, actor, edit, applicationWork, recordAuditEvent),
+  ).toMatchObject({
     status: "ok",
   });
   expect(
@@ -525,16 +535,17 @@ it("rejects concurrent edits, preserves the winner, and checks current tenant an
         change: { action: "save_content", content: { ...content, title: "Stale title" } },
       },
       applicationWork,
+      recordAuditEvent,
     ),
   ).toEqual({ status: "conflict" });
   expect((await read()).application.title).toBe(content.title);
 
   const other = { userId: "birch-manager" };
 
-  expect(await editFundingApplication(db, other, edit, applicationWork)).toEqual({
+  expect(await editFundingApplication(db, other, edit, applicationWork, recordAuditEvent)).toEqual({
     status: "not_found",
   });
-  expect(await createFundingApplication(db, other, request)).toEqual({
+  expect(await createFundingApplication(db, other, request, recordAuditEvent)).toEqual({
     status: "not_found",
   });
   expect(await getFundingApplicationPage(db, other, address)).toBeNull();
@@ -542,7 +553,13 @@ it("rejects concurrent edits, preserves the winner, and checks current tenant an
   await database.client.query("UPDATE memberships SET role = 'member' WHERE user_id = 'dana'");
 
   expect(
-    await editFundingApplication(db, actor, { ...edit, expectedRevision: 1 }, applicationWork),
+    await editFundingApplication(
+      db,
+      actor,
+      { ...edit, expectedRevision: 1 },
+      applicationWork,
+      recordAuditEvent,
+    ),
   ).toEqual({
     status: "not_found",
   });
@@ -617,11 +634,12 @@ it("deletes unused preparation only, keeps its receipt, and prevents deleting a 
         expectedRevision: 0,
       },
       roundHasApplications,
+      recordAuditEvent,
     ),
   ).toMatchObject({ status: "invalid", error: "round_not_empty" });
   expect(await change({ action: "delete" })).toMatchObject({ status: "ok" });
   expect(await getFundingApplicationPage(db, actor, address)).toBeNull();
-  expect(await createFundingApplication(db, actor, request)).toMatchObject({
+  expect(await createFundingApplication(db, actor, request, recordAuditEvent)).toMatchObject({
     status: "invalid",
     error: "application_deleted",
   });
@@ -642,6 +660,7 @@ it("deletes unused preparation only, keeps its receipt, and prevents deleting a 
         expectedRevision: 0,
       },
       roundHasApplications,
+      recordAuditEvent,
     ),
   ).toEqual({ status: "ok" });
 });
@@ -656,12 +675,17 @@ it("rejects a requested total that cannot be represented without committing cont
     await change({ action: "save_content", content: { ...content, requested: largest } }),
   ).toMatchObject({ status: "ok" });
 
-  const second = await createFundingApplication(db, actor, {
-    workspaceSlug,
-    publicId: round.publicId,
-    requestId: randomUUID(),
-    title: "Second request",
-  });
+  const second = await createFundingApplication(
+    db,
+    actor,
+    {
+      workspaceSlug,
+      publicId: round.publicId,
+      requestId: randomUUID(),
+      title: "Second request",
+    },
+    recordAuditEvent,
+  );
 
   if (second.status !== "ok") {
     throw new Error("Creation failed");
@@ -677,6 +701,7 @@ it("rejects a requested total that cannot be represented without committing cont
         change: { action: "save_content", content: { ...content, requested: "0.01" } },
       },
       applicationWork,
+      recordAuditEvent,
     ),
   ).toMatchObject({ status: "invalid", error: "request_total_too_large" });
 
@@ -701,15 +726,15 @@ it("creates initial applicant material once and keeps it in preparation", async 
   };
 
   expect(
-    await createFundingApplication(db, actor, { ...request, requested: "1.001" }),
+    await createFundingApplication(db, actor, { ...request, requested: "1.001" }, recordAuditEvent),
   ).toMatchObject({ status: "invalid" });
 
-  const created = await createFundingApplication(db, actor, request);
+  const created = await createFundingApplication(db, actor, request, recordAuditEvent);
 
   if (created.status !== "ok") {
     throw new Error("Creation failed");
   }
-  expect(await createFundingApplication(db, actor, request)).toEqual(created);
+  expect(await createFundingApplication(db, actor, request, recordAuditEvent)).toEqual(created);
 
   const page = (await getFundingApplicationPage(db, actor, {
     workspaceSlug,
@@ -744,12 +769,17 @@ it("rejects creation that would overflow the round total without consuming its r
     requested: "0.01",
   };
 
-  expect(await createFundingApplication(db, actor, request)).toMatchObject({
+  expect(await createFundingApplication(db, actor, request, recordAuditEvent)).toMatchObject({
     status: "invalid",
     error: "request_total_too_large",
   });
 
-  const created = await createFundingApplication(db, actor, { ...request, requested: "" });
+  const created = await createFundingApplication(
+    db,
+    actor,
+    { ...request, requested: "" },
+    recordAuditEvent,
+  );
 
   if (created.status !== "ok") {
     throw new Error("Creation failed");

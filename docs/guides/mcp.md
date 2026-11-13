@@ -83,6 +83,19 @@ with server-derived freshness; it does not include their prose or old versions.
 Review summaries use a cursor combining kind and ID, so a request and assessment
 with the same ID remain distinct.
 
+To catch up on recent changes across a workspace, call `list_workspace_activity`.
+It returns who changed shared grant work, newest first, in pages of up to 50
+entries; pass `nextCursor` as `after` until it is `null`. Optional `roundId` (the round,
+its applications, and their assessments and recommendations) and `personId` filters
+narrow the list, as on the web; take person IDs from the returned `people`, and keep
+the same filters while following a cursor. Each entry carries the
+recorded person's name, web or MCP-client provenance, a stored action name, and the
+record's current title and browser link, or a null record that no longer exists.
+Only current program managers can read it. Edits that stay in an application's or
+round's own history are not listed; read the history listings for those. The
+[workflow](../workflows/review-and-decide.md#catch-up-on-shared-changes) lists what
+is recorded.
+
 Fetch longer material through `get_application_content` or
 `get_funding_round_content`. Choose a named section from the tool's input schema.
 For a specific assessment or review request, supply `entryId`. Use the history

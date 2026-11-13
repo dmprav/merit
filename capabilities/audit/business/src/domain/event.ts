@@ -7,7 +7,7 @@ const identifier = z.string().trim().min(1).max(200);
 const auditTargetSchema = z.strictObject({
   type: identifier,
   id: identifier,
-  revision: z.number().int().positive().nullable(),
+  revision: z.number().int().nonnegative().nullable(),
 });
 
 export const auditRecordSchema = z.strictObject({

@@ -13,6 +13,7 @@ import Compass from "lucide-react/icons/compass";
 import Copy from "lucide-react/icons/copy";
 import Ellipsis from "lucide-react/icons/ellipsis";
 import FileText from "lucide-react/icons/file-text";
+import History from "lucide-react/icons/history";
 import House from "lucide-react/icons/house";
 import Layers from "lucide-react/icons/layers";
 import LoaderCircle from "lucide-react/icons/loader-circle";
@@ -45,6 +46,7 @@ const icons = {
   home: House,
   layers: Layers,
   application: FileText,
+  activity: History,
   round: CalendarDays,
   left: ChevronLeft,
   right: ChevronRight,

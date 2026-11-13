@@ -38,6 +38,7 @@ describe("workspace MCP contracts", () => {
       expect(names).toEqual(
         expect.arrayContaining([
           "list_applications",
+          "list_workspace_activity",
           "get_application_content",
           "start_application_revision",
           "publish_application_revision",
@@ -209,6 +210,137 @@ describe("workspace MCP contracts", () => {
     } finally {
       await client.close();
     }
+  });
+  it("lists workspace activity with record links, people and filters, and follows its cursor", async () => {
+    const operations = testOperations();
+    const entry = {
+      id: "00000000-0000-4000-a000-000000000009",
+      recordedAt: "2027-01-20T12:00:00.000Z",
+      actor: null,
+      provenance: { interface: "mcp" as const, clientId: "grant-assistant" },
+      action: "round.budget",
+    };
+    operations.workspace.listWorkspaceActivity.mockResolvedValue({
+      status: "ok",
+      entries: [
+        { ...entry, record: { kind: "round", id, title: "Local Connections" } },
+        { ...entry, action: "application.delete", record: null },
+        {
+          ...entry,
+          action: "assessment.recorded",
+          record: { kind: "application", id: "b8q3w5j7c2df", title: "Workshop Saturdays" },
+        },
+      ],
+      people: [{ id: "private-person", name: "Private Person" }],
+      nextCursor: "cursor",
+    });
+    const client = await connect(operations);
+    try {
+      const result = await client.callTool({
+        name: "list_workspace_activity",
+        arguments: {
+          workspaceSlug: "alder",
+          roundId: id,
+          personId: "dana",
+          after: "previous",
+          limit: 3,
+        },
+      });
+
+      expect(operations.workspace.listWorkspaceActivity).toHaveBeenCalledWith(actor, {
+        workspaceSlug: "alder",
+        roundId: id,
+        personId: "dana",
+        after: "previous",
+        limit: 3,
+      });
+      expect(result.structuredContent).toEqual({
+        status: "ok",
+        entries: [
+          {
+            ...entry,
+            record: {
+              kind: "round",
+              id,
+              title: "Local Connections",
+              url: `http://localhost:3000/app/alder/rounds/${id}`,
+            },
+          },
+          { ...entry, action: "application.delete", record: null },
+          {
+            ...entry,
+            action: "assessment.recorded",
+            record: {
+              kind: "application",
+              id: "b8q3w5j7c2df",
+              title: "Workshop Saturdays",
+              url: "http://localhost:3000/app/alder/applications/b8q3w5j7c2df",
+            },
+          },
+        ],
+        people: [{ id: "private-person", name: "Private Person" }],
+        nextCursor: "cursor",
+      });
+      for (const filter of [{ personId: "" }, { roundId: "not-an-id" }, { after: "***" }]) {
+        expect(
+          (
+            await client.callTool({
+              name: "list_workspace_activity",
+              arguments: { workspaceSlug: "alder", ...filter },
+            })
+          ).isError,
+        ).toBe(true);
+      }
+      expect(operations.workspace.listWorkspaceActivity).toHaveBeenCalledOnce();
+    } finally {
+      await client.close();
+    }
+  });
+  it.each([
+    { status: "not_found" as const },
+    { status: "forbidden" as const },
+    { status: "invalid" as const },
+  ])("retains activity outcome $status", async (outcome) => {
+    const operations = testOperations();
+    operations.workspace.listWorkspaceActivity.mockResolvedValue(outcome);
+    const client = await connect(operations);
+    try {
+      expect(
+        (
+          await client.callTool({
+            name: "list_workspace_activity",
+            arguments: { workspaceSlug: "alder" },
+          })
+        ).structuredContent,
+      ).toEqual(outcome);
+    } finally {
+      await client.close();
+    }
+  });
+  it("requires the grant read scope for workspace activity", async () => {
+    const operations = testOperations();
+    const response = await handleWorkspaceMcp(
+      new Request(endpoint, {
+        method: "POST",
+        headers: {
+          host: endpoint.host,
+          "Content-Type": "application/json",
+          Accept: "application/json, text/event-stream",
+          "MCP-Protocol-Version": "2025-11-25",
+        },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "tools/call",
+          params: { name: "list_workspace_activity", arguments: { workspaceSlug: "alder" } },
+        }),
+      }),
+      endpoint.href,
+      { ...operations, authenticate: async () => ({ ...actor, scopes: ["grants:write"] }) },
+    );
+    expect(response.status).toBe(403);
+    expect(response.headers.get("WWW-Authenticate")).toContain("workspace:read");
+    expect(operations.workspace.listWorkspaceActivity).not.toHaveBeenCalled();
   });
   it("publishes only contracted fields in identical text and structured results", async () => {
     const operations = testOperations();

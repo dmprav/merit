@@ -89,6 +89,14 @@ export const en = {
       },
       loading: { title: "Loading applications…" },
     },
+    activity: {
+      unavailable: { title: "Activity could not be loaded", description: "Please try again." },
+      notFound: {
+        title: "Activity not available",
+        description: "Your account needs program-manager access to view activity.",
+      },
+      loading: { title: "Loading activity…" },
+    },
     rounds: {
       unavailable: {
         title: "Funding rounds could not be loaded",
@@ -154,6 +162,7 @@ export const en = {
     demo: "Explore demo",
     rounds: "Funding rounds",
     applications: "Applications",
+    activity: "Activity",
     backToApplications: "Back to applications",
     contacts: "Contacts",
     breadcrumb: "Breadcrumb",

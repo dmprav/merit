@@ -19,6 +19,9 @@ import {
   contentChunkSchema,
   historySummarySchema,
   readingErrorSchema,
+  activityEntrySchema,
+  workspaceActivityInput,
+  workspaceActivitySchema,
 } from "@merit/grantmaking/api";
 
 import type { RegisterTool } from "../../components/register-tool";
@@ -54,6 +57,7 @@ type ReadingOperations = Pick<
   | "applicationContent"
   | "roundHistory"
   | "applicationHistory"
+  | "listWorkspaceActivity"
 >;
 
 const registerApplicationReadingTools = (
@@ -211,6 +215,60 @@ const registerRoundReadingTools = (
   );
 };
 
+const activityRecordUrl = (
+  workspaceSlug: string,
+  record: { kind: "application" | "round"; id: string },
+  origin: string,
+) =>
+  new URL(
+    `/app/${workspaceSlug}/${record.kind === "round" ? "rounds" : "applications"}/${record.id}`,
+    origin,
+  ).href;
+
+const registerActivityTool = (
+  register: RegisterTool,
+  actor: McpActor,
+  workspace: ReadingOperations,
+  origin: string,
+) => {
+  register(
+    "list_workspace_activity",
+    {
+      ...read,
+      description:
+        "List who changed shared grant work in a workspace, newest first. Covers application creation, readiness, revisions, corrections and deletion; round creation, budget, criteria, manager and deletion; recorded and submitted assessments; and saved recommendations. Content edits, working revisions, drafts and invitations are not listed; read an application's or round's history for those. Each entry gives the recorded person's name (null when none was recorded), the web or MCP-client provenance, the stored action name, and the record's current title and url, or a null record when it no longer exists. Optional roundId (the round, its applications, and their assessments and recommendations) and personId (a person from `people`) filters narrow the list; `people` lists everyone with recorded activity and is returned with the first page only (empty when `after` is given). Follow nextCursor as after until null with the same filters; the cursor applies to the filtered list. Current program managers only.",
+      inputSchema: workspaceActivityInput,
+      outputSchema: z.object({
+        status: z.literal("ok"),
+        entries: z.array(
+          activityEntrySchema.extend({
+            record: activityEntrySchema.shape.record.unwrap().extend({ url: z.url() }).nullable(),
+          }),
+        ),
+        people: workspaceActivitySchema.shape.people,
+        nextCursor: z.string().nullable(),
+      }),
+    },
+    async (input) => {
+      const result = await workspace.listWorkspaceActivity(actor, input);
+      return result.status === "ok"
+        ? {
+            status: result.status,
+            nextCursor: result.nextCursor,
+            people: result.people,
+            entries: result.entries.map((entry) => ({
+              ...entry,
+              record: entry.record && {
+                ...entry.record,
+                url: activityRecordUrl(input.workspaceSlug, entry.record, origin),
+              },
+            })),
+          }
+        : result;
+    },
+  );
+};
+
 export const registerFundingReadingTools = (
   register: RegisterTool,
   actor: McpActor,
@@ -219,5 +277,6 @@ export const registerFundingReadingTools = (
 ) => {
   registerRoundReadingTools(register, actor, workspace, origin);
   registerApplicationReadingTools(register, actor, workspace, origin);
+  registerActivityTool(register, actor, workspace, origin);
   registerContentTools(register, actor, workspace);
 };

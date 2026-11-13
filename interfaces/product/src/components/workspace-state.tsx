@@ -25,6 +25,7 @@ export const WorkspaceState = ({
     | "round"
     | "application"
     | "applications"
+    | "activity"
     | "team"
     | "contacts";
   status:

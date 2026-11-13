@@ -9,6 +9,7 @@ import {
   editFundingApplication,
   selectApplicationContact,
 } from "@merit/applications/server";
+import { recordAuditEvent } from "@merit/audit/server/record";
 import {
   getFundingApplicationContent,
   getFundingApplicationContext,
@@ -27,27 +28,37 @@ import { applicationWork } from "../src/server/persistence/commands/application-
 it("keeps case identity and authorized material reads independent of round grouping", async ({
   db,
 }) => {
-  const round = await createFundingRound(db, actor, {
-    workspaceSlug,
-    requestId: randomUUID(),
-    title: "Intake group",
-  });
+  const round = await createFundingRound(
+    db,
+    actor,
+    {
+      workspaceSlug,
+      requestId: randomUUID(),
+      title: "Intake group",
+    },
+    recordAuditEvent,
+  );
   assert(round.status === "ok");
-  const application = await createFundingApplication(db, actor, {
-    workspaceSlug,
-    publicId: round.publicId,
-    requestId: randomUUID(),
-    title: "Independent request",
-    applicant: "Community group",
-    requested: "25.01",
-    answers: [
-      {
-        questionId: "87fccd1f-7f91-5e18-a784-9d11a01c0665",
-        question: "Purpose",
-        response: "Keep the request independently addressable.",
-      },
-    ],
-  });
+  const application = await createFundingApplication(
+    db,
+    actor,
+    {
+      workspaceSlug,
+      publicId: round.publicId,
+      requestId: randomUUID(),
+      title: "Independent request",
+      applicant: "Community group",
+      requested: "25.01",
+      answers: [
+        {
+          questionId: "87fccd1f-7f91-5e18-a784-9d11a01c0665",
+          question: "Purpose",
+          response: "Keep the request independently addressable.",
+        },
+      ],
+    },
+    recordAuditEvent,
+  );
   assert(application.status === "ok");
 
   await db.execute(
@@ -55,14 +66,19 @@ it("keeps case identity and authorized material reads independent of round group
   );
 
   expect(
-    await saveApplicationReview(db, actor, {
-      workspaceSlug,
-      publicId: application.publicId,
-      expectedRevision: reviewRevisionSchema.parse(0),
-      expectedApplicationVersion: materialVersionSchema.parse(1),
-      expectedCriteriaVersion: criteriaVersionSchema.parse(1),
-      change: { action: "request", id: randomUUID(), contactId: randomUUID(), replacesId: null },
-    }),
+    await saveApplicationReview(
+      db,
+      actor,
+      {
+        workspaceSlug,
+        publicId: application.publicId,
+        expectedRevision: reviewRevisionSchema.parse(0),
+        expectedApplicationVersion: materialVersionSchema.parse(1),
+        expectedCriteriaVersion: criteriaVersionSchema.parse(1),
+        change: { action: "request", id: randomUUID(), contactId: randomUUID(), replacesId: null },
+      },
+      recordAuditEvent,
+    ),
   ).toEqual({ status: "invalid", error: "criteria_unavailable" });
 
   const input = { workspaceSlug, applicationId: application.publicId };
@@ -97,27 +113,37 @@ it("keeps case identity and authorized material reads independent of round group
 it("reads immutable material versions without mixing in later staff interpretation", async ({
   db,
 }) => {
-  const round = await createFundingRound(db, actor, {
-    workspaceSlug,
-    requestId: randomUUID(),
-    title: "Versioned material",
-  });
+  const round = await createFundingRound(
+    db,
+    actor,
+    {
+      workspaceSlug,
+      requestId: randomUUID(),
+      title: "Versioned material",
+    },
+    recordAuditEvent,
+  );
   assert(round.status === "ok");
-  const created = await createFundingApplication(db, actor, {
-    workspaceSlug,
-    publicId: round.publicId,
-    requestId: randomUUID(),
-    title: "Original request",
-    applicant: "Applicant",
-    requested: "10",
-    answers: [
-      {
-        questionId: "87fccd1f-7f91-5e18-a784-9d11a01c0665",
-        question: "Purpose",
-        response: "Original evidence",
-      },
-    ],
-  });
+  const created = await createFundingApplication(
+    db,
+    actor,
+    {
+      workspaceSlug,
+      publicId: round.publicId,
+      requestId: randomUUID(),
+      title: "Original request",
+      applicant: "Applicant",
+      requested: "10",
+      answers: [
+        {
+          questionId: "87fccd1f-7f91-5e18-a784-9d11a01c0665",
+          question: "Purpose",
+          response: "Original evidence",
+        },
+      ],
+    },
+    recordAuditEvent,
+  );
   assert(created.status === "ok");
   const input = { workspaceSlug, applicationId: created.publicId, section: "material" as const };
   const original = await getFundingApplicationContent(db, actor, { ...input, materialVersion: 1 });
@@ -141,6 +167,7 @@ it("reads immutable material versions without mixing in later staff interpretati
       change: { action: "save_content", content: { title: "Updated request" } },
     },
     applicationWork,
+    recordAuditEvent,
   );
   assert(changed.status === "ok");
   const annotated = await editFundingApplication(
@@ -153,6 +180,7 @@ it("reads immutable material versions without mixing in later staff interpretati
       change: { action: "details", summary: "Staff interpretation" },
     },
     applicationWork,
+    recordAuditEvent,
   );
   assert(annotated.status === "ok");
   expect(await getFundingApplicationContent(db, actor, { ...input, materialVersion: 1 })).toEqual(
@@ -228,21 +256,31 @@ it("projects and clears the linked contact without putting profile data into rec
 });
 
 it("does not combine unrelated roundless requests into an artificial total", async ({ db }) => {
-  const round = await createFundingRound(db, actor, {
-    workspaceSlug,
-    requestId: randomUUID(),
-    title: "Intake",
-  });
+  const round = await createFundingRound(
+    db,
+    actor,
+    {
+      workspaceSlug,
+      requestId: randomUUID(),
+      title: "Intake",
+    },
+    recordAuditEvent,
+  );
   assert(round.status === "ok");
   const ids: string[] = [];
   for (const title of ["First request", "Second request"]) {
-    const result = await createFundingApplication(db, actor, {
-      workspaceSlug,
-      publicId: round.publicId,
-      requestId: randomUUID(),
-      title,
-      requested: "9999999999999999999999999999.99",
-    });
+    const result = await createFundingApplication(
+      db,
+      actor,
+      {
+        workspaceSlug,
+        publicId: round.publicId,
+        requestId: randomUUID(),
+        title,
+        requested: "9999999999999999999999999999.99",
+      },
+      recordAuditEvent,
+    );
     assert(result.status === "ok");
     ids.push(result.publicId);
     await db.execute(
@@ -260,6 +298,7 @@ it("does not combine unrelated roundless requests into an artificial total", asy
         change: { action: "save_content", content: { title: "Revised first request" } },
       },
       applicationWork,
+      recordAuditEvent,
     ),
   ).toMatchObject({ status: "ok" });
 });

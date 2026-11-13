@@ -117,7 +117,7 @@ export const historySummarySchema = z.object({
   recordedAt: z.string(),
 });
 export const readingErrorSchema = z.object({
-  status: z.enum(["not_found", "forbidden", "conflict", "invalid_range"]),
+  status: z.enum(["not_found", "forbidden", "conflict", "invalid_range", "invalid"]),
 });
 
 export const contactApplicationListInput = roundListInput.extend({ contactId: z.uuid() });

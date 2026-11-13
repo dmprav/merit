@@ -1034,9 +1034,11 @@ const auditFiles = {
       "./server/record": "./src/server/integrations.ts",
       "./server": "./src/server/index.ts",
       "./server/demo": "./src/server/demo.ts",
+      "./server/read": "./src/server/read.ts",
     },
   }),
   "capabilities/audit/business/src/server/integrations.ts": "export const value = 1;",
+  "capabilities/audit/business/src/server/read.ts": "export const value = 1;",
   "capabilities/audit/business/src/server/index.ts": "export const value = 1;",
   "capabilities/audit/business/src/server/demo.ts": "export const value = 1;",
 };
@@ -1051,11 +1053,23 @@ test("audit recording is available to application assembly and cleanup to the op
   });
 });
 
+test("grantmaking queries read audit activity through audit's reading entry", () => {
+  check({
+    ...auditFiles,
+    [`${grantmakingRoot}/src/server/queries/probe.ts`]:
+      'export { value } from "@merit/audit/server/read";',
+  });
+});
+
 test.each([
   [`${grantmakingRoot}/src/server/commands/probe.ts`, "@merit/audit/server/record"],
   [`${grantmakingRoot}/src/server/queries/probe.ts`, "@merit/audit/server/record"],
   [`${grantmakingRoot}/src/server/commands/probe.ts`, "@merit/audit/server"],
   [`${grantmakingRoot}/src/server/commands/probe.ts`, "@merit/audit/server/demo"],
+  [`${grantmakingRoot}/src/server/commands/probe.ts`, "@merit/audit/server/read"],
+  [`${grantmakingRoot}/src/server/persistence/queries/probe.ts`, "@merit/audit/server/read"],
+  [`${contactsRoot}/src/server/queries/probe.ts`, "@merit/audit/server/read"],
+  ["app/src/server/services.server.ts", "@merit/audit/server/read"],
   ["app/scripts/ordinary-task.ts", "@merit/audit/server/demo"],
   ["capabilities/audit/business/src/server/queries/probe.ts", "@merit/grantmaking/server"],
 ])("audit boundary rejects %s importing %s", (path, source) => {

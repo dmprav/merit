@@ -7,6 +7,7 @@ import type { ReviewService } from "@merit/reviews/api";
 import type { RoundsService } from "@merit/rounds/api";
 
 import type { ApplicationRequest, PublicRoundRequest } from "./queries";
+import type { workspaceActivityInput, WorkspaceActivity } from "./queries/activity";
 import type { ApplicationOverview } from "./queries/application-overview";
 import type { IntakeState, PreparationState } from "./queries/editing-state";
 import type {
@@ -87,6 +88,10 @@ export interface GrantmakingQueries {
   ) => Promise<
     { status: "ok"; applications: ApplicationOverview[] } | NotFound | { status: "forbidden" }
   >;
+  listWorkspaceActivity: (
+    actor: Actor,
+    input: z.input<typeof workspaceActivityInput>,
+  ) => Promise<WorkspaceActivity | NotFound | { status: "forbidden" | "invalid" }>;
   listReviews: (
     actor: Actor,
     input: z.input<typeof reviewListInput>,

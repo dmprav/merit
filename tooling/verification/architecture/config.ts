@@ -50,6 +50,7 @@ const businessRoles: Record<string, [pattern: string, allowed: string]> = {
     "server/integrations.ts",
     "{domain,command-persistence,query-persistence,shared-persistence}",
   ],
+  reading: ["server/read.ts", "{domain,queries,query-persistence,shared-persistence}"],
   demo: ["server/demo.ts", "{domain,examples,command-persistence,shared-persistence}"],
   examples: ["examples/**", "{domain,api,examples}"],
 };
@@ -143,6 +144,11 @@ const serverImports = [
     { file: { path: "app/src/server/services.server.ts" } },
     "@merit/audit/server/record",
     business("audit", "integrations"),
+  ),
+  permitServer(
+    business("grantmaking", "queries"),
+    "@merit/audit/server/read",
+    business("audit", "reading"),
   ),
   permitServer(
     business("{applications,reviews}", "commands"),

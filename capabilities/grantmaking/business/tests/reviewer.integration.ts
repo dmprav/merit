@@ -4,6 +4,7 @@ import { assert, expect } from "vite-plus/test";
 
 import { materialVersionSchema } from "@merit/applications/domain";
 import { editFundingApplication } from "@merit/applications/server";
+import { recordAuditEvent } from "@merit/audit/server/record";
 import { changeWorkspaceContact } from "@merit/contacts/server";
 import { actor } from "@merit/organizations/testing/workspace";
 import type { ReviewerMessage } from "@merit/reviews/api";
@@ -20,6 +21,7 @@ import {
 } from "../src/server";
 import { fundingRoundContactUsage } from "../src/server/integrations";
 import { applicationWork } from "../src/server/persistence/commands/application-work";
+import { failingRecorder, recordedEvents } from "./audit-events";
 import { roundTest } from "./round-test";
 
 const sam = { userId: "sam" };
@@ -42,19 +44,32 @@ const it = roundTest.extend("reviewerScenario", async ({ db, database, rounds })
   assert(created.status === "ok");
   const requestId = randomUUID();
   expect(
-    await saveApplicationReview(db, actor, {
-      ...address,
-      expectedRevision: reviewRevisionSchema.parse(0),
-      expectedApplicationVersion: materialVersionSchema.parse(1),
-      expectedCriteriaVersion: criteriaVersionSchema.parse(1),
-      change: { action: "request", id: requestId, contactId: created.contact.id, replacesId: null },
-    }),
+    await saveApplicationReview(
+      db,
+      actor,
+      {
+        ...address,
+        expectedRevision: reviewRevisionSchema.parse(0),
+        expectedApplicationVersion: materialVersionSchema.parse(1),
+        expectedCriteriaVersion: criteriaVersionSchema.parse(1),
+        change: {
+          action: "request",
+          id: requestId,
+          contactId: created.contact.id,
+          replacesId: null,
+        },
+      },
+      recordAuditEvent,
+    ),
   ).toMatchObject({ status: "ok" });
   const messages: ReviewerMessage[] = [];
   let failDelivery = false;
+  let failAudit = false;
   const service = createReviewerService({
     database: async (operation) => operation(db),
     verifiedEmails: async (person) => [`${person.userId}@example.test`],
+    recordAuditEvent: (tx, event) =>
+      failAudit ? failingRecorder(tx, event) : recordAuditEvent(tx, event),
     send: async (message) => {
       if (failDelivery) {
         throw new Error("Sender unavailable");
@@ -138,6 +153,9 @@ const it = roundTest.extend("reviewerScenario", async ({ db, database, rounds })
     setDeliveryFailure: (value: boolean) => {
       failDelivery = value;
     },
+    setAuditFailure: (value: boolean) => {
+      failAudit = value;
+    },
   };
 });
 
@@ -200,6 +218,27 @@ it("completes an independently authored review without membership or draft expos
   };
   expect(await s.service.submit(sam, submission)).toEqual({ status: "ok", value: { revision: 2 } });
   expect(await s.service.submit(sam, submission)).toEqual({ status: "ok", value: { revision: 2 } });
+
+  // The reviewer, not the manager, is the recorded person; a replay records nothing more.
+  const submitted = () => recordedEvents(database.client, "action = 'assessment.submitted'");
+
+  expect(await submitted()).toEqual([`assessment.submitted assessment/${s.assignmentId}@1`]);
+  expect(
+    (
+      await database.client.query(
+        "SELECT * FROM audit_events WHERE action = 'assessment.submitted'",
+      )
+    ).rows,
+  ).toMatchObject([
+    {
+      organization_id: "alder",
+      actor_user_id: "sam",
+      actor_name: "Sam Morgan",
+      provenance: { interface: "web" },
+      target_type: "assessment",
+      target_revision: 1,
+    },
+  ]);
   expect(s.messages.filter((message) => message.kind === "submission")).toHaveLength(1);
   const manager = await getFundingApplicationPage(db, actor, s.address);
   assert(manager);
@@ -209,27 +248,75 @@ it("completes an independently authored review without membership or draft expos
   });
   expect(manager.application.reviews.requests[0]?.status).toBe("received");
   expect(
-    await saveApplicationReview(db, actor, {
-      ...s.address,
-      expectedRevision: manager.application.reviews.revision,
-      expectedApplicationVersion: materialVersionSchema.parse(1),
-      expectedCriteriaVersion: criteriaVersionSchema.parse(1),
-      change: {
-        action: "edit",
-        id: s.assignmentId,
-        content: manager.application.reviews.assessments[0]!.versions[0]!.content,
-        note: "Manager correction",
+    await saveApplicationReview(
+      db,
+      actor,
+      {
+        ...s.address,
+        expectedRevision: manager.application.reviews.revision,
+        expectedApplicationVersion: materialVersionSchema.parse(1),
+        expectedCriteriaVersion: criteriaVersionSchema.parse(1),
+        change: {
+          action: "edit",
+          id: s.assignmentId,
+          content: manager.application.reviews.assessments[0]!.versions[0]!.content,
+          note: "Manager correction",
+        },
       },
-    }),
+      recordAuditEvent,
+    ),
   ).toMatchObject({ status: "invalid", error: "reviewer_authored" });
   expect(await s.save("Amended independent reasoning")).toMatchObject({ status: "ok" });
   expect(await s.submit()).toEqual({ status: "invalid" });
+  expect(await submitted()).toHaveLength(1);
   expect(await s.save("Amended independent reasoning", "Corrected interpretation")).toMatchObject({
     status: "ok",
   });
   expect(await s.submit()).toMatchObject({ status: "ok" });
+  expect(await submitted()).toEqual(
+    [
+      `assessment.submitted assessment/${s.assignmentId}@1`,
+      `assessment.submitted assessment/${s.assignmentId}@2`,
+    ].sort(),
+  );
+  // The manager's rejected edit of the reviewer's assessment recorded nothing.
+  expect(await recordedEvents(database.client, "action = 'assessment.recorded'")).toEqual([]);
   expect((await s.read()).assessment?.versions).toHaveLength(2);
   expect(s.messages.filter((message) => message.kind === "submission")).toHaveLength(2);
+});
+
+it("rolls back a reviewer's submission when its audit event cannot be recorded", async ({
+  database,
+  reviewerScenario: s,
+}) => {
+  expect(await s.respond("accept")).toMatchObject({ status: "ok" });
+  expect(await s.save()).toMatchObject({ status: "ok" });
+  s.setAuditFailure(true);
+  await expect(s.submit()).rejects.toThrow("Recorder failed");
+  s.setAuditFailure(false);
+  expect((await s.read()).assessment).toBeNull();
+  expect((await database.client.query("SELECT id FROM assessments")).rows).toEqual([]);
+  expect(await recordedEvents(database.client, "target_type = 'assessment'")).toEqual([]);
+  expect(await s.submit()).toMatchObject({ status: "ok" });
+  expect(await recordedEvents(database.client, "target_type = 'assessment'")).toHaveLength(1);
+});
+
+it("records a submission under the name the assessment carries when the profile has none", async ({
+  database,
+  reviewerScenario: s,
+}) => {
+  await database.client.query("UPDATE app_users SET name = NULL WHERE id = 'sam'");
+  expect(await s.respond("accept")).toMatchObject({ status: "ok" });
+  expect(await s.save()).toMatchObject({ status: "ok" });
+  expect(await s.submit()).toMatchObject({ status: "ok" });
+
+  expect(
+    (
+      await database.client.query(
+        "SELECT actor_name FROM audit_events WHERE action = 'assessment.submitted'",
+      )
+    ).rows,
+  ).toEqual([{ actor_name: "Sam Morgan" }]);
 });
 
 it("pauses conflicts and revokes immediately while preserving private drafts for explicit reinstatement", async ({
@@ -319,6 +406,7 @@ it("keeps the assigned evidence and criteria when newer versions arrive", async 
         change,
       },
       applicationWork,
+      recordAuditEvent,
     );
 
   await edit({ action: "mark_ready" });
@@ -344,21 +432,26 @@ it("keeps the assigned evidence and criteria when newer versions arrive", async 
   });
   expect(await edit({ action: "publish_revision" })).toMatchObject({ status: "ok" });
   expect(
-    await editFundingRound(db, actor, {
-      workspaceSlug: "alder",
-      publicId: rounds.pageInput.publicId,
-      expectedRevision: 0,
-      change: {
-        section: "criteria",
-        criteria: [
-          {
-            id: "0ce46ffb-63fc-50b1-a4b8-72a16d15e288",
-            title: "New criterion",
-            description: "New emphasis",
-          },
-        ],
+    await editFundingRound(
+      db,
+      actor,
+      {
+        workspaceSlug: "alder",
+        publicId: rounds.pageInput.publicId,
+        expectedRevision: 0,
+        change: {
+          section: "criteria",
+          criteria: [
+            {
+              id: "0ce46ffb-63fc-50b1-a4b8-72a16d15e288",
+              title: "New criterion",
+              description: "New emphasis",
+            },
+          ],
+        },
       },
-    }),
+      recordAuditEvent,
+    ),
   ).toMatchObject({ status: "ok" });
   const page = await s.read();
   expect(page).toMatchObject({
@@ -591,12 +684,17 @@ it("uses one freshness policy for reviewer, manager, workspace and MCP reads aft
     criteria: { id: string; title: string; description: string }[],
   ) => {
     expect(
-      await editFundingRound(db, actor, {
-        workspaceSlug: "alder",
-        publicId: rounds.pageInput.publicId,
-        expectedRevision,
-        change: { section: "criteria", criteria },
-      }),
+      await editFundingRound(
+        db,
+        actor,
+        {
+          workspaceSlug: "alder",
+          publicId: rounds.pageInput.publicId,
+          expectedRevision,
+          change: { section: "criteria", criteria },
+        },
+        recordAuditEvent,
+      ),
     ).toMatchObject({ status: "ok" });
   };
 

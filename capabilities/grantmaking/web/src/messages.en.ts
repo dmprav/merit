@@ -3,6 +3,7 @@ import { recommendationsMessages } from "@merit/recommendations-web/message-cont
 import { reviewStatusMessages } from "@merit/reviews-web/message-content";
 import { preparationMessages } from "@merit/rounds-web/message-content";
 
+import { activityMessages } from "./views/activity/messages.en";
 import { applicationHistoryMessages } from "./views/applications/application-history.messages";
 import { applicationsMessages } from "./views/applications/messages.en";
 import { creationMessages } from "./views/creation/messages.en";
@@ -21,6 +22,7 @@ export const en = {
   ...recommendationsMessages,
   ...applicationsMessages,
   ...roundsMessages,
+  ...activityMessages,
   journey: {
     title: "Review a revised request",
     application: "Review Workshop Saturdays",
