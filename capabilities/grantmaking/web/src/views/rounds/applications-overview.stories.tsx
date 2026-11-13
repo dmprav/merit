@@ -101,6 +101,22 @@ export const AcrossRounds: StoryObj<typeof meta> = {
     );
     await expect(canvas.getByText("No applications in this round yet.")).toBeVisible();
     await expect(canvas.getByText("0 of 2 applications")).toBeVisible();
+    await userEvent.click(canvas.getByRole("button", { name: "Clear filters" }));
+    await expect(canvas.getByText("2 of 2 applications")).toBeVisible();
+  },
+};
+export const Filtered: StoryObj<typeof meta> = {
+  args: { query: "Repair", filter: "changed" },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByRole("status")).toHaveTextContent("1 of 2 applications");
+    await expect(canvas.getByRole("button", { name: "Clear filters" })).toBeVisible();
+  },
+};
+export const NoMatches: StoryObj<typeof meta> = {
+  args: { query: "Repair", filter: "unwritten" },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByText("No applications match your search and filter.")).toBeVisible();
+    await expect(canvas.getByText("0 of 2 applications")).toBeVisible();
   },
 };
 export const Empty: StoryObj<typeof meta> = { args: { applications: [], rounds: [] } };

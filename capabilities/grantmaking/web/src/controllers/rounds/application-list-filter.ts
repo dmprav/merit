@@ -1,20 +1,17 @@
-import type { RoundView } from "@merit/grantmaking/api";
+import type { ApplicationOverview, RoundView } from "@merit/grantmaking/api";
 
-export const applicationFilters = [
-  "all",
-  "preparing",
-  "awaiting",
-  "unassigned",
-  "changed",
-  "unknown",
-  "unwritten",
-] as const;
+import { applicationFilters, type ApplicationFilter } from "../../contracts/pages";
 
-export type ApplicationFilter = (typeof applicationFilters)[number];
+export { applicationFilters, type ApplicationFilter };
 
-type Application = RoundView["applications"][number];
+type RoundApplication = RoundView["applications"][number];
 
-export const matchesApplicationFilter = (application: Application, filter: ApplicationFilter) => {
+type Application = RoundApplication | ApplicationOverview;
+
+const matchesRoundApplicationFilter = (
+  application: RoundApplication,
+  filter: ApplicationFilter,
+) => {
   switch (filter) {
     case "all":
       return true;
@@ -41,7 +38,47 @@ export const matchesApplicationFilter = (application: Application, filter: Appli
   }
 };
 
-export const matchesApplicationSearch = (application: Application, query: string) =>
-  `${application.title} ${application.submission?.organization ?? ""}`
+const matchesOverviewApplicationFilter = (
+  application: ApplicationOverview,
+  filter: ApplicationFilter,
+) => {
+  switch (filter) {
+    case "all":
+      return true;
+    case "preparing":
+      return application.intakeStatus === "in_preparation";
+    case "awaiting":
+      return application.reviews.outstanding > 0;
+    case "unassigned":
+      return (
+        application.reviews.current +
+          application.reviews.outdated +
+          application.reviews.outstanding +
+          application.reviews.unknown ===
+        0
+      );
+    case "changed":
+      return (
+        application.reviews.outdated > 0 ||
+        application.criteriaChanged ||
+        Boolean(application.recommendation?.outdated)
+      );
+    case "unknown":
+      return application.reviews.unknown > 0;
+    case "unwritten":
+      return application.recommendation === null;
+  }
+};
+
+export const matchesApplicationFilter = (application: Application, filter: ApplicationFilter) =>
+  "assessments" in application
+    ? matchesRoundApplicationFilter(application, filter)
+    : matchesOverviewApplicationFilter(application, filter);
+
+export const matchesApplicationSearch = (application: Application, query: string) => {
+  const applicant =
+    "assessments" in application ? application.submission?.organization : application.applicant;
+  return `${application.title} ${applicant ?? ""}`
     .toLocaleLowerCase("en")
     .includes(query.trim().toLocaleLowerCase("en"));
+};
