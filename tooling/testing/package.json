@@ -9,6 +9,7 @@
     "./test-database": "./database/test-database.ts",
     "./browser": "./browser/checks.ts",
     "./browser/config": "./browser/config.ts",
+    "./browser/calendar": "./browser/calendar.ts",
     "./browser/navigation": "./browser/navigation.ts",
     "./ui": "./ui/setup.ts",
     "./ui/workspace": "./ui/setup-workspace.ts"

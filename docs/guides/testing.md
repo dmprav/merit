@@ -273,5 +273,11 @@ contexts receive the same checks and cleanup. Expected errors belong in explicit
 assertions in the test that triggers them; layout and accessibility checks remain
 explicit at settled screen states.
 
+Calendar day buttons take their names from each engine's `Intl` date formatting,
+whose locale data differs: WebKit on Linux names a day "Thursday 21 January 2027",
+while Chromium and Firefox add a comma after the weekday. Locate days with
+[`calendarDay`](../../tooling/testing/browser/calendar.ts) from
+`@merit/test-support/browser/calendar` so cross-browser specs accept both forms.
+
 Follow the [runtime prerequisites and execution guidance](verification.md#integration-and-runtime-checks)
 when running these suites, including the workspace suite's single-worker requirement.

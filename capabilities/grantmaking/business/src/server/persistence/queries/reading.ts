@@ -1,13 +1,13 @@
 import { and, eq, gt, sql, type SQL } from "drizzle-orm";
 
 import { applicationCases, materialVersions } from "@merit/applications/schema";
-import { caseChanges } from "@merit/applications/schema";
 import {
   applicationDetails,
   currentMaterial,
   currentSubmission,
   workingRevision,
 } from "@merit/applications/scope";
+import { auditEvents } from "@merit/audit/schema";
 import { appUsers } from "@merit/auth/schema";
 import type { Database } from "@merit/db";
 import { memberships, organizations } from "@merit/organizations/schema";
@@ -19,7 +19,7 @@ import { reviewAssignments } from "@merit/reviews/participation-schema";
 import { reviewRequests, assessments, assessmentVersions } from "@merit/reviews/schema";
 import { reviewRevision } from "@merit/reviews/scope";
 import { assessmentRecord, currentReviews, reviewRequestRecord } from "@merit/reviews/scope";
-import { criteriaVersions, fundingRounds, roundChanges } from "@merit/rounds/schema";
+import { criteriaVersions, fundingRounds } from "@merit/rounds/schema";
 import { managerNeedsReassignment } from "@merit/rounds/scope";
 import { criteriaHistory, currentCriteria, roundRecord } from "@merit/rounds/scope";
 
@@ -215,8 +215,8 @@ const readIntakeOrPreparationChange = async (
   },
   kind: "intake" | "preparation",
 ) => {
-  const table = kind === "intake" ? caseChanges : roundChanges;
-  const source = sql`jsonb_build_object('revision', ${table.revision}, 'action', ${table.action}, 'reason', ${table.reason}, 'actorUserId', ${table.actorUserId}, 'provenance', ${table.provenance}, 'recordedAt', ${table.recordedAt}, 'before', ${table.before}, 'after', ${table.after})`;
+  const table = auditEvents;
+  const source = sql`jsonb_build_object('revision', ${table.targetRevision}, 'action', ${table.action}, 'reason', ${table.details}->'reason', 'actorUserId', ${table.actorUserId}, 'actorName', ${table.actorName}, 'formatVersion', ${table.formatVersion}, 'provenance', ${table.provenance}, 'recordedAt', ${table.recordedAt}, 'before', ${table.details}->'before', 'after', ${table.details}->'after')`;
   const [row] = await db
     .select(chunkFields(source, input.offset, input.length))
     .from(table)
@@ -226,8 +226,9 @@ const readIntakeOrPreparationChange = async (
     .where(
       and(
         access(actor, input.workspaceSlug),
-        eq(table.publicId, input.recordId),
-        eq(table.revision, input.revision),
+        eq(table.targetId, input.recordId),
+        eq(table.targetType, kind === "intake" ? "application" : "round"),
+        eq(table.targetRevision, input.revision),
       ),
     );
   return row;
@@ -344,7 +345,7 @@ export const readGrantHistory = (
 ) => {
   // History remains available after an eligible record is deleted. Workspace
   // authorization is joined to the history owner's organization on every call.
-  const history = input.history === "preparation" ? roundChanges : caseChanges;
+  const history = auditEvents;
   if (input.history === "recommendation") {
     return db
       .select({
@@ -370,7 +371,11 @@ export const readGrantHistory = (
       .limit(input.limit + 1);
   }
   return db
-    .select({ revision: history.revision, action: history.action, recordedAt: history.recordedAt })
+    .select({
+      revision: sql<number>`${history.targetRevision}`,
+      action: history.action,
+      recordedAt: history.recordedAt,
+    })
     .from(history)
     .innerJoin(organizations, eq(organizations.id, history.organizationId))
     .innerJoin(memberships, eq(memberships.organizationId, organizations.id))
@@ -378,11 +383,14 @@ export const readGrantHistory = (
     .where(
       and(
         access(actor, input.workspaceSlug),
-        eq(history.publicId, (input.roundId ?? input.applicationId)!),
-        input.afterRevision === undefined ? undefined : gt(history.revision, input.afterRevision),
+        eq(history.targetId, (input.roundId ?? input.applicationId)!),
+        eq(history.targetType, input.history === "preparation" ? "round" : "application"),
+        input.afterRevision === undefined
+          ? undefined
+          : gt(history.targetRevision, input.afterRevision),
       ),
     )
-    .orderBy(history.revision)
+    .orderBy(history.targetRevision)
     .limit(input.limit + 1);
 };
 

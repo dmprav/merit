@@ -1,5 +1,6 @@
 import { lockApplicationCase } from "@merit/applications/locks";
-import { actorProvenance, type Actor, type Provenance } from "@merit/auth";
+import { recordAuditEvent } from "@merit/audit/server/record";
+import { actorProvenance, type Actor } from "@merit/auth";
 import type { Database } from "@merit/db";
 import { lockGrantWorkspace } from "@merit/organizations/locks";
 
@@ -17,6 +18,7 @@ import {
   lockReviewerAssignment,
   reviewerReceipt,
   recordReviewerEvent,
+  recordReviewerReceipt,
   reviewContact,
   invitationLimited,
   queueReviewerMessage,
@@ -42,7 +44,6 @@ import {
   reviewerMembership,
   type ReviewerRecord,
 } from "../persistence/reviewer-records";
-import type { RecordAssessmentAudit } from "./reviews";
 
 const expires = () => new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
@@ -106,13 +107,16 @@ export const inviteReviewer = async (
       },
       emptyReviewerDraft(),
     );
-    await recordReviewerEvent(tx, {
+    await recordReviewerReceipt(tx, {
       assignmentId: id,
       commandId: request.commandId,
+      revision: 0,
+    });
+    await recordReviewerEvent(tx, {
+      assignmentId: id,
       actor,
       name: access.actor.name ?? managerEmail,
       action: "invite",
-      revision: 0,
     });
     await queueReviewerMessage(tx, id, request.commandId, "invitation", email);
     return { status: "ok", id } as const;
@@ -160,15 +164,16 @@ export const manageReviewer = async (
     if (changed.status !== "ok") {
       return changed;
     }
-    await recordReviewerEvent(tx, {
-      assignmentId: assignment.id,
-      commandId: request.commandId,
-      actor,
-      name: access.actor.name ?? assignment.managerName,
-      action: request.action,
-      note: request.note,
-      revision,
-    });
+    await recordReviewerReceipt(tx, { ...request, revision });
+    if (request.action !== "retry_notification") {
+      await recordReviewerEvent(tx, {
+        assignmentId: assignment.id,
+        actor,
+        name: access.actor.name ?? assignment.managerName,
+        action: request.action,
+        note: request.note,
+      });
+    }
     return { status: "ok", id: assignment.id } as const;
   });
 };
@@ -239,14 +244,13 @@ export const respondToReview = async (
         user.name ?? record.reviewer,
       );
     }
+    await recordReviewerReceipt(tx, { ...request, revision });
     await recordReviewerEvent(tx, {
       assignmentId: assignment.id,
-      commandId: request.commandId,
       actor,
       name: user.name ?? record.reviewer,
       action: request.action,
       note: request.note,
-      revision,
     });
     return { status: "ok", id: assignment.id } as const;
   });
@@ -292,22 +296,10 @@ export const saveReviewerDraft = async (
   });
 };
 
-const submittedEvent = (
-  organizationId: string,
-  recorder: { userId: string; name: string; provenance: Provenance },
-  assessment: { assessmentId: string; version: number },
-): Parameters<RecordAssessmentAudit>[1] => ({
-  organizationId,
-  actor: { userId: recorder.userId, name: recorder.name, provenance: recorder.provenance },
-  action: "assessment.submitted",
-  target: { type: "assessment", id: assessment.assessmentId, revision: assessment.version },
-});
-
 export const submitReviewerAssessment = async (
   db: Database,
   actor: Actor,
   input: Parameters<ReviewerService["submit"]>[1],
-  recordAuditEvent: RecordAssessmentAudit,
 ): ReturnType<ReviewerService["submit"]> => {
   const parsed = submitReviewerSchema.safeParse(input);
   if (!parsed.success) {
@@ -371,13 +363,10 @@ export const submitReviewerAssessment = async (
     if (recorded.status !== "ok") {
       return recorded;
     }
-    await recordAuditEvent(tx, submittedEvent(assignment.organizationId, recorder, recorded));
     return completeReviewerSubmission(tx, {
       assignment,
       draft,
       content,
-      actor,
-      name: recorder.name,
       commandId: request.commandId,
     });
   });
@@ -529,6 +518,13 @@ const recordOwnAssessment = async (
     next.assessments.find((value) => value.id === assignment.id)!.authorUserId = recorder.userId;
   }
   await recordReviewChange(tx, row, next);
+  await recordSubmissionEvent(tx, {
+    record,
+    recorder,
+    content,
+    note,
+    recorded: { assessmentId: assignment.assessmentId ?? assignment.id, version },
+  });
   return {
     status: "ok",
     assessmentId: assignment.assessmentId ?? assignment.id,
@@ -579,15 +575,11 @@ const completeReviewerSubmission = async (
     assignment,
     draft,
     content,
-    actor,
-    name,
     commandId,
   }: {
     assignment: ReviewerRecord["assignment"];
     draft: NonNullable<Awaited<ReturnType<typeof readPrivateReviewerDraft>>>;
     content: NonNullable<ReturnType<typeof reviewerSubmission>>;
-    actor: Actor;
-    name: string;
     commandId: string;
   },
 ): ReturnType<ReviewerService["submit"]> => {
@@ -603,15 +595,48 @@ const completeReviewerSubmission = async (
     assessmentId: assignment.assessmentId ?? assignment.id,
     revision: assignment.revision + 1,
   });
-  await recordReviewerEvent(tx, {
-    assignmentId: assignment.id,
-    commandId: commandId,
-    actor,
-    name,
-    action: assignment.assessmentId ? "amend" : "submit",
-    note: draft.content.note.trim(),
-    revision,
-  });
+  await recordReviewerReceipt(tx, { assignmentId: assignment.id, commandId, revision });
   await queueReviewerMessage(tx, assignment.id, commandId, "submission", assignment.managerEmail);
   return { status: "ok", value: { revision } };
+};
+
+const recordSubmissionEvent = async (
+  tx: ReviewerTransaction,
+  {
+    record,
+    recorded,
+    recorder,
+    content,
+    note,
+  }: {
+    record: ReviewerRecord;
+    recorded: { assessmentId: string; version: number };
+    recorder: { userId: string; name: string; provenance: ReturnType<typeof actorProvenance> };
+    content: NonNullable<ReturnType<typeof reviewerSubmission>>;
+    note: string;
+  },
+) => {
+  await recordAuditEvent(tx, {
+    organizationId: record.assignment.organizationId,
+    actor: { userId: recorder.userId, name: recorder.name, provenance: recorder.provenance },
+    action: record.assignment.assessmentId ? "assessment.amended" : "assessment.submitted",
+    target: {
+      type: "assessment",
+      id: recorded.assessmentId,
+      revision: recorded.version,
+      name: record.title,
+    },
+    context: {
+      roundId: record.criteriaRoundId,
+      applicationId: record.assignment.caseId,
+      assignmentId: record.assignment.id,
+    },
+    details: {
+      note: note.trim(),
+      requestId: record.assignment.requestId,
+      authorUserId: recorder.userId,
+      applicationVersion: content.applicationVersion,
+      criteriaVersion: content.criteriaVersion,
+    },
+  });
 };

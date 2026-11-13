@@ -1,12 +1,12 @@
 import { and, eq, isNull } from "drizzle-orm";
 
-import { actorProvenance, type Actor } from "@merit/auth";
+import { type Actor } from "@merit/auth";
 import { appUsers } from "@merit/auth/schema";
 
 import { memberships, organizations } from "../membership-schema";
 import { invitations } from "../schema";
 import type { Transaction } from "../transaction";
-import { event } from "./invitations";
+import { recordOrganizationEvent } from "./events";
 
 export const insertOrganization = async (
   tx: Transaction,
@@ -112,12 +112,16 @@ export const recordInvitationAcceptance = async (
     .update(invitations)
     .set({ acceptedAt: new Date(), acceptedBy: userId })
     .where(eq(invitations.id, invitation.id));
-  await event(
-    tx,
-    invitation.organizationId,
-    userId,
-    "accepted",
-    { invitationId: invitation.id },
-    actorProvenance(actor),
-  );
+  await recordOrganizationEvent(tx, {
+    organizationId: invitation.organizationId,
+    actor,
+    action: "team_invitation.accepted",
+    target: { type: "team_invitation", id: invitation.id, name: invitation.email },
+    details: {
+      invitationId: invitation.id,
+      email: invitation.email,
+      role: invitation.role,
+      administration: invitation.administration,
+    },
+  });
 };

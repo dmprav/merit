@@ -193,7 +193,7 @@ reproduce the same database structure. Before the first deployment, migrations
 may be consolidated into a fresh baseline; existing local databases then need
 [recreation](#local-database-recovery). Preserve the handwritten public-ID function,
 deferred current-version foreign keys, content checks, outstanding-review index,
-and version, reviewer-event, authorship, and audit immutability triggers when
+the audit organization foreign key, and version, authorship, and audit immutability triggers when
 regenerating the baseline. Once deployed, keep applied migrations
 unchanged and add a new migration for subsequent changes.
 `vp run @merit/db#db:check` checks migration metadata.
@@ -203,7 +203,8 @@ unchanged and add a new migration for subsequent changes.
 The current pre-deployment baseline is
 [`0000_initial.sql`](../../foundation/db/database/migrations/0000_initial.sql).
 It creates the complete current schema, including reviewer participation, navigation
-pins, capability-owned revisions, and audit provenance, in one migration.
+pins, capability-owned revisions and retry receipts, and one shared audit event store,
+in one migration.
 Recreate all databases initialized before this baseline, including those whose
 first migration was also named `0000_initial.sql`. The baseline has no upgrade
 or backfill path for prototype data; rerunning migrations does not reset it.

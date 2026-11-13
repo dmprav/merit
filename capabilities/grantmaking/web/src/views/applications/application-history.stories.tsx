@@ -43,7 +43,7 @@ const third = {
 const history = [
   {
     revision: 2,
-    action: "revision",
+    action: "application.revision_recorded",
     actor: "Dana Reed",
     provenance: { interface: "web" },
     reason: "The applicant added accessible transport to the requested budget.",
@@ -53,7 +53,7 @@ const history = [
   },
   {
     revision: 3,
-    action: "revision",
+    action: "application.revision_recorded",
     actor: "Dana Reed",
     provenance: { interface: "web" },
     reason: "The applicant clarified booking and access arrangements.",

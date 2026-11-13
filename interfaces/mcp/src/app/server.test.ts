@@ -218,13 +218,21 @@ describe("workspace MCP contracts", () => {
       recordedAt: "2027-01-20T12:00:00.000Z",
       actor: null,
       provenance: { interface: "mcp" as const, clientId: "grant-assistant" },
-      action: "round.budget",
+      action: "round.budget_changed",
+      subject: {
+        type: "round",
+        id,
+        revision: 1,
+        name: "Local Connections",
+        roundId: id,
+        applicationId: null,
+      },
     };
     operations.workspace.listWorkspaceActivity.mockResolvedValue({
       status: "ok",
       entries: [
         { ...entry, record: { kind: "round", id, title: "Local Connections" } },
-        { ...entry, action: "application.delete", record: null },
+        { ...entry, action: "application.deleted", record: null },
         {
           ...entry,
           action: "assessment.recorded",
@@ -266,7 +274,7 @@ describe("workspace MCP contracts", () => {
               url: `http://localhost:3000/app/alder/rounds/${id}`,
             },
           },
-          { ...entry, action: "application.delete", record: null },
+          { ...entry, action: "application.deleted", record: null },
           {
             ...entry,
             action: "assessment.recorded",

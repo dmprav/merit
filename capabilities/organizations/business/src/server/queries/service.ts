@@ -6,6 +6,7 @@ import { readTransaction, type Database } from "@merit/db";
 import { teamInput, organizationIdInput, invitationTokenInput } from "../../api/identifiers";
 import {
   teamPageInput,
+  teamHistoryInput,
   invitationPageInput,
   teamEventInput,
   workspacePageInput,
@@ -152,10 +153,10 @@ const createTeamQueries = (dependencies: Pick<Dependencies, "database" | "isOper
         ),
       ),
 
-    teamHistoryPage: (actor: Actor, input: z.input<typeof teamPageInput>) =>
+    teamHistoryPage: (actor: Actor, input: z.input<typeof teamHistoryInput>) =>
       run(actor, false, () =>
         dependencies.database((db) =>
-          team.readHistoryPage(db, actor.userId, teamPageInput.parse(input)),
+          team.readHistoryPage(db, actor.userId, teamHistoryInput.parse(input)),
         ),
       ),
 

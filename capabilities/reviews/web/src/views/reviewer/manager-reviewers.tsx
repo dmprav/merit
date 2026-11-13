@@ -3,6 +3,8 @@ import { useTranslation } from "react-i18next";
 
 import { useLocaleSettings } from "@merit/i18n";
 import { useFormat } from "@merit/i18n/format";
+import type { PageSource } from "@merit/query/contracts";
+import type { ReviewerEvent } from "@merit/reviews/api";
 import type { ReviewerSummary } from "@merit/reviews/api";
 import { isInvitationExpired, type ReviewerStatus, type ReviewState } from "@merit/reviews/domain";
 import { Badge } from "@merit/ui/badge";
@@ -11,6 +13,7 @@ import { ConfirmationDialog } from "@merit/ui/confirmation-dialog";
 import { DateField } from "@merit/ui/date-field";
 import { Inline, Stack } from "@merit/ui/layout";
 import { Notice } from "@merit/ui/notice";
+import { PagedContent } from "@merit/ui/paged-content";
 import { TextField } from "@merit/ui/text-field";
 
 import type { ManagerReviewerData } from "../../contracts/reviewer";
@@ -93,6 +96,7 @@ export const ManagerReviewers = ({ reviews, data, onAssignmentsChange }: Manager
         <ReviewerAssignment
           key={assignment.id}
           assignment={assignment}
+          historySource={data.historySource?.(assignment)}
           work={work}
           onClear={() => clearing.open(assignment)}
           onRevoke={() => revoking.open(assignment)}
@@ -182,13 +186,20 @@ const assignmentState = (assignment: ReviewerSummary): AssignmentState => {
 };
 
 type AssignmentProps = {
+  historySource?: PageSource<ReviewerEvent>;
   assignment: ManagerWork["assignments"][number];
   work: ManagerWork;
   onClear: () => void;
   onRevoke: () => void;
 };
 
-const ReviewerAssignment = ({ assignment, work, onClear, onRevoke }: AssignmentProps) => {
+const ReviewerAssignment = ({
+  assignment,
+  work,
+  onClear,
+  onRevoke,
+  historySource,
+}: AssignmentProps) => {
   const { t } = useTranslation("reviewer");
   const format = useFormat();
   const state = assignmentState(assignment);
@@ -228,37 +239,48 @@ const ReviewerAssignment = ({ assignment, work, onClear, onRevoke }: AssignmentP
         onClear={onClear}
         onRevoke={onRevoke}
       />
-      <AssignmentHistory history={assignment.history} />
+      <AssignmentHistory history={assignment.history ?? []} source={historySource} />
     </Stack>
   );
 };
 
-const AssignmentHistory = ({ history }: { history: AssignmentProps["assignment"]["history"] }) => {
+const AssignmentHistory = ({
+  history,
+  source,
+}: {
+  history: ReviewerEvent[];
+  source?: PageSource<ReviewerEvent>;
+}) => {
+  const [open, setOpen] = useState(false);
   const { t } = useTranslation("reviewer");
   const { formatLocale } = useLocaleSettings();
   return (
-    <details className={styles.history}>
+    <details className={styles.history} onToggle={(event) => setOpen(event.currentTarget.open)}>
       <summary>{t("recordHistory")}</summary>
-      <ol>
-        {/* Newest first: the latest change usually explains the current status. */}
-        {history.toReversed().map((event, index) => (
-          <li key={index}>
-            {t(`event.${event.action as keyof typeof en.event}`)} · {event.actor} ·{" "}
-            <time dateTime={event.at} title={event.at}>
-              {new Date(event.at).toLocaleString(formatLocale, {
-                day: "numeric",
-                month: "short",
-                year: "numeric",
-                hour: "2-digit",
-                minute: "2-digit",
-                timeZone: "UTC",
-              })}{" "}
-              UTC
-            </time>
-            {event.note && <p className={styles.writing}>{event.note}</p>}
-          </li>
-        ))}
-      </ol>
+      <PagedContent source={source} entries={history} active={open}>
+        {(entries) => (
+          <ol>
+            {/* Newest first: the latest change usually explains the current status. */}
+            {entries.map((event, index) => (
+              <li key={index}>
+                {t(`event.${eventLabel(event.action)}`)} · {event.actor} ·{" "}
+                <time dateTime={event.at} title={event.at}>
+                  {new Date(event.at).toLocaleString(formatLocale, {
+                    day: "numeric",
+                    month: "short",
+                    year: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    timeZone: "UTC",
+                  })}{" "}
+                  UTC
+                </time>
+                {event.note && <p className={styles.writing}>{event.note}</p>}
+              </li>
+            ))}
+          </ol>
+        )}
+      </PagedContent>
     </details>
   );
 };
@@ -412,3 +434,19 @@ const ClearConflictDialog = ({
     </ConfirmationDialog>
   );
 };
+
+const eventLabels = {
+  "review_assignment.invited": "invite",
+  "review_assignment.invitation_renewed": "resend",
+  "review_assignment.accepted": "accept",
+  "review_assignment.declined": "decline",
+  "review_assignment.withdrawn": "withdrawn",
+  "review_assignment.conflict_reported": "report_conflict",
+  "review_assignment.conflict_cleared": "clear_conflict",
+  "review_assignment.access_ended": "cancel",
+  "review_assignment.reinstated": "reinstate",
+  "assessment.submitted": "submit",
+  "assessment.amended": "amend",
+} as const;
+
+const eventLabel = (action: string) => eventLabels[action as keyof typeof eventLabels] ?? "changed";

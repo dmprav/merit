@@ -1,12 +1,13 @@
 import type { z } from "zod";
 
 import { permits } from "@merit/access";
-import { actorProvenance, type Actor } from "@merit/auth";
+import { type Actor } from "@merit/auth";
 import type { Database } from "@merit/db";
 
 import type { memberInput, changeMemberInput, inviteMemberInput } from "../../api/commands";
 import { evaluateMemberChange } from "../../domain/index";
-import { event, type Invitation } from "../persistence/commands/invitations";
+import { recordOrganizationEvent } from "../persistence/commands/events";
+import type { Invitation } from "../persistence/commands/invitations";
 import * as persistence from "../persistence/commands/team";
 import type { Transaction } from "../persistence/transaction";
 import { fail } from "../result";
@@ -77,19 +78,18 @@ export const inviteMember = (
       },
       actor,
     );
-    await event(
-      tx,
-      organization.id,
-      actor.userId,
-      "invited",
-      {
+    await recordOrganizationEvent(tx, {
+      organizationId: organization.id,
+      actor,
+      action: "team_invitation.issued",
+      target: { type: "team_invitation", id: invitation.record.id, name: input.email },
+      details: {
         invitationId: invitation.record.id,
         email: input.email,
         administration: input.administration,
         role: input.role,
       },
-      actorProvenance(actor),
-    );
+    });
 
     return { organization, invitation };
   });
@@ -141,18 +141,17 @@ export const resendTeamInvitation = (
       },
       actor,
     );
-    await event(
-      tx,
-      organization.id,
-      actor.userId,
-      "invited",
-      {
+    await recordOrganizationEvent(tx, {
+      organizationId: organization.id,
+      actor,
+      action: "team_invitation.replaced",
+      target: { type: "team_invitation", id: previous.id, name: previous.email },
+      details: {
         invitationId: previous.id,
         replacementId: invitation.record.id,
         email: previous.email,
       },
-      actorProvenance(actor),
-    );
+    });
 
     return { organization, invitation };
   });
@@ -166,17 +165,16 @@ export const revokeTeamInvitation = (
   db.transaction(async (tx) => {
     const { organization, invitation } = await lockPendingInvitation(tx, slug, actor, invitationId);
     await persistence.revokeInvitation(tx, invitation.id);
-    await event(
-      tx,
-      organization.id,
-      actor.userId,
-      "revoked",
-      {
+    await recordOrganizationEvent(tx, {
+      organizationId: organization.id,
+      actor,
+      action: "team_invitation.revoked",
+      target: { type: "team_invitation", id: invitationId, name: invitation.email },
+      details: {
         invitationId,
         email: invitation.email,
       },
-      actorProvenance(actor),
-    );
+    });
   });
 
 export const changeMember = (
@@ -205,6 +203,14 @@ export const changeMember = (
       fail("conflict");
     }
 
+    if (access && access.role === target.role && access.administration === target.administration) {
+      return {
+        userId: target.userId,
+        membershipId: target.membershipId,
+        membershipVersion: target.version,
+        removed: false,
+      };
+    }
     const issued = await persistence.readIssuedInvitations(tx, organization.id, target.userId);
     if (
       revokeIssuedInvitations &&
@@ -220,20 +226,20 @@ export const changeMember = (
       await persistence.revokeIssuedInvitations(tx, organization.id, target.userId);
     }
     await persistence.writeMemberAccess(tx, organization.id, target.userId, access);
-    await event(
-      tx,
-      organization.id,
-      actor.userId,
-      access ? "member_changed" : "member_removed",
-      {
+    const targetName = target.name ?? target.email;
+    await recordOrganizationEvent(tx, {
+      organizationId: organization.id,
+      actor,
+      action: access ? "membership.access_changed" : "membership.removed",
+      target: { type: "membership", id: target.userId, name: targetName },
+      details: {
         userId: target.userId,
-        targetName: target.name ?? target.email,
+        targetName,
         before: { role: target.role, administration: target.administration },
         after: access,
         revokedInvitationIds: revokeIssuedInvitations ? issued.map((i) => i.id) : [],
       },
-      actorProvenance(actor),
-    );
+    });
 
     return {
       userId: target.userId,

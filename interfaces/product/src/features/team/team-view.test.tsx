@@ -9,6 +9,7 @@ import { createQueryClient } from "@merit/query";
 import { WorkspaceNavigationContext } from "../workspace/workspace-navigation";
 import {
   readTeam,
+  readTeamHistory,
   inviteMember,
   removeMember,
   changeMember,
@@ -25,6 +26,7 @@ const invalidate = vi.hoisted(() =>
 vi.mock("@tanstack/react-router", () => ({ useRouter: () => ({ invalidate }) }));
 vi.mock("./data/server/team.functions", () => ({
   readTeam: vi.fn(),
+  readTeamHistory: vi.fn(),
   inviteMember: vi.fn(),
   changeMember: vi.fn(),
   removeMember: vi.fn(),
@@ -36,6 +38,10 @@ import { teamFixture as initial } from "@merit/organizations-web/testing";
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(readTeam).mockResolvedValue({ status: "ok", value: initial });
+  vi.mocked(readTeamHistory).mockResolvedValue({
+    status: "ok",
+    value: { entries: [], nextCursor: null },
+  });
   vi.mocked(inviteMember).mockImplementation(async ({ data }) => ({
     status: "ok",
     value: { invitationId: data.requestId },
@@ -104,6 +110,69 @@ it("shows a read-only directory to program managers and protects the owner", asy
     screen.queryByRole("menuitem", { name: "Remove from organization" }),
   ).not.toBeInTheDocument();
 });
+
+it.each([false, true])(
+  "refreshes open history after a saved removal, with retry on history failure: %s",
+  async (failRefresh) => {
+    const user = userEvent.setup();
+    const oldEvent = {
+      eventId: "old",
+      action: "team_invitation.issued",
+      actor: "Dana Reed",
+      provenance: null,
+      recordedAt: "2026-11-13T10:00:00Z",
+      details: { email: "prior@example.test" },
+    };
+    const savedEvent = {
+      ...oldEvent,
+      eventId: "saved",
+      action: "membership.removed",
+      details: { targetName: "Morgan Lee" },
+    };
+    vi.mocked(readTeamHistory).mockResolvedValueOnce({
+      status: "ok",
+      value: { entries: [oldEvent], nextCursor: null },
+    });
+    if (failRefresh) {
+      vi.mocked(readTeamHistory).mockResolvedValueOnce({ status: "unavailable" });
+    }
+    vi.mocked(readTeamHistory).mockResolvedValue({
+      status: "ok",
+      value: { entries: [savedEvent, oldEvent], nextCursor: null },
+    });
+    vi.mocked(readTeam).mockResolvedValue({
+      status: "ok",
+      value: { ...initial, members: initial.members.slice(0, 1), invitations: [] },
+    });
+    show();
+    expect(readTeamHistory).not.toHaveBeenCalled();
+    await user.click(screen.getByText("Access history"));
+    const history = screen.getByText("Access history").closest("details")!;
+    await waitFor(() => expect(history).toHaveTextContent("Invitation issued: prior@example.test"));
+    await user.click(screen.getByRole("button", { name: "Actions for Morgan Lee" }));
+    await user.click(screen.getByRole("menuitem", { name: "Remove from organization" }));
+    await user.click(
+      within(screen.getByRole("dialog")).getByRole("button", { name: "Remove from organization" }),
+    );
+
+    expect(
+      await screen.findByText("Member removed. Their existing work has been preserved."),
+    ).toBeVisible();
+    if (failRefresh) {
+      expect(await screen.findByRole("alert")).toHaveTextContent("History could not be loaded.");
+      expect(history).toHaveTextContent("Invitation issued: prior@example.test");
+      await waitFor(() =>
+        expect(screen.getByRole("button", { name: "Invite member" })).toBeEnabled(),
+      );
+      expect(screen.queryByRole("button", { name: "Refresh team" })).not.toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Try again" }));
+    }
+    await waitFor(() => expect(history).toHaveTextContent("Member removed: Morgan Lee"));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(removeMember).toHaveBeenCalledOnce();
+    expect(readTeamHistory).toHaveBeenCalledTimes(failRefresh ? 3 : 2);
+  },
+);
 
 it("reviews handover and invitation revocation before removing a member and restores useful focus", async () => {
   const user = userEvent.setup();

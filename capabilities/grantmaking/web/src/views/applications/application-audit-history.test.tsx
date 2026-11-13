@@ -31,7 +31,7 @@ it("keeps same-version contact and staff-summary changes inspectable with their 
   const history: IntakeState["history"] = [
     {
       revision: 7,
-      action: "details",
+      action: "application.summary_changed",
       reason: null,
       actor: "Dana Reed",
       provenance: { interface: "mcp", clientId: "grant-assistant" },

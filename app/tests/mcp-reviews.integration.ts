@@ -3,7 +3,6 @@ import { randomUUID } from "node:crypto";
 import { assert, expect } from "vite-plus/test";
 
 import { materialVersionSchema } from "@merit/applications/domain";
-import { recordAuditEvent } from "@merit/audit/server/record";
 import { actor } from "@merit/organizations/testing/workspace";
 import { saveApplicationReview } from "@merit/reviews/server";
 import { criteriaVersionSchema } from "@merit/rounds/domain";
@@ -20,20 +19,15 @@ const it = commandTest.extend(
       const contactId = await createContact();
       const read = scenario.read;
       for (const [expectedRevision, title] of ["Local benefit", "Community impact"].entries()) {
-        const result = await editFundingRound(
-          db,
-          actor,
-          {
-            workspaceSlug: "alder",
-            publicId: pageInput.publicId,
-            expectedRevision,
-            change: {
-              section: "criteria",
-              criteria: [{ id: "20000000-0000-4000-8000-000000000001", title, description: "" }],
-            },
+        const result = await editFundingRound(db, actor, {
+          workspaceSlug: "alder",
+          publicId: pageInput.publicId,
+          expectedRevision,
+          change: {
+            section: "criteria",
+            criteria: [{ id: "20000000-0000-4000-8000-000000000001", title, description: "" }],
           },
-          recordAuditEvent,
-        );
+        });
         assert(result.status === "ok", "Could not prepare the MCP criteria history");
       }
 
@@ -50,18 +44,13 @@ const it = commandTest.extend(
 
       const review = async (change: Parameters<typeof saveApplicationReview>[2]["change"]) => {
         const input = await args();
-        const result = await saveApplicationReview(
-          db,
-          actor,
-          {
-            ...scenario.address,
-            expectedRevision: input.expectedReviewRevision,
-            expectedApplicationVersion: input.expectedApplicationVersion,
-            expectedCriteriaVersion: input.expectedCriteriaVersion,
-            change,
-          },
-          recordAuditEvent,
-        );
+        const result = await saveApplicationReview(db, actor, {
+          ...scenario.address,
+          expectedRevision: input.expectedReviewRevision,
+          expectedApplicationVersion: input.expectedApplicationVersion,
+          expectedCriteriaVersion: input.expectedCriteriaVersion,
+          change,
+        });
         assert(result.status === "ok", "Could not prepare the MCP review");
       };
 

@@ -1043,23 +1043,34 @@ const auditFiles = {
   "capabilities/audit/business/src/server/demo.ts": "export const value = 1;",
 };
 
-test("audit recording is available to application assembly and cleanup to the operator", () => {
+test("audit cleanup is available to the operator", () => {
   check({
     ...auditFiles,
-    "app/src/server/services.server.ts": 'export { value } from "@merit/audit/server/record";',
-    "capabilities/audit/business/src/server/persistence/queries/probe.ts":
-      'export { value as schema } from "@merit/organizations/schema"; export { value as scope } from "@merit/organizations/scope";',
     "app/scripts/clean-demos.ts": 'export { value } from "@merit/audit/server/demo";',
   });
 });
 
-test("grantmaking queries read audit activity through audit's reading entry", () => {
-  check({
-    ...auditFiles,
-    [`${grantmakingRoot}/src/server/queries/probe.ts`]:
-      'export { value } from "@merit/audit/server/read";',
-  });
-});
+test.each(["grantmaking", "contacts", "organizations", "reviews"])(
+  "%s queries read bounded history through audit's reading entry",
+  (name) => {
+    check({
+      ...auditFiles,
+      [`capabilities/${name}/business/src/server/queries/probe.ts`]:
+        'export { value } from "@merit/audit/server/read";',
+    });
+  },
+);
+
+test.each(["applications", "rounds", "reviews", "recommendations", "contacts", "organizations"])(
+  "%s commands call the shared audit writer directly",
+  (name) => {
+    check({
+      ...auditFiles,
+      [`capabilities/${name}/business/src/server/commands/probe.ts`]:
+        'export { value } from "@merit/audit/server/record";',
+    });
+  },
+);
 
 test.each([
   [`${grantmakingRoot}/src/server/commands/probe.ts`, "@merit/audit/server/record"],
@@ -1068,10 +1079,15 @@ test.each([
   [`${grantmakingRoot}/src/server/commands/probe.ts`, "@merit/audit/server/demo"],
   [`${grantmakingRoot}/src/server/commands/probe.ts`, "@merit/audit/server/read"],
   [`${grantmakingRoot}/src/server/persistence/queries/probe.ts`, "@merit/audit/server/read"],
-  [`${contactsRoot}/src/server/queries/probe.ts`, "@merit/audit/server/read"],
+  [`${contactsRoot}/src/server/commands/probe.ts`, "@merit/audit/server/read"],
   ["app/src/server/services.server.ts", "@merit/audit/server/read"],
+  ["app/src/server/services.server.ts", "@merit/audit/server/record"],
   ["app/scripts/ordinary-task.ts", "@merit/audit/server/demo"],
   ["capabilities/audit/business/src/server/queries/probe.ts", "@merit/grantmaking/server"],
+  [
+    "capabilities/audit/business/src/server/persistence/queries/probe.ts",
+    "@merit/organizations/schema",
+  ],
 ])("audit boundary rejects %s importing %s", (path, source) => {
   check({ ...auditFiles, [path]: `export { value } from "${source}";` }, crossCapabilityMessage);
 });

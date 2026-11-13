@@ -27,24 +27,22 @@ export const decodeActivityCursor = (cursor: string): ActivityCursor | null => {
     : null;
 };
 
-const activityPageSize = 50;
-
-/** Records whose events a reader may return; the owning capability resolves membership. */
-const activityTargetsSchema = z
-  .array(z.strictObject({ type: identifier, ids: z.array(identifier) }))
-  .max(8);
-
-/** Narrowing and paging for a workspace's events; the reader adds the workspace. */
-export const activityInputSchema = z.strictObject({
-  actorUserId: identifier.optional(),
-  /** When present, only events on these records; an empty selection matches nothing. */
-  targets: activityTargetsSchema.optional(),
+/** Shared newest-first paging for feeds and subject histories. */
+export const auditPageInput = z.strictObject({
   after: z
     .string()
     .max(200)
-    .refine((cursor) => decodeActivityCursor(cursor) !== null, "Invalid activity cursor.")
+    .refine((cursor) => decodeActivityCursor(cursor) !== null, "Invalid audit cursor.")
     .optional(),
-  limit: z.number().int().min(1).max(activityPageSize).default(activityPageSize),
+  limit: z.number().int().min(1).max(50).default(20),
+});
+
+/** Narrowing and paging for a workspace's events; the reader adds the workspace. */
+export const activityInputSchema = auditPageInput.extend({
+  actorUserId: identifier.optional(),
+  roundId: identifier.optional(),
+  targetTypes: z.array(identifier).min(1).max(20),
+  limit: z.number().int().min(1).max(50).default(50),
 });
 
 export type ActivityInput = z.input<typeof activityInputSchema>;

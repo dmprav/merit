@@ -41,11 +41,16 @@ const ContactIdentityCell = (props: Pick<ContactRow, "contact" | "hasDraft" | "o
       <strong>
         <PersonIdentity name={contact.name || contact.email} />
       </strong>
-      {(hasDraft || !!contact.history?.length || !!contact.applicationTitles?.length) && (
+      {(hasDraft ||
+        !!contact.historySource ||
+        !!contact.history?.length ||
+        !!contact.applicationTitles?.length) && (
         <Stack gap={1} className={styles.identityDetails}>
-          {(hasDraft || !!contact.history?.length) && (
+          {(hasDraft || !!contact.historySource || !!contact.history?.length) && (
             <Inline className={styles.identityActions}>
-              {!!contact.history?.length && <ContactHistory contact={contact} />}
+              {(!!contact.historySource || !!contact.history?.length) && (
+                <ContactHistory contact={contact} />
+              )}
               {hasDraft && (
                 <Tooltip content={t("resumeEdit")}>
                   <Button

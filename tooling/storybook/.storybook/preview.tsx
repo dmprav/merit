@@ -22,6 +22,7 @@ sb.mock(
   "../../../interfaces/product/src/features/grantmaking/data/server/funding-round.functions.ts",
 );
 sb.mock("../../../interfaces/product/src/features/grantmaking/data/server/activity.functions.ts");
+sb.mock("../../../interfaces/product/src/features/grantmaking/data/server/history.functions.ts");
 sb.mock(
   "../../../interfaces/product/src/features/grantmaking/data/server/creation/creation.functions.ts",
 );

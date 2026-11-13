@@ -16,6 +16,7 @@ import { Badge } from "@merit/ui/badge";
 import { Button } from "@merit/ui/button";
 import { Icon } from "@merit/ui/icon";
 import { PageHeader } from "@merit/ui/page-header";
+import { PagedContent } from "@merit/ui/paged-content";
 import {
   ReferencePane,
   ReferenceSwitcher,
@@ -67,13 +68,15 @@ export const ApplicationView = (props: ApplicationViewProps) => {
       selectedId={selected}
       onInspectVersion={inspectHistory}
       availableApplicationVersions={
-        intake || intakeState
+        intake?.data.state.materialVersions ??
+        intakeState?.materialVersions ??
+        (intake || intakeState
           ? history.flatMap((entry) =>
               [entry.before?.version, entry.after?.version].filter(
                 (version) => version !== undefined,
               ),
             )
-          : undefined
+          : undefined)
       }
     />
   );
@@ -192,6 +195,7 @@ const ApplicationReferencePane = ({
   content,
   state,
   history,
+  intake,
   work,
 }: ApplicationLayoutProps & { labels: Record<ApplicationReference, string> }) => {
   const { t } = useTranslation(["fundingRounds", "reviews"]);
@@ -251,13 +255,24 @@ const ApplicationReferencePane = ({
             content.details
           ) : (
             <>
-              <ApplicationHistory
-                key={`${application.id}:${historyVisit}`}
-                application={application}
-                history={history}
-                initialFromVersion={historyFrom}
-              />
-              {Boolean(history.length) && <ApplicationAuditHistory history={history} />}
+              <PagedContent
+                source={intake?.data.historySource}
+                entries={history}
+                active={reference === "history"}
+              >
+                {(entries, hasMore) => (
+                  <>
+                    <ApplicationHistory
+                      key={`${application.id}:${historyVisit}`}
+                      application={application}
+                      history={entries}
+                      hasMore={hasMore}
+                      initialFromVersion={historyFrom}
+                    />
+                    {Boolean(entries.length) && <ApplicationAuditHistory history={entries} />}
+                  </>
+                )}
+              </PagedContent>
             </>
           )}
         </div>

@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import type { encodeApplicationMaterial } from "@merit/applications/api";
+import { auditPageInput } from "@merit/audit/api";
 import type { Actor } from "@merit/auth";
 import { calendarDateSchema } from "@merit/dates";
 
@@ -80,7 +81,7 @@ export type ReviewerResult<T> =
   | { status: "ok"; value: T }
   | { status: "not_found" | "forbidden" | "conflict" | "invalid" | "expired" | "limited" };
 
-export type ReviewerEvent = { action: string; actor: string; at: string; note: string };
+export type ReviewerEvent = { action: string; actor: string | null; at: string; note: string };
 
 export type ReviewerMessage = {
   id: string;
@@ -96,7 +97,16 @@ export type ReviewerMessage = {
   url: string;
 };
 
+export const reviewerHistoryInput = reviewerApplicationSchema.extend({
+  ...auditPageInput.shape,
+  assignmentId: z.uuid(),
+});
+
 export interface ReviewerService {
+  history: (
+    actor: Actor,
+    input: z.input<typeof reviewerHistoryInput>,
+  ) => Promise<ReviewerResult<{ entries: ReviewerEvent[]; nextCursor: string | null }>>;
   list: (actor: Actor) => Promise<ReviewerResult<ReviewerSummary[]>>;
   read: (
     actor: Actor,
@@ -105,7 +115,7 @@ export interface ReviewerService {
   forApplication: (
     actor: Actor,
     input: z.infer<typeof reviewerApplicationSchema>,
-  ) => Promise<ReviewerResult<(ReviewerSummary & { history: ReviewerEvent[] })[]>>;
+  ) => Promise<ReviewerResult<ReviewerSummary[]>>;
   invite: (
     actor: Actor,
     input: z.infer<typeof inviteReviewerSchema>,

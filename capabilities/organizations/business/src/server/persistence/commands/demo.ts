@@ -4,7 +4,7 @@ import { appUsers } from "@merit/auth/schema";
 
 import { demoEntryLimits } from "../demo-schema";
 import { memberships, organizations } from "../membership-schema";
-import { invitations, organizationEvents } from "../schema";
+import { invitations } from "../schema";
 import type { Transaction } from "../transaction";
 
 export const lockDemoUser = async (db: Transaction, userId: string) => {
@@ -56,7 +56,6 @@ export const lockExpiredDemo = async (db: Transaction, id: string) => {
 
 export const deleteDemo = async (db: Transaction, id: string) => {
   await db.delete(invitations).where(eq(invitations.organizationId, id));
-  await db.delete(organizationEvents).where(eq(organizationEvents.organizationId, id));
   await db.delete(memberships).where(eq(memberships.organizationId, id));
   await db.delete(organizations).where(eq(organizations.id, id));
 };

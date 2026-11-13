@@ -32,5 +32,5 @@ export const contactHistorySchema = z.object({
       after: snapshot,
     }),
   ),
-  nextRevision: z.number().int().nonnegative().nullable(),
+  nextCursor: z.string().nullable(),
 });

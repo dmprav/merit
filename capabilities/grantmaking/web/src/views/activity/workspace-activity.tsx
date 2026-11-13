@@ -15,19 +15,40 @@ export type ActivityFilters = { roundId: string; personId: string };
 type ActivityRecord = NonNullable<ActivityEntry["record"]>;
 
 const actionLabels = {
-  "application.create": "intake.eventCreate",
-  "application.mark_ready": "intake.eventReady",
-  "application.revision": "intake.eventRevision",
-  "application.correction": "intake.eventCorrection",
-  "application.delete": "activity.actions.applicationDelete",
-  "round.create": "activity.actions.roundCreate",
-  "round.budget": "activity.actions.roundBudget",
-  "round.criteria": "activity.actions.roundCriteria",
-  "round.manager": "activity.actions.roundManager",
-  "round.delete": "activity.actions.roundDelete",
+  "application.material_changed": "activity.actions.applicationMaterial",
+  "application.summary_changed": "activity.actions.applicationSummary",
+  "application.contact_changed": "activity.actions.applicationContact",
+  "application_working_revision.started": "activity.actions.revisionStarted",
+  "application_working_revision.updated": "activity.actions.revisionUpdated",
+  "application_working_revision.discarded": "activity.actions.revisionDiscarded",
+  "round.details_changed": "activity.actions.roundDetails",
+  "assessment.corrected": "activity.actions.assessmentCorrected",
+  "assessment.amended": "activity.actions.assessmentAmended",
+  "review_request.created": "activity.actions.reviewRequested",
+  "review_request.cancelled": "activity.actions.reviewCancelled",
+  "review_assignment.invited": "activity.actions.reviewerInvited",
+  "review_assignment.invitation_renewed": "activity.actions.reviewerRenewed",
+  "review_assignment.accepted": "activity.actions.reviewerAccepted",
+  "review_assignment.declined": "activity.actions.reviewerDeclined",
+  "review_assignment.withdrawn": "activity.actions.reviewerWithdrawn",
+  "review_assignment.conflict_reported": "activity.actions.reviewerConflict",
+  "review_assignment.conflict_cleared": "activity.actions.reviewerCleared",
+  "review_assignment.access_ended": "activity.actions.reviewerEnded",
+  "review_assignment.reinstated": "activity.actions.reviewerReinstated",
+
+  "application.created": "intake.eventCreate",
+  "application.marked_ready": "intake.eventReady",
+  "application.revision_recorded": "intake.eventRevision",
+  "application.correction_recorded": "intake.eventCorrection",
+  "application.deleted": "activity.actions.applicationDelete",
+  "round.created": "activity.actions.roundCreate",
+  "round.budget_changed": "activity.actions.roundBudget",
+  "round.criteria_changed": "activity.actions.roundCriteria",
+  "round.manager_changed": "activity.actions.roundManager",
+  "round.deleted": "activity.actions.roundDelete",
   "assessment.recorded": "activity.actions.assessmentRecorded",
   "assessment.submitted": "activity.actions.assessmentSubmitted",
-  "recommendation.saved": "activity.actions.recommendationSaved",
+  "recommendation.recorded": "activity.actions.recommendationSaved",
 } as const;
 
 /** Actions recorded by a later release still read sensibly. */
@@ -196,7 +217,9 @@ const useActivityColumns = (renderRecordLink: WorkspaceActivityProps["renderReco
         row.record ? (
           <span className={styles.text}>{renderRecordLink(row.record, row.record.title)}</span>
         ) : (
-          <span className={styles.muted}>{t("activity.unavailableRecord")}</span>
+          <span className={styles.muted}>
+            {row.subject.name || t("activity.unavailableRecord")}
+          </span>
         ),
     },
   ] satisfies TableColumn<ActivityEntry>[];

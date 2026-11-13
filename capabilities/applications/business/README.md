@@ -11,8 +11,8 @@ transaction. [Rules](src/domain/intake.ts) decide readiness and material transit
 Unchanged saves keep their revision and create no history. Creation receipts survive
 eligible deletion, so retrying a creation cannot recreate a deleted application.
 
-Applications owns the history table, creation-receipt lookup, and atomic recording
-of changes and actor provenance. Assembly supplies a
+Applications owns creation-receipt lookup and the intake payload recorded atomically
+through [Audit](../../audit/business/README.md), including actor provenance. Assembly supplies a
 [transaction-bound collaborator](src/server/grant-work.ts) for downstream usage
 checks. Any review request, assessment, or recommendation prevents deletion,
 including a cancelled request.

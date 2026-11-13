@@ -11,7 +11,6 @@ import {
   selectApplicationContact,
 } from "@merit/applications/server";
 import { roundHasApplications } from "@merit/applications/server/integrations";
-import { recordAuditEvent } from "@merit/audit/server/record";
 import { changeWorkspaceContact } from "@merit/contacts/server";
 import type { Database } from "@merit/db";
 import { migrate } from "@merit/db/migrate";
@@ -123,16 +122,11 @@ const expectBlocked = () =>
     .toContain(firstPid);
 
 const createRound = async () => {
-  const result = await createFundingRound(
-    db,
-    actor,
-    {
-      workspaceSlug,
-      requestId: randomUUID(),
-      title: "Concurrent grant work",
-    },
-    recordAuditEvent,
-  );
+  const result = await createFundingRound(db, actor, {
+    workspaceSlug,
+    requestId: randomUUID(),
+    title: "Concurrent grant work",
+  });
 
   if (result.status !== "ok") {
     throw new Error("Round creation failed");
@@ -143,17 +137,12 @@ const createRound = async () => {
 
 const fixture = async () => {
   const roundId = await createRound();
-  const application = await createFundingApplication(
-    db,
-    actor,
-    {
-      workspaceSlug,
-      publicId: roundId,
-      requestId: randomUUID(),
-      title: "Community meals",
-    },
-    recordAuditEvent,
-  );
+  const application = await createFundingApplication(db, actor, {
+    workspaceSlug,
+    publicId: roundId,
+    requestId: randomUUID(),
+    title: "Community meals",
+  });
 
   if (application.status !== "ok") {
     throw new Error("Application creation failed");
@@ -181,17 +170,12 @@ const fixture = async () => {
 type Fixture = Awaited<ReturnType<typeof fixture>>;
 
 const roundEdit = (connection: Database, data: Fixture) =>
-  editFundingRound(
-    connection,
-    actor,
-    {
-      workspaceSlug,
-      publicId: data.roundId,
-      expectedRevision: 0,
-      change: { section: "details", title: "Updated round", purpose: "", meetingDate: null },
-    },
-    recordAuditEvent,
-  );
+  editFundingRound(connection, actor, {
+    workspaceSlug,
+    publicId: data.roundId,
+    expectedRevision: 0,
+    change: { section: "details", title: "Updated round", purpose: "", meetingDate: null },
+  });
 
 const edits = {
   round: roundEdit,
@@ -206,7 +190,6 @@ const edits = {
         change: { action: "details", summary: "Staff summary" },
       },
       applicationWork,
-      recordAuditEvent,
     ),
   intakeContact: (connection: Database, data: Fixture) =>
     editFundingApplication(
@@ -223,27 +206,21 @@ const edits = {
         },
       },
       applicationWork,
-      recordAuditEvent,
     ),
   review: (connection: Database, data: Fixture) =>
-    saveApplicationReview(
-      connection,
-      actor,
-      {
-        workspaceSlug,
-        publicId: data.applicationId,
-        expectedRevision: reviewRevisionSchema.parse(0),
-        expectedApplicationVersion: materialVersionSchema.parse(1),
-        expectedCriteriaVersion: criteriaVersionSchema.parse(1),
-        change: {
-          action: "request",
-          id: randomUUID(),
-          contactId: data.contact.id,
-          replacesId: null,
-        },
+    saveApplicationReview(connection, actor, {
+      workspaceSlug,
+      publicId: data.applicationId,
+      expectedRevision: reviewRevisionSchema.parse(0),
+      expectedApplicationVersion: materialVersionSchema.parse(1),
+      expectedCriteriaVersion: criteriaVersionSchema.parse(1),
+      change: {
+        action: "request",
+        id: randomUUID(),
+        contactId: data.contact.id,
+        replacesId: null,
       },
-      recordAuditEvent,
-    ),
+    }),
   contact: (connection: Database, data: Fixture) =>
     selectApplicationContact(connection, actor, {
       workspaceSlug,
@@ -304,7 +281,6 @@ it("deletes an empty round while another round has an uncommitted edit", async (
         expectedRevision: 0,
       },
       roundHasApplications,
-      recordAuditEvent,
     ),
   ).toEqual({ status: "ok" });
 
@@ -354,11 +330,11 @@ it("finishes an authorized edit before a concurrent membership revocation", asyn
   expect(
     (
       await database.client.query<{ action: string }>(
-        "SELECT action FROM round_changes WHERE round_id = $1 ORDER BY revision",
+        "SELECT action FROM audit_events WHERE target_type='round' AND target_id = $1 ORDER BY target_revision",
         [data.roundId],
       )
     ).rows,
-  ).toEqual([{ action: "create" }, { action: "details" }]);
+  ).toEqual([{ action: "round.created" }, { action: "round.details_changed" }]);
 });
 
 it("checks access again after waiting for membership revocation", async () => {
@@ -371,9 +347,10 @@ it("checks access again after waiting for membership revocation", async () => {
   expect(await edit).toEqual({ status: "not_found" });
   expect(
     (
-      await database.client.query("SELECT revision FROM round_changes WHERE round_id = $1", [
-        data.roundId,
-      ])
+      await database.client.query(
+        "SELECT target_revision AS revision FROM audit_events WHERE target_type='round' AND target_id = $1",
+        [data.roundId],
+      )
     ).rows,
   ).toEqual([{ revision: 0 }]);
 });
@@ -425,13 +402,8 @@ it.each(["round", "application"] as const)("keeps %s creation retries serialized
 
   const create = async (connection: Database) =>
     kind === "round"
-      ? createFundingRound(connection, actor, input, recordAuditEvent)
-      : createFundingApplication(
-          connection,
-          actor,
-          { ...input, publicId: roundId },
-          recordAuditEvent,
-        );
+      ? createFundingRound(connection, actor, input)
+      : createFundingApplication(connection, actor, { ...input, publicId: roundId });
 
   let publicId: string | undefined;
   const commit = await hold(async (tx) => {

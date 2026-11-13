@@ -4,7 +4,6 @@ import { assert, expect } from "vite-plus/test";
 
 import { materialVersionSchema } from "@merit/applications/domain";
 import { editFundingApplication } from "@merit/applications/server";
-import { recordAuditEvent } from "@merit/audit/server/record";
 import { changeWorkspaceContact } from "@merit/contacts/server";
 import { actor } from "@merit/organizations/testing/workspace";
 import type { ReviewerMessage } from "@merit/reviews/api";
@@ -21,7 +20,7 @@ import {
 } from "../src/server";
 import { fundingRoundContactUsage } from "../src/server/integrations";
 import { applicationWork } from "../src/server/persistence/commands/application-work";
-import { failingRecorder, recordedEvents } from "./audit-events";
+import { withAuditFailure, recordedEvents } from "./audit-events";
 import { roundTest } from "./round-test";
 
 const sam = { userId: "sam" };
@@ -44,32 +43,24 @@ const it = roundTest.extend("reviewerScenario", async ({ db, database, rounds })
   assert(created.status === "ok");
   const requestId = randomUUID();
   expect(
-    await saveApplicationReview(
-      db,
-      actor,
-      {
-        ...address,
-        expectedRevision: reviewRevisionSchema.parse(0),
-        expectedApplicationVersion: materialVersionSchema.parse(1),
-        expectedCriteriaVersion: criteriaVersionSchema.parse(1),
-        change: {
-          action: "request",
-          id: requestId,
-          contactId: created.contact.id,
-          replacesId: null,
-        },
+    await saveApplicationReview(db, actor, {
+      ...address,
+      expectedRevision: reviewRevisionSchema.parse(0),
+      expectedApplicationVersion: materialVersionSchema.parse(1),
+      expectedCriteriaVersion: criteriaVersionSchema.parse(1),
+      change: {
+        action: "request",
+        id: requestId,
+        contactId: created.contact.id,
+        replacesId: null,
       },
-      recordAuditEvent,
-    ),
+    }),
   ).toMatchObject({ status: "ok" });
   const messages: ReviewerMessage[] = [];
   let failDelivery = false;
-  let failAudit = false;
   const service = createReviewerService({
     database: async (operation) => operation(db),
     verifiedEmails: async (person) => [`${person.userId}@example.test`],
-    recordAuditEvent: (tx, event) =>
-      failAudit ? failingRecorder(tx, event) : recordAuditEvent(tx, event),
     send: async (message) => {
       if (failDelivery) {
         throw new Error("Sender unavailable");
@@ -153,9 +144,6 @@ const it = roundTest.extend("reviewerScenario", async ({ db, database, rounds })
     setDeliveryFailure: (value: boolean) => {
       failDelivery = value;
     },
-    setAuditFailure: (value: boolean) => {
-      failAudit = value;
-    },
   };
 });
 
@@ -220,7 +208,8 @@ it("completes an independently authored review without membership or draft expos
   expect(await s.service.submit(sam, submission)).toEqual({ status: "ok", value: { revision: 2 } });
 
   // The reviewer, not the manager, is the recorded person; a replay records nothing more.
-  const submitted = () => recordedEvents(database.client, "action = 'assessment.submitted'");
+  const submitted = () =>
+    recordedEvents(database.client, "action IN ('assessment.submitted', 'assessment.amended')");
 
   expect(await submitted()).toEqual([`assessment.submitted assessment/${s.assignmentId}@1`]);
   expect(
@@ -248,23 +237,18 @@ it("completes an independently authored review without membership or draft expos
   });
   expect(manager.application.reviews.requests[0]?.status).toBe("received");
   expect(
-    await saveApplicationReview(
-      db,
-      actor,
-      {
-        ...s.address,
-        expectedRevision: manager.application.reviews.revision,
-        expectedApplicationVersion: materialVersionSchema.parse(1),
-        expectedCriteriaVersion: criteriaVersionSchema.parse(1),
-        change: {
-          action: "edit",
-          id: s.assignmentId,
-          content: manager.application.reviews.assessments[0]!.versions[0]!.content,
-          note: "Manager correction",
-        },
+    await saveApplicationReview(db, actor, {
+      ...s.address,
+      expectedRevision: manager.application.reviews.revision,
+      expectedApplicationVersion: materialVersionSchema.parse(1),
+      expectedCriteriaVersion: criteriaVersionSchema.parse(1),
+      change: {
+        action: "edit",
+        id: s.assignmentId,
+        content: manager.application.reviews.assessments[0]!.versions[0]!.content,
+        note: "Manager correction",
       },
-      recordAuditEvent,
-    ),
+    }),
   ).toMatchObject({ status: "invalid", error: "reviewer_authored" });
   expect(await s.save("Amended independent reasoning")).toMatchObject({ status: "ok" });
   expect(await s.submit()).toEqual({ status: "invalid" });
@@ -276,7 +260,7 @@ it("completes an independently authored review without membership or draft expos
   expect(await submitted()).toEqual(
     [
       `assessment.submitted assessment/${s.assignmentId}@1`,
-      `assessment.submitted assessment/${s.assignmentId}@2`,
+      `assessment.amended assessment/${s.assignmentId}@2`,
     ].sort(),
   );
   // The manager's rejected edit of the reviewer's assessment recorded nothing.
@@ -291,9 +275,9 @@ it("rolls back a reviewer's submission when its audit event cannot be recorded",
 }) => {
   expect(await s.respond("accept")).toMatchObject({ status: "ok" });
   expect(await s.save()).toMatchObject({ status: "ok" });
-  s.setAuditFailure(true);
-  await expect(s.submit()).rejects.toThrow("Recorder failed");
-  s.setAuditFailure(false);
+  await expect(withAuditFailure(database.client, () => s.submit())).rejects.toMatchObject({
+    cause: { message: "Audit recording failed" },
+  });
   expect((await s.read()).assessment).toBeNull();
   expect((await database.client.query("SELECT id FROM assessments")).rows).toEqual([]);
   expect(await recordedEvents(database.client, "target_type = 'assessment'")).toEqual([]);
@@ -406,7 +390,6 @@ it("keeps the assigned evidence and criteria when newer versions arrive", async 
         change,
       },
       applicationWork,
-      recordAuditEvent,
     );
 
   await edit({ action: "mark_ready" });
@@ -432,26 +415,21 @@ it("keeps the assigned evidence and criteria when newer versions arrive", async 
   });
   expect(await edit({ action: "publish_revision" })).toMatchObject({ status: "ok" });
   expect(
-    await editFundingRound(
-      db,
-      actor,
-      {
-        workspaceSlug: "alder",
-        publicId: rounds.pageInput.publicId,
-        expectedRevision: 0,
-        change: {
-          section: "criteria",
-          criteria: [
-            {
-              id: "0ce46ffb-63fc-50b1-a4b8-72a16d15e288",
-              title: "New criterion",
-              description: "New emphasis",
-            },
-          ],
-        },
+    await editFundingRound(db, actor, {
+      workspaceSlug: "alder",
+      publicId: rounds.pageInput.publicId,
+      expectedRevision: 0,
+      change: {
+        section: "criteria",
+        criteria: [
+          {
+            id: "0ce46ffb-63fc-50b1-a4b8-72a16d15e288",
+            title: "New criterion",
+            description: "New emphasis",
+          },
+        ],
       },
-      recordAuditEvent,
-    ),
+    }),
   ).toMatchObject({ status: "ok" });
   const page = await s.read();
   expect(page).toMatchObject({
@@ -571,15 +549,15 @@ it("rolls back a submission if its history write fails and preserves immutable a
   await s.respond("accept");
   await s.save();
   await database.client.query(
-    "CREATE FUNCTION fail_reviewer_submit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.action = 'submit' THEN RAISE EXCEPTION 'forced failure'; END IF; RETURN NEW; END $$",
+    "CREATE FUNCTION fail_reviewer_submit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.action = 'assessment.submitted' THEN RAISE EXCEPTION 'forced failure'; END IF; RETURN NEW; END $$",
   );
   await database.client.query(
-    "CREATE TRIGGER fail_submit BEFORE INSERT ON reviewer_events FOR EACH ROW EXECUTE FUNCTION fail_reviewer_submit()",
+    "CREATE TRIGGER fail_submit BEFORE INSERT ON audit_events FOR EACH ROW EXECUTE FUNCTION fail_reviewer_submit()",
   );
   await expect(s.submit()).rejects.toThrow();
   expect((await s.read()).assignment.status).toBe("accepted");
   expect((await s.read()).assessment).toBeNull();
-  await database.client.query("DROP TRIGGER fail_submit ON reviewer_events");
+  await database.client.query("DROP TRIGGER fail_submit ON audit_events");
   await s.submit();
   await expect(
     database.client.query("UPDATE assessments SET author_user_id = 'other' WHERE id = $1", [
@@ -587,8 +565,8 @@ it("rolls back a submission if its history write fails and preserves immutable a
     ]),
   ).rejects.toThrow("authorship is immutable");
   await expect(
-    database.client.query("DELETE FROM reviewer_events WHERE assignment_id = $1", [s.assignmentId]),
-  ).rejects.toThrow("history is immutable");
+    database.client.query("DELETE FROM audit_events WHERE assignment_id = $1", [s.assignmentId]),
+  ).rejects.toThrow("Recorded audit events cannot be changed");
 });
 
 it("pins only the person's own reviewer assignments, without granting staff access", async ({
@@ -684,17 +662,12 @@ it("uses one freshness policy for reviewer, manager, workspace and MCP reads aft
     criteria: { id: string; title: string; description: string }[],
   ) => {
     expect(
-      await editFundingRound(
-        db,
-        actor,
-        {
-          workspaceSlug: "alder",
-          publicId: rounds.pageInput.publicId,
-          expectedRevision,
-          change: { section: "criteria", criteria },
-        },
-        recordAuditEvent,
-      ),
+      await editFundingRound(db, actor, {
+        workspaceSlug: "alder",
+        publicId: rounds.pageInput.publicId,
+        expectedRevision,
+        change: { section: "criteria", criteria },
+      }),
     ).toMatchObject({ status: "ok" });
   };
 
@@ -711,4 +684,33 @@ it("uses one freshness policy for reviewer, manager, workspace and MCP reads aft
   ]);
   await check(true, "outdated", true);
   expect((await s.read()).assessment?.versions[0]?.content.criteriaVersion).toBe(1);
+});
+
+it("reads assignment history separately with paging and current manager access", async ({
+  database,
+  reviewerScenario: s,
+}) => {
+  await s.respond("accept");
+  await s.save();
+  await s.submit();
+  const input = { ...s.address, assignmentId: s.assignmentId, limit: 1 };
+  const first = await s.service.history(actor, input);
+  assert(first.status === "ok" && first.value.nextCursor);
+  expect(first.value.entries[0]?.action).toBe("assessment.submitted");
+  const second = await s.service.history(actor, { ...input, after: first.value.nextCursor });
+  assert(second.status === "ok");
+  expect(second.value.entries[0]?.action).toBe("review_assignment.accepted");
+  expect(await s.service.history({ userId: "birch-manager" }, input)).toEqual({
+    status: "not_found",
+  });
+  expect(await s.service.history(actor, { ...input, after: "invalid" })).toEqual({
+    status: "invalid",
+  });
+  const assignments = await s.service.forApplication(actor, s.address);
+  assert(assignments.status === "ok");
+  expect(assignments.value[0]).not.toHaveProperty("history");
+  await database.client.query(
+    "UPDATE memberships SET role = 'member' WHERE organization_id='alder' AND user_id='dana'",
+  );
+  expect(await s.service.history(actor, input)).toEqual({ status: "not_found" });
 });

@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { setResponseHeader } from "@tanstack/react-start/server";
 
 import { withActor } from "@merit/auth/request";
+import { reviewerHistoryInput } from "@merit/reviews/api";
 import {
   reviewerAddressSchema,
   reviewerApplicationSchema,
@@ -59,4 +60,11 @@ export const submitReviewerAssessment = createServerFn({ method: "POST" })
   .handler(({ data, context }) => {
     setResponseHeader("Cache-Control", "private, no-store");
     return withActor(context.currentIdentity, (actor) => context.reviewer.submit(actor, data));
+  });
+
+export const readReviewerHistory = createServerFn({ method: "GET" })
+  .validator(reviewerHistoryInput)
+  .handler(({ context, data }) => {
+    setResponseHeader("Cache-Control", "private, no-store");
+    return withActor(context.currentIdentity, (actor) => context.reviewer.history(actor, data));
   });

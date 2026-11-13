@@ -326,8 +326,11 @@ for (const theme of ["product", "site"]) {
         await expect(button).toHaveAttribute("aria-disabled", "true");
         await expect(button).toHaveCSS("opacity", "1");
         await expect(button.locator("svg")).toHaveCount(1);
-        const bounds = (await button.boundingBox())!;
-        const icon = (await button.locator("svg").boundingBox())!;
+        // Read layout rectangles in the page: Firefox's Playwright boxes round to single precision.
+        const { bounds, icon } = await button.evaluate((node) => ({
+          bounds: node.getBoundingClientRect().toJSON() as DOMRect,
+          icon: node.querySelector("svg")!.getBoundingClientRect().toJSON() as DOMRect,
+        }));
         expect(bounds.width).toBe(bounds.height);
         expect(bounds.width).toBeGreaterThanOrEqual(
           testInfo.project.name.includes("mobile") ? 44 : 32,

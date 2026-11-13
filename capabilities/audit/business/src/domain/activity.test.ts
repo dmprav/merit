@@ -40,20 +40,17 @@ describe("activity cursor", () => {
 });
 
 describe("activity input", () => {
-  const input = {};
+  const input = { targetTypes: ["round", "application"] };
 
   it("defaults to a full page of the whole workspace", () => {
-    expect(activityInputSchema.parse(input)).toEqual({ limit: 50 });
+    expect(activityInputSchema.parse(input)).toEqual({ ...input, limit: 50 });
   });
 
-  it("accepts a person, record selection and continuation", () => {
+  it("accepts a person, historical round and continuation", () => {
     const value = {
       ...input,
       actorUserId: "dana",
-      targets: [
-        { type: "application", ids: ["k7m2p9x4n6rt"] },
-        { type: "round", ids: [] },
-      ],
+      roundId: "round1",
       after: encodeActivityCursor(cursor),
       limit: 10,
     };
@@ -67,8 +64,8 @@ describe("activity input", () => {
     { limit: 1.5 },
     { actorUserId: "" },
     { after: "not-a-cursor" },
-    { targets: [{ type: "", ids: [] }] },
-    { targets: [{ type: "round", ids: [""] }] },
+    { roundId: "" },
+    { targetTypes: [] },
     { organizationId: "alder" },
     { workspaceSlug: "alder" },
   ])("rejects %j", (change) => {

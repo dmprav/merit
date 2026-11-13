@@ -74,27 +74,22 @@ one rejects a stale write, while the other describes the relationship between
 saved evidence and a saved judgment. [MCP preconditions](../../../docs/guides/mcp.md#edit-and-recover)
 map the read values to tool arguments.
 
-Recommendation saves also append a compact event through the
-[audit capability](../../audit/business/README.md) in the same transaction.
-Application assembly injects the recorder through Recommendations'
-`RecordRecommendationAudit` contract; the command supplies its transaction and
-propagates recording failures so the whole save rolls back.
-Recommendations retains the full recommendation versions; the shared event references
-the saved recommendation revision and captures the actor and interface. Applications,
-Rounds, and Reviews record their milestones the same way (see the
-[audit capability](../../audit/business/README.md#record-an-accepted-action)), and
-`listWorkspaceActivity` reads them back: it resolves round membership,
-assessment-to-application links, and current titles around audit's reader, since audit
-imports no capability.
+All accepted grant changes append events through the
+[audit capability](../../audit/business/README.md) in the command's transaction.
+The business write and event roll back together. Unchanged recommendations retain
+their revision when content, author, and application basis match the current version.
+Material, criteria, assessment, and recommendation versions remain with their owners.
 
-Creation receipts live in change history and survive eligible record deletion.
-Retrying a creation reads that receipt, including after the created record has
-been deleted.
+`listWorkspaceActivity` authorizes grant access and reads only grant subjects.
+Historical context supplies round filtering even after deletion; current titles and
+links are resolved for the selected page. Creation receipts live in dedicated
+application and round tables and survive eligible record deletion. Retry handling
+never needs to interpret audit payloads.
 
 ### Keep application history readable
 
-Applications owns `case_changes`, creation receipts, and the frozen intake snapshot
-format. Grantmaking reads those snapshots through Applications' public decoder
+Applications owns creation receipts and the frozen intake snapshot format stored
+in shared audit details. Grantmaking reads those snapshots through Applications' public decoder
 and presents their material and attribution. Review and recommendation histories
 remain with their owners and are not copied into intake changes. See
 [Applications' history contract](../../applications/business/README.md#preserve-intake-history)
@@ -117,7 +112,8 @@ Reviews’ `createReviewerService` owns [assignment participation](../../../docs
 separately from organization-wide grant work. It constructs recipient views on the
 server: invitation metadata before acceptance, then the pinned material and criteria,
 the author's private draft, and their own submitted assessment. Manager queries
-select assignment status and history without draft content. Bounded manager review
+select assignment status without draft content. Assignment history is a separate
+bounded, authorized read. Bounded manager review
 summaries expose authorship and participation/conflict status to existing MCP readers.
 
 Each assignment belongs to one review request. Its revision coordinates lifecycle

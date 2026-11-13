@@ -17,6 +17,7 @@
   "dependencies": {
     "@merit/access": "workspace:*",
     "@merit/applications": "workspace:*",
+    "@merit/audit": "workspace:*",
     "@merit/auth": "workspace:*",
     "@merit/contacts": "workspace:*",
     "@merit/dates": "workspace:*",

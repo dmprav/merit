@@ -1,52 +1,18 @@
-import { and, desc, eq, or, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 
-import { appUsers } from "@merit/auth/schema";
 import type { Database } from "@merit/db";
-import { memberships, organizations } from "@merit/organizations/schema";
-import { organizationScope } from "@merit/organizations/scope";
 
-import type { ActivityCursor, ActivityInput } from "../../../domain/activity";
 import { auditEvents } from "../schema";
-
-/** Resolves the workspace for a member and whether they currently work on grants. */
-export const readActivityAccess = async (db: Database, userId: string, workspaceSlug: string) => {
-  const [row] = await db
-    .select({
-      organizationId: organizations.id,
-      allowed: sql<boolean>`${organizationScope(userId, "work_on_grants", organizations.id)}`,
-    })
-    .from(organizations)
-    .innerJoin(memberships, eq(memberships.organizationId, organizations.id))
-    .innerJoin(appUsers, eq(appUsers.id, memberships.userId))
-    .where(
-      and(
-        eq(organizations.slug, workspaceSlug),
-        organizationScope(userId, "read_workspace", organizations.id),
-      ),
-    );
-  return row;
-};
-
-const targetFilter = (targets: NonNullable<ActivityInput["targets"]>): SQL => {
-  const groups = targets
-    .filter((target) => target.ids.length > 0)
-    .map((target) =>
-      and(
-        eq(auditEvents.targetType, target.type),
-        // One JSON parameter, so large rounds stay under the protocol's parameter limit.
-        sql`${auditEvents.targetId} in (select jsonb_array_elements_text(${JSON.stringify(target.ids)}::jsonb))`,
-      ),
-    );
-  return or(...groups) ?? sql`false`;
-};
+import { auditBefore, auditOrder } from "./paging";
 
 export const readActivityEvents = (
   db: Database,
   organizationId: string,
   filter: {
     actorUserId?: string;
-    targets?: ActivityInput["targets"];
-    after?: ActivityCursor | null;
+    roundId?: string;
+    targetTypes: string[];
+    after?: string;
     limit: number;
   },
 ) =>
@@ -60,31 +26,42 @@ export const readActivityEvents = (
       targetType: auditEvents.targetType,
       targetId: auditEvents.targetId,
       targetRevision: auditEvents.targetRevision,
+      targetName: auditEvents.targetName,
+      roundId: auditEvents.roundId,
+      applicationId: auditEvents.applicationId,
+      assignmentId: auditEvents.assignmentId,
       recordedAt: auditEvents.recordedAt,
     })
     .from(auditEvents)
     .where(
       and(
         eq(auditEvents.organizationId, organizationId),
+        filter.roundId ? eq(auditEvents.roundId, filter.roundId) : undefined,
+        inArray(auditEvents.targetType, filter.targetTypes),
         filter.actorUserId ? eq(auditEvents.actorUserId, filter.actorUserId) : undefined,
-        filter.targets ? targetFilter(filter.targets) : undefined,
-        filter.after
-          ? sql`(${auditEvents.recordedAt}, ${auditEvents.id}) < (${filter.after.recordedAt.toISOString()}::timestamptz, ${filter.after.id}::uuid)`
-          : undefined,
+        auditBefore(filter.after),
       ),
     )
-    .orderBy(desc(auditEvents.recordedAt), desc(auditEvents.id))
+    .orderBy(...auditOrder)
     .limit(filter.limit + 1);
 
-/** Everyone with recorded activity, named as they were most recently recorded. */
-export const readActivityPeople = (db: Database, organizationId: string) =>
+/** Latest recorded name per person, without accumulating every historical name. */
+export const readActivityPeople = (db: Database, organizationId: string, targetTypes: string[]) =>
   db
-    .select({
+    .selectDistinctOn([auditEvents.actorUserId], {
       userId: auditEvents.actorUserId,
-      name: sql<
-        string | null
-      >`(array_agg(${auditEvents.actorName} order by ${auditEvents.actorName} is null, ${auditEvents.recordedAt} desc, ${auditEvents.id} desc))[1]`,
+      name: auditEvents.actorName,
     })
     .from(auditEvents)
-    .where(eq(auditEvents.organizationId, organizationId))
-    .groupBy(auditEvents.actorUserId);
+    .where(
+      and(
+        eq(auditEvents.organizationId, organizationId),
+        inArray(auditEvents.targetType, targetTypes),
+      ),
+    )
+    .orderBy(
+      auditEvents.actorUserId,
+      sql`${auditEvents.actorName} is null`,
+      desc(auditEvents.recordedAt),
+      desc(auditEvents.id),
+    );

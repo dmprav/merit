@@ -12,7 +12,12 @@ import {
   encodeIntakeApplication,
 } from "../encoding";
 import { currentIntakeApplication, currentMaterial, workingRevision } from "../projections";
-import { caseChanges, applicationCases, materialVersions, materialDrafts } from "../schema";
+import {
+  applicationCreationReceipts,
+  applicationCases,
+  materialVersions,
+  materialDrafts,
+} from "../schema";
 import { recordApplicationChange } from "./intake-history";
 
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
@@ -207,13 +212,16 @@ export const recordIntakeCreation = async (
     snapshot,
     recordedByUserId: actor.userId,
   });
+  await tx
+    .insert(applicationCreationReceipts)
+    .values({ organizationId, publicId: saved.id, requestId });
   await recordApplicationChange(tx, {
     organizationId,
     publicId: saved.id,
+    roundId,
     revision: 0,
     actor,
     action: "create",
-    requestId,
     after: { application, workingRevision: null },
   });
   return saved.id;
@@ -223,7 +231,9 @@ export const recordIntakeCreation = async (
 export const recordIntakeChange = async (
   tx: Transaction,
   current: IntakeState,
-  change: Omit<Extract<ReturnType<typeof prepareIntakeChange>, { ok: true }>, "ok">,
+  change: Omit<Extract<ReturnType<typeof prepareIntakeChange>, { ok: true }>, "ok" | "action"> & {
+    action: Extract<ReturnType<typeof prepareIntakeChange>, { ok: true }>["action"] | "contact";
+  },
   actor: Actor,
 ) => {
   const before = {
@@ -239,12 +249,17 @@ export const recordIntakeChange = async (
   }
 
   const revision = current.revision + 1;
+  const contactOnly =
+    (change.action === "save_content" || change.action === "save_revision") &&
+    current.application.version === change.application.version &&
+    JSON.stringify(before.workingRevision) === JSON.stringify(after.workingRevision);
   await recordApplicationChange(tx, {
     organizationId: current.organizationId,
     publicId: current.id,
+    roundId: current.roundId,
     revision,
     actor,
-    action: change.action,
+    action: contactOnly ? "contact" : change.action,
     reason: change.reason,
     before: { application: current.application, workingRevision: current.workingRevision },
     after:
@@ -268,6 +283,8 @@ export const recordIntakeChange = async (
 };
 
 export const deleteDemoApplications = async (db: Transaction, organizationId: string) => {
-  await db.delete(caseChanges).where(eq(caseChanges.organizationId, organizationId));
+  await db
+    .delete(applicationCreationReceipts)
+    .where(eq(applicationCreationReceipts.organizationId, organizationId));
   await db.delete(applicationCases).where(eq(applicationCases.organizationId, organizationId));
 };

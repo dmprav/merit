@@ -1,7 +1,6 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, timestamp, index, uniqueIndex, check, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, index, uniqueIndex, check } from "drizzle-orm/pg-core";
 
-import type { Provenance } from "@merit/auth";
 import { appUsers } from "@merit/auth/schema";
 
 import { organizations } from "./membership-schema";
@@ -53,32 +52,4 @@ export const invitations = pgTable(
       sql`${table.delivery} IN ('pending', 'sent', 'failed')`,
     ),
   ],
-);
-
-export const organizationEvents = pgTable(
-  "organization_events",
-  {
-    id: text().primaryKey(),
-    organizationId: text("organization_id")
-      .notNull()
-      .references(() => organizations.id),
-    actorUserId: text("actor_user_id")
-      .notNull()
-      .references(() => appUsers.id),
-    action: text({
-      enum: [
-        "created",
-        "renamed",
-        "invited",
-        "revoked",
-        "accepted",
-        "member_changed",
-        "member_removed",
-      ],
-    }).notNull(),
-    details: jsonb().notNull(),
-    provenance: jsonb().$type<Provenance>(),
-    recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
-  },
-  (table) => [index("organization_events_organization_idx").on(table.organizationId)],
 );

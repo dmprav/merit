@@ -6,7 +6,6 @@ import { Pool } from "pg";
 import { assert, expect } from "vite-plus/test";
 
 import { editFundingApplication } from "@merit/applications/server";
-import { recordAuditEvent } from "@merit/audit/server/record";
 import type { Database } from "@merit/db";
 import { actor } from "@merit/organizations/testing/workspace";
 import { createFundingRound } from "@merit/rounds/server";
@@ -82,16 +81,11 @@ it("saves personal pins, allows multiple rounds, and retries pinning and orderin
   rounds,
 }) => {
   const navigation = service(db);
-  const another = await createFundingRound(
-    db,
-    actor,
-    {
-      workspaceSlug: "alder",
-      requestId: randomUUID(),
-      title: "Another round",
-    },
-    recordAuditEvent,
-  );
+  const another = await createFundingRound(db, actor, {
+    workspaceSlug: "alder",
+    requestId: randomUUID(),
+    title: "Another round",
+  });
   assert(another.status === "ok");
   const application = await rounds.createApplication("Community meals");
   const round: NavigationTarget = { kind: "round", id: rounds.pageInput.publicId };
@@ -166,7 +160,6 @@ it("resolves current labels, hides lost grant access, and cleans up deleted targ
       change: { action: "save_content", content: { title: "Renamed application" } },
     },
     applicationWork,
-    recordAuditEvent,
   );
   expect(await navigation.read(actor)).toMatchObject({
     status: "ok",

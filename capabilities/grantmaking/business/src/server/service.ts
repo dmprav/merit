@@ -6,6 +6,7 @@ import type { GrantmakingQueries } from "../api/service";
 import { changeNavigationPin } from "./commands/navigation";
 import { listWorkspaceActivity } from "./queries/activity";
 import { listWorkspaceApplications } from "./queries/application-overview";
+import { applicationAuditHistory, roundBudgetHistory } from "./queries/history";
 import { readNavigationPins } from "./queries/navigation";
 import { getFundingApplicationPage, getFundingRoundPage, listFundingRounds } from "./queries/pages";
 import {
@@ -42,6 +43,9 @@ export const createNavigationService = ({
 });
 
 export const createGrantmakingService = ({ database }: Dependencies): GrantmakingQueries => ({
+  applicationAuditHistory: (actor, input) =>
+    database((db) => applicationAuditHistory(db, actor, input)),
+  roundBudgetHistory: (actor, input) => database((db) => roundBudgetHistory(db, actor, input)),
   readApplicationPage: (actor, input) =>
     database((db) => getFundingApplicationPage(db, actor, input)),
   readRoundPage: (actor, input) => database((db) => getFundingRoundPage(db, actor, input)),

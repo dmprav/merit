@@ -35,17 +35,19 @@ export const ApplicationAuditHistory = ({ history }: { history: IntakeState["his
               </time>
             </Inline>
             {entry.reason && <p className={styles.reading}>{entry.reason}</p>}
-            {(entry.action === "create" ||
-              entry.action === "save_content" ||
-              entry.action === "mark_ready" ||
-              entry.action === "revision" ||
-              entry.action === "correction" ||
-              entry.action === "details") && (
+            {(entry.action === "application.created" ||
+              entry.action === "application.material_changed" ||
+              entry.action === "application.marked_ready" ||
+              entry.action === "application.revision_recorded" ||
+              entry.action === "application.correction_recorded" ||
+              entry.action === "application.summary_changed" ||
+              entry.action === "application.contact_changed") && (
               <>
                 {entry.before &&
-                  (entry.action === "revision" ||
-                    entry.action === "correction" ||
-                    entry.action === "details") && (
+                  (entry.action === "application.revision_recorded" ||
+                    entry.action === "application.correction_recorded" ||
+                    entry.action === "application.summary_changed" ||
+                    entry.action === "application.contact_changed") && (
                     <HistoricalApplication
                       value={entry.before}
                       label={t("intake.previousVersion")}
@@ -64,15 +66,16 @@ export const ApplicationAuditHistory = ({ history }: { history: IntakeState["his
 };
 
 const historyLabels = {
-  create: "intake.eventCreate",
-  save_content: "intake.eventContent",
-  mark_ready: "intake.eventReady",
-  start_revision: "intake.eventStart",
-  save_revision: "intake.eventDraft",
-  discard_revision: "intake.eventDiscard",
-  revision: "intake.eventRevision",
-  correction: "intake.eventCorrection",
-  details: "intake.eventDetails",
+  "application.contact_changed": "intake.eventDetails",
+  "application.created": "intake.eventCreate",
+  "application.material_changed": "intake.eventContent",
+  "application.marked_ready": "intake.eventReady",
+  "application_working_revision.started": "intake.eventStart",
+  "application_working_revision.updated": "intake.eventDraft",
+  "application_working_revision.discarded": "intake.eventDiscard",
+  "application.revision_recorded": "intake.eventRevision",
+  "application.correction_recorded": "intake.eventCorrection",
+  "application.summary_changed": "intake.eventDetails",
 } as const;
 
 const historyLabel = (action: string) =>

@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   check,
+  boolean,
   date,
   integer,
   jsonb,
@@ -13,7 +14,6 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
-import type { Provenance } from "@merit/auth";
 import { appUsers } from "@merit/auth/schema";
 import { organizations } from "@merit/organizations/schema";
 
@@ -37,6 +37,7 @@ export const fundingRounds = pgTable(
     title: text().notNull(),
     purpose: text().notNull(),
     currency: text().notNull().default("EUR"),
+    budgetEstablished: boolean("budget_established").notNull().default(false),
     budget: numeric({ precision: 30, scale: 0 }),
     meetingDate: date("meeting_date"),
     snapshotDate: date("snapshot_date").notNull(),
@@ -64,27 +65,14 @@ export const criteriaVersions = pgTable(
     check("criteria_version_positive", sql`${t.version} > 0`),
   ],
 );
-export const roundChanges = pgTable(
-  "round_changes",
+export const roundCreationReceipts = pgTable(
+  "round_creation_receipts",
   {
-    publicId: text("round_id").notNull(),
-    revision: integer().notNull(),
     organizationId: text("organization_id")
       .notNull()
       .references(() => organizations.id),
-    actorUserId: text("actor_user_id")
-      .notNull()
-      .references(() => appUsers.id),
-    provenance: jsonb().$type<Provenance>(),
-    recordedAt: recordedAt(),
-    action: text().notNull(),
-    requestId: uuid("request_id"),
-    reason: text(),
-    before: jsonb(),
-    after: jsonb(),
+    requestId: uuid("request_id").notNull(),
+    publicId: text("round_id").notNull(),
   },
-  (t) => [
-    primaryKey({ columns: [t.publicId, t.revision] }),
-    unique("round_changes_creation_key").on(t.organizationId, t.requestId),
-  ],
+  (t) => [primaryKey({ columns: [t.organizationId, t.requestId] })],
 );

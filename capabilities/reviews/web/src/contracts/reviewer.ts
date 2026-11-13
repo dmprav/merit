@@ -1,3 +1,4 @@
+import type { PageSource } from "@merit/query/contracts";
 import type {
   ReviewerService,
   ReviewerResult,
@@ -22,7 +23,8 @@ export type ReviewerData = {
 };
 
 export type ManagerReviewerData = {
-  read: () => Promise<ReviewerResponse<(ReviewerSummary & { history: ReviewerEvent[] })[]>>;
+  historySource?: (assignment: ReviewerSummary) => PageSource<ReviewerEvent>;
+  read: () => Promise<ReviewerResponse<(ReviewerSummary & { history?: ReviewerEvent[] })[]>>;
   invite: (
     requestId: string,
     dueDate: string | null,

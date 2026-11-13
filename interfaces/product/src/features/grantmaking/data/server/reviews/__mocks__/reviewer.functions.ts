@@ -52,3 +52,11 @@ export const submitReviewerAssessment = fn<
 >(async () => {
   throw new Error("Configure submitReviewerAssessment in the story");
 });
+
+export const readReviewerHistory = fn<
+  (
+    ...args: Parameters<typeof actual.readReviewerHistory>
+  ) => ReturnType<typeof actual.readReviewerHistory>
+>(async () => {
+  throw new Error("Configure readReviewerHistory in the story");
+});

@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { readAuditHistory } from "@merit/audit/server/read";
 import type { Actor } from "@merit/auth";
 import { readTransaction, type Database } from "@merit/db";
 
@@ -48,18 +49,28 @@ export const listContactChanges = async (
     if (!(await reads.readContactDetails(tx, actor.userId, request))) {
       return { status: "not_found" } as const;
     }
-    const rows = await reads.readContactChanges(tx, actor.userId, request);
+    const workspace = (await reads.readContactWorkspace(tx, actor.userId, request.workspaceSlug))!;
+    const page = await readAuditHistory(tx, {
+      ...request,
+      organizationId: workspace.id,
+      targetTypes: ["contact"],
+      targetId: request.contactId,
+    });
     const snapshot = contactDetailsSchema.extend({ archived: z.boolean() }).strip();
-    const entries = rows.slice(0, request.limit).map((row) => ({
-      ...row,
+    const entries = page.entries.map((row) => ({
+      contactId: request.contactId,
+      revision: row.targetRevision!,
+      actor: row.actorName,
+      actorUserId: row.actorUserId,
+      provenance: row.provenance,
       recordedAt: row.recordedAt.toISOString(),
-      before: snapshot.nullable().parse(row.before),
-      after: snapshot.parse(row.after),
+      before: snapshot.nullable().parse(row.details.before),
+      after: snapshot.parse(row.details.after),
     }));
     return {
       status: "ok",
       entries,
-      nextRevision: rows.length > request.limit ? entries.at(-1)!.revision : null,
+      nextCursor: page.nextCursor,
     } as const;
   });
 };

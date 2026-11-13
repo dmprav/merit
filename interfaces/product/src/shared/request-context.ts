@@ -7,6 +7,8 @@ export type { DemoServices } from "../features/demo/contracts";
 
 export type WorkspaceServices = Pick<
   GrantmakingService,
+  | "applicationAuditHistory"
+  | "roundBudgetHistory"
   | "selectContact"
   | "saveReview"
   | "createApplication"
@@ -21,7 +23,7 @@ export type WorkspaceServices = Pick<
   | "listWorkspaceApplications"
   | "listWorkspaceActivity"
 > &
-  Pick<ContactService, "listContacts" | "changeContact"> & {
+  Pick<ContactService, "listContacts" | "changeContact" | "contactHistory"> & {
     currentIdentity: () => Promise<Identity>;
     readWorkspace: (actor: Actor, workspaceSlug?: string) => Promise<Workspace | null>;
   };

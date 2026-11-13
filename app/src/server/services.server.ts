@@ -1,6 +1,5 @@
 import { createApplicationsService } from "@merit/applications/server";
 import { roundHasApplications } from "@merit/applications/server/integrations";
-import { recordAuditEvent } from "@merit/audit/server/record";
 import { createContactService } from "@merit/contacts/server";
 import type { Database } from "@merit/db";
 import { renderReviewerEmail } from "@merit/emails/reviewer";
@@ -34,16 +33,15 @@ export const createApplicationServices = ({
 }) => {
   const grantmaking = {
     ...createGrantmakingService({ database }),
-    ...createRoundsService({ database, roundHasApplications, recordAuditEvent }),
-    ...createApplicationsService({ database, work: applicationWork, recordAuditEvent }),
-    ...createRecommendationsService({ database, recordAuditEvent }),
-    ...createReviewService({ database, recordAuditEvent }),
+    ...createRoundsService({ database, roundHasApplications }),
+    ...createApplicationsService({ database, work: applicationWork }),
+    ...createRecommendationsService({ database }),
+    ...createReviewService({ database }),
   };
   const navigation = createNavigationService({ database, verifiedEmails: identity.verifiedEmails });
   const reviewer = createReviewerService({
     database,
     verifiedEmails: identity.verifiedEmails,
-    recordAuditEvent,
     reviewerUrl: (id) => new URL(productLinks.review(id), invitationOrigin).href,
     managerUrl: (slug, id) =>
       new URL(

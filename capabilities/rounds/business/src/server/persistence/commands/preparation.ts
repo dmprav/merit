@@ -1,5 +1,6 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 
+import { recordAuditEvent } from "@merit/audit/server/record";
 import { actorProvenance, type Actor } from "@merit/auth";
 import { appUsers } from "@merit/auth/schema";
 import type { Database } from "@merit/db";
@@ -10,7 +11,7 @@ import type { FundingRound } from "../../../domain/model";
 import type { prepareRoundChange } from "../../../domain/preparation";
 import { decodeRound, encodeRound, type FundingRoundData } from "../encoding";
 import { roundRecord } from "../projections";
-import { fundingRounds, roundChanges, criteriaVersions } from "../schema";
+import { fundingRounds, roundCreationReceipts, criteriaVersions } from "../schema";
 
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
@@ -25,6 +26,7 @@ export const lockPreparationRound = async (
       organizationId: fundingRounds.organizationId,
       revision: fundingRounds.revision,
       snapshot: roundRecord,
+      budgetEstablished: fundingRounds.budgetEstablished,
     })
     .from(fundingRounds)
     .where(and(eq(fundingRounds.organizationId, organizationId), eq(fundingRounds.id, publicId)))
@@ -36,6 +38,7 @@ export const lockPreparationRound = async (
       organizationId: row.organizationId,
       revision: row.revision,
       round: decodeRound(row.snapshot),
+      budgetEstablished: row.budgetEstablished,
     }
   );
 };
@@ -48,10 +51,13 @@ export const readCreationReceipt = async (
   requestId: string,
 ) => {
   const [row] = await tx
-    .select({ publicId: roundChanges.publicId })
-    .from(roundChanges)
+    .select({ publicId: roundCreationReceipts.publicId })
+    .from(roundCreationReceipts)
     .where(
-      and(eq(roundChanges.organizationId, organizationId), eq(roundChanges.requestId, requestId)),
+      and(
+        eq(roundCreationReceipts.organizationId, organizationId),
+        eq(roundCreationReceipts.requestId, requestId),
+      ),
     );
 
   return row;
@@ -80,7 +86,12 @@ export const insertPreparedRound = async (
   const { snapshot, ...identity } = values;
   const [row] = await tx
     .insert(fundingRounds)
-    .values({ ...identity, id: snapshot.id, ...roundColumns(snapshot) })
+    .values({
+      ...identity,
+      id: snapshot.id,
+      ...roundColumns(snapshot),
+      budgetEstablished: snapshot.budget !== null,
+    })
     .returning();
   await tx.insert(criteriaVersions).values(
     snapshot.criteriaHistory.map((entry) => ({
@@ -117,20 +128,51 @@ const writePreparedRound = async (
       ...roundColumns(values.snapshot),
       managerUserId: values.managerUserId,
       revision: values.revision,
+      budgetEstablished: sql`${fundingRounds.budgetEstablished} or ${values.snapshot.budget !== null}`,
     })
     .where(eq(fundingRounds.id, publicId));
 };
 
-const recordRoundChange = (tx: Transaction, values: typeof roundChanges.$inferInsert) =>
-  tx.insert(roundChanges).values(values);
+const actions = {
+  create: "round.created",
+  details: "round.details_changed",
+  budget: "round.budget_changed",
+  criteria: "round.criteria_changed",
+  manager: "round.manager_changed",
+  delete: "round.deleted",
+} as const;
 
-export const hasRoundBudgetHistory = async (tx: Transaction, publicId: string) => {
-  const rows = await tx
-    .select({ revision: roundChanges.revision })
-    .from(roundChanges)
-    .where(and(eq(roundChanges.publicId, publicId), eq(roundChanges.action, "budget")))
-    .limit(1);
-  return rows.length > 0;
+const recordRoundChange = async (
+  tx: Transaction,
+  values: {
+    organizationId: string;
+    publicId: string;
+    revision: number;
+    actorUserId: string;
+    provenance: ReturnType<typeof actorProvenance>;
+    action: keyof typeof actions;
+    reason?: string | null;
+    before?: FundingRoundData;
+    after?: FundingRoundData;
+  },
+) => {
+  await recordAuditEvent(tx, {
+    organizationId: values.organizationId,
+    actor: { userId: values.actorUserId, provenance: values.provenance },
+    action: actions[values.action],
+    target: {
+      type: "round",
+      id: values.publicId,
+      revision: values.revision,
+      name: (values.after ?? values.before)?.title,
+    },
+    context: { roundId: values.publicId },
+    details: {
+      reason: values.reason ?? null,
+      before: values.before ?? null,
+      after: values.after ?? null,
+    },
+  });
 };
 
 /** The caller holds the workspace lock until the round and creation receipt commit together. */
@@ -147,6 +189,7 @@ export const recordPreparationCreation = async (
     snapshot,
     managerUserId: actor.userId,
   });
+  await tx.insert(roundCreationReceipts).values({ organizationId, publicId: saved.id, requestId });
   await recordRoundChange(tx, {
     organizationId,
     publicId: saved.id,
@@ -154,7 +197,6 @@ export const recordPreparationCreation = async (
     actorUserId: actor.userId,
     provenance: actorProvenance(actor),
     action: "create",
-    requestId,
     after: snapshot,
   });
   return saved.id;

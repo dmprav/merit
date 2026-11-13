@@ -2,6 +2,7 @@ import { and, eq, sql } from "drizzle-orm";
 
 import { materialVersionSchema } from "@merit/applications/domain";
 import { applicationCases, materialVersions } from "@merit/applications/schema";
+import { currentMaterial } from "@merit/applications/scope";
 import type { Database } from "@merit/db";
 import { fundingRoundSchema } from "@merit/rounds/domain";
 import { fundingRounds } from "@merit/rounds/schema";
@@ -21,6 +22,7 @@ export const readReviewState = async (
   const [row] = await db
     .select({
       publicId: applicationCases.id,
+      title: sql<string>`${currentMaterial}->>'title'`,
       organizationId: applicationCases.organizationId,
       roundId: applicationCases.roundId,
       applicationVersion: applicationCases.materialVersion,

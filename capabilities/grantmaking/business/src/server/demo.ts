@@ -1,6 +1,5 @@
 import { encodeApplicationMaterial } from "@merit/applications/encoding";
-import { encodeApplicationHistory } from "@merit/applications/history";
-import { insertIntakeHistory } from "@merit/applications/server/demo";
+import { recordApplicationChange } from "@merit/applications/server/demo";
 import { seedExampleContacts } from "@merit/contacts/server/demo";
 import type { Database } from "@merit/db";
 import { fromMinorUnits } from "@merit/money";
@@ -108,19 +107,21 @@ export const seedFundingExample = async (
         : [],
     });
     if (earlierMaterial) {
-      await insertIntakeHistory(db, {
+      await recordApplicationChange(db, {
         organizationId,
         publicId: saved.id,
         revision: 1,
-        actorUserId: authorUserId,
+        actor: { userId: authorUserId },
+        provenance: null,
+        roundId: ids.roundId,
         action: "revision",
         recordedAt: new Date("2027-01-17T12:00:00Z"),
         reason: "The applicant lost the free venue and submitted a revised request.",
-        before: encodeApplicationHistory({ application: earlierMaterial, workingRevision: null }),
-        after: encodeApplicationHistory({
+        before: { application: earlierMaterial, workingRevision: null },
+        after: {
           application: decodeApplication(content),
           workingRevision: null,
-        }),
+        },
       });
     }
   }

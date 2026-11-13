@@ -22,29 +22,37 @@ const entry = (index: number, overrides: Partial<ActivityEntry> = {}): ActivityE
   recordedAt: new Date(Date.UTC(2027, 0, 20, 12, 0, 0) - index * 3_600_000).toISOString(),
   actor: "Dana Reed",
   provenance: { interface: "web" },
-  action: "application.create",
+  action: "application.created",
+  subject: {
+    type: "application",
+    id: "b8q3w5j7c2df",
+    revision: 0,
+    name: null,
+    roundId: null,
+    applicationId: "b8q3w5j7c2df",
+  },
   record: { kind: "application", id: "b8q3w5j7c2df", title: "Workshop Saturdays" },
   ...overrides,
 });
 
 const recent: ActivityEntry[] = [
-  entry(1, { action: "recommendation.saved" }),
+  entry(1, { action: "recommendation.recorded" }),
   entry(2, {
     action: "assessment.submitted",
     actor: "Sam Morgan",
     record: { kind: "application", id: "0123456789ac", title: "Neighbour Table" },
   }),
   entry(3, {
-    action: "round.budget",
+    action: "round.budget_changed",
     record: { kind: "round", id: "k7m2p9x4n6rt", title: "Local Connections 2027" },
   }),
-  entry(4, { action: "application.mark_ready" }),
+  entry(4, { action: "application.marked_ready" }),
   entry(5),
 ];
 
 const olderPage = [6, 7, 8].map((index) =>
   entry(index, {
-    action: "round.criteria",
+    action: "round.criteria_changed",
     record: { kind: "round", id: "h7m2p9x4n6rt", title: "Community grants 2028" },
   }),
 );
@@ -155,7 +163,7 @@ export const McpProvenance: StoryObj<typeof meta> = {
 export const MissingTarget: StoryObj<typeof meta> = {
   args: {
     entries: [
-      entry(1, { action: "application.delete", record: null }),
+      entry(1, { action: "application.deleted", record: null }),
       entry(2, { action: "widget.polished", record: null }),
       ...recent.slice(1, 3),
     ],

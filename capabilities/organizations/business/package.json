@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@merit/access": "workspace:*",
+    "@merit/audit": "workspace:*",
     "@merit/auth": "workspace:*",
     "@merit/db": "workspace:*",
     "drizzle-orm": "catalog:",

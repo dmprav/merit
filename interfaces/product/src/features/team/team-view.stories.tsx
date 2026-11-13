@@ -7,6 +7,7 @@ import { ApplicationPage } from "@merit/ui/application-shell";
 import { StoryEnvironment } from "../../../tests/storybook";
 import {
   readTeam,
+  readTeamHistory,
   inviteMember,
   changeMember,
   removeMember,
@@ -32,6 +33,13 @@ const meta = {
   ],
   beforeEach: ({ args }) => {
     let team = structuredClone(args.initial);
+    mocked(readTeamHistory).mockImplementation(async () => ({
+      status: "ok",
+      value: {
+        entries: [],
+        nextCursor: null,
+      },
+    }));
     mocked(readTeam).mockImplementation(async () => ({ status: "ok", value: team }));
     mocked(inviteMember).mockImplementation(async ({ data }) => {
       team = {
@@ -275,14 +283,6 @@ export const RemovalFailure: Story = {
 
     await waitFor(async () => expect(await dialog.findByRole("alert")).toBeVisible());
     await waitFor(async () => expect(dialog.getByText("colleague@example.test")).toBeVisible());
-    // Let React Aria clear its transient announcement before the accessibility scan.
-    await waitFor(
-      () =>
-        expect(
-          context.canvasElement.ownerDocument.querySelector("[data-live-announcer] [role=img]"),
-        ).toBeNull(),
-      { timeout: 8000 },
-    );
   },
 };
 export const SavedButRefreshFailed: Story = {

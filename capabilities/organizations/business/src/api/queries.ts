@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import type { OrganizationSubject } from "@merit/access";
+import { auditPageInput } from "@merit/audit/api";
 import type { Provenance } from "@merit/auth";
 
 import { workspaceSlugSchema } from "./identifiers";
@@ -46,21 +47,6 @@ export type Team = {
     expiresAt: Date;
     delivery: "pending" | "sent" | "failed";
     invitedBy: string | null;
-  }[];
-  history: {
-    id: string;
-    action:
-      | "created"
-      | "renamed"
-      | "invited"
-      | "revoked"
-      | "accepted"
-      | "member_changed"
-      | "member_removed";
-    actor: string | null;
-    provenance: Provenance | null;
-    recordedAt: string;
-    details: z.infer<ReturnType<typeof z.json>>;
   }[];
 };
 
@@ -144,7 +130,14 @@ export type InvitationPage = {
 };
 
 export type TeamHistoryPage = {
-  entries: (Omit<Team["history"][number], "id" | "details"> & { eventId: string })[];
+  entries: {
+    eventId: string;
+    action: string;
+    actor: string | null;
+    provenance: Provenance | null;
+    recordedAt: string;
+    details: z.infer<ReturnType<typeof z.json>>;
+  }[];
   nextCursor: string | null;
 };
 
@@ -155,3 +148,5 @@ export type TeamEventContent = {
   offset: number;
   nextOffset: number | null;
 };
+
+export const teamHistoryInput = auditPageInput.extend({ workspaceSlug: workspaceSlugSchema });

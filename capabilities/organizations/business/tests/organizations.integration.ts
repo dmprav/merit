@@ -327,11 +327,19 @@ describe("organization provisioning", () => {
     expect(
       (
         await database.client.query<{ action: string }>(
-          "SELECT action FROM organization_events WHERE organization_id=$1",
+          "SELECT action FROM audit_events WHERE organization_id=$1",
           [organizationId],
         )
       ).rows.map((row) => row.action),
-    ).toContain("renamed");
+    ).toContain("organization.renamed");
+    await service().rename({ userId: "operator" }, { organizationId, name: "Renamed" });
+    expect(
+      (
+        await database.client.query(
+          "SELECT id FROM audit_events WHERE action='organization.renamed'",
+        )
+      ).rows,
+    ).toHaveLength(1);
   });
 
   it("rejects acceptance by an account without the invited email", async () => {
@@ -411,10 +419,10 @@ describe("organization provisioning", () => {
     expect(
       (
         await database.client.query<{ action: string }>(
-          "SELECT action FROM organization_events WHERE action='accepted'",
+          "SELECT action FROM audit_events WHERE action='team_invitation.accepted'",
         )
       ).rows,
-    ).toEqual([{ action: "accepted" }]);
+    ).toEqual([{ action: "team_invitation.accepted" }]);
   });
 
   it("adds a second workspace without replacing the recipient's existing membership", async () => {
@@ -435,7 +443,7 @@ describe("organization provisioning", () => {
     expect(
       (
         await database.client.query<{ organization_id: string }>(
-          "SELECT organization_id FROM organization_events WHERE action='accepted' ORDER BY organization_id",
+          "SELECT organization_id FROM audit_events WHERE action='team_invitation.accepted' ORDER BY organization_id",
         )
       ).rows,
     ).toEqual(
@@ -565,7 +573,7 @@ describe("organization provisioning", () => {
     expect(
       (
         await database.client.query<{ count: number }>(
-          "SELECT count(*)::int AS count FROM organization_events WHERE action='accepted'",
+          "SELECT count(*)::int AS count FROM audit_events WHERE action='team_invitation.accepted'",
         )
       ).rows[0]?.count,
     ).toBe(1);
@@ -574,7 +582,7 @@ describe("organization provisioning", () => {
   it("rolls back acceptance while preserving the authenticated identity when its audit write fails", async () => {
     const invitation = await create();
     await database.client.query(
-      "ALTER TABLE organization_events ADD CONSTRAINT reject_acceptance_test CHECK (action <> 'accepted')",
+      "ALTER TABLE audit_events ADD CONSTRAINT reject_acceptance_test CHECK (action <> 'team_invitation.accepted')",
     );
 
     try {
@@ -601,7 +609,7 @@ describe("organization provisioning", () => {
       ).toEqual([{ accepted_at: null, accepted_by: null }]);
     } finally {
       await database.client.query(
-        "ALTER TABLE organization_events DROP CONSTRAINT reject_acceptance_test",
+        "ALTER TABLE audit_events DROP CONSTRAINT reject_acceptance_test",
       );
     }
 
@@ -669,12 +677,12 @@ describe("organization provisioning", () => {
           await tx.execute(sql.raw(`GRANT USAGE ON SCHEMA public TO ${role}`));
           await tx.execute(
             sql.raw(
-              `GRANT SELECT ON app_users, memberships, organizations, organization_invitations, organization_events TO ${role}`,
+              `GRANT SELECT ON app_users, memberships, organizations, organization_invitations, audit_events TO ${role}`,
             ),
           );
           await tx.execute(
             sql.raw(
-              `GRANT INSERT ON app_users, memberships, organizations, organization_invitations, organization_events TO ${role}`,
+              `GRANT INSERT ON app_users, memberships, organizations, organization_invitations, audit_events TO ${role}`,
             ),
           );
           await tx.execute(sql.raw(`GRANT UPDATE (id, name) ON app_users TO ${role}`));

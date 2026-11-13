@@ -11,10 +11,11 @@ import { ConfirmationDialog } from "@merit/ui/confirmation-dialog";
 import { Inline, Stack } from "@merit/ui/layout";
 import { Notice } from "@merit/ui/notice";
 import { PageHeader } from "@merit/ui/page-header";
+import { PagedContent } from "@merit/ui/paged-content";
 import { StateMessage } from "@merit/ui/state-message";
 import { StatusMessage } from "@merit/ui/status-message";
 
-import type { Team, TeamData, TeamSection, Member, Invitation } from "../contracts/team";
+import type { TeamData, TeamSection, Member, Invitation } from "../contracts/team";
 import { useTeam } from "../controllers/team";
 import { TeamDirectories } from "./team-directories";
 import { InviteForm, EditForm, InvitationImpact } from "./team-editors";
@@ -124,7 +125,7 @@ export const TeamView = ({ data, draftScope }: TeamViewProps) => {
             onRevoke={(invitation, source) => open({ kind: "revoke", invitation }, source)}
           />
         </div>
-        <TeamHistory history={team.history} />
+        {canManage && data.historySource && <TeamHistory source={data.historySource} />}
         <TeamEditorDialog dialog={dialog} editors={editors} busy={busy} onClose={close} />
         <TeamConfirmationDialog
           dialog={dialog}
@@ -182,44 +183,46 @@ const TeamFeedback = ({
   );
 };
 
-const TeamHistory = ({ history }: { history: Team["history"] }) => {
+const TeamHistory = ({ source }: { source: NonNullable<TeamData["historySource"]> }) => {
+  const [open, setOpen] = useState(false);
   const { t } = useTranslation(["team", "common"]);
   const { formatLocale } = useLocaleSettings();
-  if (!history.length) {
-    return null;
-  }
 
   return (
-    <details>
+    <details onToggle={(event) => setOpen(event.currentTarget.open)}>
       <summary>{t("history")}</summary>
-      <ol>
-        {history.map((entry) => {
-          const details =
-            entry.details && typeof entry.details === "object" && !Array.isArray(entry.details)
-              ? entry.details
-              : {};
-          const target = details.targetName ?? details.email;
+      <PagedContent source={source} entries={[]} active={open}>
+        {(entries) => (
+          <ol>
+            {entries.map((entry) => {
+              const details =
+                entry.details && typeof entry.details === "object" && !Array.isArray(entry.details)
+                  ? entry.details
+                  : {};
+              const target = details.targetName ?? details.email;
 
-          return (
-            <li key={entry.id}>
-              <p>
-                <strong>{t(`historyActions.${entry.action}`)}</strong>
-                {typeof target === "string" && <>: {target}</>}
-              </p>
-              <Inline align="baseline" gap={3}>
-                <span>{t("common:recordedBy", { name: entry.actor ?? t("unknownName") })}</span>
-                <ActionProvenance value={entry.provenance} />
-                <time dateTime={entry.recordedAt}>
-                  {new Date(entry.recordedAt).toLocaleString(formatLocale, {
-                    timeZone: "UTC",
-                  })}{" "}
-                  UTC
-                </time>
-              </Inline>
-            </li>
-          );
-        })}
-      </ol>
+              return (
+                <li key={entry.eventId}>
+                  <p>
+                    <strong>{t(`historyActions.${historyActionLabel(entry.action)}`)}</strong>
+                    {typeof target === "string" && <>: {target}</>}
+                  </p>
+                  <Inline align="baseline" gap={3}>
+                    <span>{t("common:recordedBy", { name: entry.actor ?? t("unknownName") })}</span>
+                    <ActionProvenance value={entry.provenance} />
+                    <time dateTime={entry.recordedAt}>
+                      {new Date(entry.recordedAt).toLocaleString(formatLocale, {
+                        timeZone: "UTC",
+                      })}{" "}
+                      UTC
+                    </time>
+                  </Inline>
+                </li>
+              );
+            })}
+          </ol>
+        )}
+      </PagedContent>
     </details>
   );
 };
@@ -392,3 +395,17 @@ const useTeamFocus = ({
     return () => cancelAnimationFrame(frame);
   });
 };
+
+const historyActions = {
+  "organization.created": "created",
+  "organization.renamed": "renamed",
+  "team_invitation.issued": "invited",
+  "team_invitation.replaced": "replaced",
+  "team_invitation.revoked": "revoked",
+  "team_invitation.accepted": "accepted",
+  "membership.access_changed": "member_changed",
+  "membership.removed": "member_removed",
+} as const;
+
+const historyActionLabel = (action: string) =>
+  historyActions[action as keyof typeof historyActions] ?? "changed";
