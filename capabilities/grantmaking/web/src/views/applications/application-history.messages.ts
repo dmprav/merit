@@ -5,6 +5,8 @@ export const applicationHistoryMessages = {
   version: "Version {{version}}",
   currentVersion: "Version {{version}} (current)",
   unavailableVersion: "Version {{version}} (not available)",
+  unloadedVersion: "Version {{version}} (load older entries)",
+  loadEarlierSnapshot: "Load older entries to compare earlier submissions.",
   noEarlierSnapshot: "An earlier submission is not available for comparison.",
   missingSnapshot:
     "Version {{version}} is not available for comparison. Choose another recorded version.",

@@ -113,10 +113,12 @@ JSON. A changed fingerprint returns `conflict`; restart from offset zero. An
 absent optional source is the JSON value `null`. Invalid offsets or a missing
 required source identifier return `invalid_range`. No content is silently truncated.
 
-Contact history is separate from contact details. `list_contact_applications`
+Contact history is separate from contact details. `list_contact_history` returns
+newest-first pages; pass `nextCursor` as `after` to read older changes. `list_contact_applications`
 shows applicant and reviewer associations, including historical review use. `get_team` returns workspace and
 permission context; members, pending invitations, and access history have separate
-list tools. Invitations and access history require current administrative authority.
+list tools. `list_team_history` also uses a newest-first time cursor. Invitations
+and access history require current administrative authority.
 `get_team_event` reads an immutable event's JSON details with explicit continuation.
 Manager candidates are active team members with program-manager responsibility;
 the save operation still checks their eligibility.
@@ -200,6 +202,11 @@ Use `respond_to_review` with `accept`, `decline`, or `report_conflict`. Declinin
 accepted assignment withdraws before submission. Acceptance verifies the invited
 email on your account. Keep `assignment.revision` as `expectedRevision` and reuse
 `commandId` after an unconfirmed write.
+
+`list_application_reviewers` returns assignment summaries. Managers use
+`list_reviewer_history` for an assignment's lifecycle and submitted-assessment
+events, newest first, following `nextCursor` as `after`. Both reads check current
+access and exclude private drafts.
 
 `save_reviewer_draft` saves against `draft.revision` as `expectedDraftRevision`.
 Amounts are decimal EUR strings. `submit_reviewer_assessment` submits that saved

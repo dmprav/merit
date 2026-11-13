@@ -3,7 +3,6 @@ import { assert, expect } from "vite-plus/test";
 
 import { createFundingApplication } from "@merit/applications/server";
 import { removeDemoAudit } from "@merit/audit/server/demo";
-import { recordAuditEvent } from "@merit/audit/server/record";
 import { appUsers, guestSessions } from "@merit/auth/schema";
 import {
   ensureInactiveUser,
@@ -189,7 +188,6 @@ test("reset is scoped and retryable, and old workspace requests cannot write", a
         requestId: crypto.randomUUID(),
         title: "Old tab",
       },
-      recordAuditEvent,
     ),
   ).toEqual({ status: "not_found" });
 
@@ -280,14 +278,14 @@ test("cleanup removes expired guest data while preserving account and sample aut
           reasoning: "Recorded in the disposable demo.",
         },
       },
-      recordAuditEvent,
     ),
   ).toMatchObject({ status: "ok" });
   expect(
     (
-      await database.client.query("SELECT id FROM audit_events WHERE organization_id=$1", [
-        first.workspace.id,
-      ])
+      await database.client.query(
+        "SELECT id FROM audit_events WHERE organization_id=$1 AND action='recommendation.recorded'",
+        [first.workspace.id],
+      )
     ).rows,
   ).toHaveLength(1);
 
@@ -304,9 +302,10 @@ test("cleanup removes expired guest data while preserving account and sample aut
 
   expect(
     (
-      await database.client.query("SELECT id FROM audit_events WHERE organization_id=$1", [
-        first.workspace.id,
-      ])
+      await database.client.query(
+        "SELECT id FROM audit_events WHERE organization_id=$1 AND action='recommendation.recorded'",
+        [first.workspace.id],
+      )
     ).rows,
   ).toHaveLength(0);
 

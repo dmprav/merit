@@ -1,6 +1,7 @@
 import {
   type ReviewerService,
   reviewerAddressSchema,
+  reviewerHistoryInput,
   reviewerApplicationSchema,
   inviteReviewerSchema,
   manageReviewerSchema,
@@ -17,6 +18,7 @@ import {
   reviewerErrorSchema,
   reviewerSavedSchema,
   reviewerListSchema,
+  reviewerHistorySchema,
   applicationReviewersSchema,
   reviewerPageSchema,
   reviewerRevisionSchema,
@@ -60,6 +62,20 @@ const registerReviewerReads = (
     (input) => reviewer.read(actor, input),
   );
   register(
+    "list_reviewer_history",
+    {
+      ...read,
+      scope: "workspace:read",
+      inputSchema: reviewerHistoryInput
+        .omit({ publicId: true })
+        .extend({ applicationId: reviewerApplicationSchema.shape.publicId }),
+      outputSchema: reviewerHistorySchema,
+      description:
+        "For program managers: read lifecycle and submitted-assessment events for one assignment, newest first. Follow nextCursor as after. Never includes private drafts.",
+    },
+    ({ applicationId, ...input }) => reviewer.history(actor, { ...input, publicId: applicationId }),
+  );
+  register(
     "list_application_reviewers",
     {
       ...read,
@@ -69,7 +85,7 @@ const registerReviewerReads = (
         .extend({ applicationId: reviewerApplicationSchema.shape.publicId, ...pageInput.shape }),
       outputSchema: applicationReviewersSchema,
       description:
-        "For program managers: list application assignments, delivery status, revision and lifecycle history. Never includes private drafts. Follow nextCursor as after.",
+        "For program managers: list application assignments, delivery status, and revision. Use list_reviewer_history for lifecycle history. Never includes private drafts. Follow nextCursor as after.",
     },
     async ({ applicationId, workspaceSlug, ...pagination }) => {
       const result = await reviewer.forApplication(actor, {

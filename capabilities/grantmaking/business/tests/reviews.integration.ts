@@ -10,7 +10,6 @@ import {
   editFundingApplication,
   selectApplicationContact,
 } from "@merit/applications/server";
-import { recordAuditEvent } from "@merit/audit/server/record";
 import { listWorkspaceContacts, changeWorkspaceContact } from "@merit/contacts/server";
 import {
   getFundingApplicationPage,
@@ -45,41 +44,31 @@ const contact = async (db: NodePgDatabase, name = "Sam") => {
 };
 
 const setup = async (db: NodePgDatabase) => {
-  const round = await createFundingRound(
-    db,
-    actor,
-    {
-      workspaceSlug,
-      requestId: randomUUID(),
-      title: "Review round",
-    },
-    recordAuditEvent,
-  );
+  const round = await createFundingRound(db, actor, {
+    workspaceSlug,
+    requestId: randomUUID(),
+    title: "Review round",
+  });
 
   if (round.status !== "ok") {
     throw new Error("Round creation failed");
   }
 
-  const application = await createFundingApplication(
-    db,
-    actor,
-    {
-      workspaceSlug,
-      publicId: round.publicId,
-      requestId: randomUUID(),
-      title: "Workshop Saturdays",
-      applicant: "Repair Collective",
-      requested: "18000",
-      answers: [
-        {
-          questionId: "9841b190-2a06-5fe1-a7af-5e5b534662c5",
-          question: "Plan",
-          response: "Repair workshops with a free venue.",
-        },
-      ],
-    },
-    recordAuditEvent,
-  );
+  const application = await createFundingApplication(db, actor, {
+    workspaceSlug,
+    publicId: round.publicId,
+    requestId: randomUUID(),
+    title: "Workshop Saturdays",
+    applicant: "Repair Collective",
+    requested: "18000",
+    answers: [
+      {
+        questionId: "9841b190-2a06-5fe1-a7af-5e5b534662c5",
+        question: "Plan",
+        response: "Repair workshops with a free venue.",
+      },
+    ],
+  });
 
   if (application.status !== "ok") {
     throw new Error("Application creation failed");
@@ -92,18 +81,13 @@ const setup = async (db: NodePgDatabase) => {
   const review = async (change: ReviewChange) => {
     const page = await read();
 
-    return saveApplicationReview(
-      db,
-      actor,
-      {
-        ...address,
-        expectedRevision: page.application.reviews.revision,
-        expectedApplicationVersion: page.application.version,
-        expectedCriteriaVersion: page.round.criteriaVersion,
-        change,
-      },
-      recordAuditEvent,
-    );
+    return saveApplicationReview(db, actor, {
+      ...address,
+      expectedRevision: page.application.reviews.revision,
+      expectedApplicationVersion: page.application.version,
+      expectedCriteriaVersion: page.round.criteriaVersion,
+      change,
+    });
   };
 
   return { round, address, read, review };
@@ -252,11 +236,11 @@ it.for(["request", "record"] as const)(
       expectedCriteriaVersion: criteriaVersionSchema.parse(1),
       change,
     };
-    const first = await saveApplicationReview(db, actor, request, recordAuditEvent);
+    const first = await saveApplicationReview(db, actor, request);
     expect(first).toEqual({ status: "ok", revision: 1 });
     const before = await read();
 
-    expect(await saveApplicationReview(db, actor, request, recordAuditEvent)).toEqual(first);
+    expect(await saveApplicationReview(db, actor, request)).toEqual(first);
     expect(await read()).toEqual(before);
   },
 );
@@ -299,25 +283,19 @@ it("recreates the changed-budget scenario, keeps history, and distinguishes foll
         change: { action: "mark_ready" },
       },
       applicationWork,
-      recordAuditEvent,
     ),
   ).toMatchObject({ status: "ok" });
   expect(
-    await saveFundingRecommendation(
-      db,
-      actor,
-      {
-        ...address,
-        expectedRevision: reviewRevisionSchema.parse(0),
-        expectedApplicationVersion: materialVersionSchema.parse(1),
-        recommendation: {
-          position: "Fund",
-          allocation: encodeMoney(fromMinorUnits(1800000n)),
-          reasoning: "Support the original plan.",
-        },
+    await saveFundingRecommendation(db, actor, {
+      ...address,
+      expectedRevision: reviewRevisionSchema.parse(0),
+      expectedApplicationVersion: materialVersionSchema.parse(1),
+      recommendation: {
+        position: "Fund",
+        allocation: encodeMoney(fromMinorUnits(1800000n)),
+        reasoning: "Support the original plan.",
       },
-      recordAuditEvent,
-    ),
+    }),
   ).toMatchObject({ status: "ok" });
 
   const edit = async (change: Parameters<typeof editFundingApplication>[2]["change"]) =>
@@ -330,7 +308,6 @@ it("recreates the changed-budget scenario, keeps history, and distinguishes foll
         change,
       },
       applicationWork,
-      recordAuditEvent,
     );
 
   await edit({ action: "start_revision", kind: "revision" });
@@ -390,26 +367,21 @@ it("recreates the changed-budget scenario, keeps history, and distinguishes foll
   }))!;
 
   expect(
-    await editFundingRound(
-      db,
-      actor,
-      {
-        workspaceSlug,
-        publicId: round.publicId,
-        expectedRevision: roundPage.preparation.revision,
-        change: {
-          section: "criteria",
-          criteria: [
-            {
-              id: "64b39d9c-7b1e-5614-a6fa-bee3d45492d6",
-              title: "Venue",
-              description: "Check the replacement venue.",
-            },
-          ],
-        },
+    await editFundingRound(db, actor, {
+      workspaceSlug,
+      publicId: round.publicId,
+      expectedRevision: roundPage.preparation.revision,
+      change: {
+        section: "criteria",
+        criteria: [
+          {
+            id: "64b39d9c-7b1e-5614-a6fa-bee3d45492d6",
+            title: "Venue",
+            description: "Check the replacement venue.",
+          },
+        ],
       },
-      recordAuditEvent,
-    ),
+    }),
   ).toMatchObject({ status: "ok" });
 
   page = await read();
@@ -524,7 +496,6 @@ it("resolves live contact details without rewriting applications or history, and
         change: { action: "details", summary: "Saved after the contact changed" },
       },
       applicationWork,
-      recordAuditEvent,
     ),
   ).toMatchObject({ status: "ok" });
 
@@ -617,13 +588,13 @@ it("rejects other-workspace access, stale edits, and guessed review bases", asyn
     change,
   };
 
-  expect(await saveApplicationReview(db, other, input, recordAuditEvent)).toEqual({
+  expect(await saveApplicationReview(db, other, input)).toEqual({
     status: "not_found",
   });
-  expect(await saveApplicationReview(db, actor, input, recordAuditEvent)).toMatchObject({
+  expect(await saveApplicationReview(db, actor, input)).toMatchObject({
     status: "ok",
   });
-  expect(await saveApplicationReview(db, actor, input, recordAuditEvent)).toMatchObject({
+  expect(await saveApplicationReview(db, actor, input)).toMatchObject({
     status: "ok",
   });
   expect(
@@ -633,15 +604,10 @@ it("rejects other-workspace access, stale edits, and guessed review bases", asyn
     ).status,
   ).toBe("unknown");
   expect(
-    await saveApplicationReview(
-      db,
-      actor,
-      {
-        ...input,
-        change: { action: "edit", id: change.id, content, note: "" },
-      },
-      recordAuditEvent,
-    ),
+    await saveApplicationReview(db, actor, {
+      ...input,
+      change: { action: "edit", id: change.id, content, note: "" },
+    }),
   ).toEqual({ status: "conflict" });
   expect(
     await review({
@@ -656,7 +622,7 @@ it("rejects other-workspace access, stale edits, and guessed review bases", asyn
     "UPDATE memberships SET role = 'member' WHERE user_id = 'dana' AND organization_id = 'alder'",
   );
 
-  expect(await saveApplicationReview(db, actor, input, recordAuditEvent)).toEqual({
+  expect(await saveApplicationReview(db, actor, input)).toEqual({
     status: "not_found",
   });
 });
@@ -682,7 +648,7 @@ it("rejects cross-workspace contact links and preserves the authorized profile",
   expect(JSON.parse(result.content)).toMatchObject({ contact: sam.name });
 });
 
-it("records reviews using version references without reading application content or recommendations", async ({
+it("records reviews using version references without decoding application content or reading recommendations", async ({
   db,
 }) => {
   const { address } = await setup(db);
@@ -710,7 +676,9 @@ it("records reviews using version references without reading application content
           `GRANT SELECT (id, organization_id, criteria_version) ON funding_rounds TO ${role}`,
         ),
       );
-      await tx.execute(sql.raw(`GRANT SELECT (case_id, version) ON material_versions TO ${role}`));
+      await tx.execute(
+        sql.raw(`GRANT SELECT (case_id, version, content) ON material_versions TO ${role}`),
+      );
       await tx.execute(sql.raw(`GRANT UPDATE (name) ON organizations TO ${role}`));
       await tx.execute(sql.raw(`GRANT UPDATE (id) ON funding_rounds, app_users TO ${role}`));
       await tx.execute(sql.raw(`GRANT UPDATE (user_id) ON memberships TO ${role}`));
@@ -729,34 +697,24 @@ it("records reviews using version references without reading application content
       };
 
       expect(
-        await saveApplicationReview(
-          tx,
-          actor,
-          {
-            ...baseline,
-            change: { action: "request", id: requestId, contactId: sam.id, replacesId: null },
-          },
-          recordAuditEvent,
-        ),
+        await saveApplicationReview(tx, actor, {
+          ...baseline,
+          change: { action: "request", id: requestId, contactId: sam.id, replacesId: null },
+        }),
       ).toEqual({ status: "ok", revision: 1 });
       expect(
-        await saveApplicationReview(
-          tx,
-          actor,
-          {
-            ...baseline,
-            expectedRevision: reviewRevisionSchema.parse(1),
-            change: {
-              action: "record",
-              id: assessmentId,
-              contactId: sam.id,
-              requestId,
-              previousId: null,
-              content,
-            },
+        await saveApplicationReview(tx, actor, {
+          ...baseline,
+          expectedRevision: reviewRevisionSchema.parse(1),
+          change: {
+            action: "record",
+            id: assessmentId,
+            contactId: sam.id,
+            requestId,
+            previousId: null,
+            content,
           },
-          recordAuditEvent,
-        ),
+        }),
       ).toEqual({ status: "ok", revision: 2 });
 
       await tx.execute(sql.raw("RESET ROLE"));
@@ -801,7 +759,7 @@ it("supports contacts and reviews with the documented runtime grants and immutab
       await tx.execute(sql.raw(`GRANT UPDATE (id) ON funding_rounds, app_users TO ${role}`));
       await tx.execute(sql.raw(`GRANT UPDATE (user_id) ON memberships TO ${role}`));
       await tx.execute(sql.raw(`GRANT UPDATE ON application_cases TO ${role}`));
-      await tx.execute(sql.raw(`GRANT SELECT, INSERT ON case_changes TO ${role}`));
+      await tx.execute(sql.raw(`GRANT SELECT, INSERT ON audit_events TO ${role}`));
       await tx.execute(sql.raw(`GRANT SELECT, INSERT ON audit_events TO ${role}`));
       await tx.execute(
         sql.raw(`GRANT INSERT ON material_versions, assessments, assessment_versions TO ${role}`),
@@ -811,7 +769,7 @@ it("supports contacts and reviews with the documented runtime grants and immutab
       );
       await tx.execute(sql.raw(`GRANT INSERT, UPDATE, DELETE ON material_drafts TO ${role}`));
       await tx.execute(sql.raw(`GRANT SELECT, INSERT, UPDATE ON contacts TO ${role}`));
-      await tx.execute(sql.raw(`GRANT SELECT, INSERT ON contact_changes TO ${role}`));
+      await tx.execute(sql.raw(`GRANT SELECT, INSERT ON audit_events TO ${role}`));
       await tx.execute(sql.raw(`SET LOCAL ROLE ${role}`));
       const input = {
         workspaceSlug,
@@ -881,39 +839,29 @@ it("supports contacts and reviews with the documented runtime grants and immutab
       };
 
       expect(
-        await saveApplicationReview(
-          tx,
-          actor,
-          {
-            ...baseline,
-            change: {
-              action: "request",
-              id: requestId,
-              contactId: input.contactId,
-              replacesId: null,
-            },
+        await saveApplicationReview(tx, actor, {
+          ...baseline,
+          change: {
+            action: "request",
+            id: requestId,
+            contactId: input.contactId,
+            replacesId: null,
           },
-          recordAuditEvent,
-        ),
+        }),
       ).toMatchObject({ status: "ok" });
       expect(
-        await saveApplicationReview(
-          tx,
-          actor,
-          {
-            ...baseline,
-            expectedRevision: reviewRevisionSchema.parse(1),
-            change: {
-              action: "record",
-              id: randomUUID(),
-              contactId: input.contactId,
-              requestId,
-              previousId: null,
-              content,
-            },
+        await saveApplicationReview(tx, actor, {
+          ...baseline,
+          expectedRevision: reviewRevisionSchema.parse(1),
+          change: {
+            action: "record",
+            id: randomUUID(),
+            contactId: input.contactId,
+            requestId,
+            previousId: null,
+            content,
           },
-          recordAuditEvent,
-        ),
+        }),
       ).toMatchObject({ status: "ok" });
       expect(
         (await getFundingApplicationPage(tx, actor, address))!.application.assessments,
@@ -921,7 +869,7 @@ it("supports contacts and reviews with the documented runtime grants and immutab
       expect(
         (
           await tx.execute(
-            sql`SELECT has_table_privilege(current_user, 'contact_changes', 'UPDATE') AS update, has_table_privilege(current_user, 'contact_changes', 'DELETE') AS delete`,
+            sql`SELECT has_table_privilege(current_user, 'audit_events', 'UPDATE') AS update, has_table_privilege(current_user, 'audit_events', 'DELETE') AS delete`,
           )
         ).rows,
       ).toEqual([{ update: false, delete: false }]);

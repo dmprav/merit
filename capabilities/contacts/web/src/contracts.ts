@@ -1,13 +1,16 @@
+import type { ContactHistoryEntry } from "@merit/contacts/api";
 import type {
   DirectoryContact,
   ContactDirectory,
   ContactCommand,
   SaveContactResult,
 } from "@merit/contacts/api";
+import type { PageSource } from "@merit/query/contracts";
 
 export type Contact = Omit<DirectoryContact, "applicationTitles" | "history"> & {
   applicationTitles?: string[];
-  history?: DirectoryContact["history"];
+  history?: ContactHistoryEntry[];
+  historySource?: PageSource<ContactHistoryEntry>;
 };
 
 export type ContactsData = {
@@ -21,6 +24,7 @@ export type ContactsData = {
 };
 
 export type ContactsSource = {
+  history?: (workspaceSlug: string, contact: Contact) => PageSource<ContactHistoryEntry>;
   scope: (workspaceSlug: string) => readonly unknown[];
   read: (
     workspaceSlug: string,

@@ -85,7 +85,7 @@ export const registerContactTools = (
     {
       ...read,
       description:
-        "Read contact changes and provenance in ascending revision order. Follow nextRevision as afterRevision.",
+        "Read contact changes and provenance in newest-first order. Follow nextCursor as after.",
       inputSchema: contactHistoryInput,
       outputSchema: contactHistorySchema,
     },

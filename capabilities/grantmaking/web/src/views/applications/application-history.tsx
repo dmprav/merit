@@ -18,6 +18,7 @@ import {
 import styles from "./application-history.module.css";
 
 type ApplicationHistoryProps = {
+  hasMore?: boolean;
   application: HistorySnapshot;
   history: readonly ApplicationHistoryEntry[];
   initialFromVersion?: number;
@@ -28,8 +29,10 @@ export const ApplicationHistory = ({
   application,
   history,
   initialFromVersion,
+  hasMore = false,
 }: ApplicationHistoryProps) => {
   const { t } = useTranslation(["fundingRounds", "common"]);
+  const missing = hasMore ? missingHistoryMessages.partial : missingHistoryMessages.complete;
   const snapshots = applicationHistorySnapshots(application, history);
   const last = snapshots.at(-1)!;
 
@@ -55,7 +58,7 @@ export const ApplicationHistory = ({
     return (
       <Stack as="section" gap={6} className={styles.history} aria-label={t("history.title")}>
         <h2 className={styles.accessibleHeading}>{t("history.title")}</h2>
-        <Notice tone="neutral">{t("history.noEarlierSnapshot")}</Notice>
+        <Notice tone="neutral">{t(missing.empty)}</Notice>
       </Stack>
     );
   }
@@ -67,7 +70,9 @@ export const ApplicationHistory = ({
   if (!fromItems.some((item) => item.id === String(selection.from))) {
     fromItems.push({
       id: String(selection.from),
-      label: t("history.unavailableVersion", { version: selection.from }),
+      label: t(missing.version, {
+        version: selection.from,
+      }),
     });
   }
 
@@ -108,7 +113,9 @@ export const ApplicationHistory = ({
       </div>
       {!before || !after || selection.from >= selection.to ? (
         <Notice tone="neutral">
-          {t("history.missingSnapshot", { version: !after ? selection.to : selection.from })}
+          {t(missing.selected, {
+            version: !after ? selection.to : selection.from,
+          })}
         </Notice>
       ) : (
         <>
@@ -325,3 +332,16 @@ const RecordedUpdates = ({ entries }: { entries: readonly ApplicationHistoryEntr
     </Stack>
   );
 };
+
+const missingHistoryMessages = {
+  partial: {
+    empty: "history.loadEarlierSnapshot",
+    version: "history.unloadedVersion",
+    selected: "history.loadEarlierSnapshot",
+  },
+  complete: {
+    empty: "history.noEarlierSnapshot",
+    version: "history.unavailableVersion",
+    selected: "history.missingSnapshot",
+  },
+} as const;

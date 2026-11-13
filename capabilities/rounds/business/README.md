@@ -3,7 +3,9 @@
 Rounds owns configuration, budgets, responsibility, criteria versions, and round
 change history. [Preparation rules](src/domain/preparation.ts) define accepted
 transitions; [commands](src/server/commands/preparation.ts) authorize, lock, validate
-revisions, and record changes atomically. Creation receipts survive deletion.
+revisions, and record changes atomically through [Audit](../../audit/business/README.md).
+Creation receipts survive deletion in their own table. The explicit `budgetEstablished`
+flag preserves budget-change rules without relying on retained history.
 
 `@merit/rounds/api` is browser-safe. `@merit/rounds/server` supplies the service
 factory and authorized operations. `/schema`, `/scope`, `/readers`, and `/encoding`

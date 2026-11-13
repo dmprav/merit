@@ -1,27 +1,8 @@
 import { and, eq, sql } from "drizzle-orm";
 
-import type { Provenance } from "@merit/auth";
-
 import { organizations } from "../membership-schema";
-import { invitations, organizationEvents } from "../schema";
+import { invitations } from "../schema";
 import type { Transaction } from "../transaction";
-
-export const event = (
-  tx: Transaction,
-  organizationId: string,
-  actorUserId: string,
-  action: typeof organizationEvents.$inferInsert.action,
-  details: Record<string, unknown>,
-  provenance: Provenance = { interface: "web" },
-) =>
-  tx.insert(organizationEvents).values({
-    id: crypto.randomUUID(),
-    organizationId,
-    actorUserId,
-    action,
-    details,
-    provenance,
-  });
 
 export const lockOrganization = async (tx: Transaction, id: string) => {
   const [row] = await tx.select().from(organizations).where(eq(organizations.id, id)).for("update");

@@ -4,6 +4,8 @@ export const en = {
     "Another tab changed a saved draft. Your edits remain here. Save or discard them before closing this tab.",
   history: "Access history",
   historyActions: {
+    replaced: "Invitation replaced",
+    changed: "Access changed",
     created: "Organization created",
     renamed: "Organization renamed",
     invited: "Invitation issued",

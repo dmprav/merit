@@ -421,13 +421,13 @@ explain how to make that distinction apparent, and the
 
 ### Audit, delivery, and retention
 
-The [audit capability](../../capabilities/audit/business/README.md) records compact
-workspace events, beginning with recommendation saves. Its trusted recording entry
-uses the owning command's transaction; detailed evidence and judgment versions stay
-with their business capability. Audit retains the actor's name with the recorded
-action. A shared reading interface is deferred until a consuming workflow is
-implemented. Shared events cover integrated actions
-from deployment onward; existing histories remain authoritative for earlier work.
+The [audit capability](../../capabilities/audit/business/README.md) owns one shared,
+append-only event store. Business capabilities own event meaning and authorization,
+and record events in the same transaction as accepted changes. Evidence and judgment
+versions, retry receipts, and mutable operational state retain their own purposes.
+Audit snapshots actor names, provenance, target names, and historical context so
+history remains intelligible after renames and eligible deletion. Authorized views
+select only their permitted subjects; sharing storage does not broaden access.
 
 Invitations commit before email delivery so sending failures leave recoverable
 work; the [email guide](../guides/emails.md#ownership-and-delivery) defines that

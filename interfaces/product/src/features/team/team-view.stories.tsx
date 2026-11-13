@@ -7,6 +7,7 @@ import { ApplicationPage } from "@merit/ui/application-shell";
 import { StoryEnvironment } from "../../../tests/storybook";
 import {
   readTeam,
+  readTeamHistory,
   inviteMember,
   changeMember,
   removeMember,
@@ -32,6 +33,13 @@ const meta = {
   ],
   beforeEach: ({ args }) => {
     let team = structuredClone(args.initial);
+    mocked(readTeamHistory).mockImplementation(async () => ({
+      status: "ok",
+      value: {
+        entries: [],
+        nextCursor: null,
+      },
+    }));
     mocked(readTeam).mockImplementation(async () => ({ status: "ok", value: team }));
     mocked(inviteMember).mockImplementation(async ({ data }) => {
       team = {

@@ -3,7 +3,6 @@ import { randomUUID } from "node:crypto";
 import { assert } from "vite-plus/test";
 
 import { editFundingApplication } from "@merit/applications/server";
-import { recordAuditEvent } from "@merit/audit/server/record";
 import { changeWorkspaceContact } from "@merit/contacts/server";
 import { getFundingApplicationPage } from "@merit/grantmaking/server";
 import { applicationWork } from "@merit/grantmaking/server/integrations";
@@ -37,7 +36,6 @@ export const commandTest = transportTest.extend("commands", async ({ db, rounds,
           change,
         },
         applicationWork,
-        recordAuditEvent,
       );
       assert(result.status === "ok", "Could not prepare intake for the MCP command");
     };

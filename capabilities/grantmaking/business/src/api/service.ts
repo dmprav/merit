@@ -11,6 +11,8 @@ import type { workspaceActivityInput, WorkspaceActivity } from "./queries/activi
 import type { ApplicationOverview } from "./queries/application-overview";
 import type { IntakeState, PreparationState } from "./queries/editing-state";
 import type {
+  applicationAuditInput,
+  roundBudgetHistoryInput,
   reviewListInput,
   reviewSummarySchema,
   contactApplicationListInput,
@@ -60,6 +62,19 @@ type ApplicationListResult =
 
 /** Authorized business operations shared by transports; each call supplies its current actor. */
 export interface GrantmakingQueries {
+  applicationAuditHistory: (
+    actor: Actor,
+    input: z.input<typeof applicationAuditInput>,
+  ) => Promise<
+    { status: "ok"; entries: IntakeState["history"]; nextCursor: string | null } | NotFound
+  >;
+  roundBudgetHistory: (
+    actor: Actor,
+    input: z.input<typeof roundBudgetHistoryInput>,
+  ) => Promise<
+    | { status: "ok"; entries: PreparationState["budgetHistory"]; nextCursor: string | null }
+    | NotFound
+  >;
   readApplicationPage: (
     actor: Actor,
     input: ApplicationRequest,

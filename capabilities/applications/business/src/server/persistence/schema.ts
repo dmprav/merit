@@ -12,7 +12,6 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
-import type { Provenance } from "@merit/auth";
 import { appUsers } from "@merit/auth/schema";
 import { contacts } from "@merit/contacts/schema";
 import { organizations } from "@merit/organizations/schema";
@@ -96,28 +95,15 @@ export const materialDrafts = pgTable(
   ],
 );
 
-// Change histories and retry receipts survive deletion of unused work.
-export const caseChanges = pgTable(
-  "case_changes",
+// Receipts survive deletion so a lost creation response cannot create a second case.
+export const applicationCreationReceipts = pgTable(
+  "application_creation_receipts",
   {
-    publicId: text("case_id").notNull(),
-    revision: integer().notNull(),
     organizationId: text("organization_id")
       .notNull()
       .references(() => organizations.id),
-    actorUserId: text("actor_user_id")
-      .notNull()
-      .references(() => appUsers.id),
-    provenance: jsonb().$type<Provenance>(),
-    recordedAt: recordedAt(),
-    action: text().notNull(),
-    requestId: uuid("request_id"),
-    reason: text(),
-    before: jsonb(),
-    after: jsonb(),
+    requestId: uuid("request_id").notNull(),
+    publicId: text("case_id").notNull(),
   },
-  (t) => [
-    primaryKey({ columns: [t.publicId, t.revision] }),
-    unique("case_changes_creation_key").on(t.organizationId, t.requestId),
-  ],
+  (t) => [primaryKey({ columns: [t.organizationId, t.requestId] })],
 );

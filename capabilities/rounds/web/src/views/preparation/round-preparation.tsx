@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import { FormDialog } from "@merit/forms";
@@ -17,6 +17,7 @@ import { Icon } from "@merit/ui/icon";
 import { InlineName } from "@merit/ui/inline-name";
 import { Inline } from "@merit/ui/layout";
 import { Notice } from "@merit/ui/notice";
+import { PagedContent } from "@merit/ui/paged-content";
 import { PersonIdentity } from "@merit/ui/person-identity";
 import { PropertyButton } from "@merit/ui/property-button";
 import { StatusMessage } from "@merit/ui/status-message";
@@ -435,43 +436,54 @@ export const RoundFeedback = ({ preparation }: Props) => {
 };
 
 const BudgetHistory = ({ preparation }: Props) => {
+  const [open, setOpen] = useState(false);
   const { t } = useTranslation(["roundPreparation", "common"]);
   const { formatLocale } = useLocaleSettings();
   const { money } = useFormat();
   return (
-    <details className={styles.history}>
+    <details className={styles.history} onToggle={(event) => setOpen(event.currentTarget.open)}>
       <summary>{t("preparation.budgetHistory")}</summary>
-      <ol>
-        {preparation.budgetHistory.map((entry) => (
-          <li key={entry.revision}>
-            <p>
-              {t("preparation.budgetTransition", {
-                before:
-                  entry.before === null
-                    ? t("preparation.notSet")
-                    : money(decodeMoney(entry.before)),
-                after:
-                  entry.after === null ? t("preparation.notSet") : money(decodeMoney(entry.after)),
-              })}
-            </p>
-            <p>{entry.reason}</p>
-            <Inline align="baseline" gap={3}>
-              <span>
-                {t("common:recordedBy", {
-                  name: entry.actor ?? t("preparation.unknownPerson"),
-                })}
-              </span>
-              <ActionProvenance value={entry.provenance} />
-              <time dateTime={entry.recordedAt}>
-                {new Date(entry.recordedAt).toLocaleString(formatLocale, {
-                  timeZone: "UTC",
-                })}{" "}
-                UTC
-              </time>
-            </Inline>
-          </li>
-        ))}
-      </ol>
+      <PagedContent
+        source={preparation.historySource}
+        entries={preparation.budgetHistory}
+        active={open}
+      >
+        {(entries) => (
+          <ol>
+            {entries.map((entry) => (
+              <li key={entry.revision}>
+                <p>
+                  {t("preparation.budgetTransition", {
+                    before:
+                      entry.before === null
+                        ? t("preparation.notSet")
+                        : money(decodeMoney(entry.before)),
+                    after:
+                      entry.after === null
+                        ? t("preparation.notSet")
+                        : money(decodeMoney(entry.after)),
+                  })}
+                </p>
+                <p>{entry.reason}</p>
+                <Inline align="baseline" gap={3}>
+                  <span>
+                    {t("common:recordedBy", {
+                      name: entry.actor ?? t("preparation.unknownPerson"),
+                    })}
+                  </span>
+                  <ActionProvenance value={entry.provenance} />
+                  <time dateTime={entry.recordedAt}>
+                    {new Date(entry.recordedAt).toLocaleString(formatLocale, {
+                      timeZone: "UTC",
+                    })}{" "}
+                    UTC
+                  </time>
+                </Inline>
+              </li>
+            ))}
+          </ol>
+        )}
+      </PagedContent>
     </details>
   );
 };

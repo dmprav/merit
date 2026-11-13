@@ -339,7 +339,7 @@ describe("organization team", () => {
 
     const { rows } = await database.client.query<{
       details: { revokedInvitationIds: string[]; userId: string };
-    }>("SELECT details FROM organization_events WHERE action='member_changed'");
+    }>("SELECT details FROM audit_events WHERE action='membership.access_changed'");
 
     expect((rows[0] ?? assert.fail("Expected rows[0]")).details).toMatchObject({
       after: { administration: "owner", role: "member" },
@@ -521,7 +521,7 @@ describe("organization team", () => {
 
     const event = (
       await database.client.query<{ details: { revokedInvitationIds: string[]; userId: string } }>(
-        "SELECT details FROM organization_events WHERE action='member_removed'",
+        "SELECT details FROM audit_events WHERE action='membership.removed'",
       )
     ).rows[0];
 
@@ -799,4 +799,21 @@ describe("organization team", () => {
       status: "not_found",
     });
   });
+});
+
+it("leaves membership and audit unchanged when access is saved unchanged", async () => {
+  await join("manager");
+  const request = await memberRequest("manager");
+  const before = await team();
+  const events = (await database.client.query("SELECT * FROM audit_events ORDER BY id")).rows;
+  expect(
+    await service().changeMember(
+      { userId: "owner" },
+      { ...request, role: "program_manager", administration: "none" },
+    ),
+  ).toMatchObject({ status: "ok", value: { membershipVersion: request.expectedVersion } });
+  expect(await team()).toEqual(before);
+  expect((await database.client.query("SELECT * FROM audit_events ORDER BY id")).rows).toEqual(
+    events,
+  );
 });

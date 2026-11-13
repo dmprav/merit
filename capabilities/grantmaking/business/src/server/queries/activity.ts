@@ -9,7 +9,7 @@ import {
   workspaceActivitySchema,
   type ActivityEntry,
 } from "../../api/queries/activity";
-import { readActivityRecords, readRoundActivityTargets } from "../persistence/queries/activity";
+import { readActivityRecords } from "../persistence/queries/activity";
 import { readGrantWorkspaceAccess } from "../persistence/queries/reading";
 
 /** Who changed shared grant work, newest first. Audit owns the events; this composes
@@ -29,12 +29,18 @@ export const listWorkspaceActivity = (
       return { status: "forbidden" } as const;
     }
 
-    const activity = await readWorkspaceActivity(tx, actor, {
-      workspaceSlug: request.workspaceSlug,
+    const activity = await readWorkspaceActivity(tx, {
+      organizationId: access.organizationId,
+      targetTypes: [
+        "round",
+        "application",
+        "assessment",
+        "recommendation",
+        "review_request",
+        "review_assignment",
+      ],
       actorUserId: request.personId,
-      targets: request.roundId
-        ? await readRoundActivityTargets(tx, access.organizationId, request.roundId)
-        : undefined,
+      roundId: request.roundId,
       after: request.after,
       limit: request.limit,
     });
@@ -49,12 +55,7 @@ export const listWorkspaceActivity = (
         const title = records.rounds.get(event.targetId);
         return title === undefined ? null : { kind: "round", id: event.targetId, title };
       }
-      const id =
-        event.targetType === "assessment"
-          ? records.assessmentCases.get(event.targetId)
-          : event.targetType === "application" || event.targetType === "recommendation"
-            ? event.targetId
-            : undefined;
+      const id = event.applicationId ?? undefined;
       const title = id === undefined ? undefined : records.applications.get(id);
       return id === undefined || title === undefined ? null : { kind: "application", id, title };
     };
@@ -67,6 +68,14 @@ export const listWorkspaceActivity = (
         actor: event.actorName,
         provenance: event.provenance,
         action: event.action,
+        subject: {
+          type: event.targetType,
+          id: event.targetId,
+          revision: event.targetRevision,
+          name: event.targetName,
+          roundId: event.roundId,
+          applicationId: event.applicationId,
+        },
         record: resolve(event),
       })),
       people: activity.people.map((person) => ({ id: person.userId, name: person.name })),

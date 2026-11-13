@@ -1,5 +1,5 @@
 {
-  "id": "6070e062-0c5c-4919-b968-c1e810c3778e",
+  "id": "2ee48b30-14e3-4bee-9362-725f400b3003",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -134,6 +134,52 @@
           "value": "\"application_cases\".\"intake_status\" IN ('in_preparation', 'ready')"
         }
       },
+      "isRLSEnabled": false
+    },
+    "public.application_creation_receipts": {
+      "name": "application_creation_receipts",
+      "schema": "",
+      "columns": {
+        "organization_id": {
+          "name": "organization_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "request_id": {
+          "name": "request_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "case_id": {
+          "name": "case_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "application_creation_receipts_organization_id_organizations_id_fk": {
+          "name": "application_creation_receipts_organization_id_organizations_id_fk",
+          "tableFrom": "application_creation_receipts",
+          "tableTo": "organizations",
+          "columnsFrom": ["organization_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "application_creation_receipts_organization_id_request_id_pk": {
+          "name": "application_creation_receipts_organization_id_request_id_pk",
+          "columns": ["organization_id", "request_id"]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
       "isRLSEnabled": false
     },
     "public.material_drafts": {
@@ -328,7 +374,7 @@
           "name": "provenance",
           "type": "jsonb",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "action": {
           "name": "action",
@@ -353,6 +399,44 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": false
+        },
+        "target_name": {
+          "name": "target_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "round_id": {
+          "name": "round_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "application_id": {
+          "name": "application_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "assignment_id": {
+          "name": "assignment_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "format_version": {
+          "name": "format_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "details": {
+          "name": "details",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
         },
         "recorded_at": {
           "name": "recorded_at",
@@ -389,18 +473,180 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "audit_events_subject_idx": {
+          "name": "audit_events_subject_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "target_type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "target_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "target_revision",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "audit_events_subject_time_idx": {
+          "name": "audit_events_subject_time_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "target_type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "target_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "recorded_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "audit_events_round_time_idx": {
+          "name": "audit_events_round_time_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "round_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "recorded_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "audit_events_actor_time_idx": {
+          "name": "audit_events_actor_time_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "actor_user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "recorded_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "audit_events_assignment_idx": {
+          "name": "audit_events_assignment_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "assignment_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "recorded_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
-        "audit_events_organization_id_organizations_id_fk": {
-          "name": "audit_events_organization_id_organizations_id_fk",
-          "tableFrom": "audit_events",
-          "tableTo": "organizations",
-          "columnsFrom": ["organization_id"],
-          "columnsTo": ["id"],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
         "audit_events_actor_user_id_app_users_id_fk": {
           "name": "audit_events_actor_user_id_app_users_id_fk",
           "tableFrom": "audit_events",
@@ -412,86 +658,6 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.contact_changes": {
-      "name": "contact_changes",
-      "schema": "",
-      "columns": {
-        "contact_id": {
-          "name": "contact_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "revision": {
-          "name": "revision",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "actor_user_id": {
-          "name": "actor_user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "provenance": {
-          "name": "provenance",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "recorded_at": {
-          "name": "recorded_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "before": {
-          "name": "before",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "after": {
-          "name": "after",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "contact_changes_contact_id_contacts_id_fk": {
-          "name": "contact_changes_contact_id_contacts_id_fk",
-          "tableFrom": "contact_changes",
-          "tableTo": "contacts",
-          "columnsFrom": ["contact_id"],
-          "columnsTo": ["id"],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "contact_changes_actor_user_id_app_users_id_fk": {
-          "name": "contact_changes_actor_user_id_app_users_id_fk",
-          "tableFrom": "contact_changes",
-          "tableTo": "app_users",
-          "columnsFrom": ["actor_user_id"],
-          "columnsTo": ["id"],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "contact_changes_contact_id_revision_pk": {
-          "name": "contact_changes_contact_id_revision_pk",
-          "columns": ["contact_id", "revision"]
-        }
-      },
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
@@ -692,116 +858,6 @@
           "value": "\"grant_navigation_pins\".\"position\" >= 0"
         }
       },
-      "isRLSEnabled": false
-    },
-    "public.case_changes": {
-      "name": "case_changes",
-      "schema": "",
-      "columns": {
-        "case_id": {
-          "name": "case_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "revision": {
-          "name": "revision",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "organization_id": {
-          "name": "organization_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "actor_user_id": {
-          "name": "actor_user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "provenance": {
-          "name": "provenance",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "recorded_at": {
-          "name": "recorded_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "action": {
-          "name": "action",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "request_id": {
-          "name": "request_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "reason": {
-          "name": "reason",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "before": {
-          "name": "before",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "after": {
-          "name": "after",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "case_changes_organization_id_organizations_id_fk": {
-          "name": "case_changes_organization_id_organizations_id_fk",
-          "tableFrom": "case_changes",
-          "tableTo": "organizations",
-          "columnsFrom": ["organization_id"],
-          "columnsTo": ["id"],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "case_changes_actor_user_id_app_users_id_fk": {
-          "name": "case_changes_actor_user_id_app_users_id_fk",
-          "tableFrom": "case_changes",
-          "tableTo": "app_users",
-          "columnsFrom": ["actor_user_id"],
-          "columnsTo": ["id"],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "case_changes_case_id_revision_pk": {
-          "name": "case_changes_case_id_revision_pk",
-          "columns": ["case_id", "revision"]
-        }
-      },
-      "uniqueConstraints": {
-        "case_changes_creation_key": {
-          "name": "case_changes_creation_key",
-          "nullsNotDistinct": false,
-          "columns": ["organization_id", "request_id"]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {},
       "isRLSEnabled": false
     },
     "public.access_request_limits": {
@@ -1335,97 +1391,6 @@
       },
       "isRLSEnabled": false
     },
-    "public.organization_events": {
-      "name": "organization_events",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "organization_id": {
-          "name": "organization_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "actor_user_id": {
-          "name": "actor_user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "action": {
-          "name": "action",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "details": {
-          "name": "details",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "provenance": {
-          "name": "provenance",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "recorded_at": {
-          "name": "recorded_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "organization_events_organization_idx": {
-          "name": "organization_events_organization_idx",
-          "columns": [
-            {
-              "expression": "organization_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "organization_events_organization_id_organizations_id_fk": {
-          "name": "organization_events_organization_id_organizations_id_fk",
-          "tableFrom": "organization_events",
-          "tableTo": "organizations",
-          "columnsFrom": ["organization_id"],
-          "columnsTo": ["id"],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "organization_events_actor_user_id_app_users_id_fk": {
-          "name": "organization_events_actor_user_id_app_users_id_fk",
-          "tableFrom": "organization_events",
-          "tableTo": "app_users",
-          "columnsFrom": ["actor_user_id"],
-          "columnsTo": ["id"],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.recommendation_versions": {
       "name": "recommendation_versions",
       "schema": "",
@@ -1745,6 +1710,53 @@
       },
       "isRLSEnabled": false
     },
+    "public.reviewer_command_receipts": {
+      "name": "reviewer_command_receipts",
+      "schema": "",
+      "columns": {
+        "assignment_id": {
+          "name": "assignment_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "command_id": {
+          "name": "command_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "result_revision": {
+          "name": "result_revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "reviewer_command_receipts_assignment_id_review_assignments_id_fk": {
+          "name": "reviewer_command_receipts_assignment_id_review_assignments_id_fk",
+          "tableFrom": "reviewer_command_receipts",
+          "tableTo": "review_assignments",
+          "columnsFrom": ["assignment_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "reviewer_receipts_command_key": {
+          "name": "reviewer_receipts_command_key",
+          "nullsNotDistinct": false,
+          "columns": ["assignment_id", "command_id"]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.reviewer_drafts": {
       "name": "reviewer_drafts",
       "schema": "",
@@ -1803,100 +1815,6 @@
           "value": "\"reviewer_drafts\".\"revision\" >= 0"
         }
       },
-      "isRLSEnabled": false
-    },
-    "public.reviewer_events": {
-      "name": "reviewer_events",
-      "schema": "",
-      "columns": {
-        "assignment_id": {
-          "name": "assignment_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "command_id": {
-          "name": "command_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "actor_user_id": {
-          "name": "actor_user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "actor_name": {
-          "name": "actor_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "provenance": {
-          "name": "provenance",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "action": {
-          "name": "action",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "note": {
-          "name": "note",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "''"
-        },
-        "result_revision": {
-          "name": "result_revision",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "recorded_at": {
-          "name": "recorded_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "reviewer_events_assignment_id_review_assignments_id_fk": {
-          "name": "reviewer_events_assignment_id_review_assignments_id_fk",
-          "tableFrom": "reviewer_events",
-          "tableTo": "review_assignments",
-          "columnsFrom": ["assignment_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "reviewer_events_actor_user_id_app_users_id_fk": {
-          "name": "reviewer_events_actor_user_id_app_users_id_fk",
-          "tableFrom": "reviewer_events",
-          "tableTo": "app_users",
-          "columnsFrom": ["actor_user_id"],
-          "columnsTo": ["id"],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "reviewer_events_command_key": {
-          "name": "reviewer_events_command_key",
-          "nullsNotDistinct": false,
-          "columns": ["assignment_id", "command_id"]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {},
       "isRLSEnabled": false
     },
     "public.reviewer_messages": {
@@ -2548,6 +2466,13 @@
           "notNull": true,
           "default": "'EUR'"
         },
+        "budget_established": {
+          "name": "budget_established",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
         "budget": {
           "name": "budget",
           "type": "numeric(30, 0)",
@@ -2622,49 +2547,12 @@
       },
       "isRLSEnabled": false
     },
-    "public.round_changes": {
-      "name": "round_changes",
+    "public.round_creation_receipts": {
+      "name": "round_creation_receipts",
       "schema": "",
       "columns": {
-        "round_id": {
-          "name": "round_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "revision": {
-          "name": "revision",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
         "organization_id": {
           "name": "organization_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "actor_user_id": {
-          "name": "actor_user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "provenance": {
-          "name": "provenance",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "recorded_at": {
-          "name": "recorded_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "action": {
-          "name": "action",
           "type": "text",
           "primaryKey": false,
           "notNull": true
@@ -2673,61 +2561,34 @@
           "name": "request_id",
           "type": "uuid",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
-        "reason": {
-          "name": "reason",
+        "round_id": {
+          "name": "round_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
-        },
-        "before": {
-          "name": "before",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "after": {
-          "name": "after",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
+          "notNull": true
         }
       },
       "indexes": {},
       "foreignKeys": {
-        "round_changes_organization_id_organizations_id_fk": {
-          "name": "round_changes_organization_id_organizations_id_fk",
-          "tableFrom": "round_changes",
+        "round_creation_receipts_organization_id_organizations_id_fk": {
+          "name": "round_creation_receipts_organization_id_organizations_id_fk",
+          "tableFrom": "round_creation_receipts",
           "tableTo": "organizations",
           "columnsFrom": ["organization_id"],
-          "columnsTo": ["id"],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "round_changes_actor_user_id_app_users_id_fk": {
-          "name": "round_changes_actor_user_id_app_users_id_fk",
-          "tableFrom": "round_changes",
-          "tableTo": "app_users",
-          "columnsFrom": ["actor_user_id"],
           "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
-        "round_changes_round_id_revision_pk": {
-          "name": "round_changes_round_id_revision_pk",
-          "columns": ["round_id", "revision"]
-        }
-      },
-      "uniqueConstraints": {
-        "round_changes_creation_key": {
-          "name": "round_changes_creation_key",
-          "nullsNotDistinct": false,
+        "round_creation_receipts_organization_id_request_id_pk": {
+          "name": "round_creation_receipts_organization_id_request_id_pk",
           "columns": ["organization_id", "request_id"]
         }
       },
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false

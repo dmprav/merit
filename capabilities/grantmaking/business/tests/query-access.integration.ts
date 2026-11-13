@@ -3,7 +3,6 @@ import { randomUUID } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { assert, expect } from "vite-plus/test";
 
-import { recordAuditEvent } from "@merit/audit/server/record";
 import type { Database } from "@merit/db";
 import type { GrantmakingQueries } from "@merit/grantmaking/api";
 import { createGrantmakingService, getFundingRoundOverview } from "@merit/grantmaking/server";
@@ -74,16 +73,11 @@ it("queries share a caller-owned transaction without committing its pending chan
   const rollback = new Error("Roll back the caller's work");
   await expect(
     db.transaction(async (tx) => {
-      const created = await createFundingRound(
-        tx,
-        actor,
-        {
-          workspaceSlug,
-          requestId: randomUUID(),
-          title: "Uncommitted round",
-        },
-        recordAuditEvent,
-      );
+      const created = await createFundingRound(tx, actor, {
+        workspaceSlug,
+        requestId: randomUUID(),
+        title: "Uncommitted round",
+      });
       assert(created.status === "ok");
       roundId = created.publicId;
       expect(await getFundingRoundOverview(tx, actor, { workspaceSlug, roundId })).toMatchObject({

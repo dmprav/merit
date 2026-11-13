@@ -5,7 +5,6 @@ import type { Database } from "@merit/db";
 import { memberships, organizations } from "@merit/organizations/schema";
 import { organizationScope } from "@merit/organizations/scope";
 
-import { contactChanges } from "../history-schema";
 import { contacts } from "../schema";
 
 const fields = {
@@ -65,34 +64,3 @@ export const readContactDetails = async (
       .innerJoin(appUsers, eq(appUsers.id, memberships.userId))
       .where(and(scope(actor, input.workspaceSlug), eq(contacts.id, input.contactId)))
   )[0];
-
-export const readContactChanges = (
-  db: Database,
-  actor: string,
-  input: { workspaceSlug: string; contactId: string; afterRevision?: number; limit: number },
-) =>
-  db
-    .select({
-      revision: contactChanges.revision,
-      recordedAt: contactChanges.recordedAt,
-      actorUserId: contactChanges.actorUserId,
-      provenance: contactChanges.provenance,
-      before: contactChanges.before,
-      after: contactChanges.after,
-    })
-    .from(contactChanges)
-    .innerJoin(contacts, eq(contacts.id, contactChanges.contactId))
-    .innerJoin(organizations, eq(organizations.id, contacts.organizationId))
-    .innerJoin(memberships, eq(memberships.organizationId, organizations.id))
-    .innerJoin(appUsers, eq(appUsers.id, memberships.userId))
-    .where(
-      and(
-        scope(actor, input.workspaceSlug),
-        eq(contacts.id, input.contactId),
-        input.afterRevision === undefined
-          ? undefined
-          : gt(contactChanges.revision, input.afterRevision),
-      ),
-    )
-    .orderBy(contactChanges.revision)
-    .limit(input.limit + 1);

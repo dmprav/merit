@@ -1,6 +1,8 @@
 import { lockApplicationCase } from "@merit/applications/locks";
-import { actorProvenance, type Actor, type Provenance } from "@merit/auth";
+import { recordAuditEvent } from "@merit/audit/server/record";
+import { actorProvenance, type Actor } from "@merit/auth";
 import type { Database } from "@merit/db";
+import { compare } from "@merit/money";
 
 import {
   saveRecommendationRequestSchema,
@@ -13,22 +15,10 @@ import {
   writeRecommendation,
 } from "../persistence/commands/recommendations";
 
-/** Append in the supplied transaction; failure must roll back the recommendation. */
-export type RecordRecommendationAudit = (
-  tx: Parameters<Parameters<Database["transaction"]>[0]>[0],
-  event: {
-    organizationId: string;
-    actor: { userId: string; name: string | null; provenance: Provenance };
-    action: "recommendation.saved";
-    target: { type: "recommendation"; id: string; revision: number };
-  },
-) => Promise<void>;
-
 export const saveFundingRecommendation = async (
   db: Database,
   actor: Actor,
   input: SaveRecommendationRequest,
-  recordAuditEvent: RecordRecommendationAudit,
 ) => {
   const request = saveRecommendationRequestSchema.parse(input);
 
@@ -74,6 +64,19 @@ export const saveFundingRecommendation = async (
       name: identity.actor.name ?? "",
     };
 
+    const previous = application.managerRecommendation;
+    const next = result.recommendation;
+    const unchanged = sameRecommendation(previous, next);
+    if (previous && unchanged) {
+      return {
+        status: "ok",
+        recommendation: previous,
+        recommendationVersion: row.recommendationVersion,
+        budget: round.budget,
+        totals: result.totals,
+      } as const;
+    }
+
     const saved = await writeRecommendation(tx, {
       publicId: request.publicId,
       expectedRevision: request.expectedRevision,
@@ -85,20 +88,7 @@ export const saveFundingRecommendation = async (
       return { status: "conflict" } as const;
     }
 
-    await recordAuditEvent(tx, {
-      organizationId: identity.organizationId,
-      actor: {
-        userId: identity.actor.userId,
-        name: identity.actor.name,
-        provenance: actorProvenance(actor),
-      },
-      action: "recommendation.saved",
-      target: {
-        type: "recommendation",
-        id: request.publicId,
-        revision: row.recommendationVersion + 1,
-      },
-    });
+    await recordRecommendationEvent(tx, { identity, actor, row, request, next });
 
     return {
       status: "ok",
@@ -109,3 +99,52 @@ export const saveFundingRecommendation = async (
     } as const;
   });
 };
+
+const recordRecommendationEvent = async (
+  tx: Parameters<Parameters<Database["transaction"]>[0]>[0],
+  {
+    identity,
+    actor,
+    row,
+    request,
+    next,
+  }: {
+    identity: NonNullable<Awaited<ReturnType<typeof lockApplicationCase>>>;
+    actor: Actor;
+    row: NonNullable<Awaited<ReturnType<typeof readRecommendationState>>>;
+    request: SaveRecommendationRequest;
+    next: NonNullable<
+      Awaited<ReturnType<typeof readRecommendationState>>
+    >["application"]["managerRecommendation"];
+  },
+) => {
+  await recordAuditEvent(tx, {
+    organizationId: identity.organizationId,
+    actor: {
+      userId: identity.actor.userId,
+      name: identity.actor.name,
+      provenance: actorProvenance(actor),
+    },
+    action: "recommendation.recorded",
+    target: {
+      type: "recommendation",
+      id: request.publicId,
+      revision: row.recommendationVersion + 1,
+      name: row.title,
+    },
+    context: { roundId: row.roundId, applicationId: request.publicId },
+    details: { applicationVersion: next?.recorded?.applicationVersion ?? null },
+  });
+};
+
+type Recommendation = NonNullable<
+  Awaited<ReturnType<typeof readRecommendationState>>
+>["application"]["managerRecommendation"];
+
+const sameRecommendation = (previous: Recommendation, next: NonNullable<Recommendation>) =>
+  previous &&
+  previous.position === next.position &&
+  previous.reasoning === next.reasoning &&
+  compare(previous.allocation, next.allocation) === 0 &&
+  previous.recorded?.applicationVersion === next.recorded?.applicationVersion &&
+  previous.author?.userId === next.author?.userId;

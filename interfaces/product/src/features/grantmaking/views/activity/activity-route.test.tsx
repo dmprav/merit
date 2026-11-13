@@ -64,7 +64,15 @@ const entry = (index: number, overrides: Partial<WorkspaceActivity["entries"][nu
   recordedAt: "2027-01-20T12:00:00.000Z",
   actor: "Dana Reed",
   provenance: { interface: "web" as const },
-  action: "application.create",
+  action: "application.created",
+  subject: {
+    type: "application",
+    id: "b8q3w5j7c2df",
+    revision: 0,
+    name: null,
+    roundId: null,
+    applicationId: "b8q3w5j7c2df",
+  },
   record: { kind: "application" as const, id: "b8q3w5j7c2df", title: "Workshop Saturdays" },
   ...overrides,
 });
@@ -75,7 +83,7 @@ const first: WorkspaceActivity = {
   entries: [
     entry(1),
     entry(2, {
-      action: "round.budget",
+      action: "round.budget_changed",
       record: { kind: "round", id: roundId, title: "Neighbourhood grants" },
     }),
   ],
@@ -84,7 +92,7 @@ const first: WorkspaceActivity = {
 };
 const older: WorkspaceActivity = {
   status: "ok",
-  entries: [entry(3, { action: "round.criteria", record: null })],
+  entries: [entry(3, { action: "round.criteria_changed", record: null })],
   people,
   nextCursor: null,
 };

@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   teamInput,
   teamPageInput,
+  teamHistoryInput,
   invitationPageInput,
   teamEventInput,
   inviteMemberInput,
@@ -87,7 +88,7 @@ export const registerTeamTools = (
       ...read,
       description:
         "List access event metadata in stable eventId order; follow nextCursor. Administrator access required. Fetch event details separately.",
-      inputSchema: teamPageInput,
+      inputSchema: teamHistoryInput,
       outputSchema: teamHistoryPageSchema,
     },
     (input) => team.teamHistoryPage(actor, input),

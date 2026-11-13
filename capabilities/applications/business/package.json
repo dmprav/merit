@@ -19,6 +19,7 @@
     "./testing/history": "./tests/fixtures/application-history.json"
   },
   "dependencies": {
+    "@merit/audit": "workspace:*",
     "@merit/auth": "workspace:*",
     "@merit/contacts": "workspace:*",
     "@merit/dates": "workspace:*",

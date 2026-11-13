@@ -1,8 +1,8 @@
 import { eq } from "drizzle-orm";
 
+import { recordAuditEvent } from "@merit/audit/server/record";
 import { actorProvenance, type Actor } from "@merit/auth";
 
-import { contactChanges } from "../history-schema";
 import { contacts } from "../schema";
 import type { Transaction } from "../transaction";
 
@@ -32,13 +32,23 @@ export const recordContactChange = async (
   } else {
     await insertContact(db, after);
   }
-  await db.insert(contactChanges).values({
-    contactId: after.id,
-    revision: after.revision,
-    actorUserId: actor.userId,
-    provenance: actorProvenance(actor),
-    before,
-    after,
+  await recordAuditEvent(db, {
+    organizationId: after.organizationId,
+    actor: { userId: actor.userId, provenance: actorProvenance(actor) },
+    action: !before
+      ? "contact.created"
+      : before.archived !== after.archived
+        ? after.archived
+          ? "contact.archived"
+          : "contact.restored"
+        : "contact.updated",
+    target: {
+      type: "contact",
+      id: after.id,
+      revision: after.revision,
+      name: after.name || after.email,
+    },
+    details: { before, after },
   });
   return after;
 };

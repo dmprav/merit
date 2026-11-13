@@ -6,7 +6,6 @@ import { assert, describe, expect } from "vite-plus/test";
 import { materialVersionSchema } from "@merit/applications/domain";
 import { editFundingApplication } from "@merit/applications/server";
 import { roundHasApplications } from "@merit/applications/server/integrations";
-import { recordAuditEvent } from "@merit/audit/server/record";
 import { changeWorkspaceContact } from "@merit/contacts/server";
 import { actor } from "@merit/organizations/testing/workspace";
 import { reviewRevisionSchema } from "@merit/reviews/domain";
@@ -30,12 +29,11 @@ const it = roundTest.extend("activity", async ({ db, database, rounds }) => {
   const first = await rounds.createApplication("Workshop Saturdays");
   const second = await rounds.createApplication("Neighbour Table");
   const roundId = rounds.pageInput.publicId;
-  const otherRound = await createFundingRound(
-    db,
-    pat,
-    { workspaceSlug, requestId: randomUUID(), title: "Winter grants" },
-    recordAuditEvent,
-  );
+  const otherRound = await createFundingRound(db, pat, {
+    workspaceSlug,
+    requestId: randomUUID(),
+    title: "Winter grants",
+  });
   assert(otherRound.status === "ok");
 
   const rename = async (address: { publicId: string }, title: string) => {
@@ -53,7 +51,6 @@ const it = roundTest.extend("activity", async ({ db, database, rounds }) => {
         change: { action: "save_content", content: { title } },
       },
       applicationWork,
-      recordAuditEvent,
     );
   };
 
@@ -70,34 +67,29 @@ const it = roundTest.extend("activity", async ({ db, database, rounds }) => {
   );
   assert(contact.status === "ok");
   const assessmentId = randomUUID();
-  const recorded = await saveApplicationReview(
-    db,
-    actor,
-    {
-      workspaceSlug,
-      publicId: first.publicId,
-      expectedRevision: reviewRevisionSchema.parse(0),
-      expectedApplicationVersion: materialVersionSchema.parse(1),
-      expectedCriteriaVersion: criteriaVersionSchema.parse(1),
-      change: {
-        action: "record",
-        id: assessmentId,
-        contactId: contact.contact.id,
-        requestId: null,
-        previousId: null,
-        content: {
-          applicationVersion: materialVersionSchema.parse(1),
-          criteriaVersion: criteriaVersionSchema.parse(1),
-          date: null,
-          position: "Fund",
-          amount: "18000",
-          reasoning: "Practical plan.",
-          observations: [],
-        },
+  const recorded = await saveApplicationReview(db, actor, {
+    workspaceSlug,
+    publicId: first.publicId,
+    expectedRevision: reviewRevisionSchema.parse(0),
+    expectedApplicationVersion: materialVersionSchema.parse(1),
+    expectedCriteriaVersion: criteriaVersionSchema.parse(1),
+    change: {
+      action: "record",
+      id: assessmentId,
+      contactId: contact.contact.id,
+      requestId: null,
+      previousId: null,
+      content: {
+        applicationVersion: materialVersionSchema.parse(1),
+        criteriaVersion: criteriaVersionSchema.parse(1),
+        date: null,
+        position: "Fund",
+        amount: "18000",
+        reasoning: "Practical plan.",
+        observations: [],
       },
     },
-    recordAuditEvent,
-  );
+  });
   assert(recorded.status === "ok");
   await rounds.recommendApplication(first, "5000");
 
@@ -137,19 +129,20 @@ describe("workspace activity", () => {
     expect(nextCursor).toBeNull();
     expect(entries.map(a.summary).sort()).toEqual(
       [
-        "round.create round:Community grants",
-        "round.create round:Winter grants",
-        "application.create application:Workshop Saturdays",
-        "application.create application:Neighbour Table (renamed)",
+        "round.created round:Community grants",
+        "round.created round:Winter grants",
+        "application.created application:Workshop Saturdays",
+        "application.created application:Neighbour Table (renamed)",
+        "application.material_changed application:Neighbour Table (renamed)",
         "assessment.recorded application:Workshop Saturdays",
-        "recommendation.saved application:Workshop Saturdays",
-        "application.mark_ready application:Workshop Saturdays",
+        "recommendation.recorded application:Workshop Saturdays",
+        "application.marked_ready application:Workshop Saturdays",
       ].sort(),
     );
     const times = entries.map((entry) => entry.recordedAt);
     expect(times).toEqual([...times].sort().reverse());
     expect(
-      entries.find((entry) => entry.action === "round.create" && entry.actor === "Pat Taylor"),
+      entries.find((entry) => entry.action === "round.created" && entry.actor === "Pat Taylor"),
     ).toMatchObject({
       provenance: a.pat.provenance,
       record: { kind: "round", id: a.otherRoundId, title: "Winter grants" },
@@ -176,27 +169,26 @@ describe("workspace activity", () => {
         change: { action: "delete" },
       },
       applicationWork,
-      recordAuditEvent,
     );
     assert(removed.status === "ok");
     await database.client.query(
       `INSERT INTO audit_events (organization_id, actor_user_id, actor_name, provenance, action, target_type, target_id, target_revision)
-       VALUES ('alder', 'dana', 'Dana Reed', '{"interface":"web"}', 'widget.polished', 'widget', 'w1', 1)`,
+       VALUES ('alder', 'dana', 'Dana Reed', '{"interface":"web"}', 'application.unknown', 'application', 'w1', 1)`,
     );
     const { entries } = await a.ok();
 
-    // Deleted records belong to no round, so the Round filter omits their events.
+    // Recorded round context is retained after deletion.
     const inRound = (await a.ok({ roundId: a.roundId })).entries.map((entry) => entry.action);
-    expect(inRound).not.toContain("application.delete");
-    expect(inRound.filter((action) => action === "application.create")).toHaveLength(1);
+    expect(inRound).toContain("application.deleted");
+    expect(inRound.filter((action) => action === "application.created")).toHaveLength(2);
 
     expect(
       entries
         .filter((entry) => entry.record === null)
         .map((entry) => entry.action)
         .sort(),
-    ).toEqual(["application.create", "application.delete", "widget.polished"]);
-    expect(entries.find((entry) => entry.action === "widget.polished")).toMatchObject({
+    ).toEqual(["application.created", "application.deleted", "application.unknown"]);
+    expect(entries.find((entry) => entry.action === "application.unknown")).toMatchObject({
       record: null,
     });
   });
@@ -230,40 +222,50 @@ describe("workspace activity", () => {
     const round = await a.ok({ roundId: a.roundId });
     expect(round.entries.map(a.summary).sort()).toEqual(
       [
-        "round.create round:Community grants",
-        "application.create application:Workshop Saturdays",
-        "application.create application:Neighbour Table",
+        "round.created round:Community grants",
+        "application.created application:Workshop Saturdays",
+        "application.created application:Neighbour Table",
         "assessment.recorded application:Workshop Saturdays",
-        "recommendation.saved application:Workshop Saturdays",
-        "application.mark_ready application:Workshop Saturdays",
+        "recommendation.recorded application:Workshop Saturdays",
+        "application.marked_ready application:Workshop Saturdays",
       ].sort(),
     );
     expect((await a.ok({ roundId: a.otherRoundId })).entries.map(a.summary)).toEqual([
-      "round.create round:Winter grants",
+      "round.created round:Winter grants",
     ]);
     expect((await a.ok({ roundId: "0123456789ab" })).entries).toEqual([]);
     expect((await a.ok({ roundId: a.roundId, limit: 2 })).nextCursor).not.toBeNull();
   });
 
-  it("omits a deleted round's own events from its Round filter", async ({ db, activity: a }) => {
+  it("retains a deleted round's own events in its Round filter", async ({ db, activity: a }) => {
     const removed = await deleteFundingRound(
       db,
       actor,
       { workspaceSlug, publicId: a.otherRoundId, expectedRevision: 0 },
       roundHasApplications,
-      recordAuditEvent,
     );
     expect(removed).toEqual({ status: "ok" });
 
-    expect((await a.ok({ roundId: a.otherRoundId })).entries).toEqual([]);
-    expect((await a.ok()).entries.map((entry) => entry.action)).toContain("round.delete");
+    expect((await a.ok({ roundId: a.otherRoundId })).entries).toMatchObject([
+      {
+        action: "round.deleted",
+        record: null,
+        subject: { name: "Winter grants", roundId: a.otherRoundId },
+      },
+      {
+        action: "round.created",
+        record: null,
+        subject: { name: "Winter grants", roundId: a.otherRoundId },
+      },
+    ]);
+    expect((await a.ok()).entries.map((entry) => entry.action)).toContain("round.deleted");
   });
 
   it("filters by person, combines with round, and lists everyone with recorded activity", async ({
     activity: a,
   }) => {
     const byPat = await a.ok({ personId: "pat" });
-    expect(byPat.entries.map(a.summary)).toEqual(["round.create round:Winter grants"]);
+    expect(byPat.entries.map(a.summary)).toEqual(["round.created round:Winter grants"]);
     expect(byPat.people).toEqual([
       { id: "dana", name: "Dana Reed" },
       { id: "pat", name: "Pat Taylor" },
@@ -288,7 +290,7 @@ describe("workspace activity", () => {
     expect(await a.read({}, { userId: "birch-manager" })).toEqual({ status: "not_found" });
     expect(await a.read({ workspaceSlug: "birch" }, { userId: "birch-manager" })).toMatchObject({
       status: "ok",
-      entries: [{ action: "round.create", actor: "Birch manager" }],
+      entries: [{ action: "round.created", actor: "Birch manager" }],
       people: [{ id: "birch-manager", name: "Birch manager" }],
     });
     expect(await a.read({ workspaceSlug: "birch" })).toEqual({ status: "not_found" });

@@ -1,4 +1,8 @@
-import type { IntakeApplication, WorkingRevision } from "@merit/applications/domain";
+import type {
+  IntakeApplication,
+  WorkingRevision,
+  MaterialVersion,
+} from "@merit/applications/domain";
 import type { Provenance } from "@merit/auth";
 import type { MoneyData } from "@merit/money";
 
@@ -15,6 +19,7 @@ type ChangeRecord<T> = {
 
 /** Current editing facts shared by interfaces, independently of page transport. */
 export type IntakeState = {
+  materialVersions?: MaterialVersion[];
   revision: number;
   workingRevision: WorkingRevision | null;
   history: ChangeRecord<Omit<IntakeApplication, "requested"> & { requested: MoneyData | null }>[];

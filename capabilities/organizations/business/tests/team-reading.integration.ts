@@ -53,6 +53,9 @@ it("paginates team directories and restricts invitation and audit detail reads t
   expect(last.value.nextCursor).toBeNull();
   const history = await service.teamHistoryPage(actor, { workspaceSlug, limit: 1 });
   assert(history.status === "ok" && history.value.entries[0]);
+  const team = await service.team(actor, { workspaceSlug });
+  assert(team.status === "ok");
+  expect(team.value).not.toHaveProperty("history");
   const eventId = history.value.entries[0].eventId;
   expect((await service.teamEvent(actor, { workspaceSlug, eventId, length: 10 })).status).toBe(
     "ok",

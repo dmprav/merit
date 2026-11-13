@@ -1,9 +1,11 @@
 import { encodeApplicationMaterial } from "@merit/applications/api";
 import { materialVersionSchema } from "@merit/applications/domain";
+import { readAuditHistory } from "@merit/audit/server/read";
 import type { Actor } from "@merit/auth";
 import { readTransaction, type Database } from "@merit/db";
 import { criteriaVersionSchema } from "@merit/rounds/domain";
 
+import { reviewerHistoryInput } from "../../api/reviewer";
 import type { ReviewerSummary, ReviewerService } from "../../api/reviewer";
 import { compareReviewBasis, reviewCriteriaSchema } from "../../domain";
 import {
@@ -17,7 +19,6 @@ import {
   readPrivateReviewerDraft,
   readReviewerEvidence,
   readReviewerAssessment,
-  reviewerHistory,
   type ReviewerRecord,
 } from "../persistence/reviewer-records";
 
@@ -119,13 +120,40 @@ export const managerReviewerAssignments = (
 ): ReturnType<ReviewerService["forApplication"]> =>
   readTransaction(db, async (tx) => ({
     status: "ok",
-    value: await Promise.all(
-      (await listManagerReviewerRecords(tx, actor.userId, input)).map(async (row) => ({
-        ...reviewerSummary(row),
-        history: (await reviewerHistory(tx, row.assignment.id)).map((event) => ({
-          ...event,
-          at: event.at.toISOString(),
-        })),
-      })),
-    ),
+    value: (await listManagerReviewerRecords(tx, actor.userId, input)).map(reviewerSummary),
   }));
+
+export const managerReviewerHistory = (
+  db: Database,
+  actor: Actor,
+  input: Parameters<ReviewerService["history"]>[1],
+): ReturnType<ReviewerService["history"]> =>
+  readTransaction(db, async (tx) => {
+    const parsed = reviewerHistoryInput.safeParse(input);
+    if (!parsed.success) {
+      return { status: "invalid" };
+    }
+    const request = parsed.data;
+    const [record] = await listManagerReviewerRecords(tx, actor.userId, request);
+    if (!record) {
+      return { status: "not_found" };
+    }
+    const page = await readAuditHistory(tx, {
+      ...request,
+      organizationId: record.assignment.organizationId,
+      targetTypes: ["review_assignment", "assessment"],
+      assignmentId: request.assignmentId,
+    });
+    return {
+      status: "ok",
+      value: {
+        ...page,
+        entries: page.entries.map((event) => ({
+          action: event.action,
+          actor: event.actorName,
+          at: event.recordedAt.toISOString(),
+          note: typeof event.details.note === "string" ? event.details.note : "",
+        })),
+      },
+    };
+  });

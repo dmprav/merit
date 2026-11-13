@@ -2,14 +2,19 @@ import { sql } from "drizzle-orm";
 import { assert, describe, expect } from "vite-plus/test";
 
 import { removeDemoAudit } from "@merit/audit/server/demo";
-import { readWorkspaceActivity } from "@merit/audit/server/read";
+import { readWorkspaceActivity, readAuditHistory } from "@merit/audit/server/read";
 import { recordAuditEvent } from "@merit/audit/server/record";
 import { workspaceTest as test } from "@merit/organizations/testing/workspace";
+
+const scope = {
+  organizationId: "alder",
+  targetTypes: ["round", "application", "assessment", "recommendation"],
+};
 
 const event = {
   organizationId: "alder",
   actor: { userId: "dana", name: "Dana Reed", provenance: { interface: "web" as const } },
-  action: "recommendation.saved",
+  action: "recommendation.recorded",
   target: { type: "recommendation", id: "k7m2p9x4n6rt", revision: 1 },
 };
 
@@ -84,8 +89,6 @@ const record = (
 ) => recordAuditEvent(tx, { ...event, ...overrides });
 
 describe("reading workspace activity", () => {
-  const manager = { userId: "dana" };
-
   test("lists the workspace's events newest first and pages by a stable cursor, including ties", async ({
     db,
   }) => {
@@ -96,15 +99,16 @@ describe("reading workspace activity", () => {
       }
     });
     await db.transaction((tx) =>
-      record(tx, { action: "recommendation.saved", target: { ...event.target, revision: 6 } }),
+      record(tx, { action: "recommendation.recorded", target: { ...event.target, revision: 6 } }),
     );
 
-    const first = await readWorkspaceActivity(db, manager, { workspaceSlug: "alder", limit: 4 });
+    const first = await readWorkspaceActivity(db, { ...scope, organizationId: "alder", limit: 4 });
     assert(first.status === "ok" && first.nextCursor !== null);
     expect(first.events).toHaveLength(4);
     expect(first.events[0]).toMatchObject({ targetRevision: 6, actorName: "Dana Reed" });
-    const second = await readWorkspaceActivity(db, manager, {
-      workspaceSlug: "alder",
+    const second = await readWorkspaceActivity(db, {
+      ...scope,
+      organizationId: "alder",
       limit: 4,
       after: first.nextCursor,
     });
@@ -130,73 +134,58 @@ describe("reading workspace activity", () => {
     await db.transaction((tx) => record(tx));
 
     expect(
-      await readWorkspaceActivity(db, manager, { workspaceSlug: "alder", limit: 1 }),
+      await readWorkspaceActivity(db, { ...scope, organizationId: "alder", limit: 1 }),
     ).toMatchObject({ status: "ok", nextCursor: null, events: [{ action: event.action }] });
-    expect(
-      await readWorkspaceActivity(db, { userId: "birch-manager" }, { workspaceSlug: "birch" }),
-    ).toEqual({ status: "ok", events: [], people: [], nextCursor: null });
+    expect(await readWorkspaceActivity(db, { ...scope, organizationId: "birch" })).toEqual({
+      status: "ok",
+      events: [],
+      people: [],
+      nextCursor: null,
+    });
   });
 
-  test("shows only the requested workspace to its current program managers", async ({
+  test("scopes trusted reads to the caller's authorized workspace and record types", async ({
     db,
-    database,
   }) => {
     await db.transaction(async (tx) => {
       await record(tx);
       await record(tx, {
+        action: "membership.access_changed",
+        target: { type: "membership", id: "dana", revision: null },
+      });
+      await record(tx, {
         organizationId: "birch",
-        actor: { ...event.actor, userId: "birch-manager", name: "Birch manager" },
+        actor: { ...event.actor, userId: "birch-manager" },
       });
     });
-    await database.client.query(
-      "INSERT INTO app_users (id, name) VALUES ('rae', 'Rae'), ('outsider', 'Outsider')",
-    );
-    await database.client.query(
-      "INSERT INTO memberships (organization_id, user_id, role) VALUES ('alder', 'rae', 'member')",
-    );
-
-    const read = (userId: string, workspaceSlug: string) =>
-      readWorkspaceActivity(db, { userId }, { workspaceSlug });
-
-    expect(await read("dana", "alder")).toMatchObject({
-      status: "ok",
-      events: [{ actorUserId: "dana" }],
-    });
-    expect(await read("birch-manager", "birch")).toMatchObject({
-      status: "ok",
-      events: [{ actorUserId: "birch-manager" }],
-    });
-    // A member without grant access can see the workspace but not its activity.
-    expect(await read("rae", "alder")).toEqual({ status: "forbidden" });
-    expect(await read("dana", "birch")).toEqual({ status: "not_found" });
-    expect(await read("outsider", "alder")).toEqual({ status: "not_found" });
-    expect(await read("dana", "missing")).toEqual({ status: "not_found" });
-
-    // Access follows the current role, not the role that recorded the event.
-    await database.client.query(
-      "UPDATE memberships SET role='member' WHERE organization_id='alder' AND user_id='dana'",
-    );
-    expect(await read("dana", "alder")).toEqual({ status: "forbidden" });
+    expect(
+      await readWorkspaceActivity(db, { organizationId: "alder", targetTypes: ["recommendation"] }),
+    ).toMatchObject({ events: [{ action: "recommendation.recorded" }] });
+    expect(
+      await readWorkspaceActivity(db, { organizationId: "birch", targetTypes: ["membership"] }),
+    ).toMatchObject({ events: [], people: [] });
   });
 
-  test("filters by recorded person and by record, and lists everyone with recorded activity", async ({
+  test("filters by recorded person and by historical round, and lists everyone with recorded activity", async ({
     db,
     database,
   }) => {
     await database.client.query("INSERT INTO app_users (id, name) VALUES ('rae', 'Rae Quinn')");
     await db.transaction(async (tx) => {
       await record(tx, {
-        action: "application.create",
+        action: "application.created",
         target: { type: "application", id: "app1", revision: 0 },
       });
       await record(tx, {
         action: "assessment.recorded",
         target: { type: "assessment", id: "a1", revision: 1 },
+        context: { roundId: "round1" },
       });
       await record(tx, {
         actor: { userId: "rae", name: "Rae Quinn", provenance: { interface: "web" } },
-        action: "round.budget",
+        action: "round.budget_changed",
         target: { type: "round", id: "round1", revision: 1 },
+        context: { roundId: "round1" },
       });
     });
     await db.transaction((tx) =>
@@ -206,13 +195,14 @@ describe("reading workspace activity", () => {
           name: null,
           provenance: { interface: "mcp", clientId: "assistant" },
         },
-        action: "round.create",
+        action: "round.created",
         target: { type: "round", id: "round1", revision: 0 },
+        context: { roundId: "round1" },
       }),
     );
 
-    const read = (input: Omit<Parameters<typeof readWorkspaceActivity>[2], "workspaceSlug">) =>
-      readWorkspaceActivity(db, manager, { workspaceSlug: "alder", ...input });
+    const read = (input: Partial<Parameters<typeof readWorkspaceActivity>[1]>) =>
+      readWorkspaceActivity(db, { ...scope, organizationId: "alder", ...input });
 
     const actions = async (input: Parameters<typeof read>[0]) => {
       const result = await read(input);
@@ -220,29 +210,23 @@ describe("reading workspace activity", () => {
       return result.events.map((entry) => entry.action).sort();
     };
 
-    expect(await actions({ actorUserId: "rae" })).toEqual(["round.budget", "round.create"]);
+    expect(await actions({ actorUserId: "rae" })).toEqual([
+      "round.budget_changed",
+      "round.created",
+    ]);
     expect(await actions({ actorUserId: "dana" })).toEqual([
-      "application.create",
+      "application.created",
       "assessment.recorded",
     ]);
-    expect(
-      await actions({
-        targets: [
-          { type: "round", ids: ["round1"] },
-          { type: "assessment", ids: ["a1", "other"] },
-          { type: "application", ids: [] },
-        ],
-      }),
-    ).toEqual(["assessment.recorded", "round.budget", "round.create"]);
-    // An id only matches events of its own record type.
-    expect(await actions({ targets: [{ type: "application", ids: ["round1", "a1"] }] })).toEqual(
-      [],
-    );
-    expect(await actions({ targets: [] })).toEqual([]);
-    expect(await actions({ targets: [{ type: "round", ids: [] }] })).toEqual([]);
-    expect(
-      await actions({ actorUserId: "rae", targets: [{ type: "assessment", ids: ["a1"] }] }),
-    ).toEqual([]);
+    expect(await actions({ roundId: "round1" })).toEqual([
+      "assessment.recorded",
+      "round.budget_changed",
+      "round.created",
+    ]);
+    expect(await actions({ roundId: "missing" })).toEqual([]);
+    expect(await actions({ actorUserId: "dana", roundId: "round1" })).toEqual([
+      "assessment.recorded",
+    ]);
 
     // The latest recorded name identifies a person; an unnamed event never hides a known name.
     const result = await read({});
@@ -253,18 +237,36 @@ describe("reading workspace activity", () => {
     ]);
   });
 
-  test("filters by a record set larger than the protocol's parameter limit", async ({ db }) => {
-    await db.transaction((tx) => record(tx));
-    const ids = Array.from({ length: 70_000 }, (_, index) => `other-${index}`);
-
-    const read = (matching: string[]) =>
-      readWorkspaceActivity(db, manager, {
-        workspaceSlug: "alder",
-        targets: [{ type: "recommendation", ids: [...ids, ...matching] }],
-      });
-
-    expect(await read([])).toMatchObject({ status: "ok", events: [] });
-    expect(await read([event.target.id])).toMatchObject({ events: [{ action: event.action }] });
+  test("preserves historical time and unknown attribution without inventing provenance", async ({
+    db,
+    database,
+  }) => {
+    const recordedAt = new Date("2020-01-01T00:00:00Z");
+    await db.transaction((tx) =>
+      record(tx, {
+        actor: { userId: "dana", name: null, provenance: null },
+        recordedAt,
+        target: { ...event.target, name: "Historical proposal" },
+        context: { roundId: "historical-round", applicationId: "historical-application" },
+        details: { reason: "Recorded evidence" },
+      }),
+    );
+    const page = await readWorkspaceActivity(db, scope);
+    assert(page.status === "ok");
+    expect(page.events).toMatchObject([
+      {
+        actorName: null,
+        provenance: null,
+        recordedAt,
+        targetName: "Historical proposal",
+        roundId: "historical-round",
+        applicationId: "historical-application",
+      },
+    ]);
+    expect(page.events[0]).not.toHaveProperty("details");
+    expect(
+      (await database.client.query("SELECT format_version, details FROM audit_events")).rows,
+    ).toEqual([{ format_version: 1, details: { reason: "Recorded evidence" } }]);
   });
 
   test("keeps the recorded name and provenance after profile changes and rejects a malformed cursor", async ({
@@ -278,13 +280,70 @@ describe("reading workspace activity", () => {
     );
     await database.client.query("UPDATE app_users SET name='Dana Newname' WHERE id='dana'");
 
-    const result = await readWorkspaceActivity(db, manager, { workspaceSlug: "alder" });
+    const result = await readWorkspaceActivity(db, { ...scope, organizationId: "alder" });
     assert(result.status === "ok");
     expect(result.events).toMatchObject([
       { actorName: "Dana Reed", provenance: { interface: "mcp", clientId: "verified-client" } },
     ]);
     expect(
-      await readWorkspaceActivity(db, manager, { workspaceSlug: "alder", after: "not-a-cursor" }),
+      await readWorkspaceActivity(db, { ...scope, organizationId: "alder", after: "not-a-cursor" }),
     ).toEqual({ status: "invalid" });
   });
+});
+
+test("pages subject histories through timestamp ties and keeps subject, assignment and tenant scopes", async ({
+  db,
+}) => {
+  const at = new Date("2026-11-01T10:00:00Z");
+  await db.transaction(async (tx) => {
+    for (let revision = 0; revision < 23; revision++) {
+      await recordAuditEvent(tx, {
+        ...event,
+        target: { ...event.target, revision },
+        recordedAt: at,
+        context: { assignmentId: "assignment-a" },
+        details: { revision },
+      });
+    }
+    await recordAuditEvent(tx, {
+      ...event,
+      target: { ...event.target, id: "other" },
+      recordedAt: at,
+    });
+    await recordAuditEvent(tx, {
+      ...event,
+      action: "contact.updated",
+      target: { type: "contact", id: event.target.id, revision: 1 },
+      recordedAt: at,
+    });
+  });
+  const input = {
+    organizationId: "alder",
+    targetTypes: ["recommendation"],
+    targetId: event.target.id,
+  };
+  const first = await readAuditHistory(db, input);
+  expect(first.entries).toHaveLength(20);
+  assert(first.nextCursor);
+  const rest = await readAuditHistory(db, { ...input, after: first.nextCursor });
+  expect(rest.entries).toHaveLength(3);
+  expect(rest.nextCursor).toBeNull();
+  expect(new Set([...first.entries, ...rest.entries].map((row) => row.id)).size).toBe(23);
+  expect(await readAuditHistory(db, { ...input, organizationId: "birch" })).toEqual({
+    entries: [],
+    nextCursor: null,
+  });
+  expect(await readAuditHistory(db, { ...input, assignmentId: "assignment-b" })).toEqual({
+    entries: [],
+    nextCursor: null,
+  });
+  expect(
+    (await readAuditHistory(db, { ...input, assignmentId: "assignment-a", limit: 1 })).entries,
+  ).toHaveLength(1);
+  expect(await readAuditHistory(db, { ...input, action: "recommendation.missing" })).toEqual({
+    entries: [],
+    nextCursor: null,
+  });
+  await expect(readAuditHistory(db, { ...input, after: "invalid" })).rejects.toThrow();
+  await expect(readAuditHistory(db, { ...input, limit: 51 })).rejects.toThrow();
 });

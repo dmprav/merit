@@ -2,11 +2,18 @@ import { mocked } from "storybook/test";
 
 import type { Contact } from "@merit/contacts-web/contracts";
 
-import { readContacts, saveContact } from "./data/server/contacts.functions";
+import { readContacts, saveContact, readContactHistory } from "./data/server/contacts.functions";
 
 /** In-memory transport outcomes shared by the directory, editor, and picker examples. */
 export const configureContacts = (initial: Contact[]) => {
   let contacts = initial.map((contact) => ({ history: [], applicationTitles: [], ...contact }));
+  mocked(readContactHistory).mockImplementation(async ({ data }) => ({
+    status: "ok",
+    entries: (contacts.find((contact) => contact.id === data.contactId)?.history ?? []).map(
+      (entry) => ({ ...entry, actorUserId: null }),
+    ),
+    nextCursor: null,
+  }));
   mocked(readContacts).mockImplementation(async () => ({
     status: "ok",
     workspaceName: "Alder Foundation",

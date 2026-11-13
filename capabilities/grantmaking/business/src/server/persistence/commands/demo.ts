@@ -6,7 +6,7 @@ import { insertIntakeApplication, deleteDemoApplications } from "@merit/applicat
 import type { Database } from "@merit/db";
 import { recommendationVersions } from "@merit/recommendations/schema";
 import { recordReviewChange } from "@merit/reviews/server/demo";
-import { fundingRounds, roundChanges } from "@merit/rounds/schema";
+import { fundingRounds, roundCreationReceipts } from "@merit/rounds/schema";
 
 import { type encodeApplication, decodeApplication } from "../encoding";
 
@@ -65,6 +65,8 @@ export const insertExampleApplication = async (
 
 export const deleteDemoFunding = async (db: Transaction, organizationId: string) => {
   await deleteDemoApplications(db, organizationId);
-  await db.delete(roundChanges).where(eq(roundChanges.organizationId, organizationId));
+  await db
+    .delete(roundCreationReceipts)
+    .where(eq(roundCreationReceipts.organizationId, organizationId));
   await db.delete(fundingRounds).where(eq(fundingRounds.organizationId, organizationId));
 };

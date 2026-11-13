@@ -1,4 +1,10 @@
 export const common = {
+  pagedLoading: "Loading history…",
+  pagedMore: "Load older entries",
+  pagedFailed: "History could not be loaded.",
+  pagedRetry: "Try again",
+  pagedUnavailable: "This history is no longer available.",
+
   validation: {
     required: "Enter a value.",
     email: "Enter a valid email address.",

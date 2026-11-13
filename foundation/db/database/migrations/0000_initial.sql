@@ -29,6 +29,13 @@ CREATE TABLE "application_cases" (
 	CONSTRAINT "application_cases_status_check" CHECK ("application_cases"."intake_status" IN ('in_preparation', 'ready'))
 );
 --> statement-breakpoint
+CREATE TABLE "application_creation_receipts" (
+	"organization_id" text NOT NULL,
+	"request_id" uuid NOT NULL,
+	"case_id" text NOT NULL,
+	CONSTRAINT "application_creation_receipts_organization_id_request_id_pk" PRIMARY KEY("organization_id","request_id")
+);
+--> statement-breakpoint
 CREATE TABLE "material_drafts" (
 	"case_id" text PRIMARY KEY NOT NULL,
 	"base_material_version" integer NOT NULL,
@@ -56,23 +63,18 @@ CREATE TABLE "audit_events" (
 	"organization_id" text NOT NULL,
 	"actor_user_id" text NOT NULL,
 	"actor_name" text,
-	"provenance" jsonb NOT NULL,
+	"provenance" jsonb,
 	"action" text NOT NULL,
 	"target_type" text NOT NULL,
 	"target_id" text NOT NULL,
 	"target_revision" integer,
+	"target_name" text,
+	"round_id" text,
+	"application_id" text,
+	"assignment_id" text,
+	"format_version" integer DEFAULT 1 NOT NULL,
+	"details" jsonb DEFAULT '{}'::jsonb NOT NULL,
 	"recorded_at" timestamp (3) with time zone DEFAULT now() NOT NULL
-);
---> statement-breakpoint
-CREATE TABLE "contact_changes" (
-	"contact_id" uuid NOT NULL,
-	"revision" integer NOT NULL,
-	"actor_user_id" text,
-	"provenance" jsonb,
-	"recorded_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"before" jsonb,
-	"after" jsonb NOT NULL,
-	CONSTRAINT "contact_changes_contact_id_revision_pk" PRIMARY KEY("contact_id","revision")
 );
 --> statement-breakpoint
 CREATE TABLE "contacts" (
@@ -100,22 +102,6 @@ CREATE TABLE "grant_navigation_pins" (
 	CONSTRAINT "grant_navigation_pins_review" UNIQUE("user_id","assignment_id"),
 	CONSTRAINT "grant_navigation_pins_target" CHECK (num_nonnulls("grant_navigation_pins"."round_id", "grant_navigation_pins"."application_id", "grant_navigation_pins"."assignment_id") = 1),
 	CONSTRAINT "grant_navigation_pins_position" CHECK ("grant_navigation_pins"."position" >= 0)
-);
---> statement-breakpoint
-CREATE TABLE "case_changes" (
-	"case_id" text NOT NULL,
-	"revision" integer NOT NULL,
-	"organization_id" text NOT NULL,
-	"actor_user_id" text NOT NULL,
-	"provenance" jsonb,
-	"recorded_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"action" text NOT NULL,
-	"request_id" uuid,
-	"reason" text,
-	"before" jsonb,
-	"after" jsonb,
-	CONSTRAINT "case_changes_case_id_revision_pk" PRIMARY KEY("case_id","revision"),
-	CONSTRAINT "case_changes_creation_key" UNIQUE("organization_id","request_id")
 );
 --> statement-breakpoint
 CREATE TABLE "access_request_limits" (
@@ -182,16 +168,6 @@ CREATE TABLE "organization_invitations" (
 	CONSTRAINT "organization_invitations_delivery_check" CHECK ("organization_invitations"."delivery" IN ('pending', 'sent', 'failed'))
 );
 --> statement-breakpoint
-CREATE TABLE "organization_events" (
-	"id" text PRIMARY KEY NOT NULL,
-	"organization_id" text NOT NULL,
-	"actor_user_id" text NOT NULL,
-	"action" text NOT NULL,
-	"details" jsonb NOT NULL,
-	"provenance" jsonb,
-	"recorded_at" timestamp with time zone DEFAULT now() NOT NULL
-);
---> statement-breakpoint
 CREATE TABLE "recommendation_versions" (
 	"case_id" text NOT NULL,
 	"revision" integer NOT NULL,
@@ -230,6 +206,13 @@ CREATE TABLE "review_assignments" (
 	CONSTRAINT "review_assignment_submission" CHECK ("review_assignments"."status" <> 'submitted' OR "review_assignments"."assessment_id" IS NOT NULL)
 );
 --> statement-breakpoint
+CREATE TABLE "reviewer_command_receipts" (
+	"assignment_id" uuid NOT NULL,
+	"command_id" uuid NOT NULL,
+	"result_revision" integer NOT NULL,
+	CONSTRAINT "reviewer_receipts_command_key" UNIQUE("assignment_id","command_id")
+);
+--> statement-breakpoint
 CREATE TABLE "reviewer_drafts" (
 	"assignment_id" uuid PRIMARY KEY NOT NULL,
 	"revision" integer DEFAULT 0 NOT NULL,
@@ -237,19 +220,6 @@ CREATE TABLE "reviewer_drafts" (
 	"last_command_id" uuid,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "reviewer_draft_revision" CHECK ("reviewer_drafts"."revision" >= 0)
-);
---> statement-breakpoint
-CREATE TABLE "reviewer_events" (
-	"assignment_id" uuid NOT NULL,
-	"command_id" uuid NOT NULL,
-	"actor_user_id" text NOT NULL,
-	"actor_name" text NOT NULL,
-	"provenance" jsonb NOT NULL,
-	"action" text NOT NULL,
-	"note" text DEFAULT '' NOT NULL,
-	"result_revision" integer NOT NULL,
-	"recorded_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "reviewer_events_command_key" UNIQUE("assignment_id","command_id")
 );
 --> statement-breakpoint
 CREATE TABLE "reviewer_messages" (
@@ -330,6 +300,7 @@ CREATE TABLE "funding_rounds" (
 	"title" text NOT NULL,
 	"purpose" text NOT NULL,
 	"currency" text DEFAULT 'EUR' NOT NULL,
+	"budget_established" boolean DEFAULT false NOT NULL,
 	"budget" numeric(30, 0),
 	"meeting_date" date,
 	"snapshot_date" date NOT NULL,
@@ -340,20 +311,11 @@ CREATE TABLE "funding_rounds" (
 	CONSTRAINT "funding_rounds_budget_check" CHECK ("funding_rounds"."budget" >= 0)
 );
 --> statement-breakpoint
-CREATE TABLE "round_changes" (
-	"round_id" text NOT NULL,
-	"revision" integer NOT NULL,
+CREATE TABLE "round_creation_receipts" (
 	"organization_id" text NOT NULL,
-	"actor_user_id" text NOT NULL,
-	"provenance" jsonb,
-	"recorded_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"action" text NOT NULL,
-	"request_id" uuid,
-	"reason" text,
-	"before" jsonb,
-	"after" jsonb,
-	CONSTRAINT "round_changes_round_id_revision_pk" PRIMARY KEY("round_id","revision"),
-	CONSTRAINT "round_changes_creation_key" UNIQUE("organization_id","request_id")
+	"request_id" uuid NOT NULL,
+	"round_id" text NOT NULL,
+	CONSTRAINT "round_creation_receipts_organization_id_request_id_pk" PRIMARY KEY("organization_id","request_id")
 );
 --> statement-breakpoint
 CREATE TABLE "app_users" (
@@ -373,29 +335,23 @@ CREATE TABLE "guest_sessions" (
 ALTER TABLE "application_cases" ADD CONSTRAINT "application_cases_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "application_cases" ADD CONSTRAINT "application_cases_organization_id_round_id_funding_rounds_organization_id_id_fk" FOREIGN KEY ("organization_id","round_id") REFERENCES "public"."funding_rounds"("organization_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "application_cases" ADD CONSTRAINT "application_cases_organization_id_contact_id_contacts_organization_id_id_fk" FOREIGN KEY ("organization_id","contact_id") REFERENCES "public"."contacts"("organization_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "application_creation_receipts" ADD CONSTRAINT "application_creation_receipts_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "material_drafts" ADD CONSTRAINT "material_drafts_case_id_application_cases_id_fk" FOREIGN KEY ("case_id") REFERENCES "public"."application_cases"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "material_drafts" ADD CONSTRAINT "material_drafts_case_id_base_material_version_material_versions_case_id_version_fk" FOREIGN KEY ("case_id","base_material_version") REFERENCES "public"."material_versions"("case_id","version") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "material_versions" ADD CONSTRAINT "material_versions_case_id_application_cases_id_fk" FOREIGN KEY ("case_id") REFERENCES "public"."application_cases"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "material_versions" ADD CONSTRAINT "material_versions_recorded_by_user_id_app_users_id_fk" FOREIGN KEY ("recorded_by_user_id") REFERENCES "public"."app_users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "audit_events" ADD CONSTRAINT "audit_events_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "audit_events" ADD CONSTRAINT "audit_events_actor_user_id_app_users_id_fk" FOREIGN KEY ("actor_user_id") REFERENCES "public"."app_users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "contact_changes" ADD CONSTRAINT "contact_changes_contact_id_contacts_id_fk" FOREIGN KEY ("contact_id") REFERENCES "public"."contacts"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "contact_changes" ADD CONSTRAINT "contact_changes_actor_user_id_app_users_id_fk" FOREIGN KEY ("actor_user_id") REFERENCES "public"."app_users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "contacts" ADD CONSTRAINT "contacts_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "grant_navigation_pins" ADD CONSTRAINT "grant_navigation_pins_user_id_app_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."app_users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "grant_navigation_pins" ADD CONSTRAINT "grant_navigation_pins_round_id_funding_rounds_id_fk" FOREIGN KEY ("round_id") REFERENCES "public"."funding_rounds"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "grant_navigation_pins" ADD CONSTRAINT "grant_navigation_pins_application_id_application_cases_id_fk" FOREIGN KEY ("application_id") REFERENCES "public"."application_cases"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "grant_navigation_pins" ADD CONSTRAINT "grant_navigation_pins_assignment_id_review_assignments_id_fk" FOREIGN KEY ("assignment_id") REFERENCES "public"."review_assignments"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "case_changes" ADD CONSTRAINT "case_changes_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "case_changes" ADD CONSTRAINT "case_changes_actor_user_id_app_users_id_fk" FOREIGN KEY ("actor_user_id") REFERENCES "public"."app_users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "access_requests" ADD CONSTRAINT "access_requests_reviewed_by_app_users_id_fk" FOREIGN KEY ("reviewed_by") REFERENCES "public"."app_users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "memberships" ADD CONSTRAINT "memberships_organization_id_fkey" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "memberships" ADD CONSTRAINT "memberships_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."app_users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "organization_invitations" ADD CONSTRAINT "organization_invitations_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "organization_invitations" ADD CONSTRAINT "organization_invitations_invited_by_app_users_id_fk" FOREIGN KEY ("invited_by") REFERENCES "public"."app_users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "organization_invitations" ADD CONSTRAINT "organization_invitations_accepted_by_app_users_id_fk" FOREIGN KEY ("accepted_by") REFERENCES "public"."app_users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "organization_events" ADD CONSTRAINT "organization_events_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "organization_events" ADD CONSTRAINT "organization_events_actor_user_id_app_users_id_fk" FOREIGN KEY ("actor_user_id") REFERENCES "public"."app_users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "recommendation_versions" ADD CONSTRAINT "recommendation_versions_case_id_application_cases_id_fk" FOREIGN KEY ("case_id") REFERENCES "public"."application_cases"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "recommendation_versions" ADD CONSTRAINT "recommendation_versions_actor_user_id_app_users_id_fk" FOREIGN KEY ("actor_user_id") REFERENCES "public"."app_users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "recommendation_versions" ADD CONSTRAINT "recommendation_versions_case_id_material_version_material_versions_case_id_version_fk" FOREIGN KEY ("case_id","material_version") REFERENCES "public"."material_versions"("case_id","version") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -404,9 +360,8 @@ ALTER TABLE "review_assignments" ADD CONSTRAINT "review_assignments_manager_user
 ALTER TABLE "review_assignments" ADD CONSTRAINT "review_assignments_organization_id_case_id_application_cases_organization_id_id_fk" FOREIGN KEY ("organization_id","case_id") REFERENCES "public"."application_cases"("organization_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "review_assignments" ADD CONSTRAINT "review_assignments_case_id_request_id_review_requests_case_id_id_fk" FOREIGN KEY ("case_id","request_id") REFERENCES "public"."review_requests"("case_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "review_assignments" ADD CONSTRAINT "review_assignments_case_id_assessment_id_assessments_case_id_id_fk" FOREIGN KEY ("case_id","assessment_id") REFERENCES "public"."assessments"("case_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "reviewer_command_receipts" ADD CONSTRAINT "reviewer_command_receipts_assignment_id_review_assignments_id_fk" FOREIGN KEY ("assignment_id") REFERENCES "public"."review_assignments"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "reviewer_drafts" ADD CONSTRAINT "reviewer_drafts_assignment_id_review_assignments_id_fk" FOREIGN KEY ("assignment_id") REFERENCES "public"."review_assignments"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "reviewer_events" ADD CONSTRAINT "reviewer_events_assignment_id_review_assignments_id_fk" FOREIGN KEY ("assignment_id") REFERENCES "public"."review_assignments"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "reviewer_events" ADD CONSTRAINT "reviewer_events_actor_user_id_app_users_id_fk" FOREIGN KEY ("actor_user_id") REFERENCES "public"."app_users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "reviewer_messages" ADD CONSTRAINT "reviewer_messages_assignment_id_review_assignments_id_fk" FOREIGN KEY ("assignment_id") REFERENCES "public"."review_assignments"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "assessment_versions" ADD CONSTRAINT "assessment_versions_organization_id_case_id_application_cases_organization_id_id_fk" FOREIGN KEY ("organization_id","case_id") REFERENCES "public"."application_cases"("organization_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "assessment_versions" ADD CONSTRAINT "assessment_versions_organization_id_criteria_round_id_funding_rounds_organization_id_id_fk" FOREIGN KEY ("organization_id","criteria_round_id") REFERENCES "public"."funding_rounds"("organization_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -430,10 +385,13 @@ ALTER TABLE "review_states" ADD CONSTRAINT "review_states_case_id_application_ca
 ALTER TABLE "criteria_versions" ADD CONSTRAINT "criteria_versions_round_id_funding_rounds_id_fk" FOREIGN KEY ("round_id") REFERENCES "public"."funding_rounds"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "funding_rounds" ADD CONSTRAINT "funding_rounds_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "funding_rounds" ADD CONSTRAINT "funding_rounds_manager_user_id_app_users_id_fk" FOREIGN KEY ("manager_user_id") REFERENCES "public"."app_users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "round_changes" ADD CONSTRAINT "round_changes_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "round_changes" ADD CONSTRAINT "round_changes_actor_user_id_app_users_id_fk" FOREIGN KEY ("actor_user_id") REFERENCES "public"."app_users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "round_creation_receipts" ADD CONSTRAINT "round_creation_receipts_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "guest_sessions" ADD CONSTRAINT "guest_sessions_user_id_app_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."app_users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "audit_events_workspace_time_idx" ON "audit_events" USING btree ("organization_id","recorded_at","id");--> statement-breakpoint
+CREATE INDEX "audit_events_subject_idx" ON "audit_events" USING btree ("organization_id","target_type","target_id","target_revision");--> statement-breakpoint
+CREATE INDEX "audit_events_round_time_idx" ON "audit_events" USING btree ("organization_id","round_id","recorded_at","id");--> statement-breakpoint
+CREATE INDEX "audit_events_actor_time_idx" ON "audit_events" USING btree ("organization_id","actor_user_id","recorded_at","id");--> statement-breakpoint
+CREATE INDEX "audit_events_assignment_idx" ON "audit_events" USING btree ("organization_id","assignment_id","recorded_at","id");--> statement-breakpoint
 CREATE INDEX "access_request_limits_expiry_idx" ON "access_request_limits" USING btree ("expires_at");--> statement-breakpoint
 CREATE INDEX "demo_entry_limits_expiry_idx" ON "demo_entry_limits" USING btree ("expires_at");--> statement-breakpoint
 CREATE UNIQUE INDEX "memberships_owner_key" ON "memberships" USING btree ("organization_id") WHERE "memberships"."administration" = 'owner';--> statement-breakpoint
@@ -441,11 +399,12 @@ CREATE INDEX "memberships_user_id_idx" ON "memberships" USING btree ("user_id");
 CREATE INDEX "organization_invitations_organization_idx" ON "organization_invitations" USING btree ("organization_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "organization_invitations_pending_key" ON "organization_invitations" USING btree ("organization_id","email") WHERE "organization_invitations"."revoked_at" IS NULL AND "organization_invitations"."accepted_at" IS NULL;--> statement-breakpoint
 CREATE UNIQUE INDEX "organization_invitations_provisioning_key" ON "organization_invitations" USING btree ("organization_id") WHERE "organization_invitations"."purpose" = 'provisioning' AND "organization_invitations"."revoked_at" IS NULL;--> statement-breakpoint
-CREATE INDEX "organization_events_organization_idx" ON "organization_events" USING btree ("organization_id");--> statement-breakpoint
 CREATE INDEX "review_assignments_reviewer" ON "review_assignments" USING btree ("reviewer_user_id");--> statement-breakpoint
 CREATE INDEX "review_assignments_email" ON "review_assignments" USING btree ("email");--> statement-breakpoint
 CREATE INDEX "reviewer_messages_assignment" ON "reviewer_messages" USING btree ("assignment_id");--> statement-breakpoint
 CREATE INDEX "guest_sessions_expiry_idx" ON "guest_sessions" USING btree ("expires_at");
+--> statement-breakpoint
+ALTER TABLE audit_events ADD CONSTRAINT audit_events_organization_fk FOREIGN KEY (organization_id) REFERENCES organizations(id);
 --> statement-breakpoint
 -- Current pointers are checked at commit so a root and its first version can be inserted together.
 ALTER TABLE application_cases ADD CONSTRAINT application_cases_current_material_fk
@@ -487,15 +446,6 @@ CREATE TRIGGER criteria_versions_immutable BEFORE UPDATE OR DELETE ON criteria_v
 CREATE TRIGGER assessment_versions_immutable BEFORE UPDATE OR DELETE ON assessment_versions FOR EACH ROW EXECUTE FUNCTION grantmaking_preserve_version();
 CREATE TRIGGER recommendation_versions_immutable BEFORE UPDATE OR DELETE ON recommendation_versions FOR EACH ROW EXECUTE FUNCTION grantmaking_preserve_version();
 --> statement-breakpoint
-CREATE FUNCTION preserve_reviewer_event() RETURNS trigger LANGUAGE plpgsql AS $$
-BEGIN
-  IF TG_OP = 'DELETE' AND NOT EXISTS (SELECT 1 FROM review_assignments WHERE id = OLD.assignment_id) THEN RETURN OLD; END IF;
-  RAISE EXCEPTION 'Reviewer history is immutable';
-END;
-$$;
---> statement-breakpoint
-CREATE TRIGGER reviewer_events_immutable BEFORE UPDATE OR DELETE ON reviewer_events FOR EACH ROW EXECUTE FUNCTION preserve_reviewer_event();
---> statement-breakpoint
 CREATE FUNCTION preserve_assessment_author() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
   IF NEW.author_user_id IS DISTINCT FROM OLD.author_user_id THEN RAISE EXCEPTION 'Assessment authorship is immutable'; END IF;
@@ -520,3 +470,5 @@ END $$;
 --> statement-breakpoint
 CREATE TRIGGER audit_events_immutable BEFORE UPDATE OR DELETE ON audit_events
   FOR EACH ROW EXECUTE FUNCTION audit_preserve_event();
+--> statement-breakpoint
+CREATE INDEX "audit_events_subject_time_idx" ON "audit_events" USING btree ("organization_id","target_type","target_id","recorded_at","id");

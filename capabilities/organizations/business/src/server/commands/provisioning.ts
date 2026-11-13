@@ -1,9 +1,10 @@
 import { permits } from "@merit/access";
-import { actorProvenance, type Actor } from "@merit/auth";
+import { type Actor } from "@merit/auth";
 import type { Database } from "@merit/db";
 
 import { invitationProblem } from "../../domain/index";
-import { event, lockOrganization } from "../persistence/commands/invitations";
+import { recordOrganizationEvent } from "../persistence/commands/events";
+import { lockOrganization } from "../persistence/commands/invitations";
 import * as persistence from "../persistence/commands/provisioning";
 import { findInvitation } from "../persistence/invitations";
 import type { Transaction } from "../persistence/transaction";
@@ -16,6 +17,7 @@ const notJoined = async (tx: Transaction, id: string) => {
   if (state.owner || state.invitations.some((invitation) => invitation.acceptedAt)) {
     fail("already_joined");
   }
+  return state.invitations;
 };
 
 export const createOrganization = (
@@ -54,18 +56,17 @@ export const createOrganization = (
       },
       actor,
     );
-    await event(
-      tx,
-      input.requestId,
-      actor.userId,
-      "created",
-      {
+    await recordOrganizationEvent(tx, {
+      organizationId: input.requestId,
+      actor,
+      action: "organization.created",
+      target: { type: "organization", id: input.requestId, name: input.name },
+      details: {
         name: input.name,
         slug: input.slug,
         invitationId: invitation.record.id,
       },
-      actorProvenance(actor),
-    );
+    });
 
     return { organizationId: input.requestId, invitation };
   });
@@ -73,35 +74,43 @@ export const createOrganization = (
 export const renameOrganization = (db: Database, id: string, name: string, actor: Actor) =>
   db.transaction(async (tx) => {
     const before = (await lockOrganization(tx, id)) ?? fail("not_found");
+    if (before.name === name) {
+      return;
+    }
     await persistence.renameOrganization(tx, id, name);
-    await event(
-      tx,
-      id,
-      actor.userId,
-      "renamed",
-      { before: before.name, after: name },
-      actorProvenance(actor),
-    );
+    await recordOrganizationEvent(tx, {
+      organizationId: id,
+      actor,
+      action: "organization.renamed",
+      target: { type: "organization", id: id, name: name },
+      details: { before: before.name, after: name },
+    });
   });
 
 export const replaceInvitation = (db: Database, id: string, actor: Actor, email: string) =>
   db.transaction(async (tx) => {
     const organization = (await lockOrganization(tx, id)) ?? fail("not_found");
-    await notJoined(tx, id);
+    const previous = await notJoined(tx, id);
     await persistence.revokeProvisioningInvitations(tx, id);
     const invitation = await issueInvitation(
       tx,
       { purpose: "provisioning", organizationId: id, email },
       actor,
     );
-    await event(
-      tx,
-      id,
-      actor.userId,
-      "invited",
-      { invitationId: invitation.record.id, email },
-      actorProvenance(actor),
-    );
+    await recordOrganizationEvent(tx, {
+      organizationId: id,
+      actor,
+      target: { type: "team_invitation", id: previous[0]?.id ?? invitation.record.id, name: email },
+      ...(previous[0]
+        ? {
+            action: "team_invitation.replaced" as const,
+            details: { invitationId: previous[0].id, replacementId: invitation.record.id, email },
+          }
+        : {
+            action: "team_invitation.issued" as const,
+            details: { invitationId: invitation.record.id, email },
+          }),
+    });
     return { organization, invitation };
   });
 
@@ -110,9 +119,17 @@ export const revokeInvitation = (db: Database, id: string, actor: Actor) =>
     if (!(await lockOrganization(tx, id))) {
       fail("not_found");
     }
-    await notJoined(tx, id);
+    const previous = await notJoined(tx, id);
     await persistence.revokeProvisioningInvitations(tx, id);
-    await event(tx, id, actor.userId, "revoked", {}, actorProvenance(actor));
+    for (const invitation of previous) {
+      await recordOrganizationEvent(tx, {
+        organizationId: id,
+        actor,
+        action: "team_invitation.revoked",
+        target: { type: "team_invitation", id: invitation.id, name: invitation.email },
+        details: { invitationId: invitation.id, email: invitation.email },
+      });
+    }
   });
 
 export const acceptInvitation = (

@@ -15,7 +15,13 @@ export const useWorkspaceContacts = (
   const mutation = useMutation({ mutationFn: source.save });
 
   return {
-    contacts: query.data?.status === "ok" ? query.data.contacts : initial,
+    contacts:
+      query.data?.status === "ok"
+        ? query.data.contacts.map((contact) => ({
+            ...contact,
+            historySource: source.history?.(workspaceSlug, contact),
+          }))
+        : initial,
     readFailed: query.isError,
     refreshCurrent: async () => {
       await client.invalidateQueries({ queryKey: options.queryKey }, { throwOnError: true });
@@ -38,8 +44,6 @@ export const useWorkspaceContacts = (
                   ...old.contacts.filter((item) => item.id !== result.contact.id),
                   {
                     ...result.contact,
-                    history:
-                      old.contacts.find((item) => item.id === result.contact.id)?.history ?? [],
                     applicationTitles:
                       old.contacts.find((item) => item.id === result.contact.id)
                         ?.applicationTitles ?? [],

@@ -5,7 +5,7 @@ import { auditRecordSchema } from "./event";
 const record = {
   organizationId: "alder",
   actor: { userId: "dana", name: "Dana Reed", provenance: { interface: "web" } },
-  action: "recommendation.saved",
+  action: "recommendation.recorded",
   target: { type: "recommendation", id: "k7m2p9x4n6rt", revision: 2 },
 };
 

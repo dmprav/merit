@@ -284,7 +284,6 @@ it.each([true, false])(
           archived: false,
           revision: 0,
           applicationTitles: [],
-          history: [],
         },
       ],
     });

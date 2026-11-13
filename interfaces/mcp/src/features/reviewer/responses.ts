@@ -45,14 +45,20 @@ export const reviewerListSchema = z.object({
   items: z.array(reviewerSummarySchema),
   nextCursor: z.string().nullable(),
 });
-export const applicationReviewersSchema = reviewerListSchema.extend({
-  items: z.array(
-    reviewerSummarySchema.extend({
-      history: z.array(
-        z.object({ action: z.string(), actor: z.string(), at: z.string(), note: z.string() }),
-      ),
-    }),
-  ),
+export const applicationReviewersSchema = reviewerListSchema;
+export const reviewerHistorySchema = z.object({
+  status: z.literal("ok"),
+  value: z.object({
+    entries: z.array(
+      z.object({
+        action: z.string(),
+        actor: z.string().nullable(),
+        at: z.string(),
+        note: z.string(),
+      }),
+    ),
+    nextCursor: z.string().nullable(),
+  }),
 });
 export const reviewerPageSchema = z.object({
   status: z.literal("ok"),

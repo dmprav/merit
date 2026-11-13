@@ -225,6 +225,7 @@ export const useRoundPreparation = ({
     round,
     revision: data.state.revision,
     budgetHistory: data.state.budgetHistory,
+    historySource: data.historySource,
     managers: data.state.managers,
     editing,
     pending,

@@ -66,7 +66,6 @@ it("records a request on selection, prevents duplicate clicks, and retries the s
         archived: false,
         revision: 0,
         applicationTitles: [],
-        history: [],
       },
       {
         id: "sam",
@@ -76,7 +75,6 @@ it("records a request on selection, prevents duplicate clicks, and retries the s
         archived: false,
         revision: 0,
         applicationTitles: [],
-        history: [],
       },
       {
         id: "jules",
@@ -86,7 +84,6 @@ it("records a request on selection, prevents duplicate clicks, and retries the s
         archived: false,
         revision: 0,
         applicationTitles: [],
-        history: [],
       },
     ],
   });

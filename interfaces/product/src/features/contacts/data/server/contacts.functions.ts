@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { setResponseHeader } from "@tanstack/react-start/server";
 
 import { withActor } from "@merit/auth/request";
+import { contactHistoryInput } from "@merit/contacts/api";
 import { contactsRequestSchema, contactCommandSchema } from "@merit/contacts/api";
 
 export const readContacts = createServerFn({ method: "GET" })
@@ -18,5 +19,14 @@ export const saveContact = createServerFn({ method: "POST" })
     setResponseHeader("Cache-Control", "private, no-store");
     return withActor(context.currentIdentity, (actor) =>
       context.workspace.changeContact(actor, data),
+    );
+  });
+
+export const readContactHistory = createServerFn({ method: "GET" })
+  .validator(contactHistoryInput)
+  .handler(({ context, data }) => {
+    setResponseHeader("Cache-Control", "private, no-store");
+    return withActor(context.currentIdentity, (actor) =>
+      context.workspace.contactHistory(actor, data),
     );
   });
