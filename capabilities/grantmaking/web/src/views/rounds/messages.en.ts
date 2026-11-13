@@ -15,6 +15,8 @@ export const roundsMessages = {
     budget: "Budget",
     empty: "No funding rounds yet.",
     sortBy: "Sort rounds",
+    reassignmentNeeded: "Reassignment needed",
+    needsAssignment: "Needs assignment",
   },
   budget: {
     knownRequests: "Known requests",
