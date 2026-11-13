@@ -1,4 +1,5 @@
 import { test, expect, checkPage } from "@merit/test-support/browser";
+import { calendarDay } from "@merit/test-support/browser/calendar";
 
 for (const application of [false, true]) {
   test(
@@ -50,7 +51,7 @@ test(
     ]) {
       await input.fill(value!);
       await trigger.click();
-      const boundary = page.getByRole("button", { name: day! });
+      const boundary = page.getByRole("button", { name: calendarDay(day!) });
       await expect(boundary).toBeFocused();
       await expect(page.getByRole("button", { name: navigation! })).toBeDisabled();
       await boundary.press(arrow!);
@@ -62,7 +63,7 @@ test(
 
     await input.fill("2016-12-31");
     await trigger.click();
-    const first = page.getByRole("button", { name: "Sunday, 1 January 2017" });
+    const first = page.getByRole("button", { name: calendarDay("Sunday, 1 January 2017") });
     await expect(first).toBeFocused();
     await first.press("Enter");
     await expect(input).toHaveValue("2017-01-01");
@@ -92,7 +93,7 @@ for (const theme of ["product", "site"]) {
       await input.fill("2027-01-21");
       await trigger.click();
       const dialog = page.getByRole("dialog", { name: "Committee date" });
-      const selected = page.getByRole("button", { name: "Thursday, 21 January 2027" });
+      const selected = page.getByRole("button", { name: calendarDay("Thursday, 21 January 2027") });
       await expect(selected).toBeFocused();
       await expect(
         dialog.getByRole("heading", { name: "Committee date", exact: true }),
@@ -107,7 +108,9 @@ for (const theme of ["product", "site"]) {
       }
       await selected.press("ArrowRight");
       await expect(input).toHaveValue("2027-01-21");
-      await page.getByRole("button", { name: "Friday, 22 January 2027" }).press("Enter");
+      await page
+        .getByRole("button", { name: calendarDay("Friday, 22 January 2027") })
+        .press("Enter");
 
       await expect(dialog).toHaveCount(0);
       await expect(input).toHaveValue("2027-01-22");
@@ -139,23 +142,33 @@ for (const theme of ["product", "site"]) {
         .toBe(true);
       await page.screenshot({ path: testInfo.outputPath("date-calendar-enlarged.png") });
       await page.emulateMedia({ forcedColors: "active" });
-      await page.getByRole("button", { name: "Friday, 22 January 2027" }).focus();
+      await page.getByRole("button", { name: calendarDay("Friday, 22 January 2027") }).focus();
       for (let day = 0; day < 5; day++) {
         await page.keyboard.press("ArrowLeft");
       }
-      await expect(page.getByRole("button", { name: "Sunday, 17 January 2027" })).toBeInViewport();
+      await expect(
+        page.getByRole("button", { name: calendarDay("Sunday, 17 January 2027") }),
+      ).toBeInViewport();
       for (let day = 0; day < 6; day++) {
         await page.keyboard.press("ArrowRight");
       }
       await expect(
-        page.getByRole("button", { name: "Saturday, 23 January 2027" }),
+        page.getByRole("button", { name: calendarDay("Saturday, 23 January 2027") }),
       ).toBeInViewport();
       await page.keyboard.press("Home");
-      await expect(page.getByRole("button", { name: "Friday, 1 January 2027" })).toBeFocused();
-      await expect(page.getByRole("button", { name: "Friday, 1 January 2027" })).toBeInViewport();
+      await expect(
+        page.getByRole("button", { name: calendarDay("Friday, 1 January 2027") }),
+      ).toBeFocused();
+      await expect(
+        page.getByRole("button", { name: calendarDay("Friday, 1 January 2027") }),
+      ).toBeInViewport();
       await page.keyboard.press("End");
-      await expect(page.getByRole("button", { name: "Sunday, 31 January 2027" })).toBeFocused();
-      await expect(page.getByRole("button", { name: "Sunday, 31 January 2027" })).toBeInViewport();
+      await expect(
+        page.getByRole("button", { name: calendarDay("Sunday, 31 January 2027") }),
+      ).toBeFocused();
+      await expect(
+        page.getByRole("button", { name: calendarDay("Sunday, 31 January 2027") }),
+      ).toBeInViewport();
       await page.screenshot({ path: testInfo.outputPath("date-calendar-forced-colors.png") });
     },
   );
@@ -407,7 +420,7 @@ for (const popup of ["select", "calendar"]) {
       const choice =
         popup === "select"
           ? page.getByRole("option", { name: "Ready" })
-          : page.getByRole("button", { name: "Friday, 22 January 2027" });
+          : page.getByRole("button", { name: calendarDay("Friday, 22 January 2027") });
       await expect(choice).toBeVisible();
 
       // Submit without dismissing the popup, as an external save action could.
