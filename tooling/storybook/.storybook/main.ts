@@ -21,6 +21,8 @@ const config: StorybookConfig = {
   core: { disableTelemetry: true },
   // The browser suite runs against the build; keep React's development checks in it.
   features: { developmentModeForBuild: true },
+  // Keep authored CSS values, as in development, for browser assertions on design tokens.
+  viteFinal: (viteConfig) => ({ ...viteConfig, build: { ...viteConfig.build, cssMinify: false } }),
 };
 
 export default config;
