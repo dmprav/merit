@@ -36,7 +36,7 @@ const meta = {
     mocked(readTeamHistory).mockImplementation(async () => ({
       status: "ok",
       value: {
-        entries: team.history.map(({ id, ...entry }) => ({ ...entry, eventId: id })),
+        entries: [],
         nextCursor: null,
       },
     }));

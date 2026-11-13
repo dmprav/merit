@@ -16,15 +16,7 @@ export const teamTransport: TeamTransport = {
     queryKey: [...privateKey, "workspace", workspaceSlug, "team", "history"],
     read: async (after, signal) => {
       const result = available(await readTeamHistory({ data: { workspaceSlug, after }, signal }));
-      return result.status === "ok"
-        ? {
-            ...result.value,
-            entries: result.value.entries.map(({ eventId, ...entry }) => ({
-              ...entry,
-              id: eventId,
-            })),
-          }
-        : null;
+      return result.status === "ok" ? result.value : null;
     },
   }),
   read: (workspaceSlug, signal) => readTeam({ signal, data: { workspaceSlug } }),

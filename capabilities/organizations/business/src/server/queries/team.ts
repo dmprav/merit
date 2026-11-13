@@ -22,16 +22,12 @@ export const readTeam = (db: Database, slug: string, actor: string): Promise<Tea
     const invites = permits(member, "manage_members", member)
       ? await persistence.readPendingInvitations(tx, organization.id)
       : [];
-    const history = permits(member, "manage_members", member)
-      ? (await teamHistory(tx, organization.id)).entries
-      : [];
 
     return {
       organization,
       subject: member,
       members: people,
       invitations: invites,
-      history,
     };
   });
 
@@ -84,11 +80,7 @@ export const readHistoryPage = (
     if (!permits(member, "manage_members", member)) {
       fail("forbidden");
     }
-    const page = await teamHistory(tx, organization.id, input);
-    return {
-      ...page,
-      entries: page.entries.map(({ id, ...entry }) => ({ ...entry, eventId: id })),
-    };
+    return teamHistory(tx, organization.id, input);
   });
 
 export const readEventContent = (
@@ -117,7 +109,7 @@ export const readEventContent = (
 const teamHistory = async (
   tx: Transaction,
   organizationId: string,
-  page: { after?: string; limit?: number } = {},
+  page: { after?: string; limit: number },
 ) => {
   const result = await readAuditHistory(tx, {
     ...page,
@@ -127,7 +119,7 @@ const teamHistory = async (
   return {
     ...result,
     entries: result.entries.map((entry) => ({
-      id: entry.id,
+      eventId: entry.id,
       action: entry.action,
       actor: entry.actorName,
       provenance: entry.provenance,

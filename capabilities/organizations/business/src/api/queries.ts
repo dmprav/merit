@@ -48,14 +48,6 @@ export type Team = {
     delivery: "pending" | "sent" | "failed";
     invitedBy: string | null;
   }[];
-  history: {
-    id: string;
-    action: string;
-    actor: string | null;
-    provenance: Provenance | null;
-    recordedAt: string;
-    details: z.infer<ReturnType<typeof z.json>>;
-  }[];
 };
 
 export const workspacePageInput = z.strictObject({
@@ -138,7 +130,14 @@ export type InvitationPage = {
 };
 
 export type TeamHistoryPage = {
-  entries: (Omit<Team["history"][number], "id"> & { eventId: string })[];
+  entries: {
+    eventId: string;
+    action: string;
+    actor: string | null;
+    provenance: Provenance | null;
+    recordedAt: string;
+    details: z.infer<ReturnType<typeof z.json>>;
+  }[];
   nextCursor: string | null;
 };
 

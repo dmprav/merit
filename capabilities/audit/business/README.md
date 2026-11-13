@@ -74,11 +74,15 @@ transaction, specifying permitted target types and the subject or assignment.
 `auditPageInput` from `@merit/audit/api` validates cursors and limits (20 by default,
 at most 50). Event payload interpretation remains with the owning capability.
 
-Browser contact and reviewer histories load when opened. Application, budget and
-team pages carry a bounded initial history; older entries load through their
+Browser contact, reviewer, and team histories load when opened. Application and budget
+pages carry a bounded initial history; older entries load through their
 capability's authorized reader. A failed page read can be retried, and a denied
 read removes previously displayed history. Reviewer assignment lists contain
 summaries and do not query history for every assignment.
+The team data module refreshes open history after saves and manual refreshes, using
+a stable workspace key to retain loaded pagination. Closed history is marked stale
+without fetching. History read failures have their own retry and preserve the
+successful-save confirmation.
 
 Authorized capability readers may still use `@merit/audit/schema` for compact
 projections and individual event content with an organization and subject scope. The workspace feed resolves

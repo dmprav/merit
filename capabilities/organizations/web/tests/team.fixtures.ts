@@ -1,7 +1,6 @@
 import type { Team } from "@merit/organizations/api";
 
 export const teamFixture: Team = {
-  history: [],
   organization: {
     id: "alder",
     slug: "alder",

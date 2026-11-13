@@ -37,7 +37,8 @@ still apply.
 
 Every independent workspace, organization, invitation, access-request, and team
 query uses a read-only, repeatable-read transaction. Team reads evaluate access
-and assemble members, invitations, and history from the same snapshot. Queries
+and assemble members and invitations from the same snapshot. Team history has a
+separate paginated read that checks current administration access. Queries
 inside a caller-owned transaction use savepoints and preserve its mode and rollback.
 The [query integration tests](tests/query-access.integration.ts) exercise both
 PostgreSQL's write rejection and caller-owned rollback.

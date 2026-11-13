@@ -1,15 +1,23 @@
+import { QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, it, vi } from "vite-plus/test";
 
+import type { TeamHistoryPage } from "@merit/organizations/api";
+import { createQueryClient } from "@merit/query";
+
 import { teamFixture } from "../../tests/team.fixtures";
-import type { Team, TeamData } from "../contracts/team";
+import type { TeamData } from "../contracts/team";
 import { OrganizationMessagesProvider } from "../messages";
 import { TeamView } from "./team-view";
 
-const showHistory = (history: Team["history"]) => {
+const showHistory = (history?: TeamHistoryPage["entries"]) => {
   const data: TeamData = {
-    team: { ...teamFixture, history },
+    team: teamFixture,
+    historySource: history && {
+      queryKey: ["private", "team", "history"],
+      read: async () => ({ entries: history, nextCursor: null }),
+    },
     fetching: false,
     invite: vi.fn(),
     changeMember: vi.fn(),
@@ -19,11 +27,16 @@ const showHistory = (history: Team["history"]) => {
     refresh: vi.fn(),
     refreshAfterSave: vi.fn(),
   };
-  return render(<TeamView data={data} />, { wrapper: OrganizationMessagesProvider });
+  return render(
+    <QueryClientProvider client={createQueryClient()}>
+      <TeamView data={data} />
+    </QueryClientProvider>,
+    { wrapper: OrganizationMessagesProvider },
+  );
 };
 
-it("omits access history when no events were recorded", () => {
-  showHistory([]);
+it("omits access history when no history source is supplied", () => {
+  showHistory();
 
   expect(screen.queryByText("Access history")).not.toBeInTheDocument();
 });
@@ -32,7 +45,7 @@ it("shows the recorded target, actor, interface, and UTC time in access history"
   const user = userEvent.setup();
   showHistory([
     {
-      id: "removed",
+      eventId: "removed",
       action: "membership.removed",
       actor: "Dana Reed",
       provenance: { interface: "mcp", clientId: "review-client" },
@@ -42,7 +55,7 @@ it("shows the recorded target, actor, interface, and UTC time in access history"
   ]);
   await user.click(screen.getByText("Access history"));
 
-  expect(screen.getByRole("listitem")).toHaveTextContent("Member removed: Former member");
+  expect(await screen.findByRole("listitem")).toHaveTextContent("Member removed: Former member");
   expect(screen.queryByText("former@example.test")).not.toBeInTheDocument();
   expect(screen.getByText("Recorded by Dana Reed")).toBeVisible();
   expect(screen.getByText("via MCP client review-client")).toBeVisible();
@@ -52,7 +65,7 @@ it("shows the recorded target, actor, interface, and UTC time in access history"
   );
 });
 
-it.each<{ details: Team["history"][number]["details"]; label: string }>([
+it.each<{ details: TeamHistoryPage["entries"][number]["details"]; label: string }>([
   { details: { email: "former@example.test" }, label: "Invitation revoked: former@example.test" },
   { details: null, label: "Invitation revoked" },
   { details: ["former@example.test"], label: "Invitation revoked" },
@@ -63,7 +76,7 @@ it.each<{ details: Team["history"][number]["details"]; label: string }>([
     const user = userEvent.setup();
     showHistory([
       {
-        id: "revoked",
+        eventId: "revoked",
         action: "team_invitation.revoked",
         actor: null,
         provenance: null,
@@ -73,7 +86,7 @@ it.each<{ details: Team["history"][number]["details"]; label: string }>([
     ]);
     await user.click(screen.getByText("Access history"));
 
-    expect(screen.getByRole("listitem").querySelector("p")?.textContent).toBe(label);
+    expect((await screen.findByRole("listitem")).querySelector("p")?.textContent).toBe(label);
     expect(screen.getByText("Recorded by Member")).toBeVisible();
     expect(screen.getByText("Interface not recorded")).toBeVisible();
   },

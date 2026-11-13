@@ -57,6 +57,8 @@ test("owner invites an administrator, grant access is explicit, and removal expl
   await expect(page).toHaveTitle("Members & access · Merit");
 
   await page.screenshot({ path: testInfo.outputPath("team-directory.png"), fullPage: true });
+  await page.getByText("Access history", { exact: true }).click();
+  await expect(page.getByText("Organization created", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Invite member", exact: true }).click();
   let dialog = page.getByRole("dialog", { name: "Invite member", exact: true });
   await dialog.getByRole("textbox", { name: "Email address" }).fill("dana@example.test");
@@ -74,6 +76,9 @@ test("owner invites an administrator, grant access is explicit, and removal expl
 
   await expect(dialog).toHaveCount(0);
   await expect(page.getByText("Email accepted by sender", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("Invitation issued: dana@example.test", { exact: true }),
+  ).toBeVisible();
 
   const danaLink = await invitationLink(request, "dana@example.test", name);
   await identity("manager");

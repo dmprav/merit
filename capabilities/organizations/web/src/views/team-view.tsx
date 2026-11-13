@@ -15,7 +15,7 @@ import { PagedContent } from "@merit/ui/paged-content";
 import { StateMessage } from "@merit/ui/state-message";
 import { StatusMessage } from "@merit/ui/status-message";
 
-import type { Team, TeamData, TeamSection, Member, Invitation } from "../contracts/team";
+import type { TeamData, TeamSection, Member, Invitation } from "../contracts/team";
 import { useTeam } from "../controllers/team";
 import { TeamDirectories } from "./team-directories";
 import { InviteForm, EditForm, InvitationImpact } from "./team-editors";
@@ -125,7 +125,7 @@ export const TeamView = ({ data, draftScope }: TeamViewProps) => {
             onRevoke={(invitation, source) => open({ kind: "revoke", invitation }, source)}
           />
         </div>
-        {canManage && <TeamHistory history={team.history} source={data.historySource} />}
+        {canManage && data.historySource && <TeamHistory source={data.historySource} />}
         <TeamEditorDialog dialog={dialog} editors={editors} busy={busy} onClose={close} />
         <TeamConfirmationDialog
           dialog={dialog}
@@ -183,24 +183,15 @@ const TeamFeedback = ({
   );
 };
 
-const TeamHistory = ({
-  history,
-  source,
-}: {
-  history: Team["history"];
-  source?: TeamData["historySource"];
-}) => {
+const TeamHistory = ({ source }: { source: NonNullable<TeamData["historySource"]> }) => {
   const [open, setOpen] = useState(false);
   const { t } = useTranslation(["team", "common"]);
   const { formatLocale } = useLocaleSettings();
-  if (!source && !history.length) {
-    return null;
-  }
 
   return (
     <details onToggle={(event) => setOpen(event.currentTarget.open)}>
       <summary>{t("history")}</summary>
-      <PagedContent source={source} entries={history} active={open}>
+      <PagedContent source={source} entries={[]} active={open}>
         {(entries) => (
           <ol>
             {entries.map((entry) => {
@@ -211,7 +202,7 @@ const TeamHistory = ({
               const target = details.targetName ?? details.email;
 
               return (
-                <li key={entry.id}>
+                <li key={entry.eventId}>
                   <p>
                     <strong>{t(`historyActions.${historyActionLabel(entry.action)}`)}</strong>
                     {typeof target === "string" && <>: {target}</>}
