@@ -380,11 +380,10 @@ const correctAssessment = async ({ canvas, canvasElement, userEvent }: Context) 
   await userEvent.click(canvas.getByRole("button", { name: "Assessment actions for Sam Morgan" }));
   await userEvent.click(page.getByRole("menuitem", { name: "Edit recorded assessment" }));
   const dialog = within(await page.findByRole("dialog", { name: "Edit recorded assessment" }));
+  // Paste the replacement: per-key typing is covered by DraftRecovery and AssessmentSaved,
+  // and typing every character here makes the conflict and refresh stories slow to settle.
   await userEvent.clear(dialog.getByRole("textbox", { name: "Assessment text" }));
-  await userEvent.type(
-    dialog.getByRole("textbox", { name: "Assessment text" }),
-    "The revised venue costs are supported by a written quote.",
-  );
+  await userEvent.paste("The revised venue costs are supported by a written quote.");
   return dialog;
 };
 
