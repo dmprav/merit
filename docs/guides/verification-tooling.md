@@ -46,7 +46,9 @@ alongside them. Package tests run without dependency ordering, with at most four
 tasks at a time; they consume workspace source rather than each other's outputs.
 The temporary `ready:ci` target retains parallel scheduling while deferring
 [approved presentation and tooling self-tests](verification.md#temporary-pr-verification-exception).
-`test:ci` guards its retained core checks. The full local `ready` task retains
+`test:ci` guards its retained core checks and keeps the
+[deferred workflow's](../../.github/workflows/deferred.yml) steps matched to `ready`'s
+stages. The full local `ready` task retains
 all tooling self-tests and final source probes.
 Database and browser checks start after package tests to limit competing workers.
 The application browser suites remain sequential, and the persisted workspace
