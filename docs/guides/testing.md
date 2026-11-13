@@ -152,9 +152,9 @@ Renames that preserve scope and test changes that preserve the agreed guarantees
 remain routine implementation work.
 
 A local check catches accidental policy drift; a contributor who can edit the
-check can also weaken it. The PR workflow runs the same checks; activate its required
-status check after the first successful GitHub run as described in
-[repository setup](development.md#branch-protection). Policy changes still require
+check can also weaken it. The PR workflow runs the same coverage checks, and its
+required `verify` check blocks merging as described in
+[branch protection](development.md#branch-protection). Policy changes still require
 explicit owner review outside the coding agent's discretion. Passing CI does not
 authorize weakening coverage, and the explicit user-approval rule remains a review
 obligation rather than a tamper-resistant merge restriction.
