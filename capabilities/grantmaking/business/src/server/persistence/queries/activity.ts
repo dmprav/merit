@@ -13,6 +13,11 @@ export const readRoundActivityTargets = async (
   organizationId: string,
   roundId: string,
 ) => {
+  // A deleted round belongs to no round filter, like its deleted applications.
+  const [round] = await db
+    .select({ id: fundingRounds.id })
+    .from(fundingRounds)
+    .where(and(eq(fundingRounds.organizationId, organizationId), eq(fundingRounds.id, roundId)));
   const applications = (
     await db
       .select({ id: applicationCases.id })
@@ -40,7 +45,7 @@ export const readRoundActivityTargets = async (
         ).map((row) => row.id);
 
   return [
-    { type: "round", ids: [roundId] },
+    { type: "round", ids: round ? [roundId] : [] },
     { type: "application", ids: applications },
     { type: "assessment", ids: reviewed },
     { type: "recommendation", ids: applications },

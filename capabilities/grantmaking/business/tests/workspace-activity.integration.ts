@@ -5,13 +5,14 @@ import { assert, describe, expect } from "vite-plus/test";
 
 import { materialVersionSchema } from "@merit/applications/domain";
 import { editFundingApplication } from "@merit/applications/server";
+import { roundHasApplications } from "@merit/applications/server/integrations";
 import { recordAuditEvent } from "@merit/audit/server/record";
 import { changeWorkspaceContact } from "@merit/contacts/server";
 import { actor } from "@merit/organizations/testing/workspace";
 import { reviewRevisionSchema } from "@merit/reviews/domain";
 import { saveApplicationReview } from "@merit/reviews/server";
 import { criteriaVersionSchema } from "@merit/rounds/domain";
-import { createFundingRound } from "@merit/rounds/server";
+import { createFundingRound, deleteFundingRound } from "@merit/rounds/server";
 
 import { listWorkspaceActivity } from "../src/server";
 import { fundingRoundContactUsage } from "../src/server/integrations";
@@ -242,6 +243,20 @@ describe("workspace activity", () => {
     ]);
     expect((await a.ok({ roundId: "0123456789ab" })).entries).toEqual([]);
     expect((await a.ok({ roundId: a.roundId, limit: 2 })).nextCursor).not.toBeNull();
+  });
+
+  it("omits a deleted round's own events from its Round filter", async ({ db, activity: a }) => {
+    const removed = await deleteFundingRound(
+      db,
+      actor,
+      { workspaceSlug, publicId: a.otherRoundId, expectedRevision: 0 },
+      roundHasApplications,
+      recordAuditEvent,
+    );
+    expect(removed).toEqual({ status: "ok" });
+
+    expect((await a.ok({ roundId: a.otherRoundId })).entries).toEqual([]);
+    expect((await a.ok()).entries.map((entry) => entry.action)).toContain("round.delete");
   });
 
   it("filters by person, combines with round, and lists everyone with recorded activity", async ({

@@ -60,7 +60,8 @@ export const useWorkspaceActivity = (workspaceSlug: string) => {
     onFiltersChange: setFilters,
     hasMore: query.hasNextPage,
     onShowMore: () => void query.fetchNextPage(),
-    onRetry: () => void query.refetch(),
+    // A failed older page is fetched again; refetching would only reload the loaded pages.
+    onRetry: () => void (query.isFetchNextPageError ? query.fetchNextPage() : query.refetch()),
     loading: loadState(query),
   } as const;
 };

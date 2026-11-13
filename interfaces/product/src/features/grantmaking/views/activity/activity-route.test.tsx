@@ -204,7 +204,7 @@ it("links each record to its default page", async () => {
   );
 });
 
-it("reports a failed page, keeps the entries, and retries", async () => {
+it("reports a failed older page, keeps the entries, and retries that page", async () => {
   const { user } = await renderActivity();
   await screen.findByRole("table", { name: "Activity" });
   vi.mocked(readWorkspaceActivity).mockResolvedValueOnce({ status: "unavailable" } as never);
@@ -216,7 +216,9 @@ it("reports a failed page, keeps the entries, and retries", async () => {
 
   await user.click(screen.getByRole("button", { name: "Try again" }));
 
-  await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+  expect(await screen.findByText("Round criteria changed")).toBeVisible();
+  expect(requests().at(-1)).toMatchObject({ after: "cursor-1" });
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
 });
 
 it("keeps the filters on the page when a filter change fails, and retries", async () => {
