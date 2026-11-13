@@ -89,6 +89,12 @@ Use the `:all` variants at the [full verification milestones](verification.md#ve
 
 The Storybook browser suite uses four workers. Use
 `vp run test:browser:stories --workers 2` when other work needs the CPU.
+It runs against the static Storybook build rather than a development server, so
+the first story in each worker does not wait for modules to be transformed on demand.
+Its server first runs the cached `@merit/storybook#build`, which rebuilds only
+when stories, components, or configuration change, then serves `dist/` with
+`vp preview`. The build keeps React's development checks, so the suite still
+reports their warnings as browser errors. Use `vp run storybook` for live editing.
 
 Install the browsers once with `pnpm --filter @merit/test-support exec playwright install chromium firefox webkit`
 before running browser checks. Storybook browser artifacts are in `merit-storybook-results` and
