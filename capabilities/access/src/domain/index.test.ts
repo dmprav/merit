@@ -50,6 +50,7 @@ describe("workspace access", () => {
       ).toBe(false);
     }
   });
+
   it.each([
     ["none", "member", false, false, false],
     ["none", "program_manager", false, false, true],
@@ -59,30 +60,39 @@ describe("workspace access", () => {
     ["administrator", "program_manager", true, false, true],
     ["owner", "member", true, true, false],
     ["owner", "program_manager", true, true, true],
-  ] as const)("%s / %s", (administration, role, members, administrators, grants) => {
-    const subject = { ...member, administration, role };
-    const expected = {
-      read_workspace: true,
-      manage_members: members,
-      manage_administrators: administrators,
-      work_on_grants: grants,
-    };
-    for (const action of Object.keys(expected) as (keyof typeof expected)[]) {
-      expect(permits(subject, action, member), action).toBe(expected[action]);
-      expect(permits({ ...subject, active: false }, action, member)).toBe(false);
-      expect(permits(subject, action, { organizationId: "birch" })).toBe(false);
-    }
-  });
+  ] as const)(
+    "decides workspace actions by administration and role within an active membership: %s / %s",
+    (administration, role, members, administrators, grants) => {
+      const subject = { ...member, administration, role };
+      const expected = {
+        read_workspace: true,
+        manage_members: members,
+        manage_administrators: administrators,
+        work_on_grants: grants,
+      };
+      for (const action of Object.keys(expected) as (keyof typeof expected)[]) {
+        expect(permits(subject, action, member), action).toBe(expected[action]);
+        expect(permits({ ...subject, active: false }, action, member)).toBe(false);
+        expect(permits(subject, action, { organizationId: "birch" })).toBe(false);
+      }
+    },
+  );
 
-  it("denies missing facts and unknown actions", () => {
+  it("denies access when a required fact is missing", () => {
     expect(permits(null, "read_workspace", member)).toBe(false);
     expect(permits({ active: true }, "read_workspace", {})).toBe(false);
     expect(permits(member, "read_workspace")).toBe(false);
     expect(permits({ ...member, role: undefined }, "work_on_grants", member)).toBe(false);
+    expect(
+      permits({ ...member, administration: "owner" }, "remove_member", {
+        ...member,
+        userId: undefined,
+      }),
+    ).toBe(false);
+  });
 
+  it("denies unknown actions, including inherited property names", () => {
     const owner = { ...member, administration: "owner" as const };
-
-    expect(permits(owner, "remove_member", { ...member, userId: undefined })).toBe(false);
 
     for (const action of ["missing", "constructor", "toString", "__proto__"]) {
       expect(permits(owner, action as AccessAction, member)).toBe(false);
@@ -102,52 +112,101 @@ describe("membership authority", () => {
   const admin = { ...member, administration: "administrator" as const };
   const owner = { ...member, administration: "owner" as const };
   const peer = { ...admin, userId: "peer" };
+  const colleague = { ...member, userId: "colleague" };
+  const grantAccess = { administration: "none", role: "program_manager" } as const;
+  const adminAccess = { administration: "administrator", role: "member" } as const;
 
   it.each([{ ...owner, active: false }, { ...owner, organizationId: "birch" }, member])(
     "rejects membership changes without current administrative access: %j",
     (actor) => {
+      expect(memberActions(actor, colleague)).toEqual({
+        canEdit: false,
+        canRemove: false,
+        canChangeAdministration: false,
+      });
       expect(evaluateMemberAccess(actor, peer, null)).toEqual({ status: "forbidden" });
+      expect(
+        permits(actor, "manage_invitation", {
+          organizationId: member.organizationId,
+          administration: "none",
+        }),
+      ).toBe(false);
     },
   );
 
+  it("lets an administrator change a member's grant access or remove them", () => {
+    expect(memberActions(admin, colleague)).toEqual({
+      canEdit: true,
+      canRemove: true,
+      canChangeAdministration: false,
+    });
+    expect(evaluateMemberAccess(admin, colleague, grantAccess)).toEqual({
+      status: "ok",
+      value: grantAccess,
+    });
+    expect(evaluateMemberAccess(admin, colleague, null)).toEqual({ status: "ok", value: null });
+  });
+
   it("prevents an administrator from removing a peer", () => {
+    expect(memberActions(admin, peer).canRemove).toBe(false);
     expect(evaluateMemberAccess(admin, peer, null)).toEqual({ status: "forbidden" });
   });
 
-  it("reserves changes to administrative responsibility to the owner", () => {
-    expect(
-      evaluateMemberAccess(admin, peer, { administration: "none", role: "program_manager" }),
-    ).toEqual({ status: "forbidden" });
-    expect(
-      evaluateMemberAccess(owner, peer, { administration: "none", role: "program_manager" }),
-    ).toEqual({
+  it("reserves appointments and demotions of administrators to the owner", () => {
+    expect(memberActions(admin, peer).canChangeAdministration).toBe(false);
+    expect(evaluateMemberAccess(admin, colleague, adminAccess)).toEqual({ status: "forbidden" });
+    expect(evaluateMemberAccess(admin, peer, grantAccess)).toEqual({ status: "forbidden" });
+    expect(memberActions(owner, peer).canChangeAdministration).toBe(true);
+    expect(evaluateMemberAccess(owner, colleague, adminAccess)).toEqual({
       status: "ok",
-      value: { administration: "none", role: "program_manager" },
+      value: adminAccess,
+    });
+    expect(evaluateMemberAccess(owner, peer, grantAccess)).toEqual({
+      status: "ok",
+      value: grantAccess,
     });
   });
 
   it("allows the owner to remove a peer administrator", () => {
+    expect(memberActions(owner, peer).canRemove).toBe(true);
     expect(evaluateMemberAccess(owner, peer, null)).toEqual({ status: "ok", value: null });
   });
 
-  it("protects the owner and self-removal while reserving peer administrator changes to the owner", () => {
-    expect(memberActions(admin, member).canRemove).toBe(false);
-    expect(memberActions(admin, peer)).toEqual({
+  it.each([
+    ["the owner", owner, owner],
+    ["an administrator", admin, { ...owner, userId: "owner" }],
+  ])("protects the owner from removal and demotion by %s", (_, actor, target) => {
+    expect(memberActions(actor, target)).toEqual({
       canEdit: true,
       canRemove: false,
       canChangeAdministration: false,
     });
-    expect(memberActions(owner, peer)).toEqual({
-      canEdit: true,
-      canRemove: true,
-      canChangeAdministration: true,
+    expect(evaluateMemberAccess(actor, target, null)).toEqual({ status: "owner_protected" });
+    expect(evaluateMemberAccess(actor, target, grantAccess)).toEqual({
+      status: "owner_protected",
     });
-    expect(memberActions(admin, { ...owner, userId: "owner" })).toEqual({
-      canEdit: true,
-      canRemove: false,
-      canChangeAdministration: false,
+    expect(evaluateMemberAccess(actor, target, adminAccess)).toEqual({
+      status: "ok",
+      value: { administration: "owner", role: "member" },
     });
-    expect(memberActions(admin, { ...member, userId: "colleague" }).canRemove).toBe(true);
+  });
+
+  it("prevents self-removal and self-demotion", () => {
+    expect(memberActions(admin, admin).canRemove).toBe(false);
+    expect(evaluateMemberAccess(admin, admin, null)).toEqual({ status: "self_change" });
+    expect(evaluateMemberAccess(admin, admin, grantAccess)).toEqual({ status: "self_change" });
+  });
+
+  it("permits an administrator to change their own grant access explicitly", () => {
+    expect(
+      evaluateMemberAccess(admin, admin, {
+        administration: "administrator",
+        role: "program_manager",
+      }),
+    ).toEqual({
+      status: "ok",
+      value: { administration: "administrator", role: "program_manager" },
+    });
   });
 
   it("applies invitation authority to the requested responsibility", () => {
@@ -161,28 +220,5 @@ describe("membership authority", () => {
         false,
       );
     }
-  });
-
-  it("permits explicit self-grant but preserves ownership and blocks self-demotion", () => {
-    expect(
-      evaluateMemberAccess(admin, admin, {
-        administration: "administrator",
-        role: "program_manager",
-      }),
-    ).toEqual({
-      status: "ok",
-      value: { administration: "administrator", role: "program_manager" },
-    });
-    expect(evaluateMemberAccess(admin, admin, { administration: "none", role: "member" })).toEqual({
-      status: "self_change",
-    });
-    expect(evaluateMemberAccess(owner, owner, null)).toEqual({ status: "owner_protected" });
-    expect(
-      evaluateMemberAccess(
-        admin,
-        { ...owner, userId: "owner" },
-        { administration: "administrator", role: "member" },
-      ),
-    ).toEqual({ status: "ok", value: { administration: "owner", role: "member" } });
   });
 });
