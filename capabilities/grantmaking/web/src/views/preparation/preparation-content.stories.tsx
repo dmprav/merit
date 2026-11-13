@@ -81,13 +81,13 @@ export const ReturnFailed: Story = {
       expect(canvas.getByRole("button", { name: "Return to funding rounds" })).toHaveFocus(),
     );
     await expect(deleteRound).toHaveBeenCalledOnce();
-    // React Aria's pending-button announcement outlives the closed confirmation.
-    await waitFor(
-      () =>
-        expect(
-          canvasElement.ownerDocument.querySelector("[data-live-announcer] [role=img]"),
-        ).toBeNull(),
-      { timeout: 8000 },
-    );
+    // React Aria keeps the closed confirmation's pending announcement for seven seconds,
+    // labelled by a button that no longer exists. Clear it, as a remount would, so the
+    // accessibility scan and browser suite need not wait for React Aria's timer.
+    for (const log of canvasElement.ownerDocument.querySelectorAll(
+      "[data-live-announcer] [role=log]",
+    )) {
+      log.replaceChildren();
+    }
   },
 };

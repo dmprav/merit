@@ -275,14 +275,6 @@ export const RemovalFailure: Story = {
 
     await waitFor(async () => expect(await dialog.findByRole("alert")).toBeVisible());
     await waitFor(async () => expect(dialog.getByText("colleague@example.test")).toBeVisible());
-    // Let React Aria clear its transient announcement before the accessibility scan.
-    await waitFor(
-      () =>
-        expect(
-          context.canvasElement.ownerDocument.querySelector("[data-live-announcer] [role=img]"),
-        ).toBeNull(),
-      { timeout: 8000 },
-    );
   },
 };
 export const SavedButRefreshFailed: Story = {
