@@ -88,6 +88,12 @@ it("names an unrecorded person, labels unknown actions generically and marks mis
 it("labels every action the workspace records", () => {
   const actions = [
     "application.created",
+    "application.material_changed",
+    "application.summary_changed",
+    "application.contact_changed",
+    "application_working_revision.started",
+    "application_working_revision.updated",
+    "application_working_revision.discarded",
     "application.marked_ready",
     "application.revision_recorded",
     "application.correction_recorded",
@@ -97,9 +103,23 @@ it("labels every action the workspace records", () => {
     "round.criteria_changed",
     "round.manager_changed",
     "round.deleted",
+    "round.details_changed",
     "assessment.recorded",
     "assessment.submitted",
+    "assessment.corrected",
+    "assessment.amended",
     "recommendation.recorded",
+    "review_request.created",
+    "review_request.cancelled",
+    "review_assignment.invited",
+    "review_assignment.invitation_renewed",
+    "review_assignment.accepted",
+    "review_assignment.declined",
+    "review_assignment.withdrawn",
+    "review_assignment.conflict_reported",
+    "review_assignment.conflict_cleared",
+    "review_assignment.access_ended",
+    "review_assignment.reinstated",
   ];
   show({ entries: actions.map((action, index) => entry(index + 1, { action })) });
 
@@ -147,7 +167,7 @@ it("changes the round and person filters independently", async () => {
   expect(onFiltersChange).toHaveBeenLastCalledWith({ roundId: "", personId: "" });
 });
 
-it("offers older activity only when more remains and announces loading", async () => {
+it("offers older activity only when more remains", async () => {
   const user = userEvent.setup();
   const { onShowMore } = show({ hasMore: true });
 
@@ -155,7 +175,33 @@ it("offers older activity only when more remains and announces loading", async (
   expect(onShowMore).toHaveBeenCalledOnce();
 });
 
-it("keeps entries visible while loading and offers a retry after a failure", async () => {
+it("offers no older activity once every entry is shown", () => {
+  show({ hasMore: false });
+
+  expect(screen.getByText("Workshop Saturdays")).toBeVisible();
+  expect(screen.queryByRole("button", { name: "Show older activity" })).not.toBeInTheDocument();
+});
+
+it("announces refreshed activity and disables older activity until it settles", () => {
+  show({ status: "refreshing", hasMore: true });
+
+  expect(screen.getByText("Loading activity…")).toBeInTheDocument();
+  expect(screen.getByText("Workshop Saturdays")).toBeVisible();
+  expect(screen.getByRole("button", { name: /Show older activity/ })).toBeDisabled();
+});
+
+it("announces older activity loading and marks its button pending", () => {
+  show({ status: "loadingMore", hasMore: true });
+
+  expect(screen.getByText("Loading activity…")).toBeInTheDocument();
+  expect(screen.getByText("Workshop Saturdays")).toBeVisible();
+  expect(screen.getByRole("button", { name: /Show older activity/ })).toHaveAttribute(
+    "aria-disabled",
+    "true",
+  );
+});
+
+it("keeps entries visible and offers a retry after a failure", async () => {
   const user = userEvent.setup();
   const onRetry = vi.fn();
   show({ status: "failed", hasMore: true, onRetry });

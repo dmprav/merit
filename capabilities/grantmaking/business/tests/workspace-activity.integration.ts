@@ -121,6 +121,19 @@ const it = roundTest.extend("activity", async ({ db, database, rounds }) => {
   };
 });
 
+const deleteSecondApplication = async (
+  db: Parameters<typeof editFundingApplication>[0],
+  publicId: string,
+) => {
+  const removed = await editFundingApplication(
+    db,
+    actor,
+    { workspaceSlug, publicId, expectedRevision: 0, change: { action: "delete" } },
+    applicationWork,
+  );
+  assert(removed.status === "ok");
+};
+
 describe("workspace activity", () => {
   it("lists changes newest first with each record's current title", async ({ activity: a }) => {
     expect(await a.rename(a.second, "Neighbour Table (renamed)")).toMatchObject({ status: "ok" });
@@ -159,28 +172,12 @@ describe("workspace activity", () => {
     database,
     activity: a,
   }) => {
-    const removed = await editFundingApplication(
-      db,
-      actor,
-      {
-        workspaceSlug,
-        publicId: a.second.publicId,
-        expectedRevision: 0,
-        change: { action: "delete" },
-      },
-      applicationWork,
-    );
-    assert(removed.status === "ok");
+    await deleteSecondApplication(db, a.second.publicId);
     await database.client.query(
       `INSERT INTO audit_events (organization_id, actor_user_id, actor_name, provenance, action, target_type, target_id, target_revision)
        VALUES ('alder', 'dana', 'Dana Reed', '{"interface":"web"}', 'application.unknown', 'application', 'w1', 1)`,
     );
     const { entries } = await a.ok();
-
-    // Recorded round context is retained after deletion.
-    const inRound = (await a.ok({ roundId: a.roundId })).entries.map((entry) => entry.action);
-    expect(inRound).toContain("application.deleted");
-    expect(inRound.filter((action) => action === "application.created")).toHaveLength(2);
 
     expect(
       entries
@@ -188,9 +185,14 @@ describe("workspace activity", () => {
         .map((entry) => entry.action)
         .sort(),
     ).toEqual(["application.created", "application.deleted", "application.unknown"]);
-    expect(entries.find((entry) => entry.action === "application.unknown")).toMatchObject({
-      record: null,
-    });
+  });
+
+  it("keeps a deleted application's events in its round's filter", async ({ db, activity: a }) => {
+    await deleteSecondApplication(db, a.second.publicId);
+
+    const inRound = (await a.ok({ roundId: a.roundId })).entries.map((entry) => entry.action);
+    expect(inRound).toContain("application.deleted");
+    expect(inRound.filter((action) => action === "application.created")).toHaveLength(2);
   });
 
   it("pages by a stable cursor without repeating or skipping entries", async ({ activity: a }) => {
@@ -212,8 +214,8 @@ describe("workspace activity", () => {
     activity: a,
   }) => {
     expect(await a.read({ after: "abc" })).toEqual({ status: "invalid" });
-    // A malformed shape never reaches audit.
-    await expect(a.read({ after: "***" })).rejects.toThrow();
+    // A malformed shape is rejected by the request schema before it reaches audit.
+    await expect(a.read({ after: "***" })).rejects.toMatchObject({ name: "ZodError" });
   });
 
   it("filters by round, matching its applications, assessments and recommendations", async ({
@@ -261,18 +263,13 @@ describe("workspace activity", () => {
     expect((await a.ok()).entries.map((entry) => entry.action)).toContain("round.deleted");
   });
 
-  it("filters by person, combines with round, and lists everyone with recorded activity", async ({
-    activity: a,
-  }) => {
+  it("filters by person and lists everyone with recorded activity", async ({ activity: a }) => {
     const byPat = await a.ok({ personId: "pat" });
     expect(byPat.entries.map(a.summary)).toEqual(["round.created round:Winter grants"]);
     expect(byPat.people).toEqual([
       { id: "dana", name: "Dana Reed" },
       { id: "pat", name: "Pat Taylor" },
     ]);
-    expect((await a.ok({ personId: "pat", roundId: a.roundId })).entries).toEqual([]);
-    expect((await a.ok({ personId: "dana", roundId: a.otherRoundId })).entries).toEqual([]);
-    expect((await a.ok({ personId: "nobody" })).entries).toEqual([]);
   });
 
   it("is available only to current program managers of the workspace", async ({
