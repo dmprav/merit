@@ -1,14 +1,14 @@
-import { useRef } from "react";
+import { useId, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
 import { memberActions, permits } from "@merit/access";
 import type { Team } from "@merit/organizations/api";
 import { DataTable, type TableColumn } from "@merit/tables";
 import { ActionMenu } from "@merit/ui/action-menu";
+import { Badge } from "@merit/ui/badge";
 import { Button } from "@merit/ui/button";
 import { Icon } from "@merit/ui/icon";
 import { PersonIdentity } from "@merit/ui/person-identity";
-import { Tooltip } from "@merit/ui/tooltip";
 
 type Member = Team["members"][number];
 
@@ -30,31 +30,21 @@ const MemberActions = ({
 }: DirectoryProps & { member: Member }) => {
   const { t } = useTranslation("team");
   const trigger = useRef<HTMLButtonElement>(null);
+  const draftDescription = useId();
+  const draft = hasDraft?.(member);
   const allowed = memberActions(team.subject, member);
   if (!allowed.canEdit) {
     return null;
   }
 
-  const resumeLabel = t("resumeAccess", {
-    person: member.name || member.email || t("unknownName"),
-  });
+  const resumeLabel = t("resumeAccess");
 
   return (
     <>
-      {hasDraft?.(member) && (
-        <Tooltip content={resumeLabel}>
-          <Button
-            variant="quiet"
-            size="small"
-            iconOnly
-            data-draft
-            aria-label={resumeLabel}
-            isDisabled={isDisabled}
-            onPress={(event) => onEdit(member, event.target as HTMLButtonElement)}
-          >
-            <Icon name="edit" />
-          </Button>
-        </Tooltip>
+      {draft && (
+        <span id={draftDescription} hidden>
+          {resumeLabel}
+        </span>
       )}
       <ActionMenu
         label={t("memberActions", { person: member.name || member.email || t("unknownName") })}
@@ -64,6 +54,8 @@ const MemberActions = ({
             variant="quiet"
             size="small"
             iconOnly
+            data-draft={draft || undefined}
+            aria-describedby={draft ? draftDescription : undefined}
             isDisabled={isDisabled}
             aria-label={t("memberActions", {
               person: member.name || member.email || t("unknownName"),
@@ -73,7 +65,7 @@ const MemberActions = ({
           </Button>
         }
         items={[
-          { id: "edit", label: t("edit") },
+          { id: "edit", label: draft ? resumeLabel : t("edit") },
           ...(allowed.canRemove ? [{ id: "remove", label: t("remove") }] : []),
         ]}
         onAction={(action) =>
@@ -99,18 +91,9 @@ export const MemberDirectory = (props: DirectoryProps) => {
       cell: ({ member }) => (
         <PersonIdentity
           name={member.name || member.email || t("unknownName")}
-          description={
-            <>
-              {member.email || t("unknownEmail")}
-              {member.userId === team.subject.userId && <> ({t("you")})</>}
-              {!member.active && (
-                <>
-                  <br />
-                  {t("disabled")}
-                </>
-              )}
-            </>
-          }
+          annotation={member.userId === team.subject.userId ? t("you") : undefined}
+          status={!member.active ? <Badge tone="danger">{t("disabled")}</Badge> : undefined}
+          description={member.email || t("unknownEmail")}
         />
       ),
     },
@@ -132,7 +115,7 @@ export const MemberDirectory = (props: DirectoryProps) => {
             id: "actions",
             header: t("actions"),
             layout: {
-              width: "5rem",
+              width: "3rem",
               align: "end" as const,
               rowActions: true,
             },

@@ -8,9 +8,8 @@
 }
 
 .identity[data-detailed="true"] {
-  align-items: flex-start;
   font-size: var(--text-body);
-  line-height: 1.5;
+  line-height: 1.4;
 }
 
 .copy {
@@ -25,8 +24,21 @@
   line-height: inherit;
 }
 
-.identity[data-detailed="true"] .name {
+.name:is(h2, h3) {
   font-weight: 600;
+}
+
+.nameLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-2);
+}
+
+.annotation {
+  color: var(--muted);
+  font-size: var(--text-caption);
+  font-weight: 400;
 }
 
 .description {
@@ -34,7 +46,6 @@
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
-  margin-top: var(--space-1);
   font-size: var(--text-caption);
   font-weight: 400;
   line-height: 1.5;

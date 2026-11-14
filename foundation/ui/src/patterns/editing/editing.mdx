@@ -91,7 +91,9 @@ Beside headings, use a pencil icon to edit or resume, with an accessible action
 name and tooltip. Set `data-draft` on the shared `Button` for a visible draft dot
 and change the name and tooltip to **Resume…**. Existing creation actions change
 their label to **Resume…** when they have a draft. Contact pickers also reopen
-unfinished work through the original entry point.
+unfinished work through the original entry point. When editing starts in a row
+menu, put the draft marker on that existing trigger and change its edit item to
+**Resume…**; do not introduce a second row action just for drafts.
 
 The feature owns draft values separately from whether the editor is open. Connect
 `useForm.onChange` to that draft and restore it when reopening. A successful save

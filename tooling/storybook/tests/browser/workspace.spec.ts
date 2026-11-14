@@ -201,7 +201,7 @@ test(
 );
 
 test(
-  "invitation recovery leads with the problem and keeps recipients readable",
+  "invitation recovery separates status from identity and keeps recipients readable",
   { tag: "@cross-browser" },
   async ({ page }, testInfo) => {
     await page.goto("/iframe.html?id=features-team-invitations--delivery-states&viewMode=story");
@@ -216,20 +216,19 @@ test(
     );
     const failure = failed.getByText("Email sending failed");
     const acceptance = failed.getByText("Awaiting acceptance");
-    const resend = failed.getByRole("button", { name: /Resend invitation to/ });
+    const actions = failed.getByRole("button", { name: /Actions for invitation/ });
 
-    expect((await failure.boundingBox())!.y).toBeLessThan((await acceptance.boundingBox())!.y);
-    await expect(resend).toBeVisible();
-    expect((await resend.boundingBox())!.y).toBeGreaterThan((await acceptance.boundingBox())!.y);
+    await expect(failure).toBeVisible();
+    await expect(acceptance).toHaveCount(0);
+    await expect(actions).toBeVisible();
+    await expect(failed.getByRole("button", { name: /Resend invitation to/ })).toHaveCount(0);
+    await expect(recipient).not.toContainText("Email sending failed");
     if (!testInfo.project.use.isMobile) {
-      expect((await recipient.boundingBox())!.width).toBeGreaterThan(
-        (await failed.getByRole("cell").nth(1).boundingBox())!.width * 1.8,
-      );
-      // The long fixture should use at most two lines with the wider recipient column.
-      expect((await address.boundingBox())!.height).toBeLessThanOrEqual(
-        await address.evaluate((node) => parseFloat(getComputedStyle(node).lineHeight) * 2 + 1),
-      );
+      expect((await failure.boundingBox())!.x).toBeGreaterThan((await address.boundingBox())!.x);
     }
+    await actions.click();
+    await expect(page.getByRole("menuitem", { name: "Resend" })).toBeVisible();
+    await page.keyboard.press("Escape");
     for (const cell of await table.getByRole("cell").all()) {
       expect(await cell.evaluate((node) => node.scrollWidth <= node.clientWidth + 1)).toBe(true);
     }

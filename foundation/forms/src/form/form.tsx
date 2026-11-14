@@ -8,6 +8,7 @@ import {
 
 import { Button } from "@merit/ui/button";
 import { DialogContent, ModalDialog } from "@merit/ui/dialog";
+import { Notice } from "@merit/ui/notice";
 
 import localStyles from "./form.module.css";
 import { FormPendingContext } from "./pending-context";
@@ -116,13 +117,13 @@ export const Form = ({
       disabled={submission.isSubmitting}
       className={`${localStyles.footer} ${scrollFields ? "" : localStyles.inlineFooter}`}
     >
-      {submission.error && (
-        <p role="alert" className={localStyles.error}>
-          {submission.error}
-        </p>
-      )}
       {actions}
     </fieldset>
+  );
+  const feedback = submission.error && (
+    <Notice appearance="inline" tone="danger" role="alert">
+      {submission.error}
+    </Notice>
   );
 
   return (
@@ -139,12 +140,13 @@ export const Form = ({
           onSubmit={handleSubmit}
         >
           {scrollFields ? (
-            <DialogContent label={label} role="group" footer={footer}>
+            <DialogContent label={label} role="group" feedback={feedback} footer={footer}>
               {fields}
             </DialogContent>
           ) : (
             <>
               {fields}
+              {feedback && <div className={localStyles.feedback}>{feedback}</div>}
               {footer}
             </>
           )}

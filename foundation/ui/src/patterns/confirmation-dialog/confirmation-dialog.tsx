@@ -50,6 +50,7 @@ export const ConfirmationDialog = ({
 
   return (
     <ModalDialog
+      appearance="form"
       title={title}
       closeLabel={closeLabel}
       trigger={trigger}
@@ -60,15 +61,18 @@ export const ConfirmationDialog = ({
     >
       <DialogContent
         label={title}
+        feedback={
+          error && (
+            <Notice appearance="inline" tone="danger" role="alert">
+              {error}
+            </Notice>
+          )
+        }
         footer={
           <div className={styles.content}>
-            {error && (
-              <Notice tone="danger" role="alert">
-                {error}
-              </Notice>
-            )}
             <Inline justify="end" gap={3}>
               <Button
+                size="small"
                 variant="secondary"
                 autoFocus
                 isDisabled={isPending}
@@ -77,6 +81,7 @@ export const ConfirmationDialog = ({
                 {cancelLabel}
               </Button>
               <Button
+                size="small"
                 variant={intent === "destructive" ? "destructive" : "primary"}
                 isPending={isPending}
                 onPress={onConfirm}

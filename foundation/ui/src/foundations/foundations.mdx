@@ -14,6 +14,63 @@ These conventions apply Merit's experience principles across controls and patter
 Component guidance owns detailed behavior; patterns explain how to use that language
 in recurring situations.
 
+## Restraint and context
+
+Start with clear copy, alignment, and spacing. Use regular weight for ordinary
+names and values, and reserve stronger treatment for the distinction someone
+needs to notice. A new badge, icon, border, or panel should answer a specific
+question; shared tokens alone do not make a composition coherent.
+
+<table>
+  <thead>
+    <tr>
+      <th>Context</th>
+      <th>Accepted treatment</th>
+      <th>Reference</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>An edit has an additional consequence</td>
+      <td>
+        Small amber icon and detail-sized text stating the effect and a brief practical explanation
+      </td>
+      <td>
+        <a href="?path=/story/features-team-manage-team--demotion-consequences">Demotion</a>
+      </td>
+    </tr>
+    <tr>
+      <td>Someone is confirming removal</td>
+      <td>
+        Neutral body paragraphs grouping access changes, preserved work, and handover; a destructive
+        commit button
+      </td>
+      <td>
+        <a href="?path=/story/features-team-manage-team--removal-consequences">Removal</a>
+      </td>
+    </tr>
+    <tr>
+      <td>An action failed</td>
+      <td>Red inline icon and corrective text above the action footer</td>
+      <td>
+        <a href="?path=/story/features-team-manage-team--invitation-failure">Invitation failure</a>
+      </td>
+    </tr>
+    <tr>
+      <td>An account is disabled</td>
+      <td>A distinct text badge beside the name, without an extra icon</td>
+      <td>
+        <a href="?path=/story/features-team-members--disabled-account">Disabled account</a>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+Use the [Team design guidance](?path=/docs/features-team-design-guidance--docs)
+for the full reference set and reasons for these choices. These examples apply
+[experience principles](../../../../docs/foundations/experience.md#give-emphasis-a-reason);
+use the person's task to decide which treatment transfers to a new surface.
+
 ## Color and meaning
 
 Use `action` for actionable emphasis and `action-subtle` for selection, including
@@ -89,11 +146,13 @@ the subtle action fill. Icon-only buttons use an inset bottom marker in their
 foreground color. Button-shaped links underline, while navigation and menu options
 use a side marker so keyboard focus remains distinct from the current selection.
 
-Text fields and select triggers show an ink border, faint tinted fill, and inset
-bottom marker whenever focused, including pointer editing and restored focus after
-a select closes. Currency prefixes share the field's boundary. Invalid fields keep
-danger-colored borders and focus markers; read-only fields remain focusable and
-disabled controls are skipped. Focus takes precedence over hover and read-only styling.
+Editable text fields and select triggers show an ink border, faint tinted fill,
+and inset bottom marker whenever focused, including pointer editing and restored
+focus after a select closes. Currency prefixes share the field's boundary. Invalid
+fields keep danger-colored borders and focus markers. Read-only fields remain
+focusable for selection and copying, retain their muted surface, and use a quiet
+dashed outline instead of the editing underline. Disabled controls are skipped.
+Focus remains visible alongside each state; it must not make a fixed value look editable.
 
 Tab labels use a tinted fill and text underline, retaining the separate selection
 underline. Focused scrolling panels use an inset side marker. React Aria supplies

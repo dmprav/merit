@@ -33,6 +33,9 @@ export const Catalog: Story = {
     <ul className={localStyles.icons}>
       {(
         [
+          "warning",
+          "info",
+          "clock",
           "home",
           "layers",
           "round",

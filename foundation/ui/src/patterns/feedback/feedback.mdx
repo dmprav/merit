@@ -12,6 +12,15 @@ supply outcomes and recovery actions; shared controls own presentation and acces
 announcements. Confirm success only after commitment, and retain unfinished work
 when an action fails.
 
+## Match emphasis to the situation
+
+An expected consequence in a confirmation is part of the decision's normal prose.
+An unexpected side effect in an editor needs a compact warning before Save.
+Neither is a submission failure. The
+[confirmation pattern](?path=/docs/patterns-confirmation-dialog--docs) owns this
+distinction; the [Team design guidance](?path=/docs/features-team-design-guidance--docs)
+shows all three contexts using the same controls.
+
 ## Choose and place feedback
 
 | Situation                                                 | Presentation                                               |
@@ -22,7 +31,23 @@ when an action fails.
 | The page cannot show its initial content                  | `StateMessage` inside the available page or recovery frame |
 
 Place persistent feedback beside the work it affects. Choose a Notice tone that
-matches the meaning and include an explanation and useful next action.
+matches the meaning and include an explanation and useful next action. Use its
+`title` for the outcome and `actions` for recovery; the notice owns their alignment
+and wrapping. Keep simple failures to a short sentence. Within a task surface,
+use `appearance="inline"` for quiet icon-and-text feedback without another framed
+panel. Forms and confirmation dialogs place this in `DialogContent.feedback`,
+above the tinted action footer and outside the scrolling body. Feedback stays
+visible while the footer retains its single purpose: committing or leaving the
+task. Field validation stays beside its field.
+
+Use accessible danger text for inline errors, consistent with field validation;
+color and icons supplement the explanation. Other inline Notice tones retain
+normal text contrast. A compact warning about a prospective side effect follows
+the confirmation pattern's body treatment instead of implying that an operation
+has already failed.
+
+A confirmed save followed by a failed refresh needs a warning about outdated data,
+with the saved outcome explicit. Never imply the write failed or offer to repeat it.
 See [Notices](?path=/docs/components-notice--docs) for tone and announcement guidance and
 [Status messages](?path=/docs/patterns-status-message--docs) for brief confirmations.
 Position workspace confirmations with the `confirmation` class from
@@ -34,6 +59,13 @@ for each event, including repeated messages. Its
 [API contract](?path=/docs/patterns-status-message--docs) owns announcement and lifetime behavior.
 
 <Canvas of={Status.InWorkspace} story={{ inline: false, height: "380px" }} />
+
+For dense status columns, use a plain badge with an icon and visible label.
+Lead with the state that determines the next action instead of stacking routine
+and failure labels. Features own that precedence: expired invitations need a new
+link regardless of earlier email delivery; active invitations with sending
+problems should explain that problem instead of appearing to wait on a recipient.
+The underlying delivery and acceptance facts remain distinct.
 
 ## Recover the affected work
 

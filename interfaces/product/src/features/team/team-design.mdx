@@ -1,0 +1,177 @@
+import { Canvas, Meta } from "@storybook/addon-docs/blocks";
+import * as Team from "./team-view.stories";
+
+<Meta title="Features/Team/Design guidance" />
+
+# Team: accepted design patterns
+
+Use these states as the reference for restrained team management UI. They apply
+[Merit's experience principles](../../../../../docs/foundations/experience.md)
+and the shared [design foundations](?path=/docs/foundations-tokens--docs).
+The owning [workflow](../../../../../docs/workflows/manage-team.md) defines authority,
+commitment, and recovery; this page explains presentation choices.
+
+## Choose emphasis by the task
+
+The same invitation revocation belongs in two different contexts. During access
+editing, it is a side effect of Save that someone could miss. During removal,
+it is an expected part of the decision. Do not turn the removal prose into a
+warning just because the editor uses one.
+
+### Warn about an editor's side effect
+
+Keep the count and effect visible after the fields. Use a small amber warning
+icon, detail text, and one concise explanation: “Saving revokes 1 invitation.
+Recipients will need a new invitation to join.” There is no extra title, box,
+recipient list, tooltip, or details action. The
+[many-invitation state](?path=/story/features-team-manage-team--many-affected-invitations)
+keeps the same compact structure.
+
+<Canvas of={Team.DemotionConsequences} story={{ inline: false, height: "560px" }} />
+
+### Make a removal confirmation read as one explanation
+
+Use three related paragraphs: access and invitation effects; preserved work,
+account, and how to restore access; then handover guidance. Keep ordinary body
+size and contrast throughout. No warning icon, amber text, or separate panel is
+needed for these expected consequences. The destructive button communicates the
+commitment; Cancel remains the safe initial focus.
+
+<Canvas of={Team.RemovalConsequences} story={{ inline: false, height: "620px" }} />
+
+### Separate an unsuccessful action from its consequences
+
+Use a concise red inline message with a decorative icon above the tinted footer.
+Keep the fields and draft intact, and keep the footer devoted to actions. A
+removal failure uses the same feedback treatment while its consequence prose
+stays neutral. A [saved change whose refresh failed](?path=/story/features-team-manage-team--saved-but-refresh-failed)
+is a different result: state that the save succeeded and offer to refresh.
+
+<Canvas of={Team.InvitationFailure} story={{ inline: false, height: "620px" }} />
+
+[Inspect removal failure](?path=/story/features-team-manage-team--removal-failure)
+· [Inspect removal in progress](?path=/story/features-team-manage-team--removing)
+
+## Reuse the accepted details
+
+<table>
+  <thead>
+    <tr>
+      <th>Decision</th>
+      <th>Accepted pattern and reason</th>
+      <th>Live reference</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Person identity</td>
+      <td>Regular-weight name, tightly grouped email and avatar; “You” beside the name</td>
+      <td>
+        <a href="?path=/story/features-team-manage-team--owner">Members</a>
+      </td>
+    </tr>
+    <tr>
+      <td>Disabled account</td>
+      <td>
+        A red text badge beside the name, with no redundant icon; email remains contact information
+      </td>
+      <td>
+        <a href="?path=/story/features-team-members--disabled-account">Disabled account</a>
+      </td>
+    </tr>
+    <tr>
+      <td>Invitation table</td>
+      <td>
+        Separate recipient, responsibility, access, status, expiry, and action columns; no inline
+        duplicate Resend
+      </td>
+      <td>
+        <a href="?path=/story/features-team-invitations--delivery-states">Delivery states</a>
+      </td>
+    </tr>
+    <tr>
+      <td>Invitation status</td>
+      <td>
+        One icon and label for the state that determines the next action; never pair “Awaiting
+        acceptance” with failed sending
+      </td>
+      <td>
+        <a href="?path=/story/features-team-invitations--delivery-states">Delivery states</a>
+      </td>
+    </tr>
+    <tr>
+      <td>Fixed value in an editor</td>
+      <td>
+        Muted read-only field with a quiet dashed focus outline, no dropdown arrow, and a short
+        restriction explanation
+      </td>
+      <td>
+        <a href="?path=/story/features-team-manage-team--owner-access">Owner access</a>
+      </td>
+    </tr>
+    <tr>
+      <td>Role explanation</td>
+      <td>Describe choices inside the menu; show only the selected label when closed</td>
+      <td>
+        <a href="?path=/story/features-team-manage-team--role-choices">Role choices</a>
+      </td>
+    </tr>
+    <tr>
+      <td>Draft entry</td>
+      <td>
+        Resume through the existing row menu with “Resume editing access” and a draft marker; no
+        extra pencil button
+      </td>
+      <td>
+        <a href="?path=/story/features-team-manage-team--resume-access">Resume access</a>
+      </td>
+    </tr>
+    <tr>
+      <td>Read-only directory</td>
+      <td>
+        A simple counted section heading aligned with the directory; no nonfunctional single tab
+      </td>
+      <td>
+        <a href="?path=/story/features-team-manage-team--read-only">Read only</a>
+      </td>
+    </tr>
+    <tr>
+      <td>Dialog actions</td>
+      <td>
+        Shared tinted footer and small labelled buttons; editing uses Close/Discard/Save, removal
+        uses Cancel/Remove
+      </td>
+      <td>
+        <a href="?path=/story/features-team-manage-team--invite-member">Invite member</a>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+Invitation status preserves the distinction between sending and acceptance in the
+data. Presentation prioritizes expiry, then failed or unconfirmed sending; only
+a successfully sent, unexpired invitation shows “Awaiting acceptance”. This does
+not claim inbox delivery. These are feature rules, not a universal ordering for
+all status indicators.
+
+The [long and missing identity](?path=/story/features-team-members--long-and-missing-identity)
+fixture deliberately exercises nullable data; it is not the normal invitation
+flow. Disabled accounts have a separate example. Use real supported roles in
+editors rather than adding choices to make a demo look more complete.
+
+## Apply the principles to the next screen
+
+Start with copy, grouping, and spacing. Add an icon, badge, or container only when
+it supplies a distinction the person needs. A request to make something compact
+is not automatically a request to hide it behind another interaction. Preserve
+accepted treatments as the rest of the screen evolves; explain any departure
+through a concrete difference in the task.
+
+Shared contracts live in [confirmation](?path=/docs/patterns-confirmation-dialog--docs),
+[feedback](?path=/docs/patterns-feedback--docs),
+[identity](?path=/docs/patterns-person-identity--docs),
+[fields](?path=/docs/components-fields--docs), and
+[editing](?path=/docs/patterns-editing--docs). Improve those owners for shared
+behavior instead of copying Team's feature implementation into another capability.
+The [UI development guide](../../../../../docs/guides/ui.md#review-a-representative-slice)
+explains how to review a small representative slice before propagating a design.

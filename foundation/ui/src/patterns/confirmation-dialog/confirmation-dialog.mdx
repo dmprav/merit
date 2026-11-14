@@ -15,13 +15,49 @@ Name the affected person or work, explain what changes, and give the confirmatio
 button a specific action label. Use destructive intent for removal or loss.
 Cancellation receives initial focus so opening the dialog does not commit the action.
 
+## Compose the decision
+
+Confirmations share the creation and editing dialog frame: a persistent tinted
+footer, small labelled actions, and the same notice for failures. Keep Cancel and
+the specific confirmation action; draft Discard and Close belong to editing.
+The footer contains actions, while consequences belong in the body.
+
+Present the decision in cohesive body text. Group access changes together,
+preserved work and return access together, then any handover guidance. Keep related
+sentences in the same paragraph; avoid a heading, divider, bullet, or container
+for every fact. The title and destructive action already establish the removal
+context, so ordinary consequences need neither warning color nor warning icons.
+Use body size and contrast for recovery guidance too.
+
+Keep the affected scope and count visible. Omit individual recipients when the
+scope and count sufficiently describe the change. Add one concise sentence when
+a term such as “revoke” needs a practical explanation. The person must understand
+the decision without opening a tooltip, disclosure, or popover.
+
+## Distinguish a side effect from the main decision
+
+An editor's Save action can have an unexpected consequence, such as revoking
+invitations when administration is removed. Present that side effect after the
+fields using a small decorative warning icon and detail-sized amber text. Name
+the triggering action, the count, and any brief explanation needed to understand
+what happens next. Keep the whole explanation visible without another interaction.
+
+This is a different context from confirming removal. Reuse the meaning and shared
+visual language, not identical emphasis. The accepted
+[demotion warning](?path=/story/features-team-manage-team--demotion-consequences)
+and [removal confirmation](?path=/story/features-team-manage-team--removal-consequences)
+are compared in the [Team design guidance](?path=/docs/features-team-design-guidance--docs).
+
 <Canvas of={Confirmation.Open} />
 
 ## Pending and recovery
 
 Show progress for the confirmed operation, with a label such as “Revoking invitation…”.
 Pending prevents confirmation and dismissal. Keep failures visible with a useful
-recovery action and preserve enough context to retry.
+recovery action and preserve enough context to retry. Failures use the shared
+[inline feedback](?path=/docs/patterns-feedback--docs) above the action footer,
+with red text and a decorative icon. A failure does not turn the neutral
+consequence prose into a warning panel.
 
 <Canvas of={Confirmation.Retry} />
 

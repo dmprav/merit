@@ -8,6 +8,7 @@ import { Tabs } from "@merit/ui/tabs";
 import type { TeamSection } from "../contracts/team";
 import { InvitationDirectory } from "./invitation-directory";
 import { MemberDirectory } from "./member-directory";
+import styles from "./team-view.module.css";
 
 type Props = ComponentProps<typeof MemberDirectory> &
   Pick<ComponentProps<typeof InvitationDirectory>, "onResend" | "onRevoke"> & {
@@ -39,7 +40,11 @@ export const TeamDirectories = ({
   if (!permits(team.subject, "manage_members", team.subject)) {
     return (
       <>
-        <SectionHeader title={t("members")} count={team.members.length} />
+        <SectionHeader
+          title={t("members")}
+          count={team.members.length}
+          className={styles.directoryHeading}
+        />
         {members}
       </>
     );

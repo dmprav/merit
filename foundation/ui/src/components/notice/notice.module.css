@@ -7,7 +7,7 @@
   padding: var(--space-3) var(--space-4);
   border: 1px solid color-mix(in srgb, var(--notice-accent) 20%, transparent);
   border-radius: var(--control-radius);
-  font-size: var(--text-body);
+  font-size: var(--text-detail);
   line-height: 1.5;
   overflow-wrap: anywhere;
 }
@@ -50,6 +50,55 @@
 
 .notice li + li {
   margin-top: var(--space-1);
+}
+
+.layout {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.message {
+  flex: 1 1 16rem;
+  min-width: 0;
+}
+
+.title {
+  margin-bottom: var(--space-1);
+  font-weight: 600;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.notice[data-appearance="inline"] {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.notice[data-appearance="inline"][data-tone="danger"] {
+  color: var(--danger);
+}
+
+.notice[data-appearance="inline"] .layout {
+  align-items: flex-start;
+  flex-wrap: nowrap;
+  gap: var(--space-2);
+}
+
+.notice[data-appearance="inline"] .message {
+  flex-basis: auto;
+}
+
+.icon {
+  color: var(--notice-accent);
+  margin-top: 2px;
 }
 
 @media (forced-colors: active) {

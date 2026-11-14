@@ -18,7 +18,7 @@ const meta = {
     docs: {
       description: {
         component:
-          "Use Select to choose a field value; the owning form or editing pattern determines when that value is saved. The selected option keeps its tint and checkmark while keyboard focus uses the shared side marker. Long menus scroll with related actions in a separate footer. Use real links for destinations and ActionMenu for commands. See [control selection](?path=/docs/overview--docs#choose-controls-by-outcome) for the related patterns.",
+          "Use Select to choose a field value; the owning form or editing pattern determines when that value is saved. Give unfamiliar options a short description so people can compare meanings before selecting; the closed control retains just the label. The selected option keeps its tint and checkmark while keyboard focus uses the shared side marker. Long menus scroll with related actions in a separate footer. Use real links for destinations and ActionMenu for commands. See [control selection](?path=/docs/overview--docs#choose-controls-by-outcome) for the related patterns.",
       },
     },
   },
@@ -155,4 +155,14 @@ export const WithAction: Story = {
     await userEvent.click(canvas.getByRole("button", { name: /Recommendation/ }));
     await expect(within(canvasElement.ownerDocument.body).getByRole("listbox")).toBeVisible();
   },
+};
+
+export const DescribedOptions: Story = {
+  args: {
+    items: [
+      { id: "fund", label: "Fund", description: "Recommend the requested support." },
+      { id: "defer", label: "Defer", description: "Wait for further information before deciding." },
+    ],
+  },
+  play: Open.play,
 };

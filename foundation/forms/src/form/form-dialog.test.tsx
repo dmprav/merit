@@ -101,7 +101,10 @@ it("keeps a pending dialog open and preserves the draft and recovery after failu
 
   await act(async () => finish("Try again."));
 
-  expect(screen.getByRole("alert")).toHaveTextContent("Try again.");
+  const alert = screen.getByRole("alert");
+  expect(alert).toHaveTextContent("Try again.");
+  expect(alert.closest("[data-dialog-feedback]")).not.toBeNull();
+  expect(alert.closest("[data-dialog-footer]")).toBeNull();
   expect(screen.getByRole("textbox")).toHaveValue("Keep this draft");
   await user.click(screen.getByRole("button", { name: "Close editor" }));
   await waitFor(() => expect(trigger).toHaveFocus());

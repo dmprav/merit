@@ -10,6 +10,9 @@ The [Contacts workflow](manage-contacts.md) manages people involved in
 applications and reviews. Naming a contact does not create membership or grant
 access; Team retains those responsibilities.
 
+The [Team design guidance](../../interfaces/product/src/features/team/team-design.mdx)
+curates the accepted screen composition and live Storybook examples.
+
 ## Understand responsibilities
 
 Membership has two independent attributes: organization responsibility and grant-work
@@ -59,7 +62,7 @@ Concurrent requests share these limits across servers.
 
 Invitation and access forms follow the shared
 [editing pattern](../../foundation/ui/src/patterns/editing/editing.mdx). **Resume invitation** and
-**Resume access changes** reopen unfinished work. Repeating the same invitation
+**Resume editing access** reopen unfinished work. Repeating the same invitation
 submission cannot create another invitation. Resumed access edits
 retain the original membership version and reviewed invitation list; changed access
 or consequences require discarding the draft and reviewing current details.
@@ -75,9 +78,9 @@ a way to recover.
 
 **Remove from organization** explains access loss, preserved work and authorship,
 and the fresh invitation required to return. Removing membership or administrative
-responsibility also revokes outstanding invitations the person issued. Show those
-invitations before confirmation; a changed list requires a fresh review before
-removal or demotion can commit. No action deletes the person’s account or their
+responsibility also revokes outstanding invitations the person issued. Show the
+revocation scope and affected count before confirmation; a change to the underlying
+invitation list requires a fresh review before removal or demotion can commit. No action deletes the person’s account or their
 memberships in other organizations.
 
 Access ends on subsequent requests, including protected MCP reads. A reviewer

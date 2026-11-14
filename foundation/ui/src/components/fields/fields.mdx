@@ -12,9 +12,18 @@ and validation; the owning workflow determines what the action requires.
 
 ## Choose the right field state
 
-Use read-only fields for fixed values within an editing task, where people may
-need to focus and copy the value. For information outside editing, use static
-text or a [description list](?path=/docs/components-description-list--docs).
+Use a [description list](?path=/docs/components-description-list--docs) for fixed
+facts on a reading surface. Inside an editor, use a read-only text field when a
+value is fixed by permissions: retain the field's label, alignment, and readable
+value, and explain the restriction. Read-only fields support focus and copying,
+but retain their muted surface and use a quiet dashed focus outline instead of
+the editable field's active underline. They never expose a dropdown arrow.
+
+Explain unfamiliar choices where people compare them. Select options can carry
+short descriptions, while the closed control shows only the selected label.
+Use field-level help for guidance applying to the whole choice, rather than
+repeating the selected option's description beneath the control.
+
 Use disabled controls for unavailable interaction. Explain restrictions when their
 reason is unclear and offer a remedy when missing data blocks progress.
 
@@ -24,6 +33,13 @@ person fills the field. Read-only and disabled fields omit the visible marker;
 the underlying requirement still applies. Leave optional fields unmarked.
 
 <Canvas of={TextFields.States} />
+
+The [owner access editor](?path=/story/features-team-manage-team--owner-access)
+places a fixed responsibility beside an editable role. The
+[role choices](?path=/story/features-team-manage-team--role-choices) demonstrate
+explanations inside the menu where people compare options.
+
+<Canvas of={TextFields.ReadOnlyFocused} />
 
 ## Keep feedback beside the field
 
