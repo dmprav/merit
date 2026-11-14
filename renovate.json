@@ -27,7 +27,7 @@
   "packageRules": [
     {
       "description": "Keep the Firefox accessibility workaround until a stable fix for microsoft/playwright#43967 is verified; then remove this rule.",
-      "matchPackageNames": ["@playwright/test"],
+      "matchPackageNames": ["@playwright/test", "mcr.microsoft.com/playwright"],
       "allowedVersions": "<1.65.0"
     }
   ]

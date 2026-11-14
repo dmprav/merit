@@ -252,6 +252,17 @@ it("serializes concurrent pins without blocking the account locks used by grant 
     max: 4,
     statement_timeout: 3000,
   });
+  let openClients = 0;
+  let onDrained: (() => void) | undefined;
+  pool.on("connect", () => {
+    openClients += 1;
+  });
+  pool.on("remove", () => {
+    openClients -= 1;
+    if (openClients === 0) {
+      onDrained?.();
+    }
+  });
   const grantWork = await pool.connect();
   try {
     await grantWork.query("BEGIN");
@@ -271,8 +282,13 @@ it("serializes concurrent pins without blocking the account locks used by grant 
       (await pool.query("SELECT position FROM grant_navigation_pins ORDER BY position")).rows,
     ).toEqual([{ position: 0 }, { position: 1 }]);
   } finally {
-    await grantWork.query("ROLLBACK");
+    await grantWork.query("ROLLBACK").catch(() => undefined);
     grantWork.release();
     await pool.end();
+    if (openClients > 0) {
+      await new Promise<void>((resolve) => {
+        onDrained = resolve;
+      });
+    }
   }
 });

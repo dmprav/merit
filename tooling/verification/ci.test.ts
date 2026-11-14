@@ -1,81 +1,104 @@
+import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
 import { loadConfigFromFile } from "vite-plus";
 import { assert, expect, test } from "vite-plus/test";
 
+const repoRoot = fileURLToPath(new URL("../..", import.meta.url));
+
 const loadTasks = async () => {
   const loaded = await loadConfigFromFile(
     { command: "serve", mode: "test" },
-    fileURLToPath(new URL("../../vite.config.ts", import.meta.url)),
+    `${repoRoot}/vite.config.ts`,
   );
   const tasks = loaded?.config.run?.tasks;
   assert(tasks);
   return tasks;
 };
 
-test("CI retains core checks while presentation and tooling self-tests are deferred", async () => {
+test("retired CI shortcuts and deferred workflow are removed", async () => {
   const tasks = await loadTasks();
-  const ready = tasks.ready;
-  assert(ready && typeof ready === "object" && !Array.isArray(ready));
+  expect(tasks["ready:ci"]).toBeUndefined();
+  expect(tasks["ready:tests:ci"]).toBeUndefined();
+  expect(tasks["ready:runtime:ci"]).toBeUndefined();
+  expect(existsSync(`${repoRoot}/.github/workflows/deferred.yml`)).toBe(false);
 
-  expect(tasks["ready:ci"]).toEqual({
-    command: "vp run test:ci",
-    dependsOn: ready.dependsOn
-      ?.filter((task) => task !== "ready:tooling")
-      .map((task) => (task === "ready:runtime" || task === "ready:tests" ? `${task}:ci` : task)),
-    cache: false,
-  });
-  expect(ready.command).toBe("vp run test:checks");
-  expect(tasks["ready:tests:ci"]).toEqual({
-    command:
-      "vp run --parallel --concurrency-limit 4 --filter '@merit/*' --filter '!@merit/storybook' test --project '!browser' --exclude '**/*.test.tsx' --passWithNoTests",
+  const browserConfig = await readFile(`${repoRoot}/tooling/testing/browser/config.ts`, "utf8");
+  expect(browserConfig).not.toContain("MERIT_BROWSER_RETRIES");
+  expect(browserConfig).toContain("retries: 0");
+});
+
+test("ready:tests caps package concurrency cleanly", async () => {
+  const tasks = await loadTasks();
+  expect(tasks["ready:tests"]).toEqual({
+    command: "vp run -r --parallel --concurrency-limit 2 test",
     dependsOn: ["ready:build"],
     cache: false,
   });
-  expect(tasks["ready:runtime:ci"]).toEqual({
-    command: "vp run @merit/app#test:integration",
-    dependsOn: ["ready:tests:ci"],
-    cache: false,
-  });
-  expect(tasks["ready:static"]).toHaveProperty(
-    "command",
-    expect.arrayContaining(["vp run architecture"]),
-  );
-  expect(tasks["ready:tests"]).toHaveProperty("dependsOn", ["ready:build"]);
-  expect(tasks["ready:runtime"]).toHaveProperty(
-    "command",
-    expect.arrayContaining(["vp run test:browser:all", "vp run @merit/app#test:workspace:all"]),
-  );
 });
 
-test("deferred verification runs every ready stage after a build, even when a stage fails", async () => {
+test("CI verify workflow covers every ready stage and sharded browser suite without retries", async () => {
   const tasks = await loadTasks();
   const ready = tasks.ready;
   assert(ready && typeof ready === "object" && !Array.isArray(ready) && ready.dependsOn);
-  const stages = ready.dependsOn.filter((stage) => typeof stage === "string");
-  expect(stages).toHaveLength(ready.dependsOn.length);
-  const workflow = await readFile(
-    new URL("../../.github/workflows/deferred.yml", import.meta.url),
-    "utf8",
-  );
+  const workflow = await readFile(`${repoRoot}/.github/workflows/verify.yml`, "utf8");
+  const ruleset = JSON.parse(await readFile(`${repoRoot}/.github/rulesets/main.json`, "utf8")) as {
+    rules: Array<{
+      type: string;
+      parameters?: { required_status_checks?: Array<{ context: string }> };
+    }>;
+  };
 
-  expect(workflow).toContain("vp run --no-cache ready:build ");
-  expect(
-    [...workflow.matchAll(/vp run --no-cache --ignore-depends-on (\S+)/g)].map(([, task]) => task),
-  ).toEqual([...stages, "ready"]);
-  // Stages run without their dependencies, so each may depend only on the build or earlier stages.
-  stages.forEach((stage, index) => {
-    const task = tasks[stage];
-    assert(task, stage);
-    if (typeof task !== "object" || Array.isArray(task)) {
-      return;
-    }
-    expect(["ready:build", ...stages.slice(0, index)]).toEqual(
-      expect.arrayContaining(task.dependsOn ?? []),
+  expect(workflow).not.toContain("ready:ci");
+  expect(workflow).not.toContain("MERIT_BROWSER_RETRIES");
+
+  // Required check context from .github/rulesets/main.json must stay the aggregator job.
+  const requiredContexts = ruleset.rules
+    .filter((rule) => rule.type === "required_status_checks")
+    .flatMap(
+      (rule) => rule.parameters?.required_status_checks?.map((check) => check.context) ?? [],
     );
-  });
-  expect(
-    workflow.match(/if: \$\{\{ !cancelled\(\) && steps\.build\.outcome == 'success' \}\}/g),
-  ).toHaveLength(stages.length + 1);
+  expect(requiredContexts).toContain("verify");
+
+  // Every required stage/command in `ready` is explicitly executed across verify.yml jobs.
+  expect(workflow).toContain("vp run --no-cache ready:build");
+  expect(workflow).toContain("vp run --no-cache --ignore-depends-on ready:static");
+  expect(workflow).toContain("vp run --no-cache check:security");
+  expect(workflow).toContain("--filter '@merit/*' --filter '!@merit/storybook' test");
+  expect(workflow).toContain("vp run --no-cache @merit/storybook#test");
+  expect(workflow).toContain("vp run --no-cache @merit/app#test:integration");
+  expect(workflow).toContain("vp run --no-cache test:browser:tooling:all");
+  expect(workflow).toContain(
+    "vp run --no-cache test:browser:stories:all --shard=${{ matrix.shard }}",
+  );
+  expect(workflow).toContain("vp run --no-cache test:browser:app:all --shard=${{ matrix.shard }}");
+  expect(workflow).toContain(
+    "vp run --no-cache @merit/app#test:workspace:all --shard=${{ matrix.shard }}",
+  );
+  expect(workflow).toContain("vp run --no-cache ready:tooling");
+  expect(workflow).toContain("vp run --no-cache test:checks");
+
+  // External actions and container images must remain pinned by digest/SHA.
+  for (const [, ref] of workflow.matchAll(/^\s+uses:\s+(\S+)/gm)) {
+    assert(ref);
+    if (ref.startsWith("docker://")) {
+      expect(ref).toMatch(/@sha256:[0-9a-f]{64}$/);
+    } else {
+      expect(ref).toMatch(/@[0-9a-f]{40}$/);
+    }
+  }
+  for (const [, image] of workflow.matchAll(/^\s+(?:container|image):\s+(\S+)/gm)) {
+    assert(image);
+    expect(image).toMatch(/@sha256:[0-9a-f]{64}$/);
+  }
+
+  // Extract top-level job IDs under `jobs:` and ensure the `verify` aggregator awaits all others.
+  const jobsBlock = workflow.split(/^jobs:\r?\n/m)[1] ?? "";
+  const jobIds = [...jobsBlock.matchAll(/^  ([a-z0-9-]+):\r?$/gm)].map(([, id]) => id);
+  expect(jobIds).toContain("verify");
+
+  const verifyBlock = jobsBlock.split(/^  verify:\r?$/m)[1] ?? "";
+  const neededJobs = [...verifyBlock.matchAll(/^\s+-\s+([a-z0-9-]+)\r?$/gm)].map(([, id]) => id);
+  expect(neededJobs).toEqual(jobIds.filter((id) => id !== "verify"));
 });
