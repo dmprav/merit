@@ -2,19 +2,21 @@ import { assert, describe, expect, it } from "vite-plus/test";
 
 import type { RoundView } from "@merit/grantmaking/api";
 import { getExampleRound } from "@merit/grantmaking/examples";
-import { makeApplication } from "@merit/grantmaking/testing/fixtures";
-import { encodeMoney } from "@merit/money";
 
 import { en } from "../../app/messages.en";
 import { createLandingPreview } from "./landing-preview";
 
 describe("landing preview", () => {
   it("shows the example's recommendations and the earlier review beside current evidence", () => {
-    const preview = createLandingPreview(getExampleRound());
+    const round = getExampleRound();
+    const preview = createLandingPreview(round);
 
     expect(preview.round.applications).toHaveLength(3);
-    expect(encodeMoney(preview.round.totals.proposed).minorUnits).toBe("5200000");
-    expect(encodeMoney(preview.round.totals.remaining).minorUnits).toBe("800000");
+    expect(preview.round.totals).toEqual({
+      requested: round.totals.requested,
+      proposed: round.totals.proposed,
+      remaining: round.totals.remaining,
+    });
     expect(preview.round.applications.find((item) => item.id === "A3")).toMatchObject({
       title: "Workshop Saturdays",
       reviews: { current: 0, outdated: 1, outstanding: 1, unknown: 0 },
@@ -53,7 +55,7 @@ describe("landing preview", () => {
       status: "current",
       submission: {
         ...earlierAssessment.submission,
-        applicationVersion: makeApplication({ version: 2 }).version,
+        applicationVersion: workshop.version,
         reasoning: "Current review",
       },
     });
