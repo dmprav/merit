@@ -19,6 +19,43 @@ import type { EmailSender } from "./email-delivery.server";
 import type { OrganizationIdentity } from "./identity.server";
 import { sendInvitationEmail } from "./invitation-email.server";
 
+const createGrantmakingServices = (
+  database: <T>(operation: (db: Database) => Promise<T>) => Promise<T>,
+) => {
+  const grantmakingQueries = instrumentService(
+    "grantmaking",
+    createGrantmakingService({ database }),
+  );
+  const rounds = instrumentService(
+    "rounds",
+    createRoundsService({ database, roundHasApplications }),
+  );
+  const applications = instrumentService(
+    "applications",
+    createApplicationsService({ database, work: applicationWork }),
+  );
+  const recommendations = instrumentService(
+    "recommendations",
+    createRecommendationsService({ database }),
+  );
+  const reviews = instrumentService("reviews", createReviewService({ database }));
+
+  return {
+    grantmaking: {
+      ...grantmakingQueries,
+      ...rounds,
+      ...applications,
+      ...recommendations,
+      ...reviews,
+    },
+    grantmakingQueries,
+    rounds,
+    applications,
+    recommendations,
+    reviews,
+  };
+};
+
 export const createApplicationServices = ({
   database,
   identity,
@@ -32,27 +69,8 @@ export const createApplicationServices = ({
   networkAddress?: string;
   sendEmail: EmailSender;
 }) => {
-  const grantmakingQueries = instrumentService(
-    "grantmaking",
-    createGrantmakingService({ database }),
-  );
-  const rounds = instrumentService("rounds", createRoundsService({ database, roundHasApplications }));
-  const applications = instrumentService(
-    "applications",
-    createApplicationsService({ database, work: applicationWork }),
-  );
-  const recommendations = instrumentService(
-    "recommendations",
-    createRecommendationsService({ database }),
-  );
-  const reviews = instrumentService("reviews", createReviewService({ database }));
-  const grantmaking = {
-    ...grantmakingQueries,
-    ...rounds,
-    ...applications,
-    ...recommendations,
-    ...reviews,
-  };
+  const { grantmaking, grantmakingQueries, rounds, applications, recommendations, reviews } =
+    createGrantmakingServices(database);
   const navigation = instrumentService(
     "navigation",
     createNavigationService({ database, verifiedEmails: identity.verifiedEmails }),
