@@ -58,6 +58,8 @@ it.each([
       publicId: "k7m2p9x4n6rt",
       title: "Spring grants",
       decisionStatus: "Preparing",
+      manager: "Dana Reed",
+      managerNeedsReassignment: false,
       applicationCount: 0,
       meetingDate: null,
       budget: null,

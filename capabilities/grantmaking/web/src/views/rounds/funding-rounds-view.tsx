@@ -6,8 +6,33 @@ import { useFormat } from "@merit/i18n/format";
 import { DataTable, type TableColumn } from "@merit/tables";
 import { Badge } from "@merit/ui/badge";
 import { PageHeader } from "@merit/ui/page-header";
+import { PersonIdentity } from "@merit/ui/person-identity";
 
 import styles from "./funding-rounds-view.module.css";
+
+const ResponsibleManagerCell = ({ round }: { round: RoundSummary }) => {
+  const { t } = useTranslation("fundingRounds");
+  const manager = round.manager.trim();
+
+  if (!manager) {
+    return round.managerNeedsReassignment ? (
+      <Badge tone="warning">{t("rounds.needsAssignment")}</Badge>
+    ) : (
+      <>{t("preparation.unknownPerson")}</>
+    );
+  }
+
+  return (
+    <PersonIdentity
+      name={manager}
+      description={
+        round.managerNeedsReassignment ? (
+          <Badge tone="warning">{t("rounds.reassignmentNeeded")}</Badge>
+        ) : undefined
+      }
+    />
+  );
+};
 
 export const FundingRoundsView = ({
   rounds,
@@ -26,7 +51,7 @@ export const FundingRoundsView = ({
     {
       id: "round",
       header: t("rounds.round"),
-      layout: { width: "34%", primary: true },
+      layout: { width: "26%", primary: true },
       cell: (round) => (
         <>
           <div className={styles.title}>{renderRoundLink(round)}</div>
@@ -37,13 +62,19 @@ export const FundingRoundsView = ({
     {
       id: "status",
       header: t("round.status"),
-      layout: { width: "19%" },
+      layout: { width: "14%" },
       cell: (round) => <Badge>{round.decisionStatus}</Badge>,
+    },
+    {
+      id: "manager",
+      header: t("preparation.responsibleManager"),
+      layout: { width: "22%" },
+      cell: (round) => <ResponsibleManagerCell round={round} />,
     },
     {
       id: "applications",
       header: t("applications.title"),
-      layout: { width: "16%" },
+      layout: { width: "12%" },
       cell: (round) => (
         <span className={styles.applications}>
           {renderApplicationsLink(
@@ -56,7 +87,7 @@ export const FundingRoundsView = ({
     {
       id: "committee",
       header: t("round.committeeDate"),
-      layout: { width: "19%" },
+      layout: { width: "15%" },
       cell: (round) => (
         <>
           {round.meetingDate === null
@@ -68,7 +99,7 @@ export const FundingRoundsView = ({
     {
       id: "budget",
       header: t("rounds.budget"),
-      layout: { width: "12%", align: "end" },
+      layout: { width: "11%", align: "end" },
       cell: (round) => <>{round.budget === null ? t("preparation.notSet") : money(round.budget)}</>,
     },
   ];

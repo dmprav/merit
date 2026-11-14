@@ -79,6 +79,8 @@ const rounds = [
   organizationName: workspace.name,
   workspaceSlug: workspace.slug,
   decisionStatus: "Preparing",
+  manager: "Dana Reed",
+  managerNeedsReassignment: false,
   applicationCount: applications.filter((application) => application.roundId === round.publicId)
     .length,
   meetingDate: null,

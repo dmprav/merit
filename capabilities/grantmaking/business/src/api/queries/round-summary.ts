@@ -10,6 +10,8 @@ const summaryFields = {
   publicId: z.string().regex(/^[0-9a-hjkmnp-tv-z]{12}$/),
   title: z.string(),
   decisionStatus: z.string(),
+  manager: fundingRoundSchema.shape.manager,
+  managerNeedsReassignment: z.boolean(),
   applicationCount: z.number().int().nonnegative(),
   meetingDate: fundingRoundSchema.shape.meetingDate,
 };

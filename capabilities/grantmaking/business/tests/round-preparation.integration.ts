@@ -234,7 +234,11 @@ describe("funding-round preparation", () => {
     ).toMatchObject({ status: "ok", round: { roundId: first.publicId, budget: null } });
     const listed = await listFundingRounds(db, actor, workspaceSlug);
     assert(listed.status === "ok");
-    expect(listed.rounds.find((round) => round.publicId === first.publicId)?.budget).toBeNull();
+    expect(listed.rounds.find((round) => round.publicId === first.publicId)).toMatchObject({
+      budget: null,
+      manager: "Dana Reed",
+      managerNeedsReassignment: false,
+    });
     expect(
       await deleteFundingRound(
         db,
@@ -716,6 +720,51 @@ describe("funding-round preparation", () => {
     expect(
       (await getFundingRoundPage(db, { userId: "pat" }, { ...address, kind: "round" }))?.round,
     ).toMatchObject({ manager: "Dana Reed", managerNeedsReassignment: true });
+    const listed = await listFundingRounds(db, { userId: "pat" }, workspaceSlug);
+    assert(listed.status === "ok");
+    expect(listed.rounds.find((round) => round.publicId === address.publicId)).toMatchObject({
+      manager: "Dana Reed",
+      managerNeedsReassignment: true,
+    });
+  });
+
+  it("lists manager and reassignment state for active, former, and unassigned round managers", async ({
+    db,
+    database,
+  }) => {
+    const active = await create(db);
+    const former = await create(db);
+    const unassigned = await create(db);
+    await addManager(db);
+
+    const assigned = await editFundingRound(db, actor, {
+      ...active,
+      expectedRevision: 0,
+      change: { section: "manager", userId: "pat" },
+    });
+    assert(assigned.status === "ok");
+
+    await database.client.query("DELETE FROM memberships WHERE user_id = 'dana'");
+    await database.client.query(
+      "UPDATE funding_rounds SET manager_user_id = NULL, manager_name = '' WHERE id = $1",
+      [unassigned.publicId],
+    );
+
+    const listed = await listFundingRounds(db, { userId: "pat" }, workspaceSlug);
+    assert(listed.status === "ok");
+
+    expect(listed.rounds.find((round) => round.publicId === active.publicId)).toMatchObject({
+      manager: "Pat Taylor",
+      managerNeedsReassignment: false,
+    });
+    expect(listed.rounds.find((round) => round.publicId === former.publicId)).toMatchObject({
+      manager: "Dana Reed",
+      managerNeedsReassignment: true,
+    });
+    expect(listed.rounds.find((round) => round.publicId === unassigned.publicId)).toMatchObject({
+      manager: "",
+      managerNeedsReassignment: true,
+    });
   });
 });
 

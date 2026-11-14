@@ -175,6 +175,8 @@ it("returns exact metadata and tenant-scoped counts without reading application 
     title: "Community grants",
     meetingDate: "2027-04-15",
     decisionStatus: "Preparing",
+    manager: "Dana Reed",
+    managerNeedsReassignment: false,
     budget: { currency: "EUR", minorUnits: "10000" },
   });
   expect(

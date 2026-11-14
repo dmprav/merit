@@ -54,6 +54,8 @@ const rounds = [{ publicId: roundId, title: "Neighbourhood grants" }].map((round
   organizationName: workspace.name,
   workspaceSlug: workspace.slug,
   decisionStatus: "Preparing",
+  manager: "Dana Reed",
+  managerNeedsReassignment: false,
   applicationCount: 0,
   meetingDate: null,
   budget: null,

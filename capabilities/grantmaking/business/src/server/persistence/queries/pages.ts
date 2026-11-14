@@ -113,6 +113,8 @@ export const listRoundSummaries = (db: Database, userId: string, workspaceSlug: 
       publicId: fundingRounds.id,
       title: fundingRounds.title,
       decisionStatus: fundingRounds.decisionStatus,
+      manager: fundingRounds.managerName,
+      managerNeedsReassignment,
       meetingDate: fundingRounds.meetingDate,
       budget: moneyData(sql`${fundingRounds.budget}`),
       applicationCount: sql<number>`(select count(*)::integer from ${applicationCases} where ${applicationCases.organizationId} = ${fundingRounds.organizationId} and ${applicationCases.roundId} = ${fundingRounds.id})`,
