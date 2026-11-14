@@ -1,6 +1,7 @@
 import { and, eq, sql, desc } from "drizzle-orm";
 
 import { applicationCases } from "@merit/applications/schema";
+import { caseWithdrawn } from "@merit/applications/scope";
 import { recordAuditEvent } from "@merit/audit/server/record";
 import { actorProvenance, type Actor } from "@merit/auth";
 import { appUsers } from "@merit/auth/schema";
@@ -121,7 +122,7 @@ const lockManagedCaseAndActor = async (
   input: { publicId: string; assignmentId: string },
 ) => {
   const [lockedCase] = await tx
-    .select({ id: applicationCases.id })
+    .select({ id: applicationCases.id, withdrawn: caseWithdrawn })
     .from(applicationCases)
     .innerJoin(memberships, eq(memberships.organizationId, applicationCases.organizationId))
     .innerJoin(appUsers, eq(appUsers.id, memberships.userId))
@@ -161,7 +162,7 @@ const lockManagedCaseAndActor = async (
       ),
     )
     .for("share", { of: [memberships, appUsers] });
-  return actor ?? null;
+  return actor ? { ...actor, withdrawn: lockedCase.withdrawn } : null;
 };
 
 /**
@@ -333,6 +334,7 @@ export const updateParticipatingRequest = async (
   status: "outstanding" | "received" | "cancelled",
   actor: Actor,
   name: string,
+  cause?: "application_withdrawn",
 ) => {
   await tx
     .update(reviewRequests)
@@ -346,6 +348,7 @@ export const updateParticipatingRequest = async (
               name,
               provenance: actorProvenance(actor),
               recordedAt: new Date().toISOString(),
+              ...(cause ? { cause } : {}),
             },
     })
     .where(and(eq(reviewRequests.caseId, caseId), eq(reviewRequests.id, requestId)));

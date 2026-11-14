@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { materialVersionSchema } from "@merit/applications/domain";
 import { applicationCases } from "@merit/applications/schema";
-import { currentMaterial } from "@merit/applications/scope";
+import { currentMaterial, roundWithdrawnCount } from "@merit/applications/scope";
 import type { Provenance } from "@merit/auth";
 import type { Database } from "@merit/db";
 import { decodeMoney, moneyDataSchema } from "@merit/money";
@@ -34,6 +34,7 @@ export const readRecommendationState = async (
       application: sql<unknown>`jsonb_build_object('version', ${applicationCases.materialVersion}, 'managerRecommendation', ${currentRecommendation}, 'requested', (${currentMaterial})->'requested', 'intakeStatus', ${applicationCases.intakeStatus})`,
       round: sql<unknown>`jsonb_build_object('budget', ${sql`case when ${fundingRounds.budget} is null then null else jsonb_build_object('minorUnits', ${fundingRounds.budget}::text, 'currency', ${fundingRounds.currency}) end`})`,
       allocations: roundAllocations,
+      withdrawnApplications: roundWithdrawnCount(fundingRounds),
       recommendationVersion: recommendationRevision,
     })
     .from(applicationCases)
@@ -73,6 +74,7 @@ export const readRecommendationState = async (
     round: decodeBudgetContext(
       z.object({ budget: z.unknown() }).parse(row.round).budget,
       row.allocations,
+      row.withdrawnApplications,
     ),
   };
 };

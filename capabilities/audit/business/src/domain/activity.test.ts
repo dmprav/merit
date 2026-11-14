@@ -37,7 +37,7 @@ describe("activity input", () => {
   const input = { targetTypes: ["round", "application"] };
 
   it("defaults to a full page of the whole workspace", () => {
-    expect(activityInputSchema.parse(input)).toEqual({ ...input, limit: 50 });
+    expect(activityInputSchema.parse(input)).toEqual({ ...input, reasonActions: [], limit: 50 });
   });
 
   it("accepts a person, historical round and continuation", () => {
@@ -46,6 +46,7 @@ describe("activity input", () => {
       actorUserId: "dana",
       roundId: "round1",
       after: encodeActivityCursor(cursor),
+      reasonActions: ["application.withdraw"],
       limit: 10,
     };
 
@@ -61,6 +62,7 @@ describe("activity input", () => {
     { roundId: "" },
     { targetTypes: [] },
     { targetTypes: Array.from({ length: 21 }, () => "round") },
+    { reasonActions: [""] },
     { organizationId: "alder" },
     { workspaceSlug: "alder" },
   ])("rejects %j", (change) => {

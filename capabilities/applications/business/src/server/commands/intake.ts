@@ -16,6 +16,7 @@ import {
   requestedTotalProblem,
   withIntakeContact,
 } from "../../domain/intake-recording";
+import { isWithdrawn } from "../../domain/model";
 import type { ApplicationWork } from "../grant-work";
 import {
   findIntakeApplication,
@@ -123,9 +124,7 @@ export const editFundingApplication = async (
       tx,
       actor.userId,
       request,
-      request.change.action === "save_content" || request.change.action === "publish_revision"
-        ? "update"
-        : "share",
+      amountChanges(request.change) ? "update" : "share",
     );
     if (!access) {
       return { status: "not_found" } as const;
@@ -140,11 +139,11 @@ export const editFundingApplication = async (
     }
 
     const { application, workingRevision: draft } = row;
-    const author = {
-      userId: access.actor.userId,
-      name: access.actor.name ?? access.actor.email ?? "",
-      recordedAt: new Date().toISOString(),
-    };
+    const author = intakeAuthor(access.actor);
+    // A withdrawn case rejects every change but reinstatement before contact eligibility matters.
+    if (isWithdrawn(application) && request.change.action !== "reinstate") {
+      return { status: "invalid", error: "application_withdrawn" } as const;
+    }
     const contactChange = await resolveIntakeContactChange(
       tx,
       access.organizationId,
@@ -167,7 +166,7 @@ export const editFundingApplication = async (
     if (!result.ok) {
       return { status: "invalid", error: result.error } as const;
     }
-    const problem = await intakeTotalProblem(tx, row, request.change, result.application);
+    const problem = await intakeTotalProblem(tx, work, row, request.change, result.application);
     if (problem) {
       return { status: "invalid", error: problem } as const;
     }
@@ -184,6 +183,7 @@ export const editFundingApplication = async (
       },
       actor,
     );
+    await closeReviewsOnWithdrawal(tx, work, request, { actor, name: author.name });
 
     return { status: "ok", revision } as const;
   };
@@ -191,19 +191,48 @@ export const editFundingApplication = async (
   return db.transaction(editIntakeTransaction);
 };
 
+const intakeAuthor = (person: { userId: string; name: string | null; email: string | null }) => ({
+  userId: person.userId,
+  name: person.name ?? person.email ?? "",
+  recordedAt: new Date().toISOString(),
+});
+
+const closeReviewsOnWithdrawal = async (
+  tx: Transaction,
+  work: ApplicationWork,
+  request: EditApplicationRequest,
+  closing: { actor: Actor; name: string },
+) => {
+  if (request.change.action === "withdraw") {
+    await work.closeReviewsForWithdrawal(tx, { ...closing, caseId: request.publicId });
+  }
+};
+
+const amountChanges = (change: EditApplicationRequest["change"]) =>
+  change.action === "save_content" ||
+  change.action === "publish_revision" ||
+  change.action === "reinstate";
+
 const intakeTotalProblem = async (
   tx: Transaction,
+  work: ApplicationWork,
   row: NonNullable<Awaited<ReturnType<typeof findIntakeApplication>>>,
   change: EditApplicationRequest["change"],
   application: Parameters<typeof requestedTotalProblem>[1],
 ) => {
-  if (
-    row.roundId === null ||
-    (change.action !== "save_content" && change.action !== "publish_revision")
-  ) {
+  if (row.roundId === null || !amountChanges(change)) {
     return null;
   }
 
   const requests = await readRequestedAmounts(tx, row.organizationId, row.roundId);
-  return requestedTotalProblem(requests, application);
+  const problem = requestedTotalProblem(requests, application);
+  if (problem || change.action !== "reinstate") {
+    return problem;
+  }
+  // A reinstated recommendation counts toward the round's proposed allocations again.
+  return work.allocationTotalProblem(tx, {
+    organizationId: row.organizationId,
+    roundId: row.roundId,
+    caseId: row.id,
+  });
 };

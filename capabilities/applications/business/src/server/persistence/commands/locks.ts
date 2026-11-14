@@ -6,6 +6,7 @@ import { memberships, organizations } from "@merit/organizations/schema";
 import { organizationScope } from "@merit/organizations/scope";
 import { fundingRounds } from "@merit/rounds/schema";
 
+import { caseWithdrawn } from "../projections";
 import { applicationCases } from "../schema";
 
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
@@ -53,7 +54,7 @@ export const lockApplicationCase = async (
   }
 
   const [lockedCase] = await db
-    .select({ id: applicationCases.id })
+    .select({ id: applicationCases.id, withdrawn: caseWithdrawn })
     .from(applicationCases)
     .innerJoin(memberships, eq(memberships.organizationId, applicationCases.organizationId))
     .innerJoin(appUsers, eq(appUsers.id, memberships.userId))
@@ -85,7 +86,18 @@ export const lockApplicationCase = async (
         organizationId: workspace.id,
         organizationKind: workspace.kind,
         roundId: identity.roundId,
+        // The case lock is held, so this reading of withdrawal cannot change before commit.
+        withdrawn: lockedCase.withdrawn,
         actor,
       }
     : null;
+};
+
+/** Reads withdrawal for a case the caller has already locked. */
+export const readCaseWithdrawn = async (db: Transaction, caseId: string) => {
+  const [row] = await db
+    .select({ withdrawn: caseWithdrawn })
+    .from(applicationCases)
+    .where(eq(applicationCases.id, caseId));
+  return row?.withdrawn ?? false;
 };

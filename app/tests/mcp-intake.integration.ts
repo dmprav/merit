@@ -118,6 +118,95 @@ it("deletes unused preparation", async ({ db, commands: { invoke, applicationSce
   expect(await getFundingApplicationPage(db, actor, scenario.address)).toBeNull();
 });
 
+it("withdraws an application and reinstates it through the same operation as the web", async ({
+  commands: { invoke, applicationScenario },
+}) => {
+  const scenario = await applicationScenario();
+  await scenario.change({ action: "mark_ready" });
+  const args = await scenario.args();
+
+  expect(
+    await invoke("withdraw_application", {
+      ...args,
+      withdrawnOn: "2020-01-15",
+      reason: "The applicant found other funding.",
+    }),
+  ).toEqual({
+    status: "ok",
+    applicationId: args.applicationId,
+    intakeRevision: args.expectedIntakeRevision + 1,
+  });
+  const withdrawn = await scenario.read();
+  expect(withdrawn.application).toMatchObject({
+    intakeStatus: "ready",
+    withdrawal: {
+      withdrawnOn: "2020-01-15",
+      reason: "The applicant found other funding.",
+      recorder: { name: "Dana Reed" },
+    },
+  });
+  expect(withdrawn.intake.history[0]).toMatchObject({
+    action: "application.withdraw",
+    provenance: { interface: "mcp", clientId: "integration-client" },
+  });
+
+  // Every other write is rejected with the typed error; only reinstatement is allowed.
+  expect(
+    await invoke("edit_application", {
+      ...(await scenario.args()),
+      change: { action: "details", summary: "Too late" },
+    }),
+  ).toMatchObject({ status: "invalid", error: "application_withdrawn" });
+  expect(await invoke("mark_application_ready", await scenario.args())).toMatchObject({
+    status: "invalid",
+    error: "application_withdrawn",
+  });
+  expect(
+    await invoke("withdraw_application", {
+      ...(await scenario.args()),
+      withdrawnOn: "2020-01-16",
+      reason: "Again",
+    }),
+  ).toMatchObject({
+    status: "invalid",
+    error: "application_withdrawn",
+  });
+
+  const reinstateArgs = await scenario.args();
+  expect(
+    await invoke("reinstate_application", { ...reinstateArgs, reason: "The applicant returned." }),
+  ).toEqual({
+    status: "ok",
+    applicationId: args.applicationId,
+    intakeRevision: reinstateArgs.expectedIntakeRevision + 1,
+  });
+  expect((await scenario.read()).application).not.toHaveProperty("withdrawal");
+  expect(
+    await invoke("reinstate_application", { ...(await scenario.args()), reason: "Once more" }),
+  ).toMatchObject({ status: "invalid", error: "application_not_withdrawn" });
+});
+
+it("rejects a stale or future-dated withdrawal", async ({
+  commands: { invoke, applicationScenario },
+}) => {
+  const scenario = await applicationScenario();
+  const stale = await scenario.args();
+  await scenario.change({ action: "details", summary: "A colleague's summary" });
+  const input = { withdrawnOn: "2020-01-15", reason: "Stepped back" };
+
+  expect(await invoke("withdraw_application", { ...stale, ...input })).toEqual({
+    status: "conflict",
+  });
+  expect(
+    await invoke("withdraw_application", {
+      ...(await scenario.args()),
+      ...input,
+      withdrawnOn: "9999-12-31",
+    }),
+  ).toMatchObject({ status: "invalid", error: "withdrawal_date_in_future" });
+  expect((await scenario.read()).application).not.toHaveProperty("withdrawal");
+});
+
 it.for([
   {
     action: "save_content",

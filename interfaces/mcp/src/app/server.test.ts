@@ -22,6 +22,7 @@ const round = {
   totals: {
     requested: { minorUnits: "1000", currency: "EUR" as const },
     unknownRequests: 1,
+    withdrawnApplications: 0,
     proposed: { minorUnits: "0", currency: "EUR" as const },
     remaining: { minorUnits: "9007199254740993", currency: "EUR" as const },
   },
@@ -30,7 +31,7 @@ const round = {
 describe("workspace MCP contracts", () => {
   it("discovers explicit workflows, validates round requests and preserves exact financial totals", async () => {
     const operations = testOperations();
-    operations.workspace.readRound.mockResolvedValue({ status: "ok", round });
+    vi.mocked(operations.grantmaking.readRound).mockResolvedValue({ status: "ok", round });
     const client = await connect(operations);
     try {
       const names = (await client.listTools()).tools.map((tool) => tool.name);
@@ -42,6 +43,8 @@ describe("workspace MCP contracts", () => {
           "get_application_content",
           "start_application_revision",
           "publish_application_revision",
+          "withdraw_application",
+          "reinstate_application",
           "delete_application",
           "request_review",
           "record_assessment",
@@ -104,7 +107,7 @@ describe("workspace MCP contracts", () => {
     expect(response.headers.get("WWW-Authenticate")).toContain('error="insufficient_scope"');
     expect(response.headers.get("WWW-Authenticate")).toContain("grants:write");
     expect(response.headers.get("WWW-Authenticate")).toContain("resource_metadata=");
-    expect(operations.workspace.createRound).not.toHaveBeenCalled();
+    expect(operations.rounds.createRound).not.toHaveBeenCalled();
   });
   it("does not allow deletion through the ordinary edit tool", async () => {
     const operations = testOperations();
@@ -123,14 +126,14 @@ describe("workspace MCP contracts", () => {
           })
         ).isError,
       ).toBe(true);
-      expect(operations.workspace.editApplication).not.toHaveBeenCalled();
+      expect(operations.applications.editApplication).not.toHaveBeenCalled();
     } finally {
       await client.close();
     }
   });
   it("publishes contact results without internal organization identifiers", async () => {
     const operations = testOperations();
-    operations.workspace.changeContact.mockResolvedValue({
+    vi.mocked(operations.contacts.changeContact).mockResolvedValue({
       status: "ok",
       contact: {
         id: contactId,
@@ -166,7 +169,7 @@ describe("workspace MCP contracts", () => {
   });
   it("preserves business conflicts and hides unexpected failures", async () => {
     const operations = testOperations();
-    operations.workspace.editRound
+    vi.mocked(operations.rounds.editRound)
       .mockResolvedValueOnce({ status: "conflict" })
       .mockRejectedValueOnce(new Error("private database detail"));
     const client = await connect(operations);
@@ -196,7 +199,7 @@ describe("workspace MCP contracts", () => {
     { status: "forbidden" as const },
   ])("retains round listing outcome $status", async (outcome) => {
     const operations = testOperations();
-    operations.workspace.listRounds.mockResolvedValue(outcome);
+    vi.mocked(operations.grantmaking.listRoundSummaries).mockResolvedValue(outcome);
     const client = await connect(operations);
     try {
       expect(
@@ -216,6 +219,7 @@ describe("workspace MCP contracts", () => {
     const entry = {
       id: "00000000-0000-4000-a000-000000000009",
       recordedAt: "2027-01-20T12:00:00.000Z",
+      reason: null,
       actor: null,
       provenance: { interface: "mcp" as const, clientId: "grant-assistant" },
       action: "round.budget_changed",
@@ -228,7 +232,7 @@ describe("workspace MCP contracts", () => {
         applicationId: null,
       },
     };
-    operations.workspace.listWorkspaceActivity.mockResolvedValue({
+    vi.mocked(operations.grantmaking.listWorkspaceActivity).mockResolvedValue({
       status: "ok",
       entries: [
         { ...entry, record: { kind: "round", id, title: "Local Connections" } },
@@ -255,7 +259,7 @@ describe("workspace MCP contracts", () => {
         },
       });
 
-      expect(operations.workspace.listWorkspaceActivity).toHaveBeenCalledWith(actor, {
+      expect(operations.grantmaking.listWorkspaceActivity).toHaveBeenCalledWith(actor, {
         workspaceSlug: "alder",
         roundId: id,
         personId: "dana",
@@ -307,7 +311,7 @@ describe("workspace MCP contracts", () => {
             })
           ).isError,
         ).toBe(true);
-        expect(operations.workspace.listWorkspaceActivity).not.toHaveBeenCalled();
+        expect(operations.grantmaking.listWorkspaceActivity).not.toHaveBeenCalled();
       } finally {
         await client.close();
       }
@@ -319,7 +323,7 @@ describe("workspace MCP contracts", () => {
     { status: "invalid" as const },
   ])("retains activity outcome $status", async (outcome) => {
     const operations = testOperations();
-    operations.workspace.listWorkspaceActivity.mockResolvedValue(outcome);
+    vi.mocked(operations.grantmaking.listWorkspaceActivity).mockResolvedValue(outcome);
     const client = await connect(operations);
     try {
       expect(
@@ -357,12 +361,12 @@ describe("workspace MCP contracts", () => {
     );
     expect(response.status).toBe(403);
     expect(response.headers.get("WWW-Authenticate")).toContain("workspace:read");
-    expect(operations.workspace.listWorkspaceActivity).not.toHaveBeenCalled();
+    expect(operations.grantmaking.listWorkspaceActivity).not.toHaveBeenCalled();
   });
   it("publishes only contracted fields in identical text and structured results", async () => {
     const operations = testOperations();
     const source = { ...round, private: "private detail" };
-    operations.workspace.readRound.mockResolvedValue({ status: "ok", round: source });
+    vi.mocked(operations.grantmaking.readRound).mockResolvedValue({ status: "ok", round: source });
     const client = await connect(operations);
     try {
       const result = await client.callTool({
@@ -387,7 +391,7 @@ describe("workspace MCP contracts", () => {
     { name: "incomplete error", fields: { status: "invalid" } },
   ])("contains $name and records a safe diagnostic", async ({ fields }) => {
     const operations = testOperations();
-    operations.workspace.createRound.mockResolvedValue(
+    vi.mocked(operations.rounds.createRound).mockResolvedValue(
       Object.assign({ status: "ok" as const, publicId: id }, fields),
     );
     const log = vi.spyOn(console, "error").mockImplementation(() => {});

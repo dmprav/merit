@@ -18,6 +18,7 @@ import {
   recommendationPositions,
   recommendationLimits,
   previewRecommendation,
+  canChangeRecommendation,
 } from "@merit/recommendations/domain";
 import { Button } from "@merit/ui/button";
 import { Icon } from "@merit/ui/icon";
@@ -71,6 +72,7 @@ export const RecommendationEditor = ({
 }: RecommendationEditorProps) => {
   const { t } = useTranslation("fundingRecommendations");
   const { managerRecommendation: recommendation } = application;
+  const withdrawn = !canChangeRecommendation(application);
   const editButton = useRef<HTMLButtonElement>(null);
   const restoreFocus = useRef(false);
   const { isEditing, isSaving, isOpen, canResume, open, close, save } = useRecommendationEditor({
@@ -94,7 +96,7 @@ export const RecommendationEditor = ({
   const action = (
     <RecommendationAction
       application={application}
-      disabled={disabled}
+      disabled={disabled || withdrawn}
       showActionLabel={showActionLabel}
       canResume={canResume}
       isOpen={isOpen}
@@ -121,7 +123,7 @@ export const RecommendationEditor = ({
     </Button>
   );
   const editor =
-    isEditing && draft ? (
+    isEditing && draft && !withdrawn ? (
       <RecommendationForm
         application={application}
         round={round}
@@ -366,6 +368,11 @@ const RecommendationBudget = ({
             : "—"}
         </strong>
       </p>
+      {round.totals.withdrawnApplications > 0 && (
+        <p className={localStyles.budgetNote}>
+          {t("editor.withdrawnNotCounted", { count: round.totals.withdrawnApplications })}
+        </p>
+      )}
       <form.Subscribe selector={(state) => [state.values.position, state.values.amount] as const}>
         {([position, amount]) => {
           const allocation = position === "Defer" ? zeroAllocation : parseMoneyInput(amount);

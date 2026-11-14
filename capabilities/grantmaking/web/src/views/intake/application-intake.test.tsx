@@ -9,7 +9,7 @@ import type { IntakeData, IntakeState } from "@merit/applications-web/contracts"
 import { ApplicationIntake, type IntakeSession } from "@merit/applications-web/work";
 import { prepareIntakeChange } from "@merit/applications/domain";
 import { roundView, applicationView } from "@merit/grantmaking/api";
-import { makeApplication, makeRound } from "@merit/grantmaking/testing/fixtures";
+import { makeApplication, makeReviewRequest, makeRound } from "@merit/grantmaking/testing/fixtures";
 import { MessagesProvider } from "@merit/i18n";
 import { fromMinorUnits } from "@merit/money";
 import { createQueryClient } from "@merit/query";
@@ -53,11 +53,12 @@ const renderIntake = (
   refresh = vi.fn<IntakeData["refresh"]>().mockResolvedValue(undefined),
   storageScope?: string,
   messages: ResourceLanguage = grantmakingMessages,
+  base = original,
 ) => {
   const calls = vi.fn<IntakeData["save"]>();
 
   const Harness = () => {
-    const [application, setApplication] = useState(original);
+    const [application, setApplication] = useState(base);
     const [intake, setIntake] = useState<IntakeState>({
       revision: 0,
       workingRevision: null,
@@ -89,8 +90,10 @@ const renderIntake = (
         return { status: "invalid", error: result.error };
       }
 
+      // Reinstatement omits `withdrawal`, so it must not survive from the previous record.
+      const { withdrawal: _withdrawal, ...current } = application;
       setApplication(
-        roundView({ ...round, applications: [{ ...application, ...result.application }] })
+        roundView({ ...round, applications: [{ ...current, ...result.application }] })
           .applications[0]!,
       );
       setIntake({ ...intake, revision: revision + 1, workingRevision: result.workingRevision });
@@ -477,4 +480,147 @@ it("preserves a title correction when the committed start cannot refresh", async
   );
   expect(screen.getByRole("alert")).toHaveTextContent("Your change was saved");
   expect(calls).toHaveBeenCalledTimes(1);
+});
+
+const outstandingRequest = (id: string) =>
+  makeReviewRequest({ id, contactId: `contact-${id}`, reviewer: `Reviewer ${id}` });
+
+const openWithdrawal = async (user: ReturnType<typeof userEvent.setup>) => {
+  await user.click(await screen.findByRole("button", { name: "Application actions" }));
+  await user.click(await screen.findByRole("menuitem", { name: "Withdraw application" }));
+  return screen.findByRole("dialog", { name: "Withdraw application: Workshop Saturdays" });
+};
+
+it("withdraws with a date and reason, then offers only reinstatement while the case is read-only", async () => {
+  const { user, calls } = renderIntake();
+  expect(screen.getByRole("button", { name: "Edit summary" })).toBeVisible();
+  const dialog = within(await openWithdrawal(user));
+
+  // The dialog explains what is kept, and omits the review sentence when nothing is outstanding.
+  expect(
+    dialog.getByText(/The application, its material, reviews, and recommendation are kept/),
+  ).toBeVisible();
+  expect(dialog.getByText(/Withdrawal is not a rejection/)).toBeVisible();
+  expect(dialog.queryByText(/outstanding review request/)).not.toBeInTheDocument();
+  expect(dialog.getByText(/Withdrawal is not a rejection\.$/)).toBeVisible();
+  expect(dialog.getByRole("textbox", { name: /Withdrawal date/ })).toHaveValue(
+    new Date().toLocaleDateString("sv"),
+  );
+
+  await user.click(dialog.getByRole("button", { name: "Withdraw application" }));
+  expect(dialog.getByText("Enter the reason for withdrawing.")).toBeVisible();
+  expect(calls).not.toHaveBeenCalled();
+
+  const date = dialog.getByRole("textbox", { name: /Withdrawal date/ });
+  await user.clear(date);
+  await user.type(date, "2020-03-04");
+  await user.type(
+    dialog.getByRole("textbox", { name: /Reason/ }),
+    "  The applicant found other funding.  ",
+  );
+  await user.click(dialog.getByRole("button", { name: "Withdraw application" }));
+
+  await waitFor(() => expect(calls).toHaveBeenCalledOnce());
+  expect(calls).toHaveBeenCalledWith(
+    {
+      action: "withdraw",
+      withdrawnOn: "2020-03-04",
+      reason: "The applicant found other funding.",
+    },
+    0,
+  );
+  expect(await screen.findByRole("button", { name: "Reinstate application" })).toBeVisible();
+  expect(screen.getByText("Withdrawn")).toBeVisible();
+  expect(screen.getByText("Withdrawn on 4 March 2020")).toBeVisible();
+  expect(screen.getByText("Recorded by Dana Reed")).toBeVisible();
+  expect(screen.getByText("The applicant found other funding.")).toBeVisible();
+  expect(screen.queryByText("Ready for review")).not.toBeInTheDocument();
+
+  // Every edit affordance is gone; the content stays readable.
+  for (const name of [
+    "Edit applicant submission",
+    "Edit application details",
+    "Edit summary",
+    "Mark ready for review",
+  ]) {
+    expect(screen.queryByRole("button", { name })).not.toBeInTheDocument();
+  }
+  expect(screen.queryByRole("button", { name: "Rename application" })).not.toBeInTheDocument();
+  expect(screen.getByText("Weekly repairs.")).toBeVisible();
+  await user.click(screen.getByRole("button", { name: "Application actions" }));
+  expect(screen.queryByRole("menuitem", { name: "Withdraw application" })).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("menuitem", { name: "Start revised submission" }),
+  ).not.toBeInTheDocument();
+  await user.keyboard("{Escape}");
+
+  await user.click(screen.getByRole("button", { name: "Reinstate application" }));
+  const reinstate = within(
+    await screen.findByRole("dialog", { name: "Reinstate application: Workshop Saturdays" }),
+  );
+  expect(reinstate.getByText(/Review requests closed by the withdrawal stay closed/)).toBeVisible();
+  expect(reinstate.queryByRole("textbox", { name: /Withdrawal date/ })).not.toBeInTheDocument();
+  await user.click(reinstate.getByRole("button", { name: "Reinstate application" }));
+  expect(reinstate.getByText("Enter the reason for reinstating.")).toBeVisible();
+  expect(calls).toHaveBeenCalledOnce();
+
+  await user.type(reinstate.getByRole("textbox", { name: /Reason/ }), "The applicant returned.");
+  await user.click(reinstate.getByRole("button", { name: "Reinstate application" }));
+
+  await waitFor(() => expect(calls).toHaveBeenCalledTimes(2));
+  expect(calls).toHaveBeenLastCalledWith(
+    { action: "reinstate", reason: "The applicant returned." },
+    1,
+  );
+  expect(await screen.findByRole("button", { name: "Edit summary" })).toBeVisible();
+  expect(screen.queryByText("Withdrawn")).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Application actions" }));
+  expect(await screen.findByRole("menuitem", { name: "Withdraw application" })).toBeVisible();
+  expect(screen.getByRole("menuitem", { name: "Start revised submission" })).toBeVisible();
+});
+
+it("states how many outstanding review requests will close", async () => {
+  const withRequests = applicationView({
+    ...original,
+    reviews: {
+      ...original.reviews,
+      requests: [outstandingRequest("one"), outstandingRequest("two")],
+    },
+  });
+  const { user } = renderIntake(undefined, undefined, undefined, withRequests);
+
+  expect(await openWithdrawal(user)).toHaveAccessibleDescription(
+    /Withdrawal is not a rejection\. 2 outstanding review requests will close, and their reviewers’ access will end\./,
+  );
+});
+
+it("rejects a future withdrawal date before sending", async () => {
+  const { user, calls } = renderIntake();
+  const dialog = within(await openWithdrawal(user));
+  const date = dialog.getByRole("textbox", { name: /Withdrawal date/ });
+  await user.clear(date);
+  await user.type(date, "9999-12-31");
+  await user.type(dialog.getByRole("textbox", { name: /Reason/ }), "Stepped back");
+  await user.click(dialog.getByRole("button", { name: "Withdraw application" }));
+
+  expect(dialog.getByText("The withdrawal date cannot be in the future.")).toBeVisible();
+  expect(calls).not.toHaveBeenCalled();
+});
+
+it("keeps the dialog open with the failure, and with the revision seen when it opened", async () => {
+  const { user, calls } = renderIntake();
+  const dialog = within(await openWithdrawal(user));
+  calls.mockResolvedValueOnce({ status: "invalid", error: "application_in_use" });
+  await user.type(dialog.getByRole("textbox", { name: /Reason/ }), "Stepped back");
+  await user.click(dialog.getByRole("button", { name: "Withdraw application" }));
+
+  await waitFor(() => expect(calls).toHaveBeenCalledOnce());
+  expect(await dialog.findByRole("alert")).toHaveTextContent(/can be deleted/);
+  expect(dialog.getByRole("textbox", { name: /Reason/ })).toHaveValue("Stepped back");
+
+  calls.mockResolvedValueOnce({ status: "conflict" });
+  await user.click(dialog.getByRole("button", { name: "Withdraw application" }));
+  await waitFor(() => expect(calls).toHaveBeenCalledTimes(2));
+  expect(await dialog.findByText(/This application has changed\. Close this dialog/)).toBeVisible();
+  expect(calls.mock.calls.map((call) => call[1])).toEqual([0, 0]);
 });

@@ -33,6 +33,8 @@ const actions = {
   revision: "application.revision_recorded",
   correction: "application.correction_recorded",
   delete: "application.deleted",
+  withdraw: "application.withdraw",
+  reinstate: "application.reinstate",
   start_revision: "application_working_revision.started",
   save_revision: "application_working_revision.updated",
   discard_revision: "application_working_revision.discarded",

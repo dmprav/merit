@@ -6,6 +6,9 @@ export const calendarDateSchema = z.iso.date().refine((value) => !value.startsWi
   message: "Use a year from 0001 to 9999",
 });
 
+/** The viewer's current local calendar date as YYYY-MM-DD. */
+export const todayCalendarDate = () => today(getLocalTimeZone()).toString();
+
 /** Full calendar years within ±10 of the viewer's current local year, inclusive. */
 export const calendarDateInputBounds = () => {
   const current = today(getLocalTimeZone());

@@ -1,24 +1,15 @@
-import type { GrantmakingService } from "@merit/grantmaking/api";
+import type { GrantmakingQueries } from "@merit/grantmaking/api";
 
-export type FundingRoundOperations = Pick<
-  GrantmakingService,
-  | "listReviews"
-  | "saveReview"
-  | "selectContact"
-  | "createApplication"
-  | "editApplication"
-  | "createRound"
-  | "editRound"
-  | "deleteRound"
-  | "readApplication"
+export type GrantmakingOperations = Pick<
+  GrantmakingQueries,
+  | "listRoundSummaries"
   | "readRound"
   | "listApplications"
+  | "readApplication"
+  | "listReviews"
   | "roundContent"
   | "applicationContent"
   | "roundHistory"
   | "applicationHistory"
   | "listWorkspaceActivity"
-  | "saveRecommendation"
-> & {
-  listRounds: GrantmakingService["listRoundSummaries"];
-};
+>;

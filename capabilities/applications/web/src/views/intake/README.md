@@ -56,6 +56,16 @@ Deletion and shared-revision discard retain the revision seen when confirmation
 opened. A refresh or retry cannot advance that baseline; after a conflict, close
 the dialog, review the current work, and open confirmation again.
 
+**Withdraw application** sits in **Application actions**, before **Delete application**.
+Its confirmation is the destructive shared dialog titled with the application name,
+with a required **Withdrawal date** (defaulting to today) and **Reason**, and it names
+how many outstanding review requests will close only when there are some. While
+withdrawn, the intake status area shows a **Withdrawn** badge with the date, recorder,
+and reason, plus **Reinstate application**; every section edit, revision action,
+and readiness action is hidden, and the reviews and recommendation editors follow.
+Reinstating asks for a reason and says closed review requests stay closed. Both
+confirmations keep the revision seen when they opened, like deletion.
+
 Version comparisons show changed material before and after. Keep unchanged
 sections readable once, marked **Unchanged**. Preserve attribution and routes to
 application history without making readers leave the comparison.

@@ -37,7 +37,7 @@ const write = {
   annotations: writeAnnotations,
   errorSchema: teamErrorSchema,
 };
-const emptySaved = z.object({ status: z.literal("ok"), value: z.null() });
+const emptySaved = z.object({ status: z.literal("ok") });
 
 const registerOrganizationReads = (
   register: RegisterTool,
@@ -51,7 +51,7 @@ const registerOrganizationReads = (
       inputSchema: pageInput,
       outputSchema: z.object({
         status: z.literal("ok"),
-        items: z.array(organizationSummarySchema),
+        organizations: z.array(organizationSummarySchema),
         nextCursor: z.string().nullable(),
       }),
       description:
@@ -59,12 +59,15 @@ const registerOrganizationReads = (
     },
     async (input) => {
       const result = await organizations.list(actor);
-      return result.status === "ok"
-        ? {
-            status: "ok" as const,
-            ...pageItems(result.value.map(presentOrganizationSummary), input, (item) => item.id),
-          }
-        : result;
+      if (result.status !== "ok") {
+        return result;
+      }
+      const { items, nextCursor } = pageItems(
+        result.value.map(presentOrganizationSummary),
+        input,
+        (item) => item.id,
+      );
+      return { status: "ok" as const, organizations: items, nextCursor };
     },
   );
   register(
@@ -72,14 +75,14 @@ const registerOrganizationReads = (
     {
       ...read,
       inputSchema: organizationIdInput,
-      outputSchema: z.object({ status: z.literal("ok"), value: organizationDetailsSchema }),
+      outputSchema: z.object({ status: z.literal("ok"), organization: organizationDetailsSchema }),
       description:
         "For Merit operators: read organization, owner and invitation delivery/acceptance status.",
     },
     async (input) => {
       const result = await organizations.read(actor, input);
       return result.status === "ok"
-        ? { status: "ok" as const, value: presentOrganizationDetails(result.value) }
+        ? { status: "ok" as const, organization: presentOrganizationDetails(result.value) }
         : result;
     },
   );
@@ -98,12 +101,17 @@ const registerOrganizationWrites = (
       inputSchema: createOrganizationInput,
       outputSchema: z.object({
         status: z.literal("ok"),
-        value: z.object({ organizationId: z.string() }),
+        organizationId: z.string(),
       }),
       description:
         "For Merit operators: create an empty organization and email its first owner an invitation with program-manager access. Reuse requestId on retry. Read the organization to check delivery.",
     },
-    (input) => organizations.create(actor, input),
+    async (input) => {
+      const result = await organizations.create(actor, input);
+      return result.status === "ok"
+        ? { status: "ok" as const, organizationId: result.value.organizationId }
+        : result;
+    },
   );
   register(
     "rename_organization",
@@ -114,7 +122,10 @@ const registerOrganizationWrites = (
       description:
         "For Merit operators: rename an organization. Its workspace address remains fixed.",
     },
-    (input) => organizations.rename(actor, input),
+    async (input) => {
+      const result = await organizations.rename(actor, input);
+      return result.status === "ok" ? { status: "ok" as const } : result;
+    },
   );
   register(
     "replace_owner_invitation",
@@ -126,7 +137,10 @@ const registerOrganizationWrites = (
       description:
         "For Merit operators: replace or resend an unaccepted first-owner invitation. Sends email and invalidates the old link. Read current status before retrying; sending limits apply. Cannot replace an accepted invitation.",
     },
-    (input) => organizations.invite(actor, input),
+    async (input) => {
+      const result = await organizations.invite(actor, input);
+      return result.status === "ok" ? { status: "ok" as const } : result;
+    },
   );
   register(
     "revoke_owner_invitation",
@@ -137,7 +151,10 @@ const registerOrganizationWrites = (
       description:
         "For Merit operators: revoke an unaccepted first-owner invitation, leaving the organization needing an owner.",
     },
-    (input) => organizations.revoke(actor, input),
+    async (input) => {
+      const result = await organizations.revoke(actor, input);
+      return result.status === "ok" ? { status: "ok" as const } : result;
+    },
   );
 };
 
@@ -153,7 +170,7 @@ const registerAccessRequests = (
       inputSchema: pageInput,
       outputSchema: z.object({
         status: z.literal("ok"),
-        items: z.array(accessRequestSchema),
+        accessRequests: z.array(accessRequestSchema),
         nextCursor: z.string().nullable(),
       }),
       description:
@@ -161,12 +178,15 @@ const registerAccessRequests = (
     },
     async (input) => {
       const result = await organizations.accessRequests(actor);
-      return result.status === "ok"
-        ? {
-            status: "ok" as const,
-            ...pageItems(result.value.map(presentAccessRequest), input, (item) => item.email),
-          }
-        : result;
+      if (result.status !== "ok") {
+        return result;
+      }
+      const { items, nextCursor } = pageItems(
+        result.value.map(presentAccessRequest),
+        input,
+        (item) => item.email,
+      );
+      return { status: "ok" as const, accessRequests: items, nextCursor };
     },
   );
   register(
@@ -174,14 +194,14 @@ const registerAccessRequests = (
     {
       ...write,
       inputSchema: accessRequestInput,
-      outputSchema: z.object({ status: z.literal("ok"), value: accessRequestSchema }),
+      outputSchema: z.object({ status: z.literal("ok"), accessRequest: accessRequestSchema }),
       description:
         "For Merit operators: mark an access request reviewed. Does not send email or grant access.",
     },
     async (input) => {
       const result = await organizations.reviewAccessRequest(actor, input);
       return result.status === "ok"
-        ? { status: "ok" as const, value: presentAccessRequest(result.value) }
+        ? { status: "ok" as const, accessRequest: presentAccessRequest(result.value) }
         : result;
     },
   );
@@ -209,7 +229,7 @@ export const registerOnboardingTools = (
       annotations: readAnnotations,
       errorSchema: teamErrorSchema,
       inputSchema: invitationTokenInput,
-      outputSchema: z.object({ status: z.literal("ok"), value: invitationSchema }),
+      outputSchema: z.object({ status: z.literal("ok"), invitation: invitationSchema }),
       description:
         "Read an invitation's organization and offered responsibilities using the token from its link. Requires the invited email on your authenticated account. Read before accepting.",
     },
@@ -218,7 +238,7 @@ export const registerOnboardingTools = (
       return result.status === "ok"
         ? {
             status: "ok" as const,
-            value: {
+            invitation: {
               ...result.value,
               organization: presentOrganization(result.value.organization),
             },
@@ -235,7 +255,7 @@ export const registerOnboardingTools = (
       inputSchema: invitationTokenInput,
       outputSchema: z.object({
         status: z.literal("ok"),
-        value: organizationSchema.extend({ canWorkOnGrants: z.boolean() }),
+        organization: organizationSchema.extend({ canWorkOnGrants: z.boolean() }),
       }),
       description:
         "Accept the offered organization responsibilities for your authenticated account. Verifies the invited email. Safe to retry, but does not restore removed access. No existing membership is required.",
@@ -245,7 +265,7 @@ export const registerOnboardingTools = (
       return result.status === "ok"
         ? {
             status: "ok" as const,
-            value: {
+            organization: {
               ...presentOrganization(result.value),
               canWorkOnGrants: result.value.canWorkOnGrants,
             },

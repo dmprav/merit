@@ -223,7 +223,7 @@ it("rejects an unrecognized assessment position in a stored application", () => 
 it.each([null, money(10000n)])(
   "calculates allocation totals with an unknown or exceeded budget: %s",
   (budget) => {
-    const context = decodeBudgetContext(budget, [money(12001n), null, money(0n)]);
+    const context = decodeBudgetContext(budget, [money(12001n), null, money(0n)], 0);
     expect(encodeMoney(context.totals.proposed)).toEqual(money(12001n));
     expect(context.budget).toEqual(budget === null ? null : fromMinorUnits(10000n));
     expect(context.totals.remaining).toEqual(budget === null ? null : fromMinorUnits(-2001n));
@@ -239,9 +239,11 @@ it.each([
     allocations: [{ minorUnits: "1.5", currency: "EUR" }],
   },
 ])("rejects stored allocation context with $reason", ({ budget, allocations }) => {
-  expect(() => decodeBudgetContext(budget, allocations)).toThrow();
+  expect(() => decodeBudgetContext(budget, allocations, 0)).toThrow();
 });
 
 it("propagates overflow when stored allocations exceed the money limit", () => {
-  expect(() => decodeBudgetContext(null, [money(10n ** 30n - 1n), money(1n)])).toThrow(RangeError);
+  expect(() => decodeBudgetContext(null, [money(10n ** 30n - 1n), money(1n)], 0)).toThrow(
+    RangeError,
+  );
 });

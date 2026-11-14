@@ -126,6 +126,13 @@ const serverImports = [
     business("applications", "grant-work"),
     "type",
   ),
+  // Withdrawal closes outstanding reviews through the reviews capability's own operation, which
+  // owns request status, reviewer access, and audit; grantmaking only supplies the transaction.
+  permitServer(
+    business("grantmaking", "command-persistence"),
+    "@merit/reviews/server/integrations",
+    business("reviews", "integrations"),
+  ),
   permitServer(
     business("grantmaking", "{queries,demo}"),
     "@merit/applications/{history,encoding}",

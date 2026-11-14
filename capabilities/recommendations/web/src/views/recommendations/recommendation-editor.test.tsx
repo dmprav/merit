@@ -36,7 +36,11 @@ const round: ApplicationRoundContext = {
   manager: "Dana Reed",
   budget: fromMinorUnits(6000000n),
   // €24,000 for this application and €28,000 allocated to other applications.
-  totals: { proposed: fromMinorUnits(5200000n), remaining: fromMinorUnits(800000n) },
+  totals: {
+    proposed: fromMinorUnits(5200000n),
+    remaining: fromMinorUnits(800000n),
+    withdrawnApplications: 0,
+  },
   criteria: [],
   criteriaVersion: makeRound().criteriaVersion,
   criteriaHistory: makeRound().criteriaHistory,
@@ -50,7 +54,7 @@ const EditableRecommendation = ({
   Partial<
     Pick<
       ComponentProps<typeof RecommendationEditor>,
-      "application" | "draft" | "disabled" | "showActionLabel" | "children"
+      "application" | "round" | "draft" | "disabled" | "showActionLabel" | "children"
     >
   >) => {
   const [draft, setDraft] = useState<RecommendationDraft | undefined>(initialDraft);
@@ -426,3 +430,51 @@ it("formats allocations on blur and saves the same cents shown in the budget pre
     ).minorUnits,
   ).toBe("2000000");
 });
+
+it("keeps a withdrawn application's recommendation readable but not editable", () => {
+  const withdrawn = {
+    ...application,
+    withdrawal: {
+      withdrawnOn: "2027-01-10",
+      reason: "The applicant withdrew.",
+      recorder: { userId: "dana", name: "Dana Reed", recordedAt: "2027-01-11T09:00:00Z" },
+    },
+  };
+  render(
+    <EditableRecommendation
+      application={withdrawn}
+      draft={{ position: "Fund", amount: "24000", reasoning: "Unsaved" }}
+      onSave={vi.fn()}
+    />,
+    { wrapper: GrantmakingMessagesProvider },
+  );
+
+  expect(screen.getByRole("button", { name: /Resume editing recommendation for/ })).toBeDisabled();
+  expect(screen.queryByRole("form")).not.toBeInTheDocument();
+});
+
+it.each([
+  [0, null],
+  [1, "1 withdrawn application not counted."],
+  [2, "2 withdrawn applications not counted."],
+])(
+  "discloses %s withdrawn applications beside the budget that leaves them out",
+  async (count, text) => {
+    const user = userEvent.setup();
+    render(
+      <EditableRecommendation
+        round={{ ...round, totals: { ...round.totals, withdrawnApplications: count } }}
+        onSave={vi.fn()}
+      />,
+      { wrapper: GrantmakingMessagesProvider },
+    );
+    await user.click(screen.getByRole("button", { name: /Edit recommendation for/ }));
+
+    expect(screen.getByText("Available before this recommendation")).toBeVisible();
+    if (text) {
+      expect(screen.getByText(text)).toBeVisible();
+    } else {
+      expect(screen.queryByText(/withdrawn application/)).not.toBeInTheDocument();
+    }
+  },
+);

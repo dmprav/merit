@@ -2,7 +2,10 @@ import { and, eq, gt, sql, type SQL } from "drizzle-orm";
 
 import { applicationCases, materialVersions } from "@merit/applications/schema";
 import {
+  activeCase,
   applicationDetails,
+  caseWithdrawn,
+  roundWithdrawnCount,
   currentMaterial,
   currentSubmission,
   workingRevision,
@@ -42,6 +45,7 @@ const applicationFields = {
   reviewRevision: reviewRevision,
   recommendationRevision: recommendationRevision,
   intakeStatus: applicationCases.intakeStatus,
+  withdrawn: caseWithdrawn,
   requested: sql<unknown>`(${currentMaterial})->'requested'`,
   contactId: applicationCases.contactId,
   hasWorkingRevision: sql<boolean>`${workingRevision} is not null`,
@@ -116,9 +120,10 @@ export const readRoundOverview = async (
       ...roundFields,
       managerUserId: fundingRounds.managerUserId,
       managerNeedsReassignment,
-      requested: sql<string>`(select coalesce(sum((m.content->'requested'->>'minorUnits')::numeric), 0)::text from ${applicationCases} a join ${materialVersions} m on m.case_id = a.id and m.version = a.material_version where a.organization_id = ${fundingRounds.organizationId} and a.round_id = ${fundingRounds.id})`,
-      unknownRequests: sql<number>`(select count(*)::integer from ${applicationCases} a left join ${materialVersions} m on m.case_id = a.id and m.version = a.material_version where a.organization_id = ${fundingRounds.organizationId} and a.round_id = ${fundingRounds.id} and (m.content->'requested' is null or m.content->'requested' = 'null'::jsonb))`,
-      proposed: sql<string>`(select coalesce(sum((r.content->'allocation'->>'minorUnits')::numeric), 0)::text from ${applicationCases} a join ${recommendationVersions} r on r.case_id = a.id and r.revision = (select max(v.revision) from ${recommendationVersions} v where v.case_id = a.id) where a.organization_id = ${fundingRounds.organizationId} and a.round_id = ${fundingRounds.id})`,
+      requested: sql<string>`(select coalesce(sum((m.content->'requested'->>'minorUnits')::numeric), 0)::text from ${applicationCases} a join ${materialVersions} m on m.case_id = a.id and m.version = a.material_version where a.organization_id = ${fundingRounds.organizationId} and a.round_id = ${fundingRounds.id} and ${activeCase("a")})`,
+      unknownRequests: sql<number>`(select count(*)::integer from ${applicationCases} a left join ${materialVersions} m on m.case_id = a.id and m.version = a.material_version where a.organization_id = ${fundingRounds.organizationId} and a.round_id = ${fundingRounds.id} and ${activeCase("a")} and (m.content->'requested' is null or m.content->'requested' = 'null'::jsonb))`,
+      withdrawnApplications: roundWithdrawnCount(fundingRounds),
+      proposed: sql<string>`(select coalesce(sum((r.content->'allocation'->>'minorUnits')::numeric), 0)::text from ${applicationCases} a join ${recommendationVersions} r on r.case_id = a.id and r.revision = (select max(v.revision) from ${recommendationVersions} v where v.case_id = a.id) where a.organization_id = ${fundingRounds.organizationId} and a.round_id = ${fundingRounds.id} and ${activeCase("a")})`,
     })
     .from(fundingRounds)
     .innerJoin(organizations, eq(organizations.id, fundingRounds.organizationId))

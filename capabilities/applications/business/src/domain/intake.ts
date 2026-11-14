@@ -1,8 +1,9 @@
 import { z } from "zod";
 
+import { calendarDateSchema } from "@merit/dates";
 import { isNegative, parseMoney, toDecimal } from "@merit/money";
 
-import type { IntakeApplication, ApplicationUsage } from "./model";
+import { isWithdrawn, type IntakeApplication, type ApplicationUsage } from "./model";
 import { materialVersionSchema } from "./versions";
 
 export const intakeLimits = {
@@ -16,6 +17,8 @@ export const intakeLimits = {
   reasonLength: 2000,
   summaryLength: 10000,
 } as const;
+
+const withdrawalReasonSchema = z.string().trim().min(1).max(intakeLimits.reasonLength);
 
 export const intakeDetailsSchema = z.strictObject({
   summary: z.string().trim().max(intakeLimits.summaryLength),
@@ -111,6 +114,12 @@ export const intakeChanges = {
   discardRevision: z.strictObject({ action: z.literal("discard_revision") }),
   markReady: z.strictObject({ action: z.literal("mark_ready") }),
   delete: z.strictObject({ action: z.literal("delete") }),
+  withdraw: z.strictObject({
+    action: z.literal("withdraw"),
+    withdrawnOn: calendarDateSchema,
+    reason: withdrawalReasonSchema,
+  }),
+  reinstate: z.strictObject({ action: z.literal("reinstate"), reason: withdrawalReasonSchema }),
   details: intakeDetailsSchema.extend({ action: z.literal("details") }),
 };
 
@@ -122,6 +131,8 @@ export const intakeChangeSchema = z.discriminatedUnion("action", [
   intakeChanges.discardRevision,
   intakeChanges.markReady,
   intakeChanges.delete,
+  intakeChanges.withdraw,
+  intakeChanges.reinstate,
   intakeChanges.details,
 ]);
 
@@ -133,7 +144,10 @@ export type IntakeChangeError =
   | "revision_unavailable"
   | "reason_required"
   | "unchanged_revision"
-  | "application_in_use";
+  | "application_in_use"
+  | "application_withdrawn"
+  | "application_not_withdrawn"
+  | "withdrawal_date_in_future";
 
 export const intakeContent = (
   application: Pick<IntakeApplication, "title" | "submission" | "requested">,
@@ -168,20 +182,19 @@ export const missingIntakeFields = (content: IntakeContent) => {
   return missing;
 };
 
-export const canDeleteApplication = (
-  application: Pick<IntakeApplication, "intakeStatus">,
-  usage: ApplicationUsage,
-) => application.intakeStatus === "in_preparation" && !usage.hasRecommendation && !usage.hasReviews;
+type IntakeState = Pick<IntakeApplication, "intakeStatus" | "withdrawal">;
 
-export const canStartIntakeRevision = (
-  application: Pick<IntakeApplication, "intakeStatus">,
-  working: WorkingRevision | null,
-) => application.intakeStatus !== "in_preparation" && working === null;
+export const canDeleteApplication = (application: IntakeState, usage: ApplicationUsage) =>
+  !isWithdrawn(application) &&
+  application.intakeStatus === "in_preparation" &&
+  !usage.hasRecommendation &&
+  !usage.hasReviews;
 
-export const canEditIntakeContent = (
-  application: Pick<IntakeApplication, "intakeStatus">,
-  working: WorkingRevision | null,
-) => application.intakeStatus === "in_preparation" || working !== null;
+export const canStartIntakeRevision = (application: IntakeState, working: WorkingRevision | null) =>
+  !isWithdrawn(application) && application.intakeStatus !== "in_preparation" && working === null;
+
+export const canEditIntakeContent = (application: IntakeState, working: WorkingRevision | null) =>
+  !isWithdrawn(application) && (application.intakeStatus === "in_preparation" || working !== null);
 
 const withNewMaterialVersion = (
   application: IntakeApplication,
@@ -274,6 +287,57 @@ const prepareRevisionPublication = (
   } as const;
 };
 
+const maxUtcOffsetMs = 14 * 3_600_000;
+
+/**
+ * The latest date a withdrawal may name: the current calendar date anywhere on Earth (UTC+14),
+ * so a person ahead of the server's time zone can still record "today".
+ */
+export const latestWithdrawalDate = (recordedAt: string) =>
+  new Date(Date.parse(recordedAt) + maxUtcOffsetMs).toISOString().slice(0, 10);
+
+const prepareWithdrawal = (
+  application: IntakeApplication,
+  workingRevision: WorkingRevision | null,
+  change: Extract<IntakeChange, { action: "withdraw" }>,
+  author: { userId: string; name: string; recordedAt: string },
+) => {
+  if (change.withdrawnOn > latestWithdrawalDate(author.recordedAt)) {
+    return invalidIntakeChange("withdrawal_date_in_future");
+  }
+
+  return {
+    ok: true,
+    application: {
+      ...application,
+      withdrawal: { withdrawnOn: change.withdrawnOn, reason: change.reason, recorder: author },
+    },
+    workingRevision,
+    action: change.action,
+    reason: change.reason,
+  } as const;
+};
+
+const prepareReinstatement = (
+  application: IntakeApplication,
+  workingRevision: WorkingRevision | null,
+  reason: string,
+) => {
+  if (!isWithdrawn(application)) {
+    return invalidIntakeChange("application_not_withdrawn");
+  }
+  const { withdrawal: _withdrawal, ...rest } = application;
+  const reinstated: IntakeApplication = rest;
+
+  return {
+    ok: true,
+    application: reinstated,
+    workingRevision,
+    action: "reinstate",
+    reason,
+  } as const;
+};
+
 export const prepareIntakeChange = (
   application: IntakeApplication,
   workingRevision: WorkingRevision | null,
@@ -287,6 +351,11 @@ export const prepareIntakeChange = (
     workingRevision,
     reason: null,
   } as const;
+
+  // A withdrawn case is read-only; reinstatement is its only change.
+  if (isWithdrawn(application) && change.action !== "reinstate") {
+    return invalidIntakeChange("application_withdrawn");
+  }
 
   switch (change.action) {
     case "save_content":
@@ -339,6 +408,12 @@ export const prepareIntakeChange = (
         return invalidIntakeChange("application_in_use");
       }
       return { ...unchanged, action: change.action };
+
+    case "withdraw":
+      return prepareWithdrawal(application, workingRevision, change, author);
+
+    case "reinstate":
+      return prepareReinstatement(application, workingRevision, change.reason);
 
     case "details":
       return {

@@ -35,6 +35,8 @@ export const en = {
     deferralAllocation: "A deferral must reserve €0.",
     positiveAllocation: "Enter an allocation greater than €0.",
     applicationNotFound: "Application not found.",
+    applicationWithdrawn:
+      "This application is withdrawn. Reinstate it to change the recommendation.",
     allocationTotalTooLarge: "The total proposed allocation is too large.",
     invalid: "Check the recommendation and try again.",
   },

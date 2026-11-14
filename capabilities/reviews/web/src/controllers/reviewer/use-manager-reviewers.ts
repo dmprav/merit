@@ -44,7 +44,7 @@ export const useManagerReviewers = (data: ManagerReviewerData, reviewRevision: n
     try {
       const result = await operation(id);
       if (result.status !== "ok") {
-        setError(managerError(result.status));
+        setError(managerError(result));
         if (result.status !== "unavailable") {
           receipt.current = null;
         }
@@ -85,7 +85,10 @@ export const useManagerReviewers = (data: ManagerReviewerData, reviewRevision: n
   };
 };
 
-const managerError = (status: string) => {
+const managerError = ({ status, error }: { status: string; error?: string }) => {
+  if (error === "application_withdrawn") {
+    return "applicationWithdrawn";
+  }
   if (status === "limited") {
     return "limited";
   }

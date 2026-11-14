@@ -42,6 +42,8 @@ export const activityEntrySchema = z.object({
     roundId: z.string().nullable(),
     applicationId: z.string().nullable(),
   }),
+  /** The reason recorded with a withdrawal or reinstatement; null for other actions. */
+  reason: z.string().nullable(),
   /** The record's current identity, or null when it no longer exists. */
   record: activityRecordSchema.nullable(),
 });

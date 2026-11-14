@@ -69,3 +69,53 @@ it("keeps same-version contact and staff-summary changes inspectable with their 
     after.getByText("Staff summary by Dana Reed: Updated staff interpretation."),
   ).toBeVisible();
 });
+
+it("labels a withdrawal with its date and reason and a reinstatement with its reason", async () => {
+  const user = userEvent.setup();
+  const round = roundView(makeRound());
+  const original = applicationView(makeApplication({ intakeStatus: "ready" }));
+  const recordedAt = "2027-01-20T12:00:00Z";
+  const withdrawal = {
+    withdrawnOn: "2027-01-18",
+    reason: "The applicant found other funding.",
+    recorder: { userId: "dana", name: "Dana Reed", recordedAt },
+  };
+
+  const snapshot = (value: typeof original) =>
+    encodeApplicationDetail({ round, application: value }).application;
+
+  const base = snapshot(original);
+  const withdrawn = snapshot({ ...original, withdrawal });
+
+  const history: IntakeState["history"] = [
+    {
+      revision: 9,
+      action: "application.reinstate",
+      reason: "The applicant returned.",
+      actor: "Dana Reed",
+      provenance: { interface: "web" },
+      recordedAt: "2027-01-25T12:00:00Z",
+      before: withdrawn,
+      after: base,
+    },
+    {
+      revision: 8,
+      action: "application.withdraw",
+      reason: "The applicant found other funding.",
+      actor: "Dana Reed",
+      provenance: { interface: "web" },
+      recordedAt,
+      before: base,
+      after: withdrawn,
+    },
+  ];
+  render(<ApplicationAuditHistory history={history} />, { wrapper: GrantmakingMessagesProvider });
+  await user.click(screen.getByText("Application history"));
+
+  const [reinstated, withdrew] = screen.getAllByRole("listitem");
+  expect(within(reinstated!).getByText("Application reinstated")).toBeVisible();
+  expect(within(reinstated!).getByText("The applicant returned.")).toBeVisible();
+  expect(within(withdrew!).getByText("Application withdrawn")).toBeVisible();
+  expect(within(withdrew!).getByText("Withdrawn on 18 January 2027")).toBeVisible();
+  expect(within(withdrew!).getByText("The applicant found other funding.")).toBeVisible();
+});

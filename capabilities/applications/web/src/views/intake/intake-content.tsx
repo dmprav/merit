@@ -1,6 +1,7 @@
 import { useRef, type ReactNode, type Ref } from "react";
 import { useTranslation } from "react-i18next";
 
+import { isWithdrawn } from "@merit/applications/domain";
 import type { ApplicationView as Application } from "@merit/grantmaking/api";
 import { Inline, Reading } from "@merit/ui/layout";
 
@@ -17,6 +18,7 @@ import {
   IntakeEditButton,
   IntakeFeedback,
   IntakeTitle,
+  WithdrawalStatus,
   intakeMenuItems,
 } from "./application-intake";
 import styles from "./intake-content.module.css";
@@ -66,7 +68,9 @@ const IntakePresentation = ({
   const { t } = useTranslation("applicationIntake");
   const preparing = application.intakeStatus === "in_preparation";
   const activeIntake =
-    preparing || Boolean(intakeEditing?.workingRevision || intakeEditing?.section === "content");
+    preparing ||
+    isWithdrawn(application) ||
+    Boolean(intakeEditing?.workingRevision || intakeEditing?.section === "content");
   const intakeTitle = useRef<HTMLSpanElement>(null);
   const intakeTriggers = useRef<Partial<Record<IntakeSection, HTMLButtonElement | null>>>({});
 
@@ -217,9 +221,12 @@ const ApplicantSubmission = ({
 
   return (
     <div className={styles.document}>
-      {activeIntake && intakeEditing && (
-        <IntakeControls intake={intakeEditing} onReveal={onReveal} />
-      )}
+      {activeIntake &&
+        (intakeEditing ? (
+          <IntakeControls intake={intakeEditing} onReveal={onReveal} />
+        ) : (
+          application.withdrawal && <WithdrawalStatus application={application} />
+        ))}
       {intakeEditing?.section === "title" && (
         <IntakeForm editor={intakeEditing.editor} onClose={onClose} />
       )}
@@ -277,7 +284,7 @@ const intakeAction = (
   } else if (action === "start_revision" || action === "correct") {
     revealIntake();
     void (action === "correct" ? intakeEditing.startCorrection() : intakeEditing.startRevision());
-  } else if (action === "delete" || action === "discard_revision") {
+  } else if (action === "delete" || action === "discard_revision" || action === "withdraw") {
     intakeEditing.setConfirmation(action);
   }
 };
@@ -294,7 +301,7 @@ const IntakeFacts = ({
   <ApplicationDetails
     application={application}
     contact={
-      editable && intakeEditing?.contact ? (
+      editable && !isWithdrawn(application) && intakeEditing?.contact ? (
         <ApplicationContact
           key={intakeEditing.contact.publicId}
           name={application.submission?.contact}

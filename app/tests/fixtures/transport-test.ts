@@ -29,6 +29,11 @@ export const createTransport = (
 ) => {
   const {
     grantmaking,
+    grantmakingQueries,
+    rounds,
+    applications,
+    recommendations,
+    reviews,
     contacts,
     organizations: team,
     readWorkspace,
@@ -57,18 +62,16 @@ export const createTransport = (
     },
     readWorkspace,
   };
-  const mcpServices: Parameters<typeof handleWorkspaceMcp>[2]["workspace"] = {
-    ...grantmaking,
-    ...contacts,
-    listRounds: grantmaking.listRoundSummaries,
-    listContacts: contacts.listContactSummaries,
-  };
 
   const mcpOperations = {
-    workspace: mcpServices,
-    team,
-    organizations: team,
+    rounds,
+    applications,
+    reviews,
     reviewer,
+    recommendations,
+    grantmaking: grantmakingQueries,
+    contacts,
+    organizations: team,
     navigation,
     demo: createAccountDemoServices(async (operation) => operation(db)),
   };
@@ -109,7 +112,7 @@ export const createTransport = (
     }
   };
 
-  return { services, mcpServices, mcpOperations, team, reviewer, navigation, callMcp, session };
+  return { services, mcpOperations, team, reviewer, navigation, callMcp, session };
 };
 
 export const transportTest = roundTest.extend(

@@ -36,14 +36,14 @@ export const roundTest = workspaceTest.extend("rounds", { auto: true }, async ({
   const [pageInput] = addresses;
   assert.isDefined(pageInput, "Could not create the Alder round fixture");
 
-  const createApplication = async (title: string) => {
+  const createApplication = async (title: string, requested: string | null = "80.00") => {
     const created = await createFundingApplication(db, actor, {
       workspaceSlug: "alder",
       publicId: pageInput.publicId,
       requestId: randomUUID(),
       title,
       applicant: "Community group",
-      requested: "80.00",
+      ...(requested === null ? {} : { requested }),
       answers: [
         {
           questionId: "0e03fcf9-a422-5c35-9ac4-27be275d2f3e",

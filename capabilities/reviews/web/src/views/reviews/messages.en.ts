@@ -1,4 +1,5 @@
 export const en = {
+  applicationWithdrawn: "This application is withdrawn. Reinstate it to change its reviews.",
   reviewerAuthored: "This assessment belongs to the reviewer. Ask them to submit an amendment.",
   decline: "Decline",
   submittedBy: "Submitted by {{name}}",
@@ -47,6 +48,7 @@ export const en = {
   outstanding: "Awaiting assessment",
   received: "Received",
   cancelled: "Cancelled",
+  closedWithdrawn: "Closed: application withdrawn",
   requestHistory: "Request history",
   assessmentHistory: "Earlier assessments and edits",
   by: "Assessment by {{name}}",
@@ -83,6 +85,7 @@ export const en = {
   requestCriteriaUnknown: "Criteria not known",
   requestAdded: "Added by {{name}}",
   requestClosed: "{{status}} by {{name}}",
+  requestClosedWithdrawn: "Closed: application withdrawn, recorded by {{name}}",
   fund: "Fund",
   conditional: "Fund with a condition",
   defer: "Defer",

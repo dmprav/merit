@@ -718,6 +718,9 @@ importers:
       '@merit/contacts-web':
         specifier: workspace:*
         version: link:../../contacts/web
+      '@merit/dates':
+        specifier: workspace:*
+        version: link:../../../foundation/dates
       '@merit/drafts':
         specifier: workspace:*
         version: link:../../../foundation/drafts

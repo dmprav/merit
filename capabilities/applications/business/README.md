@@ -17,11 +17,29 @@ through [Audit](../../audit/business/README.md), including actor provenance. Ass
 checks. Any review request, assessment, or recommendation prevents deletion,
 including a cancelled request.
 
+## Withdraw and reinstate
+
+A withdrawal is an optional [`withdrawal`](src/domain/model.ts) on the case, stored in its
+own column and orthogonal to readiness: the retained `intakeStatus`, working revision,
+and material version are never changed or lost. `isWithdrawn` is the one predicate for
+withdrawn work. [`prepareIntakeChange`](src/domain/intake.ts) rejects every change but
+`reinstate` with `application_withdrawn`, and the web and MCP `withdraw` and `reinstate`
+changes share its schemas. `lockApplicationCase` reports whether the locked case is
+withdrawn, so reviews, recommendations, and contact selection reject writes inside
+their own transactions; `readCaseWithdrawn` answers the same for a case the caller
+already locked. Persistence exports the SQL form of the predicate from `/scope` (`caseWithdrawn`, `activeCase(alias)`, `withdrawnCase(alias)`, and `roundWithdrawnCount`); every total, list, and sibling allocation uses them rather than writing `withdrawal is null`.
+
+Withdrawing also calls the collaborator's `closeReviewsForWithdrawal` in the same
+transaction, after the case lock. Reviews owns the closure of outstanding requests
+and their assignments; applications does not know how. Reinstatement recomputes the
+requested-total limit like an amount change, and does not reopen anything the
+withdrawal closed.
+
 ## Preserve intake history
 
 The [history codec](src/server/persistence/history-encoding.ts) writes
 `{ formatVersion: 1, application, workingRevision }` under the caller's transaction
-and case lock. Snapshots contain only intake facts; review and recommendation
+and case lock. Snapshots contain only intake facts, including any withdrawal; review and recommendation
 histories stay with their owners. Creation and deletion use null for the missing
 side. The format version is independent of material and concurrency revisions.
 

@@ -4,6 +4,7 @@ import { makeApplication } from "@merit/grantmaking/testing/fixtures";
 
 import {
   intakeChange,
+  intakeConfirmationChange,
   intakeDraftCommand,
   intakeRenameCommand,
   intakeMenuActions,
@@ -209,9 +210,57 @@ it("offers revision actions according to the submission lifecycle", () => {
   const submitted = makeApplication({ intakeStatus: "ready" });
   const working = { kind: "correction" as const, reason: "", content: baseline.content };
 
-  expect(intakeMenuActions(preparing, null, false)).toEqual(["delete"]);
-  expect(intakeMenuActions(submitted, null, false)).toEqual(["start_revision", "correct"]);
-  expect(intakeMenuActions(submitted, working, true)).toEqual(["title", "discard_revision"]);
+  expect(intakeMenuActions(preparing, null, false)).toEqual(["withdraw", "delete"]);
+  expect(intakeMenuActions(submitted, null, false)).toEqual([
+    "start_revision",
+    "correct",
+    "withdraw",
+  ]);
+  expect(intakeMenuActions(submitted, working, true)).toEqual([
+    "title",
+    "discard_revision",
+    "withdraw",
+  ]);
+});
+
+it("offers no actions and no edits while withdrawn", () => {
+  const withdrawn = makeApplication({
+    intakeStatus: "ready",
+    withdrawal: {
+      withdrawnOn: "2027-02-03",
+      reason: "Applicant stepped back",
+      recorder: { userId: "manager", name: "Dana Reed", recordedAt: "2027-02-04T09:30:00Z" },
+    },
+  });
+  const working = { kind: "correction" as const, reason: "", content: baseline.content };
+
+  expect(intakeMenuActions(withdrawn, null, false)).toEqual([]);
+  expect(intakeMenuActions(withdrawn, working, true)).toEqual([]);
+  expect(intakeRenameCommand(withdrawn, working, "New title")).toBeNull();
+  expect(
+    intakeDraftCommand(
+      newIntakeDraft("content", baseline, 4),
+      withdrawn,
+      working,
+      4,
+      undefined,
+      "",
+    ),
+  ).toEqual({ status: "invalid", error: "revision_unavailable" });
+});
+
+it("builds each confirmed command only from the values it needs", () => {
+  expect(intakeConfirmationChange("delete")).toEqual({ action: "delete" });
+  expect(intakeConfirmationChange("discard_revision")).toEqual({ action: "discard_revision" });
+  expect(
+    intakeConfirmationChange("withdraw", { withdrawnOn: "2027-02-03", reason: "  Stepped back " }),
+  ).toEqual({ action: "withdraw", withdrawnOn: "2027-02-03", reason: "Stepped back" });
+  expect(intakeConfirmationChange("withdraw", { reason: "Stepped back" })).toBeNull();
+  expect(intakeConfirmationChange("reinstate", { reason: " Applicant returned " })).toEqual({
+    action: "reinstate",
+    reason: "Applicant returned",
+  });
+  expect(intakeConfirmationChange("reinstate", { reason: "" })).toBeNull();
 });
 
 it("preserves question IDs through edits, draft recovery, and repeated command construction", () => {

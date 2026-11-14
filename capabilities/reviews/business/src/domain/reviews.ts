@@ -67,6 +67,10 @@ const recorderSchema = z.object({
   recordedAt: z.string(),
   provenance: provenanceSchema.optional(),
 });
+// A request closed by the application's withdrawal is distinguishable from a manager's cancellation.
+const closureSchema = recorderSchema.extend({
+  cause: z.literal("application_withdrawn").optional(),
+});
 const assessmentVersionSchema = z.object({
   content: assessmentInputSchema,
   criteria: reviewCriteriaSchema.nullable(),
@@ -85,7 +89,7 @@ export const reviewStateSchema = z.object({
       criteria: reviewCriteriaSchema.nullable(),
       status: z.enum(["outstanding", "received", "cancelled"]),
       recorder: recorderSchema.nullable(),
-      closedBy: recorderSchema.nullable(),
+      closedBy: closureSchema.nullable(),
     }),
   ),
   assessments: z.array(
@@ -152,7 +156,8 @@ export type ReviewChangeError =
   | "criteria_unavailable"
   | "assessment_unavailable"
   | "reviewer_authored"
-  | "follow_up_required";
+  | "follow_up_required"
+  | "application_withdrawn";
 
 export const isEligibleReviewer = (contact: { name: string; archived: boolean }) =>
   !contact.archived && Boolean(contact.name.trim());

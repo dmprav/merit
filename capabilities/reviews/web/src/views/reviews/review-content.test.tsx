@@ -402,3 +402,52 @@ it("keeps request basis, actors, and event times readable in the history", async
     "2027-01-18T14:30:00Z",
   );
 });
+
+it("separates a request closed by the application's withdrawal from a manager's cancellation", async () => {
+  const closed = {
+    ...request,
+    status: "cancelled" as const,
+    recorder: { userId: "dana", name: "Dana Reed", recordedAt: "2027-01-16T10:00:00Z" },
+  };
+  render(
+    <ReviewContent
+      application={{
+        ...application,
+        reviews: {
+          ...application.reviews,
+          requests: [
+            {
+              ...closed,
+              id: "withdrawn",
+              closedBy: {
+                userId: "leah",
+                name: "Leah Morris",
+                recordedAt: "2027-01-18T14:30:00Z",
+                cause: "application_withdrawn",
+              },
+            },
+            {
+              ...closed,
+              id: "cancelled",
+              contactId: "sam",
+              reviewer: "Sam Reed",
+              closedBy: { userId: "leah", name: "Leah Morris", recordedAt: "2027-01-17T09:00:00Z" },
+            },
+          ],
+        },
+      }}
+      round={round}
+    />,
+    { wrapper: GrantmakingMessagesProvider },
+  );
+  await userEvent.setup().click(screen.getByRole("button", { name: /Request history/ }));
+
+  const history = screen.getAllByRole("listitem");
+  expect(within(history[0]!).getByText("Closed: application withdrawn")).toBeVisible();
+  expect(
+    within(history[0]!).getByText("Closed: application withdrawn, recorded by Leah Morris"),
+  ).toBeVisible();
+  expect(within(history[0]!).queryByText("Cancelled")).not.toBeInTheDocument();
+  expect(within(history[1]!).getByText("Cancelled")).toBeVisible();
+  expect(within(history[1]!).getByText("Cancelled by Leah Morris")).toBeVisible();
+});

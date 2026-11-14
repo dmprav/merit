@@ -54,7 +54,15 @@ const publicId = "m7n2p9x4k6rt";
 type Page = Extract<Awaited<ReturnType<typeof readFundingApplicationPage>>, { status: "ok" }>;
 
 const fixture = (
-  state: "incomplete" | "complete" | "ready" | "revision" | "correction" | "history",
+  state:
+    | "incomplete"
+    | "complete"
+    | "ready"
+    | "awaiting-reviews"
+    | "revision"
+    | "correction"
+    | "history"
+    | "withdrawn",
 ): Page => {
   const preparing = state === "incomplete" || state === "complete";
   const application = {
@@ -65,6 +73,37 @@ const fixture = (
       ? { version: materialVersionSchema.parse(2), requested: fromMinorUnits(2800000n) }
       : {}),
     intakeStatus: preparing ? ("in_preparation" as const) : ("ready" as const),
+    ...(state === "awaiting-reviews"
+      ? {
+          reviews: {
+            ...original.reviews,
+            requests: [
+              ...original.reviews.requests,
+              ...["Jules Patel", "Maya Thompson"].map((reviewer, index) => ({
+                id: `awaiting-${index}`,
+                contactId: `60000000-0000-4000-8000-00000000010${index}`,
+                reviewer,
+                applicationVersion: original.version,
+                criteriaVersion: round.criteriaVersion,
+                criteria: null,
+                status: "outstanding" as const,
+                recorder: { userId: "dana", name: "Dana Reed", recordedAt },
+                closedBy: null,
+              })),
+            ],
+          },
+        }
+      : {}),
+    ...(state === "withdrawn"
+      ? {
+          withdrawal: {
+            withdrawnOn: "2026-11-03",
+            reason:
+              "The applicant secured funding from a regional foundation and asked us to stop work on this application. They may apply again next year, so please keep the material and our review notes in case they return with an updated plan.",
+            recorder: { userId: "dana", name: "Dana Reed", recordedAt },
+          },
+        }
+      : {}),
     ...(preparing
       ? {
           assessments: [],
@@ -321,6 +360,94 @@ export const ConfirmDelete: Story = {
 
     await expect(within(canvasElement.ownerDocument.body).getByRole("dialog")).toHaveTextContent(
       original.title,
+    );
+  },
+};
+
+const openWithdrawal = async ({
+  canvas,
+  canvasElement,
+  userEvent,
+}: Parameters<NonNullable<Story["play"]>>[0]) => {
+  await userEvent.click(await canvas.findByRole("button", { name: "Application actions" }));
+  await userEvent.click(
+    within(canvasElement.ownerDocument.body).getByRole("menuitem", {
+      name: "Withdraw application",
+    }),
+  );
+  return within(await within(canvasElement.ownerDocument.body).findByRole("dialog"));
+};
+
+export const ConfirmWithdraw: Story = {
+  args: { state: "awaiting-reviews" },
+  play: async (context) => {
+    const dialog = await openWithdrawal(context);
+
+    await expect(dialog.getByText(/outstanding review request/)).toBeVisible();
+    await expect(dialog.getByRole("textbox", { name: /Withdrawal date/ })).toBeVisible();
+  },
+};
+export const ConfirmWithdrawWithoutRequests: Story = {
+  args: { state: "complete" },
+  play: async (context) => {
+    const dialog = await openWithdrawal(context);
+
+    await expect(dialog.queryByText(/outstanding review request/)).not.toBeInTheDocument();
+  },
+};
+export const WithdrawReasonRequired: Story = {
+  args: { state: "ready" },
+  play: async (context) => {
+    const dialog = await openWithdrawal(context);
+    await context.userEvent.click(dialog.getByRole("button", { name: "Withdraw application" }));
+
+    await expect(dialog.getByText("Enter the reason for withdrawing.")).toBeVisible();
+  },
+};
+export const WithdrawFailure: Story = {
+  args: { state: "ready" },
+  beforeEach: () => {
+    mocked(editApplication).mockResolvedValueOnce({ status: "unavailable" });
+  },
+  play: async (context) => {
+    const dialog = await openWithdrawal(context);
+    await context.userEvent.type(dialog.getByRole("textbox", { name: /Reason/ }), "Stepped back.");
+    await context.userEvent.click(dialog.getByRole("button", { name: "Withdraw application" }));
+
+    await waitFor(async () => expect(await dialog.findByRole("alert")).toBeVisible());
+  },
+};
+export const WithdrawConflict: Story = {
+  args: { state: "ready" },
+  beforeEach: () => {
+    mocked(editApplication).mockResolvedValueOnce({ status: "conflict" });
+  },
+  play: async (context) => {
+    const dialog = await openWithdrawal(context);
+    await context.userEvent.type(dialog.getByRole("textbox", { name: /Reason/ }), "Stepped back.");
+    await context.userEvent.click(dialog.getByRole("button", { name: "Withdraw application" }));
+
+    await waitFor(async () =>
+      expect(await dialog.findByText(/This application has changed/)).toBeVisible(),
+    );
+  },
+};
+export const Withdrawn: Story = {
+  args: { state: "withdrawn" },
+  play: async ({ canvas }) => {
+    await expect(
+      await canvas.findByRole("button", { name: "Reinstate application" }),
+    ).toBeVisible();
+    await expect(canvas.queryByRole("button", { name: "Edit summary" })).not.toBeInTheDocument();
+  },
+};
+export const ConfirmReinstate: Story = {
+  args: { state: "withdrawn" },
+  play: async ({ canvas, canvasElement, userEvent }) => {
+    await userEvent.click(await canvas.findByRole("button", { name: "Reinstate application" }));
+
+    await expect(within(canvasElement.ownerDocument.body).getByRole("dialog")).toHaveTextContent(
+      /Review requests closed by the withdrawal stay closed/,
     );
   },
 };

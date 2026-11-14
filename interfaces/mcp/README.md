@@ -8,9 +8,10 @@ covers provider configuration and live access verification.
 ## Add or change a tool
 
 Keep a tool's description, schemas, and argument translation together in its
-feature. Funding-round registration is grouped by reading, preparation, intake,
-reviews, and recommendations; [tools.ts](src/features/grantmaking/tools.ts)
-composes those workflows. Response presenters and schemas belong beside them.
+feature. Each capability owns its MCP feature folder (`rounds`, `applications`,
+`reviews`, `recommendations`, `grantmaking`, `contacts`, `workspace`, `team`,
+`organizations`, `navigation`, and `demo`), with response presenters and schemas
+beside tool registration.
 
 Reuse named command schemas from the owning business module, such as
 `intakeChanges.saveRevision` or `contactCommands.restore`. A tool's meaning must
@@ -18,13 +19,16 @@ not depend on a union schema's array order. Keep authorization, lifecycle rules,
 and transaction boundaries in the business operation.
 
 Features that narrow or combine operations declare what they consume in
-`operations.ts`; single-service features such as `reviewer` and `navigation`
-consume their owning business service interface directly in `tools.ts`. Inputs use
-business contracts and an explicit actor; result types reuse the business
-operation's public outcome. Workflow registration accepts only its required
-operations. [App composition](src/app/operations.ts) combines these interfaces,
-and application assembly supplies the owning business packages' bound services.
-MCP consumes those services independently of product request context.
+`operations.ts`; single-service features such as `rounds`, `applications`,
+`reviews`, `recommendations`, and `navigation` consume their owning business
+service interface directly in `tools.ts`. Inputs use business contracts and an
+explicit actor; result types reuse the business operation's public outcome,
+unwrapped into domain-named MCP response fields. Workflow registration accepts
+only its required operations. [App composition](src/app/operations.ts) combines
+these capability ports in `McpOperations`, and
+[MCP server wiring](../../app/src/server/mcp.server.ts) supplies the owning
+business packages' bound services. MCP consumes those services independently of
+product request context.
 
 Register tools through the [shared registrar](src/components/register-tool.ts).
 It handles OAuth scopes, validates outgoing results, and contains unexpected

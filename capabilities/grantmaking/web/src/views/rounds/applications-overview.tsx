@@ -212,6 +212,12 @@ const useOverviewColumns = ({
   renderRoundLink,
 }: Pick<ApplicationsOverviewProps, "renderApplicationLink" | "renderRoundLink">) => {
   const { t } = useTranslation(["fundingRounds", "common"]);
+
+  const intakeLabel = (row: ApplicationOverview) =>
+    row.withdrawn
+      ? t("applications.withdrawn")
+      : t(row.intakeStatus === "ready" ? "overview.ready" : "intake.preparing");
+
   return [
     {
       id: "application",
@@ -244,11 +250,12 @@ const useOverviewColumns = ({
       id: "intake",
       header: t("overview.intake"),
       layout: { width: "12%" },
+      // Sort on the state the cell shows, so Withdrawn is not ordered as its retained status.
       sort: {
-        value: (row) => row.intakeStatus,
-        compare: (a, b) => a.intakeStatus.localeCompare(b.intakeStatus, "en"),
+        value: (row) => intakeLabel(row),
+        compare: (a, b) => intakeLabel(a).localeCompare(intakeLabel(b), "en"),
       },
-      cell: (row) => t(row.intakeStatus === "ready" ? "overview.ready" : "intake.preparing"),
+      cell: (row) => intakeLabel(row),
     },
     {
       id: "reviews",

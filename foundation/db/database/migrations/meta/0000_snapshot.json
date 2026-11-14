@@ -59,6 +59,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "withdrawal": {
+          "name": "withdrawal",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
         "summary": {
           "name": "summary",
           "type": "text",

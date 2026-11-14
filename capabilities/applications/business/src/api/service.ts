@@ -25,7 +25,7 @@ export interface ApplicationsService {
   selectContact: (
     actor: Actor,
     input: SelectContactRequest,
-  ) => Promise<Saved<"contact_unavailable">>;
+  ) => Promise<Saved<"contact_unavailable" | "application_withdrawn">>;
   createApplication: (
     actor: Actor,
     input: CreateApplicationRequest,

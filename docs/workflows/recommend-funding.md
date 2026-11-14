@@ -32,6 +32,14 @@ recommendations count in full; deferrals reserve nothing. While editing, the
 preview uses the current draft alongside other saved manager recommendations.
 The effect of saving must be clear before commitment.
 
+A [withdrawn application](record-applications.md#withdraw-or-reinstate-an-application)
+stays readable with its recommendation, but the recommendation can no longer be
+changed. Its allocation leaves the round's proposed allocations and remaining
+budget, and the totals used to validate or preview another application's
+recommendation. The budget summary and the editor's preview name how many withdrawn
+applications they do not count. Reinstating the application counts its retained
+recommendation again.
+
 ## Save and recover
 
 While writing a recommendation, the manager can consult submitted material,

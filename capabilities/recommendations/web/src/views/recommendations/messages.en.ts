@@ -12,6 +12,8 @@ export const recommendationsMessages = {
     close: "Close recommendation",
     budgetPreview: "Budget preview",
     availableBefore: "Available before this recommendation",
+    withdrawnNotCounted_one: "{{count}} withdrawn application not counted.",
+    withdrawnNotCounted_other: "{{count}} withdrawn applications not counted.",
     previewRemaining: "Remaining with draft",
     previewOver: "Over budget with draft",
     resume: "Resume editing",

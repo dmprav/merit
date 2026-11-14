@@ -37,6 +37,7 @@ it("counts conditional allocations in full and separates outdated from missing r
     remaining: encodeMoney(round.totals.remaining!),
   }).toEqual({
     unknownRequests: 0,
+    withdrawnApplications: 0,
     requested: { minorUnits: "7400000", currency: "EUR" },
     proposed: { minorUnits: "5200000", currency: "EUR" },
     remaining: { minorUnits: "800000", currency: "EUR" },

@@ -31,12 +31,17 @@ export const createApplicationServices = ({
   networkAddress?: string;
   sendEmail: EmailSender;
 }) => {
+  const grantmakingQueries = createGrantmakingService({ database });
+  const rounds = createRoundsService({ database, roundHasApplications });
+  const applications = createApplicationsService({ database, work: applicationWork });
+  const recommendations = createRecommendationsService({ database });
+  const reviews = createReviewService({ database });
   const grantmaking = {
-    ...createGrantmakingService({ database }),
-    ...createRoundsService({ database, roundHasApplications }),
-    ...createApplicationsService({ database, work: applicationWork }),
-    ...createRecommendationsService({ database }),
-    ...createReviewService({ database }),
+    ...grantmakingQueries,
+    ...rounds,
+    ...applications,
+    ...recommendations,
+    ...reviews,
   };
   const navigation = createNavigationService({ database, verifiedEmails: identity.verifiedEmails });
   const reviewer = createReviewerService({
@@ -60,5 +65,17 @@ export const createApplicationServices = ({
   const readWorkspace: WorkspaceServices["readWorkspace"] = (actor, slug) =>
     database((db) => getWorkspace(db, actor, slug));
 
-  return { grantmaking, reviewer, navigation, contacts, organizations, readWorkspace };
+  return {
+    grantmaking,
+    grantmakingQueries,
+    rounds,
+    applications,
+    recommendations,
+    reviews,
+    reviewer,
+    navigation,
+    contacts,
+    organizations,
+    readWorkspace,
+  };
 };
