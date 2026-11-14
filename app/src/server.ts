@@ -3,7 +3,8 @@ import { env, waitUntil } from "cloudflare:workers";
 import handler, { createServerEntry } from "@tanstack/react-start/server-entry";
 
 import { mcpResourceMetadata } from "@merit/mcp";
-import { traceWorkerRequest } from "@merit/telemetry/worker";
+import { reportError } from "@merit/telemetry/errors";
+import { describeHttpRoute, traceWorkerRequest } from "@merit/telemetry/worker";
 
 import type { ApplicationRequestContext } from "./request-context";
 import { createRequestDatabase } from "./server/database.server";
@@ -26,41 +27,50 @@ export default createServerEntry({
       waitUntil,
       async () => {
         const url = new URL(request.url);
-        const config = {
-          publishableKey: env.CLERK_PUBLISHABLE_KEY,
-          secretKey: env.CLERK_SECRET_KEY,
-          issuer: env.CLERK_ISSUER,
-          resource: new URL("/mcp/workspace", env.APP_ORIGIN).href,
-          operatorUserIds: env.MERIT_OPERATOR_USER_IDS,
-        };
-        if (url.pathname === "/.well-known/oauth-protected-resource/mcp/workspace") {
-          return mcpResourceMetadata(config);
-        }
-        if (url.pathname === "/mcp") {
-          return new Response("Not found", { status: 404 });
-        }
-
-        const requestDatabase = createRequestDatabase();
         try {
-          const dependencies = {
-            database: requestDatabase.run,
-            invitationOrigin: import.meta.env.DEV ? url.origin : env.APP_ORIGIN,
-            networkAddress: import.meta.env.DEV
-              ? "local"
-              : (request.headers.get("CF-Connecting-IP") ?? undefined),
-            sendEmail: createEmailSender({
-              from: env.EMAIL_FROM,
-              resendKey: env.RESEND_API_KEY,
-              mailpitUrl: import.meta.env.DEV ? env.MAILPIT_URL : undefined,
-            }),
+          const config = {
+            publishableKey: env.CLERK_PUBLISHABLE_KEY,
+            secretKey: env.CLERK_SECRET_KEY,
+            issuer: env.CLERK_ISSUER,
+            resource: new URL("/mcp/workspace", env.APP_ORIGIN).href,
+            operatorUserIds: env.MERIT_OPERATOR_USER_IDS,
           };
-          if (url.pathname === "/mcp/workspace") {
-            return await handleMcp(request, config, dependencies);
+          if (url.pathname === "/.well-known/oauth-protected-resource/mcp/workspace") {
+            return mcpResourceMetadata(config);
+          }
+          if (url.pathname === "/mcp") {
+            return new Response("Not found", { status: 404 });
           }
 
-          return await handleWebRequest(request, options, config, dependencies);
-        } finally {
-          await requestDatabase.close();
+          const requestDatabase = createRequestDatabase();
+          try {
+            const dependencies = {
+              database: requestDatabase.run,
+              invitationOrigin: import.meta.env.DEV ? url.origin : env.APP_ORIGIN,
+              networkAddress: import.meta.env.DEV
+                ? "local"
+                : (request.headers.get("CF-Connecting-IP") ?? undefined),
+              sendEmail: createEmailSender({
+                from: env.EMAIL_FROM,
+                resendKey: env.RESEND_API_KEY,
+                mailpitUrl: import.meta.env.DEV ? env.MAILPIT_URL : undefined,
+              }),
+            };
+            if (url.pathname === "/mcp/workspace") {
+              return await handleMcp(request, config, dependencies);
+            }
+
+            return await handleWebRequest(request, options, config, dependencies);
+          } finally {
+            await requestDatabase.close();
+          }
+        } catch (error) {
+          reportError(error, {
+            surface: "server",
+            operation: "worker.fetch",
+            tags: { route: describeHttpRoute(url.pathname).route, method: request.method },
+          });
+          throw error;
         }
       },
     );

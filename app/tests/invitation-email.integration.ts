@@ -48,5 +48,14 @@ it("reports rendering failure safely and does not send incomplete content", asyn
   );
 
   expect(sendEmail).not.toHaveBeenCalled();
-  expect(log).toHaveBeenCalledExactlyOnceWith("Invitation email rendering failed.");
+  expect(log).toHaveBeenCalledOnce();
+  const [prefix, rawPayload] = log.mock.calls[0] as [unknown, unknown];
+  expect(prefix).toBe("[merit:error]");
+  expect(String(rawPayload)).not.toContain("private-token");
+  expect(String(rawPayload)).not.toContain(message.url);
+  expect(JSON.parse(String(rawPayload))).toEqual({
+    surface: "email",
+    operation: "email.renderInvitation",
+    errorType: "Error",
+  });
 });

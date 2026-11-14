@@ -4,6 +4,7 @@ import type { DatabaseRunner } from "@merit/db";
 import { fundingExampleAuthor } from "@merit/grantmaking/server/demo";
 import { readDemoWorkspace, allowDemoEntry } from "@merit/organizations/server/demo";
 import type { DemoServices } from "@merit/product/context";
+import { reportError } from "@merit/telemetry/errors";
 
 import { demoDestination, seedDemoWorkspace } from "./demo-workspace.server";
 
@@ -72,8 +73,8 @@ export const createDemoServices = (
         }
 
         return { state: await demoDestination(database, result.workspace, actor), cookie };
-      } catch {
-        console.error("Demo provisioning failed.");
+      } catch (error) {
+        reportError(error, { surface: "demo", operation: "demo.start" });
         return { state: { status: "unavailable" } };
       }
     },

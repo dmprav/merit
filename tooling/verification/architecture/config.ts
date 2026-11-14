@@ -427,6 +427,7 @@ export default defineConfig({
             "**/src/**/contracts{.ts,/**}",
             "foundation/{money,dates}/src/**",
             "foundation/auth/src/index.ts",
+            "foundation/telemetry/src/errors.ts",
             // Shared translation setup is safe for emails; the browser entry adds UI integration.
             "foundation/i18n/src/{core.ts,en.ts,server.tsx}",
           ],

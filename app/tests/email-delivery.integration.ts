@@ -107,9 +107,15 @@ it.each(senders)(
     );
 
     await expect(send(message)).rejects.toThrow("Email was not accepted by the sender.");
-    expect(log).toHaveBeenCalledExactlyOnceWith("Email was not accepted by the sender.", {
-      provider: name,
-      status: 503,
+    expect(log).toHaveBeenCalledOnce();
+    const [prefix, rawPayload] = log.mock.calls[0] as [unknown, unknown];
+    expect(prefix).toBe("[merit:error]");
+    expect(String(rawPayload)).not.toContain("private provider detail");
+    expect(JSON.parse(String(rawPayload))).toEqual({
+      surface: "email",
+      operation: "email.sendRequest",
+      errorType: "Error",
+      tags: { provider: name, status: 503 },
     });
   },
 );
@@ -121,8 +127,15 @@ it.each(senders)(
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("private URL and credentials")));
 
     await expect(send(message)).rejects.toThrow("Email delivery request failed.");
-    expect(log).toHaveBeenCalledExactlyOnceWith("Email delivery request failed.", {
-      provider: name,
+    expect(log).toHaveBeenCalledOnce();
+    const [prefix, rawPayload] = log.mock.calls[0] as [unknown, unknown];
+    expect(prefix).toBe("[merit:error]");
+    expect(String(rawPayload)).not.toContain("private URL and credentials");
+    expect(JSON.parse(String(rawPayload))).toEqual({
+      surface: "email",
+      operation: "email.sendRequest",
+      errorType: "Error",
+      tags: { provider: name },
     });
   },
 );
@@ -144,22 +157,45 @@ it.each([
     ),
   ).rejects.toThrow("Mailpit must use a local HTTP endpoint.");
   expect(fetch).not.toHaveBeenCalled();
-  expect(log).toHaveBeenCalledExactlyOnceWith("Mailpit must use a local HTTP endpoint.");
+  expect(log).toHaveBeenCalledOnce();
+  const [prefix, rawPayload] = log.mock.calls[0] as [unknown, unknown];
+  expect(prefix).toBe("[merit:error]");
+  expect(JSON.parse(String(rawPayload))).toEqual({
+    surface: "email",
+    operation: "email.mailpitConfig",
+    errorType: "Error",
+  });
 });
 
 it.each([
   {
     name: "Mailpit",
+    operation: "email.mailpitConfig",
     send: createEmailSender({ from: "", resendKey: "", mailpitUrl: "http://localhost:8025" }),
   },
-  { name: "Resend", send: createEmailSender({ from: "invite@merit.example", resendKey: "" }) },
-  { name: "Resend", send: createEmailSender({ from: "", resendKey: "test-only" }) },
-])("checks missing $name configuration only when sending", async ({ name, send }) => {
+  {
+    name: "Resend",
+    operation: "email.resendConfig",
+    send: createEmailSender({ from: "invite@merit.example", resendKey: "" }),
+  },
+  {
+    name: "Resend",
+    operation: "email.resendConfig",
+    send: createEmailSender({ from: "", resendKey: "test-only" }),
+  },
+])("checks missing $name configuration only when sending", async ({ operation, send }) => {
   const log = vi.spyOn(console, "error").mockImplementation(() => {});
   const fetch = vi.fn();
   vi.stubGlobal("fetch", fetch);
 
   await expect(send(message)).rejects.toThrow("Email delivery is not configured.");
   expect(fetch).not.toHaveBeenCalled();
-  expect(log).toHaveBeenCalledExactlyOnceWith(`${name} email configuration is missing.`);
+  expect(log).toHaveBeenCalledOnce();
+  const [prefix, rawPayload] = log.mock.calls[0] as [unknown, unknown];
+  expect(prefix).toBe("[merit:error]");
+  expect(JSON.parse(String(rawPayload))).toEqual({
+    surface: "email",
+    operation,
+    errorType: "Error",
+  });
 });

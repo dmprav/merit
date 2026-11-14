@@ -1,6 +1,7 @@
 import { renderInvitationEmail } from "@merit/emails/server";
 import { defaultLocale } from "@merit/i18n/server";
 import type { InvitationMessage } from "@merit/organizations/api";
+import { reportError } from "@merit/telemetry/errors";
 
 import type { EmailSender } from "./email-delivery.server";
 
@@ -8,8 +9,8 @@ export const sendInvitationEmail = async (message: InvitationMessage, sendEmail:
   let content: Awaited<ReturnType<typeof renderInvitationEmail>>;
   try {
     content = await renderInvitationEmail(message, defaultLocale);
-  } catch {
-    console.error("Invitation email rendering failed.");
+  } catch (error) {
+    reportError(error, { surface: "email", operation: "email.renderInvitation" });
     throw new Error("Invitation email rendering failed.");
   }
 

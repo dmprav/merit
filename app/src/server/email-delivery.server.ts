@@ -1,4 +1,5 @@
 import { SpanKind, SpanStatusCode, withSpan } from "@merit/telemetry";
+import { reportError } from "@merit/telemetry/errors";
 
 type OutgoingEmail = { id: string; to: string; subject: string; html: string; text: string };
 
@@ -11,18 +12,23 @@ const sendRequest = (provider: "Mailpit" | "Resend", url: string | URL, options:
       let response: Response;
       try {
         response = await fetch(url, { ...options, signal: AbortSignal.timeout(10000) });
-      } catch {
+      } catch (error) {
         span.setStatus({ code: SpanStatusCode.ERROR, message: "EmailDeliveryNetworkError" });
-        console.error("Email delivery request failed.", { provider });
+        reportError(error, {
+          surface: "email",
+          operation: "email.sendRequest",
+          tags: { provider },
+        });
         throw new Error("Email delivery request failed.");
       }
 
       span.setAttribute("http.response.status_code", response.status);
       if (!response.ok) {
         span.setStatus({ code: SpanStatusCode.ERROR, message: `HTTP ${response.status}` });
-        console.error("Email was not accepted by the sender.", {
-          provider,
-          status: response.status,
+        reportError(new Error("Email was not accepted by the sender."), {
+          surface: "email",
+          operation: "email.sendRequest",
+          tags: { provider, status: response.status },
         });
         throw new Error("Email was not accepted by the sender.");
       }
@@ -42,11 +48,17 @@ const createMailpitSender =
       url.protocol !== "http:" ||
       !["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)
     ) {
-      console.error("Mailpit must use a local HTTP endpoint.");
+      reportError(new Error("Mailpit must use a local HTTP endpoint."), {
+        surface: "email",
+        operation: "email.mailpitConfig",
+      });
       throw new Error("Mailpit must use a local HTTP endpoint.");
     }
     if (!config.from) {
-      console.error("Mailpit email configuration is missing.");
+      reportError(new Error("Mailpit email configuration is missing."), {
+        surface: "email",
+        operation: "email.mailpitConfig",
+      });
       throw new Error("Email delivery is not configured.");
     }
 
@@ -67,7 +79,10 @@ const createResendSender =
   (config: { key: string; from: string }): EmailSender =>
   async (message) => {
     if (!config.key || !config.from) {
-      console.error("Resend email configuration is missing.");
+      reportError(new Error("Resend email configuration is missing."), {
+        surface: "email",
+        operation: "email.resendConfig",
+      });
       throw new Error("Email delivery is not configured.");
     }
 
