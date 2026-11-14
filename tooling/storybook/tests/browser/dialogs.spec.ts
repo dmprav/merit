@@ -326,3 +326,24 @@ test(
     await expect(dialog.getByRole("button", { name: "Keep invitation" })).toBeFocused();
   },
 );
+
+test("workspace search scrolls long results within a short screen", async ({ page }) => {
+  await page.setViewportSize({ ...page.viewportSize()!, height: 480 });
+  await page.goto(
+    "/iframe.html?id=features-funding-rounds-workspace-search--more-matches-than-shown&viewMode=story",
+  );
+  await expect(page.locator("#storybook-root")).toHaveAttribute("data-story-ready", "true");
+  const dialog = page.getByRole("dialog", { name: "Search" });
+  const options = dialog.getByRole("option");
+  const last = options.last();
+
+  // The box stays on screen and its list scrolls rather than clipping the lower results.
+  await expect(dialog).toBeInViewport({ ratio: 1 });
+  await expect(last).not.toBeInViewport();
+  await last.scrollIntoViewIfNeeded();
+  await expect(last).toBeInViewport({ ratio: 1 });
+  await expect(dialog.getByText(/Showing 10 of \d+ applications/)).toBeInViewport();
+  // Only the results scroll: the field stays in place above them.
+  await expect(dialog.getByRole("searchbox")).toBeInViewport({ ratio: 1 });
+  await checkPage(page);
+});

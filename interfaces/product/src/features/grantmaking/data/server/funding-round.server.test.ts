@@ -6,6 +6,7 @@ import {
   loadFundingRounds,
   loadWorkspaceActivity,
   loadWorkspaceApplications,
+  loadWorkspaceSearch,
 } from "./funding-round.server";
 
 it.each([
@@ -169,4 +170,43 @@ it("does not read activity for a signed-out visitor", async () => {
     ),
   ).toEqual({ status: "signed_out" });
   expect(listWorkspaceActivity).not.toHaveBeenCalled();
+});
+
+it.each([
+  { outcome: "forbidden", status: "not_found" },
+  { outcome: "not_found", status: "workspace_not_found" },
+] as const)("presents $outcome search as $status", async ({ outcome, status }) => {
+  expect(
+    await loadWorkspaceSearch(
+      { workspaceSlug: "alder", query: "harbour" },
+      { currentIdentity: async () => manager, searchWorkspace: async () => ({ status: outcome }) },
+    ),
+  ).toEqual({ status });
+});
+
+it("searches the selected workspace as the authenticated actor", async () => {
+  const found = {
+    status: "ok" as const,
+    rounds: { results: [], total: 0 },
+    applications: { results: [], total: 0 },
+  };
+  const searchWorkspace = vi.fn(async () => found);
+  const input = { workspaceSlug: "alder", query: "harbour trust" };
+
+  expect(
+    await loadWorkspaceSearch(input, { currentIdentity: async () => manager, searchWorkspace }),
+  ).toEqual(found);
+  expect(searchWorkspace).toHaveBeenCalledWith({ userId: "manager" }, input);
+});
+
+it("does not search for a signed-out visitor", async () => {
+  const searchWorkspace = vi.fn();
+
+  expect(
+    await loadWorkspaceSearch(
+      { workspaceSlug: "alder", query: "harbour" },
+      { currentIdentity: async () => ({ status: "signed_out" }), searchWorkspace },
+    ),
+  ).toEqual({ status: "signed_out" });
+  expect(searchWorkspace).not.toHaveBeenCalled();
 });

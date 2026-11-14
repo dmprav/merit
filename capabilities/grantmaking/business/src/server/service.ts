@@ -21,6 +21,7 @@ import {
   listFundingRoundHistory,
   listFundingApplicationHistory,
 } from "./queries/reading";
+import { searchWorkspace } from "./queries/workspace-search";
 
 type Dependencies = {
   database: <T>(operation: (db: Database) => Promise<T>) => Promise<T>;
@@ -51,6 +52,7 @@ export const createGrantmakingService = ({ database }: Dependencies): Grantmakin
   readRoundPage: (actor, input) => database((db) => getFundingRoundPage(db, actor, input)),
   listWorkspaceApplications: (actor, slug) =>
     database((db) => listWorkspaceApplications(db, actor, slug)),
+  searchWorkspace: (actor, input) => database((db) => searchWorkspace(db, actor, input)),
   listWorkspaceActivity: (actor, input) =>
     database((db) => listWorkspaceActivity(db, actor, input)),
   listRounds: (actor, input) => database((db) => listFundingRounds(db, actor, input)),

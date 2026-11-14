@@ -40,6 +40,7 @@ describe("workspace MCP contracts", () => {
         expect.arrayContaining([
           "list_applications",
           "list_workspace_activity",
+          "search_workspace",
           "get_application_content",
           "start_application_revision",
           "publish_application_revision",
@@ -362,6 +363,109 @@ describe("workspace MCP contracts", () => {
     expect(response.status).toBe(403);
     expect(response.headers.get("WWW-Authenticate")).toContain("workspace:read");
     expect(operations.grantmaking.listWorkspaceActivity).not.toHaveBeenCalled();
+  });
+  it("searches a workspace and returns each group's results with its total", async () => {
+    const operations = testOperations();
+    const found = {
+      status: "ok" as const,
+      rounds: {
+        total: 1,
+        results: [
+          { id, title: "Harbour fund", meetingDate: "2027-06-15", matchQuality: "prefix" as const },
+        ],
+      },
+      applications: {
+        total: 43,
+        results: [
+          {
+            id: "b8q3w5j7c2df",
+            title: "Boat repairs",
+            applicant: "Trust for the Harbour",
+            roundId: id,
+            roundTitle: "Harbour fund",
+            intakeStatus: "in_preparation" as const,
+            withdrawn: true,
+            matchQuality: "contains" as const,
+          },
+        ],
+      },
+    };
+    vi.mocked(operations.grantmaking.searchWorkspace).mockResolvedValue(found);
+    const client = await connect(operations);
+    try {
+      const result = await client.callTool({
+        name: "search_workspace",
+        arguments: { workspaceSlug: "alder", query: "harbour trust" },
+      });
+
+      expect(operations.grantmaking.searchWorkspace).toHaveBeenCalledWith(actor, {
+        workspaceSlug: "alder",
+        query: "harbour trust",
+      });
+      expect(result.structuredContent).toEqual(found);
+    } finally {
+      await client.close();
+    }
+  });
+  it.each([
+    { query: "x".repeat(201) },
+    { query: 5 },
+    { query: "harbour", limit: 100 },
+    { workspaceSlug: "Not A Slug", query: "harbour" },
+  ])("rejects search input %j before searching", async (input) => {
+    const operations = testOperations();
+    const client = await connect(operations);
+    try {
+      const result = await client.callTool({
+        name: "search_workspace",
+        arguments: { workspaceSlug: "alder", ...input },
+      });
+
+      expect(result.isError).toBe(true);
+      expect(JSON.stringify(result)).not.toContain("xxxxxxxxxx");
+      expect(operations.grantmaking.searchWorkspace).not.toHaveBeenCalled();
+    } finally {
+      await client.close();
+    }
+  });
+  it.each([{ status: "not_found" as const }, { status: "forbidden" as const }])(
+    "retains search outcome $status",
+    async (outcome) => {
+      const operations = testOperations();
+      vi.mocked(operations.grantmaking.searchWorkspace).mockResolvedValue(outcome);
+      const client = await connect(operations);
+      try {
+        expect(
+          (
+            await client.callTool({
+              name: "search_workspace",
+              arguments: { workspaceSlug: "alder", query: "harbour" },
+            })
+          ).structuredContent,
+        ).toEqual(outcome);
+      } finally {
+        await client.close();
+      }
+    },
+  );
+  it("does not log the typed query when a search fails", async () => {
+    const operations = testOperations();
+    vi.mocked(operations.grantmaking.searchWorkspace).mockRejectedValue(new Error("Database down"));
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const client = await connect(operations);
+    try {
+      const result = await client.callTool({
+        name: "search_workspace",
+        arguments: { workspaceSlug: "alder", query: "confidential applicant" },
+      });
+
+      expect(result.structuredContent).toMatchObject({ status: "unavailable" });
+      expect(log).toHaveBeenCalled();
+      expect(JSON.stringify(log.mock.calls)).not.toContain("confidential");
+    } finally {
+      await client.close();
+      log.mockRestore();
+    }
   });
   it("publishes only contracted fields in identical text and structured results", async () => {
     const operations = testOperations();

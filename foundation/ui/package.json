@@ -14,6 +14,7 @@
     "./button": "./src/components/button/button.tsx",
     "./tooltip": "./src/components/tooltip/tooltip.tsx",
     "./dialog": "./src/components/dialog/dialog.tsx",
+    "./search-palette": "./src/patterns/search-palette/search-palette.tsx",
     "./confirmation-dialog": "./src/patterns/confirmation-dialog/confirmation-dialog.tsx",
     "./description-list": "./src/components/description-list/description-list.tsx",
     "./layout": "./src/components/layout/layout.tsx",

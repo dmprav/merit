@@ -41,6 +41,7 @@ export const testOperations = (): McpOperations => ({
     roundHistory: vi.fn<McpOperations["grantmaking"]["roundHistory"]>(),
     applicationHistory: vi.fn<McpOperations["grantmaking"]["applicationHistory"]>(),
     listWorkspaceActivity: vi.fn<McpOperations["grantmaking"]["listWorkspaceActivity"]>(),
+    searchWorkspace: vi.fn<McpOperations["grantmaking"]["searchWorkspace"]>(),
     listContactApplications: vi.fn<McpOperations["grantmaking"]["listContactApplications"]>(),
   },
   contacts: {

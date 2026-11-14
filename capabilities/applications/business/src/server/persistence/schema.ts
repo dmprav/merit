@@ -38,6 +38,9 @@ export const applicationCases = pgTable(
     contactId: uuid("contact_id"),
     intakeStatus: text("intake_status", { enum: ["in_preparation", "ready"] }).notNull(),
     withdrawal: jsonb(),
+    // The current recorded title and applicant, kept beside `material_version` for workspace search.
+    searchTitle: text("search_title").notNull().default(""),
+    searchApplicant: text("search_applicant").notNull().default(""),
     summary: text().notNull().default(""),
     summaryAuthor: jsonb("summary_author"),
     attention: jsonb().notNull().default([]),

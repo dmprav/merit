@@ -14,6 +14,7 @@ surrounding work. Choose the composition by what the person needs to do:
 | Read substantial evidence or history | A wide `ModalDialog` with `DialogContent`; use `reading` for prose.        |
 | Create or edit a record              | [Form dialog](?path=/docs/patterns-form-dialog--docs), sized for the task. |
 | Authorize a consequential action     | [Confirmation dialog](?path=/docs/patterns-confirmation-dialog--docs).     |
+| Jump to a record by name             | `ModalDialog` with `appearance="search"`.                                  |
 | Work beside an individual value      | `PopoverDialog`, with content and actions appropriate to that small task.  |
 
 The shared frame owns the backdrop, focus containment, accessible title, close
@@ -36,6 +37,21 @@ provided `closeButton` alongside it.
 <Canvas of={Dialog.Popover} />
 
 <Canvas of={Dialog.FloatingLongContent} />
+
+## Search and jump
+
+`appearance="search"` frames a search box. It sits near the top of the page with no
+visible title bar: `title` names the dialog for assistive technology, and a small
+close control floats over the end of the first row. Content owns the field and the
+results, and reserves `--search-close-reserve` at the end of its first row so the
+control never covers typed text. Outside presses dismiss it unless `isDismissable`
+is false. Opened without a trigger, focus returns to where it was when the box
+closes. On viewports up to 600px wide the box fills the screen.
+
+The [search palette](?path=/docs/patterns-search-palette--docs) is the content for
+searching records: a field above grouped results that arrive from elsewhere.
+
+<Canvas of={Dialog.Search} />
 
 ## Keep content and actions reachable
 

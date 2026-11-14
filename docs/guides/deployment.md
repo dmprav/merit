@@ -58,6 +58,13 @@ upgrade path to this baseline, even if their migration used the same filename.
 The [local reset procedure](development.md#local-database-recovery) applies only
 to disposable Compose databases.
 
+Workspace search needs the `pg_trgm` and `unaccent` extensions, which the migrations
+create in the `public` schema. PostgreSQL 13 and later treat both as trusted, so the
+migration credential only needs `CREATE` on the database; on a managed host that
+restricts extensions, enable them there first. The runtime credential needs nothing
+beyond the table privileges below, since the extensions' functions are executable by
+every role.
+
 ### Check runtime privileges
 
 After applying migrations, check the runtime role's grants on both new and

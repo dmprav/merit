@@ -1,4 +1,6 @@
 import {
+  createContext,
+  useContext,
   useEffect,
   useRef,
   useState,
@@ -27,6 +29,30 @@ const subscribeViewport = (onChange: () => void) => {
 };
 
 const isCompactViewport = () => window.matchMedia(compactQuery).matches;
+
+/** Whether a click inside the drawer is a plain click on a real link, which navigates away. */
+const navigatesAway = (event: MouseEvent) => {
+  const link = (event.target as Element).closest("a[href]");
+  return (
+    link &&
+    event.button === 0 &&
+    !event.metaKey &&
+    !event.ctrlKey &&
+    !event.shiftKey &&
+    !event.altKey &&
+    link.getAttribute("target") !== "_blank" &&
+    link.getAttribute("aria-disabled") !== "true"
+  );
+};
+
+const CloseNavigationContext = createContext<() => void>(() => {});
+
+/**
+ * Closes the mobile navigation drawer; does nothing on desktop. Navigation items that open
+ * something over the page, such as Search, call it first, since React Aria buttons stop the
+ * click the drawer would otherwise hear.
+ */
+export const useCloseNavigation = () => useContext(CloseNavigationContext);
 
 /** Apps supply destinations and identity; the shell owns desktop and mobile navigation. */
 export const ApplicationShell = ({
@@ -64,23 +90,11 @@ export const ApplicationShell = ({
   }, [compact]);
 
   const closeAfterLink = (event: MouseEvent) => {
-    const link = (event.target as Element).closest("a[href]");
-    if (
-      !link ||
-      event.button !== 0 ||
-      event.metaKey ||
-      event.ctrlKey ||
-      event.shiftKey ||
-      event.altKey ||
-      link.getAttribute("target") === "_blank" ||
-      link.getAttribute("aria-disabled") === "true"
-    ) {
-      return;
+    if (navigatesAway(event)) {
+      setOpen(false);
+      // Navigation owns focus after the drawer's focus scope has restored its trigger.
+      requestAnimationFrame(() => document.getElementById("main")?.focus({ preventScroll: true }));
     }
-
-    setOpen(false);
-    // Navigation owns focus after the drawer's focus scope has restored its trigger.
-    requestAnimationFrame(() => document.getElementById("main")?.focus({ preventScroll: true }));
   };
 
   const navigationContent = (
@@ -122,7 +136,9 @@ export const ApplicationShell = ({
             {/* Clicks bubble from real links, including keyboard activation; this wrapper is not a control. */}
             {/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
             <div className={styles.drawerContent} onClick={closeAfterLink}>
-              {navigationContent}
+              <CloseNavigationContext value={() => setOpen(false)}>
+                {navigationContent}
+              </CloseNavigationContext>
             </div>
           </ModalDialog>
         )}

@@ -1,6 +1,7 @@
 import { sql, type AnyColumn } from "drizzle-orm";
 
 import { contacts } from "@merit/contacts/schema";
+import { containsEveryWord, matchRank, titleOrder, type SearchTerms } from "@merit/db/search";
 
 import { applicationCases, materialVersions, materialDrafts } from "./schema";
 
@@ -46,3 +47,29 @@ export const roundWithdrawnCount = (round: { organizationId: AnyColumn; id: AnyC
   sql<number>`(select count(*)::integer from ${applicationCases} withdrawn
     where withdrawn.organization_id = ${round.organizationId} and withdrawn.round_id = ${round.id}
     and ${withdrawnCase("withdrawn")})`;
+
+// Workspace search reads the current recorded title and applicant stored on the case, so working
+// revisions, drafts, and superseded versions never match. The index covers this exact expression.
+const searchApplicant = sql`${applicationCases.searchApplicant}`;
+
+/** The title shown for a search result: the current recorded title. */
+export const applicationSearchTitle = sql<string>`${applicationCases.searchTitle}`;
+
+/** The applicant shown for a search result; null when none was recorded. */
+export const applicationSearchApplicant = sql<
+  string | null
+>`nullif(${applicationCases.searchApplicant}, '')`;
+
+/** Orders applications by title the way people read it: case-insensitive, English. */
+export const applicationSearchTitleOrder = titleOrder(applicationSearchTitle);
+
+/** Whether every word appears in the application's title and applicant together. */
+export const applicationSearchMatch = (terms: SearchTerms) =>
+  containsEveryWord(
+    sql`${applicationCases.searchTitle} || ' ' || ${applicationCases.searchApplicant}`,
+    terms,
+  );
+
+/** 0 when the title or applicant equals the whole query, 1 when one starts with it, 2 otherwise. */
+export const applicationSearchRank = (terms: SearchTerms) =>
+  matchRank([applicationSearchTitle, searchApplicant], terms);

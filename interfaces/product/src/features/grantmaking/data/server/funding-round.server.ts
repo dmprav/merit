@@ -5,6 +5,7 @@ import type {
   ApplicationRequest,
   PublicRoundRequest,
   workspaceActivityInput,
+  workspaceSearchInput,
 } from "@merit/grantmaking/api";
 
 import type { WorkspaceServices } from "../../../../shared/request-context";
@@ -66,6 +67,21 @@ export const loadWorkspaceActivity = (
     if (result.status === "invalid") {
       return { status: "unavailable" } as const;
     }
+    if (result.status === "not_found") {
+      return { status: "workspace_not_found" } as const;
+    }
+    if (result.status === "forbidden") {
+      return { status: "not_found" } as const;
+    }
+    return result;
+  });
+
+export const loadWorkspaceSearch = (
+  input: z.input<typeof workspaceSearchInput>,
+  services: Pick<WorkspaceServices, "currentIdentity" | "searchWorkspace">,
+) =>
+  withActor(services.currentIdentity, async (actor) => {
+    const result = await services.searchWorkspace(actor, input);
     if (result.status === "not_found") {
       return { status: "workspace_not_found" } as const;
     }

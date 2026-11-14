@@ -169,7 +169,8 @@ button.contextTrigger {
   gap: 2px;
 }
 
-.nav a {
+/* Navigation items are links, or a button that opens something over the page, such as Search. */
+.nav :is(a, .navigationItem) {
   border-radius: var(--control-radius);
   display: flex;
   align-items: center;
@@ -180,8 +181,19 @@ button.contextTrigger {
   font-size: var(--text-detail);
 }
 
-.nav a:hover {
+.nav :is(a, .navigationItem):hover,
+.nav .navigationItem[data-hovered] {
   background: var(--surface);
+}
+
+.nav .navigationItem {
+  width: 100%;
+  justify-content: flex-start;
+  border: 0;
+  background: none;
+  color: inherit;
+  font-weight: 400;
+  cursor: pointer;
 }
 
 .nav a.navigationGroupStart {
@@ -370,7 +382,7 @@ button.accountTrigger,
     white-space: nowrap;
   }
 
-  .drawerContent .nav a {
+  .drawerContent .nav :is(a, .navigationItem) {
     min-height: 44px;
   }
 
@@ -503,7 +515,8 @@ button.accountTrigger,
   content: attr(data-initials);
 }
 
-.nav a:focus-visible {
+.nav :is(a, .navigationItem):focus-visible,
+.nav .navigationItem[data-focus-visible] {
   outline: none;
   background: var(--action-subtle);
   color: var(--action);
