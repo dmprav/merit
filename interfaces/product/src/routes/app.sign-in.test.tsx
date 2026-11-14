@@ -54,6 +54,9 @@ describe("app.sign-in returnTo validation", () => {
     "/demo",
     " /app",
     "/app\n",
+    "/app\r",
+    "/reviews\n",
+    "/app/sign-in\n",
     "",
   ])("rejects %s", (returnTo) => {
     expect(validateSearch(returnTo)).toEqual({ returnTo: undefined });

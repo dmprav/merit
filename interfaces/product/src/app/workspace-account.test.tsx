@@ -25,6 +25,17 @@ describe("WorkspaceAccount", () => {
     expect(screen.getByText("Dana Reed")).toBeVisible();
   });
 
+  it.each(["constructor", "toString", "__proto__"])(
+    "falls back to default local persona when cookie is malformed (%s)",
+    (cookieValue) => {
+      vi.stubEnv("MERIT_LOCAL_WORKSPACE", "true");
+      document.cookie = `merit-local-person=${cookieValue}; Path=/`;
+
+      render(<WorkspaceAccount />, { wrapper: WebMessagesProvider });
+      expect(screen.getByText("Dana Reed")).toBeVisible();
+    },
+  );
+
   it("does not render local persona without MERIT_LOCAL_WORKSPACE outside demo workspaces", () => {
     vi.stubEnv("MERIT_LOCAL_WORKSPACE", "");
     document.cookie = "merit-local-person=operator; Path=/";

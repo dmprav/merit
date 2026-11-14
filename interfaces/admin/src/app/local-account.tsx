@@ -3,10 +3,10 @@ import { useTranslation } from "react-i18next";
 
 import { ApplicationAccount } from "@merit/ui/application-shell";
 
-const localPersonas: Record<string, string> = {
-  operator: "Merit operator",
-  recipient: "Invitation recipient",
-};
+const localPersonas = new Map<string, string>([
+  ["operator", "Merit operator"],
+  ["recipient", "Invitation recipient"],
+]);
 const defaultLocalPersona = "Dana Reed";
 
 const readLocalPersonCookie = () =>
@@ -22,7 +22,7 @@ export const LocalAccount = () => {
 
   useEffect(() => {
     const person = readLocalPersonCookie();
-    setName((person && localPersonas[person]) ?? defaultLocalPersona);
+    setName((person ? localPersonas.get(person) : undefined) ?? defaultLocalPersona);
   }, []);
 
   return (

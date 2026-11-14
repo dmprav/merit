@@ -127,7 +127,9 @@ const allowedReturnTo =
 export const Route = createFileRoute("/_product/app/sign-in")({
   validateSearch: (search: Record<string, unknown>): { returnTo?: string } => ({
     returnTo:
-      typeof search.returnTo === "string" && allowedReturnTo.test(search.returnTo)
+      typeof search.returnTo === "string" &&
+      !/[\r\n]/.test(search.returnTo) &&
+      allowedReturnTo.test(search.returnTo)
         ? search.returnTo
         : undefined,
   }),
