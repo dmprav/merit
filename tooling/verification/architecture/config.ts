@@ -59,12 +59,12 @@ const pureImports = {
   audit: "@merit/auth",
   organizations: "@merit/{auth,access,audit/api}",
   grantmaking:
-    "@merit/{money,dates,auth,audit/api,contacts/domain,organizations/api,{rounds,applications,reviews,recommendations}/{domain,api}}",
+    "@merit/{money,auth,audit/api,organizations/api,{rounds,applications,reviews,recommendations}/{domain,api}}",
   contacts: "@merit/{auth,organizations/api,audit/api}",
   rounds: "@merit/{auth,money,dates,organizations/api}",
-  applications: "@merit/{auth,money,dates,contacts/domain,organizations/api}",
+  applications: "@merit/{auth,money,dates,organizations/api}",
   reviews:
-    "@merit/{auth,money,dates,audit/api,contacts/domain,organizations/api,applications/{domain,api},rounds/domain}",
+    "@merit/{auth,money,dates,audit/api,organizations/api,applications/{domain,api},rounds/domain}",
   recommendations: "@merit/{auth,money,dates,organizations/api,{applications,rounds}/domain}",
 };
 
@@ -92,18 +92,20 @@ const serverImports = [
     business("audit", "integrations"),
   ),
   permitServer(
-    business(
-      "{organizations,contacts,applications,rounds,reviews,recommendations,grantmaking}",
-      "{query,shared}-persistence",
-    ),
+    business("{organizations,grantmaking}", "query-persistence"),
     "@merit/audit/schema",
     business("audit", "shared-persistence"),
   ),
   // Composition reads each capability through its owned records and projections.
   permitServer(
     business("grantmaking", "{{command,query,shared}-persistence,demo}"),
-    "@merit/{rounds,applications,reviews,recommendations}/{schema,scope,encoding}",
+    "@merit/{rounds,applications,reviews,recommendations}/{schema,scope}",
     business("{rounds,applications,reviews,recommendations}", "shared-persistence"),
+  ),
+  permitServer(
+    business("grantmaking", "{{command,query,shared}-persistence,demo}"),
+    "@merit/{rounds,applications,recommendations}/encoding",
+    business("{rounds,applications,recommendations}", "shared-persistence"),
   ),
   permitServer(
     business("grantmaking", "queries"),
@@ -158,11 +160,6 @@ const serverImports = [
     business("applications", "commands"),
     "@merit/rounds/locks",
     business("rounds", "command-persistence"),
-  ),
-  permitServer(
-    { file: { path: "app/src/server/services.server.ts" } },
-    "@merit/applications/server/integrations",
-    business("applications", "integrations"),
   ),
   permitServer(
     business("{grantmaking,contacts,organizations,reviews}", "queries"),
@@ -226,8 +223,8 @@ const serverImports = [
   ),
   permitServer(
     { file: { path: "app/src/server/services.server.ts" } },
-    "@merit/grantmaking/server/integrations",
-    business("grantmaking", "integrations"),
+    "@merit/{applications,grantmaking}/server/integrations",
+    business("{applications,grantmaking}", "integrations"),
   ),
   permitServer(
     {
@@ -349,7 +346,10 @@ const policies = [
     ),
   ),
   forbid(
-    { ...business("organizations", "support"), ...category("business-support", ["test"]) },
+    {
+      element: { path: "capabilities/organizations/business" },
+      ...category("business-support", ["test"]),
+    },
     {
       element: { path: "{{ from.element.path }}" },
       file: { categories: { noneOf: ["business-{domain,api,support}"] } },

@@ -536,20 +536,3 @@ test.each([
     expect(result.exitCode, JSON.stringify(result.report.findings)).toBe(exitCode);
   },
 );
-
-test("recognizes package-relative UI setup from the shared web preset without hiding unused helpers", () => {
-  const { report } = checkFallow(
-    {
-      "capabilities/example/web/src/index.ts": "export {};",
-      "capabilities/example/web/tests/setup-ui.ts": "export {};",
-      "capabilities/example/web/tests/unused.ts": "export const unused = 1;",
-    },
-    "dead-code",
-  );
-  expect(report.unused_files.map((entry) => entry.path)).toContain(
-    "capabilities/example/web/tests/unused.ts",
-  );
-  expect(report.unused_files.map((entry) => entry.path)).not.toContain(
-    "capabilities/example/web/tests/setup-ui.ts",
-  );
-});

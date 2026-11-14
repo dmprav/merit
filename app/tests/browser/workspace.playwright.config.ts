@@ -4,13 +4,11 @@ import { fileURLToPath } from "node:url";
 
 import { defineConfig } from "@playwright/test";
 
-import { browserProjects, browserRetries } from "@merit/test-support/browser/config";
+import { browserConfig } from "@merit/test-support/browser/config";
 
 const host = fileURLToPath(new URL("../..", import.meta.url));
 
-export default defineConfig({
-  forbidOnly: true,
-  testDir: ".",
+export default defineConfig(browserConfig, {
   testMatch: [
     "round-preparation.spec.ts",
     "workspace.spec.ts",
@@ -23,16 +21,9 @@ export default defineConfig({
     "reviewer.spec.ts",
   ],
   outputDir: join(tmpdir(), "merit-workspace-browser-results"),
-  reporter: "list",
-  retries: browserRetries,
   // Each test resets the isolated database used by the shared host.
   workers: 1,
-  use: {
-    baseURL: "http://127.0.0.1:3002",
-    trace: "retain-on-failure",
-    screenshot: "only-on-failure",
-  },
-  projects: browserProjects,
+  use: { baseURL: "http://127.0.0.1:3002" },
   webServer: {
     command: "../node_modules/.bin/vp run @merit/app#dev:workspace --port 3002",
     cwd: host,

@@ -22,7 +22,7 @@ configuration owns dependency, external-library, and I/O restrictions together.
 Keep conventional tool configuration files at the repository root. Application seed and cleanup
 scripts remain with the application, and migrations remain with the database
 package. Shared compiler options stay in `tooling/react-compiler.ts`.
-Capability web test configurations use
+Capability web, product, and app Vitest configurations use
 [`webTestConfig`](../../tooling/testing/web-config.ts); business configurations use
 [`businessTestConfig`](../../tooling/verification/business-test-config.ts). Package
 configs retain their additional coverage paths and exclusions. The presets preserve

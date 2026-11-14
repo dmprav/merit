@@ -49,9 +49,9 @@ describe("Clerk OAuth identity verification", () => {
         config,
       ),
     ).rejects.toMatchObject({ reason: "unauthenticated" });
-    await expect(
-      verifyClerkOAuth(request(), { ...config, secretKey: undefined }),
-    ).rejects.toMatchObject({ reason: "unavailable" });
+    await expect(verifyClerkOAuth(request(), { ...config, secretKey: "" })).rejects.toMatchObject({
+      reason: "unavailable",
+    });
     expect(verify).not.toHaveBeenCalled();
   });
 

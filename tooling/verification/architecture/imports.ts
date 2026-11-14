@@ -199,10 +199,8 @@ export const imports = {
     {
       files: [
         "**/capabilities/*/business/src/domain/**",
-        "**/capabilities/*/business/src/contracts/**",
         "**/capabilities/*/business/src/api/**",
         "**/capabilities/*/business/src/server/{commands,queries}/**",
-        "**/capabilities/*/business/src/operations/**",
         "**/capabilities/access/src/domain/**",
       ],
       rules: forbidImports(`^(${frameworks}|${serverLibraries})`),
@@ -222,7 +220,6 @@ export const imports = {
     },
     {
       files: [
-        "**/capabilities/*/business/src/persistence/**",
         "**/capabilities/*/business/src/server/persistence/**",
         "**/capabilities/access/src/persistence/**",
         "**/foundation/db/src/**",
