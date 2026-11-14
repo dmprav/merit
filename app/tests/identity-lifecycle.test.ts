@@ -132,3 +132,12 @@ it("ignores blank operator entries so empty operatorUserIds never grants operato
   const actor = await mcpIdentity.authenticate();
   expect(mcpIdentity.organizationIdentity.isOperator(actor)).toBe(false);
 });
+
+it("falls back to unavailable without rejecting when account resolution throws", async () => {
+  vi.mocked(resolveAccountUser).mockRejectedValueOnce(new Error("database unavailable"));
+  const session = createWebIdentity(webOptions);
+
+  await expect(session.currentIdentity()).resolves.toEqual({ status: "unavailable" });
+  expect(await session.isGuest()).toBe(false);
+  expect(session.organizationIdentity.isOperator({ userId: "user-1" })).toBe(false);
+});

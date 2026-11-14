@@ -114,7 +114,7 @@ const resolveWebSessionState = async ({
     }
     if (account.status === "authenticated") {
       const operator = localActor ? localActor.operator : isOperatorAccount(account.clerkUserId);
-      return resolveAuthenticatedSession(database, account.clerkUserId, operator);
+      return await resolveAuthenticatedSession(database, account.clerkUserId, operator);
     }
 
     const session = guestToken ? await database((db) => resolveGuestSession(db, guestToken)) : null;

@@ -47,58 +47,67 @@ export default createServerEntry({
         return await handleMcp(request, config, dependencies);
       }
 
-      const localIdentity = await resolveLocalIdentity(request);
-      if (localIdentity instanceof Response) {
-        return localIdentity;
-      }
-
-      const guestToken = demoCookie(request);
-      const browserPublishableKey: unknown = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
-      const identity = createWebIdentity({
-        database: requestDatabase.run,
-        guestToken,
-        clerk: {
-          ...config,
-          browserPublishableKey:
-            typeof browserPublishableKey === "string" ? browserPublishableKey : undefined,
-        },
-        operatorUserIds: env.MERIT_OPERATOR_USER_IDS,
-        ...localIdentity,
-      });
-      const services = createApplicationServices({
-        ...dependencies,
-        identity: identity.organizationIdentity,
-      });
-      const context: ApplicationRequestContext = {
-        navigation: services.navigation,
-        reviewer: services.reviewer,
-        currentIdentity: identity.currentIdentity,
-        demo: createDemoServices(
-          requestDatabase.run,
-          identity.currentIdentity,
-          guestToken,
-          identity.isGuest,
-          import.meta.env.DEV ? undefined : dependencies.networkAddress,
-        ),
-        organizations: services.organizations,
-        workspace: {
-          ...services.grantmaking,
-          ...services.contacts,
-          currentIdentity: identity.currentIdentity,
-          readWorkspace: services.readWorkspace,
-        },
-      };
-
-      const response = await handler.fetch(request, {
-        ...options,
-        context: { ...options?.context, ...context },
-      });
-      return preventFraming(response);
+      return await handleWebRequest(request, options, config, dependencies);
     } finally {
       await requestDatabase.close();
     }
   },
 });
+
+const handleWebRequest = async (
+  request: Request,
+  options: Parameters<typeof handler.fetch>[1],
+  config: { publishableKey: string; secretKey: string },
+  dependencies: Omit<Parameters<typeof createApplicationServices>[0], "identity">,
+) => {
+  const localIdentity = await resolveLocalIdentity(request);
+  if (localIdentity instanceof Response) {
+    return localIdentity;
+  }
+
+  const guestToken = demoCookie(request);
+  const browserPublishableKey: unknown = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+  const identity = createWebIdentity({
+    database: dependencies.database,
+    guestToken,
+    clerk: {
+      ...config,
+      browserPublishableKey:
+        typeof browserPublishableKey === "string" ? browserPublishableKey : undefined,
+    },
+    operatorUserIds: env.MERIT_OPERATOR_USER_IDS,
+    ...localIdentity,
+  });
+  const services = createApplicationServices({
+    ...dependencies,
+    identity: identity.organizationIdentity,
+  });
+  const context: ApplicationRequestContext = {
+    navigation: services.navigation,
+    reviewer: services.reviewer,
+    currentIdentity: identity.currentIdentity,
+    demo: createDemoServices(
+      dependencies.database,
+      identity.currentIdentity,
+      guestToken,
+      identity.isGuest,
+      import.meta.env.DEV ? undefined : dependencies.networkAddress,
+    ),
+    organizations: services.organizations,
+    workspace: {
+      ...services.grantmaking,
+      ...services.contacts,
+      currentIdentity: identity.currentIdentity,
+      readWorkspace: services.readWorkspace,
+    },
+  };
+
+  const response = await handler.fetch(request, {
+    ...options,
+    context: { ...options?.context, ...context },
+  });
+  return preventFraming(response);
+};
 
 const preventFraming = (response: Response) => {
   const headers = new Headers(response.headers);
