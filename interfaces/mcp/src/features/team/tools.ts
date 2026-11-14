@@ -10,6 +10,7 @@ import {
   teamInvitationInput,
   changeMemberInput,
   memberInput,
+  type Result,
 } from "@merit/organizations/api";
 
 import type { RegisterTool } from "../../components/register-tool";
@@ -25,6 +26,9 @@ import {
   memberWriteSchema,
   teamErrorSchema,
 } from "./responses";
+
+const unwrap = <T extends object>(result: Result<T>) =>
+  result.status === "ok" ? { status: "ok" as const, ...result.value } : result;
 
 export const registerTeamTools = (
   register: RegisterTool,
@@ -47,7 +51,7 @@ export const registerTeamTools = (
         openWorldHint: false,
       },
     },
-    (input) => team.teamOverview(actor, input),
+    async (input) => unwrap(await team.teamOverview(actor, input)),
   );
 
   const read = {
@@ -69,7 +73,7 @@ export const registerTeamTools = (
       inputSchema: teamPageInput,
       outputSchema: memberPageSchema,
     },
-    (input) => team.membersPage(actor, input),
+    async (input) => unwrap(await team.membersPage(actor, input)),
   );
   register(
     "list_team_invitations",
@@ -80,7 +84,7 @@ export const registerTeamTools = (
       inputSchema: invitationPageInput,
       outputSchema: invitationPageSchema,
     },
-    (input) => team.invitationsPage(actor, input),
+    async (input) => unwrap(await team.invitationsPage(actor, input)),
   );
   register(
     "list_team_history",
@@ -91,7 +95,7 @@ export const registerTeamTools = (
       inputSchema: teamHistoryInput,
       outputSchema: teamHistoryPageSchema,
     },
-    (input) => team.teamHistoryPage(actor, input),
+    async (input) => unwrap(await team.teamHistoryPage(actor, input)),
   );
   register(
     "get_team_event",
@@ -102,7 +106,7 @@ export const registerTeamTools = (
       inputSchema: teamEventInput,
       outputSchema: teamEventSchema,
     },
-    (input) => team.teamEvent(actor, input),
+    async (input) => unwrap(await team.teamEvent(actor, input)),
   );
 
   registerTeamInvitations(register, actor, team);
@@ -126,7 +130,7 @@ const registerTeamInvitations = (register: RegisterTool, actor: McpActor, team: 
         openWorldHint: true,
       },
     },
-    (input) => team.inviteMember(actor, input),
+    async (input) => unwrap(await team.inviteMember(actor, input)),
   );
 
   register(
@@ -145,7 +149,7 @@ const registerTeamInvitations = (register: RegisterTool, actor: McpActor, team: 
         openWorldHint: true,
       },
     },
-    (input) => team.resendMemberInvitation(actor, input),
+    async (input) => unwrap(await team.resendMemberInvitation(actor, input)),
   );
 
   register(
@@ -163,7 +167,7 @@ const registerTeamInvitations = (register: RegisterTool, actor: McpActor, team: 
         openWorldHint: false,
       },
     },
-    (input) => team.revokeMemberInvitation(actor, input),
+    async (input) => unwrap(await team.revokeMemberInvitation(actor, input)),
   );
 };
 
@@ -191,8 +195,10 @@ const registerMembershipWrites = (
         openWorldHint: false,
       },
     },
-    ({ expectedMembershipVersion, ...input }) =>
-      team.changeMember(actor, { ...input, expectedVersion: expectedMembershipVersion }),
+    async ({ expectedMembershipVersion, ...input }) =>
+      unwrap(
+        await team.changeMember(actor, { ...input, expectedVersion: expectedMembershipVersion }),
+      ),
   );
 
   register(
@@ -214,7 +220,9 @@ const registerMembershipWrites = (
         openWorldHint: false,
       },
     },
-    ({ expectedMembershipVersion, ...input }) =>
-      team.removeMember(actor, { ...input, expectedVersion: expectedMembershipVersion }),
+    async ({ expectedMembershipVersion, ...input }) =>
+      unwrap(
+        await team.removeMember(actor, { ...input, expectedVersion: expectedMembershipVersion }),
+      ),
   );
 };

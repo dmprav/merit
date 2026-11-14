@@ -28,9 +28,7 @@ it("creates, retries, lists and revokes an invitation through MCP", async ({
 
   expect(state.structuredContent).toMatchObject({
     status: "ok",
-    value: {
-      invitations: [expect.objectContaining({ id: invitation.requestId })],
-    },
+    invitations: [expect.objectContaining({ id: invitation.requestId })],
   });
   expect(
     (
@@ -43,7 +41,7 @@ it("creates, retries, lists and revokes an invitation through MCP", async ({
   ).toBe(false);
 
   const after = await callMcp(actor.userId, { workspaceSlug: "alder" }, "list_team_invitations");
-  expect(after.structuredContent).toMatchObject({ status: "ok", value: { invitations: [] } });
+  expect(after.structuredContent).toMatchObject({ status: "ok", invitations: [] });
   const { rows } = await database.client.query(
     "SELECT actor_user_id, provenance FROM audit_events WHERE organization_id='alder' AND action LIKE '%revoked' AND target_id=$1",
     [invitation.requestId],

@@ -93,15 +93,14 @@ export const handleMcp = (
 
   return handleWorkspaceMcp(request, config.resource, {
     authenticate: identity.authenticate,
-    workspace: {
-      ...services.grantmaking,
-      ...services.contacts,
-      listRounds: services.grantmaking.listRoundSummaries,
-      listContacts: services.contacts.listContactSummaries,
-    },
-    team: services.organizations,
-    organizations: services.organizations,
+    rounds: services.rounds,
+    applications: services.applications,
+    reviews: services.reviews,
     reviewer: services.reviewer,
+    recommendations: services.recommendations,
+    grantmaking: services.grantmakingQueries,
+    contacts: services.contacts,
+    organizations: services.organizations,
     navigation: services.navigation,
     demo: createAccountDemoServices(dependencies.database, dependencies.networkAddress),
   });

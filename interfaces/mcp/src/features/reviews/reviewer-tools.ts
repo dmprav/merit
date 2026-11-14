@@ -27,7 +27,7 @@ import {
 const read = { errorSchema: reviewerErrorSchema, annotations: readAnnotations };
 const write = { errorSchema: reviewerErrorSchema, annotations: writeAnnotations };
 
-const registerReviewerReads = (
+const registerSelfReviewReads = (
   register: RegisterTool,
   actor: McpActor,
   reviewer: ReviewerService,
@@ -44,9 +44,11 @@ const registerReviewerReads = (
     },
     async (input) => {
       const result = await reviewer.list(actor);
-      return result.status === "ok"
-        ? { status: "ok" as const, ...pageItems(result.value, input, (item) => item.id) }
-        : result;
+      if (result.status !== "ok") {
+        return result;
+      }
+      const { items: assignments, nextCursor } = pageItems(result.value, input, (item) => item.id);
+      return { status: "ok" as const, assignments, nextCursor };
     },
   );
   register(
@@ -59,8 +61,18 @@ const registerReviewerReads = (
       description:
         "Read your assignment, assigned evidence, criteria, private draft, and submitted versions. Evidence is unavailable until acceptance. Preserve assignment.revision and draft.revision for writes. Amounts in drafts and assessments are decimal EUR strings.",
     },
-    (input) => reviewer.read(actor, input),
+    async (input) => {
+      const result = await reviewer.read(actor, input);
+      return result.status === "ok" ? { status: "ok" as const, ...result.value } : result;
+    },
   );
+};
+
+const registerManagerReviewerReads = (
+  register: RegisterTool,
+  actor: McpActor,
+  reviewer: ReviewerService,
+) => {
   register(
     "list_reviewer_history",
     {
@@ -73,7 +85,10 @@ const registerReviewerReads = (
       description:
         "For program managers: read lifecycle and submitted-assessment events for one assignment, newest first. Follow nextCursor as after. Never includes private drafts.",
     },
-    ({ applicationId, ...input }) => reviewer.history(actor, { ...input, publicId: applicationId }),
+    async ({ applicationId, ...input }) => {
+      const result = await reviewer.history(actor, { ...input, publicId: applicationId });
+      return result.status === "ok" ? { status: "ok" as const, ...result.value } : result;
+    },
   );
   register(
     "list_application_reviewers",
@@ -85,16 +100,22 @@ const registerReviewerReads = (
         .extend({ applicationId: reviewerApplicationSchema.shape.publicId, ...pageInput.shape }),
       outputSchema: applicationReviewersSchema,
       description:
-        "For program managers: list application assignments, delivery status, and revision. Use list_reviewer_history for lifecycle history. Never includes private drafts. Follow nextCursor as after.",
+        "For program managers: list invited application reviewer assignments, email delivery status, and assignment revision. Use list_application_reviews for received assessments, offline requests, and basis freshness, and list_reviewer_history for assignment lifecycle history. Never includes private drafts. Follow nextCursor as after.",
     },
     async ({ applicationId, workspaceSlug, ...pagination }) => {
       const result = await reviewer.forApplication(actor, {
         publicId: applicationId,
         workspaceSlug,
       });
-      return result.status === "ok"
-        ? { status: "ok" as const, ...pageItems(result.value, pagination, (item) => item.id) }
-        : result;
+      if (result.status !== "ok") {
+        return result;
+      }
+      const { items: assignments, nextCursor } = pageItems(
+        result.value,
+        pagination,
+        (item) => item.id,
+      );
+      return { status: "ok" as const, assignments, nextCursor };
     },
   );
 };
@@ -117,7 +138,10 @@ const registerManagerAssignments = (
       description:
         "Invite the contact on an existing review request to assess this application. Sends email; requires verified manager email and a standard workspace. Reuse commandId on retry. Inspect delivery after saving.",
     },
-    ({ applicationId, ...input }) => reviewer.invite(actor, { ...input, publicId: applicationId }),
+    async ({ applicationId, ...input }) => {
+      const result = await reviewer.invite(actor, { ...input, publicId: applicationId });
+      return result.status === "ok" ? { status: "ok" as const, assignment: result.value } : result;
+    },
   );
   register(
     "manage_reviewer_assignment",
@@ -132,7 +156,10 @@ const registerManagerAssignments = (
       description:
         "Manage an assignment: cancel ends access, reinstate restores it, clear_conflict requires a reason and renewed reviewer acceptance, resend retries the invitation, retry_notification retries submission notification. Preserve expectedRevision and commandId on retry.",
     },
-    ({ applicationId, ...input }) => reviewer.manage(actor, { ...input, publicId: applicationId }),
+    async ({ applicationId, ...input }) => {
+      const result = await reviewer.manage(actor, { ...input, publicId: applicationId });
+      return result.status === "ok" ? { status: "ok" as const, assignment: result.value } : result;
+    },
   );
 };
 
@@ -151,7 +178,10 @@ const registerReviewerActions = (
       description:
         "Accept or decline your assignment, withdraw before submission using decline, or report a conflict with a note. Acceptance verifies your invited email; reporting a conflict pauses access. Preserve expectedRevision and commandId on retry.",
     },
-    (input) => reviewer.respond(actor, input),
+    async (input) => {
+      const result = await reviewer.respond(actor, input);
+      return result.status === "ok" ? { status: "ok" as const, assignment: result.value } : result;
+    },
   );
   register(
     "save_reviewer_draft",
@@ -163,7 +193,12 @@ const registerReviewerActions = (
       description:
         "Save your private draft against expectedDraftRevision. Amount is a decimal EUR string. For an amendment include an explanation in draft.note. Reuse commandId and the original revision after an unconfirmed save. Managers cannot read this draft.",
     },
-    (input) => reviewer.saveDraft(actor, input),
+    async (input) => {
+      const result = await reviewer.saveDraft(actor, input);
+      return result.status === "ok"
+        ? { status: "ok" as const, draftRevision: result.value.revision }
+        : result;
+    },
   );
   register(
     "submit_reviewer_assessment",
@@ -176,7 +211,12 @@ const registerReviewerActions = (
       description:
         "Submit your saved draft or amendment against expectedDraftRevision. Records you as author and notifies the manager. Requires position and reasoning; funding positions require a positive amount. Amendments require a note. Reuse commandId on retry; read the assignment for notification status.",
     },
-    (input) => reviewer.submit(actor, input),
+    async (input) => {
+      const result = await reviewer.submit(actor, input);
+      return result.status === "ok"
+        ? { status: "ok" as const, draftRevision: result.value.revision }
+        : result;
+    },
   );
 };
 
@@ -185,7 +225,8 @@ export const registerReviewerTools = (
   actor: McpActor,
   reviewer: ReviewerService,
 ) => {
-  registerReviewerReads(register, actor, reviewer);
+  registerSelfReviewReads(register, actor, reviewer);
+  registerManagerReviewerReads(register, actor, reviewer);
   registerManagerAssignments(register, actor, reviewer);
   registerReviewerActions(register, actor, reviewer);
 };

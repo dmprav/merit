@@ -121,7 +121,7 @@ preserves the same distinction between commitment and refresh.
 
 ## Reach the same operation through MCP
 
-The [save_recommendation tool](../../interfaces/mcp/src/features/grantmaking/recommendation-tools.ts)
+The [save_recommendation tool](../../interfaces/mcp/src/features/recommendations/tools.ts)
 maps `applicationId` to `publicId` and `expectedRecommendationRevision` to
 `expectedRevision`. It passes `expectedApplicationVersion` and the verified MCP
 actor to the same service operation. The

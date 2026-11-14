@@ -1,11 +1,11 @@
-import { expect, it } from "vite-plus/test";
+import { expect, it, vi } from "vite-plus/test";
 
 import { connect } from "../../../tests/client";
 import { testOperations } from "../../../tests/operations";
 
 it("presents canonical workspace home URLs for grant-work and settings-only members", async () => {
   const operations = testOperations();
-  operations.team.workspacesPage.mockResolvedValue({
+  vi.mocked(operations.organizations.workspacesPage).mockResolvedValue({
     status: "ok",
     value: [
       {

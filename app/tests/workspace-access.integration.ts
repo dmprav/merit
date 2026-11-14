@@ -200,7 +200,7 @@ it("blocks disabled users through both transports", async ({
 
 it("denies unauthenticated web and MCP reads", async ({
   rounds: { pageInput },
-  transport: { services, mcpServices, mcpOperations, session },
+  transport: { services, mcpOperations, session },
 }) => {
   session.userId = null;
 
@@ -216,7 +216,7 @@ it("denies unauthenticated web and MCP reads", async ({
         throw new AuthenticationError("unauthenticated");
       },
       ...mcpOperations,
-      workspace: { ...mcpServices, readRound: read },
+      grantmaking: { ...mcpOperations.grantmaking, readRound: read },
     },
   );
 

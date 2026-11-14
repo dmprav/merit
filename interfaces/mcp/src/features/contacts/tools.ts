@@ -15,7 +15,7 @@ import {
 
 import type { RegisterTool } from "../../components/register-tool";
 import type { McpActor } from "../../contracts";
-import type { ContactOperations } from "./operations";
+import type { ContactApplicationOperations, ContactOperations } from "./operations";
 import {
   contactSchema,
   contactHistorySchema,
@@ -26,7 +26,8 @@ import {
 export const registerContactTools = (
   register: RegisterTool,
   actor: McpActor,
-  workspace: ContactOperations,
+  contacts: ContactOperations,
+  grantmaking: ContactApplicationOperations,
 ) => {
   const read = {
     scope: "workspace:read" as const,
@@ -51,7 +52,7 @@ export const registerContactTools = (
         nextCursor: z.uuid().nullable(),
       }),
     },
-    (input) => workspace.listContacts(actor, input),
+    (input) => contacts.listContactSummaries(actor, input),
   );
   register(
     "list_contact_applications",
@@ -66,7 +67,7 @@ export const registerContactTools = (
         nextCursor: publicIdSchema.nullable(),
       }),
     },
-    (input) => workspace.listContactApplications(actor, input),
+    (input) => grantmaking.listContactApplications(actor, input),
   );
   const resultSchema = z.object({ status: z.literal("ok"), contact: contactSchema });
   register(
@@ -78,7 +79,7 @@ export const registerContactTools = (
       inputSchema: contactReadInput,
       outputSchema: resultSchema,
     },
-    (input) => workspace.getContact(actor, input),
+    (input) => contacts.getContact(actor, input),
   );
   register(
     "list_contact_history",
@@ -89,15 +90,15 @@ export const registerContactTools = (
       inputSchema: contactHistoryInput,
       outputSchema: contactHistorySchema,
     },
-    (input) => workspace.contactHistory(actor, input),
+    (input) => contacts.contactHistory(actor, input),
   );
-  registerContactWrites(register, actor, workspace);
+  registerContactWrites(register, actor, contacts);
 };
 
 const registerContactWrites = (
   register: RegisterTool,
   actor: McpActor,
-  workspace: ContactOperations,
+  contacts: ContactOperations,
 ) => {
   const resultSchema = z.object({ status: z.literal("ok"), contact: contactSchema });
   for (const [name, description, command] of [
@@ -139,7 +140,7 @@ const registerContactWrites = (
         },
       },
       async (input) => {
-        const result = await workspace.changeContact(
+        const result = await contacts.changeContact(
           actor,
           contactCommandSchema.parse({ ...input, action: action.value }),
         );

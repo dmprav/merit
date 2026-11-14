@@ -65,10 +65,12 @@ it(
     const invited = await p.saved("dana", "invite_reviewer", invitation);
     expect(await p.saved("dana", "invite_reviewer", invitation)).toEqual(invited);
     expect(p.messages).toHaveLength(1);
-    const assignmentId = (invited.value as ReviewerSummary).id;
+    const assignmentId = (invited.assignment as ReviewerSummary).id;
 
     const read = async () =>
-      (await p.saved("sam", "get_reviewer_assignment", { assignmentId })).value as ReviewerPage;
+      (await p.saved("sam", "get_reviewer_assignment", {
+        assignmentId,
+      })) as unknown as ReviewerPage;
 
     const respond = async (action: string, note = "") =>
       p.saved("sam", "respond_to_review", {
@@ -81,7 +83,9 @@ it(
 
     const manage = async (action: string, note = "") => {
       const list = await p.saved("dana", "list_application_reviewers", address);
-      const current = (list.items as ReviewerSummary[]).find((item) => item.id === assignmentId)!;
+      const current = (list.assignments as ReviewerSummary[]).find(
+        (item) => item.id === assignmentId,
+      )!;
       return p.saved("dana", "manage_reviewer_assignment", {
         ...address,
         assignmentId,
@@ -92,7 +96,9 @@ it(
       });
     };
 
-    expect((await p.saved("sam", "list_my_reviews")).items).toMatchObject([{ id: assignmentId }]);
+    expect((await p.saved("sam", "list_my_reviews")).assignments).toMatchObject([
+      { id: assignmentId },
+    ]);
     expect(await read()).toMatchObject({ material: null, draft: null });
     expect(await p.invoke("other", "get_reviewer_assignment", { assignmentId })).toEqual({
       status: "not_found",
@@ -119,11 +125,11 @@ it(
     };
     expect(await p.saved("sam", "save_reviewer_draft", draftCommand)).toEqual({
       status: "ok",
-      value: { revision: 1 },
+      draftRevision: 1,
     });
     expect(await p.saved("sam", "save_reviewer_draft", draftCommand)).toEqual({
       status: "ok",
-      value: { revision: 1 },
+      draftRevision: 1,
     });
     expect(
       await p.invoke("sam", "save_reviewer_draft", { ...draftCommand, commandId: randomUUID() }),
@@ -137,11 +143,11 @@ it(
     const submission = { assignmentId, commandId: randomUUID(), expectedDraftRevision: 1 };
     expect(await p.saved("sam", "submit_reviewer_assessment", submission)).toEqual({
       status: "ok",
-      value: { revision: 2 },
+      draftRevision: 2,
     });
     expect(await p.saved("sam", "submit_reviewer_assessment", submission)).toEqual({
       status: "ok",
-      value: { revision: 2 },
+      draftRevision: 2,
     });
     expect(p.messages).toHaveLength(2);
     const web = await getFundingApplicationPage(db, { userId: "dana" }, webAddress);
@@ -215,30 +221,36 @@ it("provisions and joins organizations through MCP without granting operator or 
   expect(p.messages).toHaveLength(1);
   const token = p.messages[0]!.text.match(/\/invitations\/([a-f0-9]{64})/)?.[1];
   assert(token);
-  const organizationId = (created.value as { organizationId: string }).organizationId;
-  expect((await p.saved("dana", "get_organization", { organizationId })).value).toMatchObject({
+  const organizationId = created.organizationId as string;
+  expect(
+    (await p.saved("dana", "get_organization", { organizationId })).organization,
+  ).toMatchObject({
     hasOwner: false,
     invitation: { delivery: "sent", acceptedAt: null },
   });
-  expect((await p.saved("dana", "list_organizations")).items).toEqual(
+  expect((await p.saved("dana", "list_organizations")).organizations).toEqual(
     expect.arrayContaining([expect.objectContaining({ id: organizationId })]),
   );
   expect(await p.invoke("sam", "list_organizations")).toEqual({ status: "forbidden" });
   expect(await p.invoke("other", "accept_membership_invitation", { token })).toEqual({
     status: "wrong_account",
   });
-  expect((await p.saved("sam", "get_membership_invitation", { token })).value).toMatchObject({
+  expect((await p.saved("sam", "get_membership_invitation", { token })).invitation).toMatchObject({
     administration: "owner",
     role: "program_manager",
     accepted: false,
   });
-  expect((await p.saved("sam", "accept_membership_invitation", { token })).value).toMatchObject({
+  expect(
+    (await p.saved("sam", "accept_membership_invitation", { token })).organization,
+  ).toMatchObject({
     id: organizationId,
     canWorkOnGrants: true,
   });
   await p.saved("sam", "accept_membership_invitation", { token });
   await p.saved("dana", "rename_organization", { organizationId, name: "Renamed Trust" });
-  expect((await p.saved("dana", "get_organization", { organizationId })).value).toMatchObject({
+  expect(
+    (await p.saved("dana", "get_organization", { organizationId })).organization,
+  ).toMatchObject({
     name: "Renamed Trust",
     hasOwner: true,
   });
@@ -280,29 +292,29 @@ it("provisions and joins organizations through MCP without granting operator or 
     ),
   );
   await p.saved("sam", "request_workspace_access", { email: "sam@example.test" });
-  expect((await p.saved("dana", "list_access_requests")).items).toMatchObject([
+  expect((await p.saved("dana", "list_access_requests")).accessRequests).toMatchObject([
     { email: "sam@example.test", reviewedAt: null },
   ]);
   expect(await p.invoke("sam", "list_access_requests")).toEqual({ status: "forbidden" });
   expect(
-    (await p.saved("dana", "review_access_request", { email: "sam@example.test" })).value,
+    (await p.saved("dana", "review_access_request", { email: "sam@example.test" })).accessRequest,
   ).toMatchObject({ reviewedBy: "dana" });
 });
 
 it("starts and resets only the authenticated account's demo with safe reset retries", async ({
   parity: p,
 }) => {
-  expect(await p.saved("sam", "get_demo")).toEqual({ status: "ok", value: { status: "empty" } });
+  expect(await p.saved("sam", "get_demo")).toEqual({ status: "ok", demo: { status: "empty" } });
   const first = await p.saved("sam", "start_demo");
-  const initial = first.value as { workspaceId: string; workspaceSlug: string };
+  const initial = first.demo as { workspaceId: string; workspaceSlug: string };
   expect(await p.saved("sam", "start_demo")).toEqual(first);
-  expect(await p.saved("other", "get_demo")).toEqual({ status: "ok", value: { status: "empty" } });
+  expect(await p.saved("other", "get_demo")).toEqual({ status: "ok", demo: { status: "empty" } });
   const reset = await p.saved("sam", "reset_demo", { resetWorkspaceId: initial.workspaceId });
-  expect((reset.value as { workspaceId: string }).workspaceId).not.toBe(initial.workspaceId);
+  expect((reset.demo as { workspaceId: string }).workspaceId).not.toBe(initial.workspaceId);
   expect(await p.saved("sam", "reset_demo", { resetWorkspaceId: initial.workspaceId })).toEqual(
     reset,
   );
-  expect((await p.saved("sam", "get_demo")).value).toEqual(reset.value);
+  expect((await p.saved("sam", "get_demo")).demo).toEqual(reset.demo);
   expect(
     await p.invoke("sam", "list_funding_rounds", { workspaceSlug: initial.workspaceSlug }),
   ).toEqual({ status: "not_found" });
