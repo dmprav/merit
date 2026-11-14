@@ -375,7 +375,9 @@ const openWithdrawal = async ({
       name: "Withdraw application",
     }),
   );
-  return within(await within(canvasElement.ownerDocument.body).findByRole("dialog"));
+  const dialog = await within(canvasElement.ownerDocument.body).findByRole("dialog");
+  await waitFor(() => expect(dialog).toBeVisible());
+  return within(dialog);
 };
 
 export const ConfirmWithdraw: Story = {

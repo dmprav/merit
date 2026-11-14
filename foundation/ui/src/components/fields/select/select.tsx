@@ -146,8 +146,13 @@ const SelectOptionContent = ({
 }) => (
   <>
     <span className={styles.optionCopy}>
-      <span>{label}</span>{" "}
-      {description && <span className={styles.optionDescription}>{description}</span>}
+      <span>{label}</span>
+      {description && (
+        <>
+          {" "}
+          <span className={styles.optionDescription}>{description}</span>
+        </>
+      )}
     </span>
     <span className={styles.check}>{isSelected && <Icon name="check" />}</span>
   </>

@@ -62,7 +62,7 @@ test("owner invites an administrator, grant access is explicit, and removal expl
   let dialog = page.getByRole("dialog", { name: "Invite member", exact: true });
   await dialog.getByRole("textbox", { name: "Email address" }).fill("dana@example.test");
   await dialog.getByRole("button", { name: /Organization responsibility/ }).click();
-  await page.getByRole("option", { name: "Administrator", exact: true }).click();
+  await page.getByRole("option", { name: /^Administrator/ }).click();
 
   await expect(
     dialog.getByText("Can manage members and grant access, including to themselves."),
@@ -70,7 +70,7 @@ test("owner invites an administrator, grant access is explicit, and removal expl
 
   await page.screenshot({ path: testInfo.outputPath("team-invite.png"), fullPage: true });
   await dialog.getByRole("button", { name: /Grant-work access/ }).click();
-  await page.getByRole("option", { name: "No grant-work access", exact: true }).click();
+  await page.getByRole("option", { name: /^No grant-work access/ }).click();
   await dialog.getByRole("button", { name: "Invite member", exact: true }).click();
 
   await expect(dialog).toHaveCount(0);
@@ -116,7 +116,7 @@ test("owner invites an administrator, grant access is explicit, and removal expl
   await expect(dialog.getByRole("button", { name: /Organization responsibility/ })).toHaveCount(0);
 
   await dialog.getByRole("button", { name: /Grant-work access/ }).click();
-  await page.getByRole("option", { name: "Program manager", exact: true }).click();
+  await page.getByRole("option", { name: /^Program manager/ }).click();
   await dialog.getByRole("button", { name: "Save access", exact: true }).click();
 
   await expect(dialog).toHaveCount(0);
