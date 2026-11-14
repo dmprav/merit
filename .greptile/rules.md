@@ -5,10 +5,10 @@ Review each product change against the
 questions from the code; leave the screenshot comparison to the author's
 review.
 
-Feature pull requests include a feature brief that names **precedents**: the
-existing screen, controller, and tests the change should match. Open those
-files and compare. Prefer comments that name the precedent or shared piece the
-change departs from or rebuilds, with a concrete fix.
+Feature pull requests name **precedents**: the existing screen, controller, and
+tests the change should match. Open those files and compare. Prefer comments that
+name the precedent or shared piece the change departs from or rebuilds, with a
+concrete fix.
 
 Flag especially:
 

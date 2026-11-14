@@ -85,11 +85,14 @@ If there is something to fix:
 1. Commit using the `docs` type and the
    [commit conventions](../../docs/guides/development.md#commit-changes).
 2. Open one pull request titled `docs: review documentation` against the default
-   branch, using the repository template.
-3. In **Why**, name the commits and the rotation document reviewed, and end with
-   this review's record.
-4. In **What changed**, list each change with the part of the guide it applies.
-5. In **Follow-ups**, list missing documentation and unresolved disagreements.
+   branch, using the [repository template](../../.github/pull_request_template.md)
+   and keeping the description concise.
+3. In **Why**, briefly summarize the scope (number of commits/docs reviewed and
+   the rotation document) and end with this review's record.
+4. In **What changed**, summarize changes briefly by theme or document rather
+   than listing every guide rule applied.
+5. In **Follow-ups**, list only unresolved disagreements or missing docs that
+   need a decision; omit when empty.
 
 If there is nothing to fix, open no pull request. Post this review's record as a
 comment on the open issue titled `docs: review records`, creating the issue if

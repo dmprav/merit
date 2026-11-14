@@ -122,15 +122,15 @@ If there is something to fix:
    [commit conventions](../../docs/guides/development.md#commit-changes), one
    commit per slice.
 2. Open one pull request titled `test: review tests` against the default
-   branch, using the repository template.
-3. In **Why**, name the commits, the owner feedback from step 3, and the slices
-   reviewed, and end with this review's record.
-4. In **What changed**, group changes by slice. For each removed or moved test,
-   name the test that still verifies each of its guarantees and the part of the
-   testing guide the change applies. List the checks run.
-5. In **Follow-ups**, list changes that need the owner's approval, production
-   defects, and gaps in the testing guide that would have prevented a recurring
-   finding.
+   branch, using the [repository template](../../.github/pull_request_template.md)
+   and keeping the description concise.
+3. In **Why**, briefly summarize the slices reviewed and any owner-feedback
+   themes, ending with this review's record.
+4. In **What changed**, give a concise slice-level summary (what was consolidated,
+   moved, or added, plus non-CI checks and gaps) rather than cataloging every
+   test and guide heading.
+5. In **Follow-ups**, keep only high-signal items needing owner approval or
+   concrete production bugs; omit when empty.
 
 If there is nothing to fix, open no pull request. Post this review's record as a
 comment on the open issue titled `test: review records`, creating the issue if
