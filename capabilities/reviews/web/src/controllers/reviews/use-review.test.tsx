@@ -34,7 +34,9 @@ const setup = (
     initialProps: props,
     wrapper: ({ children }) => (
       <QueryClientProvider client={client}>
-        <DraftContext value={{ reviewEdits: {}, setReviewEdit: vi.fn() }}>{children}</DraftContext>
+        <DraftContext value={{ ready: true, reviewEdits: {}, setReviewEdit: vi.fn() }}>
+          {children}
+        </DraftContext>
       </QueryClientProvider>
     ),
   });

@@ -1,5 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 
 import {
   canEditIntakeContent,
@@ -63,6 +63,7 @@ export const useApplicationIntake = ({
   const intake = data.state;
   return {
     editor: {
+      ready: editing.ready,
       application,
       workspaceSlug: data.workspaceSlug,
       section: editing.section,
@@ -79,25 +80,19 @@ export const useApplicationIntake = ({
       useLatestSavedValues: () => editing.reconcile("saved"),
       saveDraft: actions.saveDraft,
     },
+    ready: editing.ready,
     application,
     withdrawn: isWithdrawn(application),
     outstandingReviews: outstandingReviewCount(application),
-    contact: data.selectContact
-      ? {
-          data: {
-            workspaceSlug: data.workspaceSlug,
-            selectContact: data.selectContact,
-            refresh: data.refresh,
-            refreshCurrent: data.refreshCurrent,
-          },
-          revision: intake.revision,
-          publicId: data.publicId,
-        }
-      : null,
+    contact: intakeContact(data),
     workingRevision: intake.workingRevision,
     canStartRevision: canStartIntakeRevision(application, intake.workingRevision),
     missingFields: missingIntakeFields(intakeContent(application)),
-    menuActions: intakeMenuActions(application, intake.workingRevision, editing.changed("title")),
+    menuActions: intakeMenuActions(
+      application,
+      intake.workingRevision,
+      editing.changed("title"),
+    ).filter((action) => editing.ready || (action !== "delete" && action !== "discard_revision")),
     canOpen: (target: IntakeSection) =>
       !isWithdrawn(application) &&
       editing.section !== target &&
@@ -132,16 +127,29 @@ export const useApplicationIntake = ({
   };
 };
 
+const intakeContact = (data: IntakeData) =>
+  data.selectContact
+    ? {
+        data: {
+          workspaceSlug: data.workspaceSlug,
+          selectContact: data.selectContact,
+          refresh: data.refresh,
+          refreshCurrent: data.refreshCurrent,
+        },
+        revision: data.state.revision,
+        publicId: data.publicId,
+      }
+    : null;
+
 const useIntakeEditing = (
   application: Application,
   data: IntakeData,
   busy: ReturnType<typeof useRef<boolean>>,
 ) => {
   const intake = data.state;
-  const { applicationEdits, setApplicationEdit } = useIntakeDrafts();
+  const { applicationEdits, setApplicationEdit, ready } = useIntakeDrafts();
   const [section, setSection] = useState<IntakeSection | null>(null);
   const latest = intakeSnapshot(application, intake.workingRevision);
-  const preparing = application.intakeStatus === "in_preparation";
 
   const key = (target: IntakeDraft["section"]) => `${data.draftKey}:${target}`;
 
@@ -150,9 +158,15 @@ const useIntakeEditing = (
   const changed = (target: IntakeDraft["section"]) => intakeDraftChanged(draftFor(target));
 
   const draft = section ? draftFor(section) : undefined;
+  useLayoutEffect(() => {
+    if (ready && section && !draft) {
+      setApplicationEdit(
+        `${data.draftKey}:${section}`,
+        newIntakeDraft(section, latest, intake.revision) as IntakeDraft,
+      );
+    }
+  }, [ready, section, draft, setApplicationEdit, data.draftKey, latest, intake.revision]);
   const reasonDraft = draftFor("reason");
-  const reason = reasonDraft?.section === "reason" ? reasonDraft.value.reason : latest.reason;
-  const unsavedContent = (["title", "metadata", "content", "reason"] as const).some(changed);
 
   const updateDraft = (next: IntakeDraft) => setApplicationEdit(key(next.section), next);
 
@@ -161,17 +175,6 @@ const useIntakeEditing = (
       setApplicationEdit(key(draft.section), undefined);
     }
     setSection(null);
-  };
-
-  const open = (next: IntakeSection) => {
-    if (busy.current) {
-      return;
-    }
-
-    if (!draftFor(next)) {
-      updateDraft(newIntakeDraft(next, latest, intake.revision) as IntakeDraft);
-    }
-    setSection(next);
   };
 
   const changeReason = (value: string) =>
@@ -206,21 +209,26 @@ const useIntakeEditing = (
   };
 
   return {
+    ready,
     // A withdrawal saved elsewhere hides an open editor; its stored draft returns on reinstatement.
     section: isWithdrawn(application) ? null : section,
     setSection,
     draft,
     latest,
     reasonDraft,
-    reason,
+    reason: reasonDraft?.section === "reason" ? reasonDraft.value.reason : latest.reason,
     discard,
     updateDraft,
     changeReason,
     reconcile,
-    preparing,
-    unsavedContent,
+    preparing: application.intakeStatus === "in_preparation",
+    unsavedContent: (["title", "metadata", "content", "reason"] as const).some(changed),
     changed,
-    open,
+    open: (next: IntakeSection) => {
+      if (!busy.current) {
+        setSection(next);
+      }
+    },
     close,
     key,
     setApplicationEdit,
@@ -321,7 +329,7 @@ const intakeActions = (
   setConfirmation: (confirmation: null) => void,
 ) => {
   const intake = data.state;
-  const { reasonDraft, reason, setApplicationEdit, key, setSection, updateDraft, latest } = editing;
+  const { reasonDraft, reason, setApplicationEdit, key, setSection } = editing;
   const { save, setError } = saving;
 
   const saveDraft = async (next: IntakeDraft) => {
@@ -346,7 +354,65 @@ const intakeActions = (
     });
   };
 
-  const rename = async (title: string) => {
+  const act = async (change: IntakeChange) => {
+    if (
+      (change.action === "mark_ready" || change.action === "publish_revision") &&
+      (!editing.ready || editing.unsavedContent)
+    ) {
+      return { status: "busy" } as const;
+    }
+    const failure = await save(change);
+    setError(failure);
+    return failure;
+  };
+
+  const confirm = async (values?: IntakeConfirmationValues) => {
+    const change = confirmation && intakeConfirmationChange(confirmation.action, values);
+    if (!confirmation || !change) {
+      return;
+    }
+
+    if (
+      !editing.ready &&
+      (confirmation.action === "delete" || confirmation.action === "discard_revision")
+    ) {
+      return;
+    }
+    const failure = await save(change, confirmation.revision, () => {
+      setConfirmation(null);
+      setSection(null);
+      if (confirmation.action === "withdraw" || confirmation.action === "reinstate") {
+        // Unsaved edits stay available; they reconcile against the latest case after reinstatement.
+        return;
+      }
+      for (const target of ["title", "metadata", "content", "reason"] as const) {
+        setApplicationEdit(key(target), undefined);
+      }
+    });
+    setError(failure);
+  };
+
+  return {
+    saveDraft,
+    rename: intakeRenameAction(application, data, editing, saving),
+    act,
+    confirm,
+  };
+};
+
+const intakeRenameAction = (
+  application: Application,
+  data: IntakeData,
+  editing: ReturnType<typeof useIntakeEditing>,
+  saving: ReturnType<typeof useIntakeSave>,
+) => {
+  const { updateDraft, latest, setSection } = editing;
+  const intake = data.state;
+  const { save } = saving;
+  return async (title: string) => {
+    if (!editing.ready || editing.unsavedContent) {
+      return { status: "busy" } as const;
+    }
     const change = intakeRenameCommand(application, intake.workingRevision, title);
     if (change?.action === "save_content") {
       return save(change);
@@ -365,34 +431,6 @@ const intakeActions = (
     // Starting a correction copies the current submission; keep the entered title even if refresh fails.
     return save(change, intake.revision, editTitle);
   };
-
-  const act = async (change: IntakeChange) => {
-    const failure = await save(change);
-    setError(failure);
-    return failure;
-  };
-
-  const confirm = async (values?: IntakeConfirmationValues) => {
-    const change = confirmation && intakeConfirmationChange(confirmation.action, values);
-    if (!confirmation || !change) {
-      return;
-    }
-
-    const failure = await save(change, confirmation.revision, () => {
-      setConfirmation(null);
-      setSection(null);
-      if (confirmation.action === "withdraw" || confirmation.action === "reinstate") {
-        // Unsaved edits stay available; they reconcile against the latest case after reinstatement.
-        return;
-      }
-      for (const target of ["title", "metadata", "content", "reason"] as const) {
-        setApplicationEdit(key(target), undefined);
-      }
-    });
-    setError(failure);
-  };
-
-  return { saveDraft, rename, act, confirm };
 };
 
 export type ApplicationIntakeController = ReturnType<typeof useApplicationIntake>;

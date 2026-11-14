@@ -8,6 +8,7 @@ import { recommendationStorage } from "./storage";
 type Draft = { value: RecommendationDraft; baseline: RecommendationBaseline };
 
 export const DraftContext = createContext<{
+  ready: boolean;
   drafts: Record<string, Draft | undefined>;
   setDraft: (
     key: string,
@@ -32,6 +33,7 @@ export const useRecommendationDraftStore = (storageScope?: string) => {
     status,
     value: useMemo(
       () => ({
+        ready,
         drafts,
         setDraft: (
           key: string,
@@ -44,7 +46,7 @@ export const useRecommendationDraftStore = (storageScope?: string) => {
           })),
         clearDrafts: () => setDrafts(() => ({})),
       }),
-      [drafts, setDrafts],
+      [drafts, setDrafts, ready],
     ),
   };
 };

@@ -6,6 +6,7 @@ import type { PreparationDraft } from "./preparation-state";
 import { preparationStorage } from "./storage";
 
 export const DraftContext = createContext<{
+  ready: boolean;
   edits: Record<string, PreparationDraft | undefined>;
   setEdit: (key: string, draft: PreparationDraft | undefined) => void;
 } | null>(null);
@@ -28,11 +29,12 @@ export const usePreparationDraftStore = (storageScope?: string) => {
     status,
     value: useMemo(
       () => ({
+        ready,
         edits: drafts,
         setEdit: (key: string, draft: PreparationDraft | undefined) =>
           setDrafts((current) => ({ ...current, [key]: draft })),
       }),
-      [drafts, setDrafts],
+      [drafts, setDrafts, ready],
     ),
   };
 };

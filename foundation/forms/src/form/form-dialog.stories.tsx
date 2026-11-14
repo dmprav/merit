@@ -5,6 +5,8 @@ import { z } from "zod";
 
 import { MessagesProvider } from "@merit/i18n";
 import { Button } from "@merit/ui/button";
+import { DialogContent } from "@merit/ui/dialog";
+import { EditorLoading } from "@merit/ui/editor-loading";
 
 import { FormDateField } from "../fields/date-field";
 import { FormSelect } from "../fields/select";
@@ -18,12 +20,14 @@ const FormDialogExample = ({
   long = false,
   withPopups = false,
   outcome = "success",
+  preparing = false,
 }: {
   size?: "default" | "wide";
   context?: string;
   long?: boolean;
   withPopups?: boolean;
   outcome?: "success" | "pending" | "failure";
+  preparing?: boolean;
 }) => {
   const [open, setOpen] = useState(true);
   const [saved, setSaved] = useState(false);
@@ -63,54 +67,60 @@ const FormDialogExample = ({
         isDismissDisabled={submission.isSubmitting}
         trigger={<Button>Write a note</Button>}
       >
-        <Form
-          label="Note"
-          submission={submission}
-          actions={
-            <FormActions
-              submission={submission}
-              onCancel={() => setOpen(false)}
-              cancelLabel="Close"
-              discard={{
-                label: "Discard draft",
-                onPress: () => {
-                  form.reset();
-                  setOpen(false);
-                },
-              }}
-              submitLabel="Save note"
-              submittingLabel="Saving…"
-            />
-          }
-        >
-          <form.Field name="title">
-            {(field) => <FormTextField field={field} label="Title" isRequired autoFocus />}
-          </form.Field>
-          <form.Field name="notes">
-            {(field) => (
-              <FormTextField field={field} label="Notes" multiline rows={long ? 30 : 5} />
+        {preparing ? (
+          <DialogContent label="Note">
+            <EditorLoading />
+          </DialogContent>
+        ) : (
+          <Form
+            label="Note"
+            submission={submission}
+            actions={
+              <FormActions
+                submission={submission}
+                onCancel={() => setOpen(false)}
+                cancelLabel="Close"
+                discard={{
+                  label: "Discard draft",
+                  onPress: () => {
+                    form.reset();
+                    setOpen(false);
+                  },
+                }}
+                submitLabel="Save note"
+                submittingLabel="Saving…"
+              />
+            }
+          >
+            <form.Field name="title">
+              {(field) => <FormTextField field={field} label="Title" isRequired autoFocus />}
+            </form.Field>
+            <form.Field name="notes">
+              {(field) => (
+                <FormTextField field={field} label="Notes" multiline rows={long ? 30 : 5} />
+              )}
+            </form.Field>
+            {withPopups && (
+              <>
+                <form.Field name="status">
+                  {(field) => (
+                    <FormSelect
+                      field={field}
+                      label="Status"
+                      items={[
+                        { id: "draft", label: "Draft" },
+                        { id: "ready", label: "Ready" },
+                      ]}
+                    />
+                  )}
+                </form.Field>
+                <form.Field name="date">
+                  {(field) => <FormDateField field={field} label="Date" />}
+                </form.Field>
+              </>
             )}
-          </form.Field>
-          {withPopups && (
-            <>
-              <form.Field name="status">
-                {(field) => (
-                  <FormSelect
-                    field={field}
-                    label="Status"
-                    items={[
-                      { id: "draft", label: "Draft" },
-                      { id: "ready", label: "Ready" },
-                    ]}
-                  />
-                )}
-              </form.Field>
-              <form.Field name="date">
-                {(field) => <FormDateField field={field} label="Date" />}
-              </form.Field>
-            </>
-          )}
-        </Form>
+          </Form>
+        )}
       </FormDialog>
     </MessagesProvider>
   );
@@ -129,6 +139,7 @@ type Story = StoryObj<typeof meta>;
 
 export const Wide: Story = {};
 export const Compact: Story = { args: { size: "default" } };
+export const PreparingEditor: Story = { args: { context: "Community grants", preparing: true } };
 export const WithContext: Story = { args: { context: "Community grants" } };
 export const LongContext: Story = {
   args: {

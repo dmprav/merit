@@ -1,5 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type { RoundView } from "@merit/grantmaking/api";
 import { useWorkflowRefresh } from "@merit/query/refresh";
@@ -31,7 +31,7 @@ export const useRoundPreparation = ({
   onDeleted,
   onRestoreFocus,
 }: UseRoundPreparationOptions) => {
-  const { edits, setEdit } = usePreparationDrafts();
+  const { edits, setEdit, ready } = usePreparationDrafts();
   const [editing, setEditing] = useState<PreparationSection | null>(null);
   const [error, setError] = useState<PreparationProblem | null>(null);
   const [pending, setPending] = useState(false);
@@ -50,6 +50,15 @@ export const useRoundPreparation = ({
 
   const draftFor = <S extends PreparationSection>(section: S) =>
     edits[key(section)] as Extract<PreparationDraft, { section: S }> | undefined;
+
+  useEffect(() => {
+    if (ready && editing && !edits[`${data.draftKey}/${editing}`]) {
+      setEdit(
+        `${data.draftKey}/${editing}`,
+        preparationDraft(editing, round, data.state.revision) as PreparationDraft,
+      );
+    }
+  }, [ready, editing, edits, setEdit, data.draftKey, round, data.state.revision]);
 
   const updateDraft = (draft: PreparationDraft) => setEdit(key(draft.section), draft);
 
@@ -71,7 +80,7 @@ export const useRoundPreparation = ({
     }
 
     const draft = draftFor(section);
-    if (!draft || !hasPreparationDraft(draft)) {
+    if (ready && (!draft || !hasPreparationDraft(draft))) {
       updateDraft(preparationDraft(section, round, data.state.revision) as PreparationDraft);
     }
     setError(null);
@@ -87,11 +96,32 @@ export const useRoundPreparation = ({
     mutationFn: (draft: PreparationDraft) => data.save(draftChange(draft), draft.revision),
   });
 
+  const recordSaved = (
+    draft: PreparationDraft,
+    mode: "form" | "quick" | "undo",
+    revision: number,
+  ) => {
+    setUndo(
+      mode === "quick" && revision !== draft.revision
+        ? {
+            revision,
+            draft: preparationDraft(draft.section, round, data.state.revision) as PreparationDraft,
+          }
+        : null,
+    );
+    setEdit(key(draft.section), undefined);
+    setEditing(null);
+    setFeedback((previous) => ({
+      event: previous.event + 1,
+      outcome: mode === "undo" ? "undone" : "saved",
+    }));
+  };
+
   const save = async (
     draft: PreparationDraft,
     mode: "form" | "quick" | "undo" = "form",
   ): Promise<PreparationProblem | null> => {
-    if (busyRef.current) {
+    if (busyRef.current || !ready) {
       return { status: "busy" };
     }
     if (mode === "form" && draft.revision !== data.state.revision) {
@@ -115,24 +145,7 @@ export const useRoundPreparation = ({
           await refresh("read");
         }
       } else {
-        setUndo(
-          mode === "quick" && result.revision !== draft.revision
-            ? {
-                revision: result.revision,
-                draft: preparationDraft(
-                  draft.section,
-                  round,
-                  data.state.revision,
-                ) as PreparationDraft,
-              }
-            : null,
-        );
-        setEdit(key(draft.section), undefined);
-        setEditing(null);
-        setFeedback((previous) => ({
-          event: previous.event + 1,
-          outcome: mode === "undo" ? "undone" : "saved",
-        }));
+        recordSaved(draft, mode, result.revision);
 
         // A committed save stays successful even when the subsequent read fails.
         await refresh("saved");
@@ -191,7 +204,7 @@ export const useRoundPreparation = ({
   };
 
   const confirmDelete = async () => {
-    if (busyRef.current || deleted || deleteRevision === null) {
+    if (busyRef.current || !ready || deleted || deleteRevision === null) {
       return;
     }
 
@@ -222,6 +235,7 @@ export const useRoundPreparation = ({
   };
 
   return {
+    ready,
     round,
     revision: data.state.revision,
     budgetHistory: data.state.budgetHistory,

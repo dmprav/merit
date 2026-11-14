@@ -167,7 +167,7 @@ const DraftLayout = () => {
   const { t } = useTranslation("administration");
   const { data, isPending } = useQuery(adminContextOptions());
   if (isPending) {
-    return <StateMessage title={t("loadingDrafts")} role="status" />;
+    return <StateMessage title={t("loading")} role="status" />;
   }
 
   const scope = data?.status === "ok" && data.canAdminister ? data.draftScope : undefined;

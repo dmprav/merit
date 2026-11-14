@@ -5,7 +5,6 @@ import { z } from "zod";
 import { useDrafts } from "@merit/drafts";
 import type { TableSort } from "@merit/tables";
 import { Notice } from "@merit/ui/notice";
-import { StateMessage } from "@merit/ui/state-message";
 
 export type OrganizationListView = { sorting: TableSort };
 
@@ -24,6 +23,8 @@ type OrganizationDraft = { name?: string; email?: string };
 type Drafts = {
   listView: OrganizationListView;
   setListView: (view: OrganizationListView) => void;
+  creationReady: boolean;
+  editingReady: boolean;
   creation: CreationDraft | null;
   setCreation: (draft: CreationDraft | null) => void;
   organizations: Map<string, OrganizationDraft>;
@@ -70,7 +71,16 @@ export const AdminDrafts = ({ children, scope }: { children: ReactNode; scope?: 
 
   return (
     <Context.Provider
-      value={{ listView, setListView, creation, setCreation, organizations, updateOrganization }}
+      value={{
+        listView,
+        setListView,
+        creationReady,
+        editingReady,
+        creation,
+        setCreation,
+        organizations,
+        updateOrganization,
+      }}
     >
       {(creationError || editingError) && (
         <Notice tone="warning">
@@ -81,11 +91,7 @@ export const AdminDrafts = ({ children, scope }: { children: ReactNode; scope?: 
           )}
         </Notice>
       )}
-      {creationReady && editingReady ? (
-        children
-      ) : (
-        <StateMessage title={t("loadingDrafts")} role="status" />
-      )}
+      {children}
     </Context.Provider>
   );
 };

@@ -4,14 +4,16 @@ import { z } from "zod";
 import { Form, FormTextField, useForm } from "@merit/forms";
 import { organizationName, invitationEmail } from "@merit/organizations/api";
 import { Button } from "@merit/ui/button";
+import { EditorLoading, EditorClose } from "@merit/ui/editor-loading";
 import { Icon } from "@merit/ui/icon";
+import { SectionHeader } from "@merit/ui/section-header";
 import { Tooltip } from "@merit/ui/tooltip";
 
 import type { OrganizationController } from "../controllers/organization";
 import { useOrganizationSchema } from "./form-schema";
 import styles from "./organization.module.css";
 
-export const NameEditor = ({
+const ReadyNameEditor = ({
   editor,
   disabled,
 }: {
@@ -83,7 +85,7 @@ export const NameEditor = ({
   );
 };
 
-export const OwnerEditor = ({
+const ReadyOwnerEditor = ({
   editor,
   disabled,
   actionRef,
@@ -144,5 +146,40 @@ export const OwnerEditor = ({
         )}
       </form.Field>
     </Form>
+  );
+};
+
+export const NameEditor = (props: Parameters<typeof ReadyNameEditor>[0]) => {
+  const { t } = useTranslation("administration");
+  return props.editor.ready ? (
+    <ReadyNameEditor {...props} />
+  ) : (
+    <PreparingEditor title={t("editName")} onClose={props.editor.cancel} />
+  );
+};
+
+export const OwnerEditor = (props: Parameters<typeof ReadyOwnerEditor>[0]) => {
+  const { t } = useTranslation("administration");
+  return props.editor.ready ? (
+    <ReadyOwnerEditor {...props} />
+  ) : (
+    <PreparingEditor
+      title={t(props.editor.active ? "replace" : "invite")}
+      onClose={props.editor.close}
+    />
+  );
+};
+
+const PreparingEditor = ({ title, onClose }: { title: string; onClose: () => void }) => {
+  const { t } = useTranslation("administration");
+  return (
+    <div>
+      <SectionHeader
+        className={styles.ownerHeading}
+        title={title}
+        aside={<EditorClose label={t("closeEditor")} onClose={onClose} />}
+      />
+      <EditorLoading />
+    </div>
   );
 };

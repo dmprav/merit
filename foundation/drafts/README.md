@@ -30,8 +30,12 @@ drafts.update((previous) => ({ ...previous, [recordKey]: undefined }));
 ```
 
 `drafts` contains the recovered values. `ready` means the restore attempt finished,
-including failure. Wait for it before mounting editors so initial form values
-cannot replace recovered writing. `status` distinguishes `restoring`, `saving`,
+including failure. Start restoration when the provider mounts and keep navigation,
+lists, and saved content available. Wait only inside an opened editor for its own
+store before initializing drafts or mounting editable forms, so initial values
+cannot replace recovered writing. Keep the editor title and Close available with
+the shared `EditorLoading` presentation; closing cancels the pending opening.
+Actions that update or clear drafts also wait for their owning store. `status` distinguishes `restoring`, `saving`,
 `saved`, `unavailable`, `conflict`, `cleared`, and memory-only `memory`.
 `storageUnavailable` covers persistence failures and tab conflicts. A local
 `saved` status means the IndexedDB transaction committed, not that the server has

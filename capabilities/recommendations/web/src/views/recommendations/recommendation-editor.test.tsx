@@ -478,3 +478,64 @@ it.each([
     }
   },
 );
+
+it("waits inside the recommendation panel, then mounts recovered writing without initializing defaults", async () => {
+  const user = userEvent.setup();
+  const onDraftChange = vi.fn();
+  const onSave = vi.fn();
+
+  const renderEditor = (ready: boolean, draft?: RecommendationDraft) => (
+    <GrantmakingMessagesProvider>
+      <RecommendationEditor
+        application={application}
+        round={round}
+        disabled={false}
+        ready={ready}
+        draft={draft}
+        onDraftChange={onDraftChange}
+        onSave={onSave}
+      />
+    </GrantmakingMessagesProvider>
+  );
+
+  const view = render(renderEditor(false));
+  expect(screen.getByText(application.managerRecommendation!.reasoning)).toBeVisible();
+  await user.click(screen.getByRole("button", { name: /Edit recommendation for/ }));
+  expect(screen.getByText("Preparing editor…")).toBeVisible();
+  expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  expect(onDraftChange).not.toHaveBeenCalled();
+  view.rerender(
+    renderEditor(true, { position: "Fund", amount: "12,", reasoning: "Recovered judgment" }),
+  );
+  expect(screen.getByRole("textbox", { name: "Reasoning" })).toHaveValue("Recovered judgment");
+  expect(onDraftChange).not.toHaveBeenCalled();
+});
+
+it("closing recommendation recovery cancels opening even when the close callback is still pending", async () => {
+  const user = userEvent.setup();
+  const onDraftChange = vi.fn();
+  const onClose = vi.fn(() => new Promise<void>(() => {}));
+
+  const renderEditor = (ready: boolean) => (
+    <GrantmakingMessagesProvider>
+      <RecommendationEditor
+        application={application}
+        round={round}
+        disabled={false}
+        ready={ready}
+        onDraftChange={onDraftChange}
+        onSave={vi.fn()}
+        onClose={onClose}
+      />
+    </GrantmakingMessagesProvider>
+  );
+
+  const view = render(renderEditor(false));
+  await user.click(screen.getByRole("button", { name: /Edit recommendation for/ }));
+  expect(screen.getByRole("button", { name: "Close recommendation" })).toHaveFocus();
+  await user.keyboard("{Escape}");
+  view.rerender(renderEditor(true));
+  expect(screen.queryByText("Preparing editor…")).not.toBeInTheDocument();
+  expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  expect(onDraftChange).not.toHaveBeenCalled();
+});

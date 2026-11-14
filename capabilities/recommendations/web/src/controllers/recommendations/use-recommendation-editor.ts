@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useLayoutEffect, useState } from "react";
 
 import type { ApplicationView as Application } from "@merit/grantmaking/api";
 import type { Recommendation } from "@merit/recommendations/domain";
@@ -12,12 +12,14 @@ import { recommendationDraft } from "./form-state";
 
 export const useRecommendationEditor = ({
   application,
+  ready = true,
   draft,
   onDraftChange,
   onSave,
   onClose,
 }: {
   application: Application;
+  ready?: boolean;
   draft?: RecommendationDraft;
   onDraftChange: (draft: RecommendationDraft | undefined) => void;
   onSave: SaveRecommendation;
@@ -28,14 +30,18 @@ export const useRecommendationEditor = ({
   if (!recommendation && application.intakeStatus === "in_preparation") {
     initialDraft.position = "Defer";
   }
-  const [isEditing, setIsEditing] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const isOpen = isEditing && Boolean(draft);
+  useLayoutEffect(() => {
+    if (isOpen && ready && !draft) {
+      onDraftChange(initialDraft);
+    }
+  }, [isOpen, ready, draft, onDraftChange, initialDraft]);
 
   const close = async (discard = false) => {
+    setIsOpen(false);
     await onClose();
-    setIsEditing(false);
-    if (discard || JSON.stringify(draft) === JSON.stringify(initialDraft)) {
+    if (ready && (discard || JSON.stringify(draft) === JSON.stringify(initialDraft))) {
       onDraftChange(undefined);
     }
   };
@@ -53,17 +59,11 @@ export const useRecommendationEditor = ({
   };
 
   return {
-    isEditing,
-    isSaving,
     isOpen,
+    isSaving,
     canResume: Boolean(draft) && !isOpen,
     close,
     save,
-    open: () => {
-      if (!draft) {
-        onDraftChange(initialDraft);
-      }
-      setIsEditing(true);
-    },
+    open: () => setIsOpen(true),
   };
 };

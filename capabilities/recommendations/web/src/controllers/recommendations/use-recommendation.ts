@@ -15,7 +15,7 @@ export const useRecommendation = (
   application: Application,
   data: RecommendationData,
 ) => {
-  const { drafts, setDraft } = useRecommendationDrafts();
+  const { drafts, setDraft, ready } = useRecommendationDrafts();
   const [saved, setSaved] = useState(0);
   const draft = drafts[applicationKey];
   const baseline = {
@@ -37,6 +37,7 @@ export const useRecommendation = (
   };
 
   return {
+    ready,
     draft: draft?.value,
     saved,
     save,

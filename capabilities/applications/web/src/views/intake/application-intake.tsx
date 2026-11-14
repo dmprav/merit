@@ -91,7 +91,7 @@ export const IntakeTitle = ({
 }: {
   intake: Pick<
     ApplicationIntakeController,
-    "application" | "withdrawn" | "preparing" | "pending" | "unsavedContent" | "rename"
+    "application" | "withdrawn" | "preparing" | "pending" | "unsavedContent" | "rename" | "ready"
   >;
   titleRef?: Ref<HTMLSpanElement>;
   onReveal: () => void;
@@ -110,6 +110,7 @@ export const IntakeTitle = ({
         saveLabel={t(intake.preparing ? "preparation.saveName" : "intake.correct")}
         cancelLabel={t("common:cancel")}
         errorMessage={t("intake.saveError")}
+        isPreparing={!intake.ready}
         isDisabled={intake.pending || intake.unsavedContent}
         onSave={async (title) => {
           const error = await intake.rename(title);
@@ -148,6 +149,7 @@ export const IntakeControls = ({
     | "withdrawn"
     | "preparing"
     | "section"
+    | "ready"
     | "unsavedContent"
     | "workingRevision"
     | "missingFields"
@@ -201,7 +203,7 @@ export const IntakeControls = ({
             {preparing ? (
               <Button
                 size="small"
-                isDisabled={intake.pending || missing.length > 0 || unsavedContent}
+                isDisabled={!intake.ready || intake.pending || missing.length > 0 || unsavedContent}
                 onPress={() => void intake.markReady()}
               >
                 {t("intake.markReady")}
@@ -210,7 +212,7 @@ export const IntakeControls = ({
               working && (
                 <Button
                   size="small"
-                  isDisabled={intake.pending || unsavedContent}
+                  isDisabled={!intake.ready || intake.pending || unsavedContent}
                   onPress={() => void intake.publishRevision()}
                 >
                   {t("intake.recordRevision")}

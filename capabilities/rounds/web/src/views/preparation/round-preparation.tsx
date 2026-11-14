@@ -13,7 +13,8 @@ import { Button } from "@merit/ui/button";
 import { ChoiceList } from "@merit/ui/choice-list";
 import { ConfirmationDialog } from "@merit/ui/confirmation-dialog";
 import { DateChoice } from "@merit/ui/date-choice";
-import { PopoverDialog } from "@merit/ui/dialog";
+import { DialogContent, PopoverDialog } from "@merit/ui/dialog";
+import { EditorLoading, EditorClose } from "@merit/ui/editor-loading";
 import { Icon } from "@merit/ui/icon";
 import { InlineName } from "@merit/ui/inline-name";
 import { Inline } from "@merit/ui/layout";
@@ -110,6 +111,19 @@ export const RoundEditor = ({
     ),
   };
 
+  if (!preparation.ready || !draft) {
+    const loading = <EditorLoading />;
+    return section === "budget" ? (
+      <DialogContent label={t("preparation.edit.budget")}>{loading}</DialogContent>
+    ) : (
+      <div>
+        <h3>{t(`preparation.edit.${section}`)}</h3>
+        {loading}
+        <EditorClose label={t("preparation.close")} onClose={() => preparation.close()} />
+      </div>
+    );
+  }
+
   return (
     <>
       {section === "criteria" &&
@@ -153,7 +167,7 @@ export const RoundEditor = ({
 export const RoundTitle = ({
   preparation,
 }: {
-  preparation: Pick<PreparationEditing, "round" | "pending" | "renameRound">;
+  preparation: Pick<PreparationEditing, "round" | "pending" | "renameRound" | "ready">;
 }) => {
   const { t } = useTranslation(["roundPreparation", "common"]);
 
@@ -164,6 +178,7 @@ export const RoundTitle = ({
       saveLabel={t("preparation.saveName")}
       cancelLabel={t("common:cancel")}
       errorMessage={t("preparation.saveError")}
+      isPreparing={!preparation.ready}
       isDisabled={preparation.pending}
       onSave={async (title) => preparationError(t, await preparation.renameRound(title))}
     />
@@ -263,7 +278,7 @@ export const RoundManager = ({
 
 type QuickEditorState = Pick<
   PreparationEditing,
-  "draftFor" | "pending" | "open" | "close" | "editing" | "error" | "registerEditTrigger"
+  "draftFor" | "pending" | "open" | "close" | "editing" | "error" | "registerEditTrigger" | "ready"
 >;
 
 const QuickEditor = ({
@@ -303,7 +318,19 @@ const QuickEditor = ({
     >
       {({ closeButton }) => (
         <>
-          {typeof children === "function" ? children({ closeButton }) : children}
+          {!preparation.ready ? (
+            <DialogContent label={t(`preparation.edit.${section}`)}>
+              <Inline justify="between">
+                <h3>{t(`preparation.edit.${section}`)}</h3>
+                {closeButton}
+              </Inline>
+              <EditorLoading />
+            </DialogContent>
+          ) : typeof children === "function" ? (
+            children({ closeButton })
+          ) : (
+            children
+          )}
           {preparation.error && (
             <Notice tone="danger" role="alert">
               {preparationError(t, preparation.error)}

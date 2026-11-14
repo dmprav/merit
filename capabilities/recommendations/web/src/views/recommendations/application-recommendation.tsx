@@ -34,7 +34,11 @@ export const ApplicationRecommendation = ({
   children,
 }: ApplicationRecommendationProps) => {
   const { t } = useTranslation("fundingRecommendations");
-  const { draft, saved, save, updateDraft } = useRecommendation(applicationKey, application, data);
+  const { draft, saved, save, updateDraft, ready } = useRecommendation(
+    applicationKey,
+    application,
+    data,
+  );
 
   return (
     <>
@@ -43,6 +47,7 @@ export const ApplicationRecommendation = ({
         application={application}
         round={round}
         disabled={data.disabled}
+        ready={ready}
         draft={draft}
         onDraftChange={updateDraft}
         onSave={save}
