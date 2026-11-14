@@ -186,7 +186,13 @@ export const docs = {
       },
       delete: {
         title: "Delete unused preparation",
-        body: "Delete application is available in Application actions only for an application never marked ready and with no review requests, assessments, or manager recommendation. Confirming deletes its preparation details while keeping audit history. Withdrawal, archiving, and moving applications between rounds are not available.",
+        body: "Delete application is available in Application actions only for an application never marked ready and with no review requests, assessments, or manager recommendation. Confirming deletes its preparation details while keeping audit history. Archiving and moving applications between rounds are not available.",
+      },
+      withdraw: {
+        title: "Withdraw or reinstate an application",
+        body: "When an applicant steps back, choose Withdraw application in Application actions and enter the date they withdrew and the reason. The application, its material, reviews, and recommendation are kept; withdrawal is not a rejection or a deletion. The application becomes read-only, stops counting toward the round's requested and proposed totals, and closes its outstanding review requests, which ends reviewer access.",
+        reinstate:
+          "Choose Reinstate application and enter a reason to make the application active again with its earlier status. Review requests closed by the withdrawal stay closed: request the reviews again or reinstate the reviewer's assignment. The round list marks withdrawn applications and has a Withdrawn filter, and the totals say how many withdrawn applications they leave out.",
       },
     },
     contacts: {

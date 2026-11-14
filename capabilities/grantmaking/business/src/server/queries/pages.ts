@@ -93,7 +93,7 @@ export const getFundingApplicationPage = async (
     }
 
     const history = await readApplicationHistory(tx, row.organizationId, row.publicId);
-    const round = decodeApplicationContext(row.round, row.allocations);
+    const round = decodeApplicationContext(row.round, row.allocations, row.withdrawnApplications);
 
     return {
       intake: {

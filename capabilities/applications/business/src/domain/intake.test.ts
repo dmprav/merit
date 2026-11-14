@@ -36,6 +36,8 @@ import {
   prepareIntakeChange as prepareIntakeCommand,
   canDeleteApplication as canDeleteCase,
   canEditIntakeContent,
+  isWithdrawn,
+  latestWithdrawalDate,
   type WorkingRevision,
 } from "./index";
 
@@ -585,6 +587,164 @@ describe("application intake", () => {
         ],
       }),
     ).toEqual(["answers"]);
+  });
+});
+
+describe("withdrawal", () => {
+  const ready = () =>
+    makeApplication({
+      intakeStatus: "ready",
+      requested: fromMinorUnits(2400000n),
+      submission: { version: 1, organization: "Neighbourhood Kitchen", answers: [] },
+    });
+
+  const withdraw = {
+    action: "withdraw",
+    withdrawnOn: "2026-11-08",
+    reason: "The applicant secured other funding.",
+  } as const;
+  const working: WorkingRevision = {
+    kind: "revision",
+    reason: "Updated plan",
+    content: intakeContent(ready()),
+  };
+
+  it.each([
+    ["in preparation", makeApplication(), null],
+    ["ready", ready(), null],
+    ["ready with a working revision", ready(), working],
+  ])("records the withdrawal and keeps the retained work when %s", (_name, application, draft) => {
+    const result = prepareIntakeChange(application, draft, withdraw, author);
+
+    expect(result).toMatchObject({
+      ok: true,
+      action: "withdraw",
+      reason: "The applicant secured other funding.",
+      workingRevision: draft,
+    });
+    if (!result.ok) {
+      return;
+    }
+    expect(result.application.withdrawal).toEqual({
+      withdrawnOn: "2026-11-08",
+      reason: "The applicant secured other funding.",
+      recorder: author,
+    });
+    expect(result.application).toEqual({
+      ...application,
+      withdrawal: result.application.withdrawal,
+    });
+    expect(result.application.version).toBe(application.version);
+    expect(isWithdrawn(result.application)).toBe(true);
+  });
+
+  it("accepts today and earlier dates but rejects a date after the server's date", () => {
+    for (const withdrawnOn of ["2026-11-09", "2020-01-01"]) {
+      expect(prepareIntakeChange(ready(), null, { ...withdraw, withdrawnOn }, author).ok).toBe(
+        true,
+      );
+    }
+    expect(
+      prepareIntakeChange(ready(), null, { ...withdraw, withdrawnOn: "2026-11-11" }, author),
+    ).toEqual({
+      ok: false,
+      error: "withdrawal_date_in_future",
+    });
+  });
+
+  it("accepts the date a person ahead of the server's time zone calls today", () => {
+    // 23:30 UTC on 9 November is already 10 November at UTC+1 through UTC+14.
+    const late = { ...author, recordedAt: "2026-11-09T23:30:00Z" };
+
+    expect(
+      prepareIntakeChange(ready(), null, { ...withdraw, withdrawnOn: "2026-11-10" }, late).ok,
+    ).toBe(true);
+    expect(latestWithdrawalDate("2026-11-09T09:59:59Z")).toBe("2026-11-09");
+    expect(latestWithdrawalDate("2026-11-09T10:00:00Z")).toBe("2026-11-10");
+    expect(
+      prepareIntakeChange(ready(), null, { ...withdraw, withdrawnOn: "2026-11-11" }, late),
+    ).toEqual({ ok: false, error: "withdrawal_date_in_future" });
+  });
+
+  it.each(["", "   "])("requires a reason: %j", (reason) => {
+    expect(intakeChangeSchema.safeParse({ ...withdraw, reason }).success).toBe(false);
+    expect(intakeChangeSchema.safeParse({ action: "reinstate", reason }).success).toBe(false);
+  });
+
+  it("trims the reason and limits it to the reviewer resolution length", () => {
+    expect(intakeChangeSchema.parse({ ...withdraw, reason: "  Stepped back  " })).toMatchObject({
+      reason: "Stepped back",
+    });
+    expect(intakeChangeSchema.safeParse({ ...withdraw, reason: "x".repeat(2000) }).success).toBe(
+      true,
+    );
+    expect(intakeChangeSchema.safeParse({ ...withdraw, reason: "x".repeat(2001) }).success).toBe(
+      false,
+    );
+  });
+
+  it("rejects withdrawing a withdrawn application", () => {
+    const withdrawn = prepareIntakeChange(ready(), null, withdraw, author);
+    expect(
+      withdrawn.ok && prepareIntakeChange(withdrawn.application, null, withdraw, author),
+    ).toEqual({
+      ok: false,
+      error: "application_withdrawn",
+    });
+  });
+
+  it("restores the retained state and working revision on reinstatement", () => {
+    const withdrawn = prepareIntakeChange(ready(), working, withdraw, author);
+    if (!withdrawn.ok) {
+      throw new Error("Expected a withdrawal");
+    }
+    const result = prepareIntakeChange(
+      withdrawn.application,
+      withdrawn.workingRevision,
+      { action: "reinstate", reason: "The applicant returned." },
+      author,
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      action: "reinstate",
+      reason: "The applicant returned.",
+      application: ready(),
+      workingRevision: working,
+    });
+  });
+
+  it("rejects reinstating an application that is not withdrawn", () => {
+    expect(
+      prepareIntakeChange(ready(), null, { action: "reinstate", reason: "Back" }, author),
+    ).toEqual({ ok: false, error: "application_not_withdrawn" });
+  });
+
+  it.each([
+    { action: "save_content", content: { title: "Changed" } },
+    { action: "start_revision", kind: "revision" },
+    {
+      action: "save_revision",
+      draft: { kind: "revision", reason: "", content: { title: "Changed" } },
+    },
+    { action: "publish_revision" },
+    { action: "discard_revision" },
+    { action: "mark_ready" },
+    { action: "delete" },
+    { action: "details", summary: "Changed" },
+    withdraw,
+  ] as const)("rejects $action while withdrawn", (change) => {
+    const withdrawn = prepareIntakeChange(makeApplication(), working, withdraw, author);
+    if (!withdrawn.ok) {
+      throw new Error("Expected a withdrawal");
+    }
+
+    expect(prepareIntakeChange(withdrawn.application, working, change, author)).toEqual({
+      ok: false,
+      error: "application_withdrawn",
+    });
+    expect(canDeleteCase(withdrawn.application, usage(withdrawn.application))).toBe(false);
+    expect(canEditIntakeContent(withdrawn.application, working)).toBe(false);
   });
 });
 

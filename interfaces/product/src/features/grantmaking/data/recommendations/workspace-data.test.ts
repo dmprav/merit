@@ -72,6 +72,7 @@ it("updates the saved recommendation and totals while invalidating only this wor
     totals: {
       proposed: encodeMoney(fromMinorUnits(1250000n)),
       remaining: encodeMoney(fromMinorUnits(8750000n)),
+      withdrawnApplications: 0,
     },
   };
   vi.mocked(saveRecommendation).mockResolvedValue(saved);

@@ -241,7 +241,7 @@ export const useReviewer = (
         if (result.status !== "unavailable") {
           pendingResponse.current = null;
         }
-        setError(responseError(result.status));
+        setError(responseError(result));
         return false;
       }
       const current = await data.read();
@@ -265,12 +265,13 @@ export const useReviewer = (
     }
   };
 
-  const submissionFailure = async (status: string) => {
+  const submissionFailure = async (failure: Failure) => {
+    const { status } = failure;
     if (status !== "unavailable") {
       pendingSubmission.current = null;
       setSubmissionPending(false);
     }
-    setError(submitError(status));
+    setError(submitError(failure));
     if (status === "conflict") {
       const current = await data.read();
       if (current.status === "ok") {
@@ -321,7 +322,7 @@ export const useReviewer = (
         ? { status: "ok" as const }
         : await data.submit(input);
       if (result.status !== "ok") {
-        await submissionFailure(result.status);
+        await submissionFailure(result);
         return;
       }
       submissionConfirmed.current = true;
@@ -402,14 +403,22 @@ export const useReviewer = (
   };
 };
 
-const responseError = (status: string) => {
+type Failure = { status: string; error?: string };
+
+const responseError = ({ status, error }: Failure) => {
+  if (error === "application_withdrawn") {
+    return "applicationWithdrawn";
+  }
   if (status === "conflict") {
     return "stale";
   }
   return status === "expired" ? "expired" : "unavailable";
 };
 
-const submitError = (status: string) => {
+const submitError = ({ status, error }: Failure) => {
+  if (error === "application_withdrawn") {
+    return "applicationWithdrawn";
+  }
   if (status === "invalid") {
     return "submissionInvalid";
   }

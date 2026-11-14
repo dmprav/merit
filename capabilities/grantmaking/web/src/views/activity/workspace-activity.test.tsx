@@ -22,6 +22,7 @@ const entry = (id: number, overrides: Partial<ActivityEntry> = {}): ActivityEntr
     roundId: null,
     applicationId: "b8q3w5j7c2df",
   },
+  reason: null,
   record: { kind: "application", id: "b8q3w5j7c2df", title: "Workshop Saturdays" },
   ...overrides,
 });
@@ -85,6 +86,21 @@ it("names an unrecorded person, labels unknown actions generically and marks mis
   expect(screen.getAllByRole("link")).toHaveLength(1);
 });
 
+it("shows the reason recorded with a withdrawal or reinstatement", () => {
+  show({
+    entries: [
+      entry(1, { action: "application.withdraw", reason: "The applicant found other funding." }),
+      entry(2, { action: "application.reinstate", reason: "The applicant returned." }),
+    ],
+  });
+
+  const rows = screen.getAllByRole("row");
+  expect(within(rows[1]!).getByText("Application withdrawn")).toBeVisible();
+  expect(within(rows[1]!).getByText("The applicant found other funding.")).toBeVisible();
+  expect(within(rows[2]!).getByText("Application reinstated")).toBeVisible();
+  expect(within(rows[2]!).getByText("The applicant returned.")).toBeVisible();
+});
+
 it("labels every action the workspace records", () => {
   const actions = [
     "application.created",
@@ -98,6 +114,8 @@ it("labels every action the workspace records", () => {
     "application.revision_recorded",
     "application.correction_recorded",
     "application.deleted",
+    "application.withdraw",
+    "application.reinstate",
     "round.created",
     "round.budget_changed",
     "round.criteria_changed",

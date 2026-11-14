@@ -1,19 +1,22 @@
 import type { TFunction } from "i18next";
-import type { Ref } from "react";
+import { useState, type ReactNode, type Ref } from "react";
 import { useTranslation } from "react-i18next";
 
-import { intakeContent } from "@merit/applications/domain";
+import { intakeContent, intakeLimits } from "@merit/applications/domain";
+import { calendarDateSchema, todayCalendarDate } from "@merit/dates";
 import { useFormat } from "@merit/i18n/format";
 import { parseMoney } from "@merit/money";
 import { Badge } from "@merit/ui/badge";
 import { Button } from "@merit/ui/button";
 import { ConfirmationDialog } from "@merit/ui/confirmation-dialog";
+import { DateField } from "@merit/ui/date-field";
 import { DialogContent, ModalDialog } from "@merit/ui/dialog";
 import { Icon } from "@merit/ui/icon";
 import { InlineName } from "@merit/ui/inline-name";
 import { Inline } from "@merit/ui/layout";
 import { Notice } from "@merit/ui/notice";
 import { StatusMessage } from "@merit/ui/status-message";
+import { TextField } from "@merit/ui/text-field";
 import { Tooltip } from "@merit/ui/tooltip";
 
 import type { IntakeSection } from "../../controllers/intake/intake-state";
@@ -88,12 +91,16 @@ export const IntakeTitle = ({
 }: {
   intake: Pick<
     ApplicationIntakeController,
-    "application" | "preparing" | "pending" | "unsavedContent" | "rename"
+    "application" | "withdrawn" | "preparing" | "pending" | "unsavedContent" | "rename"
   >;
   titleRef?: Ref<HTMLSpanElement>;
   onReveal: () => void;
 }) => {
   const { t } = useTranslation(["applicationIntake", "common"]);
+  // A withdrawn application is read-only, so its title cannot be renamed or corrected.
+  if (intake.withdrawn) {
+    return <span ref={titleRef}>{intake.application.title}</span>;
+  }
 
   return (
     <span ref={titleRef} tabIndex={-1}>
@@ -125,6 +132,7 @@ export const intakeMenuItems = (
     start_revision: "intake.startRevision",
     discard_revision: "intake.discardRevision",
     correct: "intake.correct",
+    withdraw: "intake.withdraw",
     delete: "intake.delete",
   } as const;
   return actions.map((id) => ({ id, label: t(labels[id]) }));
@@ -137,6 +145,7 @@ export const IntakeControls = ({
   intake: Pick<
     ApplicationIntakeController,
     | "application"
+    | "withdrawn"
     | "preparing"
     | "section"
     | "unsavedContent"
@@ -147,11 +156,15 @@ export const IntakeControls = ({
     | "startRevision"
     | "markReady"
     | "publishRevision"
+    | "setConfirmation"
   >;
   onReveal: () => void;
 }) => {
   const { t } = useTranslation("applicationIntake");
   const { application, preparing, section, unsavedContent } = intake;
+  if (intake.withdrawn) {
+    return <ReinstateStatus intake={intake} />;
+  }
   const working = intake.workingRevision;
   const editingContent = section !== null && section !== "details";
   const missing = intake.missingFields;
@@ -226,31 +239,101 @@ export const IntakeControls = ({
   );
 };
 
-const IntakeStatus = ({
-  preparing,
-  workingRevision: working,
-  unsavedContent,
-}: Pick<ApplicationIntakeController, "preparing" | "workingRevision" | "unsavedContent">) => {
+const ReinstateStatus = ({
+  intake,
+}: {
+  intake: Pick<ApplicationIntakeController, "application" | "pending" | "setConfirmation">;
+}) => {
   const { t } = useTranslation("applicationIntake");
 
   return (
+    <WithdrawalStatus
+      application={intake.application}
+      action={
+        <Button
+          size="small"
+          variant="secondary"
+          isDisabled={intake.pending}
+          onPress={() => intake.setConfirmation("reinstate")}
+        >
+          {t("intake.reinstate")}
+        </Button>
+      }
+    />
+  );
+};
+
+/** The retained facts of a withdrawal, with the one action allowed while withdrawn. */
+export const WithdrawalStatus = ({
+  application,
+  action,
+}: {
+  application: ApplicationIntakeController["application"];
+  action?: ReactNode;
+}) => {
+  const { t } = useTranslation("applicationIntake");
+  const { calendarDate } = useFormat();
+  const withdrawal = application.withdrawal;
+  if (!withdrawal) {
+    return null;
+  }
+
+  return (
+    <section className={styles.intake} aria-label={t("intake.preparation")}>
+      <Inline gap={3} justify="between">
+        <IntakeStatus withdrawn preparing={application.intakeStatus === "in_preparation"} />
+        {action}
+      </Inline>
+      <div className={styles.withdrawal}>
+        <p>
+          <strong>{t("intake.withdrawnOn", { date: calendarDate(withdrawal.withdrawnOn) })}</strong>
+        </p>
+        <p className={styles.hint}>
+          {t("intake.withdrawalRecordedBy", { name: withdrawal.recorder.name })}
+        </p>
+        <p className={styles.reason}>{withdrawal.reason}</p>
+      </div>
+    </section>
+  );
+};
+
+type StatusState = Partial<
+  Pick<ApplicationIntakeController, "preparing" | "workingRevision" | "unsavedContent">
+> & { withdrawn?: boolean };
+
+const statusHeading = ({ withdrawn, workingRevision: working, preparing }: StatusState) => {
+  if (withdrawn) {
+    return "intake.withdrawnHeading";
+  }
+  if (working) {
+    return working.kind === "correction" ? "intake.workingCorrection" : "intake.workingRevision";
+  }
+  return preparing ? "intake.preparation" : "intake.manageSubmission";
+};
+
+const statusBadge = ({
+  withdrawn,
+  workingRevision: working,
+  preparing,
+  unsavedContent,
+}: StatusState) => {
+  if (withdrawn) {
+    return "intake.withdrawn";
+  }
+  if (unsavedContent) {
+    return "intake.unsaved";
+  }
+  return working ? null : preparing ? "intake.preparing" : "intake.ready";
+};
+
+const IntakeStatus = (state: StatusState) => {
+  const { t } = useTranslation("applicationIntake");
+  const badge = statusBadge(state);
+
+  return (
     <div className={styles.status}>
-      <h2>
-        {t(
-          working
-            ? working.kind === "correction"
-              ? "intake.workingCorrection"
-              : "intake.workingRevision"
-            : preparing
-              ? "intake.preparation"
-              : "intake.manageSubmission",
-        )}
-      </h2>
-      {unsavedContent ? (
-        <Badge>{t("intake.unsaved")}</Badge>
-      ) : (
-        !working && <Badge>{t(preparing ? "intake.preparing" : "intake.ready")}</Badge>
-      )}
+      <h2>{t(statusHeading(state))}</h2>
+      {badge && <Badge>{t(badge)}</Badge>}
     </div>
   );
 };
@@ -336,19 +419,12 @@ export const IntakeFeedback = ({
     | "saved"
     | "pending"
     | "confirm"
+    | "confirmationKey"
+    | "outstandingReviews"
   >;
 }) => {
   const { t } = useTranslation(["applicationIntake", "common"]);
-  const {
-    application,
-    confirmation,
-    setConfirmation,
-    refreshError,
-    refreshing,
-    refresh,
-    error: failure,
-    saved,
-  } = intake;
+  const { confirmation, refreshError, refreshing, refresh, error: failure, saved } = intake;
   const error =
     confirmation && failure?.status === "conflict"
       ? t("intake.confirmationConflict")
@@ -379,6 +455,50 @@ export const IntakeFeedback = ({
         eventId={saved}
         confirmation={Boolean(saved)}
       />
+      <IntakeConfirmations intake={intake} error={error} />
+    </>
+  );
+};
+
+const IntakeConfirmations = ({
+  intake,
+  error,
+}: {
+  intake: Pick<
+    ApplicationIntakeController,
+    | "application"
+    | "confirmation"
+    | "setConfirmation"
+    | "pending"
+    | "confirm"
+    | "confirmationKey"
+    | "outstandingReviews"
+  >;
+  error: string | null;
+}) => {
+  const { t } = useTranslation(["applicationIntake", "common"]);
+  const { application, confirmation, setConfirmation } = intake;
+  const shared = {
+    application,
+    pending: intake.pending,
+    error,
+    onClose: () => setConfirmation(null),
+    onConfirm: intake.confirm,
+  };
+
+  return (
+    <>
+      <WithdrawDialog
+        key={`withdraw-${intake.confirmationKey}`}
+        {...shared}
+        isOpen={confirmation === "withdraw"}
+        outstandingReviews={intake.outstandingReviews}
+      />
+      <ReinstateDialog
+        key={`reinstate-${intake.confirmationKey}`}
+        {...shared}
+        isOpen={confirmation === "reinstate"}
+      />
       <ConfirmationDialog
         title={t(confirmation === "delete" ? "intake.delete" : "intake.discardRevision")}
         description={t(
@@ -389,7 +509,7 @@ export const IntakeFeedback = ({
         cancelLabel={t("common:cancel")}
         confirmLabel={t(confirmation === "delete" ? "intake.delete" : "intake.discardRevision")}
         intent="destructive"
-        isOpen={confirmation !== null}
+        isOpen={confirmation === "delete" || confirmation === "discard_revision"}
         onOpenChange={(value) => {
           if (!value) {
             setConfirmation(null);
@@ -400,5 +520,171 @@ export const IntakeFeedback = ({
         onConfirm={() => void intake.confirm()}
       />
     </>
+  );
+};
+
+type ReasonDialogProps = {
+  isOpen: boolean;
+  application: ApplicationIntakeController["application"];
+  pending: boolean;
+  error: string | null;
+  onClose: () => void;
+  onConfirm: ApplicationIntakeController["confirm"];
+};
+
+/** A required, multiline reason field that reports its own emptiness, like the reviewer dialogs. */
+const useReason = () => {
+  const [reason, setReason] = useState("");
+  const [missing, setMissing] = useState(false);
+
+  return {
+    reason,
+    missing,
+    setReason: (value: string) => {
+      setReason(value);
+      setMissing(false);
+    },
+    /** True when the reason is present; otherwise shows its required error. */
+    check: () => {
+      setMissing(!reason.trim());
+      return Boolean(reason.trim());
+    },
+  };
+};
+
+const ReasonField = ({
+  label,
+  errorMessage,
+  state,
+}: {
+  label: string;
+  errorMessage: string;
+  state: ReturnType<typeof useReason>;
+}) => (
+  <TextField
+    label={label}
+    isRequired
+    multiline
+    maxLength={intakeLimits.reasonLength}
+    value={state.reason}
+    onChange={state.setReason}
+    isInvalid={state.missing}
+    errorMessage={errorMessage}
+  />
+);
+
+const useWithdrawalDate = () => {
+  const { t } = useTranslation("applicationIntake");
+  const [today] = useState(todayCalendarDate);
+  const [date, setDate] = useState(today);
+  const [checked, setChecked] = useState(false);
+  const problem = !calendarDateSchema.safeParse(date).success
+    ? t("intake.withdrawalDateInvalid")
+    : date > today
+      ? t("intake.withdrawalDateFuture")
+      : null;
+
+  return {
+    date,
+    problem,
+    invalid: checked && problem !== null,
+    change: (value: string) => {
+      setDate(value);
+      setChecked(false);
+    },
+    /** True when the date can be sent; otherwise shows its error. */
+    check: () => {
+      setChecked(true);
+      return problem === null;
+    },
+  };
+};
+
+const WithdrawDialog = ({
+  application,
+  outstandingReviews,
+  pending,
+  error,
+  onClose,
+  onConfirm,
+  isOpen,
+}: ReasonDialogProps & { outstandingReviews: number }) => {
+  const { t } = useTranslation(["applicationIntake", "common"]);
+  const date = useWithdrawalDate();
+  const reason = useReason();
+  const description = [
+    t("intake.withdrawDescription"),
+    outstandingReviews > 0 && t("intake.withdrawClosesReviews", { count: outstandingReviews }),
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  return (
+    <ConfirmationDialog
+      title={t("intake.withdrawFor", { title: application.title })}
+      description={description}
+      closeLabel={t("preparation.close")}
+      cancelLabel={t("common:cancel")}
+      confirmLabel={t("intake.withdraw")}
+      intent="destructive"
+      isOpen={isOpen}
+      onOpenChange={(open) => !open && onClose()}
+      isPending={pending}
+      error={error}
+      onConfirm={() => {
+        // Check both fields so every problem shows at once.
+        const valid = [date.check(), reason.check()].every(Boolean);
+        if (valid) {
+          void onConfirm({ withdrawnOn: date.date, reason: reason.reason });
+        }
+      }}
+    >
+      <DateField
+        label={t("intake.withdrawalDate")}
+        value={date.date}
+        onChange={date.change}
+        isRequired
+        isInvalid={date.invalid}
+        errorMessage={date.problem ?? undefined}
+      />
+      <ReasonField
+        label={t("intake.withdrawalReason")}
+        errorMessage={t("intake.withdrawalReasonRequired")}
+        state={reason}
+      />
+    </ConfirmationDialog>
+  );
+};
+
+const ReinstateDialog = ({
+  isOpen,
+  application,
+  pending,
+  error,
+  onClose,
+  onConfirm,
+}: ReasonDialogProps) => {
+  const { t } = useTranslation(["applicationIntake", "common"]);
+  const reason = useReason();
+
+  return (
+    <ConfirmationDialog
+      title={t("intake.reinstateFor", { title: application.title })}
+      description={t("intake.reinstateDescription")}
+      closeLabel={t("preparation.close")}
+      cancelLabel={t("common:cancel")}
+      confirmLabel={t("intake.reinstate")}
+      isOpen={isOpen}
+      onOpenChange={(open) => !open && onClose()}
+      isPending={pending}
+      error={error}
+      onConfirm={() => reason.check() && void onConfirm({ reason: reason.reason })}
+    >
+      <ReasonField
+        label={t("intake.reinstateReason")}
+        errorMessage={t("intake.reinstateReasonRequired")}
+        state={reason}
+      />
+    </ConfirmationDialog>
   );
 };

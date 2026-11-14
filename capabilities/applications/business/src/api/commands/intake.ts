@@ -12,7 +12,8 @@ export type IntakeSaveError =
   | IntakeChangeError
   | "invalid_application"
   | "contact_unavailable"
-  | "request_total_too_large";
+  | "request_total_too_large"
+  | "allocation_total_too_large";
 
 const address = {
   workspaceSlug: workspaceSlugSchema,

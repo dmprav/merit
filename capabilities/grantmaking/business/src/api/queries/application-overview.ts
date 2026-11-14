@@ -12,6 +12,7 @@ export const applicationOverviewSchema = z.object({
   roundId: publicIdSchema,
   roundTitle: z.string(),
   intakeStatus: applicationRecordSchema.shape.intakeStatus,
+  withdrawn: z.boolean(),
   reviews: z.object({
     current: z.number().int().nonnegative(),
     outdated: z.number().int().nonnegative(),

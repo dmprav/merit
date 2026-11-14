@@ -4,6 +4,7 @@ import {
   canEditIntakeContent,
   canStartIntakeRevision,
   canDeleteApplication,
+  isWithdrawn,
   intakeContent,
   intakeContentSchema,
   type IntakeChange,
@@ -137,7 +138,7 @@ export const intakeDraftConflict = (
 
 export const intakeDraftCommand = (
   draft: IntakeDraft,
-  application: Pick<Application, "intakeStatus">,
+  application: Pick<Application, "intakeStatus" | "withdrawal">,
   working: WorkingRevision | null,
   revision: number,
   reasonDraft: IntakeDraft | undefined,
@@ -156,7 +157,7 @@ export const intakeDraftCommand = (
 };
 
 export const intakeRenameCommand = (
-  application: Pick<Application, "intakeStatus">,
+  application: Pick<Application, "intakeStatus" | "withdrawal">,
   working: WorkingRevision | null,
   title: string,
 ): IntakeChange | null => {
@@ -168,27 +169,60 @@ export const intakeRenameCommand = (
     : null;
 };
 
+export const outstandingReviewCount = (application: Pick<Application, "reviews">) =>
+  application.reviews.requests.filter((request) => request.status === "outstanding").length;
+
+export type IntakeConfirmation = "delete" | "discard_revision" | "withdraw" | "reinstate";
+
+/** The values a confirmation dialog collects before its command can be sent. */
+export type IntakeConfirmationValues = { withdrawnOn?: string; reason?: string };
+
+export const intakeConfirmationChange = (
+  action: IntakeConfirmation,
+  values: IntakeConfirmationValues = {},
+): IntakeChange | null => {
+  switch (action) {
+    case "delete":
+    case "discard_revision":
+      return { action };
+    case "withdraw":
+      return values.withdrawnOn && values.reason
+        ? { action, withdrawnOn: values.withdrawnOn, reason: values.reason.trim() }
+        : null;
+    case "reinstate":
+      return values.reason ? { action, reason: values.reason.trim() } : null;
+  }
+};
+
 export const intakeMenuActions = (
-  application: Pick<Application, "intakeStatus" | "managerRecommendation" | "reviews">,
+  application: Pick<
+    Application,
+    "intakeStatus" | "withdrawal" | "managerRecommendation" | "reviews"
+  >,
   working: WorkingRevision | null,
   hasTitleDraft: boolean,
-) => [
-  ...(canStartIntakeRevision(application, working)
-    ? ["start_revision" as const]
-    : hasTitleDraft
-      ? ["title" as const]
-      : []),
-  ...(working
-    ? ["discard_revision" as const]
-    : canStartIntakeRevision(application, working)
-      ? ["correct" as const]
-      : []),
-  ...(canDeleteApplication(application, {
-    hasReviews: Boolean(
-      application.reviews.requests.length || application.reviews.assessments.length,
-    ),
-    hasRecommendation: application.managerRecommendation !== null,
-  })
-    ? ["delete" as const]
-    : []),
-];
+) =>
+  // A withdrawn case is read-only; reinstating it is offered by its status area.
+  isWithdrawn(application)
+    ? []
+    : [
+        ...(canStartIntakeRevision(application, working)
+          ? ["start_revision" as const]
+          : hasTitleDraft
+            ? ["title" as const]
+            : []),
+        ...(working
+          ? ["discard_revision" as const]
+          : canStartIntakeRevision(application, working)
+            ? ["correct" as const]
+            : []),
+        "withdraw" as const,
+        ...(canDeleteApplication(application, {
+          hasReviews: Boolean(
+            application.reviews.requests.length || application.reviews.assessments.length,
+          ),
+          hasRecommendation: application.managerRecommendation !== null,
+        })
+          ? ["delete" as const]
+          : []),
+      ];

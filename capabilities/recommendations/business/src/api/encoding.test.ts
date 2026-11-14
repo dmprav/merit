@@ -43,23 +43,25 @@ it.each(["Fund", "Defer"] as const)(
 );
 
 it.each([null, fromMinorUnits(10000n)])("preserves unknown and exceeded budgets: %s", (budget) => {
-  const context = stored.decodeBudgetContext(budget && encodeMoney(budget), [
-    encodeMoney(fromMinorUnits(12001n)),
-    null,
-    encodeMoney(fromMinorUnits(0n)),
-  ]);
+  const context = stored.decodeBudgetContext(
+    budget && encodeMoney(budget),
+    [encodeMoney(fromMinorUnits(12001n)), null, encodeMoney(fromMinorUnits(0n))],
+    0,
+  );
   expect(context.budget).toEqual(budget);
   expect(context.totals).toEqual({
     proposed: fromMinorUnits(12001n),
     remaining: budget === null ? null : fromMinorUnits(-2001n),
+    withdrawnApplications: 0,
   });
 });
 it("rejects negative and overflowing persisted allocation totals", () => {
-  expect(() => stored.decodeBudgetContext(null, [encodeMoney(fromMinorUnits(-1n))])).toThrow();
+  expect(() => stored.decodeBudgetContext(null, [encodeMoney(fromMinorUnits(-1n))], 0)).toThrow();
   expect(() =>
-    stored.decodeBudgetContext(null, [
-      encodeMoney(fromMinorUnits(10n ** 30n - 1n)),
-      encodeMoney(fromMinorUnits(1n)),
-    ]),
+    stored.decodeBudgetContext(
+      null,
+      [encodeMoney(fromMinorUnits(10n ** 30n - 1n)), encodeMoney(fromMinorUnits(1n))],
+      0,
+    ),
   ).toThrow(RangeError);
 });

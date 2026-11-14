@@ -30,7 +30,13 @@ type ManagerReviewersProps = {
 
 type ManagerWork = ReturnType<typeof useManagerReviewers>;
 
-type ManagerError = "limited" | "inviteInvalid" | "stale" | "unavailable" | null;
+type ManagerError =
+  | "limited"
+  | "inviteInvalid"
+  | "stale"
+  | "applicationWithdrawn"
+  | "unavailable"
+  | null;
 
 type ReviewRequest = ReviewState["requests"][number];
 

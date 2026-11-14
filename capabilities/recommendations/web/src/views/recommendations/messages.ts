@@ -46,6 +46,8 @@ export const recommendationError = (
       return t("intake.fundingNotReady");
     case "application_not_found":
       return t("validation.applicationNotFound");
+    case "application_withdrawn":
+      return t("validation.applicationWithdrawn");
     case "allocation_total_too_large":
       return t("validation.allocationTotalTooLarge");
     case "invalid_recommendation":

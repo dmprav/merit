@@ -6,6 +6,7 @@ import type { Database } from "@merit/db";
 
 import { saveReviewRequestSchema, type SaveReviewRequest } from "../../api/commands/reviews";
 import { prepareReviewChange, type ReviewState } from "../../domain/reviews";
+import { recordReviewRequestEvent } from "../persistence/commands/review-request-events";
 import { assignmentForRequest, cancelParticipatingRequest } from "../persistence/commands/reviewer";
 import {
   readReviewState,
@@ -109,6 +110,9 @@ export const saveApplicationReview = async (
     if (retry) {
       return retry;
     }
+    if (access.withdrawn) {
+      return { status: "invalid", error: "application_withdrawn" } as const;
+    }
 
     const round = await readReviewCriteria(tx, row.organizationId, row.roundId);
     if (!round) {
@@ -196,28 +200,15 @@ const recordReviewEvents = async (
     if (previous && (next.status === previous.status || next.status !== "cancelled")) {
       continue;
     }
-    await recordAuditEvent(tx, {
-      organizationId: saved.row.organizationId,
-      actor: {
-        userId: saved.actor.userId,
-        name: saved.access.actor.name,
-        provenance: actorProvenance(saved.actor),
-      },
+    await recordReviewRequestEvent(tx, {
       action: previous ? "review_request.cancelled" : "review_request.created",
-      target: {
-        type: "review_request",
-        id: next.id,
-        revision: after.revision,
-        name: saved.row.title,
-      },
-      context: { roundId: saved.row.roundId, applicationId: saved.row.publicId },
-      details: {
-        reviewer: next.reviewer,
-        contactId: next.contactId,
-        applicationVersion: next.applicationVersion,
-        criteriaVersion: next.criteriaVersion,
-        replacesId: change.action === "request" ? (change.replacesId ?? null) : null,
-      },
+      organizationId: saved.row.organizationId,
+      actor: saved.actor,
+      name: saved.access.actor.name,
+      request: next,
+      revision: after.revision,
+      owner: { caseId: saved.row.publicId, title: saved.row.title, roundId: saved.row.roundId },
+      replacesId: change.action === "request" ? change.replacesId : null,
     });
   }
   await recordAssessmentVersion(tx, saved, change, [before, after]);

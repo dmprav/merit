@@ -1,7 +1,7 @@
 import { and, eq, sql } from "drizzle-orm";
 
 import { applicationCases } from "@merit/applications/schema";
-import { currentMaterial } from "@merit/applications/scope";
+import { caseWithdrawn, currentMaterial } from "@merit/applications/scope";
 import { appUsers } from "@merit/auth/schema";
 import type { Database } from "@merit/db";
 import { memberships, organizations } from "@merit/organizations/schema";
@@ -37,6 +37,7 @@ export const readApplicationOverviews = (db: Database, userId: string, workspace
       >`nullif((${currentMaterial})->'submission'->>'organization', '')`,
       version: applicationCases.materialVersion,
       intakeStatus: applicationCases.intakeStatus,
+      withdrawn: caseWithdrawn,
       roundId: fundingRounds.id,
       roundTitle: fundingRounds.title,
       criteria: currentCriteria,

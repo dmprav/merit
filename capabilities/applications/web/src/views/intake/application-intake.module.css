@@ -65,3 +65,21 @@
   line-height: var(--leading-reading);
   margin-top: var(--space-2);
 }
+
+.withdrawal {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.withdrawal p {
+  margin: 0;
+}
+
+.reason {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: var(--text-caption);
+  line-height: var(--leading-reading);
+  max-width: var(--measure-reading);
+}

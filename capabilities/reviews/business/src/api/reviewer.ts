@@ -79,7 +79,8 @@ export type ReviewerPage = {
 
 export type ReviewerResult<T> =
   | { status: "ok"; value: T }
-  | { status: "not_found" | "forbidden" | "conflict" | "invalid" | "expired" | "limited" };
+  | { status: "not_found" | "forbidden" | "conflict" | "expired" | "limited" }
+  | { status: "invalid"; error?: "application_withdrawn" };
 
 export type ReviewerEvent = { action: string; actor: string | null; at: string; note: string };
 

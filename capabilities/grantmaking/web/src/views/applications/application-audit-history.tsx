@@ -14,6 +14,7 @@ import styles from "./application-audit-history.module.css";
 export const ApplicationAuditHistory = ({ history }: { history: IntakeState["history"] }) => {
   const { t } = useTranslation(["fundingRounds", "common"]);
   const { formatLocale } = useLocaleSettings();
+  const { calendarDate } = useFormat();
 
   return (
     <details className={styles.history}>
@@ -34,6 +35,13 @@ export const ApplicationAuditHistory = ({ history }: { history: IntakeState["his
                 {new Date(entry.recordedAt).toLocaleString(formatLocale, { timeZone: "UTC" })} UTC
               </time>
             </Inline>
+            {entry.action === "application.withdraw" && entry.after?.withdrawal && (
+              <p>
+                {t("intake.withdrawnOn", {
+                  date: calendarDate(entry.after.withdrawal.withdrawnOn),
+                })}
+              </p>
+            )}
             {entry.reason && <p className={styles.reading}>{entry.reason}</p>}
             {(entry.action === "application.created" ||
               entry.action === "application.material_changed" ||
@@ -76,6 +84,8 @@ const historyLabels = {
   "application.revision_recorded": "intake.eventRevision",
   "application.correction_recorded": "intake.eventCorrection",
   "application.summary_changed": "intake.eventDetails",
+  "application.withdraw": "intake.eventWithdraw",
+  "application.reinstate": "intake.eventReinstate",
 } as const;
 
 const historyLabel = (action: string) =>

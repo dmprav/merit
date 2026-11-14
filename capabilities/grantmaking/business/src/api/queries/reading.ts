@@ -83,6 +83,7 @@ export const applicationSummarySchema = z.object({
   reviewRevision: reviewRevisionSchema,
   recommendationRevision: z.number().int().nonnegative(),
   intakeStatus: z.enum(["in_preparation", "ready"]),
+  withdrawn: z.boolean(),
   requested: moneyDataSchema.nullable(),
   contactId: z.string().nullable(),
   hasWorkingRevision: z.boolean(),
@@ -93,6 +94,7 @@ export const roundOverviewSchema = roundSummarySchema.extend({
   totals: z.object({
     requested: moneyDataSchema,
     unknownRequests: z.number().int().nonnegative(),
+    withdrawnApplications: z.number().int().nonnegative(),
     proposed: moneyDataSchema,
     remaining: moneyDataSchema.nullable(),
   }),

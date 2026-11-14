@@ -71,3 +71,52 @@ it.each(["delete", "discard_revision"] as const)(
     expect(onDeleted).toHaveBeenCalledTimes(action === "delete" ? 1 : 0);
   },
 );
+
+it("hides an open editor after a withdrawal saved elsewhere and restores it with its draft on reinstatement", () => {
+  const application = applicationView(makeApplication());
+  const withdrawn = {
+    ...application,
+    withdrawal: {
+      withdrawnOn: "2027-02-03",
+      reason: "The applicant secured funding elsewhere.",
+      recorder: { userId: "manager", name: "Dana Reed", recordedAt: "2027-02-04T09:30:00Z" },
+    },
+  };
+  const data: IntakeData = {
+    draftKey: "application",
+    workspaceSlug: "alder",
+    publicId: application.id,
+    state: { revision: 1, history: [], workingRevision: null },
+    save: vi.fn<IntakeData["save"]>(),
+    refresh: vi.fn().mockResolvedValue(undefined),
+    refreshCurrent: vi.fn().mockResolvedValue(undefined),
+  };
+  const client = createQueryClient();
+  const { result, rerender } = renderHook(
+    ({ current }) => useApplicationIntake({ application: current, data, onDeleted: vi.fn() }),
+    {
+      initialProps: { current: application },
+      wrapper: ({ children }) => (
+        <QueryClientProvider client={client}>
+          <GrantmakingMessagesProvider>
+            <GrantmakingDrafts>{children}</GrantmakingDrafts>
+          </GrantmakingMessagesProvider>
+        </QueryClientProvider>
+      ),
+    },
+  );
+
+  act(() => result.current.open("details"));
+  expect(result.current.section).toBe("details");
+  const draft = result.current.editor.draft;
+  expect(draft).toBeDefined();
+
+  rerender({ current: withdrawn });
+  expect(result.current.section).toBeNull();
+  expect(result.current.editor.section).toBeNull();
+  expect(result.current.canOpen("details")).toBe(false);
+
+  rerender({ current: application });
+  expect(result.current.section).toBe("details");
+  expect(result.current.editor.draft).toEqual(draft);
+});

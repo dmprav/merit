@@ -3,6 +3,7 @@ import { useRef, useState } from "react";
 
 import {
   canEditIntakeContent,
+  isWithdrawn,
   canStartIntakeRevision,
   missingIntakeFields,
   intakeContent,
@@ -19,9 +20,13 @@ import {
   intakeDraftConflict,
   intakeRenameCommand,
   intakeMenuActions,
+  intakeConfirmationChange,
+  outstandingReviewCount,
   intakeDraftChanged,
   newIntakeDraft,
   reconcileIntake,
+  type IntakeConfirmation,
+  type IntakeConfirmationValues,
   type IntakeDraft,
   type IntakeSection,
   type IntakeSnapshot,
@@ -33,15 +38,25 @@ type UseApplicationIntakeOptions = {
   onDeleted: () => Promise<void>;
 };
 
+type PendingConfirmation = { action: IntakeConfirmation; revision: number };
+
+/** The open confirmation, and a count of openings that keys dialogs so each starts with fresh input. */
+const useConfirmationState = () => {
+  const [confirmation, setConfirmation] = useState<PendingConfirmation | null>(null);
+  const [openings, setOpenings] = useState(0);
+
+  const countOpening = (action: IntakeConfirmation | null) =>
+    action && setOpenings((count) => count + 1);
+
+  return [confirmation, setConfirmation, openings, countOpening] as const;
+};
+
 export const useApplicationIntake = ({
   application,
   data,
   onDeleted,
 }: UseApplicationIntakeOptions) => {
-  const [confirmation, setConfirmation] = useState<{
-    action: "delete" | "discard_revision";
-    revision: number;
-  } | null>(null);
+  const [confirmation, setConfirmation, openings, countOpening] = useConfirmationState();
   const saving = useIntakeSave(data, onDeleted, () => setConfirmation(null));
   const editing = useIntakeEditing(application, data, saving.busy);
   const actions = intakeActions(application, data, editing, saving, confirmation, setConfirmation);
@@ -65,6 +80,8 @@ export const useApplicationIntake = ({
       saveDraft: actions.saveDraft,
     },
     application,
+    withdrawn: isWithdrawn(application),
+    outstandingReviews: outstandingReviewCount(application),
     contact: data.selectContact
       ? {
           data: {
@@ -82,6 +99,7 @@ export const useApplicationIntake = ({
     missingFields: missingIntakeFields(intakeContent(application)),
     menuActions: intakeMenuActions(application, intake.workingRevision, editing.changed("title")),
     canOpen: (target: IntakeSection) =>
+      !isWithdrawn(application) &&
       editing.section !== target &&
       (target === "details" || canEditIntakeContent(application, intake.workingRevision)),
     section: editing.section,
@@ -89,9 +107,11 @@ export const useApplicationIntake = ({
     pending: saving.pending,
     unsavedContent: editing.unsavedContent,
     confirmation: confirmation?.action ?? null,
-    setConfirmation: (action: "delete" | "discard_revision" | null) => {
+    confirmationKey: openings,
+    setConfirmation: (action: IntakeConfirmation | null) => {
       if (!saving.busy.current) {
         saving.setError(null);
+        countOpening(action);
         setConfirmation(action ? { action, revision: intake.revision } : null);
       }
     },
@@ -186,7 +206,8 @@ const useIntakeEditing = (
   };
 
   return {
-    section,
+    // A withdrawal saved elsewhere hides an open editor; its stored draft returns on reinstatement.
+    section: isWithdrawn(application) ? null : section,
     setSection,
     draft,
     latest,
@@ -296,7 +317,7 @@ const intakeActions = (
   data: IntakeData,
   editing: ReturnType<typeof useIntakeEditing>,
   saving: ReturnType<typeof useIntakeSave>,
-  confirmation: { action: "delete" | "discard_revision"; revision: number } | null,
+  confirmation: PendingConfirmation | null,
   setConfirmation: (confirmation: null) => void,
 ) => {
   const intake = data.state;
@@ -351,14 +372,19 @@ const intakeActions = (
     return failure;
   };
 
-  const confirm = async () => {
-    if (!confirmation) {
+  const confirm = async (values?: IntakeConfirmationValues) => {
+    const change = confirmation && intakeConfirmationChange(confirmation.action, values);
+    if (!confirmation || !change) {
       return;
     }
 
-    const failure = await save({ action: confirmation.action }, confirmation.revision, () => {
+    const failure = await save(change, confirmation.revision, () => {
       setConfirmation(null);
       setSection(null);
+      if (confirmation.action === "withdraw" || confirmation.action === "reinstate") {
+        // Unsaved edits stay available; they reconcile against the latest case after reinstatement.
+        return;
+      }
       for (const target of ["title", "metadata", "content", "reason"] as const) {
         setApplicationEdit(key(target), undefined);
       }

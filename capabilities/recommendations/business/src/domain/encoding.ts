@@ -21,7 +21,11 @@ export const decodeRecommendation = (input: unknown): Recommendation => {
   return recommendationSchema.parse({ ...value, allocation: decodeMoney(value.allocation) });
 };
 
-export const decodeBudgetContext = (budget: unknown, allocations: unknown) => {
+export const decodeBudgetContext = (
+  budget: unknown,
+  allocations: unknown,
+  withdrawnApplications: number,
+) => {
   const value =
     budget === null ? null : fundingRoundSchema.shape.budget.unwrap().parse(decodeMoney(budget));
   const amounts = z
@@ -33,6 +37,6 @@ export const decodeBudgetContext = (budget: unknown, allocations: unknown) => {
 
   return {
     budget: value,
-    totals: allocationTotals(value, amounts),
+    totals: { ...allocationTotals(value, amounts), withdrawnApplications },
   };
 };

@@ -22,6 +22,7 @@ const round = {
   totals: {
     requested: { minorUnits: "1000", currency: "EUR" as const },
     unknownRequests: 1,
+    withdrawnApplications: 0,
     proposed: { minorUnits: "0", currency: "EUR" as const },
     remaining: { minorUnits: "9007199254740993", currency: "EUR" as const },
   },
@@ -42,6 +43,8 @@ describe("workspace MCP contracts", () => {
           "get_application_content",
           "start_application_revision",
           "publish_application_revision",
+          "withdraw_application",
+          "reinstate_application",
           "delete_application",
           "request_review",
           "record_assessment",
@@ -216,6 +219,7 @@ describe("workspace MCP contracts", () => {
     const entry = {
       id: "00000000-0000-4000-a000-000000000009",
       recordedAt: "2027-01-20T12:00:00.000Z",
+      reason: null,
       actor: null,
       provenance: { interface: "mcp" as const, clientId: "grant-assistant" },
       action: "round.budget_changed",

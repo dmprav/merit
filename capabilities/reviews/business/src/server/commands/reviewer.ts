@@ -1,4 +1,4 @@
-import { lockApplicationCase } from "@merit/applications/locks";
+import { lockApplicationCase, readCaseWithdrawn } from "@merit/applications/locks";
 import { recordAuditEvent } from "@merit/audit/server/record";
 import { actorProvenance, type Actor } from "@merit/auth";
 import { readContact } from "@merit/contacts/scope";
@@ -68,6 +68,9 @@ export const inviteReviewer = async (
       return existing.id === request.commandId && existing.dueDate === request.dueDate
         ? ({ status: "ok", id: existing.id } as const)
         : ({ status: "invalid" } as const);
+    }
+    if (access.withdrawn) {
+      return { status: "invalid", error: "application_withdrawn" } as const;
     }
     const row = await readReviewState(tx, access.organizationId, request.publicId);
     const review = row?.reviews.requests.find((value) => value.id === request.requestId);
@@ -145,6 +148,9 @@ export const manageReviewer = async (
     if (await reviewerReceipt(tx, request.assignmentId, request.commandId)) {
       return { status: "ok", id: request.assignmentId } as const;
     }
+    if (manager.withdrawn) {
+      return { status: "invalid", error: "application_withdrawn" } as const;
+    }
     const assignment = record.assignment;
     if (assignment.revision !== request.expectedRevision) {
       return { status: "conflict" } as const;
@@ -194,6 +200,9 @@ export const respondToReview = async (
     }
     if (await reviewerReceipt(tx, request.assignmentId, request.commandId)) {
       return { status: "ok", id: request.assignmentId } as const;
+    }
+    if (await readCaseWithdrawn(tx, record.assignment.caseId)) {
+      return { status: "invalid", error: "application_withdrawn" } as const;
     }
     const assignment = record.assignment;
     if (assignment.revision !== request.expectedRevision) {
@@ -267,6 +276,9 @@ export const saveReviewerDraft = async (
     ) {
       return { status: "not_found" };
     }
+    if (await readCaseWithdrawn(tx, record.assignment.caseId)) {
+      return { status: "invalid", error: "application_withdrawn" };
+    }
     const draft = await readPrivateReviewerDraft(tx, request.assignmentId);
     if (!draft) {
       return { status: "not_found" };
@@ -311,6 +323,9 @@ export const submitReviewerAssessment = async (
     const receipt = await reviewerReceipt(tx, request.assignmentId, request.commandId);
     if (receipt) {
       return { status: "ok", value: { revision: receipt.resultRevision } };
+    }
+    if (await readCaseWithdrawn(tx, record.assignment.caseId)) {
+      return { status: "invalid", error: "application_withdrawn" };
     }
     const assignment = record.assignment;
     const draft = await readPrivateReviewerDraft(tx, assignment.id);

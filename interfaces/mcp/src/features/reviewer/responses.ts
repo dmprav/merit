@@ -11,6 +11,7 @@ import {
 
 export const reviewerErrorSchema = z.object({
   status: z.enum(["not_found", "forbidden", "conflict", "invalid", "expired", "limited"]),
+  error: z.literal("application_withdrawn").optional(),
 });
 const reviewerSummarySchema = z.object({
   id: z.uuid(),

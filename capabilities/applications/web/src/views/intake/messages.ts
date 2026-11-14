@@ -25,6 +25,7 @@ export const intakeError = (
       const errors = {
         contact_unavailable: "intake.contactUnavailable",
         request_total_too_large: "intake.requestTotalTooLarge",
+        allocation_total_too_large: "intake.allocationTotalTooLarge",
         incomplete_application: "intake.incomplete",
         reason_required: "intake.reasonHint",
         unchanged_revision: "intake.unchanged",
@@ -32,6 +33,9 @@ export const intakeError = (
         revision_unavailable: "intake.revisionUnavailable",
         revision_required: "intake.revisionRequired",
         invalid_application: "intake.saveError",
+        application_withdrawn: "intake.applicationWithdrawn",
+        application_not_withdrawn: "intake.notWithdrawn",
+        withdrawal_date_in_future: "intake.withdrawalDateFuture",
       } as const satisfies Record<IntakeSaveError, string>;
       return t(errors[failure.error]);
     }

@@ -53,3 +53,8 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+.budgetNote {
+  font-size: var(--text-caption);
+  color: var(--muted);
+}

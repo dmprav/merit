@@ -21,7 +21,7 @@ export interface RecommendationsService {
         recommendation: Recommendation;
         recommendationVersion: number;
         budget: Money | null;
-        totals: { proposed: Money; remaining: Money | null };
+        totals: { proposed: Money; remaining: Money | null; withdrawnApplications: number };
       }
     | NotFound
     | Conflict

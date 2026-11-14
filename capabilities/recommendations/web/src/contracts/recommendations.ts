@@ -41,6 +41,7 @@ export type RecommendationSaveResponse =
       totals: {
         proposed: ReturnType<typeof encodeMoney>;
         remaining: ReturnType<typeof encodeMoney> | null;
+        withdrawnApplications: number;
       };
     }
   | RecommendationFailure;

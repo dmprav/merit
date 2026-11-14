@@ -102,6 +102,8 @@ export const en = {
   submissionInvalid:
     "The assessment could not be submitted as written. Check each field and try again.",
   unavailable: "The request could not be confirmed. Your text is still here; try again.",
+  applicationWithdrawn:
+    "This application was withdrawn, so reviews can no longer be changed. Your text is still here.",
   accessLost: "Your access has changed. Refresh to see the current assignment status.",
   stale: "The assignment changed. Refresh and review its current status before trying again.",
   reviewerAccess: "Reviewer participation",

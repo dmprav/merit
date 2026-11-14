@@ -28,6 +28,15 @@ grant work requires starting the request again against current state. A follow-u
 request for a known reviewer can act directly. Existing request drafts remain
 resumable.
 
+Withdrawing the application closes every outstanding request and ends the reviewer
+access linked to each, in the same transaction. These requests read **Closed:
+application withdrawn**, separately from a manager's cancellation. Received and
+cancelled requests, submitted assessments, and private reviewer drafts are untouched.
+While the application is withdrawn no request, assessment, invitation, assignment
+change, or reviewer submission can be recorded; reinstating it does not reopen the
+closed requests, so managers request again or use **Reinstate assignment**. See
+[withdraw or reinstate an application](record-applications.md#withdraw-or-reinstate-an-application).
+
 **Request history** keeps the reviewer, status, submission and criteria versions, and dated
 creation and closure events together, including the people and interfaces responsible.
 Inspecting request history and review details preserves the context of surrounding

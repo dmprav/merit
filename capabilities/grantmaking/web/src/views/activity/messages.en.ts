@@ -39,6 +39,8 @@ export const activityMessages = {
       reviewerReinstated: "Reviewer reinstated",
 
       applicationDelete: "Application deleted",
+      applicationWithdraw: "Application withdrawn",
+      applicationReinstate: "Application reinstated",
       roundCreate: "Round created",
       roundBudget: "Round budget changed",
       roundCriteria: "Round criteria changed",

@@ -183,13 +183,59 @@ A manager can delete an application only while it has never been marked ready an
 has no review requests, assessments, or manager recommendation, including
 assessments received without a request. Confirmation
 explains the loss of preparation details. The server rechecks current state and retains the
-audit history and creation receipt. Withdrawal, archiving, and moving applications
-between rounds are not available.
+audit history and creation receipt. Archiving and moving applications between
+rounds are not available.
+
+## Withdraw or reinstate an application
+
+**Withdraw application** records that the applicant stepped back. It is not a
+rejection and not a deletion: the application, its material, working revision,
+reviews, recommendation, and history are all kept. Any current program manager can
+withdraw an application that is in preparation or ready, with or without a shared
+working revision. The manager records the date the applicant withdrew, which may be
+earlier than today but not later than the latest calendar date anywhere (the current date at UTC+14, from the server clock), and a reason of
+at most 2,000 characters. The recorder and recording time come from the signed-in
+person or verified client and the server clock.
+
+Withdrawal keeps the intake state, working revision, material version, and judgment
+bases exactly as they were. It does close every **outstanding** review request on
+the case and ends the reviewer access linked to each, in the same transaction. Each
+closed request records that the application was withdrawn, so request history reads
+**Closed: application withdrawn** and differs from a manager's cancellation.
+Received and cancelled requests, submitted assessments, and reviewers' private
+drafts are untouched. Nothing needs cleaning up first, so an applicant-initiated
+withdrawal could use the same operation later.
+
+While withdrawn, the case is read-only. The server rejects every other write with
+`application_withdrawn` on the web and through MCP: intake content, details, readiness,
+working revisions, title corrections, contact selection, deletion, review requests,
+assessments, reviewer invitations and assignment changes, reviewer submissions, and
+recommendation saves. Reads still return the whole case, including the withdrawal's
+date, reason, recorder, and time. The application view shows a **Withdrawn** status
+with those facts and hides the actions the server would refuse.
+
+A withdrawn application stops counting as work or demand. Round totals leave out
+its requested amount, unknown-request count, recommended allocation, and the
+review progress of its requests, and a sibling's recommendation is checked against
+totals without it. Wherever totals appear, they name how many withdrawn
+applications were not counted. The round list marks withdrawn applications and has a
+**Withdrawn** filter; the work filters leave them out.
+
+**Reinstate application** requires a reason of the same kind. It returns the case to
+its retained status and working revision, and its recommendation counts again.
+Reinstatement does not reopen the review requests or reviewer assignments the
+withdrawal closed: managers request reviews again or use **Reinstate assignment**.
+Withdrawal and reinstatement use the same intake-revision check as other writes.
+Their confirmations keep the revision seen when they opened; after a conflict, close
+the dialog, review the current state, and open it again. Each is recorded in
+application history and audited as `application.withdraw` or `application.reinstate`.
+Withdrawing again after a reinstatement records a new event; recorded dates and
+reasons are not edited.
 
 ## Read and write guarantees
 
-Application reads expose current material, readiness, unknown amounts, and the
-separate shared working revision. Every intake write checks current program-manager
+Application reads expose current material, readiness, unknown amounts, the
+separate shared working revision, and any withdrawal. Every intake write checks current program-manager
 access and the intake revision, and commits its audit record in the same transaction.
 Recommendation saves also check the material version on which the judgment is based.
 

@@ -4,7 +4,12 @@ import { materialVersionSchema } from "@merit/applications/domain";
 import { fromMinorUnits, encodeMoney } from "@merit/money";
 import * as money from "@merit/money";
 
-import { parseRecommendation, prepareRecommendation, previewRecommendation } from "./index";
+import {
+  canChangeRecommendation,
+  parseRecommendation,
+  prepareRecommendation,
+  previewRecommendation,
+} from "./index";
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -112,6 +117,31 @@ it("previews the same totals as a prepared recommendation without requiring reas
   assert.isTrue(saved.ok);
   expect(preview.totals).toEqual(saved.totals);
   expect(encodeMoney(preview.totals.remaining!).minorUnits).toBe("2999");
+});
+
+it("refuses to preview or prepare a recommendation for a withdrawn application", () => {
+  const withdrawn = {
+    ...application(),
+    withdrawal: {
+      withdrawnOn: "2027-01-10",
+      reason: "The applicant withdrew.",
+      recorder: { userId: "manager", name: "Dana Reed", recordedAt: "2027-01-11T09:00:00Z" },
+    },
+  };
+  const outcome = { position: "Fund" as const, allocation: fromMinorUnits(4001n) };
+
+  expect(canChangeRecommendation(withdrawn)).toBe(false);
+  expect(canChangeRecommendation(application())).toBe(true);
+  expect(previewRecommendation(recommendationContext(), withdrawn, outcome)).toEqual({
+    ok: false,
+    error: "application_withdrawn",
+  });
+  expect(
+    prepareRecommendation(recommendationContext(), withdrawn, {
+      ...outcome,
+      reasoning: "Supported.",
+    }),
+  ).toEqual({ ok: false, error: "application_withdrawn" });
 });
 
 it("requires reasoning to prepare a recommendation", () => {

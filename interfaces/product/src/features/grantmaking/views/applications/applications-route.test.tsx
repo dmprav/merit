@@ -81,6 +81,7 @@ const applications: ApplicationOverview[] = (
   roundTitle,
   applicant: "Community group",
   intakeStatus: "in_preparation",
+  withdrawn: false,
   reviews: { current: 0, outdated: 0, outstanding: 0, unknown: 0 },
   criteriaChanged: false,
   recommendation: null,

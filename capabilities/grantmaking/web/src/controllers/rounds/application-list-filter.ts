@@ -1,3 +1,4 @@
+import { isWithdrawn } from "@merit/applications/domain";
 import type { ApplicationOverview, RoundView } from "@merit/grantmaking/api";
 
 import { applicationFilters, type ApplicationFilter } from "../../contracts/pages";
@@ -8,13 +9,10 @@ type RoundApplication = RoundView["applications"][number];
 
 type Application = RoundApplication | ApplicationOverview;
 
-const matchesRoundApplicationFilter = (
-  application: RoundApplication,
-  filter: ApplicationFilter,
-) => {
+type WorkFilter = Exclude<ApplicationFilter, "all" | "withdrawn">;
+
+const matchesRoundApplicationFilter = (application: RoundApplication, filter: WorkFilter) => {
   switch (filter) {
-    case "all":
-      return true;
     case "preparing":
       return application.intakeStatus === "in_preparation";
     case "awaiting":
@@ -38,13 +36,8 @@ const matchesRoundApplicationFilter = (
   }
 };
 
-const matchesOverviewApplicationFilter = (
-  application: ApplicationOverview,
-  filter: ApplicationFilter,
-) => {
+const matchesOverviewApplicationFilter = (application: ApplicationOverview, filter: WorkFilter) => {
   switch (filter) {
-    case "all":
-      return true;
     case "preparing":
       return application.intakeStatus === "in_preparation";
     case "awaiting":
@@ -70,10 +63,22 @@ const matchesOverviewApplicationFilter = (
   }
 };
 
-export const matchesApplicationFilter = (application: Application, filter: ApplicationFilter) =>
-  "assessments" in application
+export const matchesApplicationFilter = (application: Application, filter: ApplicationFilter) => {
+  // Work filters describe active work; only "All" and "Withdrawn" include withdrawn applications.
+  const withdrawn = "assessments" in application ? isWithdrawn(application) : application.withdrawn;
+  if (filter === "all") {
+    return true;
+  }
+  if (filter === "withdrawn") {
+    return withdrawn;
+  }
+  if (withdrawn) {
+    return false;
+  }
+  return "assessments" in application
     ? matchesRoundApplicationFilter(application, filter)
     : matchesOverviewApplicationFilter(application, filter);
+};
 
 export const matchesApplicationSearch = (application: Application, query: string) => {
   const applicant =

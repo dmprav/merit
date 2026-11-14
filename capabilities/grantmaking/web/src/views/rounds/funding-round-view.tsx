@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
+import { isWithdrawn } from "@merit/applications/domain";
 import { type RoundView, type ApplicationView as Application } from "@merit/grantmaking/api";
 import { useFormat } from "@merit/i18n/format";
 import { absolute, compare, isNegative } from "@merit/money";
@@ -175,6 +176,11 @@ const RoundBudget = ({ round }: { round: RoundView }) => {
           {t("budget.unknownRequests", { count: round.totals.unknownRequests })}
         </p>
       )}
+      {round.totals.withdrawnApplications > 0 && (
+        <p className={localStyles.summaryNote}>
+          {t("budget.withdrawnApplications", { count: round.totals.withdrawnApplications })}
+        </p>
+      )}
       <p className={localStyles.reviewLine}>{reviewStatusText(t, round.totals.reviews)}</p>
       {over && (
         <Notice tone="warning" className={localStyles.notice}>
@@ -206,9 +212,7 @@ const useApplicationColumns = ({
             {renderApplicationLink?.(application) ?? application.title}
           </div>
           <p className={localStyles.applicant}>{application.submission?.organization}</p>
-          {application.intakeStatus === "in_preparation" && (
-            <p className={localStyles.preparing}>{t("intake.preparing")}</p>
-          )}
+          <ApplicationStatusLine application={application} />
         </>
       ),
     },
@@ -284,6 +288,19 @@ const useApplicationColumns = ({
   ];
 
   return columns;
+};
+
+const ApplicationStatusLine = ({ application }: { application: Application }) => {
+  const { t } = useTranslation("fundingRounds");
+  if (isWithdrawn(application)) {
+    return <Badge>{t("applications.withdrawn")}</Badge>;
+  }
+
+  return (
+    application.intakeStatus === "in_preparation" && (
+      <p className={localStyles.preparing}>{t("intake.preparing")}</p>
+    )
+  );
 };
 
 const ApplicationRecommendationCell = ({ application }: { application: Application }) => {

@@ -13,6 +13,7 @@ export type ReviewerErrorKey =
   | "saveConflict"
   | "stale"
   | "expired"
+  | "applicationWithdrawn"
   | "submissionInvalid"
   | "submissionSaved";
 
