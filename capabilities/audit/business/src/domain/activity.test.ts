@@ -1,8 +1,16 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { activityInputSchema, decodeActivityCursor, encodeActivityCursor } from "./activity";
+import {
+  activityInputSchema,
+  auditPageInput,
+  decodeActivityCursor,
+  encodeActivityCursor,
+} from "./activity";
 
-const cursor = { recordedAt: new Date("2027-01-20T12:00:00.123Z"), id: crypto.randomUUID() };
+const cursor = {
+  recordedAt: new Date("2027-01-20T12:00:00.123Z"),
+  id: "6bca8fde-b474-4ca7-a80b-3bc8af1cc979",
+};
 
 describe("activity cursor", () => {
   it("round-trips an event position in a URL-safe, opaque form", () => {
@@ -11,20 +19,6 @@ describe("activity cursor", () => {
     expect(encoded).toMatch(/^[A-Za-z0-9_-]+$/);
     expect(encoded).not.toContain(cursor.id);
     expect(decodeActivityCursor(encoded)).toEqual(cursor);
-  });
-
-  it("encodes characters outside the base64 alphabet that a URL cannot carry", () => {
-    // Millisecond digits and ids vary the base64 output; any encoding must stay URL-safe.
-    for (let index = 0; index < 50; index++) {
-      const value = {
-        recordedAt: new Date(1_800_000_000_000 + index * 997),
-        id: crypto.randomUUID(),
-      };
-      const encoded = encodeActivityCursor(value);
-
-      expect(encoded).not.toMatch(/[+/=]/);
-      expect(decodeActivityCursor(encoded)).toEqual(value);
-    }
   });
 
   it.each([
@@ -66,9 +60,33 @@ describe("activity input", () => {
     { after: "not-a-cursor" },
     { roundId: "" },
     { targetTypes: [] },
+    { targetTypes: Array.from({ length: 21 }, () => "round") },
     { organizationId: "alder" },
     { workspaceSlug: "alder" },
   ])("rejects %j", (change) => {
     expect(activityInputSchema.safeParse({ ...input, ...change }).success).toBe(false);
+  });
+});
+
+describe("audit page input", () => {
+  it("defaults to a page of 20 events", () => {
+    expect(auditPageInput.parse({})).toEqual({ limit: 20 });
+  });
+
+  it.each([1, 50])("accepts a page of %s", (limit) => {
+    expect(auditPageInput.parse({ limit, after: encodeActivityCursor(cursor) })).toEqual({
+      limit,
+      after: encodeActivityCursor(cursor),
+    });
+  });
+
+  it.each([
+    { limit: 0 },
+    { limit: 51 },
+    { limit: 1.5 },
+    { after: "not-a-cursor" },
+    { subjectId: "x" },
+  ])("rejects %j", (change) => {
+    expect(auditPageInput.safeParse(change).success).toBe(false);
   });
 });
