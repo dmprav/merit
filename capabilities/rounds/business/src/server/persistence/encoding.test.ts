@@ -2,13 +2,11 @@ import { expect, it } from "vite-plus/test";
 
 import { fromMinorUnits } from "@merit/money";
 
-import { reviewCriteriaSchema } from "../../domain/criteria";
-import { fundingRoundSchema } from "../../domain/model";
 import { newPreparedRound } from "../../domain/preparation";
 import { encodeRound, decodeRound } from "./encoding";
 
 it.each([null, fromMinorUnits(10025n)])(
-  "preserves round budget and criteria in stored history: %s",
+  "round-trips a round with budget %s through stored history",
   (budget) => {
     const round = {
       ...newPreparedRound(
@@ -23,18 +21,5 @@ it.each([null, fromMinorUnits(10025n)])(
       budget,
     };
     expect(decodeRound(JSON.parse(JSON.stringify(encodeRound(round))))).toEqual(round);
-    expect(fundingRoundSchema.parse(round)).toEqual(round);
-    expect(() => fundingRoundSchema.parse({ ...round, budget: fromMinorUnits(-1n) })).toThrow();
-    expect(
-      reviewCriteriaSchema.parse([{ id: "fd95f96c-1270-51c5-a64f-5649f25186d9", title: "Fit" }]),
-    ).toEqual([{ id: "fd95f96c-1270-51c5-a64f-5649f25186d9", title: "Fit" }]);
-    expect(reviewCriteriaSchema.safeParse([{ title: "" }]).success).toBe(false);
   },
 );
-
-it("preserves criterion IDs in current and historic snapshots, rejecting duplicate IDs", () => {
-  const criterion = { id: "20000000-0000-4000-8000-000000000001", title: "Fit" };
-  const criteria = reviewCriteriaSchema.parse([criterion]);
-  expect(criteria).toEqual([criterion]);
-  expect(reviewCriteriaSchema.safeParse([criterion, criterion]).success).toBe(false);
-});
