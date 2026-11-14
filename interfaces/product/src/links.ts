@@ -1,6 +1,7 @@
 /** Pure destination definitions, safe for browser and server composition. */
 export const productLinks = {
-  review: (id: string) => `/reviews/${encodeURIComponent(id)}`,
+  review: (workspaceSlug: string, id: string) =>
+    `/app/${encodeURIComponent(workspaceSlug)}/work/${encodeURIComponent(id)}`,
   invitation: (token: string) => `/invitations/${encodeURIComponent(token)}`,
   application: (workspaceSlug: string, applicationRef: string, search?: { tab?: "reviews" }) => {
     const path = `/app/${encodeURIComponent(workspaceSlug)}/applications/${encodeURIComponent(applicationRef)}`;

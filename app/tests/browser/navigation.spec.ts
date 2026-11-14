@@ -492,7 +492,7 @@ test("personal pins stay under their object type and survive reloads @cross-brow
   await context.addCookies([
     { name: "merit-local-person", value: "operator", url: "http://127.0.0.1:3002" },
   ]);
-  await page.goto("/reviews");
+  await page.goto("/admin/organizations");
   await expect(page.getByRole("main")).toBeFocused();
   navigation = await openNavigation(page);
   await expect(navigation.getByRole("button", { name: /Pin actions for/ })).toHaveCount(0);

@@ -81,7 +81,7 @@ export const createApplicationServices = ({
     createReviewerService({
       database,
       verifiedEmails: identity.verifiedEmails,
-      reviewerUrl: (id) => new URL(productLinks.review(id), invitationOrigin).href,
+      reviewerUrl: (slug, id) => new URL(productLinks.review(slug, id), invitationOrigin).href,
       managerUrl: (slug, id) =>
         new URL(productLinks.application(slug, id, { tab: "reviews" }), invitationOrigin).href,
       send: async (message) =>

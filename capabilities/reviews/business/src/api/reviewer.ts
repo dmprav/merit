@@ -79,7 +79,6 @@ export type ReviewerSummary = {
 
 export type ReviewerPage = {
   assignment: ReviewerSummary;
-  membershipRequired?: boolean;
   material: ReturnType<typeof encodeApplicationMaterial> | null;
   criteria: ReviewState["requests"][number]["criteria"];
   draft: { revision: number; content: ReviewerDraft } | null;

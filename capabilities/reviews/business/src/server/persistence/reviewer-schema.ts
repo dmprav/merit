@@ -28,7 +28,7 @@ export const reviewAssignments = pgTable(
     requestId: text("request_id").notNull(),
     email: text().notNull(),
     reviewerUserId: text("reviewer_user_id").references(() => appUsers.id),
-    membershipId: uuid("membership_id"),
+    membershipId: uuid("membership_id").notNull(),
     managerUserId: text("manager_user_id")
       .notNull()
       .references(() => appUsers.id),

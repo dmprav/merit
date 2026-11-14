@@ -21,14 +21,14 @@ named as the contact for questions, which continue by email outside Merit.
 The invitation shows the applicant, application title, instructions, contact, and
 due date. Sign in with an account that verifies the invited email. Before accepting,
 the recipient can decline or report a possible conflict without opening the full
-application. Acceptance binds the assignment to that account and its current
-qualifying membership. The assignment never creates membership. Reviewer members
+application. Creating the invitation binds the assignment to the recipient’s current
+qualifying membership; acceptance binds it to that member’s account. The assignment
+never creates membership. Reviewer members
 receive no access to workspace membership settings, Contacts,
 other applications, manager recommendations, or other reviewers' assessments.
 Independent administration can grant membership settings; program managers retain
-their separate staff rights. Private drafts remain private. Legacy invitation
-links explain how to join the workspace before acceptance and still allow a
-recipient to decline or report a conflict.
+their separate staff rights. Private drafts remain private. Invitation links open the
+assignment in its workspace; signed-out recipients return there after signing in.
 
 Invitations expire after seven days. Resending extends the invitation for the same
 person and assignment. The assignment URL is not a bearer credential: the server
@@ -87,10 +87,6 @@ Disabled accounts cannot access assignments. Removing membership or losing the
 reviewer/program-manager role ends assignments too. After qualifying membership
 is restored, a program manager must explicitly **Reinstate assignment** to resume
 access; rejoining alone does not restore it.
-An additive migration gives still-entitled legacy accepted/submitted reviewers
-qualifying membership while preserving staff roles, authored work, and dates. It
-does not restore cancelled or declined assignments, ended access, or disabled
-accounts. Old assignment URLs resolve through authorization to workspace routes.
 Revocation and submission serialize so a write cannot commit under revoked authority.
 Private drafts remain with the application, with no time-based deletion policy.
 

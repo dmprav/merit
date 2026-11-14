@@ -299,7 +299,6 @@ const ReviewerParticipation = ({
         <ReviewerFeedback work={work} />
         <ParticipationNotices assignment={assignment} expired={expired} />
         <RetainedDraft work={work} />
-        {work.page.membershipRequired && <Notice>{t("membershipRequired")}</Notice>}
         {assignment.status === "invited" && !expired && (
           <>
             <Stack gap={3}>
@@ -308,10 +307,7 @@ const ReviewerParticipation = ({
               <p className={styles.invitationHelp}>{t("instructions")}</p>
             </Stack>
             <Inline className={styles.participationActions}>
-              <Button
-                isDisabled={work.busy || work.page.membershipRequired}
-                onPress={() => void work.respond("accept", "")}
-              >
+              <Button isDisabled={work.busy} onPress={() => void work.respond("accept", "")}>
                 {t("accept")}
               </Button>
               {!assignment.hasSubmitted && (

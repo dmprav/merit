@@ -110,4 +110,9 @@ Standard: [testing](../../../docs/guides/testing.md).
 Problems that reached the requester despite review. Check each one. Add to this
 list as described in [the skill](SKILL.md#6-learn-from-escapes).
 
-- None recorded yet.
+- When authorization prerequisites change, do all integration fixtures that call
+  the affected operations establish those prerequisites, including transport and
+  cross-capability journeys? See [test behavior](../../../docs/guides/testing.md#test-behavior).
+- After removing and restoring membership, do pending invitations and accepted
+  assignments remain inaccessible until explicitly reinstated? See
+  [review participation](../../../docs/workflows/participate-in-review.md).

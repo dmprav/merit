@@ -1,6 +1,4 @@
 export const en = {
-  signInHelp:
-    "Sign in with the verified email address that received your review invitation. This grants access only to your assignments.",
   working: "Saving changes…",
   retainedDraft:
     "Access changed before this writing was saved. You can copy your unsaved draft below and contact the manager.",
@@ -132,8 +130,6 @@ export const en = {
     "They will immediately lose application access and will be unable to save or submit. Their private draft and any submitted assessment are preserved. You can reinstate the same assignment later.",
   withdrawTitle: "Withdraw from this review?",
   withdrawHelp: "This ends your access and tells the manager you will not complete the assessment.",
-  membershipRequired:
-    "Join this workspace as a reviewer or program manager before accepting a review. Ask the requesting manager to arrange a workspace invitation with an owner or administrator.",
   reviewerMembershipRequired:
     "This contact must first join the workspace as a reviewer or program manager. Ask an owner or administrator to invite them through Members & access, then send the review invitation.",
   inviteInvalid:

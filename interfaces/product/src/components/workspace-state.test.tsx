@@ -140,6 +140,17 @@ describe("workspace states", () => {
     await user.click(screen.getByRole("link", { name: "Sign in" }));
 
     expect(router.state.location.pathname).toBe("/app/sign-in");
+    expect(router.state.location.search).toEqual({ returnTo: "/app" });
+  });
+
+  it("preserves the assignment destination when workspace access requires sign-in", async () => {
+    const path = "/app/alder/work/00000000-0000-4000-a000-000000000001";
+    await workspacePage(path, [], { status: "signed_out" });
+
+    const link = await screen.findByRole("link", { name: "Sign in" });
+    const destination = new URL(link.getAttribute("href")!, "http://localhost");
+    expect(destination.pathname).toBe("/app/sign-in");
+    expect(destination.searchParams.get("returnTo")).toBe(path);
   });
 
   it.each([

@@ -30,7 +30,7 @@ type Dependencies = { database: <T>(operation: (db: Database) => Promise<T>) => 
 type ReviewerDependencies = Dependencies & {
   verifiedEmails: (actor: Actor) => Promise<string[]>;
   send: (message: ReviewerMessage) => Promise<void>;
-  reviewerUrl: (id: string) => string;
+  reviewerUrl: (slug: string, id: string) => string;
   managerUrl: (slug: string, applicationId: string) => string;
 };
 

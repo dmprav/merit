@@ -39,7 +39,8 @@ recommendation with fictional data. Verify the result and client provenance in t
 web workspace. Check read-only and grant-editing clients cannot administer the
 team or use the new scope families; revoke membership and confirm subsequent
 workspace calls fail. Test a reviewer with qualifying membership and an assignment,
-and verify a legacy invitation without membership cannot accept or read material.
+then remove and restore membership. Verify the assignment remains inaccessible
+until a manager explicitly reinstates it.
 Also check wrong-email invitation acceptance, a non-operator using admin tools, and an account demo reset
 with its original workspace ID retried. Check consent, refresh,
 sign-out, and token revocation with the clients you intend to support. Automated
@@ -53,8 +54,8 @@ For changes to tool registration and contracts, follow the
 ## Troubleshoot authentication
 
 If authentication fails, check the exact resource URL, issuer, granted scopes, and
-current authority for the requested tool. Workspace membership is not required
-for an invited reviewer, onboarding, or operator administration. Host validation uses `APP_ORIGIN`. Browser requests must have
+current authority for the requested tool. Reviewers need qualifying workspace membership bound to their assignment.
+Onboarding and operator administration do not require workspace membership. Host validation uses `APP_ORIGIN`. Browser requests must have
 the exact application origin, including scheme and port; opaque and other origins
 are rejected before authentication. Native and server clients may omit Origin.
 A hosted client cannot reach your computer's localhost without an appropriate

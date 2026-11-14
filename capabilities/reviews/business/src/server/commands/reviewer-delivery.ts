@@ -8,7 +8,7 @@ export const deliverReviewerMessages = async (
   dependencies: {
     database: <T>(operation: (db: Database) => Promise<T>) => Promise<T>;
     send: (message: ReviewerMessage) => Promise<void>;
-    reviewerUrl: (id: string) => string;
+    reviewerUrl: (slug: string, id: string) => string;
     managerUrl: (slug: string, applicationId: string) => string;
   },
   id: string,
@@ -48,7 +48,7 @@ export const deliverReviewerMessages = async (
         dueDate: record.assignment.dueDate,
         url:
           message.kind === "invitation"
-            ? dependencies.reviewerUrl(id)
+            ? dependencies.reviewerUrl(record.slug, id)
             : dependencies.managerUrl(record.slug, record.assignment.caseId),
       });
       await dependencies.database((db) => finishReviewerMessage(db, message.id, "sent"));

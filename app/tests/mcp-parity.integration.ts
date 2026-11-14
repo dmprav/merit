@@ -43,6 +43,9 @@ it(
   "completes reviewer participation through MCP with private drafts, retries, amendments and access recovery",
   { timeout: 30_000 },
   async ({ db, database, rounds, parity: p }) => {
+    await database.client.query(
+      "INSERT INTO memberships (organization_id, user_id, email, role) VALUES ('alder', 'sam', 'sam@example.test', 'reviewer')",
+    );
     const webAddress = await rounds.createApplication("Independent assessment");
     const address = { workspaceSlug: webAddress.workspaceSlug, applicationId: webAddress.publicId };
     const contactId = randomUUID();
@@ -105,8 +108,8 @@ it(
     });
     await respond("accept");
     expect(
-      (await database.client.query("SELECT 1 FROM memberships WHERE user_id='sam'")).rows,
-    ).toEqual([]);
+      (await database.client.query("SELECT role FROM memberships WHERE user_id='sam'")).rows,
+    ).toEqual([{ role: "reviewer" }]);
     const page = await read();
     expect(page.material?.requested).toEqual({ minorUnits: "8000", currency: "EUR" });
     assert(page.draft);

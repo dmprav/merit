@@ -1,4 +1,4 @@
-import { and, eq, inArray, or } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 
 import type { Actor } from "@merit/auth";
 import type { Database } from "@merit/db";
@@ -29,10 +29,7 @@ export const revokeMembershipReviews = async (
     .where(
       and(
         eq(reviewAssignments.organizationId, input.organizationId),
-        or(
-          eq(reviewAssignments.membershipId, input.membershipId),
-          eq(reviewAssignments.reviewerUserId, input.userId),
-        ),
+        eq(reviewAssignments.membershipId, input.membershipId),
         inArray(reviewAssignments.status, ["invited", "accepted", "submitted", "conflict"]),
       ),
     );

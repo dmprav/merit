@@ -39,6 +39,9 @@ const it = roundTest.extend("scenario", async ({ db, database, rounds }) => {
   await database.client.query(
     "INSERT INTO app_users (id, name, clerk_user_id) VALUES ('sam','Sam Morgan','sam-account')",
   );
+  await database.client.query(
+    "INSERT INTO memberships (organization_id, user_id, email, role) VALUES ('alder', 'sam', 'sam@example.test', 'reviewer')",
+  );
   const address = await rounds.createApplication("Withdrawn meals");
   await rounds.recommendApplication(address, "4000");
   const sibling = await rounds.createApplication("Neighbouring project");
@@ -90,7 +93,7 @@ const it = roundTest.extend("scenario", async ({ db, database, rounds }) => {
     database: async (operation) => operation(db),
     verifiedEmails: async (person) => [`${person.userId}@example.test`],
     send: async () => {},
-    reviewerUrl: (id) => `https://merit.test/reviews/${id}`,
+    reviewerUrl: (slug, id) => `https://merit.test/app/${slug}/work/${id}`,
     managerUrl: (slug, id) => `https://merit.test/app/${slug}/applications/${id}`,
   });
 

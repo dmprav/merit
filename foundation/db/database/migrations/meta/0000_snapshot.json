@@ -1388,7 +1388,7 @@
       "checkConstraints": {
         "organization_invitations_access_check": {
           "name": "organization_invitations_access_check",
-          "value": "(\"organization_invitations\".\"purpose\" = 'provisioning' AND \"organization_invitations\".\"administration\" = 'owner' AND \"organization_invitations\".\"role\" = 'program_manager') OR (\"organization_invitations\".\"purpose\" = 'team' AND \"organization_invitations\".\"administration\" IN ('none', 'administrator') AND \"organization_invitations\".\"role\" IN ('member', 'program_manager'))"
+          "value": "(\"organization_invitations\".\"purpose\" = 'provisioning' AND \"organization_invitations\".\"administration\" = 'owner' AND \"organization_invitations\".\"role\" = 'program_manager') OR (\"organization_invitations\".\"purpose\" = 'team' AND \"organization_invitations\".\"administration\" IN ('none', 'administrator') AND \"organization_invitations\".\"role\" IN ('member', 'program_manager', 'reviewer'))"
         },
         "organization_invitations_delivery_check": {
           "name": "organization_invitations_delivery_check",
@@ -1535,7 +1535,7 @@
           "name": "membership_id",
           "type": "uuid",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "manager_user_id": {
           "name": "manager_user_id",

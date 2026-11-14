@@ -87,7 +87,7 @@ test("an invited reviewer independently accepts, saves, submits and amends @cros
         [application.id],
       )
     ).rows[0]!.id;
-    await reviewer.goto(`/reviews/${assignmentId}`);
+    await reviewer.goto(`/app/alder/work/${assignmentId}`);
     await expect(reviewer).toHaveURL(new RegExp(`/app/alder/work/${assignmentId}$`));
     await expect(reviewer.getByRole("main")).toBeFocused();
     await expect(

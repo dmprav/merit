@@ -15,7 +15,7 @@ it("seeds usable reviewer work once and preserves drafts, submissions and revoke
     database: (operation) => operation(db),
     verifiedEmails: async () => ["reviewer@example.test"],
     send: async () => {},
-    reviewerUrl: (id) => id,
+    reviewerUrl: (_slug, id) => id,
     managerUrl: (slug, id) => `${slug}/${id}`,
   });
   const list = await service.list(actor, { workspaceSlug: "alder" });

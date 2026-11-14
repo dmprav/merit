@@ -11,7 +11,6 @@ import { compareReviewBasis, reviewCriteriaSchema } from "../../domain";
 import {
   activeReviewer,
   reviewerIdentityCurrent,
-  reviewerMembership,
   reviewerWorkspace,
   reviewerOwns,
   permittedReviewerWork,
@@ -102,7 +101,7 @@ export const readReviewerAssignment = (
       (workspaceSlug !== undefined && record.slug !== workspaceSlug) ||
       !(await activeReviewer(tx, actor.userId)) ||
       !reviewerOwns(record, actor.userId, emails) ||
-      !(await reviewerIdentityCurrent(tx, id))
+      !(await reviewerIdentityCurrent(tx, id, actor.userId))
     ) {
       return { status: "not_found" };
     }
@@ -112,11 +111,6 @@ export const readReviewerAssignment = (
         status: "ok",
         value: {
           assignment,
-          membershipRequired: !(await reviewerMembership(
-            tx,
-            record.assignment.organizationId,
-            actor.userId,
-          )),
           material: null,
           criteria: null,
           draft: null,

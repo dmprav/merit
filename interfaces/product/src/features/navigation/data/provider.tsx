@@ -13,11 +13,10 @@ export const NavigationPinsProvider = ({ children }: { children: ReactNode }) =>
   const client = useQueryClient();
   const pathname = useLocation({ select: (location) => location.pathname });
   const workspaceSlug = pathname.startsWith("/app/") ? pathname.split("/")[2] : undefined;
-  const enabled =
-    Boolean(workspaceSlug && workspaceSlug !== "sign-in") || pathname.startsWith("/reviews");
+  const enabled = Boolean(workspaceSlug && workspaceSlug !== "sign-in");
   const query = useQuery({
     queryKey: [
-      ...(workspaceSlug ? grantWorkQueryKey(workspaceSlug) : [...privateKey, "reviewer"]),
+      ...(workspaceSlug ? grantWorkQueryKey(workspaceSlug) : privateKey),
       "navigation-pins",
     ],
     queryFn: async ({ signal }) => available(await readNavigationPins({ signal })),

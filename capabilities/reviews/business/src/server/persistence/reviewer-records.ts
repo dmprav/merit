@@ -101,20 +101,19 @@ const currentMembership = sql<boolean>`EXISTS (SELECT 1 FROM ${memberships}
     AND ${memberships.organizationId} = ${reviewAssignments.organizationId}
     AND ${memberships.role} IN ('reviewer', 'program_manager'))`;
 
-// Unclaimed legacy links remain actionable invitations, never evidence access.
-const unclaimedInvitation = sql<boolean>`(${reviewAssignments.membershipId} IS NULL AND ${reviewAssignments.status} IN ('invited', 'conflict'))`;
-
-export const reviewerIdentityCurrent = async (db: Database, id: string) =>
+export const reviewerIdentityCurrent = async (db: Database, id: string, userId: string) =>
   Boolean(
     (
       await db
         .select({ id: reviewAssignments.id })
         .from(reviewAssignments)
         .innerJoin(organizations, eq(organizations.id, reviewAssignments.organizationId))
+        .innerJoin(memberships, eq(memberships.id, reviewAssignments.membershipId))
         .where(
           and(
             eq(reviewAssignments.id, id),
-            or(currentMembership, unclaimedInvitation),
+            eq(memberships.userId, userId),
+            currentMembership,
             activeOrganization,
           ),
         )
@@ -208,12 +207,12 @@ export const listReviewerRecords = (
   reviewerRecordQuery(db)
     .innerJoin(
       memberships,
-      and(eq(memberships.organizationId, organizations.id), eq(memberships.userId, userId)),
+      and(eq(memberships.id, reviewAssignments.membershipId), eq(memberships.userId, userId)),
     )
     .innerJoin(appUsers, eq(appUsers.id, memberships.userId))
     .where(
       and(
-        or(currentMembership, unclaimedInvitation),
+        currentMembership,
         organizationScope(userId, "assess_grants", organizations.id),
         workspaceSlug === undefined ? undefined : eq(organizations.slug, workspaceSlug),
         activeOrganization,

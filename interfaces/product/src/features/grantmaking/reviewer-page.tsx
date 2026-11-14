@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 
 import { useFormat } from "@merit/i18n/format";
 import { ReviewerScreen } from "@merit/reviews-web/reviewer";
-import type { ReviewerPage as AssignmentPage, ReviewerSummary } from "@merit/reviews/api";
+import type { ReviewerSummary } from "@merit/reviews/api";
 import { DataTable, type TableColumn } from "@merit/tables";
 import { Badge } from "@merit/ui/badge";
 import { ConfirmationDialog } from "@merit/ui/confirmation-dialog";
@@ -13,12 +13,9 @@ import { Stack } from "@merit/ui/layout";
 import linkStyles from "@merit/ui/link.module.css";
 import { PageHeader } from "@merit/ui/page-header";
 import { SectionHeader } from "@merit/ui/section-header";
-import { StateMessage } from "@merit/ui/state-message";
 
 import { AppPage } from "../../app/app-shell";
 import { WorkspaceStatusPage } from "../../app/workspace-page";
-import { StandalonePage } from "../../components/standalone-page";
-import { WorkspaceState } from "../../components/workspace-state";
 import { PinButton } from "../navigation/pin-button";
 import {
   reviewerData,
@@ -61,66 +58,19 @@ const ReviewerPage = ({
   );
 };
 
-const reviewFailureStatus = (status?: string) =>
-  status === "not_found" || status === "forbidden" ? "not_found" : "unavailable";
-
-const ReviewerState = ({
-  status = "unavailable",
-  assignmentId,
-}: {
-  status?: string;
-  assignmentId?: string;
-}) => {
-  const { t } = useTranslation(["reviewer", "onboarding", "web"]);
-  if (status === "signed_out") {
-    return (
-      <StateMessage
-        title={t("onboarding:signIn")}
-        description={t("signInHelp")}
-        actions={
-          <Link
-            to="/app/sign-in"
-            search={{ returnTo: assignmentId ? `/reviews/${assignmentId}` : "/reviews" }}
-            className={linkStyles.button}
-          >
-            {t("onboarding:signIn")}
-          </Link>
-        }
-      />
-    );
-  }
-
-  return <WorkspaceState resource="review" status={reviewFailureStatus(status)} />;
-};
-
-/** Legacy links disclose only an authorized invitation until workspace membership is accepted. */
-export const ReviewerEntry = ({
-  page,
-  status,
-  assignmentId,
-}: {
-  page?: AssignmentPage;
-  status?: string;
-  assignmentId?: string;
-}) => (
-  <StandalonePage>
-    {page ? (
-      <ReviewerScreen initial={page} data={reviewerData(page.assignment.id)} />
-    ) : (
-      <ReviewerState status={status} assignmentId={assignmentId} />
-    )}
-  </StandalonePage>
-);
-
 /** Shows an unreadable assignment list or assignment inside the reviewer's navigation. */
-export const ReviewerUnavailable = (props: { status?: string; assignmentId?: string }) =>
-  props.status === "signed_out" ? (
-    <AppPage centered breadcrumb={null}>
-      <ReviewerState {...props} />
-    </AppPage>
-  ) : (
-    <WorkspaceStatusPage resource="review" status={reviewFailureStatus(props.status)} />
-  );
+export const ReviewerUnavailable = ({ status }: { status?: string }) => (
+  <WorkspaceStatusPage
+    resource="review"
+    status={
+      status === "signed_out"
+        ? "signed_out"
+        : status === "not_found" || status === "forbidden"
+          ? "not_found"
+          : "unavailable"
+    }
+  />
+);
 
 export const MyWorkPage = ({ workspaceSlug }: { workspaceSlug: string }) => {
   const format = useFormat();
@@ -210,7 +160,7 @@ export const ReviewerAssignmentPage = ({
   const [dirty, setDirty] = useState(false);
   const blocker = useBlocker({ shouldBlockFn: () => dirty, withResolver: true });
   if (result.status !== "ok") {
-    return <ReviewerUnavailable status={result.status} assignmentId={assignmentId} />;
+    return <ReviewerUnavailable status={result.status} />;
   }
   return (
     <ReviewerPage workspaceSlug={workspaceSlug} assignment={result.value.assignment}>

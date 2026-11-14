@@ -165,7 +165,7 @@ CREATE TABLE "organization_invitations" (
 	"accepted_by" text,
 	"delivery" text DEFAULT 'pending' NOT NULL,
 	CONSTRAINT "organization_invitations_token_hash_unique" UNIQUE("token_hash"),
-	CONSTRAINT "organization_invitations_access_check" CHECK (("organization_invitations"."purpose" = 'provisioning' AND "organization_invitations"."administration" = 'owner' AND "organization_invitations"."role" = 'program_manager') OR ("organization_invitations"."purpose" = 'team' AND "organization_invitations"."administration" IN ('none', 'administrator') AND "organization_invitations"."role" IN ('member', 'program_manager'))),
+	CONSTRAINT "organization_invitations_access_check" CHECK (("organization_invitations"."purpose" = 'provisioning' AND "organization_invitations"."administration" = 'owner' AND "organization_invitations"."role" = 'program_manager') OR ("organization_invitations"."purpose" = 'team' AND "organization_invitations"."administration" IN ('none', 'administrator') AND "organization_invitations"."role" IN ('member', 'program_manager', 'reviewer'))),
 	CONSTRAINT "organization_invitations_delivery_check" CHECK ("organization_invitations"."delivery" IN ('pending', 'sent', 'failed'))
 );
 --> statement-breakpoint
@@ -188,7 +188,7 @@ CREATE TABLE "review_assignments" (
 	"request_id" text NOT NULL,
 	"email" text NOT NULL,
 	"reviewer_user_id" text,
-	"membership_id" uuid,
+	"membership_id" uuid NOT NULL,
 	"manager_user_id" text NOT NULL,
 	"manager_name" text NOT NULL,
 	"manager_email" text NOT NULL,

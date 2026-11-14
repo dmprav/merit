@@ -68,7 +68,6 @@ export const reviewerHistorySchema = z.object({
   nextCursor: z.string().nullable(),
 });
 export const reviewerPageSchema = z.object({
-  membershipRequired: z.boolean().optional(),
   status: z.literal("ok"),
   assignment: reviewerSummarySchema,
   material: applicationMaterialDataSchema.nullable(),
