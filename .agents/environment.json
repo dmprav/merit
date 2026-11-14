@@ -1,0 +1,3 @@
+{
+  "install": "sed -i '/case \\$- in/,/esac/d' \"$HOME/.bashrc\" 2>/dev/null || true; if ! command -v vp >/dev/null 2>&1 && [ ! -x \"$HOME/.vite-plus/bin/vp\" ]; then VP_NODE_MANAGER=yes curl -fsSL https://vite.plus | bash; fi; [ -f \"$HOME/.vite-plus/env\" ] && . \"$HOME/.vite-plus/env\"; grep -qF '.vite-plus/env' \"$HOME/.bashrc\" 2>/dev/null || [ ! -f \"$HOME/.vite-plus/env\" ] || printf '\\n. \"$HOME/.vite-plus/env\"\\n' >> \"$HOME/.bashrc\"; vp env install; vp install --frozen-lockfile; pnpm --filter @merit/test-support exec playwright install chromium"
+}
