@@ -80,6 +80,9 @@
       "path": "foundation/tables"
     },
     {
+      "path": "foundation/telemetry"
+    },
+    {
       "path": "foundation/ui"
     },
     {
@@ -90,6 +93,9 @@
     },
     {
       "path": "tooling"
+    },
+    {
+      "path": "tooling/checkly"
     },
     {
       "path": "tooling/storybook"

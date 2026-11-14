@@ -208,3 +208,21 @@ provisioned user: the permitted workspace should load and other organizations
 should remain inaccessible. In a workspace with fictional data, save a manager
 recommendation and reload the page to verify that the change persists through
 the deployed Worker's runtime credentials.
+
+## Configure tracing and synthetic checks
+
+Trace export is disabled when `OTEL_EXPORTER_OTLP_ENDPOINT` is empty. To export
+OpenTelemetry spans from Cloudflare Workers to Checkly (or another OTLP/HTTP collector),
+set these Worker settings in [`app/cloudflare.config.ts`](../../app/cloudflare.config.ts)
+and secrets:
+
+| Setting                       | Value                                                                                   |
+| ----------------------------- | --------------------------------------------------------------------------------------- |
+| `OTEL_SERVICE_NAME`           | Service identifier recorded on spans (defaults to `merit`).                             |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | Collector base URL (for example Checkly's regional OTLP ingestion URL).                 |
+| `OTEL_EXPORTER_OTLP_HEADERS`  | Worker secret with comma-separated `key=value` headers (for example API auth).          |
+| `OTEL_TRACE_FILTER`           | `checkly` (default, exports only Checkly-traced runs) or `all` (exports every request). |
+
+Synthetic checks live in [`tooling/checkly`](../../tooling/checkly/README.md). Set
+`MERIT_BASE_URL` to your target origin and run `vp run @merit/checkly#test:synthetic` to
+verify checks against Checkly or `vp run @merit/checkly#deploy` to sync schedules.

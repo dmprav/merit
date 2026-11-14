@@ -9,6 +9,7 @@
     "./migrate": "./database/migrate.ts"
   },
   "dependencies": {
+    "@merit/telemetry": "workspace:*",
     "drizzle-orm": "catalog:",
     "pg": "catalog:"
   },

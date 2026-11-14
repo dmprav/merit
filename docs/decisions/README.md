@@ -16,5 +16,6 @@ operating choices. Records receive a stable sequential ID when added.
 | 0009 | [Disposable demo workspaces](0009-demo-workspaces.md)              | Exercise real product behavior and avoid maintaining a separate simulation. |
 | 0010 | [Delegated MCP authority](0010-mcp-delegated-authority.md)         | Complete work through MCP with approval requirements owned by the workflow. |
 | 0011 | [Shared authorization policy](0011-shared-authorization-policy.md) | Keep permission checks and SQL filtering consistent.                        |
+| 0012 | [Centralize telemetry and Checkly](0012-opentelemetry-checkly.md)  | Correlate Worker spans cleanly without leaking data or vendor lock-in.      |
 
 [All documentation](../README.md)

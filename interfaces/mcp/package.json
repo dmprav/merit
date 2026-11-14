@@ -17,6 +17,7 @@
     "@merit/recommendations": "workspace:*",
     "@merit/reviews": "workspace:*",
     "@merit/rounds": "workspace:*",
+    "@merit/telemetry": "workspace:*",
     "@modelcontextprotocol/server": "catalog:",
     "zod": "catalog:"
   },

@@ -13,10 +13,48 @@ import { createRecommendationsService } from "@merit/recommendations/server";
 import { createReviewService } from "@merit/reviews/server";
 import { createReviewerService } from "@merit/reviews/server";
 import { createRoundsService } from "@merit/rounds/server";
+import { instrumentService, withSpan } from "@merit/telemetry";
 
 import type { EmailSender } from "./email-delivery.server";
 import type { OrganizationIdentity } from "./identity.server";
 import { sendInvitationEmail } from "./invitation-email.server";
+
+const createGrantmakingServices = (
+  database: <T>(operation: (db: Database) => Promise<T>) => Promise<T>,
+) => {
+  const grantmakingQueries = instrumentService(
+    "grantmaking",
+    createGrantmakingService({ database }),
+  );
+  const rounds = instrumentService(
+    "rounds",
+    createRoundsService({ database, roundHasApplications }),
+  );
+  const applications = instrumentService(
+    "applications",
+    createApplicationsService({ database, work: applicationWork }),
+  );
+  const recommendations = instrumentService(
+    "recommendations",
+    createRecommendationsService({ database }),
+  );
+  const reviews = instrumentService("reviews", createReviewService({ database }));
+
+  return {
+    grantmaking: {
+      ...grantmakingQueries,
+      ...rounds,
+      ...applications,
+      ...recommendations,
+      ...reviews,
+    },
+    grantmakingQueries,
+    rounds,
+    applications,
+    recommendations,
+    reviews,
+  };
+};
 
 export const createApplicationServices = ({
   database,
@@ -31,39 +69,43 @@ export const createApplicationServices = ({
   networkAddress?: string;
   sendEmail: EmailSender;
 }) => {
-  const grantmakingQueries = createGrantmakingService({ database });
-  const rounds = createRoundsService({ database, roundHasApplications });
-  const applications = createApplicationsService({ database, work: applicationWork });
-  const recommendations = createRecommendationsService({ database });
-  const reviews = createReviewService({ database });
-  const grantmaking = {
-    ...grantmakingQueries,
-    ...rounds,
-    ...applications,
-    ...recommendations,
-    ...reviews,
-  };
-  const navigation = createNavigationService({ database, verifiedEmails: identity.verifiedEmails });
-  const reviewer = createReviewerService({
-    database,
-    verifiedEmails: identity.verifiedEmails,
-    reviewerUrl: (id) => new URL(productLinks.review(id), invitationOrigin).href,
-    managerUrl: (slug, id) =>
-      new URL(productLinks.application(slug, id, { tab: "reviews" }), invitationOrigin).href,
-    send: async (message) =>
-      sendEmail({ id: message.id, to: message.to, ...(await renderReviewerEmail(message)) }),
-  });
-  const contacts = createContactService({ database, grantWork: fundingRoundContactUsage });
-  const organizations = createOrganizationService({
-    database,
-    ...identity,
-    networkAddress,
-    invitationUrl: (token) => new URL(productLinks.invitation(token), invitationOrigin).href,
-    sendInvitation: (message) => sendInvitationEmail(message, sendEmail),
-  });
+  const { grantmaking, grantmakingQueries, rounds, applications, recommendations, reviews } =
+    createGrantmakingServices(database);
+  const navigation = instrumentService(
+    "navigation",
+    createNavigationService({ database, verifiedEmails: identity.verifiedEmails }),
+  );
+  const reviewer = instrumentService(
+    "reviewer",
+    createReviewerService({
+      database,
+      verifiedEmails: identity.verifiedEmails,
+      reviewerUrl: (id) => new URL(productLinks.review(id), invitationOrigin).href,
+      managerUrl: (slug, id) =>
+        new URL(productLinks.application(slug, id, { tab: "reviews" }), invitationOrigin).href,
+      send: async (message) =>
+        sendEmail({ id: message.id, to: message.to, ...(await renderReviewerEmail(message)) }),
+    }),
+  );
+  const contacts = instrumentService(
+    "contacts",
+    createContactService({ database, grantWork: fundingRoundContactUsage }),
+  );
+  const organizations = instrumentService(
+    "organizations",
+    createOrganizationService({
+      database,
+      ...identity,
+      networkAddress,
+      invitationUrl: (token) => new URL(productLinks.invitation(token), invitationOrigin).href,
+      sendInvitation: (message) => sendInvitationEmail(message, sendEmail),
+    }),
+  );
 
   const readWorkspace: WorkspaceServices["readWorkspace"] = (actor, slug) =>
-    database((db) => getWorkspace(db, actor, slug));
+    withSpan("service.organizations.readWorkspace", () =>
+      database((db) => getWorkspace(db, actor, slug)),
+    );
 
   return {
     grantmaking,

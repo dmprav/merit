@@ -24,6 +24,7 @@
     "@merit/reviews": "workspace:*",
     "@merit/rounds": "workspace:*",
     "@merit/site": "workspace:*",
+    "@merit/telemetry": "workspace:*",
     "@merit/ui": "workspace:*",
     "@tanstack/react-query": "catalog:",
     "@tanstack/react-router": "catalog:",

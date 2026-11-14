@@ -25,6 +25,7 @@ const { clients, mockDrizzle, handlerFetch, handleMcpMock, mcpResourceMetadataMo
 );
 
 vi.mock("cloudflare:workers", () => ({
+  waitUntil: vi.fn(),
   env: {
     HYPERDRIVE: { connectionString: "postgres://merit:merit@hyperdrive.local/merit" },
     CLERK_PUBLISHABLE_KEY: "pk_test",
@@ -35,6 +36,10 @@ vi.mock("cloudflare:workers", () => ({
     EMAIL_FROM: "no-reply@merit.example",
     RESEND_API_KEY: "",
     MAILPIT_URL: "",
+    OTEL_SERVICE_NAME: "merit",
+    OTEL_EXPORTER_OTLP_ENDPOINT: "",
+    OTEL_EXPORTER_OTLP_HEADERS: "",
+    OTEL_TRACE_FILTER: "checkly",
   },
 }));
 

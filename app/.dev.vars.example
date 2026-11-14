@@ -8,3 +8,9 @@ MERIT_OPERATOR_USER_IDS=
 MAILPIT_URL=http://127.0.0.1:8025
 EMAIL_FROM=invitations@merit.local
 RESEND_API_KEY=
+
+# Optional OTLP/HTTP trace export (off when endpoint is empty).
+OTEL_SERVICE_NAME=merit
+OTEL_EXPORTER_OTLP_ENDPOINT=
+OTEL_EXPORTER_OTLP_HEADERS=
+OTEL_TRACE_FILTER=checkly

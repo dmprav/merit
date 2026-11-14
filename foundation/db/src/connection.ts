@@ -1,6 +1,8 @@
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import { Client } from "pg";
 
+import { SpanKind, withSpan } from "@merit/telemetry";
+
 export type Database = NodePgDatabase;
 
 export type DatabaseRunner = <T>(operation: (db: Database) => Promise<T>) => Promise<T>;
@@ -24,7 +26,14 @@ export const readTransaction = <T>(
   db: Database,
   read: (tx: Transaction) => Promise<T>,
 ): Promise<T> =>
-  db.transaction(read, { isolationLevel: "repeatable read", accessMode: "read only" });
+  withSpan(
+    "db.transaction.read_only",
+    () => db.transaction(read, { isolationLevel: "repeatable read", accessMode: "read only" }),
+    {
+      kind: SpanKind.CLIENT,
+      attributes: { "db.system": "postgresql", "db.transaction.access_mode": "read_only" },
+    },
+  );
 
 export const withDatabase = async <T>(
   connectionString: string,
@@ -33,7 +42,10 @@ export const withDatabase = async <T>(
   const client = createClient(connectionString);
 
   try {
-    await client.connect();
+    await withSpan("db.connect", () => client.connect(), {
+      kind: SpanKind.CLIENT,
+      attributes: { "db.system": "postgresql" },
+    });
     return await operation(drizzle(client));
   } finally {
     await client.end();
@@ -68,7 +80,10 @@ export const createRequestDatabase = (connectionString: string): RequestDatabase
     }
 
     try {
-      await nextClient.connect();
+      await withSpan("db.connect", () => nextClient.connect(), {
+        kind: SpanKind.CLIENT,
+        attributes: { "db.system": "postgresql" },
+      });
     } catch (error) {
       await nextClient.end().catch(() => undefined);
       throw error;
@@ -84,14 +99,23 @@ export const createRequestDatabase = (connectionString: string): RequestDatabase
       return Promise.reject(new Error("Request database is closed."));
     }
 
-    const execution = queue.then(async () => {
-      if (closed) {
-        throw new Error("Request database is closed.");
-      }
+    const execution = queue.then(() =>
+      withSpan(
+        "db.execute",
+        async () => {
+          if (closed) {
+            throw new Error("Request database is closed.");
+          }
 
-      const database = await ensureConnected();
-      return operation(database);
-    });
+          const database = await ensureConnected();
+          return operation(database);
+        },
+        {
+          kind: SpanKind.CLIENT,
+          attributes: { "db.system": "postgresql" },
+        },
+      ),
+    );
 
     queue = execution.then(
       () => undefined,

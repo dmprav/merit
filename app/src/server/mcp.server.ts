@@ -3,6 +3,7 @@ import { verifyClerkOAuth } from "@merit/auth/clerk-oauth";
 import { resolveAccountUser } from "@merit/auth/server";
 import type { DatabaseRunner } from "@merit/db";
 import { handleWorkspaceMcp } from "@merit/mcp";
+import { setSpanAttributes, withSpan } from "@merit/telemetry";
 
 import { createAccountDemoServices } from "./demo-workspace.server";
 import { createClerkIdentitySupport, type OrganizationIdentity } from "./identity.server";
@@ -33,7 +34,7 @@ export const createMcpIdentity = (
   let sessionPromise: Promise<ResolvedMcpSession> | undefined;
 
   const resolveSession = () =>
-    (sessionPromise ??= (async (): Promise<ResolvedMcpSession> => {
+    (sessionPromise ??= withSpan("auth.resolve_mcp_session", async (span) => {
       const verified = await verifyClerkOAuth(request, config);
       const user = await database((db) => resolveAccountUser(db, verified.clerkUserId));
       if (user.status === "disabled") {
@@ -49,9 +50,14 @@ export const createMcpIdentity = (
         clerkUserId: verified.clerkUserId,
         operator: isOperatorAccount(verified.clerkUserId),
       };
+      setSpanAttributes(span, {
+        "merit.mcp.client_id": verified.clientId,
+        "merit.auth.status": "authenticated",
+        "merit.auth.operator": session.operator,
+      });
       resolvedSession = session;
       return session;
-    })());
+    }));
 
   const readVerifiedProfile = async (actor: Actor) => {
     let session: ResolvedMcpSession;

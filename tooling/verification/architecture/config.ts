@@ -436,6 +436,7 @@ export default defineConfig({
             "capabilities/access/src/**",
             "foundation/db/src/**",
             "foundation/auth/src/**",
+            "foundation/telemetry/src/**",
             "**/*.server.ts",
           ],
           browser: [

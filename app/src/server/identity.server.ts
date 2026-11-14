@@ -3,6 +3,7 @@ import { createClerkProfileReader } from "@merit/auth/clerk-users";
 import { resolveAccountUser, resolveGuestSession } from "@merit/auth/server";
 import { currentAccount } from "@merit/auth/session";
 import type { DatabaseRunner } from "@merit/db";
+import { setSpanAttributes, withSpan, type Span } from "@merit/telemetry";
 
 export type OrganizationIdentity = {
   isOperator: (actor: Actor) => boolean;
@@ -85,19 +86,22 @@ const resolveAuthenticatedSession = async (
   };
 };
 
-const resolveWebSessionState = async ({
-  database,
-  guestToken,
-  clerk,
-  isOperatorAccount,
-  localActor,
-  localIdentity,
-}: Pick<
-  WebIdentityOptions,
-  "database" | "guestToken" | "clerk" | "localActor" | "localIdentity"
-> & {
-  isOperatorAccount: (clerkUserId: string) => boolean;
-}): Promise<ResolvedWebSession> => {
+const resolveWebSessionUncached = async (
+  span: Span,
+  {
+    database,
+    guestToken,
+    clerk,
+    isOperatorAccount,
+    localActor,
+    localIdentity,
+  }: Pick<
+    WebIdentityOptions,
+    "database" | "guestToken" | "clerk" | "localActor" | "localIdentity"
+  > & {
+    isOperatorAccount: (clerkUserId: string) => boolean;
+  },
+): Promise<ResolvedWebSession> => {
   try {
     if (localIdentity) {
       return {
@@ -128,9 +132,35 @@ const resolveWebSessionState = async ({
       operator: false,
     };
   } catch {
+    span.setAttribute("error.type", "SessionResolutionError");
     return emptySession({ status: "unavailable" });
   }
 };
+
+const resolveWebSessionState = (
+  options: Pick<
+    WebIdentityOptions,
+    "database" | "guestToken" | "clerk" | "localActor" | "localIdentity"
+  > & {
+    isOperatorAccount: (clerkUserId: string) => boolean;
+  },
+): Promise<ResolvedWebSession> =>
+  withSpan("auth.resolve_web_session", async (span) => {
+    const resolved = await resolveWebSessionUncached(span, options);
+    const mode = options.localIdentity
+      ? "local"
+      : resolved.isGuest
+        ? "guest"
+        : resolved.identity.status === "authenticated"
+          ? "clerk"
+          : resolved.identity.status;
+    setSpanAttributes(span, {
+      "merit.auth.mode": mode,
+      "merit.auth.status": resolved.identity.status,
+      "merit.auth.operator": resolved.operator,
+    });
+    return resolved;
+  });
 
 /** Resolve lazily inside Start's request context; never share this instance across requests. */
 export const createWebIdentity = ({

@@ -40,6 +40,10 @@
     "capabilities/*/business/tests/**/*.integration.ts",
     "capabilities/access/tests/**/*.integration.ts",
     "foundation/auth/tests/**/*.integration.ts",
+    // Checkly discovers config and synthetic checks by file pattern.
+    "tooling/checkly/checkly.config.ts",
+    "tooling/checkly/tests/**/*.check.ts",
+    "tooling/checkly/tests/**/*.spec.ts",
   ],
   "workspaces": {
     "settings": {
