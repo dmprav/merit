@@ -14,7 +14,6 @@ import { Route as interfacesAdminSrcAppLayoutRouteImport } from './../../interfa
 import { Route as interfacesProductSrcAppProductLayoutRouteImport } from './../../interfaces/product/src/app/product-layout'
 import { Route as PrivacyRouteImport } from './../../interfaces/site/src/routes/privacy'
 import { Route as DemoRouteImport } from './../../interfaces/product/src/routes/demo'
-import { Route as ReviewsRouteRouteImport } from './../../interfaces/product/src/routes/reviews/route'
 import { Route as DocsDotindexRouteImport } from './../../interfaces/site/src/routes/docs.index'
 import { Route as DocsDotapplicationsRouteImport } from './../../interfaces/site/src/routes/docs.applications'
 import { Route as DocsDotcontactsRouteImport } from './../../interfaces/site/src/routes/docs.contacts'
@@ -32,8 +31,6 @@ import { Route as AppWorkspaceSlugRouteRouteImport } from './../../interfaces/pr
 import { Route as AppSignInRouteImport } from './../../interfaces/product/src/routes/app/sign-in'
 import { Route as DemoWorkshopSaturdaysRouteImport } from './../../interfaces/product/src/routes/demo_/workshop-saturdays'
 import { Route as InvitationsTokenRouteImport } from './../../interfaces/product/src/routes/invitations/$token'
-import { Route as ReviewsIndexRouteImport } from './../../interfaces/product/src/routes/reviews/index'
-import { Route as ReviewsAssignmentIdRouteImport } from './../../interfaces/product/src/routes/reviews/$assignmentId'
 import { Route as AdminDotorganizationsDotindexRouteImport } from './../../interfaces/admin/src/routes/admin.organizations.index'
 import { Route as AdminDotorganizationsDotorganizationIdRouteImport } from './../../interfaces/admin/src/routes/admin.organizations.$organizationId'
 import { Route as AdminDotorganizationsDotnewRouteImport } from './../../interfaces/admin/src/routes/admin.organizations.new'
@@ -46,6 +43,8 @@ import { Route as AppWorkspaceSlugRoundsIndexRouteImport } from './../../interfa
 import { Route as AppWorkspaceSlugRoundsRoundRefRouteImport } from './../../interfaces/product/src/routes/app/$workspaceSlug/rounds/$roundRef'
 import { Route as AppWorkspaceSlugSettingsIndexRouteImport } from './../../interfaces/product/src/routes/app/$workspaceSlug/settings/index'
 import { Route as AppWorkspaceSlugSettingsMembersRouteImport } from './../../interfaces/product/src/routes/app/$workspaceSlug/settings/members'
+import { Route as AppWorkspaceSlugWorkIndexRouteImport } from './../../interfaces/product/src/routes/app/$workspaceSlug/work/index'
+import { Route as AppWorkspaceSlugWorkAssignmentIdRouteImport } from './../../interfaces/product/src/routes/app/$workspaceSlug/work/$assignmentId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -70,11 +69,6 @@ const PrivacyRoute = PrivacyRouteImport.update({
 const DemoRoute = DemoRouteImport.update({
   id: '/demo',
   path: '/demo',
-  getParentRoute: () => interfacesProductSrcAppProductLayoutRoute,
-} as any)
-const ReviewsRouteRoute = ReviewsRouteRouteImport.update({
-  id: '/reviews',
-  path: '/reviews',
   getParentRoute: () => interfacesProductSrcAppProductLayoutRoute,
 } as any)
 const DocsDotindexRoute = DocsDotindexRouteImport.update({
@@ -162,16 +156,6 @@ const InvitationsTokenRoute = InvitationsTokenRouteImport.update({
   path: '/invitations/$token',
   getParentRoute: () => interfacesProductSrcAppProductLayoutRoute,
 } as any)
-const ReviewsIndexRoute = ReviewsIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => ReviewsRouteRoute,
-} as any)
-const ReviewsAssignmentIdRoute = ReviewsAssignmentIdRouteImport.update({
-  id: '/$assignmentId',
-  path: '/$assignmentId',
-  getParentRoute: () => ReviewsRouteRoute,
-} as any)
 const AdminDotorganizationsDotindexRoute =
   AdminDotorganizationsDotindexRouteImport.update({
     id: '/admin/organizations/',
@@ -243,11 +227,22 @@ const AppWorkspaceSlugSettingsMembersRoute =
     path: '/settings/members',
     getParentRoute: () => AppWorkspaceSlugRouteRoute,
   } as any)
+const AppWorkspaceSlugWorkIndexRoute =
+  AppWorkspaceSlugWorkIndexRouteImport.update({
+    id: '/work/',
+    path: '/work/',
+    getParentRoute: () => AppWorkspaceSlugRouteRoute,
+  } as any)
+const AppWorkspaceSlugWorkAssignmentIdRoute =
+  AppWorkspaceSlugWorkAssignmentIdRouteImport.update({
+    id: '/work/$assignmentId',
+    path: '/work/$assignmentId',
+    getParentRoute: () => AppWorkspaceSlugRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/privacy': typeof PrivacyRoute
-  '/reviews': typeof ReviewsRouteRouteWithChildren
   '/demo': typeof DemoRoute
   '/docs/applications': typeof DocsDotapplicationsRoute
   '/docs/contacts': typeof DocsDotcontactsRoute
@@ -264,10 +259,8 @@ export interface FileRoutesByFullPath {
   '/app/sign-in': typeof AppSignInRoute
   '/demo/workshop-saturdays': typeof DemoWorkshopSaturdaysRoute
   '/invitations/$token': typeof InvitationsTokenRoute
-  '/reviews/$assignmentId': typeof ReviewsAssignmentIdRoute
   '/admin/': typeof AdminDotindexRoute
   '/app/': typeof AppIndexRoute
-  '/reviews/': typeof ReviewsIndexRoute
   '/admin/organizations/$organizationId': typeof AdminDotorganizationsDotorganizationIdRoute
   '/admin/organizations/new': typeof AdminDotorganizationsDotnewRoute
   '/app/$workspaceSlug/activity': typeof AppWorkspaceSlugActivityRoute
@@ -277,9 +270,11 @@ export interface FileRoutesByFullPath {
   '/app/$workspaceSlug/applications/$applicationRef': typeof AppWorkspaceSlugApplicationsApplicationRefRoute
   '/app/$workspaceSlug/rounds/$roundRef': typeof AppWorkspaceSlugRoundsRoundRefRoute
   '/app/$workspaceSlug/settings/members': typeof AppWorkspaceSlugSettingsMembersRoute
+  '/app/$workspaceSlug/work/$assignmentId': typeof AppWorkspaceSlugWorkAssignmentIdRoute
   '/app/$workspaceSlug/applications/': typeof AppWorkspaceSlugApplicationsIndexRoute
   '/app/$workspaceSlug/rounds/': typeof AppWorkspaceSlugRoundsIndexRoute
   '/app/$workspaceSlug/settings/': typeof AppWorkspaceSlugSettingsIndexRoute
+  '/app/$workspaceSlug/work/': typeof AppWorkspaceSlugWorkIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -300,10 +295,8 @@ export interface FileRoutesByTo {
   '/app/sign-in': typeof AppSignInRoute
   '/demo/workshop-saturdays': typeof DemoWorkshopSaturdaysRoute
   '/invitations/$token': typeof InvitationsTokenRoute
-  '/reviews/$assignmentId': typeof ReviewsAssignmentIdRoute
   '/admin': typeof AdminDotindexRoute
   '/app': typeof AppIndexRoute
-  '/reviews': typeof ReviewsIndexRoute
   '/admin/organizations/$organizationId': typeof AdminDotorganizationsDotorganizationIdRoute
   '/admin/organizations/new': typeof AdminDotorganizationsDotnewRoute
   '/app/$workspaceSlug/activity': typeof AppWorkspaceSlugActivityRoute
@@ -313,9 +306,11 @@ export interface FileRoutesByTo {
   '/app/$workspaceSlug/applications/$applicationRef': typeof AppWorkspaceSlugApplicationsApplicationRefRoute
   '/app/$workspaceSlug/rounds/$roundRef': typeof AppWorkspaceSlugRoundsRoundRefRoute
   '/app/$workspaceSlug/settings/members': typeof AppWorkspaceSlugSettingsMembersRoute
+  '/app/$workspaceSlug/work/$assignmentId': typeof AppWorkspaceSlugWorkAssignmentIdRoute
   '/app/$workspaceSlug/applications': typeof AppWorkspaceSlugApplicationsIndexRoute
   '/app/$workspaceSlug/rounds': typeof AppWorkspaceSlugRoundsIndexRoute
   '/app/$workspaceSlug/settings': typeof AppWorkspaceSlugSettingsIndexRoute
+  '/app/$workspaceSlug/work': typeof AppWorkspaceSlugWorkIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -323,7 +318,6 @@ export interface FileRoutesById {
   '/_administration': typeof interfacesAdminSrcAppLayoutRouteWithChildren
   '/_product': typeof interfacesProductSrcAppProductLayoutRouteWithChildren
   '/privacy': typeof PrivacyRoute
-  '/_product/reviews': typeof ReviewsRouteRouteWithChildren
   '/_product/demo': typeof DemoRoute
   '/docs/applications': typeof DocsDotapplicationsRoute
   '/docs/contacts': typeof DocsDotcontactsRoute
@@ -340,10 +334,8 @@ export interface FileRoutesById {
   '/_product/app/sign-in': typeof AppSignInRoute
   '/_product/demo_/workshop-saturdays': typeof DemoWorkshopSaturdaysRoute
   '/_product/invitations/$token': typeof InvitationsTokenRoute
-  '/_product/reviews/$assignmentId': typeof ReviewsAssignmentIdRoute
   '/_administration/admin/': typeof AdminDotindexRoute
   '/_product/app/': typeof AppIndexRoute
-  '/_product/reviews/': typeof ReviewsIndexRoute
   '/_administration/admin/organizations/$organizationId': typeof AdminDotorganizationsDotorganizationIdRoute
   '/_administration/admin/organizations/new': typeof AdminDotorganizationsDotnewRoute
   '/_product/app/$workspaceSlug/activity': typeof AppWorkspaceSlugActivityRoute
@@ -353,16 +345,17 @@ export interface FileRoutesById {
   '/_product/app/$workspaceSlug/applications/$applicationRef': typeof AppWorkspaceSlugApplicationsApplicationRefRoute
   '/_product/app/$workspaceSlug/rounds/$roundRef': typeof AppWorkspaceSlugRoundsRoundRefRoute
   '/_product/app/$workspaceSlug/settings/members': typeof AppWorkspaceSlugSettingsMembersRoute
+  '/_product/app/$workspaceSlug/work/$assignmentId': typeof AppWorkspaceSlugWorkAssignmentIdRoute
   '/_product/app/$workspaceSlug/applications/': typeof AppWorkspaceSlugApplicationsIndexRoute
   '/_product/app/$workspaceSlug/rounds/': typeof AppWorkspaceSlugRoundsIndexRoute
   '/_product/app/$workspaceSlug/settings/': typeof AppWorkspaceSlugSettingsIndexRoute
+  '/_product/app/$workspaceSlug/work/': typeof AppWorkspaceSlugWorkIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/privacy'
-    | '/reviews'
     | '/demo'
     | '/docs/applications'
     | '/docs/contacts'
@@ -379,10 +372,8 @@ export interface FileRouteTypes {
     | '/app/sign-in'
     | '/demo/workshop-saturdays'
     | '/invitations/$token'
-    | '/reviews/$assignmentId'
     | '/admin/'
     | '/app/'
-    | '/reviews/'
     | '/admin/organizations/$organizationId'
     | '/admin/organizations/new'
     | '/app/$workspaceSlug/activity'
@@ -392,9 +383,11 @@ export interface FileRouteTypes {
     | '/app/$workspaceSlug/applications/$applicationRef'
     | '/app/$workspaceSlug/rounds/$roundRef'
     | '/app/$workspaceSlug/settings/members'
+    | '/app/$workspaceSlug/work/$assignmentId'
     | '/app/$workspaceSlug/applications/'
     | '/app/$workspaceSlug/rounds/'
     | '/app/$workspaceSlug/settings/'
+    | '/app/$workspaceSlug/work/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -415,10 +408,8 @@ export interface FileRouteTypes {
     | '/app/sign-in'
     | '/demo/workshop-saturdays'
     | '/invitations/$token'
-    | '/reviews/$assignmentId'
     | '/admin'
     | '/app'
-    | '/reviews'
     | '/admin/organizations/$organizationId'
     | '/admin/organizations/new'
     | '/app/$workspaceSlug/activity'
@@ -428,16 +419,17 @@ export interface FileRouteTypes {
     | '/app/$workspaceSlug/applications/$applicationRef'
     | '/app/$workspaceSlug/rounds/$roundRef'
     | '/app/$workspaceSlug/settings/members'
+    | '/app/$workspaceSlug/work/$assignmentId'
     | '/app/$workspaceSlug/applications'
     | '/app/$workspaceSlug/rounds'
     | '/app/$workspaceSlug/settings'
+    | '/app/$workspaceSlug/work'
   id:
     | '__root__'
     | '/'
     | '/_administration'
     | '/_product'
     | '/privacy'
-    | '/_product/reviews'
     | '/_product/demo'
     | '/docs/applications'
     | '/docs/contacts'
@@ -454,10 +446,8 @@ export interface FileRouteTypes {
     | '/_product/app/sign-in'
     | '/_product/demo_/workshop-saturdays'
     | '/_product/invitations/$token'
-    | '/_product/reviews/$assignmentId'
     | '/_administration/admin/'
     | '/_product/app/'
-    | '/_product/reviews/'
     | '/_administration/admin/organizations/$organizationId'
     | '/_administration/admin/organizations/new'
     | '/_product/app/$workspaceSlug/activity'
@@ -467,9 +457,11 @@ export interface FileRouteTypes {
     | '/_product/app/$workspaceSlug/applications/$applicationRef'
     | '/_product/app/$workspaceSlug/rounds/$roundRef'
     | '/_product/app/$workspaceSlug/settings/members'
+    | '/_product/app/$workspaceSlug/work/$assignmentId'
     | '/_product/app/$workspaceSlug/applications/'
     | '/_product/app/$workspaceSlug/rounds/'
     | '/_product/app/$workspaceSlug/settings/'
+    | '/_product/app/$workspaceSlug/work/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -524,13 +516,6 @@ declare module '@tanstack/react-router' {
       path: '/demo'
       fullPath: '/demo'
       preLoaderRoute: typeof DemoRouteImport
-      parentRoute: typeof interfacesProductSrcAppProductLayoutRoute
-    }
-    '/_product/reviews': {
-      id: '/_product/reviews'
-      path: '/reviews'
-      fullPath: '/reviews'
-      preLoaderRoute: typeof ReviewsRouteRouteImport
       parentRoute: typeof interfacesProductSrcAppProductLayoutRoute
     }
     '/docs/': {
@@ -652,20 +637,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof InvitationsTokenRouteImport
       parentRoute: typeof interfacesProductSrcAppProductLayoutRoute
     }
-    '/_product/reviews/': {
-      id: '/_product/reviews/'
-      path: '/'
-      fullPath: '/reviews/'
-      preLoaderRoute: typeof ReviewsIndexRouteImport
-      parentRoute: typeof ReviewsRouteRoute
-    }
-    '/_product/reviews/$assignmentId': {
-      id: '/_product/reviews/$assignmentId'
-      path: '/$assignmentId'
-      fullPath: '/reviews/$assignmentId'
-      preLoaderRoute: typeof ReviewsAssignmentIdRouteImport
-      parentRoute: typeof ReviewsRouteRoute
-    }
     '/_administration/admin/organizations/': {
       id: '/_administration/admin/organizations/'
       path: '/admin/organizations'
@@ -750,6 +721,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppWorkspaceSlugSettingsMembersRouteImport
       parentRoute: typeof AppWorkspaceSlugRouteRoute
     }
+    '/_product/app/$workspaceSlug/work/': {
+      id: '/_product/app/$workspaceSlug/work/'
+      path: '/work'
+      fullPath: '/app/$workspaceSlug/work/'
+      preLoaderRoute: typeof AppWorkspaceSlugWorkIndexRouteImport
+      parentRoute: typeof AppWorkspaceSlugRouteRoute
+    }
+    '/_product/app/$workspaceSlug/work/$assignmentId': {
+      id: '/_product/app/$workspaceSlug/work/$assignmentId'
+      path: '/work/$assignmentId'
+      fullPath: '/app/$workspaceSlug/work/$assignmentId'
+      preLoaderRoute: typeof AppWorkspaceSlugWorkAssignmentIdRouteImport
+      parentRoute: typeof AppWorkspaceSlugRouteRoute
+    }
   }
 }
 
@@ -776,20 +761,6 @@ const interfacesAdminSrcAppLayoutRouteWithChildren =
     interfacesAdminSrcAppLayoutRouteChildren,
   )
 
-interface ReviewsRouteRouteChildren {
-  ReviewsAssignmentIdRoute: typeof ReviewsAssignmentIdRoute
-  ReviewsIndexRoute: typeof ReviewsIndexRoute
-}
-
-const ReviewsRouteRouteChildren: ReviewsRouteRouteChildren = {
-  ReviewsAssignmentIdRoute: ReviewsAssignmentIdRoute,
-  ReviewsIndexRoute: ReviewsIndexRoute,
-}
-
-const ReviewsRouteRouteWithChildren = ReviewsRouteRoute._addFileChildren(
-  ReviewsRouteRouteChildren,
-)
-
 interface AppWorkspaceSlugRouteRouteChildren {
   AppWorkspaceSlugActivityRoute: typeof AppWorkspaceSlugActivityRoute
   AppWorkspaceSlugContactsRoute: typeof AppWorkspaceSlugContactsRoute
@@ -797,9 +768,11 @@ interface AppWorkspaceSlugRouteRouteChildren {
   AppWorkspaceSlugApplicationsApplicationRefRoute: typeof AppWorkspaceSlugApplicationsApplicationRefRoute
   AppWorkspaceSlugRoundsRoundRefRoute: typeof AppWorkspaceSlugRoundsRoundRefRoute
   AppWorkspaceSlugSettingsMembersRoute: typeof AppWorkspaceSlugSettingsMembersRoute
+  AppWorkspaceSlugWorkAssignmentIdRoute: typeof AppWorkspaceSlugWorkAssignmentIdRoute
   AppWorkspaceSlugApplicationsIndexRoute: typeof AppWorkspaceSlugApplicationsIndexRoute
   AppWorkspaceSlugRoundsIndexRoute: typeof AppWorkspaceSlugRoundsIndexRoute
   AppWorkspaceSlugSettingsIndexRoute: typeof AppWorkspaceSlugSettingsIndexRoute
+  AppWorkspaceSlugWorkIndexRoute: typeof AppWorkspaceSlugWorkIndexRoute
 }
 
 const AppWorkspaceSlugRouteRouteChildren: AppWorkspaceSlugRouteRouteChildren = {
@@ -810,10 +783,12 @@ const AppWorkspaceSlugRouteRouteChildren: AppWorkspaceSlugRouteRouteChildren = {
     AppWorkspaceSlugApplicationsApplicationRefRoute,
   AppWorkspaceSlugRoundsRoundRefRoute: AppWorkspaceSlugRoundsRoundRefRoute,
   AppWorkspaceSlugSettingsMembersRoute: AppWorkspaceSlugSettingsMembersRoute,
+  AppWorkspaceSlugWorkAssignmentIdRoute: AppWorkspaceSlugWorkAssignmentIdRoute,
   AppWorkspaceSlugApplicationsIndexRoute:
     AppWorkspaceSlugApplicationsIndexRoute,
   AppWorkspaceSlugRoundsIndexRoute: AppWorkspaceSlugRoundsIndexRoute,
   AppWorkspaceSlugSettingsIndexRoute: AppWorkspaceSlugSettingsIndexRoute,
+  AppWorkspaceSlugWorkIndexRoute: AppWorkspaceSlugWorkIndexRoute,
 }
 
 const AppWorkspaceSlugRouteRouteWithChildren =
@@ -822,7 +797,6 @@ const AppWorkspaceSlugRouteRouteWithChildren =
   )
 
 interface interfacesProductSrcAppProductLayoutRouteChildren {
-  ReviewsRouteRoute: typeof ReviewsRouteRouteWithChildren
   DemoRoute: typeof DemoRoute
   AppWorkspaceSlugRouteRoute: typeof AppWorkspaceSlugRouteRouteWithChildren
   AppSignInRoute: typeof AppSignInRoute
@@ -833,7 +807,6 @@ interface interfacesProductSrcAppProductLayoutRouteChildren {
 
 const interfacesProductSrcAppProductLayoutRouteChildren: interfacesProductSrcAppProductLayoutRouteChildren =
   {
-    ReviewsRouteRoute: ReviewsRouteRouteWithChildren,
     DemoRoute: DemoRoute,
     AppWorkspaceSlugRouteRoute: AppWorkspaceSlugRouteRouteWithChildren,
     AppSignInRoute: AppSignInRoute,

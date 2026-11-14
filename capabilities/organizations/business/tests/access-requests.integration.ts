@@ -10,6 +10,7 @@ const service = (connection: string, networkAddress: string | undefined = "192.0
   return {
     sendInvitation,
     operations: createOrganizationService({
+      revokeReviewAccess: async () => {},
       database: (operation) => withDatabase(connection, operation),
       isOperator: (actor) => actor.userId === "dana",
       verifiedEmails: async () => [],

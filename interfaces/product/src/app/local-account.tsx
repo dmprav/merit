@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { ApplicationAccount } from "@merit/ui/application-shell";
 
 const localPersonas = new Map<string, string>([
+  ["reviewer", "Robin Ellis"],
   ["recipient", "Invitation recipient"],
   ["operator", "Merit operator"],
 ]);

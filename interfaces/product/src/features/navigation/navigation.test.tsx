@@ -30,7 +30,7 @@ const review: NavigationPin = {
   target: { kind: "review", id: "6bca8fde-b474-4ca7-a80b-3bc8af1cc979" },
   title: "Assigned meals",
   context: "Birch Foundation",
-  workspaceSlug: null,
+  workspaceSlug: "birch",
 };
 
 const state = (overrides: Partial<NavigationPinsState> = {}): NavigationPinsState => ({
@@ -58,6 +58,7 @@ it.each(["community-grants", "earlier-title"])(
               slug: "alder",
               kind: "standard",
               canWorkOnGrants: true,
+              canViewTeam: true,
             },
           }}
         >
@@ -123,22 +124,38 @@ it("offers accessible reorder and unpin controls with retry after a failed save"
 it("links review pins to assignments and keeps the overview available if pins cannot load", async () => {
   const retry = vi.fn();
   const { user } = await renderWithRouter(
-    <NavigationPinsContext value={state({ pins: [review], unavailable: true, retry })}>
+    <NavigationPinsContext
+      value={state({
+        pins: [
+          review,
+          {
+            ...review,
+            target: { kind: "review", id: "other" },
+            title: "Hidden Alder review",
+            workspaceSlug: "alder",
+          },
+        ],
+        unavailable: true,
+        retry,
+      })}
+    >
       <NavigationSection
-        title="My reviews"
+        title="My work"
+        workspaceSlug="birch"
         kind="review"
         icon="edit"
-        location={{ to: "/reviews" }}
+        location={{ to: "/app/$workspaceSlug/work", params: { workspaceSlug: "birch" } }}
       />
       <NavigationPinsStatus />
     </NavigationPinsContext>,
-    "/reviews",
+    "/app/birch/work",
   );
-  expect(screen.getByRole("link", { name: "My reviews" })).toHaveAttribute("href", "/reviews");
+  expect(screen.getByRole("link", { name: "My work" })).toHaveAttribute("href", "/app/birch/work");
   expect(screen.getByRole("link", { name: "Assigned meals · Birch Foundation" })).toHaveAttribute(
     "href",
-    `/reviews/${review.target.id}`,
+    `/app/birch/work/${review.target.id}`,
   );
+  expect(screen.queryByText("Hidden Alder review")).not.toBeInTheDocument();
   expect(screen.getByRole("status")).toHaveTextContent("Pins could not be loaded");
   await user.click(screen.getByRole("button", { name: "Try again" }));
   expect(retry).toHaveBeenCalledOnce();

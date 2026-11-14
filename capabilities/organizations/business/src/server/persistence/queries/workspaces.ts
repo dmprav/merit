@@ -23,6 +23,7 @@ export const listWorkspaces = (
       >`to_char(${organizations.demoExpiresAt} AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`,
       role: memberships.role,
       administration: memberships.administration,
+      canViewTeam: membershipScope("read_team", organizations.id),
       canWorkOnGrants: membershipScope("work_on_grants", organizations.id),
     })
     .from(organizations)

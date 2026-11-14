@@ -25,7 +25,7 @@ beforeEach(() => {
 
 describe("reviewer query options", () => {
   it("scopes reviewer list queries under privateKey, passes AbortSignal, and throws on unavailable", async () => {
-    const options = reviewerListOptions();
+    const options = reviewerListOptions("alder");
     expect(options.queryKey.slice(0, privateKey.length)).toEqual([...privateKey]);
     expect(options.gcTime).toBeUndefined();
 
@@ -35,6 +35,7 @@ describe("reviewer query options", () => {
 
     const [call] = vi.mocked(listReviewerAssignments).mock.calls;
     expect(call?.[0]?.signal).toBeInstanceOf(AbortSignal);
+    expect(call?.[0]?.data).toEqual({ workspaceSlug: "alder" });
 
     vi.mocked(listReviewerAssignments).mockResolvedValueOnce({ status: "unavailable" } as never);
     await expect(client.fetchQuery(options)).rejects.toThrow("Service unavailable");
@@ -51,7 +52,7 @@ describe("reviewer query options", () => {
 
     const [call] = vi.mocked(readReviewerAssignment).mock.calls;
     expect(call?.[0]?.signal).toBeInstanceOf(AbortSignal);
-    expect(call?.[0]?.data).toEqual({ assignmentId });
+    expect(call?.[0]?.data).toEqual({ assignmentId, workspaceSlug: undefined });
 
     vi.mocked(readReviewerAssignment).mockResolvedValueOnce({ status: "unavailable" } as never);
     await expect(client.fetchQuery(options)).rejects.toThrow("Service unavailable");

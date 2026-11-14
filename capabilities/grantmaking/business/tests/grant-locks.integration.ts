@@ -20,6 +20,7 @@ import { seedExampleRounds } from "@merit/grantmaking/testing";
 import { createOrganizationService } from "@merit/organizations/server";
 import { reviewRevisionSchema } from "@merit/reviews/domain";
 import { saveApplicationReview } from "@merit/reviews/server";
+import { revokeMembershipReviews } from "@merit/reviews/server/integrations";
 import { criteriaVersionSchema } from "@merit/rounds/domain";
 import { createFundingRound, deleteFundingRound, editFundingRound } from "@merit/rounds/server";
 import { createTestDatabase } from "@merit/test-support/test-database";
@@ -297,6 +298,7 @@ const revoke = async (connection: Database) => {
   assert.isDefined(member);
 
   const service = createOrganizationService({
+    revokeReviewAccess: revokeMembershipReviews,
     database: async (operation) => operation(connection),
     isOperator: () => false,
     verifiedEmails: async () => [],

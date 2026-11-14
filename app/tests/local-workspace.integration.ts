@@ -7,11 +7,32 @@ import { resolveConfig } from "vite-plus";
 import { describe, expect, it, vi } from "vite-plus/test";
 
 import { assertLocalWorkspaceDatabase, localWorkspace } from "../local-workspace.config";
-import { allowsLocalWorkspaceRequest } from "../src/development/local-workspace.server";
+import {
+  allowsLocalWorkspaceRequest,
+  localProvisioningIdentity,
+} from "../src/development/local-workspace.server";
 
 const database = "postgres://merit:merit@127.0.0.1:55432/merit";
 
 describe("local workspace isolation", () => {
+  it("selects the seeded reviewer independently of the invitation recipient", () => {
+    const request = (person: string) =>
+      new Request("http://127.0.0.1:3000/app", {
+        headers: { cookie: `merit-local-person=${person}` },
+      });
+
+    expect(localProvisioningIdentity(request("reviewer"))).toEqual({
+      actor: { clerkUserId: "local_reviewer" },
+      operator: false,
+      emails: ["reviewer@example.test"],
+      displayName: "Robin Ellis",
+    });
+    expect(localProvisioningIdentity(request("recipient"))?.actor.clerkUserId).toBe(
+      "local_recipient",
+    );
+    expect(localProvisioningIdentity(request("unknown"))).toBeUndefined();
+  });
+
   it("only accepts loopback requests, same-origin browser calls and a local database", () => {
     expect(() => assertLocalWorkspaceDatabase(database)).not.toThrow();
 
@@ -74,7 +95,7 @@ describe("local workspace isolation", () => {
       const source = await readFile(join(output.pathname, file), "utf8");
 
       expect(source, file).not.toMatch(
-        /seed_local_workspace|allowsLocalWorkspaceRequest|localWorkspaceIdentity|merit-local-person|local_operator|local_recipient|TanStack Devtools|Merit development tooling/,
+        /seed_local_workspace|allowsLocalWorkspaceRequest|localWorkspaceIdentity|merit-local-person|local_operator|local_recipient|local_reviewer|TanStack Devtools|Merit development tooling/,
       );
     }
   });

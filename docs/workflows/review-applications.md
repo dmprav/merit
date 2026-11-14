@@ -15,8 +15,10 @@ A manager selects or adds a workspace contact as the reviewer for an application
 Record the request and the application and criteria versions associated with it.
 Managers arrange reviews through their existing communication channels. Adding a
 request only tracks the work: it sends no invitation, notification, or reminder.
-Choose **Invite reviewer** separately to send an assignment invitation. The demo
-supports tracking and recording only.
+Choose **Invite reviewer** separately to send an assignment invitation after the
+contact has joined the workspace as a reviewer or program manager. An owner or
+administrator can invite them through Members & access first. The demo supports
+tracking and recording only.
 
 A request stays outstanding until an assessment is recorded against it or it is
 cancelled. Replacing a reviewer closes the unfinished request and creates one for

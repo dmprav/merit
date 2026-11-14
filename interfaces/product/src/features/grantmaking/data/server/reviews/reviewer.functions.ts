@@ -5,6 +5,7 @@ import { withActor } from "@merit/auth/request";
 import { reviewerHistoryInput } from "@merit/reviews/api";
 import {
   reviewerAddressSchema,
+  reviewerListInput,
   reviewerApplicationSchema,
   inviteReviewerSchema,
   manageReviewerSchema,
@@ -13,10 +14,12 @@ import {
   submitReviewerSchema,
 } from "@merit/reviews/api";
 
-export const listReviewerAssignments = createServerFn({ method: "GET" }).handler(({ context }) => {
-  setResponseHeader("Cache-Control", "private, no-store");
-  return withActor(context.currentIdentity, (actor) => context.reviewer.list(actor));
-});
+export const listReviewerAssignments = createServerFn({ method: "GET" })
+  .validator(reviewerListInput)
+  .handler(({ context, data }) => {
+    setResponseHeader("Cache-Control", "private, no-store");
+    return withActor(context.currentIdentity, (actor) => context.reviewer.list(actor, data));
+  });
 export const readReviewerAssignment = createServerFn({ method: "GET" })
   .validator(reviewerAddressSchema)
   .handler(({ data, context }) => {

@@ -21,6 +21,7 @@ export const WorkspaceChoice = ({
     name: string;
     slug: string;
     canWorkOnGrants: boolean;
+    canViewTeam: boolean;
     kind?: "standard" | "demo";
   }[];
 }) => {

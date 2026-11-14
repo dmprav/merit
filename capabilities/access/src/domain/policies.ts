@@ -56,12 +56,23 @@ const notOwner: Requirement = {
 const policies = {
   administer_organizations: [[{ attribute: "subject.operator", values: [true] }]],
   read_workspace: [workspace],
+  read_team: [
+    [...workspace, administrators],
+    [
+      ...workspace,
+      { attribute: "subject.role", values: ["member", "program_manager", "committee_reader"] },
+    ],
+  ],
+  assess_grants: [
+    [...workspace, { attribute: "subject.role", values: ["reviewer", "program_manager"] }],
+  ],
   manage_members: [[...workspace, administrators]],
   manage_administrators: [[...workspace, owner]],
   work_on_grants: [[...workspace, { attribute: "subject.role", values: ["program_manager"] }]],
   work_on_review: [
     [
-      { attribute: "subject.active", values: [true] },
+      ...workspace,
+      { attribute: "subject.role", values: ["reviewer", "program_manager"] },
       { attribute: "subject.userId", equals: "resource.reviewerUserId" },
       { attribute: "resource.reviewStatus", values: ["accepted", "submitted"] },
       { attribute: "resource.reviewMembershipCurrent", values: [true] },

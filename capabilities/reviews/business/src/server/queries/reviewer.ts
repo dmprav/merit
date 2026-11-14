@@ -11,6 +11,7 @@ import { compareReviewBasis, reviewCriteriaSchema } from "../../domain";
 import {
   activeReviewer,
   reviewerIdentityCurrent,
+  reviewerWorkspace,
   reviewerOwns,
   permittedReviewerWork,
   readReviewerRecord,
@@ -47,6 +48,7 @@ const reviewerSummary = (row: ReviewerRecord): ReviewerSummary => {
     applicationTitle: row.title,
     applicant: row.applicant,
     organization: row.organization,
+    workspaceSlug: row.slug,
     dueDate: row.assignment.dueDate,
     managerName: row.assignment.managerName,
     managerEmail: row.assignment.managerEmail,
@@ -65,14 +67,23 @@ export const listReviewerAssignments = (
   db: Database,
   actor: Actor,
   emails: string[],
+  workspaceSlug?: string,
 ): ReturnType<ReviewerService["list"]> =>
   readTransaction(db, async (tx) => {
     if (!(await activeReviewer(tx, actor.userId))) {
       return { status: "not_found" };
     }
+    if (
+      workspaceSlug !== undefined &&
+      !(await reviewerWorkspace(tx, actor.userId, workspaceSlug))
+    ) {
+      return { status: "not_found" };
+    }
     return {
       status: "ok",
-      value: (await listReviewerRecords(tx, actor.userId, emails)).map(reviewerSummary),
+      value: (await listReviewerRecords(tx, actor.userId, emails, workspaceSlug)).map(
+        reviewerSummary,
+      ),
     };
   });
 
@@ -81,14 +92,16 @@ export const readReviewerAssignment = (
   actor: Actor,
   emails: string[],
   id: string,
+  workspaceSlug?: string,
 ): ReturnType<ReviewerService["read"]> =>
   readTransaction(db, async (tx) => {
     const record = await readReviewerRecord(tx, id);
     if (
       !record ||
+      (workspaceSlug !== undefined && record.slug !== workspaceSlug) ||
       !(await activeReviewer(tx, actor.userId)) ||
       !reviewerOwns(record, actor.userId, emails) ||
-      !(await reviewerIdentityCurrent(tx, id))
+      !(await reviewerIdentityCurrent(tx, id, actor.userId))
     ) {
       return { status: "not_found" };
     }
@@ -96,7 +109,13 @@ export const readReviewerAssignment = (
     if (!(await permittedReviewerWork(tx, id, actor.userId))) {
       return {
         status: "ok",
-        value: { assignment, material: null, criteria: null, draft: null, assessment: null },
+        value: {
+          assignment,
+          material: null,
+          criteria: null,
+          draft: null,
+          assessment: null,
+        },
       };
     }
     const evidence = await readReviewerEvidence(tx, record);

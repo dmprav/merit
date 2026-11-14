@@ -86,6 +86,9 @@ export const useManagerReviewers = (data: ManagerReviewerData, reviewRevision: n
 };
 
 const managerError = ({ status, error }: { status: string; error?: string }) => {
+  if (error === "workspace_membership_required") {
+    return "reviewerMembershipRequired";
+  }
   if (error === "application_withdrawn") {
     return "applicationWithdrawn";
   }

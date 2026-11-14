@@ -16,7 +16,7 @@ it.each(["invitation", "submission"] as const)(
       manager: "Dana",
       managerEmail: "dana@example.test",
       dueDate: "2026-12-01",
-      url: "https://merit.test/reviews/assignment?one=1&two=2",
+      url: "https://merit.test/app/alder/work/assignment?one=1&two=2",
     };
     const { subject, text, html } = await renderReviewerEmail(message);
     expect(subject).toContain(message.title);

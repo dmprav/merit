@@ -17,21 +17,21 @@ an isolated workspace with fictional starting data.
 
 ## Find and return to work
 
-Funding rounds and Applications provide independent workspace overviews. My reviews
-lists the signed-in person's review assignments across organizations. Several rounds
+Funding rounds and Applications provide independent workspace overviews. My work
+lists the signed-in person's review assignments in the current workspace. Several rounds
 may be active at once; navigation does not establish a single current round.
 
 People can save personal shortcuts to rounds, applications, and their own review
 assignments. Pins belong to the account and persist across devices. Round and
 application pins are ordered separately within each workspace; assignment pins are
-ordered under My reviews. Pinning or moving a shortcut changes no grant record,
+ordered under that workspace’s My work. Pinning or moving a shortcut changes no grant record,
 assignment, or permission. Repeating a save or ordering request preserves its result.
 
 Every read resolves current titles through the target's access rules. Losing access
 hides the shortcut; deleting its target removes the saved pin. Application titles
 come from recorded material, while review assignment titles describe the assigned
 material. Contacts remain a secondary directory; membership is available through
-Workspace settings → Members & access. The [workspace guide](../../interfaces/site/src/features/docs/workspace-guide.tsx)
+Workspace settings → Members & access for members with directory access. The [workspace guide](../../interfaces/site/src/features/docs/workspace-guide.tsx)
 explains navigation and pin controls.
 
 ## Catch up on shared changes

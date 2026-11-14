@@ -109,3 +109,13 @@
   padding-block: var(--space-4);
   overflow-wrap: anywhere;
 }
+
+.invitationHelp {
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+.participationActions {
+  border-block-start: 1px solid var(--border);
+  padding-block-start: var(--space-4);
+}

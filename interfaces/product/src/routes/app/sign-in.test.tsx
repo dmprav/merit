@@ -20,8 +20,8 @@ describe("app.sign-in returnTo validation", () => {
     "/app/alder/rounds/local-connections-k7m2p9x4n6rt",
     "/app/alder/applications/workshop-saturdays-b8q3w5j7c2df",
     "/app/alder/settings/members",
-    "/reviews",
-    `/reviews/${assignmentId}`,
+    "/app/alder/work",
+    `/app/alder/work/${assignmentId}`,
     `/invitations/${invitationToken}`,
   ])("allows %s", (returnTo) => {
     expect(validateSearch(returnTo)).toEqual({ returnTo });
@@ -41,6 +41,8 @@ describe("app.sign-in returnTo validation", () => {
     "/app/alder?next=https://evil.example",
     "/app/alder#fragment",
     "/app/../admin/organizations",
+    "/reviews",
+    `/reviews/${assignmentId}`,
     "/reviews-evil",
     "/reviews/not-a-uuid",
     `/reviews/${assignmentId}/extra`,

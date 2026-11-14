@@ -43,7 +43,7 @@ export type Team = {
     id: string;
     email: string;
     administration: "none" | "administrator" | "owner";
-    role: "member" | "program_manager";
+    role: "member" | "program_manager" | "reviewer";
     expiresAt: Date;
     delivery: "pending" | "sent" | "failed";
     invitedBy: string | null;
@@ -102,7 +102,7 @@ export type InvitationDetails = {
   organization: Organization;
   accepted: boolean;
   administration: "none" | "administrator" | "owner";
-  role: "member" | "program_manager";
+  role: "member" | "program_manager" | "reviewer";
 };
 
 export type Workspace = {
@@ -114,6 +114,7 @@ export type Workspace = {
   role: OrganizationSubject["role"];
   administration: OrganizationSubject["administration"];
   canWorkOnGrants: boolean;
+  canViewTeam: boolean;
 };
 
 export type TeamOverview = {

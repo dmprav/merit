@@ -36,6 +36,8 @@ it("SQL filtering and in-memory decisions agree across attributes, tenants, and 
   );
   const actions: AccessAction[] = [
     "read_workspace",
+    "read_team",
+    "assess_grants",
     "manage_members",
     "manage_administrators",
     "work_on_grants",
@@ -85,6 +87,8 @@ it("SQL denies absent or null facts and unknown actions, and handles operator de
   const db = drizzle(database.client);
   for (const action of [
     "read_workspace",
+    "read_team",
+    "assess_grants",
     "remove_member",
     "missing",
     "constructor",
@@ -136,17 +140,25 @@ it("agrees on reviewer identity, status, account activation, and membership life
             sql`SELECT ${accessScope("work_on_review", {
               "subject.userId": sql`'sam'::text`,
               "subject.active": sql`${active}::boolean`,
+              "subject.organizationId": sql`'alder'::text`,
+              "subject.role": sql`'reviewer'::text`,
+              "resource.organizationId": sql`'alder'::text`,
               "resource.reviewerUserId": sql`${reviewerUserId}::text`,
               "resource.reviewStatus": sql`${reviewStatus}::text`,
               "resource.reviewMembershipCurrent": sql`${reviewMembershipCurrent}::boolean`,
             })} AS allowed`,
           );
           expect(result.rows[0]!.allowed).toBe(
-            permits({ userId: "sam", active }, "work_on_review", {
-              reviewerUserId,
-              reviewStatus,
-              reviewMembershipCurrent,
-            }),
+            permits(
+              { userId: "sam", active, organizationId: "alder", role: "reviewer" },
+              "work_on_review",
+              {
+                organizationId: "alder",
+                reviewerUserId,
+                reviewStatus,
+                reviewMembershipCurrent,
+              },
+            ),
           );
         }
       }

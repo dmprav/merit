@@ -1,8 +1,10 @@
+import type { TFunction } from "i18next";
 import { useEffect, useRef, useState, type ReactNode, type Ref } from "react";
 import { useTranslation } from "react-i18next";
 
 import { permits } from "@merit/access";
 import { FormDialog } from "@merit/forms";
+import { revokesReviewAccess } from "@merit/organizations/domain";
 import shellStyles from "@merit/ui/application-shell.module.css";
 import { Button } from "@merit/ui/button";
 import { ConfirmationDialog } from "@merit/ui/confirmation-dialog";
@@ -255,9 +257,7 @@ const TeamConfirmationDialog = ({
   }
 
   const removing = dialog.kind === "remove";
-  const affectedCount = removing
-    ? invitations.filter((invitation) => invitation.invitedBy === dialog.member.userId).length
-    : 0;
+  const endsReviews = removing && revokesReviewAccess(dialog.member.role, null);
   const title = removing
     ? t("removePerson", {
         person: dialog.member.name || dialog.member.email || t("unknownName"),
@@ -265,22 +265,19 @@ const TeamConfirmationDialog = ({
       })
     : t("revokeTitle");
 
-  const removalDescription = affectedCount ? "removeAccessWithInvitations" : "removeAccess";
   const failureMessage = removing ? "removalFailed" : "revocationFailed";
   const error =
     workflow.error &&
     t(workflow.error === "unavailable" ? failureMessage : `errors.${workflow.error}`);
 
+  const description = removing
+    ? memberRemovalDescription(dialog.member, invitations, t)
+    : t("revokeHelp", { email: dialog.invitation.email });
+
   return (
     <ConfirmationDialog
       title={title}
-      description={
-        removing
-          ? t(removalDescription, {
-              count: affectedCount,
-            })
-          : t("revokeHelp", { email: dialog.invitation.email })
-      }
+      description={description}
       closeLabel={t("close")}
       cancelLabel={t("cancel")}
       confirmLabel={t(removing ? "remove" : "revoke")}
@@ -300,12 +297,24 @@ const TeamConfirmationDialog = ({
     >
       {removing && (
         <>
-          <p>{t("retainedWorkDescription")}</p>
+          <p>{t(endsReviews ? "retainedReviewWorkDescription" : "retainedWorkDescription")}</p>
           <p>{t("handoverDescription")}</p>
         </>
       )}
     </ConfirmationDialog>
   );
+};
+
+const memberRemovalDescription = (
+  member: Member,
+  invitations: Invitation[],
+  t: TFunction<"team">,
+) => {
+  const count = invitations.filter((invitation) => invitation.invitedBy === member.userId).length;
+  const access = t(count ? "removeAccessWithInvitations" : "removeAccess", { count });
+  return revokesReviewAccess(member.role, null)
+    ? `${access} ${t("removalEndsReviewAssignments")}`
+    : access;
 };
 
 const DraftRecovery = ({

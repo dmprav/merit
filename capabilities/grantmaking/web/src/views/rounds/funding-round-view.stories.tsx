@@ -140,9 +140,8 @@ export const WithdrawnApplication: Story = {
   args: { section: "applications", round: withdrawnRound },
   play: async ({ canvas }) => {
     await expect(canvas.getByText("1 withdrawn application not counted.")).toBeVisible();
-    await expect(
-      within(canvas.getByRole("table")).getByText("Withdrawn", { exact: true }),
-    ).toBeVisible();
+    const applications = within(canvas.getByRole("table", { name: "Applications" }));
+    await expect(applications.getByText("Withdrawn", { exact: true })).toBeVisible();
   },
 };
 export const WithdrawnFilter: Story = {

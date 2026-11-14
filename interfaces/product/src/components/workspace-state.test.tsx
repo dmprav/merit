@@ -44,6 +44,7 @@ const alder: Workspace = {
   demoExpiresAt: null,
   role: "program_manager",
   canWorkOnGrants: true,
+  canViewTeam: true,
   administration: "owner",
 };
 const birch: Workspace = {
@@ -54,6 +55,7 @@ const birch: Workspace = {
   demoExpiresAt: null,
   role: "member",
   canWorkOnGrants: false,
+  canViewTeam: true,
   administration: "none",
 };
 
@@ -138,11 +140,23 @@ describe("workspace states", () => {
     await user.click(screen.getByRole("link", { name: "Sign in" }));
 
     expect(router.state.location.pathname).toBe("/app/sign-in");
+    expect(router.state.location.search).toEqual({ returnTo: "/app" });
+  });
+
+  it("preserves the assignment destination when workspace access requires sign-in", async () => {
+    const path = "/app/alder/work/00000000-0000-4000-a000-000000000001";
+    await workspacePage(path, [], { status: "signed_out" });
+
+    const link = await screen.findByRole("link", { name: "Sign in" });
+    const destination = new URL(link.getAttribute("href")!, "http://localhost");
+    expect(destination.pathname).toBe("/app/sign-in");
+    expect(destination.searchParams.get("returnTo")).toBe(path);
   });
 
   it.each([
     ["round", "Round not available"],
     ["application", "Application not available"],
+    ["review", "Review not available"],
   ] as const)(
     "names the unavailable %s without redundant navigation actions",
     async (resource, title) => {
@@ -159,6 +173,12 @@ describe("workspace states", () => {
 
     expect(screen.getByRole("heading", { name: "Application could not be loaded" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Try again" })).toBeEnabled();
+  });
+
+  it("announces review loading with a translated resource name", async () => {
+    await renderWithRouter(<WorkspaceState status="loading" resource="review" />, "/app");
+
+    expect(screen.getByRole("status")).toHaveTextContent("Loading review…");
   });
 
   it("announces loading without offering a premature recovery action", async () => {

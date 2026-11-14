@@ -5,6 +5,14 @@ export const revokesIssuedInvitations = (
   after: OrganizationSubject["administration"] | null,
 ) => after === null || (before === "administrator" && after === "none");
 
+export const revokesReviewAccess = (
+  before: OrganizationSubject["role"],
+  after: OrganizationSubject["role"] | null,
+) =>
+  (before === "reviewer" || before === "program_manager") &&
+  after !== "reviewer" &&
+  after !== "program_manager";
+
 export const evaluateMemberChange = (...args: Parameters<typeof evaluateMemberAccess>) => {
   const decision = evaluateMemberAccess(...args);
   if (decision.status !== "ok") {

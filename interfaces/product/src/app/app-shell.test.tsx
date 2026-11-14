@@ -14,6 +14,7 @@ const alder: ShellWorkspace = {
   slug: "alder",
   kind: "standard",
   canWorkOnGrants: true,
+  canViewTeam: true,
 };
 const birch: ShellWorkspace = {
   id: "birch",
@@ -21,6 +22,7 @@ const birch: ShellWorkspace = {
   slug: "birch",
   kind: "standard",
   canWorkOnGrants: false,
+  canViewTeam: true,
 };
 const workspaces = [alder, birch];
 
@@ -153,60 +155,56 @@ describe("workspace switching", () => {
   });
 });
 
-describe("personal review navigation", () => {
-  it("offers the person's workspaces from My reviews", async () => {
+describe("workspace review navigation", () => {
+  it("gives reviewers My work and workspace switching without staff destinations", async () => {
+    const reviewer = { ...alder, canWorkOnGrants: false, canViewTeam: false };
     const { user, router } = await renderWithRouter(
-      <WorkspaceNavigationContext value={{ workspaces: [birch], canAdminister: false }}>
-        <AppShell current={{ kind: "reviews" }}>Review work</AppShell>
+      <WorkspaceNavigationContext value={{ workspaces: [reviewer, birch], canAdminister: false }}>
+        <AppShell current={{ kind: "workspace", workspace: reviewer }}>Review work</AppShell>
       </WorkspaceNavigationContext>,
-      "/reviews",
+      "/app/alder/work",
     );
-    const sidebar = within(screen.getByRole("complementary"));
-
-    expect(sidebar.getByRole("link", { name: "Merit home" })).toHaveAttribute("href", "/reviews");
-    const navigation = within(sidebar.getByRole("navigation", { name: "Main navigation" }));
+    const navigation = within(screen.getByRole("navigation", { name: "Main navigation" }));
+    expect(screen.getByRole("link", { name: "Merit home" })).toHaveAttribute(
+      "href",
+      "/app/alder/work",
+    );
     expect(navigation.getAllByRole("link")).toHaveLength(1);
-    expect(navigation.getByRole("link", { current: "page" })).toHaveAccessibleName("My reviews");
-    expect(navigation.queryByText("Workspace", { exact: true })).not.toBeInTheDocument();
-
-    await user.click(sidebar.getByRole("button", { name: "My reviews: Switch workspace" }));
-    const choices = within(screen.getByRole("dialog", { name: "Switch workspace" }));
-    expect(choices.getByRole("link", { name: "Birch Foundation" })).not.toHaveAttribute(
-      "aria-current",
-    );
-
-    await user.click(choices.getByRole("link", { name: "Birch Foundation" }));
-
+    expect(navigation.getByRole("link", { current: "page" })).toHaveAccessibleName("My work");
+    await user.click(screen.getByRole("button", { name: "Alder Foundation: Switch workspace" }));
+    await user.click(screen.getByRole("link", { name: "Birch Foundation" }));
     expect(router.state.location.pathname).toBe("/app/birch/settings/members");
   });
 
-  it("keeps a reviewer without workspaces static and adds administration for operators", async () => {
+  it("adds independent administration to reviewer navigation", async () => {
     await renderWithRouter(
       <WorkspaceNavigationContext value={{ workspaces: [], canAdminister: true }}>
-        <AppShell current={{ kind: "reviews" }}>Review work</AppShell>
+        <AppShell
+          current={{
+            kind: "workspace",
+            workspace: { ...alder, canWorkOnGrants: false, canViewTeam: true },
+          }}
+        >
+          Work
+        </AppShell>
       </WorkspaceNavigationContext>,
-      "/reviews/6bca8fde-b474-4ca7-a80b-3bc8af1cc979",
+      "/app/alder/work",
     );
-    const navigation = within(screen.getByRole("navigation", { name: "Main navigation" }));
-
-    expect(screen.queryByRole("button", { name: /Switch workspace/ })).not.toBeInTheDocument();
-    expect(navigation.getByRole("link", { current: "page" })).toHaveAccessibleName("My reviews");
-    expect(navigation.getByRole("link", { name: "Administration" })).toHaveAttribute(
-      "href",
-      "/admin/organizations",
-    );
-    expect(navigation.queryByRole("link", { name: "Workspace settings" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Workspace settings" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "Administration" })).toBeVisible();
+    expect(screen.queryByRole("link", { name: "Applications" })).not.toBeInTheDocument();
   });
 
-  it("links to My reviews from real workspaces but not from a demo", async () => {
+  it("links to My work from standard workspaces but keeps demos self-contained", async () => {
     const { unmount } = await renderWithRouter(
       <AppShell current={{ kind: "workspace", workspace: alder }}>Workspace</AppShell>,
       "/app/alder/rounds",
     );
-
-    expect(screen.getByRole("link", { name: "My reviews" })).toHaveAttribute("href", "/reviews");
+    expect(screen.getByRole("link", { name: "My work" })).toHaveAttribute(
+      "href",
+      "/app/alder/work",
+    );
     unmount();
-
     const demo = { ...alder, slug: "demo-alder", kind: "demo" as const };
     await renderWithRouter(
       <QueryClientProvider client={createQueryClient()}>
@@ -214,9 +212,7 @@ describe("personal review navigation", () => {
       </QueryClientProvider>,
       "/app/demo-alder/rounds",
     );
-
-    expect(screen.getByRole("link", { name: "Funding rounds" })).toBeVisible();
-    expect(screen.queryByRole("link", { name: "My reviews" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "My work" })).not.toBeInTheDocument();
   });
 });
 
@@ -243,6 +239,8 @@ describe("workspace navigation", () => {
     ["/app/alder/applications/", "Applications"],
     ["/app/alder/applications/workshop-saturdays-b8q3w5j7c2df", "Applications"],
     ["/app/alder/activity", "Activity"],
+    ["/app/alder/work", "My work"],
+    ["/app/alder/work/review-one", "My work"],
     ["/app/alder/contacts", "Contacts"],
     ["/app/alder/settings/members", "Workspace settings"],
   ])("marks only %s's section as current", async (path, selected) => {

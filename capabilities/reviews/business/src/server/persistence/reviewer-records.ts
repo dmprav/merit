@@ -95,16 +95,28 @@ export const reviewerOwns = (record: ReviewerRecord, userId: string, emails: str
     ? record.assignment.reviewerUserId === userId
     : emails.some((email) => email.toLowerCase() === record.assignment.email);
 
-const currentMembership = sql<boolean>`(${reviewAssignments.membershipId} is null OR EXISTS (SELECT 1 FROM ${memberships} WHERE ${memberships.id} = ${reviewAssignments.membershipId} AND ${memberships.userId} = ${reviewAssignments.reviewerUserId} AND ${memberships.organizationId} = ${reviewAssignments.organizationId}))`;
+const currentMembership = sql<boolean>`EXISTS (SELECT 1 FROM ${memberships}
+  WHERE ${memberships.id} = ${reviewAssignments.membershipId}
+    AND (${reviewAssignments.reviewerUserId} IS NULL OR ${memberships.userId} = ${reviewAssignments.reviewerUserId})
+    AND ${memberships.organizationId} = ${reviewAssignments.organizationId}
+    AND ${memberships.role} IN ('reviewer', 'program_manager'))`;
 
-export const reviewerIdentityCurrent = async (db: Database, id: string) =>
+export const reviewerIdentityCurrent = async (db: Database, id: string, userId: string) =>
   Boolean(
     (
       await db
         .select({ id: reviewAssignments.id })
         .from(reviewAssignments)
         .innerJoin(organizations, eq(organizations.id, reviewAssignments.organizationId))
-        .where(and(eq(reviewAssignments.id, id), currentMembership, activeOrganization))
+        .innerJoin(memberships, eq(memberships.id, reviewAssignments.membershipId))
+        .where(
+          and(
+            eq(reviewAssignments.id, id),
+            eq(memberships.userId, userId),
+            currentMembership,
+            activeOrganization,
+          ),
+        )
     )[0],
   );
 
@@ -114,6 +126,10 @@ export const permittedReviewerWork = async (db: Database, assignmentId: string, 
     .from(reviewAssignments)
     .innerJoin(organizations, eq(organizations.id, reviewAssignments.organizationId))
     .innerJoin(appUsers, eq(appUsers.id, userId))
+    .innerJoin(
+      memberships,
+      and(eq(memberships.organizationId, organizations.id), eq(memberships.userId, userId)),
+    )
     .where(
       and(
         eq(reviewAssignments.id, assignmentId),
@@ -121,6 +137,9 @@ export const permittedReviewerWork = async (db: Database, assignmentId: string, 
         accessScope("work_on_review", {
           "subject.userId": appUsers.id,
           "subject.active": appUsers.active,
+          "subject.organizationId": memberships.organizationId,
+          "subject.role": memberships.role,
+          "resource.organizationId": reviewAssignments.organizationId,
           "resource.reviewerUserId": reviewAssignments.reviewerUserId,
           "resource.reviewStatus": reviewAssignments.status,
           "resource.reviewMembershipCurrent": currentMembership,
@@ -135,14 +154,67 @@ export const reviewerMembership = async (db: Database, organizationId: string, u
     await db
       .select({ id: memberships.id })
       .from(memberships)
-      .where(and(eq(memberships.organizationId, organizationId), eq(memberships.userId, userId)))
+      .where(
+        and(
+          eq(memberships.organizationId, organizationId),
+          eq(memberships.userId, userId),
+          inArray(memberships.role, ["reviewer", "program_manager"]),
+        ),
+      )
   )[0]?.id ?? null;
 
-export const listReviewerRecords = (db: Database, userId: string, emails: string[]) =>
+export const reviewerMembershipByEmail = async (
+  db: Database,
+  organizationId: string,
+  email: string,
+) =>
+  (
+    await db
+      .select({ id: memberships.id })
+      .from(memberships)
+      .innerJoin(appUsers, eq(appUsers.id, memberships.userId))
+      .where(
+        and(
+          eq(memberships.organizationId, organizationId),
+          eq(memberships.email, email),
+          eq(appUsers.active, true),
+          inArray(memberships.role, ["reviewer", "program_manager"]),
+        ),
+      )
+  )[0]?.id ?? null;
+
+export const reviewerWorkspace = async (db: Database, userId: string, slug: string) =>
+  (
+    await db
+      .select({ id: organizations.id })
+      .from(organizations)
+      .innerJoin(memberships, eq(memberships.organizationId, organizations.id))
+      .innerJoin(appUsers, eq(appUsers.id, memberships.userId))
+      .where(
+        and(
+          eq(organizations.slug, slug),
+          organizationScope(userId, "read_workspace", organizations.id),
+        ),
+      )
+  )[0];
+
+export const listReviewerRecords = (
+  db: Database,
+  userId: string,
+  emails: string[],
+  workspaceSlug?: string,
+) =>
   reviewerRecordQuery(db)
+    .innerJoin(
+      memberships,
+      and(eq(memberships.id, reviewAssignments.membershipId), eq(memberships.userId, userId)),
+    )
+    .innerJoin(appUsers, eq(appUsers.id, memberships.userId))
     .where(
       and(
         currentMembership,
+        organizationScope(userId, "assess_grants", organizations.id),
+        workspaceSlug === undefined ? undefined : eq(organizations.slug, workspaceSlug),
         activeOrganization,
         or(
           eq(reviewAssignments.reviewerUserId, userId),

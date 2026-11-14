@@ -9,6 +9,7 @@ test("owner invites an administrator, grant access is explicit, and removal expl
   page,
   context,
   request,
+  workspaceDatabase,
 }, testInfo) => {
   const open = async (url: string) => {
     await page.goto(url);
@@ -58,18 +59,30 @@ test("owner invites an administrator, grant access is explicit, and removal expl
 
   await page.screenshot({ path: testInfo.outputPath("team-directory.png"), fullPage: true });
   await expect(page.getByText("Access history")).toHaveCount(0);
+  // Team no longer displays audit history; verify the persisted event at its owner.
+  expect(
+    (
+      await workspaceDatabase.query(
+        "SELECT e.action FROM audit_events e JOIN organizations o ON o.id = e.organization_id WHERE o.slug = $1 AND e.action = 'organization.created'",
+        [slug],
+      )
+    ).rows,
+  ).toEqual([{ action: "organization.created" }]);
   await page.getByRole("button", { name: "Invite member", exact: true }).click();
   let dialog = page.getByRole("dialog", { name: "Invite member", exact: true });
   await dialog.getByRole("textbox", { name: "Email address" }).fill("dana@example.test");
   await dialog.getByRole("button", { name: /Organization responsibility/ }).click();
-  await expect(page.getByRole("option", { name: /^Administrator/ })).toContainText(
+  await expect(page.getByRole("option", { name: /^Administrator\b/ })).toContainText(
     "Can manage members and grant access, including to themselves.",
   );
-  await page.getByRole("option", { name: /^Administrator/ }).click();
+  await page.getByRole("option", { name: /^Administrator\b/ }).click();
+  await expect(
+    dialog.getByRole("button", { name: /Administrator Organization responsibility/ }),
+  ).toBeVisible();
 
   await page.screenshot({ path: testInfo.outputPath("team-invite.png"), fullPage: true });
   await dialog.getByRole("button", { name: /Grant-work access/ }).click();
-  await page.getByRole("option", { name: /^No grant-work access/ }).click();
+  await page.getByRole("option", { name: /^No grant-work access\b/ }).click();
   await dialog.getByRole("button", { name: "Invite member", exact: true }).click();
 
   await expect(dialog).toHaveCount(0);
@@ -78,8 +91,17 @@ test("owner invites an administrator, grant access is explicit, and removal expl
       .getByRole("status")
       .filter({ hasText: "Invitation saved. Check its email delivery status below." }),
   ).toBeVisible();
-  const danaInvitation = page.getByRole("row").filter({ hasText: "dana@example.test" });
-  await expect(danaInvitation.getByText("Awaiting acceptance", { exact: true })).toBeVisible();
+  await expect(page.getByRole("row").filter({ hasText: "dana@example.test" })).toContainText(
+    "Awaiting acceptance",
+  );
+  expect(
+    (
+      await workspaceDatabase.query(
+        "SELECT e.action FROM audit_events e JOIN organizations o ON o.id = e.organization_id WHERE o.slug = $1 AND e.action = 'team_invitation.issued' AND e.details->>'email' = $2",
+        [slug, "dana@example.test"],
+      )
+    ).rows,
+  ).toEqual([{ action: "team_invitation.issued" }]);
 
   const danaLink = await invitationLink(request, "dana@example.test", name);
   await identity("manager");
@@ -115,7 +137,7 @@ test("owner invites an administrator, grant access is explicit, and removal expl
   await expect(dialog.getByRole("button", { name: /Organization responsibility/ })).toHaveCount(0);
 
   await dialog.getByRole("button", { name: /Grant-work access/ }).click();
-  await page.getByRole("option", { name: /^Program manager/ }).click();
+  await page.getByRole("option", { name: /^Program manager\b/ }).click();
   await dialog.getByRole("button", { name: "Save access", exact: true }).click();
 
   await expect(dialog).toHaveCount(0);
@@ -188,8 +210,10 @@ test("owner invites an administrator, grant access is explicit, and removal expl
   await expect(dialog).toContainText("This also revokes 1 invitation they sent");
   await expect(dialog).not.toContainText("handover@example.test");
   await expect(dialog).toContainText("Merit cannot list their outstanding work yet.");
+  await expect(dialog).toContainText("Their review assignments will also end.");
+  await expect(dialog).toContainText("Their private drafts, submitted assessments, authorship");
   await expect(dialog).toContainText(
-    "Their work, authorship, account, and other organization memberships stay unchanged.",
+    "a program manager must explicitly reinstate each assignment.",
   );
 
   await page.screenshot({ path: testInfo.outputPath("team-removal.png"), fullPage: true });

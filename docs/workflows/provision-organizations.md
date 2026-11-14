@@ -7,7 +7,7 @@ or access to grant data.
 
 ## Move between administration and workspaces
 
-Navigation identifies the current workspace, **My reviews**, or **Administration** and offers
+Navigation identifies the current workspace or **Administration** and offers
 destinations the person can access. Administration uses the same operator policy
 as its operations; it grants no membership or access to workspace data.
 

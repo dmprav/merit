@@ -13,8 +13,13 @@ The [workflow](../../../docs/workflows/review-applications.md#review-basis-and-f
 defines comparison and unknown-basis precedence, including criteria reversions.
 
 Manager [review commands](src/server/commands/reviews.ts) require current workspace
-authority. [Reviewer commands](src/server/commands/reviewer.ts) use assignment access;
-an external reviewer gains no workspace membership. Manager reads never expose
+authority. [Reviewer commands](src/server/commands/reviewer.ts) require a current reviewer or program-manager membership
+and the assignment. Organizations grants membership; Reviews never provisions it.
+The assignment binds its membership identity so removal and rejoining cannot restore
+old access. Organizations supplies its exclusive workspace lock to the
+[review revocation collaborator](src/server/persistence/commands/membership.ts)
+when review responsibilities end. A manager must explicitly reinstate assignments
+after qualifying membership is restored. Manager reads never expose
 private reviewer drafts. Accepted review requests, cancellations, reviewer
 participation transitions, and assessments are recorded atomically through
 [Audit](../../audit/business/README.md); private drafts and email delivery attempts
@@ -37,7 +42,7 @@ establish which records those sequences belong to.
 
 `/api` is browser-safe. `/server` exports the manager and reviewer service factories
 and authorized operations. Approved composition reads use `/schema`, `/scope`,
-`/participation-schema`, and `/readers`. `/server/demo` exposes the recorder only for
+`/participation-schema`, and `/readers`. `/server/demo` exposes review and assignment persistence only for
 trusted example seeding. Reviews reads application material and round criteria
 through owner exports and has no dependency on recommendation implementation.
 

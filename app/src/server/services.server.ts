@@ -12,6 +12,7 @@ import { productLinks } from "@merit/product/links";
 import { createRecommendationsService } from "@merit/recommendations/server";
 import { createReviewService } from "@merit/reviews/server";
 import { createReviewerService } from "@merit/reviews/server";
+import { revokeMembershipReviews } from "@merit/reviews/server/integrations";
 import { createRoundsService } from "@merit/rounds/server";
 import { instrumentService, withSpan } from "@merit/telemetry";
 
@@ -80,7 +81,7 @@ export const createApplicationServices = ({
     createReviewerService({
       database,
       verifiedEmails: identity.verifiedEmails,
-      reviewerUrl: (id) => new URL(productLinks.review(id), invitationOrigin).href,
+      reviewerUrl: (slug, id) => new URL(productLinks.review(slug, id), invitationOrigin).href,
       managerUrl: (slug, id) =>
         new URL(productLinks.application(slug, id, { tab: "reviews" }), invitationOrigin).href,
       send: async (message) =>
@@ -94,6 +95,7 @@ export const createApplicationServices = ({
   const organizations = instrumentService(
     "organizations",
     createOrganizationService({
+      revokeReviewAccess: revokeMembershipReviews,
       database,
       ...identity,
       networkAddress,

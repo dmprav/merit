@@ -385,7 +385,7 @@ export const ConfirmWithdraw: Story = {
   play: async (context) => {
     const dialog = await openWithdrawal(context);
 
-    await expect(dialog.getByText(/outstanding review request/)).toBeVisible();
+    await waitFor(async () => expect(dialog.getByText(/outstanding review request/)).toBeVisible());
     await expect(dialog.getByRole("textbox", { name: /Withdrawal date/ })).toBeVisible();
   },
 };

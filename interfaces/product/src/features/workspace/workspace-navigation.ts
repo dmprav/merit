@@ -6,6 +6,7 @@ export const WorkspaceNavigationContext = createContext<{
     name: string;
     slug: string;
     canWorkOnGrants: boolean;
+    canViewTeam: boolean;
     kind?: "standard" | "demo";
     demoExpiresAt?: string | null;
   }[];

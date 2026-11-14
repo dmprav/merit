@@ -1,18 +1,17 @@
 export const en = {
-  signInHelp:
-    "Sign in with the verified email address that received your review invitation. This grants access only to your assignments.",
   working: "Saving changes…",
   retainedDraft:
     "Access changed before this writing was saved. You can copy your unsaved draft below and contact the manager.",
   invitationExpired: "Resend the invitation to let the reviewer respond.",
-  title: "My reviews",
   invitation: "Review invitation",
+  invitedBy: "{{name}} has invited you to review this application.",
   assessment: "Your assessment",
   evidence: "Application material",
   criteria: "Assessment criteria",
   instructions:
     "Assess the application against the criteria. Give your funding position and reasoning, with a proposed amount if you recommend funding. Notes on individual criteria are optional.",
-  empty: "No review assignments yet.",
+  empty:
+    "No review assignments yet. When a program manager assigns an application to you, it will appear here.",
   assigned: "Review assignments",
   contact: "Ask a question by email",
   applicant: "Applicant",
@@ -109,7 +108,7 @@ export const en = {
   reviewerAccess: "Reviewer participation",
   invite: "Invite reviewer",
   invitationHelp:
-    "Sends {{name}} an invitation at their contact email. They sign in and choose whether to accept.",
+    "Sends {{name}} a review invitation at their contact email. They must first join this workspace as a reviewer or program manager. Ask an owner or administrator to invite them through Members & access.",
   dueHelp: "Optional. Passing this date does not prevent submission.",
   invitationSent: "Email accepted by sender",
   invitationFailed: "The invitation did not reach the email sender. Resend it to try again.",
@@ -131,6 +130,8 @@ export const en = {
     "They will immediately lose application access and will be unable to save or submit. Their private draft and any submitted assessment are preserved. You can reinstate the same assignment later.",
   withdrawTitle: "Withdraw from this review?",
   withdrawHelp: "This ends your access and tells the manager you will not complete the assessment.",
+  reviewerMembershipRequired:
+    "This contact must first join the workspace as a reviewer or program manager. Ask an owner or administrator to invite them through Members & access, then send the review invitation.",
   inviteInvalid:
     "The reviewer needs a contact email, and the requesting manager must be signed in with a verified email. Invitations are available in standard workspaces.",
   limited:

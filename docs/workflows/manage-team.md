@@ -1,10 +1,10 @@
 # Manage an organization’s team
 
 Team manages organization membership, administrative responsibility, and
-organization-wide grant access. Program managers have access to the organization's
-grant work; individual review assignments belong to the
-[reviewer workflow](participate-in-review.md). External reviewers are invited to
-assignments without being added to Team.
+grant-work roles. Program managers have access to the organization's grant work;
+reviewers can assess only their assigned applications. Team grants workspace
+membership; individual assignments belong to the
+[reviewer workflow](participate-in-review.md).
 
 The [Contacts workflow](manage-contacts.md) manages people involved in
 applications and reviews. Naming a contact does not create membership or grant
@@ -30,18 +30,20 @@ self-demotion are not available; contact the Merit operator for ownership change
 or recovery. Administrators cannot remove fellow administrators or change their
 administrative responsibility; the owner can.
 
-All members can see names, emails, and responsibilities in **Workspace settings → Members & access**. Administrators
+Members other than reviewers can see names, emails, and responsibilities in **Workspace settings → Members & access**. Reviewers see this directory only when they independently hold organization administration. Administrators
 also manage invitations, with expired invitations and sending problems visible as
 work needing attention. After inviting someone, make the result easy to check.
 The [team examples](../../interfaces/product/src/features/team/team-view.stories.tsx)
 show how members and invitations are presented. Members with grant access start on
-funding rounds; others start on Members & access. The workspace switcher respects the same
+funding rounds; administrators without grant access start on Members & access, and
+reviewers start on My work. The workspace switcher respects the same
 permissions. Names and contact emails are recorded during invitation acceptance;
 show missing details as unknown.
 
 ## Invite and join
 
 **Invite member** asks for an email and defaults to program-manager access. The
+owner and administrators can choose Reviewer for assigned applications only. The
 owner can additionally grant administration, with or without grant access. Both
 the email and acceptance screen state the responsibilities. An account must verify
 the invited email and explicitly accept before membership is created. Inviting an
@@ -83,9 +85,10 @@ revocation scope and affected count before confirmation; a change to the underly
 invitation list requires a fresh review before removal or demotion can commit. No action deletes the person’s account or their
 memberships in other organizations.
 
-Access ends on subsequent requests, including protected MCP reads. A reviewer
-assignment accepted under the removed membership also loses access. Rejoining does
-not restore it: a manager must end and explicitly reinstate the assignment. Historical
+Access ends on subsequent requests, including protected MCP reads. Removing a
+reviewer or program-manager membership, or changing its grant-work role to an
+ineligible role, also ends its review assignments. After qualifying membership is
+restored, a program manager must explicitly **Reinstate assignment** to resume it. Historical
 recommendations and their author records remain. Funding rounds identify their
 responsible manager and show a need for reassignment when that person loses grant
 access. Another current program manager can take responsibility from the round.

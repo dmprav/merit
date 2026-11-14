@@ -181,7 +181,8 @@ A person's supporting line identifies them; it should not accumulate workflow
 feedback or retry controls. Group related status facts within their column without
 collapsing distinct meanings, such as invitation acceptance and email delivery.
 Keep each row action in one predictable place. At narrow widths, retain the table's
-labelled record presentation rather than squeezing the desktop columns.
+labelled record presentation rather than squeezing the desktop columns. When
+space is tight relative to the text size, labels stack above their values.
 
 Choose scrolling to suit the surrounding work: page flow for continuous reading,
 or a bounded region for sustained comparison. Check that headings and record

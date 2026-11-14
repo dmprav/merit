@@ -11,7 +11,7 @@ import {
   useTranslatedSchema,
 } from "@merit/forms";
 import { invitationEmail, teamAccess } from "@merit/organizations/api";
-import { revokesIssuedInvitations } from "@merit/organizations/domain";
+import { revokesIssuedInvitations, revokesReviewAccess } from "@merit/organizations/domain";
 import { Icon } from "@merit/ui/icon";
 import { Stack } from "@merit/ui/layout";
 import { Notice } from "@merit/ui/notice";
@@ -33,7 +33,7 @@ const InvitationImpact = ({ invitations }: { invitations: Invitation[] }) => {
   });
 
   return (
-    <div className={styles.invitationWarning}>
+    <div className={styles.accessWarning}>
       <Icon name="warning" />
       <p>
         <span>{summary}</span> {t("revocationRecovery")}
@@ -52,6 +52,7 @@ const useAccessChoices = () => {
     ] as const,
     roleItems: [
       { id: "program_manager", label: t("program_manager"), description: t("roleHelp") },
+      { id: "reviewer", label: t("reviewer"), description: t("reviewerHelp") },
       { id: "member", label: t("member"), description: t("noGrantAccessHelp") },
     ] as const,
   };
@@ -116,20 +117,7 @@ export const InviteForm = ({
           </form.Field>
         )}
         <form.Field name="role">
-          {(field) =>
-            canAppoint ? (
-              <FormSelect field={field} label={t("grantAccess")} items={roleItems} />
-            ) : (
-              <TextField
-                label={t("grantAccess")}
-                value={t(field.state.value)}
-                description={
-                  field.state.value === "program_manager" ? t("roleHelp") : t("noGrantAccessHelp")
-                }
-                isReadOnly
-              />
-            )
-          }
+          {(field) => <FormSelect field={field} label={t("grantAccess")} items={roleItems} />}
         </form.Field>
       </Stack>
     </Form>
@@ -161,7 +149,7 @@ export const EditForm = ({
   const { form, submission } = useForm<Access>({
     defaultValues: draft ?? {
       administration: member.administration === "none" ? "none" : "administrator",
-      role: member.role === "program_manager" ? "program_manager" : "member",
+      role: member.role === "committee_reader" ? "member" : member.role,
     },
     schema: useTranslatedSchema(teamAccess),
     onChange,
@@ -204,6 +192,16 @@ export const EditForm = ({
         <form.Field name="role">
           {(field) => <FormSelect field={field} label={t("grantAccess")} items={roleItems} />}
         </form.Field>
+        <form.Subscribe selector={(state) => state.values.role}>
+          {(role) =>
+            revokesReviewAccess(member.role, role) ? (
+              <div className={styles.accessWarning}>
+                <Icon name="warning" />
+                <p>{t("savingEndsReviewAssignments")}</p>
+              </div>
+            ) : null
+          }
+        </form.Subscribe>
         <form.Subscribe selector={(state) => state.values.administration}>
           {(administration) =>
             revokesIssuedInvitations(member.administration, administration) &&

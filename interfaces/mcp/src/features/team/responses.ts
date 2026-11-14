@@ -52,7 +52,7 @@ export const invitationPageSchema = z.object({
       id: z.string(),
       email: z.string(),
       administration: z.enum(["none", "administrator", "owner"]),
-      role: z.enum(["member", "program_manager"]),
+      role: z.enum(["member", "program_manager", "reviewer"]),
       expiresAt: z.iso.datetime(),
       delivery: z.enum(["pending", "sent", "failed"]),
       invitedBy: z.string().nullable(),

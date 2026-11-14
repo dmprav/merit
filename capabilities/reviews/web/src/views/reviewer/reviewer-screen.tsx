@@ -301,8 +301,12 @@ const ReviewerParticipation = ({
         <RetainedDraft work={work} />
         {assignment.status === "invited" && !expired && (
           <>
-            <p>{t("instructions")}</p>
-            <Inline>
+            <Stack gap={3}>
+              <h2>{t("invitation")}</h2>
+              <p>{t("invitedBy", { name: assignment.managerName })}</p>
+              <p className={styles.invitationHelp}>{t("instructions")}</p>
+            </Stack>
+            <Inline className={styles.participationActions}>
               <Button isDisabled={work.busy} onPress={() => void work.respond("accept", "")}>
                 {t("accept")}
               </Button>

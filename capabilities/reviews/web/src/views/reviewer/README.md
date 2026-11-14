@@ -29,7 +29,7 @@ amount, response date, and the requesting manager with an email link. Occasional
 consequential actions—reporting a possible conflict and withdrawing—sit in its
 **More actions** menu. An invitation has no reference material yet, so its work
 pane uses the full width and offers **Accept review**, **Decline review**, and
-conflict reporting together.
+conflict reporting together beneath the invitation and assessment expectations.
 
 ## Managing reviewers
 

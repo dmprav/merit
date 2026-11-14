@@ -9,6 +9,7 @@ import { actor, workspaceTest as it, workspaceSlug } from "./workspace-test";
 
 const serviceFor = (db: Database) =>
   createOrganizationService({
+    revokeReviewAccess: async () => {},
     database: (operation) => operation(db),
     isOperator: () => true,
     verifiedEmails: async () => [],

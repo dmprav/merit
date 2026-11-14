@@ -1074,6 +1074,7 @@ describe.concurrent("architecture rules", () => {
                 }
               : {}),
             "./server/grant-work": "./src/server/grant-work.ts",
+            "./server/integrations": "./src/server/integrations.ts",
           };
           return [
             [
@@ -1425,7 +1426,7 @@ describe.concurrent("architecture rules", () => {
       "capabilities/applications/business/src/server/grant-work.ts":
         'export type { Value } from "../domain/model";',
       "app/src/server/services.server.ts":
-        'export { value as rounds } from "@merit/rounds/server"; export { value as applications } from "@merit/applications/server"; export { value as reviews } from "@merit/reviews/server"; export { value as recommendations } from "@merit/recommendations/server";',
+        'export { value as rounds } from "@merit/rounds/server"; export { value as applications } from "@merit/applications/server"; export { value as reviews } from "@merit/reviews/server"; export { value as recommendations } from "@merit/recommendations/server"; export { value as reviewLifecycle } from "@merit/reviews/server/integrations";',
     });
   });
   test.each([

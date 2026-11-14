@@ -20,7 +20,7 @@ const ManagerPreview = ({
   onAssignmentsChange,
 }: {
   assignment: ReviewerSummary | null;
-  scenario: "ordinary" | "pending" | "failure";
+  scenario: "ordinary" | "pending" | "failure" | "membership";
   onAssignmentsChange: (assignments: ReviewerSummary[]) => void;
 }) => {
   const [data] = useState(() =>
@@ -121,6 +121,23 @@ export const SendingFailure: Story = {
     await expect(await dialog.findByRole("alert")).toHaveTextContent(
       "The request could not be confirmed",
     );
+  },
+};
+
+export const WorkspaceMembershipRequired: Story = {
+  args: { assignment: null, scenario: "membership" },
+  play: async (context) => {
+    await Invite.play!(context);
+    const dialog = within(
+      within(context.canvasElement.ownerDocument.body).getByRole("dialog", {
+        name: "Invite reviewer",
+      }),
+    );
+    await context.userEvent.click(dialog.getByRole("button", { name: "Invite reviewer" }));
+    await expect(await dialog.findByRole("alert")).toHaveTextContent(
+      "This contact must first join the workspace as a reviewer or program manager",
+    );
+    await expect(dialog.getByRole("button", { name: "Invite reviewer" })).toBeEnabled();
   },
 };
 

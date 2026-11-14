@@ -72,6 +72,14 @@ it("shows an owner's membership and grant access before acceptance", async () =>
 
 it.each([
   [
+    "none",
+    "reviewer",
+    "Organization member",
+    "No membership-management responsibilities.",
+    "Reviewer",
+    "Assess only applications assigned to you. Your own drafts remain private until you submit.",
+  ],
+  [
     "administrator",
     "member",
     "Organization administrator",

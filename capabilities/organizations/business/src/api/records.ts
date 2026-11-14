@@ -5,7 +5,7 @@ export type InvitationMessage = {
   url: string;
   expiresAt: Date;
   administration: "none" | "administrator" | "owner";
-  role: "member" | "program_manager";
+  role: "member" | "program_manager" | "reviewer";
 };
 
 export type Organization = {

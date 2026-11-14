@@ -5,10 +5,12 @@ import { assert, expect } from "vite-plus/test";
 import { materialVersionSchema } from "@merit/applications/domain";
 import { editFundingApplication } from "@merit/applications/server";
 import { changeWorkspaceContact } from "@merit/contacts/server";
+import { createOrganizationService } from "@merit/organizations/server";
 import { actor } from "@merit/organizations/testing/workspace";
 import type { ReviewerMessage } from "@merit/reviews/api";
 import { reviewRevisionSchema } from "@merit/reviews/domain";
 import { createReviewerService, saveApplicationReview } from "@merit/reviews/server";
+import { revokeMembershipReviews } from "@merit/reviews/server/integrations";
 import { criteriaVersionSchema } from "@merit/rounds/domain";
 import { editFundingRound } from "@merit/rounds/server";
 
@@ -27,6 +29,9 @@ const sam = { userId: "sam" };
 const it = roundTest.extend("reviewerScenario", async ({ db, database, rounds }) => {
   await database.client.query(
     "INSERT INTO app_users (id, name, clerk_user_id) VALUES ('sam','Sam Morgan','sam-account'), ('other','Other','other-account')",
+  );
+  await database.client.query(
+    "INSERT INTO memberships (organization_id, user_id, email, role) VALUES ('alder', 'sam', 'sam@example.test', 'reviewer')",
   );
   const address = await rounds.createApplication("Community review");
   const created = await changeWorkspaceContact(
@@ -67,7 +72,7 @@ const it = roundTest.extend("reviewerScenario", async ({ db, database, rounds })
       }
       messages.push(message);
     },
-    reviewerUrl: (id) => `https://merit.test/reviews/${id}`,
+    reviewerUrl: (slug, id) => `https://merit.test/app/${slug}/work/${id}`,
     managerUrl: (slug, id) => `https://merit.test/app/${slug}/applications/${id}`,
   });
   const invitation = { ...address, requestId, commandId: randomUUID(), dueDate: "2020-01-01" };
@@ -147,13 +152,75 @@ const it = roundTest.extend("reviewerScenario", async ({ db, database, rounds })
   };
 });
 
-it("completes an independently authored review without membership or draft exposure", async ({
+it("refuses new invitations without a qualifying workspace membership and sends no email", async ({
+  db,
+  database,
+  rounds,
+  reviewerScenario: s,
+}) => {
+  const address = await rounds.createApplication("Membership prerequisite");
+  const contact = await changeWorkspaceContact(
+    db,
+    actor,
+    {
+      workspaceSlug: "alder",
+      action: "create",
+      contactId: randomUUID(),
+      details: { name: "Other Reviewer", email: "other@example.test", affiliation: "" },
+    },
+    fundingRoundContactUsage,
+  );
+  assert(contact.status === "ok");
+  const requestId = randomUUID();
+  expect(
+    await saveApplicationReview(db, actor, {
+      ...address,
+      expectedRevision: reviewRevisionSchema.parse(0),
+      expectedApplicationVersion: materialVersionSchema.parse(1),
+      expectedCriteriaVersion: criteriaVersionSchema.parse(1),
+      change: { action: "request", id: requestId, contactId: contact.contact.id, replacesId: null },
+    }),
+  ).toMatchObject({ status: "ok" });
+
+  for (const membership of ["absent", "member"]) {
+    if (membership === "member") {
+      await database.client.query(
+        "INSERT INTO memberships (organization_id, user_id, email, role) VALUES ('alder', 'other', 'other@example.test', 'member')",
+      );
+    }
+    const commandId = randomUUID();
+    expect(
+      await s.service.invite(actor, { ...address, requestId, commandId, dueDate: null }),
+    ).toEqual({ status: "invalid", error: "workspace_membership_required" });
+    expect(
+      (
+        await database.client.query("SELECT id FROM review_assignments WHERE request_id = $1", [
+          requestId,
+        ])
+      ).rows,
+    ).toEqual([]);
+    expect(
+      (
+        await database.client.query("SELECT id FROM reviewer_messages WHERE assignment_id = $1", [
+          commandId,
+        ])
+      ).rows,
+    ).toEqual([]);
+    expect(s.messages).toHaveLength(1);
+  }
+});
+
+it("completes an independently authored review with reviewer membership and no staff or draft exposure", async ({
   db,
   database,
   reviewerScenario: s,
 }) => {
   expect(s.messages).toHaveLength(1);
-  expect(s.messages[0]).toMatchObject({ kind: "invitation", to: "sam@example.test" });
+  expect(s.messages[0]).toMatchObject({
+    kind: "invitation",
+    to: "sam@example.test",
+    url: `https://merit.test/app/alder/work/${s.assignmentId}`,
+  });
   expect(await s.service.invite(actor, s.invitation)).toMatchObject({
     status: "ok",
     value: { id: s.assignmentId },
@@ -166,7 +233,7 @@ it("completes an independently authored review without membership or draft expos
   expect(await s.respond("accept")).toMatchObject({ status: "ok", value: { status: "accepted" } });
   expect(
     (await database.client.query("SELECT * FROM memberships WHERE user_id = 'sam'")).rows,
-  ).toEqual([]);
+  ).toMatchObject([{ role: "reviewer", administration: "none" }]);
   expect(await getFundingApplicationPage(db, sam, s.address)).toBeNull();
   const page = await s.read();
   assert(page.draft);
@@ -502,7 +569,7 @@ it("ends staff review access when their membership is removed and requires expli
     await database.client.query<{ id: string }>("SELECT id FROM organizations WHERE slug = 'alder'")
   ).rows[0]!.id;
   await database.client.query(
-    "INSERT INTO memberships (organization_id, user_id, role) VALUES ($1, 'sam', 'program_manager')",
+    "INSERT INTO memberships (organization_id, user_id, role) VALUES ($1, 'sam', 'program_manager') ON CONFLICT (organization_id, user_id) DO UPDATE SET role = 'program_manager'",
     [organization],
   );
   await s.respond("accept");
@@ -531,7 +598,7 @@ it("ends staff review access when their membership is removed and requires expli
     }),
   ).toEqual({ status: "not_found" });
   await database.client.query(
-    "INSERT INTO memberships (organization_id, user_id, role) VALUES ($1, 'sam', 'program_manager')",
+    "INSERT INTO memberships (organization_id, user_id, role) VALUES ($1, 'sam', 'program_manager') ON CONFLICT (organization_id, user_id) DO UPDATE SET role = 'program_manager'",
     [organization],
   );
   expect(await s.service.read(sam, { assignmentId: s.assignmentId })).toEqual({
@@ -582,7 +649,7 @@ it("pins only the person's own reviewer assignments, without granting staff acce
   const saved = await navigation.change(sam, { action: "pin", target });
   assert(saved.status === "ok");
   expect(saved.pins).toMatchObject([
-    { target, title: "Community review", workspaceSlug: null, context: "Alder Foundation" },
+    { target, title: "Community review", workspaceSlug: "alder", context: "Alder Foundation" },
   ]);
   expect(await navigation.read(sam)).toEqual(saved);
   expect(await navigation.read(actor)).toEqual({ status: "ok", pins: [] });
@@ -713,4 +780,194 @@ it("reads assignment history separately with paging and current manager access",
     "UPDATE memberships SET role = 'member' WHERE organization_id='alder' AND user_id='dana'",
   );
   expect(await s.service.history(actor, input)).toEqual({ status: "not_found" });
+});
+
+it("requires an assignment membership and scopes My work to its workspace", async ({
+  database,
+  reviewerScenario: s,
+}) => {
+  await expect(
+    database.client.query("UPDATE review_assignments SET membership_id = NULL WHERE id = $1", [
+      s.assignmentId,
+    ]),
+  ).rejects.toMatchObject({ code: "23502" });
+  expect(await s.service.list(sam, { workspaceSlug: "alder" })).toMatchObject({
+    status: "ok",
+    value: [{ id: s.assignmentId, workspaceSlug: "alder" }],
+  });
+  expect(await s.service.list(sam, { workspaceSlug: "birch" })).toEqual({ status: "not_found" });
+  expect(
+    await s.service.read(sam, { assignmentId: s.assignmentId, workspaceSlug: "birch" }),
+  ).toEqual({ status: "not_found" });
+});
+
+it("requires the invited membership's identity even before acceptance", async ({
+  db,
+  database,
+  reviewerScenario: s,
+}) => {
+  await database.client.query(
+    "INSERT INTO memberships (organization_id, user_id, role) VALUES ('alder', 'other', 'reviewer')",
+  );
+  const sameEmail = createReviewerService({
+    database: (operation) => operation(db),
+    verifiedEmails: async () => ["sam@example.test"],
+    send: async () => {},
+    reviewerUrl: (_slug, id) => id,
+    managerUrl: (_slug, id) => id,
+  });
+  const other = { userId: "other" };
+  expect(await sameEmail.list(other, { workspaceSlug: "alder" })).toEqual({
+    status: "ok",
+    value: [],
+  });
+  expect(await sameEmail.read(other, { assignmentId: s.assignmentId })).toEqual({
+    status: "not_found",
+  });
+  expect(
+    await sameEmail.respond(other, {
+      assignmentId: s.assignmentId,
+      commandId: randomUUID(),
+      expectedRevision: 0,
+      action: "accept",
+      note: "",
+    }),
+  ).toEqual({ status: "not_found" });
+  expect(await s.respond("accept")).toMatchObject({ status: "ok" });
+});
+
+it("keeps an unaccepted assignment ended after removal and rejoining until explicit reinstatement", async ({
+  db,
+  database,
+  reviewerScenario: s,
+}) => {
+  const organizations = createOrganizationService({
+    database: (operation) => operation(db),
+    revokeReviewAccess: revokeMembershipReviews,
+    isOperator: () => false,
+    verifiedEmails: async () => [],
+    sendInvitation: async () => {},
+    invitationUrl: (token) => token,
+  });
+  await database.client.query(
+    "UPDATE memberships SET administration = 'owner' WHERE user_id = 'dana' AND organization_id = 'alder'",
+  );
+  const team = await organizations.team(actor, { workspaceSlug: "alder" });
+  assert(team.status === "ok");
+  const member = team.value.members.find((person) => person.userId === "sam")!;
+  expect(
+    await organizations.removeMember(actor, {
+      workspaceSlug: "alder",
+      userId: "sam",
+      expectedMembershipId: member.membershipId,
+      expectedVersion: member.version,
+      expectedInvitationIds: [],
+    }),
+  ).toMatchObject({ status: "ok" });
+  expect(
+    (
+      await database.client.query(
+        "SELECT status, membership_id, reviewer_user_id FROM review_assignments WHERE id = $1",
+        [s.assignmentId],
+      )
+    ).rows,
+  ).toEqual([{ status: "cancelled", membership_id: member.membershipId, reviewer_user_id: null }]);
+  await database.client.query(
+    "INSERT INTO memberships (organization_id, user_id, email, role) VALUES ('alder', 'sam', 'sam@example.test', 'reviewer')",
+  );
+  expect(await s.service.list(sam, { workspaceSlug: "alder" })).toEqual({
+    status: "ok",
+    value: [],
+  });
+  expect(await s.service.read(sam, { assignmentId: s.assignmentId })).toEqual({
+    status: "not_found",
+  });
+  expect(
+    await s.service.respond(sam, {
+      assignmentId: s.assignmentId,
+      commandId: randomUUID(),
+      expectedRevision: 1,
+      action: "accept",
+      note: "",
+    }),
+  ).toEqual({ status: "not_found" });
+  expect(await s.manage("reinstate")).toMatchObject({ status: "ok" });
+  expect(await s.read()).toMatchObject({ assignment: { status: "invited" }, material: null });
+  expect(await s.respond("accept")).toMatchObject({ status: "ok" });
+  expect((await s.read()).material).not.toBeNull();
+});
+
+it("permanently ends assignments on role loss, preserves private work, and attributes manager revocation", async ({
+  db,
+  database,
+  reviewerScenario: s,
+}) => {
+  const organizations = createOrganizationService({
+    database: (operation) => operation(db),
+    revokeReviewAccess: revokeMembershipReviews,
+    isOperator: () => false,
+    verifiedEmails: async () => [],
+    sendInvitation: async () => {},
+    invitationUrl: (token) => token,
+  });
+  await database.client.query(
+    "UPDATE memberships SET administration = 'owner' WHERE user_id = 'dana' AND organization_id = 'alder'",
+  );
+  await s.respond("accept");
+  await s.save("Private work survives loss of responsibilities");
+  const original = await s.read();
+  expect(await organizations.team(sam, { workspaceSlug: "alder" })).toEqual({
+    status: "forbidden",
+  });
+
+  const changeRole = async (role: "member" | "reviewer" | "program_manager") => {
+    const team = await organizations.team(actor, { workspaceSlug: "alder" });
+    assert(team.status === "ok");
+    const member = team.value.members.find((person) => person.userId === "sam")!;
+    return organizations.changeMember(actor, {
+      workspaceSlug: "alder",
+      userId: "sam",
+      expectedMembershipId: member.membershipId,
+      expectedVersion: member.version,
+      expectedInvitationIds: [],
+      administration: "none",
+      role,
+    });
+  };
+
+  expect(await changeRole("program_manager")).toMatchObject({ status: "ok" });
+  expect((await s.read()).draft).toEqual(original.draft);
+  expect(await changeRole("reviewer")).toMatchObject({ status: "ok" });
+  expect((await s.read()).draft).toEqual(original.draft);
+  expect(await changeRole("member")).toMatchObject({ status: "ok" });
+  expect(await s.service.read(sam, { assignmentId: s.assignmentId })).toEqual({
+    status: "not_found",
+  });
+  expect(await s.manage("reinstate")).toEqual({
+    status: "invalid",
+    error: "workspace_membership_required",
+  });
+  expect(
+    (
+      await database.client.query(
+        "SELECT actor_user_id, actor_name FROM audit_events WHERE action = 'review_assignment.access_ended'",
+      )
+    ).rows,
+  ).toEqual([{ actor_user_id: "dana", actor_name: "Dana Reed" }]);
+  expect(await changeRole("reviewer")).toMatchObject({ status: "ok" });
+  expect(await s.read()).toMatchObject({
+    assignment: { status: "cancelled" },
+    material: null,
+    draft: null,
+  });
+  expect(
+    await s.service.saveDraft(sam, {
+      assignmentId: s.assignmentId,
+      commandId: randomUUID(),
+      expectedDraftRevision: original.draft!.revision,
+      draft: original.draft!.content,
+    }),
+  ).toEqual({ status: "not_found" });
+  expect(await s.manage("reinstate")).toMatchObject({ status: "ok" });
+  expect((await s.read()).draft).toEqual(original.draft);
 });

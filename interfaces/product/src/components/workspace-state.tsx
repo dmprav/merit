@@ -1,4 +1,4 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useLocation } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
 import linkStyles from "@merit/ui/link.module.css";
@@ -27,6 +27,7 @@ export const WorkspaceState = ({
     | "applications"
     | "activity"
     | "team"
+    | "review"
     | "contacts";
   status:
     | "signed_out"
@@ -36,6 +37,7 @@ export const WorkspaceState = ({
     | "no_workspace"
     | "loading";
 }) => {
+  const pathname = useLocation({ select: (location) => location.pathname });
   const { t } = useTranslation(["web", "common"]);
   const key =
     status === "loading" || status === "unavailable" || status === "not_found"
@@ -55,7 +57,12 @@ export const WorkspaceState = ({
       }
       actions={
         status === "signed_out" ? (
-          <Link to="/app/sign-in" className={linkStyles.button} data-variant="primary">
+          <Link
+            to="/app/sign-in"
+            search={{ returnTo: pathname }}
+            className={linkStyles.button}
+            data-variant="primary"
+          >
             {t("common:signIn")}
           </Link>
         ) : status === "unavailable" ? (

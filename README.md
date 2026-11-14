@@ -32,8 +32,9 @@ visitor's isolated workspace.
   maintain contacts, track review requests, record assessments received elsewhere,
   and save funding recommendations. Changes preserve history and attribution.
   [Grantmaking workflows](docs/workflows/review-and-decide.md) explain each task.
-- **Reviewer participation:** invite a reviewer to one application, with private
-  autosaved drafts, attributable submissions, and amendments. See the
+- **Reviewer participation:** invite reviewers into a workspace, where My work
+  lists their assigned applications, with private autosaved drafts, attributable
+  submissions, and amendments. See the
   [reviewer workflow](docs/workflows/participate-in-review.md).
 - **Team management:** workspace owners and administrators invite colleagues,
   change grant access, and remove membership. See

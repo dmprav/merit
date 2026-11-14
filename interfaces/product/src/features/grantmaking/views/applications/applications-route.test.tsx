@@ -65,6 +65,7 @@ const workspace: Workspace = {
   role: "program_manager",
   administration: "owner",
   canWorkOnGrants: true,
+  canViewTeam: true,
 };
 const roundId = "k7m2p9x4n6rt";
 const otherRoundId = "c7m2p9x4n6rt";

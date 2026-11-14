@@ -14,6 +14,7 @@ export const en = {
     label: "Grant work",
     program_manager: "Program manager (access to grant work)",
     member: "No grant-work access",
+    reviewer: "Reviewer (assigned applications only)",
   },
   recipient: "This invitation is for <recipient>{{email}}</recipient>.",
   review: "Review invitation",

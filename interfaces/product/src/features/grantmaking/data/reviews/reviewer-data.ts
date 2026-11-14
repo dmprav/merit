@@ -11,21 +11,22 @@ import {
   submitReviewerAssessment,
 } from "../server/reviews/reviewer.functions";
 
-export const reviewerListOptions = () =>
+export const reviewerListOptions = (workspaceSlug: string) =>
   queryOptions({
-    queryKey: [...privateKey, "reviewer", "assignments"],
-    queryFn: async ({ signal }) => available(await listReviewerAssignments({ signal })),
-  });
-
-export const reviewerPageOptions = (assignmentId: string) =>
-  queryOptions({
-    queryKey: [...privateKey, "reviewer", "assignment", assignmentId],
+    queryKey: [...privateKey, "reviewer", "assignments", workspaceSlug],
     queryFn: async ({ signal }) =>
-      available(await readReviewerAssignment({ signal, data: { assignmentId } })),
+      available(await listReviewerAssignments({ signal, data: { workspaceSlug } })),
   });
 
-export const reviewerData = (assignmentId: string): ReviewerData => ({
-  read: () => readReviewerAssignment({ data: { assignmentId } }),
+export const reviewerPageOptions = (assignmentId: string, workspaceSlug?: string) =>
+  queryOptions({
+    queryKey: [...privateKey, "reviewer", "assignment", assignmentId, workspaceSlug],
+    queryFn: async ({ signal }) =>
+      available(await readReviewerAssignment({ signal, data: { assignmentId, workspaceSlug } })),
+  });
+
+export const reviewerData = (assignmentId: string, workspaceSlug?: string): ReviewerData => ({
+  read: () => readReviewerAssignment({ data: { assignmentId, workspaceSlug } }),
   respond: (data) => respondToReview({ data }),
   save: (data) => saveReviewerDraft({ data }),
   submit: (data) => submitReviewerAssessment({ data }),

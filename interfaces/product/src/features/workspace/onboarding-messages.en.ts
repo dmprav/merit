@@ -38,6 +38,11 @@ export const en = {
     label: "Program manager",
     description: "Access to the organization’s grant work.",
   },
+  reviewerAccess: {
+    label: "Reviewer",
+    description:
+      "Assess only applications assigned to you. Your own drafts remain private until you submit.",
+  },
   noGrantAccessLabel: "No grant-work access",
   noGrantAccess: "This invitation does not grant access to grant work.",
   accept: "Accept invitation",

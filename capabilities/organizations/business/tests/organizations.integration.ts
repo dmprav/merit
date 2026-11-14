@@ -15,6 +15,7 @@ let sendingFails = false;
 
 const service = (emails = ["recipient@example.test"], name?: string | null) =>
   createOrganizationService({
+    revokeReviewAccess: async () => {},
     database: (operation) => withDatabase(database.connectionString, operation),
     isOperator: (actor) => actor.userId === "operator",
     verifiedEmails: async () => emails,
@@ -67,6 +68,7 @@ beforeEach(async () => {
 describe("organization provisioning", () => {
   it("delivers a working invitation at the host's configured address", async () => {
     const operations = createOrganizationService({
+      revokeReviewAccess: async () => {},
       database: (operation) => withDatabase(database.connectionString, operation),
       isOperator: () => true,
       verifiedEmails: async () => ["recipient@example.test"],
@@ -701,6 +703,7 @@ describe("organization provisioning", () => {
           await tx.execute(sql.raw(`SET LOCAL ROLE ${role}`));
           let actor = "operator";
           const operations = createOrganizationService({
+            revokeReviewAccess: async () => {},
             database: (operation) => operation(tx),
             isOperator: (identity) => identity.userId === "operator",
             verifiedEmails: async () => [`${actor}@example.test`],

@@ -122,9 +122,10 @@ appends existing assessment versions, completes the request, advances those revi
 and records its email intent in one transaction. Assessment authorship and assignment
 events are immutable. Delivery failure does not undo a saved assessment.
 
-External reviewers gain no workspace membership. Staff assignments capture the
-membership under which they accepted; removing that membership invalidates scoped
-access even after a new membership is created. Commands use the shared organization,
+Reviewers join through Organizations before accepting assignments. Each assignment
+captures its qualifying reviewer or program-manager membership. Removing membership
+or review responsibilities invalidates scoped access; rejoining or restoring a role
+requires a manager to explicitly reinstate the assignment. Commands use the shared organization,
 round, case, and account lock order so revocation and submission serialize. The
 central access policy evaluates the current account, assignment, and membership facts.
 
