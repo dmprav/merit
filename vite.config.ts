@@ -28,6 +28,9 @@ export default defineConfig({
   lint,
   test: { allowOnly: false },
   run: {
+    // Cloud sandboxes and WSL2 inherit a seccomp user-notify listener, which makes
+    // Vite Task's file-tracking listener fail with EBUSY (voidzero-dev/vite-plus#1643).
+    ...(process.env.MERIT_TASK_CACHE === "off" ? { cache: false } : {}),
     tasks: {
       dev: "vp run @merit/app#dev",
       "dev:workspace": "vp run @merit/app#dev:workspace",
