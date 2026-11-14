@@ -126,9 +126,11 @@ export const TaskLoadRecovery: StoryObj<typeof meta> = {
     const dialog = body.getByRole("dialog", { name: "Demo guide" });
     await context.userEvent.click(within(dialog).getByRole("button", { name: "Try again" }));
 
-    await expect(
-      await within(dialog).findByRole("link", { name: "Review Workshop Saturdays" }),
-    ).toBeVisible();
+    await waitFor(async () =>
+      expect(
+        await within(dialog).findByRole("link", { name: "Review Workshop Saturdays" }),
+      ).toBeVisible(),
+    );
   },
 };
 
