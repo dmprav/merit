@@ -30,3 +30,15 @@ export type RoundsData = {
   rounds: readonly RoundSummary[];
   createRound: CreationData | null;
 };
+
+export const applicationFilters = [
+  "all",
+  "preparing",
+  "awaiting",
+  "unassigned",
+  "changed",
+  "unknown",
+  "unwritten",
+] as const;
+
+export type ApplicationFilter = (typeof applicationFilters)[number];

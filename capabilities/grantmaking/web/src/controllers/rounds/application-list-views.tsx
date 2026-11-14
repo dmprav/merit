@@ -7,28 +7,34 @@ import type { ApplicationFilter } from "./application-list-filter";
 const Context = createContext<{
   sorting: Record<string, TableSort | undefined>;
   filters: Record<string, { query: string; filter: ApplicationFilter } | undefined>;
+  workspaceQueries: Record<string, string | undefined>;
   setFilters: (roundId: string, value: { query: string; filter: ApplicationFilter }) => void;
   setSorting: (roundId: string, value: TableSort) => void;
+  setWorkspaceQuery: (workspaceSlug: string, query: string) => void;
 } | null>(null);
 
-/** Keep each round's list search, filter, and order for this account session, without persisting it to storage. */
+/** Keep each round's and workspace overview's list search, filter, and order for this account session, without persisting it to storage. */
 export const ApplicationListViews = ({ children }: { children: ReactNode }) => {
   const [sorting, setSorting] = useState<Record<string, TableSort | undefined>>({});
   const [filters, setFilters] = useState<
     Record<string, { query: string; filter: ApplicationFilter } | undefined>
   >({});
+  const [workspaceQueries, setWorkspaceQueries] = useState<Record<string, string | undefined>>({});
 
   return (
     <Context
       value={{
         sorting,
         filters,
+        workspaceQueries,
         setFilters: (roundId, value) => setFilters((current) => ({ ...current, [roundId]: value })),
         setSorting: (roundId, value) =>
           setSorting((current) => ({
             ...current,
             [roundId]: value,
           })),
+        setWorkspaceQuery: (workspaceSlug, query) =>
+          setWorkspaceQueries((current) => ({ ...current, [workspaceSlug]: query })),
       }}
     >
       {children}
@@ -49,5 +55,17 @@ export const useApplicationListView = (roundId: string) => {
       context.setFilters(roundId, value),
     sorting: context.sorting[roundId] ?? null,
     onSortingChange: (value: TableSort) => context.setSorting(roundId, value),
+  };
+};
+
+export const useWorkspaceApplicationList = (workspaceSlug: string) => {
+  const context = useContext(Context);
+  if (!context) {
+    throw new Error("ApplicationListViews is required");
+  }
+
+  return {
+    query: context.workspaceQueries[workspaceSlug] ?? "",
+    onQueryChange: (query: string) => context.setWorkspaceQuery(workspaceSlug, query),
   };
 };

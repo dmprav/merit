@@ -10,7 +10,13 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, it, vi } from "vite-plus/test";
 
-import type { ApplicationOverview } from "@merit/grantmaking/api";
+import { ApplicationListViews } from "@merit/grantmaking-web/rounds";
+import {
+  encodeApplicationDetail,
+  roundView,
+  type ApplicationOverview,
+} from "@merit/grantmaking/api";
+import { makeApplication, makeRound } from "@merit/grantmaking/testing/fixtures";
 import { defaultLocale } from "@merit/i18n";
 import type { Workspace } from "@merit/organizations/api";
 import { createQueryClient } from "@merit/query";
@@ -18,17 +24,26 @@ import { createQueryClient } from "@merit/query";
 import { productRoute } from "../../../../../tests/product-route";
 import { WebMessagesProvider } from "../../../../app/messages";
 import { Route as workspaceRoute } from "../../../../routes/app.$workspaceSlug";
+import { Route as applicationRoute } from "../../../../routes/app.$workspaceSlug.applications.$applicationRef";
 import { Route } from "../../../../routes/app.$workspaceSlug.applications.index";
 import { readWorkspaces } from "../../../workspace/data/server/organization.functions";
 import { readWorkspace } from "../../../workspace/data/server/workspace.functions";
+import { createApplication } from "../../data/server/creation/creation.functions";
 import {
+  readFundingApplicationPage,
   readFundingRounds,
   readWorkspaceApplications,
 } from "../../data/server/funding-round.functions";
 
 vi.mock("../../data/server/funding-round.functions", () => ({
+  readFundingApplicationPage: vi.fn(),
   readFundingRounds: vi.fn(),
   readWorkspaceApplications: vi.fn(),
+}));
+vi.mock("../../data/server/reviews/reviewer.functions", () => ({
+  applicationReviewers: vi.fn(async () => ({ status: "ok", value: [] })),
+  inviteReviewer: vi.fn(async () => ({ status: "invalid" })),
+  manageReviewer: vi.fn(async () => ({ status: "invalid" })),
 }));
 vi.mock("../../../workspace/data/server/organization.functions", () => ({
   readWorkspaces: vi.fn(),
@@ -87,6 +102,25 @@ const rounds = [
   budget: null,
 }));
 
+const applicationPageData = () => {
+  const application = makeApplication({ id: "b8q3w5j7c2df", title: "Zebra workshops" });
+  const round = roundView(
+    makeRound({
+      id: roundId,
+      title: "Neighbourhood grants",
+      foundation: workspace.name,
+      applications: [application],
+    }),
+  );
+  return {
+    status: "ok" as const,
+    ...encodeApplicationDetail({ round, application: round.applications[0]! }),
+    recommendationVersion: 0,
+    intake: { revision: 0, workingRevision: null, history: [] },
+    workspaceSlug: workspace.slug,
+  };
+};
+
 beforeEach(() => {
   vi.stubEnv("MERIT_LOCAL_WORKSPACE", "true");
   vi.mocked(readWorkspace).mockReset().mockResolvedValue({ status: "ok", workspace });
@@ -102,6 +136,8 @@ beforeEach(() => {
     .mockReset()
     .mockResolvedValue({ status: "ok", applications });
   vi.mocked(readFundingRounds).mockReset().mockResolvedValue({ status: "ok", rounds });
+  vi.mocked(readFundingApplicationPage).mockReset().mockResolvedValue(applicationPageData());
+  vi.mocked(createApplication).mockReset();
 });
 
 afterEach(() => vi.unstubAllEnvs());
@@ -110,7 +146,9 @@ const renderApplications = async (search = "") => {
   const root = createRootRoute({
     component: () => (
       <WebMessagesProvider>
-        <Outlet />
+        <ApplicationListViews>
+          <Outlet />
+        </ApplicationListViews>
       </WebMessagesProvider>
     ),
   });
@@ -123,10 +161,16 @@ const renderApplications = async (search = "") => {
     getParentRoute: () => workspaceRoute,
     path: "/applications/",
   } as Parameters<typeof Route.update>[0]);
+  applicationRoute.update({
+    getParentRoute: () => workspaceRoute,
+    path: "/applications/$applicationRef",
+  } as Parameters<typeof applicationRoute.update>[0]);
   const queryClient = createQueryClient();
   const router = createRouter({
     context: { queryClient, locale: defaultLocale },
-    routeTree: root.addChildren([product.addChildren([workspaceRoute.addChildren([Route])])]),
+    routeTree: root.addChildren([
+      product.addChildren([workspaceRoute.addChildren([Route, applicationRoute])]),
+    ]),
     history: createMemoryHistory({ initialEntries: ["/app/alder/applications/" + search] }),
     defaultPendingMinMs: 0,
   });
@@ -194,7 +238,15 @@ it.each([
   },
 );
 
-it("keeps filtering and sorting in the URL and restores all rounds and source order", async () => {
+it("keeps filtering and sorting in the URL, excludes search text from the URL, and clears filters while preserving sorting", async () => {
+  vi.mocked(readWorkspaceApplications).mockResolvedValue({
+    status: "ok",
+    applications: [
+      applications[0]!,
+      { ...applications[1]!, intakeStatus: "ready" },
+      applications[2]!,
+    ],
+  });
   const { user, router } = await renderApplications();
   const table = within(await screen.findByRole("table", { name: "Applications" }));
 
@@ -217,29 +269,56 @@ it("keeps filtering and sorting in the URL and restores all rounds and source or
   expect(titles()).toEqual(["Art circles", "Zebra workshops"]);
   expect(router.state.location.search).toMatchObject({ round: roundId, sort: "application" });
 
-  await user.click(table.getByRole("button", { name: "Application" }));
+  await user.click(screen.getByRole("button", { name: "All applications Show" }));
+  await user.click(screen.getByRole("option", { name: "In preparation" }));
 
-  expect(titles()).toEqual(["Zebra workshops", "Art circles"]);
+  expect(titles()).toEqual(["Zebra workshops"]);
   expect(router.state.location.search).toMatchObject({
     round: roundId,
+    filter: "preparing",
+    sort: "application",
+  });
+
+  await user.click(table.getByRole("button", { name: "Application" }));
+
+  expect(router.state.location.search).toMatchObject({
+    round: roundId,
+    filter: "preparing",
     sort: "application",
     direction: "descending",
   });
 
-  await user.click(screen.getByRole("button", { name: "Neighbourhood grants Round" }));
-  await user.click(screen.getByRole("option", { name: "All rounds" }));
+  await user.type(screen.getByRole("searchbox", { name: "Search applications" }), "Zebra");
+
+  expect(router.state.location.searchStr).not.toContain("Zebra");
+
+  await user.click(screen.getByRole("button", { name: "Clear filters" }));
+
+  expect(titles()).toEqual(["Zebra workshops", "Community meals", "Art circles"]);
+  expect(screen.getByRole("searchbox", { name: "Search applications" })).toHaveValue("");
+  expect(router.state.location.search).toEqual({
+    round: undefined,
+    filter: undefined,
+    sort: "application",
+    direction: "descending",
+  });
+
   await user.click(table.getByRole("button", { name: "Application" }));
 
   expect(titles()).toEqual(["Zebra workshops", "Art circles", "Community meals"]);
   expect(router.state.location.search).toEqual({
     round: undefined,
+    filter: undefined,
     sort: undefined,
     direction: undefined,
   });
 });
 
-it("keeps the list context on application and review links and identifies the owning round", async () => {
-  await renderApplications(`?round=${roundId}&sort=application&direction=descending`);
+it("keeps the list context on application, review, and created links and restores session search when returning", async () => {
+  vi.mocked(createApplication).mockResolvedValue({ status: "ok", publicId: "b8q3w5j7c2df" });
+  const { user, router } = await renderApplications(
+    `?round=${roundId}&filter=preparing&sort=application&direction=descending`,
+  );
   const row = within(await screen.findByRole("row", { name: /Zebra workshops/ }));
   const applicationLink = row.getByRole("link", { name: "Zebra workshops" });
   const applicationLocation = new URL(applicationLink.getAttribute("href")!, "http://localhost");
@@ -247,6 +326,7 @@ it("keeps the list context on application and review links and identifies the ow
   expect(applicationLocation.pathname).toBe("/app/alder/applications/zebra-workshops-b8q3w5j7c2df");
   expect(Object.fromEntries(applicationLocation.searchParams)).toEqual({
     round: roundId,
+    filter: "preparing",
     sort: "application",
     direction: "descending",
     from: "applications",
@@ -262,11 +342,51 @@ it("keeps the list context on application and review links and identifies the ow
   expect(reviewLocation.pathname).toBe(applicationLocation.pathname);
   expect(Object.fromEntries(reviewLocation.searchParams)).toEqual({
     round: roundId,
+    filter: "preparing",
     sort: "application",
     direction: "descending",
     from: "applications",
     tab: "reviews",
   });
+
+  await user.type(screen.getByRole("searchbox", { name: "Search applications" }), "Zebra");
+
+  expect(screen.getByRole("status")).toHaveTextContent("1 of 3 applications");
+  expect(router.state.location.searchStr).not.toContain("Zebra");
+
+  await user.click(applicationLink);
+
+  const backLink = await screen.findByRole("link", { name: "Back to applications" });
+  const backLocation = new URL(backLink.getAttribute("href")!, "http://localhost");
+
+  expect(backLocation.pathname).toBe("/app/alder/applications");
+  expect(Object.fromEntries(backLocation.searchParams)).toEqual({
+    round: roundId,
+    filter: "preparing",
+    sort: "application",
+    direction: "descending",
+  });
+
+  await user.click(backLink);
+
+  expect(await screen.findByRole("searchbox", { name: "Search applications" })).toHaveValue(
+    "Zebra",
+  );
+  expect(screen.getByRole("status")).toHaveTextContent("1 of 3 applications");
+
+  await user.click(screen.getByRole("button", { name: /New application in/ }));
+  await user.click(screen.getByRole("option", { name: "Neighbourhood grants" }));
+  await user.click(screen.getByRole("button", { name: "Add application" }));
+  const dialog = within(await screen.findByRole("dialog", { name: "Add application" }));
+  await user.type(dialog.getByLabelText(/Project title/), "Zebra workshops");
+  await user.click(dialog.getByRole("button", { name: "Add application" }));
+
+  expect(await screen.findByRole("link", { name: "Back to applications" })).toHaveAttribute(
+    "href",
+    expect.stringContaining(
+      `round=${roundId}&filter=preparing&sort=application&direction=descending`,
+    ),
+  );
 });
 
 it("explains how to start in a workspace without rounds", async () => {

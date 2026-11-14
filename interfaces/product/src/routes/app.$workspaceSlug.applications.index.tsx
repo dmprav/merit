@@ -2,7 +2,7 @@ import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
-import { ApplicationsOverview } from "@merit/grantmaking-web/rounds";
+import { ApplicationsOverview, useWorkspaceApplicationList } from "@merit/grantmaking-web/rounds";
 import { PageHeader } from "@merit/ui/page-header";
 
 import { AppPage } from "../app/app-shell";
@@ -18,6 +18,7 @@ const WorkspaceApplications = () => {
   const { workspaceSlug } = Route.useParams();
   const search = Route.useSearch();
   const navigate = Route.useNavigate();
+  const { query, onQueryChange } = useWorkspaceApplicationList(workspaceSlug);
   const { t } = useTranslation(["web", "fundingRounds"]);
   const { data: workspace } = useSuspenseQuery(workspaceOptions(workspaceSlug));
   const { data: result } = useSuspenseQuery(applicationsOptions(workspaceSlug));
@@ -51,7 +52,17 @@ const WorkspaceApplications = () => {
         roundId={search.round ?? ""}
         onRoundChange={(round) =>
           void navigate({
-            search: { ...search, round: round || undefined },
+            search: (current) => ({ ...current, round: round || undefined }),
+            replace: true,
+            resetScroll: false,
+          })
+        }
+        query={query}
+        onQueryChange={onQueryChange}
+        filter={search.filter ?? "all"}
+        onFilterChange={(filter) =>
+          void navigate({
+            search: (current) => applicationsSearch({ ...current, filter }),
             replace: true,
             resetScroll: false,
           })
@@ -61,11 +72,12 @@ const WorkspaceApplications = () => {
         }
         onSortingChange={(sorting) =>
           void navigate({
-            search: applicationsSearch({
-              ...search,
-              sort: sorting?.columnId,
-              direction: sorting?.direction,
-            }),
+            search: (current) =>
+              applicationsSearch({
+                ...current,
+                sort: sorting?.columnId,
+                direction: sorting?.direction,
+              }),
             replace: true,
             resetScroll: false,
           })

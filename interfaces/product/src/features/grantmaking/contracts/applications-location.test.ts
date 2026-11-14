@@ -5,6 +5,7 @@ import { applicationsSearch, workspaceApplicationsLocation } from "./application
 it("preserves a valid application list location while discarding unrelated search data", () => {
   const search = applicationsSearch({
     round: "k7m2p9x4n6rt",
+    filter: "awaiting",
     sort: "application",
     direction: "descending",
     from: "applications",
@@ -13,14 +14,28 @@ it("preserves a valid application list location while discarding unrelated searc
   expect(workspaceApplicationsLocation("alder", search)).toEqual({
     to: "/app/$workspaceSlug/applications",
     params: { workspaceSlug: "alder" },
-    search: { round: "k7m2p9x4n6rt", sort: "application", direction: "descending" },
+    search: {
+      round: "k7m2p9x4n6rt",
+      filter: "awaiting",
+      sort: "application",
+      direction: "descending",
+    },
   });
 });
 
-it("discards invalid round and sort parameters", () => {
-  expect(applicationsSearch({ round: ["other"], sort: "budget", direction: "sideways" })).toEqual({
+it("discards invalid or default round, filter, and sort parameters", () => {
+  expect(
+    applicationsSearch({
+      round: ["other"],
+      filter: "all",
+      sort: "budget",
+      direction: "sideways",
+    }),
+  ).toEqual({
     round: undefined,
+    filter: undefined,
     sort: undefined,
     direction: undefined,
   });
+  expect(applicationsSearch({ filter: "invalid" }).filter).toBeUndefined();
 });
