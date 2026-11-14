@@ -27,3 +27,8 @@ path_line="export PATH=\"$repo/node_modules/.bin:\$PATH\""
 if ! grep -qxF "$path_line" "$HOME/.bashrc" 2>/dev/null; then
   printf '\n%s\n' "$path_line" >> "$HOME/.bashrc"
 fi
+# Cloud sandboxes inherit a seccomp user-notify listener, so Vite Task caching
+# fails with EBUSY (voidzero-dev/vite-plus#1643).
+if [ -f "$HOME/.bashrc" ] && ! grep -qxF 'export MERIT_TASK_CACHE=off' "$HOME/.bashrc" 2>/dev/null; then
+  printf '\nexport MERIT_TASK_CACHE=off\n' >> "$HOME/.bashrc"
+fi

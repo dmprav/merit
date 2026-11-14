@@ -57,6 +57,9 @@ always execute when selected. Use `vp run --no-cache ready` when a fresh run of
 every check is needed, and `vp run --last-details` to inspect cache hits and misses.
 Run cached checks through
 `vp run`; calling a tool directly, such as `vp check`, bypasses task caching.
+In environments where an inherited seccomp user-notify listener blocks Vite
+Task file tracking with `EBUSY` (such as WSL2 or sandboxed runners), set
+`MERIT_TASK_CACHE=off` to disable task caching globally.
 
 ### Temporary PR verification exception
 
