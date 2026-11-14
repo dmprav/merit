@@ -8,6 +8,7 @@ import { applicationHistoryMessages } from "./views/applications/application-his
 import { applicationsMessages } from "./views/applications/messages.en";
 import { creationMessages } from "./views/creation/messages.en";
 import { roundsMessages } from "./views/rounds/messages.en";
+import { searchMessages } from "./views/search/messages.en";
 
 export const en = {
   draftRecoveryConflict:
@@ -22,6 +23,7 @@ export const en = {
   ...applicationsMessages,
   ...roundsMessages,
   ...activityMessages,
+  ...searchMessages,
   journey: {
     title: "Review a revised request",
     application: "Review Workshop Saturdays",

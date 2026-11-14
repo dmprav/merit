@@ -26,6 +26,7 @@ import Pencil from "lucide-react/icons/pencil";
 import Pin from "lucide-react/icons/pin";
 import Plus from "lucide-react/icons/plus";
 import RotateCcw from "lucide-react/icons/rotate-ccw";
+import Search from "lucide-react/icons/search";
 import Settings from "lucide-react/icons/settings";
 import Trash2 from "lucide-react/icons/trash-2";
 import Users from "lucide-react/icons/users";
@@ -66,6 +67,7 @@ const icons = {
   exit: LogOut,
   reset: RotateCcw,
   close: X,
+  search: Search,
 } as const;
 
 export const Icon = ({ name, className }: { name: keyof typeof icons; className?: string }) => {

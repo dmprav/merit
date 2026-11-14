@@ -2,11 +2,13 @@ import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vite-plus/test";
 
+import { Button } from "../../components/button/button";
 import {
   ApplicationAccount,
   ApplicationContext,
   ApplicationContextOption,
   ApplicationShell,
+  useCloseNavigation,
 } from "./application-shell";
 
 let compact = true;
@@ -75,6 +77,45 @@ it("closes after navigation and places focus in the work", async () => {
 
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   await waitFor(() => expect(screen.getByRole("main")).toHaveFocus());
+});
+
+const SearchAction = ({ onSearch }: { onSearch: () => void }) => {
+  const closeNavigation = useCloseNavigation();
+  return (
+    <Button
+      onPress={() => {
+        closeNavigation();
+        onSearch();
+      }}
+    >
+      Search
+    </Button>
+  );
+};
+
+it("lets a navigation action close the drawer before it opens something over the page", async () => {
+  const user = userEvent.setup();
+  const onSearch = vi.fn();
+  render(
+    <ApplicationShell
+      brand={<a href="/">merit</a>}
+      contextLabel="Alder Foundation"
+      navigation={<SearchAction onSearch={onSearch} />}
+      navigationLabel="Main navigation"
+      skipLabel="Skip to content"
+      openNavigationLabel="Open navigation"
+      closeNavigationLabel="Close navigation"
+    >
+      <main id="main" tabIndex={-1}>
+        <h1>Grant work</h1>
+      </main>
+    </ApplicationShell>,
+  );
+  await user.click(screen.getByRole("button", { name: "Open navigation" }));
+  await user.click(screen.getByRole("button", { name: "Search" }));
+
+  expect(onSearch).toHaveBeenCalledOnce();
+  expect(screen.queryByRole("dialog", { name: "Main navigation" })).not.toBeInTheDocument();
 });
 
 it("releases the modal when resizing to desktop", async () => {

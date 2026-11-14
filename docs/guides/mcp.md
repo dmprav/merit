@@ -87,6 +87,17 @@ with server-derived freshness; it does not include their prose or old versions.
 Review summaries use a cursor combining kind and ID, so a request and assessment
 with the same ID remain distinct.
 
+To find a known record without paging, call `search_workspace` with a `workspaceSlug`
+and a `query` of up to 200 characters. It returns at most 5 rounds and 10 applications,
+each group with its `total` number of matches, best match first, and each result's
+public `id`, `matchQuality` (`exact`, `prefix`, or `contains`), and the fields the web
+search shows. Every word must appear in a round's title or in an application's title
+and applicant together, ignoring case and accents. Only the current recorded
+application version is searched. Pass a result's `id` to `get_application` or the
+funding round tools for details; refine the query rather than paging. The
+[workflow](../workflows/review-and-decide.md#search-the-workspace) explains matching
+and order. Current program managers only.
+
 To catch up on recent changes across a workspace, call `list_workspace_activity`.
 It returns who changed shared grant work, newest first, in pages of up to 50
 entries; pass `nextCursor` as `after` until it is `null`. Optional `roundId` (the round and

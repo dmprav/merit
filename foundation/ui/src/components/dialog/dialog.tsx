@@ -32,6 +32,15 @@ type ModalDialogProps = Omit<ModalOverlayProps, "children" | "className"> & {
         appearance: "form";
         placement?: never;
       }
+    | {
+        /**
+         * A search box near the top of the page with no visible title bar and a small close
+         * control; the title names the dialog for assistive technology and fills the screen
+         * on compact viewports. Dismisses on outside press unless `isDismissable` is false.
+         */
+        appearance: "search";
+        placement?: never;
+      }
   );
 
 // Keep the last open content while callers clear their state during dismissal.
@@ -215,7 +224,7 @@ const ModalDialogOverlay = ({
 }: Omit<ModalDialogProps, "trigger">) => (
   <ModalOverlay
     {...props}
-    isDismissable={!isDismissDisabled && isDismissable}
+    isDismissable={!isDismissDisabled && (isDismissable ?? appearance === "search")}
     isKeyboardDismissDisabled={isDismissDisabled || isKeyboardDismissDisabled}
     className={styles.overlay}
     data-placement={placement}
@@ -226,19 +235,34 @@ const ModalDialogOverlay = ({
         <Modal className={styles.modal} data-size={size} data-appearance={appearance}>
           <Dialog
             className={styles.dialog}
+            aria-label={appearance === "search" ? title : undefined}
             aria-describedby={descriptionId}
             data-modal-dialog={placement}
           >
             {({ close }) => (
-              <DialogLayoutContext value={appearance}>
-                <ModalDialogHeader
-                  title={title}
-                  context={context}
-                  contextLabel={contextLabel}
-                  closeLabel={closeLabel}
-                  isDismissDisabled={isDismissDisabled}
-                  close={close}
-                />
+              <DialogLayoutContext value={appearance === "form" ? "form" : "default"}>
+                {appearance === "search" ? (
+                  <Button
+                    variant="quiet"
+                    size="small"
+                    iconOnly
+                    aria-label={closeLabel}
+                    isDisabled={isDismissDisabled}
+                    onPress={close}
+                    className={styles.searchClose}
+                  >
+                    <Icon name="close" />
+                  </Button>
+                ) : (
+                  <ModalDialogHeader
+                    title={title}
+                    context={context}
+                    contextLabel={contextLabel}
+                    closeLabel={closeLabel}
+                    isDismissDisabled={isDismissDisabled}
+                    close={close}
+                  />
+                )}
                 {typeof children === "function" ? children({ close }) : children}
               </DialogLayoutContext>
             )}

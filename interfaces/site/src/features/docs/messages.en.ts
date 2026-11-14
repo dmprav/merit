@@ -65,7 +65,7 @@ export const docs = {
       },
       navigation: {
         title: "Find and pin your work",
-        body: "Funding rounds opens all rounds in your workspace. Applications opens applications across those rounds. Activity lists who changed shared grant work, newest first. My work opens your own review assignments in the current workspace. Your responsibilities determine which destinations are available.",
+        body: "Funding rounds opens all rounds in your workspace. Applications opens applications across those rounds. Activity lists who changed shared grant work, newest first. Search, at the top of navigation or with Ctrl+K (⌘K on Apple devices) from anywhere in the workspace, finds a funding round or application by name or applicant, and opens it when you choose a result. My work opens your own review assignments in the current workspace. Your responsibilities determine which destinations are available.",
         pins: "Open a round, application, or review assignment and choose Pin at the top of the page. Your shortcut appears beneath Funding rounds, Applications, or My work in its workspace. You can pin several rounds. Use each pin’s actions menu to Move up, Move down, or Unpin. Pins are personal and follow your account across devices.",
         settings:
           "Contacts is a secondary workspace directory for program managers. Owners and administrators use Workspace settings → Members & access to manage membership. Reviewers use the same workspace navigation with access to their own assignments.",

@@ -11,6 +11,7 @@ import {
   getFundingApplicationPage,
   getFundingRoundPage,
   listFundingRounds,
+  searchWorkspace,
 } from "@merit/grantmaking/server";
 import { applicationWork } from "@merit/grantmaking/server/integrations";
 import { seedExampleRounds } from "@merit/grantmaking/testing";
@@ -186,6 +187,44 @@ it("creates independent applications with exact amounts and permanent public IDs
   await expect(
     database.client.query("UPDATE material_versions SET content='{}'::jsonb"),
   ).rejects.toThrow();
+});
+
+it("seeds the current title and applicant of every application for workspace search", async ({
+  db,
+  database,
+  seeded: pageInput,
+}) => {
+  const stored = await database.client.query<{ title: string; applicant: string; stored: boolean }>(
+    `SELECT c.search_title AS title, c.search_applicant AS applicant,
+       (c.search_title = m.content->>'title'
+         AND c.search_applicant = coalesce(m.content->'submission'->>'organization', '')) AS stored
+     FROM application_cases c
+     JOIN material_versions m ON m.case_id = c.id AND m.version = c.material_version`,
+  );
+
+  expect(stored.rows).toHaveLength(6);
+  for (const row of stored.rows) {
+    expect(row.title).not.toBe("");
+    expect(row.stored).toBe(true);
+  }
+  const seeded = stored.rows.find((row) => row.applicant !== "");
+  assert.isDefined(seeded);
+
+  const found = await searchWorkspace(db, actor, {
+    workspaceSlug: pageInput.workspaceSlug,
+    query: `${seeded.applicant} ${seeded.title}`,
+  });
+  assert(found.status === "ok");
+  expect(found.applications.results.map((result) => result.title)).toContain(seeded.title);
+  expect(
+    await searchWorkspace(db, actor, {
+      workspaceSlug: "alder",
+      query: getExampleRound().title.toUpperCase(),
+    }),
+  ).toMatchObject({
+    status: "ok",
+    rounds: { total: 1, results: [{ title: getExampleRound().title, matchQuality: "exact" }] },
+  });
 });
 
 it("resolves public identities under current permissions and preserves them across edits and reseeding", async ({

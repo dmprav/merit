@@ -173,6 +173,7 @@ export const en = {
   backToWorkspace: "Back to workspace",
   navigation: {
     myWork: "My work",
+    search: "Search",
     settings: "Workspace settings",
     workspace: "Workspace",
     workspaces: "Workspaces",
