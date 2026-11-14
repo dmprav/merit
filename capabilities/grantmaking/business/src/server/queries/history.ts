@@ -17,7 +17,11 @@ export const applicationAuditHistory = (
   input: z.input<typeof applicationAuditInput>,
 ) =>
   readTransaction(db, async (tx) => {
-    const request = applicationAuditInput.parse(input);
+    const parsed = applicationAuditInput.safeParse(input);
+    if (!parsed.success) {
+      return { status: "not_found" } as const;
+    }
+    const request = parsed.data;
     const workspace = await readGrantWorkspaceAccess(tx, actor.userId, request.workspaceSlug);
     if (!workspace?.allowed || !(await readApplicationContext(tx, actor.userId, request))) {
       return { status: "not_found" } as const;
@@ -39,7 +43,11 @@ export const roundBudgetHistory = (
   input: z.input<typeof roundBudgetHistoryInput>,
 ) =>
   readTransaction(db, async (tx) => {
-    const request = roundBudgetHistoryInput.parse(input);
+    const parsed = roundBudgetHistoryInput.safeParse(input);
+    if (!parsed.success) {
+      return { status: "not_found" } as const;
+    }
+    const request = parsed.data;
     const workspace = await readGrantWorkspaceAccess(tx, actor.userId, request.workspaceSlug);
     if (!workspace?.allowed || !(await readRoundOverview(tx, actor.userId, request))) {
       return { status: "not_found" } as const;

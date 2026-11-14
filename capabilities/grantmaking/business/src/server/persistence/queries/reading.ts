@@ -118,7 +118,7 @@ export const readRoundOverview = async (
       managerNeedsReassignment,
       requested: sql<string>`(select coalesce(sum((m.content->'requested'->>'minorUnits')::numeric), 0)::text from ${applicationCases} a join ${materialVersions} m on m.case_id = a.id and m.version = a.material_version where a.organization_id = ${fundingRounds.organizationId} and a.round_id = ${fundingRounds.id})`,
       unknownRequests: sql<number>`(select count(*)::integer from ${applicationCases} a left join ${materialVersions} m on m.case_id = a.id and m.version = a.material_version where a.organization_id = ${fundingRounds.organizationId} and a.round_id = ${fundingRounds.id} and (m.content->'requested' is null or m.content->'requested' = 'null'::jsonb))`,
-      proposed: sql<string>`(select coalesce(sum((r.content->'allocation'->>'minorUnits')::numeric), 0)::text from ${applicationCases} a join ${recommendationVersions} r on r.case_id = a.id and r.revision = (select max(v.revision) from recommendation_versions v where v.case_id = a.id) where a.organization_id = ${fundingRounds.organizationId} and a.round_id = ${fundingRounds.id})`,
+      proposed: sql<string>`(select coalesce(sum((r.content->'allocation'->>'minorUnits')::numeric), 0)::text from ${applicationCases} a join ${recommendationVersions} r on r.case_id = a.id and r.revision = (select max(v.revision) from ${recommendationVersions} v where v.case_id = a.id) where a.organization_id = ${fundingRounds.organizationId} and a.round_id = ${fundingRounds.id})`,
     })
     .from(fundingRounds)
     .innerJoin(organizations, eq(organizations.id, fundingRounds.organizationId))

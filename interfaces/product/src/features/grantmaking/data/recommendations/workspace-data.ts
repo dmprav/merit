@@ -19,5 +19,17 @@ export const workspaceRecommendationData = (
       application: applicationOptions(workspaceSlug, publicId),
       roundScope: fundingRoundsQueryKey(workspaceSlug),
       save: (input) => save({ data: input }),
+      applySaved: (cached, saved) =>
+        cached.status === "ok"
+          ? {
+              ...cached,
+              application: {
+                ...cached.application,
+                managerRecommendation: saved.recommendation,
+              },
+              round: { ...cached.round, budget: saved.budget, totals: saved.totals },
+              recommendationVersion: saved.recommendationVersion,
+            }
+          : cached,
     },
   );

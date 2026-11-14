@@ -4,7 +4,6 @@ import { useTranslation } from "react-i18next";
 import { useLocaleSettings } from "@merit/i18n";
 import { useFormat } from "@merit/i18n/format";
 import { parseMoney } from "@merit/money";
-import { RecommendationOutcome } from "@merit/recommendations-web/work";
 import type { ReviewBasis } from "@merit/reviews/domain";
 import {
   compareCriteriaContent,
@@ -22,6 +21,7 @@ import { PersonIdentity } from "@merit/ui/person-identity";
 import { SectionHeader } from "@merit/ui/section-header";
 
 import type { ReviewApplication, ReviewRound } from "../../contracts/reviews";
+import { AssessmentOutcome } from "./assessment-outcome";
 import { RequestDetails } from "./request-details";
 import styles from "./review-work.module.css";
 
@@ -80,12 +80,7 @@ const RecordedAssessment = ({
           )}
         </Inline>
       )}
-      <RecommendationOutcome
-        recommendation={{
-          position: content.position,
-          allocation: amount?.ok ? amount.value : null,
-        }}
-      />
+      <AssessmentOutcome position={content.position} amount={amount?.ok ? amount.value : null} />
       <p className={styles.reasoning}>{content.reasoning}</p>
       {content.observations
         .filter((observation) => observation.text.trim())

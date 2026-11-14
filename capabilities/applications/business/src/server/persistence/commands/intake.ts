@@ -116,6 +116,28 @@ export const insertIntakeApplication = async (
   return saved!;
 };
 
+export const insertDemoMaterialVersion = async (
+  db: Transaction,
+  values: {
+    caseId: string;
+    content: ReturnType<typeof encodeApplicationMaterial>;
+    reason: string;
+    recordedByUserId?: string;
+    recordedAt: Date;
+  },
+) => {
+  await db.insert(materialVersions).values({
+    caseId: values.caseId,
+    version: values.content.version,
+    content: values.content,
+    changeKind: "recorded",
+    source: { kind: "fictional_example" },
+    reason: values.reason,
+    recordedByUserId: values.recordedByUserId,
+    recordedAt: values.recordedAt,
+  });
+};
+
 const writeIntakeApplication = async (
   db: Transaction,
   publicId: string,

@@ -38,13 +38,12 @@
     "./date-choice": "./src/patterns/editing/date-choice.tsx",
     "./action-provenance": "./src/patterns/action-provenance/action-provenance.tsx",
     "./reference-workspace": "./src/patterns/reference-workspace/reference-workspace.tsx",
-    "./paged-content": "./src/patterns/paged-content/paged-content.tsx"
+    "./paged-content": "./src/patterns/paged-content/paged-content.tsx",
+    "./outcome-summary": "./src/patterns/outcome-summary/outcome-summary.tsx"
   },
   "dependencies": {
-    "@merit/auth": "workspace:*",
     "@merit/dates": "workspace:*",
     "@merit/i18n": "workspace:*",
-    "@merit/query": "workspace:*",
     "lucide-react": "catalog:",
     "react-aria-components": "catalog:",
     "react-i18next": "catalog:"

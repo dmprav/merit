@@ -2,13 +2,13 @@ import { useTranslation } from "react-i18next";
 
 import { type ApplicationView as Application } from "@merit/grantmaking/api";
 import { useFormat } from "@merit/i18n/format";
-import { recommendationPositionKeys } from "@merit/recommendations-web/work";
 import { summarizeAssessments } from "@merit/reviews/domain";
 import { Button } from "@merit/ui/button";
 import { Icon } from "@merit/ui/icon";
 import { PersonIdentity } from "@merit/ui/person-identity";
 
 import styles from "../judgment.module.css";
+import { reviewPositionKeys } from "./assessment-outcome";
 import { reviewStatusText } from "./status-text";
 
 export const ReviewOverview = ({
@@ -65,7 +65,7 @@ export const ReviewOverview = ({
                   <strong>
                     {reviewed
                       ? reviewed.recommendation.position
-                        ? t(recommendationPositionKeys[reviewed.recommendation.position])
+                        ? t(reviewPositionKeys[reviewed.recommendation.position])
                         : t("workspace.noPosition")
                       : t("reviews:outstanding")}
                   </strong>

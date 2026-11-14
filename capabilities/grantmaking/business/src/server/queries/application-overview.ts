@@ -24,7 +24,11 @@ const basesSchema = z.array(
 
 export const listWorkspaceApplications = (db: Database, actor: Actor, workspaceSlug: string) =>
   readTransaction(db, async (tx) => {
-    const slug = workspaceSlugSchema.parse(workspaceSlug);
+    const parsed = workspaceSlugSchema.safeParse(workspaceSlug);
+    if (!parsed.success) {
+      return { status: "not_found" } as const;
+    }
+    const slug = parsed.data;
     const access = await readGrantWorkspaceAccess(tx, actor.userId, slug);
     if (!access) {
       return { status: "not_found" } as const;

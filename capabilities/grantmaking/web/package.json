@@ -27,6 +27,7 @@
     "@merit/grantmaking": "workspace:*",
     "@merit/i18n": "workspace:*",
     "@merit/money": "workspace:*",
+    "@merit/query": "workspace:*",
     "@merit/recommendations-web": "workspace:*",
     "@merit/reviews": "workspace:*",
     "@merit/reviews-web": "workspace:*",
@@ -42,7 +43,6 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@merit/query": "workspace:*",
     "@merit/recommendations": "workspace:*",
     "@merit/test-support": "workspace:*",
     "@storybook/react-vite": "catalog:",

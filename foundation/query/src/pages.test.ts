@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
 import { QueryClientProvider } from "@tanstack/react-query";
-import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
+import { act, cleanup, render, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { afterEach, expect, it, vi } from "vite-plus/test";
 
 import type { PageSource } from "./contracts";
 import { createQueryClient } from "./index";
-import { usePagedContent } from "./pages";
+import { RemotePagedContent, usePagedContent } from "./pages";
 
 afterEach(cleanup);
 
@@ -61,4 +61,47 @@ it("can retry an initial failure without requesting an older page", async () => 
   await act(() => result.current.retry());
   await waitFor(() => expect(result.current.loaded).toBe(true));
   expect(read.mock.calls.map((call) => call[0])).toEqual([undefined, undefined]);
+});
+
+it("defers RemotePagedContent reads until active and renders static entries without a source", async () => {
+  const client = createQueryClient();
+  const read = vi
+    .fn<PageSource<string>["read"]>()
+    .mockResolvedValueOnce({ entries: ["remote"], nextCursor: null });
+  const source = { queryKey: ["private", "remote-history"], read };
+
+  const wrapper = ({ children }: { children: ReactNode }) =>
+    createElement(QueryClientProvider, { client }, children);
+
+  const Probe = ({
+    source: itemSource,
+    entries,
+    active,
+  }: {
+    source?: PageSource<string>;
+    entries: string[];
+    active: boolean;
+  }) => {
+    const render = (page: { entries: string[]; loaded: boolean }) =>
+      createElement("p", null, page.loaded ? page.entries.join(",") : "loading");
+
+    return RemotePagedContent<string>({
+      source: itemSource,
+      entries,
+      active,
+      children: render,
+    });
+  };
+
+  const staticView = render(createElement(Probe, { entries: ["static"], active: false }), {
+    wrapper,
+  });
+  expect(staticView.getByText("static")).toBeTruthy();
+
+  const view = render(createElement(Probe, { source, entries: [], active: false }), { wrapper });
+  expect(read).not.toHaveBeenCalled();
+
+  view.rerender(createElement(Probe, { source, entries: [], active: true }));
+  await waitFor(() => expect(view.getByText("remote")).toBeTruthy());
+  expect(read).toHaveBeenCalledTimes(1);
 });

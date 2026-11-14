@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useLocaleSettings } from "@merit/i18n";
+import { RemotePagedContent } from "@merit/query/pages";
 import { ActionProvenance } from "@merit/ui/action-provenance";
 import { Button } from "@merit/ui/button";
 import { DialogContent, ModalDialog } from "@merit/ui/dialog";
@@ -35,42 +36,50 @@ export const ContactHistory = ({ contact }: { contact: Contact }) => {
       }
     >
       <DialogContent label={t("history")}>
-        <PagedContent source={contact.historySource} entries={contact.history ?? []} active={open}>
-          {(entries) => (
-            <ol className={styles.history} aria-label={t("history")}>
-              {entries.map((entry) => (
-                <li key={entry.revision}>
-                  <Stack gap={3}>
-                    <Inline align="baseline" gap={3}>
-                      <span>
-                        {t("common:recordedBy", { name: entry.actor ?? t("unknownPerson") })}
-                      </span>
-                      <ActionProvenance value={entry.provenance} />
-                      <time dateTime={entry.recordedAt}>
-                        {new Date(entry.recordedAt).toLocaleString(formatLocale, {
-                          timeZone: "UTC",
-                        })}{" "}
-                        UTC
-                      </time>
-                    </Inline>
-                    <div className={styles.historyComparison}>
-                      {entry.before && (
-                        <div role="group" aria-label={t("historyBefore")}>
-                          <h3>{t("historyBefore")}</h3>
-                          <ContactDetails value={entry.before} comparison={entry.after} />
+        <RemotePagedContent
+          source={contact.historySource}
+          entries={contact.history ?? []}
+          active={open}
+        >
+          {(page) => (
+            <PagedContent {...page}>
+              {(entries) => (
+                <ol className={styles.history} aria-label={t("history")}>
+                  {entries.map((entry) => (
+                    <li key={entry.revision}>
+                      <Stack gap={3}>
+                        <Inline align="baseline" gap={3}>
+                          <span>
+                            {t("common:recordedBy", { name: entry.actor ?? t("unknownPerson") })}
+                          </span>
+                          <ActionProvenance value={entry.provenance} />
+                          <time dateTime={entry.recordedAt}>
+                            {new Date(entry.recordedAt).toLocaleString(formatLocale, {
+                              timeZone: "UTC",
+                            })}{" "}
+                            UTC
+                          </time>
+                        </Inline>
+                        <div className={styles.historyComparison}>
+                          {entry.before && (
+                            <div role="group" aria-label={t("historyBefore")}>
+                              <h3>{t("historyBefore")}</h3>
+                              <ContactDetails value={entry.before} comparison={entry.after} />
+                            </div>
+                          )}
+                          <div role="group" aria-label={t("historyAfter")}>
+                            <h3>{t("historyAfter")}</h3>
+                            <ContactDetails value={entry.after} comparison={entry.before} />
+                          </div>
                         </div>
-                      )}
-                      <div role="group" aria-label={t("historyAfter")}>
-                        <h3>{t("historyAfter")}</h3>
-                        <ContactDetails value={entry.after} comparison={entry.before} />
-                      </div>
-                    </div>
-                  </Stack>
-                </li>
-              ))}
-            </ol>
+                      </Stack>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </PagedContent>
           )}
-        </PagedContent>
+        </RemotePagedContent>
       </DialogContent>
     </ModalDialog>
   );

@@ -117,8 +117,8 @@ const serverImports = [
   ),
   permitServer(
     business("grantmaking", "{command-persistence,demo}"),
-    "@merit/{rounds,applications,reviews}/server/demo",
-    business("{rounds,applications,reviews}", "demo"),
+    "@merit/{rounds,applications,reviews,recommendations}/server/demo",
+    business("{rounds,applications,reviews,recommendations}", "demo"),
   ),
   permitServer(
     business("grantmaking", "command-persistence"),

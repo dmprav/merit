@@ -1,12 +1,13 @@
-import { eq } from "drizzle-orm";
-
 import { type encodeApplicationMaterial } from "@merit/applications/encoding";
-import { materialVersions } from "@merit/applications/schema";
-import { insertIntakeApplication, deleteDemoApplications } from "@merit/applications/server/demo";
+import {
+  insertIntakeApplication,
+  insertDemoMaterialVersion,
+  deleteDemoApplications,
+} from "@merit/applications/server/demo";
 import type { Database } from "@merit/db";
-import { recommendationVersions } from "@merit/recommendations/schema";
+import { insertDemoRecommendation } from "@merit/recommendations/server/demo";
 import { recordReviewChange } from "@merit/reviews/server/demo";
-import { fundingRounds, roundCreationReceipts } from "@merit/rounds/schema";
+import { deleteDemoRounds } from "@merit/rounds/server/demo";
 
 import { type encodeApplication, decodeApplication } from "../encoding";
 
@@ -29,12 +30,9 @@ export const insertExampleApplication = async (
     source: { kind: "fictional_example" },
   });
   for (const material of value.earlierMaterial ?? []) {
-    await db.insert(materialVersions).values({
+    await insertDemoMaterialVersion(db, {
       caseId: saved.id,
-      version: material.content.version,
       content: material.content,
-      changeKind: "recorded",
-      source: { kind: "fictional_example" },
       reason: material.reason,
       recordedByUserId: value.recordedByUserId,
       recordedAt: material.recordedAt,
@@ -51,12 +49,10 @@ export const insertExampleApplication = async (
     application.reviews,
   );
   if (application.managerRecommendation) {
-    const recommendation = value.snapshot.managerRecommendation;
-    await db.insert(recommendationVersions).values({
+    await insertDemoRecommendation(db, {
       caseId: saved.id,
-      revision: 1,
       applicationVersion: application.managerRecommendation.recorded?.applicationVersion,
-      content: recommendation,
+      content: value.snapshot.managerRecommendation,
       actorUserId: value.recordedByUserId,
     });
   }
@@ -65,8 +61,5 @@ export const insertExampleApplication = async (
 
 export const deleteDemoFunding = async (db: Transaction, organizationId: string) => {
   await deleteDemoApplications(db, organizationId);
-  await db
-    .delete(roundCreationReceipts)
-    .where(eq(roundCreationReceipts.organizationId, organizationId));
-  await db.delete(fundingRounds).where(eq(fundingRounds.organizationId, organizationId));
+  await deleteDemoRounds(db, organizationId);
 };
