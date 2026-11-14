@@ -16,6 +16,8 @@ import { FetchOtlpTraceExporter, parseOtlpHeaders, resolveTracesUrl } from "./ot
 import { describeHttpRoute } from "./route-label";
 import { createTraceSampler, resolveTraceFilter } from "./sampler";
 
+export { describeHttpRoute };
+
 export type WorkerTelemetryConfig = {
   endpoint?: string;
   headers?: string;

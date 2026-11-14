@@ -80,7 +80,8 @@ export default defineConfig(({ command }) => ({
         client: {
           specifiers: [
             /^@tanstack\/(react|solid|vue)-start\/server$/,
-            /^@merit\/(db|mcp|telemetry|test-support)(\/|$)/,
+            /^@merit\/(db|mcp|test-support)(\/|$)/,
+            /^@merit\/telemetry($|\/(?!errors$))/,
             /^@opentelemetry\//,
             /^@merit\/auth\/(clerk-oauth|clerk-users|schema|session)(\/|$)/,
             /^@merit\/[^/]+\/(server|testing|schema|scope|locks)(\/|$)/,

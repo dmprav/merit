@@ -4,7 +4,7 @@ import handler, { createServerEntry } from "@tanstack/react-start/server-entry";
 
 import { mcpResourceMetadata } from "@merit/mcp";
 import { reportError } from "@merit/telemetry/errors";
-import { traceWorkerRequest } from "@merit/telemetry/worker";
+import { describeHttpRoute, traceWorkerRequest } from "@merit/telemetry/worker";
 
 import type { ApplicationRequestContext } from "./request-context";
 import { createRequestDatabase } from "./server/database.server";
@@ -68,7 +68,7 @@ export default createServerEntry({
           reportError(error, {
             surface: "server",
             operation: "worker.fetch",
-            tags: { pathname: url.pathname, method: request.method },
+            tags: { route: describeHttpRoute(url.pathname).route, method: request.method },
           });
           throw error;
         }

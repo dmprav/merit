@@ -120,7 +120,7 @@ const consoleErrorReporter: ErrorReporter = (report) => {
   const payload = {
     surface: report.context.surface,
     operation: report.context.operation,
-    error: report.error,
+    errorType: report.error.name,
     ...(report.context.tags ? { tags: report.context.tags } : {}),
     ...(report.context.extra ? { extra: report.context.extra } : {}),
   };
@@ -131,7 +131,7 @@ const consoleErrorReporter: ErrorReporter = (report) => {
       "[merit:error]",
       report.context.surface,
       report.context.operation,
-      report.error.message,
+      report.error.name,
     );
   }
 };

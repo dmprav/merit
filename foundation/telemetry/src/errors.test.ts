@@ -99,11 +99,12 @@ describe("reportError and setErrorReporter", () => {
     expect(log).toHaveBeenCalledOnce();
     const [prefix, rawPayload] = log.mock.calls[0] as [unknown, unknown];
     expect(prefix).toBe("[merit:error]");
+    expect(String(rawPayload)).not.toContain("Connection failed");
     const parsed: unknown = JSON.parse(String(rawPayload));
-    expect(parsed).toMatchObject({
+    expect(parsed).toEqual({
       surface: "email",
       operation: "email.send",
-      error: { name: "Error", message: "Connection failed" },
+      errorType: "Error",
       tags: { provider: "Resend" },
       extra: { status: 502, apiKey: "[Redacted]" },
     });
@@ -131,13 +132,13 @@ describe("reportError and setErrorReporter", () => {
   it("falls back when JSON.stringify throws (e.g. BigInt in extra)", () => {
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    reportError(new Error("BigInt failure"), {
+    reportError(new TypeError("BigInt failure"), {
       surface: "server",
       operation: "worker.fetch",
       extra: { amount: 10n },
     });
 
-    expect(log).toHaveBeenCalledWith("[merit:error]", "server", "worker.fetch", "BigInt failure");
+    expect(log).toHaveBeenCalledWith("[merit:error]", "server", "worker.fetch", "TypeError");
   });
 
   it("routes reports to a custom reporter and resets to default on null", () => {
