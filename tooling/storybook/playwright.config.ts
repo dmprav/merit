@@ -13,8 +13,10 @@ export default defineConfig(browserConfig, {
   outputDir: join(tmpdir(), "merit-storybook-results"),
   workers: 4,
   use: { baseURL: "http://localhost:6007" },
+  // Serve the cached static build: a fresh dev server transforms modules on first request,
+  // so the first story in each worker can exceed the readiness timeout.
   webServer: {
-    command: "node_modules/.bin/storybook dev -p 6007 --ci --no-open",
+    command: "vp run build && vp preview --port 6007 --strictPort",
     cwd: fileURLToPath(new URL(".", import.meta.url)),
     url: "http://localhost:6007",
     reuseExistingServer: false,

@@ -58,7 +58,9 @@ own, because they temporarily write deliberately invalid source into the workspa
 Static checks restore no files. Coverage reports are outputs rather than inputs,
 so unchanged coverage suites can reuse
 their result and restore missing reports. Storybook's build caches `dist/` while
-excluding its disposable internal cache from tracking.
+excluding its disposable internal cache from tracking. The Storybook browser
+suite's server runs that cached build before serving `dist/`, so the suite reuses
+an unchanged build and stays current when Playwright runs without `vp run`.
 
 [Verification](verification.md#verification) explains which checks reuse results,
 what invalidates them, and how to request a fresh run or inspect cache behavior.
