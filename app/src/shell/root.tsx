@@ -6,11 +6,13 @@ import {
   Outlet,
   Scripts,
   useRouterState,
+  type ErrorComponentProps,
 } from "@tanstack/react-router";
-import { lazy, Suspense, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import { createMessages, MessagesProvider, type LocaleSettings } from "@merit/i18n";
+import { reportError } from "@merit/telemetry/errors";
 
 import { AccountProvider } from "./account-provider";
 import { appMessages } from "./messages";
@@ -34,8 +36,12 @@ const NotFound = () => {
   );
 };
 
-const PageError = () => {
+const PageError = ({ error }: ErrorComponentProps) => {
   const { t } = useTranslation("app");
+
+  useEffect(() => {
+    reportError(error, { surface: "web", operation: "root.errorBoundary" });
+  }, [error]);
 
   return (
     <main className={localStyles.fallback}>

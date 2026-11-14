@@ -5,6 +5,7 @@ Centralized OpenTelemetry tracing helpers and Cloudflare Workers OTLP/HTTP expor
 ## Entrypoints
 
 - `@merit/telemetry` ([`src/index.ts`](src/index.ts)): server-side helpers (`withSpan`, `instrumentService`, `setSpanAttributes`, `recordSafeError`, `currentTraceId`) used by `foundation/db`, `interfaces/mcp`, and `app`.
+- `@merit/telemetry/errors` ([`src/errors.ts`](src/errors.ts)): browser- and server-safe error reporting (`reportError`, `setErrorReporter`) that normalizes errors, redacts sensitive fields, and logs structured `[merit:error]` payloads until an external reporter (such as Sentry) is registered.
 - `@merit/telemetry/worker` ([`src/worker.ts`](src/worker.ts)): Worker HTTP wrapper (`traceWorkerRequest`, `ensureWorkerTelemetry`) that extracts incoming W3C `traceparent`/`tracestate` headers, normalizes route labels to low-cardinality templates, and flushes spans via Cloudflare `waitUntil`.
 
 ## Boundaries and privacy
