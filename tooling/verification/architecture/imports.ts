@@ -363,7 +363,7 @@ export const imports = {
         "**/app/src/server/middleware.ts",
         "**/app/src/shell/account-provider.tsx",
         "**/interfaces/admin/src/app/account.tsx",
-        "**/interfaces/product/src/routes/app.sign-in.tsx",
+        "**/interfaces/product/src/routes/app/sign-in.tsx",
         "**/interfaces/product/src/app/workspace-account.tsx",
       ],
       rules: forbidImports(webImports, allowImports(clerkImports)),

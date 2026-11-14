@@ -1,7 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { reviewerPageOptions } from "../features/grantmaking/data/reviews/reviewer-data";
-import { ReviewerAssignmentPage, ReviewerUnavailable } from "../features/grantmaking/reviewer-page";
+import { reviewerPageOptions } from "../../features/grantmaking/data/reviews/reviewer-data";
+import {
+  ReviewerAssignmentPage,
+  ReviewerUnavailable,
+} from "../../features/grantmaking/reviewer-page";
 
 const Page = () => <ReviewerAssignmentPage assignmentId={Route.useParams().assignmentId} />;
 

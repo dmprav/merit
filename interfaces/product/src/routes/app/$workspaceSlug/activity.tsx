@@ -5,16 +5,16 @@ import { useTranslation } from "react-i18next";
 import { WorkspaceActivity } from "@merit/grantmaking-web/activity";
 import { PageHeader } from "@merit/ui/page-header";
 
-import { AppPage } from "../app/app-shell";
-import { webTranslator } from "../app/messages";
-import { WorkspaceStatusPage } from "../app/workspace-page";
-import { resourceRef } from "../features/grantmaking/contracts/resource-url";
-import { activityOptions, roundsOptions } from "../features/grantmaking/data/queries";
+import { AppPage } from "../../../app/app-shell";
+import { webTranslator } from "../../../app/messages";
+import { WorkspaceStatusPage } from "../../../app/workspace-page";
+import { resourceRef } from "../../../features/grantmaking/contracts/resource-url";
+import { activityOptions, roundsOptions } from "../../../features/grantmaking/data/queries";
 import {
   noActivityFilters,
   useWorkspaceActivity,
-} from "../features/grantmaking/data/workspace-activity";
-import { workspaceOptions } from "../features/workspace/data/queries";
+} from "../../../features/grantmaking/data/workspace-activity";
+import { workspaceOptions } from "../../../features/workspace/data/queries";
 
 const WorkspaceActivityPage = () => {
   const { workspaceSlug } = Route.useParams();

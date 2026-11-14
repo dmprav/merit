@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { Route } from "./app.sign-in";
+import { Route } from "./sign-in";
 
 const validateSearch = (returnTo: unknown) => {
   const validator = Route.options.validateSearch;

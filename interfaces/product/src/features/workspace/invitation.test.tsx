@@ -15,7 +15,7 @@ import { defaultLocale } from "@merit/i18n";
 import { createQueryClient } from "@merit/query";
 
 import { WebMessagesProvider } from "../../app/messages";
-import { Route } from "../../routes/invitations.$token";
+import { Route } from "../../routes/invitations/$token";
 import { readInvitation, acceptInvitation } from "./data/server/organization.functions";
 
 vi.mock("./data/server/organization.functions", () => ({

@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { readDemo } from "../features/demo/data/server/demo.functions";
-import { DemoEntry } from "../features/demo/demo-entry";
+import { readDemo } from "../../features/demo/data/server/demo.functions";
+import { DemoEntry } from "../../features/demo/demo-entry";
 
 const WorkshopDemoPage = () => <DemoEntry initial={Route.useLoaderData()} guided />;
 
