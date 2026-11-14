@@ -87,9 +87,6 @@ export const renewGuestSession = async (db: Database, token: string) => {
   return session ?? null;
 };
 
-export const deleteExpiredGuestSessions = (db: Database) =>
-  db.delete(guestSessions).where(lte(guestSessions.expiresAt, sql`statement_timestamp()`));
-
 /** Inactive attribution identities cannot take over an account or an active user. */
 export const ensureInactiveUser = async (db: Database, identity: { id: string; name: string }) => {
   await db

@@ -5,7 +5,7 @@ import { AuthenticationError } from "./index";
 
 type ClerkOAuthConfig = {
   publishableKey: string;
-  secretKey?: string;
+  secretKey: string;
   issuer: string;
   resource: string;
 };

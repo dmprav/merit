@@ -791,9 +791,9 @@ test.each(["domain/probe.ts", "api/values.ts", "examples/probe.ts"])(
 
 test("pure grantmaking modules can use their approved browser-safe dependencies", () => {
   check({
-    ...grantmakingFiles,
+    ...collaborationFiles,
     [`${grantmakingRoot}/src/domain/probe.ts`]:
-      'export { z } from "zod"; export type { Value } from "@merit/contacts/domain";',
+      'export { z } from "zod"; export type { Value } from "@merit/organizations/api";',
     [`${grantmakingRoot}/src/api/values.ts`]:
       'export { z } from "zod"; export type { Value } from "../domain/value";',
     [`${grantmakingRoot}/src/examples/probe.ts`]: 'export { value } from "../domain/value";',
@@ -809,7 +809,7 @@ test("checking grantmaking external dependencies preserves other packages' libra
 });
 
 test.each(["server", "server/integrations", "server/demo"])(
-  "grantmaking %s types cannot use the legacy request-context allowance",
+  "grantmaking %s types cannot be imported into product request context",
   (entry) => {
     check(
       {

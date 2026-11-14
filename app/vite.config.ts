@@ -80,12 +80,12 @@ export default defineConfig(({ command }) => ({
           specifiers: [
             /^@tanstack\/(react|solid|vue)-start\/server$/,
             /^@merit\/(db|mcp|test-support)(\/|$)/,
-            /^@merit\/auth\/(mcp|schema|session|users)(\/|$)/,
-            /^@merit\/[^/]+\/(server|example-server|testing|schema|scope|locks)(\/|$)/,
+            /^@merit\/auth\/(clerk-oauth|clerk-users|schema|session)(\/|$)/,
+            /^@merit\/[^/]+\/(server|testing|schema|scope|locks)(\/|$)/,
           ],
           files: [
             "**/*.server.*",
-            /\/capabilities\/[^/]+\/(?:business\/)?src\/(server|operations|persistence)\//,
+            /\/capabilities\/[^/]+\/(?:business\/)?src\/server\//,
             /\/interfaces\/mcp\/src\//,
           ],
         },

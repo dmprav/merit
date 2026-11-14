@@ -400,9 +400,6 @@ importers:
       '@commitlint/config-conventional':
         specifier: 'catalog:'
         version: 21.2.4
-      '@merit/grantmaking':
-        specifier: workspace:*
-        version: link:capabilities/grantmaking/business
       '@secretlint/core':
         specifier: 'catalog:'
         version: 13.1.0(supports-color@10.2.2)
@@ -424,9 +421,6 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 24.19.2
-      '@types/pg':
-        specifier: 'catalog:'
-        version: 8.23.1
       '@vitest/coverage-v8':
         specifier: 'catalog:'
         version: 5.1.0(@vitest/browser@5.1.0)(vitest@5.1.0)
@@ -439,9 +433,6 @@ importers:
       fallow:
         specifier: 'catalog:'
         version: 3.41.0
-      pg:
-        specifier: 'catalog:'
-        version: 8.23.1
       remark:
         specifier: 'catalog:'
         version: 15.0.1(supports-color@10.2.2)

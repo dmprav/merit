@@ -39,9 +39,7 @@ describe("workspace switching", () => {
 
   it("keeps the workspace identity when discovery has nothing to offer", async () => {
     await renderWithRouter(
-      <AppShell current={{ kind: "workspace", workspace: alder }} profileName="Dana Reed">
-        Workspace
-      </AppShell>,
+      <AppShell current={{ kind: "workspace", workspace: alder }}>Workspace</AppShell>,
       "/app/alder/rounds",
     );
 
@@ -52,9 +50,7 @@ describe("workspace switching", () => {
   it("switches directly to an accessible workspace from the identity above navigation", async () => {
     const { user, router } = await renderWithRouter(
       <WorkspaceNavigationContext value={{ workspaces, canAdminister: false }}>
-        <AppShell current={{ kind: "workspace", workspace: alder }} profileName="Dana Reed">
-          Workspace
-        </AppShell>
+        <AppShell current={{ kind: "workspace", workspace: alder }}>Workspace</AppShell>
       </WorkspaceNavigationContext>,
       "/app/alder/rounds",
     );

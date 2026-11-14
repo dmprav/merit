@@ -7,7 +7,6 @@ import {
   ApplicationPage,
   ApplicationContext,
   ApplicationContextOption,
-  ApplicationAccount,
 } from "@merit/ui/application-shell";
 import shellStyles from "@merit/ui/application-shell.module.css";
 import { Brand } from "@merit/ui/brand";
@@ -33,15 +32,7 @@ export type ShellWorkspace = {
 /** Where the person is working: one workspace, or their own review assignments across workspaces. */
 export type ShellContext = { kind: "workspace"; workspace: ShellWorkspace } | { kind: "reviews" };
 
-export const AppShell = ({
-  current,
-  profileName,
-  children,
-}: {
-  current: ShellContext;
-  profileName?: string;
-  children: ReactNode;
-}) => {
+export const AppShell = ({ current, children }: { current: ShellContext; children: ReactNode }) => {
   const { t } = useTranslation(["common", "reviewer"]);
   const workspace = current.kind === "workspace" ? current.workspace : undefined;
   const name = workspace?.name ?? t("reviewer:title");
@@ -75,15 +66,7 @@ export const AppShell = ({
           >
             {t("docs")}
           </a>
-          {profileName ? (
-            <ApplicationAccount
-              name={profileName}
-              loadingLabel={t("loadingAccount")}
-              menuLabel={t("accountMenu")}
-            />
-          ) : (
-            <WorkspaceAccount />
-          )}
+          <WorkspaceAccount />
         </>
       }
     >
