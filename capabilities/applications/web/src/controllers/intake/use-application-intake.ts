@@ -206,7 +206,8 @@ const useIntakeEditing = (
   };
 
   return {
-    section,
+    // A withdrawal saved elsewhere hides an open editor; its stored draft returns on reinstatement.
+    section: isWithdrawn(application) ? null : section,
     setSection,
     draft,
     latest,
