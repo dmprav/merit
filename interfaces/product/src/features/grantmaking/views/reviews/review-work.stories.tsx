@@ -456,9 +456,11 @@ export const ConcurrentChanges: Story = {
   },
   play: async (context) => {
     const dialog = await saveCorrection(context);
-    await expect(
-      await dialog.findByRole("button", { name: "Keep draft after reviewing current work" }),
-    ).toBeVisible();
+    await waitFor(async () =>
+      expect(
+        await dialog.findByRole("button", { name: "Keep draft after reviewing current work" }),
+      ).toBeVisible(),
+    );
     await expect(dialog.getByRole("textbox", { name: "Assessment text" })).toHaveValue(
       "The revised venue costs are supported by a written quote.",
     );
