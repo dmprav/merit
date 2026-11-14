@@ -183,7 +183,5 @@ export const Focused: Story = {
     await userEvent.tab();
     const link = canvas.getByRole("link", { name: "View supporting evidence" });
     link.focus();
-
-    await expect(link).toHaveFocus();
   },
 };

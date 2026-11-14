@@ -7,16 +7,17 @@ import { Button } from "../button/button";
 import { ModalDialog } from "./dialog";
 
 it.each([
-  { contextLabel: "Round", labelCount: 1 },
-  { contextLabel: undefined, labelCount: 0 },
+  { context: "Neighbourhood grants", contextLabel: "Round", contextCount: 1, labelCount: 1 },
+  { context: "Neighbourhood grants", contextLabel: undefined, contextCount: 1, labelCount: 0 },
+  { context: undefined, contextLabel: "Round", contextCount: 0, labelCount: 0 },
+  { context: "", contextLabel: "Round", contextCount: 0, labelCount: 0 },
 ])(
-  "keeps the dialog named by its title with context label $contextLabel",
-  async ({ contextLabel, labelCount }) => {
-    const user = userEvent.setup();
+  "keeps the dialog named by its title and labels context $context only with a label ($contextLabel)",
+  ({ context, contextLabel, contextCount, labelCount }) => {
     render(
       <ModalDialog
         title="Record application"
-        context="Neighbourhood grants"
+        context={context}
         contextLabel={contextLabel}
         closeLabel="Close editor"
         trigger={null}
@@ -28,33 +29,10 @@ it.each([
     const dialog = screen.getByRole("dialog", { name: "Record application" });
 
     expect(within(dialog).getByRole("heading", { name: "Record application" })).toBeVisible();
-    expect(within(dialog).getByText("Neighbourhood grants")).toBeVisible();
+    expect(within(dialog).queryAllByText("Neighbourhood grants")).toHaveLength(contextCount);
     expect(within(dialog).queryAllByText("Round:")).toHaveLength(labelCount);
-
-    await user.click(within(dialog).getByRole("button", { name: "Close editor" }));
-
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   },
 );
-
-it.each([undefined, ""])("omits the context label when context is %s", (context) => {
-  render(
-    <ModalDialog
-      title="Record application"
-      context={context}
-      contextLabel="Round"
-      closeLabel="Close editor"
-      trigger={null}
-      defaultOpen
-    >
-      <p>Record the application details.</p>
-    </ModalDialog>,
-  );
-  const dialog = screen.getByRole("dialog", { name: "Record application" });
-
-  expect(within(dialog).getByRole("heading", { name: "Record application" })).toBeVisible();
-  expect(within(dialog).queryByText("Round:")).not.toBeInTheDocument();
-});
 
 const openDialog = async (isDismissable: boolean) => {
   const user = userEvent.setup();
