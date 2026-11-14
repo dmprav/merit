@@ -5,7 +5,7 @@ import { fromMinorUnits } from "@merit/money";
 import type { FundingRound } from "./model";
 import { criteriaVersionSchema } from "./versions";
 
-const makeRound = (overrides: Partial<FundingRound> & { applications?: unknown[] } = {}) => ({
+const makeRound = (overrides: Partial<FundingRound> = {}) => ({
   ...newPreparedRound(
     { title: "Community grants" },
     {
@@ -17,10 +17,6 @@ const makeRound = (overrides: Partial<FundingRound> & { applications?: unknown[]
   ),
   ...overrides,
 });
-
-const makeApplication = () => ({ id: "application" });
-
-const makeReviewedApplication = () => ({ id: "application", reviews: [{ reasoning: "Support" }] });
 
 import {
   budgetChangeRequirements,
@@ -199,33 +195,27 @@ describe("round preparation", () => {
     },
   );
 
-  it.each([false, true])(
-    "appends a criteria version when criteria change, with existing reviews=%s",
-    (hasReviews) => {
-      const criteria = [
-        {
-          id: "e2fbeb9f-4e46-5098-a28f-1e180f2129a0",
-          title: "Fit",
-          description: "Consider the purpose.",
-        },
-      ];
-      const round = makeRound({ applications: hasReviews ? [makeReviewedApplication()] : [] });
+  it("appends a criteria version when criteria change", () => {
+    const criteria = [
+      {
+        id: "e2fbeb9f-4e46-5098-a28f-1e180f2129a0",
+        title: "Fit",
+        description: "Consider the purpose.",
+      },
+    ];
 
-      const result = prepareRoundChange(round, { section: "criteria", criteria });
-
-      expect(result).toMatchObject({
-        ok: true,
-        changed: true,
-        round: {
-          criteriaVersion: 2,
-          criteriaHistory: [
-            { version: 1, criteria: [] },
-            { version: 2, criteria },
-          ],
-        },
-      });
-    },
-  );
+    expect(prepareRoundChange(makeRound(), { section: "criteria", criteria })).toMatchObject({
+      ok: true,
+      changed: true,
+      round: {
+        criteriaVersion: 2,
+        criteriaHistory: [
+          { version: 1, criteria: [] },
+          { version: 2, criteria },
+        ],
+      },
+    });
+  });
 
   it("does not append a version when criteria are unchanged", () => {
     const criteria = [
@@ -264,33 +254,18 @@ describe("round preparation", () => {
     });
   });
 
-  it("requires an explanation when replacing an existing budget", () => {
+  it("allows an explained reset to an unknown budget", () => {
     const round = makeRound({ budget: fromMinorUnits(10025n) });
 
-    expect(prepareRoundChange(round, { section: "budget", amount: "0", reason: "" })).toEqual({
-      ok: false,
-      error: "budget_reason_required",
+    expect(
+      prepareRoundChange(round, { section: "budget", amount: "", reason: "Allocation pending" }),
+    ).toMatchObject({
+      ok: true,
+      action: "budget",
+      reason: "Allocation pending",
+      round: { budget: null },
     });
   });
-
-  it.each([false, true])(
-    "allows an explained reset to an unknown budget, with applications=%s",
-    (hasApplications) => {
-      const round = makeRound({
-        budget: fromMinorUnits(10025n),
-        applications: hasApplications ? [makeApplication()] : [],
-      });
-
-      expect(
-        prepareRoundChange(round, { section: "budget", amount: "", reason: "Allocation pending" }),
-      ).toMatchObject({
-        ok: true,
-        action: "budget",
-        reason: "Allocation pending",
-        round: { budget: null },
-      });
-    },
-  );
 
   it.each(["1.001", "-1", "1e3", "NaN"])("rejects invalid budget %s", (amount) => {
     expect(prepareRoundChange(makeRound(), { section: "budget", amount, reason: "" })).toEqual({

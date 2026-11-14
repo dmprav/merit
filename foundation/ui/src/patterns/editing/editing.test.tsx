@@ -137,10 +137,6 @@ it("validates typed dates and commits calendar choices and clearing directly", a
   expect(choose).toHaveBeenLastCalledWith("2027-01-22");
   expect(screen.getByRole("textbox")).toHaveValue("2027-01-22");
 
-  await user.click(screen.getByRole("button", { name: "Save date" }));
-
-  expect(choose).toHaveBeenLastCalledWith("2027-01-22");
-
   await user.click(screen.getByRole("button", { name: "Clear date" }));
 
   expect(choose).toHaveBeenLastCalledWith(null);

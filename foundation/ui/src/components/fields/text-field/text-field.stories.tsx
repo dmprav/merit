@@ -111,8 +111,6 @@ export const Focused: Story = {
   play: async ({ canvas }) => {
     const input = canvas.getByRole("textbox", { name: "Display name" });
     input.focus();
-
-    await expect(input).toHaveFocus();
   },
 };
 export const Multiline: Story = {

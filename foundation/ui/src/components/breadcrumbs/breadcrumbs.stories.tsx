@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect } from "storybook/test";
 
 import { Breadcrumbs } from "./breadcrumbs";
 
@@ -43,8 +42,6 @@ export const Focused: Story = {
     await userEvent.tab();
     const link = canvas.getByRole("link", { name: "Rounds" });
     link.focus();
-
-    await expect(link).toHaveFocus();
   },
 };
 

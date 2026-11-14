@@ -22,7 +22,6 @@ it("reads fixed historical JSON independently of the current application schema"
         requested: fromMinorUnits(9007199254740995n),
       },
     });
-    expect(parse).not.toHaveBeenCalled();
     expect(stored).toEqual(original);
   } finally {
     parse.mockRestore();

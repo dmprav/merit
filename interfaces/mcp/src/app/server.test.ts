@@ -211,7 +211,7 @@ describe("workspace MCP contracts", () => {
       await client.close();
     }
   });
-  it("lists workspace activity with record links, people and filters, and follows its cursor", async () => {
+  it("lists workspace activity with record links and people, passing its filters and cursor", async () => {
     const operations = testOperations();
     const entry = {
       id: "00000000-0000-4000-a000-000000000009",
@@ -289,7 +289,16 @@ describe("workspace MCP contracts", () => {
         people: [{ id: "private-person", name: "Private Person" }],
         nextCursor: "cursor",
       });
-      for (const filter of [{ personId: "" }, { roundId: "not-an-id" }, { after: "***" }]) {
+    } finally {
+      await client.close();
+    }
+  });
+  it.each([{ personId: "" }, { roundId: "not-an-id" }, { after: "***" }])(
+    "rejects activity filter %j before reading activity",
+    async (filter) => {
+      const operations = testOperations();
+      const client = await connect(operations);
+      try {
         expect(
           (
             await client.callTool({
@@ -298,12 +307,12 @@ describe("workspace MCP contracts", () => {
             })
           ).isError,
         ).toBe(true);
+        expect(operations.workspace.listWorkspaceActivity).not.toHaveBeenCalled();
+      } finally {
+        await client.close();
       }
-      expect(operations.workspace.listWorkspaceActivity).toHaveBeenCalledOnce();
-    } finally {
-      await client.close();
-    }
-  });
+    },
+  );
   it.each([
     { status: "not_found" as const },
     { status: "forbidden" as const },

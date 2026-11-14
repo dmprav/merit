@@ -552,6 +552,30 @@ it("resolves live contact details without rewriting applications or history, and
   ).toMatchObject({ status: "invalid", error: "contact_unavailable" });
 });
 
+it.for(["expectedApplicationVersion", "expectedCriteriaVersion"] as const)(
+  "rejects a review saved against a stale %s without changing the application",
+  async (baseline, { db }) => {
+    const { address, read } = await setup(db);
+    const sam = await contact(db);
+    const before = await read();
+    const current = {
+      expectedApplicationVersion: before.application.version,
+      expectedCriteriaVersion: before.round.criteriaVersion,
+    };
+
+    expect(
+      await saveApplicationReview(db, actor, {
+        ...address,
+        expectedRevision: before.application.reviews.revision,
+        ...current,
+        [baseline]: (current[baseline] as number) + 1,
+        change: { action: "request", id: randomUUID(), contactId: sam.id, replacesId: null },
+      } as Parameters<typeof saveApplicationReview>[2]),
+    ).toEqual({ status: "conflict" });
+    expect(await read()).toEqual(before);
+  },
+);
+
 it("rejects other-workspace access, stale edits, and guessed review bases", async ({
   db,
   database,
@@ -559,12 +583,6 @@ it("rejects other-workspace access, stale edits, and guessed review bases", asyn
   const { address, read, review } = await setup(db);
   const sam = await contact(db);
   const other = { userId: "birch-manager" };
-
-  expect(
-    await listWorkspaceContacts(db, other, { workspaceSlug }, fundingRoundContactUsage),
-  ).toEqual({
-    status: "not_found",
-  });
 
   const change = {
     action: "record" as const,

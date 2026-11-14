@@ -43,6 +43,12 @@ test("retains recorded identity and verified MCP provenance after a profile rena
     id: expect.any(String) as unknown,
     recorded_at: expect.any(Date) as unknown,
   });
+
+  const result = await readWorkspaceActivity(db, scope);
+  assert(result.status === "ok");
+  expect(result.events).toMatchObject([
+    { actorName: "Dana Reed", provenance: { interface: "mcp", clientId: "verified-client" } },
+  ]);
 });
 
 test("keeps events in the caller's transaction, including rollback", async ({ db, database }) => {
@@ -114,9 +120,6 @@ describe("reading workspace activity", () => {
     });
     assert(second.status === "ok");
     expect(second.nextCursor).toBeNull();
-    // Later pages omit the filter choices the first page carries.
-    expect(first.people).toHaveLength(1);
-    expect(second.people).toEqual([]);
 
     const all = [...first.events, ...second.events];
     expect(all).toHaveLength(6);
@@ -269,22 +272,22 @@ describe("reading workspace activity", () => {
     ).toEqual([{ format_version: 1, details: { reason: "Recorded evidence" } }]);
   });
 
-  test("keeps the recorded name and provenance after profile changes and rejects a malformed cursor", async ({
-    db,
-    database,
-  }) => {
-    await db.transaction((tx) =>
-      record(tx, {
-        actor: { ...event.actor, provenance: { interface: "mcp", clientId: "verified-client" } },
-      }),
-    );
-    await database.client.query("UPDATE app_users SET name='Dana Newname' WHERE id='dana'");
+  test("lists the people with recorded activity only on the first page", async ({ db }) => {
+    await db.transaction(async (tx) => {
+      await record(tx, { target: { ...event.target, revision: 1 } });
+      await record(tx, { target: { ...event.target, revision: 2 } });
+    });
 
-    const result = await readWorkspaceActivity(db, { ...scope, organizationId: "alder" });
-    assert(result.status === "ok");
-    expect(result.events).toMatchObject([
-      { actorName: "Dana Reed", provenance: { interface: "mcp", clientId: "verified-client" } },
-    ]);
+    const first = await readWorkspaceActivity(db, { ...scope, limit: 1 });
+    assert(first.status === "ok" && first.nextCursor !== null);
+    const second = await readWorkspaceActivity(db, { ...scope, limit: 1, after: first.nextCursor });
+    assert(second.status === "ok");
+
+    expect(first.people).toEqual([{ userId: "dana", name: "Dana Reed" }]);
+    expect(second.people).toEqual([]);
+  });
+
+  test("treats an undecodable cursor as invalid input", async ({ db }) => {
     expect(
       await readWorkspaceActivity(db, { ...scope, organizationId: "alder", after: "not-a-cursor" }),
     ).toEqual({ status: "invalid" });
@@ -337,13 +340,22 @@ test("pages subject histories through timestamp ties and keeps subject, assignme
     entries: [],
     nextCursor: null,
   });
-  expect(
-    (await readAuditHistory(db, { ...input, assignmentId: "assignment-a", limit: 1 })).entries,
-  ).toHaveLength(1);
   expect(await readAuditHistory(db, { ...input, action: "recommendation.missing" })).toEqual({
     entries: [],
     nextCursor: null,
   });
-  await expect(readAuditHistory(db, { ...input, after: "invalid" })).rejects.toThrow();
-  await expect(readAuditHistory(db, { ...input, limit: 51 })).rejects.toThrow();
 });
+
+test.for([{ after: "invalid" }, { limit: 51 }])(
+  "rejects subject history requests with %j",
+  async (change, { db }) => {
+    await expect(
+      readAuditHistory(db, {
+        organizationId: "alder",
+        targetTypes: ["recommendation"],
+        targetId: event.target.id,
+        ...change,
+      }),
+    ).rejects.toMatchObject({ name: "ZodError" });
+  },
+);

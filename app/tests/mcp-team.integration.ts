@@ -41,6 +41,19 @@ it("creates, retries, lists and revokes an invitation through MCP", async ({
       )
     ).isError,
   ).toBe(false);
+
+  const after = await callMcp(actor.userId, { workspaceSlug: "alder" }, "list_team_invitations");
+  expect(after.structuredContent).toMatchObject({ status: "ok", value: { invitations: [] } });
+  const { rows } = await database.client.query(
+    "SELECT actor_user_id, provenance FROM audit_events WHERE organization_id='alder' AND action LIKE '%revoked' AND target_id=$1",
+    [invitation.requestId],
+  );
+  expect(rows).toEqual([
+    {
+      actor_user_id: actor.userId,
+      provenance: { interface: "mcp", clientId: "integration-client" },
+    },
+  ]);
 });
 
 it("requires team OAuth scope even for a workspace administrator", async ({

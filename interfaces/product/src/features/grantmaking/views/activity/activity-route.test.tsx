@@ -249,3 +249,15 @@ it("keeps the filters on the page when a filter change fails, and retries", asyn
   await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
   expect(screen.getByText("Workshop Saturdays")).toBeVisible();
 });
+
+it("tells people without program-manager access that activity is not available", async () => {
+  vi.mocked(readWorkspaceActivity)
+    .mockReset()
+    .mockResolvedValue({ status: "not_found" } as never);
+
+  await renderActivity();
+
+  expect(await screen.findByRole("heading", { name: "Activity not available" })).toBeVisible();
+  expect(screen.queryByRole("table", { name: "Activity" })).not.toBeInTheDocument();
+  expect(requests()).toHaveLength(1);
+});
