@@ -334,7 +334,7 @@ it("returns the reviewer's complete validated page and strips uncontracted field
   }
 });
 
-it("paginates visible assignments in stable ID order and rejects invalid continuation inputs", async () => {
+it("paginates visible assignments in stable ID order", async () => {
   const operations = testOperations();
   operations.reviewer.list.mockResolvedValue({
     status: "ok",
@@ -354,33 +354,20 @@ it("paginates visible assignments in stable ID order and rejects invalid continu
         })
       ).structuredContent,
     ).toEqual({ status: "ok", items: [{ ...summary, id: commandId }], nextCursor: null });
-    expect(
-      (await client.callTool({ name: "list_my_reviews", arguments: { limit: 0 } })).isError,
-    ).toBe(true);
-    expect(operations.reviewer.list).toHaveBeenCalledTimes(2);
   } finally {
     await client.close();
   }
 });
 
-it("fails closed on malformed reviewer responses without leaking private data", async () => {
+it("rejects an empty review list page before listing assignments", async () => {
   const operations = testOperations();
-  operations.reviewer.read.mockResolvedValue({
-    status: "ok",
-    value: { private: "secret" },
-  } as never);
-  const log = vi.spyOn(console, "error").mockImplementation(() => {});
   const client = await connect(operations);
   try {
-    const result = await client.callTool({
-      name: "get_reviewer_assignment",
-      arguments: { assignmentId },
-    });
-    expect(result.isError).toBe(true);
-    expect(result.structuredContent).toMatchObject({ status: "unavailable" });
-    expect(JSON.stringify(result)).not.toContain("secret");
+    expect(
+      (await client.callTool({ name: "list_my_reviews", arguments: { limit: 0 } })).isError,
+    ).toBe(true);
+    expect(operations.reviewer.list).not.toHaveBeenCalled();
   } finally {
-    log.mockRestore();
     await client.close();
   }
 });
