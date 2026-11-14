@@ -1,53 +1,82 @@
-import { AuthenticationError } from "@merit/auth";
+import { AuthenticationError, type Actor } from "@merit/auth";
 import { verifyClerkOAuth } from "@merit/auth/clerk-oauth";
-import { createClerkProfileReader } from "@merit/auth/clerk-users";
 import { resolveAccountUser } from "@merit/auth/server";
-import type { Database } from "@merit/db";
+import type { DatabaseRunner } from "@merit/db";
 import { handleWorkspaceMcp } from "@merit/mcp";
 
 import { createAccountDemoServices } from "./demo-workspace.server";
-import type { OrganizationIdentity } from "./identity.server";
+import { createClerkIdentitySupport, type OrganizationIdentity } from "./identity.server";
 import { createApplicationServices } from "./services.server";
 
 type McpConfig = Parameters<typeof verifyClerkOAuth>[1] & { operatorUserIds: string };
 
+type ResolvedMcpSession = {
+  actor: {
+    userId: string;
+    provenance: { interface: "mcp"; clientId: string };
+    scopes: readonly string[];
+  };
+  clerkUserId: string;
+  operator: boolean;
+};
+
 export const createMcpIdentity = (
   request: Request,
   config: McpConfig,
-  database: <T>(operation: (db: Database) => Promise<T>) => Promise<T>,
+  database: DatabaseRunner,
 ) => {
-  let account: { clerkUserId: string; userId: string } | undefined;
-  const readProfile = createClerkProfileReader(config.secretKey ?? "");
-  const operators = config.operatorUserIds.split(",").map((id) => id.trim());
-  const organizationIdentity: OrganizationIdentity = {
-    isOperator: (actor) =>
-      account?.userId === actor.userId && operators.includes(account.clerkUserId),
-    verifiedEmails: async (actor) =>
-      account?.userId === actor.userId
-        ? (await readProfile(account.clerkUserId)).verifiedEmails
-        : [],
-    displayName: async (actor) =>
-      account?.userId === actor.userId
-        ? (await readProfile(account.clerkUserId)).displayName
-        : null,
-  };
+  const { isOperatorAccount, readProfile } = createClerkIdentitySupport(
+    config.secretKey ?? "",
+    config.operatorUserIds,
+  );
+  let resolvedSession: ResolvedMcpSession | undefined;
+  let sessionPromise: Promise<ResolvedMcpSession> | undefined;
 
-  return {
-    organizationIdentity,
-    authenticate: async () => {
+  const resolveSession = () =>
+    (sessionPromise ??= (async (): Promise<ResolvedMcpSession> => {
       const verified = await verifyClerkOAuth(request, config);
       const user = await database((db) => resolveAccountUser(db, verified.clerkUserId));
       if (user.status === "disabled") {
         throw new AuthenticationError("disabled");
       }
 
-      account = { clerkUserId: verified.clerkUserId, userId: user.userId };
-      return {
-        userId: user.userId,
-        provenance: { interface: "mcp" as const, clientId: verified.clientId },
-        scopes: verified.scopes,
+      const session: ResolvedMcpSession = {
+        actor: {
+          userId: user.userId,
+          provenance: { interface: "mcp" as const, clientId: verified.clientId },
+          scopes: verified.scopes,
+        },
+        clerkUserId: verified.clerkUserId,
+        operator: isOperatorAccount(verified.clerkUserId),
       };
-    },
+      resolvedSession = session;
+      return session;
+    })());
+
+  const readVerifiedProfile = async (actor: Actor) => {
+    let session: ResolvedMcpSession;
+    try {
+      session = await resolveSession();
+    } catch {
+      return { verifiedEmails: [], displayName: null };
+    }
+
+    if (session.actor.userId !== actor.userId) {
+      return { verifiedEmails: [], displayName: null };
+    }
+    return readProfile(session.clerkUserId);
+  };
+
+  const organizationIdentity: OrganizationIdentity = {
+    isOperator: (actor) =>
+      resolvedSession?.actor.userId === actor.userId && resolvedSession.operator,
+    verifiedEmails: async (actor) => (await readVerifiedProfile(actor)).verifiedEmails,
+    displayName: async (actor) => (await readVerifiedProfile(actor)).displayName,
+  };
+
+  return {
+    organizationIdentity,
+    authenticate: async () => (await resolveSession()).actor,
   };
 };
 
