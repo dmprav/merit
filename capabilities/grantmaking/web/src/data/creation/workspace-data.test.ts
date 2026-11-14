@@ -54,4 +54,7 @@ it("namespaces round and application creation draftKeys by kind and workspaceSlu
   expect(alderRound.draftKey).toContain("alder");
   expect(alderApplication.draftKey).toContain("alder");
   expect(birchApplication.draftKey).toContain("birch");
+  expect(alderRound.legacyDraftKey).toBe("alder");
+  expect(alderApplication.legacyDraftKey).toBe("application:round-1");
+  expect(birchApplication.legacyDraftKey).toBe("application:round-1");
 });

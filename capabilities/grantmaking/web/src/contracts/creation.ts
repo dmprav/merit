@@ -33,6 +33,7 @@ export type CreatedRecord = { title: string; publicId: string };
 
 export type CreationData = {
   draftKey: string;
+  legacyDraftKey?: string;
   target: CreationTarget;
   create: (draft: CreationDraft, materialLabel: string) => Promise<CreationResult>;
   refresh: () => Promise<void>;

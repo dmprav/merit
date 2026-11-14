@@ -1,5 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { CreationData, CreationDraft } from "../../contracts/creation";
@@ -19,11 +19,36 @@ const hasInput = (draft: CreationDraft) =>
     value.trim(),
   );
 
+const useLegacyCreationMigration = (
+  key: string,
+  legacyKey: string | undefined,
+  legacyDraft: CreationDraft | undefined,
+  setCreation: (key: string, draft: CreationDraft | undefined) => void,
+  migrateCreation?: (from: string, to: string) => void,
+) => {
+  useEffect(() => {
+    if (!legacyKey || legacyDraft === undefined) {
+      return;
+    }
+    if (migrateCreation) {
+      migrateCreation(legacyKey, key);
+      return;
+    }
+    setCreation(key, legacyDraft);
+    setCreation(legacyKey, undefined);
+  }, [key, legacyDraft, legacyKey, migrateCreation, setCreation]);
+};
+
 export const useCreation = (data: CreationData) => {
   const { t } = useTranslation("fundingRounds");
-  const { creations, setCreation } = useCreationDrafts();
-  const { target, draftKey: key } = data;
-  const draft = creations[key];
+  const { creations, setCreation, migrateCreation } = useCreationDrafts();
+  const { target, draftKey: key, legacyDraftKey } = data;
+  const legacyDraft =
+    legacyDraftKey && legacyDraftKey !== key && creations[key] === undefined
+      ? creations[legacyDraftKey]
+      : undefined;
+  const draft = creations[key] ?? legacyDraft;
+  useLegacyCreationMigration(key, legacyDraftKey, legacyDraft, setCreation, migrateCreation);
   const [open, setOpen] = useState(false);
   const [created, setCreated] = useState<{ title: string; publicId: string } | null>(null);
   const [refreshFailed, setRefreshFailed] = useState(false);

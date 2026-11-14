@@ -368,9 +368,9 @@ it("returns typed error statuses on malformed query inputs and distinguishes for
   ).toEqual({ status: "invalid_range" });
   expect(await listFundingRounds(db, actor, "BAD SLUG")).toEqual({ status: "not_found" });
   expect(await listWorkspaceApplications(db, actor, "BAD SLUG")).toEqual({ status: "not_found" });
-  expect(await listWorkspaceActivity(db, actor, { workspaceSlug: "BAD SLUG" })).toEqual({
-    status: "invalid",
-  });
+  await expect(
+    listWorkspaceActivity(db, actor, { workspaceSlug: "BAD SLUG" }),
+  ).rejects.toMatchObject({ name: "ZodError" });
   expect(
     await getFundingRoundPage(db, actor, {
       workspaceSlug,

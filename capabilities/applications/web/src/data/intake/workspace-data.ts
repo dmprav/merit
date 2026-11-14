@@ -15,6 +15,7 @@ export const createIntakeData = (
   const { workspaceSlug, publicId, state } = target;
   return {
     draftKey: `${workspaceSlug}/${publicId}`,
+    legacyDraftKey: publicId,
     workspaceSlug,
     publicId,
     state,

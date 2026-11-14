@@ -1,5 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
   canEditIntakeContent,
@@ -112,20 +112,87 @@ export const useApplicationIntake = ({
   };
 };
 
+const intakeSections: readonly IntakeDraft["section"][] = [
+  "title",
+  "metadata",
+  "content",
+  "details",
+  "reason",
+];
+
+const useLegacyIntakeMigration = (
+  draftKey: string,
+  legacyDraftKey: string | undefined,
+  applicationEdits: Record<string, IntakeDraft | undefined>,
+  setApplicationEdit: (key: string, draft: IntakeDraft | undefined) => void,
+  migrateApplicationEdits?: (moves: readonly [string, string][]) => void,
+) => {
+  useEffect(() => {
+    if (!legacyDraftKey || legacyDraftKey === draftKey) {
+      return;
+    }
+    const moves: [string, string][] = [];
+    for (const section of intakeSections) {
+      const from = `${legacyDraftKey}:${section}`;
+      const to = `${draftKey}:${section}`;
+      if (applicationEdits[to] === undefined && applicationEdits[from] !== undefined) {
+        moves.push([from, to]);
+      }
+    }
+    if (!moves.length) {
+      return;
+    }
+    if (migrateApplicationEdits) {
+      migrateApplicationEdits(moves);
+      return;
+    }
+    for (const [from, to] of moves) {
+      setApplicationEdit(to, applicationEdits[from]);
+      setApplicationEdit(from, undefined);
+    }
+  }, [applicationEdits, draftKey, legacyDraftKey, migrateApplicationEdits, setApplicationEdit]);
+};
+
+const useIntakeDraftAccess = (draftKey: string, legacyDraftKey: string | undefined) => {
+  const { applicationEdits, setApplicationEdit, migrateApplicationEdits } = useIntakeDrafts();
+
+  useLegacyIntakeMigration(
+    draftKey,
+    legacyDraftKey,
+    applicationEdits,
+    setApplicationEdit,
+    migrateApplicationEdits,
+  );
+
+  const key = (target: IntakeDraft["section"]) => `${draftKey}:${target}`;
+
+  const draftFor = (target: IntakeDraft["section"]) => {
+    const current = applicationEdits[key(target)];
+    if (current !== undefined) {
+      return current;
+    }
+
+    return legacyDraftKey && legacyDraftKey !== draftKey
+      ? applicationEdits[`${legacyDraftKey}:${target}`]
+      : undefined;
+  };
+
+  return { key, draftFor, setApplicationEdit };
+};
+
 const useIntakeEditing = (
   application: Application,
   data: IntakeData,
   busy: ReturnType<typeof useRef<boolean>>,
 ) => {
   const intake = data.state;
-  const { applicationEdits, setApplicationEdit } = useIntakeDrafts();
+  const { key, draftFor, setApplicationEdit } = useIntakeDraftAccess(
+    data.draftKey,
+    data.legacyDraftKey,
+  );
   const [section, setSection] = useState<IntakeSection | null>(null);
   const latest = intakeSnapshot(application, intake.workingRevision);
   const preparing = application.intakeStatus === "in_preparation";
-
-  const key = (target: IntakeDraft["section"]) => `${data.draftKey}:${target}`;
-
-  const draftFor = (target: IntakeDraft["section"]) => applicationEdits[key(target)];
 
   const changed = (target: IntakeDraft["section"]) => intakeDraftChanged(draftFor(target));
 

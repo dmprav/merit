@@ -8,6 +8,7 @@ import { creationStorage } from "./storage";
 export const DraftContext = createContext<{
   creations: Record<string, CreationDraft | undefined>;
   setCreation: (key: string, draft: CreationDraft | undefined) => void;
+  migrateCreation?: (from: string, to: string) => void;
 } | null>(null);
 
 export const useCreationDraftStore = (storageScope?: string) => {
@@ -28,6 +29,12 @@ export const useCreationDraftStore = (storageScope?: string) => {
         creations: drafts,
         setCreation: (key: string, draft: CreationDraft | undefined) =>
           setDrafts((current) => ({ ...current, [key]: draft })),
+        migrateCreation: (from: string, to: string) =>
+          setDrafts((current) =>
+            current[to] !== undefined || current[from] === undefined
+              ? current
+              : { ...current, [to]: current[from], [from]: undefined },
+          ),
       }),
       [drafts, setDrafts],
     ),

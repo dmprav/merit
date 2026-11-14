@@ -20,11 +20,7 @@ export const listWorkspaceActivity = (
   input: z.input<typeof workspaceActivityInput>,
 ) =>
   readTransaction(db, async (tx) => {
-    const parsed = workspaceActivityInput.safeParse(input);
-    if (!parsed.success) {
-      return { status: "invalid" } as const;
-    }
-    const request = parsed.data;
+    const request = workspaceActivityInput.parse(input);
     const access = await readGrantWorkspaceAccess(tx, actor.userId, request.workspaceSlug);
     if (!access) {
       return { status: "not_found" } as const;
