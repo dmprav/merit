@@ -1488,4 +1488,15 @@ describe.concurrent("architecture rules", () => {
       crossCapabilityMessage,
     );
   });
+  test("isolates posthog-js inside foundation/analytics", async () => {
+    await check({
+      "foundation/analytics/src/posthog.ts": 'export { posthog } from "posthog-js";',
+    });
+    await check(
+      {
+        "interfaces/product/src/probe.ts": 'export { posthog } from "posthog-js";',
+      },
+      "PostHog belongs in foundation/analytics",
+    );
+  });
 });

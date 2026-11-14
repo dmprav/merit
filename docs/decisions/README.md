@@ -18,5 +18,6 @@ operating choices. Records receive a stable sequential ID when added.
 | 0011 | [Shared authorization policy](0011-shared-authorization-policy.md)  | Keep permission checks and SQL filtering consistent.                        |
 | 0012 | [Centralize telemetry and Checkly](0012-opentelemetry-checkly.md)   | Correlate Worker spans cleanly without leaking data or vendor lock-in.      |
 | 0013 | [Shared error-reporting boundary](0013-error-reporting-boundary.md) | Prepare for Sentry while keeping current operations simple.                 |
+| 0014 | [PostHog analytics foundation](0014-posthog-analytics.md)           | Try product analytics behind a cookieless, vendor-neutral boundary.         |
 
 [All documentation](../README.md)

@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { afterEach, beforeEach, expect, it, vi } from "vite-plus/test";
 import { z } from "zod";
 
+import { AnalyticsProvider } from "@merit/analytics";
 import { useDrafts } from "@merit/drafts";
 import { readDraftStorage } from "@merit/drafts/testing";
 import { createQueryClient, privateKey } from "@merit/query";
@@ -41,14 +42,17 @@ it.each(["account-b", null])(
     act(() => drafts.result.current.update(() => ({ contact: { text: "Private writing" } })));
     await waitFor(() => expect(drafts.result.current.status).toBe("saved"));
     const client = createQueryClient();
+    const analytics = { pageView: vi.fn(), track: vi.fn(), reset: vi.fn() };
     client.setQueryData([...privateKey, "organizations"], { name: "Previous account" });
 
     const view = () => (
-      <QueryClientProvider client={client}>
-        <AccountProvider>
-          <p>Private workspace</p>
-        </AccountProvider>
-      </QueryClientProvider>
+      <AnalyticsProvider client={analytics}>
+        <QueryClientProvider client={client}>
+          <AccountProvider>
+            <p>Private workspace</p>
+          </AccountProvider>
+        </QueryClientProvider>
+      </AnalyticsProvider>
     );
 
     const rendered = render(view());
@@ -60,6 +64,7 @@ it.each(["account-b", null])(
 
     expect(screen.queryByText("Private workspace")).not.toBeInTheDocument();
     await waitFor(() => expect(reload).toHaveBeenCalledTimes(1));
+    expect(analytics.reset).toHaveBeenCalledOnce();
     expect(client.getQueryCache().getAll()).toEqual([]);
     expect(drafts.result.current.drafts).toEqual({});
     expect(await readDraftStorage("account-a", "contacts")).toEqual({});

@@ -56,9 +56,14 @@ const telemetryImports = {
   regex: "^@opentelemetry/",
   message: "OpenTelemetry setup belongs in foundation/telemetry. Use @merit/telemetry instead.",
 };
+const posthogImports = {
+  regex: "^posthog-js($|/)",
+  message: "PostHog belongs in foundation/analytics. Use @merit/analytics instead.",
+};
 const restrictedImports = [
   dateImports,
   telemetryImports,
+  posthogImports,
   reactAriaImports,
   formImports,
   tableImports,
@@ -106,6 +111,10 @@ export const imports = {
     {
       files: ["**/foundation/telemetry/**"],
       rules: importRules(allowImports(telemetryImports, processImports)),
+    },
+    {
+      files: ["**/foundation/analytics/**"],
+      rules: importRules(allowImports(posthogImports, processImports)),
     },
     {
       files: ["**/foundation/ui/**"],
@@ -381,6 +390,13 @@ export const imports = {
     {
       files: ["**/foundation/auth/src/session.ts"],
       rules: importRules(allowImports(clerkImports)),
+    },
+    {
+      files: [
+        "**/foundation/analytics/src/posthog.ts",
+        "**/foundation/analytics/src/posthog.test.ts",
+      ],
+      rules: importRules(allowImports(posthogImports)),
     },
     {
       files: ["**/foundation/money/**"],
