@@ -7,7 +7,7 @@ import { publicIdSchema } from "../identifiers";
 
 export const workspaceActivityInput = z.strictObject({
   workspaceSlug: workspaceSlugSchema,
-  /** Matches the round, its applications, and their assessments and recommendations. */
+  /** Matches the round and its applications, including their review requests, reviewer responses, assessments, and recommendations. */
   roundId: publicIdSchema.optional(),
   /** The recorded person's user ID; interfaces send it in a request body, never a URL. */
   personId: z.string().min(1).max(200).optional(),

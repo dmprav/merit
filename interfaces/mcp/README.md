@@ -17,7 +17,9 @@ Reuse named command schemas from the owning business module, such as
 not depend on a union schema's array order. Keep authorization, lifecycle rules,
 and transaction boundaries in the business operation.
 
-Each feature declares the operations it consumes in `operations.ts`. Inputs use
+Features that narrow or combine operations declare what they consume in
+`operations.ts`; single-service features such as `reviewer` and `navigation`
+consume their owning business service interface directly in `tools.ts`. Inputs use
 business contracts and an explicit actor; result types reuse the business
 operation's public outcome. Workflow registration accepts only its required
 operations. [App composition](src/app/operations.ts) combines these interfaces,

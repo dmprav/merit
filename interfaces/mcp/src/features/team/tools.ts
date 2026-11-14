@@ -87,7 +87,7 @@ export const registerTeamTools = (
     {
       ...read,
       description:
-        "List access event metadata in stable eventId order; follow nextCursor. Administrator access required. Fetch event details separately.",
+        "List access event metadata in newest-first order; follow nextCursor as after. Administrator access required. Fetch event details separately.",
       inputSchema: teamHistoryInput,
       outputSchema: teamHistoryPageSchema,
     },
