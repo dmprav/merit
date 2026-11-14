@@ -62,11 +62,10 @@ test("owner invites an administrator, grant access is explicit, and removal expl
   let dialog = page.getByRole("dialog", { name: "Invite member", exact: true });
   await dialog.getByRole("textbox", { name: "Email address" }).fill("dana@example.test");
   await dialog.getByRole("button", { name: /Organization responsibility/ }).click();
+  await expect(page.getByRole("option", { name: /^Administrator/ })).toContainText(
+    "Can manage members and grant access, including to themselves.",
+  );
   await page.getByRole("option", { name: /^Administrator/ }).click();
-
-  await expect(
-    dialog.getByText("Can manage members and grant access, including to themselves."),
-  ).toBeVisible();
 
   await page.screenshot({ path: testInfo.outputPath("team-invite.png"), fullPage: true });
   await dialog.getByRole("button", { name: /Grant-work access/ }).click();
