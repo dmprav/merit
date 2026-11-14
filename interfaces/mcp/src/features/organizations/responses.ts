@@ -49,7 +49,7 @@ export const invitationSchema = z.object({
   organization: organizationSchema,
   accepted: z.boolean(),
   administration: z.enum(["none", "administrator", "owner"]),
-  role: z.enum(["member", "program_manager"]),
+  role: z.enum(["member", "program_manager", "reviewer"]),
 });
 export const accessRequestSchema = z.object({
   email: z.string(),

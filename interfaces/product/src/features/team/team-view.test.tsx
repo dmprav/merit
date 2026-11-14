@@ -520,3 +520,27 @@ it("restores an access draft after reload without silently accepting a newer mem
 
   sessionStorage.clear();
 });
+
+it.each(["reviewer", "program_manager"] as const)(
+  "explains assignment termination and explicit reinstatement before removing a %s",
+  async (role) => {
+    const user = userEvent.setup();
+    show({
+      ...initial,
+      members: initial.members.map((member) =>
+        member.userId === "admin" ? { ...member, role } : member,
+      ),
+    });
+    await user.click(screen.getByRole("button", { name: "Actions for Morgan Lee" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Remove from organization" }));
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toHaveTextContent("Their review assignments will also end.");
+    expect(dialog).toHaveTextContent(
+      "Their private drafts, submitted assessments, authorship, account, and other organization memberships are preserved.",
+    );
+    expect(dialog).toHaveTextContent(
+      "After they rejoin as a reviewer or program manager, a program manager must explicitly reinstate each assignment.",
+    );
+    expect(removeMember).not.toHaveBeenCalled();
+  },
+);

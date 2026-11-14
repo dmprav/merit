@@ -5,12 +5,14 @@ import { migrate } from "@merit/db/migrate";
 import { getFundingRoundPage, listFundingRounds } from "@merit/grantmaking/server";
 import { seedExampleRounds } from "@merit/grantmaking/testing";
 import { createOrganizationService } from "@merit/organizations/server";
+import { revokeMembershipReviews } from "@merit/reviews/server/integrations";
 import { createTestDatabase } from "@merit/test-support/test-database";
 
 let database: Awaited<ReturnType<typeof createTestDatabase>>;
 
 const service = (emails = ["recipient@example.test"]) =>
   createOrganizationService({
+    revokeReviewAccess: revokeMembershipReviews,
     database: (operation) => withDatabase(database.connectionString, operation),
     isOperator: (actor) => actor.userId === "operator",
     verifiedEmails: async () => emails,

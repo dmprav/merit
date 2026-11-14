@@ -23,7 +23,7 @@ export const TeamGuide = () => {
                 </tr>
               </thead>
               <tbody>
-                {(["owner", "admin", "manager"] as const).map((key) => (
+                {(["owner", "admin", "manager", "reviewer"] as const).map((key) => (
                   <tr key={key}>
                     <th scope="row">{t(`docs.pages.team.responsibilities.${key}`)}</th>
                     <td>{t(`docs.pages.team.responsibilities.${key}Body`)}</td>

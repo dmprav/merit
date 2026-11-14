@@ -65,10 +65,10 @@ export const docs = {
       },
       navigation: {
         title: "Find and pin your work",
-        body: "Funding rounds opens all rounds in your workspace. Applications opens applications across those rounds. Activity lists who changed shared grant work, newest first. My reviews opens your own review assignments, including assignments from other workspaces.",
-        pins: "Open a round, application, or review assignment and choose Pin at the top of the page. Your shortcut appears beneath Funding rounds, Applications, or My reviews. You can pin several rounds. Use each pin’s actions menu to Move up, Move down, or Unpin. Pins are personal and follow your account across devices; round and application pins appear in their own workspace.",
+        body: "Funding rounds opens all rounds in your workspace. Applications opens applications across those rounds. Activity lists who changed shared grant work, newest first. My work opens your own review assignments in the current workspace. Your responsibilities determine which destinations are available.",
+        pins: "Open a round, application, or review assignment and choose Pin at the top of the page. Your shortcut appears beneath Funding rounds, Applications, or My work in its workspace. You can pin several rounds. Use each pin’s actions menu to Move up, Move down, or Unpin. Pins are personal and follow your account across devices.",
         settings:
-          "Contacts is a secondary workspace directory; you can also work with contacts from an application or review. Open Workspace settings → Members & access to manage membership. Reviewers without workspace membership see their own review assignments.",
+          "Contacts is a secondary workspace directory for program managers. Owners and administrators use Workspace settings → Members & access to manage membership. Reviewers use the same workspace navigation with access to their own assignments.",
       },
       switching: {
         title: "Find and switch workspaces",
@@ -252,12 +252,13 @@ export const docs = {
       invitation: {
         title: "Respond to your invitation",
         steps: {
+          join: "First accept the workspace invitation using the verified email address it was sent to. Reviewer access opens My work, where your assignments appear. If you have no assignments yet, the program manager can assign them after you join.",
           open: "Open the invitation and sign in with the verified email address it was sent to. Review the application title, instructions, requested response date, and manager’s contact details.",
           respond:
             "Choose Accept review to open the application material, or Decline review if you cannot take it on. Report a possible conflict if a relationship or other concern could affect your independence.",
         },
         access:
-          "Acceptance gives you access to this assignment. It does not make you a workspace member or reveal other reviewers’ assessments. Return through My reviews or your invitation link.",
+          "Accepting the review opens its assigned material and criteria. Reviewer membership does not reveal other applications or other reviewers’ assessments. Return through My work in the foundation’s workspace or your assignment link.",
       },
       drafting: {
         title: "Read and write privately",
@@ -343,7 +344,7 @@ export const docs = {
             "Use Record follow-up assessment for a new judgment from the reviewer. Use Edit recorded assessment to correct what you entered. Both preserve the earlier record and its attribution.",
         },
         scope:
-          "To invite an independent assessment in a standard workspace, first add a review request, then choose Invite reviewer under Reviewer participation. The contact needs an email address, and you must be signed in with a verified email. Reviewers write private drafts and submit their own judgments; managers cannot edit those submissions. End access revokes the assignment while preserving its records.",
+          "To invite an independent assessment, ask a workspace owner or administrator to invite the person as a Reviewer through Members & access. Once they join, add a review request and choose Invite reviewer under Reviewer participation. Use their membership email for the contact; your own email must be verified. Reviewers write private drafts and submit their own judgments; managers cannot edit those submissions. End access revokes the assignment while preserving its records.",
       },
       reviewerGuide: "Instructions for invited reviewers",
       recommendation: {
@@ -424,6 +425,9 @@ export const docs = {
         manager: "Program manager",
         managerBody:
           "Views and edits grant work. This access is separate from organization responsibility.",
+        reviewer: "Reviewer",
+        reviewerBody:
+          "Enters the workspace and reviews assigned applications through My work. Other applications, staff recommendations, and other reviewers’ assessments remain private.",
       },
       invitations: {
         title: "Invite a member",
@@ -463,7 +467,7 @@ export const docs = {
         reviewerPrompt:
           "Find my review assignments. Open the one I choose and explain its instructions and current status. Do not accept, save, or submit anything yet.",
         reviewerTool:
-          "Your client starts with <tool>list_my_reviews</tool>, then <tool>get_reviewer_assignment</tool>. You need reviews:read and an invitation, but no workspace membership. Application material becomes available after you accept the review.",
+          "Your client starts with <tool>list_my_reviews</tool>, then <tool>get_reviewer_assignment</tool>. You need reviews:read, current reviewer or program-manager membership, and your own assignment. Application material becomes available after you accept the review.",
         prompt:
           "Find my workspaces and funding rounds. Open the round I choose, explain which reviews need attention, and show its remaining proposed budget. Do not save changes yet.",
         tool: "With workspace:read, your client starts with <tool>list_workspaces</tool>, then <tool>list_funding_rounds</tool>. It uses the returned identifiers to read a round or application.",
@@ -479,7 +483,7 @@ export const docs = {
       workspace: {
         title: "Access and permissions",
         availability:
-          "Sign in with your Merit account. Workspace tasks require membership; your review assignments, personal shortcuts, and onboarding use their own access rules. An invited reviewer needs no workspace membership. Anonymous visitors can explore the browser demo; MCP always requires sign-in.",
+          "Sign in with your Merit account. Workspace and review work require current membership; review assignments also restrict which material you can read and assess. Personal shortcuts and onboarding use their own access rules. Anonymous visitors can explore the browser demo; MCP always requires sign-in.",
         auth: "Grant the client only the access needed for your task. These OAuth grants limit what it can do on your behalf; they never replace your current Merit permissions. Request additional consent if a new task needs a different grant.",
         task: "Task",
         grants: "Client access",

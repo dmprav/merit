@@ -33,6 +33,7 @@ type ManagerWork = ReturnType<typeof useManagerReviewers>;
 type ManagerError =
   | "limited"
   | "inviteInvalid"
+  | "reviewerMembershipRequired"
   | "stale"
   | "applicationWithdrawn"
   | "unavailable"

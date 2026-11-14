@@ -188,6 +188,16 @@ export const AdministratorInviting: Story = {
   },
   play: InviteMember.play,
 };
+export const InviteReviewer: Story = {
+  ...AdministratorInviting,
+  play: async (context) => {
+    await InviteMember.play!(context);
+    const body = within(context.canvasElement.ownerDocument.body);
+    await context.userEvent.click(body.getByRole("button", { name: /Grant-work access/ }));
+    await context.userEvent.click(body.getByRole("option", { name: /^Reviewer/ }));
+    await expect(body.getByRole("button", { name: /Reviewer Grant-work access/ })).toBeVisible();
+  },
+};
 export const InvitationValidation: Story = {
   play: async ({ canvas, canvasElement, userEvent }) => {
     await userEvent.click(await canvas.findByRole("button", { name: "Invite member" }));
@@ -375,4 +385,27 @@ export const ResumeAccess: Story = {
       context.canvas.queryByRole("button", { name: "Resume editing access" }),
     ).not.toBeInTheDocument();
   },
+};
+
+const reviewerTeam = {
+  ...teamFixture,
+  members: teamFixture.members.map((member) =>
+    member.userId === "admin" ? { ...member, role: "reviewer" as const } : member,
+  ),
+};
+
+export const ReviewAccessLoss: Story = {
+  args: { initial: reviewerTeam },
+  play: async (context) => {
+    await EditingAccess.play!(context);
+    const body = within(context.canvasElement.ownerDocument.body);
+    await context.userEvent.click(body.getByRole("button", { name: /Grant-work access/ }));
+    await context.userEvent.click(body.getByRole("option", { name: /^No grant-work access/ }));
+    await expect(body.getByText(/Saving ends their review assignments/)).toBeVisible();
+  },
+};
+
+export const ReviewerRemoval: Story = {
+  args: { initial: reviewerTeam },
+  play: RemovalConsequences.play,
 };

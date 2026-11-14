@@ -169,6 +169,7 @@ const workspace = {
   demoExpiresAt: null,
   role: "program_manager" as const,
   canWorkOnGrants: true,
+  canViewTeam: true,
   administration: "owner" as const,
 };
 beforeEach(() => {

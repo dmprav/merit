@@ -24,7 +24,8 @@ Current program managers can view and maintain contacts. Organization administra
 alone does not grant access to grant contacts. **Workspace settings → Members & access** manages
 membership and access; contact selection creates neither an account nor membership.
 A [review invitation](participate-in-review.md) captures the contact’s email and
-binds its assignment to the verified account that accepts it. This leaves the
+requires an existing reviewer or program-manager membership, then binds its
+assignment to the verified account and current membership on acceptance. This leaves the
 contact’s identity and earlier manager-recorded assessments intact. Changing a
 contact email does not transfer an existing assignment to another account.
 

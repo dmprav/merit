@@ -99,10 +99,20 @@ const InvitationDetails = ({
           </DescriptionListItem>
           <DescriptionListItem
             label={t(
-              invitation.role === "program_manager" ? "grantAccess.label" : "noGrantAccessLabel",
+              invitation.role === "reviewer"
+                ? "reviewerAccess.label"
+                : invitation.role === "program_manager"
+                  ? "grantAccess.label"
+                  : "noGrantAccessLabel",
             )}
           >
-            {t(invitation.role === "program_manager" ? "grantAccess.description" : "noGrantAccess")}
+            {t(
+              invitation.role === "reviewer"
+                ? "reviewerAccess.description"
+                : invitation.role === "program_manager"
+                  ? "grantAccess.description"
+                  : "noGrantAccess",
+            )}
           </DescriptionListItem>
         </DescriptionList>
         {invitation.accepted && <p>{t("accepted")}</p>}

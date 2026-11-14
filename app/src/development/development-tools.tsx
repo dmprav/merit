@@ -9,6 +9,7 @@ import styles from "./development-tools.module.css";
 
 const people = [
   { id: "manager", name: "Dana Reed", detail: "Seeded Alder program manager" },
+  { id: "reviewer", name: "Robin Ellis", detail: "reviewer@example.test" },
   { id: "operator", name: "Merit operator", detail: "operator@example.test" },
   { id: "recipient", name: "Invitation recipient", detail: "recipient@example.test" },
 ];
@@ -19,7 +20,7 @@ const selectPerson = async (person: string) => {
   }
   await clearDrafts();
   document.cookie = `merit-local-person=${person}; Path=/; SameSite=Strict`;
-  window.location.reload();
+  window.location.assign("/app");
 };
 
 const MeritPanel = () => {
@@ -56,8 +57,8 @@ const MeritPanel = () => {
             ))}
           </div>
           <p className={styles.hint}>
-            Switching reloads this page and clears unsaved changes. Workspace access still follows
-            stored memberships.
+            Switching opens your workspace and clears unsaved changes. Workspace access still
+            follows stored memberships.
           </p>
         </>
       ) : (

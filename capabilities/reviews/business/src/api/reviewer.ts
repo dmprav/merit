@@ -11,7 +11,14 @@ import type { ReviewState } from "../domain/reviews";
 
 const publicIdSchema = z.string().regex(/^[0-9a-hjkmnp-tv-z]{12}$/);
 
-export const reviewerAddressSchema = z.strictObject({ assignmentId: z.uuid() });
+export const reviewerListInput = z
+  .strictObject({ workspaceSlug: z.string().min(1).max(80) })
+  .optional();
+
+export const reviewerAddressSchema = z.strictObject({
+  assignmentId: z.uuid(),
+  workspaceSlug: z.string().min(1).max(80).optional(),
+});
 export const reviewerApplicationSchema = z.strictObject({
   workspaceSlug: z.string().min(1).max(80),
   publicId: publicIdSchema,
@@ -55,6 +62,7 @@ export type ReviewerSummary = {
   applicationTitle: string;
   applicant: string;
   organization: string;
+  workspaceSlug: string;
   dueDate: string | null;
   managerName: string;
   managerEmail: string;
@@ -71,6 +79,7 @@ export type ReviewerSummary = {
 
 export type ReviewerPage = {
   assignment: ReviewerSummary;
+  membershipRequired?: boolean;
   material: ReturnType<typeof encodeApplicationMaterial> | null;
   criteria: ReviewState["requests"][number]["criteria"];
   draft: { revision: number; content: ReviewerDraft } | null;
@@ -80,7 +89,7 @@ export type ReviewerPage = {
 export type ReviewerResult<T> =
   | { status: "ok"; value: T }
   | { status: "not_found" | "forbidden" | "conflict" | "expired" | "limited" }
-  | { status: "invalid"; error?: "application_withdrawn" };
+  | { status: "invalid"; error?: "application_withdrawn" | "workspace_membership_required" };
 
 export type ReviewerEvent = { action: string; actor: string | null; at: string; note: string };
 
@@ -108,7 +117,10 @@ export interface ReviewerService {
     actor: Actor,
     input: z.input<typeof reviewerHistoryInput>,
   ) => Promise<ReviewerResult<{ entries: ReviewerEvent[]; nextCursor: string | null }>>;
-  list: (actor: Actor) => Promise<ReviewerResult<ReviewerSummary[]>>;
+  list: (
+    actor: Actor,
+    input?: { workspaceSlug: string },
+  ) => Promise<ReviewerResult<ReviewerSummary[]>>;
   read: (
     actor: Actor,
     input: z.infer<typeof reviewerAddressSchema>,

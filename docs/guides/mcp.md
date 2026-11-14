@@ -12,8 +12,9 @@ use [MCP operations](mcp-operations.md).
 1. Add `http://localhost:3000/mcp/workspace` to a locally reachable client, or use
    the deployed site's origin. See [local development](development.md).
 2. Sign in and grant the client the access it needs. Website cookies do not
-   authenticate MCP. Workspace tools require current membership; personal reviewer assignments,
-   onboarding, and operator administration use their own authority checks.
+   authenticate MCP. Workspace and review work require current membership;
+   assignments additionally restrict review access. Onboarding and operator
+   administration use their own authority checks.
 
 Start with the tools for your task. Each uses its own [client grants](#choose-client-access)
 and current Merit permissions; workspace discovery is needed only for workspace work.
@@ -195,8 +196,9 @@ public publication and funding decision recording are not implemented in either 
 
 ## Participate in and manage reviews
 
-An external reviewer can connect without workspace membership. Use `list_my_reviews`
-and `get_reviewer_assignment` to find and read your assignments. The assignment read
+A reviewer needs current reviewer or program-manager membership and their own
+assignment. Use `list_my_reviews` and `get_reviewer_assignment` to find and read
+your assignments. The assignment read
 returns the complete authorized page: invitation context, assigned material and
 criteria, private draft, and submitted versions. Before acceptance or while access
 is paused, protected content is null; a visible invitation does not grant access
@@ -220,7 +222,10 @@ on retries. Read the assignment to check notification status after submission.
 
 Managers use `list_application_reviewers`, `invite_reviewer`, and
 `manage_reviewer_assignment`. Create a review request first, then invite its
-contact. Unlike `request_review`, `invite_reviewer` sends email. Management actions
+contact using the email recorded on their qualifying membership. If they have not
+joined yet, an owner or administrator first uses `invite_member` with the
+`reviewer` role; the recipient accepts the membership invitation before the
+assignment invitation is issued. Unlike `request_review`, `invite_reviewer` sends email. Management actions
 end or reinstate access, clear conflicts with a reason, resend invitations, or retry
 submission notifications. Clearing a conflict requires the reviewer to accept again.
 These tools preserve the [reviewer workflow](../workflows/participate-in-review.md).

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vite-plus/test";
 
 import type { OrganizationSubject } from "@merit/access";
 
-import { evaluateMemberChange, invitationProblem } from ".";
+import { evaluateMemberChange, invitationProblem, revokesReviewAccess } from ".";
 
 const owner: OrganizationSubject = {
   userId: "owner",
@@ -56,6 +56,33 @@ describe("membership decisions", () => {
       status: "ok",
       value: { access: { administration: "none", role: "member" }, revokeIssuedInvitations: false },
     });
+  });
+});
+
+describe("review access after a membership change", () => {
+  it.each([
+    ["member", "member", false],
+    ["member", "reviewer", false],
+    ["member", "program_manager", false],
+    ["member", null, false],
+    ["member", "committee_reader", false],
+    ["reviewer", "member", true],
+    ["reviewer", "reviewer", false],
+    ["reviewer", "program_manager", false],
+    ["reviewer", null, true],
+    ["reviewer", "committee_reader", true],
+    ["program_manager", "member", true],
+    ["program_manager", "reviewer", false],
+    ["program_manager", "program_manager", false],
+    ["program_manager", null, true],
+    ["program_manager", "committee_reader", true],
+    ["committee_reader", "member", false],
+    ["committee_reader", "reviewer", false],
+    ["committee_reader", "program_manager", false],
+    ["committee_reader", "committee_reader", false],
+    ["committee_reader", null, false],
+  ] as const)("changing %s to %s revokes review access: %s", (before, after, expected) => {
+    expect(revokesReviewAccess(before, after)).toBe(expected);
   });
 });
 

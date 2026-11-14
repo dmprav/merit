@@ -89,6 +89,14 @@ export const AdministratorWithoutGrantAccess: Story = {
     },
   },
 };
+export const Reviewer: Story = {
+  args: {
+    result: {
+      ...invitation,
+      value: { ...invitation.value, administration: "none", role: "reviewer" },
+    },
+  },
+};
 export const ProgramManager: Story = {
   args: { result: { ...invitation, value: { ...invitation.value, administration: "none" } } },
 };

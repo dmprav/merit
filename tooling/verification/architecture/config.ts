@@ -223,8 +223,8 @@ const serverImports = [
   ),
   permitServer(
     { file: { path: "app/src/server/services.server.ts" } },
-    "@merit/{applications,grantmaking}/server/integrations",
-    business("{applications,grantmaking}", "integrations"),
+    "@merit/{applications,grantmaking,reviews}/server/integrations",
+    business("{applications,grantmaking,reviews}", "integrations"),
   ),
   permitServer(
     {

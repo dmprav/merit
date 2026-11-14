@@ -13,6 +13,7 @@ const invitation: InvitationMessage = {
 export const invitationFixtures = {
   owner: invitation,
   administrator: { ...invitation, administration: "administrator", role: "member" },
+  reviewer: { ...invitation, administration: "none", role: "reviewer" },
   programManager: { ...invitation, administration: "none" },
   combined: { ...invitation, administration: "administrator" },
   longContent: {

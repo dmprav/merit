@@ -241,3 +241,10 @@
 .hidden {
   display: none;
 }
+
+@container merit-table (max-width: 20rem) {
+  .table td {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-1);
+  }
+}

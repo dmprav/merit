@@ -19,6 +19,7 @@ const setup = (adjust?: (page: ReviewerPage) => void) => {
       applicationTitle: "Community review",
       applicant: "Community group",
       organization: "Alder",
+      workspaceSlug: "alder",
       dueDate: null,
       managerName: "Dana",
       managerEmail: "dana@example.test",

@@ -3,31 +3,40 @@ import { Link, useBlocker } from "@tanstack/react-router";
 import { useMemo, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
+import { useFormat } from "@merit/i18n/format";
 import { ReviewerScreen } from "@merit/reviews-web/reviewer";
+import type { ReviewerPage as AssignmentPage, ReviewerSummary } from "@merit/reviews/api";
+import { DataTable, type TableColumn } from "@merit/tables";
+import { Badge } from "@merit/ui/badge";
 import { ConfirmationDialog } from "@merit/ui/confirmation-dialog";
 import { Stack } from "@merit/ui/layout";
 import linkStyles from "@merit/ui/link.module.css";
 import { PageHeader } from "@merit/ui/page-header";
+import { SectionHeader } from "@merit/ui/section-header";
 import { StateMessage } from "@merit/ui/state-message";
 
 import { AppPage } from "../../app/app-shell";
-import { RouteRetry } from "../../components/route-retry";
+import { WorkspaceStatusPage } from "../../app/workspace-page";
 import { StandalonePage } from "../../components/standalone-page";
+import { WorkspaceState } from "../../components/workspace-state";
 import { PinButton } from "../navigation/pin-button";
 import {
   reviewerData,
   reviewerListOptions,
   reviewerPageOptions,
 } from "./data/reviews/reviewer-data";
+import styles from "./my-work.module.css";
 
 const ReviewerPage = ({
   children,
   assignment,
+  workspaceSlug,
 }: {
   children: ReactNode;
+  workspaceSlug: string;
   assignment?: { id: string; applicationTitle: string };
 }) => {
-  const { t } = useTranslation("reviewer");
+  const { t } = useTranslation(["reviewer", "web"]);
   return (
     <AppPage
       width="full"
@@ -41,8 +50,8 @@ const ReviewerPage = ({
         )
       }
       breadcrumb={[
-        <Link to="/reviews" key="reviews">
-          {t("title")}
+        <Link to="/app/$workspaceSlug/work" params={{ workspaceSlug }} key="work">
+          {t("web:navigation.myWork")}
         </Link>,
         ...(assignment ? [assignment.applicationTitle] : []),
       ]}
@@ -51,6 +60,9 @@ const ReviewerPage = ({
     </AppPage>
   );
 };
+
+const reviewFailureStatus = (status?: string) =>
+  status === "not_found" || status === "forbidden" ? "not_found" : "unavailable";
 
 const ReviewerState = ({
   status = "unavailable",
@@ -78,81 +90,130 @@ const ReviewerState = ({
     );
   }
 
-  if (status === "not_found" || status === "forbidden") {
-    return (
-      <StateMessage
-        title={t("web:state.review.notFound.title")}
-        description={t("web:state.review.notFound.description")}
-      />
-    );
-  }
-
-  return (
-    <StateMessage
-      title={t("web:state.review.unavailable.title")}
-      description={t("web:state.review.unavailable.description")}
-      actions={<RouteRetry>{t("retry")}</RouteRetry>}
-    />
-  );
+  return <WorkspaceState resource="review" status={reviewFailureStatus(status)} />;
 };
 
-/** Signed-out reviewers have no personal navigation yet, so sign-in stands alone. */
-export const ReviewerSignIn = ({ assignmentId }: { assignmentId?: string }) => (
+/** Legacy links disclose only an authorized invitation until workspace membership is accepted. */
+export const ReviewerEntry = ({
+  page,
+  status,
+  assignmentId,
+}: {
+  page?: AssignmentPage;
+  status?: string;
+  assignmentId?: string;
+}) => (
   <StandalonePage>
-    <ReviewerState status="signed_out" assignmentId={assignmentId} />
+    {page ? (
+      <ReviewerScreen initial={page} data={reviewerData(page.assignment.id)} />
+    ) : (
+      <ReviewerState status={status} assignmentId={assignmentId} />
+    )}
   </StandalonePage>
 );
 
 /** Shows an unreadable assignment list or assignment inside the reviewer's navigation. */
-export const ReviewerUnavailable = (props: { status?: string; assignmentId?: string }) => (
-  <AppPage centered breadcrumb={null}>
-    <ReviewerState {...props} />
-  </AppPage>
-);
+export const ReviewerUnavailable = (props: { status?: string; assignmentId?: string }) =>
+  props.status === "signed_out" ? (
+    <AppPage centered breadcrumb={null}>
+      <ReviewerState {...props} />
+    </AppPage>
+  ) : (
+    <WorkspaceStatusPage resource="review" status={reviewFailureStatus(props.status)} />
+  );
 
-export const ReviewerListPage = () => {
-  const { t } = useTranslation("reviewer");
-  const { data } = useSuspenseQuery(reviewerListOptions());
+export const MyWorkPage = ({ workspaceSlug }: { workspaceSlug: string }) => {
+  const format = useFormat();
+  const { t } = useTranslation(["reviewer", "web"]);
+  const { data } = useSuspenseQuery(reviewerListOptions(workspaceSlug));
   if (data.status !== "ok") {
     return <ReviewerUnavailable status={data.status} />;
   }
+  const columns: TableColumn<ReviewerSummary>[] = [
+    {
+      id: "application",
+      header: t("web:work.application"),
+      layout: { primary: true },
+      cell: (assignment) => (
+        <Stack gap={1}>
+          <Link
+            className={linkStyles.text}
+            to="/app/$workspaceSlug/work/$assignmentId"
+            params={{ workspaceSlug, assignmentId: assignment.id }}
+          >
+            {assignment.applicationTitle}
+          </Link>
+          <span className={styles.supporting}>{assignment.applicant}</span>
+        </Stack>
+      ),
+    },
+    {
+      id: "status",
+      header: t("web:work.status"),
+      layout: { width: "25%" },
+      cell: (assignment) => (
+        <Badge
+          tone={
+            assignment.status === "submitted"
+              ? "success"
+              : assignment.status === "conflict"
+                ? "warning"
+                : "neutral"
+          }
+        >
+          {t(`status.${assignment.status}`)}
+        </Badge>
+      ),
+    },
+    {
+      id: "due",
+      header: t("due"),
+      layout: { width: "25%" },
+      cell: (assignment) =>
+        assignment.dueDate ? (
+          <time dateTime={assignment.dueDate}>{format.calendarDate(assignment.dueDate)}</time>
+        ) : (
+          <span className={styles.supporting}>{t("noDue")}</span>
+        ),
+    },
+  ];
   return (
-    <ReviewerPage>
-      <Stack gap={5}>
-        <PageHeader title={t("title")} />
-        {!data.value.length && <p>{t("empty")}</p>}
-        {data.value.map((assignment) => (
-          <Stack as="article" gap={2} key={assignment.id}>
-            <h2>
-              <Link to="/reviews/$assignmentId" params={{ assignmentId: assignment.id }}>
-                {assignment.applicationTitle}
-              </Link>
-            </h2>
-            <p>
-              {assignment.organization} · {assignment.applicant}
-            </p>
-            <p>
-              {t(`status.${assignment.status}`)}
-              {assignment.dueDate ? ` · ${assignment.dueDate}` : ""}
-            </p>
-          </Stack>
-        ))}
-      </Stack>
+    <ReviewerPage workspaceSlug={workspaceSlug}>
+      <PageHeader title={t("web:navigation.myWork")} />
+      <section aria-label={t("assigned")}>
+        <SectionHeader title={t("assigned")} count={data.value.length} />
+        <DataTable
+          data={data.value}
+          columns={columns}
+          getRowId={(assignment) => assignment.id}
+          label={t("assigned")}
+          emptyMessage={t("empty")}
+        />
+      </section>
     </ReviewerPage>
   );
 };
 
-export const ReviewerAssignmentPage = ({ assignmentId }: { assignmentId: string }) => {
-  const { t } = useTranslation("reviewer");
-  const { data: result } = useSuspenseQuery(reviewerPageOptions(assignmentId));
-  const data = useMemo(() => reviewerData(assignmentId), [assignmentId]);
+export const ReviewerAssignmentPage = ({
+  assignmentId,
+  workspaceSlug,
+}: {
+  assignmentId: string;
+  workspaceSlug: string;
+}) => {
+  const { t } = useTranslation(["reviewer", "web"]);
+  const { data: result } = useSuspenseQuery(reviewerPageOptions(assignmentId, workspaceSlug));
+  const data = useMemo(
+    () => reviewerData(assignmentId, workspaceSlug),
+    [assignmentId, workspaceSlug],
+  );
   const [dirty, setDirty] = useState(false);
   const blocker = useBlocker({ shouldBlockFn: () => dirty, withResolver: true });
   if (result.status !== "ok") {
     return <ReviewerUnavailable status={result.status} assignmentId={assignmentId} />;
   }
   return (
-    <ReviewerPage assignment={result.value.assignment}>
+    <ReviewerPage workspaceSlug={workspaceSlug} assignment={result.value.assignment}>
       <ReviewerScreen
         key={assignmentId}
         initial={result.value}

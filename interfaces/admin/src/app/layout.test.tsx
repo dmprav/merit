@@ -38,6 +38,7 @@ const grantWorkspace: Workspace = {
   role: "program_manager",
   administration: "none",
   canWorkOnGrants: true,
+  canViewTeam: true,
 };
 const teamWorkspace: Workspace = {
   ...grantWorkspace,
@@ -47,6 +48,7 @@ const teamWorkspace: Workspace = {
   role: "member",
   administration: "administrator",
   canWorkOnGrants: false,
+  canViewTeam: true,
 };
 
 const renderPage = async (

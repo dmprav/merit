@@ -16,6 +16,7 @@ const workspace = {
   kind: "demo" as const,
   demoExpiresAt: "2027-01-25T12:00:00.000Z",
   canWorkOnGrants: true,
+  canViewTeam: true,
 };
 
 const ready = {

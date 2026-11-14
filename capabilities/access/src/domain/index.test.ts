@@ -19,20 +19,29 @@ const member: OrganizationSubject = {
 describe("workspace access", () => {
   it("limits reviewer work to the active assigned person, with no staff override", () => {
     const assignment = {
+      organizationId: "alder",
       reviewerUserId: "sam",
       reviewStatus: "accepted" as const,
       reviewMembershipCurrent: true,
     };
-    expect(permits({ userId: "sam", active: true }, "work_on_review", assignment)).toBe(true);
     expect(
-      permits({ userId: "sam", active: true }, "work_on_review", {
+      permits({ ...member, userId: "sam", role: "reviewer" }, "work_on_review", assignment),
+    ).toBe(true);
+    expect(
+      permits({ ...member, userId: "sam", role: "reviewer" }, "work_on_review", {
         ...assignment,
         reviewStatus: "submitted",
       }),
     ).toBe(true);
-    expect(permits({ userId: "sam", active: false }, "work_on_review", assignment)).toBe(false);
     expect(
-      permits({ userId: "sam", active: true }, "work_on_review", {
+      permits(
+        { ...member, userId: "sam", role: "reviewer", active: false },
+        "work_on_review",
+        assignment,
+      ),
+    ).toBe(false);
+    expect(
+      permits({ ...member, userId: "sam", role: "reviewer" }, "work_on_review", {
         ...assignment,
         reviewMembershipCurrent: false,
       }),
@@ -46,7 +55,10 @@ describe("workspace access", () => {
     ).toBe(false);
     for (const reviewStatus of ["invited", "conflict", "cancelled", "declined"] as const) {
       expect(
-        permits({ userId: "sam", active: true }, "work_on_review", { ...assignment, reviewStatus }),
+        permits({ ...member, userId: "sam", role: "reviewer" }, "work_on_review", {
+          ...assignment,
+          reviewStatus,
+        }),
       ).toBe(false);
     }
   });

@@ -44,6 +44,7 @@ const alder: Workspace = {
   demoExpiresAt: null,
   role: "program_manager",
   canWorkOnGrants: true,
+  canViewTeam: true,
   administration: "owner",
 };
 const birch: Workspace = {
@@ -54,6 +55,7 @@ const birch: Workspace = {
   demoExpiresAt: null,
   role: "member",
   canWorkOnGrants: false,
+  canViewTeam: true,
   administration: "none",
 };
 
@@ -143,6 +145,7 @@ describe("workspace states", () => {
   it.each([
     ["round", "Round not available"],
     ["application", "Application not available"],
+    ["review", "Review not available"],
   ] as const)(
     "names the unavailable %s without redundant navigation actions",
     async (resource, title) => {
@@ -159,6 +162,12 @@ describe("workspace states", () => {
 
     expect(screen.getByRole("heading", { name: "Application could not be loaded" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Try again" })).toBeEnabled();
+  });
+
+  it("announces review loading with a translated resource name", async () => {
+    await renderWithRouter(<WorkspaceState status="loading" resource="review" />, "/app");
+
+    expect(screen.getByRole("status")).toHaveTextContent("Loading review…");
   });
 
   it("announces loading without offering a premature recovery action", async () => {

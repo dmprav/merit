@@ -31,7 +31,7 @@ export const suggestSlug = (name: string) =>
 
 export const teamAccess = z.object({
   administration: z.enum(["none", "administrator"]),
-  role: z.enum(["member", "program_manager"]),
+  role: z.enum(["member", "program_manager", "reviewer"]),
 });
 
 export const inviteMemberInput = teamInput
@@ -40,7 +40,7 @@ export const inviteMemberInput = teamInput
     email: invitationEmail,
     ...teamAccess.shape,
   })
-  .refine((value) => value.administration !== "none" || value.role === "program_manager", {
+  .refine((value) => value.administration !== "none" || value.role !== "member", {
     message: "Choose at least one responsibility.",
   });
 

@@ -170,18 +170,21 @@ export const acceptInvitation = (
       "work_on_grants",
       { organizationId: organization.id },
     );
+    const canViewTeam = permits({ ...access, userId: user.id, active: user.active }, "read_team", {
+      organizationId: organization.id,
+    });
     if (invitation.acceptedAt) {
       if (invitation.acceptedBy !== user.id || !membership) {
         return fail("forbidden");
       }
-      return { ...organization, canWorkOnGrants };
+      return { ...organization, canWorkOnGrants, canViewTeam };
     }
     if (membership) {
       return fail("membership_conflict");
     }
 
     await persistence.recordInvitationAcceptance(tx, invitation, actor, name);
-    return { ...organization, canWorkOnGrants };
+    return { ...organization, canWorkOnGrants, canViewTeam };
   };
 
   return db.transaction(acceptInvitationTransaction);

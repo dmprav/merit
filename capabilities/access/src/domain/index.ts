@@ -57,7 +57,7 @@ type Access = Pick<OrganizationSubject, "administration" | "role">;
 
 type TeamAccess = {
   administration: "none" | "administrator";
-  role: "member" | "program_manager";
+  role: "member" | "program_manager" | "reviewer";
 };
 
 export const memberActions = (actor: OrganizationSubject, target: Member) => ({

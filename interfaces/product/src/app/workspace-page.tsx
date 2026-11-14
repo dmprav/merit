@@ -12,7 +12,7 @@ import { AppPage } from "./app-shell";
 import { WorkspaceAccount } from "./workspace-account";
 
 const workspaceRecoveryLocation = (
-  workspaces: { slug: string; canWorkOnGrants: boolean }[],
+  workspaces: { slug: string; canWorkOnGrants: boolean; canViewTeam: boolean }[],
   canAdminister: boolean,
 ) => {
   if (workspaces.length > 1) {

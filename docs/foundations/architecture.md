@@ -373,11 +373,15 @@ functions, and historical reads. Expired demos deny access. Demo visitors
 have program-manager access without team administration; demo invitations are
 rejected. Operator authority alone grants no workspace membership.
 
-Reviewer assignments grant access to one application independently of workspace
-membership. Every reviewer operation checks the current assignment and account;
-acceptance opens the assigned evidence, revocation ends access, and a reported
-conflict pauses it. The [reviewer workflow](../workflows/participate-in-review.md) owns
-these rules and the privacy of drafts.
+Reviewer access requires both a current reviewer or program-manager membership
+and an authorized assignment. Organizations owns membership and workspace
+invitations; Reviews owns assignment acceptance, private drafts, and assessments.
+Every reviewer operation checks the current account, membership, and assignment.
+Acceptance opens the assigned evidence; revocation ends access and a reported
+conflict pauses it. Removing qualifying membership ends assignments through a
+Reviews-owned lifecycle collaborator in the same transaction. Restoring membership
+does not silently restore those assignments. The
+[reviewer workflow](../workflows/participate-in-review.md) owns these rules.
 
 MCP requires verified OAuth identity, client ID, and scopes in every mode. Browser
 cookies and local fixture identities never authorize MCP. Operations recheck
@@ -444,8 +448,11 @@ The
 owns construction and canonical redirects.
 
 Workspace discovery uses current memberships and returns permitted destinations:
-funding rounds for grant work, Team for other members, and a chooser for multiple
-workspaces. Reviewers can reach My reviews without workspace membership. An empty
-workspace remains usable independently of funding rounds. The
+funding rounds for program managers, Members & access for members allowed to read
+Team, My work for reviewers, and a chooser for multiple workspaces. All use the
+same workspace shell. Product navigation composes workspace-scoped My work from
+authorized Reviews reads; Reviews retains its assignment lifecycle. Legacy review
+links resolve to workspace routes only after authorization. An empty workspace
+remains usable independently of funding rounds or assignments. The
 [team workflow](../workflows/manage-team.md) and
 [reviewer workflow](../workflows/participate-in-review.md) own these access rules.

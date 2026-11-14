@@ -10,6 +10,7 @@ it("paginates team directories and restricts invitation and audit detail reads t
   db,
 }) => {
   const service = createOrganizationService({
+    revokeReviewAccess: async () => {},
     database: async (operation) => operation(db),
     isOperator: () => false,
     verifiedEmails: async () => [],

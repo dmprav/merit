@@ -255,7 +255,10 @@ export const registerOnboardingTools = (
       inputSchema: invitationTokenInput,
       outputSchema: z.object({
         status: z.literal("ok"),
-        organization: organizationSchema.extend({ canWorkOnGrants: z.boolean() }),
+        organization: organizationSchema.extend({
+          canWorkOnGrants: z.boolean(),
+          canViewTeam: z.boolean(),
+        }),
       }),
       description:
         "Accept the offered organization responsibilities for your authenticated account. Verifies the invited email. Safe to retry, but does not restore removed access. No existing membership is required.",
@@ -268,6 +271,7 @@ export const registerOnboardingTools = (
             organization: {
               ...presentOrganization(result.value),
               canWorkOnGrants: result.value.canWorkOnGrants,
+              canViewTeam: result.value.canViewTeam,
             },
           }
         : result;

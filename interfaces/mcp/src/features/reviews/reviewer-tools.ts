@@ -37,13 +37,17 @@ const registerSelfReviewReads = (
     {
       ...read,
       scope: "reviews:read",
-      inputSchema: pageInput,
+      inputSchema: pageInput.extend({
+        workspaceSlug: reviewerApplicationSchema.shape.workspaceSlug.optional(),
+      }),
       outputSchema: reviewerListSchema,
       description:
-        "List your own review assignments across organizations. No workspace membership is required. Follow nextCursor as after.",
+        "List your own review assignments in current qualifying workspace memberships. Pass workspaceSlug for My work in one workspace; omit it for the existing cross-workspace listing. Follow nextCursor as after.",
     },
     async (input) => {
-      const result = await reviewer.list(actor);
+      const result = input.workspaceSlug
+        ? await reviewer.list(actor, { workspaceSlug: input.workspaceSlug })
+        : await reviewer.list(actor);
       if (result.status !== "ok") {
         return result;
       }
@@ -136,7 +140,7 @@ const registerManagerAssignments = (
         .extend({ applicationId: inviteReviewerSchema.shape.publicId }),
       outputSchema: reviewerSavedSchema,
       description:
-        "Invite the contact on an existing review request to assess this application. Sends email; requires verified manager email and a standard workspace. Reuse commandId on retry. Inspect delivery after saving.",
+        "Invite the contact on an existing review request to assess this application. Their email must match a current reviewer or program-manager membership. Sends email; requires verified manager email and a standard workspace. Reuse commandId on retry. Inspect delivery after saving.",
     },
     async ({ applicationId, ...input }) => {
       const result = await reviewer.invite(actor, { ...input, publicId: applicationId });

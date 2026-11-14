@@ -8,6 +8,7 @@ import type { useReviewer } from "../../controllers/reviewer/use-reviewer";
 export type ReviewerWork = ReturnType<typeof useReviewer>;
 
 export type ReviewerErrorKey =
+  | "membershipRequired"
   | "unavailable"
   | "accessLost"
   | "saveConflict"

@@ -77,7 +77,7 @@ Use `docker compose stop` to stop it without deleting data.
 
 Compose also starts [Mailpit](organizations.md#try-the-complete-flow-locally) for
 local invitation emails. The seed creates example workspaces for Alder and Birch. Repeating it preserves
-existing content and memberships. If you have a database from before the current
+existing content, review work, memberships, and revoked permissions. If you have a database from before the current
 schema baseline, see [local database recovery](#local-database-recovery).
 
 ### Work locally without Clerk
@@ -101,8 +101,10 @@ The TanStack DevTools button sits midway down the left edge to keep form footer
 actions reachable. It is available across the website, admin app, and workspace
 in development. Its **Merit** tab shows the authentication
 mode and links to the admin app, workspace, and Mailpit; **TanStack Router** inspects
-routes and loaders; **TanStack Query** inspects cached reads and mutations. In local workspace mode, switch between Dana Reed, the Merit
-operator, and the invitation recipient. Switching reloads the current page and
+routes and loaders; **TanStack Query** inspects cached reads and mutations. In local workspace mode, switch between Dana Reed, reviewer Robin Ellis (`reviewer@example.test`), the Merit
+operator, and the invitation recipient. Robin opens Alder’s My work with two seeded
+review invitations; accept an assignment to read, draft, and submit an assessment.
+Switching opens the workspace home and
 clears unsaved changes. The selected fixture persists across pages until you switch
 again. See [organization provisioning](organizations.md) for the invitation flow.
 DevTools and fixture controls are excluded from production builds.

@@ -40,6 +40,7 @@ export const en = {
   program_manager: "Program manager",
   member: "No grant-work access",
   reviewer: "Reviewer",
+  reviewerHelp: "Can assess assigned applications only.",
   committee_reader: "Committee reader",
   unknownName: "Member",
   unknownEmail: "Email not recorded",
@@ -55,7 +56,12 @@ export const en = {
   removeAccessWithInvitations_other:
     "They will lose access to this workspace and connected tools. This also revokes {{count}} invitations they sent; recipients will need new invitations.",
   retainedWorkDescription:
-    "Their work, authorship, account, and other organization memberships stay unchanged. To restore their access, invite them again.",
+    "Their authored work, account, and other organization memberships are preserved. Invite them again to restore workspace membership.",
+  removalEndsReviewAssignments: "Their review assignments will also end.",
+  retainedReviewWorkDescription:
+    "Their private drafts, submitted assessments, authorship, account, and other organization memberships are preserved. After they rejoin as a reviewer or program manager, a program manager must explicitly reinstate each assignment.",
+  savingEndsReviewAssignments:
+    "Saving ends their review assignments. Private drafts and submitted assessments are preserved. Restoring reviewer or program-manager access does not restore assignments; a program manager must explicitly reinstate them.",
   handoverDescription:
     "Arrange any handover with the team before removal. Merit cannot list their outstanding work yet.",
   savingRevokesInvitations_one: "Saving revokes {{count}} invitation.",

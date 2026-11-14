@@ -14,6 +14,7 @@ let sendingFails: boolean;
 
 const service = (emails?: string[]) =>
   createOrganizationService({
+    revokeReviewAccess: async () => {},
     database: (operation) => withDatabase(database.connectionString, operation),
     isOperator: (actor) => actor.userId === "operator",
     verifiedEmails: async (actor) => emails ?? [`${actor.userId}@example.test`],
@@ -66,7 +67,7 @@ const memberRequest = async (name: string) => {
 const invite = async (
   name: string,
   administration: "none" | "administrator" = "none",
-  role: "member" | "program_manager" = "program_manager",
+  role: "member" | "program_manager" | "reviewer" = "program_manager",
   issuer = "owner",
 ) => {
   const requestId = randomUUID();
@@ -89,7 +90,7 @@ const invite = async (
 const join = async (
   name: string,
   administration: "none" | "administrator" = "none",
-  role: "member" | "program_manager" = "program_manager",
+  role: "member" | "program_manager" | "reviewer" = "program_manager",
 ) => {
   const invitation = await invite(name, administration, role);
 
@@ -351,6 +352,7 @@ describe("organization team", () => {
   it("delivers the committed team invitation and retains its responsibilities when resending", async () => {
     const delivered: InvitationMessage[] = [];
     const invitations = createOrganizationService({
+      revokeReviewAccess: async () => {},
       database: (operation) => withDatabase(database.connectionString, operation),
       isOperator: () => false,
       verifiedEmails: async () => [],
@@ -817,3 +819,39 @@ it("leaves membership and audit unchanged when access is saved unchanged", async
     events,
   );
 });
+
+it("lets an administrator invite a reviewer without granting grant or directory access", async () => {
+  await join("admin", "administrator", "member");
+  const invitation = await invite("recipient", "none", "reviewer", "admin");
+  expect(await service().accept({ userId: "wrong" }, { token: invitation })).toEqual({
+    status: "wrong_account",
+  });
+  expect(await service().accept({ userId: "recipient" }, { token: invitation })).toMatchObject({
+    status: "ok",
+  });
+  expect(await service().team({ userId: "recipient" }, input)).toEqual({ status: "forbidden" });
+  const workspace = await service().workspaces({ userId: "recipient" });
+  expect(workspace).toMatchObject({
+    status: "ok",
+    value: [
+      { role: "reviewer", administration: "none", canWorkOnGrants: false, canViewTeam: false },
+    ],
+  });
+});
+
+it.each([
+  ["administrator", "member", false, true],
+  ["none", "reviewer", false, false],
+  ["none", "program_manager", true, true],
+] as const)(
+  "returns canonical home permissions after accepting %s/%s membership and on retry",
+  async (administration, role, canWorkOnGrants, canViewTeam) => {
+    const invitation = await invite("recipient", administration, role);
+    for (const attempt of ["accept", "retry"]) {
+      expect(
+        await service().accept({ userId: "recipient" }, { token: invitation }),
+        attempt,
+      ).toMatchObject({ status: "ok", value: { slug: "team", canWorkOnGrants, canViewTeam } });
+    }
+  },
+);

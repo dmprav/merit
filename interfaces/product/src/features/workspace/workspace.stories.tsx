@@ -22,6 +22,7 @@ const workspaces: Workspaces["value"] = [
     demoExpiresAt: null,
     role: "program_manager",
     canWorkOnGrants: true,
+    canViewTeam: true,
     administration: "owner",
   },
   {
@@ -32,6 +33,7 @@ const workspaces: Workspaces["value"] = [
     demoExpiresAt: null,
     role: "member",
     canWorkOnGrants: false,
+    canViewTeam: true,
     administration: "administrator",
   },
 ];

@@ -163,7 +163,9 @@ const createTeamCommands = (dependencies: Dependencies) => {
         if (!parsed.success) {
           return fail("invalid_input");
         }
-        return dependencies.database((db) => team.changeMember(db, actor, parsed.data));
+        return dependencies.database((db) =>
+          team.changeMember(db, actor, parsed.data, dependencies.revokeReviewAccess),
+        );
       }),
 
     removeMember: (actor: Actor, input: z.infer<typeof memberInput>) =>
@@ -172,7 +174,9 @@ const createTeamCommands = (dependencies: Dependencies) => {
         if (!parsed.success) {
           return fail("invalid_input");
         }
-        return dependencies.database((db) => team.changeMember(db, actor, parsed.data));
+        return dependencies.database((db) =>
+          team.changeMember(db, actor, parsed.data, dependencies.revokeReviewAccess),
+        );
       }),
   };
 };

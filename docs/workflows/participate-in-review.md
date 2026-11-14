@@ -1,7 +1,7 @@
 # Participate in a review
 
-A program manager can invite a person to assess one application in a standard
-workspace. The reviewer signs in, accepts the assignment, writes a private draft,
+A program manager can invite a reviewer or program-manager member to assess one
+application in a standard workspace. The reviewer signs in, accepts the assignment, writes a private draft,
 and submits their own judgment. This workflow is available through the browser and authenticated MCP. It tests the prototype's
 hypothesis that an occasional external reviewer can complete the work independently;
 it is not evidence of validated demand. Manager-recorded external assessments
@@ -10,6 +10,9 @@ remain available through [web and MCP](review-applications.md).
 ## Invite and accept
 
 Create a review request with a workspace contact, then choose **Invite reviewer**.
+The contact must first have accepted workspace membership with a reviewer or
+program-manager role. An owner or administrator invites them through Members &
+access; program managers manage assignments using their existing grant authority.
 A contact email and the requesting manager's verified email are required. An
 optional response date is advisory; passing it never blocks saving or submission.
 Any current program manager can manage assignments. The requesting manager stays
@@ -18,10 +21,14 @@ named as the contact for questions, which continue by email outside Merit.
 The invitation shows the applicant, application title, instructions, contact, and
 due date. Sign in with an account that verifies the invited email. Before accepting,
 the recipient can decline or report a possible conflict without opening the full
-application. Acceptance binds the assignment to that account. No workspace
-membership is created, and external reviewers receive no access to workspace membership settings, Contacts,
+application. Acceptance binds the assignment to that account and its current
+qualifying membership. The assignment never creates membership. Reviewer members
+receive no access to workspace membership settings, Contacts,
 other applications, manager recommendations, or other reviewers' assessments.
-Existing staff retain their separate staff rights; private drafts remain private.
+Independent administration can grant membership settings; program managers retain
+their separate staff rights. Private drafts remain private. Legacy invitation
+links explain how to join the workspace before acceptance and still allow a
+recipient to decline or report a conflict.
 
 Invitations expire after seven days. Resending extends the invitation for the same
 person and assignment. The assignment URL is not a bearer credential: the server
@@ -37,12 +44,12 @@ Changed application versions and different criteria content are flagged using th
 shared [review freshness policy](review-applications.md#review-basis-and-freshness-policy),
 without replacing the assigned evidence. A later criteria version with matching
 content does not raise a content-change warning. The manager decides whether to
-request a follow-up. A reviewer sees their own work in **My reviews**
-and can return directly through the invitation link or a personal shortcut beneath
-My reviews. [Navigation pins](review-and-decide.md#find-and-return-to-work) follow
-the assignment’s existing access rules. A reviewer who also belongs to workspaces
-switches to them from My reviews, and reaches My reviews from any of those
-workspaces; operators keep Administration in both.
+request a follow-up. A reviewer sees their invited, in-progress, and submitted assignments in the
+workspace’s **My work**, with status and response date. Reviewers with no assignments
+see an explanation of where future work will appear. They can return through the
+invitation link or a workspace-scoped personal shortcut beneath My work. [Navigation pins](review-and-decide.md#find-and-return-to-work) follow
+the assignment’s existing access rules. All members use the same workspace shell and switcher. Program managers can review
+assignments in My work without changing persona; operators keep Administration.
 
 Drafts autosave on the server and can be resumed on another device. Save status
 shows when writing has not reached the server. Managers cannot read draft content.
@@ -76,9 +83,14 @@ unresolved conflict stays paused. A withdrawn assignment stays declined; create 
 new request if the person later agrees to review. An archived contact must be restored
 before their assignment can resume.
 
-Disabled accounts cannot access assignments. If a reviewer accepted as a workspace
-member, removing that membership ends their assignment access too. Rejoining does
-not restore it implicitly; a manager must explicitly end and reinstate the assignment.
+Disabled accounts cannot access assignments. Removing membership or losing the
+reviewer/program-manager role ends assignments too. After qualifying membership
+is restored, a program manager must explicitly **Reinstate assignment** to resume
+access; rejoining alone does not restore it.
+An additive migration gives still-entitled legacy accepted/submitted reviewers
+qualifying membership while preserving staff roles, authored work, and dates. It
+does not restore cancelled or declined assignments, ended access, or disabled
+accounts. Old assignment URLs resolve through authorization to workspace routes.
 Revocation and submission serialize so a write cannot commit under revoked authority.
 Private drafts remain with the application, with no time-based deletion policy.
 

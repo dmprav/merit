@@ -106,3 +106,5 @@ const seedWorkspaceAccess = async (tx: Transaction, clerkUserId: string) => {
     ])
     .onConflictDoNothing();
 };
+
+export { seedExampleReviewer } from "./seed-example-reviewer";

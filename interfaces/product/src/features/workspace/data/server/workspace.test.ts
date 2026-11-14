@@ -31,6 +31,7 @@ describe("workspace entry", () => {
         demoExpiresAt: null,
         role: "program_manager" as const,
         canWorkOnGrants: true,
+        canViewTeam: true,
         administration: "owner" as const,
       };
       const services: Pick<WorkspaceServices, "currentIdentity" | "readWorkspace"> = {

@@ -38,8 +38,9 @@ With a provisioned user, discover a workspace, read an application, and save a
 recommendation with fictional data. Verify the result and client provenance in the
 web workspace. Check read-only and grant-editing clients cannot administer the
 team or use the new scope families; revoke membership and confirm subsequent
-workspace calls fail. Test an external reviewer without membership, wrong-email
-invitation acceptance, a non-operator using admin tools, and an account demo reset
+workspace calls fail. Test a reviewer with qualifying membership and an assignment,
+and verify a legacy invitation without membership cannot accept or read material.
+Also check wrong-email invitation acceptance, a non-operator using admin tools, and an account demo reset
 with its original workspace ID retried. Check consent, refresh,
 sign-out, and token revocation with the clients you intend to support. Automated
 [verification](verification.md#verification) covers transport, signed token

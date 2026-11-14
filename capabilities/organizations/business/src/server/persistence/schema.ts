@@ -19,7 +19,7 @@ export const invitations = pgTable(
     administration: text({ enum: ["none", "administrator", "owner"] })
       .notNull()
       .default("owner"),
-    role: text({ enum: ["member", "program_manager"] })
+    role: text({ enum: ["member", "program_manager", "reviewer"] })
       .notNull()
       .default("program_manager"),
     tokenHash: text("token_hash").notNull().unique(),
@@ -45,7 +45,7 @@ export const invitations = pgTable(
       .where(sql`${table.purpose} = 'provisioning' AND ${table.revokedAt} IS NULL`),
     check(
       "organization_invitations_access_check",
-      sql`(${table.purpose} = 'provisioning' AND ${table.administration} = 'owner' AND ${table.role} = 'program_manager') OR (${table.purpose} = 'team' AND ${table.administration} IN ('none', 'administrator') AND ${table.role} IN ('member', 'program_manager'))`,
+      sql`(${table.purpose} = 'provisioning' AND ${table.administration} = 'owner' AND ${table.role} = 'program_manager') OR (${table.purpose} = 'team' AND ${table.administration} IN ('none', 'administrator') AND ${table.role} IN ('member', 'program_manager', 'reviewer'))`,
     ),
     check(
       "organization_invitations_delivery_check",

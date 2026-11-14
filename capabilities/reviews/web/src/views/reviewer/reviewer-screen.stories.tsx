@@ -59,6 +59,9 @@ invitation.material = null;
 invitation.criteria = null;
 invitation.draft = null;
 export const Invitation: Story = { args: { initial: invitation } };
+export const WorkspaceMembershipRequired: Story = {
+  args: { initial: { ...invitation, membershipRequired: true } },
+};
 
 const longPage = reviewerPage();
 longPage.assignment.applicationTitle =

@@ -154,6 +154,7 @@ export const en = {
       loading: { title: "Loading members and access…" },
     },
     review: {
+      loading: { title: "Loading review…" },
       unavailable: {
         title: "Review could not be loaded",
         description: "We couldn’t load this review. Please try again.",
@@ -165,8 +166,13 @@ export const en = {
       },
     },
   },
+  work: {
+    application: "Application",
+    status: "Status",
+  },
   backToWorkspace: "Back to workspace",
   navigation: {
+    myWork: "My work",
     settings: "Workspace settings",
     workspace: "Workspace",
     workspaces: "Workspaces",

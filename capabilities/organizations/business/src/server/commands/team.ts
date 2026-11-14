@@ -5,7 +5,8 @@ import { type Actor } from "@merit/auth";
 import type { Database } from "@merit/db";
 
 import type { memberInput, changeMemberInput, inviteMemberInput } from "../../api/commands";
-import { evaluateMemberChange } from "../../domain/index";
+import { evaluateMemberChange, revokesReviewAccess } from "../../domain/index";
+import type { Dependencies } from "../dependencies";
 import { recordOrganizationEvent } from "../persistence/commands/events";
 import type { Invitation } from "../persistence/commands/invitations";
 import * as persistence from "../persistence/commands/team";
@@ -181,6 +182,7 @@ export const changeMember = (
   db: Database,
   actor: Actor,
   input: z.infer<typeof memberInput> | z.infer<typeof changeMemberInput>,
+  revokeReviewAccess: Dependencies["revokeReviewAccess"],
 ) =>
   db.transaction(async (tx) => {
     const { organization, member } = await workspace(tx, input.workspaceSlug, actor.userId);
@@ -211,19 +213,11 @@ export const changeMember = (
         removed: false,
       };
     }
-    const issued = await persistence.readIssuedInvitations(tx, organization.id, target.userId);
-    if (
-      revokeIssuedInvitations &&
-      issued
-        .map((i) => i.id)
-        .sort()
-        .join() !== [...input.expectedInvitationIds].sort().join()
-    ) {
-      fail("conflict");
-    }
-
-    if (revokeIssuedInvitations) {
-      await persistence.revokeIssuedInvitations(tx, organization.id, target.userId);
+    const revokedInvitationIds = revokeIssuedInvitations
+      ? await revokeMemberInvitations(tx, target, input.expectedInvitationIds)
+      : [];
+    if (revokesReviewAccess(target.role, access?.role ?? null)) {
+      await revokeMemberReviews(tx, actor, target, revokeReviewAccess);
     }
     await persistence.writeMemberAccess(tx, organization.id, target.userId, access);
     const targetName = target.name ?? target.email;
@@ -237,7 +231,7 @@ export const changeMember = (
         targetName,
         before: { role: target.role, administration: target.administration },
         after: access,
-        revokedInvitationIds: revokeIssuedInvitations ? issued.map((i) => i.id) : [],
+        revokedInvitationIds,
       },
     });
 
@@ -248,3 +242,33 @@ export const changeMember = (
       removed: access === null,
     };
   });
+
+const revokeMemberReviews = async (
+  tx: Transaction,
+  actor: Actor,
+  member: { organizationId: string; membershipId: string; userId: string },
+  revokeReviewAccess: Dependencies["revokeReviewAccess"],
+) => {
+  const author = await persistence.readMember(tx, member.organizationId, actor.userId);
+  await revokeReviewAccess(tx, {
+    organizationId: member.organizationId,
+    membershipId: member.membershipId,
+    userId: member.userId,
+    actor,
+    name: author?.name ?? author?.email ?? actor.userId,
+  });
+};
+
+const revokeMemberInvitations = async (
+  tx: Transaction,
+  member: { organizationId: string; userId: string },
+  expectedIds: string[],
+) => {
+  const issued = await persistence.readIssuedInvitations(tx, member.organizationId, member.userId);
+  const ids = issued.map((invitation) => invitation.id);
+  if ([...ids].sort().join() !== [...expectedIds].sort().join()) {
+    fail("conflict");
+  }
+  await persistence.revokeIssuedInvitations(tx, member.organizationId, member.userId);
+  return ids;
+};

@@ -39,6 +39,14 @@ export const localProvisioningIdentity = (request: Request) => {
       displayName: "Merit operator",
     };
   }
+  if (fixture === "reviewer") {
+    return {
+      actor: { clerkUserId: "local_reviewer" },
+      operator: false,
+      emails: ["reviewer@example.test"],
+      displayName: "Robin Ellis",
+    };
+  }
   if (fixture === "recipient") {
     return {
       actor: { clerkUserId: "local_recipient" },

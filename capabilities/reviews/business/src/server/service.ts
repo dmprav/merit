@@ -3,6 +3,7 @@ import type { Database } from "@merit/db";
 
 import {
   reviewerAddressSchema,
+  reviewerListInput,
   reviewerApplicationSchema,
   type ReviewerService,
   type ReviewerMessage,
@@ -26,24 +27,46 @@ import {
 
 type Dependencies = { database: <T>(operation: (db: Database) => Promise<T>) => Promise<T> };
 
-export const createReviewerService = (
-  dependencies: Dependencies & {
-    verifiedEmails: (actor: Actor) => Promise<string[]>;
-    send: (message: ReviewerMessage) => Promise<void>;
-    reviewerUrl: (id: string) => string;
-    managerUrl: (slug: string, applicationId: string) => string;
-  },
-): ReviewerService => {
-  const { database, verifiedEmails } = dependencies;
+type ReviewerDependencies = Dependencies & {
+  verifiedEmails: (actor: Actor) => Promise<string[]>;
+  send: (message: ReviewerMessage) => Promise<void>;
+  reviewerUrl: (id: string) => string;
+  managerUrl: (slug: string, applicationId: string) => string;
+};
 
-  const read: ReviewerService["read"] = async (actor, input) => {
+const reviewerReads = ({
+  database,
+  verifiedEmails,
+}: ReviewerDependencies): Pick<ReviewerService, "read" | "list"> => ({
+  read: async (actor, input) => {
     const parsed = reviewerAddressSchema.safeParse(input);
     if (!parsed.success) {
       return { status: "invalid" };
     }
     const emails = await verifiedEmails(actor);
-    return database((db) => readReviewerAssignment(db, actor, emails, parsed.data.assignmentId));
-  };
+    return database((db) =>
+      readReviewerAssignment(
+        db,
+        actor,
+        emails,
+        parsed.data.assignmentId,
+        parsed.data.workspaceSlug,
+      ),
+    );
+  },
+  list: async (actor, input) => {
+    const parsed = reviewerListInput.safeParse(input);
+    if (!parsed.success) {
+      return { status: "invalid" };
+    }
+    const emails = await verifiedEmails(actor);
+    return database((db) => listReviewerAssignments(db, actor, emails, parsed.data?.workspaceSlug));
+  },
+});
+
+export const createReviewerService = (dependencies: ReviewerDependencies): ReviewerService => {
+  const { database, verifiedEmails } = dependencies;
+  const { read, list } = reviewerReads(dependencies);
 
   const forApplication: ReviewerService["forApplication"] = (actor, input) => {
     const parsed = reviewerApplicationSchema.safeParse(input);
@@ -66,10 +89,7 @@ export const createReviewerService = (
     history: (actor, input) => database((db) => managerReviewerHistory(db, actor, input)),
     read,
     forApplication,
-    list: async (actor) => {
-      const emails = await verifiedEmails(actor);
-      return database((db) => listReviewerAssignments(db, actor, emails));
-    },
+    list,
     invite: async (actor, input) => {
       const emails = await verifiedEmails(actor);
       const result = await database((db) => inviteReviewer(db, actor, emails, input));

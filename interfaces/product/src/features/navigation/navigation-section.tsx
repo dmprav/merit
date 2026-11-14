@@ -13,7 +13,10 @@ import styles from "./navigation.module.css";
 
 const pinLocation = (pin: NavigationPin): LinkOptions => {
   if (pin.target.kind === "review") {
-    return { to: "/reviews/$assignmentId", params: { assignmentId: pin.target.id } };
+    return {
+      to: "/app/$workspaceSlug/work/$assignmentId",
+      params: { workspaceSlug: pin.workspaceSlug!, assignmentId: pin.target.id },
+    };
   }
   const workspaceSlug = pin.workspaceSlug!;
   return pin.target.kind === "round"
@@ -49,11 +52,9 @@ export const NavigationSection = ({
   const collection = useRef<HTMLAnchorElement>(null);
   const [error, setError] = useState(false);
   const pins =
-    state?.pins.filter(
-      (pin) =>
-        pin.target.kind === kind && (kind === "review" || pin.workspaceSlug === workspaceSlug),
-    ) ?? [];
-  const segment = kind === "review" ? "reviews" : kind === "round" ? "rounds" : "applications";
+    state?.pins.filter((pin) => pin.target.kind === kind && pin.workspaceSlug === workspaceSlug) ??
+    [];
+  const segment = kind === "review" ? "work" : kind === "round" ? "rounds" : "applications";
   const currentPin = pathname.includes(`/${segment}/`)
     ? pins.find((pin) => pathname.replace(/\/$/, "").endsWith(pin.target.id))
     : undefined;

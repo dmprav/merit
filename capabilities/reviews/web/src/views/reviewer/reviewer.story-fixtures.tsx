@@ -31,6 +31,7 @@ export const reviewerPage = (): ReviewerPage => ({
     applicationTitle: application.title,
     applicant: "Neighbourhood Kitchen",
     organization: round.foundation,
+    workspaceSlug: "alder",
     dueDate: "2027-02-10",
     managerName: "Dana Reed",
     managerEmail: "dana@example.test",
@@ -246,7 +247,7 @@ export const managerReviews = (): ReviewState => ({
 
 export const managerTransport = (
   initial: Awaited<ReturnType<ManagerReviewerData["read"]>>,
-  scenario: "ordinary" | "pending" | "failure" = "ordinary",
+  scenario: "ordinary" | "pending" | "failure" | "membership" = "ordinary",
 ): ManagerReviewerData => {
   let result = structuredClone(initial);
   let firstInvite = true;
@@ -254,6 +255,9 @@ export const managerTransport = (
     read: fn<ManagerReviewerData["read"]>(async () => structuredClone(result)),
     refresh: fn<ManagerReviewerData["refresh"]>(async () => {}),
     invite: fn<ManagerReviewerData["invite"]>(async (_request, dueDate) => {
+      if (scenario === "membership") {
+        return { status: "invalid", error: "workspace_membership_required" };
+      }
       if (scenario === "pending") {
         return new Promise(() => {});
       }

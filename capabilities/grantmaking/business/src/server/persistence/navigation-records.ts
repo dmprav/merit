@@ -106,7 +106,7 @@ export const resolveNavigationTargets = async (
     ...reviews.map((row) => ({
       target: { kind: "review" as const, id: row.assignment.id },
       title: row.title,
-      workspaceSlug: null,
+      workspaceSlug: row.slug,
       context: row.organization,
     })),
   ];

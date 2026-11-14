@@ -406,6 +406,9 @@ export const useReviewer = (
 type Failure = { status: string; error?: string };
 
 const responseError = ({ status, error }: Failure) => {
+  if (error === "workspace_membership_required") {
+    return "membershipRequired";
+  }
   if (error === "application_withdrawn") {
     return "applicationWithdrawn";
   }

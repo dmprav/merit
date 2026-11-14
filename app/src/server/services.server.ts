@@ -12,6 +12,7 @@ import { productLinks } from "@merit/product/links";
 import { createRecommendationsService } from "@merit/recommendations/server";
 import { createReviewService } from "@merit/reviews/server";
 import { createReviewerService } from "@merit/reviews/server";
+import { revokeMembershipReviews } from "@merit/reviews/server/integrations";
 import { createRoundsService } from "@merit/rounds/server";
 import { instrumentService, withSpan } from "@merit/telemetry";
 
@@ -94,6 +95,7 @@ export const createApplicationServices = ({
   const organizations = instrumentService(
     "organizations",
     createOrganizationService({
+      revokeReviewAccess: revokeMembershipReviews,
       database,
       ...identity,
       networkAddress,

@@ -3,7 +3,7 @@ import { expect, it, vi } from "vite-plus/test";
 import { connect } from "../../../tests/client";
 import { testOperations } from "../../../tests/operations";
 
-it("presents canonical workspace home URLs for grant-work and settings-only members", async () => {
+it("presents canonical workspace home URLs for grant-work and settings-only members and reviewers", async () => {
   const operations = testOperations();
   vi.mocked(operations.organizations.workspacesPage).mockResolvedValue({
     status: "ok",
@@ -17,6 +17,7 @@ it("presents canonical workspace home URLs for grant-work and settings-only memb
         role: "program_manager",
         administration: "owner",
         canWorkOnGrants: true,
+        canViewTeam: true,
       },
       {
         id: "w-2",
@@ -27,6 +28,18 @@ it("presents canonical workspace home URLs for grant-work and settings-only memb
         role: "member",
         administration: "none",
         canWorkOnGrants: false,
+        canViewTeam: true,
+      },
+      {
+        id: "w-3",
+        name: "Cedar Foundation",
+        slug: "cedar",
+        kind: "standard",
+        demoExpiresAt: null,
+        role: "reviewer",
+        administration: "none",
+        canWorkOnGrants: false,
+        canViewTeam: false,
       },
     ],
     nextCursor: null,
@@ -41,6 +54,7 @@ it("presents canonical workspace home URLs for grant-work and settings-only memb
       workspaces: [
         { slug: "alder", url: "http://localhost:3000/app/alder/rounds" },
         { slug: "birch", url: "http://localhost:3000/app/birch/settings/members" },
+        { slug: "cedar", url: "http://localhost:3000/app/cedar/work" },
       ],
     });
   } finally {

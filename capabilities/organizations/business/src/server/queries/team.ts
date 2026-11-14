@@ -12,6 +12,9 @@ import { fail } from "../result";
 const workspace = async (tx: Transaction, slug: string, actor: string) => {
   const organization = (await persistence.readWorkspace(tx, slug)) ?? fail("not_found");
   const member = (await persistence.readSubject(tx, organization.id, actor)) ?? fail("forbidden");
+  if (!permits(member, "read_team", member)) {
+    fail("forbidden");
+  }
   return { organization, member };
 };
 

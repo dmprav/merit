@@ -20,10 +20,12 @@ Only real authenticated sessions supply sign-out.
 Navigation belongs to the person, not the page. The product layout loads the
 workspaces they can enter and their operator access once, and layout routes render
 the shell around their pages: the workspace layout for one workspace, read through
-its own access check, and the reviews layout for My reviews. Pages supply only
+its own access check. My work and reviewer assignments use this same workspace
+layout. Legacy review URLs redirect only after an authorized assignment read. Pages supply only
 `AppPage`, so the sidebar, its pins, and its scroll position stay in place between
 them. `AppShell` takes the current context and derives its destinations: workspace
-sections from grant access, My reviews beside every non-demo workspace, the
+sections from grant access, workspace-scoped My work and review pins, membership
+settings only when authorized, the
 workspace switcher wherever another workspace is available, and Administration for
 operators.
 
@@ -34,6 +36,12 @@ editing panes in the viewport; compact screens return to document scrolling.
 Keep form and record widths within the page body so the header retains its shared
 alignment and available space. The [page composition pattern](../../../../foundation/ui/src/patterns/page-composition/page-composition.mdx)
 explains the shared choices; feature stories exercise their actual arrangement.
+
+My work uses the shared table for review assignments: application and applicant
+identify the work, while status and response date remain separate, comparable
+properties. Narrow layouts use the table’s labelled records. The
+[My work stories](grantmaking/my-work.stories.tsx) cover reviewer and manager
+navigation, empty workspaces, and long application titles.
 
 When a workspace is inaccessible, the workspace layout supplies the shared recovery
 frame through `WorkspaceRecovery`, with a return link to accessible work or a

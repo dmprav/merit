@@ -16,7 +16,7 @@ export type InvitationResult =
     }
   | { status: OrganizationProblem | "signed_out" | "unavailable" };
 
-export type AcceptedWorkspace = { slug: string; canWorkOnGrants: boolean };
+export type AcceptedWorkspace = { slug: string; canWorkOnGrants: boolean; canViewTeam: boolean };
 
 export type InvitationAcceptance =
   | { status: "ok"; value: AcceptedWorkspace }

@@ -45,6 +45,9 @@ PostgreSQL's write rejection and caller-owned rollback.
 
 Commands lock the organization and current membership before changing access.
 Membership changes, invitation changes, and audit events commit together.
+The required `revokeReviewAccess` collaborator ends review assignments in that
+transaction when qualifying responsibilities are removed. Assembly supplies Reviews’
+implementation; Organizations never writes review tables.
 Invitation delivery runs after the invitation transaction completes; failed
 sending leaves the saved invitation recoverable. Delivery status is recorded in
 a separate transaction. Retrying the same creation request preserves its

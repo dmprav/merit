@@ -42,8 +42,14 @@ later recording or correction of it.
 A **contact** represents a person a workspace works with, independently of whether
 they have an account. **Reviewer** describes that person's role in assessing an
 application; it is not a separate kind of person. A **Merit account** identifies
-someone who can sign in. Workspace membership grants staff access; a reviewer
-assignment can grant access to one application without membership.
+someone who can sign in. **Workspace membership** establishes participation and
+responsibilities in a foundation's workspace. A reviewer member can enter that
+workspace, but only a **review assignment** grants access to the application
+material they are asked to assess. Program managers can also receive assignments;
+their separate staff access does not make another person's draft visible.
+
+**My work** presents a person's assignments within the current workspace. It is a
+view of work owned by the relevant capability, not a separate task lifecycle.
 
 An applicant need not have an account in Merit. The **applicant contact** is the
 person to approach about a request; the **recorder** is the person who entered
@@ -103,6 +109,9 @@ judges it against criteria. **Due diligence** examines the proposed recipient an
 the risks of proceeding.
 
 A **review request** records work requested from a reviewer for an application.
+For work completed in Merit, a **review assignment** connects that request to the
+invited account and its current workspace membership, with explicit acceptance,
+conflict handling, and access revocation.
 An **assessment** records the judgment received; it may fulfil a request or arrive
 without one. Its **review basis** is the application material and criteria assessed,
 which may differ from what is current when the assessment is recorded. Receiving

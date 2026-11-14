@@ -64,7 +64,7 @@ export interface OrganizationService {
   accept: (
     actor: Actor,
     input: z.input<typeof invitationTokenInput>,
-  ) => Promise<Result<Organization & { canWorkOnGrants: boolean }>>;
+  ) => Promise<Result<Organization & { canWorkOnGrants: boolean; canViewTeam: boolean }>>;
   teamOverview: (actor: Actor, input: z.input<typeof teamInput>) => Promise<Result<TeamOverview>>;
   membersPage: (actor: Actor, input: z.input<typeof teamPageInput>) => Promise<Result<MemberPage>>;
   invitationsPage: (

@@ -17,6 +17,7 @@ export const workspaceListSchema = z.object({
       role: z.enum(["member", "program_manager", "reviewer", "committee_reader"]),
       administration: z.enum(["none", "administrator", "owner"]),
       canWorkOnGrants: z.boolean(),
+      canViewTeam: z.boolean(),
       url: z.url(),
     }),
   ),
@@ -39,8 +40,9 @@ export const presentWorkspaces = (
     role: workspace.role,
     administration: workspace.administration,
     canWorkOnGrants: workspace.canWorkOnGrants,
+    canViewTeam: workspace.canViewTeam,
     url: new URL(
-      `/app/${encodeURIComponent(workspace.slug)}/${workspace.canWorkOnGrants ? "rounds" : "settings/members"}`,
+      `/app/${encodeURIComponent(workspace.slug)}/${workspace.canWorkOnGrants ? "rounds" : workspace.canViewTeam ? "settings/members" : "work"}`,
       origin,
     ).href,
   })),

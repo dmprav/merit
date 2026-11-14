@@ -50,11 +50,22 @@ it("shows the private draft while a reviewer is writing", () => {
 it("offers acceptance without the application until the reviewer joins", () => {
   renderReviewer(invitation());
 
+  expect(screen.getByRole("heading", { name: "Review invitation" })).toBeVisible();
+  expect(screen.getByText(/has invited you to review this application/)).toBeVisible();
   expect(screen.getByRole("button", { name: "Accept review" })).toBeVisible();
   expect(screen.queryByRole("region", { name: "Application material" })).not.toBeInTheDocument();
   expect(screen.getByText("No due date")).toBeVisible();
   expect(screen.getByRole("button", { name: "Report a possible conflict" })).toBeVisible();
   expect(screen.queryByRole("button", { name: "More actions" })).not.toBeInTheDocument();
+});
+
+it("explains membership before accepting a legacy invitation and keeps decline available", () => {
+  renderReviewer({ ...invitation(), membershipRequired: true });
+  expect(screen.getByText(/Join this workspace as a reviewer or program manager/)).toBeVisible();
+  expect(screen.getByRole("button", { name: "Accept review" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Decline review" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Report a possible conflict" })).toBeEnabled();
+  expect(screen.queryByRole("region", { name: "Application material" })).not.toBeInTheDocument();
 });
 
 it("accepts a review and opens the assessment", async () => {

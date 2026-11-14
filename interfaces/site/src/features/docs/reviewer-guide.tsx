@@ -18,6 +18,7 @@ export const ReviewerGuide = () => {
           children: (
             <>
               <ol className={styles.steps}>
+                <li>{t("docs.pages.reviews.invitation.steps.join")}</li>
                 <li>{t("docs.pages.reviews.invitation.steps.open")}</li>
                 <li>{t("docs.pages.reviews.invitation.steps.respond")}</li>
               </ol>

@@ -12,7 +12,12 @@ import {
   submitReviewerSchema,
   type ReviewerService,
 } from "../../api/reviewer";
-import { emptyReviewerDraft, nextReviewerStatus, reviewerSubmission } from "../../domain/reviewer";
+import {
+  emptyReviewerDraft,
+  isInvitationExpired,
+  nextReviewerStatus,
+  reviewerSubmission,
+} from "../../domain/reviewer";
 import { prepareReviewChange } from "../../domain/reviews";
 import {
   lockManagedReviewerAssignment,
@@ -42,6 +47,7 @@ import {
   permittedReviewerWork,
   readPrivateReviewerDraft,
   reviewerMembership,
+  reviewerMembershipByEmail,
   type ReviewerRecord,
 } from "../persistence/reviewer-records";
 
@@ -88,6 +94,10 @@ export const inviteReviewer = async (
     if (!contact || contact.archived || !email || !managerEmail || !email.includes("@")) {
       return { status: "invalid" } as const;
     }
+    const membershipId = await reviewerMembershipByEmail(tx, access.organizationId, email);
+    if (!membershipId) {
+      return { status: "invalid", error: "workspace_membership_required" } as const;
+    }
     if (await invitationLimited(tx, access.organizationId, email)) {
       return { status: "limited" } as const;
     }
@@ -100,6 +110,7 @@ export const inviteReviewer = async (
         organizationId: access.organizationId,
         requestId: request.requestId,
         email,
+        membershipId,
         managerUserId: actor.userId,
         managerName: access.actor.name ?? managerEmail,
         managerEmail,
@@ -108,11 +119,7 @@ export const inviteReviewer = async (
       },
       emptyReviewerDraft(),
     );
-    await recordReviewerReceipt(tx, {
-      assignmentId: id,
-      commandId: request.commandId,
-      revision: 0,
-    });
+    await recordReviewerReceipt(tx, { assignmentId: id, commandId: id, revision: 0 });
     await recordReviewerEvent(tx, {
       assignmentId: id,
       actor,
@@ -208,7 +215,7 @@ export const respondToReview = async (
     if (assignment.revision !== request.expectedRevision) {
       return { status: "conflict" } as const;
     }
-    if (assignment.status === "invited" && assignment.expiresAt <= new Date()) {
+    if (isInvitationExpired(assignment)) {
       return { status: "expired" } as const;
     }
     const status = nextReviewerStatus(
@@ -224,32 +231,31 @@ export const respondToReview = async (
     if (!status) {
       return { status: "invalid" } as const;
     }
+    const membershipId = await reviewerMembership(tx, assignment.organizationId, user.id);
+    if (request.action === "accept" && !membershipId) {
+      return { status: "invalid", error: "workspace_membership_required" } as const;
+    }
     const revision = assignment.revision + 1;
     await updateReviewerAssignment(tx, assignment.id, {
       status,
       revision,
       reviewerUserId: user.id,
-      ...(assignment.reviewerUserId === null
-        ? { membershipId: await reviewerMembership(tx, assignment.organizationId, user.id) }
+      ...(assignment.reviewerUserId === null || assignment.membershipId === null
+        ? { membershipId }
         : {}),
       ...(request.action === "accept" ? { acceptedAt: new Date() } : {}),
       ...(request.action === "report_conflict" ? { conflict: request.note } : {}),
     });
+    const name = user.name ?? record.reviewer;
     if (status === "declined") {
-      await updateParticipatingRequest(
-        tx,
-        assignment.caseId,
-        assignment.requestId,
-        "cancelled",
-        actor,
-        user.name ?? record.reviewer,
-      );
+      const { caseId, requestId } = assignment;
+      await updateParticipatingRequest(tx, caseId, requestId, "cancelled", actor, name);
     }
     await recordReviewerReceipt(tx, { ...request, revision });
     await recordReviewerEvent(tx, {
       assignmentId: assignment.id,
       actor,
-      name: user.name ?? record.reviewer,
+      name,
       action: request.action,
       note: request.note,
     });
@@ -439,18 +445,19 @@ const changeReviewerParticipation = async (
   if (problem) {
     return { status: problem } as const;
   }
+  const membershipId =
+    request.action === "reinstate"
+      ? assignment.reviewerUserId
+        ? await reviewerMembership(tx, assignment.organizationId, assignment.reviewerUserId)
+        : await reviewerMembershipByEmail(tx, assignment.organizationId, assignment.email)
+      : assignment.membershipId;
+  if (request.action === "reinstate" && !membershipId) {
+    return { status: "invalid", error: "workspace_membership_required" } as const;
+  }
   await updateReviewerAssignment(tx, assignment.id, {
     status,
     revision,
-    ...(request.action === "reinstate" && assignment.reviewerUserId
-      ? {
-          membershipId: await reviewerMembership(
-            tx,
-            assignment.organizationId,
-            assignment.reviewerUserId,
-          ),
-        }
-      : {}),
+    ...(request.action === "reinstate" ? { membershipId } : {}),
     ...(request.action === "clear_conflict" ? { conflict: "", expiresAt: expires() } : {}),
     ...(status === "invited" ? { expiresAt: expires() } : {}),
   });

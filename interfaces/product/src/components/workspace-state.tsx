@@ -27,6 +27,7 @@ export const WorkspaceState = ({
     | "applications"
     | "activity"
     | "team"
+    | "review"
     | "contacts";
   status:
     | "signed_out"

@@ -18,7 +18,7 @@ export const reviewSavedSchema = z.object({
 
 export const reviewerErrorSchema = z.object({
   status: z.enum(["not_found", "forbidden", "conflict", "invalid", "expired", "limited"]),
-  error: z.literal("application_withdrawn").optional(),
+  error: z.enum(["application_withdrawn", "workspace_membership_required"]).optional(),
 });
 const reviewerSummarySchema = z.object({
   id: z.uuid(),
@@ -31,6 +31,7 @@ const reviewerSummarySchema = z.object({
   applicationTitle: z.string(),
   applicant: z.string(),
   organization: z.string(),
+  workspaceSlug: z.string(),
   dueDate: z.string().nullable(),
   managerName: z.string(),
   managerEmail: z.string(),
@@ -67,6 +68,7 @@ export const reviewerHistorySchema = z.object({
   nextCursor: z.string().nullable(),
 });
 export const reviewerPageSchema = z.object({
+  membershipRequired: z.boolean().optional(),
   status: z.literal("ok"),
   assignment: reviewerSummarySchema,
   material: applicationMaterialDataSchema.nullable(),

@@ -26,16 +26,17 @@ export type ShellWorkspace = {
   slug: string;
   kind: "standard" | "demo";
   canWorkOnGrants: boolean;
+  canViewTeam: boolean;
   demoExpiresAt?: string | null;
 };
 
-/** Where the person is working: one workspace, or their own review assignments across workspaces. */
-export type ShellContext = { kind: "workspace"; workspace: ShellWorkspace } | { kind: "reviews" };
+/** Every grant-work role uses the same workspace context. */
+export type ShellContext = { kind: "workspace"; workspace: ShellWorkspace };
 
 export const AppShell = ({ current, children }: { current: ShellContext; children: ReactNode }) => {
   const { t } = useTranslation(["common", "reviewer"]);
-  const workspace = current.kind === "workspace" ? current.workspace : undefined;
-  const name = workspace?.name ?? t("reviewer:title");
+  const workspace = current.workspace;
+  const name = workspace.name;
 
   return (
     <ApplicationShell
@@ -46,10 +47,7 @@ export const AppShell = ({ current, children }: { current: ShellContext; childre
       skipLabel={t("skipToContent")}
       navigationLabel={t("mainNavigation")}
       brand={
-        <Link
-          {...(workspace ? workspaceHomeLocation(workspace) : { to: "/reviews" })}
-          aria-label={t("home")}
-        >
+        <Link {...workspaceHomeLocation(workspace)} aria-label={t("home")}>
           <Brand />
         </Link>
       }
@@ -76,7 +74,7 @@ export const AppShell = ({ current, children }: { current: ShellContext; childre
 };
 
 /** Offers the person's workspaces wherever there is somewhere else to go. */
-const ContextIdentity = ({ name, workspace }: { name: string; workspace?: ShellWorkspace }) => {
+const ContextIdentity = ({ name, workspace }: { name: string; workspace: ShellWorkspace }) => {
   const { t } = useTranslation("common");
   const { workspaces } = useContext(WorkspaceNavigationContext);
   const switchable = workspaces.some((item) => item.slug !== workspace?.slug);
@@ -115,12 +113,11 @@ export const AppPage = (
   );
 };
 
-const AppNavigation = ({ workspace }: { workspace?: ShellWorkspace }) => {
+const AppNavigation = ({ workspace }: { workspace: ShellWorkspace }) => {
   const { t } = useTranslation(["web", "common", "reviewer"]);
   const { canAdminister } = useContext(WorkspaceNavigationContext);
   const grantWork = workspace?.canWorkOnGrants ? workspace.slug : undefined;
-  // Personal reviews sit beside real workspaces; demo workspaces stay self-contained.
-  const reviews = workspace?.kind !== "demo";
+  const reviews = workspace.kind !== "demo";
 
   return (
     <>
@@ -153,16 +150,17 @@ const AppNavigation = ({ workspace }: { workspace?: ShellWorkspace }) => {
       )}
       {reviews && (
         <NavigationSection
-          title={t("reviewer:title")}
+          title={t("navigation.myWork")}
           kind="review"
           icon="edit"
-          location={{ to: "/reviews" }}
+          workspaceSlug={workspace.slug}
+          location={{ to: "/app/$workspaceSlug/work", params: { workspaceSlug: workspace.slug } }}
         />
       )}
       <NavigationPinsStatus />
-      {(workspace || canAdminister) && (
+      {(grantWork || workspace.canViewTeam || canAdminister) && (
         <div className={navigationStyles.secondary}>
-          {workspace && (
+          {(grantWork || workspace.canViewTeam) && (
             <span className={navigationStyles.groupLabel}>{t("navigation.workspace")}</span>
           )}
           {grantWork && (
@@ -171,7 +169,7 @@ const AppNavigation = ({ workspace }: { workspace?: ShellWorkspace }) => {
               {t("navigation.contacts")}
             </Link>
           )}
-          {workspace && (
+          {workspace.canViewTeam && (
             <Link
               to="/app/$workspaceSlug/settings/members"
               params={{ workspaceSlug: workspace.slug }}

@@ -14,9 +14,11 @@ import { beforeEach, expect, it, vi } from "vite-plus/test";
 import { defaultLocale } from "@merit/i18n";
 import { createQueryClient } from "@merit/query";
 
+import { renderWithRouter } from "../../../tests/render-with-router";
 import { WebMessagesProvider } from "../../app/messages";
 import { Route } from "../../routes/invitations/$token";
 import { readInvitation, acceptInvitation } from "./data/server/organization.functions";
+import { WorkspaceInvitation } from "./invitation";
 
 vi.mock("./data/server/organization.functions", () => ({
   readInvitation: vi.fn(),
@@ -87,3 +89,37 @@ it("retries an invitation read in place, guards repeated clicks, and remains ret
   expect(surrounding).toHaveValue("Keep this work");
   expect(acceptInvitation).not.toHaveBeenCalled();
 });
+
+it.each([
+  ["administrator", "member", false, true, "/app/alder/settings/members"],
+  ["none", "reviewer", false, false, "/app/alder/work"],
+  ["none", "program_manager", true, true, "/app/alder/rounds"],
+] as const)(
+  "opens the canonical home after accepting %s/%s membership",
+  async (administration, role, canWorkOnGrants, canViewTeam, destination) => {
+    const organization = {
+      id: "alder",
+      name: "Alder Foundation",
+      slug: "alder",
+      kind: "standard" as const,
+      demoExpiresAt: null,
+      demoSeedVersion: null,
+    };
+    vi.mocked(readInvitation).mockResolvedValue({
+      status: "ok",
+      value: { organization, accepted: false, administration, role },
+    });
+    vi.mocked(acceptInvitation).mockResolvedValue({
+      status: "ok",
+      value: { ...organization, canWorkOnGrants, canViewTeam },
+    });
+    const { user, router } = await renderWithRouter(
+      <QueryClientProvider client={createQueryClient()}>
+        <WorkspaceInvitation token="test-token" fingerprint="test" />
+      </QueryClientProvider>,
+      "/invitations/test-token",
+    );
+    await user.click(await screen.findByRole("button", { name: "Accept invitation" }));
+    await waitFor(() => expect(router.state.location.pathname).toBe(destination));
+  },
+);

@@ -19,6 +19,7 @@ const summary = {
   applicationTitle: "Meals",
   applicant: "Neighbours",
   organization: "Alder",
+  workspaceSlug: "alder",
   dueDate: null,
   managerName: "Dana",
   managerEmail: "dana@example.test",
