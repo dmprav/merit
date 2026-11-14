@@ -2,11 +2,20 @@ import { vi } from "vite-plus/test";
 
 import type { McpOperations } from "../src/app/operations";
 
-type WorkspaceOperations = McpOperations["workspace"];
-
-type TeamOperations = McpOperations["team"];
-
-export const testOperations = () => ({
+export const testOperations = (): McpOperations => ({
+  rounds: {
+    createRound: vi.fn<McpOperations["rounds"]["createRound"]>(),
+    editRound: vi.fn<McpOperations["rounds"]["editRound"]>(),
+    deleteRound: vi.fn<McpOperations["rounds"]["deleteRound"]>(),
+  },
+  applications: {
+    createApplication: vi.fn<McpOperations["applications"]["createApplication"]>(),
+    editApplication: vi.fn<McpOperations["applications"]["editApplication"]>(),
+    selectContact: vi.fn<McpOperations["applications"]["selectContact"]>(),
+  },
+  reviews: {
+    saveReview: vi.fn<McpOperations["reviews"]["saveReview"]>(),
+  },
   reviewer: {
     list: vi.fn<McpOperations["reviewer"]["list"]>(),
     read: vi.fn<McpOperations["reviewer"]["read"]>(),
@@ -18,11 +27,40 @@ export const testOperations = () => ({
     saveDraft: vi.fn<McpOperations["reviewer"]["saveDraft"]>(),
     submit: vi.fn<McpOperations["reviewer"]["submit"]>(),
   },
-  navigation: {
-    read: vi.fn<McpOperations["navigation"]["read"]>(),
-    change: vi.fn<McpOperations["navigation"]["change"]>(),
+  recommendations: {
+    saveRecommendation: vi.fn<McpOperations["recommendations"]["saveRecommendation"]>(),
+  },
+  grantmaking: {
+    listRoundSummaries: vi.fn<McpOperations["grantmaking"]["listRoundSummaries"]>(),
+    readRound: vi.fn<McpOperations["grantmaking"]["readRound"]>(),
+    listApplications: vi.fn<McpOperations["grantmaking"]["listApplications"]>(),
+    readApplication: vi.fn<McpOperations["grantmaking"]["readApplication"]>(),
+    listReviews: vi.fn<McpOperations["grantmaking"]["listReviews"]>(),
+    roundContent: vi.fn<McpOperations["grantmaking"]["roundContent"]>(),
+    applicationContent: vi.fn<McpOperations["grantmaking"]["applicationContent"]>(),
+    roundHistory: vi.fn<McpOperations["grantmaking"]["roundHistory"]>(),
+    applicationHistory: vi.fn<McpOperations["grantmaking"]["applicationHistory"]>(),
+    listWorkspaceActivity: vi.fn<McpOperations["grantmaking"]["listWorkspaceActivity"]>(),
+    listContactApplications: vi.fn<McpOperations["grantmaking"]["listContactApplications"]>(),
+  },
+  contacts: {
+    listContactSummaries: vi.fn<McpOperations["contacts"]["listContactSummaries"]>(),
+    getContact: vi.fn<McpOperations["contacts"]["getContact"]>(),
+    contactHistory: vi.fn<McpOperations["contacts"]["contactHistory"]>(),
+    changeContact: vi.fn<McpOperations["contacts"]["changeContact"]>(),
   },
   organizations: {
+    workspacesPage: vi.fn<McpOperations["organizations"]["workspacesPage"]>(),
+    teamOverview: vi.fn<McpOperations["organizations"]["teamOverview"]>(),
+    membersPage: vi.fn<McpOperations["organizations"]["membersPage"]>(),
+    invitationsPage: vi.fn<McpOperations["organizations"]["invitationsPage"]>(),
+    teamHistoryPage: vi.fn<McpOperations["organizations"]["teamHistoryPage"]>(),
+    teamEvent: vi.fn<McpOperations["organizations"]["teamEvent"]>(),
+    inviteMember: vi.fn<McpOperations["organizations"]["inviteMember"]>(),
+    resendMemberInvitation: vi.fn<McpOperations["organizations"]["resendMemberInvitation"]>(),
+    revokeMemberInvitation: vi.fn<McpOperations["organizations"]["revokeMemberInvitation"]>(),
+    changeMember: vi.fn<McpOperations["organizations"]["changeMember"]>(),
+    removeMember: vi.fn<McpOperations["organizations"]["removeMember"]>(),
     list: vi.fn<McpOperations["organizations"]["list"]>(),
     read: vi.fn<McpOperations["organizations"]["read"]>(),
     create: vi.fn<McpOperations["organizations"]["create"]>(),
@@ -35,47 +73,12 @@ export const testOperations = () => ({
     accessRequests: vi.fn<McpOperations["organizations"]["accessRequests"]>(),
     reviewAccessRequest: vi.fn<McpOperations["organizations"]["reviewAccessRequest"]>(),
   },
+  navigation: {
+    read: vi.fn<McpOperations["navigation"]["read"]>(),
+    change: vi.fn<McpOperations["navigation"]["change"]>(),
+  },
   demo: {
     read: vi.fn<McpOperations["demo"]["read"]>(),
     start: vi.fn<McpOperations["demo"]["start"]>(),
-  },
-
-  workspace: {
-    listReviews: vi.fn<WorkspaceOperations["listReviews"]>(),
-    listContactApplications: vi.fn<WorkspaceOperations["listContactApplications"]>(),
-    listContacts: vi.fn<WorkspaceOperations["listContacts"]>(),
-    getContact: vi.fn<WorkspaceOperations["getContact"]>(),
-    contactHistory: vi.fn<WorkspaceOperations["contactHistory"]>(),
-    changeContact: vi.fn<WorkspaceOperations["changeContact"]>(),
-    selectContact: vi.fn<WorkspaceOperations["selectContact"]>(),
-    saveReview: vi.fn<WorkspaceOperations["saveReview"]>(),
-    createApplication: vi.fn<WorkspaceOperations["createApplication"]>(),
-    editApplication: vi.fn<WorkspaceOperations["editApplication"]>(),
-    createRound: vi.fn<WorkspaceOperations["createRound"]>(),
-    editRound: vi.fn<WorkspaceOperations["editRound"]>(),
-    deleteRound: vi.fn<WorkspaceOperations["deleteRound"]>(),
-    readApplication: vi.fn<WorkspaceOperations["readApplication"]>(),
-    readRound: vi.fn<WorkspaceOperations["readRound"]>(),
-    listApplications: vi.fn<WorkspaceOperations["listApplications"]>(),
-    roundContent: vi.fn<WorkspaceOperations["roundContent"]>(),
-    applicationContent: vi.fn<WorkspaceOperations["applicationContent"]>(),
-    roundHistory: vi.fn<WorkspaceOperations["roundHistory"]>(),
-    applicationHistory: vi.fn<WorkspaceOperations["applicationHistory"]>(),
-    saveRecommendation: vi.fn<WorkspaceOperations["saveRecommendation"]>(),
-    listRounds: vi.fn<WorkspaceOperations["listRounds"]>(),
-    listWorkspaceActivity: vi.fn<WorkspaceOperations["listWorkspaceActivity"]>(),
-  },
-  team: {
-    workspacesPage: vi.fn<TeamOperations["workspacesPage"]>(),
-    teamOverview: vi.fn<TeamOperations["teamOverview"]>(),
-    membersPage: vi.fn<TeamOperations["membersPage"]>(),
-    invitationsPage: vi.fn<TeamOperations["invitationsPage"]>(),
-    teamHistoryPage: vi.fn<TeamOperations["teamHistoryPage"]>(),
-    teamEvent: vi.fn<TeamOperations["teamEvent"]>(),
-    inviteMember: vi.fn<TeamOperations["inviteMember"]>(),
-    resendMemberInvitation: vi.fn<TeamOperations["resendMemberInvitation"]>(),
-    revokeMemberInvitation: vi.fn<TeamOperations["revokeMemberInvitation"]>(),
-    changeMember: vi.fn<TeamOperations["changeMember"]>(),
-    removeMember: vi.fn<TeamOperations["removeMember"]>(),
   },
 });

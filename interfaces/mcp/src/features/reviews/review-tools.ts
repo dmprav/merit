@@ -1,17 +1,16 @@
 import { publicIdSchema } from "@merit/grantmaking/api";
-import { saveReviewRequestSchema } from "@merit/reviews/api";
+import { saveReviewRequestSchema, type ReviewService } from "@merit/reviews/api";
 import { reviewChanges } from "@merit/reviews/domain";
 
 import type { RegisterTool } from "../../components/register-tool";
+import { grantWriteOptions, revision } from "../../components/tool-options";
 import type { McpActor } from "../../contracts";
-import type { FundingRoundOperations } from "./operations";
 import { reviewSavedSchema } from "./responses";
-import { write, revision } from "./tool-options";
 
-export const registerReviewTools = (
+export const registerManagerReviewTools = (
   register: RegisterTool,
   actor: McpActor,
-  workspace: Pick<FundingRoundOperations, "saveReview">,
+  reviews: ReviewService,
 ) => {
   const reviewBase = saveReviewRequestSchema
     .omit({ publicId: true, expectedRevision: true, change: true })
@@ -43,7 +42,7 @@ export const registerReviewTools = (
     register(
       name,
       {
-        ...write,
+        ...grantWriteOptions,
         description,
         inputSchema: reviewBase.extend(fieldsSchema),
         outputSchema: reviewSavedSchema,
@@ -64,7 +63,7 @@ export const registerReviewTools = (
           expectedCriteriaVersion,
           change: { ...fields, action: action.value },
         });
-        const result = await workspace.saveReview(actor, command);
+        const result = await reviews.saveReview(actor, command);
         return result.status === "ok"
           ? { status: "ok" as const, applicationId, reviewRevision: result.revision }
           : result;

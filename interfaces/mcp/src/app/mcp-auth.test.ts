@@ -38,7 +38,7 @@ describe("MCP authentication responses", () => {
             throw failure;
           },
           ...testOperations(),
-          workspace: { ...testOperations().workspace, readRound: read },
+          grantmaking: { ...testOperations().grantmaking, readRound: read },
         },
       );
 

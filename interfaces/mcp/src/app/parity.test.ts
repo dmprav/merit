@@ -123,8 +123,34 @@ it("discovers and dispatches every new workflow with verified identity and origi
     {
       name: "list_workspace_activity",
       args: { workspaceSlug: "alder", roundId: applicationId, personId: "dana", limit: 25 },
-      fn: operations.workspace.listWorkspaceActivity,
+      fn: operations.grantmaking.listWorkspaceActivity,
       result: { status: "ok", entries: [], people: [], nextCursor: null },
+    },
+    {
+      name: "get_team",
+      args: { workspaceSlug: "alder" },
+      fn: operations.organizations.teamOverview,
+      result: {
+        status: "ok",
+        value: {
+          organization: { name: "Alder", slug: "alder", kind: "standard" as const },
+          subject: {
+            userId: "dana",
+            organizationId: "org",
+            active: true,
+            administration: "administrator" as const,
+            role: "program_manager" as const,
+          },
+          canManageMembers: true,
+        },
+      },
+    },
+    {
+      name: "list_team_members",
+      args: { workspaceSlug: "alder" },
+      fn: operations.organizations.membersPage,
+      input: { workspaceSlug: "alder", limit: 20 },
+      result: { status: "ok", value: { members: [], nextCursor: null } },
     },
     {
       name: "get_navigation_pins",
@@ -239,7 +265,7 @@ it("discovers and dispatches every new workflow with verified identity and origi
       const input = "input" in test ? test.input : test.args;
       expect(test.fn).toHaveBeenLastCalledWith(...(input === undefined ? [actor] : [actor, input]));
     }
-    operations.organizations.requestAccess.mockResolvedValueOnce({ status: "ok" });
+    vi.mocked(operations.organizations.requestAccess).mockResolvedValueOnce({ status: "ok" });
     expect(
       (
         await client.callTool({
@@ -314,7 +340,7 @@ it("returns the reviewer's complete validated page and strips uncontracted field
     assessment: null,
     privateInternalField: "hidden",
   };
-  operations.reviewer.read.mockResolvedValue({ status: "ok", value: page });
+  vi.mocked(operations.reviewer.read).mockResolvedValue({ status: "ok", value: page });
   const client = await connect(operations);
   try {
     const result = await client.callTool({
@@ -323,7 +349,7 @@ it("returns the reviewer's complete validated page and strips uncontracted field
     });
     expect(result.structuredContent).toMatchObject({
       status: "ok",
-      value: { draft: { revision: 7, content: draft } },
+      draft: { revision: 7, content: draft },
     });
     expect(JSON.stringify(result)).not.toContain("hidden");
     expect(result.content).toEqual([
@@ -336,7 +362,7 @@ it("returns the reviewer's complete validated page and strips uncontracted field
 
 it("paginates visible assignments in stable ID order", async () => {
   const operations = testOperations();
-  operations.reviewer.list.mockResolvedValue({
+  vi.mocked(operations.reviewer.list).mockResolvedValue({
     status: "ok",
     value: [{ ...summary, id: commandId }, summary],
   });
@@ -345,7 +371,7 @@ it("paginates visible assignments in stable ID order", async () => {
     expect(
       (await client.callTool({ name: "list_my_reviews", arguments: { limit: 1 } }))
         .structuredContent,
-    ).toEqual({ status: "ok", items: [summary], nextCursor: assignmentId });
+    ).toEqual({ status: "ok", assignments: [summary], nextCursor: assignmentId });
     expect(
       (
         await client.callTool({
@@ -353,7 +379,50 @@ it("paginates visible assignments in stable ID order", async () => {
           arguments: { limit: 1, after: assignmentId },
         })
       ).structuredContent,
-    ).toEqual({ status: "ok", items: [{ ...summary, id: commandId }], nextCursor: null });
+    ).toEqual({ status: "ok", assignments: [{ ...summary, id: commandId }], nextCursor: null });
+  } finally {
+    await client.close();
+  }
+});
+
+it("unwraps domain fields in reviewer, organization, and demo responses", async () => {
+  const operations = testOperations();
+  vi.mocked(operations.reviewer.saveDraft).mockResolvedValue({
+    status: "ok",
+    value: { revision: 8 },
+  });
+  vi.mocked(operations.organizations.create).mockResolvedValue({
+    status: "ok",
+    value: { organizationId: "org" },
+  });
+  vi.mocked(operations.demo.read).mockResolvedValue({ status: "empty" });
+  const client = await connect(operations);
+  try {
+    expect(
+      (
+        await client.callTool({
+          name: "save_reviewer_draft",
+          arguments: { assignmentId, commandId, expectedDraftRevision: 7, draft },
+        })
+      ).structuredContent,
+    ).toEqual({ status: "ok", draftRevision: 8 });
+    expect(
+      (
+        await client.callTool({
+          name: "create_organization",
+          arguments: {
+            requestId: commandId,
+            name: "Alder",
+            slug: "alder",
+            email: "sam@example.test",
+          },
+        })
+      ).structuredContent,
+    ).toEqual({ status: "ok", organizationId: "org" });
+    expect((await client.callTool({ name: "get_demo", arguments: {} })).structuredContent).toEqual({
+      status: "ok",
+      demo: { status: "empty" },
+    });
   } finally {
     await client.close();
   }
@@ -376,7 +445,7 @@ it.each(["expired", "limited", "unavailable"] as const)(
   "reports demo %s as an unsuccessful start",
   async (status) => {
     const operations = testOperations();
-    operations.demo.start.mockResolvedValue({ status });
+    vi.mocked(operations.demo.start).mockResolvedValue({ status });
     const client = await connect(operations);
     try {
       const result = await client.callTool({ name: "start_demo", arguments: {} });

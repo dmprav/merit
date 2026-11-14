@@ -4,15 +4,15 @@ import {
   createApplicationRequestSchema,
   editApplicationRequestSchema,
   selectContactRequestSchema,
+  type ApplicationsService,
 } from "@merit/applications/api";
 import { intakeChanges } from "@merit/applications/domain";
 import { applicationReadInput, publicIdSchema } from "@merit/grantmaking/api";
 
 import type { RegisterTool } from "../../components/register-tool";
+import { grantWriteOptions, revision } from "../../components/tool-options";
 import type { McpActor } from "../../contracts";
-import type { FundingRoundOperations } from "./operations";
 import { applicationCreatedSchema, applicationSavedSchema } from "./responses";
-import { write, revision } from "./tool-options";
 
 const lifecycle = [
   [
@@ -59,19 +59,16 @@ const lifecycle = [
 
 const intakeBase = applicationReadInput.extend({ expectedIntakeRevision: revision });
 
-export const registerIntakeTools = (
+export const registerApplicationTools = (
   register: RegisterTool,
   actor: McpActor,
-  workspace: Pick<
-    FundingRoundOperations,
-    "createApplication" | "editApplication" | "selectContact"
-  >,
+  applications: ApplicationsService,
 ) => {
   register(
     "create_application",
     {
-      ...write,
-      annotations: { ...write.annotations, destructiveHint: false },
+      ...grantWriteOptions,
+      annotations: { ...grantWriteOptions.annotations, destructiveHint: false },
       description:
         "Create partial application intake in roundId. Reuse requestId on retry. Requested amount is a decimal EUR string; blank means unknown. Assign each initial answer a questionId UUID and reuse it on retry.",
       inputSchema: createApplicationRequestSchema
@@ -80,7 +77,7 @@ export const registerIntakeTools = (
       outputSchema: applicationCreatedSchema,
     },
     async ({ roundId, ...input }) => {
-      const result = await workspace.createApplication(actor, { ...input, publicId: roundId });
+      const result = await applications.createApplication(actor, { ...input, publicId: roundId });
       return result.status === "ok"
         ? { status: "ok" as const, applicationId: result.publicId }
         : result;
@@ -89,7 +86,7 @@ export const registerIntakeTools = (
   register(
     "edit_application",
     {
-      ...write,
+      ...grantWriteOptions,
       description:
         "Save changed intake fields or staff summary with the original intakeRevision. Omitted content fields stay unchanged. Preserve questionId across edits and reordering; new sections need new UUIDs. Create shared contacts with contact tools and select their contactId. Suggestions remain unsaved until saving is requested.",
       inputSchema: intakeBase.extend({
@@ -98,7 +95,7 @@ export const registerIntakeTools = (
       outputSchema: applicationSavedSchema,
     },
     async ({ applicationId, expectedIntakeRevision, ...input }) => {
-      const result = await workspace.editApplication(actor, {
+      const result = await applications.editApplication(actor, {
         ...input,
         publicId: applicationId,
         expectedRevision: expectedIntakeRevision,
@@ -108,11 +105,11 @@ export const registerIntakeTools = (
         : result;
     },
   );
-  registerIntakeLifecycleTools(register, actor, workspace);
+  registerIntakeLifecycleTools(register, actor, applications);
   register(
     "select_application_contact",
     {
-      ...write,
+      ...grantWriteOptions,
       description:
         "Associate or clear the shared applicant contact using the original intakeRevision. Contact details remain owned by the contact.",
       inputSchema: selectContactRequestSchema
@@ -121,7 +118,7 @@ export const registerIntakeTools = (
       outputSchema: applicationSavedSchema,
     },
     async ({ applicationId, expectedIntakeRevision, ...input }) => {
-      const result = await workspace.selectContact(actor, {
+      const result = await applications.selectContact(actor, {
         ...input,
         publicId: applicationId,
         expectedRevision: expectedIntakeRevision,
@@ -136,14 +133,14 @@ export const registerIntakeTools = (
 const registerIntakeLifecycleTools = (
   register: RegisterTool,
   actor: McpActor,
-  workspace: Pick<FundingRoundOperations, "editApplication">,
+  applications: Pick<ApplicationsService, "editApplication">,
 ) => {
   for (const [name, description, change] of lifecycle) {
     const { action, ...fieldsSchema } = change.shape;
     register(
       name,
       {
-        ...write,
+        ...grantWriteOptions,
         description,
         inputSchema: intakeBase.extend(fieldsSchema),
         outputSchema: applicationSavedSchema,
@@ -155,7 +152,7 @@ const registerIntakeLifecycleTools = (
           expectedRevision: expectedIntakeRevision,
           change: { ...fields, action: action.value },
         });
-        const result = await workspace.editApplication(actor, command);
+        const result = await applications.editApplication(actor, command);
         return result.status === "ok"
           ? { status: "ok" as const, applicationId, intakeRevision: result.revision }
           : result;

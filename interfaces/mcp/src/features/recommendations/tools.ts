@@ -1,21 +1,23 @@
 import { publicIdSchema } from "@merit/grantmaking/api";
-import { saveRecommendationRequestSchema } from "@merit/recommendations/api";
+import {
+  saveRecommendationRequestSchema,
+  type RecommendationsService,
+} from "@merit/recommendations/api";
 
 import type { RegisterTool } from "../../components/register-tool";
+import { grantWriteOptions, revision } from "../../components/tool-options";
 import type { McpActor } from "../../contracts";
-import type { FundingRoundOperations } from "./operations";
 import { savedRecommendationSchema, presentRecommendation } from "./responses";
-import { write, revision } from "./tool-options";
 
 export const registerRecommendationTools = (
   register: RegisterTool,
   actor: McpActor,
-  workspace: Pick<FundingRoundOperations, "saveRecommendation">,
+  recommendations: RecommendationsService,
 ) => {
   register(
     "save_recommendation",
     {
-      ...write,
+      ...grantWriteOptions,
       description:
         "Save a requested manager recommendation, not a funding decision. Use recommendationRevision and applicationVersion from get_application. Exact allocations use EUR minor-unit strings. Attribution is assigned by Merit.",
       inputSchema: saveRecommendationRequestSchema
@@ -25,7 +27,7 @@ export const registerRecommendationTools = (
     },
     async ({ applicationId, expectedRecommendationRevision, ...input }) =>
       presentRecommendation(
-        await workspace.saveRecommendation(actor, {
+        await recommendations.saveRecommendation(actor, {
           ...input,
           publicId: applicationId,
           expectedRevision: expectedRecommendationRevision,
