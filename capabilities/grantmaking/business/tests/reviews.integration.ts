@@ -560,12 +560,6 @@ it("rejects other-workspace access, stale edits, and guessed review bases", asyn
   const sam = await contact(db);
   const other = { userId: "birch-manager" };
 
-  expect(
-    await listWorkspaceContacts(db, other, { workspaceSlug }, fundingRoundContactUsage),
-  ).toEqual({
-    status: "not_found",
-  });
-
   const change = {
     action: "record" as const,
     id: randomUUID(),

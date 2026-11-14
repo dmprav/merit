@@ -1,7 +1,7 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { expect, it, vi } from "vite-plus/test";
+import { beforeEach, expect, it, vi } from "vite-plus/test";
 
 import { createQueryClient } from "@merit/query";
 
@@ -22,6 +22,11 @@ vi.mock("../grantmaking/data/server/funding-round.functions", () => ({}));
 vi.mock("../team/data/server/team.functions", () => ({}));
 vi.mock("../workspace/data/server/workspace.functions", () => ({}));
 
+beforeEach(() => {
+  vi.mocked(readContacts).mockReset();
+  vi.mocked(saveContact).mockReset();
+});
+
 it.each([false, true])(
   "retries a failed archive-state change and focuses Add contact when the row disappears (archived: %s)",
   async (archived) => {
@@ -39,7 +44,6 @@ it.each([false, true])(
     const response = { status: "ok" as const, workspaceName: "Alder", contacts: [contact] };
     const client = createQueryClient();
     vi.mocked(readContacts).mockResolvedValue(response);
-    vi.mocked(saveContact).mockClear();
     vi.mocked(saveContact).mockResolvedValueOnce({ status: "unavailable" });
     const { user } = await renderWithRouter(
       <QueryClientProvider client={client}>
@@ -100,7 +104,6 @@ it("keeps a contact available and links to the review work that prevents archivi
     workspaceName: "Alder",
     contacts: [contact],
   });
-  vi.mocked(saveContact).mockClear();
   vi.mocked(saveContact).mockResolvedValueOnce({
     status: "invalid",
     error: "outstanding_requests",
@@ -153,7 +156,6 @@ it.each([
     const user = userEvent.setup();
     const response = { status: "ok" as const, workspaceName: "Alder", contacts: [contact] };
     vi.mocked(readContacts).mockResolvedValue(response);
-    vi.mocked(saveContact).mockClear();
     vi.mocked(saveContact).mockImplementation(async () => {
       vi.mocked(readContacts).mockRejectedValue(new Error("Offline"));
       return status === "conflict"
@@ -207,7 +209,6 @@ it.each([
       expect(screen.getByText(/This work changed while you were editing/)).toBeVisible();
     }
     client.clear();
-    vi.mocked(saveContact).mockClear();
   },
 );
 
@@ -226,7 +227,6 @@ it("clears a committed contact draft, restores focus, and retries a failed refre
   const response = { status: "ok" as const, workspaceName: "Alder", contacts: [contact] };
   const client = createQueryClient();
   vi.mocked(readContacts).mockResolvedValue(response);
-  vi.mocked(saveContact).mockClear();
   vi.mocked(saveContact).mockImplementation(async () => {
     vi.mocked(readContacts).mockRejectedValue(new Error("Offline"));
     return { status: "ok", contact: saved };
@@ -383,7 +383,6 @@ it("invalidates linked grant records after a contact save without refreshing wor
 
   view.unmount();
   client.clear();
-  vi.mocked(saveContact).mockClear();
 });
 
 it("finds same-name contacts by application, switches status, and returns focus after editing", async () => {

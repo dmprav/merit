@@ -165,7 +165,7 @@ it("preserves archive state and details across lifecycle changes and rejects a s
   );
 });
 
-it("pages contact history newest first and summaries without history", async ({ db }) => {
+it("pages contact history newest first", async ({ db }) => {
   const { address, change } = await setup(db);
   await change({ ...address, action: "archive", expectedContactRevision: 0 });
   await change({ ...address, action: "restore", expectedContactRevision: 1 });
@@ -183,13 +183,34 @@ it("pages contact history newest first and summaries without history", async ({ 
   assert(rest.status === "ok");
   expect(rest.entries.map((entry) => entry.revision)).toEqual([1, 0]);
   expect(rest.nextCursor).toBeNull();
+});
 
-  await setup(db);
-  const summaries = await listContactSummaries(db, actor, { workspaceSlug, limit: 1 });
-  assert(summaries.status === "ok");
-  expect(summaries.contacts).toHaveLength(1);
-  expect(summaries.contacts[0]).not.toHaveProperty("history");
-  expect(summaries.nextCursor).toBe(summaries.contacts[0]?.contactId);
+it("lists contact summaries without history, by archive state and page", async ({ db }) => {
+  const archived = await setup(db);
+  await archived.change({ ...archived.address, action: "archive", expectedContactRevision: 0 });
+  const active = [(await setup(db)).address.contactId, (await setup(db)).address.contactId].sort();
+
+  const ids = async (input: { archived?: boolean; after?: string; limit?: number }) => {
+    const result = await listContactSummaries(db, actor, { workspaceSlug, ...input });
+    assert(result.status === "ok");
+
+    return result;
+  };
+
+  expect((await ids({ archived: true })).contacts.map((contact) => contact.contactId)).toEqual([
+    archived.address.contactId,
+  ]);
+  expect((await ids({ archived: false })).contacts.map((contact) => contact.contactId)).toEqual(
+    active,
+  );
+
+  const first = await ids({ archived: false, limit: 1 });
+  expect(first.contacts[0]).not.toHaveProperty("history");
+  expect(first.contacts.map((contact) => contact.contactId)).toEqual([active[0]]);
+  expect(first.nextCursor).toBe(active[0]);
+  const rest = await ids({ archived: false, limit: 1, after: first.nextCursor! });
+  expect(rest.contacts.map((contact) => contact.contactId)).toEqual([active[1]]);
+  expect(rest.nextCursor).toBeNull();
 });
 
 it("conceals contacts from other workspaces and from administrators without program management", async ({
@@ -204,6 +225,9 @@ it("conceals contacts from other workspaces and from administrators without prog
   expect(await getContactDetails(db, birch, address)).toEqual({ status: "not_found" });
   expect(await getContactDetails(db, birch, guessed)).toEqual({ status: "not_found" });
   expect(await listContactChanges(db, birch, guessed)).toEqual({ status: "not_found" });
+  expect(await listWorkspaceContacts(db, birch, { workspaceSlug }, grantWork)).toEqual({
+    status: "not_found",
+  });
 
   const archive = (contactId: string) =>
     changeWorkspaceContact(
