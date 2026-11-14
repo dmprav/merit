@@ -5,7 +5,7 @@ import handler, { createServerEntry } from "@tanstack/react-start/server-entry";
 import { mcpResourceMetadata } from "@merit/mcp";
 
 import type { ApplicationRequestContext } from "./request-context";
-import { withDatabase } from "./server/database.server";
+import { createRequestDatabase } from "./server/database.server";
 import { createDemoServices, demoCookie } from "./server/demo.server";
 import { createEmailSender } from "./server/email-delivery.server";
 import { createWebIdentity } from "./server/identity.server";
@@ -29,68 +29,74 @@ export default createServerEntry({
       return new Response("Not found", { status: 404 });
     }
 
-    const dependencies = {
-      database: withDatabase,
-      invitationOrigin: import.meta.env.DEV ? url.origin : env.APP_ORIGIN,
-      networkAddress: import.meta.env.DEV
-        ? "local"
-        : (request.headers.get("CF-Connecting-IP") ?? undefined),
-      sendEmail: createEmailSender({
-        from: env.EMAIL_FROM,
-        resendKey: env.RESEND_API_KEY,
-        mailpitUrl: import.meta.env.DEV ? env.MAILPIT_URL : undefined,
-      }),
-    };
-    if (url.pathname === "/mcp/workspace") {
-      return handleMcp(request, config, dependencies);
-    }
+    const requestDatabase = createRequestDatabase();
+    try {
+      const dependencies = {
+        database: requestDatabase.run,
+        invitationOrigin: import.meta.env.DEV ? url.origin : env.APP_ORIGIN,
+        networkAddress: import.meta.env.DEV
+          ? "local"
+          : (request.headers.get("CF-Connecting-IP") ?? undefined),
+        sendEmail: createEmailSender({
+          from: env.EMAIL_FROM,
+          resendKey: env.RESEND_API_KEY,
+          mailpitUrl: import.meta.env.DEV ? env.MAILPIT_URL : undefined,
+        }),
+      };
+      if (url.pathname === "/mcp/workspace") {
+        return await handleMcp(request, config, dependencies);
+      }
 
-    const localIdentity = await resolveLocalIdentity(request);
-    if (localIdentity instanceof Response) {
-      return localIdentity;
-    }
+      const localIdentity = await resolveLocalIdentity(request);
+      if (localIdentity instanceof Response) {
+        return localIdentity;
+      }
 
-    const guestToken = demoCookie(request);
-    const browserPublishableKey: unknown = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
-    const identity = createWebIdentity({
-      database: withDatabase,
-      guestToken,
-      clerk: {
-        ...config,
-        browserPublishableKey:
-          typeof browserPublishableKey === "string" ? browserPublishableKey : undefined,
-      },
-      operatorUserIds: env.MERIT_OPERATOR_USER_IDS,
-      ...localIdentity,
-    });
-    const services = createApplicationServices({
-      ...dependencies,
-      identity: identity.organizationIdentity,
-    });
-    const context: ApplicationRequestContext = {
-      navigation: services.navigation,
-      reviewer: services.reviewer,
-      currentIdentity: identity.currentIdentity,
-      demo: createDemoServices(
-        identity.currentIdentity,
+      const guestToken = demoCookie(request);
+      const browserPublishableKey: unknown = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+      const identity = createWebIdentity({
+        database: requestDatabase.run,
         guestToken,
-        identity.isGuest,
-        import.meta.env.DEV ? undefined : dependencies.networkAddress,
-      ),
-      organizations: services.organizations,
-      workspace: {
-        ...services.grantmaking,
-        ...services.contacts,
+        clerk: {
+          ...config,
+          browserPublishableKey:
+            typeof browserPublishableKey === "string" ? browserPublishableKey : undefined,
+        },
+        operatorUserIds: env.MERIT_OPERATOR_USER_IDS,
+        ...localIdentity,
+      });
+      const services = createApplicationServices({
+        ...dependencies,
+        identity: identity.organizationIdentity,
+      });
+      const context: ApplicationRequestContext = {
+        navigation: services.navigation,
+        reviewer: services.reviewer,
         currentIdentity: identity.currentIdentity,
-        readWorkspace: services.readWorkspace,
-      },
-    };
+        demo: createDemoServices(
+          requestDatabase.run,
+          identity.currentIdentity,
+          guestToken,
+          identity.isGuest,
+          import.meta.env.DEV ? undefined : dependencies.networkAddress,
+        ),
+        organizations: services.organizations,
+        workspace: {
+          ...services.grantmaking,
+          ...services.contacts,
+          currentIdentity: identity.currentIdentity,
+          readWorkspace: services.readWorkspace,
+        },
+      };
 
-    const response = await handler.fetch(request, {
-      ...options,
-      context: { ...options?.context, ...context },
-    });
-    return preventFraming(response);
+      const response = await handler.fetch(request, {
+        ...options,
+        context: { ...options?.context, ...context },
+      });
+      return preventFraming(response);
+    } finally {
+      await requestDatabase.close();
+    }
   },
 });
 
