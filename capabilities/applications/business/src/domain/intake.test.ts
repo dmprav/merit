@@ -23,9 +23,6 @@ const prepareIntakeChange = (
   return result;
 };
 
-const canDeleteApplication = (application: IntakeWithUsage) =>
-  canDeleteCase(application, usage(application));
-
 import { describe, expect, it } from "vite-plus/test";
 
 import { fromMinorUnits } from "@merit/money";
@@ -537,24 +534,42 @@ describe("application intake", () => {
     });
   });
 
-  it("permits deletion of an application with no reviews or recommendation", () => {
-    expect(canDeleteApplication(makeApplication())).toBe(true);
+  it.each([
+    { intakeStatus: "in_preparation", hasReviews: false, hasRecommendation: false, allowed: true },
+    { intakeStatus: "in_preparation", hasReviews: true, hasRecommendation: false, allowed: false },
+    { intakeStatus: "in_preparation", hasReviews: false, hasRecommendation: true, allowed: false },
+    { intakeStatus: "ready", hasReviews: false, hasRecommendation: false, allowed: false },
+  ] as const)(
+    "allows deletion of a $intakeStatus application with reviews=$hasReviews and recommendation=$hasRecommendation: $allowed",
+    ({ intakeStatus, hasReviews, hasRecommendation, allowed }) => {
+      expect(canDeleteCase({ intakeStatus }, { hasReviews, hasRecommendation })).toBe(allowed);
+    },
+  );
+
+  it("does not start a revision of an application still in preparation", () => {
+    expect(
+      prepareIntakeChange(
+        makeApplication(),
+        null,
+        { action: "start_revision", kind: "revision" },
+        author,
+      ),
+    ).toEqual({ ok: false, error: "revision_unavailable" });
   });
 
-  it("prevents deletion of an application with a recommendation", () => {
-    const application = makeApplication({
-      managerRecommendation: {
-        position: "Fund",
-        allocation: fromMinorUnits(100n),
-        reasoning: "Support it.",
-      },
-    });
-
-    expect(canDeleteApplication(application)).toBe(false);
-  });
-
-  it("prevents deletion of an application with reviews", () => {
-    expect(canDeleteApplication(makeReviewedApplication())).toBe(false);
+  it("requires a response on a submitted answer", () => {
+    expect(
+      missingIntakeFields({
+        ...completed,
+        answers: [
+          {
+            questionId: "c0e44ab1-70fd-5f71-b96e-98f7b547f485",
+            question: "Project",
+            response: " ",
+          },
+        ],
+      }),
+    ).toEqual(["answers"]);
   });
 
   it.each(["1.001", "-1", "NaN", "1e3"])("rejects requested amount %s", (requested) => {

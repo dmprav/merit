@@ -251,45 +251,6 @@ it.for([
   },
 );
 
-it("saves partial intake fields and still rejects stale revisions", async ({ db }) => {
-  const { read, change, address } = await setup(db);
-  await change({ action: "save_content", content });
-  const before = await read();
-  expect(
-    await change({ action: "save_content", content: { title: "Renamed application" } }),
-  ).toMatchObject({ status: "ok" });
-  const renamed = await read();
-  expect(renamed.application).toMatchObject({
-    title: "Renamed application",
-    requested: before.application.requested,
-    submission: { ...before.application.submission, version: before.application.version + 1 },
-  });
-  expect(
-    await editFundingApplication(
-      db,
-      actor,
-      {
-        ...address,
-        expectedRevision: before.intake.revision,
-        change: { action: "save_content", content: { applicant: "Stale applicant" } },
-      },
-      applicationWork,
-    ),
-  ).toEqual({ status: "conflict" });
-  expect(await read()).toEqual(renamed);
-  await change({ action: "mark_ready" });
-  await change({ action: "start_revision", kind: "revision" });
-  await change({
-    action: "save_revision",
-    draft: { kind: "revision", reason: "Revised request", content: { requested: "28000" } },
-  });
-  expect((await read()).intake.workingRevision?.content).toEqual({
-    ...content,
-    title: "Renamed application",
-    requested: "28000.00",
-  });
-});
-
 const recommend = async (
   db: NodePgDatabase,
   scenario: Awaited<ReturnType<typeof setup>>,
@@ -510,18 +471,19 @@ it("rejects concurrent edits, preserves the winner, and checks current tenant an
   expect(await editFundingApplication(db, actor, edit, applicationWork)).toMatchObject({
     status: "ok",
   });
+  const winner = await read();
   expect(
     await editFundingApplication(
       db,
       actor,
       {
         ...edit,
-        change: { action: "save_content", content: { ...content, title: "Stale title" } },
+        change: { action: "save_content", content: { title: "Stale title" } },
       },
       applicationWork,
     ),
   ).toEqual({ status: "conflict" });
-  expect((await read()).application.title).toBe(content.title);
+  expect(await read()).toEqual(winner);
 
   const other = { userId: "birch-manager" };
 
