@@ -116,12 +116,10 @@ it("offers distinct current and historical application bases and saves the selec
   const form = await openCorrection(user);
   await user.click(form.getByRole("button", { name: /Application material reviewed/ }));
 
-  expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual([
-    "Not known",
-    "Version 4 (current)",
-    "Version 3",
-    "Version 1",
-  ]);
+  const options = screen.getAllByRole("option");
+  const labels = ["Not known", "Version 4 (current)", "Version 3", "Version 1"];
+  expect(options).toHaveLength(labels.length);
+  options.forEach((option, index) => expect(option).toHaveAccessibleName(labels[index]));
   expect(screen.getByRole("option", { name: "Version 1" })).toHaveAttribute(
     "aria-selected",
     "true",

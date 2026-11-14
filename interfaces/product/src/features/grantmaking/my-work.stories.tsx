@@ -30,10 +30,7 @@ const MyWorkPreview = ({ manager = false }: { empty?: boolean; manager?: boolean
           canAdminister: false,
         }}
       >
-        <AppShell
-          current={{ kind: "workspace", workspace: current }}
-          profileName={manager ? "Dana Reed" : "Robin Ellis"}
-        >
+        <AppShell current={{ kind: "workspace", workspace: current }}>
           <MyWorkPage workspaceSlug="alder" />
         </AppShell>
       </WorkspaceNavigationContext>

@@ -419,6 +419,7 @@ test("personal pins stay under their object type and survive reloads @cross-brow
     throw new Error("Could not create the round fixture");
   }
   await page.goto("/app/alder/rounds");
+  // Wait for hydration before a link can interrupt the initial module loading.
   await expect(page.getByRole("main")).toBeFocused();
   await page
     .getByRole("main")
