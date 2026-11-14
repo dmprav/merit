@@ -37,7 +37,11 @@ test("development tools switch local identities across the site, admin app and w
 
   await panel.getByRole("button", { name: "Invitation recipient", exact: true }).click();
 
+  await expect(page).toHaveURL(/\/app$/);
   await expect(panel).toContainText("recipient@example.test");
+  await panel.getByRole("link", { name: "Organization administration" }).click();
+
+  await expect(page).toHaveURL(/\/admin\/organizations$/);
   await expect(
     page.getByText("Your account doesn’t have access to Merit administration.", {
       exact: true,
