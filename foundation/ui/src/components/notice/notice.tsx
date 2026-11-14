@@ -19,29 +19,26 @@ export const Notice = ({
   appearance?: "default" | "inline";
   title?: string;
   actions?: ReactNode;
-}) =>
-  createElement(
-    title || actions || appearance === "inline" ? "div" : as,
+}) => {
+  const structured = title || actions || appearance === "inline";
+  const icon = {
+    danger: "warning",
+    warning: "warning",
+    success: "check",
+    neutral: "info",
+  } as const;
+
+  return createElement(
+    structured ? "div" : as,
     {
       ...props,
       "data-tone": tone,
       "data-appearance": appearance,
       className: `${styles.notice} ${className}`,
     },
-    title || actions || appearance === "inline" ? (
+    structured ? (
       <div className={styles.layout}>
-        {appearance === "inline" && (
-          <Icon
-            className={styles.icon}
-            name={
-              tone === "danger" || tone === "warning"
-                ? "warning"
-                : tone === "success"
-                  ? "check"
-                  : "info"
-            }
-          />
-        )}
+        {appearance === "inline" && <Icon className={styles.icon} name={icon[tone]} />}
         <div className={styles.message}>
           {title && <p className={styles.title}>{title}</p>}
           <div>{children}</div>
@@ -52,3 +49,4 @@ export const Notice = ({
       children
     ),
   );
+};

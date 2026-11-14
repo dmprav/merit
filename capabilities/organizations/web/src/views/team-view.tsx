@@ -265,12 +265,18 @@ const TeamConfirmationDialog = ({
       })
     : t("revokeTitle");
 
+  const removalDescription = affectedCount ? "removeAccessWithInvitations" : "removeAccess";
+  const failureMessage = removing ? "removalFailed" : "revocationFailed";
+  const error =
+    workflow.error &&
+    t(workflow.error === "unavailable" ? failureMessage : `errors.${workflow.error}`);
+
   return (
     <ConfirmationDialog
       title={title}
       description={
         removing
-          ? t(affectedCount ? "removeAccessWithInvitations" : "removeAccess", {
+          ? t(removalDescription, {
               count: affectedCount,
             })
           : t("revokeHelp", { email: dialog.invitation.email })
@@ -282,13 +288,7 @@ const TeamConfirmationDialog = ({
       intent="destructive"
       isOpen
       isPending={workflow.busy}
-      error={
-        workflow.error === "unavailable"
-          ? t(removing ? "removalFailed" : "revocationFailed")
-          : workflow.error
-            ? t(`errors.${workflow.error}`)
-            : null
-      }
+      error={error}
       onOpenChange={(isOpen) => {
         if (!isOpen) {
           onClose();
