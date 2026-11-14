@@ -24,8 +24,8 @@ import {
   readRequestedAmounts,
 } from "../persistence/commands/intake";
 import { intakeCreationReceipt } from "../persistence/commands/intake-history";
+import { lockApplicationCase } from "../persistence/commands/locks";
 import { allocatePublicId } from "../persistence/identifiers";
-import { lockApplicationCase } from "../persistence/locks";
 
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 

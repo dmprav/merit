@@ -7,8 +7,8 @@ import { memberships, organizations } from "@merit/organizations/schema";
 
 import { fundingRounds, criteriaVersions } from "./schema";
 
-const moneyData = (minorUnits: ReturnType<typeof sql>) =>
-  sql<unknown>`case when ${minorUnits} is null then null else jsonb_build_object('minorUnits', (${minorUnits})::text, 'currency', 'EUR') end`;
+const moneyData = (minorUnits: ReturnType<typeof sql>, currency: ReturnType<typeof sql>) =>
+  sql<unknown>`case when ${minorUnits} is null then null else jsonb_build_object('minorUnits', (${minorUnits})::text, 'currency', ${currency}) end`;
 
 export const currentCriteria = sql<unknown>`(select ${criteriaVersions.criteria} from ${criteriaVersions}
   where ${criteriaVersions.roundPublicId} = ${fundingRounds.id}
@@ -21,7 +21,7 @@ export const roundRecord = sql<unknown>`jsonb_build_object(
   'id', ${fundingRounds.id}, 'title', ${fundingRounds.title},
   'foundation', (select ${organizations.name} from ${organizations} where ${organizations.id} = ${fundingRounds.organizationId}),
   'purpose', ${fundingRounds.purpose}, 'manager', ${fundingRounds.managerName}, 'managerUserId', ${fundingRounds.managerUserId},
-  'currency', ${fundingRounds.currency}, 'budget', ${moneyData(sql`${fundingRounds.budget}`)},
+  'currency', ${fundingRounds.currency}, 'budget', ${moneyData(sql`${fundingRounds.budget}`, sql`${fundingRounds.currency}`)},
   'meetingDate', ${fundingRounds.meetingDate}, 'snapshotDate', ${fundingRounds.snapshotDate},
   'decisionStatus', ${fundingRounds.decisionStatus}, 'criteria', ${currentCriteria},
   'criteriaVersion', ${fundingRounds.criteriaVersion}, 'criteriaHistory', ${criteriaHistory})`;

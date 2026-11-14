@@ -57,6 +57,29 @@ const recordAssessmentVersion = async (
   });
 };
 
+const retryReviewCreation = (state: ReviewState, change: SaveReviewRequest["change"]) => {
+  if (change.action === "request") {
+    const existing = state.requests.find((value) => value.id === change.id);
+    if (existing) {
+      return existing.contactId === change.contactId
+        ? ({ status: "ok", revision: state.revision } as const)
+        : ({ status: "invalid", error: "invalid_review" } as const);
+    }
+  }
+  if (change.action === "record") {
+    const existing = state.assessments.find((value) => value.id === change.id);
+    if (existing) {
+      return existing.contactId === change.contactId &&
+        existing.requestId === change.requestId &&
+        existing.previousId === change.previousId &&
+        JSON.stringify(existing.versions[0]?.content) === JSON.stringify(change.content)
+        ? ({ status: "ok", revision: state.revision } as const)
+        : ({ status: "invalid", error: "invalid_review" } as const);
+    }
+  }
+  return null;
+};
+
 export const saveApplicationReview = async (
   db: Database,
   actor: Actor,
@@ -82,11 +105,9 @@ export const saveApplicationReview = async (
     const { applicationVersion, reviews: state } = row;
     const change = request.change;
     // Creation identities survive response loss. A retry never appends another judgment.
-    if (
-      (change.action === "request" && state.requests.some((value) => value.id === change.id)) ||
-      (change.action === "record" && state.assessments.some((value) => value.id === change.id))
-    ) {
-      return { status: "ok", revision: state.revision } as const;
+    const retry = retryReviewCreation(state, change);
+    if (retry) {
+      return retry;
     }
 
     const round = await readReviewCriteria(tx, row.organizationId, row.roundId);
@@ -156,7 +177,7 @@ const syncAssignmentCancellation = async (
 };
 
 const hasAuthoredRequest = async (
-  db: Database,
+  db: Parameters<Parameters<Database["transaction"]>[0]>[0],
   caseId: string,
   change: SaveReviewRequest["change"],
 ) =>

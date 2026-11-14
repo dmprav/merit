@@ -67,16 +67,16 @@ construct audit records.
 
 [Application assembly](../../app/src/server/services.server.ts) creates the shared
 composed grantmaking service. The [Recommendations service factory](../../capabilities/recommendations/business/src/server/service.ts)
-binds database access and the injected audit recorder to `saveFundingRecommendation`,
-with the actor supplied explicitly on each call. Recommendations owns the recording
-contract; application assembly supplies audit's implementation.
+binds database access to `saveFundingRecommendation`, with the actor supplied
+explicitly on each call. Recommendations commands invoke `@merit/audit/server/record`
+with their existing transaction.
 
 ## Decide and commit in one transaction
 
 [saveFundingRecommendation](../../capabilities/recommendations/business/src/server/commands/recommendations.ts)
 owns the transaction and coordinates these steps:
 
-1. Acquire the [case and access locks](../../capabilities/applications/business/src/server/persistence/locks.ts)
+1. Acquire the [case and access locks](../../capabilities/applications/business/src/server/persistence/commands/locks.ts)
    and check current workspace availability, active membership, and grant access.
    Knowing the ID or having loaded the page earlier grants no authority.
 2. Load current recommendation and financial facts through
@@ -91,7 +91,7 @@ owns the transaction and coordinates these steps:
    the recommendation revision and appends its version with the actor and provenance
    in the same transaction. Earlier recommendation versions remain available as
    history; failure to record the new version rolls back the change.
-5. Append the compact shared audit event through the injected recorder, using the
+5. Append the compact shared audit event through `@merit/audit/server/record` in the
    same transaction. The event captures current identity, interface provenance,
    and the saved recommendation revision. Recording failure rolls back both the
    recommendation and its histories.

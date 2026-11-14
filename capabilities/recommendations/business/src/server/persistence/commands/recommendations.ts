@@ -5,11 +5,8 @@ import { materialVersionSchema } from "@merit/applications/domain";
 import { applicationCases } from "@merit/applications/schema";
 import { currentMaterial } from "@merit/applications/scope";
 import type { Provenance } from "@merit/auth";
-import { appUsers } from "@merit/auth/schema";
 import type { Database } from "@merit/db";
 import { decodeMoney, moneyDataSchema } from "@merit/money";
-import { memberships, organizations } from "@merit/organizations/schema";
-import { organizationScope } from "@merit/organizations/scope";
 import { fundingRounds } from "@merit/rounds/schema";
 
 import type { Recommendation } from "../../../domain/recommendation";
@@ -27,15 +24,15 @@ type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
 export const readRecommendationState = async (
   db: Transaction,
-  userId: string,
-  input: { workspaceSlug: string; publicId: string },
+  organizationId: string,
+  publicId: string,
 ) => {
   const [row] = await db
     .select({
       title: sql<string>`${currentMaterial}->>'title'`,
       roundId: fundingRounds.id,
       application: sql<unknown>`jsonb_build_object('version', ${applicationCases.materialVersion}, 'managerRecommendation', ${currentRecommendation}, 'requested', (${currentMaterial})->'requested', 'intakeStatus', ${applicationCases.intakeStatus})`,
-      round: sql<unknown>`jsonb_build_object('budget', ${sql`case when ${fundingRounds.budget} is null then null else jsonb_build_object('minorUnits', ${fundingRounds.budget}::text, 'currency', 'EUR') end`})`,
+      round: sql<unknown>`jsonb_build_object('budget', ${sql`case when ${fundingRounds.budget} is null then null else jsonb_build_object('minorUnits', ${fundingRounds.budget}::text, 'currency', ${fundingRounds.currency}) end`})`,
       allocations: roundAllocations,
       recommendationVersion: recommendationRevision,
     })
@@ -47,15 +44,8 @@ export const readRecommendationState = async (
         eq(fundingRounds.id, applicationCases.roundId),
       ),
     )
-    .innerJoin(organizations, eq(organizations.id, applicationCases.organizationId))
-    .innerJoin(memberships, eq(memberships.organizationId, organizations.id))
-    .innerJoin(appUsers, eq(appUsers.id, memberships.userId))
     .where(
-      and(
-        eq(organizations.slug, input.workspaceSlug),
-        eq(applicationCases.id, input.publicId),
-        organizationScope(userId, "work_on_grants", organizations.id),
-      ),
+      and(eq(applicationCases.organizationId, organizationId), eq(applicationCases.id, publicId)),
     );
   if (!row) {
     return null;

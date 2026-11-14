@@ -17,6 +17,8 @@ export const membershipScope = (action: AccessAction, organizationId: string | S
     "resource.organizationId": sql`${organizationId}`,
   });
 
+export const activeOrganization = sql`(${organizations.kind} = 'standard' OR ${organizations.demoExpiresAt} > statement_timestamp())`;
+
 export const organizationScope = (
   userId: string,
   action: AccessAction,

@@ -6,7 +6,7 @@ import { applicationCases, materialVersions } from "@merit/applications/schema";
 import { appUsers } from "@merit/auth/schema";
 import type { Database } from "@merit/db";
 import { organizations, memberships } from "@merit/organizations/schema";
-import { organizationScope } from "@merit/organizations/scope";
+import { activeOrganization, organizationScope } from "@merit/organizations/scope";
 import { reviewCriteriaSchema } from "@merit/rounds/domain";
 import { fundingRounds, criteriaVersions } from "@merit/rounds/schema";
 import { currentCriteria } from "@merit/rounds/scope";
@@ -16,6 +16,8 @@ import { reviewStateSchema } from "../../domain/reviews";
 import { assessmentRecord } from "./projections";
 import { reviewAssignments, reviewerDrafts } from "./reviewer-schema";
 import { reviewRequests, assessments } from "./schema";
+
+type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
 const reviewerRecordQuery = (db: Database) =>
   db
@@ -71,13 +73,22 @@ export const readReviewerRecord = async (db: Database, id: string) =>
 
 export type ReviewerRecord = NonNullable<Awaited<ReturnType<typeof readReviewerRecord>>>;
 
-export const activeReviewer = async (db: Database, userId: string, lock = false) => {
-  const query = db
-    .select()
-    .from(appUsers)
-    .where(and(eq(appUsers.id, userId), eq(appUsers.active, true)));
-  return (await (lock ? query.for("share") : query))[0];
-};
+export const activeReviewer = async (db: Database, userId: string) =>
+  (
+    await db
+      .select()
+      .from(appUsers)
+      .where(and(eq(appUsers.id, userId), eq(appUsers.active, true)))
+  )[0];
+
+export const lockActiveReviewer = async (tx: Transaction, userId: string) =>
+  (
+    await tx
+      .select()
+      .from(appUsers)
+      .where(and(eq(appUsers.id, userId), eq(appUsers.active, true)))
+      .for("share")
+  )[0];
 
 export const reviewerOwns = (record: ReviewerRecord, userId: string, emails: string[]) =>
   record.assignment.reviewerUserId !== null
@@ -92,7 +103,8 @@ export const reviewerIdentityCurrent = async (db: Database, id: string) =>
       await db
         .select({ id: reviewAssignments.id })
         .from(reviewAssignments)
-        .where(and(eq(reviewAssignments.id, id), currentMembership))
+        .innerJoin(organizations, eq(organizations.id, reviewAssignments.organizationId))
+        .where(and(eq(reviewAssignments.id, id), currentMembership, activeOrganization))
     )[0],
   );
 
@@ -100,10 +112,12 @@ export const permittedReviewerWork = async (db: Database, assignmentId: string, 
   const [row] = await db
     .select({ id: reviewAssignments.id })
     .from(reviewAssignments)
+    .innerJoin(organizations, eq(organizations.id, reviewAssignments.organizationId))
     .innerJoin(appUsers, eq(appUsers.id, userId))
     .where(
       and(
         eq(reviewAssignments.id, assignmentId),
+        activeOrganization,
         accessScope("work_on_review", {
           "subject.userId": appUsers.id,
           "subject.active": appUsers.active,
@@ -129,6 +143,7 @@ export const listReviewerRecords = (db: Database, userId: string, emails: string
     .where(
       and(
         currentMembership,
+        activeOrganization,
         or(
           eq(reviewAssignments.reviewerUserId, userId),
           and(
@@ -164,27 +179,33 @@ export const readPrivateReviewerDraft = async (db: Database, id: string) => {
 };
 
 export const readReviewerEvidence = async (db: Database, record: ReviewerRecord) => {
-  const [material] = await db
-    .select({ content: materialVersions.content })
-    .from(materialVersions)
-    .where(
-      and(
-        eq(materialVersions.caseId, record.assignment.caseId),
-        eq(materialVersions.version, record.applicationVersion!),
-      ),
-    );
-  const [criteria] = await db
-    .select({ content: criteriaVersions.criteria })
-    .from(criteriaVersions)
-    .where(
-      and(
-        eq(criteriaVersions.roundPublicId, record.criteriaRoundId!),
-        eq(criteriaVersions.version, record.criteriaVersion!),
-      ),
-    );
+  const [material] =
+    record.applicationVersion === null
+      ? []
+      : await db
+          .select({ content: materialVersions.content })
+          .from(materialVersions)
+          .where(
+            and(
+              eq(materialVersions.caseId, record.assignment.caseId),
+              eq(materialVersions.version, record.applicationVersion),
+            ),
+          );
+  const [criteria] =
+    record.criteriaRoundId === null || record.criteriaVersion === null
+      ? []
+      : await db
+          .select({ content: criteriaVersions.criteria })
+          .from(criteriaVersions)
+          .where(
+            and(
+              eq(criteriaVersions.roundPublicId, record.criteriaRoundId),
+              eq(criteriaVersions.version, record.criteriaVersion),
+            ),
+          );
   return {
     material: decodeApplicationMaterial(material?.content),
-    criteria: reviewCriteriaSchema.parse(criteria?.content),
+    criteria: criteria ? reviewCriteriaSchema.parse(criteria.content) : null,
   };
 };
 

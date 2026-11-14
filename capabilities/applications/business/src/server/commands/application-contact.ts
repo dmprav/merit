@@ -8,7 +8,7 @@ import {
 } from "../../api/commands/application-contact";
 import { withIntakeContact } from "../../domain/intake-recording";
 import { findIntakeApplication, recordIntakeChange } from "../persistence/commands/intake";
-import { lockApplicationCase } from "../persistence/locks";
+import { lockApplicationCase } from "../persistence/commands/locks";
 
 export const selectApplicationContact = async (
   db: Database,

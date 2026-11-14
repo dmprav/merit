@@ -139,13 +139,13 @@ const serverImports = [
   ),
   permitServer(
     business("{reviews,recommendations}", "{command,query,shared}-persistence"),
-    "@merit/applications/{schema,scope,encoding,locks}",
+    "@merit/applications/{schema,scope,encoding}",
     business("applications", "shared-persistence"),
   ),
   permitServer(
     business("{reviews,recommendations}", "commands"),
     "@merit/applications/locks",
-    business("applications", "shared-persistence"),
+    business("applications", "command-persistence"),
   ),
   permitServer(
     business("applications", "commands"),

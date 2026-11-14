@@ -24,7 +24,7 @@ identity, parse input, and present outcomes. They do not coordinate database wri
 
 Commands own transactions. They acquire workspace, round, case, and current account
 or membership locks before checking revisions and applying a domain transition.
-Application commands expose the shared [case lock](../../applications/business/src/server/persistence/locks.ts)
+Application commands expose the shared [case lock](../../applications/business/src/server/persistence/commands/locks.ts)
 for downstream review and recommendation work. Reviewer participation keeps its
 assignment-based authority distinct from a manager's workspace authority.
 
