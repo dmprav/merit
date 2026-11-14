@@ -5,12 +5,12 @@ import { useContext, useState } from "react";
 import { ContactDrafts } from "@merit/contacts-web/drafts";
 import { GrantmakingDrafts } from "@merit/grantmaking-web/drafts";
 
-import { AppShell } from "../app/app-shell";
-import { WorkspaceRecovery } from "../app/workspace-page";
-import { DemoGuidance } from "../features/demo/demo-tools";
-import { workspaceOptions, workspacesOptions } from "../features/workspace/data/queries";
-import { WorkspaceNavigationContext } from "../features/workspace/workspace-navigation";
-import { loadWorkspaceNavigation } from "../features/workspace/workspace-navigation-provider";
+import { AppShell } from "../../../app/app-shell";
+import { WorkspaceRecovery } from "../../../app/workspace-page";
+import { DemoGuidance } from "../../../features/demo/demo-tools";
+import { workspaceOptions, workspacesOptions } from "../../../features/workspace/data/queries";
+import { WorkspaceNavigationContext } from "../../../features/workspace/workspace-navigation";
+import { loadWorkspaceNavigation } from "../../../features/workspace/workspace-navigation-provider";
 
 const WorkspaceLayout = () => {
   const navigation = useContext(WorkspaceNavigationContext);

@@ -91,7 +91,9 @@ Beside headings, use a pencil icon to edit or resume, with an accessible action
 name and tooltip. Set `data-draft` on the shared `Button` for a visible draft dot
 and change the name and tooltip to **Resume…**. Existing creation actions change
 their label to **Resume…** when they have a draft. Contact pickers also reopen
-unfinished work through the original entry point.
+unfinished work through the original entry point. When editing starts in a row
+menu, put the draft marker on that existing trigger and change its edit item to
+**Resume…**; do not introduce a second row action just for drafts.
 
 The feature owns draft values separately from whether the editor is open. Connect
 `useForm.onChange` to that draft and restore it when reopening. A successful save
@@ -116,8 +118,13 @@ the feature. The [draft package](../../../../drafts/README.md) owns storage and
 account cleanup. Storage accepts unfinished values, including invalid inputs;
 submission validates the commitment. Retain original revisions and retry identities;
 reopening a draft must never silently advance its baseline. Mount the store for its
-account scope and share it across entry points for the same record. Wait for
-restoration before mounting editors. If storage fails, retain edits in
+account scope and share it across entry points for the same record. Keep saved
+content and navigation available during recovery. An opened editor waits only for
+its own store before initializing drafts or mounting its form. Use `EditorLoading`
+inside the existing padded body, retaining the actual title and enabled Close
+control. Use `EditorClose` in inline waits to focus Close and let Escape
+cancel the opening. Closing cancels the pending opening. Draft-writing quick
+actions also wait for their store. If storage fails, retain edits in
 memory and explain that recovery requires keeping the tab open. Separate tabs
 can save different drafts. If another tab changes the same local draft, preserve
 its recovery copy and keep this tab’s edits in memory with a warning to save or

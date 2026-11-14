@@ -1,4 +1,6 @@
 export const common = {
+  editorPreparing: "Preparing editor…",
+  editorPreparingDescription: "Checking for unfinished changes.",
   pagedLoading: "Loading history…",
   pagedMore: "Load older entries",
   pagedFailed: "History could not be loaded.",

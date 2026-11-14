@@ -2,13 +2,12 @@ import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Notice } from "@merit/ui/notice";
-import { StateMessage } from "@merit/ui/state-message";
 
 import { ContactDraftProvider, useContactDrafts } from "./controllers/drafts";
 
 const Recovery = ({ children }: { children: ReactNode }) => {
   const { t } = useTranslation("contacts");
-  const { unavailable, ready, status } = useContactDrafts();
+  const { unavailable, status } = useContactDrafts();
   return (
     <>
       {unavailable && (
@@ -16,7 +15,7 @@ const Recovery = ({ children }: { children: ReactNode }) => {
           {t(status === "conflict" ? "draftRecoveryConflict" : "draftRecoveryUnavailable")}
         </Notice>
       )}
-      {ready ? children : <StateMessage title={t("draftsRestoring")} role="status" />}
+      {children}
     </>
   );
 };

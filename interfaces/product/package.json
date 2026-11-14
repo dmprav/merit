@@ -49,6 +49,7 @@
   },
   "devDependencies": {
     "@merit/test-support": "workspace:*",
+    "@storybook/addon-docs": "catalog:",
     "@storybook/react-vite": "catalog:",
     "@testing-library/dom": "catalog:",
     "@testing-library/react": "catalog:",

@@ -371,7 +371,7 @@ const InvitationActions = ({
             <Button
               ref={actionRef}
               variant={invitationNeedsAttention(work.record, false) ? "primary" : "secondary"}
-              isDisabled={disabled}
+              isDisabled={disabled || !work.ready}
               isPending={work.sending}
               onPress={work.resend}
             >

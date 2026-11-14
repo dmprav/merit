@@ -12,28 +12,49 @@ import {
 } from "@merit/forms";
 import { invitationEmail, teamAccess } from "@merit/organizations/api";
 import { revokesIssuedInvitations } from "@merit/organizations/domain";
+import { Icon } from "@merit/ui/icon";
 import { Stack } from "@merit/ui/layout";
 import { Notice } from "@merit/ui/notice";
+import { TextField } from "@merit/ui/text-field";
 
 import type { Team, Member, Invitation } from "../contracts/team";
 import type { InviteDraft, Access } from "../controllers/editors";
 import styles from "./team-view.module.css";
 
-export const InvitationImpact = ({ invitations }: { invitations: Invitation[] }) => {
+const InvitationImpact = ({ invitations }: { invitations: Invitation[] }) => {
   const { t } = useTranslation("team");
 
-  return invitations.length ? (
-    <>
-      <p>{t("revokedInvitations")}</p>
-      <ul>
-        {invitations.map((i) => (
-          <li key={i.id}>{i.email}</li>
-        ))}
-      </ul>
-    </>
-  ) : (
-    <p>{t("noIssuedInvitations")}</p>
+  if (!invitations.length) {
+    return null;
+  }
+
+  const summary = t("savingRevokesInvitations", {
+    count: invitations.length,
+  });
+
+  return (
+    <div className={styles.invitationWarning}>
+      <Icon name="warning" />
+      <p>
+        <span>{summary}</span> {t("revocationRecovery")}
+      </p>
+    </div>
   );
+};
+
+const useAccessChoices = () => {
+  const { t } = useTranslation("team");
+  return {
+    t,
+    administrationItems: [
+      { id: "none", label: t("none"), description: t("memberResponsibilityHelp") },
+      { id: "administrator", label: t("administrator"), description: t("administrationHelp") },
+    ] as const,
+    roleItems: [
+      { id: "program_manager", label: t("program_manager"), description: t("roleHelp") },
+      { id: "member", label: t("member"), description: t("noGrantAccessHelp") },
+    ] as const,
+  };
 };
 
 export const InviteForm = ({
@@ -51,7 +72,7 @@ export const InviteForm = ({
   onCancel: () => void;
   onDiscard: () => void;
 }) => {
-  const { t } = useTranslation("team");
+  const { t, administrationItems, roleItems } = useAccessChoices();
   const { form, submission } = useForm({
     defaultValues: draft,
     schema: useTranslatedSchema(
@@ -90,36 +111,25 @@ export const InviteForm = ({
         {canAppoint && (
           <form.Field name="administration">
             {(field) => (
-              <FormSelect
-                field={field}
-                label={t("administration")}
-                description={
-                  field.state.value === "administrator" ? t("administrationHelp") : undefined
-                }
-                items={[
-                  { id: "none", label: t("none") },
-                  { id: "administrator", label: t("administrator") },
-                ]}
-              />
+              <FormSelect field={field} label={t("administration")} items={administrationItems} />
             )}
           </form.Field>
         )}
         <form.Field name="role">
-          {(field) => (
-            <FormSelect
-              field={field}
-              label={t("grantAccess")}
-              description={field.state.value === "program_manager" ? t("roleHelp") : undefined}
-              items={
-                canAppoint
-                  ? [
-                      { id: "program_manager", label: t("program_manager") },
-                      { id: "member", label: t("member") },
-                    ]
-                  : [{ id: "program_manager", label: t("program_manager") }]
-              }
-            />
-          )}
+          {(field) =>
+            canAppoint ? (
+              <FormSelect field={field} label={t("grantAccess")} items={roleItems} />
+            ) : (
+              <TextField
+                label={t("grantAccess")}
+                value={t(field.state.value)}
+                description={
+                  field.state.value === "program_manager" ? t("roleHelp") : t("noGrantAccessHelp")
+                }
+                isReadOnly
+              />
+            )
+          }
         </form.Field>
       </Stack>
     </Form>
@@ -145,7 +155,7 @@ export const EditForm = ({
   onChange: (value: Access) => void;
   conflict: boolean;
 }) => {
-  const { t } = useTranslation("team");
+  const { t, administrationItems, roleItems } = useAccessChoices();
   const allowed = memberActions(team.subject, member);
 
   const { form, submission } = useForm<Access>({
@@ -180,48 +190,28 @@ export const EditForm = ({
         {allowed.canChangeAdministration ? (
           <form.Field name="administration">
             {(field) => (
-              <FormSelect
-                field={field}
-                label={t("administration")}
-                description={
-                  field.state.value === "administrator" ? t("administrationHelp") : undefined
-                }
-                items={[
-                  { id: "none", label: t("none") },
-                  { id: "administrator", label: t("administrator") },
-                ]}
-              />
+              <FormSelect field={field} label={t("administration")} items={administrationItems} />
             )}
           </form.Field>
         ) : (
-          <p>
-            {t("administration")}: {t(member.administration)}
-          </p>
+          <TextField
+            label={t("administration")}
+            value={t(member.administration)}
+            description={member.administration === "owner" ? t("ownerHelp") : undefined}
+            isReadOnly
+          />
         )}
         <form.Field name="role">
-          {(field) => (
-            <FormSelect
-              field={field}
-              label={t("grantAccess")}
-              description={field.state.value === "program_manager" ? t("roleHelp") : undefined}
-              items={[
-                { id: "program_manager", label: t("program_manager") },
-                { id: "member", label: t("member") },
-              ]}
-            />
-          )}
+          {(field) => <FormSelect field={field} label={t("grantAccess")} items={roleItems} />}
         </form.Field>
-        {member.administration === "owner" && <p className={styles.muted}>{t("ownerHelp")}</p>}
         <form.Subscribe selector={(state) => state.values.administration}>
           {(administration) =>
-            revokesIssuedInvitations(member.administration, administration) && (
-              <Stack gap={3} className={styles.impact}>
-                <p>{t("demotionHelp")}</p>
-                <InvitationImpact
-                  invitations={team.invitations.filter((i) => i.invitedBy === member.userId)}
-                />
-              </Stack>
-            )
+            revokesIssuedInvitations(member.administration, administration) &&
+            team.invitations.some((i) => i.invitedBy === member.userId) ? (
+              <InvitationImpact
+                invitations={team.invitations.filter((i) => i.invitedBy === member.userId)}
+              />
+            ) : null
           }
         </form.Subscribe>
       </Stack>

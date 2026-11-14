@@ -1,5 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useWorkflowRefresh } from "@merit/query/refresh";
 import type { AssessmentInput, ReviewChange } from "@merit/reviews/domain";
@@ -57,7 +57,7 @@ export const useReview = ({
 
   const { draft, setError, ...editor } = useReviewEditing(
     application,
-    criteriaVersion,
+    currentBaseline,
     pending,
     data.draftKey,
   );
@@ -173,14 +173,18 @@ const useReviewSave = (
   };
 };
 
+type ReviewOpening = {
+  mode: ReviewDraft["mode"];
+  contactId: string;
+  id: string;
+  replacesId: string | null;
+};
+
 const newReviewDraft = (
   application: ReviewProps["application"],
   criteriaVersion: ReviewBaseline["criteriaVersion"],
   pending: ReviewProps["application"]["reviews"]["requests"],
-  mode: ReviewDraft["mode"],
-  contactId: string,
-  id: string,
-  replacesId: string | null,
+  { mode, contactId, id, replacesId }: ReviewOpening,
 ): ReviewDraft => {
   const assessment = application.reviews.assessments.find((item) => item.id === id);
   const request = pending.find((item) => item.contactId === contactId);
@@ -211,15 +215,34 @@ const newReviewDraft = (
 
 const useReviewEditing = (
   application: ReviewProps["application"],
-  criteriaVersion: ReviewBaseline["criteriaVersion"],
+  baseline: ReviewBaseline,
   pending: ReviewProps["application"]["reviews"]["requests"],
   key: string,
 ) => {
-  const { reviewEdits, setReviewEdit } = useReviewDrafts();
+  const { reviewEdits, setReviewEdit, ready } = useReviewDrafts();
   const draft = reviewEdits[key];
   const [editing, setEditing] = useState(false);
+  const [opening, setOpening] = useState<ReviewOpening | null>(null);
   const [error, setError] = useState<ReviewProblem | null>(null);
   const initialValues = useRef<string | null>(null);
+
+  const initialize = useCallback(
+    (request: ReviewOpening) => {
+      const next = newReviewDraft(application, baseline.criteriaVersion, pending, request);
+      initialValues.current = JSON.stringify(next.values);
+      setReviewEdit(key, next);
+    },
+    [application, baseline.criteriaVersion, pending, key, setReviewEdit],
+  );
+
+  useEffect(() => {
+    if (ready && opening && editing) {
+      if (!draft) {
+        initialize(opening);
+      }
+      setOpening(null);
+    }
+  }, [ready, opening, editing, draft, initialize]);
 
   const start = (
     mode: ReviewDraft["mode"],
@@ -227,19 +250,14 @@ const useReviewEditing = (
     id: string = crypto.randomUUID(),
     replacesId: string | null = null,
   ) => {
-    const next = newReviewDraft(
-      application,
-      criteriaVersion,
-      pending,
-      mode,
-      contactId,
-      id,
-      replacesId,
-    );
-    initialValues.current = JSON.stringify(next.values);
-    setReviewEdit(key, next);
     setEditing(true);
     setError(null);
+    const request = { mode, contactId, id, replacesId };
+    if (!ready) {
+      setOpening(request);
+    } else {
+      initialize(request);
+    }
   };
 
   const discard = () => {
@@ -248,15 +266,17 @@ const useReviewEditing = (
   };
 
   const close = () => {
+    setOpening(null);
     if (draft && initialValues.current === JSON.stringify(draft.values)) {
-      discard();
-    } else {
-      setEditing(false);
+      setReviewEdit(key, undefined);
     }
+    setEditing(false);
   };
 
   return {
     draft,
+    ready,
+    mode: draft?.mode ?? opening?.mode,
     editing,
     error,
     setError,
@@ -273,9 +293,7 @@ const useReviewEditing = (
       if (draft) {
         setReviewEdit(key, {
           ...draft,
-          revision: application.reviews.revision,
-          applicationVersion: application.version,
-          criteriaVersion,
+          ...baseline,
         });
       }
     },

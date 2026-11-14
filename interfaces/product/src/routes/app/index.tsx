@@ -1,12 +1,12 @@
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
-import { webTranslator } from "../app/messages";
-import { WorkspaceRecovery } from "../app/workspace-page";
-import { reviewerListOptions } from "../features/grantmaking/data/reviews/reviewer-data";
-import { workspacesOptions } from "../features/workspace/data/queries";
-import { WorkspaceChoice } from "../features/workspace/views/workspace-choice";
-import { workspaceHomeLocation } from "../shared/workspace-location";
+import { webTranslator } from "../../app/messages";
+import { WorkspaceRecovery } from "../../app/workspace-page";
+import { reviewerListOptions } from "../../features/grantmaking/data/reviews/reviewer-data";
+import { workspacesOptions } from "../../features/workspace/data/queries";
+import { WorkspaceChoice } from "../../features/workspace/views/workspace-choice";
+import { workspaceHomeLocation } from "../../shared/workspace-location";
 
 const WorkspaceIndex = () => {
   const { data: result } = useSuspenseQuery(workspacesOptions());

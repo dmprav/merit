@@ -3,24 +3,20 @@ import { useTranslation } from "react-i18next";
 
 import { permits } from "@merit/access";
 import { FormDialog } from "@merit/forms";
-import { useLocaleSettings } from "@merit/i18n";
-import { RemotePagedContent } from "@merit/query/pages";
-import { ActionProvenance } from "@merit/ui/action-provenance";
 import shellStyles from "@merit/ui/application-shell.module.css";
 import { Button } from "@merit/ui/button";
 import { ConfirmationDialog } from "@merit/ui/confirmation-dialog";
-import { Inline, Stack } from "@merit/ui/layout";
+import { DialogContent } from "@merit/ui/dialog";
+import { EditorLoading } from "@merit/ui/editor-loading";
+import { Stack } from "@merit/ui/layout";
 import { Notice } from "@merit/ui/notice";
 import { PageHeader } from "@merit/ui/page-header";
-import { PagedContent } from "@merit/ui/paged-content";
-import { StateMessage } from "@merit/ui/state-message";
 import { StatusMessage } from "@merit/ui/status-message";
 
 import type { TeamData, TeamSection, Member, Invitation } from "../contracts/team";
 import { useTeam } from "../controllers/team";
 import { TeamDirectories } from "./team-directories";
-import { InviteForm, EditForm, InvitationImpact } from "./team-editors";
-import styles from "./team-view.module.css";
+import { InviteForm, EditForm } from "./team-editors";
 
 type TeamDialog =
   | { kind: "invite" }
@@ -126,7 +122,6 @@ export const TeamView = ({ data, draftScope }: TeamViewProps) => {
             onRevoke={(invitation, source) => open({ kind: "revoke", invitation }, source)}
           />
         </div>
-        {canManage && data.historySource && <TeamHistory source={data.historySource} />}
         <TeamEditorDialog dialog={dialog} editors={editors} busy={busy} onClose={close} />
         <TeamConfirmationDialog
           dialog={dialog}
@@ -162,17 +157,25 @@ const TeamFeedback = ({
         className={shellStyles.confirmation}
       />
       {(refreshFailed || stale) && (
-        <Notice as="div" tone="danger" role="alert" className={styles.recovery}>
-          <p>{t(refreshFailed ? "refreshFailed" : "teamChanged")}</p>
-          <Button
-            ref={recoveryRef}
-            variant="secondary"
-            size="small"
-            isDisabled={busy}
-            onPress={onRefresh}
-          >
-            {t("refresh")}
-          </Button>
+        <Notice
+          tone="warning"
+          role="alert"
+          title={t(
+            refreshFailed && !stale && notice.message ? "refreshFailedTitle" : "teamChangedTitle",
+          )}
+          actions={
+            <Button
+              ref={recoveryRef}
+              variant="secondary"
+              size="small"
+              isDisabled={busy}
+              onPress={onRefresh}
+            >
+              {t("refresh")}
+            </Button>
+          }
+        >
+          {t(refreshFailed ? "refreshFailed" : "teamChanged")}
         </Notice>
       )}
       {error && !dialogOpen && !stale && (
@@ -181,58 +184,6 @@ const TeamFeedback = ({
         </Notice>
       )}
     </>
-  );
-};
-
-const TeamHistory = ({ source }: { source: NonNullable<TeamData["historySource"]> }) => {
-  const [open, setOpen] = useState(false);
-  const { t } = useTranslation(["team", "common"]);
-  const { formatLocale } = useLocaleSettings();
-
-  return (
-    <details onToggle={(event) => setOpen(event.currentTarget.open)}>
-      <summary>{t("history")}</summary>
-      <RemotePagedContent source={source} entries={[]} active={open}>
-        {(page) => (
-          <PagedContent {...page}>
-            {(entries) => (
-              <ol>
-                {entries.map((entry) => {
-                  const details =
-                    entry.details &&
-                    typeof entry.details === "object" &&
-                    !Array.isArray(entry.details)
-                      ? entry.details
-                      : {};
-                  const target = details.targetName ?? details.email;
-
-                  return (
-                    <li key={entry.eventId}>
-                      <p>
-                        <strong>{t(`historyActions.${historyActionLabel(entry.action)}`)}</strong>
-                        {typeof target === "string" && <>: {target}</>}
-                      </p>
-                      <Inline align="baseline" gap={3}>
-                        <span>
-                          {t("common:recordedBy", { name: entry.actor ?? t("unknownName") })}
-                        </span>
-                        <ActionProvenance value={entry.provenance} />
-                        <time dateTime={entry.recordedAt}>
-                          {new Date(entry.recordedAt).toLocaleString(formatLocale, {
-                            timeZone: "UTC",
-                          })}{" "}
-                          UTC
-                        </time>
-                      </Inline>
-                    </li>
-                  );
-                })}
-              </ol>
-            )}
-          </PagedContent>
-        )}
-      </RemotePagedContent>
-    </details>
   );
 };
 
@@ -268,8 +219,19 @@ const TeamEditorDialog = ({
       }}
       isDismissDisabled={busy}
     >
-      {dialog?.kind === "invite" && editors.invitation && <InviteForm {...editors.invitation} />}
-      {dialog?.kind === "edit" && <EditForm {...editors.memberEditor(dialog.member)} />}
+      {(dialog?.kind === "invite" && (!editors.invitationReady || !editors.invitation)) ||
+      (dialog?.kind === "edit" && !editors.memberReady) ? (
+        <DialogContent label={title}>
+          <EditorLoading />
+        </DialogContent>
+      ) : (
+        <>
+          {dialog?.kind === "invite" && editors.invitation && (
+            <InviteForm {...editors.invitation} />
+          )}
+          {dialog?.kind === "edit" && <EditForm {...editors.memberEditor(dialog.member)} />}
+        </>
+      )}
     </FormDialog>
   );
 };
@@ -293,6 +255,9 @@ const TeamConfirmationDialog = ({
   }
 
   const removing = dialog.kind === "remove";
+  const affectedCount = removing
+    ? invitations.filter((invitation) => invitation.invitedBy === dialog.member.userId).length
+    : 0;
   const title = removing
     ? t("removePerson", {
         person: dialog.member.name || dialog.member.email || t("unknownName"),
@@ -300,11 +265,21 @@ const TeamConfirmationDialog = ({
       })
     : t("revokeTitle");
 
+  const removalDescription = affectedCount ? "removeAccessWithInvitations" : "removeAccess";
+  const failureMessage = removing ? "removalFailed" : "revocationFailed";
+  const error =
+    workflow.error &&
+    t(workflow.error === "unavailable" ? failureMessage : `errors.${workflow.error}`);
+
   return (
     <ConfirmationDialog
       title={title}
       description={
-        removing ? t("removeAccess") : t("revokeHelp", { email: dialog.invitation.email })
+        removing
+          ? t(removalDescription, {
+              count: affectedCount,
+            })
+          : t("revokeHelp", { email: dialog.invitation.email })
       }
       closeLabel={t("close")}
       cancelLabel={t("cancel")}
@@ -313,7 +288,7 @@ const TeamConfirmationDialog = ({
       intent="destructive"
       isOpen
       isPending={workflow.busy}
-      error={workflow.error ? t(`errors.${workflow.error}`) : null}
+      error={error}
       onOpenChange={(isOpen) => {
         if (!isOpen) {
           onClose();
@@ -325,14 +300,8 @@ const TeamConfirmationDialog = ({
     >
       {removing && (
         <>
-          <Stack gap={3} className={styles.impact}>
-            <h3 className={styles.impactTitle}>{t("handover")}</h3>
-            <p>{t("handoverDescription")}</p>
-            <InvitationImpact
-              invitations={invitations.filter((i) => i.invitedBy === dialog.member.userId)}
-            />
-          </Stack>
-          <p className={styles.muted}>{t("returnHelp")}</p>
+          <p>{t("retainedWorkDescription")}</p>
+          <p>{t("handoverDescription")}</p>
         </>
       )}
     </ConfirmationDialog>
@@ -347,9 +316,6 @@ const DraftRecovery = ({
   children: ReactNode;
 }) => {
   const { t } = useTranslation("team");
-  if (!editors.ready) {
-    return <StateMessage title={t("draftsRestoring")} role="status" />;
-  }
   return (
     <>
       {editors.storageError && (
@@ -404,17 +370,3 @@ const useTeamFocus = ({
     return () => cancelAnimationFrame(frame);
   });
 };
-
-const historyActions = {
-  "organization.created": "created",
-  "organization.renamed": "renamed",
-  "team_invitation.issued": "invited",
-  "team_invitation.replaced": "replaced",
-  "team_invitation.revoked": "revoked",
-  "team_invitation.accepted": "accepted",
-  "membership.access_changed": "member_changed",
-  "membership.removed": "member_removed",
-} as const;
-
-const historyActionLabel = (action: string) =>
-  historyActions[action as keyof typeof historyActions] ?? "changed";

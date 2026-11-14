@@ -76,12 +76,39 @@ zoom, varied content and language, and people's motion and contrast preferences.
 These needs shape shared controls and composition from the outset. Test shared
 patterns against finding, reading, comparing, editing, and authorizing work.
 
+## Give emphasis a reason
+
+**Choose visual emphasis by what the person needs to notice in this task.**
+
+Use wording, grouping, and spacing to make relationships clear before adding
+color, icons, badges, or containers. Ordinary names and values need no emphasis
+merely because they identify a record. A badge with a clear label and distinct
+surface may already communicate enough without an additional icon.
+
+The same fact can need different treatments in different contexts. An unexpected
+side effect of an edit needs a visible warning before Save. In a removal
+confirmation, expected access loss belongs in cohesive, neutral prose; the title
+and destructive action already establish the decision. An unsuccessful action
+needs distinct error feedback and a useful next step. Consistency means preserving
+these meanings, rather than giving every consequence the same appearance.
+
+Apply this distinction through the shared
+[confirmation](../../foundation/ui/src/patterns/confirmation-dialog/confirmation-dialog.mdx)
+and [feedback](../../foundation/ui/src/patterns/feedback/feedback.mdx) patterns.
+The [Team design examples](../../interfaces/product/src/features/team/team-design.mdx)
+show accepted applications of these choices.
+
 ## Explain at the point of need
 
 **Keep requirements, consequences, and recovery visible where people act.**
 
 Start with clear labels and meaningful values. Add explanation when the interface
 leaves a real question open; repeated helper text and help icons make routine work harder.
+Shorten and group the content before moving it into a tooltip, disclosure, or
+popover. Keep the effect, affected scope, and recovery visible when they change
+the decision. Supporting detail earns an extra interaction only when someone
+has a meaningful reason to inspect it; a compact interface need not hide essential
+information or expose every available fact.
 
 Optional detail should be easy to find through one consistent documentation route
 and focused contextual help. Consulting it must preserve the person's context and

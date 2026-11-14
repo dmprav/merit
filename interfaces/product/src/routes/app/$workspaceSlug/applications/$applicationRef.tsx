@@ -1,20 +1,20 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 
-import { ApplicationScreen } from "../app/funding-round-screens";
-import { webTranslator } from "../app/messages";
-import { WorkspaceStatusPage } from "../app/workspace-page";
+import { ApplicationScreen } from "../../../../app/funding-round-screens";
+import { webTranslator } from "../../../../app/messages";
+import { WorkspaceStatusPage } from "../../../../app/workspace-page";
 import {
   applicationsSearch,
   workspaceApplicationsLocation,
   type ApplicationsSearch,
-} from "../features/grantmaking/contracts/applications-location";
-import { publicIdFromRef } from "../features/grantmaking/contracts/resource-url";
-import { useWorkspaceApplicationData } from "../features/grantmaking/data/workspace-data";
+} from "../../../../features/grantmaking/contracts/applications-location";
+import { publicIdFromRef } from "../../../../features/grantmaking/contracts/resource-url";
+import { useWorkspaceApplicationData } from "../../../../features/grantmaking/data/workspace-data";
 import {
   loadApplicationPage,
   workspaceRoundsLocation,
   roundLocation,
-} from "../features/grantmaking/page-routing";
+} from "../../../../features/grantmaking/page-routing";
 
 const ApplicationPage = () => {
   const params = Route.useParams();

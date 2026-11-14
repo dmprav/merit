@@ -24,6 +24,13 @@ examples show the real feature controls in context, including consequential acti
 covers entry and recovery outside an editor. The demo uses those same screens;
 its guide and lifecycle are checked in the application browser suite.
 
+The [Team design guidance](../../interfaces/product/src/features/team/team-design.mdx)
+curates accepted examples with their rationale: routine fields, an editor side
+effect, a removal confirmation, and failure feedback. Use this form for settled
+choices that future work should reuse. Link existing stories instead of copying
+fixtures or preserving superseded alternatives. Mark synthetic boundary fixtures
+as such so they do not imply a normal product workflow.
+
 Give each story a distinct purpose: explain a choice, expose a meaningful state,
 or protect an important interaction. Show simple visual variants together in a
 comparison and use a configurable example for individual values. Keep focused

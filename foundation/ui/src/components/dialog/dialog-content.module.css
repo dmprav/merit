@@ -65,6 +65,16 @@
   flex-shrink: 0;
 }
 
+.feedback {
+  min-width: 0;
+  flex-shrink: 0;
+  padding-bottom: var(--space-5);
+}
+
+.content[data-appearance="form"] > .feedback {
+  padding-inline: var(--space-6);
+}
+
 .body:focus-visible {
   outline: none;
   box-shadow: inset 2px 0 var(--focus);
@@ -82,6 +92,10 @@
 
 @media (max-width: 600px) {
   .content[data-appearance="form"] > .body {
+    padding-inline: var(--space-5);
+  }
+
+  .content[data-appearance="form"] > .feedback {
     padding-inline: var(--space-5);
   }
 

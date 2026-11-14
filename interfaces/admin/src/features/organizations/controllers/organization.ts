@@ -66,6 +66,7 @@ const useOrganizationName = (
   };
 
   return {
+    ready: drafts.editingReady,
     editing: editingName,
     value: draft?.name ?? organization.name,
     hasDraft: draft?.name !== undefined,
@@ -77,7 +78,9 @@ const useOrganizationName = (
       }),
     save: saveName,
     cancel: () => {
-      drafts.updateOrganization(organization.id, { name: undefined });
+      if (drafts.editingReady) {
+        drafts.updateOrganization(organization.id, { name: undefined });
+      }
       setEditingName(false);
       onNameClosed();
     },
@@ -118,6 +121,7 @@ const useOrganizationInvitation = (
   return {
     record: invitation,
     active,
+    ready: drafts.editingReady,
     editing: editingRecipient,
     value: draft?.email ?? invitation?.email ?? "",
     hasDraft: draft?.email !== undefined,
@@ -192,7 +196,7 @@ const useInvitationCommands = ({
   const actionInFlight = useRef(false);
 
   const send = async (email: string): Promise<OrganizationFailure | null> => {
-    if (actionInFlight.current) {
+    if (!drafts.editingReady || actionInFlight.current) {
       return null;
     }
     actionInFlight.current = true;

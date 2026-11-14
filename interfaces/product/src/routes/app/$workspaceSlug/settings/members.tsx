@@ -2,11 +2,11 @@ import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
-import { AppPage } from "../app/app-shell";
-import { webTranslator } from "../app/messages";
-import { WorkspaceStatusPage } from "../app/workspace-page";
-import { teamOptions } from "../features/team/data/queries";
-import { TeamView } from "../features/team/team-view";
+import { AppPage } from "../../../../app/app-shell";
+import { webTranslator } from "../../../../app/messages";
+import { WorkspaceStatusPage } from "../../../../app/workspace-page";
+import { teamOptions } from "../../../../features/team/data/queries";
+import { TeamView } from "../../../../features/team/team-view";
 
 const TeamPage = () => {
   const { t } = useTranslation(["team", "web"]);

@@ -7,9 +7,9 @@ import { Button } from "@merit/ui/button";
 import linkStyles from "@merit/ui/link.module.css";
 import { StateMessage } from "@merit/ui/state-message";
 
-import { webTranslator } from "../app/messages";
-import { StandalonePage } from "../components/standalone-page";
-import localStyles from "./app.sign-in.module.css";
+import { webTranslator } from "../../app/messages";
+import { StandalonePage } from "../../components/standalone-page";
+import localStyles from "./sign-in.module.css";
 
 const AccountSignIn = ({ returnTo }: { returnTo: string }) => {
   const { user } = useUser();

@@ -7,7 +7,6 @@ import { ApplicationPage } from "@merit/ui/application-shell";
 import { StoryEnvironment } from "../../../tests/storybook";
 import {
   readTeam,
-  readTeamHistory,
   inviteMember,
   changeMember,
   removeMember,
@@ -33,13 +32,6 @@ const meta = {
   ],
   beforeEach: ({ args }) => {
     let team = structuredClone(args.initial);
-    mocked(readTeamHistory).mockImplementation(async () => ({
-      status: "ok",
-      value: {
-        entries: [],
-        nextCursor: null,
-      },
-    }));
     mocked(readTeam).mockImplementation(async () => ({ status: "ok", value: team }));
     mocked(inviteMember).mockImplementation(async ({ data }) => {
       team = {
@@ -131,6 +123,22 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Owner: Story = {};
+export const OwnerAccess: Story = {
+  play: async ({ canvas, canvasElement, userEvent }) => {
+    const body = within(canvasElement.ownerDocument.body);
+    await userEvent.click(canvas.getByRole("button", { name: "Actions for Dana Reed" }));
+    await userEvent.click(body.getByRole("menuitem", { name: "Edit access" }));
+    const dialog = within(body.getByRole("dialog"));
+    const responsibility = dialog.getByRole("textbox", { name: "Organization responsibility" });
+    await expect(responsibility).toHaveValue("Owner");
+    await expect(responsibility).toHaveAttribute("readonly");
+    await expect(responsibility).toHaveAccessibleDescription(
+      "Contact the Merit operator for ownership changes.",
+    );
+    await userEvent.click(responsibility);
+    await expect(responsibility).toHaveFocus();
+  },
+};
 export const Invitations: Story = {
   play: async ({ canvas, userEvent }) => {
     await expect(canvas.getByRole("table", { name: "Members" })).toBeVisible();
@@ -226,9 +234,10 @@ export const DemotionConsequences: Story = {
     await context.userEvent.click(
       dialog.getByRole("button", { name: /Organization responsibility/ }),
     );
-    await context.userEvent.click(body.getByRole("option", { name: "Member" }));
+    await context.userEvent.click(body.getByRole("option", { name: /^Member/ }));
 
-    await waitFor(async () => expect(dialog.getByText("colleague@example.test")).toBeVisible());
+    await expect(dialog.getByText("Saving revokes 1 invitation.")).toBeVisible();
+    await expect(dialog.queryByText("colleague@example.test")).not.toBeInTheDocument();
     // Let React Aria clear its transient announcement before the accessibility scan.
     await waitFor(
       () =>
@@ -239,6 +248,31 @@ export const DemotionConsequences: Story = {
     );
   },
 };
+export const ManyAffectedInvitations: Story = {
+  args: {
+    initial: {
+      ...teamFixture,
+      invitations: Array.from({ length: 30 }, (_, index) => ({
+        ...teamFixture.invitations[0]!,
+        id: `invitation-${index}`,
+        email: `colleague-${index + 1}@example.test`,
+      })),
+    },
+  },
+  play: async (context) => {
+    await EditingAccess.play!(context);
+    const body = within(context.canvasElement.ownerDocument.body);
+    const parent = within(body.getByRole("dialog", { name: "Edit access for Morgan Lee" }));
+    await context.userEvent.click(
+      parent.getByRole("button", { name: /Organization responsibility/ }),
+    );
+    await context.userEvent.click(body.getByRole("option", { name: /^Member/ }));
+    await expect(parent.getByText("Saving revokes 30 invitations.")).toBeVisible();
+    await expect(parent.queryByRole("list")).not.toBeInTheDocument();
+    await expect(parent.queryByRole("tooltip")).not.toBeInTheDocument();
+  },
+};
+
 export const StaleAccess: Story = {
   beforeEach: () => {
     mocked(changeMember).mockResolvedValue({ status: "conflict" });
@@ -257,7 +291,9 @@ export const RemovalConsequences: Story = {
     await userEvent.click(await canvas.findByRole("button", { name: "Actions for Morgan Lee" }));
     await userEvent.click(body.getByRole("menuitem", { name: "Remove from organization" }));
 
-    await expect(body.getByRole("dialog")).toHaveTextContent("colleague@example.test");
+    await expect(body.getByRole("dialog")).toHaveTextContent(
+      "This also revokes 1 invitation they sent",
+    );
   },
 };
 export const Removing: Story = {
@@ -282,7 +318,7 @@ export const RemovalFailure: Story = {
     await context.userEvent.click(dialog.getByRole("button", { name: "Remove from organization" }));
 
     await waitFor(async () => expect(await dialog.findByRole("alert")).toBeVisible());
-    await waitFor(async () => expect(dialog.getByText("colleague@example.test")).toBeVisible());
+    await expect(dialog.getByText(/This also revokes 1 invitation they sent/)).toBeVisible();
   },
 };
 export const SavedButRefreshFailed: Story = {
@@ -306,5 +342,37 @@ export const SavedButRefreshFailed: Story = {
         ).toBeNull(),
       { timeout: 8000 },
     );
+  },
+};
+
+export const RoleChoices: Story = {
+  play: async (context) => {
+    await OwnerAccess.play!(context);
+    const body = within(context.canvasElement.ownerDocument.body);
+    await context.userEvent.click(body.getByRole("button", { name: /Grant-work access/ }));
+    await expect(body.getByRole("option", { name: /^Program manager/ })).toHaveAccessibleName(
+      "Program manager Can view and edit all grant work.",
+    );
+    await expect(body.getByRole("option", { name: /^No grant-work access/ })).toHaveAccessibleName(
+      "No grant-work access Cannot view or edit grant work.",
+    );
+  },
+};
+export const ResumeAccess: Story = {
+  play: async (context) => {
+    await EditingAccess.play!(context);
+    const body = within(context.canvasElement.ownerDocument.body);
+    await context.userEvent.click(body.getByRole("button", { name: /Grant-work access/ }));
+    await context.userEvent.click(body.getByRole("option", { name: /^Program manager/ }));
+    await context.userEvent.click(
+      within(body.getByRole("dialog")).getByRole("button", { name: "Close" }),
+    );
+    const trigger = context.canvas.getByRole("button", { name: "Actions for Morgan Lee" });
+    await expect(trigger).toHaveAttribute("data-draft");
+    await context.userEvent.click(trigger);
+    await expect(body.getByRole("menuitem", { name: "Resume editing access" })).toBeVisible();
+    await expect(
+      context.canvas.queryByRole("button", { name: "Resume editing access" }),
+    ).not.toBeInTheDocument();
   },
 };

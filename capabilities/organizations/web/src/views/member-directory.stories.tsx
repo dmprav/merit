@@ -42,6 +42,14 @@ export const ReadOnly: Story = {
   },
 };
 export const LongAndMissingIdentity: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Boundary case for nullable identity data. Normal invitation acceptance records an email; this fixture deliberately omits both name and email to exercise the fallback.",
+      },
+    },
+  },
   args: {
     team: {
       ...teamFixture,
@@ -51,8 +59,18 @@ export const LongAndMissingIdentity: Story = {
           name: "Alexandria Montgomery-Worthington",
           email: "alexandria.montgomery-worthington@community-partnerships.example.org",
         },
-        { ...teamFixture.members[1]!, name: null, email: null, active: false },
+        { ...teamFixture.members[1]!, name: null, email: null },
       ],
+    },
+  },
+};
+export const DisabledAccount: Story = {
+  args: {
+    team: {
+      ...teamFixture,
+      members: teamFixture.members.map((member, index) =>
+        index === 1 ? { ...member, active: false } : member,
+      ),
     },
   },
 };

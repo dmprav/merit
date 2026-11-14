@@ -67,15 +67,31 @@ const updatedCreation = { ...creation, title: "Updated creation" };
 const updatedRecommendation = { ...recommendation.value, reasoning: "Updated judgment" };
 
 const Probe = () => {
-  const { edits: rounds } = usePreparationDrafts();
-  const { applicationEdits: applications } = useIntakeDrafts();
-  const { creations, setCreation } = useCreationDrafts();
-  const { drafts: recommendations, setDraft } = useRecommendationDrafts();
-  const { reviewEdits: reviews, setReviewEdit } = useReviewDrafts();
+  const { edits: rounds, ready: roundsReady } = usePreparationDrafts();
+  const { applicationEdits: applications, ready: applicationsReady } = useIntakeDrafts();
+  const { creations, setCreation, ready: creationsReady } = useCreationDrafts();
+  const {
+    drafts: recommendations,
+    setDraft,
+    ready: recommendationsReady,
+  } = useRecommendationDrafts();
+  const { reviewEdits: reviews, setReviewEdit, ready: reviewsReady } = useReviewDrafts();
 
   return (
     <>
-      <output data-testid="drafts">
+      <output
+        data-testid={
+          [
+            roundsReady,
+            applicationsReady,
+            creationsReady,
+            recommendationsReady,
+            reviewsReady,
+          ].every(Boolean)
+            ? "drafts"
+            : "restoring"
+        }
+      >
         {JSON.stringify({ rounds, applications, creations, recommendations, reviews })}
       </output>
       <button onClick={() => setCreation("record", updatedCreation)}>Edit creation</button>
@@ -240,4 +256,14 @@ it("keeps the warning until every failed workflow has persisted successfully", a
   await waitFor(async () =>
     expect(await readDraftStorage("account", "reviews")).toEqual({ record: review }),
   );
+});
+
+it("renders saved page content immediately while all workflow stores recover", async () => {
+  await seed();
+  render(view("account"));
+  expect(screen.getByTestId("restoring")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Edit creation" })).toBeVisible();
+  expect(screen.queryByText("Restoring drafts…")).not.toBeInTheDocument();
+  await screen.findByTestId("drafts");
+  expect(draftState()).toEqual(stored);
 });

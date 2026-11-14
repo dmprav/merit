@@ -14,7 +14,7 @@ import { Route as interfacesAdminSrcAppLayoutRouteImport } from './../../interfa
 import { Route as interfacesProductSrcAppProductLayoutRouteImport } from './../../interfaces/product/src/app/product-layout'
 import { Route as PrivacyRouteImport } from './../../interfaces/site/src/routes/privacy'
 import { Route as DemoRouteImport } from './../../interfaces/product/src/routes/demo'
-import { Route as ReviewsRouteImport } from './../../interfaces/product/src/routes/reviews'
+import { Route as ReviewsRouteRouteImport } from './../../interfaces/product/src/routes/reviews/route'
 import { Route as DocsDotindexRouteImport } from './../../interfaces/site/src/routes/docs.index'
 import { Route as DocsDotapplicationsRouteImport } from './../../interfaces/site/src/routes/docs.applications'
 import { Route as DocsDotcontactsRouteImport } from './../../interfaces/site/src/routes/docs.contacts'
@@ -27,25 +27,25 @@ import { Route as DocsDotteamRouteImport } from './../../interfaces/site/src/rou
 import { Route as DocsDotworkspacesRouteImport } from './../../interfaces/site/src/routes/docs.workspaces'
 import { Route as AdminDotindexRouteImport } from './../../interfaces/admin/src/routes/admin.index'
 import { Route as AdminDotaccessRequestsRouteImport } from './../../interfaces/admin/src/routes/admin.access-requests'
-import { Route as AppDotindexRouteImport } from './../../interfaces/product/src/routes/app.index'
-import { Route as AppDotworkspaceSlugRouteImport } from './../../interfaces/product/src/routes/app.$workspaceSlug'
-import { Route as AppDotsignInRouteImport } from './../../interfaces/product/src/routes/app.sign-in'
-import { Route as Demo_DotworkshopSaturdaysRouteImport } from './../../interfaces/product/src/routes/demo_.workshop-saturdays'
-import { Route as InvitationsDottokenRouteImport } from './../../interfaces/product/src/routes/invitations.$token'
-import { Route as ReviewsDotindexRouteImport } from './../../interfaces/product/src/routes/reviews.index'
-import { Route as ReviewsDotassignmentIdRouteImport } from './../../interfaces/product/src/routes/reviews.$assignmentId'
+import { Route as AppIndexRouteImport } from './../../interfaces/product/src/routes/app/index'
+import { Route as AppWorkspaceSlugRouteRouteImport } from './../../interfaces/product/src/routes/app/$workspaceSlug/route'
+import { Route as AppSignInRouteImport } from './../../interfaces/product/src/routes/app/sign-in'
+import { Route as DemoWorkshopSaturdaysRouteImport } from './../../interfaces/product/src/routes/demo_/workshop-saturdays'
+import { Route as InvitationsTokenRouteImport } from './../../interfaces/product/src/routes/invitations/$token'
+import { Route as ReviewsIndexRouteImport } from './../../interfaces/product/src/routes/reviews/index'
+import { Route as ReviewsAssignmentIdRouteImport } from './../../interfaces/product/src/routes/reviews/$assignmentId'
 import { Route as AdminDotorganizationsDotindexRouteImport } from './../../interfaces/admin/src/routes/admin.organizations.index'
 import { Route as AdminDotorganizationsDotorganizationIdRouteImport } from './../../interfaces/admin/src/routes/admin.organizations.$organizationId'
 import { Route as AdminDotorganizationsDotnewRouteImport } from './../../interfaces/admin/src/routes/admin.organizations.new'
-import { Route as AppDotworkspaceSlugDotactivityRouteImport } from './../../interfaces/product/src/routes/app.$workspaceSlug.activity'
-import { Route as AppDotworkspaceSlugDotcontactsRouteImport } from './../../interfaces/product/src/routes/app.$workspaceSlug.contacts'
-import { Route as AppDotworkspaceSlugDotteamRouteImport } from './../../interfaces/product/src/routes/app.$workspaceSlug.team'
-import { Route as AppDotworkspaceSlugDotapplicationsDotindexRouteImport } from './../../interfaces/product/src/routes/app.$workspaceSlug.applications.index'
-import { Route as AppDotworkspaceSlugDotapplicationsDotapplicationRefRouteImport } from './../../interfaces/product/src/routes/app.$workspaceSlug.applications.$applicationRef'
-import { Route as AppDotworkspaceSlugDotroundsDotindexRouteImport } from './../../interfaces/product/src/routes/app.$workspaceSlug.rounds.index'
-import { Route as AppDotworkspaceSlugDotroundsDotroundRefRouteImport } from './../../interfaces/product/src/routes/app.$workspaceSlug.rounds.$roundRef'
-import { Route as AppDotworkspaceSlugDotsettingsDotindexRouteImport } from './../../interfaces/product/src/routes/app.$workspaceSlug.settings.index'
-import { Route as AppDotworkspaceSlugDotsettingsDotmembersRouteImport } from './../../interfaces/product/src/routes/app.$workspaceSlug.settings.members'
+import { Route as AppWorkspaceSlugActivityRouteImport } from './../../interfaces/product/src/routes/app/$workspaceSlug/activity'
+import { Route as AppWorkspaceSlugContactsRouteImport } from './../../interfaces/product/src/routes/app/$workspaceSlug/contacts'
+import { Route as AppWorkspaceSlugTeamRouteImport } from './../../interfaces/product/src/routes/app/$workspaceSlug/team'
+import { Route as AppWorkspaceSlugApplicationsIndexRouteImport } from './../../interfaces/product/src/routes/app/$workspaceSlug/applications/index'
+import { Route as AppWorkspaceSlugApplicationsApplicationRefRouteImport } from './../../interfaces/product/src/routes/app/$workspaceSlug/applications/$applicationRef'
+import { Route as AppWorkspaceSlugRoundsIndexRouteImport } from './../../interfaces/product/src/routes/app/$workspaceSlug/rounds/index'
+import { Route as AppWorkspaceSlugRoundsRoundRefRouteImport } from './../../interfaces/product/src/routes/app/$workspaceSlug/rounds/$roundRef'
+import { Route as AppWorkspaceSlugSettingsIndexRouteImport } from './../../interfaces/product/src/routes/app/$workspaceSlug/settings/index'
+import { Route as AppWorkspaceSlugSettingsMembersRouteImport } from './../../interfaces/product/src/routes/app/$workspaceSlug/settings/members'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -72,7 +72,7 @@ const DemoRoute = DemoRouteImport.update({
   path: '/demo',
   getParentRoute: () => interfacesProductSrcAppProductLayoutRoute,
 } as any)
-const ReviewsRoute = ReviewsRouteImport.update({
+const ReviewsRouteRoute = ReviewsRouteRouteImport.update({
   id: '/reviews',
   path: '/reviews',
   getParentRoute: () => interfacesProductSrcAppProductLayoutRoute,
@@ -137,41 +137,40 @@ const AdminDotaccessRequestsRoute = AdminDotaccessRequestsRouteImport.update({
   path: '/admin/access-requests',
   getParentRoute: () => interfacesAdminSrcAppLayoutRoute,
 } as any)
-const AppDotindexRoute = AppDotindexRouteImport.update({
+const AppIndexRoute = AppIndexRouteImport.update({
   id: '/app/',
   path: '/app/',
   getParentRoute: () => interfacesProductSrcAppProductLayoutRoute,
 } as any)
-const AppDotworkspaceSlugRoute = AppDotworkspaceSlugRouteImport.update({
+const AppWorkspaceSlugRouteRoute = AppWorkspaceSlugRouteRouteImport.update({
   id: '/app/$workspaceSlug',
   path: '/app/$workspaceSlug',
   getParentRoute: () => interfacesProductSrcAppProductLayoutRoute,
 } as any)
-const AppDotsignInRoute = AppDotsignInRouteImport.update({
+const AppSignInRoute = AppSignInRouteImport.update({
   id: '/app/sign-in',
   path: '/app/sign-in',
   getParentRoute: () => interfacesProductSrcAppProductLayoutRoute,
 } as any)
-const Demo_DotworkshopSaturdaysRoute =
-  Demo_DotworkshopSaturdaysRouteImport.update({
-    id: '/demo_/workshop-saturdays',
-    path: '/demo/workshop-saturdays',
-    getParentRoute: () => interfacesProductSrcAppProductLayoutRoute,
-  } as any)
-const InvitationsDottokenRoute = InvitationsDottokenRouteImport.update({
+const DemoWorkshopSaturdaysRoute = DemoWorkshopSaturdaysRouteImport.update({
+  id: '/demo_/workshop-saturdays',
+  path: '/demo/workshop-saturdays',
+  getParentRoute: () => interfacesProductSrcAppProductLayoutRoute,
+} as any)
+const InvitationsTokenRoute = InvitationsTokenRouteImport.update({
   id: '/invitations/$token',
   path: '/invitations/$token',
   getParentRoute: () => interfacesProductSrcAppProductLayoutRoute,
 } as any)
-const ReviewsDotindexRoute = ReviewsDotindexRouteImport.update({
+const ReviewsIndexRoute = ReviewsIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => ReviewsRoute,
+  getParentRoute: () => ReviewsRouteRoute,
 } as any)
-const ReviewsDotassignmentIdRoute = ReviewsDotassignmentIdRouteImport.update({
+const ReviewsAssignmentIdRoute = ReviewsAssignmentIdRouteImport.update({
   id: '/$assignmentId',
   path: '/$assignmentId',
-  getParentRoute: () => ReviewsRoute,
+  getParentRoute: () => ReviewsRouteRoute,
 } as any)
 const AdminDotorganizationsDotindexRoute =
   AdminDotorganizationsDotindexRouteImport.update({
@@ -191,66 +190,65 @@ const AdminDotorganizationsDotnewRoute =
     path: '/admin/organizations/new',
     getParentRoute: () => interfacesAdminSrcAppLayoutRoute,
   } as any)
-const AppDotworkspaceSlugDotactivityRoute =
-  AppDotworkspaceSlugDotactivityRouteImport.update({
+const AppWorkspaceSlugActivityRoute =
+  AppWorkspaceSlugActivityRouteImport.update({
     id: '/activity',
     path: '/activity',
-    getParentRoute: () => AppDotworkspaceSlugRoute,
+    getParentRoute: () => AppWorkspaceSlugRouteRoute,
   } as any)
-const AppDotworkspaceSlugDotcontactsRoute =
-  AppDotworkspaceSlugDotcontactsRouteImport.update({
+const AppWorkspaceSlugContactsRoute =
+  AppWorkspaceSlugContactsRouteImport.update({
     id: '/contacts',
     path: '/contacts',
-    getParentRoute: () => AppDotworkspaceSlugRoute,
+    getParentRoute: () => AppWorkspaceSlugRouteRoute,
   } as any)
-const AppDotworkspaceSlugDotteamRoute =
-  AppDotworkspaceSlugDotteamRouteImport.update({
-    id: '/team',
-    path: '/team',
-    getParentRoute: () => AppDotworkspaceSlugRoute,
-  } as any)
-const AppDotworkspaceSlugDotapplicationsDotindexRoute =
-  AppDotworkspaceSlugDotapplicationsDotindexRouteImport.update({
+const AppWorkspaceSlugTeamRoute = AppWorkspaceSlugTeamRouteImport.update({
+  id: '/team',
+  path: '/team',
+  getParentRoute: () => AppWorkspaceSlugRouteRoute,
+} as any)
+const AppWorkspaceSlugApplicationsIndexRoute =
+  AppWorkspaceSlugApplicationsIndexRouteImport.update({
     id: '/applications/',
     path: '/applications/',
-    getParentRoute: () => AppDotworkspaceSlugRoute,
+    getParentRoute: () => AppWorkspaceSlugRouteRoute,
   } as any)
-const AppDotworkspaceSlugDotapplicationsDotapplicationRefRoute =
-  AppDotworkspaceSlugDotapplicationsDotapplicationRefRouteImport.update({
+const AppWorkspaceSlugApplicationsApplicationRefRoute =
+  AppWorkspaceSlugApplicationsApplicationRefRouteImport.update({
     id: '/applications/$applicationRef',
     path: '/applications/$applicationRef',
-    getParentRoute: () => AppDotworkspaceSlugRoute,
+    getParentRoute: () => AppWorkspaceSlugRouteRoute,
   } as any)
-const AppDotworkspaceSlugDotroundsDotindexRoute =
-  AppDotworkspaceSlugDotroundsDotindexRouteImport.update({
+const AppWorkspaceSlugRoundsIndexRoute =
+  AppWorkspaceSlugRoundsIndexRouteImport.update({
     id: '/rounds/',
     path: '/rounds/',
-    getParentRoute: () => AppDotworkspaceSlugRoute,
+    getParentRoute: () => AppWorkspaceSlugRouteRoute,
   } as any)
-const AppDotworkspaceSlugDotroundsDotroundRefRoute =
-  AppDotworkspaceSlugDotroundsDotroundRefRouteImport.update({
+const AppWorkspaceSlugRoundsRoundRefRoute =
+  AppWorkspaceSlugRoundsRoundRefRouteImport.update({
     id: '/rounds/$roundRef',
     path: '/rounds/$roundRef',
-    getParentRoute: () => AppDotworkspaceSlugRoute,
+    getParentRoute: () => AppWorkspaceSlugRouteRoute,
   } as any)
-const AppDotworkspaceSlugDotsettingsDotindexRoute =
-  AppDotworkspaceSlugDotsettingsDotindexRouteImport.update({
+const AppWorkspaceSlugSettingsIndexRoute =
+  AppWorkspaceSlugSettingsIndexRouteImport.update({
     id: '/settings/',
     path: '/settings/',
-    getParentRoute: () => AppDotworkspaceSlugRoute,
+    getParentRoute: () => AppWorkspaceSlugRouteRoute,
   } as any)
-const AppDotworkspaceSlugDotsettingsDotmembersRoute =
-  AppDotworkspaceSlugDotsettingsDotmembersRouteImport.update({
+const AppWorkspaceSlugSettingsMembersRoute =
+  AppWorkspaceSlugSettingsMembersRouteImport.update({
     id: '/settings/members',
     path: '/settings/members',
-    getParentRoute: () => AppDotworkspaceSlugRoute,
+    getParentRoute: () => AppWorkspaceSlugRouteRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/privacy': typeof PrivacyRoute
+  '/reviews': typeof ReviewsRouteRouteWithChildren
   '/demo': typeof DemoRoute
-  '/reviews': typeof ReviewsRouteWithChildren
   '/docs/applications': typeof DocsDotapplicationsRoute
   '/docs/contacts': typeof DocsDotcontactsRoute
   '/docs/mcp': typeof DocsDotmcpRoute
@@ -261,27 +259,27 @@ export interface FileRoutesByFullPath {
   '/docs/team': typeof DocsDotteamRoute
   '/docs/workspaces': typeof DocsDotworkspacesRoute
   '/docs/': typeof DocsDotindexRoute
+  '/app/$workspaceSlug': typeof AppWorkspaceSlugRouteRouteWithChildren
   '/admin/access-requests': typeof AdminDotaccessRequestsRoute
-  '/app/$workspaceSlug': typeof AppDotworkspaceSlugRouteWithChildren
-  '/app/sign-in': typeof AppDotsignInRoute
-  '/demo/workshop-saturdays': typeof Demo_DotworkshopSaturdaysRoute
-  '/invitations/$token': typeof InvitationsDottokenRoute
-  '/reviews/$assignmentId': typeof ReviewsDotassignmentIdRoute
+  '/app/sign-in': typeof AppSignInRoute
+  '/demo/workshop-saturdays': typeof DemoWorkshopSaturdaysRoute
+  '/invitations/$token': typeof InvitationsTokenRoute
+  '/reviews/$assignmentId': typeof ReviewsAssignmentIdRoute
   '/admin/': typeof AdminDotindexRoute
-  '/app/': typeof AppDotindexRoute
-  '/reviews/': typeof ReviewsDotindexRoute
+  '/app/': typeof AppIndexRoute
+  '/reviews/': typeof ReviewsIndexRoute
   '/admin/organizations/$organizationId': typeof AdminDotorganizationsDotorganizationIdRoute
   '/admin/organizations/new': typeof AdminDotorganizationsDotnewRoute
-  '/app/$workspaceSlug/activity': typeof AppDotworkspaceSlugDotactivityRoute
-  '/app/$workspaceSlug/contacts': typeof AppDotworkspaceSlugDotcontactsRoute
-  '/app/$workspaceSlug/team': typeof AppDotworkspaceSlugDotteamRoute
+  '/app/$workspaceSlug/activity': typeof AppWorkspaceSlugActivityRoute
+  '/app/$workspaceSlug/contacts': typeof AppWorkspaceSlugContactsRoute
+  '/app/$workspaceSlug/team': typeof AppWorkspaceSlugTeamRoute
   '/admin/organizations/': typeof AdminDotorganizationsDotindexRoute
-  '/app/$workspaceSlug/applications/$applicationRef': typeof AppDotworkspaceSlugDotapplicationsDotapplicationRefRoute
-  '/app/$workspaceSlug/rounds/$roundRef': typeof AppDotworkspaceSlugDotroundsDotroundRefRoute
-  '/app/$workspaceSlug/settings/members': typeof AppDotworkspaceSlugDotsettingsDotmembersRoute
-  '/app/$workspaceSlug/applications/': typeof AppDotworkspaceSlugDotapplicationsDotindexRoute
-  '/app/$workspaceSlug/rounds/': typeof AppDotworkspaceSlugDotroundsDotindexRoute
-  '/app/$workspaceSlug/settings/': typeof AppDotworkspaceSlugDotsettingsDotindexRoute
+  '/app/$workspaceSlug/applications/$applicationRef': typeof AppWorkspaceSlugApplicationsApplicationRefRoute
+  '/app/$workspaceSlug/rounds/$roundRef': typeof AppWorkspaceSlugRoundsRoundRefRoute
+  '/app/$workspaceSlug/settings/members': typeof AppWorkspaceSlugSettingsMembersRoute
+  '/app/$workspaceSlug/applications/': typeof AppWorkspaceSlugApplicationsIndexRoute
+  '/app/$workspaceSlug/rounds/': typeof AppWorkspaceSlugRoundsIndexRoute
+  '/app/$workspaceSlug/settings/': typeof AppWorkspaceSlugSettingsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -297,27 +295,27 @@ export interface FileRoutesByTo {
   '/docs/team': typeof DocsDotteamRoute
   '/docs/workspaces': typeof DocsDotworkspacesRoute
   '/docs': typeof DocsDotindexRoute
+  '/app/$workspaceSlug': typeof AppWorkspaceSlugRouteRouteWithChildren
   '/admin/access-requests': typeof AdminDotaccessRequestsRoute
-  '/app/$workspaceSlug': typeof AppDotworkspaceSlugRouteWithChildren
-  '/app/sign-in': typeof AppDotsignInRoute
-  '/demo/workshop-saturdays': typeof Demo_DotworkshopSaturdaysRoute
-  '/invitations/$token': typeof InvitationsDottokenRoute
-  '/reviews/$assignmentId': typeof ReviewsDotassignmentIdRoute
+  '/app/sign-in': typeof AppSignInRoute
+  '/demo/workshop-saturdays': typeof DemoWorkshopSaturdaysRoute
+  '/invitations/$token': typeof InvitationsTokenRoute
+  '/reviews/$assignmentId': typeof ReviewsAssignmentIdRoute
   '/admin': typeof AdminDotindexRoute
-  '/app': typeof AppDotindexRoute
-  '/reviews': typeof ReviewsDotindexRoute
+  '/app': typeof AppIndexRoute
+  '/reviews': typeof ReviewsIndexRoute
   '/admin/organizations/$organizationId': typeof AdminDotorganizationsDotorganizationIdRoute
   '/admin/organizations/new': typeof AdminDotorganizationsDotnewRoute
-  '/app/$workspaceSlug/activity': typeof AppDotworkspaceSlugDotactivityRoute
-  '/app/$workspaceSlug/contacts': typeof AppDotworkspaceSlugDotcontactsRoute
-  '/app/$workspaceSlug/team': typeof AppDotworkspaceSlugDotteamRoute
+  '/app/$workspaceSlug/activity': typeof AppWorkspaceSlugActivityRoute
+  '/app/$workspaceSlug/contacts': typeof AppWorkspaceSlugContactsRoute
+  '/app/$workspaceSlug/team': typeof AppWorkspaceSlugTeamRoute
   '/admin/organizations': typeof AdminDotorganizationsDotindexRoute
-  '/app/$workspaceSlug/applications/$applicationRef': typeof AppDotworkspaceSlugDotapplicationsDotapplicationRefRoute
-  '/app/$workspaceSlug/rounds/$roundRef': typeof AppDotworkspaceSlugDotroundsDotroundRefRoute
-  '/app/$workspaceSlug/settings/members': typeof AppDotworkspaceSlugDotsettingsDotmembersRoute
-  '/app/$workspaceSlug/applications': typeof AppDotworkspaceSlugDotapplicationsDotindexRoute
-  '/app/$workspaceSlug/rounds': typeof AppDotworkspaceSlugDotroundsDotindexRoute
-  '/app/$workspaceSlug/settings': typeof AppDotworkspaceSlugDotsettingsDotindexRoute
+  '/app/$workspaceSlug/applications/$applicationRef': typeof AppWorkspaceSlugApplicationsApplicationRefRoute
+  '/app/$workspaceSlug/rounds/$roundRef': typeof AppWorkspaceSlugRoundsRoundRefRoute
+  '/app/$workspaceSlug/settings/members': typeof AppWorkspaceSlugSettingsMembersRoute
+  '/app/$workspaceSlug/applications': typeof AppWorkspaceSlugApplicationsIndexRoute
+  '/app/$workspaceSlug/rounds': typeof AppWorkspaceSlugRoundsIndexRoute
+  '/app/$workspaceSlug/settings': typeof AppWorkspaceSlugSettingsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -325,8 +323,8 @@ export interface FileRoutesById {
   '/_administration': typeof interfacesAdminSrcAppLayoutRouteWithChildren
   '/_product': typeof interfacesProductSrcAppProductLayoutRouteWithChildren
   '/privacy': typeof PrivacyRoute
+  '/_product/reviews': typeof ReviewsRouteRouteWithChildren
   '/_product/demo': typeof DemoRoute
-  '/_product/reviews': typeof ReviewsRouteWithChildren
   '/docs/applications': typeof DocsDotapplicationsRoute
   '/docs/contacts': typeof DocsDotcontactsRoute
   '/docs/mcp': typeof DocsDotmcpRoute
@@ -337,35 +335,35 @@ export interface FileRoutesById {
   '/docs/team': typeof DocsDotteamRoute
   '/docs/workspaces': typeof DocsDotworkspacesRoute
   '/docs/': typeof DocsDotindexRoute
+  '/_product/app/$workspaceSlug': typeof AppWorkspaceSlugRouteRouteWithChildren
   '/_administration/admin/access-requests': typeof AdminDotaccessRequestsRoute
-  '/_product/app/$workspaceSlug': typeof AppDotworkspaceSlugRouteWithChildren
-  '/_product/app/sign-in': typeof AppDotsignInRoute
-  '/_product/demo_/workshop-saturdays': typeof Demo_DotworkshopSaturdaysRoute
-  '/_product/invitations/$token': typeof InvitationsDottokenRoute
-  '/_product/reviews/$assignmentId': typeof ReviewsDotassignmentIdRoute
+  '/_product/app/sign-in': typeof AppSignInRoute
+  '/_product/demo_/workshop-saturdays': typeof DemoWorkshopSaturdaysRoute
+  '/_product/invitations/$token': typeof InvitationsTokenRoute
+  '/_product/reviews/$assignmentId': typeof ReviewsAssignmentIdRoute
   '/_administration/admin/': typeof AdminDotindexRoute
-  '/_product/app/': typeof AppDotindexRoute
-  '/_product/reviews/': typeof ReviewsDotindexRoute
+  '/_product/app/': typeof AppIndexRoute
+  '/_product/reviews/': typeof ReviewsIndexRoute
   '/_administration/admin/organizations/$organizationId': typeof AdminDotorganizationsDotorganizationIdRoute
   '/_administration/admin/organizations/new': typeof AdminDotorganizationsDotnewRoute
-  '/_product/app/$workspaceSlug/activity': typeof AppDotworkspaceSlugDotactivityRoute
-  '/_product/app/$workspaceSlug/contacts': typeof AppDotworkspaceSlugDotcontactsRoute
-  '/_product/app/$workspaceSlug/team': typeof AppDotworkspaceSlugDotteamRoute
+  '/_product/app/$workspaceSlug/activity': typeof AppWorkspaceSlugActivityRoute
+  '/_product/app/$workspaceSlug/contacts': typeof AppWorkspaceSlugContactsRoute
+  '/_product/app/$workspaceSlug/team': typeof AppWorkspaceSlugTeamRoute
   '/_administration/admin/organizations/': typeof AdminDotorganizationsDotindexRoute
-  '/_product/app/$workspaceSlug/applications/$applicationRef': typeof AppDotworkspaceSlugDotapplicationsDotapplicationRefRoute
-  '/_product/app/$workspaceSlug/rounds/$roundRef': typeof AppDotworkspaceSlugDotroundsDotroundRefRoute
-  '/_product/app/$workspaceSlug/settings/members': typeof AppDotworkspaceSlugDotsettingsDotmembersRoute
-  '/_product/app/$workspaceSlug/applications/': typeof AppDotworkspaceSlugDotapplicationsDotindexRoute
-  '/_product/app/$workspaceSlug/rounds/': typeof AppDotworkspaceSlugDotroundsDotindexRoute
-  '/_product/app/$workspaceSlug/settings/': typeof AppDotworkspaceSlugDotsettingsDotindexRoute
+  '/_product/app/$workspaceSlug/applications/$applicationRef': typeof AppWorkspaceSlugApplicationsApplicationRefRoute
+  '/_product/app/$workspaceSlug/rounds/$roundRef': typeof AppWorkspaceSlugRoundsRoundRefRoute
+  '/_product/app/$workspaceSlug/settings/members': typeof AppWorkspaceSlugSettingsMembersRoute
+  '/_product/app/$workspaceSlug/applications/': typeof AppWorkspaceSlugApplicationsIndexRoute
+  '/_product/app/$workspaceSlug/rounds/': typeof AppWorkspaceSlugRoundsIndexRoute
+  '/_product/app/$workspaceSlug/settings/': typeof AppWorkspaceSlugSettingsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/privacy'
-    | '/demo'
     | '/reviews'
+    | '/demo'
     | '/docs/applications'
     | '/docs/contacts'
     | '/docs/mcp'
@@ -376,8 +374,8 @@ export interface FileRouteTypes {
     | '/docs/team'
     | '/docs/workspaces'
     | '/docs/'
-    | '/admin/access-requests'
     | '/app/$workspaceSlug'
+    | '/admin/access-requests'
     | '/app/sign-in'
     | '/demo/workshop-saturdays'
     | '/invitations/$token'
@@ -412,8 +410,8 @@ export interface FileRouteTypes {
     | '/docs/team'
     | '/docs/workspaces'
     | '/docs'
-    | '/admin/access-requests'
     | '/app/$workspaceSlug'
+    | '/admin/access-requests'
     | '/app/sign-in'
     | '/demo/workshop-saturdays'
     | '/invitations/$token'
@@ -439,8 +437,8 @@ export interface FileRouteTypes {
     | '/_administration'
     | '/_product'
     | '/privacy'
-    | '/_product/demo'
     | '/_product/reviews'
+    | '/_product/demo'
     | '/docs/applications'
     | '/docs/contacts'
     | '/docs/mcp'
@@ -451,8 +449,8 @@ export interface FileRouteTypes {
     | '/docs/team'
     | '/docs/workspaces'
     | '/docs/'
-    | '/_administration/admin/access-requests'
     | '/_product/app/$workspaceSlug'
+    | '/_administration/admin/access-requests'
     | '/_product/app/sign-in'
     | '/_product/demo_/workshop-saturdays'
     | '/_product/invitations/$token'
@@ -532,7 +530,7 @@ declare module '@tanstack/react-router' {
       id: '/_product/reviews'
       path: '/reviews'
       fullPath: '/reviews'
-      preLoaderRoute: typeof ReviewsRouteImport
+      preLoaderRoute: typeof ReviewsRouteRouteImport
       parentRoute: typeof interfacesProductSrcAppProductLayoutRoute
     }
     '/docs/': {
@@ -623,50 +621,50 @@ declare module '@tanstack/react-router' {
       id: '/_product/app/'
       path: '/app'
       fullPath: '/app/'
-      preLoaderRoute: typeof AppDotindexRouteImport
+      preLoaderRoute: typeof AppIndexRouteImport
       parentRoute: typeof interfacesProductSrcAppProductLayoutRoute
     }
     '/_product/app/$workspaceSlug': {
       id: '/_product/app/$workspaceSlug'
       path: '/app/$workspaceSlug'
       fullPath: '/app/$workspaceSlug'
-      preLoaderRoute: typeof AppDotworkspaceSlugRouteImport
+      preLoaderRoute: typeof AppWorkspaceSlugRouteRouteImport
       parentRoute: typeof interfacesProductSrcAppProductLayoutRoute
     }
     '/_product/app/sign-in': {
       id: '/_product/app/sign-in'
       path: '/app/sign-in'
       fullPath: '/app/sign-in'
-      preLoaderRoute: typeof AppDotsignInRouteImport
+      preLoaderRoute: typeof AppSignInRouteImport
       parentRoute: typeof interfacesProductSrcAppProductLayoutRoute
     }
     '/_product/demo_/workshop-saturdays': {
       id: '/_product/demo_/workshop-saturdays'
       path: '/demo/workshop-saturdays'
       fullPath: '/demo/workshop-saturdays'
-      preLoaderRoute: typeof Demo_DotworkshopSaturdaysRouteImport
+      preLoaderRoute: typeof DemoWorkshopSaturdaysRouteImport
       parentRoute: typeof interfacesProductSrcAppProductLayoutRoute
     }
     '/_product/invitations/$token': {
       id: '/_product/invitations/$token'
       path: '/invitations/$token'
       fullPath: '/invitations/$token'
-      preLoaderRoute: typeof InvitationsDottokenRouteImport
+      preLoaderRoute: typeof InvitationsTokenRouteImport
       parentRoute: typeof interfacesProductSrcAppProductLayoutRoute
     }
     '/_product/reviews/': {
       id: '/_product/reviews/'
       path: '/'
       fullPath: '/reviews/'
-      preLoaderRoute: typeof ReviewsDotindexRouteImport
-      parentRoute: typeof ReviewsRoute
+      preLoaderRoute: typeof ReviewsIndexRouteImport
+      parentRoute: typeof ReviewsRouteRoute
     }
     '/_product/reviews/$assignmentId': {
       id: '/_product/reviews/$assignmentId'
       path: '/$assignmentId'
       fullPath: '/reviews/$assignmentId'
-      preLoaderRoute: typeof ReviewsDotassignmentIdRouteImport
-      parentRoute: typeof ReviewsRoute
+      preLoaderRoute: typeof ReviewsAssignmentIdRouteImport
+      parentRoute: typeof ReviewsRouteRoute
     }
     '/_administration/admin/organizations/': {
       id: '/_administration/admin/organizations/'
@@ -693,64 +691,64 @@ declare module '@tanstack/react-router' {
       id: '/_product/app/$workspaceSlug/activity'
       path: '/activity'
       fullPath: '/app/$workspaceSlug/activity'
-      preLoaderRoute: typeof AppDotworkspaceSlugDotactivityRouteImport
-      parentRoute: typeof AppDotworkspaceSlugRoute
+      preLoaderRoute: typeof AppWorkspaceSlugActivityRouteImport
+      parentRoute: typeof AppWorkspaceSlugRouteRoute
     }
     '/_product/app/$workspaceSlug/contacts': {
       id: '/_product/app/$workspaceSlug/contacts'
       path: '/contacts'
       fullPath: '/app/$workspaceSlug/contacts'
-      preLoaderRoute: typeof AppDotworkspaceSlugDotcontactsRouteImport
-      parentRoute: typeof AppDotworkspaceSlugRoute
+      preLoaderRoute: typeof AppWorkspaceSlugContactsRouteImport
+      parentRoute: typeof AppWorkspaceSlugRouteRoute
     }
     '/_product/app/$workspaceSlug/team': {
       id: '/_product/app/$workspaceSlug/team'
       path: '/team'
       fullPath: '/app/$workspaceSlug/team'
-      preLoaderRoute: typeof AppDotworkspaceSlugDotteamRouteImport
-      parentRoute: typeof AppDotworkspaceSlugRoute
+      preLoaderRoute: typeof AppWorkspaceSlugTeamRouteImport
+      parentRoute: typeof AppWorkspaceSlugRouteRoute
     }
     '/_product/app/$workspaceSlug/applications/': {
       id: '/_product/app/$workspaceSlug/applications/'
       path: '/applications'
       fullPath: '/app/$workspaceSlug/applications/'
-      preLoaderRoute: typeof AppDotworkspaceSlugDotapplicationsDotindexRouteImport
-      parentRoute: typeof AppDotworkspaceSlugRoute
+      preLoaderRoute: typeof AppWorkspaceSlugApplicationsIndexRouteImport
+      parentRoute: typeof AppWorkspaceSlugRouteRoute
     }
     '/_product/app/$workspaceSlug/applications/$applicationRef': {
       id: '/_product/app/$workspaceSlug/applications/$applicationRef'
       path: '/applications/$applicationRef'
       fullPath: '/app/$workspaceSlug/applications/$applicationRef'
-      preLoaderRoute: typeof AppDotworkspaceSlugDotapplicationsDotapplicationRefRouteImport
-      parentRoute: typeof AppDotworkspaceSlugRoute
+      preLoaderRoute: typeof AppWorkspaceSlugApplicationsApplicationRefRouteImport
+      parentRoute: typeof AppWorkspaceSlugRouteRoute
     }
     '/_product/app/$workspaceSlug/rounds/': {
       id: '/_product/app/$workspaceSlug/rounds/'
       path: '/rounds'
       fullPath: '/app/$workspaceSlug/rounds/'
-      preLoaderRoute: typeof AppDotworkspaceSlugDotroundsDotindexRouteImport
-      parentRoute: typeof AppDotworkspaceSlugRoute
+      preLoaderRoute: typeof AppWorkspaceSlugRoundsIndexRouteImport
+      parentRoute: typeof AppWorkspaceSlugRouteRoute
     }
     '/_product/app/$workspaceSlug/rounds/$roundRef': {
       id: '/_product/app/$workspaceSlug/rounds/$roundRef'
       path: '/rounds/$roundRef'
       fullPath: '/app/$workspaceSlug/rounds/$roundRef'
-      preLoaderRoute: typeof AppDotworkspaceSlugDotroundsDotroundRefRouteImport
-      parentRoute: typeof AppDotworkspaceSlugRoute
+      preLoaderRoute: typeof AppWorkspaceSlugRoundsRoundRefRouteImport
+      parentRoute: typeof AppWorkspaceSlugRouteRoute
     }
     '/_product/app/$workspaceSlug/settings/': {
       id: '/_product/app/$workspaceSlug/settings/'
       path: '/settings'
       fullPath: '/app/$workspaceSlug/settings/'
-      preLoaderRoute: typeof AppDotworkspaceSlugDotsettingsDotindexRouteImport
-      parentRoute: typeof AppDotworkspaceSlugRoute
+      preLoaderRoute: typeof AppWorkspaceSlugSettingsIndexRouteImport
+      parentRoute: typeof AppWorkspaceSlugRouteRoute
     }
     '/_product/app/$workspaceSlug/settings/members': {
       id: '/_product/app/$workspaceSlug/settings/members'
       path: '/settings/members'
       fullPath: '/app/$workspaceSlug/settings/members'
-      preLoaderRoute: typeof AppDotworkspaceSlugDotsettingsDotmembersRouteImport
-      parentRoute: typeof AppDotworkspaceSlugRoute
+      preLoaderRoute: typeof AppWorkspaceSlugSettingsMembersRouteImport
+      parentRoute: typeof AppWorkspaceSlugRouteRoute
     }
   }
 }
@@ -778,71 +776,70 @@ const interfacesAdminSrcAppLayoutRouteWithChildren =
     interfacesAdminSrcAppLayoutRouteChildren,
   )
 
-interface ReviewsRouteChildren {
-  ReviewsDotassignmentIdRoute: typeof ReviewsDotassignmentIdRoute
-  ReviewsDotindexRoute: typeof ReviewsDotindexRoute
+interface ReviewsRouteRouteChildren {
+  ReviewsAssignmentIdRoute: typeof ReviewsAssignmentIdRoute
+  ReviewsIndexRoute: typeof ReviewsIndexRoute
 }
 
-const ReviewsRouteChildren: ReviewsRouteChildren = {
-  ReviewsDotassignmentIdRoute: ReviewsDotassignmentIdRoute,
-  ReviewsDotindexRoute: ReviewsDotindexRoute,
+const ReviewsRouteRouteChildren: ReviewsRouteRouteChildren = {
+  ReviewsAssignmentIdRoute: ReviewsAssignmentIdRoute,
+  ReviewsIndexRoute: ReviewsIndexRoute,
 }
 
-const ReviewsRouteWithChildren =
-  ReviewsRoute._addFileChildren(ReviewsRouteChildren)
+const ReviewsRouteRouteWithChildren = ReviewsRouteRoute._addFileChildren(
+  ReviewsRouteRouteChildren,
+)
 
-interface AppDotworkspaceSlugRouteChildren {
-  AppDotworkspaceSlugDotactivityRoute: typeof AppDotworkspaceSlugDotactivityRoute
-  AppDotworkspaceSlugDotcontactsRoute: typeof AppDotworkspaceSlugDotcontactsRoute
-  AppDotworkspaceSlugDotteamRoute: typeof AppDotworkspaceSlugDotteamRoute
-  AppDotworkspaceSlugDotapplicationsDotapplicationRefRoute: typeof AppDotworkspaceSlugDotapplicationsDotapplicationRefRoute
-  AppDotworkspaceSlugDotroundsDotroundRefRoute: typeof AppDotworkspaceSlugDotroundsDotroundRefRoute
-  AppDotworkspaceSlugDotsettingsDotmembersRoute: typeof AppDotworkspaceSlugDotsettingsDotmembersRoute
-  AppDotworkspaceSlugDotapplicationsDotindexRoute: typeof AppDotworkspaceSlugDotapplicationsDotindexRoute
-  AppDotworkspaceSlugDotroundsDotindexRoute: typeof AppDotworkspaceSlugDotroundsDotindexRoute
-  AppDotworkspaceSlugDotsettingsDotindexRoute: typeof AppDotworkspaceSlugDotsettingsDotindexRoute
+interface AppWorkspaceSlugRouteRouteChildren {
+  AppWorkspaceSlugActivityRoute: typeof AppWorkspaceSlugActivityRoute
+  AppWorkspaceSlugContactsRoute: typeof AppWorkspaceSlugContactsRoute
+  AppWorkspaceSlugTeamRoute: typeof AppWorkspaceSlugTeamRoute
+  AppWorkspaceSlugApplicationsApplicationRefRoute: typeof AppWorkspaceSlugApplicationsApplicationRefRoute
+  AppWorkspaceSlugRoundsRoundRefRoute: typeof AppWorkspaceSlugRoundsRoundRefRoute
+  AppWorkspaceSlugSettingsMembersRoute: typeof AppWorkspaceSlugSettingsMembersRoute
+  AppWorkspaceSlugApplicationsIndexRoute: typeof AppWorkspaceSlugApplicationsIndexRoute
+  AppWorkspaceSlugRoundsIndexRoute: typeof AppWorkspaceSlugRoundsIndexRoute
+  AppWorkspaceSlugSettingsIndexRoute: typeof AppWorkspaceSlugSettingsIndexRoute
 }
 
-const AppDotworkspaceSlugRouteChildren: AppDotworkspaceSlugRouteChildren = {
-  AppDotworkspaceSlugDotactivityRoute: AppDotworkspaceSlugDotactivityRoute,
-  AppDotworkspaceSlugDotcontactsRoute: AppDotworkspaceSlugDotcontactsRoute,
-  AppDotworkspaceSlugDotteamRoute: AppDotworkspaceSlugDotteamRoute,
-  AppDotworkspaceSlugDotapplicationsDotapplicationRefRoute:
-    AppDotworkspaceSlugDotapplicationsDotapplicationRefRoute,
-  AppDotworkspaceSlugDotroundsDotroundRefRoute:
-    AppDotworkspaceSlugDotroundsDotroundRefRoute,
-  AppDotworkspaceSlugDotsettingsDotmembersRoute:
-    AppDotworkspaceSlugDotsettingsDotmembersRoute,
-  AppDotworkspaceSlugDotapplicationsDotindexRoute:
-    AppDotworkspaceSlugDotapplicationsDotindexRoute,
-  AppDotworkspaceSlugDotroundsDotindexRoute:
-    AppDotworkspaceSlugDotroundsDotindexRoute,
-  AppDotworkspaceSlugDotsettingsDotindexRoute:
-    AppDotworkspaceSlugDotsettingsDotindexRoute,
+const AppWorkspaceSlugRouteRouteChildren: AppWorkspaceSlugRouteRouteChildren = {
+  AppWorkspaceSlugActivityRoute: AppWorkspaceSlugActivityRoute,
+  AppWorkspaceSlugContactsRoute: AppWorkspaceSlugContactsRoute,
+  AppWorkspaceSlugTeamRoute: AppWorkspaceSlugTeamRoute,
+  AppWorkspaceSlugApplicationsApplicationRefRoute:
+    AppWorkspaceSlugApplicationsApplicationRefRoute,
+  AppWorkspaceSlugRoundsRoundRefRoute: AppWorkspaceSlugRoundsRoundRefRoute,
+  AppWorkspaceSlugSettingsMembersRoute: AppWorkspaceSlugSettingsMembersRoute,
+  AppWorkspaceSlugApplicationsIndexRoute:
+    AppWorkspaceSlugApplicationsIndexRoute,
+  AppWorkspaceSlugRoundsIndexRoute: AppWorkspaceSlugRoundsIndexRoute,
+  AppWorkspaceSlugSettingsIndexRoute: AppWorkspaceSlugSettingsIndexRoute,
 }
 
-const AppDotworkspaceSlugRouteWithChildren =
-  AppDotworkspaceSlugRoute._addFileChildren(AppDotworkspaceSlugRouteChildren)
+const AppWorkspaceSlugRouteRouteWithChildren =
+  AppWorkspaceSlugRouteRoute._addFileChildren(
+    AppWorkspaceSlugRouteRouteChildren,
+  )
 
 interface interfacesProductSrcAppProductLayoutRouteChildren {
+  ReviewsRouteRoute: typeof ReviewsRouteRouteWithChildren
   DemoRoute: typeof DemoRoute
-  ReviewsRoute: typeof ReviewsRouteWithChildren
-  AppDotworkspaceSlugRoute: typeof AppDotworkspaceSlugRouteWithChildren
-  AppDotsignInRoute: typeof AppDotsignInRoute
-  Demo_DotworkshopSaturdaysRoute: typeof Demo_DotworkshopSaturdaysRoute
-  InvitationsDottokenRoute: typeof InvitationsDottokenRoute
-  AppDotindexRoute: typeof AppDotindexRoute
+  AppWorkspaceSlugRouteRoute: typeof AppWorkspaceSlugRouteRouteWithChildren
+  AppSignInRoute: typeof AppSignInRoute
+  DemoWorkshopSaturdaysRoute: typeof DemoWorkshopSaturdaysRoute
+  InvitationsTokenRoute: typeof InvitationsTokenRoute
+  AppIndexRoute: typeof AppIndexRoute
 }
 
 const interfacesProductSrcAppProductLayoutRouteChildren: interfacesProductSrcAppProductLayoutRouteChildren =
   {
+    ReviewsRouteRoute: ReviewsRouteRouteWithChildren,
     DemoRoute: DemoRoute,
-    ReviewsRoute: ReviewsRouteWithChildren,
-    AppDotworkspaceSlugRoute: AppDotworkspaceSlugRouteWithChildren,
-    AppDotsignInRoute: AppDotsignInRoute,
-    Demo_DotworkshopSaturdaysRoute: Demo_DotworkshopSaturdaysRoute,
-    InvitationsDottokenRoute: InvitationsDottokenRoute,
-    AppDotindexRoute: AppDotindexRoute,
+    AppWorkspaceSlugRouteRoute: AppWorkspaceSlugRouteRouteWithChildren,
+    AppSignInRoute: AppSignInRoute,
+    DemoWorkshopSaturdaysRoute: DemoWorkshopSaturdaysRoute,
+    InvitationsTokenRoute: InvitationsTokenRoute,
+    AppIndexRoute: AppIndexRoute,
   }
 
 const interfacesProductSrcAppProductLayoutRouteWithChildren =

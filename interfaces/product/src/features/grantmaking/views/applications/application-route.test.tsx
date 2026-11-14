@@ -22,9 +22,9 @@ import { encodeRecommendation } from "@merit/recommendations/api";
 
 import { productRoute } from "../../../../../tests/product-route";
 import { WebMessagesProvider } from "../../../../app/messages";
-import { Route as workspaceRoute } from "../../../../routes/app.$workspaceSlug";
-import { Route } from "../../../../routes/app.$workspaceSlug.applications.$applicationRef";
-import { Route as roundRoute } from "../../../../routes/app.$workspaceSlug.rounds.$roundRef";
+import { Route } from "../../../../routes/app/$workspaceSlug/applications/$applicationRef";
+import { Route as roundRoute } from "../../../../routes/app/$workspaceSlug/rounds/$roundRef";
+import { Route as workspaceRoute } from "../../../../routes/app/$workspaceSlug/route";
 import { readWorkspaces } from "../../../workspace/data/server/organization.functions";
 import { readWorkspace } from "../../../workspace/data/server/workspace.functions";
 import {
@@ -242,9 +242,7 @@ const renderApplication = async (search = "?tab=reviews", path = applicationPath
       <RouterProvider router={router} />
     </QueryClientProvider>,
   );
-  await waitFor(() =>
-    expect(screen.queryByRole("heading", { name: "Restoring drafts…" })).not.toBeInTheDocument(),
-  );
+  expect(screen.queryByRole("heading", { name: "Restoring drafts…" })).not.toBeInTheDocument();
   return {
     ...view,
     router,
@@ -270,7 +268,7 @@ it.each(["unavailable", "transport"] as const)(
     await user.click(
       await screen.findByRole("button", { name: "Edit recommendation for Workshop Saturdays" }),
     );
-    const reasoning = screen.getByLabelText(/Reasoning/);
+    const reasoning = await screen.findByLabelText(/Reasoning/);
     await user.clear(reasoning);
     await user.type(reasoning, "Unfinished judgment");
 
@@ -324,7 +322,7 @@ it("resets the editor when discovery confirms a different account scope", async 
   await user.click(
     await screen.findByRole("button", { name: "Edit recommendation for Workshop Saturdays" }),
   );
-  await user.clear(screen.getByLabelText(/Reasoning/));
+  await user.clear(await screen.findByLabelText(/Reasoning/));
   await user.type(screen.getByLabelText(/Reasoning/), "Previous account's unfinished work");
 
   vi.mocked(readWorkspaces).mockResolvedValue({
@@ -339,7 +337,7 @@ it("resets the editor when discovery confirms a different account scope", async 
   await user.click(
     await screen.findByRole("button", { name: "Edit recommendation for Workshop Saturdays" }),
   );
-  expect(screen.getByLabelText(/Reasoning/)).toHaveValue("Support the workshops.");
+  expect(await screen.findByLabelText(/Reasoning/)).toHaveValue("Support the workshops.");
 });
 
 it("recovers an offline page through Try again without submitting a write", async () => {
@@ -538,7 +536,7 @@ it("saves through the server and shows the committed recommendation using the sh
   await user.click(
     await screen.findByRole("button", { name: "Edit recommendation for Workshop Saturdays" }),
   );
-  await user.clear(screen.getByLabelText(/Reasoning/));
+  await user.clear(await screen.findByLabelText(/Reasoning/));
   await user.type(screen.getByLabelText(/Reasoning/), "Confirmed new venue costs.");
   await user.click(screen.getByRole("button", { name: "Save recommendation" }));
 
@@ -575,7 +573,7 @@ it("keeps the chosen reference and draft when closing and reopening the recommen
   await user.click(
     await screen.findByRole("button", { name: "Edit recommendation for Workshop Saturdays" }),
   );
-  await user.clear(screen.getByLabelText(/Reasoning/));
+  await user.clear(await screen.findByLabelText(/Reasoning/));
   await user.type(screen.getByLabelText(/Reasoning/), "Check the revised application.");
   await user.click(
     await screen.findByRole("button", { name: "Reference material: Reviewer assessments" }),
@@ -607,7 +605,7 @@ it("retains the original revision and draft across navigation and a conflicting 
   await user.click(
     await screen.findByRole("button", { name: "Edit recommendation for Workshop Saturdays" }),
   );
-  await user.clear(screen.getByLabelText(/Reasoning/));
+  await user.clear(await screen.findByLabelText(/Reasoning/));
   await user.type(screen.getByLabelText(/Reasoning/), "Unfinished judgment");
   const updated = applicationData();
   updated.recommendationVersion = 1;

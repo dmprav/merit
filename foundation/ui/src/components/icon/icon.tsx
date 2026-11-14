@@ -9,12 +9,15 @@ import Check from "lucide-react/icons/check";
 import ChevronDown from "lucide-react/icons/chevron-down";
 import ChevronLeft from "lucide-react/icons/chevron-left";
 import ChevronRight from "lucide-react/icons/chevron-right";
+import CircleAlert from "lucide-react/icons/circle-alert";
+import Clock from "lucide-react/icons/clock";
 import Compass from "lucide-react/icons/compass";
 import Copy from "lucide-react/icons/copy";
 import Ellipsis from "lucide-react/icons/ellipsis";
 import FileText from "lucide-react/icons/file-text";
 import History from "lucide-react/icons/history";
 import House from "lucide-react/icons/house";
+import Info from "lucide-react/icons/info";
 import Layers from "lucide-react/icons/layers";
 import LoaderCircle from "lucide-react/icons/loader-circle";
 import LogOut from "lucide-react/icons/log-out";
@@ -31,6 +34,9 @@ import X from "lucide-react/icons/x";
 import styles from "./icon.module.css";
 
 const icons = {
+  warning: CircleAlert,
+  clock: Clock,
+  info: Info,
   pin: Pin,
   settings: Settings,
   add: Plus,

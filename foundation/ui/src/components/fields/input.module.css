@@ -38,6 +38,15 @@
   box-shadow: inset 0 -2px var(--field-focus);
 }
 
+.input:read-only[data-focused],
+.inputGroup:has(.input:read-only):focus-within {
+  border-color: var(--border);
+  background: var(--surface-muted);
+  box-shadow: none;
+  outline: 1px dashed var(--muted);
+  outline-offset: 2px;
+}
+
 .input[data-invalid],
 .inputGroup:has(.input[data-invalid]) {
   --field-focus: var(--danger);

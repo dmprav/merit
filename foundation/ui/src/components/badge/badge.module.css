@@ -37,3 +37,13 @@
     border-color: CanvasText;
   }
 }
+
+.badge[data-appearance="plain"] {
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
+  font-size: inherit;
+  font-weight: 400;
+  gap: var(--space-2);
+}

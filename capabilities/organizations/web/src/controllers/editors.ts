@@ -1,3 +1,4 @@
+import { useLayoutEffect, useState } from "react";
 import { z } from "zod";
 
 import { permits } from "@merit/access";
@@ -17,6 +18,13 @@ const accessDraftSchema = z.object({
   expectedMembershipId: z.string(),
   expectedVersion: z.number(),
   expectedInvitationIds: z.array(z.string()),
+});
+
+const newInvitation = (): InviteDraft => ({
+  requestId: crypto.randomUUID(),
+  email: "",
+  administration: "none",
+  role: "program_manager",
 });
 
 const hasInvitation = (draft: InviteDraft | null) =>
@@ -60,6 +68,24 @@ export const useTeamEditors = ({
 
   const workspaceSlug = team.organization.slug;
   const inviteDraft = invitations[workspaceSlug] ?? null;
+  const [requestedInvitation, setRequestedInvitation] = useState<string | null>(null);
+  const invitationScope = `${draftScope ?? ""}/${workspaceSlug}`;
+
+  useLayoutEffect(() => {
+    if (invitationReady && requestedInvitation === invitationScope && !inviteDraft) {
+      updateInvitations((current) => ({
+        ...current,
+        [workspaceSlug]: newInvitation(),
+      }));
+    }
+  }, [
+    invitationReady,
+    requestedInvitation,
+    invitationScope,
+    inviteDraft,
+    updateInvitations,
+    workspaceSlug,
+  ]);
 
   const setInviteDraft = (value: InviteDraft | null) =>
     updateInvitations((current) => ({ ...current, [workspaceSlug]: value ?? undefined }));
@@ -67,22 +93,15 @@ export const useTeamEditors = ({
   const canAppoint = permits(team.subject, "manage_administrators", team.subject);
 
   return {
-    ready: invitationReady && access.ready,
+    invitationReady,
+    memberReady: access.ready,
     storageConflict: invitationStatus === "conflict" || access.storageConflict,
     storageError: invitationStorageError || access.storageError,
     invitationChanged: hasInvitation(inviteDraft),
-    openInvitation: () => {
-      if (!inviteDraft) {
-        setInviteDraft({
-          requestId: crypto.randomUUID(),
-          email: "",
-          administration: "none",
-          role: "program_manager",
-        });
-      }
-    },
+    openInvitation: () => setRequestedInvitation(invitationScope),
     closeInvitation: () => {
-      if (!hasInvitation(inviteDraft)) {
+      setRequestedInvitation(null);
+      if (invitationReady && !hasInvitation(inviteDraft)) {
         setInviteDraft(null);
       }
     },

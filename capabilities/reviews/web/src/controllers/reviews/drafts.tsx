@@ -31,6 +31,7 @@ export type ReviewDraft = z.infer<typeof reviewDraftSchema>;
 export type ReviewFormValues = ReviewDraft["values"];
 
 export const DraftContext = createContext<{
+  ready: boolean;
   reviewEdits: Record<string, ReviewDraft | undefined>;
   setReviewEdit: (key: string, draft: ReviewDraft | undefined) => void;
 } | null>(null);
@@ -58,11 +59,12 @@ export const useReviewDraftStore = (storageScope?: string) => {
     status,
     value: useMemo(
       () => ({
+        ready,
         reviewEdits,
         setReviewEdit: (key: string, draft: ReviewDraft | undefined) =>
           setReviewEdits((current) => ({ ...current, [key]: draft })),
       }),
-      [reviewEdits, setReviewEdits],
+      [reviewEdits, setReviewEdits, ready],
     ),
   };
 };

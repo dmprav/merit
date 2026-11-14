@@ -1,10 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Outlet, useParams } from "@tanstack/react-router";
 
-import { AppShell } from "../app/app-shell";
-import { ReviewerSignIn } from "../features/grantmaking/reviewer-page";
-import { workspacesOptions } from "../features/workspace/data/queries";
-import { loadWorkspaceNavigation } from "../features/workspace/workspace-navigation-provider";
+import { AppShell } from "../../app/app-shell";
+import { ReviewerSignIn } from "../../features/grantmaking/reviewer-page";
+import { workspacesOptions } from "../../features/workspace/data/queries";
+import { loadWorkspaceNavigation } from "../../features/workspace/workspace-navigation-provider";
 
 const ReviewsLayout = () => {
   // Discovery also tells a signed-out visitor apart from a reviewer without workspaces.

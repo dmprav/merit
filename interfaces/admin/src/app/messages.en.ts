@@ -1,5 +1,4 @@
 export const en = {
-  draftsRestoring: "Restoring drafts…",
   draftRecoveryConflict:
     "Another tab changed a saved draft. Your edits remain here. Save or discard them before closing this tab.",
   page: {
@@ -19,7 +18,6 @@ export const en = {
   resumeInvitation: "Resume invitation",
   draftStorageUnavailable:
     "Draft recovery is unavailable in this browser. Keep this page open to preserve your changes.",
-  loadingDrafts: "Restoring drafts…",
   requests: {
     title: "Access requests",
     description:

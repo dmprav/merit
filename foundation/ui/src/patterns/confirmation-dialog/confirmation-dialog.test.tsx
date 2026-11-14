@@ -100,7 +100,10 @@ it("blocks repeated confirmation and every dismissal while pending, then permits
 
   await act(async () => finish("Could not revoke the invitation. Try again."));
 
-  expect(screen.getByRole("alert")).toHaveTextContent("Could not revoke");
+  const alert = screen.getByRole("alert");
+  expect(alert).toHaveTextContent("Could not revoke");
+  expect(alert.closest("[data-dialog-feedback]")).not.toBeNull();
+  expect(alert.closest("[data-dialog-footer]")).toBeNull();
   expect(screen.getByRole("button", { name: "Keep invitation" })).toBeEnabled();
 
   await user.click(action);

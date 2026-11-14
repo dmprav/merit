@@ -84,7 +84,7 @@ const PreparationPresentation = ({
     actions: preparation && (
       <RoundActions
         hasApplications={Boolean(preparation.round.applications.length)}
-        pending={preparation.pending}
+        pending={preparation.pending || !preparation.ready}
         onDelete={() => preparation.setDeleting(true)}
         triggerRef={preparation.registerMenuTrigger}
       />

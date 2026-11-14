@@ -183,3 +183,74 @@ it.each(["0001-01-01", "9999-12-31"])(
     expect(choose).toHaveBeenCalledExactlyOnceWith(null);
   },
 );
+
+it("refreshes the name when preparation finishes so saving unchanged does not overwrite a newer name", async () => {
+  const before = vi.fn(async () => null);
+  const recovered = vi.fn(async () => null);
+  const props = {
+    label: "Rename round",
+    saveLabel: "Save name",
+    cancelLabel: "Close",
+    errorMessage: "Could not save",
+  };
+
+  const tree = (value: string, isPreparing: boolean, onSave = before) => (
+    <MessagesProvider messages={{}}>
+      <InlineName {...props} value={value} isPreparing={isPreparing} onSave={onSave} />
+    </MessagesProvider>
+  );
+
+  const view = render(tree("Community grants", true));
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("button", { name: "Community grants" }));
+  expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+
+  view.rerender(tree("Renamed by a colleague", false, recovered));
+  expect(screen.getByRole("textbox")).toHaveValue("Renamed by a colleague");
+  await user.click(screen.getByRole("button", { name: "Save name" }));
+
+  expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  expect(before).not.toHaveBeenCalled();
+  expect(recovered).not.toHaveBeenCalled();
+});
+
+it("keeps a pending name editor closable and captures the save boundary only when preparation finishes", async () => {
+  const before = vi.fn(async () => null);
+  const recovered = vi.fn(async () => null);
+  const later = vi.fn(async () => null);
+  const props = {
+    value: "Community grants",
+    label: "Rename round",
+    saveLabel: "Save name",
+    cancelLabel: "Close",
+    errorMessage: "Could not save",
+  };
+
+  const tree = (isPreparing: boolean, onSave = before, value = props.value) => (
+    <MessagesProvider messages={{}}>
+      <InlineName {...props} value={value} isPreparing={isPreparing} onSave={onSave} />
+    </MessagesProvider>
+  );
+
+  const view = render(tree(true));
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("button", { name: props.value }));
+  expect(screen.getByText("Preparing editor…")).toBeVisible();
+  expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Close" })).toHaveFocus();
+  await user.keyboard("{Escape}");
+  view.rerender(tree(false, recovered));
+  expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  expect(before).not.toHaveBeenCalled();
+
+  view.rerender(tree(true));
+  await user.click(screen.getByRole("button", { name: props.value }));
+  view.rerender(tree(false, recovered));
+  await user.clear(screen.getByRole("textbox"));
+  await user.type(screen.getByRole("textbox"), "Recovered name");
+  view.rerender(tree(false, later, "Another colleague's name"));
+  expect(screen.getByRole("textbox")).toHaveValue("Recovered name");
+  await user.keyboard("{Enter}");
+  expect(recovered).toHaveBeenCalledWith("Recovered name");
+  expect(later).not.toHaveBeenCalled();
+});

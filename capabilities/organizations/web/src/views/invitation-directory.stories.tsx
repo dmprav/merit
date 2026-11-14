@@ -61,12 +61,21 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const DeliveryStates: Story = {
-  play: async ({ canvas, args, userEvent }) => {
+  play: async ({ canvas, canvasElement, args, userEvent }) => {
     await expect(canvas.getByRole("columnheader", { name: "Recipient" })).toBeInTheDocument();
-    const resend = canvas.getAllByRole("button", { name: /Resend invitation to/ });
-    await expect(resend).toHaveLength(2);
-    await userEvent.click(resend[1]!);
-    await expect(args.onResend).toHaveBeenCalledWith(args.team.invitations[2], resend[1]);
+    await expect(canvas.getByRole("columnheader", { name: "Status" })).toBeVisible();
+    await expect(canvas.getByRole("columnheader", { name: "Expires" })).toBeVisible();
+    await expect(
+      canvas.queryByRole("button", { name: /Resend invitation to/ }),
+    ).not.toBeInTheDocument();
+    const actions = canvas.getByRole("button", {
+      name: "Actions for invitation to morgan@example.test",
+    });
+    await userEvent.click(actions);
+    await userEvent.click(
+      within(canvasElement.ownerDocument.body).getByRole("menuitem", { name: "Resend" }),
+    );
+    await expect(args.onResend).toHaveBeenCalledWith(args.team.invitations[2], actions);
   },
 };
 export const Empty: Story = { args: { team: { ...teamFixture, invitations: [] } } };
@@ -86,10 +95,10 @@ export const FailedAndExpired: Story = {
     },
   },
   play: async ({ canvas }) => {
-    await expect(canvas.getByText("Email sending failed")).toBeVisible();
+    await expect(canvas.queryByText("Email sending failed")).not.toBeInTheDocument();
     await expect(canvas.getByText("Expired", { exact: true })).toBeVisible();
     await expect(canvas.queryByText("Awaiting acceptance")).not.toBeInTheDocument();
-    await expect(canvas.getByRole("button", { name: /Resend invitation to/ })).toBeVisible();
+    await expect(canvas.getByRole("button", { name: /Actions for invitation/ })).toBeVisible();
   },
 };
 export const RestrictedAdministration: Story = {
@@ -118,5 +127,13 @@ export const InvitationMenu: Story = {
 
     await expect(body.getByRole("menuitem", { name: "Resend" })).toBeVisible();
     await expect(body.getByRole("menuitem", { name: "Revoke" })).toBeVisible();
+  },
+};
+
+export const SendingUnconfirmed: Story = {
+  args: { team: { ...teamFixture, invitations: [{ ...invitation, delivery: "pending" }] } },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByText("Sending unconfirmed")).toBeVisible();
+    await expect(canvas.queryByText("Awaiting acceptance")).not.toBeInTheDocument();
   },
 };

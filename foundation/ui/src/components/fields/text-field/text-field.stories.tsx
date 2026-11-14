@@ -113,6 +113,23 @@ export const Focused: Story = {
     input.focus();
   },
 };
+export const ReadOnlyFocused: Story = {
+  args: {
+    defaultValue: "Owner",
+    label: "Organization responsibility",
+    isReadOnly: true,
+    description: "Contact the Merit operator for ownership changes.",
+  },
+  play: async ({ canvas, userEvent }) => {
+    const input = canvas.getByRole("textbox", { name: "Organization responsibility" });
+    await userEvent.click(input);
+    await userEvent.keyboard("Member");
+    await expect(input).toHaveFocus();
+    await expect(input).toHaveValue("Owner");
+    await expect(input).toHaveAttribute("readonly");
+  },
+};
+
 export const Multiline: Story = {
   render: () => (
     <div className={styles.examples}>

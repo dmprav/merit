@@ -28,6 +28,11 @@ it("uses the common email translation before sending a team invitation", async (
       />
     </MessagesProvider>,
   );
+  const access = screen.getByRole("textbox", { name: en.grantAccess });
+  expect(access).toHaveValue(en.program_manager);
+  expect(access).toHaveAccessibleDescription(en.roleHelp);
+  expect(access).toHaveAttribute("readonly");
+  expect(screen.queryByRole("button", { name: /Grant-work access/ })).not.toBeInTheDocument();
   const user = userEvent.setup();
   await user.click(screen.getByRole("button", { name: en.invite }));
   const email = screen.getByRole("textbox", { name: en.email });
@@ -40,4 +45,7 @@ it("uses the common email translation before sending a team invitation", async (
   await user.click(screen.getByRole("button", { name: en.invite }));
 
   expect(save).toHaveBeenCalledOnce();
+  expect(save).toHaveBeenCalledWith(
+    expect.objectContaining({ role: "program_manager", email: "sam@example.test" }),
+  );
 });

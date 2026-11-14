@@ -10,7 +10,6 @@ import { creationMessages } from "./views/creation/messages.en";
 import { roundsMessages } from "./views/rounds/messages.en";
 
 export const en = {
-  draftsRestoring: "Restoring drafts…",
   draftRecoveryConflict:
     "Another tab changed a saved draft. Your edits remain here. Save or discard them before closing this tab.",
   draftRecoveryUnavailable:
