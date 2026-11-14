@@ -41,7 +41,9 @@ provided `closeButton` alongside it.
 
 `DialogContent` owns the scrollable body and optional persistent footer. Use its
 `label` to name the keyboard-focusable region, put reference material in its
-children, and pass feedback and actions through `footer`. It supplies padding,
+children, pass outcome feedback through `feedback`, and actions through `footer`.
+The feedback area remains visible above the footer and shares the body's gutters;
+its height participates in the whole-dialog scrolling fallback. It supplies padding,
 scrollbar and focus treatment, and the footer separator. The content can grow to
 the available height while the header and actions stay visible.
 When enlarged text or long translations leave too little space for the body,

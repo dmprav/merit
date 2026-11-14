@@ -27,7 +27,7 @@ export type SelectProps<Id extends string> = Pick<
   | "placeholder"
 > &
   FieldPresentationProps & {
-    items: readonly { id: Id; label: string; isDisabled?: boolean }[];
+    items: readonly { id: Id; label: string; description?: string; isDisabled?: boolean }[];
     selectedKey?: Id | null;
     defaultSelectedKey?: Id;
     onSelectionChange?: (id: Id) => void;
@@ -95,10 +95,11 @@ export const Select = <Id extends string>({
                   className={styles.option}
                 >
                   {({ isSelected }) => (
-                    <>
-                      <span className={styles.optionLabel}>{item.label}</span>
-                      <span className={styles.check}>{isSelected && <Icon name="check" />}</span>
-                    </>
+                    <SelectOptionContent
+                      label={item.label}
+                      description={item.description}
+                      isSelected={isSelected}
+                    />
                   )}
                 </ListBoxItem>
               ))}
@@ -133,3 +134,21 @@ export const Select = <Id extends string>({
     </AriaSelect>
   );
 };
+
+const SelectOptionContent = ({
+  label,
+  description,
+  isSelected,
+}: {
+  label: string;
+  description?: string;
+  isSelected: boolean;
+}) => (
+  <>
+    <span className={styles.optionCopy}>
+      <span>{label}</span>{" "}
+      {description && <span className={styles.optionDescription}>{description}</span>}
+    </span>
+    <span className={styles.check}>{isSelected && <Icon name="check" />}</span>
+  </>
+);

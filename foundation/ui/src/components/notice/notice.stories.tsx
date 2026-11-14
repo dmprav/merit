@@ -15,7 +15,7 @@ const meta = {
     docs: {
       description: {
         component:
-          'Notice provides persistent feedback beside the work it concerns. Choose neutral for information, success for a completed action, warning for something needing attention, and danger for a failure. Warning is the default. State the meaning and next step in text; color is supplementary. Keep short messages to one sentence. Use as="div" for paragraphs and recovery actions, or as="ul" for a list. Notice spaces direct blocks; use Inline for a wrapping action group. Tone controls appearance only: callers choose role and aria-live when an update needs announcing. Use StatusMessage for transient confirmations.',
+          'Notice provides persistent feedback beside the work it concerns. Choose neutral for information, success for a completed action, warning for something needing attention, and danger for a failure. Warning is the default. State the meaning and next step in text; color is supplementary. Keep short messages to one sentence. Use appearance=inline for icon-and-text feedback inside a task surface, without another box. Use title and actions for structured recovery feedback, as="div" for paragraphs, or as="ul" for a list. Notice spaces direct blocks; use Inline for a wrapping action group. Tone controls appearance only: callers choose role and aria-live when an update needs announcing. Use StatusMessage for transient confirmations.',
       },
     },
   },
@@ -47,21 +47,17 @@ export const WithRecovery: Story = {
   args: {
     as: "div",
     tone: "warning",
-    children: (
-      <>
-        <p>
-          <strong>A newer version has been saved</strong>
-        </p>
-        <p>Your draft is still here. Compare it with the saved version before continuing.</p>
-        <Inline>
-          <Button variant="secondary" onPress={fn()}>
-            Use saved version
-          </Button>
-          <Button variant="secondary" onPress={fn()}>
-            Keep my draft
-          </Button>
-        </Inline>
-      </>
+    title: "A newer version has been saved",
+    children: "Your draft is still here. Compare it with the saved version before continuing.",
+    actions: (
+      <Inline>
+        <Button variant="secondary" onPress={fn()}>
+          Use saved version
+        </Button>
+        <Button variant="secondary" onPress={fn()}>
+          Keep my draft
+        </Button>
+      </Inline>
     ),
   },
 };
@@ -93,5 +89,14 @@ export const LongContent: Story = {
         for invitation options.
       </>
     ),
+  },
+};
+
+export const InlineFailure: Story = {
+  args: {
+    appearance: "inline",
+    tone: "danger",
+    role: "alert",
+    children: "The invitation couldn’t be saved. Your entries are preserved; try again.",
   },
 };

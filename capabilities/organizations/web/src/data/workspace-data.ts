@@ -18,7 +18,6 @@ export const useWorkspaceTeam = (
     ...teamOptions(initial.organization.slug, transport.read),
     initialData: { status: "ok", value: initial },
   });
-  const historySource = transport.history?.(initial.organization.slug);
 
   const refresh = async () => {
     let available = false;
@@ -30,21 +29,12 @@ export const useWorkspaceTeam = (
     }
 
     await revalidateAccess();
-    if (historySource) {
-      // History owns its read error and retry; a failed refresh must not undo a saved change.
-      await client.invalidateQueries({
-        queryKey: historySource.queryKey,
-        exact: true,
-        refetchType: "active",
-      });
-    }
     if (!available) {
       throw new Error("Team unavailable");
     }
   };
 
   return {
-    historySource,
     team: query.data.status === "ok" ? query.data.value : initial,
     fetching: query.isFetching,
     invite: (input) => mutation.mutateAsync(() => transport.invite(input)),

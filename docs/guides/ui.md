@@ -24,6 +24,35 @@ information, and the number of items people need to compare. Decide what remains
 visible, what scrolls, and how supporting information stays accessible during an
 action. Check that the arrangement works at narrow widths as well as on desktop.
 
+## Review a representative slice
+
+Translate feedback into the underlying problem before choosing a control. “Maybe
+a tooltip” can mean that content is too long, repetitive, or poorly grouped.
+Resolve the wording and hierarchy first, then decide whether another interaction
+is needed. Use [contextual emphasis](../foundations/experience.md#give-emphasis-a-reason)
+to distinguish an editing warning, a confirmation consequence, and a failure.
+
+1. Choose the closest accepted screen and shared patterns. State which visual
+   qualities and behavior should carry forward, and what this task requires to differ.
+2. Develop a small representative slice: the ordinary view, a consequential action,
+   and a failure or recovery state. Review realistic content at desktop and narrow
+   widths before propagating the direction across the feature.
+3. Preserve accepted decisions during iteration. Apply new feedback to its context;
+   a request to quiet a removal dialog does not undo an accepted editor warning.
+   Reopen a settled choice only when a concrete requirement or conflict warrants it,
+   and explain that reason.
+4. Once the direction is settled, apply it through the appropriate shared owner.
+   Record the rationale beside the pattern and link to its live reference states.
+   Describe when to use the treatment, rather than recording the conversation or
+   treating one screenshot as a universal template.
+
+Use focused visual checks while exploring. Run interaction and accessibility checks
+for the affected behavior as the implementation settles, adding checks when a change
+introduces a new risk. Reuse passing results while their inputs remain unchanged,
+as required by the [verification guide](verification.md). The
+[Team design guidance](../../interfaces/product/src/features/team/team-design.mdx)
+is an example of preserving decisions with inspectable reference states.
+
 ## Compose and style a feature
 
 Explore existing components in Storybook (`vp run storybook`, then
@@ -146,6 +175,13 @@ The shared table owns reusable interaction and rendering. Read its
 sorting, and responsive layout. It sorts the complete collection in memory;
 server pagination and filtering need a data-loading contract that preserves
 correct ordering across the whole result.
+
+Keep identity, comparable properties, status, and actions in separate columns.
+A person's supporting line identifies them; it should not accumulate workflow
+feedback or retry controls. Group related status facts within their column without
+collapsing distinct meanings, such as invitation acceptance and email delivery.
+Keep each row action in one predictable place. At narrow widths, retain the table's
+labelled record presentation rather than squeezing the desktop columns.
 
 Choose scrolling to suit the surrounding work: page flow for continuous reading,
 or a bounded region for sustained comparison. Check that headings and record

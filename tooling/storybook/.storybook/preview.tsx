@@ -121,7 +121,7 @@ const preview: Preview = {
               "Version history",
             ],
             "Team",
-            ["Manage team", "Members", "Invitations"],
+            ["Design guidance", "Manage team", "Members", "Invitations"],
             "Contacts",
             ["Directory", "Edit contact", "Contact picker"],
             "Workspace",

@@ -9,7 +9,6 @@ import { createQueryClient } from "@merit/query";
 import { WorkspaceNavigationContext } from "../workspace/workspace-navigation";
 import {
   readTeam,
-  readTeamHistory,
   inviteMember,
   removeMember,
   changeMember,
@@ -26,7 +25,6 @@ const invalidate = vi.hoisted(() =>
 vi.mock("@tanstack/react-router", () => ({ useRouter: () => ({ invalidate }) }));
 vi.mock("./data/server/team.functions", () => ({
   readTeam: vi.fn(),
-  readTeamHistory: vi.fn(),
   inviteMember: vi.fn(),
   changeMember: vi.fn(),
   removeMember: vi.fn(),
@@ -38,10 +36,6 @@ import { teamFixture as initial } from "@merit/organizations-web/testing";
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(readTeam).mockResolvedValue({ status: "ok", value: initial });
-  vi.mocked(readTeamHistory).mockResolvedValue({
-    status: "ok",
-    value: { entries: [], nextCursor: null },
-  });
   vi.mocked(inviteMember).mockImplementation(async ({ data }) => ({
     status: "ok",
     value: { invitationId: data.requestId },
@@ -111,69 +105,6 @@ it("shows a read-only directory to program managers and protects the owner", asy
   ).not.toBeInTheDocument();
 });
 
-it.each([false, true])(
-  "refreshes open history after a saved removal, with retry on history failure: %s",
-  async (failRefresh) => {
-    const user = userEvent.setup();
-    const oldEvent = {
-      eventId: "old",
-      action: "team_invitation.issued",
-      actor: "Dana Reed",
-      provenance: null,
-      recordedAt: "2026-11-13T10:00:00Z",
-      details: { email: "prior@example.test" },
-    };
-    const savedEvent = {
-      ...oldEvent,
-      eventId: "saved",
-      action: "membership.removed",
-      details: { targetName: "Morgan Lee" },
-    };
-    vi.mocked(readTeamHistory).mockResolvedValueOnce({
-      status: "ok",
-      value: { entries: [oldEvent], nextCursor: null },
-    });
-    if (failRefresh) {
-      vi.mocked(readTeamHistory).mockResolvedValueOnce({ status: "unavailable" });
-    }
-    vi.mocked(readTeamHistory).mockResolvedValue({
-      status: "ok",
-      value: { entries: [savedEvent, oldEvent], nextCursor: null },
-    });
-    vi.mocked(readTeam).mockResolvedValue({
-      status: "ok",
-      value: { ...initial, members: initial.members.slice(0, 1), invitations: [] },
-    });
-    show();
-    expect(readTeamHistory).not.toHaveBeenCalled();
-    await user.click(screen.getByText("Access history"));
-    const history = screen.getByText("Access history").closest("details")!;
-    await waitFor(() => expect(history).toHaveTextContent("Invitation issued: prior@example.test"));
-    await user.click(screen.getByRole("button", { name: "Actions for Morgan Lee" }));
-    await user.click(screen.getByRole("menuitem", { name: "Remove from organization" }));
-    await user.click(
-      within(screen.getByRole("dialog")).getByRole("button", { name: "Remove from organization" }),
-    );
-
-    expect(
-      await screen.findByText("Member removed. Their existing work has been preserved."),
-    ).toBeVisible();
-    if (failRefresh) {
-      expect(await screen.findByRole("alert")).toHaveTextContent("History could not be loaded.");
-      expect(history).toHaveTextContent("Invitation issued: prior@example.test");
-      await waitFor(() =>
-        expect(screen.getByRole("button", { name: "Invite member" })).toBeEnabled(),
-      );
-      expect(screen.queryByRole("button", { name: "Refresh team" })).not.toBeInTheDocument();
-      await user.click(screen.getByRole("button", { name: "Try again" }));
-    }
-    await waitFor(() => expect(history).toHaveTextContent("Member removed: Morgan Lee"));
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-    expect(removeMember).toHaveBeenCalledOnce();
-    expect(readTeamHistory).toHaveBeenCalledTimes(failRefresh ? 3 : 2);
-  },
-);
-
 it("reviews handover and invitation revocation before removing a member and restores useful focus", async () => {
   const user = userEvent.setup();
   show();
@@ -182,10 +113,9 @@ it("reviews handover and invitation revocation before removing a member and rest
   const dialog = screen.getByRole("dialog", { name: "Remove Morgan Lee from Alder Foundation?" });
 
   expect(within(dialog).getByRole("button", { name: "Cancel" })).toHaveFocus();
-  expect(dialog).toHaveTextContent("colleague@example.test");
-  expect(dialog).toHaveTextContent(
-    "Merit cannot yet list everything this person needs to hand over.",
-  );
+  expect(dialog).toHaveTextContent("This also revokes 1 invitation they sent");
+  expect(within(dialog).queryByText("colleague@example.test")).not.toBeInTheDocument();
+  expect(dialog).toHaveTextContent("Merit cannot list their outstanding work yet.");
   expect(removeMember).not.toHaveBeenCalled();
 
   vi.mocked(readTeam).mockResolvedValue({
@@ -293,7 +223,7 @@ it("keeps a stale edit open for recovery instead of announcing success", async (
   expect(screen.queryByRole("button", { name: "Refresh team" })).not.toBeInTheDocument();
 });
 
-it("shows issued invitations when demoting an administrator and clears the warning when retaining administration", async () => {
+it("shows the revocation count when demoting an administrator and clears the warning when retaining administration", async () => {
   const user = userEvent.setup();
   show();
   const member = screen.getByText("Morgan Lee").closest("tr")!;
@@ -304,14 +234,14 @@ it("shows issued invitations when demoting an administrator and clears the warni
   expect(within(dialog).queryByText("colleague@example.test")).not.toBeInTheDocument();
 
   await user.click(within(dialog).getByRole("button", { name: /Organization responsibility/ }));
-  await user.click(await screen.findByRole("option", { name: "Member" }));
+  await user.click(await screen.findByRole("option", { name: /^Member/ }));
 
-  expect(within(dialog).getByText("colleague@example.test")).toBeVisible();
+  expect(within(dialog).getByText("Saving revokes 1 invitation.")).toBeVisible();
 
   await user.click(within(dialog).getByRole("button", { name: /Organization responsibility/ }));
-  await user.click(await screen.findByRole("option", { name: "Administrator" }));
+  await user.click(await screen.findByRole("option", { name: /^Administrator/ }));
 
-  expect(within(dialog).queryByText("colleague@example.test")).not.toBeInTheDocument();
+  expect(within(dialog).queryByText("Saving revokes 1 invitation.")).not.toBeInTheDocument();
 });
 
 it("returns focus to the member menu after cancelling removal", async () => {
@@ -354,7 +284,7 @@ it("keeps removal pending and preserves consequences after failure", async () =>
   finish({ status: "conflict" });
 
   expect(await within(dialog).findByRole("alert")).toHaveTextContent("refresh the team");
-  expect(dialog).toHaveTextContent("colleague@example.test");
+  expect(dialog).toHaveTextContent("This also revokes 1 invitation they sent");
   expect(within(dialog).getByRole("button", { name: "Cancel" })).toBeEnabled();
 });
 
@@ -404,7 +334,7 @@ it("preserves the invitation and confirmation after a failed revocation, then re
   await user.click(within(dialog).getByRole("button", { name: "Revoke" }));
 
   expect(await within(dialog).findByRole("alert")).toHaveTextContent(
-    "We couldn’t complete this action",
+    "Revocation couldn’t be completed",
   );
   expect(dialog).toHaveTextContent("colleague@example.test");
   expect(within(dialog).getByRole("button", { name: "Cancel" })).toBeEnabled();
@@ -423,51 +353,36 @@ it("preserves the invitation and confirmation after a failed revocation, then re
   await waitFor(() => expect(screen.getByRole("tab", { name: /Invitations/ })).toHaveFocus());
 });
 
-it.each(["menu", "inline"] as const)(
-  "resends an invitation from its %s action and keeps failed sending recoverable",
-  async (action) => {
-    const user = userEvent.setup();
-    show();
-    await user.click(await screen.findByRole("tab", { name: /Invitations/ }));
-    const trigger = screen.getByRole("button", {
-      name:
-        action === "menu"
-          ? "Actions for invitation to colleague@example.test"
-          : "Resend invitation to colleague@example.test",
-    });
-    vi.mocked(resendMemberInvitation).mockResolvedValueOnce({ status: "unavailable" });
-    await user.click(trigger);
-    if (action === "menu") {
-      await user.click(await screen.findByRole("menuitem", { name: "Resend" }));
-    }
+it("resends an invitation from its action menu and keeps failed sending recoverable", async () => {
+  const user = userEvent.setup();
+  show();
+  await user.click(await screen.findByRole("tab", { name: /Invitations/ }));
+  const trigger = screen.getByRole("button", {
+    name: "Actions for invitation to colleague@example.test",
+  });
+  vi.mocked(resendMemberInvitation).mockResolvedValueOnce({ status: "unavailable" });
+  await user.click(trigger);
+  await user.click(await screen.findByRole("menuitem", { name: "Resend" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("We couldn’t complete this action");
-    await waitFor(() => expect(trigger).toHaveFocus());
+  expect(await screen.findByRole("alert")).toHaveTextContent("We couldn’t complete this action");
+  await waitFor(() => expect(trigger).toHaveFocus());
 
-    vi.mocked(readTeam).mockResolvedValue({
-      status: "ok",
-      value: {
-        ...initial,
-        invitations: [{ ...initial.invitations[0]!, id: "replacement", delivery: "sent" }],
-      },
-    });
-    await user.click(trigger);
-    if (action === "menu") {
-      await user.click(await screen.findByRole("menuitem", { name: "Resend" }));
-    }
+  vi.mocked(readTeam).mockResolvedValue({
+    status: "ok",
+    value: {
+      ...initial,
+      invitations: [{ ...initial.invitations[0]!, id: "replacement", delivery: "sent" }],
+    },
+  });
+  await user.click(trigger);
+  await user.click(await screen.findByRole("menuitem", { name: "Resend" }));
 
-    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
-    expect(resendMemberInvitation).toHaveBeenLastCalledWith({
-      data: { workspaceSlug: "alder", invitationId: "pending" },
-    });
-    if (action === "menu") {
-      await waitFor(() => expect(trigger).toHaveFocus());
-    } else {
-      await waitFor(() => expect(trigger).not.toBeInTheDocument());
-      await waitFor(() => expect(screen.getByRole("tab", { name: /Invitations/ })).toHaveFocus());
-    }
-  },
-);
+  await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+  expect(resendMemberInvitation).toHaveBeenLastCalledWith({
+    data: { workspaceSlug: "alder", invitationId: "pending" },
+  });
+  await waitFor(() => expect(trigger).toHaveFocus());
+});
 
 it("lets administrators manage ordinary invitations but protects administrator invitations", async () => {
   const user = userEvent.setup();
@@ -573,12 +488,13 @@ it("restores an access draft after reload without silently accepting a newer mem
   await user.click(await screen.findByRole("button", { name: "Actions for Morgan Lee" }));
   await user.click(await screen.findByRole("menuitem", { name: "Edit access" }));
   await user.click(await screen.findByRole("button", { name: /Grant-work access/ }));
-  await user.click(await screen.findByRole("option", { name: "Program manager" }));
+  await user.click(await screen.findByRole("option", { name: /^Program manager/ }));
   await user.click(within(screen.getByRole("form")).getByRole("button", { name: "Close" }));
 
-  expect(
-    await screen.findByRole("button", { name: "Resume access changes for Morgan Lee" }),
-  ).toBeVisible();
+  const actions = screen.getByRole("button", { name: "Actions for Morgan Lee" });
+  expect(actions).toHaveAttribute("data-draft");
+  expect(actions).toHaveAccessibleDescription("Resume editing access");
+  expect(screen.queryByRole("button", { name: "Resume editing access" })).not.toBeInTheDocument();
 
   first.unmount();
   const changed = {
@@ -587,9 +503,8 @@ it("restores an access draft after reload without silently accepting a newer mem
   };
   vi.mocked(readTeam).mockResolvedValue({ status: "ok", value: changed });
   show(changed, "team-draft-test");
-  await user.click(
-    await screen.findByRole("button", { name: "Resume access changes for Morgan Lee" }),
-  );
+  await user.click(await screen.findByRole("button", { name: "Actions for Morgan Lee" }));
+  await user.click(await screen.findByRole("menuitem", { name: "Resume editing access" }));
 
   expect(screen.getByRole("button", { name: "Save access" })).toBeDisabled();
   expect(screen.getByText(/Access or issued invitations changed/)).toBeVisible();
@@ -597,9 +512,10 @@ it("restores an access draft after reload without silently accepting a newer mem
 
   await user.click(await screen.findByRole("button", { name: "Discard changes" }));
 
-  expect(
-    screen.queryByRole("button", { name: "Resume access changes for Morgan Lee" }),
-  ).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Resume editing access" })).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Actions for Morgan Lee" })).not.toHaveAttribute(
+    "data-draft",
+  );
   expect(changeMember).not.toHaveBeenCalled();
 
   sessionStorage.clear();

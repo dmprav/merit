@@ -20,6 +20,8 @@ type DialogContentProps = {
   label: string;
   children: ReactNode;
   footer?: ReactNode;
+  /** Persistent outcome feedback above the action footer, outside the scrolling body. */
+  feedback?: ReactNode;
   reading?: boolean;
   role?: "region" | "group";
 };
@@ -41,14 +43,11 @@ const revealFocusedControl = (event: FocusEvent<HTMLDivElement>) => {
   }
 };
 
-export const DialogContent = ({
-  label,
+const useDialogOverflow = ({
   children,
+  feedback,
   footer,
-  reading = false,
-  role = "region",
-}: DialogContentProps) => {
-  const appearance = useContext(DialogLayoutContext);
+}: Pick<DialogContentProps, "children" | "feedback" | "footer">) => {
   const contentRef = useRef<HTMLDivElement>(null);
 
   useLayoutEffect(() => {
@@ -67,6 +66,7 @@ export const DialogContent = ({
       return;
     }
     const actions = content.querySelector<HTMLElement>(":scope > [data-dialog-footer]");
+    const feedbackArea = content.querySelector<HTMLElement>(":scope > [data-dialog-feedback]");
 
     const measure = () => {
       const frameStyle = getComputedStyle(dialog);
@@ -84,6 +84,7 @@ export const DialogContent = ({
         Number.parseFloat(headerStyle.marginTop) +
         Number.parseFloat(headerStyle.marginBottom) +
         (actions?.offsetHeight ?? 0) +
+        (feedbackArea?.offsetHeight ?? 0) +
         readingSpace;
       // Let the whole task scroll when a persistent heading and actions would crowd out its fields.
       const scrollContent = required > available;
@@ -104,7 +105,7 @@ export const DialogContent = ({
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(measure);
     });
-    for (const element of [dialog, header, body, body.firstElementChild, actions]) {
+    for (const element of [dialog, header, body, body.firstElementChild, feedbackArea, actions]) {
       if (element) {
         observer.observe(element);
       }
@@ -114,7 +115,21 @@ export const DialogContent = ({
       observer.disconnect();
       cancelAnimationFrame(frame);
     };
-  }, [children, footer]);
+  }, [children, feedback, footer]);
+
+  return contentRef;
+};
+
+export const DialogContent = ({
+  label,
+  children,
+  footer,
+  feedback,
+  reading = false,
+  role = "region",
+}: DialogContentProps) => {
+  const appearance = useContext(DialogLayoutContext);
+  const contentRef = useDialogOverflow({ children, feedback, footer });
 
   return (
     <div
@@ -135,6 +150,11 @@ export const DialogContent = ({
         >
           {children}
         </div>
+        {feedback && (
+          <div className={styles.feedback} data-dialog-feedback>
+            {feedback}
+          </div>
+        )}
         {footer && (
           <div className={styles.footer} data-dialog-footer>
             {footer}

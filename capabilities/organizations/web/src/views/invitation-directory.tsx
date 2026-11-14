@@ -11,8 +11,6 @@ import { Button } from "@merit/ui/button";
 import { Icon } from "@merit/ui/icon";
 import { PersonIdentity } from "@merit/ui/person-identity";
 
-import styles from "./team-view.module.css";
-
 type Invitation = Team["invitations"][number];
 
 type DirectoryProps = {
@@ -65,51 +63,40 @@ type InvitationRow = Pick<DirectoryProps, "isDisabled" | "onResend" | "onRevoke"
   canManage: boolean;
 };
 
-const InvitationIdentityCell = (props: InvitationRow) => {
-  const { invitation, canManage, isDisabled, onResend } = props;
+const InvitationStatus = ({ invitation }: { invitation: Invitation }) => {
   const { t } = useTranslation("team");
-  const { formatLocale } = useLocaleSettings();
-  const expired = new Date(invitation.expiresAt) <= new Date();
-  const failed = invitation.delivery === "failed";
-  const date = new Date(invitation.expiresAt).toLocaleDateString(formatLocale, {
-    timeZone: "UTC",
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-
+  // Show the next actionable state; delivery and acceptance remain distinct in the record.
+  const status =
+    new Date(invitation.expiresAt) <= new Date()
+      ? "expired"
+      : invitation.delivery === "sent"
+        ? "pending"
+        : (`delivery_${invitation.delivery}` as const);
+  const failed = status === "delivery_failed";
+  const uncertain = status === "delivery_pending";
   return (
-    <PersonIdentity
-      name={invitation.email}
-      description={
-        <span className={styles.invitationDetails}>
-          {failed && (
-            <span>
-              <Badge tone="danger">{t("delivery_failed")}</Badge>
-            </span>
-          )}
-          <span className={styles.invitationState}>
-            <Badge tone={expired ? "warning" : "neutral"}>
-              {t(expired ? "expired" : "pending")}
-            </Badge>
-            <span>{t(expired ? "expiredOn" : "expires", { date })}</span>
-          </span>
-          {!failed && <span>{t(`delivery_${invitation.delivery}`)}</span>}
-          {canManage && (failed || expired) && (
-            <Button
-              variant="quiet"
-              size="small"
-              className={styles.invitationResend}
-              isDisabled={isDisabled}
-              aria-label={t("resendTo", { email: invitation.email })}
-              onPress={(event) => onResend(invitation, event.target as HTMLButtonElement)}
-            >
-              {t("resend")}
-            </Button>
-          )}
-        </span>
-      }
-    />
+    <Badge
+      appearance="plain"
+      tone={failed ? "danger" : status === "expired" || uncertain ? "warning" : "neutral"}
+    >
+      <Icon name={failed ? "warning" : uncertain ? "info" : "clock"} />
+      {t(status)}
+    </Badge>
+  );
+};
+
+const InvitationExpiry = ({ invitation }: { invitation: Invitation }) => {
+  const { formatLocale } = useLocaleSettings();
+  const date = new Date(invitation.expiresAt);
+  return (
+    <time dateTime={date.toISOString()}>
+      {date.toLocaleDateString(formatLocale, {
+        timeZone: "UTC",
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      })}
+    </time>
   );
 };
 
@@ -121,20 +108,31 @@ export const InvitationDirectory = (props: DirectoryProps) => {
     {
       id: "person",
       header: t("recipient"),
-      layout: { width: "48%" },
-      cell: (record) => <InvitationIdentityCell {...record} />,
+      cell: ({ invitation }) => <PersonIdentity name={invitation.email} />,
     },
     {
       id: "administration",
       header: t("administration"),
-      layout: { width: "22%" },
+      layout: { width: "16%" },
       cell: ({ invitation }) => <>{t(invitation.administration)}</>,
     },
     {
       id: "role",
       header: t("grantAccess"),
-      layout: { width: "22%" },
+      layout: { width: "16%" },
       cell: ({ invitation }) => <>{t(invitation.role)}</>,
+    },
+    {
+      id: "status",
+      header: t("status"),
+      layout: { width: "20%" },
+      cell: ({ invitation }) => <InvitationStatus invitation={invitation} />,
+    },
+    {
+      id: "expires",
+      header: t("expiry"),
+      layout: { width: "8rem" },
+      cell: ({ invitation }) => <InvitationExpiry invitation={invitation} />,
     },
     {
       id: "actions",

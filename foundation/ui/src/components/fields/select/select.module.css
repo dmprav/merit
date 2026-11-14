@@ -124,9 +124,18 @@
   color: var(--muted);
 }
 
-.optionLabel {
+.optionCopy {
+  display: grid;
+  gap: var(--space-1);
   min-width: 0;
   overflow-wrap: anywhere;
+}
+
+.optionDescription {
+  font-size: var(--text-caption);
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--muted);
 }
 
 .check {

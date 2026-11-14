@@ -95,3 +95,30 @@ it("commits keyboard selection and preserves it when further navigation is cance
   expect(onSelectionChange).toHaveBeenCalledTimes(1);
   await waitFor(() => expect(trigger).toHaveFocus());
 });
+
+it("explains each option while keeping the selected value concise", async () => {
+  const user = userEvent.setup();
+  render(
+    <Select
+      label="Grant access"
+      defaultSelectedKey="manager"
+      items={[
+        { id: "manager", label: "Program manager", description: "Can view and edit grant work." },
+        { id: "none", label: "No access", description: "Cannot view grant work." },
+      ]}
+    />,
+  );
+  const trigger = screen.getByRole("button", { name: "Program manager Grant access" });
+  expect(trigger).not.toHaveTextContent("Can view");
+  await user.click(trigger);
+  expect(screen.getByRole("option", { name: /^Program manager/ })).toHaveAccessibleName(
+    "Program manager Can view and edit grant work.",
+  );
+  expect(screen.getByRole("option", { name: /^No access/ })).toHaveAccessibleName(
+    "No access Cannot view grant work.",
+  );
+  await user.keyboard("{End}{Enter}");
+  expect(trigger).toHaveTextContent("No access");
+  expect(trigger).not.toHaveTextContent("Cannot view");
+  await waitFor(() => expect(trigger).toHaveFocus());
+});

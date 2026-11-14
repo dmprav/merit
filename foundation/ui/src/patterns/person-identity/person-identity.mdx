@@ -14,11 +14,22 @@ and workspace marks separate from people.
 
 Compact names use a 24 px avatar, an 8 px gap, and the surrounding typography.
 Names with supporting details or an explicit `nameAs` heading use the 28 px form.
-Use `nameAs` when the name itself introduces a section. Supporting content must
+Names use regular body weight; use `nameAs` when the name itself introduces a section.
+Keep a name and email tightly grouped, with the avatar centered beside both lines.
+Use `annotation` for a short identity qualifier such as “You”, beside the name.
+Use `status` for an account-level badge beside the name, such as “Account disabled”.
+Keep it visibly distinct from muted contact details; the feature supplies its label and tone.
+A clear text badge needs no additional warning icon.
+Put workflow status, dates, and actions in their own table cells or adjacent content. Supporting content must
 be phrasing content, such as text, spans, links, or badges.
 
 <Canvas of={People.Compact} />
 <Canvas of={People.Reviewer} />
+
+The [Team directory](?path=/story/features-team-members--disabled-account) shows
+account state alongside the name without mixing it into the muted email line.
+
+<Canvas of={People.DisabledAccount} />
 
 Wrap the component in a real link for navigation. Keep account menus, review
 outcomes, and domain status logic with the feature.

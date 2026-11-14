@@ -7,11 +7,17 @@ import styles from "./person-identity.module.css";
 export const PersonIdentity = ({
   name,
   description,
+  annotation,
+  status,
   nameAs: Name = "span",
   className = "",
 }: {
   name: string;
   description?: ReactNode;
+  /** Short identity qualifier, such as “You”; workflow status belongs outside the identity. */
+  annotation?: string;
+  /** A visible account status badge beside the name; the caller owns its meaning and tone. */
+  status?: ReactNode;
   nameAs?: "span" | "h2" | "h3";
   className?: string;
 }) => {
@@ -21,7 +27,11 @@ export const PersonIdentity = ({
     <Container className={`${styles.identity} ${className}`} data-detailed={description != null}>
       <Avatar name={name} size={description != null || Name !== "span" ? "regular" : "compact"} />
       <Container className={styles.copy}>
-        <Name className={styles.name}>{name}</Name>
+        <Container className={styles.nameLine}>
+          <Name className={styles.name}>{name}</Name>
+          {annotation && <span className={styles.annotation}>{annotation}</span>}
+          {status}
+        </Container>
         {description != null && <span className={styles.description}>{description}</span>}
       </Container>
     </Container>
