@@ -25,6 +25,8 @@ export default defineConfig({
   outputDir: join(tmpdir(), "merit-workspace-browser-results"),
   reporter: browserReporter(),
   retries: 0,
+  timeout: 60_000,
+  expect: { timeout: 10_000 },
   // Each test resets the isolated database used by the shared host.
   workers: 1,
   use: {

@@ -61,22 +61,36 @@ test("CI verify workflow covers every ready stage and sharded browser suite with
     );
   expect(requiredContexts).toContain("verify");
 
-  // Every required stage/command in `ready` is explicitly executed across verify.yml jobs.
-  expect(workflow).toContain("vp run --no-cache ready:build");
-  expect(workflow).toContain("vp run --no-cache --ignore-depends-on ready:static");
-  expect(workflow).toContain("vp run --no-cache check:security");
-  expect(workflow).toContain("--filter '@merit/*' --filter '!@merit/storybook' test");
-  expect(workflow).toContain("vp run --no-cache @merit/storybook#test");
-  expect(workflow).toContain("vp run --no-cache @merit/app#test:integration");
-  expect(workflow).toContain("vp run --no-cache test:browser:tooling:all");
-  expect(workflow).toContain(
-    "vp run --no-cache test:browser:stories:all --shard=${{ matrix.shard }}",
-  );
-  expect(workflow).toContain("vp run --no-cache test:browser:app:all --shard=${{ matrix.shard }}");
-  expect(workflow).toContain(
-    "vp run --no-cache @merit/app#test:workspace:all --shard=${{ matrix.shard }}",
-  );
-  expect(workflow).toContain("vp run --no-cache ready:tooling");
+  // Every stage listed in `ready.dependsOn` must map explicitly to verify.yml jobs.
+  const stages = ready.dependsOn.filter((stage): stage is string => typeof stage === "string");
+  expect(stages).toHaveLength(ready.dependsOn.length);
+
+  const stageWorkflowChecks: Record<string, string[]> = {
+    "ready:static": [
+      "vp run --no-cache ready:build",
+      "vp run --no-cache --ignore-depends-on ready:static",
+    ],
+    "ready:tests": [
+      "--filter '@merit/*' --filter '!@merit/storybook' test",
+      "vp run --no-cache @merit/storybook#test",
+    ],
+    "ready:runtime": [
+      "vp run --no-cache @merit/app#test:integration",
+      "vp run --no-cache test:browser:tooling:all",
+      "vp run --no-cache test:browser:stories:all --shard=${{ matrix.shard }}",
+      "vp run --no-cache test:browser:app:all --shard=${{ matrix.shard }}",
+      "vp run --no-cache @merit/app#test:workspace:all --shard=${{ matrix.shard }}",
+    ],
+    "ready:tooling": ["vp run --no-cache ready:tooling"],
+    "check:security": ["vp run --no-cache check:security"],
+  };
+
+  expect(new Set(Object.keys(stageWorkflowChecks))).toEqual(new Set(stages));
+  for (const stage of stages) {
+    for (const expectedCommand of stageWorkflowChecks[stage] ?? []) {
+      expect(workflow).toContain(expectedCommand);
+    }
+  }
   expect(workflow).toContain("vp run --no-cache test:checks");
 
   // External actions and container images must remain pinned by digest/SHA.

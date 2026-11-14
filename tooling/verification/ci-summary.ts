@@ -44,6 +44,7 @@ const playwrightSuiteSchema: z.ZodType<PlaywrightSuite> = z.lazy(() =>
 
 const playwrightReportSchema = z.object({
   suites: z.array(playwrightSuiteSchema).default([]),
+  errors: z.array(playwrightErrorSchema).default([]),
   stats: z.object({
     duration: z.number().default(0),
     expected: z.number().default(0),
@@ -156,10 +157,18 @@ export const summarizePlaywrightReport = (raw: unknown, label = "Playwright"): S
   const report = playwrightReportSchema.parse(raw);
   const findings: SummaryFinding[] = [];
   collectPlaywrightFindings(report.suites, [], findings);
+  for (const error of report.errors) {
+    findings.push({
+      kind: "failed",
+      title: "Runner setup failure",
+      message: firstErrorLine([error.message]),
+    });
+  }
+  const failed = report.stats.unexpected > 0 ? report.stats.unexpected : report.errors.length;
   return {
     label,
     passed: report.stats.expected,
-    failed: report.stats.unexpected,
+    failed,
     flaky: report.stats.flaky,
     skipped: report.stats.skipped,
     durationMs: report.stats.duration,
@@ -229,7 +238,8 @@ export const formatDuration = (durationMs: number) => {
   return `${minutes}m ${remainder}s`;
 };
 
-const escapeMarkdownCell = (value: string) => value.replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
+const escapeMarkdownCell = (value: string) =>
+  value.replace(/\\/g, "\\\\").replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
 
 export const formatSummaryMarkdown = (title: string, summaries: SuiteSummary[]) => {
   if (summaries.length === 0) {
@@ -355,11 +365,10 @@ const runCli = () => {
     workspaceRoot: process.cwd(),
   });
   const markdown = formatSummaryMarkdown(title, summaries);
+  process.stdout.write(markdown);
   const summaryPath = process.env.GITHUB_STEP_SUMMARY;
   if (summaryPath) {
     appendFileSync(summaryPath, `${markdown}\n`);
-  } else {
-    process.stdout.write(markdown);
   }
 };
 

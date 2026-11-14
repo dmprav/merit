@@ -190,3 +190,36 @@ test("collects reports from report directory and scanned package Vitest files", 
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("reports Playwright startup errors when no test suites executed and escapes cells", () => {
+  const summary = summarizePlaywrightReport(
+    {
+      errors: [{ message: "Error: Timed out waiting 120000ms from config.webServer.\n  at ..." }],
+      suites: [],
+      stats: { duration: 1_200, expected: 0, skipped: 0, unexpected: 0, flaky: 0 },
+    },
+    "Demo\\browser|shard",
+  );
+
+  expect(summary).toEqual({
+    label: "Demo\\browser|shard",
+    passed: 0,
+    failed: 1,
+    flaky: 0,
+    skipped: 0,
+    durationMs: 1_200,
+    findings: [
+      {
+        kind: "failed",
+        title: "Runner setup failure",
+        message: "Error: Timed out waiting 120000ms from config.webServer.",
+      },
+    ],
+  });
+
+  const markdown = formatSummaryMarkdown("Browser", [summary]);
+  expect(markdown).toContain("| Demo\\\\browser\\|shard | 0 | 1 | 0 | 0 | 1.2s |");
+  expect(markdown).toContain(
+    "- **FAILED** Runner setup failure: Error: Timed out waiting 120000ms from config.webServer.",
+  );
+});
