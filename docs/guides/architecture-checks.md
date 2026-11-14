@@ -60,7 +60,8 @@ statically known source.
 | Command or query persistence | Domain, the same persistence group, and shared persistence.                 |
 | Shared persistence           | Domain and shared persistence.                                              |
 | Server assembly              | API definitions and command/query handlers.                                 |
-| Contact integration          | Domain and private persistence functions.                                   |
+| Integration entry            | Domain and private persistence functions.                                   |
+| Reading entry                | Domain, query handlers, query persistence, and shared persistence.          |
 | Demo lifecycle               | Example records, domain, command persistence, and shared persistence.       |
 | Examples                     | Domain, API definitions, and examples.                                      |
 
@@ -98,8 +99,8 @@ authorization, result handling, and token hashing. Commands, queries, and assemb
 may use them; support modules can use only domain, API definitions, and each other.
 They cannot introduce handler or persistence dependencies.
 
-`server/integrations.ts` and `server/demo.ts` provide deliberate server-only
-integration entries. Their callers must preserve the documented authorization,
+`server/integrations.ts`, `server/read.ts`, and `server/demo.ts` provide deliberate
+server-only integration entries. Their callers must preserve the documented authorization,
 lock, and transaction obligations. Ordinary command and query handlers cannot
 depend on these privileged entries or the server assembly.
 
@@ -114,13 +115,20 @@ Browser-safe dependencies retain their existing rules.
 
 Current integrations have distinct responsibilities:
 
-| Consumer                            | Permitted integration                                                                                                    |
-| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| Applications and Reviews commands   | Contact lookup through `@merit/contacts/scope`.                                                                          |
-| Grant-work and Contacts commands    | Organization locks through `@merit/organizations/locks`.                                                                 |
-| Approved persistence roles          | Contact and organization schemas and organization read predicates; shared policy bindings may use `@merit/access/scope`. |
-| Grantmaking's contact-usage adapter | The type-only `@merit/contacts/server/grant-work` interface, implemented for injection by application assembly.          |
-| Grantmaking demo seeding            | Contact demo seeding through `@merit/contacts/server/demo`.                                                              |
+| Consumer                            | Permitted integration                                                                                                            |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Applications and Reviews commands   | Contact lookup through `@merit/contacts/scope`.                                                                                  |
+| Grant-work and Contacts commands    | Organization locks through `@merit/organizations/locks`.                                                                         |
+| Approved persistence roles          | Contact, organization, and audit schemas and organization read predicates; shared policy bindings may use `@merit/access/scope`. |
+| Grantmaking's contact-usage adapter | The type-only `@merit/contacts/server/grant-work` interface, implemented for injection by application assembly.                  |
+| Grantmaking demo seeding            | Contact demo seeding through `@merit/contacts/server/demo`.                                                                      |
+| Audit recording and history         | Commands record through `@merit/audit/server/record`; queries read through `@merit/audit/server/read`.                           |
+
+Organizations, Contacts, Applications, Rounds, Reviews, and Recommendations record
+audit events from their commands in the existing transaction. Grantmaking, Contacts,
+Organizations, and Reviews read history through their queries and authorize every
+read; the [audit guide](../../capabilities/audit/business/README.md) owns the
+recording contract.
 
 The four grant-work owners have explicit downstream dependencies. Applications can
 read Rounds; Reviews and Recommendations can read Applications and Rounds. Neither
@@ -138,12 +146,6 @@ export redirected to command persistence also fails the check.
 Application permissions are limited to the service composition in
 `app/src/server/services.server.ts`, demo composition in `app/src/server/demo.server.ts`, and demo cleanup
 in `app/scripts/clean-demos.ts`. Each location has its own permitted entries.
-Service composition supplies audit's recorder through each recording capability's
-own contract, such as Recommendations' `RecordRecommendationAudit`. Commands cannot
-import audit's implementation; they pass their existing transaction to the injected
-recorder. Grantmaking's query layer alone reads activity through `@merit/audit/server/read`,
-since audit imports no capability and relies on its caller to resolve record titles
-and round membership.
 Interface adapters use the services supplied by assembly and browser-safe API
 types; they cannot instantiate capability services through direct server imports.
 

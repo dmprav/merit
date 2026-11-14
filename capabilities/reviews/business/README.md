@@ -17,10 +17,9 @@ authority. [Reviewer commands](src/server/commands/reviewer.ts) use assignment a
 an external reviewer gains no workspace membership. Manager reads never expose
 private reviewer drafts. Delivery failures do not undo a committed submission.
 
-`review_states` owns the review concurrency revision. The extraction migration
-backfills existing values from application cases. Requests, assessments and reviewer
-submission advance this revision under the case lock; assignment and private-draft
-revisions retain their independent meanings.
+`review_states` owns the review concurrency revision. Requests, assessments and
+reviewer submission advance this revision under the case lock; assignment and
+private-draft revisions retain their independent meanings.
 
 Applications' `MaterialVersion`, Rounds' `CriteriaVersion`, and Reviews'
 `ReviewRevision` are distinct branded numbers. Owner schemas validate numeric
@@ -42,4 +41,4 @@ through owner exports and has no dependency on recommendation implementation.
 The [web package](../web/package.json) owns manager review editing and reviewer
 participation. Run `vp run @merit/reviews#test`, `vp run @merit/reviews-web#test`,
 and the [review](../../grantmaking/business/tests/reviews.integration.ts) and
-[participation](../../../docs/workflows/participate-in-review.md) integration scenarios.
+[participation](../../grantmaking/business/tests/reviewer.integration.ts) integration scenarios.

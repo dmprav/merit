@@ -44,28 +44,31 @@ the grant read scope. Other members are sent to Members & access.
 Each entry shows when (UTC, as in other histories), who (the name recorded at the
 time, or "Unknown person", with the web or MCP-client provenance), what changed,
 and the record's current title with a link to its default page. A record that has
-since been deleted reads "No longer available" and has no link. Actions this page
-does not recognize read "Changed".
+since been deleted shows the name recorded with the entry, without a link, or "No
+longer available" when no name was recorded. Actions this page does not recognize
+read "Changed".
 
-| Recorded                                                            | Not recorded here                                                                   |
-| ------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| Application created, marked ready, revised, corrected, or deleted   | Application content and detail saves, and working revisions                         |
-| Round created, deleted, or its budget, criteria, or manager changed | Round detail edits                                                                  |
-| Assessment recorded by a manager, or submitted by a reviewer        | Review requests, reviewer drafts, invitations and responses, contacts, team changes |
-| Recommendation saved                                                |                                                                                     |
+| Shown                                                                                                                                                           | Not shown here                                             |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| Application created, material, staff summary, or contact changed, marked ready, revised, corrected, or deleted; working revision started, updated, or discarded | Contact and team changes                                   |
+| Round created, details, budget, criteria, or manager changed, or deleted                                                                                        | Reviewer drafts and email delivery, which are not recorded |
+| Review requested or cancelled; reviewer invited, renewed, accepted, declined, withdrew, reported or cleared a conflict, ended, or reinstated                    |                                                            |
+| Assessment recorded, corrected, submitted, or amended                                                                                                           |                                                            |
+| Recommendation saved                                                                                                                                            |                                                            |
 
-Unrecorded changes remain in the application's or round's own history. An entry is
+Contact and team changes remain in contact history and Members & access. An entry is
 written in the same transaction as the change it describes, so a rejected or
 conflicting write leaves none and a failure to record it leaves the change unsaved.
 
 Activity shows 50 entries at a time; **Show older activity** loads the next page
-(MCP: follow `nextCursor`). The **Round** filter matches the round, its
-applications, and their assessments and recommendations; **Person** matches the
+(MCP: follow `nextCursor`). The **Round** filter matches the round and its
+applications, including their review requests, reviewer responses, assessments, and
+recommendations; **Person** matches the
 recorded person. The filters belong to the page and reset when it is left. Unlike
 Applications' round filter they never appear in the address, so a person's
 identifier stays out of URLs, browser history, and logs. Changing a filter starts
-again from the newest entry. A deleted record belongs to no round, so the Round
-filter omits its entries.
+again from the newest entry. Entries keep the round recorded when they were written,
+so a deleted application's entries still match its round.
 
 ## Access and shared guarantees
 

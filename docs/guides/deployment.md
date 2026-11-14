@@ -93,8 +93,8 @@ Review revisions live in `review_states`; recommendation revisions belong to
 All audit history views read `audit_events`. Application and round creation receipts
 and reviewer command receipts require `SELECT` and `INSERT`; they do not carry
 audit payloads.
-Grant `INSERT` on `audit_events` for audited writes and `SELECT` for the Activity
-page and MCP tool. A missing `INSERT` grant fails the entire save. Audit events reject updates; deletion is restricted to expired
+Grant `INSERT` on `audit_events` for audited writes and `SELECT` for every history
+view, including the Activity page and its MCP tool. A missing `INSERT` grant fails the entire save. Audit events reject updates; deletion is restricted to expired
 demos and the cleanup operator requires `DELETE` on `audit_events`. The
 [audit capability guide](../../capabilities/audit/business/README.md) explains its
 recording and retention contract.
