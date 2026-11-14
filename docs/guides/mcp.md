@@ -63,8 +63,11 @@ person's identity in tool arguments does not grant workspace access.
 ## Read the context you need
 
 Lists default to 20 records and accept a `limit` from 1 to 50. Follow `nextCursor`
-by passing it as `after` until it is `null`. Lists use stable identifier order,
-not title or date order. Access requests use normalized email order.
+by passing it as `after` until it is `null`. Record lists use stable identifier
+order, not title or date order. Access requests use normalized email order.
+Histories and workspace activity are newest first; round and application
+histories instead list ascending revisions, paged by passing `nextRevision` as
+`afterRevision`.
 Personal pins return their complete saved order rather than a paginated list. These are live reads: changing a title does not move a
 record between pages, but records inserted before a cursor require restarting
 the list to discover them. Each request rechecks access. Pagination is not a
@@ -85,14 +88,15 @@ with the same ID remain distinct.
 
 To catch up on recent changes across a workspace, call `list_workspace_activity`.
 It returns who changed shared grant work, newest first, in pages of up to 50
-entries; pass `nextCursor` as `after` until it is `null`. Optional `roundId` (the round,
-its applications, and their assessments and recommendations) and `personId` filters
+entries; pass `nextCursor` as `after` until it is `null`. Optional `roundId` (the round and
+its applications, including their review requests, reviewer responses, assessments,
+and recommendations) and `personId` filters
 narrow the list, as on the web; take person IDs from the returned `people`, and keep
 the same filters while following a cursor. Each entry carries the
 recorded person's name, web or MCP-client provenance, a stored action name, and the
 record's current title and browser link, or a null record that no longer exists.
-Only current program managers can read it. Edits that stay in an application's or
-round's own history are not listed; read the history listings for those. The
+Only current program managers can read it. Contact and team changes are not
+listed; read their history listings for those. The
 [workflow](../workflows/review-and-decide.md#catch-up-on-shared-changes) lists what
 is recorded.
 

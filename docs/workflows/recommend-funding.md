@@ -53,10 +53,11 @@ define the lifetime and reset behavior of its isolated workspace.
 A workspace save checks current manager access and the recommendation revision and
 application version on which the draft was started. A conflicting save keeps the
 draft open and loads the latest reference data. Discard changes removes that draft so the
-manager can review the current recommendation and start again. Successful saves
-record the actor, timestamp, and before/after recommendation together.
-Each successful save also records a compact workspace audit event referencing the
-saved recommendation revision. Its actor name and web or MCP provenance are captured
+manager can review the current recommendation and start again. A save that changes
+the recommendation's content, author, or application basis records the actor,
+timestamp, and before/after recommendation together, along with a compact workspace
+audit event referencing the saved recommendation revision. A save that changes none
+of these keeps the current revision and records nothing. Its actor name and web or MCP provenance are captured
 at the time of the save. Both records commit together; a history or audit failure
 leaves the recommendation unchanged. Managers read these events in
 [Activity](review-and-decide.md#catch-up-on-shared-changes).
