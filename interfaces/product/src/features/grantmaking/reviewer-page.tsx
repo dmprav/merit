@@ -59,14 +59,13 @@ const ReviewerState = ({
   status?: string;
   assignmentId?: string;
 }) => {
-  const { t } = useTranslation(["reviewer", "onboarding"]);
-  const signIn = status === "signed_out" || status === "not_found";
-  return (
-    <StateMessage
-      title={signIn ? t("onboarding:signIn") : t("unavailable")}
-      description={signIn ? t("signInHelp") : undefined}
-      actions={
-        signIn ? (
+  const { t } = useTranslation(["reviewer", "onboarding", "web"]);
+  if (status === "signed_out") {
+    return (
+      <StateMessage
+        title={t("onboarding:signIn")}
+        description={t("signInHelp")}
+        actions={
           <Link
             to="/app/sign-in"
             search={{ returnTo: assignmentId ? `/reviews/${assignmentId}` : "/reviews" }}
@@ -74,10 +73,25 @@ const ReviewerState = ({
           >
             {t("onboarding:signIn")}
           </Link>
-        ) : (
-          <RouteRetry>{t("retry")}</RouteRetry>
-        )
-      }
+        }
+      />
+    );
+  }
+
+  if (status === "not_found" || status === "forbidden") {
+    return (
+      <StateMessage
+        title={t("web:state.review.notFound.title")}
+        description={t("web:state.review.notFound.description")}
+      />
+    );
+  }
+
+  return (
+    <StateMessage
+      title={t("web:state.review.unavailable.title")}
+      description={t("web:state.review.unavailable.description")}
+      actions={<RouteRetry>{t("retry")}</RouteRetry>}
     />
   );
 };

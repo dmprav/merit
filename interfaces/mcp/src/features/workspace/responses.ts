@@ -39,8 +39,10 @@ export const presentWorkspaces = (
     role: workspace.role,
     administration: workspace.administration,
     canWorkOnGrants: workspace.canWorkOnGrants,
-    url: new URL(`/app/${workspace.slug}/${workspace.canWorkOnGrants ? "rounds" : "team"}`, origin)
-      .href,
+    url: new URL(
+      `/app/${encodeURIComponent(workspace.slug)}/${workspace.canWorkOnGrants ? "rounds" : "settings/members"}`,
+      origin,
+    ).href,
   })),
   grantedScopes: [...actor.scopes],
   nextCursor: result.nextCursor,
