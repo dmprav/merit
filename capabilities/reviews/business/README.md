@@ -15,7 +15,10 @@ defines comparison and unknown-basis precedence, including criteria reversions.
 Manager [review commands](src/server/commands/reviews.ts) require current workspace
 authority. [Reviewer commands](src/server/commands/reviewer.ts) use assignment access;
 an external reviewer gains no workspace membership. Manager reads never expose
-private reviewer drafts. Delivery failures do not undo a committed submission.
+private reviewer drafts. Accepted review requests, cancellations, reviewer
+participation transitions, and assessments are recorded atomically through
+[Audit](../../audit/business/README.md); private drafts and email delivery attempts
+are not audited, and delivery failures do not undo a committed submission.
 
 `review_states` owns the review concurrency revision. Requests, assessments and
 reviewer submission advance this revision under the case lock; assignment and

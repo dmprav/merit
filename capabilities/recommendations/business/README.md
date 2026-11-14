@@ -9,8 +9,9 @@ The [command](src/server/commands/recommendations.ts) owns authorization, the
 transaction, and revision checks. It uses the shared application case lock before
 comparing the latest revision and appending to `recommendation_versions`. The latest
 stored version defines the current revision; Applications holds no recommendation
-counter. The injected audit recorder participates in that transaction, so either
-both writes commit or both roll back.
+counter. The command calls `recordAuditEvent` from
+[Audit](../../audit/business/README.md) directly in that transaction, so the
+recommendation version and audit event commit or roll back together.
 
 `/api` contains browser-safe inputs, outcomes, and public JSON encoding. `/server`
 exposes the service factory and authorized save. Approved composition reads use

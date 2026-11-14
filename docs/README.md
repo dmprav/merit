@@ -13,6 +13,9 @@ and examples maintained beside the code.
   [domain concepts](domain/concepts.md) and [foundations](foundations/README.md).
 - **Deploy or provision access:** [deployment](guides/deployment.md) and
   [organization operations](guides/organizations.md).
+- **Use agent workflows:** [feature building](../.agents/skills/build-feature/SKILL.md),
+  [documentation review](../.agents/tasks/documentation-review.md), and
+  [test review](../.agents/tasks/test-review.md).
 
 | Area                                 | What it covers                                                   |
 | ------------------------------------ | ---------------------------------------------------------------- |
