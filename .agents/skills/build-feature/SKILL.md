@@ -152,15 +152,18 @@ two rounds and carry what remains to **Follow-ups**.
 
 Commits follow the
 [commit conventions](../../../docs/guides/development.md#commit-changes). Open a
-pull request with the repository template:
+pull request with the [repository template](../../../.github/pull_request_template.md),
+keeping the description concise rather than pasting the approved brief:
 
-- **Why:** the outcome and the issue link, followed by the approved brief.
-- **What changed:** the changes, the precedents reused, the checks run, rejected
-  review findings with their reasons, and the UI comparison: screenshots of the new
-  UI beside its precedent where you can attach images, otherwise the stories or
-  routes, states, and widths compared, as
+- **Why:** 1–2 sentences on the outcome and the issue link.
+- **What changed:** concise bullets for the resulting behavior, key departures,
+  the **precedents** reused (file/story paths for review), non-CI checks run or
+  gaps, any rejected review findings with their reasons, and for UI changes the
+  stories/routes, states, and widths compared (or side-by-side screenshots where
+  attachable), as
   [UI verification](../../../docs/guides/ui-verification.md#verification) asks.
-- **Follow-ups:** unresolved findings and friction you met.
+- **Follow-ups:** only unresolved findings or concrete friction that needs
+  action; omit when empty.
 
 Greptile reviews the pull request after it opens. Triage its comments like
 reviewer findings.
