@@ -164,6 +164,7 @@ type ReviewChangeContext = {
   criteriaVersion: CriteriaVersion;
   criteriaHistory: { version: CriteriaVersion; criteria: z.infer<typeof reviewCriteriaSchema> }[];
   recorder: z.infer<typeof recorderSchema>;
+  authorUserId?: string;
 };
 
 type ReviewUpdate = { ok: true; changed: boolean } | { ok: false; error: ReviewChangeError };
@@ -220,13 +221,18 @@ const requestReview = (
 const editAssessment = (
   state: ReviewState,
   change: Extract<ReviewChange, { action: "edit" }>,
+  context: ReviewChangeContext,
   version: z.infer<typeof assessmentVersionSchema>,
 ): ReviewUpdate => {
   const assessment = state.assessments.find((value) => value.id === change.id);
   if (!assessment) {
     return invalid("assessment_unavailable");
   }
-  if (assessment.authorUserId) {
+  if (
+    assessment.authorUserId
+      ? assessment.authorUserId !== context.authorUserId
+      : context.authorUserId !== undefined
+  ) {
     return invalid("reviewer_authored");
   }
 
@@ -278,6 +284,7 @@ const recordAssessment = (
     reviewer: contact.name,
     requestId: change.requestId,
     previousId: change.previousId,
+    ...(context.authorUserId ? { authorUserId: context.authorUserId } : {}),
     versions: [version],
   });
   return { ok: true, changed: true };
@@ -332,7 +339,7 @@ const applyReviewChange = (
     note: change.action === "edit" ? change.note : "",
   };
   return change.action === "edit"
-    ? editAssessment(state, change, version)
+    ? editAssessment(state, change, context, version)
     : recordAssessment(state, change, context, version);
 };
 

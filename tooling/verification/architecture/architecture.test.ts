@@ -997,7 +997,7 @@ const extractedCapabilityFiles = {
         "./schema": "./src/server/persistence/schema.ts",
         "./scope": "./src/server/persistence/projections.ts",
         "./locks":
-          name === "rounds"
+          name === "rounds" || name === "applications"
             ? "./src/server/persistence/commands/locks.ts"
             : "./src/server/persistence/locks.ts",
         ...(name === "applications"

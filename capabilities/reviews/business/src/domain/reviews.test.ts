@@ -51,9 +51,15 @@ const apply = (state: ReviewState, change: ReviewChange) => {
 };
 
 describe("recording reviews", () => {
-  it("does not let a recording manager rewrite an authenticated reviewer submission", () => {
-    const source = apply(emptyReviews(), record);
-    source.assessments[0]!.authorUserId = "sam";
+  it("preserves authenticated reviewer authorship across recording and amendments", () => {
+    const recorded = prepareReviewChange(emptyReviews(), record, {
+      ...context,
+      authorUserId: "sam",
+    });
+    assert.isTrue(recorded.ok);
+    expect(recorded.state.assessments[0]?.authorUserId).toBe("sam");
+
+    const source = recorded.state;
     const before = structuredClone(source);
     expect(
       prepareReviewChange(
@@ -67,7 +73,48 @@ describe("recording reviews", () => {
         context,
       ),
     ).toEqual({ ok: false, error: "reviewer_authored" });
+    expect(
+      prepareReviewChange(
+        source,
+        {
+          action: "edit",
+          id: record.id,
+          content: { ...content, reasoning: "Other reviewer replacement" },
+          note: "Attempt",
+        },
+        { ...context, authorUserId: "other" },
+      ),
+    ).toEqual({ ok: false, error: "reviewer_authored" });
     expect(source).toEqual(before);
+
+    const amended = prepareReviewChange(
+      source,
+      {
+        action: "edit",
+        id: record.id,
+        content: { ...content, reasoning: "Amended reasoning" },
+        note: "Clarified evidence",
+      },
+      { ...context, authorUserId: "sam" },
+    );
+    assert.isTrue(amended.ok);
+    expect(amended.state.revision).toBe(source.revision + 1);
+    expect(amended.state.assessments[0]?.versions).toHaveLength(2);
+    expect(amended.state.assessments[0]?.versions[1]?.note).toBe("Clarified evidence");
+
+    const managerOwned = apply(emptyReviews(), record);
+    expect(
+      prepareReviewChange(
+        managerOwned,
+        {
+          action: "edit",
+          id: record.id,
+          content: { ...content, reasoning: "Reviewer hijack" },
+          note: "Nope",
+        },
+        { ...context, authorUserId: "sam" },
+      ),
+    ).toEqual({ ok: false, error: "reviewer_authored" });
   });
   it("cancels an outstanding request with its author and advances the revision once", () => {
     const source = apply(emptyReviews(), request);

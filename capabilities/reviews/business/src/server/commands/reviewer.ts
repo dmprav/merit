@@ -1,8 +1,8 @@
 import { lockApplicationCase } from "@merit/applications/locks";
 import { recordAuditEvent } from "@merit/audit/server/record";
 import { actorProvenance, type Actor } from "@merit/auth";
+import { readContact } from "@merit/contacts/scope";
 import type { Database } from "@merit/db";
-import { lockGrantWorkspace } from "@merit/organizations/locks";
 
 import {
   inviteReviewerSchema,
@@ -15,11 +15,11 @@ import {
 import { emptyReviewerDraft, nextReviewerStatus, reviewerSubmission } from "../../domain/reviewer";
 import { prepareReviewChange } from "../../domain/reviews";
 import {
+  lockManagedReviewerAssignment,
   lockReviewerAssignment,
   reviewerReceipt,
   recordReviewerEvent,
   recordReviewerReceipt,
-  reviewContact,
   invitationLimited,
   queueReviewerMessage,
   updateReviewerAssignment,
@@ -36,7 +36,7 @@ import {
   recordReviewChange,
 } from "../persistence/commands/reviews";
 import {
-  activeReviewer,
+  lockActiveReviewer,
   reviewerIdentityCurrent,
   reviewerOwns,
   permittedReviewerWork,
@@ -59,19 +59,17 @@ export const inviteReviewer = async (
   }
   const request = parsed.data;
   return db.transaction(async (tx) => {
-    const access = await lockGrantWorkspace(tx, actor.userId, request.workspaceSlug, "update");
-    if (
-      !access ||
-      access.organization.kind !== "standard" ||
-      !(await lockApplicationCase(tx, actor.userId, request))
-    ) {
+    const access = await lockApplicationCase(tx, actor.userId, request, "share", "update");
+    if (!access || access.organizationKind !== "standard") {
       return { status: "not_found" } as const;
     }
     const existing = await assignmentForRequest(tx, request.publicId, request.requestId);
     if (existing) {
-      return { status: "ok", id: existing.id } as const;
+      return existing.id === request.commandId && existing.dueDate === request.dueDate
+        ? ({ status: "ok", id: existing.id } as const)
+        : ({ status: "invalid" } as const);
     }
-    const row = await readReviewState(tx, access.organization.id, request.publicId);
+    const row = await readReviewState(tx, access.organizationId, request.publicId);
     const review = row?.reviews.requests.find((value) => value.id === request.requestId);
     if (
       !review ||
@@ -81,13 +79,13 @@ export const inviteReviewer = async (
     ) {
       return { status: "invalid" } as const;
     }
-    const contact = await reviewContact(tx, access.organization.id, review.contactId);
+    const contact = await readContact(tx, access.organizationId, review.contactId);
     const email = contact?.email.trim().toLowerCase();
     const managerEmail = emails[0]?.toLowerCase();
     if (!contact || contact.archived || !email || !managerEmail || !email.includes("@")) {
       return { status: "invalid" } as const;
     }
-    if (await invitationLimited(tx, access.organization.id, email)) {
+    if (await invitationLimited(tx, access.organizationId, email)) {
       return { status: "limited" } as const;
     }
     const id = request.commandId;
@@ -96,7 +94,7 @@ export const inviteReviewer = async (
       {
         id,
         caseId: request.publicId,
-        organizationId: access.organization.id,
+        organizationId: access.organizationId,
         requestId: request.requestId,
         email,
         managerUserId: actor.userId,
@@ -134,18 +132,16 @@ export const manageReviewer = async (
   }
   const request = parsed.data;
   return db.transaction(async (tx) => {
-    const access = await lockGrantWorkspace(tx, actor.userId, request.workspaceSlug, "update");
-    if (!access || !(await lockApplicationCase(tx, actor.userId, request))) {
+    const locked = await lockManagedReviewerAssignment(
+      tx,
+      actor.userId,
+      request,
+      request.action === "resend" ? "update" : "share",
+    );
+    if (!locked) {
       return { status: "not_found" } as const;
     }
-    const record = await lockReviewerAssignment(tx, request.assignmentId);
-    if (
-      !record ||
-      record.assignment.caseId !== request.publicId ||
-      record.assignment.organizationId !== access.organization.id
-    ) {
-      return { status: "not_found" } as const;
-    }
+    const { record, actor: manager } = locked;
     if (await reviewerReceipt(tx, request.assignmentId, request.commandId)) {
       return { status: "ok", id: request.assignmentId } as const;
     }
@@ -153,14 +149,10 @@ export const manageReviewer = async (
     if (assignment.revision !== request.expectedRevision) {
       return { status: "conflict" } as const;
     }
-    const revision = assignment.revision + 1;
-    const changed = await applyManagerAction(
-      tx,
-      assignment,
-      actor,
-      access.actor.name ?? assignment.managerName,
-      request,
-    );
+    const managerName = manager.name ?? assignment.managerName;
+    const revision =
+      request.action === "retry_notification" ? assignment.revision : assignment.revision + 1;
+    const changed = await applyManagerAction(tx, assignment, actor, managerName, request);
     if (changed.status !== "ok") {
       return changed;
     }
@@ -169,7 +161,7 @@ export const manageReviewer = async (
       await recordReviewerEvent(tx, {
         assignmentId: assignment.id,
         actor,
-        name: access.actor.name ?? assignment.managerName,
+        name: managerName,
         action: request.action,
         note: request.note,
       });
@@ -191,7 +183,7 @@ export const respondToReview = async (
   const request = parsed.data;
   return db.transaction(async (tx) => {
     const record = await lockReviewerAssignment(tx, request.assignmentId);
-    const user = await activeReviewer(tx, actor.userId, true);
+    const user = await lockActiveReviewer(tx, actor.userId);
     if (
       !record ||
       !user ||
@@ -270,7 +262,7 @@ export const saveReviewerDraft = async (
     const record = await lockReviewerAssignment(tx, request.assignmentId);
     if (
       !record ||
-      !(await activeReviewer(tx, actor.userId, true)) ||
+      !(await lockActiveReviewer(tx, actor.userId)) ||
       !(await permittedReviewerWork(tx, request.assignmentId, actor.userId))
     ) {
       return { status: "not_found" };
@@ -308,7 +300,7 @@ export const submitReviewerAssessment = async (
   const request = parsed.data;
   return db.transaction(async (tx) => {
     const record = await lockReviewerAssignment(tx, request.assignmentId);
-    const user = await activeReviewer(tx, actor.userId, true);
+    const user = await lockActiveReviewer(tx, actor.userId);
     if (
       !record ||
       !user ||
@@ -385,7 +377,7 @@ const resumptionProblem = async (
   if (
     status !== "cancelled" &&
     contactId &&
-    (await reviewContact(tx, assignment.organizationId, contactId))?.archived
+    (await readContact(tx, assignment.organizationId, contactId))?.archived
   ) {
     return "invalid" as const;
   }
@@ -474,60 +466,54 @@ const recordOwnAssessment = async (
   note: string,
 ) => {
   const assignment = record.assignment;
-  let next = structuredClone(row.reviews);
-  let version = 1;
-  if (assignment.assessmentId) {
-    const assessment = next.assessments.find((value) => value.id === assignment.assessmentId);
-    if (!assessment || assessment.authorUserId !== recorder.userId) {
-      return { status: "forbidden" } as const;
-    }
-    assessment.versions.push({
-      content,
-      criteria: round.criteriaHistory.find((value) => value.version === record.criteriaVersion)!
-        .criteria,
+  const assessmentId = assignment.assessmentId ?? assignment.id;
+  const result = prepareReviewChange(
+    row.reviews,
+    assignment.assessmentId
+      ? {
+          action: "edit",
+          id: assignment.assessmentId,
+          content,
+          note: note.trim(),
+        }
+      : {
+          action: "record",
+          id: assignment.id,
+          contactId,
+          requestId: assignment.requestId,
+          previousId:
+            row.reviews.assessments.filter((value) => value.contactId === contactId).at(-1)?.id ??
+            null,
+          content,
+        },
+    {
+      contact: { id: contactId, name: record.reviewer, archived: false },
+      applicationVersion: row.applicationVersion,
+      availableVersions: await readMaterialVersions(tx, assignment.caseId),
+      criteriaVersion: round.criteriaVersion,
+      criteriaHistory: round.criteriaHistory,
       recorder,
-      note: note.trim(),
-    });
-    next.revision++;
-    version = assessment.versions.length;
-  } else {
-    const result = prepareReviewChange(
-      next,
-      {
-        action: "record",
-        id: assignment.id,
-        contactId,
-        requestId: assignment.requestId,
-        previousId:
-          next.assessments.filter((value) => value.contactId === contactId).at(-1)?.id ?? null,
-        content,
-      },
-      {
-        contact: { id: contactId, name: record.reviewer, archived: false },
-        applicationVersion: row.applicationVersion,
-        availableVersions: await readMaterialVersions(tx, assignment.caseId),
-        criteriaVersion: round.criteriaVersion,
-        criteriaHistory: round.criteriaHistory,
-        recorder,
-      },
-    );
-    if (!result.ok) {
-      return { status: "invalid" } as const;
-    }
-    next = result.state;
-    next.assessments.find((value) => value.id === assignment.id)!.authorUserId = recorder.userId;
+      authorUserId: recorder.userId,
+    },
+  );
+  if (!result.ok) {
+    return {
+      status: result.error === "reviewer_authored" ? "forbidden" : "invalid",
+    } as const;
   }
-  await recordReviewChange(tx, row, next);
+  const version =
+    result.state.assessments.find((value) => value.id === assessmentId)?.versions.length ?? 1;
+  await recordReviewChange(tx, row, result.state);
   await recordSubmissionEvent(tx, {
     record,
     recorder,
     content,
     note,
-    recorded: { assessmentId: assignment.assessmentId ?? assignment.id, version },
+    recorded: { assessmentId, version },
   });
   return {
     status: "ok",
-    assessmentId: assignment.assessmentId ?? assignment.id,
+    assessmentId,
     version,
   } as const;
 };
@@ -559,7 +545,6 @@ const applyManagerAction = async (
     if (!assignment.assessmentId) {
       return { status: "invalid" } as const;
     }
-    await updateReviewerAssignment(tx, assignment.id, { revision });
   } else {
     const changed = await changeReviewerParticipation(tx, assignment, actor, name, request);
     if (changed.status !== "ok") {

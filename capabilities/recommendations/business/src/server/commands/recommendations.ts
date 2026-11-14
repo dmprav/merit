@@ -20,7 +20,12 @@ export const saveFundingRecommendation = async (
   actor: Actor,
   input: SaveRecommendationRequest,
 ) => {
-  const request = saveRecommendationRequestSchema.parse(input);
+  const parsed = saveRecommendationRequestSchema.safeParse(input);
+  if (!parsed.success) {
+    return { status: "invalid", error: "invalid_recommendation" } as const;
+  }
+
+  const request = parsed.data;
 
   return db.transaction(async (tx) => {
     const identity = await lockApplicationCase(tx, actor.userId, request, "update");
@@ -28,7 +33,7 @@ export const saveFundingRecommendation = async (
       return { status: "not_found" } as const;
     }
 
-    const row = await readRecommendationState(tx, actor.userId, request);
+    const row = await readRecommendationState(tx, identity.organizationId, request.publicId);
     if (!row) {
       return { status: "not_found" } as const;
     }

@@ -3,9 +3,10 @@ import { and, eq, sql, desc } from "drizzle-orm";
 import { applicationCases } from "@merit/applications/schema";
 import { recordAuditEvent } from "@merit/audit/server/record";
 import { actorProvenance, type Actor } from "@merit/auth";
-import { contacts } from "@merit/contacts/schema";
+import { appUsers } from "@merit/auth/schema";
 import type { Database } from "@merit/db";
-import { organizations } from "@merit/organizations/schema";
+import { memberships, organizations } from "@merit/organizations/schema";
+import { organizationScope } from "@merit/organizations/scope";
 import { fundingRounds } from "@merit/rounds/schema";
 
 import { readReviewerRecord } from "../reviewer-records";
@@ -19,26 +20,51 @@ import { reviewRequests, reviewStates } from "../schema";
 
 export type ReviewerTransaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
-/** Match grant command lock order so cancellation, submissions, and material edits serialize. */
+/**
+ * Canonical grant-work lock hierarchy:
+ * organizations -> funding_rounds -> application_cases -> review_assignments -> memberships / app_users.
+ * Match grant command lock order so cancellation, submissions, and material edits serialize.
+ */
 export const lockReviewerAssignment = async (tx: ReviewerTransaction, id: string) => {
-  const initial = await readReviewerRecord(tx, id);
-  if (!initial) {
+  const [target] = await tx
+    .select({
+      organizationId: reviewAssignments.organizationId,
+      caseId: reviewAssignments.caseId,
+      roundId: applicationCases.roundId,
+      criteriaRoundId: reviewRequests.criteriaRoundPublicId,
+    })
+    .from(reviewAssignments)
+    .innerJoin(applicationCases, eq(applicationCases.id, reviewAssignments.caseId))
+    .innerJoin(
+      reviewRequests,
+      and(
+        eq(reviewRequests.caseId, reviewAssignments.caseId),
+        eq(reviewRequests.id, reviewAssignments.requestId),
+      ),
+    )
+    .where(eq(reviewAssignments.id, id));
+  if (!target) {
     return undefined;
   }
   await tx
     .select({ id: organizations.id })
     .from(organizations)
-    .where(eq(organizations.id, initial.assignment.organizationId))
+    .where(eq(organizations.id, target.organizationId))
     .for("share");
-  await tx
-    .select({ id: fundingRounds.id })
-    .from(fundingRounds)
-    .where(eq(fundingRounds.id, initial.criteriaRoundId!))
-    .for("share");
+  const roundId = target.criteriaRoundId ?? target.roundId;
+  if (roundId !== null) {
+    await tx
+      .select({ id: fundingRounds.id })
+      .from(fundingRounds)
+      .where(
+        and(eq(fundingRounds.organizationId, target.organizationId), eq(fundingRounds.id, roundId)),
+      )
+      .for("share");
+  }
   await tx
     .select({ id: applicationCases.id })
     .from(applicationCases)
-    .where(eq(applicationCases.id, initial.assignment.caseId))
+    .where(eq(applicationCases.id, target.caseId))
     .for("update");
   await tx
     .select({ id: reviewAssignments.id })
@@ -48,7 +74,127 @@ export const lockReviewerAssignment = async (tx: ReviewerTransaction, id: string
   return readReviewerRecord(tx, id);
 };
 
-export const reviewerReceipt = async (tx: Database, assignmentId: string, commandId: string) =>
+const lockManagedAssignmentRound = async (
+  tx: ReviewerTransaction,
+  workspaceId: string,
+  input: { publicId: string; assignmentId: string },
+) => {
+  const [target] = await tx
+    .select({
+      roundId: applicationCases.roundId,
+      criteriaRoundId: reviewRequests.criteriaRoundPublicId,
+    })
+    .from(reviewAssignments)
+    .innerJoin(applicationCases, eq(applicationCases.id, reviewAssignments.caseId))
+    .innerJoin(
+      reviewRequests,
+      and(
+        eq(reviewRequests.caseId, reviewAssignments.caseId),
+        eq(reviewRequests.id, reviewAssignments.requestId),
+      ),
+    )
+    .where(
+      and(
+        eq(reviewAssignments.id, input.assignmentId),
+        eq(reviewAssignments.caseId, input.publicId),
+        eq(reviewAssignments.organizationId, workspaceId),
+      ),
+    );
+  if (!target) {
+    return false;
+  }
+  const roundId = target.criteriaRoundId ?? target.roundId;
+  if (roundId !== null) {
+    await tx
+      .select({ id: fundingRounds.id })
+      .from(fundingRounds)
+      .where(and(eq(fundingRounds.organizationId, workspaceId), eq(fundingRounds.id, roundId)))
+      .for("share");
+  }
+  return true;
+};
+
+const lockManagedCaseAndActor = async (
+  tx: ReviewerTransaction,
+  userId: string,
+  workspaceId: string,
+  input: { publicId: string; assignmentId: string },
+) => {
+  const [lockedCase] = await tx
+    .select({ id: applicationCases.id })
+    .from(applicationCases)
+    .innerJoin(memberships, eq(memberships.organizationId, applicationCases.organizationId))
+    .innerJoin(appUsers, eq(appUsers.id, memberships.userId))
+    .where(
+      and(
+        eq(applicationCases.id, input.publicId),
+        eq(applicationCases.organizationId, workspaceId),
+        organizationScope(userId, "work_on_grants", applicationCases.organizationId),
+      ),
+    )
+    .for("update", { of: applicationCases });
+  if (!lockedCase) {
+    return null;
+  }
+  const [lockedAssignment] = await tx
+    .select({ id: reviewAssignments.id })
+    .from(reviewAssignments)
+    .where(
+      and(
+        eq(reviewAssignments.id, input.assignmentId),
+        eq(reviewAssignments.caseId, input.publicId),
+        eq(reviewAssignments.organizationId, workspaceId),
+      ),
+    )
+    .for("update");
+  if (!lockedAssignment) {
+    return null;
+  }
+  const [actor] = await tx
+    .select({ userId: appUsers.id, name: appUsers.name, email: memberships.email })
+    .from(memberships)
+    .innerJoin(appUsers, eq(appUsers.id, memberships.userId))
+    .where(
+      and(
+        eq(memberships.organizationId, workspaceId),
+        organizationScope(userId, "work_on_grants", workspaceId),
+      ),
+    )
+    .for("share", { of: [memberships, appUsers] });
+  return actor ?? null;
+};
+
+/**
+ * Lock organization -> funding_rounds -> application_cases -> review_assignments -> memberships/app_users
+ * in one pass for manager actions on a reviewer assignment.
+ */
+export const lockManagedReviewerAssignment = async (
+  tx: ReviewerTransaction,
+  userId: string,
+  input: { workspaceSlug: string; publicId: string; assignmentId: string },
+  organizationMode: "share" | "update" = "share",
+) => {
+  const [workspace] = await tx
+    .select({ id: organizations.id })
+    .from(organizations)
+    .where(eq(organizations.slug, input.workspaceSlug))
+    .for(organizationMode);
+  if (!workspace || !(await lockManagedAssignmentRound(tx, workspace.id, input))) {
+    return null;
+  }
+  const actor = await lockManagedCaseAndActor(tx, userId, workspace.id, input);
+  if (!actor) {
+    return null;
+  }
+  const record = await readReviewerRecord(tx, input.assignmentId);
+  return record ? { record, actor } : null;
+};
+
+export const reviewerReceipt = async (
+  tx: ReviewerTransaction,
+  assignmentId: string,
+  commandId: string,
+) =>
   (
     await tx
       .select()
@@ -116,7 +262,7 @@ export const recordReviewerEvent = async (
 };
 
 export const recordReviewerReceipt = (
-  tx: Database,
+  tx: ReviewerTransaction,
   input: { assignmentId: string; commandId: string; revision: number },
 ) =>
   tx.insert(reviewerCommandReceipts).values({
@@ -125,15 +271,11 @@ export const recordReviewerReceipt = (
     resultRevision: input.revision,
   });
 
-export const reviewContact = async (tx: Database, organizationId: string, contactId: string) =>
-  (
-    await tx
-      .select()
-      .from(contacts)
-      .where(and(eq(contacts.organizationId, organizationId), eq(contacts.id, contactId)))
-  )[0];
-
-export const invitationLimited = async (tx: Database, organizationId: string, email: string) => {
+export const invitationLimited = async (
+  tx: ReviewerTransaction,
+  organizationId: string,
+  email: string,
+) => {
   const [counts] = await tx
     .select({
       recent: sql<number>`count(*) filter (where ${reviewerMessages.createdAt} > now() - interval '1 minute' and ${reviewerMessages.recipient} = ${email})::int`,
@@ -153,7 +295,7 @@ export const invitationLimited = async (tx: Database, organizationId: string, em
 };
 
 export const queueReviewerMessage = async (
-  tx: Database,
+  tx: ReviewerTransaction,
   assignmentId: string,
   id: string,
   kind: "invitation" | "submission",
@@ -173,19 +315,19 @@ export const finishReviewerMessage = (db: Database, id: string, status: "sent" |
   db.update(reviewerMessages).set({ status }).where(eq(reviewerMessages.id, id));
 
 export const updateReviewerAssignment = (
-  tx: Database,
+  tx: ReviewerTransaction,
   id: string,
   changes: Partial<typeof reviewAssignments.$inferInsert>,
 ) => tx.update(reviewAssignments).set(changes).where(eq(reviewAssignments.id, id));
 
 export const writeReviewerDraft = (
-  tx: Database,
+  tx: ReviewerTransaction,
   id: string,
   changes: Partial<typeof reviewerDrafts.$inferInsert>,
 ) => tx.update(reviewerDrafts).set(changes).where(eq(reviewerDrafts.assignmentId, id));
 
 export const updateParticipatingRequest = async (
-  tx: Database,
+  tx: ReviewerTransaction,
   caseId: string,
   requestId: string,
   status: "outstanding" | "received" | "cancelled",
@@ -217,7 +359,7 @@ export const updateParticipatingRequest = async (
 };
 
 export const createReviewerAssignment = async (
-  tx: Database,
+  tx: ReviewerTransaction,
   values: typeof reviewAssignments.$inferInsert,
   draft: (typeof reviewerDrafts.$inferInsert)["content"],
 ) => {
@@ -225,7 +367,11 @@ export const createReviewerAssignment = async (
   await tx.insert(reviewerDrafts).values({ assignmentId: values.id, content: draft });
 };
 
-export const assignmentForRequest = async (tx: Database, caseId: string, requestId: string) =>
+export const assignmentForRequest = async (
+  tx: ReviewerTransaction,
+  caseId: string,
+  requestId: string,
+) =>
   (
     await tx
       .select()

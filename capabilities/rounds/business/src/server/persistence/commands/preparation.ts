@@ -4,8 +4,8 @@ import { recordAuditEvent } from "@merit/audit/server/record";
 import { actorProvenance, type Actor } from "@merit/auth";
 import { appUsers } from "@merit/auth/schema";
 import type { Database } from "@merit/db";
-import { memberships } from "@merit/organizations/schema";
-import { membershipScope } from "@merit/organizations/scope";
+import { memberships, organizations } from "@merit/organizations/schema";
+import { membershipScope, organizationScope } from "@merit/organizations/scope";
 
 import type { FundingRound } from "../../../domain/model";
 import type { prepareRoundChange } from "../../../domain/preparation";
@@ -15,11 +15,7 @@ import { fundingRounds, roundCreationReceipts, criteriaVersions } from "../schem
 
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
-export const lockPreparationRound = async (
-  tx: Transaction,
-  organizationId: string,
-  publicId: string,
-) => {
+const readPreparationRound = async (tx: Transaction, organizationId: string, publicId: string) => {
   const [row] = await tx
     .select({
       id: fundingRounds.id,
@@ -29,8 +25,7 @@ export const lockPreparationRound = async (
       budgetEstablished: fundingRounds.budgetEstablished,
     })
     .from(fundingRounds)
-    .where(and(eq(fundingRounds.organizationId, organizationId), eq(fundingRounds.id, publicId)))
-    .for("update");
+    .where(and(eq(fundingRounds.organizationId, organizationId), eq(fundingRounds.id, publicId)));
 
   return (
     row && {
@@ -41,6 +36,76 @@ export const lockPreparationRound = async (
       budgetEstablished: row.budgetEstablished,
     }
   );
+};
+
+export const lockPreparationRound = async (
+  tx: Transaction,
+  organizationId: string,
+  publicId: string,
+) => {
+  const [locked] = await tx
+    .select({ id: fundingRounds.id })
+    .from(fundingRounds)
+    .where(and(eq(fundingRounds.organizationId, organizationId), eq(fundingRounds.id, publicId)))
+    .for("update");
+  if (!locked) {
+    return undefined;
+  }
+
+  return readPreparationRound(tx, organizationId, publicId);
+};
+
+/**
+ * Canonical grant-work lock hierarchy:
+ * organizations -> funding_rounds -> application_cases -> review_assignments -> memberships / app_users.
+ */
+export const lockPreparationRoundAccess = async (
+  tx: Transaction,
+  userId: string,
+  input: { workspaceSlug: string; publicId: string },
+) => {
+  const [workspace] = await tx
+    .select({ id: organizations.id })
+    .from(organizations)
+    .where(eq(organizations.slug, input.workspaceSlug))
+    .for("share");
+  if (!workspace) {
+    return null;
+  }
+
+  const [lockedRound] = await tx
+    .select({ id: fundingRounds.id })
+    .from(fundingRounds)
+    .innerJoin(memberships, eq(memberships.organizationId, fundingRounds.organizationId))
+    .innerJoin(appUsers, eq(appUsers.id, memberships.userId))
+    .where(
+      and(
+        eq(fundingRounds.organizationId, workspace.id),
+        eq(fundingRounds.id, input.publicId),
+        organizationScope(userId, "work_on_grants", fundingRounds.organizationId),
+      ),
+    )
+    .for("update", { of: fundingRounds });
+  if (!lockedRound) {
+    return null;
+  }
+
+  const [actor] = await tx
+    .select({ userId: appUsers.id, name: appUsers.name, email: memberships.email })
+    .from(memberships)
+    .innerJoin(appUsers, eq(appUsers.id, memberships.userId))
+    .where(
+      and(
+        eq(memberships.organizationId, workspace.id),
+        organizationScope(userId, "work_on_grants", workspace.id),
+      ),
+    )
+    .for("share", { of: [memberships, appUsers] });
+  if (!actor) {
+    return null;
+  }
+
+  return (await readPreparationRound(tx, workspace.id, input.publicId)) ?? null;
 };
 
 type PreparationState = NonNullable<Awaited<ReturnType<typeof lockPreparationRound>>>;

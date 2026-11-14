@@ -14,6 +14,7 @@ import { newPreparedRound, prepareRoundChange, withRoundManager } from "../../do
 import type { RoundApplications } from "../grant-work";
 import {
   lockPreparationRound,
+  lockPreparationRoundAccess,
   readCreationReceipt,
   recordPreparationCreation,
   recordPreparationChange,
@@ -68,12 +69,7 @@ export const editFundingRound = async (db: Database, actor: Actor, input: EditRo
 
   const request = parsed.data;
   return db.transaction(async (tx) => {
-    const access = await lockGrantWorkspace(tx, actor.userId, request.workspaceSlug, "share");
-    if (!access) {
-      return { status: "not_found" } as const;
-    }
-
-    const row = await lockPreparationRound(tx, access.organization.id, request.publicId);
+    const row = await lockPreparationRoundAccess(tx, actor.userId, request);
     if (!row) {
       return { status: "not_found" } as const;
     }
@@ -115,12 +111,7 @@ export const deleteFundingRound = async (
 
   const request = parsed.data;
   return db.transaction(async (tx) => {
-    const access = await lockGrantWorkspace(tx, actor.userId, request.workspaceSlug, "share");
-    if (!access) {
-      return { status: "not_found" } as const;
-    }
-
-    const row = await lockPreparationRound(tx, access.organization.id, request.publicId);
+    const row = await lockPreparationRoundAccess(tx, actor.userId, request);
     if (!row) {
       return { status: "not_found" } as const;
     }

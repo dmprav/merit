@@ -11,7 +11,7 @@
     "./schema": "./src/server/persistence/schema.ts",
     "./scope": "./src/server/persistence/projections.ts",
     "./encoding": "./src/server/persistence/encoding.ts",
-    "./locks": "./src/server/persistence/locks.ts",
+    "./locks": "./src/server/persistence/commands/locks.ts",
     "./server/grant-work": "./src/server/grant-work.ts",
     "./server/demo": "./src/server/demo.ts",
     "./server/integrations": "./src/server/integrations.ts",
