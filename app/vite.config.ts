@@ -59,6 +59,7 @@ export default defineConfig(({ command }) => ({
                   ...config.worker.env,
                   CLERK_SECRET_KEY: bindings.text(""),
                   RESEND_API_KEY: bindings.text(""),
+                  OTEL_EXPORTER_OTLP_HEADERS: bindings.text(""),
                 },
               },
             })
@@ -79,7 +80,8 @@ export default defineConfig(({ command }) => ({
         client: {
           specifiers: [
             /^@tanstack\/(react|solid|vue)-start\/server$/,
-            /^@merit\/(db|mcp|test-support)(\/|$)/,
+            /^@merit\/(db|mcp|telemetry|test-support)(\/|$)/,
+            /^@opentelemetry\//,
             /^@merit\/auth\/(clerk-oauth|clerk-users|schema|session)(\/|$)/,
             /^@merit\/[^/]+\/(server|testing|schema|scope|locks)(\/|$)/,
           ],

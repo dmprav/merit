@@ -28,6 +28,10 @@ export default defineConfig(({ mode }) => {
         EMAIL_FROM: bindings.text("invitations@merit.local"),
         MAILPIT_URL: bindings.text("http://127.0.0.1:8025"),
         RESEND_API_KEY: bindings.secret(),
+        OTEL_SERVICE_NAME: bindings.text("merit"),
+        OTEL_EXPORTER_OTLP_ENDPOINT: bindings.text(""),
+        OTEL_EXPORTER_OTLP_HEADERS: bindings.secret(),
+        OTEL_TRACE_FILTER: bindings.text("checkly"),
         HYPERDRIVE: bindings.hyperdrive({
           // Replace with a cache-disabled Hyperdrive configuration before deploying.
           id: "00000000000000000000000000000000",

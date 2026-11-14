@@ -52,8 +52,13 @@ const dateImports = {
   regex: "^@internationalized/date($|/)",
   message: "Date operations belong in @merit/dates. Use its public API.",
 };
+const telemetryImports = {
+  regex: "^@opentelemetry/",
+  message: "OpenTelemetry setup belongs in foundation/telemetry. Use @merit/telemetry instead.",
+};
 const restrictedImports = [
   dateImports,
+  telemetryImports,
   reactAriaImports,
   formImports,
   tableImports,
@@ -98,6 +103,10 @@ const serverLibraries = "drizzle-orm(/|$)|pg$|node:";
 export const imports = {
   rules: importRules(allowImports(processImports)),
   overrides: [
+    {
+      files: ["**/foundation/telemetry/**"],
+      rules: importRules(allowImports(telemetryImports, processImports)),
+    },
     {
       files: ["**/foundation/ui/**"],
       rules: importRules(allowImports(reactAriaImports, processImports)),
@@ -226,6 +235,10 @@ export const imports = {
         "**/foundation/auth/src/persistence/**",
       ],
       rules: forbidImports(`^(${frameworks})`),
+    },
+    {
+      files: ["**/foundation/telemetry/src/**"],
+      rules: forbidImports(`^(${frameworks}|${serverLibraries})`, allowImports(telemetryImports)),
     },
     {
       files: ["**/foundation/ui/src/**"],
