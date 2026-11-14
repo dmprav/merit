@@ -1,5 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
-import { useState } from "react";
+import { useLayoutEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { CreationData, CreationDraft } from "../../contracts/creation";
@@ -21,10 +21,15 @@ const hasInput = (draft: CreationDraft) =>
 
 export const useCreation = (data: CreationData) => {
   const { t } = useTranslation("fundingRounds");
-  const { creations, setCreation } = useCreationDrafts();
+  const { creations, setCreation, ready } = useCreationDrafts();
   const { target, draftKey: key } = data;
   const draft = creations[key];
   const [open, setOpen] = useState(false);
+  useLayoutEffect(() => {
+    if (open && ready && !draft) {
+      setCreation(key, emptyDraft());
+    }
+  }, [open, ready, draft, setCreation, key]);
   const [created, setCreated] = useState<{ title: string; publicId: string } | null>(null);
   const [refreshFailed, setRefreshFailed] = useState(false);
   const [openFailed, setOpenFailed] = useState(false);
@@ -73,6 +78,7 @@ export const useCreation = (data: CreationData) => {
 
   return {
     draft,
+    ready,
     target,
     open,
     created,
@@ -84,12 +90,7 @@ export const useCreation = (data: CreationData) => {
     refresh,
     save,
     dismiss: () => setCreated(null),
-    openEditor: () => {
-      if (!draft) {
-        setCreation(key, emptyDraft());
-      }
-      setOpen(true);
-    },
+    openEditor: () => setOpen(true),
     update: (value: CreationDraft) => setCreation(key, value),
     close: () => changeOpen(false),
     discard: () => {

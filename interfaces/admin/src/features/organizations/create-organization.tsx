@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { FormDialog } from "@merit/forms";
 import { Button } from "@merit/ui/button";
 import { DialogContent } from "@merit/ui/dialog";
+import { EditorLoading } from "@merit/ui/editor-loading";
 import linkStyles from "@merit/ui/link.module.css";
 import { Notice } from "@merit/ui/notice";
 
@@ -78,6 +79,10 @@ export const CreateOrganization = () => {
                 {t("continue")}
               </Link>
             </Notice>
+          </DialogContent>
+        ) : !drafts.creationReady ? (
+          <DialogContent label={t("create")}>
+            <EditorLoading />
           </DialogContent>
         ) : (
           <CreateOrganizationForm

@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 
 import { Button } from "../../components/button/button";
 import { Icon } from "../../components/icon/icon";
 import { Tooltip } from "../../components/tooltip/tooltip";
+import { EditorLoading, EditorClose } from "./editor-loading";
 import styles from "./inline-name.module.css";
 
 type InlineNameProps = {
@@ -13,6 +14,7 @@ type InlineNameProps = {
   errorMessage: string;
   onSave: (value: string) => Promise<string | null>;
   isDisabled?: boolean;
+  isPreparing?: boolean;
 };
 
 /** A heading-sized editor. Leaving the field keeps the draft; Escape cancels it. */
@@ -24,51 +26,25 @@ export const InlineName = ({
   errorMessage,
   onSave,
   isDisabled = false,
+  isPreparing = false,
 }: InlineNameProps) => {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(value);
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const saveAtOpen = useRef(onSave);
-  const trigger = useRef<HTMLButtonElement>(null);
-  const restoreFocus = useRef(false);
-
-  useEffect(() => {
-    if (restoreFocus.current && trigger.current) {
-      trigger.current.focus();
-      restoreFocus.current = false;
-    }
+  const { editing, draft, setDraft, pending, error, trigger, close, save, open } = useNameEditing({
+    value,
+    onSave,
+    errorMessage,
+    isPreparing,
+    isDisabled,
   });
 
-  const close = () => {
-    restoreFocus.current = true;
-    setEditing(false);
-    setError(null);
-  };
-
-  const save = async () => {
-    if (pending || !draft.trim()) {
-      return;
-    }
-    if (draft.trim() === value) {
-      close();
-      return;
-    }
-
-    setPending(true);
-
-    try {
-      const failure = await saveAtOpen.current(draft.trim());
-      setError(failure);
-      if (!failure) {
-        close();
-      }
-    } catch {
-      setError(errorMessage);
-    } finally {
-      setPending(false);
-    }
-  };
+  if (editing && isPreparing) {
+    return (
+      <span>
+        <span>{label}</span>
+        <EditorLoading />
+        <EditorClose label={cancelLabel} onClose={close} />
+      </span>
+    );
+  }
 
   return editing ? (
     <span
@@ -110,16 +86,94 @@ export const InlineName = ({
       aria-label={value}
       aria-description={label}
       isDisabled={isDisabled}
-      onPress={() => {
-        saveAtOpen.current = onSave;
-        setDraft(value);
-        setEditing(true);
-      }}
+      onPress={open}
     >
       {value}
       <Icon name="edit" />
     </Button>
   );
+};
+
+const useNameEditing = ({
+  value,
+  onSave,
+  errorMessage,
+  isPreparing,
+  isDisabled,
+}: Pick<InlineNameProps, "value" | "onSave" | "errorMessage" | "isPreparing" | "isDisabled">) => {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const saveAtOpen = useRef(onSave);
+  const awaitingPreparation = useRef(false);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const restoreFocus = useRef(false);
+
+  useLayoutEffect(() => {
+    if (editing && !isPreparing && awaitingPreparation.current) {
+      setDraft(value);
+      saveAtOpen.current = onSave;
+      awaitingPreparation.current = false;
+      if (isDisabled) {
+        setEditing(false);
+      }
+    }
+  }, [editing, isPreparing, isDisabled, onSave, value]);
+
+  useEffect(() => {
+    if (restoreFocus.current && trigger.current) {
+      trigger.current.focus();
+      restoreFocus.current = false;
+    }
+  });
+
+  const close = () => {
+    restoreFocus.current = true;
+    setEditing(false);
+    setError(null);
+  };
+
+  const save = async () => {
+    if (pending || !draft.trim()) {
+      return;
+    }
+    if (draft.trim() === value) {
+      close();
+      return;
+    }
+
+    setPending(true);
+
+    try {
+      const failure = await saveAtOpen.current(draft.trim());
+      setError(failure);
+      if (!failure) {
+        close();
+      }
+    } catch {
+      setError(errorMessage);
+    } finally {
+      setPending(false);
+    }
+  };
+
+  return {
+    editing,
+    draft,
+    setDraft,
+    pending,
+    error,
+    trigger,
+    close,
+    save,
+    open: () => {
+      awaitingPreparation.current = Boolean(isPreparing);
+      saveAtOpen.current = onSave;
+      setDraft(value);
+      setEditing(true);
+    },
+  };
 };
 
 const InlineNameActions = ({

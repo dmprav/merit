@@ -22,6 +22,7 @@ const setup = () => {
       wrapper: ({ children }) => (
         <DraftContext
           value={{
+            ready: true,
             drafts: { application: { value: draft, baseline } },
             setDraft,
             clearDrafts: vi.fn(),

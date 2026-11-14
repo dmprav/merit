@@ -1,5 +1,4 @@
 export const en = {
-  draftsRestoring: "Restoring drafts…",
   draftRecoveryConflict:
     "Another tab changed a saved draft. Your edits remain here. Save or discard them before closing this tab.",
   history: "Access history",

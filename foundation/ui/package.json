@@ -25,6 +25,7 @@
     "./styles.css": "./src/styles.css",
     "./icon": "./src/components/icon/icon.tsx",
     "./page-header": "./src/patterns/page-header/page-header.tsx",
+    "./editor-loading": "./src/patterns/editing/editor-loading.tsx",
     "./state-message": "./src/patterns/state-message/state-message.tsx",
     "./section-header": "./src/patterns/section-header/section-header.tsx",
     "./notice": "./src/components/notice/notice.tsx",

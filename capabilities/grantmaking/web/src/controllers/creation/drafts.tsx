@@ -6,6 +6,7 @@ import type { CreationDraft } from "../../contracts/creation";
 import { creationStorage } from "./storage";
 
 export const DraftContext = createContext<{
+  ready: boolean;
   creations: Record<string, CreationDraft | undefined>;
   setCreation: (key: string, draft: CreationDraft | undefined) => void;
 } | null>(null);
@@ -25,11 +26,12 @@ export const useCreationDraftStore = (storageScope?: string) => {
     status,
     value: useMemo(
       () => ({
+        ready,
         creations: drafts,
         setCreation: (key: string, draft: CreationDraft | undefined) =>
           setDrafts((current) => ({ ...current, [key]: draft })),
       }),
-      [drafts, setDrafts],
+      [drafts, setDrafts, ready],
     ),
   };
 };

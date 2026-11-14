@@ -53,6 +53,7 @@ const states = [
 
 const renderControls = (state: (typeof states)[number]) => {
   const intake: ComponentProps<typeof IntakeControls>["intake"] = {
+    ready: true,
     application: {
       ...application,
       intakeStatus: state.name === "preparation" ? "in_preparation" : "ready",
@@ -154,6 +155,7 @@ it("shows the withdrawal facts and offers only reinstatement while withdrawn", a
   render(
     <IntakeControls
       intake={{
+        ready: true,
         application: {
           ...application,
           intakeStatus: "ready",

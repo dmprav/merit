@@ -7,6 +7,8 @@ import type { ReviewerSummary } from "@merit/reviews/api";
 import type { ReviewState } from "@merit/reviews/domain";
 import { ActionMenu } from "@merit/ui/action-menu";
 import { Button } from "@merit/ui/button";
+import { DialogContent } from "@merit/ui/dialog";
+import { EditorLoading } from "@merit/ui/editor-loading";
 import { Icon } from "@merit/ui/icon";
 import { Inline } from "@merit/ui/layout";
 import { Notice } from "@merit/ui/notice";
@@ -288,12 +290,12 @@ const ReviewEditor = ({
   const criteriaHistory = round.criteriaHistory;
   return (
     <FormDialog
-      title={t(draft?.mode === "request" ? "request" : draft?.mode === "edit" ? "edit" : "record")}
-      context={draft?.mode === "request" ? undefined : application.title}
-      size={draft?.mode === "request" ? "default" : "wide"}
+      title={t(work.mode === "request" ? "request" : work.mode === "edit" ? "edit" : "record")}
+      context={work.mode === "request" ? undefined : application.title}
+      size={work.mode === "request" ? "default" : "wide"}
       trigger={null}
       closeLabel={t("close")}
-      isOpen={Boolean(editing && draft)}
+      isOpen={editing}
       onOpenChange={(open) => {
         if (!open) {
           close();
@@ -303,7 +305,13 @@ const ReviewEditor = ({
       }}
       isDismissDisabled={saving}
     >
-      {draft && (
+      {!work.ready || !draft ? (
+        <DialogContent
+          label={t(work.mode === "request" ? "request" : work.mode === "edit" ? "edit" : "record")}
+        >
+          <EditorLoading />
+        </DialogContent>
+      ) : (
         <>
           {conflict && (
             <Notice as="div" tone="warning">

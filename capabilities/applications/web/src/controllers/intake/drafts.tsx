@@ -6,6 +6,7 @@ import type { IntakeDraft } from "./intake-state";
 import { intakeStorage } from "./storage";
 
 export const DraftContext = createContext<{
+  ready: boolean;
   applicationEdits: Record<string, IntakeDraft | undefined>;
   setApplicationEdit: (key: string, draft: IntakeDraft | undefined) => void;
 } | null>(null);
@@ -28,11 +29,12 @@ export const useIntakeDraftStore = (storageScope?: string) => {
     status,
     value: useMemo(
       () => ({
+        ready,
         applicationEdits: drafts,
         setApplicationEdit: (key: string, draft: IntakeDraft | undefined) =>
           setDrafts((current) => ({ ...current, [key]: draft })),
       }),
-      [drafts, setDrafts],
+      [drafts, setDrafts, ready],
     ),
   };
 };

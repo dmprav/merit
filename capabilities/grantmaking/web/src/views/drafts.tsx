@@ -12,7 +12,6 @@ import {
   usePreparationDraftStore,
 } from "@merit/rounds-web/drafts";
 import { Notice } from "@merit/ui/notice";
-import { StateMessage } from "@merit/ui/state-message";
 
 import {
   DraftContext as CreationContext,
@@ -34,7 +33,6 @@ const DraftSession = ({ children, storageScope }: DraftProps) => {
   const recommendation = useRecommendationDraftStore(storageScope);
   const review = useReviewDraftStore(storageScope);
   const stores = [preparation, intake, creation, recommendation, review];
-  const ready = stores.every((store) => store.ready);
   const conflict = stores.some((store) => store.status === "conflict");
   const unavailable = stores.some((store) => store.unavailable);
 
@@ -49,7 +47,7 @@ const DraftSession = ({ children, storageScope }: DraftProps) => {
                   {t(conflict ? "draftRecoveryConflict" : "draftRecoveryUnavailable")}
                 </Notice>
               )}
-              {ready ? children : <StateMessage title={t("draftsRestoring")} role="status" />}
+              {children}
             </ReviewContext>
           </RecommendationContext>
         </CreationContext>

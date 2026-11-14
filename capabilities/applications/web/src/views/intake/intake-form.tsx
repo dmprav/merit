@@ -7,6 +7,7 @@ import { ContactPicker } from "@merit/contacts-web/contacts";
 import { Form, FormActions, FormTextField, useForm, useTranslatedSchema } from "@merit/forms";
 import { ActionMenu } from "@merit/ui/action-menu";
 import { Button } from "@merit/ui/button";
+import { EditorLoading, EditorClose } from "@merit/ui/editor-loading";
 import { Icon } from "@merit/ui/icon";
 import { Notice } from "@merit/ui/notice";
 import { TextField } from "@merit/ui/text-field";
@@ -399,9 +400,16 @@ const SummaryForm = (props: SectionProps<"details">) => {
 };
 
 export const IntakeForm = (props: EditorProps) => {
+  const { t } = useTranslation("applicationIntake");
   const draft = props.editor.draft;
-  if (!draft) {
-    return null;
+  if (!props.editor.ready || !draft) {
+    return (
+      <div className={styles.form}>
+        <h3>{t(sectionLabels[props.editor.section ?? "details"])}</h3>
+        <EditorLoading />
+        <EditorClose label={t("preparation.close")} onClose={props.onClose} />
+      </div>
+    );
   }
 
   const key = `${draft.section}:${draft.revision}`;

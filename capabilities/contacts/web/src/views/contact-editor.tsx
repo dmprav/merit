@@ -4,6 +4,8 @@ import { useTranslation } from "react-i18next";
 import { contactDetailsSchema, type ContactDetails } from "@merit/contacts/domain";
 import { Form, FormActions, FormTextField, useForm, useTranslatedSchema } from "@merit/forms";
 import { Button } from "@merit/ui/button";
+import { DialogContent } from "@merit/ui/dialog";
+import { EditorLoading } from "@merit/ui/editor-loading";
 import { Inline, Stack } from "@merit/ui/layout";
 import { Notice } from "@merit/ui/notice";
 
@@ -79,7 +81,7 @@ const ContactForm = ({
   );
 };
 
-export const ContactEditor = (props: {
+type ContactEditorProps = {
   workspaceSlug: string;
   contact?: Contact;
   data: ContactsData;
@@ -87,7 +89,20 @@ export const ContactEditor = (props: {
   onClose: () => void;
   onPending: (pending: boolean) => void;
   draftStore: ReturnType<typeof useContactDrafts>;
-}) => {
+};
+
+export const ContactEditor = (props: ContactEditorProps) => {
+  const { t } = useTranslation("contacts");
+  return props.draftStore.ready ? (
+    <ReadyContactEditor {...props} />
+  ) : (
+    <DialogContent label={t(props.contact ? "editContact" : "addContact")}>
+      <EditorLoading />
+    </DialogContent>
+  );
+};
+
+const ReadyContactEditor = (props: ContactEditorProps) => {
   const { t } = useTranslation("contacts");
   const editor = useContactEditor(props);
   const { current, conflict, baseline, value } = editor;

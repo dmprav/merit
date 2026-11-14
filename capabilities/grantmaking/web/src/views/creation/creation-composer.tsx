@@ -3,6 +3,8 @@ import { useTranslation } from "react-i18next";
 
 import { FormDialog } from "@merit/forms";
 import { Button } from "@merit/ui/button";
+import { DialogContent } from "@merit/ui/dialog";
+import { EditorLoading } from "@merit/ui/editor-loading";
 import { Icon } from "@merit/ui/icon";
 import { Notice } from "@merit/ui/notice";
 import { StatusMessage } from "@merit/ui/status-message";
@@ -64,7 +66,11 @@ const CreationComposer = ({ data, renderCreatedLink }: CreationActionProps) => {
           message={created ? t("creation.created", { title: created.title }) : null}
         />
         {feedback}
-        {draft && (
+        {!creation.ready || !draft ? (
+          <DialogContent label={label}>
+            <EditorLoading />
+          </DialogContent>
+        ) : (
           <CreationForm
             key={draft.requestId}
             titleId={`${focusId}-title`}

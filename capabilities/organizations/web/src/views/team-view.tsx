@@ -9,11 +9,12 @@ import { ActionProvenance } from "@merit/ui/action-provenance";
 import shellStyles from "@merit/ui/application-shell.module.css";
 import { Button } from "@merit/ui/button";
 import { ConfirmationDialog } from "@merit/ui/confirmation-dialog";
+import { DialogContent } from "@merit/ui/dialog";
+import { EditorLoading } from "@merit/ui/editor-loading";
 import { Inline, Stack } from "@merit/ui/layout";
 import { Notice } from "@merit/ui/notice";
 import { PageHeader } from "@merit/ui/page-header";
 import { PagedContent } from "@merit/ui/paged-content";
-import { StateMessage } from "@merit/ui/state-message";
 import { StatusMessage } from "@merit/ui/status-message";
 
 import type { TeamData, TeamSection, Member, Invitation } from "../contracts/team";
@@ -268,8 +269,19 @@ const TeamEditorDialog = ({
       }}
       isDismissDisabled={busy}
     >
-      {dialog?.kind === "invite" && editors.invitation && <InviteForm {...editors.invitation} />}
-      {dialog?.kind === "edit" && <EditForm {...editors.memberEditor(dialog.member)} />}
+      {(dialog?.kind === "invite" && (!editors.invitationReady || !editors.invitation)) ||
+      (dialog?.kind === "edit" && !editors.memberReady) ? (
+        <DialogContent label={title}>
+          <EditorLoading />
+        </DialogContent>
+      ) : (
+        <>
+          {dialog?.kind === "invite" && editors.invitation && (
+            <InviteForm {...editors.invitation} />
+          )}
+          {dialog?.kind === "edit" && <EditForm {...editors.memberEditor(dialog.member)} />}
+        </>
+      )}
     </FormDialog>
   );
 };
@@ -347,9 +359,6 @@ const DraftRecovery = ({
   children: ReactNode;
 }) => {
   const { t } = useTranslation("team");
-  if (!editors.ready) {
-    return <StateMessage title={t("draftsRestoring")} role="status" />;
-  }
   return (
     <>
       {editors.storageError && (

@@ -21,6 +21,8 @@ import {
   canChangeRecommendation,
 } from "@merit/recommendations/domain";
 import { Button } from "@merit/ui/button";
+import { DialogContent } from "@merit/ui/dialog";
+import { EditorLoading, EditorClose } from "@merit/ui/editor-loading";
 import { Icon } from "@merit/ui/icon";
 import { Stack } from "@merit/ui/layout";
 import { SectionHeader } from "@merit/ui/section-header";
@@ -46,6 +48,7 @@ type RecommendationEditorProps = {
   application: Application;
   round: ApplicationRoundContext;
   disabled: boolean;
+  ready?: boolean;
   showActionLabel?: boolean;
   onClose?: () => void | Promise<void>;
   children?: (slots: {
@@ -63,6 +66,7 @@ export const RecommendationEditor = ({
   application,
   round,
   disabled,
+  ready = true,
   showActionLabel = false,
   draft,
   onDraftChange,
@@ -73,24 +77,17 @@ export const RecommendationEditor = ({
   const { t } = useTranslation("fundingRecommendations");
   const { managerRecommendation: recommendation } = application;
   const withdrawn = !canChangeRecommendation(application);
-  const editButton = useRef<HTMLButtonElement>(null);
-  const restoreFocus = useRef(false);
-  const { isEditing, isSaving, isOpen, canResume, open, close, save } = useRecommendationEditor({
+  const { editButton, restoreFocus } = useRecommendationFocus();
+  const { isSaving, isOpen, canResume, open, close, save } = useRecommendationEditor({
     application,
+    ready,
     draft,
     onDraftChange,
     onSave,
     onClose: async () => {
-      await onClose?.();
       restoreFocus.current = true;
+      await onClose?.();
     },
-  });
-
-  useEffect(() => {
-    if (restoreFocus.current && editButton.current) {
-      editButton.current.focus();
-      restoreFocus.current = false;
-    }
   });
 
   const action = (
@@ -110,29 +107,28 @@ export const RecommendationEditor = ({
     <p className={localStyles.empty}>{t("applications.notRecommended")}</p>
   );
 
+  const preparing = !ready || !draft;
   const closeAction = (
-    <Button
-      variant="quiet"
-      size="small"
-      iconOnly
-      aria-label={t("editor.close")}
+    <EditorClose
+      label={t("editor.close")}
+      onClose={() => void close()}
+      autoFocus={preparing}
       isDisabled={isSaving}
-      onPress={() => void close()}
-    >
-      <Icon name="close" />
-    </Button>
+      iconOnly
+    />
   );
-  const editor =
-    isEditing && draft && !withdrawn ? (
-      <RecommendationForm
-        application={application}
-        round={round}
-        initialDraft={draft}
-        onDraftChange={onDraftChange}
-        onSave={save}
-        close={close}
-      />
-    ) : null;
+  const editor = isOpen && !withdrawn && (
+    <RecommendationWriting
+      ready={ready}
+      draft={draft}
+      application={application}
+      round={round}
+      onDraftChange={onDraftChange}
+      onSave={save}
+      close={close}
+      closeAction={!children && closeAction}
+    />
+  );
 
   return children ? (
     children({ summary, editor, action, closeAction })
@@ -147,6 +143,41 @@ export const RecommendationEditor = ({
       {editor}
     </>
   );
+};
+
+const useRecommendationFocus = () => {
+  const editButton = useRef<HTMLButtonElement>(null);
+  const restoreFocus = useRef(false);
+  useEffect(() => {
+    if (restoreFocus.current && editButton.current) {
+      editButton.current.focus();
+      restoreFocus.current = false;
+    }
+  });
+
+  return { editButton, restoreFocus };
+};
+
+const RecommendationWriting = ({
+  ready,
+  draft,
+  closeAction,
+  ...props
+}: Omit<RecommendationFormProps, "initialDraft"> & {
+  ready: boolean;
+  draft?: RecommendationDraft;
+  closeAction: ReactNode;
+}) => {
+  const { t } = useTranslation("fundingRecommendations");
+  if (!ready || !draft) {
+    return (
+      <DialogContent label={t("editor.openFor", { title: props.application.title })}>
+        <EditorLoading />
+        {closeAction}
+      </DialogContent>
+    );
+  }
+  return <RecommendationForm {...props} initialDraft={draft} />;
 };
 
 const RecommendationAction = ({
