@@ -1,6 +1,10 @@
 import { expect, test } from "@playwright/test";
 
-const baseUrl = (process.env.MERIT_BASE_URL ?? "http://localhost:3000").replace(/\/+$/, "");
+const rawBaseUrl = process.env.MERIT_BASE_URL?.trim();
+if (!rawBaseUrl) {
+  throw new Error("MERIT_BASE_URL environment variable is required.");
+}
+const baseUrl = rawBaseUrl.replace(/\/+$/, "");
 
 test("opens the demo workspace and renders the prepared funding round", async ({ page }) => {
   await page.goto(`${baseUrl}/demo`);

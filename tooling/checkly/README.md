@@ -14,7 +14,8 @@ Sign in with `npx checkly login` (or configure `CHECKLY_API_KEY` and `CHECKLY_AC
 
 ```sh
 vp run @merit/checkly#typecheck
-MERIT_BASE_URL=https://your-merit-origin.example vp run @merit/checkly#test
+vp run @merit/checkly#test
+MERIT_BASE_URL=https://your-merit-origin.example vp run @merit/checkly#test:synthetic
 MERIT_BASE_URL=https://your-merit-origin.example vp run @merit/checkly#deploy
 ```
 

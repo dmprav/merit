@@ -224,5 +224,5 @@ and secrets:
 | `OTEL_TRACE_FILTER`           | `checkly` (default, exports only Checkly-traced runs) or `all` (exports every request). |
 
 Synthetic checks live in [`tooling/checkly`](../../tooling/checkly/README.md). Set
-`MERIT_BASE_URL` to your target origin and run `vp run @merit/checkly#test` to
+`MERIT_BASE_URL` to your target origin and run `vp run @merit/checkly#test:synthetic` to
 verify checks against Checkly or `vp run @merit/checkly#deploy` to sync schedules.

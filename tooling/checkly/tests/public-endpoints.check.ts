@@ -1,6 +1,8 @@
 import { ApiCheck, AssertionBuilder, Frequency } from "checkly/constructs";
 
-const baseUrl = (process.env.MERIT_BASE_URL ?? "http://localhost:3000").replace(/\/+$/, "");
+import { resolveTargetBaseUrl } from "./target";
+
+const baseUrl = resolveTargetBaseUrl();
 
 new ApiCheck("landing-page", {
   name: "Landing page serves framed response",
