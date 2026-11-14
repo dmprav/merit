@@ -130,6 +130,7 @@ const manager = { status: "authenticated", actor: { userId: "manager" } } as con
 it.each([
   { outcome: "forbidden", status: "not_found" },
   { outcome: "not_found", status: "workspace_not_found" },
+  { outcome: "invalid", status: "unavailable" },
 ] as const)("presents $outcome activity as $status", async ({ outcome, status }) => {
   expect(
     await loadWorkspaceActivity(

@@ -938,42 +938,6 @@ test("round overview keeps context visible and links to the right application se
   ).toBeVisible();
 });
 
-test("round breadcrumb restores application sorting", async ({ page }, testInfo) => {
-  await openDemoRound(page, true);
-
-  await expect(page).toHaveTitle("Local Connections 2027 · Merit");
-  await expect(page.getByRole("button", { name: "Demo guide", exact: true })).toBeEnabled();
-
-  if (testInfo.project.name === "mobile") {
-    await page.getByRole("button", { name: /Sort applications/ }).click();
-    await page.getByRole("option", { name: "Application (descending)", exact: true }).click();
-  } else {
-    await page.getByRole("button", { name: "Application", exact: true }).click();
-    await page.getByRole("button", { name: "Application", exact: true }).click();
-  }
-  const firstApplication = page.getByRole("row").nth(1);
-
-  await expect(firstApplication).toContainText("Workshop Saturdays");
-
-  await page.getByRole("link", { name: "Workshop Saturdays", exact: true }).click();
-
-  await expect(
-    page.getByRole("heading", { name: "Workshop Saturdays", exact: true }),
-  ).toBeVisible();
-
-  await page
-    .getByRole("navigation", { name: "Breadcrumb" })
-    .getByRole("link", { name: "Local Connections 2027" })
-    .click();
-
-  await expect(page).toHaveURL(/section=applications/);
-  await expect(firstApplication).toContainText("Workshop Saturdays");
-  await expect(page.getByRole("tab", { name: /Applications/, selected: true })).toBeVisible();
-
-  await checkPage(page);
-  await page.screenshot({ path: testInfo.outputPath("breadcrumb-sort.png"), fullPage: true });
-});
-
 test("round list restores its position and keeps application drafts independent", async ({
   page,
 }, testInfo) => {

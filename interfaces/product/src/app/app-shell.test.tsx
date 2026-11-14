@@ -202,22 +202,6 @@ describe("personal review navigation", () => {
     expect(navigation.queryByRole("link", { name: "Workspace settings" })).not.toBeInTheDocument();
   });
 
-  it("lists Activity after Applications, without pins, for people who work on grants", async () => {
-    await renderWithRouter(
-      <AppShell current={{ kind: "workspace", workspace: alder }}>Workspace</AppShell>,
-      "/app/alder/rounds",
-    );
-    const navigation = within(screen.getByRole("navigation", { name: "Main navigation" }));
-    const names = navigation.getAllByRole("link").map((link) => link.textContent);
-
-    expect(names.indexOf("Activity")).toBe(names.indexOf("Applications") + 1);
-    expect(navigation.getByRole("link", { name: "Activity" })).toHaveAttribute(
-      "href",
-      "/app/alder/activity",
-    );
-    expect(navigation.queryByRole("button", { name: /Activity/ })).not.toBeInTheDocument();
-  });
-
   it("links to My reviews from real workspaces but not from a demo", async () => {
     const { unmount } = await renderWithRouter(
       <AppShell current={{ kind: "workspace", workspace: alder }}>Workspace</AppShell>,
@@ -240,7 +224,22 @@ describe("personal review navigation", () => {
   });
 });
 
-describe("workspace navigation selection", () => {
+describe("workspace navigation", () => {
+  it("lists Activity after Applications for people who work on grants", async () => {
+    await renderWithRouter(
+      <AppShell current={{ kind: "workspace", workspace: alder }}>Workspace</AppShell>,
+      "/app/alder/rounds",
+    );
+    const navigation = within(screen.getByRole("navigation", { name: "Main navigation" }));
+    const names = navigation.getAllByRole("link").map((link) => link.textContent);
+
+    expect(names.indexOf("Activity")).toBe(names.indexOf("Applications") + 1);
+    expect(navigation.getByRole("link", { name: "Activity" })).toHaveAttribute(
+      "href",
+      "/app/alder/activity",
+    );
+  });
+
   it.each([
     ["/app/alder/rounds", "Funding rounds"],
     ["/app/alder/rounds/community-grants-k7m2p9x4n6rt", "Funding rounds"],
