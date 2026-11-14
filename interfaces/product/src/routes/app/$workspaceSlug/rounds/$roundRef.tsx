@@ -1,15 +1,15 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 
-import { FundingRoundScreen } from "../app/funding-round-screens";
-import { webTranslator } from "../app/messages";
-import { WorkspaceStatusPage } from "../app/workspace-page";
-import { publicIdFromRef } from "../features/grantmaking/contracts/resource-url";
-import { useWorkspaceRoundData } from "../features/grantmaking/data/workspace-data";
+import { FundingRoundScreen } from "../../../../app/funding-round-screens";
+import { webTranslator } from "../../../../app/messages";
+import { WorkspaceStatusPage } from "../../../../app/workspace-page";
+import { publicIdFromRef } from "../../../../features/grantmaking/contracts/resource-url";
+import { useWorkspaceRoundData } from "../../../../features/grantmaking/data/workspace-data";
 import {
   loadPublicPage,
   workspaceRoundsLocation,
   applicationLocation,
-} from "../features/grantmaking/page-routing";
+} from "../../../../features/grantmaking/page-routing";
 
 const RoundPage = () => {
   const params = Route.useParams();

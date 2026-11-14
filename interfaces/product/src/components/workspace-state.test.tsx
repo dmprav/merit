@@ -21,7 +21,7 @@ import { WorkspaceRecovery, WorkspaceStatusPage } from "../app/workspace-page";
 import { readWorkspaces } from "../features/workspace/data/server/organization.functions";
 import { readWorkspace } from "../features/workspace/data/server/workspace.functions";
 import { WorkspaceNavigationContext } from "../features/workspace/workspace-navigation";
-import { Route as workspaceRoute } from "../routes/app.$workspaceSlug";
+import { Route as workspaceRoute } from "../routes/app/$workspaceSlug/route";
 import { WorkspaceState } from "./workspace-state";
 
 vi.mock("../features/workspace/data/server/organization.functions", () => ({

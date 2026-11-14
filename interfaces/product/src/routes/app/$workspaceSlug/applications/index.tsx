@@ -5,14 +5,14 @@ import { useTranslation } from "react-i18next";
 import { ApplicationsOverview, useWorkspaceApplicationList } from "@merit/grantmaking-web/rounds";
 import { PageHeader } from "@merit/ui/page-header";
 
-import { AppPage } from "../app/app-shell";
-import { webTranslator } from "../app/messages";
-import { WorkspaceStatusPage } from "../app/workspace-page";
-import { applicationsSearch } from "../features/grantmaking/contracts/applications-location";
-import { resourceRef } from "../features/grantmaking/contracts/resource-url";
-import { applicationsOptions, roundsOptions } from "../features/grantmaking/data/queries";
-import { WorkspaceApplicationCreate } from "../features/grantmaking/workspace-application-create";
-import { workspaceOptions } from "../features/workspace/data/queries";
+import { AppPage } from "../../../../app/app-shell";
+import { webTranslator } from "../../../../app/messages";
+import { WorkspaceStatusPage } from "../../../../app/workspace-page";
+import { applicationsSearch } from "../../../../features/grantmaking/contracts/applications-location";
+import { resourceRef } from "../../../../features/grantmaking/contracts/resource-url";
+import { applicationsOptions, roundsOptions } from "../../../../features/grantmaking/data/queries";
+import { WorkspaceApplicationCreate } from "../../../../features/grantmaking/workspace-application-create";
+import { workspaceOptions } from "../../../../features/workspace/data/queries";
 
 const WorkspaceApplications = () => {
   const { workspaceSlug } = Route.useParams();

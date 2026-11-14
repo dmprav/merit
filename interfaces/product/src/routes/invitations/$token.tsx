@@ -3,11 +3,11 @@ import { useTranslation } from "react-i18next";
 
 import { StateMessage } from "@merit/ui/state-message";
 
-import { webTranslator } from "../app/messages";
-import { RouteRetry } from "../components/route-retry";
-import { StandalonePage } from "../components/standalone-page";
-import { invitationOptions, invitationFingerprint } from "../features/workspace/data/queries";
-import { WorkspaceInvitation } from "../features/workspace/invitation";
+import { webTranslator } from "../../app/messages";
+import { RouteRetry } from "../../components/route-retry";
+import { StandalonePage } from "../../components/standalone-page";
+import { invitationOptions, invitationFingerprint } from "../../features/workspace/data/queries";
+import { WorkspaceInvitation } from "../../features/workspace/invitation";
 
 const Invitation = () => {
   const { token } = Route.useParams();

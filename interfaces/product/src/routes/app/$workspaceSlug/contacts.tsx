@@ -2,11 +2,11 @@ import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
-import { AppPage } from "../app/app-shell";
-import { webTranslator } from "../app/messages";
-import { WorkspaceStatusPage } from "../app/workspace-page";
-import { ContactsDirectory } from "../features/contacts/contacts";
-import { contactsOptions } from "../features/contacts/data/queries";
+import { AppPage } from "../../../app/app-shell";
+import { webTranslator } from "../../../app/messages";
+import { WorkspaceStatusPage } from "../../../app/workspace-page";
+import { ContactsDirectory } from "../../../features/contacts/contacts";
+import { contactsOptions } from "../../../features/contacts/data/queries";
 
 const ContactsPage = () => {
   const { t } = useTranslation("contacts");

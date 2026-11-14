@@ -1,13 +1,13 @@
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 
-import { FundingRoundsScreen } from "../app/funding-round-screens";
-import { webTranslator } from "../app/messages";
-import { WorkspaceStatusPage } from "../app/workspace-page";
-import { resourceRef } from "../features/grantmaking/contracts/resource-url";
-import { roundsOptions } from "../features/grantmaking/data/queries";
-import { useWorkspaceRoundsData } from "../features/grantmaking/data/workspace-data";
-import { workspaceOptions } from "../features/workspace/data/queries";
+import { FundingRoundsScreen } from "../../../../app/funding-round-screens";
+import { webTranslator } from "../../../../app/messages";
+import { WorkspaceStatusPage } from "../../../../app/workspace-page";
+import { resourceRef } from "../../../../features/grantmaking/contracts/resource-url";
+import { roundsOptions } from "../../../../features/grantmaking/data/queries";
+import { useWorkspaceRoundsData } from "../../../../features/grantmaking/data/workspace-data";
+import { workspaceOptions } from "../../../../features/workspace/data/queries";
 
 const Workspace = () => {
   const { workspaceSlug } = Route.useParams();

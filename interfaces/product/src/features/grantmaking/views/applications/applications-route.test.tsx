@@ -23,9 +23,9 @@ import { createQueryClient } from "@merit/query";
 
 import { productRoute } from "../../../../../tests/product-route";
 import { WebMessagesProvider } from "../../../../app/messages";
-import { Route as workspaceRoute } from "../../../../routes/app.$workspaceSlug";
-import { Route as applicationRoute } from "../../../../routes/app.$workspaceSlug.applications.$applicationRef";
-import { Route } from "../../../../routes/app.$workspaceSlug.applications.index";
+import { Route as applicationRoute } from "../../../../routes/app/$workspaceSlug/applications/$applicationRef";
+import { Route } from "../../../../routes/app/$workspaceSlug/applications/index";
+import { Route as workspaceRoute } from "../../../../routes/app/$workspaceSlug/route";
 import { readWorkspaces } from "../../../workspace/data/server/organization.functions";
 import { readWorkspace } from "../../../workspace/data/server/workspace.functions";
 import { createApplication } from "../../data/server/creation/creation.functions";

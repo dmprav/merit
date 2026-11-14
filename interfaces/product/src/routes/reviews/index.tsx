@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { reviewerListOptions } from "../features/grantmaking/data/reviews/reviewer-data";
-import { ReviewerListPage, ReviewerUnavailable } from "../features/grantmaking/reviewer-page";
+import { reviewerListOptions } from "../../features/grantmaking/data/reviews/reviewer-data";
+import { ReviewerListPage, ReviewerUnavailable } from "../../features/grantmaking/reviewer-page";
 
 export const Route = createFileRoute("/_product/reviews/")({
   loader: ({ context }) => context.queryClient.fetchQuery(reviewerListOptions()),
