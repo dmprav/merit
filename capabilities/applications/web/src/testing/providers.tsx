@@ -12,5 +12,5 @@ export const GrantmakingDrafts = ({
   storageScope?: string;
 }) => {
   const store = useIntakeDraftStore(storageScope);
-  return <DraftContext value={store.value}>{store.ready ? children : null}</DraftContext>;
+  return <DraftContext value={store.value}>{children}</DraftContext>;
 };

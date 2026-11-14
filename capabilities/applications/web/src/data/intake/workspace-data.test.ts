@@ -26,7 +26,5 @@ it("namespaces intake draftKey by workspaceSlug and application publicId", () =>
 
   expect(alder.draftKey).toBe("alder/shared-id");
   expect(birch.draftKey).toBe("birch/shared-id");
-  expect(alder.legacyDraftKey).toBe("shared-id");
-  expect(birch.legacyDraftKey).toBe("shared-id");
   expect(alder.draftKey).not.toBe(birch.draftKey);
 });

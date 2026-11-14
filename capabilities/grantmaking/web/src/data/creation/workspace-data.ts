@@ -19,8 +19,6 @@ export const createCreationData = (
     target.kind === "round"
       ? `round:${target.workspaceSlug}`
       : `application:${target.workspaceSlug}/${target.roundPublicId}`,
-  legacyDraftKey:
-    target.kind === "round" ? target.workspaceSlug : `application:${target.roundPublicId}`,
   create: (value, materialLabel) =>
     target.kind === "round"
       ? source.createRound({

@@ -8,7 +8,6 @@ import { intakeStorage } from "./storage";
 export const DraftContext = createContext<{
   applicationEdits: Record<string, IntakeDraft | undefined>;
   setApplicationEdit: (key: string, draft: IntakeDraft | undefined) => void;
-  migrateApplicationEdits?: (moves: readonly [string, string][]) => void;
 } | null>(null);
 
 export const useIntakeDraftStore = (storageScope?: string) => {
@@ -32,20 +31,6 @@ export const useIntakeDraftStore = (storageScope?: string) => {
         applicationEdits: drafts,
         setApplicationEdit: (key: string, draft: IntakeDraft | undefined) =>
           setDrafts((current) => ({ ...current, [key]: draft })),
-        migrateApplicationEdits: (moves: readonly [string, string][]) =>
-          setDrafts((current) => {
-            let next: Record<string, IntakeDraft | undefined> | undefined;
-            for (const [from, to] of moves) {
-              if (current[to] === undefined && current[from] !== undefined) {
-                if (!next) {
-                  next = { ...current };
-                }
-                next[to] = current[from];
-                next[from] = undefined;
-              }
-            }
-            return next ?? current;
-          }),
       }),
       [drafts, setDrafts],
     ),

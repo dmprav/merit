@@ -21,7 +21,6 @@ export type IntakeFailure = Exclude<IntakeSaveResult, { status: "ok" }> | { stat
 export type IntakeData = {
   historySource?: PageSource<IntakeState["history"][number]>;
   draftKey: string;
-  legacyDraftKey?: string;
   workspaceSlug: string;
   publicId: string;
   state: IntakeState;
