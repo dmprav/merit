@@ -3,6 +3,7 @@ import { defineConfig } from "vite-plus";
 
 import { reactCompilerOptions } from "../../tooling/react-compiler";
 import { componentTestTimeout } from "../../tooling/testing/component-tests";
+import { workspaceUiSetup } from "../../tooling/testing/web-config";
 
 export default defineConfig({
   run: { tasks: { test: "vp test" } },
@@ -13,6 +14,6 @@ export default defineConfig({
     testTimeout: componentTestTimeout,
     environmentOptions: { jsdom: { url: "http://localhost:3000/" } },
     include: ["src/**/*.test.tsx"],
-    setupFiles: ["./tests/setup-ui.ts"],
+    setupFiles: [workspaceUiSetup],
   },
 });

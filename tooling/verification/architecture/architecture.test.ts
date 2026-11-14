@@ -113,6 +113,51 @@ const roleFixtures = [
   { name: "Grantmaking", root: grantmakingRoot, files: grantmakingFiles },
   { name: "Contacts", root: contactsRoot, files: contactsFiles },
 ];
+const collaborationFiles = {
+  ...grantmakingFiles,
+  ...contactsFiles,
+  ...organizationsFiles,
+  [`${contactsRoot}/package.json`]: JSON.stringify({
+    name: "@merit/contacts",
+    type: "module",
+    exports: {
+      "./domain": "./src/domain/value.ts",
+      "./api": "./src/api/index.ts",
+      "./server": "./src/server/index.ts",
+      "./server/demo": "./src/server/demo.ts",
+      "./server/grant-work": "./src/server/grant-work.ts",
+      "./schema": "./src/server/persistence/schema.ts",
+      "./scope": "./src/server/persistence/scope.ts",
+    },
+  }),
+  [`${organizationsRoot}/package.json`]: JSON.stringify({
+    name: "@merit/organizations",
+    type: "module",
+    exports: {
+      "./api": "./src/api/index.ts",
+      "./server": "./src/server/index.ts",
+      "./server/demo": "./src/server/demo.ts",
+      "./schema": "./src/server/persistence/membership-schema.ts",
+      "./scope": "./src/server/persistence/scope.ts",
+      "./locks": "./src/server/persistence/commands/locks.ts",
+    },
+  }),
+  "capabilities/access/package.json": JSON.stringify({
+    name: "@merit/access",
+    type: "module",
+    exports: { "./scope": "./src/persistence/scope.ts" },
+  }),
+  ...Object.fromEntries(
+    [
+      `${contactsRoot}/src/server/persistence/scope.ts`,
+      `${contactsRoot}/src/server/grant-work.ts`,
+      `${organizationsRoot}/src/server/persistence/membership-schema.ts`,
+      `${organizationsRoot}/src/server/persistence/scope.ts`,
+      `${organizationsRoot}/src/server/persistence/commands/locks.ts`,
+      "capabilities/access/src/persistence/scope.ts",
+    ].map((path) => [path, "export const value = 1; export type Value = number;"]),
+  ),
+};
 
 const runLinter = (args: string[], cwd: string) =>
   new Promise<{ status: number | null; stdout: string; stderr: string }>((resolve, reject) => {
@@ -855,9 +900,9 @@ describe.concurrent("architecture rules", () => {
 
   test("pure grantmaking modules can use their approved browser-safe dependencies", async () => {
     await check({
-      ...grantmakingFiles,
+      ...collaborationFiles,
       [`${grantmakingRoot}/src/domain/probe.ts`]:
-        'export { z } from "zod"; export type { Value } from "@merit/contacts/domain";',
+        'export { z } from "zod"; export type { Value } from "@merit/organizations/api";',
       [`${grantmakingRoot}/src/api/values.ts`]:
         'export { z } from "zod"; export type { Value } from "../domain/value";',
       [`${grantmakingRoot}/src/examples/probe.ts`]: 'export { value } from "../domain/value";',
@@ -873,7 +918,7 @@ describe.concurrent("architecture rules", () => {
   });
 
   test.each(["server", "server/integrations", "server/demo"])(
-    "grantmaking %s types cannot use the legacy request-context allowance",
+    "grantmaking %s types cannot be imported into product request context",
     async (entry) => {
       await check(
         {
@@ -1005,52 +1050,6 @@ describe.concurrent("architecture rules", () => {
       [`${organizationsRoot}/src/server/queries/value.ts`]: 'export { value } from "../execution";',
     });
   });
-
-  const collaborationFiles = {
-    ...grantmakingFiles,
-    ...contactsFiles,
-    ...organizationsFiles,
-    [`${contactsRoot}/package.json`]: JSON.stringify({
-      name: "@merit/contacts",
-      type: "module",
-      exports: {
-        "./domain": "./src/domain/value.ts",
-        "./api": "./src/api/index.ts",
-        "./server": "./src/server/index.ts",
-        "./server/demo": "./src/server/demo.ts",
-        "./server/grant-work": "./src/server/grant-work.ts",
-        "./schema": "./src/server/persistence/schema.ts",
-        "./scope": "./src/server/persistence/scope.ts",
-      },
-    }),
-    [`${organizationsRoot}/package.json`]: JSON.stringify({
-      name: "@merit/organizations",
-      type: "module",
-      exports: {
-        "./api": "./src/api/index.ts",
-        "./server": "./src/server/index.ts",
-        "./server/demo": "./src/server/demo.ts",
-        "./schema": "./src/server/persistence/membership-schema.ts",
-        "./scope": "./src/server/persistence/scope.ts",
-        "./locks": "./src/server/persistence/commands/locks.ts",
-      },
-    }),
-    "capabilities/access/package.json": JSON.stringify({
-      name: "@merit/access",
-      type: "module",
-      exports: { "./scope": "./src/persistence/scope.ts" },
-    }),
-    ...Object.fromEntries(
-      [
-        `${contactsRoot}/src/server/persistence/scope.ts`,
-        `${contactsRoot}/src/server/grant-work.ts`,
-        `${organizationsRoot}/src/server/persistence/membership-schema.ts`,
-        `${organizationsRoot}/src/server/persistence/scope.ts`,
-        `${organizationsRoot}/src/server/persistence/commands/locks.ts`,
-        "capabilities/access/src/persistence/scope.ts",
-      ].map((path) => [path, "export const value = 1; export type Value = number;"]),
-    ),
-  };
 
   const extractedCapabilityFiles = {
     ...collaborationFiles,

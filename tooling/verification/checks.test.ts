@@ -335,6 +335,7 @@ it.each([
       { command: "serve", mode: "test" },
       join(root, `capabilities/${capability}/web/vite.config.ts`),
     );
+    const { workspaceUiSetup } = await import("../testing/web-config");
     expect(loaded?.config).toMatchObject({
       run: { tasks: { test: "vp test", typecheck: "tsc --noEmit -p tsconfig.json" } },
       test: {
@@ -347,7 +348,7 @@ it.each([
               include: ["src/**/*.test.tsx"],
               environment: "jsdom",
               environmentOptions: { jsdom: { url: "http://localhost:3000/" } },
-              setupFiles: ["./tests/setup-ui.ts"],
+              setupFiles: [workspaceUiSetup],
               env: { VITE_CLERK_PUBLISHABLE_KEY: "" },
             },
           },

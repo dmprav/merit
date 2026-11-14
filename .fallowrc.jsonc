@@ -28,8 +28,6 @@
     "suggestInlineSuppression": false,
   },
   "supportEntry": [
-    // The shared web-test preset resolves setup relative to each capability.
-    "capabilities/*/web/tests/setup-ui.ts",
     "app/cloudflare.config.ts",
     "app/tests/browser/workspace.playwright.config.ts",
     // JS Boundaries loads the configured resolver through its plugin host.

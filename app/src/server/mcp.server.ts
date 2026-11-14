@@ -26,7 +26,7 @@ export const createMcpIdentity = (
   database: DatabaseRunner,
 ) => {
   const { isOperatorAccount, readProfile } = createClerkIdentitySupport(
-    config.secretKey ?? "",
+    config.secretKey,
     config.operatorUserIds,
   );
   let resolvedSession: ResolvedMcpSession | undefined;

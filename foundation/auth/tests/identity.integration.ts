@@ -4,7 +4,6 @@ import { assert, expect } from "vite-plus/test";
 import { appUsers, guestSessions } from "@merit/auth/schema";
 import {
   createGuestSession,
-  deleteExpiredGuestSessions,
   ensureInactiveUser,
   removeExpiredGuestBatch,
   renewGuestSession,
@@ -74,13 +73,6 @@ it("denies expired and disabled guest sessions before cleanup and never renews t
   }
 
   expect((await renewGuestSession(db, current.token))?.userId).toBe(current.userId);
-
-  await deleteExpiredGuestSessions(db);
-
-  expect(await resolveGuestSession(db, current.token)).not.toBeNull();
-  expect(
-    await db.select().from(guestSessions).where(eq(guestSessions.userId, expired.userId)),
-  ).toHaveLength(0);
 });
 
 it("creates a repeatable inactive attribution identity without modifying existing accounts", async ({
