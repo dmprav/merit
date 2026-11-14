@@ -28,9 +28,20 @@ export const applicationMaterialSchema = z.object({
   evidence: z.array(z.object({ version, passage: z.string() })),
 });
 
+export const applicationWithdrawalSchema = z.object({
+  withdrawnOn: calendarDateSchema,
+  reason: z.string(),
+  recorder: z.object({ userId: z.string(), name: z.string(), recordedAt: z.string() }),
+});
+
+export type ApplicationWithdrawal = z.infer<typeof applicationWithdrawalSchema>;
+
 export const applicationCaseSchema = z.object({
   id: z.string(),
   intakeStatus: z.enum(["in_preparation", "ready"]),
+  // Withdrawal is orthogonal to readiness: the retained intake status and working revision
+  // return unchanged on reinstatement.
+  withdrawal: applicationWithdrawalSchema.optional(),
   summaryAuthor: z
     .object({ name: z.string(), userId: z.string(), recordedAt: z.string() })
     .optional(),
@@ -50,5 +61,9 @@ export const intakeApplicationSchema = applicationCaseSchema.extend({
 export type ApplicationMaterial = z.infer<typeof applicationMaterialSchema>;
 
 export type IntakeApplication = z.infer<typeof intakeApplicationSchema>;
+
+/** The one business predicate for work that no longer counts or accepts changes. */
+export const isWithdrawn = (application: Pick<IntakeApplication, "withdrawal">) =>
+  application.withdrawal !== undefined;
 
 export type ApplicationUsage = { hasReviews: boolean; hasRecommendation: boolean };

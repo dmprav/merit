@@ -21,7 +21,7 @@ it("encodes recommendation money exactly and keeps the committed revision and pr
     recommendation,
     recommendationVersion: 7,
     budget: null,
-    totals: { proposed: recommendation.allocation, remaining: null },
+    totals: { proposed: recommendation.allocation, remaining: null, withdrawnApplications: 2 },
     internal: "private detail",
   };
 
@@ -31,7 +31,11 @@ it("encodes recommendation money exactly and keeps the committed revision and pr
     applicationId: "k7m2p9x4n6rt",
     recommendationRevision: 7,
     budget: null,
-    totals: { proposed: { minorUnits: "9007199254740993", currency: "EUR" }, remaining: null },
+    totals: {
+      proposed: { minorUnits: "9007199254740993", currency: "EUR" },
+      remaining: null,
+      withdrawnApplications: 2,
+    },
   });
   expect(presentRecommendation({ status: "conflict" }, "k7m2p9x4n6rt")).toEqual({
     status: "conflict",

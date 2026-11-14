@@ -1,6 +1,8 @@
+import { QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vite-plus/test";
+import type { ComponentProps } from "react";
+import { describe, expect, it, vi } from "vite-plus/test";
 
 import { roundView, applicationView } from "@merit/grantmaking/api";
 import {
@@ -11,9 +13,11 @@ import {
   makeRound,
 } from "@merit/grantmaking/testing/fixtures";
 import { fromMinorUnits } from "@merit/money";
+import { createQueryClient } from "@merit/query";
 import { reviewRevisionSchema } from "@merit/reviews/domain";
 
 import { GrantmakingMessagesProvider } from "../../messages";
+import { GrantmakingDrafts } from "../drafts";
 import { ApplicationView } from "./application-view";
 
 const round = roundView(makeRound({ manager: "Dana Reed" }));
@@ -434,6 +438,61 @@ describe("application workspace", () => {
       expect(screen.queryByRole("button", { name: "Record assessment" })).not.toBeInTheDocument();
     },
   );
+
+  it("keeps a withdrawn application's reviews and recommendation readable without offering work", async () => {
+    const user = userEvent.setup();
+    const reviewData: ComponentProps<typeof ApplicationView>["reviewData"] = {
+      draftKey: "withdrawn-application",
+      workspaceSlug: "alder",
+      save: vi.fn(),
+      refresh: vi.fn(),
+    };
+    const props = {
+      round,
+      reviewData,
+      recommendationAction: <button>Edit recommendation</button>,
+    };
+    const view = render(
+      <QueryClientProvider client={createQueryClient()}>
+        <GrantmakingDrafts>
+          <ApplicationView {...props} application={application} />
+        </GrantmakingDrafts>
+      </QueryClientProvider>,
+      { wrapper: GrantmakingMessagesProvider },
+    );
+    expect(screen.getByRole("button", { name: "Edit recommendation" })).toBeVisible();
+    await user.click(workspace().getByRole("button", { name: "Manage reviews" }));
+    expect(screen.getByRole("button", { name: "Add review request" })).toBeVisible();
+    view.unmount();
+
+    render(
+      <QueryClientProvider client={createQueryClient()}>
+        <GrantmakingDrafts>
+          <ApplicationView
+            {...props}
+            application={{
+              ...application,
+              withdrawal: {
+                withdrawnOn: "2027-01-10",
+                reason: "The applicant withdrew.",
+                recorder: { userId: "dana", name: "Dana Reed", recordedAt: "2027-01-11T09:00:00Z" },
+              },
+            }}
+          />
+        </GrantmakingDrafts>
+      </QueryClientProvider>,
+      { wrapper: GrantmakingMessagesProvider },
+    );
+
+    expect(screen.queryByRole("button", { name: "Edit recommendation" })).not.toBeInTheDocument();
+    await user.click(workspace().getByRole("button", { name: "Manage reviews" }));
+    expect(screen.queryByRole("button", { name: "Add review request" })).not.toBeInTheDocument();
+    expect(workspace().getByRole("region", { name: "Manager recommendation" })).toBeVisible();
+    expect(workspace().getByText("Await the revised assessment.")).toBeVisible();
+    await user.click(workspace().getByRole("button", { name: /Sam Morgan/ }));
+    expect(workspace().getByRole("article", { name: "Assessment by Sam Morgan" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: /Assessment actions/ })).not.toBeInTheDocument();
+  });
 
   it("preserves the mounted recommendation editor and its draft while changing reference views", async () => {
     const user = userEvent.setup();

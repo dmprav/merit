@@ -65,6 +65,7 @@ it("reports a negative balance for an over-budget allocation without changing it
 it("returns zero activity and the full budget for a round with no applications", () => {
   expect(summarizeRound(fromMinorUnits(6000000n), [])).toEqual({
     unknownRequests: 0,
+    withdrawnApplications: 0,
     requested: fromMinorUnits(0n),
     proposed: fromMinorUnits(0n),
     remaining: fromMinorUnits(6000000n),
@@ -93,3 +94,47 @@ it.each([null, fromMinorUnits(0n)])(
     expect(summarizeRound(budget, []).remaining).toEqual(budget);
   },
 );
+
+it("excludes withdrawn applications from every total and discloses how many it left out", () => {
+  const withdrawal = {
+    withdrawnOn: "2027-01-10",
+    reason: "The applicant withdrew.",
+    recorder: { userId: "manager", name: "Dana Reed", recordedAt: "2027-01-11T09:00:00Z" },
+  };
+  const outstanding = {
+    criteriaChanged: false,
+    criteriaUnknown: false,
+    submission: null,
+  };
+  const applications = [
+    {
+      version: materialVersionSchema.parse(1),
+      requested: fromMinorUnits(2400000n),
+      managerRecommendation: { allocation: fromMinorUnits(2000000n) },
+      assessments: [outstanding],
+    },
+    {
+      withdrawal,
+      version: materialVersionSchema.parse(1),
+      requested: fromMinorUnits(5000000n),
+      managerRecommendation: { allocation: fromMinorUnits(3000000n) },
+      assessments: [outstanding, outstanding],
+    },
+    {
+      withdrawal,
+      version: materialVersionSchema.parse(1),
+      requested: null,
+      managerRecommendation: null,
+      assessments: [],
+    },
+  ];
+
+  expect(summarizeRound(fromMinorUnits(6000000n), applications)).toEqual({
+    requested: fromMinorUnits(2400000n),
+    unknownRequests: 0,
+    withdrawnApplications: 2,
+    proposed: fromMinorUnits(2000000n),
+    remaining: fromMinorUnits(4000000n),
+    reviews: { assigned: 1, submitted: 0, current: 0, outdated: 0, outstanding: 1, unknown: 0 },
+  });
+});

@@ -75,6 +75,7 @@ export const getFundingRoundOverview = async (
         totals: {
           requested: encodeMoney(fromMinorUnits(BigInt(row.requested))),
           unknownRequests: row.unknownRequests,
+          withdrawnApplications: row.withdrawnApplications,
           proposed: encodeMoney(proposed),
           remaining: budget === null ? null : encodeMoney(subtract(budget, proposed)),
         },

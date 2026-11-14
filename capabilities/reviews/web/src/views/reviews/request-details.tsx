@@ -60,10 +60,14 @@ export const RequestDetails = ({ request }: { request: Request }) => {
       )}
       {request.closedBy && (
         <RequestEvent
-          label={t("requestClosed", {
-            status: t(request.status === "received" ? "received" : "cancelled"),
-            name: request.closedBy.name,
-          })}
+          label={
+            request.closedBy.cause === "application_withdrawn"
+              ? t("requestClosedWithdrawn", { name: request.closedBy.name })
+              : t("requestClosed", {
+                  status: t(request.status === "received" ? "received" : "cancelled"),
+                  name: request.closedBy.name,
+                })
+          }
           actor={request.closedBy}
         />
       )}

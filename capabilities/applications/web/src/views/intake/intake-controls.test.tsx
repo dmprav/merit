@@ -57,6 +57,8 @@ const renderControls = (state: (typeof states)[number]) => {
       ...application,
       intakeStatus: state.name === "preparation" ? "in_preparation" : "ready",
     },
+    withdrawn: false,
+    setConfirmation: vi.fn(),
     preparing: state.name === "preparation",
     workingRevision: state.workingRevision,
     section: null,
@@ -144,4 +146,53 @@ it("keeps missing-field guidance beside the disabled readiness action", async ()
   update({ missingFields: [] });
   expect(screen.queryByText(/Before marking ready/)).not.toBeInTheDocument();
   expect(action).toBeEnabled();
+});
+
+it("shows the withdrawal facts and offers only reinstatement while withdrawn", async () => {
+  const reason = "The applicant secured funding elsewhere and asked us to stop.";
+  const setConfirmation = vi.fn();
+  render(
+    <IntakeControls
+      intake={{
+        application: {
+          ...application,
+          intakeStatus: "ready",
+          withdrawal: {
+            withdrawnOn: "2027-02-03",
+            reason,
+            recorder: { userId: "manager", name: "Dana Reed", recordedAt: "2027-02-04T09:30:00Z" },
+          },
+        },
+        withdrawn: true,
+        preparing: false,
+        workingRevision: null,
+        section: null,
+        unsavedContent: false,
+        missingFields: [],
+        canStartRevision: false,
+        pending: false,
+        startRevision: vi.fn(),
+        markReady: vi.fn(),
+        publishRevision: vi.fn(),
+        setConfirmation,
+      }}
+      onReveal={vi.fn()}
+    />,
+    { wrapper: GrantmakingMessagesProvider },
+  );
+
+  expect(screen.getByRole("heading", { name: "Withdrawn application" })).toBeVisible();
+  expect(screen.queryByRole("heading", { name: "Manage submission" })).not.toBeInTheDocument();
+  expect(screen.getByText("Withdrawn")).toBeVisible();
+  expect(screen.queryByText("Ready for review")).not.toBeInTheDocument();
+  expect(screen.getByText(/3 February 2027/)).toBeVisible();
+  expect(screen.getByText("Recorded by Dana Reed")).toBeVisible();
+  expect(screen.getByText(reason)).toBeVisible();
+  expect(
+    screen.queryByRole("button", { name: "Start revised submission" }),
+  ).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Mark ready for review" })).not.toBeInTheDocument();
+
+  await userEvent.setup().click(screen.getByRole("button", { name: "Reinstate application" }));
+  expect(setConfirmation).toHaveBeenCalledWith("reinstate");
 });

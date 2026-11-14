@@ -9,6 +9,7 @@ const summary = {
   roundId: "k7m2p9x4n6rt",
   roundTitle: "Community grants",
   intakeStatus: "in_preparation",
+  withdrawn: false,
   reviews: { current: 0, outdated: 1, outstanding: 1, unknown: 0 },
   criteriaChanged: false,
   recommendation: null,

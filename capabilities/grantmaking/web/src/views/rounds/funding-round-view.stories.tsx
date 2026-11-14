@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ComponentProps } from "react";
-import { expect } from "storybook/test";
+import { expect, within } from "storybook/test";
 
 import { encodeRoundOverview, decodeRoundView } from "@merit/grantmaking/api";
 import type { FundingRoundOverviewData } from "@merit/grantmaking/api";
@@ -115,6 +115,41 @@ export const UnknownRequests: Story = {
         ),
       }),
     ),
+  },
+};
+
+const withdrawnRound = encodeRoundOverview(
+  roundView({
+    ...example,
+    applications: example.applications.map((application, index) =>
+      index === 1
+        ? {
+            ...application,
+            withdrawal: {
+              withdrawnOn: "2027-01-10",
+              reason: "The applicant secured other funding.",
+              recorder: { userId: "dana", name: "Dana Reed", recordedAt: "2027-01-11T09:00:00Z" },
+            },
+          }
+        : application,
+    ),
+  }),
+);
+
+export const WithdrawnApplication: Story = {
+  args: { section: "applications", round: withdrawnRound },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByText("1 withdrawn application not counted.")).toBeVisible();
+    await expect(canvas.getByText("Withdrawn", { selector: "p" })).toBeVisible();
+  },
+};
+export const WithdrawnFilter: Story = {
+  args: { section: "applications", round: withdrawnRound },
+  play: async ({ canvas, userEvent }) => {
+    await userEvent.click(canvas.getByRole("button", { name: /Show/ }));
+    await userEvent.click(await within(document.body).findByRole("option", { name: "Withdrawn" }));
+
+    await expect(canvas.getByRole("status")).toHaveTextContent("1 of");
   },
 };
 

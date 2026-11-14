@@ -12,6 +12,7 @@ export const readActivityEvents = (
     actorUserId?: string;
     roundId?: string;
     targetTypes: string[];
+    reasonActions: string[];
     after?: string;
     limit: number;
   },
@@ -31,6 +32,11 @@ export const readActivityEvents = (
       applicationId: auditEvents.applicationId,
       assignmentId: auditEvents.assignmentId,
       recordedAt: auditEvents.recordedAt,
+      reason: filter.reasonActions.length
+        ? sql<
+            string | null
+          >`case when ${inArray(auditEvents.action, filter.reasonActions)} then ${auditEvents.details}->>'reason' end`
+        : sql<string | null>`null`,
     })
     .from(auditEvents)
     .where(

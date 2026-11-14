@@ -41,6 +41,16 @@ const lifecycle = [
     intakeChanges.markReady,
   ],
   [
+    "withdraw_application",
+    "Record that the applicant withdrew the application, with the withdrawal date (a calendar date that is not in the future anywhere) and a reason. Withdrawal is the applicant stepping back; it is not a rejection or a deletion. The application, its material, reviews, and recommendation are kept, but it stops counting as active work or funding demand, becomes read-only, and every outstanding review request closes and ends reviewer access. The application can be reinstated.",
+    intakeChanges.withdraw,
+  ],
+  [
+    "reinstate_application",
+    "Reinstate a withdrawn application with a reason, returning it to its earlier intake status and working revision. Review requests closed by the withdrawal stay closed; create new requests or reinstate reviewer assignments.",
+    intakeChanges.reinstate,
+  ],
+  [
     "delete_application",
     "Delete an eligible unused application only when deletion is requested. Intake history is retained.",
     intakeChanges.delete,

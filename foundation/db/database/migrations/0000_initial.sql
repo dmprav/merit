@@ -20,6 +20,7 @@ CREATE TABLE "application_cases" (
 	"revision" integer DEFAULT 0 NOT NULL,
 	"contact_id" uuid,
 	"intake_status" text NOT NULL,
+	"withdrawal" jsonb,
 	"summary" text DEFAULT '' NOT NULL,
 	"summary_author" jsonb,
 	"attention" jsonb DEFAULT '[]'::jsonb NOT NULL,

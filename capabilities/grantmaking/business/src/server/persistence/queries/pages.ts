@@ -1,7 +1,7 @@
 import { and, eq, sql } from "drizzle-orm";
 
 import { applicationCases, materialVersions } from "@merit/applications/schema";
-import { workingRevision } from "@merit/applications/scope";
+import { roundWithdrawnCount, workingRevision } from "@merit/applications/scope";
 import { appUsers } from "@merit/auth/schema";
 import type { Database } from "@merit/db";
 import { memberships, organizations } from "@merit/organizations/schema";
@@ -71,6 +71,7 @@ export const readApplicationDetail = async (
       organizationId: applicationCases.organizationId,
       round: roundRecord,
       allocations: roundAllocations,
+      withdrawnApplications: roundWithdrawnCount(fundingRounds),
       workspaceSlug: organizations.slug,
       publicId: applicationCases.id,
       recommendationVersion: recommendationRevision,

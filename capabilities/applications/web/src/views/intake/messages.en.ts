@@ -34,6 +34,8 @@ export const intakeMessages = {
       "Save or discard your unsaved application edits before marking ready or recording a revision.",
     requestTotalTooLarge:
       "The round’s total requested amount is too large. Check the entered amount.",
+    allocationTotalTooLarge:
+      "Reinstating this application would make the round’s total proposed allocation too large.",
     add: "Add application",
     projectTitle: "Project title",
     applicant: "Applicant",
@@ -92,6 +94,31 @@ export const intakeMessages = {
     revisionRequired:
       "Start a correction or revised submission before changing submitted material.",
     delete: "Delete application",
+    withdraw: "Withdraw application",
+    withdrawFor: "Withdraw application: {{title}}",
+    reinstateFor: "Reinstate application: {{title}}",
+    withdrawDescription:
+      "Record that the applicant withdrew this application. The application, its material, reviews, and recommendation are kept. Withdrawal is not a rejection.",
+    withdrawClosesReviews_one:
+      "{{count}} outstanding review request will close, and its reviewer’s access will end.",
+    withdrawClosesReviews_other:
+      "{{count}} outstanding review requests will close, and their reviewers’ access will end.",
+    withdrawalDate: "Withdrawal date",
+    withdrawalDateInvalid: "Enter the date as YYYY-MM-DD.",
+    withdrawalDateFuture: "The withdrawal date cannot be in the future.",
+    withdrawalReason: "Reason",
+    withdrawalReasonRequired: "Enter the reason for withdrawing.",
+    withdrawn: "Withdrawn",
+    withdrawnHeading: "Withdrawn application",
+    withdrawnOn: "Withdrawn on {{date}}",
+    withdrawalRecordedBy: "Recorded by {{name}}",
+    reinstate: "Reinstate application",
+    reinstateDescription:
+      "The application returns to its earlier status and working revision and counts as active work again. Review requests closed by the withdrawal stay closed.",
+    reinstateReason: "Reason for reinstating",
+    reinstateReasonRequired: "Enter the reason for reinstating.",
+    applicationWithdrawn: "This application is withdrawn. Reinstate it to make changes.",
+    notWithdrawn: "This application is not withdrawn.",
     deleteDescription:
       "Delete “{{title}}” and its preparation details? Its audit history will be retained.",
     discardDescription:
@@ -111,6 +138,8 @@ export const intakeMessages = {
     eventDiscard: "Working revision discarded",
     eventRevision: "Revised submission recorded",
     eventCorrection: "Intake corrected",
+    eventWithdraw: "Application withdrawn",
+    eventReinstate: "Application reinstated",
     eventDetails: "Contact or staff summary updated",
     fundingNotReady:
       "Mark the application ready before recommending funding. You can record a deferral while information is missing.",

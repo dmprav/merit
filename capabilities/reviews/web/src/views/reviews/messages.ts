@@ -27,6 +27,7 @@ export const reviewError = (
         criteria_unavailable: "versionUnavailable",
         invalid_review: "invalidReview",
         reviewer_authored: "reviewerAuthored",
+        application_withdrawn: "applicationWithdrawn",
       } as const satisfies Record<ReviewSaveError, string>;
       return t(errors[problem.error]);
     }

@@ -21,19 +21,22 @@ const contextDataSchema = contextSchema.extend({ budget: moneyDataSchema.nullabl
 export const totalsDataSchema = z.object({
   proposed: moneyDataSchema,
   remaining: moneyDataSchema.nullable(),
+  withdrawnApplications: z.number().int().nonnegative(),
 });
 
 export const decodeApplicationContext = (
   input: unknown,
   allocations: unknown,
+  withdrawnApplications: number,
 ): ApplicationRoundContext => {
   const context = contextDataSchema.parse(input);
-  return { ...context, ...decodeBudgetContext(context.budget, allocations) };
+  return { ...context, ...decodeBudgetContext(context.budget, allocations, withdrawnApplications) };
 };
 
 export const encodeBudgetTotals = (totals: ApplicationRoundContext["totals"]) => ({
   proposed: encodeMoney(totals.proposed),
   remaining: totals.remaining === null ? null : encodeMoney(totals.remaining),
+  withdrawnApplications: totals.withdrawnApplications,
 });
 
 export const encodeApplicationDetail = (detail: {
@@ -64,6 +67,7 @@ export const decodeApplicationDetail = (input: unknown) => {
       totals: {
         proposed: decodeMoney(totals.proposed),
         remaining: totals.remaining === null ? null : decodeMoney(totals.remaining),
+        withdrawnApplications: totals.withdrawnApplications,
       },
     },
     application: applicationView(

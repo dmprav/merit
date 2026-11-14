@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import type { IntakeState } from "@merit/applications-web/contracts";
 import { ApplicationIntake, type IntakeSession } from "@merit/applications-web/work";
+import { isWithdrawn } from "@merit/applications/domain";
 import type {
   ApplicationRoundContext,
   ApplicationView as Application,
@@ -58,6 +59,8 @@ export const ApplicationView = (props: ApplicationViewProps) => {
     onTabChange,
   } = props;
   const state = useApplicationNavigation({ tab, onTabChange, editorOpen: Boolean(editor) });
+  // A withdrawn application keeps its reviews and recommendation readable but accepts no work.
+  const locked = readOnly || isWithdrawn(application);
   const { inspectHistory, revealIntake } = state;
   const history = intake?.data.state.history ?? intakeState?.history ?? [];
 
@@ -65,7 +68,7 @@ export const ApplicationView = (props: ApplicationViewProps) => {
     <ReviewWork
       application={application}
       round={round}
-      data={readOnly ? null : reviewData}
+      data={locked ? null : reviewData}
       selectedId={selected}
       onInspectVersion={inspectHistory}
       availableApplicationVersions={
@@ -88,6 +91,7 @@ export const ApplicationView = (props: ApplicationViewProps) => {
         <ApplicationLayout
           {...props}
           readOnly={readOnly}
+          locked={locked}
           content={content}
           state={state}
           history={history}
@@ -99,6 +103,7 @@ export const ApplicationView = (props: ApplicationViewProps) => {
 };
 
 type ApplicationLayoutProps = ApplicationViewProps & {
+  locked: boolean;
   content: Parameters<ComponentProps<typeof ApplicationIntake>["children"]>[0];
   state: ReturnType<typeof useApplicationNavigation>;
   history: NonNullable<IntakeState["history"]>;
@@ -290,7 +295,7 @@ const ApplicationWorkPane = ({
   application,
   round,
   content,
-  readOnly = false,
+  locked,
   recommendationAction,
   work,
   state,
@@ -332,7 +337,7 @@ const ApplicationWorkPane = ({
           application={application}
           manager={round.manager}
           overview={content.overview}
-          readOnly={readOnly}
+          readOnly={locked}
           recommendationAction={recommendationAction}
           onShowAll={() => changeReference("reviews")}
           onSelect={selectReview}

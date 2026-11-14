@@ -39,6 +39,7 @@ export const applicationFilters = [
   "changed",
   "unknown",
   "unwritten",
+  "withdrawn",
 ] as const;
 
 export type ApplicationFilter = (typeof applicationFilters)[number];

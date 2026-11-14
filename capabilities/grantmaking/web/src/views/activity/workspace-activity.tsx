@@ -41,6 +41,8 @@ const actionLabels = {
   "application.revision_recorded": "intake.eventRevision",
   "application.correction_recorded": "intake.eventCorrection",
   "application.deleted": "activity.actions.applicationDelete",
+  "application.withdraw": "activity.actions.applicationWithdraw",
+  "application.reinstate": "activity.actions.applicationReinstate",
   "round.created": "activity.actions.roundCreate",
   "round.budget_changed": "activity.actions.roundBudget",
   "round.criteria_changed": "activity.actions.roundCriteria",
@@ -207,7 +209,12 @@ const useActivityColumns = (renderRecordLink: WorkspaceActivityProps["renderReco
       id: "what",
       header: t("activity.what"),
       layout: { width: "24%" },
-      cell: (row) => t(actionLabel(row.action)),
+      cell: (row) => (
+        <>
+          {t(actionLabel(row.action))}
+          {row.reason && <p className={styles.reason}>{row.reason}</p>}
+        </>
+      ),
     },
     {
       id: "record",

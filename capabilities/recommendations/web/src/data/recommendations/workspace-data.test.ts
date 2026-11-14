@@ -35,6 +35,7 @@ it("applies saved recommendations through the injected cache updater and invalid
     totals: {
       proposed: encodeMoney(fromMinorUnits(150000n)),
       remaining: encodeMoney(fromMinorUnits(850000n)),
+      withdrawnApplications: 0,
     },
   };
   const save = vi.fn().mockResolvedValue(saved);

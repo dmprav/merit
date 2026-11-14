@@ -16,6 +16,7 @@
   "dependencies": {
     "@merit/applications": "workspace:*",
     "@merit/contacts-web": "workspace:*",
+    "@merit/dates": "workspace:*",
     "@merit/drafts": "workspace:*",
     "@merit/forms": "workspace:*",
     "@merit/grantmaking": "workspace:*",

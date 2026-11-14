@@ -22,6 +22,7 @@ const makeOverview = (
   roundId: rounds[0].id,
   roundTitle: rounds[0].title,
   intakeStatus: "ready",
+  withdrawn: false,
   reviews: { current: 1, outdated: 0, outstanding: 0, unknown: 0 },
   criteriaChanged: false,
   recommendation: { position: "Fund", outdated: false },
@@ -69,6 +70,14 @@ const overviewFixtures: readonly ApplicationOverview[] = [
     applicant: "Station Arts",
     reviews: { current: 0, outdated: 0, outstanding: 0, unknown: 1 },
   }),
+  makeOverview({
+    id: "a77777777777",
+    title: "Withdrawn project",
+    withdrawn: true,
+    reviews: { current: 0, outdated: 1, outstanding: 1, unknown: 1 },
+    criteriaChanged: true,
+    recommendation: null,
+  }),
 ];
 
 const OverviewHarness = ({
@@ -106,6 +115,8 @@ describe("workspace applications overview", () => {
 
     const expectedByFilter: Record<ApplicationFilter, string[]> = {
       all: overviewFixtures.map((item) => item.title),
+      // Withdrawn applications appear only under All and their own filter.
+      withdrawn: ["Withdrawn project"],
       preparing: ["Preparing project"],
       awaiting: ["Awaiting project"],
       unassigned: ["Preparing project"],
@@ -126,6 +137,7 @@ describe("workspace applications overview", () => {
       changed: "Changed evidence or criteria",
       unknown: "Review basis not known",
       unwritten: "No recommendation",
+      withdrawn: "Withdrawn",
     };
 
     for (const filter of applicationFilters) {
@@ -148,7 +160,7 @@ describe("workspace applications overview", () => {
     const user = userEvent.setup();
     render(<OverviewHarness />, { wrapper: GrantmakingMessagesProvider });
 
-    expect(screen.getByRole("status")).toHaveTextContent("6 of 6 applications");
+    expect(screen.getByRole("status")).toHaveTextContent("7 of 7 applications");
     expect(screen.queryByRole("button", { name: "Clear filters" })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Application" }));
@@ -160,19 +172,19 @@ describe("workspace applications overview", () => {
 
     await user.click(screen.getByRole("button", { name: /Show/ }));
     await user.click(screen.getByRole("option", { name: "Changed evidence or criteria" }));
-    expect(screen.getByRole("status")).toHaveTextContent("3 of 6 applications");
+    expect(screen.getByRole("status")).toHaveTextContent("3 of 7 applications");
 
     await user.click(screen.getByRole("button", { name: "All rounds Round" }));
     await user.click(screen.getByRole("option", { name: "Local Connections 2027" }));
-    expect(screen.getByRole("status")).toHaveTextContent("2 of 6 applications");
+    expect(screen.getByRole("status")).toHaveTextContent("2 of 7 applications");
 
     await user.type(screen.getByRole("searchbox", { name: "Search applications" }), "  meadow  ");
-    expect(screen.getByRole("status")).toHaveTextContent("1 of 6 applications");
+    expect(screen.getByRole("status")).toHaveTextContent("1 of 7 applications");
     expect(screen.getByRole("row", { name: /Criteria changed project/ })).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: "Clear filters" }));
 
-    expect(screen.getByRole("status")).toHaveTextContent("6 of 6 applications");
+    expect(screen.getByRole("status")).toHaveTextContent("7 of 7 applications");
     expect(screen.getByRole("searchbox", { name: "Search applications" })).toHaveValue("");
     expect(screen.getByRole("button", { name: "All rounds Round" })).toBeVisible();
     expect(screen.getByRole("button", { name: "All applications Show" })).toBeVisible();
@@ -191,7 +203,7 @@ describe("workspace applications overview", () => {
     await user.click(screen.getByRole("option", { name: "Empty round" }));
 
     expect(screen.getByText("No applications in this round yet.")).toBeVisible();
-    expect(screen.getByText("0 of 6 applications")).toHaveAttribute("role", "status");
+    expect(screen.getByText("0 of 7 applications")).toHaveAttribute("role", "status");
     expect(screen.getByRole("button", { name: "Clear filters" })).toBeVisible();
 
     await user.type(screen.getByRole("searchbox", { name: "Search applications" }), "missing");
@@ -210,5 +222,23 @@ describe("workspace applications overview", () => {
 
     expect(screen.getByText("No applications in this workspace yet.")).toBeVisible();
     expect(screen.getByText("0 of 0 applications")).toHaveAttribute("role", "status");
+  });
+
+  it("shows and sorts the withdrawn state rather than the status the application retains", async () => {
+    const user = userEvent.setup();
+    render(<OverviewHarness />, { wrapper: GrantmakingMessagesProvider });
+
+    const order = () =>
+      screen
+        .getAllByRole("row")
+        .slice(1)
+        .map((row) => within(row).getAllByRole("cell")[3]?.textContent);
+
+    expect(screen.getByRole("row", { name: /Withdrawn project/ })).toHaveTextContent("Withdrawn");
+    await user.click(screen.getByRole("button", { name: "Intake" }));
+
+    // Labels sort as In preparation, Ready, Withdrawn.
+    expect(order()[0]).toContain("In preparation");
+    expect(order().at(-1)).toContain("Withdrawn");
   });
 });

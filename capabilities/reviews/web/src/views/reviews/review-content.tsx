@@ -394,7 +394,9 @@ const ReviewRequestHistory = ({ requests }: { requests: ReviewState["requests"] 
                     ? "outstanding"
                     : request.status === "received"
                       ? "received"
-                      : "cancelled",
+                      : request.closedBy?.cause === "application_withdrawn"
+                        ? "closedWithdrawn"
+                        : "cancelled",
                 )}
               </span>
             </Inline>

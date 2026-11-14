@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import type { IntakeApplication } from "@merit/applications/domain";
+import { isWithdrawn, type IntakeApplication } from "@merit/applications/domain";
 import { provenanceSchema } from "@merit/auth";
 import { calendarDateSchema } from "@merit/dates";
 import { add, subtract, fromMinorUnits, type Money } from "@merit/money";
@@ -46,7 +46,8 @@ export type RecommendationUpdateError =
   | "invalid_recommendation"
   | "application_not_found"
   | "allocation_total_too_large"
-  | "application_not_ready";
+  | "application_not_ready"
+  | "application_withdrawn";
 
 export const parseRecommendation = (input: unknown) => {
   const parsed = recommendationSchema.safeParse(input);
@@ -80,11 +81,15 @@ const toRecommendationIssue = (issue: z.core.$ZodIssue): RecommendationIssue => 
   };
 };
 
+/** A withdrawn application keeps its recommendation readable but accepts no changes. */
+export const canChangeRecommendation = (application: Pick<IntakeApplication, "withdrawal">) =>
+  !isWithdrawn(application);
+
 export const prepareRecommendation = (
   round: { budget: Money | null; totals: { proposed: Money } },
   application: Pick<
     RecommendationApplication,
-    "version" | "managerRecommendation" | "intakeStatus" | "requested"
+    "version" | "managerRecommendation" | "intakeStatus" | "requested" | "withdrawal"
   >,
   input: unknown,
   recordedOn?: string,
@@ -112,10 +117,13 @@ export const previewRecommendation = (
   round: { budget: Money | null; totals: { proposed: Money } },
   application: Pick<
     RecommendationApplication,
-    "managerRecommendation" | "intakeStatus" | "requested"
+    "managerRecommendation" | "intakeStatus" | "requested" | "withdrawal"
   >,
   input: Pick<Recommendation, "position" | "allocation">,
 ) => {
+  if (!canChangeRecommendation(application)) {
+    return { ok: false, error: "application_withdrawn" } as const;
+  }
   const outcome = recommendationOutcomeSchema.safeParse({
     position: input.position,
     allocation: input.allocation,

@@ -6,6 +6,7 @@ import {
   calendarDateSchema,
   formatCalendarDate,
   parseCalendarDate,
+  todayCalendarDate,
 } from "../src/index";
 
 afterEach(() => {
@@ -105,4 +106,11 @@ describe("calendar dates", () => {
       expect(parseCalendarDate(value).toString()).toBe(value);
     },
   );
+});
+
+it("reads today as the viewer's local calendar date", () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date(2026, 10, 13, 23, 30));
+
+  expect(todayCalendarDate()).toBe("2026-11-13");
 });

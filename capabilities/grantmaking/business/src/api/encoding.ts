@@ -26,6 +26,7 @@ const publicApplicationSchema = applicationRecordSchema.pick({
   submission: true,
   evidence: true,
   intakeStatus: true,
+  withdrawal: true,
   summaryAuthor: true,
   summary: true,
   reviews: true,

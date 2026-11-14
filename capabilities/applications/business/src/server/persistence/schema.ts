@@ -37,6 +37,7 @@ export const applicationCases = pgTable(
     revision: integer().notNull().default(0),
     contactId: uuid("contact_id"),
     intakeStatus: text("intake_status", { enum: ["in_preparation", "ready"] }).notNull(),
+    withdrawal: jsonb(),
     summary: text().notNull().default(""),
     summaryAuthor: jsonb("summary_author"),
     attention: jsonb().notNull().default([]),

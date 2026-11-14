@@ -15,6 +15,14 @@ import {
   writeRecommendation,
 } from "../persistence/commands/recommendations";
 
+const decodeOrNull = (input: SaveRecommendationRequest["recommendation"]) => {
+  try {
+    return decodeRecommendation(input);
+  } catch {
+    return null;
+  }
+};
+
 export const saveFundingRecommendation = async (
   db: Database,
   actor: Actor,
@@ -33,6 +41,10 @@ export const saveFundingRecommendation = async (
       return { status: "not_found" } as const;
     }
 
+    if (identity.withdrawn) {
+      return { status: "invalid", error: "application_withdrawn" } as const;
+    }
+
     const row = await readRecommendationState(tx, identity.organizationId, request.publicId);
     if (!row) {
       return { status: "not_found" } as const;
@@ -46,10 +58,8 @@ export const saveFundingRecommendation = async (
       return { status: "conflict" } as const;
     }
 
-    let recommendation;
-    try {
-      recommendation = decodeRecommendation(request.recommendation);
-    } catch {
+    const recommendation = decodeOrNull(request.recommendation);
+    if (!recommendation) {
       return { status: "invalid", error: "invalid_recommendation" } as const;
     }
 
@@ -78,7 +88,7 @@ export const saveFundingRecommendation = async (
         recommendation: previous,
         recommendationVersion: row.recommendationVersion,
         budget: round.budget,
-        totals: result.totals,
+        totals: { ...result.totals, withdrawnApplications: round.totals.withdrawnApplications },
       } as const;
     }
 
@@ -100,7 +110,7 @@ export const saveFundingRecommendation = async (
       recommendation: result.recommendation,
       recommendationVersion: row.recommendationVersion + 1,
       budget: round.budget,
-      totals: result.totals,
+      totals: { ...result.totals, withdrawnApplications: round.totals.withdrawnApplications },
     } as const;
   });
 };

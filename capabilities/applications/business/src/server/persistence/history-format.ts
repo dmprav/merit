@@ -19,6 +19,13 @@ const application = z.object({
   version: version.brand<"MaterialVersion">(),
   requested: amount.nullable(),
   intakeStatus: z.enum(["in_preparation", "ready"]),
+  withdrawal: z
+    .object({
+      withdrawnOn: date,
+      reason: z.string(),
+      recorder: z.object({ userId: z.string(), name: z.string(), recordedAt: z.string() }),
+    })
+    .optional(),
   summaryAuthor: z
     .object({ name: z.string(), userId: z.string(), recordedAt: z.string() })
     .optional(),

@@ -32,7 +32,7 @@ export type ApplicationRoundContext = Pick<
   | "criteriaVersion"
   | "criteriaHistory"
 > & {
-  totals: { proposed: Money; remaining: Money | null };
+  totals: { proposed: Money; remaining: Money | null; withdrawnApplications: number };
 };
 
 export const roundView = (round: FundingRoundOverview) => {

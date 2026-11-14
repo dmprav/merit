@@ -49,6 +49,7 @@ it.each([null, 10000n])(
         totals: { proposed: { minorUnits: "0", currency: "EUR" } },
       },
       [encodeMoney(fromMinorUnits(12001n)), null],
+      3,
     );
 
     expect(context.budget).toEqual(budget === null ? null : fromMinorUnits(budget));
@@ -56,18 +57,19 @@ it.each([null, 10000n])(
     expect(context.totals.remaining).toEqual(budget === null ? null : fromMinorUnits(-2001n));
     expect(context.criteria).toEqual(round.criteria);
     expect(context.title).toBe(round.title);
+    expect(context.totals.withdrawnApplications).toBe(3);
   },
 );
 
 it("rejects application context with criteria version zero", () => {
-  expect(() => decodeApplicationContext({ ...makeRound(), criteriaVersion: 0 }, [])).toThrowError(
-    /criteriaVersion/,
-  );
+  expect(() =>
+    decodeApplicationContext({ ...makeRound(), criteriaVersion: 0 }, [], 0),
+  ).toThrowError(/criteriaVersion/);
 });
 
 it("rejects application context containing a negative allocation", () => {
   expect(() =>
-    decodeApplicationContext(makeRound(), [{ minorUnits: "-1", currency: "EUR" }]),
+    decodeApplicationContext(makeRound(), [{ minorUnits: "-1", currency: "EUR" }], 0),
   ).toThrow();
 });
 
@@ -128,7 +130,7 @@ it("round-trips selected evidence, review freshness and exact round-wide totals 
 it("calculates an exact balance including zero and missing allocations", () => {
   const money = (minorUnits: bigint) => encodeMoney(fromMinorUnits(minorUnits));
 
-  const context = decodeBudgetContext(money(10000n), [money(12001n), null, money(0n)]);
+  const context = decodeBudgetContext(money(10000n), [money(12001n), null, money(0n)], 0);
 
   expect(context.totals.remaining).toEqual(fromMinorUnits(-2001n));
 });
@@ -146,7 +148,7 @@ it.each([
     allocations: [{ minorUnits: "1.5", currency: "EUR" }],
   },
 ])("rejects compact budget context with $reason", ({ budget, allocations }) => {
-  expect(() => decodeBudgetContext(budget, allocations)).toThrow();
+  expect(() => decodeBudgetContext(budget, allocations, 0)).toThrow();
 });
 
 it.each([null, {}, { round: null }, { round: {}, application: {} }])(

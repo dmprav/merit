@@ -23,6 +23,10 @@ export const selectApplicationContact = async (
       return { status: "not_found" } as const;
     }
 
+    if (access.withdrawn) {
+      return { status: "invalid", error: "application_withdrawn" } as const;
+    }
+
     const row = await findIntakeApplication(tx, access.organizationId, request.publicId);
     if (!row) {
       return { status: "not_found" } as const;

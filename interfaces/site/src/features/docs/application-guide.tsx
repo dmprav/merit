@@ -77,6 +77,16 @@ export const ApplicationGuide = () => {
           children: <SavingApplications />,
         },
         {
+          id: "withdraw",
+          title: t("docs.pages.applications.withdraw.title"),
+          children: (
+            <>
+              <p>{t("docs.pages.applications.withdraw.body")}</p>
+              <p>{t("docs.pages.applications.withdraw.reinstate")}</p>
+            </>
+          ),
+        },
+        {
           id: "delete",
           title: t("docs.pages.applications.delete.title"),
           children: <p>{t("docs.pages.applications.delete.body")}</p>,

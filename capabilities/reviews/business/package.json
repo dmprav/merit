@@ -8,6 +8,7 @@
     "./domain": "./src/domain/index.ts",
     "./api": "./src/api/index.ts",
     "./server": "./src/server/index.ts",
+    "./server/integrations": "./src/server/integrations.ts",
     "./schema": "./src/server/persistence/schema.ts",
     "./scope": "./src/server/persistence/projections.ts",
     "./participation-schema": "./src/server/persistence/reviewer-schema.ts",

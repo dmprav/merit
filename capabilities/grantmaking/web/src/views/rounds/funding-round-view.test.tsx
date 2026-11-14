@@ -324,6 +324,106 @@ it("combines applicant search and review filters without changing whole-round to
   expect(screen.getByRole("searchbox")).toHaveValue("");
 });
 
+const withdrawal = {
+  withdrawnOn: "2027-01-10",
+  reason: "The applicant found other funding.",
+  recorder: { userId: "dana", name: "Dana Reed", recordedAt: "2027-01-11T09:00:00Z" },
+};
+
+const makeRoundWithWithdrawal = () => {
+  const round = makeRoundWithReviewStates();
+  return roundView({
+    ...round,
+    applications: [
+      ...round.applications,
+      {
+        ...makeReviewedApplication(),
+        id: "fourth",
+        title: "Garden Share",
+        withdrawal,
+        requested: fromMinorUnits(9000000n),
+        managerRecommendation: {
+          position: "Fund",
+          allocation: fromMinorUnits(9000000n),
+          reasoning: "Withdrawn since.",
+        },
+        reviews: {
+          revision: reviewRevisionSchema.parse(1),
+          assessments: [],
+          requests: [makeReviewRequest({ id: "closed", contactId: "sam", reviewer: "Sam" })],
+        },
+      },
+    ],
+  });
+};
+
+it("labels withdrawn applications and discloses them beside totals that leave them out", () => {
+  const without = render(
+    <FundingRoundView round={makeRoundWithReviewStates()} section="applications" />,
+    {
+      wrapper: GrantmakingMessagesProvider,
+    },
+  );
+  expect(screen.queryByText(/withdrawn application/)).not.toBeInTheDocument();
+  expect(screen.queryByRole("row", { name: /Withdrawn/ })).not.toBeInTheDocument();
+  const unchanged = screen.getByRole("region", { name: "Round summary" }).textContent;
+  without.unmount();
+
+  const round = makeRoundWithWithdrawal();
+  render(<FundingRoundView round={round} section="applications" />, {
+    wrapper: GrantmakingMessagesProvider,
+  });
+  const summary = screen.getByRole("region", { name: "Round summary" });
+
+  expect(within(summary).getByText("1 withdrawn application not counted.")).toBeVisible();
+  expect(summary.textContent?.replace("1 withdrawn application not counted.", "")).toBe(unchanged);
+  expect(
+    within(screen.getByRole("row", { name: /Garden Share/ })).getByText("Withdrawn"),
+  ).toBeVisible();
+  expect(
+    within(screen.getByRole("row", { name: /Neighbour Table/ })).queryByText("Withdrawn"),
+  ).not.toBeInTheDocument();
+});
+
+it("keeps withdrawn applications out of the work filters and shows only them in their own", async () => {
+  const user = userEvent.setup();
+  render(<FundingRoundView round={makeRoundWithWithdrawal()} section="applications" />, {
+    wrapper: GrantmakingMessagesProvider,
+  });
+
+  const choose = async (name: string) => {
+    await user.click(screen.getByRole("button", { name: /Show/ }));
+    await user.click(screen.getByRole("option", { name }));
+  };
+
+  expect(screen.getByRole("row", { name: /Garden Share/ })).toBeVisible();
+
+  for (const filter of [
+    "In preparation",
+    "Awaiting reviews",
+    "No reviewers assigned",
+    "Changed evidence or criteria",
+    "Review basis not known",
+    "No recommendation",
+  ]) {
+    await choose(filter);
+    expect(screen.queryByRole("row", { name: /Garden Share/ }), filter).not.toBeInTheDocument();
+  }
+
+  await choose("Withdrawn");
+  expect(screen.getByRole("status")).toHaveTextContent("1 of 4 applications");
+  expect(screen.getByRole("row", { name: /Garden Share/ })).toBeVisible();
+  expect(screen.queryByRole("row", { name: /Neighbour Table/ })).not.toBeInTheDocument();
+
+  // Sorting still works across the mixed list.
+  await user.click(screen.getByRole("button", { name: "Clear filters" }));
+  await user.click(screen.getByRole("button", { name: "Requested" }));
+  const rows = screen.getAllByRole("row").slice(1);
+  expect(rows).toHaveLength(4);
+  expect(within(rows[0]!).getByText("Workshop Saturdays")).toBeVisible();
+  expect(screen.getByRole("row", { name: /Garden Share/ })).toBeVisible();
+});
+
 it("sorts requested amounts exactly and keeps unknown amounts last in both directions", async () => {
   const user = userEvent.setup();
   const round = makeRoundWithReviewStates();

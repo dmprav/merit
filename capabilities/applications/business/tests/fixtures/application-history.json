@@ -9,6 +9,15 @@
       "currency": "EUR"
     },
     "intakeStatus": "ready",
+    "withdrawal": {
+      "withdrawnOn": "2027-01-19",
+      "reason": "The applicant secured other funding",
+      "recorder": {
+        "userId": "manager",
+        "name": "Dana",
+        "recordedAt": "2027-01-20T09:30:00Z"
+      }
+    },
     "summaryAuthor": {
       "name": "Dana",
       "userId": "manager",

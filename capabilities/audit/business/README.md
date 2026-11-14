@@ -34,7 +34,7 @@ explicit reader strategy; never reinterpret old facts using new live state.
 | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Organizations   | `organization.created`, `organization.renamed`; `team_invitation.issued`, `.replaced`, `.revoked`, `.accepted`; `membership.access_changed`, `.removed`                                                                                                                      |
 | Contacts        | `contact.created`, `.updated`, `.archived`, `.restored`                                                                                                                                                                                                                      |
-| Applications    | `application.created`, `.material_changed`, `.marked_ready`, `.summary_changed`, `.contact_changed`, `.revision_recorded`, `.correction_recorded`, `.deleted`; `application_working_revision.started`, `.updated`, `.discarded`                                              |
+| Applications    | `application.created`, `.material_changed`, `.marked_ready`, `.summary_changed`, `.contact_changed`, `.revision_recorded`, `.correction_recorded`, `.deleted`, `.withdraw`, `.reinstate`; `application_working_revision.started`, `.updated`, `.discarded`                   |
 | Rounds          | `round.created`, `.details_changed`, `.budget_changed`, `.criteria_changed`, `.manager_changed`, `.deleted`                                                                                                                                                                  |
 | Reviews         | `review_request.created`, `.cancelled`; `review_assignment.invited`, `.invitation_renewed`, `.accepted`, `.declined`, `.withdrawn`, `.conflict_reported`, `.conflict_cleared`, `.access_ended`, `.reinstated`; `assessment.recorded`, `.corrected`, `.submitted`, `.amended` |
 | Recommendations | `recommendation.recorded`                                                                                                                                                                                                                                                    |
@@ -59,7 +59,8 @@ Round budget rules use `budgetEstablished`, not a scan of historical events.
 Its caller must authorize the workspace and supply the permitted target types.
 It returns at most 50 compact envelopes, newest first by `(recorded_at, id)`, with
 a keyset cursor and recorded-person and historical-round filters. Details are not
-selected for this feed. The store has indexes for workspace time, subject revision and time,
+selected for this feed, except the recorded reason of the actions the caller names in
+`reasonActions` (grantmaking names withdrawals and reinstatements). The store has indexes for workspace time, subject revision and time,
 round time, actor time, and assignment history.
 
 [Grantmaking's reader](../../grantmaking/business/src/server/queries/activity.ts)

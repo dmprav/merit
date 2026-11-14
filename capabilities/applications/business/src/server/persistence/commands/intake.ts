@@ -11,7 +11,12 @@ import {
   encodeApplicationMaterial,
   encodeIntakeApplication,
 } from "../encoding";
-import { currentIntakeApplication, currentMaterial, workingRevision } from "../projections";
+import {
+  currentIntakeApplication,
+  currentMaterial,
+  activeCase,
+  workingRevision,
+} from "../projections";
 import {
   applicationCreationReceipts,
   applicationCases,
@@ -61,6 +66,7 @@ type IntakeState = NonNullable<Awaited<ReturnType<typeof findIntakeApplication>>
 const caseContent = (snapshot: ApplicationData) => ({
   id: snapshot.id,
   intakeStatus: snapshot.intakeStatus,
+  withdrawal: snapshot.withdrawal ?? null,
   summary: snapshot.summary,
   summaryAuthor: snapshot.summaryAuthor ?? null,
   attention: snapshot.attention,
@@ -209,6 +215,7 @@ export const readRequestedAmounts = async (
       and(
         eq(applicationCases.organizationId, organizationId),
         eq(applicationCases.roundId, roundId),
+        activeCase("application_cases"),
       ),
     );
 
