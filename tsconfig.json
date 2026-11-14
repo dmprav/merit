@@ -8,6 +8,12 @@
       "path": "capabilities/access"
     },
     {
+      "path": "capabilities/applications/business"
+    },
+    {
+      "path": "capabilities/applications/web"
+    },
+    {
       "path": "capabilities/audit/business"
     },
     {
@@ -27,6 +33,24 @@
     },
     {
       "path": "capabilities/organizations/web"
+    },
+    {
+      "path": "capabilities/recommendations/business"
+    },
+    {
+      "path": "capabilities/recommendations/web"
+    },
+    {
+      "path": "capabilities/reviews/business"
+    },
+    {
+      "path": "capabilities/reviews/web"
+    },
+    {
+      "path": "capabilities/rounds/business"
+    },
+    {
+      "path": "capabilities/rounds/web"
     },
     {
       "path": "foundation/auth"

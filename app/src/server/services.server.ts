@@ -44,10 +44,7 @@ export const createApplicationServices = ({
     verifiedEmails: identity.verifiedEmails,
     reviewerUrl: (id) => new URL(productLinks.review(id), invitationOrigin).href,
     managerUrl: (slug, id) =>
-      new URL(
-        `/app/${encodeURIComponent(slug)}/applications/${encodeURIComponent(id)}?tab=reviews`,
-        invitationOrigin,
-      ).href,
+      new URL(productLinks.application(slug, id, { tab: "reviews" }), invitationOrigin).href,
     send: async (message) =>
       sendEmail({ id: message.id, to: message.to, ...(await renderReviewerEmail(message)) }),
   });

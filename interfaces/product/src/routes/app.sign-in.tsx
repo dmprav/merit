@@ -121,13 +121,15 @@ const SignInPage = () => {
   );
 };
 
+const allowedReturnTo =
+  /^(?:\/app(?:\/(?!sign-in(?:\/|$))[a-z0-9]+(?:-[a-z0-9]+)*(?:\/[a-z0-9]+(?:-[a-z0-9]+)*)*)?|\/reviews(?:\/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})?|\/admin\/(?:organizations|access-requests)|\/invitations\/[a-f0-9]{64})$/;
+
 export const Route = createFileRoute("/_product/app/sign-in")({
   validateSearch: (search: Record<string, unknown>): { returnTo?: string } => ({
     returnTo:
       typeof search.returnTo === "string" &&
-      /^(\/app|\/reviews(?:\/[a-f0-9-]{36})?|\/admin\/organizations|\/invitations\/[a-f0-9]{64})$/.test(
-        search.returnTo,
-      )
+      !/[\r\n]/.test(search.returnTo) &&
+      allowedReturnTo.test(search.returnTo)
         ? search.returnTo
         : undefined,
   }),

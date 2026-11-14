@@ -60,6 +60,17 @@ type ReadingOperations = Pick<
   | "listWorkspaceActivity"
 >;
 
+const grantRecordUrl = (
+  origin: string,
+  workspaceSlug: string,
+  kind: "application" | "round",
+  id: string,
+) =>
+  new URL(
+    `/app/${encodeURIComponent(workspaceSlug)}/${kind === "round" ? "rounds" : "applications"}/${encodeURIComponent(id)}`,
+    origin,
+  ).href;
+
 const registerApplicationReadingTools = (
   register: RegisterTool,
   actor: McpActor,
@@ -99,8 +110,7 @@ const registerApplicationReadingTools = (
       return result.status === "ok"
         ? {
             ...result,
-            url: new URL(`/app/${input.workspaceSlug}/applications/${input.applicationId}`, origin)
-              .href,
+            url: grantRecordUrl(origin, input.workspaceSlug, "application", input.applicationId),
           }
         : result;
     },
@@ -208,22 +218,12 @@ const registerRoundReadingTools = (
       return result.status === "ok"
         ? {
             ...result,
-            url: new URL(`/app/${input.workspaceSlug}/rounds/${input.roundId}`, origin).href,
+            url: grantRecordUrl(origin, input.workspaceSlug, "round", input.roundId),
           }
         : result;
     },
   );
 };
-
-const activityRecordUrl = (
-  workspaceSlug: string,
-  record: { kind: "application" | "round"; id: string },
-  origin: string,
-) =>
-  new URL(
-    `/app/${workspaceSlug}/${record.kind === "round" ? "rounds" : "applications"}/${record.id}`,
-    origin,
-  ).href;
 
 const registerActivityTool = (
   register: RegisterTool,
@@ -260,7 +260,12 @@ const registerActivityTool = (
               ...entry,
               record: entry.record && {
                 ...entry.record,
-                url: activityRecordUrl(input.workspaceSlug, entry.record, origin),
+                url: grantRecordUrl(
+                  origin,
+                  input.workspaceSlug,
+                  entry.record.kind,
+                  entry.record.id,
+                ),
               },
             })),
           }

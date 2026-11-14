@@ -153,6 +153,17 @@ export const en = {
       },
       loading: { title: "Loading members and access…" },
     },
+    review: {
+      unavailable: {
+        title: "Review could not be loaded",
+        description: "We couldn’t load this review. Please try again.",
+      },
+      notFound: {
+        title: "Review not available",
+        description:
+          "This review isn’t available to your account. It may have been removed or your access may have changed.",
+      },
+    },
   },
   backToWorkspace: "Back to workspace",
   navigation: {

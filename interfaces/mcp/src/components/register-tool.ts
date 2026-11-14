@@ -12,6 +12,7 @@ type ToolAnnotations = {
 
 const boundaryErrorSchema = z.discriminatedUnion("status", [
   z.object({ status: z.literal("insufficient_scope"), requiredScope: z.enum(mcpScopes) }),
+  z.object({ status: z.literal("invalid_input"), message: z.string() }),
   z.object({ status: z.literal("unavailable"), message: z.string(), diagnosticId: z.uuid() }),
 ]);
 
@@ -22,6 +23,13 @@ const presentResult = (data: { status: string }) => {
     structuredContent: data,
   };
 };
+
+const unavailableError = (diagnosticId: string) =>
+  boundaryErrorSchema.parse({
+    status: "unavailable",
+    message: "The operation could not complete. Read the current state before retrying a write.",
+    diagnosticId,
+  });
 
 export const createToolRegistrar =
   (server: McpServer, actor: McpActor) =>
@@ -58,25 +66,48 @@ export const createToolRegistrar =
               },
       },
       async (input) => {
-        let stage = "operation";
-        try {
-          const result = actor.scopes.includes(scope)
-            ? await operation(config.inputSchema.parse(input))
-            : { status: "insufficient_scope", requiredScope: scope };
-          stage = "response";
-          return presentResult(resultSchema.parse(result));
-        } catch {
-          const diagnosticId = crypto.randomUUID();
-          console.error("Workspace MCP operation failed.", { tool: name, stage, diagnosticId });
+        if (!actor.scopes.includes(scope)) {
+          return presentResult(
+            boundaryErrorSchema.parse({ status: "insufficient_scope", requiredScope: scope }),
+          );
+        }
+
+        const parsedInput = config.inputSchema.safeParse(input);
+        if (!parsedInput.success) {
           return presentResult(
             boundaryErrorSchema.parse({
-              status: "unavailable",
-              message:
-                "The operation could not complete. Read the current state before retrying a write.",
-              diagnosticId,
+              status: "invalid_input",
+              message: "Invalid input.",
             }),
           );
         }
+
+        let result: unknown;
+        try {
+          result = await operation(parsedInput.data);
+        } catch (error) {
+          const diagnosticId = crypto.randomUUID();
+          console.error("Workspace MCP operation failed.", {
+            tool: name,
+            stage: "operation",
+            diagnosticId,
+            error: error instanceof Error ? error.message : String(error),
+          });
+          return presentResult(unavailableError(diagnosticId));
+        }
+
+        const parsedResult = resultSchema.safeParse(result);
+        if (!parsedResult.success) {
+          const diagnosticId = crypto.randomUUID();
+          console.error("Workspace MCP operation failed.", {
+            tool: name,
+            stage: "response",
+            diagnosticId,
+          });
+          return presentResult(unavailableError(diagnosticId));
+        }
+
+        return presentResult(parsedResult.data);
       },
     );
   };

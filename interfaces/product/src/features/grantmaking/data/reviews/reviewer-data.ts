@@ -1,5 +1,6 @@
 import { queryOptions } from "@tanstack/react-query";
 
+import { available, privateKey } from "@merit/query";
 import type { ReviewerData } from "@merit/reviews-web/reviewer";
 
 import {
@@ -12,18 +13,15 @@ import {
 
 export const reviewerListOptions = () =>
   queryOptions({
-    queryKey: ["reviewer", "assignments"],
-    queryFn: () => listReviewerAssignments(),
-    staleTime: 0,
-    gcTime: 0,
+    queryKey: [...privateKey, "reviewer", "assignments"],
+    queryFn: async ({ signal }) => available(await listReviewerAssignments({ signal })),
   });
 
 export const reviewerPageOptions = (assignmentId: string) =>
   queryOptions({
-    queryKey: ["reviewer", "assignment", assignmentId],
-    queryFn: () => readReviewerAssignment({ data: { assignmentId } }),
-    staleTime: 0,
-    gcTime: 0,
+    queryKey: [...privateKey, "reviewer", "assignment", assignmentId],
+    queryFn: async ({ signal }) =>
+      available(await readReviewerAssignment({ signal, data: { assignmentId } })),
   });
 
 export const reviewerData = (assignmentId: string): ReviewerData => ({

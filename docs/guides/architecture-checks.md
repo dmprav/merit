@@ -134,9 +134,11 @@ The four grant-work owners have explicit downstream dependencies. Applications c
 read Rounds; Reviews and Recommendations can read Applications and Rounds. Neither
 Applications nor Rounds can import review or recommendation implementation. Reviews
 and Recommendations remain independent of each other. Grantmaking composition reads
-all four through owned schema, scope, and encoding exports. Its usage adapter
-implements Applications' type-only lifecycle contract. The architecture fixtures
-check these allowed and rejected directions.
+all four through owned schema, scope, readers, history, and encoding exports. Its
+command persistence uses Applications’ type-only `@merit/applications/server/grant-work`
+contract, while application assembly wires `@merit/applications/server/integrations`
+and `@merit/grantmaking/server/integrations` to connect the grant-work lifecycle
+checks. The architecture fixtures check these allowed and rejected directions.
 
 Organization `scope` exports contain read predicates. The `locks` entry lives in
 command persistence, so neither queries nor the shared scope module can import
@@ -144,8 +146,9 @@ or re-export it. Public entry names alone cannot bypass this distinction: a scop
 export redirected to command persistence also fails the check.
 
 Application permissions are limited to the service composition in
-`app/src/server/services.server.ts`, demo composition in `app/src/server/demo.server.ts`, and demo cleanup
-in `app/scripts/clean-demos.ts`. Each location has its own permitted entries.
+`app/src/server/services.server.ts`, demo composition in `app/src/server/demo.server.ts`
+and `app/src/server/demo-workspace.server.ts`, and demo cleanup in `app/scripts/clean-demos.ts`.
+Each location has its own permitted entries.
 Interface adapters use the services supplied by assembly and browser-safe API
 types; they cannot instantiate capability services through direct server imports.
 
