@@ -539,3 +539,15 @@ it("closing recommendation recovery cancels opening even when the close callback
   expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   expect(onDraftChange).not.toHaveBeenCalled();
 });
+
+it("passes null rather than false for editor when closed so fallback actions render", () => {
+  render(
+    <GrantmakingMessagesProvider>
+      <EditableRecommendation onSave={vi.fn()}>
+        {({ editor, action }) => editor ?? <div>{action}</div>}
+      </EditableRecommendation>
+    </GrantmakingMessagesProvider>,
+  );
+
+  expect(screen.getByRole("button", { name: /Edit recommendation for/ })).toBeVisible();
+});

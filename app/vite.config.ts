@@ -41,6 +41,38 @@ const run = {
   },
 };
 
+// Pre-bundle lazily reached client libraries on dev startup so browser journeys never
+// trigger mid-test reloads or stale module imports.
+const clientDependencies = [
+  "@internationalized/date",
+  "@tanstack/react-devtools",
+  "@tanstack/react-form",
+  "@tanstack/react-query",
+  "@tanstack/react-query-devtools",
+  "@tanstack/react-router",
+  "@tanstack/react-router-devtools",
+  "@tanstack/react-router-ssr-query",
+  "@tanstack/react-table",
+  "dexie",
+  "i18next",
+  "react-i18next",
+  "react-aria-components/Button",
+  "react-aria-components/Calendar",
+  "react-aria-components/Dialog",
+  "react-aria-components/Heading",
+  "react-aria-components/I18nProvider",
+  "react-aria-components/ListBox",
+  "react-aria-components/Menu",
+  "react-aria-components/Modal",
+  "react-aria-components/Popover",
+  "react-aria-components/Select",
+  "react-aria-components/Tabs",
+  "react-aria-components/TextField",
+  "react-aria-components/Tooltip",
+  "react-aria-components/composeRenderProps",
+  "zod",
+];
+
 export default defineConfig(({ command }) => ({
   publicDir: "./public",
   // Task discovery must not run plugin hooks that clear the production output.
@@ -97,6 +129,7 @@ export default defineConfig(({ command }) => ({
   ]),
   server: { port: 3000, strictPort: true },
   environments: {
+    client: { optimizeDeps: { include: clientDependencies } },
     ssr: {
       build: {
         rolldownOptions: {

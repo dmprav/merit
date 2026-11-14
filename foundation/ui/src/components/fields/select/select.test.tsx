@@ -86,7 +86,9 @@ it("commits keyboard selection and preserves it when further navigation is cance
 
   await user.keyboard("{Enter}{Home}");
 
-  expect(screen.getByRole("option", { name: "Fund" })).toHaveFocus();
+  const fundOption = screen.getByRole("option", { name: "Fund" });
+  expect(fundOption).toHaveFocus();
+  expect(fundOption.textContent).toBe("Fund");
 
   await user.keyboard("{Escape}");
 

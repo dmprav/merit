@@ -62,12 +62,6 @@ export default defineConfig({
         ],
         cache: false,
       },
-      // shortcut: CI defers presentation and tooling self-tests until the reliability follow-up.
-      "ready:ci": {
-        command: "vp run test:ci",
-        dependsOn: ["ready:static", "ready:tests:ci", "ready:runtime:ci", "check:security"],
-        cache: false,
-      },
       "ready:build": {
         command: "vp run -r build",
         dependsOn: ["check:docs"],
@@ -87,13 +81,7 @@ export default defineConfig({
         cache: false,
       },
       "ready:tests": {
-        command: "vp run -r --parallel --concurrency-limit 4 test",
-        dependsOn: ["ready:build"],
-        cache: false,
-      },
-      "ready:tests:ci": {
-        command:
-          "vp run --parallel --concurrency-limit 4 --filter '@merit/*' --filter '!@merit/storybook' test --project '!browser' --exclude '**/*.test.tsx' --passWithNoTests",
+        command: "vp run -r --parallel --concurrency-limit 2 test",
         dependsOn: ["ready:build"],
         cache: false,
       },
@@ -105,11 +93,6 @@ export default defineConfig({
         ],
         // Database suites spawn many workers; leave capacity for the package tests.
         dependsOn: ["ready:tests"],
-        cache: false,
-      },
-      "ready:runtime:ci": {
-        command: "vp run @merit/app#test:integration",
-        dependsOn: ["ready:tests:ci"],
         cache: false,
       },
       "ready:tooling": {
@@ -137,7 +120,11 @@ export default defineConfig({
       "check:code": { command: "vp check --deny-warnings", cache: { output: [] } },
       "check:commit": { command: "commitlint --edit", cache: false },
       "test:commits": { command: "vp test tooling/verification/commits.test.ts", cache: false },
-      "test:ci": { command: "vp test tooling/verification/ci.test.ts", cache: false },
+      "test:ci": {
+        command: "vp test tooling/verification/ci.test.ts tooling/verification/ci-summary.test.ts",
+        cache: false,
+      },
+      "ci:summary": { command: "vpx tooling/verification/ci-summary.ts", cache: false },
       "check:security": {
         command: ["vp run check:secrets", "vp run check:dependencies"],
         cache: false,

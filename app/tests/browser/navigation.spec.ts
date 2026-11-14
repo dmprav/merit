@@ -35,6 +35,7 @@ test("deleting preparation returns to the workspace applications list", async ({
   await page.goto(
     `/app/alder/applications/unused-preparation-${application.publicId}?from=applications&round=${round.publicId}&sort=application&direction=descending`,
   );
+  await expect(page.getByRole("main")).toBeFocused();
   await page.getByRole("button", { name: "Application actions" }).click();
   await page.getByRole("menuitem", { name: "Delete application", exact: true }).click();
   await page
@@ -70,6 +71,7 @@ test(
       title: "Next year's meals",
     });
     await page.goto("/app/alder/rounds");
+    await expect(page.getByRole("main")).toBeFocused();
     const navigation = await openNavigation(page);
     await navigation.getByRole("link", { name: "Applications", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Applications", exact: true })).toBeVisible();
@@ -417,6 +419,7 @@ test("personal pins stay under their object type and survive reloads @cross-brow
     throw new Error("Could not create the round fixture");
   }
   await page.goto("/app/alder/rounds");
+  await expect(page.getByRole("main")).toBeFocused();
   await page
     .getByRole("main")
     .getByRole("link", { name: "Local Connections 2027", exact: true })
@@ -426,6 +429,7 @@ test("personal pins stay under their object type and survive reloads @cross-brow
     page.getByRole("button", { name: "Unpin Local Connections 2027", exact: true }),
   ).toHaveAttribute("aria-pressed", "true");
   await page.goto(`/app/alder/rounds/${round.publicId}`);
+  await expect(page.getByRole("main")).toBeFocused();
   await page.getByRole("button", { name: "Pin Community grants 2028", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "Unpin Community grants 2028", exact: true }),
@@ -449,6 +453,7 @@ test("personal pins stay under their object type and survive reloads @cross-brow
     page.getByRole("button", { name: "Unpin Workshop Saturdays", exact: true }),
   ).toHaveAttribute("aria-pressed", "true");
   await page.reload();
+  await expect(page.getByRole("main")).toBeFocused();
   navigation = await openNavigation(page);
   const applications = navigation.getByRole("region", { name: "Applications", exact: true });
   await expect(
@@ -479,6 +484,7 @@ test("personal pins stay under their object type and survive reloads @cross-brow
   await expect(page.getByRole("heading", { name: "Members & access", exact: true })).toBeVisible();
   await page.goto("/app/alder/team");
   await expect(page).toHaveURL(/\/app\/alder\/settings\/members$/);
+  await expect(page.getByRole("main")).toBeFocused();
   navigation = await openNavigation(page);
   await navigation.getByRole("link", { name: "Contacts", exact: true }).click();
   await expect(page).toHaveURL(/\/app\/alder\/contacts$/);
@@ -487,6 +493,7 @@ test("personal pins stay under their object type and survive reloads @cross-brow
     { name: "merit-local-person", value: "operator", url: "http://127.0.0.1:3002" },
   ]);
   await page.goto("/reviews");
+  await expect(page.getByRole("main")).toBeFocused();
   navigation = await openNavigation(page);
   await expect(navigation.getByRole("button", { name: /Pin actions for/ })).toHaveCount(0);
 });

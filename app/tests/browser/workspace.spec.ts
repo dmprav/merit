@@ -245,6 +245,7 @@ test(
 
     await page.reload();
 
+    await expect(page.getByRole("main")).toBeFocused();
     await expect(page.getByText(savedReasoning, { exact: true })).toBeVisible();
 
     await competing.getByRole("button", { name: "Save recommendation", exact: true }).click();

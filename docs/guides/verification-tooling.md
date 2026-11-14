@@ -42,16 +42,16 @@ or changing tasks.
 The [verification tasks](../../vite.config.ts) overlap independent work: after the
 build generates application types, static checks and package tests can proceed
 together. Tooling regression tests use disposable fixtures and run
-alongside them. Package tests run without dependency ordering, with at most four
-tasks at a time; they consume workspace source rather than each other's outputs.
-The temporary `ready:ci` target retains parallel scheduling while deferring
-[approved presentation and tooling self-tests](verification.md#temporary-pr-verification-exception).
-`test:ci` guards its retained core checks and keeps the
-[deferred workflow's](../../.github/workflows/deferred.yml) steps matched to `ready`'s
-stages. The full local `ready` task retains
-all tooling self-tests and final source probes.
-Database and browser checks start after package tests to limit competing workers.
-The application browser suites remain sequential, and the persisted workspace
+alongside them. Package tests run without dependency ordering, with at most two
+packages concurrently so worker pools do not saturate shared runners; they consume
+workspace source rather than each other's outputs. In CI, the
+[PR verification workflow](../../.github/workflows/verify.yml) fans out static checks,
+package tests, database integration, tooling self-tests, and sharded browser suites
+after a shared `build` job, while `test:ci` verifies that every `ready` stage and
+workflow invariant remains covered. `ci:summary` ([`ci-summary.ts`](../../tooling/verification/ci-summary.ts))
+publishes structured Playwright and Vitest step summaries on CI without adding retries.
+Database and browser checks start after package tests locally to limit competing workers.
+The application browser suites remain sequential locally, and the persisted workspace
 suite retains its single worker. The coverage and lint probes run last, on their
 own, because they temporarily write deliberately invalid source into the workspace.
 

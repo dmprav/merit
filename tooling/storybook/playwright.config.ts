@@ -16,7 +16,9 @@ export default defineConfig(browserConfig, {
   // Serve the cached static build: a fresh dev server transforms modules on first request,
   // so the first story in each worker can exceed the readiness timeout.
   webServer: {
-    command: "vp run build && vp preview --port 6007 --strictPort",
+    command: process.env.MERIT_STORYBOOK_PREBUILT
+      ? "vp preview --port 6007 --strictPort"
+      : "vp run build && vp preview --port 6007 --strictPort",
     cwd: fileURLToPath(new URL(".", import.meta.url)),
     url: "http://localhost:6007",
     reuseExistingServer: false,

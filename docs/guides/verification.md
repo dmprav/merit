@@ -26,13 +26,13 @@ check, and the gaps; the required `verify` check reports the rest.
 Run full workspace verification with `vp run ready` before merging or releasing
 completed changes, when explicitly requested, or when a change has broad effects
 that targeted checks cannot adequately cover. The
-[PR workflow](../../.github/workflows/verify.yml) runs `ready:ci`
-with `--no-cache` on Ubuntu for pull requests targeting `main`, subject to the
-[temporary exception below](#temporary-pr-verification-exception). Its `verify` check
+[PR workflow](../../.github/workflows/verify.yml) runs every check and suite in
+`ready` with `--no-cache` across parallel, sharded Ubuntu jobs for pull requests
+targeting `main`, or a targeted documentation and secrets subset when a pull request
+changes only documentation files. Its `verify` check
 is required by the [branch rules](development.md#branch-protection); pending or
 failed verification blocks merging. A passing run on the current PR commit
-satisfies the required PR gate while its inputs remain unchanged; it does not
-establish the deferred browser, component, and tooling self-tests.
+satisfies the required PR gate while its inputs remain unchanged.
 Targeted checks can defer discovery of unrelated regressions to that milestone.
 All existing suites and coverage thresholds remain part of full verification.
 
@@ -60,44 +60,6 @@ Run cached checks through
 In environments where an inherited seccomp user-notify listener blocks Vite
 Task file tracking with `EBUSY` (such as WSL2 or sandboxed runners), set
 `MERIT_TASK_CACHE=off` to disable task caching globally.
-
-### Temporary PR verification exception
-
-On November 12, 2026, the owner approved temporarily deferring browser and
-component tests and other flaky checks to a CI reliability follow-up after flaky interaction tests and
-Linux browser failures in
-[run 43276352387](https://github.com/dmprav/merit/actions/runs/43276352387).
-
-`ready:ci` skips Storybook, the drafts browser project, and all package
-`*.test.tsx` files, plus all Playwright suites: shared browser fixtures, Storybook, the public app,
-and persisted workspaces. Packages with only deferred tests may have no selected
-tests. Core package tests retain their existing coverage scopes and thresholds.
-Tooling self-tests (`ready:tooling` and the source-modifying `test:checks` probes)
-are also deferred after architecture and commit-lint fixture timeouts in
-[runs 43285882908](https://github.com/dmprav/merit/actions/runs/43285882908)
-and [43287235717](https://github.com/dmprav/merit/actions/runs/43287235717).
-The lightweight `test:ci` configuration guard remains required.
-
-Builds, lint and types, repository architecture enforcement (including TypeScript
-isolation tests), security scans, core tests and coverage, and database integration
-remain required. This defers presentation checks and regression tests of the
-verification tools themselves; the retained checks do not replace them.
-Normal parallel scheduling is restored, with no CI-specific worker cap.
-`ready` still runs every suite locally, including its final source-modifying probes.
-
-The [deferred verification workflow](../../.github/workflows/deferred.yml) runs every
-stage of the `ready` milestone on CI for pull requests targeting `main`, nightly, and on
-demand. It is not a required check, so its result does not block merging. It
-measures whether the deferred suites are reliable on CI. After the build, it runs
-each `ready` stage as a separate step, one at a time and in `ready`'s order, and runs
-later stages even when an earlier one fails, so a failing package test cannot keep
-the browser suites from reporting. The step results show which stages failed, and
-the `test:ci` guard keeps those steps in line with `ready`. Playwright retries failed
-browser tests twice there (`MERIT_BROWSER_RETRIES`) and reports passing retries as
-flaky, and its log and browser traces are kept even when it passes. Fix the
-underlying cause of each flaky or failing test; retries apply only to this
-workflow. Restore the required workflow to `ready` and remove the temporary CI
-targets once this workflow passes consistently without flaky retries.
 
 ### While developing
 

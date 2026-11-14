@@ -361,9 +361,10 @@ owner's access. Keep the merge restriction separate from **Protect main** so its
 exception cannot bypass the shared protections. GitHub applies
 [both rulesets together](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/about-rulesets).
 
-The [PR verification workflow](../../.github/workflows/verify.yml) runs `vp run --no-cache ready:ci`
-for pull requests targeting `main`. **Protect main** requires its `verify` check
-from GitHub Actions (integration ID `15368`); a pending or failed check blocks
+The [PR verification workflow](../../.github/workflows/verify.yml) runs full
+workspace verification for pull requests targeting `main` (or a fast docs and
+secrets check for documentation-only pull requests). **Protect main** requires its
+`verify` check from GitHub Actions (integration ID `15368`); a pending or failed check blocks
 merging, including for administrators.
 
 These JSON files record the ruleset configurations; committing changes to them
@@ -423,9 +424,9 @@ updates for three days, but does not enforce that age for dependencies selected
 during lockfile maintenance. OSV alerts supplement the existing dependency audit;
 they cover direct npm dependencies and remain experimental.
 
-The required Verify job validates changes to `renovate.json` or its own workflow
-with Renovate's strict repository-config validator, using a version- and
-digest-pinned container. Manual Verify runs also validate the configuration.
+When a pull request changes `renovate.json` or `.github/workflows/**`, or on manual
+Verify runs, the `renovate` job validates the repository configuration with
+Renovate's strict validator using a version- and digest-pinned container.
 Warnings, errors, and required configuration migrations fail the check. Use
 **Actions → Verify → Run workflow** to recheck the configuration. Review the
 onboarding preview or Dependency Dashboard as well: validation checks configuration
@@ -433,32 +434,42 @@ validity, not whether package rules select the intended updates.
 
 ### Pull-request verification
 
-The [Verify workflow](../../.github/workflows/verify.yml) uses one Ubuntu 24.04 job
-to run `vp run ready:ci` with fresh task results (`--no-cache`). This temporarily
-excludes presentation and tooling self-tests under the
-[approved verification exception](verification.md#temporary-pr-verification-exception).
-Only downloaded dependencies are cached between CI runs. It reads the existing
-Vite+, Node.js, and pnpm pins, installs dependencies with the frozen lockfile,
-and starts PostgreSQL and Mailpit through `compose.yaml`. The root task configuration
-continues to own check ordering, parallelism, and coverage requirements.
-CI uses the normal parallel task scheduling and no extra Vitest worker cap.
-Browser installation is deferred with the browser suites.
+The [Verify workflow](../../.github/workflows/verify.yml) starts with a `changes` job
+that routes documentation-only pull requests through `docs-verify` (`check:docs`,
+`test:docs`, formatting, `check:secrets`, and `test:ci`) while running every `ready`
+stage with fresh task results (`--no-cache`) for all other pull requests and manual
+dispatch runs.
 
-The non-required [Deferred verification workflow](../../.github/workflows/deferred.yml)
-runs each stage of `vp run --no-cache ready` as a separate step with the same setup
-on pull requests, nightly at 09:17 UTC, and through **Actions → Deferred verification**.
-It installs Chromium, Firefox, and WebKit and caches them by the locked Playwright
-version, saving the cache before verification so failing runs reuse it. It
-uploads the `deferred-verification` artifact for fourteen days after every run.
-[Verification](verification.md#temporary-pr-verification-exception) explains how
-its results decide when to restore the full required gate.
+After `build` compiles the workspace and uploads the generated `build-outputs` artifact
+once per run, independent jobs fan out in parallel:
 
-New commits cancel the previous run for that PR. Failed runs retain verification
-and service logs, browser screenshots, and traces in the `verification-failure`
-artifact for seven days. A manual run is also available through **Actions → Verify**
-after the workflow reaches the default branch. For screenshot failures, follow
-[visual baseline review](ui-verification.md#review-visual-changes); CI never accepts
-new screenshots automatically.
+- `static-and-security` runs static analysis (`ready:static`) and security checks
+  (`check:security`).
+- `package-tests` runs workspace package tests with `--concurrency-limit 2` so shared
+  runners stay responsive.
+- `storybook-vitest` runs `@merit/storybook#test` inside the pinned Playwright container
+  matching `@playwright/test` (`1.64.1`).
+- `integration` starts PostgreSQL and Mailpit via `compose.yaml` and runs
+  `@merit/app#test:integration`.
+- `tooling-self-tests` runs `ready:tooling` followed by `test:checks`.
+- `browser-tooling`, `browser-storybook` (3 shards reusing the prebuilt Storybook
+  output), `browser-demo` (2 shards), and `browser-workspace` (3 shards) run all five
+  Playwright projects inside the pinned Playwright container without retries. Service-backed
+  browser jobs forward loopback ports (`127.0.0.1:55432` and `127.0.0.1:8025`) to
+  pinned PostgreSQL and Mailpit service containers.
+
+The `verify` aggregator job collects all job results and publishes the required `verify`
+status check. Jobs read the existing Vite+, Node.js, and pnpm pins and cache only
+downloaded dependencies between CI runs.
+
+New commits cancel the previous run for that PR. Vitest and Playwright emit GitHub
+annotations and structured job summaries via `ci:summary`
+([`ci-summary.ts`](../../tooling/verification/ci-summary.ts)), and failed integration
+or browser shards retain service logs, browser screenshots, traces, and JSON/JUnit
+reports in artifacts for seven days. A manual run is also available through
+**Actions → Verify** after the workflow reaches the default branch. For screenshot
+failures, follow [visual baseline review](ui-verification.md#review-visual-changes);
+CI never accepts new screenshots automatically.
 
 PR verification runs without production credentials, using disposable databases
 and fixture identities. The workflow uses `pull_request`, read-only repository

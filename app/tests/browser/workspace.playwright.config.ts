@@ -21,6 +21,7 @@ export default defineConfig(browserConfig, {
     "reviewer.spec.ts",
   ],
   outputDir: join(tmpdir(), "merit-workspace-browser-results"),
+  timeout: 60_000,
   // Each test resets the isolated database used by the shared host.
   workers: 1,
   use: { baseURL: "http://127.0.0.1:3002" },

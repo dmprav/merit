@@ -191,7 +191,7 @@ it("translates the requested-amount rule and permits a corrected draft", async (
   await user.click(await screen.findByRole("menuitem", { name: "Start revised submission" }));
   await user.click(await screen.findByRole("button", { name: "Edit application details" }));
   calls.mockClear();
-  const amount = screen.getByRole("textbox", { name: "Requested amount" });
+  const amount = await screen.findByRole("textbox", { name: "Requested amount" });
   fireEvent.change(amount, { target: { value: "-1" } });
   await user.click(await screen.findByRole("button", { name: "Save working revision" }));
 
@@ -423,25 +423,25 @@ it("discards one editor while keeping another section's draft", async () => {
   await user.click(await screen.findByRole("button", { name: "Application actions" }));
   await user.click(await screen.findByRole("menuitem", { name: "Start revised submission" }));
   await user.click(await screen.findByRole("button", { name: "Edit applicant submission" }));
-  fireEvent.change(screen.getAllByRole("textbox", { name: "Applicant’s response" })[0]!, {
+  fireEvent.change((await screen.findAllByRole("textbox", { name: "Applicant’s response" }))[0]!, {
     target: { value: "Keep this writing" },
   });
   await user.click(await screen.findByRole("button", { name: /^Close$/ }));
   await user.click(await screen.findByRole("button", { name: "Edit application details" }));
-  fireEvent.change(screen.getByRole("textbox", { name: "Requested amount" }), {
+  fireEvent.change(await screen.findByRole("textbox", { name: "Requested amount" }), {
     target: { value: "99999" },
   });
   await user.click(await screen.findByRole("button", { name: "Discard changes" }));
   await user.click(await screen.findByRole("button", { name: "Edit application details" }));
 
-  expect(screen.getByRole("textbox", { name: "Requested amount" })).toHaveValue("22000.00");
+  expect(await screen.findByRole("textbox", { name: "Requested amount" })).toHaveValue("22000.00");
 
   await user.click(await screen.findByRole("button", { name: /^Close$/ }));
   await user.click(
     await screen.findByRole("button", { name: "Continue editing applicant submission" }),
   );
 
-  expect(screen.getAllByRole("textbox", { name: "Applicant’s response" })[0]).toHaveValue(
+  expect((await screen.findAllByRole("textbox", { name: "Applicant’s response" }))[0]).toHaveValue(
     "Keep this writing",
   );
   expect(calls).toHaveBeenCalledTimes(1);
@@ -451,14 +451,14 @@ it("recovers section drafts after remounting in the same account scope", async (
   const scope = "intake-recovery-test";
   const first = renderIntake(undefined, scope);
   await first.user.click(await screen.findByRole("button", { name: "Edit summary" }));
-  fireEvent.change(screen.getByRole("textbox", { name: "Staff summary" }), {
+  fireEvent.change(await screen.findByRole("textbox", { name: "Staff summary" }), {
     target: { value: "Unfinished summary across reload" },
   });
   first.unmount();
   const second = renderIntake(undefined, scope);
   await second.user.click(await screen.findByRole("button", { name: "Continue editing summary" }));
 
-  expect(screen.getByRole("textbox", { name: "Staff summary" })).toHaveValue(
+  expect(await screen.findByRole("textbox", { name: "Staff summary" })).toHaveValue(
     "Unfinished summary across reload",
   );
   expect(second.calls).not.toHaveBeenCalled();
@@ -470,7 +470,7 @@ it("preserves a title correction when the committed start cannot refresh", async
   const refresh = vi.fn<IntakeData["refresh"]>().mockRejectedValue(new Error("Offline"));
   const { user, calls } = renderIntake(refresh);
   await user.click(await screen.findByRole("button", { name: original.title }));
-  fireEvent.change(screen.getByRole("textbox", { name: "Correct application title" }), {
+  fireEvent.change(await screen.findByRole("textbox", { name: "Correct application title" }), {
     target: { value: "Recovered correction" },
   });
   await user.keyboard("{Enter}");

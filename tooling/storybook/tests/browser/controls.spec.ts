@@ -215,6 +215,7 @@ for (const theme of ["product", "site"] as const) {
       error?: string;
       field?: boolean;
       iconOnly?: boolean;
+      readOnly?: boolean;
     }[] = [
       { role: "button", name: "Save recommendation" },
       { role: "button", name: "Cancel" },
@@ -225,13 +226,13 @@ for (const theme of ["product", "site"] as const) {
       { role: "link", name: "Browse rounds" },
       { role: "textbox", name: "Applicant" },
       { role: "textbox", name: "Contact name", error: "Use at least two characters." },
-      { role: "textbox", name: "Reference" },
+      { role: "textbox", name: "Reference", readOnly: true },
       { role: "textbox", name: "Summary" },
-      { role: "textbox", name: "Submitted summary" },
+      { role: "textbox", name: "Submitted summary", readOnly: true },
       { role: "button", name: /Recommendation/, field: true },
       { role: "button", name: /Final decision/, error: "Choose a decision.", field: true },
     ];
-    for (const [index, { role, name, error, field, iconOnly }] of controls.entries()) {
+    for (const [index, { role, name, error, field, iconOnly, readOnly }] of controls.entries()) {
       const control = page.getByRole(role, { name, exact: true });
       const before = await control.evaluate((node) => {
         const rect = node.getBoundingClientRect();
@@ -248,22 +249,28 @@ for (const theme of ["product", "site"] as const) {
           await control.hover();
         }
 
-        await expect(control).toHaveCSS("outline-style", "none");
-
-        if (role === "textbox" || field) {
-          const color = error
-            ? await page.getByText(error).evaluate((node) => getComputedStyle(node).color)
-            : await page
-                .getByRole("link", { name: "Open round" })
-                .evaluate((node) => getComputedStyle(node).backgroundColor);
-
-          await expect(control).toHaveCSS("border-top-color", color);
-          await expect(control).toHaveCSS("box-shadow", `${color} 0px -2px 0px 0px inset`);
-        } else if (iconOnly) {
-          await expect(control).not.toHaveCSS("box-shadow", "none");
+        if (readOnly) {
+          await expect(control).toHaveCSS("outline-style", "dashed");
+          await expect(control).toHaveCSS("outline-width", "1px");
+          await expect(control).toHaveCSS("box-shadow", "none");
         } else {
-          await expect(control).toHaveCSS("text-decoration-line", "underline");
-          await expect(control).toHaveCSS("text-decoration-thickness", "2px");
+          await expect(control).toHaveCSS("outline-style", "none");
+
+          if (role === "textbox" || field) {
+            const color = error
+              ? await page.getByText(error).evaluate((node) => getComputedStyle(node).color)
+              : await page
+                  .getByRole("link", { name: "Open round" })
+                  .evaluate((node) => getComputedStyle(node).backgroundColor);
+
+            await expect(control).toHaveCSS("border-top-color", color);
+            await expect(control).toHaveCSS("box-shadow", `${color} 0px -2px 0px 0px inset`);
+          } else if (iconOnly) {
+            await expect(control).not.toHaveCSS("box-shadow", "none");
+          } else {
+            await expect(control).toHaveCSS("text-decoration-line", "underline");
+            await expect(control).toHaveCSS("text-decoration-thickness", "2px");
+          }
         }
       }
 

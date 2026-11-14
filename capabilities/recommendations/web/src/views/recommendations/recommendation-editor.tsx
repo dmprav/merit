@@ -75,7 +75,6 @@ export const RecommendationEditor = ({
   children,
 }: RecommendationEditorProps) => {
   const { t } = useTranslation("fundingRecommendations");
-  const { managerRecommendation: recommendation } = application;
   const withdrawn = !canChangeRecommendation(application);
   const { editButton, restoreFocus } = useRecommendationFocus();
   const { isSaving, isOpen, canResume, open, close, save } = useRecommendationEditor({
@@ -101,38 +100,88 @@ export const RecommendationEditor = ({
       onOpen={open}
     />
   );
-  const summary = recommendation ? (
-    <RecommendationSummary recommendation={recommendation} manager={round.manager} />
-  ) : (
-    <p className={localStyles.empty}>{t("applications.notRecommended")}</p>
+  const summary = (
+    <RecommendationSummaryContent
+      recommendation={application.managerRecommendation}
+      manager={round.manager}
+    />
   );
-
-  const preparing = !ready || !draft;
   const closeAction = (
     <EditorClose
       label={t("editor.close")}
       onClose={() => void close()}
-      autoFocus={preparing}
+      autoFocus={!ready || !draft}
       isDisabled={isSaving}
       iconOnly
     />
   );
-  const editor = isOpen && !withdrawn && (
-    <RecommendationWriting
-      ready={ready}
-      draft={draft}
-      application={application}
-      round={round}
-      onDraftChange={onDraftChange}
-      onSave={save}
-      close={close}
-      closeAction={!children && closeAction}
+  const writingProps = {
+    isOpen,
+    withdrawn,
+    ready,
+    draft,
+    application,
+    round,
+    onDraftChange,
+    onSave: save,
+    close,
+  };
+
+  if (children) {
+    return children({
+      summary,
+      action,
+      closeAction,
+      editor: renderRecommendationWriting({ ...writingProps, closeAction: null }),
+    });
+  }
+  return (
+    <RecommendationSection
+      action={action}
+      summary={summary}
+      editor={renderRecommendationWriting({ ...writingProps, closeAction })}
     />
   );
+};
 
-  return children ? (
-    children({ summary, editor, action, closeAction })
+const renderRecommendationWriting = ({
+  isOpen,
+  withdrawn,
+  ...props
+}: Omit<RecommendationFormProps, "initialDraft"> & {
+  isOpen: boolean;
+  withdrawn: boolean;
+  ready: boolean;
+  draft?: RecommendationDraft;
+  closeAction: ReactNode;
+}): ReactNode => (isOpen && !withdrawn ? <RecommendationWriting {...props} /> : null);
+
+const RecommendationSummaryContent = ({
+  recommendation,
+  manager,
+}: {
+  recommendation: Application["managerRecommendation"];
+  manager: ApplicationRoundContext["manager"];
+}) => {
+  const { t } = useTranslation("fundingRecommendations");
+  return recommendation ? (
+    <RecommendationSummary recommendation={recommendation} manager={manager} />
   ) : (
+    <p className={localStyles.empty}>{t("applications.notRecommended")}</p>
+  );
+};
+
+const RecommendationSection = ({
+  action,
+  summary,
+  editor,
+}: {
+  action: ReactNode;
+  summary: ReactNode;
+  editor: ReactNode;
+}) => {
+  const { t } = useTranslation("fundingRecommendations");
+  return (
     <>
       <SectionHeader
         className={localStyles.header}
