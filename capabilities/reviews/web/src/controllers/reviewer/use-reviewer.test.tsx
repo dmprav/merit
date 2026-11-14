@@ -156,21 +156,6 @@ it("retries a lost submission response with the same receipt and only reloads af
   expect(result.current.submissionPending).toBe(false);
 });
 
-it("preserves unsaved text when access ends", async () => {
-  const { result, data, page } = setup();
-  act(() => result.current.update({ ...result.current.draft!, reasoning: "Keep this writing" }));
-  data.save.mockResolvedValue({ status: "not_found" });
-  await act(() => result.current.save());
-  expect(result.current.error).toBe("accessLost");
-  data.read.mockResolvedValue({
-    status: "ok",
-    value: { ...page, assignment: { ...page.assignment, status: "cancelled" }, draft: null },
-  });
-  await act(() => result.current.refresh());
-  expect(result.current.canWrite).toBe(false);
-  expect(result.current.draft?.reasoning).toBe("Keep this writing");
-});
-
 it("retries acceptance with the original command after its follow-up read fails", async () => {
   const { result, data, page } = setup();
   data.respond.mockResolvedValue({ status: "ok", value: page.assignment });

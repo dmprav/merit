@@ -3,7 +3,6 @@ import { assert, describe, expect, it } from "vite-plus/test";
 import { materialVersionSchema } from "@merit/applications/domain";
 import { criteriaVersionSchema } from "@merit/rounds/domain";
 
-import { sameCriteria } from "./basis";
 import {
   emptyReviews,
   prepareReviewChange,
@@ -430,26 +429,6 @@ describe("recording reviews", () => {
   });
 });
 
-it("compares criterion meaning including descriptions", () => {
-  expect(
-    sameCriteria(
-      [{ id: "fd95f96c-1270-51c5-a64f-5649f25186d9", title: "Fit" }],
-      [{ id: "fd95f96c-1270-51c5-a64f-5649f25186d9", title: "Fit", description: "" }],
-    ),
-  ).toBe(true);
-  expect(
-    sameCriteria(
-      [{ id: "fd95f96c-1270-51c5-a64f-5649f25186d9", title: "Fit", description: "Local benefit" }],
-      [{ id: "fd95f96c-1270-51c5-a64f-5649f25186d9", title: "Fit", description: "Local benefit" }],
-    ),
-  ).toBe(true);
-  expect(
-    sameCriteria(
-      [{ id: "fd95f96c-1270-51c5-a64f-5649f25186d9", title: "Fit", description: "Local benefit" }],
-      [{ id: "fd95f96c-1270-51c5-a64f-5649f25186d9", title: "Fit" }],
-    ),
-  ).toBe(false);
-});
 it.each(["0", "1"])("allows only zero allocation on a deferred assessment: %s", (amount) => {
   expect(assessmentInputSchema.safeParse({ ...content, position: "Defer", amount }).success).toBe(
     amount === "0",

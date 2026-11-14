@@ -120,6 +120,10 @@ it("compares ordered titles and descriptions exactly, normalizing absent descrip
       { id: "fd95f96c-1270-51c5-a64f-5649f25186d9", title: "Fit" },
       { id: "dc1f55ac-e713-51a8-8d91-f27f1c3d9959", title: "Feasibility", description: "Plan " },
     ],
+    [
+      { id: "fd95f96c-1270-51c5-a64f-5649f25186d9", title: "Fit" },
+      { id: "dc1f55ac-e713-51a8-8d91-f27f1c3d9959", title: "Feasibility" },
+    ],
   ]) {
     expect(compareReviewBasis(recorded, { ...recorded, criteria }).criteriaContent).toBe(
       "different",
