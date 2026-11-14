@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 
 import { Button } from "../../components/button/button";
 import { Icon } from "../../components/icon/icon";
@@ -110,15 +110,16 @@ const useNameEditing = ({
   const trigger = useRef<HTMLButtonElement>(null);
   const restoreFocus = useRef(false);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (editing && !isPreparing && awaitingPreparation.current) {
+      setDraft(value);
       saveAtOpen.current = onSave;
       awaitingPreparation.current = false;
       if (isDisabled) {
         setEditing(false);
       }
     }
-  }, [editing, isPreparing, isDisabled, onSave]);
+  }, [editing, isPreparing, isDisabled, onSave, value]);
 
   useEffect(() => {
     if (restoreFocus.current && trigger.current) {
