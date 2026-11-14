@@ -35,6 +35,7 @@ test("deleting preparation returns to the workspace applications list", async ({
   await page.goto(
     `/app/alder/applications/unused-preparation-${application.publicId}?from=applications&round=${round.publicId}&sort=application&direction=descending`,
   );
+  await expect(page.getByRole("main")).toBeFocused();
   await page.getByRole("button", { name: "Application actions" }).click();
   await page.getByRole("menuitem", { name: "Delete application", exact: true }).click();
   await page
@@ -70,6 +71,7 @@ test(
       title: "Next year's meals",
     });
     await page.goto("/app/alder/rounds");
+    await expect(page.getByRole("main")).toBeFocused();
     const navigation = await openNavigation(page);
     await navigation.getByRole("link", { name: "Applications", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Applications", exact: true })).toBeVisible();

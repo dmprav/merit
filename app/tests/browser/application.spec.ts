@@ -58,6 +58,7 @@ test(
     await page.close();
     const reopened = await context.newPage();
     await reopened.goto(url);
+    await expect(reopened.getByRole("button", { name: "Demo guide", exact: true })).toBeEnabled();
     await reopened.getByRole("button", { name: editName }).click();
     await expect(reopened.getByRole("textbox", { name: "Reasoning", exact: true })).toHaveValue(
       writing,
@@ -65,6 +66,7 @@ test(
 
     const concurrent = await context.newPage();
     await concurrent.goto(url);
+    await expect(concurrent.getByRole("button", { name: "Demo guide", exact: true })).toBeEnabled();
     await concurrent.getByRole("button", { name: editName }).click();
     await expect(concurrent.getByRole("textbox", { name: "Reasoning", exact: true })).toHaveValue(
       writing,
@@ -1547,6 +1549,7 @@ test("demo visitors have independent saved work and reset replaces only the curr
     await expect(page).toHaveURL(/\/app\/demo-[^/]+\/rounds$/);
 
     await page.goto(firstApplication);
+    await expect(page.getByRole("button", { name: "Demo guide", exact: true })).toBeEnabled();
 
     await expect(
       page.getByText("A recommendation saved by this visitor.", { exact: true }),

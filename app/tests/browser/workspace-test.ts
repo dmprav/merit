@@ -21,7 +21,7 @@ export const test = base.extend<{ workspaceDatabase: Client }>({
       await client.connect();
 
       try {
-        await client.query("TRUNCATE organizations, app_users CASCADE");
+        await truncateWorkspaceTables(client);
         await seedExampleRounds(drizzle(client));
         await use(client);
       } finally {
@@ -31,3 +31,19 @@ export const test = base.extend<{ workspaceDatabase: Client }>({
     { auto: true },
   ],
 });
+
+const truncateWorkspaceTables = async (client: Client) => {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      await client.query("TRUNCATE organizations, app_users CASCADE");
+      return;
+    } catch (error) {
+      const code =
+        typeof error === "object" && error !== null && "code" in error ? error.code : undefined;
+      if (code !== "40P01" || attempt === 4) {
+        throw error;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 100 * (attempt + 1)));
+    }
+  }
+};

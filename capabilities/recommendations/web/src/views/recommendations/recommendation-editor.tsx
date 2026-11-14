@@ -117,18 +117,19 @@ export const RecommendationEditor = ({
       iconOnly
     />
   );
-  const editor = isOpen && !withdrawn && (
-    <RecommendationWriting
-      ready={ready}
-      draft={draft}
-      application={application}
-      round={round}
-      onDraftChange={onDraftChange}
-      onSave={save}
-      close={close}
-      closeAction={!children && closeAction}
-    />
-  );
+  const editor =
+    isOpen && !withdrawn ? (
+      <RecommendationWriting
+        ready={ready}
+        draft={draft}
+        application={application}
+        round={round}
+        onDraftChange={onDraftChange}
+        onSave={save}
+        close={close}
+        closeAction={!children && closeAction}
+      />
+    ) : null;
 
   return children ? (
     children({ summary, editor, action, closeAction })

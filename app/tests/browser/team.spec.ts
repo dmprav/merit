@@ -57,8 +57,7 @@ test("owner invites an administrator, grant access is explicit, and removal expl
   await expect(page).toHaveTitle("Members & access · Merit");
 
   await page.screenshot({ path: testInfo.outputPath("team-directory.png"), fullPage: true });
-  await page.getByText("Access history", { exact: true }).click();
-  await expect(page.getByText("Organization created", { exact: true })).toBeVisible();
+  await expect(page.getByText("Access history")).toHaveCount(0);
   await page.getByRole("button", { name: "Invite member", exact: true }).click();
   let dialog = page.getByRole("dialog", { name: "Invite member", exact: true });
   await dialog.getByRole("textbox", { name: "Email address" }).fill("dana@example.test");
@@ -75,10 +74,13 @@ test("owner invites an administrator, grant access is explicit, and removal expl
   await dialog.getByRole("button", { name: "Invite member", exact: true }).click();
 
   await expect(dialog).toHaveCount(0);
-  await expect(page.getByText("Email accepted by sender", { exact: true })).toBeVisible();
   await expect(
-    page.getByText("Invitation issued: dana@example.test", { exact: true }),
+    page
+      .getByRole("status")
+      .filter({ hasText: "Invitation saved. Check its email delivery status below." }),
   ).toBeVisible();
+  const danaInvitation = page.getByRole("row").filter({ hasText: "dana@example.test" });
+  await expect(danaInvitation.getByText("Awaiting acceptance", { exact: true })).toBeVisible();
 
   const danaLink = await invitationLink(request, "dana@example.test", name);
   await identity("manager");
@@ -184,11 +186,12 @@ test("owner invites an administrator, grant access is explicit, and removal expl
   await page.getByRole("menuitem", { name: "Remove from organization", exact: true }).click();
   dialog = page.getByRole("dialog", { name: `Remove Dana Reed from ${name}?` });
 
-  await expect(dialog).toContainText("handover@example.test");
+  await expect(dialog).toContainText("This also revokes 1 invitation they sent");
+  await expect(dialog).not.toContainText("handover@example.test");
+  await expect(dialog).toContainText("Merit cannot list their outstanding work yet.");
   await expect(dialog).toContainText(
-    "Merit cannot yet list everything this person needs to hand over.",
+    "Their work, authorship, account, and other organization memberships stay unchanged.",
   );
-  await expect(dialog).toContainText("Their existing work and authorship will remain");
 
   await page.screenshot({ path: testInfo.outputPath("team-removal.png"), fullPage: true });
   await page.keyboard.press("Escape");
