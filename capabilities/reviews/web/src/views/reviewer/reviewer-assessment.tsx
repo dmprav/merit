@@ -4,7 +4,6 @@ import { useTranslation } from "react-i18next";
 import { useLocaleSettings } from "@merit/i18n";
 import { parseMoney } from "@merit/money";
 import { moneyInput, normalizeMoneyInput } from "@merit/money/input";
-import { RecommendationOutcome } from "@merit/recommendations-web/work";
 import type { ReviewerPage } from "@merit/reviews/api";
 import type { ReviewerSubmissionProblem } from "@merit/reviews/domain";
 import shellStyles from "@merit/ui/application-shell.module.css";
@@ -18,6 +17,7 @@ import { StatusMessage } from "@merit/ui/status-message";
 import { TextField } from "@merit/ui/text-field";
 
 import { reconcileObservations } from "../../controllers/reviews/observations";
+import { AssessmentOutcome } from "../reviews/assessment-outcome";
 import { ReviewerFeedback, type ReviewerWork } from "./reviewer-feedback";
 import styles from "./reviewer.module.css";
 
@@ -283,12 +283,7 @@ const JudgmentSummary = ({ content, note }: { content: Draft; note?: string }) =
   const amount = content.amount === null ? null : parseMoney(content.amount);
   return (
     <Stack gap={3}>
-      <RecommendationOutcome
-        recommendation={{
-          position: content.position,
-          allocation: amount?.ok ? amount.value : null,
-        }}
-      />
+      <AssessmentOutcome position={content.position} amount={amount?.ok ? amount.value : null} />
       <p className={styles.writing}>{content.reasoning}</p>
       {content.observations
         .filter((observation) => observation.text.trim())

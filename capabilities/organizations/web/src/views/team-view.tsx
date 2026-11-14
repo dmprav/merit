@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { permits } from "@merit/access";
 import { FormDialog } from "@merit/forms";
 import { useLocaleSettings } from "@merit/i18n";
+import { RemotePagedContent } from "@merit/query/pages";
 import { ActionProvenance } from "@merit/ui/action-provenance";
 import shellStyles from "@merit/ui/application-shell.module.css";
 import { Button } from "@merit/ui/button";
@@ -191,38 +192,46 @@ const TeamHistory = ({ source }: { source: NonNullable<TeamData["historySource"]
   return (
     <details onToggle={(event) => setOpen(event.currentTarget.open)}>
       <summary>{t("history")}</summary>
-      <PagedContent source={source} entries={[]} active={open}>
-        {(entries) => (
-          <ol>
-            {entries.map((entry) => {
-              const details =
-                entry.details && typeof entry.details === "object" && !Array.isArray(entry.details)
-                  ? entry.details
-                  : {};
-              const target = details.targetName ?? details.email;
+      <RemotePagedContent source={source} entries={[]} active={open}>
+        {(page) => (
+          <PagedContent {...page}>
+            {(entries) => (
+              <ol>
+                {entries.map((entry) => {
+                  const details =
+                    entry.details &&
+                    typeof entry.details === "object" &&
+                    !Array.isArray(entry.details)
+                      ? entry.details
+                      : {};
+                  const target = details.targetName ?? details.email;
 
-              return (
-                <li key={entry.eventId}>
-                  <p>
-                    <strong>{t(`historyActions.${historyActionLabel(entry.action)}`)}</strong>
-                    {typeof target === "string" && <>: {target}</>}
-                  </p>
-                  <Inline align="baseline" gap={3}>
-                    <span>{t("common:recordedBy", { name: entry.actor ?? t("unknownName") })}</span>
-                    <ActionProvenance value={entry.provenance} />
-                    <time dateTime={entry.recordedAt}>
-                      {new Date(entry.recordedAt).toLocaleString(formatLocale, {
-                        timeZone: "UTC",
-                      })}{" "}
-                      UTC
-                    </time>
-                  </Inline>
-                </li>
-              );
-            })}
-          </ol>
+                  return (
+                    <li key={entry.eventId}>
+                      <p>
+                        <strong>{t(`historyActions.${historyActionLabel(entry.action)}`)}</strong>
+                        {typeof target === "string" && <>: {target}</>}
+                      </p>
+                      <Inline align="baseline" gap={3}>
+                        <span>
+                          {t("common:recordedBy", { name: entry.actor ?? t("unknownName") })}
+                        </span>
+                        <ActionProvenance value={entry.provenance} />
+                        <time dateTime={entry.recordedAt}>
+                          {new Date(entry.recordedAt).toLocaleString(formatLocale, {
+                            timeZone: "UTC",
+                          })}{" "}
+                          UTC
+                        </time>
+                      </Inline>
+                    </li>
+                  );
+                })}
+              </ol>
+            )}
+          </PagedContent>
         )}
-      </PagedContent>
+      </RemotePagedContent>
     </details>
   );
 };

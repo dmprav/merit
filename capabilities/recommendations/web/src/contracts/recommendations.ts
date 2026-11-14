@@ -1,4 +1,3 @@
-import type { encodeBudgetTotals } from "@merit/grantmaking/api";
 import type { encodeMoney } from "@merit/money";
 import type { encodeRecommendation, SaveRecommendationRequest } from "@merit/recommendations/api";
 import type { Recommendation, RecommendationUpdateError } from "@merit/recommendations/domain";
@@ -39,7 +38,10 @@ export type RecommendationSaveResponse =
       recommendation: ReturnType<typeof encodeRecommendation>;
       recommendationVersion: number;
       budget: ReturnType<typeof encodeMoney> | null;
-      totals: ReturnType<typeof encodeBudgetTotals>;
+      totals: {
+        proposed: ReturnType<typeof encodeMoney>;
+        remaining: ReturnType<typeof encodeMoney> | null;
+      };
     }
   | RecommendationFailure;
 

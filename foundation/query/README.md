@@ -77,8 +77,9 @@ Return `null` for missing or denied resources, and throw for a retryable read
 failure. Include the record identity and revision where a successful write changes
 the collection; use the same invalidation scope as the owning workflow.
 
-`usePagedContent` from `@merit/query/pages` accumulates pages, retries the failed
-read, and hides all previously loaded entries if a later read denies access.
-`PagedContent` from `@merit/ui/paged-content` supplies history loading, retry, and
-older-entry controls around capability-owned rendering. It starts its read when
-the history is opened; static examples can supply entries directly.
+`usePagedContent` and `RemotePagedContent` from `@merit/query/pages` accumulate
+pages, retry the failed read, defer remote loading until opened, and hide all
+previously loaded entries if a later read denies access. `PagedContent` from
+`@merit/ui/paged-content` supplies the presentational loading, retry, and
+older-entry controls around capability-owned rendering; static examples can
+supply entries directly.

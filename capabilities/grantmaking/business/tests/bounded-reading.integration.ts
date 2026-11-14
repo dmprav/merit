@@ -18,7 +18,13 @@ import {
   listFundingApplicationHistory,
   getFundingRoundContent,
   listFundingRoundHistory,
+  listFundingRounds,
+  listWorkspaceApplications,
+  listWorkspaceActivity,
+  applicationAuditHistory,
+  roundBudgetHistory,
 } from "@merit/grantmaking/server";
+import { removeDemoFunding } from "@merit/grantmaking/server/demo";
 import { seedExampleRounds } from "@merit/grantmaking/testing";
 import { actor, workspaceTest as it, workspaceSlug } from "@merit/organizations/testing/workspace";
 import { createFundingRound, deleteFundingRound } from "@merit/rounds/server";
@@ -327,4 +333,77 @@ it("returns the same review freshness as shared web reads without loading histor
       expect(content.status).toBe("ok");
     }
   }
+});
+
+it("returns typed error statuses on malformed query inputs and distinguishes forbidden from not_found", async ({
+  db,
+  database,
+}) => {
+  await seedExampleRounds(db);
+
+  expect(await listFundingRoundSummaries(db, actor, { workspaceSlug: "BAD SLUG" })).toEqual({
+    status: "not_found",
+  });
+  expect(
+    await getFundingRoundOverview(db, actor, { workspaceSlug, roundId: "invalid-id" }),
+  ).toEqual({ status: "not_found" });
+  expect(
+    await getFundingApplicationContext(db, actor, { workspaceSlug, applicationId: "invalid-id" }),
+  ).toEqual({ status: "not_found" });
+  expect(
+    await getFundingRoundContent(db, actor, {
+      workspaceSlug,
+      roundId: "000000000001",
+      section: "details",
+      offset: -1,
+    }),
+  ).toEqual({ status: "invalid_range" });
+  expect(
+    await getFundingApplicationContent(db, actor, {
+      workspaceSlug,
+      applicationId: "000000000001",
+      section: "details",
+      offset: -1,
+    }),
+  ).toEqual({ status: "invalid_range" });
+  expect(await listFundingRounds(db, actor, "BAD SLUG")).toEqual({ status: "not_found" });
+  expect(await listWorkspaceApplications(db, actor, "BAD SLUG")).toEqual({ status: "not_found" });
+  await expect(
+    listWorkspaceActivity(db, actor, { workspaceSlug: "BAD SLUG" }),
+  ).rejects.toMatchObject({ name: "ZodError" });
+  expect(
+    await getFundingRoundPage(db, actor, {
+      workspaceSlug,
+      publicId: "invalid-id",
+      kind: "round",
+    }),
+  ).toBeNull();
+  expect(
+    await getFundingApplicationPage(db, actor, {
+      workspaceSlug,
+      publicId: "invalid-id",
+    }),
+  ).toBeNull();
+  expect(
+    await applicationAuditHistory(db, actor, { workspaceSlug, applicationId: "invalid-id" }),
+  ).toEqual({ status: "not_found" });
+  expect(await roundBudgetHistory(db, actor, { workspaceSlug, roundId: "invalid-id" })).toEqual({
+    status: "not_found",
+  });
+
+  await database.client.query(
+    "UPDATE memberships SET role = 'member' WHERE organization_id = 'alder' AND user_id = 'dana'",
+  );
+  expect(await listFundingRoundSummaries(db, actor, { workspaceSlug })).toEqual({
+    status: "forbidden",
+  });
+  expect(await listWorkspaceApplications(db, actor, workspaceSlug)).toEqual({
+    status: "forbidden",
+  });
+
+  await db.transaction((tx) => removeDemoFunding(tx, workspaceSlug));
+  const { rows } = await database.client.query<{ count: string }>(
+    "SELECT count(*)::text AS count FROM funding_rounds WHERE organization_id = 'alder'",
+  );
+  expect(rows[0]?.count).toBe("0");
 });

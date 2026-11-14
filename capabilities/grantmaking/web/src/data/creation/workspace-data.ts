@@ -15,7 +15,10 @@ export const createCreationData = (
   source: CreationSource,
 ): CreationData => ({
   target,
-  draftKey: target.kind === "round" ? target.workspaceSlug : `application:${target.roundPublicId}`,
+  draftKey:
+    target.kind === "round"
+      ? `round:${target.workspaceSlug}`
+      : `application:${target.workspaceSlug}/${target.roundPublicId}`,
   create: (value, materialLabel) =>
     target.kind === "round"
       ? source.createRound({

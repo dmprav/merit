@@ -8,6 +8,7 @@ import type {
   ApplicationView as Application,
 } from "@merit/grantmaking/api";
 import { useFormat } from "@merit/i18n/format";
+import { RemotePagedContent } from "@merit/query/pages";
 import { ApplicationRecommendationSummary } from "@merit/recommendations-web/work";
 import type { ReviewData } from "@merit/reviews-web/contracts";
 import { ReviewWork, ReviewOverview } from "@merit/reviews-web/work";
@@ -254,26 +255,28 @@ const ApplicationReferencePane = ({
           ) : key === "details" ? (
             content.details
           ) : (
-            <>
-              <PagedContent
-                source={intake?.data.historySource}
-                entries={history}
-                active={reference === "history"}
-              >
-                {(entries, hasMore) => (
-                  <>
-                    <ApplicationHistory
-                      key={`${application.id}:${historyVisit}`}
-                      application={application}
-                      history={entries}
-                      hasMore={hasMore}
-                      initialFromVersion={historyFrom}
-                    />
-                    {Boolean(entries.length) && <ApplicationAuditHistory history={entries} />}
-                  </>
-                )}
-              </PagedContent>
-            </>
+            <RemotePagedContent
+              source={intake?.data.historySource}
+              entries={history}
+              active={reference === "history"}
+            >
+              {(page) => (
+                <PagedContent {...page}>
+                  {(entries, hasMore) => (
+                    <>
+                      <ApplicationHistory
+                        key={`${application.id}:${historyVisit}`}
+                        application={application}
+                        history={entries}
+                        hasMore={hasMore}
+                        initialFromVersion={historyFrom}
+                      />
+                      {Boolean(entries.length) && <ApplicationAuditHistory history={entries} />}
+                    </>
+                  )}
+                </PagedContent>
+              )}
+            </RemotePagedContent>
           )}
         </div>
       ))}

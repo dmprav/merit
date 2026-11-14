@@ -25,11 +25,11 @@ import { readApplicationHistory, readRoundHistory } from "./history-records";
 
 export const listFundingRounds = async (db: Database, actor: Actor, workspaceSlug: string) => {
   return readTransaction(db, async (tx) => {
-    const rows = await listRoundSummaries(
-      tx,
-      actor.userId,
-      workspaceSlugSchema.parse(workspaceSlug),
-    );
+    const parsed = workspaceSlugSchema.safeParse(workspaceSlug);
+    if (!parsed.success) {
+      return { status: "not_found" } as const;
+    }
+    const rows = await listRoundSummaries(tx, actor.userId, parsed.data);
     if (!rows[0]) {
       return { status: "not_found" } as const;
     }
@@ -50,8 +50,11 @@ export const getFundingRoundPage = async (
   input: PublicRoundRequest,
 ) => {
   return readTransaction(db, async (tx) => {
-    const request = publicRoundRequestSchema.parse(input);
-    const row = await readPublicRound(tx, actor.userId, request);
+    const parsed = publicRoundRequestSchema.safeParse(input);
+    if (!parsed.success) {
+      return null;
+    }
+    const row = await readPublicRound(tx, actor.userId, parsed.data);
     if (!row) {
       return null;
     }
@@ -80,8 +83,11 @@ export const getFundingApplicationPage = async (
   input: ApplicationRequest,
 ) => {
   return readTransaction(db, async (tx) => {
-    const request = applicationRequestSchema.parse(input);
-    const row = await readApplicationDetail(tx, actor.userId, request);
+    const parsed = applicationRequestSchema.safeParse(input);
+    if (!parsed.success) {
+      return null;
+    }
+    const row = await readApplicationDetail(tx, actor.userId, parsed.data);
     if (!row) {
       return null;
     }

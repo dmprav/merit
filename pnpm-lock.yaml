@@ -1020,6 +1020,9 @@ importers:
       '@merit/money':
         specifier: workspace:*
         version: link:../../../foundation/money
+      '@merit/query':
+        specifier: workspace:*
+        version: link:../../../foundation/query
       '@merit/recommendations-web':
         specifier: workspace:*
         version: link:../../recommendations/web
@@ -1060,9 +1063,6 @@ importers:
         specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
-      '@merit/query':
-        specifier: workspace:*
-        version: link:../../../foundation/query
       '@merit/recommendations':
         specifier: workspace:*
         version: link:../../recommendations/business
@@ -1443,9 +1443,6 @@ importers:
       '@merit/query':
         specifier: workspace:*
         version: link:../../../foundation/query
-      '@merit/recommendations-web':
-        specifier: workspace:*
-        version: link:../../recommendations/web
       '@merit/reviews':
         specifier: workspace:*
         version: link:../business
@@ -1562,9 +1559,6 @@ importers:
 
   capabilities/rounds/web:
     dependencies:
-      '@merit/contacts-web':
-        specifier: workspace:*
-        version: link:../../contacts/web
       '@merit/drafts':
         specifier: workspace:*
         version: link:../../../foundation/drafts
@@ -1962,18 +1956,12 @@ importers:
 
   foundation/ui:
     dependencies:
-      '@merit/auth':
-        specifier: workspace:*
-        version: link:../auth
       '@merit/dates':
         specifier: workspace:*
         version: link:../dates
       '@merit/i18n':
         specifier: workspace:*
         version: link:../i18n
-      '@merit/query':
-        specifier: workspace:*
-        version: link:../query
       lucide-react:
         specifier: 'catalog:'
         version: 1.70.0(@types/react@19.3.0)(react@19.3.1)

@@ -14,7 +14,7 @@ export const createIntakeData = (
 ): IntakeData => {
   const { workspaceSlug, publicId, state } = target;
   return {
-    draftKey: publicId,
+    draftKey: `${workspaceSlug}/${publicId}`,
     workspaceSlug,
     publicId,
     state,

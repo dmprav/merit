@@ -1,45 +1,56 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { PageSource } from "@merit/query/contracts";
-import { usePagedContent } from "@merit/query/pages";
-
 import { Button } from "../../components/button/button";
 import { Notice } from "../../components/notice/notice";
 
-type Props<T> = {
-  source?: PageSource<T>;
+export type PagedContentState<T> = {
   entries: T[];
-  active: boolean;
+  loaded?: boolean;
+  denied?: boolean;
+  pending?: boolean;
+  fetching?: boolean;
+  failed?: boolean;
+  hasMore?: boolean;
+  more?: () => unknown;
+  retry?: () => unknown;
+};
+
+type Props<T> = PagedContentState<T> & {
   children: (entries: T[], hasMore: boolean) => ReactNode;
 };
 
 /** Static examples and authorized remote pages share the same presentation. */
-export const PagedContent = <T,>(props: Props<T>) =>
-  props.source
-    ? props.active && <RemoteContent {...props} source={props.source} />
-    : props.children(props.entries, false);
-
-const RemoteContent = <T,>({ source, children }: Props<T> & { source: PageSource<T> }) => {
+export const PagedContent = <T,>({
+  entries,
+  loaded = true,
+  denied = false,
+  pending = false,
+  fetching = false,
+  failed = false,
+  hasMore = false,
+  more,
+  retry,
+  children,
+}: Props<T>) => {
   const { t } = useTranslation("common");
-  const page = usePagedContent(source);
-  if (page.denied) {
+  if (denied) {
     return <Notice tone="neutral">{t("pagedUnavailable")}</Notice>;
   }
   return (
     <>
-      {page.pending && <p role="status">{t("pagedLoading")}</p>}
-      {page.loaded && children(page.entries, page.hasMore)}
-      {page.failed && (
+      {pending && <p role="status">{t("pagedLoading")}</p>}
+      {loaded && children(entries, hasMore)}
+      {failed && (
         <Notice tone="danger" role="alert">
           {t("pagedFailed")}{" "}
-          <Button variant="quiet" isPending={page.fetching} onPress={() => void page.retry()}>
+          <Button variant="quiet" isPending={fetching} onPress={() => void retry?.()}>
             {t("pagedRetry")}
           </Button>
         </Notice>
       )}
-      {page.hasMore && !page.failed && (
-        <Button variant="quiet" isPending={page.fetching} onPress={() => void page.more()}>
+      {hasMore && !failed && (
+        <Button variant="quiet" isPending={fetching} onPress={() => void more?.()}>
           {t("pagedMore")}
         </Button>
       )}

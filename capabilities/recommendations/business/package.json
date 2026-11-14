@@ -10,7 +10,8 @@
     "./server": "./src/server/index.ts",
     "./schema": "./src/server/persistence/schema.ts",
     "./scope": "./src/server/persistence/projections.ts",
-    "./encoding": "./src/server/persistence/encoding.ts"
+    "./encoding": "./src/server/persistence/encoding.ts",
+    "./server/demo": "./src/server/demo.ts"
   },
   "dependencies": {
     "@merit/applications": "workspace:*",

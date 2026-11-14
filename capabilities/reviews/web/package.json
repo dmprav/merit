@@ -24,7 +24,6 @@
     "@merit/i18n": "workspace:*",
     "@merit/money": "workspace:*",
     "@merit/query": "workspace:*",
-    "@merit/recommendations-web": "workspace:*",
     "@merit/reviews": "workspace:*",
     "@merit/rounds": "workspace:*",
     "@merit/ui": "workspace:*",

@@ -1,11 +1,12 @@
 import { useTranslation } from "react-i18next";
 
-import type { Provenance } from "@merit/auth";
 import type {} from "@merit/i18n";
 
 import styles from "./action-provenance.module.css";
 
-export const ActionProvenance = ({ value }: { value?: Provenance | null }) => {
+export type ActionProvenanceValue = { interface: "web" } | { interface: "mcp"; clientId: string };
+
+export const ActionProvenance = ({ value }: { value?: ActionProvenanceValue | null }) => {
   const { t } = useTranslation("common");
 
   return (

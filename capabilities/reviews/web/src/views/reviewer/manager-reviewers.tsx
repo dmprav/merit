@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useLocaleSettings } from "@merit/i18n";
 import { useFormat } from "@merit/i18n/format";
 import type { PageSource } from "@merit/query/contracts";
+import { RemotePagedContent } from "@merit/query/pages";
 import type { ReviewerEvent } from "@merit/reviews/api";
 import type { ReviewerSummary } from "@merit/reviews/api";
 import { isInvitationExpired, type ReviewerStatus, type ReviewState } from "@merit/reviews/domain";
@@ -257,30 +258,34 @@ const AssignmentHistory = ({
   return (
     <details className={styles.history} onToggle={(event) => setOpen(event.currentTarget.open)}>
       <summary>{t("recordHistory")}</summary>
-      <PagedContent source={source} entries={history} active={open}>
-        {(entries) => (
-          <ol>
-            {/* Newest first: the latest change usually explains the current status. */}
-            {entries.map((event, index) => (
-              <li key={index}>
-                {t(`event.${eventLabel(event.action)}`)} · {event.actor} ·{" "}
-                <time dateTime={event.at} title={event.at}>
-                  {new Date(event.at).toLocaleString(formatLocale, {
-                    day: "numeric",
-                    month: "short",
-                    year: "numeric",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                    timeZone: "UTC",
-                  })}{" "}
-                  UTC
-                </time>
-                {event.note && <p className={styles.writing}>{event.note}</p>}
-              </li>
-            ))}
-          </ol>
+      <RemotePagedContent source={source} entries={history} active={open}>
+        {(page) => (
+          <PagedContent {...page}>
+            {(entries) => (
+              <ol>
+                {/* Newest first: the latest change usually explains the current status. */}
+                {entries.map((event, index) => (
+                  <li key={index}>
+                    {t(`event.${eventLabel(event.action)}`)} · {event.actor} ·{" "}
+                    <time dateTime={event.at} title={event.at}>
+                      {new Date(event.at).toLocaleString(formatLocale, {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        timeZone: "UTC",
+                      })}{" "}
+                      UTC
+                    </time>
+                    {event.note && <p className={styles.writing}>{event.note}</p>}
+                  </li>
+                ))}
+              </ol>
+            )}
+          </PagedContent>
         )}
-      </PagedContent>
+      </RemotePagedContent>
     </details>
   );
 };

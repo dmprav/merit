@@ -30,7 +30,11 @@ export const listFundingRoundSummaries = async (
   input: z.input<typeof roundListInput>,
 ) => {
   return readTransaction(db, async (tx) => {
-    const request = roundListInput.parse(input);
+    const parsed = roundListInput.safeParse(input);
+    if (!parsed.success) {
+      return { status: "not_found" } as const;
+    }
+    const request = parsed.data;
     const access = await reads.readGrantWorkspaceAccess(tx, actor.userId, request.workspaceSlug);
     if (!access) {
       return { status: "not_found" } as const;
@@ -54,7 +58,11 @@ export const getFundingRoundOverview = async (
   input: z.input<typeof roundReadInput>,
 ) => {
   return readTransaction(db, async (tx) => {
-    const row = await reads.readRoundOverview(tx, actor.userId, roundReadInput.parse(input));
+    const parsed = roundReadInput.safeParse(input);
+    if (!parsed.success) {
+      return { status: "not_found" } as const;
+    }
+    const row = await reads.readRoundOverview(tx, actor.userId, parsed.data);
     if (!row) {
       return { status: "not_found" } as const;
     }
@@ -81,7 +89,11 @@ export const listFundingApplications = async (
   input: z.input<typeof applicationListInput>,
 ) => {
   return readTransaction(db, async (tx) => {
-    const request = applicationListInput.parse(input);
+    const parsed = applicationListInput.safeParse(input);
+    if (!parsed.success) {
+      return { status: "not_found" } as const;
+    }
+    const request = parsed.data;
     if (!(await reads.readRoundIdentity(tx, actor.userId, request))) {
       return { status: "not_found" } as const;
     }
@@ -101,11 +113,11 @@ export const getFundingApplicationContext = async (
   input: z.input<typeof applicationReadInput>,
 ) => {
   return readTransaction(db, async (tx) => {
-    const row = await reads.readApplicationContext(
-      tx,
-      actor.userId,
-      applicationReadInput.parse(input),
-    );
+    const parsed = applicationReadInput.safeParse(input);
+    if (!parsed.success) {
+      return { status: "not_found" } as const;
+    }
+    const row = await reads.readApplicationContext(tx, actor.userId, parsed.data);
     return row
       ? ({ status: "ok", application: applicationContextSchema.parse(row) } as const)
       : ({ status: "not_found" } as const);
@@ -146,7 +158,14 @@ export const getFundingRoundContent = async (
   input: z.input<typeof roundContentInput>,
 ) => {
   return readTransaction(db, async (tx) => {
-    const request = roundContentInput.parse(input);
+    const parsed = roundContentInput.safeParse(input);
+    if (!parsed.success) {
+      const rangeIssue = parsed.error.issues.some((issue) =>
+        ["offset", "length", "fingerprint", "revision"].includes(String(issue.path[0])),
+      );
+      return { status: rangeIssue ? "invalid_range" : "not_found" } as const;
+    }
+    const request = parsed.data;
     if (request.section === "preparation_change" && request.revision === undefined) {
       return { status: "invalid_range" } as const;
     }
@@ -160,7 +179,16 @@ export const getFundingApplicationContent = async (
   input: z.input<typeof applicationContentInput>,
 ) => {
   return readTransaction(db, async (tx) => {
-    const request = applicationContentInput.parse(input);
+    const parsed = applicationContentInput.safeParse(input);
+    if (!parsed.success) {
+      const rangeIssue = parsed.error.issues.some((issue) =>
+        ["offset", "length", "fingerprint", "revision", "materialVersion", "entryId"].includes(
+          String(issue.path[0]),
+        ),
+      );
+      return { status: rangeIssue ? "invalid_range" : "not_found" } as const;
+    }
+    const request = parsed.data;
     if (request.section === "material" && request.materialVersion === undefined) {
       return { status: "invalid_range" } as const;
     }
@@ -186,7 +214,11 @@ export const listFundingRoundHistory = async (
   input: z.input<typeof roundHistoryInput>,
 ) => {
   return readTransaction(db, async (tx) => {
-    const request = roundHistoryInput.parse(input);
+    const parsed = roundHistoryInput.safeParse(input);
+    if (!parsed.success) {
+      return { status: "not_found" } as const;
+    }
+    const request = parsed.data;
     const access = await reads.readGrantWorkspaceAccess(tx, actor.userId, request.workspaceSlug);
     if (!access?.allowed) {
       return { status: "not_found" } as const;
@@ -212,7 +244,11 @@ export const listFundingApplicationHistory = async (
   input: z.input<typeof applicationHistoryInput>,
 ) => {
   return readTransaction(db, async (tx) => {
-    const request = applicationHistoryInput.parse(input);
+    const parsed = applicationHistoryInput.safeParse(input);
+    if (!parsed.success) {
+      return { status: "not_found" } as const;
+    }
+    const request = parsed.data;
     const access = await reads.readGrantWorkspaceAccess(tx, actor.userId, request.workspaceSlug);
     if (!access?.allowed) {
       return { status: "not_found" } as const;
@@ -235,7 +271,11 @@ export const listContactApplications = async (
   input: z.input<typeof contactApplicationListInput>,
 ) => {
   return readTransaction(db, async (tx) => {
-    const request = contactApplicationListInput.parse(input);
+    const parsed = contactApplicationListInput.safeParse(input);
+    if (!parsed.success) {
+      return { status: "not_found" } as const;
+    }
+    const request = parsed.data;
     const access = await reads.readGrantWorkspaceAccess(tx, actor.userId, request.workspaceSlug);
     if (!access?.allowed) {
       return { status: "not_found" } as const;
@@ -258,7 +298,11 @@ export const listApplicationReviewSummaries = async (
   input: z.input<typeof reviewListInput>,
 ) => {
   return readTransaction(db, async (tx) => {
-    const request = reviewListInput.parse(input);
+    const parsed = reviewListInput.safeParse(input);
+    if (!parsed.success) {
+      return { status: "not_found" } as const;
+    }
+    const request = parsed.data;
     if (!(await reads.readApplicationContext(tx, actor.userId, request))) {
       return { status: "not_found" } as const;
     }
