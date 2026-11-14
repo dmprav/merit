@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
+import { useAnalytics } from "@merit/analytics";
+
 import type { DemoState, StartDemo } from "../contracts";
 
 export const useDemoEntry = (
@@ -8,6 +10,7 @@ export const useDemoEntry = (
   onEnter: (state: Extract<DemoState, { status: "ready" }>, guided: boolean) => void,
   guided = false,
 ) => {
+  const analytics = useAnalytics();
   const [state, setState] = useState(initial);
   const [pending, setPending] = useState(initial.status === "ready");
   const entered = useRef(false);
@@ -21,6 +24,7 @@ export const useDemoEntry = (
     try {
       const result = await startDemo({ fresh });
       if (result.status === "ready") {
+        analytics.track("demo_started", { guided: guidance, fresh });
         onEnter(result, guidance);
       } else {
         setState(result);

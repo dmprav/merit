@@ -185,6 +185,10 @@ Use the same publishable key as `VITE_CLERK_PUBLISHABLE_KEY` when building the w
 application. Configure the deployed `/mcp/workspace` URL in Clerk using the
 [MCP authentication setup](mcp-operations.md#configure-workspace-authentication).
 
+To enable optional PostHog analytics in the built web bundle, set `VITE_POSTHOG_KEY`
+and (when using EU or a custom ingest endpoint) `VITE_POSTHOG_HOST` during the build.
+Leaving `VITE_POSTHOG_KEY` empty keeps analytics disabled.
+
 ## Publish and verify
 
 Sign in with `cf auth login` or supply `CLOUDFLARE_API_TOKEN`. With the production

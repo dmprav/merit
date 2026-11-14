@@ -13,6 +13,7 @@ import { useTranslation } from "react-i18next";
 import { createMessages, MessagesProvider, type LocaleSettings } from "@merit/i18n";
 
 import { AccountProvider } from "./account-provider";
+import { ShellAnalyticsProvider } from "./analytics";
 import { appMessages } from "./messages";
 import localStyles from "./root.module.css";
 import stylesheet from "./style.css?url";
@@ -65,7 +66,9 @@ const Root = ({ children }: { children: ReactNode }) => {
       </head>
       <body>
         <MessagesProvider messages={appMessages} locale={locale}>
-          <AccountProvider>{children}</AccountProvider>
+          <ShellAnalyticsProvider>
+            <AccountProvider>{children}</AccountProvider>
+          </ShellAnalyticsProvider>
           {DevelopmentTools && (
             <ClientOnly>
               <Suspense>

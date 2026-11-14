@@ -1409,3 +1409,15 @@ test("grantmaking readers and demo seeding use Applications' owned history codec
     crossCapabilityMessage,
   );
 });
+
+test("isolates posthog-js inside foundation/analytics", () => {
+  check({
+    "foundation/analytics/src/posthog.ts": 'export { posthog } from "posthog-js";',
+  });
+  check(
+    {
+      "interfaces/product/src/probe.ts": 'export { posthog } from "posthog-js";',
+    },
+    "PostHog belongs in foundation/analytics",
+  );
+});

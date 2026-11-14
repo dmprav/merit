@@ -52,8 +52,13 @@ const dateImports = {
   regex: "^@internationalized/date($|/)",
   message: "Date operations belong in @merit/dates. Use its public API.",
 };
+const posthogImports = {
+  regex: "^posthog-js($|/)",
+  message: "PostHog belongs in foundation/analytics. Use @merit/analytics instead.",
+};
 const restrictedImports = [
   dateImports,
+  posthogImports,
   reactAriaImports,
   formImports,
   tableImports,
@@ -98,6 +103,10 @@ const serverLibraries = "drizzle-orm(/|$)|pg$|node:";
 export const imports = {
   rules: importRules(allowImports(processImports)),
   overrides: [
+    {
+      files: ["**/foundation/analytics/**"],
+      rules: importRules(allowImports(posthogImports, processImports)),
+    },
     {
       files: ["**/foundation/ui/**"],
       rules: importRules(allowImports(reactAriaImports, processImports)),
@@ -368,6 +377,13 @@ export const imports = {
     {
       files: ["**/foundation/auth/src/session.ts"],
       rules: importRules(allowImports(clerkImports)),
+    },
+    {
+      files: [
+        "**/foundation/analytics/src/posthog.ts",
+        "**/foundation/analytics/src/posthog.test.ts",
+      ],
+      rules: importRules(allowImports(posthogImports)),
     },
     {
       files: ["**/foundation/money/**"],

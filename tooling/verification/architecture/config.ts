@@ -444,7 +444,7 @@ export default defineConfig({
             "app/src/development/**/*.tsx",
             "capabilities/*/web/src/**",
             "interfaces/{product,admin,site}/src/**",
-            "foundation/{ui,forms,drafts,tables,query,i18n}/src/**",
+            "foundation/{analytics,ui,forms,drafts,tables,query,i18n}/src/**",
           ],
           "web-view": ["capabilities/*/web/src/views/**", "interfaces/*/src/**/views/**"],
           "web-controller": [

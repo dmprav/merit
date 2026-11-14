@@ -11,6 +11,7 @@ packages:
 catalogMode: prefer
 
 allowBuilds:
+  core-js: false
   esbuild: true
   workerd: true
 
@@ -89,6 +90,7 @@ catalog:
   "@secretlint/secretlint-rule-preset-recommend": 13.1.0
   "@secretlint/secretlint-rule-pattern": 13.1.0
   "@secretlint/types": 13.1.0
+  posthog-js: 1.444.2
 overrides:
   vite@*: "catalog:"
   # Patch tooling dependencies until their parents adopt fixed versions.
