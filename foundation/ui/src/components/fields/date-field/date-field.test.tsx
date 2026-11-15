@@ -27,45 +27,53 @@ const Example = (props: Partial<ComponentProps<typeof DateField>>) => {
   );
 };
 
-it("preserves unfinished text and updates the field from a keyboard calendar selection", async () => {
+it("preserves unfinished and empty text when the calendar is dismissed", async () => {
   const user = userEvent.setup();
   render(<Example />);
   const input = screen.getByRole("textbox", { name: "Date" });
+  const trigger = screen.getByRole("button", { name: "Choose date for Date" });
   await user.clear(input);
   await user.type(input, "2027-02-");
 
   expect(input).toHaveValue("2027-02-");
 
   await user.type(input, "31");
-  const trigger = screen.getByRole("button", { name: "Choose date for Date" });
   await user.click(trigger);
 
   expect(screen.getByRole("dialog")).toBeVisible();
 
   await user.keyboard("{Escape}");
+
   await waitFor(() => expect(trigger).toHaveFocus());
   expect(input).toHaveValue("2027-02-31");
 
   await user.clear(input);
-  await user.type(input, "2027-01-21");
+
+  expect(input).toHaveValue("");
+});
+
+it("updates the field from a keyboard calendar selection and restores trigger focus", async () => {
+  const user = userEvent.setup();
+  render(<Example />);
+  const input = screen.getByRole("textbox", { name: "Date" });
+  const trigger = screen.getByRole("button", { name: "Choose date for Date" });
   await user.click(trigger);
+
   await waitFor(() =>
     expect(
       screen.getByRole("button", { name: "Thursday, 21 January 2027 selected" }),
     ).toHaveFocus(),
   );
+
   await user.keyboard("{ArrowRight}");
 
   expect(input).toHaveValue("2027-01-21");
 
   await user.keyboard("{Enter}");
 
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   expect(input).toHaveValue("2027-01-22");
   await waitFor(() => expect(trigger).toHaveFocus());
-
-  await user.clear(input);
-
-  expect(input).toHaveValue("");
 });
 
 it("disables an already open calendar and restores the draft when enabled again", async () => {

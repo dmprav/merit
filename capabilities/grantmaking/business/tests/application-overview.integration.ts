@@ -2,12 +2,17 @@ import { randomUUID } from "node:crypto";
 
 import { assert, expect } from "vite-plus/test";
 
+import { materialVersionSchema } from "@merit/applications/domain";
 import { createFundingApplication } from "@merit/applications/server";
+import { changeWorkspaceContact } from "@merit/contacts/server";
 import { getFundingRoundPage, listWorkspaceApplications } from "@merit/grantmaking/server";
 import { fundingExampleIds } from "@merit/grantmaking/server/demo";
+import { fundingRoundContactUsage } from "@merit/grantmaking/server/integrations";
 import { seedExampleRounds } from "@merit/grantmaking/testing";
 import { actor } from "@merit/organizations/testing/workspace";
+import { reviewRevisionSchema } from "@merit/reviews/domain";
 import { saveApplicationReview } from "@merit/reviews/server";
+import { criteriaVersionSchema } from "@merit/rounds/domain";
 import { editFundingRound } from "@merit/rounds/server";
 
 import { roundTest as it } from "./round-test";
@@ -65,38 +70,71 @@ it("lists applications across rounds with the same review facts as their round p
   }
 });
 
-it("uses the latest assessment version and counts a replacement only once", async ({ db }) => {
-  await seedExampleRounds(db);
-  const { roundId } = await fundingExampleIds("alder");
-  const page = await getFundingRoundPage(db, actor, {
-    workspaceSlug: "alder",
-    publicId: roundId,
-    kind: "round",
-  });
-  assert.isNotNull(page);
-  const application = page.round.applications[0]!;
-  const assessment = application.reviews.assessments[0]!;
+it("uses the latest assessment version and counts a replacement only once", async ({
+  db,
+  rounds,
+}) => {
+  const address = await rounds.createApplication("Assessed application");
+  const reviewer = await changeWorkspaceContact(
+    db,
+    actor,
+    {
+      workspaceSlug: "alder",
+      contactId: randomUUID(),
+      action: "create",
+      details: { name: "Sam Morgan", email: "", affiliation: "" },
+    },
+    fundingRoundContactUsage,
+  );
+  assert(reviewer.status === "ok");
   const content = {
-    ...assessment.versions.at(-1)!.content,
-    applicationVersion: null,
-    criteriaVersion: null,
+    applicationVersion: materialVersionSchema.parse(1),
+    criteriaVersion: criteriaVersionSchema.parse(1),
+    date: null,
+    position: "Fund" as const,
+    amount: "80.00",
+    reasoning: "Clear plan for weekly activities.",
+    observations: [],
   };
   const input = {
-    workspaceSlug: "alder",
-    publicId: application.id,
-    expectedRevision: application.reviews.revision,
-    expectedApplicationVersion: application.version,
-    expectedCriteriaVersion: page.round.criteriaVersion,
+    ...address,
+    expectedApplicationVersion: materialVersionSchema.parse(1),
+    expectedCriteriaVersion: criteriaVersionSchema.parse(1),
   };
+
+  const reviews = async () => {
+    const result = await listWorkspaceApplications(db, actor, "alder");
+    assert(result.status === "ok");
+    return result.applications.find((item) => item.id === address.publicId);
+  };
+
+  const assessmentId = randomUUID();
+  const recorded = await saveApplicationReview(db, actor, {
+    ...input,
+    expectedRevision: reviewRevisionSchema.parse(0),
+    change: {
+      action: "record",
+      id: assessmentId,
+      contactId: reviewer.contact.id,
+      requestId: null,
+      previousId: null,
+      content,
+    },
+  });
+  assert(recorded.status === "ok");
   const edited = await saveApplicationReview(db, actor, {
     ...input,
-    change: { action: "edit", id: assessment.id, content, note: "Basis not supplied" },
+    expectedRevision: recorded.revision,
+    change: {
+      action: "edit",
+      id: assessmentId,
+      content: { ...content, applicationVersion: null, criteriaVersion: null },
+      note: "Basis not supplied",
+    },
   });
   assert(edited.status === "ok");
-  let result = await listWorkspaceApplications(db, actor, "alder");
-  assert(result.status === "ok");
-  expect(result.applications.find((item) => item.id === application.id)?.reviews).toEqual({
-    current: 1,
+  expect((await reviews())?.reviews).toEqual({
+    current: 0,
     unknown: 1,
     outdated: 0,
     outstanding: 0,
@@ -108,24 +146,25 @@ it("uses the latest assessment version and counts a replacement only once", asyn
     change: {
       action: "record",
       id: randomUUID(),
-      contactId: assessment.contactId,
+      contactId: reviewer.contact.id,
       requestId: null,
-      previousId: assessment.id,
-      content: assessment.versions.at(-1)!.content,
+      previousId: assessmentId,
+      content,
     },
   });
   assert(replaced.status === "ok");
-  result = await listWorkspaceApplications(db, actor, "alder");
-  assert(result.status === "ok");
-  expect(result.applications.find((item) => item.id === application.id)?.reviews).toEqual({
-    current: 2,
+  expect((await reviews())?.reviews).toEqual({
+    current: 1,
     unknown: 0,
     outdated: 0,
     outstanding: 0,
   });
+
+  const page = await getFundingRoundPage(db, actor, rounds.pageInput);
+  assert.isNotNull(page);
   const revised = await editFundingRound(db, actor, {
     workspaceSlug: "alder",
-    publicId: roundId,
+    publicId: rounds.pageInput.publicId,
     expectedRevision: page.preparation.revision,
     change: {
       section: "criteria",
@@ -139,11 +178,9 @@ it("uses the latest assessment version and counts a replacement only once", asyn
     },
   });
   assert(revised.status === "ok");
-  result = await listWorkspaceApplications(db, actor, "alder");
-  assert(result.status === "ok");
-  expect(result.applications.find((item) => item.id === application.id)).toMatchObject({
+  expect(await reviews()).toMatchObject({
     criteriaChanged: true,
-    reviews: { current: 0, unknown: 0, outdated: 2, outstanding: 0 },
+    reviews: { current: 0, unknown: 0, outdated: 1, outstanding: 0 },
   });
 });
 

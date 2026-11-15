@@ -1,25 +1,115 @@
+import { randomUUID } from "node:crypto";
+
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { assert, expect } from "vite-plus/test";
 
-import { editFundingApplication } from "@merit/applications/server";
+import { materialVersionSchema } from "@merit/applications/domain";
+import { editFundingApplication, selectApplicationContact } from "@merit/applications/server";
+import { changeWorkspaceContact } from "@merit/contacts/server";
 import { getFundingApplicationPage } from "@merit/grantmaking/server";
-import { fundingExampleIds } from "@merit/grantmaking/server/demo";
-import { seedExampleRounds } from "@merit/grantmaking/testing";
-import { databaseTest } from "@merit/test-support/database";
+import { fundingRoundContactUsage } from "@merit/grantmaking/server/integrations";
+import { actor } from "@merit/organizations/testing/workspace";
+import { reviewRevisionSchema } from "@merit/reviews/domain";
+import { saveApplicationReview } from "@merit/reviews/server";
+import { criteriaVersionSchema } from "@merit/rounds/domain";
 
 import { applicationWork } from "../src/server/persistence/commands/application-work";
+import { roundTest } from "./round-test";
 
-const actor = { userId: "dana" };
-const it = databaseTest.extend("scenario", async ({ db, database }) => {
-  await seedExampleRounds(db);
-  const { rows } = await database.client.query<{ id: string; contact_id: string }>(
-    "SELECT id, contact_id FROM application_cases WHERE organization_id='alder' AND id=$1",
-    [(await fundingExampleIds("alder")).applications.A1],
+const createContact = async (
+  db: NodePgDatabase,
+  workspace: { slug: string; userId: string },
+  name: string,
+) => {
+  const created = await changeWorkspaceContact(
+    db,
+    { userId: workspace.userId },
+    {
+      workspaceSlug: workspace.slug,
+      contactId: randomUUID(),
+      action: "create",
+      details: { name, email: "", affiliation: "" },
+    },
+    fundingRoundContactUsage,
   );
-  const application = rows[0];
-  assert.isDefined(application);
+  assert(created.status === "ok", "Could not create the contact fixture");
+  return created.contact.id;
+};
+
+const alder = { slug: "alder", userId: actor.userId };
+
+// One application with every kind of recorded version, and another whose material
+// has a second version that the first application lacks.
+const it = roundTest.extend("scenario", async ({ db, rounds }) => {
+  const address = await rounds.createApplication("Recorded application");
+  await rounds.recommendApplication(address, "8000");
+  const contactId = await createContact(db, alder, "Robin Hale");
+  const linked = await selectApplicationContact(db, actor, {
+    ...address,
+    expectedRevision: 1,
+    contactId,
+  });
+  assert(linked.status === "ok", "Could not link the applicant contact");
+  const basis = {
+    expectedApplicationVersion: materialVersionSchema.parse(1),
+    expectedCriteriaVersion: criteriaVersionSchema.parse(1),
+  };
+  const requested = await saveApplicationReview(db, actor, {
+    ...address,
+    ...basis,
+    expectedRevision: reviewRevisionSchema.parse(0),
+    change: {
+      action: "request",
+      id: randomUUID(),
+      contactId: await createContact(db, alder, "Sam Morgan"),
+      replacesId: null,
+    },
+  });
+  assert(requested.status === "ok", "Could not request the review fixture");
+  const assessed = await saveApplicationReview(db, actor, {
+    ...address,
+    ...basis,
+    expectedRevision: requested.revision,
+    change: {
+      action: "record",
+      id: randomUUID(),
+      contactId: await createContact(db, alder, "Jules Hart"),
+      requestId: null,
+      previousId: null,
+      content: {
+        applicationVersion: basis.expectedApplicationVersion,
+        criteriaVersion: basis.expectedCriteriaVersion,
+        date: null,
+        position: "Fund",
+        amount: "80.00",
+        reasoning: "Clear plan for weekly activities.",
+        observations: [],
+      },
+    },
+  });
+  assert(assessed.status === "ok", "Could not record the assessment fixture");
+
+  const revised = await rounds.createApplication("Revised application");
+  const saved = await editFundingApplication(
+    db,
+    actor,
+    {
+      ...revised,
+      expectedRevision: 0,
+      change: { action: "save_content", content: { title: "Revised application title" } },
+    },
+    applicationWork,
+  );
+  assert(saved.status === "ok", "Could not record a second material version");
+
   return {
-    address: { workspaceSlug: "alder", publicId: application.id },
-    contactId: application.contact_id,
+    address,
+    contactId,
+    otherWorkspaceContactId: await createContact(
+      db,
+      { slug: "birch", userId: "birch-manager" },
+      "Birch contact",
+    ),
   };
 });
 
@@ -66,7 +156,7 @@ it("requires current material and review bases to belong to the same case", asyn
   database,
   scenario,
 }) => {
-  // Version 2 exists for Workshop Saturdays, but not for this case.
+  // Version 2 exists for the revised application, but not for this case.
   expect(
     (await database.client.query("SELECT 1 FROM material_versions WHERE version=2")).rowCount,
   ).toBeGreaterThan(0);
@@ -94,13 +184,9 @@ it("prevents an application case from linking another organization's contact", a
   database,
   scenario,
 }) => {
-  const { rows } = await database.client.query<{ id: string }>(
-    "SELECT id FROM contacts WHERE organization_id='birch' LIMIT 1",
-  );
-  assert.isDefined(rows[0]);
   await expect(
     database.client.query("UPDATE application_cases SET contact_id=$1 WHERE id=$2", [
-      rows[0].id,
+      scenario.otherWorkspaceContactId,
       scenario.address.publicId,
     ]),
   ).rejects.toMatchObject({ code: "23503" });

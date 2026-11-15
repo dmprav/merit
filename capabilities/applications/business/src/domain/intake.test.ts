@@ -1,5 +1,26 @@
-import type { ApplicationRecord } from "../../tests/fixtures";
-import type { IntakeApplication } from "./model";
+import { describe, expect, it } from "vite-plus/test";
+
+import { fromMinorUnits } from "@merit/money";
+
+import {
+  makeApplication,
+  makeReviewedApplication,
+  type ApplicationRecord,
+} from "../../tests/fixtures";
+import {
+  intakeContent,
+  intakeContentSchema,
+  intakeLimits,
+  intakeChangeSchema,
+  missingIntakeFields,
+  prepareIntakeChange as prepareIntakeCommand,
+  canDeleteApplication as canDeleteCase,
+  canEditIntakeContent,
+  isWithdrawn,
+  latestWithdrawalDate,
+  type IntakeApplication,
+  type WorkingRevision,
+} from "./index";
 
 type IntakeWithUsage = IntakeApplication &
   Partial<Pick<ApplicationRecord, "reviews" | "managerRecommendation">>;
@@ -18,28 +39,7 @@ const prepareIntakeChange = (
     Parameters<typeof prepareIntakeCommand>[2],
     Parameters<typeof prepareIntakeCommand>[3],
   ]
-) => {
-  const result = prepareIntakeCommand(application, ...args, usage(application));
-  return result;
-};
-
-import { describe, expect, it } from "vite-plus/test";
-
-import { fromMinorUnits } from "@merit/money";
-
-import { makeApplication, makeReviewedApplication } from "../../tests/fixtures";
-import {
-  intakeContent,
-  intakeContentSchema,
-  intakeChangeSchema,
-  missingIntakeFields,
-  prepareIntakeChange as prepareIntakeCommand,
-  canDeleteApplication as canDeleteCase,
-  canEditIntakeContent,
-  isWithdrawn,
-  latestWithdrawalDate,
-  type WorkingRevision,
-} from "./index";
+) => prepareIntakeCommand(application, ...args, usage(application));
 
 const author = { userId: "dana", name: "Dana Reed", recordedAt: "2026-11-09T12:00:00Z" };
 const completed = {
@@ -56,17 +56,16 @@ const completed = {
 };
 
 describe("application intake", () => {
-  it("accepts a supplied partial edit and rejects an edit containing only undefined fields", () => {
+  it("accepts a supplied partial edit and rejects an edit that supplies no field", () => {
     expect(
       intakeChangeSchema.parse({ action: "save_content", content: { title: " Renamed " } }),
     ).toEqual({
       action: "save_content",
       content: { title: "Renamed" },
     });
-    expect(
-      intakeChangeSchema.safeParse({ action: "save_content", content: { title: undefined } })
-        .success,
-    ).toBe(false);
+    for (const content of [{}, { title: undefined }]) {
+      expect(intakeChangeSchema.safeParse({ action: "save_content", content }).success).toBe(false);
+    }
   });
 
   it("reports all missing readiness fields when no submission has been recorded", () => {
@@ -269,12 +268,6 @@ describe("application intake", () => {
         submission: { ...application.submission, version: application.version + 1 },
       },
     });
-  });
-
-  it("rejects an intake edit with no supplied fields", () => {
-    expect(intakeChangeSchema.safeParse({ action: "save_content", content: {} }).success).toBe(
-      false,
-    );
   });
 
   it("rejects a contact change supplied as a staff-details edit", () => {
@@ -743,6 +736,17 @@ describe("withdrawal", () => {
       ok: false,
       error: "application_withdrawn",
     });
+  });
+
+  it("neither deletes nor edits unused preparation while withdrawn", () => {
+    const preparing = makeApplication();
+    const withdrawn = prepareIntakeChange(preparing, working, withdraw, author);
+    if (!withdrawn.ok) {
+      throw new Error("Expected a withdrawal");
+    }
+
+    expect(canDeleteCase(preparing, usage(preparing))).toBe(true);
+    expect(canEditIntakeContent(preparing, working)).toBe(true);
     expect(canDeleteCase(withdrawn.application, usage(withdrawn.application))).toBe(false);
     expect(canEditIntakeContent(withdrawn.application, working)).toBe(false);
   });
@@ -804,4 +808,83 @@ it("requires unique question identities in saved content and writes", () => {
       answers: [answer, answer],
     }).success,
   ).toBe(false);
+});
+
+describe("intake limits", () => {
+  const text = (length: number) => "x".repeat(length);
+
+  const answer = completed.answers[0]!;
+
+  it.each([
+    {
+      field: "title",
+      limit: intakeLimits.titleLength,
+      content: (value: string) => ({ title: value }),
+    },
+    {
+      field: "applicant",
+      limit: intakeLimits.applicantLength,
+      content: (value: string) => ({ applicant: value }),
+    },
+    {
+      field: "project period",
+      limit: intakeLimits.projectPeriodLength,
+      content: (value: string) => ({ projectPeriod: value }),
+    },
+    {
+      field: "question",
+      limit: intakeLimits.questionLength,
+      content: (value: string) => ({ answers: [{ ...answer, question: value }] }),
+    },
+    {
+      field: "response",
+      limit: intakeLimits.responseLength,
+      content: (value: string) => ({ answers: [{ ...answer, response: value }] }),
+    },
+  ])("accepts a $field at its length limit and rejects a longer one", ({ limit, content }) => {
+    expect(intakeContentSchema.safeParse({ ...completed, ...content(text(limit)) }).success).toBe(
+      true,
+    );
+    expect(
+      intakeContentSchema.safeParse({ ...completed, ...content(text(limit + 1)) }).success,
+    ).toBe(false);
+  });
+
+  it("accepts the maximum number of submitted answers and rejects one more", () => {
+    const answers = (count: number) =>
+      Array.from({ length: count }, (_, index) => ({
+        ...answer,
+        questionId: `10000000-0000-4000-8000-${String(index).padStart(12, "0")}`,
+      }));
+
+    expect(
+      intakeContentSchema.safeParse({ ...completed, answers: answers(intakeLimits.answersCount) })
+        .success,
+    ).toBe(true);
+    expect(
+      intakeContentSchema.safeParse({
+        ...completed,
+        answers: answers(intakeLimits.answersCount + 1),
+      }).success,
+    ).toBe(false);
+  });
+
+  it.each([
+    {
+      field: "working revision reason",
+      limit: intakeLimits.reasonLength,
+      change: (value: string) => ({
+        action: "save_revision",
+        draft: { kind: "revision", reason: value, content: { title: "Revised" } },
+      }),
+    },
+    {
+      field: "staff summary",
+      limit: intakeLimits.summaryLength,
+      change: (value: string) => ({ action: "details", summary: value }),
+    },
+  ])("accepts a $field at its length limit and rejects a longer one", ({ limit, change }) => {
+    expect(intakeChangeSchema.safeParse(change(text(limit))).success).toBe(true);
+    expect(intakeChangeSchema.safeParse(change(text(limit + 1))).success).toBe(false);
+  });
 });

@@ -202,7 +202,8 @@ describe("workspace layout", () => {
       const sidebar = await screen.findByRole("complementary");
 
       expect(within(sidebar).getByText("Alder Foundation")).toBeVisible();
-      expect(within(sidebar).getByText("Dana Reed")).toBeVisible();
+      // The local account names its persona after mounting, which can follow the sidebar's first render.
+      expect(await within(sidebar).findByText("Dana Reed")).toBeVisible();
       expect(screen.getByRole("main")).toHaveFocus();
 
       await user.click(within(sidebar).getByRole("link", { name: "Funding rounds" }));

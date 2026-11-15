@@ -18,14 +18,18 @@ const event = {
   target: { type: "recommendation", id: "k7m2p9x4n6rt", revision: 1 },
 };
 
-test("retains recorded identity and verified MCP provenance after a profile rename", async ({
+test("snapshots the actor's current name and retains it with verified MCP provenance after a profile rename", async ({
   db,
   database,
 }) => {
+  // The caller supplies no name, so the recorder takes the profile name at recording time.
   await db.transaction((tx) =>
     recordAuditEvent(tx, {
       ...event,
-      actor: { ...event.actor, provenance: { interface: "mcp", clientId: "verified-client" } },
+      actor: {
+        userId: event.actor.userId,
+        provenance: { interface: "mcp", clientId: "verified-client" },
+      },
     }),
   );
   await database.client.query("UPDATE app_users SET name='Dana Newname' WHERE id='dana'");
@@ -34,7 +38,7 @@ test("retains recorded identity and verified MCP provenance after a profile rena
   expect(rows[0]).toMatchObject({
     organization_id: event.organizationId,
     actor_user_id: event.actor.userId,
-    actor_name: event.actor.name,
+    actor_name: "Dana Reed",
     provenance: { interface: "mcp", clientId: "verified-client" },
     action: event.action,
     target_type: event.target.type,
@@ -270,6 +274,37 @@ describe("reading workspace activity", () => {
     expect(
       (await database.client.query("SELECT format_version, details FROM audit_events")).rows,
     ).toEqual([{ format_version: 1, details: { reason: "Recorded evidence" } }]);
+  });
+
+  test("carries the recorded reason only for the actions the caller names", async ({ db }) => {
+    const application = { type: "application", id: "app1" };
+    await db.transaction(async (tx) => {
+      await record(tx, {
+        action: "application.withdraw",
+        target: { ...application, revision: 1 },
+        details: { reason: "The applicant stepped back." },
+      });
+      await record(tx, {
+        action: "application.revision_recorded",
+        target: { ...application, revision: 2 },
+        details: { reason: "Revised venue costs." },
+      });
+    });
+
+    const reasons = async (reasonActions?: string[]) => {
+      const page = await readWorkspaceActivity(db, { ...scope, reasonActions });
+      assert(page.status === "ok");
+      return Object.fromEntries(page.events.map((entry) => [entry.action, entry.reason]));
+    };
+
+    expect(await reasons(["application.withdraw"])).toEqual({
+      "application.withdraw": "The applicant stepped back.",
+      "application.revision_recorded": null,
+    });
+    expect(await reasons()).toEqual({
+      "application.withdraw": null,
+      "application.revision_recorded": null,
+    });
   });
 
   test("lists the people with recorded activity only on the first page", async ({ db }) => {

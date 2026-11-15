@@ -3,8 +3,10 @@ import { randomUUID } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { assert, expect } from "vite-plus/test";
 
+import { materialVersionSchema } from "@merit/applications/domain";
 import { createFundingApplication, editFundingApplication } from "@merit/applications/server";
 import { roundHasApplications } from "@merit/applications/server/integrations";
+import { changeWorkspaceContact } from "@merit/contacts/server";
 import {
   listContactApplications,
   listApplicationReviewSummaries,
@@ -25,8 +27,13 @@ import {
   roundBudgetHistory,
 } from "@merit/grantmaking/server";
 import { removeDemoFunding } from "@merit/grantmaking/server/demo";
+import { fundingRoundContactUsage } from "@merit/grantmaking/server/integrations";
 import { seedExampleRounds } from "@merit/grantmaking/testing";
 import { actor, workspaceTest as it, workspaceSlug } from "@merit/organizations/testing/workspace";
+import { reviewRevisionSchema } from "@merit/reviews/domain";
+import type { ReviewChange } from "@merit/reviews/domain";
+import { saveApplicationReview } from "@merit/reviews/server";
+import { criteriaVersionSchema } from "@merit/rounds/domain";
 import { createFundingRound, deleteFundingRound } from "@merit/rounds/server";
 
 import { applicationWork } from "../src/server/persistence/commands/application-work";
@@ -284,55 +291,128 @@ it("keeps historical evidence addressable after eligible records are deleted", a
 it("returns the same review freshness as shared web reads without loading histories into summary results", async ({
   db,
 }) => {
-  await seedExampleRounds(db);
-  const rounds = await listFundingRoundSummaries(db, actor, { workspaceSlug });
-  assert(rounds.status === "ok" && rounds.rounds[0]);
-  const round = await getFundingRoundPage(db, actor, {
+  const round = await createFundingRound(db, actor, {
     workspaceSlug,
-    publicId: rounds.rounds[0].roundId,
-    kind: "round",
+    requestId: randomUUID(),
+    title: "Review summaries",
   });
-  assert(round);
-  for (const application of round.round.applications) {
-    const input = { workspaceSlug, applicationId: application.id };
-    const page = await getFundingApplicationPage(db, actor, {
-      workspaceSlug,
-      publicId: application.id,
-    });
-    assert(page);
-    const summaries = [];
-    let after: string | undefined;
-    do {
-      const listed = await listApplicationReviewSummaries(db, actor, { ...input, limit: 1, after });
-      assert(listed.status === "ok");
-      summaries.push(...listed.reviews);
-      after = listed.nextCursor ?? undefined;
-    } while (after);
-    expect(
-      summaries
-        .map((item) => ({ id: item.id, freshness: item.freshness }))
-        .sort((a, b) => a.id.localeCompare(b.id)),
-    ).toEqual(
-      page.application.assessments
-        .map((item) => ({ id: item.id, freshness: item.status }))
-        .sort((a, b) => a.id.localeCompare(b.id)),
+  assert(round.status === "ok");
+  const created = await createFundingApplication(db, actor, {
+    workspaceSlug,
+    publicId: round.publicId,
+    requestId: randomUUID(),
+    title: "Reviewed application",
+  });
+  assert(created.status === "ok");
+
+  const reviewer = async (name: string) => {
+    const result = await changeWorkspaceContact(
+      db,
+      actor,
+      {
+        workspaceSlug,
+        contactId: randomUUID(),
+        action: "create",
+        details: { name, email: "", affiliation: "" },
+      },
+      fundingRoundContactUsage,
     );
-    expect(summaries.every((item) => !("reasoning" in item) && !("versions" in item))).toBe(true);
-    for (const contactId of new Set(summaries.map((item) => item.contactId))) {
-      const usage = await listContactApplications(db, actor, { workspaceSlug, contactId });
-      assert(usage.status === "ok");
-      expect(usage.applications.map((item) => item.applicationId)).toContain(application.id);
-    }
-    const assessment = summaries.find((item) => item.kind === "assessment");
-    if (assessment) {
-      const content = await getFundingApplicationContent(db, actor, {
-        ...input,
-        section: "assessment",
-        entryId: assessment.id,
-      });
-      expect(content.status).toBe("ok");
-    }
+    assert(result.status === "ok");
+    return result.contact.id;
+  };
+
+  const content = {
+    applicationVersion: materialVersionSchema.parse(1),
+    criteriaVersion: criteriaVersionSchema.parse(1),
+    date: null,
+    position: "Fund" as const,
+    amount: null,
+    reasoning: "Practical plan.",
+    observations: [],
+  };
+  const ids = { current: randomUUID(), unknown: randomUUID(), outstanding: randomUUID() };
+  const changes: ReviewChange[] = [
+    {
+      action: "record",
+      id: ids.current,
+      contactId: await reviewer("Sam"),
+      requestId: null,
+      previousId: null,
+      content,
+    },
+    {
+      action: "record",
+      id: ids.unknown,
+      contactId: await reviewer("Jules"),
+      requestId: null,
+      previousId: null,
+      content: { ...content, applicationVersion: null, criteriaVersion: null },
+    },
+    {
+      action: "request",
+      id: ids.outstanding,
+      contactId: await reviewer("Lee"),
+      replacesId: null,
+    },
+  ];
+  for (const [revision, change] of changes.entries()) {
+    expect(
+      await saveApplicationReview(db, actor, {
+        workspaceSlug,
+        publicId: created.publicId,
+        expectedRevision: reviewRevisionSchema.parse(revision),
+        expectedApplicationVersion: materialVersionSchema.parse(1),
+        expectedCriteriaVersion: criteriaVersionSchema.parse(1),
+        change,
+      }),
+    ).toMatchObject({ status: "ok" });
   }
+
+  const input = { workspaceSlug, applicationId: created.publicId };
+  const summaries = [];
+  let after: string | undefined;
+  do {
+    const listed = await listApplicationReviewSummaries(db, actor, { ...input, limit: 1, after });
+    assert(listed.status === "ok");
+    expect(listed.reviews.length).toBeLessThanOrEqual(1);
+    summaries.push(...listed.reviews);
+    after = listed.nextCursor ?? undefined;
+  } while (after);
+
+  const byId = (items: { id: string; freshness: string }[]) =>
+    items.map(({ id, freshness }) => ({ id, freshness })).sort((a, b) => a.id.localeCompare(b.id));
+
+  const expected = byId(Object.entries(ids).map(([freshness, id]) => ({ id, freshness })));
+  expect(byId(summaries)).toEqual(expected);
+  const page = await getFundingApplicationPage(db, actor, {
+    workspaceSlug,
+    publicId: created.publicId,
+  });
+  assert(page);
+  expect(
+    byId(page.application.assessments.map((item) => ({ id: item.id, freshness: item.status }))),
+  ).toEqual(expected);
+  for (const summary of summaries) {
+    expect(summary).not.toHaveProperty("reasoning");
+    expect(summary).not.toHaveProperty("versions");
+    const usage = await listContactApplications(db, actor, {
+      workspaceSlug,
+      contactId: summary.contactId,
+    });
+    assert(usage.status === "ok");
+    expect(usage.applications.map((item) => item.applicationId)).toEqual([created.publicId]);
+  }
+  const assessment = await getFundingApplicationContent(db, actor, {
+    ...input,
+    section: "assessment",
+    entryId: ids.current,
+  });
+  assert(assessment.status === "ok");
+  expect(JSON.parse(assessment.content)).toMatchObject({
+    id: ids.current,
+    reviewer: "Sam",
+    versions: [{ content: { reasoning: "Practical plan." } }],
+  });
 });
 
 it("returns typed error statuses on malformed query inputs and distinguishes forbidden from not_found", async ({

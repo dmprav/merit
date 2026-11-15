@@ -576,57 +576,86 @@ it.for(["expectedApplicationVersion", "expectedCriteriaVersion"] as const)(
   },
 );
 
-it("rejects other-workspace access, stale edits, and guessed review bases", async ({
+const unknownBasisRecord = (contactId: string) => ({
+  action: "record" as const,
+  id: randomUUID(),
+  contactId,
+  requestId: null,
+  previousId: null,
+  content: {
+    ...content,
+    applicationVersion: null,
+    criteriaVersion: null,
+    position: null,
+    amount: null,
+  },
+});
+
+it("rejects review saves from other workspaces and from members without grant access", async ({
   db,
   database,
 }) => {
-  const { address, read, review } = await setup(db);
+  const { address } = await setup(db);
   const sam = await contact(db);
-  const other = { userId: "birch-manager" };
-
-  const change = {
-    action: "record" as const,
-    id: randomUUID(),
-    contactId: sam.id,
-    requestId: null,
-    previousId: null,
-    content: {
-      ...content,
-      applicationVersion: null,
-      criteriaVersion: null,
-      position: null,
-      amount: null,
-    },
-  };
   const input = {
     ...address,
     expectedRevision: reviewRevisionSchema.parse(0),
     expectedApplicationVersion: materialVersionSchema.parse(1),
     expectedCriteriaVersion: criteriaVersionSchema.parse(1),
-    change,
+    change: unknownBasisRecord(sam.id),
   };
 
-  expect(await saveApplicationReview(db, other, input)).toEqual({
+  expect(await saveApplicationReview(db, { userId: "birch-manager" }, input)).toEqual({
     status: "not_found",
   });
-  expect(await saveApplicationReview(db, actor, input)).toMatchObject({
-    status: "ok",
-  });
-  expect(await saveApplicationReview(db, actor, input)).toMatchObject({
-    status: "ok",
-  });
-  expect(
-    (
-      (await read()).application.assessments[0] ??
-      assert.fail("Expected (await read()).application.assessments[0]")
-    ).status,
-  ).toBe("unknown");
+  await database.client.query(
+    "UPDATE memberships SET role = 'member' WHERE user_id = 'dana' AND organization_id = 'alder'",
+  );
+  expect(await saveApplicationReview(db, actor, input)).toEqual({ status: "not_found" });
+  expect((await database.client.query("SELECT id FROM assessments")).rows).toEqual([]);
+});
+
+it("marks an assessment recorded without an application or criteria basis as unknown", async ({
+  db,
+}) => {
+  const { read, review } = await setup(db);
+  const sam = await contact(db);
+  const change = unknownBasisRecord(sam.id);
+
+  expect(await review(change)).toEqual({ status: "ok", revision: 1 });
+  expect((await read()).application.assessments).toMatchObject([
+    { id: change.id, status: "unknown" },
+  ]);
+});
+
+it("rejects an assessment edit made against a stale review revision", async ({ db }) => {
+  const { address, read, review } = await setup(db);
+  const sam = await contact(db);
+  const change = unknownBasisRecord(sam.id);
+  expect(await review(change)).toEqual({ status: "ok", revision: 1 });
+  const before = await read();
+
   expect(
     await saveApplicationReview(db, actor, {
-      ...input,
+      ...address,
+      expectedRevision: reviewRevisionSchema.parse(0),
+      expectedApplicationVersion: before.application.version,
+      expectedCriteriaVersion: before.round.criteriaVersion,
       change: { action: "edit", id: change.id, content, note: "" },
     }),
   ).toEqual({ status: "conflict" });
+  expect(await read()).toEqual(before);
+});
+
+it("rejects an assessment basis naming an application version that was never recorded", async ({
+  db,
+}) => {
+  const { read, review } = await setup(db);
+  const sam = await contact(db);
+  const change = unknownBasisRecord(sam.id);
+  expect(await review(change)).toEqual({ status: "ok", revision: 1 });
+  const before = await read();
+
   expect(
     await review({
       action: "edit",
@@ -634,15 +663,8 @@ it("rejects other-workspace access, stale edits, and guessed review bases", asyn
       content: { ...content, applicationVersion: materialVersionSchema.parse(99) },
       note: "",
     }),
-  ).toMatchObject({ status: "invalid", error: "version_unavailable" });
-
-  await database.client.query(
-    "UPDATE memberships SET role = 'member' WHERE user_id = 'dana' AND organization_id = 'alder'",
-  );
-
-  expect(await saveApplicationReview(db, actor, input)).toEqual({
-    status: "not_found",
-  });
+  ).toEqual({ status: "invalid", error: "version_unavailable" });
+  expect(await read()).toEqual(before);
 });
 
 it("rejects cross-workspace contact links and preserves the authorized profile", async ({
@@ -778,7 +800,6 @@ it("supports contacts and reviews with the documented runtime grants and immutab
       await tx.execute(sql.raw(`GRANT UPDATE (user_id) ON memberships TO ${role}`));
       await tx.execute(sql.raw(`GRANT UPDATE ON application_cases TO ${role}`));
       await tx.execute(sql.raw(`GRANT SELECT, INSERT ON audit_events TO ${role}`));
-      await tx.execute(sql.raw(`GRANT SELECT, INSERT ON audit_events TO ${role}`));
       await tx.execute(
         sql.raw(`GRANT INSERT ON material_versions, assessments, assessment_versions TO ${role}`),
       );
@@ -787,7 +808,6 @@ it("supports contacts and reviews with the documented runtime grants and immutab
       );
       await tx.execute(sql.raw(`GRANT INSERT, UPDATE, DELETE ON material_drafts TO ${role}`));
       await tx.execute(sql.raw(`GRANT SELECT, INSERT, UPDATE ON contacts TO ${role}`));
-      await tx.execute(sql.raw(`GRANT SELECT, INSERT ON audit_events TO ${role}`));
       await tx.execute(sql.raw(`SET LOCAL ROLE ${role}`));
       const input = {
         workspaceSlug,

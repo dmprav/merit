@@ -12,7 +12,10 @@ import { MyWorkPage } from "./reviewer-page";
 vi.mock("./data/server/reviews/reviewer.functions", () => ({ listReviewerAssignments: vi.fn() }));
 
 it("shows workspace review tasks, status, localized due dates, and scoped links", async () => {
-  vi.mocked(listReviewerAssignments).mockResolvedValue({ status: "ok", value: workAssignments });
+  vi.mocked(listReviewerAssignments).mockImplementation(async (options) => ({
+    status: "ok",
+    value: options?.data?.workspaceSlug === "alder" ? workAssignments : [],
+  }));
   await renderWithRouter(
     <QueryClientProvider client={createQueryClient()}>
       <MyWorkPage workspaceSlug="alder" />
@@ -32,9 +35,6 @@ it("shows workspace review tasks, status, localized due dates, and scoped links"
   expect(within(inProgress).getByText("In progress")).toBeVisible();
   expect(within(inProgress).getByText("No due date")).toBeVisible();
   expect(within(assignments).getByText("Submitted")).toBeVisible();
-  expect(listReviewerAssignments).toHaveBeenCalledWith(
-    expect.objectContaining({ data: { workspaceSlug: "alder" } }),
-  );
 });
 
 it("explains an empty workspace without a nonfunctional action", async () => {
