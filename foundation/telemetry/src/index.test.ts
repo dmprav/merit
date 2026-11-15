@@ -101,9 +101,22 @@ describe("@merit/telemetry core helpers", () => {
     expect(serialized).not.toContain("raw confidential string");
   });
 
-  it("wraps service methods and records merit.outcome only for string status objects", async () => {
+  it("wraps service methods, preserves synchronous returns, and records outcomes and safe errors", async () => {
+    const thenProperty = ["th", "en"].join("");
     const raw = {
       label: "rounds",
+      canAccess(allowed: boolean) {
+        return allowed;
+      },
+      readOptional() {
+        return null;
+      },
+      syncStatus() {
+        return { status: "ok" as const, [thenProperty]: "not-a-thenable" };
+      },
+      syncFail(): boolean {
+        throw new RangeError("secret sync failure");
+      },
       async findRound(id: string) {
         return { status: "ok" as const, id };
       },
@@ -113,22 +126,40 @@ describe("@merit/telemetry core helpers", () => {
       async missing() {
         return { status: 404 };
       },
+      async asyncFail() {
+        throw new TypeError("secret async failure");
+      },
     };
 
     const service = instrumentService("rounds", raw);
     expect(service.label).toBe("rounds");
+    expect(service.canAccess(false)).toBe(false);
+    expect(service.canAccess(true)).toBe(true);
+    expect(service.readOptional()).toBeNull();
+    expect(service.syncStatus()).toEqual({ status: "ok", [thenProperty]: "not-a-thenable" });
+    expect(() => service.syncFail()).toThrow("secret sync failure");
     expect(await service.findRound("r1")).toEqual({ status: "ok", id: "r1" });
     expect(await service.ping()).toBe("pong");
     expect(await service.missing()).toEqual({ status: 404 });
+    await expect(service.asyncFail()).rejects.toThrow("secret async failure");
 
     const spans = exporter.getFinishedSpans();
     expect(spans.map((span) => span.name)).toEqual([
+      "service.rounds.canAccess",
+      "service.rounds.canAccess",
+      "service.rounds.readOptional",
+      "service.rounds.syncStatus",
+      "service.rounds.syncFail",
       "service.rounds.findRound",
       "service.rounds.ping",
       "service.rounds.missing",
+      "service.rounds.asyncFail",
     ]);
-    expect(spans[0]!.attributes["merit.outcome"]).toBe("ok");
-    expect(spans[1]!.attributes["merit.outcome"]).toBeUndefined();
-    expect(spans[2]!.attributes["merit.outcome"]).toBeUndefined();
+    expect(spans[3]!.attributes["merit.outcome"]).toBe("ok");
+    expect(spans[4]!.status).toEqual({ code: SpanStatusCode.ERROR, message: "RangeError" });
+    expect(spans[5]!.attributes["merit.outcome"]).toBe("ok");
+    expect(spans[6]!.attributes["merit.outcome"]).toBeUndefined();
+    expect(spans[7]!.attributes["merit.outcome"]).toBeUndefined();
+    expect(spans[8]!.status).toEqual({ code: SpanStatusCode.ERROR, message: "TypeError" });
   });
 });
