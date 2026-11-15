@@ -615,3 +615,59 @@ it("keeps overflow open when route data refreshes without navigation", async () 
   await act(() => router.invalidate());
   expect(screen.getByRole("dialog", { name: "Pinned funding rounds" })).toBeVisible();
 });
+
+const DelayedPins = ({ saved }: { saved: Promise<void> }) => {
+  const [pins, setPins] = useState(manyPins.slice(0, 6));
+  return (
+    <NavigationPinsContext
+      value={state({
+        pins,
+        change: async (input) => {
+          await saved;
+          setPins((items) => items.filter((pin) => pin.target.id !== input.target.id));
+          return true;
+        },
+      })}
+    >
+      {section()}
+    </NavigationPinsContext>
+  );
+};
+
+it("waits for popup teardown before recovering focus when a save resolves ahead of its render", async () => {
+  let finish!: () => void;
+  const saved = new Promise<void>((resolve) => {
+    finish = resolve;
+  });
+  const { user } = await renderWithRouter(<DelayedPins saved={saved} />);
+  await user.click(screen.getByRole("button", { name: "1 more…" }));
+  await user.click(
+    within(screen.getByRole("dialog")).getByRole("button", { name: "Unpin Round 6 from sidebar" }),
+  );
+  const collection = screen.getByRole("link", { name: "Funding rounds" });
+  const focus = vi.spyOn(collection, "focus").mockImplementation(() => {});
+  const frames: FrameRequestCallback[] = [];
+  const animation = vi
+    .spyOn(window, "requestAnimationFrame")
+    .mockImplementation((callback) => frames.push(callback));
+
+  const runFrame = () => frames.splice(0).forEach((callback) => callback(0));
+
+  try {
+    await act(async () => {
+      finish();
+      await Promise.resolve();
+      await Promise.resolve();
+      // A browser frame can run after the save settles but before React removes the popup.
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+      runFrame();
+      expect(focus).not.toHaveBeenCalled();
+    });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    act(runFrame);
+    expect(focus).toHaveBeenCalledOnce();
+  } finally {
+    animation.mockRestore();
+    focus.mockRestore();
+  }
+});

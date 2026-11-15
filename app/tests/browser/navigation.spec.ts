@@ -262,6 +262,7 @@ test(
   { tag: "@cross-browser" },
   async ({ page, context }, testInfo) => {
     await page.goto("/app/alder/applications/missing");
+    await expect(page.getByRole("main")).toBeFocused();
 
     await expect(
       page.getByRole("heading", { name: "Application not available", exact: true }),
@@ -509,6 +510,11 @@ test("personal pins stay under their object type and survive reloads @cross-brow
       await expect(page.getByRole("menuitem", { name: "Move up", exact: true })).toBeVisible();
       await pinActions.dispatchEvent("pointerup", { ...point, buttons: 0 });
     }
+  } else if (contextShortcut === "Shift+F10" && testInfo.project.use.browserName !== "chromium") {
+    // Linux Firefox/WebKit automation does not emit the native keyboard contextmenu event.
+    // Exercise that event directly; Chromium and macOS cover the real keyboard shortcut.
+    await pinActions.dispatchEvent("contextmenu", { button: 0 });
+    await expect(page.getByRole("menuitem", { name: "Move up", exact: true })).toBeVisible();
   } else {
     await page.keyboard.press(contextShortcut);
     await expect(page.getByRole("menuitem", { name: "Move up", exact: true })).toBeVisible();
@@ -523,6 +529,10 @@ test("personal pins stay under their object type and survive reloads @cross-brow
         ),
     )
     .toBe(true);
+  if (!testInfo.project.use.isMobile) {
+    await page.keyboard.press("Home");
+    await expect(page.getByRole("menuitem", { name: "Move up", exact: true })).toBeFocused();
+  }
   await page.keyboard.press("Escape");
   await expect(pinActions).toBeFocused();
   await pinActions.click({ button: "right" });
@@ -547,13 +557,22 @@ test("personal pins stay under their object type and survive reloads @cross-brow
     await expect(
       rounds.getByRole("button", { name: "Unpin Community grants 2028 from sidebar" }),
     ).not.toHaveAttribute("aria-disabled", "true");
-    await target.dragTo(source, { targetPosition: { x: 10, y: 3 } });
+    // Release WebKit's native drag pointer before starting the next drag.
+    await page.mouse.move(700, 500);
+    await page.mouse.up();
+    await expect(page.getByRole("tooltip")).toHaveCount(0);
+    await target.dragTo(source, {
+      sourcePosition: { x: 10, y: 16 },
+      targetPosition: { x: 10, y: 3 },
+    });
     await expect(rounds.getByRole("link")).toHaveText([
       "Funding rounds",
       "Community grants 2028",
       "Local Connections 2027",
     ]);
     expect(page.url()).toBe(currentUrl);
+    await page.mouse.move(700, 500);
+    await page.mouse.up();
   }
   await navigation.getByRole("link", { name: "Applications", exact: true }).click();
   await page

@@ -1,5 +1,6 @@
 import { Link, useLocation, useRouter, type LinkOptions } from "@tanstack/react-router";
 import {
+  useCallback,
   useContext,
   useEffect,
   useRef,
@@ -210,13 +211,36 @@ const ownsPinFocus = (
   );
 };
 
+/** Defer recovery outside a closing popup until its focus scope can release focus. */
+const usePopupList = () => {
+  const list = useRef<HTMLUListElement>(null);
+  const afterClose = useRef<(() => void) | null>(null);
+  const ref = useCallback((node: HTMLUListElement | null) => {
+    list.current = node;
+    if (!node) {
+      afterClose.current?.();
+      afterClose.current = null;
+    }
+  }, []);
+
+  const afterRemoval = (callback: () => void) => {
+    if (list.current) {
+      afterClose.current = callback;
+    } else {
+      callback();
+    }
+  };
+
+  return { list, ref, afterRemoval };
+};
+
 const useNavigationSection = ({ kind, workspaceSlug }: NavigationSectionProps) => {
   const state = useContext(NavigationPinsContext);
   const router = useRouter();
   const pathname = useLocation({ select: (location) => location.pathname });
   const collection = useRef<HTMLAnchorElement>(null);
   const overflow = useRef<HTMLButtonElement>(null);
-  const popupList = useRef<HTMLUListElement>(null);
+  const { list: popupList, ref: popupListRef, afterRemoval } = usePopupList();
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<"sidebar" | "popup" | null>(null);
   const submitting = useRef(false);
@@ -286,17 +310,27 @@ const useNavigationSection = ({ kind, workspaceSlug }: NavigationSectionProps) =
       setOpen(false);
     }
     const target = recoveryTarget(input, pins, surface);
-    requestAnimationFrame(() => {
-      if (version !== interaction.current || !ownsPinFocus(active, row, dialog)) {
-        return;
-      }
-      const controls = { collection: collection.current, overflow: overflow.current };
-      const control =
-        typeof target === "string"
-          ? controls[target]
-          : target && pinLink(popupList.current, target.id);
-      control?.focus();
-    });
+
+    const restoreFocus = () =>
+      requestAnimationFrame(() => {
+        if (version !== interaction.current || !ownsPinFocus(active, row, dialog)) {
+          return;
+        }
+        const controls = { collection: collection.current, overflow: overflow.current };
+        const control =
+          typeof target === "string"
+            ? controls[target]
+            : target && pinLink(popupList.current, target.id);
+        control?.focus();
+      });
+
+    // A frame can precede React's removal commit. The dialog still contains focus then,
+    // so wait for its list to detach before moving focus outside the closing popup.
+    if (target === "collection" && surface === "popup") {
+      afterRemoval(restoreFocus);
+    } else {
+      restoreFocus();
+    }
   };
 
   return {
@@ -305,7 +339,7 @@ const useNavigationSection = ({ kind, workspaceSlug }: NavigationSectionProps) =
     currentPin,
     collection,
     overflow,
-    popupList,
+    popupList: popupListRef,
     open,
     setOpen: onOpenChange,
     error,
