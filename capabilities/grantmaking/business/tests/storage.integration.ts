@@ -97,17 +97,21 @@ it("uses one application identity and rejects a round from another workspace", a
   ).toEqual([{ id: application.publicId, round_id: pageInput.publicId }]);
 });
 
-it("validates persisted JSON instead of trusting inferred database types", async ({
+it("validates persisted criteria rows instead of trusting inferred database types", async ({
   db,
   database,
   rounds: { pageInput },
 }) => {
   await database.client.query(
     `WITH inserted AS (
-      INSERT INTO criteria_versions (round_id, version, criteria)
-      SELECT id, criteria_version + 1, '["Unstructured criteria"]'::jsonb FROM funding_rounds WHERE organization_id='alder'
+      INSERT INTO criteria_versions (round_id, version)
+      SELECT id, criteria_version + 1 FROM funding_rounds WHERE organization_id='alder'
       RETURNING round_id, version
-    ) UPDATE funding_rounds SET criteria_version=inserted.version FROM inserted WHERE funding_rounds.id=inserted.round_id`,
+    ), inserted_item AS (
+      INSERT INTO criteria_version_items (round_id, version, position, criterion_id, title)
+      SELECT round_id, version, 0, gen_random_uuid(), repeat('x', 201) FROM inserted
+    )
+    UPDATE funding_rounds SET criteria_version=inserted.version FROM inserted WHERE funding_rounds.id=inserted.round_id`,
   );
 
   await expect(getFundingRoundPage(db, actor, pageInput)).rejects.toThrow();
@@ -125,7 +129,7 @@ it("reads one application with round-wide budget context without decoding siblin
   assert.isNotNull(original);
 
   await database.client.query(
-    "UPDATE application_cases SET attention = '{}'::jsonb WHERE id = $1",
+    "UPDATE application_cases SET attention = ARRAY['note']::text[] WHERE id = $1",
     [sibling.publicId],
   );
   const detail = await getFundingApplicationPage(db, actor, selected);
@@ -156,7 +160,7 @@ it("returns exact metadata and tenant-scoped counts without reading application 
   );
   await database.client.query("DELETE FROM application_cases WHERE organization_id = 'birch'");
   await database.client.query(
-    "UPDATE application_cases SET attention = '{}'::jsonb WHERE organization_id = 'alder'",
+    "UPDATE application_cases SET attention = ARRAY['note']::text[] WHERE organization_id = 'alder'",
   );
   const alderResult = await listFundingRounds(db, actor, "alder");
   const birchResult = await listFundingRounds(db, actor, "birch");

@@ -1,18 +1,51 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 import { materialVersionSchema } from "@merit/applications/domain";
 import { applicationCases, materialVersions } from "@merit/applications/schema";
-import { currentMaterial } from "@merit/applications/scope";
 import type { Database } from "@merit/db";
 import { fundingRoundSchema } from "@merit/rounds/domain";
-import { fundingRounds } from "@merit/rounds/schema";
-import { currentCriteria, criteriaHistory } from "@merit/rounds/scope";
+import { readRoundCriteria } from "@merit/rounds/scope";
 
 import { reviewStateSchema, type ReviewState } from "../../../domain/reviews";
-import { currentReviews } from "../projections";
-import { reviewRequests, assessments, assessmentVersions, reviewStates } from "../schema";
+import { provenanceColumns, readReviewsByCasesMap } from "../projections";
+import {
+  assessments,
+  assessmentVersionObservations,
+  assessmentVersions,
+  reviewRequests,
+  reviewStates,
+} from "../schema";
 
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
+
+type ReviewRecorder = ReviewState["requests"][number]["recorder"];
+
+type ReviewClosure = ReviewState["requests"][number]["closedBy"];
+
+const recorderValues = (recorder: ReviewRecorder) => {
+  if (!recorder) {
+    return {
+      userId: null,
+      name: null,
+      recordedAt: null,
+      provenanceInterface: null,
+      provenanceClientId: null,
+    };
+  }
+  const provenance = provenanceColumns(recorder.provenance);
+  return {
+    userId: recorder.userId,
+    name: recorder.name,
+    recordedAt: new Date(recorder.recordedAt),
+    provenanceInterface: provenance.interfaceValue,
+    provenanceClientId: provenance.clientId,
+  };
+};
+
+const closureValues = (closedBy: ReviewClosure) => ({
+  ...recorderValues(closedBy),
+  cause: closedBy?.cause ?? null,
+});
 
 export const readReviewState = async (
   db: Transaction,
@@ -22,14 +55,19 @@ export const readReviewState = async (
   const [row] = await db
     .select({
       publicId: applicationCases.id,
-      title: sql<string>`${currentMaterial}->>'title'`,
+      title: materialVersions.title,
       organizationId: applicationCases.organizationId,
       roundId: applicationCases.roundId,
       applicationVersion: applicationCases.materialVersion,
-      // Nest correlated SQL so Drizzle's single-table selection preserves table qualifiers.
-      reviews: sql<unknown>`${currentReviews}`,
     })
     .from(applicationCases)
+    .innerJoin(
+      materialVersions,
+      and(
+        eq(materialVersions.caseId, applicationCases.id),
+        eq(materialVersions.version, applicationCases.materialVersion),
+      ),
+    )
     .where(
       and(eq(applicationCases.organizationId, organizationId), eq(applicationCases.id, publicId)),
     );
@@ -37,10 +75,11 @@ export const readReviewState = async (
     return undefined;
   }
 
+  const reviewsMap = await readReviewsByCasesMap(db, [row.publicId]);
   return {
     ...row,
     applicationVersion: materialVersionSchema.parse(row.applicationVersion),
-    reviews: reviewStateSchema.parse(row.reviews),
+    reviews: reviewStateSchema.parse(reviewsMap.get(row.publicId)),
   };
 };
 
@@ -49,14 +88,7 @@ export const readReviewCriteria = async (
   organizationId: string,
   roundId: string,
 ) => {
-  const [row] = await db
-    .select({
-      criteria: sql<unknown>`${currentCriteria}`,
-      criteriaVersion: fundingRounds.criteriaVersion,
-      criteriaHistory: sql<unknown>`${criteriaHistory}`,
-    })
-    .from(fundingRounds)
-    .where(and(eq(fundingRounds.organizationId, organizationId), eq(fundingRounds.id, roundId)));
+  const row = await readRoundCriteria(db, organizationId, roundId);
   return row
     ? fundingRoundSchema
         .pick({ criteria: true, criteriaVersion: true, criteriaHistory: true })
@@ -91,19 +123,45 @@ const recordReviewRequests = async (
     const previous = previousRequests.get(request.id);
     if (previous) {
       if (request.status !== previous.status) {
+        const closed = closureValues(request.closedBy);
         await db
           .update(reviewRequests)
-          .set({ status: request.status, closedBy: request.closedBy })
+          .set({
+            status: request.status,
+            closedByUserId: closed.userId,
+            closedByName: closed.name,
+            closedByRecordedAt: closed.recordedAt,
+            closedByProvenanceInterface: closed.provenanceInterface,
+            closedByProvenanceClientId: closed.provenanceClientId,
+            closedCause: closed.cause,
+          })
           .where(and(eq(reviewRequests.caseId, owner.publicId), eq(reviewRequests.id, request.id)));
       }
     } else {
-      const { criteria: _criteria, ...content } = request;
+      const recorder = recorderValues(request.recorder);
+      const closed = closureValues(request.closedBy);
       await db.insert(reviewRequests).values({
-        ...content,
         organizationId: owner.organizationId,
         caseId: owner.publicId,
-        position,
+        id: request.id,
+        contactId: request.contactId,
+        reviewer: request.reviewer,
+        applicationVersion: request.applicationVersion,
         criteriaRoundPublicId: owner.roundId,
+        criteriaVersion: request.criteriaVersion,
+        status: request.status,
+        recorderUserId: recorder.userId,
+        recorderName: recorder.name,
+        recorderRecordedAt: recorder.recordedAt,
+        recorderProvenanceInterface: recorder.provenanceInterface,
+        recorderProvenanceClientId: recorder.provenanceClientId,
+        closedByUserId: closed.userId,
+        closedByName: closed.name,
+        closedByRecordedAt: closed.recordedAt,
+        closedByProvenanceInterface: closed.provenanceInterface,
+        closedByProvenanceClientId: closed.provenanceClientId,
+        closedCause: closed.cause,
+        position,
       });
     }
   }
@@ -119,29 +177,55 @@ const recordAssessments = async (
   );
   for (const [position, assessment] of records.entries()) {
     const previous = previousAssessments.get(assessment.id);
-    const { versions, ...content } = assessment;
     if (!previous) {
       await db.insert(assessments).values({
-        ...content,
         organizationId: owner.organizationId,
         caseId: owner.publicId,
+        id: assessment.id,
+        contactId: assessment.contactId,
+        reviewer: assessment.reviewer,
+        requestId: assessment.requestId,
+        previousId: assessment.previousId,
+        authorUserId: assessment.authorUserId ?? null,
         position,
       });
     }
     const recordedVersions = previous?.versions.length ?? 0;
-    for (const [index, version] of versions.slice(recordedVersions).entries()) {
+    for (const [index, entry] of assessment.versions.slice(recordedVersions).entries()) {
+      const versionNumber = recordedVersions + index + 1;
+      const recorder = recorderValues(entry.recorder);
       await db.insert(assessmentVersions).values({
         organizationId: owner.organizationId,
         caseId: owner.publicId,
         assessmentId: assessment.id,
-        version: recordedVersions + index + 1,
-        applicationVersion: version.content.applicationVersion,
-        criteriaVersion: version.content.criteriaVersion,
-        criteriaRoundPublicId: version.content.criteriaVersion === null ? null : owner.roundId,
-        content: version.content,
-        recorder: version.recorder,
-        note: version.note,
+        version: versionNumber,
+        applicationVersion: entry.content.applicationVersion,
+        criteriaRoundPublicId: entry.content.criteriaVersion === null ? null : owner.roundId,
+        criteriaVersion: entry.content.criteriaVersion,
+        assessedOn: entry.content.date,
+        position: entry.content.position,
+        amount: entry.content.amount,
+        reasoning: entry.content.reasoning,
+        recorderUserId: recorder.userId,
+        recorderName: recorder.name,
+        recorderRecordedAt: recorder.recordedAt,
+        recorderProvenanceInterface: recorder.provenanceInterface,
+        recorderProvenanceClientId: recorder.provenanceClientId,
+        note: entry.note,
       });
+      if (entry.content.observations.length > 0) {
+        await db.insert(assessmentVersionObservations).values(
+          entry.content.observations.map((observation, obsIndex) => ({
+            caseId: owner.publicId,
+            assessmentId: assessment.id,
+            version: versionNumber,
+            position: obsIndex,
+            criterionId: observation.criterionId,
+            criterion: observation.criterion,
+            text: observation.text,
+          })),
+        );
+      }
     }
   }
 };

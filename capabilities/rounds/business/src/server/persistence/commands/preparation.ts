@@ -10,8 +10,13 @@ import { membershipScope, organizationScope } from "@merit/organizations/scope";
 import { decodeRound, encodeRound, type FundingRoundData } from "../../../domain/encoding";
 import type { FundingRound } from "../../../domain/model";
 import type { prepareRoundChange } from "../../../domain/preparation";
-import { roundRecord } from "../projections";
-import { fundingRounds, roundCreationReceipts, criteriaVersions } from "../schema";
+import { readRoundRecord } from "../projections";
+import {
+  fundingRounds,
+  roundCreationReceipts,
+  criteriaVersions,
+  criteriaVersionItems,
+} from "../schema";
 
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
@@ -21,21 +26,25 @@ const readPreparationRound = async (tx: Transaction, organizationId: string, pub
       id: fundingRounds.id,
       organizationId: fundingRounds.organizationId,
       revision: fundingRounds.revision,
-      snapshot: roundRecord,
       budgetEstablished: fundingRounds.budgetEstablished,
     })
     .from(fundingRounds)
     .where(and(eq(fundingRounds.organizationId, organizationId), eq(fundingRounds.id, publicId)));
+  if (!row) {
+    return undefined;
+  }
+  const snapshot = await readRoundRecord(tx, organizationId, publicId);
+  if (!snapshot) {
+    return undefined;
+  }
 
-  return (
-    row && {
-      id: row.id,
-      organizationId: row.organizationId,
-      revision: row.revision,
-      round: decodeRound(row.snapshot),
-      budgetEstablished: row.budgetEstablished,
-    }
-  );
+  return {
+    id: row.id,
+    organizationId: row.organizationId,
+    revision: row.revision,
+    round: decodeRound(snapshot),
+    budgetEstablished: row.budgetEstablished,
+  };
 };
 
 export const lockPreparationRound = async (
@@ -140,6 +149,37 @@ const roundColumns = (snapshot: FundingRoundData) => ({
   criteriaVersion: snapshot.criteriaVersion,
 });
 
+const insertCriteriaHistoryEntries = async (
+  tx: Transaction,
+  roundPublicId: string,
+  history: FundingRoundData["criteriaHistory"],
+) => {
+  if (history.length === 0) {
+    return;
+  }
+  const inserted = await tx
+    .insert(criteriaVersions)
+    .values(history.map((entry) => ({ roundPublicId, version: entry.version })))
+    .onConflictDoNothing()
+    .returning({ version: criteriaVersions.version });
+  const added = new Set(inserted.map((row) => row.version));
+  const items = history
+    .filter((entry) => added.has(entry.version))
+    .flatMap((entry) =>
+      entry.criteria.map((criterion, position) => ({
+        roundPublicId,
+        version: entry.version,
+        position,
+        id: criterion.id,
+        title: criterion.title,
+        description: criterion.description ?? null,
+      })),
+    );
+  if (items.length > 0) {
+    await tx.insert(criteriaVersionItems).values(items);
+  }
+};
+
 export const insertPreparedRound = async (
   tx: Transaction,
   values: {
@@ -158,13 +198,7 @@ export const insertPreparedRound = async (
       budgetEstablished: snapshot.budget !== null,
     })
     .returning();
-  await tx.insert(criteriaVersions).values(
-    snapshot.criteriaHistory.map((entry) => ({
-      roundPublicId: row!.id,
-      version: entry.version,
-      criteria: entry.criteria,
-    })),
-  );
+  await insertCriteriaHistoryEntries(tx, row!.id, snapshot.criteriaHistory);
   return row!;
 };
 
@@ -177,16 +211,7 @@ const writePreparedRound = async (
     revision: number;
   },
 ) => {
-  await tx
-    .insert(criteriaVersions)
-    .values(
-      values.snapshot.criteriaHistory.map((entry) => ({
-        roundPublicId: publicId,
-        version: entry.version,
-        criteria: entry.criteria,
-      })),
-    )
-    .onConflictDoNothing();
+  await insertCriteriaHistoryEntries(tx, publicId, values.snapshot.criteriaHistory);
   await tx
     .update(fundingRounds)
     .set({

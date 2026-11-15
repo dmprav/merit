@@ -1,7 +1,6 @@
 import { and, eq, sql } from "drizzle-orm";
 
 import { applicationCases, materialVersions } from "@merit/applications/schema";
-import { currentMaterial } from "@merit/applications/scope";
 import { contacts } from "@merit/contacts/schema";
 import type { Database } from "@merit/db";
 import { reviewRequests, assessments } from "@merit/reviews/schema";
@@ -12,15 +11,13 @@ export const contactApplicationTitles = async (db: Database, organizationId: str
   const rows = await db
     .select({
       id: contacts.id,
-      titles: sql<
-        string[]
-      >`(select coalesce(jsonb_agg(m.content->>'title' order by related.position), '[]'::jsonb)
+      titles: sql<string[]>`coalesce((select array_agg(m.title order by related.position)
         from ${applicationCases} related
         join ${materialVersions} m on m.case_id = related.id and m.version = related.material_version
         where related.organization_id = ${workspaceId} and (
           related.contact_id = ${contactId}
           or exists (select 1 from ${reviewRequests} r where r.case_id = related.id and r.contact_id = ${contactId})
-          or exists (select 1 from ${assessments} a where a.case_id = related.id and a.contact_id = ${contactId})))`,
+          or exists (select 1 from ${assessments} a where a.case_id = related.id and a.contact_id = ${contactId}))), '{}'::text[])`,
     })
     .from(contacts)
     .where(eq(contacts.organizationId, organizationId));
@@ -36,9 +33,16 @@ export const outstandingContactRequests = (
   db
     .select({
       publicId: applicationCases.id,
-      title: sql<string>`(${currentMaterial})->>'title'`,
+      title: materialVersions.title,
     })
     .from(applicationCases)
+    .innerJoin(
+      materialVersions,
+      and(
+        eq(materialVersions.caseId, applicationCases.id),
+        eq(materialVersions.version, applicationCases.materialVersion),
+      ),
+    )
     .where(
       and(
         eq(applicationCases.organizationId, organizationId),

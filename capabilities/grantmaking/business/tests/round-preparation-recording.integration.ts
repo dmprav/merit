@@ -71,9 +71,12 @@ it.for(["criteria_versions", "audit_events"])(
       ).rejects.toThrow();
       expect(await getFundingRoundPage(db, actor, { ...address, kind: "round" })).toEqual(before);
       expect((await database.client.query("SELECT * FROM audit_events")).rows).toEqual(history);
-      expect(
-        (await database.client.query("SELECT version, criteria FROM criteria_versions")).rows,
-      ).toEqual([{ version: 1, criteria: [] }]);
+      expect((await database.client.query("SELECT version FROM criteria_versions")).rows).toEqual([
+        { version: 1 },
+      ]);
+      expect((await database.client.query("SELECT 1 FROM criteria_version_items")).rows).toEqual(
+        [],
+      );
     } finally {
       await database.client.query(
         `ALTER TABLE ${table} DROP CONSTRAINT reject_preparation_recording`,

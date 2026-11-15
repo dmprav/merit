@@ -174,18 +174,19 @@ it("creates independent applications with exact amounts and permanent public IDs
 
   expect(rounds[0]).toMatchObject({ title: original.title, budget: original.budget!.minorUnits });
   const material = (
-    await database.client.query<{ content: Record<string, unknown> }>(
-      "SELECT content FROM material_versions ORDER BY case_id, version",
-    )
+    await database.client.query<{
+      title: string;
+      source_kind: string;
+      has_submission: boolean;
+    }>("SELECT title, source_kind, has_submission FROM material_versions ORDER BY case_id, version")
   ).rows;
   expect(material).toHaveLength(8);
   for (const row of material) {
-    expect(row.content).not.toHaveProperty("reviews");
-    expect(row.content).not.toHaveProperty("managerRecommendation");
-    expect(row.content).not.toHaveProperty("summary");
+    expect(row.title).not.toBe("");
+    expect(row.source_kind).toBe("fictional_example");
   }
   await expect(
-    database.client.query("UPDATE material_versions SET content='{}'::jsonb"),
+    database.client.query("UPDATE material_versions SET title = title"),
   ).rejects.toThrow();
 });
 
@@ -196,8 +197,8 @@ it("seeds the current title and applicant of every application for workspace sea
 }) => {
   const stored = await database.client.query<{ title: string; applicant: string; stored: boolean }>(
     `SELECT c.search_title AS title, c.search_applicant AS applicant,
-       (c.search_title = m.content->>'title'
-         AND c.search_applicant = coalesce(m.content->'submission'->>'organization', '')) AS stored
+       (c.search_title = m.title
+         AND c.search_applicant = coalesce(m.applicant_organization, '')) AS stored
      FROM application_cases c
      JOIN material_versions m ON m.case_id = c.id AND m.version = c.material_version`,
   );

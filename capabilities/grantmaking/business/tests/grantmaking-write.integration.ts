@@ -12,6 +12,7 @@ import { actor } from "@merit/organizations/testing/workspace";
 import { reviewRevisionSchema } from "@merit/reviews/domain";
 import { saveApplicationReview } from "@merit/reviews/server";
 import { criteriaVersionSchema } from "@merit/rounds/domain";
+import { editFundingRound } from "@merit/rounds/server";
 
 import { applicationWork } from "../src/server/persistence/commands/application-work";
 import { roundTest } from "./round-test";
@@ -41,6 +42,17 @@ const alder = { slug: "alder", userId: actor.userId };
 // One application with every kind of recorded version, and another whose material
 // has a second version that the first application lacks.
 const it = roundTest.extend("scenario", async ({ db, rounds }) => {
+  const criterionId = randomUUID();
+  const editedRound = await editFundingRound(db, actor, {
+    workspaceSlug: rounds.pageInput.workspaceSlug,
+    publicId: rounds.pageInput.publicId,
+    expectedRevision: 0,
+    change: {
+      section: "criteria",
+      criteria: [{ id: criterionId, title: "Community fit", description: "Community benefit" }],
+    },
+  });
+  assert(editedRound.status === "ok", "Could not add criteria fixture");
   const address = await rounds.createApplication("Recorded application");
   await rounds.recommendApplication(address, "8000");
   const contactId = await createContact(db, alder, "Robin Hale");
@@ -52,7 +64,7 @@ const it = roundTest.extend("scenario", async ({ db, rounds }) => {
   assert(linked.status === "ok", "Could not link the applicant contact");
   const basis = {
     expectedApplicationVersion: materialVersionSchema.parse(1),
-    expectedCriteriaVersion: criteriaVersionSchema.parse(1),
+    expectedCriteriaVersion: criteriaVersionSchema.parse(2),
   };
   const requested = await saveApplicationReview(db, actor, {
     ...address,
@@ -66,13 +78,14 @@ const it = roundTest.extend("scenario", async ({ db, rounds }) => {
     },
   });
   assert(requested.status === "ok", "Could not request the review fixture");
+  const assessmentId = randomUUID();
   const assessed = await saveApplicationReview(db, actor, {
     ...address,
     ...basis,
     expectedRevision: requested.revision,
     change: {
       action: "record",
-      id: randomUUID(),
+      id: assessmentId,
       contactId: await createContact(db, alder, "Jules Hart"),
       requestId: null,
       previousId: null,
@@ -83,7 +96,7 @@ const it = roundTest.extend("scenario", async ({ db, rounds }) => {
         position: "Fund",
         amount: "80.00",
         reasoning: "Clear plan for weekly activities.",
-        observations: [],
+        observations: [{ criterionId, criterion: "Community fit", text: "Matches round goals." }],
       },
     },
   });
@@ -103,7 +116,9 @@ const it = roundTest.extend("scenario", async ({ db, rounds }) => {
   assert(saved.status === "ok", "Could not record a second material version");
 
   return {
+    roundId: rounds.pageInput.publicId,
     address,
+    assessmentId,
     contactId,
     otherWorkspaceContactId: await createContact(
       db,
@@ -114,13 +129,24 @@ const it = roundTest.extend("scenario", async ({ db, rounds }) => {
 });
 
 const versionUpdates = {
-  material: "UPDATE material_versions SET content=content",
-  criteria: "UPDATE criteria_versions SET criteria=criteria",
-  assessment: "UPDATE assessment_versions SET content=content",
-  recommendation: "UPDATE recommendation_versions SET content=content",
+  material: "UPDATE material_versions SET title=title",
+  materialAnswer: "UPDATE material_version_answers SET response=response",
+  criteria: "UPDATE criteria_versions SET version=version",
+  criteriaItem: "UPDATE criteria_version_items SET title=title",
+  assessment: "UPDATE assessment_versions SET reasoning=reasoning",
+  assessmentObservation: "UPDATE assessment_version_observations SET text=text",
+  recommendation: "UPDATE recommendation_versions SET reasoning=reasoning",
 };
 
-it.for(["material", "criteria", "assessment", "recommendation"] as const)(
+it.for([
+  "material",
+  "materialAnswer",
+  "criteria",
+  "criteriaItem",
+  "assessment",
+  "assessmentObservation",
+  "recommendation",
+] as const)(
   "rejects updates to recorded %s versions at the database boundary",
   async (kind, { db, database, scenario }) => {
     const before = await getFundingApplicationPage(db, actor, scenario.address);
@@ -133,8 +159,11 @@ it.for(["material", "criteria", "assessment", "recommendation"] as const)(
 
 it.for([
   "material_versions",
+  "material_version_answers",
   "criteria_versions",
+  "criteria_version_items",
   "assessment_versions",
+  "assessment_version_observations",
   "recommendation_versions",
 ] as const)(
   "preserves recorded %s rows while their owner exists",
@@ -149,6 +178,41 @@ it.for([
     await expect(database.client.query(`DELETE FROM ${table}`)).rejects.toMatchObject({
       code: "23514",
     });
+  },
+);
+
+it.for([
+  "criteria_version_items",
+  "material_version_answers",
+  "material_version_evidence",
+  "assessment_version_observations",
+] as const)(
+  "rejects adding %s rows to a committed version at the database boundary",
+  async (table, { db, database, scenario }) => {
+    const before = await getFundingApplicationPage(db, actor, scenario.address);
+    const queries = {
+      criteria_version_items: {
+        sql: "INSERT INTO criteria_version_items (round_id, version, position, criterion_id, title) VALUES ($1, 2, 1, $2, 'Extra')",
+        params: [scenario.roundId, randomUUID()],
+      },
+      material_version_answers: {
+        sql: "INSERT INTO material_version_answers (case_id, material_version, position, question_id, question, response) VALUES ($1, 1, 1, $2, 'Extra', 'Added')",
+        params: [scenario.address.publicId, randomUUID()],
+      },
+      material_version_evidence: {
+        sql: "INSERT INTO material_version_evidence (case_id, material_version, position, evidence_version, passage) VALUES ($1, 1, 0, 1, 'Added')",
+        params: [scenario.address.publicId],
+      },
+      assessment_version_observations: {
+        sql: "INSERT INTO assessment_version_observations (case_id, assessment_id, version, position, criterion_id, criterion, text) VALUES ($1, $2, 1, 1, NULL, 'Extra', 'Added')",
+        params: [scenario.address.publicId, scenario.assessmentId],
+      },
+    };
+    const query = queries[table];
+    await expect(database.client.query(query.sql, query.params)).rejects.toMatchObject({
+      code: "23514",
+    });
+    expect(await getFundingApplicationPage(db, actor, scenario.address)).toEqual(before);
   },
 );
 
@@ -236,16 +300,24 @@ it("keeps staff summary edits out of material versions and review bases", async 
   expect(after.application.summary).toBe("Staff interpretation after discussion.");
 });
 
-it("rejects staff interpretation embedded in a new material version", async ({
+it("enforces relational intake boundaries on recorded material versions", async ({
   database,
   scenario,
 }) => {
   await expect(
     database.client.query(
-      `INSERT INTO material_versions (case_id, version, content, change_kind, source)
-     SELECT case_id, 99, content || '{"version":99,"summary":"Internal judgment"}'::jsonb,
-       'correction', source FROM material_versions WHERE case_id=$1 AND version=1`,
+      `INSERT INTO material_versions (case_id, version, title, requested_minor_units, requested_currency, change_kind, source_kind)
+       VALUES ($1, 99, 'Invalid requested amount', -1, 'EUR', 'correction', 'recorded_external')`,
       [scenario.address.publicId],
     ),
   ).rejects.toMatchObject({ code: "23514" });
+  const columns = (
+    await database.client.query<{ column_name: string }>(
+      `SELECT column_name FROM information_schema.columns
+       WHERE table_schema = 'public' AND table_name = 'material_versions'`,
+    )
+  ).rows.map((row) => row.column_name);
+  expect(columns).not.toContain("summary");
+  expect(columns).not.toContain("reviews");
+  expect(columns).not.toContain("manager_recommendation");
 });

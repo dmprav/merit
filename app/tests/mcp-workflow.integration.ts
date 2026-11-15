@@ -212,12 +212,12 @@ it("completes grant work through MCP with shared web state, safe retries, and ve
   });
 
   const audit = await database.client.query(
-    "SELECT provenance FROM recommendation_versions WHERE case_id=$1",
+    "SELECT provenance_interface, provenance_client_id FROM recommendation_versions WHERE case_id=$1",
     [applicationAddress.applicationId],
   );
 
   expect(audit.rows).toEqual([
-    { provenance: { interface: "mcp", clientId: "integration-client" } },
+    { provenance_interface: "mcp", provenance_client_id: "integration-client" },
   ]);
   const mcpProvenance = { interface: "mcp", clientId: "integration-client" };
   expect(
