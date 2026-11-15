@@ -21,6 +21,7 @@
     "drizzle-orm": "catalog:",
     "eslint-plugin-boundaries": "catalog:",
     "fallow": "catalog:",
+    "oxc-transform-react": "catalog:",
     "remark": "catalog:",
     "remark-cli": "catalog:",
     "remark-gfm": "catalog:",

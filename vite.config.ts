@@ -99,6 +99,7 @@ export default defineConfig({
       "ready:tooling": {
         command: [
           "vp run test:docs",
+          "vp run test:react-compiler",
           "vp run test:fallow",
           "vp run test:architecture",
           "vp run test:security",
@@ -168,6 +169,10 @@ export default defineConfig({
         cache: false,
       },
       "test:docs": { command: "vp test tooling/verification/docs.test.ts", cache: false },
+      "test:react-compiler": {
+        command: "vp test tooling/verification/react-compiler.test.ts",
+        cache: false,
+      },
       "check:docs": {
         command: "remark . --ext md,mdx --ignore-path .gitignore --frail --no-stdout --quiet",
         cache: { output: [] },

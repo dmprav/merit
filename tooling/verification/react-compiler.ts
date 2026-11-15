@@ -1,30 +1,9 @@
-import { readdirSync, readFileSync } from "node:fs";
-import { createRequire } from "node:module";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
+import { transform } from "oxc-transform-react";
+
 import { reactCompilerOptions } from "../react-compiler.ts";
-
-type CompilerError = {
-  message: string;
-  codeframe?: string | null;
-};
-
-type TransformResult = {
-  code?: string;
-  errors?: CompilerError[];
-};
-
-type TransformFn = (
-  filename: string,
-  code: string,
-  options: {
-    jsx: { runtime: "automatic"; development: false };
-    reactCompiler: typeof reactCompilerOptions;
-  },
-) => Promise<TransformResult>;
-
-const require = createRequire(new URL("../../app/package.json", import.meta.url));
-const { transform } = require("oxc-transform-react") as { transform: TransformFn };
 
 const roots = ["app/src", "interfaces", "capabilities", "foundation"];
 const skippedDirs = new Set(["node_modules", "dist", ".git", ".cloudflare"]);
@@ -51,7 +30,9 @@ const collectFiles = (dir: string, out: string[]) => {
 const run = async () => {
   const files: string[] = [];
   for (const root of roots) {
-    collectFiles(root, files);
+    if (existsSync(root)) {
+      collectFiles(root, files);
+    }
   }
 
   let compiled = 0;

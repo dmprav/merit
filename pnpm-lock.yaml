@@ -457,6 +457,9 @@ importers:
       fallow:
         specifier: 'catalog:'
         version: 3.41.0
+      oxc-transform-react:
+        specifier: 'catalog:'
+        version: 0.156.0
       remark:
         specifier: 'catalog:'
         version: 15.0.1(supports-color@10.2.2)
@@ -4728,6 +4731,7 @@ packages:
   '@secretlint/secretlint-rule-pattern@13.1.0':
     resolution: {integrity: sha512-ignkZmq1SBHCRj0BOxc7TYkIUtSABrkAxkrPl83Y5xDYZPCtFFiLwP4eGlYpbEr5bPE6rzh2fuZs0L4vXK/W0w==}
     engines: {node: '>=22.0.0'}
+    deprecated: Built into secretlint v14 and later. Remove this package; the rule id still works. https://github.com/secretlint/secretlint/blob/HEAD/docs/rules/pattern.md
 
   '@secretlint/secretlint-rule-preset-recommend@13.1.0':
     resolution: {integrity: sha512-dPnplMyjJYpVCJDNTjpUA8c/AfoHbWANJJJWKroK50DGGhAB4Oumzk+XinBMyMMAwgOsjU9CB9lUHXDvObMVCg==}
