@@ -43,7 +43,8 @@ provided `closeButton` alongside it.
 `appearance="search"` frames a search box. It sits near the top of the page with no
 visible title bar: `title` names the dialog for assistive technology, and a small
 close control floats over the end of the first row. Content owns the field and the
-results, and reserves `--search-close-reserve` at the end of its first row so the
+results. Give the first row a minimum height of `--search-field-height`, which also
+centers the close control, and reserve `--search-close-reserve` at its end so the
 control never covers typed text. Outside presses dismiss it unless `isDismissable`
 is false. Opened without a trigger, focus returns to where it was when the box
 closes. On viewports up to 600px wide the box fills the screen.

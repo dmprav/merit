@@ -28,7 +28,7 @@
 .searchField {
   display: flex;
   align-items: center;
-  min-height: var(--target-touch);
+  min-height: var(--search-field-height);
   padding-inline: var(--space-4) var(--search-close-reserve);
 }
 

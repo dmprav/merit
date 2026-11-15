@@ -238,10 +238,11 @@ const PaletteFooter = ({
     {keyboardHelp && (
       <div className={styles.footer}>
         <span>
-          <kbd>↑ ↓</kbd> {keyboardHelp.navigate}
+          <kbd>↑</kbd>
+          <kbd>↓</kbd> {keyboardHelp.navigate}
         </span>
         <span>
-          <kbd>↵</kbd> {keyboardHelp.open}
+          <kbd>Enter</kbd> {keyboardHelp.open}
         </span>
         <span>
           <kbd>Esc</kbd> {keyboardHelp.close}
