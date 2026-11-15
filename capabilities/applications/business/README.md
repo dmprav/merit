@@ -27,7 +27,7 @@ withdrawn work. [`prepareIntakeChange`](src/domain/intake.ts) rejects every chan
 changes share its schemas. `lockApplicationCase` reports whether the locked case is
 withdrawn, so reviews, recommendations, and contact selection reject writes inside
 their own transactions; `readCaseWithdrawn` answers the same for a case the caller
-already locked. Persistence exports the SQL form of the predicate from `/scope` (`caseWithdrawn`, `activeCase(alias)`, `withdrawnCase(alias)`, and `roundWithdrawnCount`); every total, list, and sibling allocation uses them rather than writing `withdrawal is null`.
+already locked. Persistence exports the SQL form of the predicate from `/scope` (`caseWithdrawn`, `activeCase(alias)`, and `roundWithdrawnCount`); every total, list, and sibling allocation uses them rather than writing `withdrawal is null`.
 
 Withdrawing also calls the collaborator's `closeReviewsForWithdrawal` in the same
 transaction, after the case lock. Reviews owns the closure of outstanding requests

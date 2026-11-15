@@ -75,15 +75,11 @@ transaction, specifying permitted target types and the subject or assignment.
 `auditPageInput` from `@merit/audit/api` validates cursors and limits (20 by default,
 at most 50). Event payload interpretation remains with the owning capability.
 
-Browser contact, reviewer, and team histories load when opened. Application and budget
+Browser contact and reviewer histories load when opened. Application and budget
 pages carry a bounded initial history; older entries load through their
 capability's authorized reader. A failed page read can be retried, and a denied
 read removes previously displayed history. Reviewer assignment lists contain
 summaries and do not query history for every assignment.
-The team data module refreshes open history after saves and manual refreshes, using
-a stable workspace key to retain loaded pagination. Closed history is marked stale
-without fetching. History read failures have their own retry and preserve the
-successful-save confirmation.
 
 Authorized capability readers may still use `@merit/audit/schema` for compact
 projections and individual event content with an organization and subject scope. The workspace feed resolves
@@ -103,12 +99,6 @@ runs before deleting the workspace in the lifecycle transaction. Cleanup require
 separate delete privileges; see [deployment privileges](../../../docs/guides/deployment.md#check-runtime-privileges).
 Audit depends only on Auth and DB in production. The baseline SQL installs the
 organization foreign key without introducing a reverse Organizations dependency.
-
-This is an undeployed baseline replacement. Create a fresh disposable development
-database to use it; applying the baseline over an existing database is not a data
-migration. The baseline also retains the hand-written deferred version references,
-content constraints, and immutability triggers. No historical backfill or parallel
-legacy writer is needed before the first deployment.
 
 ## Verify the contract
 
