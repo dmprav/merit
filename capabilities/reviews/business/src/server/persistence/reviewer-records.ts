@@ -90,6 +90,33 @@ export const lockActiveReviewer = async (tx: Transaction, userId: string) =>
       .for("share")
   )[0];
 
+/**
+ * Whether reaching this assignment may depend on the actor's verified emails. Binding to a
+ * reviewer is permanent, so a bound assignment never needs them; unknown ids report false
+ * because the read or command rejects them regardless.
+ */
+export const assignmentAwaitsClaim = async (db: Database, id: string) =>
+  (
+    await db
+      .select({ reviewerUserId: reviewAssignments.reviewerUserId })
+      .from(reviewAssignments)
+      .where(eq(reviewAssignments.id, id))
+  )[0]?.reviewerUserId === null;
+
+/** Whether any of the user's memberships hold an assignment not yet bound to a reviewer. */
+export const reviewerHasUnclaimedAssignments = async (db: Database, userId: string) =>
+  (
+    await db
+      .select({ id: reviewAssignments.id })
+      .from(reviewAssignments)
+      .innerJoin(
+        memberships,
+        and(eq(memberships.id, reviewAssignments.membershipId), eq(memberships.userId, userId)),
+      )
+      .where(sql`${reviewAssignments.reviewerUserId} is null`)
+      .limit(1)
+  ).length > 0;
+
 export const reviewerOwns = (record: ReviewerRecord, userId: string, emails: string[]) =>
   record.assignment.reviewerUserId !== null
     ? record.assignment.reviewerUserId === userId

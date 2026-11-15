@@ -836,6 +836,37 @@ it("requires the invited membership's identity even before acceptance", async ({
   expect(await s.respond("accept")).toMatchObject({ status: "ok" });
 });
 
+it("serves bound reviewer work without the external email lookup", async ({
+  db,
+  reviewerScenario: s,
+}) => {
+  expect(await s.respond("accept")).toMatchObject({ status: "ok" });
+  let lookups = 0;
+  const unreachable = createReviewerService({
+    database: (operation) => operation(db),
+    verifiedEmails: async () => {
+      lookups += 1;
+      throw new Error("Identity provider unavailable");
+    },
+    send: async () => {},
+    reviewerUrl: (_slug, id) => id,
+    managerUrl: (_slug, id) => id,
+  });
+  const page = await unreachable.read(sam, { assignmentId: s.assignmentId });
+  assert(page.status === "ok");
+  expect((await unreachable.list(sam, { workspaceSlug: "alder" })).status).toBe("ok");
+  expect(
+    await unreachable.respond(sam, {
+      assignmentId: s.assignmentId,
+      commandId: randomUUID(),
+      expectedRevision: page.value.assignment.revision,
+      action: "report_conflict",
+      note: "Former colleague",
+    }),
+  ).toMatchObject({ status: "ok" });
+  expect(lookups).toBe(0);
+});
+
 it("keeps an unaccepted assignment ended after removal and rejoining until explicit reinstatement", async ({
   db,
   database,

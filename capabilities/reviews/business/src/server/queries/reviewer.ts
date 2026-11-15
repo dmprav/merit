@@ -23,6 +23,11 @@ import {
   type ReviewerRecord,
 } from "../persistence/reviewer-records";
 
+export {
+  assignmentAwaitsClaim,
+  reviewerHasUnclaimedAssignments,
+} from "../persistence/reviewer-records";
+
 const reviewerSummary = (row: ReviewerRecord): ReviewerSummary => {
   const basisComparison = compareReviewBasis(
     {
