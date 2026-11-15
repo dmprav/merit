@@ -1,3 +1,5 @@
+import { isDeepStrictEqual } from "node:util";
+
 import { expect, it, vi } from "vite-plus/test";
 
 import type { WorkspaceServices } from "../../../../shared/request-context";
@@ -21,17 +23,18 @@ it.each([
 });
 
 it("uses the authenticated actor and selected workspace for application discovery", async () => {
-  const listWorkspaceApplications = vi.fn(async () => ({
-    status: "ok" as const,
+  const services: Pick<WorkspaceServices, "currentIdentity" | "listWorkspaceApplications"> = {
+    currentIdentity: async () => ({ status: "authenticated", actor: { userId: "manager" } }),
+    listWorkspaceApplications: async (actor, slug) =>
+      actor.userId === "manager" && slug === "alder"
+        ? { status: "ok", applications: [] }
+        : { status: "forbidden" },
+  };
+
+  expect(await loadWorkspaceApplications("alder", services)).toEqual({
+    status: "ok",
     applications: [],
-  }));
-  expect(
-    await loadWorkspaceApplications("alder", {
-      currentIdentity: async () => ({ status: "authenticated", actor: { userId: "manager" } }),
-      listWorkspaceApplications,
-    }),
-  ).toEqual({ status: "ok", applications: [] });
-  expect(listWorkspaceApplications).toHaveBeenCalledWith({ userId: "manager" }, "alder");
+  });
 });
 
 it("does not discover applications for a signed-out visitor", async () => {
@@ -147,16 +150,16 @@ it.each([
 
 it("reads the selected workspace's activity as the authenticated actor, with filters from the request", async () => {
   const page = { status: "ok" as const, entries: [], people: [], nextCursor: null };
-  const listWorkspaceActivity = vi.fn(async () => page);
   const input = { workspaceSlug: "alder", roundId: "k7m2p9x4n6rt", personId: "dana", limit: 50 };
+  const services: Pick<WorkspaceServices, "currentIdentity" | "listWorkspaceActivity"> = {
+    currentIdentity: async () => manager,
+    listWorkspaceActivity: async (actor, request) =>
+      actor.userId === "manager" && isDeepStrictEqual(request, input)
+        ? page
+        : { status: "forbidden" },
+  };
 
-  expect(
-    await loadWorkspaceActivity(input, {
-      currentIdentity: async () => manager,
-      listWorkspaceActivity,
-    }),
-  ).toEqual(page);
-  expect(listWorkspaceActivity).toHaveBeenCalledWith({ userId: "manager" }, input);
+  expect(await loadWorkspaceActivity(input, services)).toEqual(page);
 });
 
 it("does not read activity for a signed-out visitor", async () => {
