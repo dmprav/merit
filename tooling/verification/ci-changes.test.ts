@@ -2,7 +2,7 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, test } from "vite-plus/test";
 
-import { classifyChangedFiles, loadWorkspacePackages } from "./ci-changes.mjs";
+import { classifyChangedFiles, loadWorkspacePackages } from "./ci-changes.ts";
 
 const repoRoot = fileURLToPath(new URL("../..", import.meta.url));
 const workspacePackages = loadWorkspacePackages(repoRoot);
@@ -87,5 +87,23 @@ describe("ci-changes", () => {
     expect(result.full_run).toBe(false);
     expect(result.run_app).toBe(true);
     expect(result.run_storybook).toBe(true);
+  });
+
+  test("routes direct Storybook story sources in forms and capability web packages", () => {
+    const formsResult = classifyChangedFiles({
+      eventName: "pull_request",
+      changedFiles: ["foundation/forms/src/form/form-dialog.stories.tsx"],
+      workspacePackages,
+    });
+    expect(formsResult.run_storybook).toBe(true);
+    expect(formsResult.run_app).toBe(true);
+
+    const webResult = classifyChangedFiles({
+      eventName: "pull_request",
+      changedFiles: ["capabilities/reviews/web/src/components/assessment.stories.tsx"],
+      workspacePackages,
+    });
+    expect(webResult.run_storybook).toBe(true);
+    expect(webResult.run_app).toBe(true);
   });
 });

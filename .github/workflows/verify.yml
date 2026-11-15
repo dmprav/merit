@@ -37,6 +37,13 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
 
+      - name: Set up Node.js
+        uses: voidzero-dev/setup-vp@cab1ab9eaff52d4857875f4f2c016e36af8f2c76 # v1.22.0
+        with:
+          node-version-file: .node-version
+          cache: false
+          run-install: false
+
       - name: Classify changes
         id: filter
         shell: bash
@@ -44,7 +51,7 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: node tooling/verification/ci-changes.mjs
+        run: node tooling/verification/ci-changes.ts
 
   renovate:
     needs: changes
@@ -72,6 +79,11 @@ jobs:
       run:
         shell: bash
     steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
       - name: Set up workspace
         uses: ./.github/actions/setup-workspace
 
@@ -92,6 +104,11 @@ jobs:
       run:
         shell: bash
     steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
       - name: Set up workspace
         uses: ./.github/actions/setup-workspace
 
@@ -109,6 +126,11 @@ jobs:
       run:
         shell: bash
     steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
       - name: Set up workspace
         uses: ./.github/actions/setup-workspace
 
@@ -137,6 +159,11 @@ jobs:
       run:
         shell: bash
     steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
       - name: Set up workspace
         uses: ./.github/actions/setup-workspace
         with:
@@ -156,6 +183,11 @@ jobs:
       run:
         shell: bash
     steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
       - name: Set up workspace
         uses: ./.github/actions/setup-workspace
         with:
@@ -180,6 +212,7 @@ jobs:
         with:
           name: verification-failure-package-tests
           retention-days: 7
+          include-hidden-files: true
           if-no-files-found: ignore
           path: "**/.vitest-report.json"
 
@@ -193,6 +226,11 @@ jobs:
       run:
         shell: bash
     steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
       - name: Set up workspace
         uses: ./.github/actions/setup-workspace
 
@@ -231,6 +269,11 @@ jobs:
       run:
         shell: bash
     steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
       - name: Set up workspace
         uses: ./.github/actions/setup-workspace
         with:
@@ -283,6 +326,11 @@ jobs:
       run:
         shell: bash
     steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
       - name: Set up workspace
         uses: ./.github/actions/setup-workspace
 
@@ -303,6 +351,11 @@ jobs:
       run:
         shell: bash
     steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
       - name: Set up workspace
         uses: ./.github/actions/setup-workspace
 
@@ -346,6 +399,11 @@ jobs:
       run:
         shell: bash
     steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
       - name: Set up workspace
         uses: ./.github/actions/setup-workspace
         with:
@@ -404,6 +462,11 @@ jobs:
       run:
         shell: bash
     steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
       - name: Set up workspace
         uses: ./.github/actions/setup-workspace
         with:
@@ -469,6 +532,11 @@ jobs:
       run:
         shell: bash
     steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
       - name: Set up workspace
         uses: ./.github/actions/setup-workspace
         with:

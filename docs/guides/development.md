@@ -438,7 +438,7 @@ intended updates.
 
 The [Verify workflow](../../.github/workflows/verify.yml) runs on pull requests
 targeting `main`, `merge_group`, pushes to `main`, and manual dispatch. It starts
-with a `changes` job ([`ci-changes.mjs`](../../tooling/verification/ci-changes.mjs))
+with a `changes` job ([`ci-changes.ts`](../../tooling/verification/ci-changes.ts))
 that diffs against the PR base commit:
 
 - Documentation-only pull requests (including package `README.md` files) route
