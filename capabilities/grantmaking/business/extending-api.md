@@ -70,6 +70,6 @@ Cross-workflow scenarios remain in [grantmaking integration tests](tests) and
 
 The [architecture checks](../../../docs/guides/architecture-checks.md) enforce
 public exports, dependency direction, browser/server separation, and source roles.
-A new server export needs an explicit consumer permission and positive and negative
-fixtures. Keep command persistence separate from query persistence. Follow the
-[verification guide](../../../docs/guides/verification.md) for full-workspace checks.
+A new non-standard server export needs an explicit consumer permission and positive
+and negative fixtures. Keep command persistence separate from query persistence. Follow
+the [verification guide](../../../docs/guides/verification.md) for full-workspace checks.

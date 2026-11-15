@@ -81,11 +81,12 @@ restrictions, and capability TypeScript program isolation.
 Run `vp run test:architecture` when changing
 [their configuration](../../tooling/verification/architecture/config.ts),
 [import rules](../../tooling/verification/architecture/imports.ts), or resolver.
-Common business roles apply to new capabilities without registration. Their full
-internal import matrix is exercised once against a new capability fixture;
-capability-specific integrations retain their own positive and negative checks. Public API
-changes belong in the owning package’s `exports`; pure workspace dependencies and
-privileged server integrations remain explicit declarations.
+Common business roles, pure business dependency rules, and standard cross-capability
+server roles apply to new capabilities without registration. Their full internal import
+matrix is exercised once against a new capability fixture; non-standard server
+integrations and upstream/sibling restrictions retain their own declarations and checks.
+Public API changes belong in the owning package’s `exports`; specialized server
+integrations remain explicit declarations.
 
 The [TypeScript isolation suite](../../tooling/verification/architecture/typescript.test.ts)
 runs with `architecture`, enumerates each web capability’s program including
