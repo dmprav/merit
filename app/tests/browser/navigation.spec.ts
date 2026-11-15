@@ -753,6 +753,7 @@ test("personal pins keep a fixed preview and manage the full overflow collection
     "page",
   );
   await expect(rounds.getByRole("link")).toHaveCount(6);
+  await expect(page.getByRole("tooltip")).toHaveCount(0);
   await page.keyboard.press("Escape");
   await expect(popup).toHaveCount(0);
   await expect(overflow).toBeFocused();
