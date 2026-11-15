@@ -3,6 +3,10 @@ name: Verify
 on:
   pull_request:
     branches: [main]
+  merge_group:
+    branches: [main]
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -10,7 +14,7 @@ permissions:
 
 concurrency:
   group: verify-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   changes:
@@ -19,36 +23,35 @@ jobs:
     outputs:
       renovate: ${{ steps.filter.outputs.renovate }}
       docs_only: ${{ steps.filter.outputs.docs_only }}
+      renovate_only: ${{ steps.filter.outputs.renovate_only }}
+      full_run: ${{ steps.filter.outputs.full_run }}
+      run_app: ${{ steps.filter.outputs.run_app }}
+      run_storybook: ${{ steps.filter.outputs.run_storybook }}
+      run_tooling: ${{ steps.filter.outputs.run_tooling }}
+      run_package_tests: ${{ steps.filter.outputs.run_package_tests }}
+      package_filters: ${{ steps.filter.outputs.package_filters }}
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          fetch-depth: 2
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: voidzero-dev/setup-vp@cab1ab9eaff52d4857875f4f2c016e36af8f2c76 # v1.22.0
+        with:
+          node-version-file: .node-version
+          cache: false
+          run-install: false
 
       - name: Classify changes
         id: filter
         shell: bash
         env:
           EVENT_NAME: ${{ github.event_name }}
-        run: |
-          if [[ "$EVENT_NAME" == pull_request ]]; then
-            # Checkout uses the PR merge commit; its first parent is the base branch.
-            changed_files="$(git diff --name-only HEAD^1 HEAD)"
-            if printf '%s\n' "$changed_files" | grep -qE '^(renovate\.json|\.github/workflows/)'; then
-              echo "renovate=true" >> "$GITHUB_OUTPUT"
-            else
-              echo "renovate=false" >> "$GITHUB_OUTPUT"
-            fi
-            if [[ -n "$changed_files" ]] && ! printf '%s\n' "$changed_files" | grep -qvE '^(docs/|[^/]+\.md$|\.remarkrc\.mjs$|\.github/pull_request_template\.md$|\.github/ISSUE_TEMPLATE/)'; then
-              echo "docs_only=true" >> "$GITHUB_OUTPUT"
-            else
-              echo "docs_only=false" >> "$GITHUB_OUTPUT"
-            fi
-          else
-            echo "renovate=true" >> "$GITHUB_OUTPUT"
-            echo "docs_only=false" >> "$GITHUB_OUTPUT"
-          fi
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node tooling/verification/ci-changes.ts
 
   renovate:
     needs: changes
@@ -81,15 +84,8 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Set up Vite+, Node.js, and pnpm
-        uses: voidzero-dev/setup-vp@cab1ab9eaff52d4857875f4f2c016e36af8f2c76 # v1.22.0
-        with:
-          node-version-file: .node-version
-          cache: true
-          run-install: false
-
-      - name: Install dependencies
-        run: vp install --frozen-lockfile
+      - name: Set up workspace
+        uses: ./.github/actions/setup-workspace
 
       - name: Run documentation and secret checks
         run: |
@@ -99,9 +95,31 @@ jobs:
           vp run --no-cache check:secrets
           vp run --no-cache test:ci
 
+  security-checks:
+    needs: changes
+    if: needs.changes.outputs.docs_only != 'true' && needs.changes.outputs.renovate_only != 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up workspace
+        uses: ./.github/actions/setup-workspace
+
+      - name: Run security checks
+        env:
+          TMPDIR: ${{ runner.temp }}
+        run: vp run --no-cache check:security
+
   build:
     needs: changes
-    if: needs.changes.outputs.docs_only != 'true'
+    if: needs.changes.outputs.docs_only != 'true' && needs.changes.outputs.renovate_only != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     defaults:
@@ -113,15 +131,8 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Set up Vite+, Node.js, and pnpm
-        uses: voidzero-dev/setup-vp@cab1ab9eaff52d4857875f4f2c016e36af8f2c76 # v1.22.0
-        with:
-          node-version-file: .node-version
-          cache: true
-          run-install: false
-
-      - name: Install dependencies
-        run: vp install --frozen-lockfile
+      - name: Set up workspace
+        uses: ./.github/actions/setup-workspace
 
       - name: Build workspace and check docs
         env:
@@ -140,7 +151,7 @@ jobs:
             app/src/routeTree.gen.ts
             tooling/storybook/dist
 
-  static-and-security:
+  static-checks:
     needs: build
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -153,30 +164,19 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Download build outputs
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+      - name: Set up workspace
+        uses: ./.github/actions/setup-workspace
         with:
-          name: build-outputs
+          download-build: "true"
 
-      - name: Set up Vite+, Node.js, and pnpm
-        uses: voidzero-dev/setup-vp@cab1ab9eaff52d4857875f4f2c016e36af8f2c76 # v1.22.0
-        with:
-          node-version-file: .node-version
-          cache: true
-          run-install: false
-
-      - name: Install dependencies
-        run: vp install --frozen-lockfile
-
-      - name: Run static and security checks
+      - name: Run static checks
         env:
           TMPDIR: ${{ runner.temp }}
-        run: |
-          vp run --no-cache --ignore-depends-on ready:static
-          vp run --no-cache check:security
+        run: vp run --no-cache --ignore-depends-on ready:static
 
   package-tests:
-    needs: build
+    needs: [changes, build]
+    if: needs.changes.outputs.run_package_tests == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     defaults:
@@ -188,27 +188,17 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Download build outputs
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+      - name: Set up workspace
+        uses: ./.github/actions/setup-workspace
         with:
-          name: build-outputs
-
-      - name: Set up Vite+, Node.js, and pnpm
-        uses: voidzero-dev/setup-vp@cab1ab9eaff52d4857875f4f2c016e36af8f2c76 # v1.22.0
-        with:
-          node-version-file: .node-version
-          cache: true
-          run-install: false
-
-      - name: Install dependencies
-        run: vp install --frozen-lockfile
+          download-build: "true"
 
       - name: Run package unit and component tests
         env:
           TMPDIR: ${{ runner.temp }}
         run: >-
           vp run --no-cache --parallel --concurrency-limit 2
-          --filter '@merit/*' --filter '!@merit/storybook' test
+          ${{ needs.changes.outputs.package_filters }} test
           --reporter=default --reporter=github-actions --reporter=json
           --outputFile.json=.vitest-report.json
 
@@ -216,8 +206,19 @@ jobs:
         if: always()
         run: vp run --no-cache ci:summary "Package tests" --scan-vitest .vitest-report.json
 
+      - name: Upload failure evidence
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: verification-failure-package-tests
+          retention-days: 7
+          include-hidden-files: true
+          if-no-files-found: ignore
+          path: "**/.vitest-report.json"
+
   storybook-vitest:
-    needs: build
+    needs: changes
+    if: needs.changes.outputs.full_run == 'true' || needs.changes.outputs.run_storybook == 'true'
     runs-on: ubuntu-24.04
     container: mcr.microsoft.com/playwright:v1.64.1-noble@sha256:2f05f8a734509a7b3f26a912639488ee08f58a7b292d14d62271bcff9038768f
     timeout-minutes: 15
@@ -230,18 +231,12 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Set up Vite+, Node.js, and pnpm
-        uses: voidzero-dev/setup-vp@cab1ab9eaff52d4857875f4f2c016e36af8f2c76 # v1.22.0
-        with:
-          node-version-file: .node-version
-          cache: true
-          run-install: false
-
-      - name: Install dependencies
-        run: vp install --frozen-lockfile
+      - name: Set up workspace
+        uses: ./.github/actions/setup-workspace
 
       - name: Run Storybook interaction and accessibility tests
         env:
+          HOME: /root
           TMPDIR: ${{ runner.temp }}
           MERIT_CI_REPORT_DIR: /tmp/ci-reports
         run: |
@@ -256,8 +251,18 @@ jobs:
           MERIT_CI_REPORT_DIR: /tmp/ci-reports
         run: vp run --no-cache ci:summary "Storybook Vitest"
 
+      - name: Upload failure evidence
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: verification-failure-storybook-vitest
+          retention-days: 7
+          if-no-files-found: ignore
+          path: /tmp/ci-reports
+
   integration:
-    needs: build
+    needs: [changes, build]
+    if: needs.changes.outputs.full_run == 'true' || needs.changes.outputs.run_app == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     defaults:
@@ -269,20 +274,10 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Download build outputs
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+      - name: Set up workspace
+        uses: ./.github/actions/setup-workspace
         with:
-          name: build-outputs
-
-      - name: Set up Vite+, Node.js, and pnpm
-        uses: voidzero-dev/setup-vp@cab1ab9eaff52d4857875f4f2c016e36af8f2c76 # v1.22.0
-        with:
-          node-version-file: .node-version
-          cache: true
-          run-install: false
-
-      - name: Install dependencies
-        run: vp install --frozen-lockfile
+          download-build: "true"
 
       - name: Start PostgreSQL and Mailpit
         run: docker compose up -d --wait
@@ -323,7 +318,8 @@ jobs:
         run: docker compose down --volumes
 
   tooling-self-tests:
-    needs: build
+    needs: changes
+    if: needs.changes.outputs.full_run == 'true' || needs.changes.outputs.run_tooling == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     defaults:
@@ -335,20 +331,8 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Download build outputs
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: build-outputs
-
-      - name: Set up Vite+, Node.js, and pnpm
-        uses: voidzero-dev/setup-vp@cab1ab9eaff52d4857875f4f2c016e36af8f2c76 # v1.22.0
-        with:
-          node-version-file: .node-version
-          cache: true
-          run-install: false
-
-      - name: Install dependencies
-        run: vp install --frozen-lockfile
+      - name: Set up workspace
+        uses: ./.github/actions/setup-workspace
 
       - name: Run tooling self-tests and source-modifying probes
         env:
@@ -358,7 +342,8 @@ jobs:
           vp run --no-cache test:checks
 
   browser-tooling:
-    needs: build
+    needs: changes
+    if: needs.changes.outputs.full_run == 'true' || needs.changes.outputs.run_tooling == 'true'
     runs-on: ubuntu-24.04
     container: mcr.microsoft.com/playwright:v1.64.1-noble@sha256:2f05f8a734509a7b3f26a912639488ee08f58a7b292d14d62271bcff9038768f
     timeout-minutes: 15
@@ -371,15 +356,8 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Set up Vite+, Node.js, and pnpm
-        uses: voidzero-dev/setup-vp@cab1ab9eaff52d4857875f4f2c016e36af8f2c76 # v1.22.0
-        with:
-          node-version-file: .node-version
-          cache: true
-          run-install: false
-
-      - name: Install dependencies
-        run: vp install --frozen-lockfile
+      - name: Set up workspace
+        uses: ./.github/actions/setup-workspace
 
       - name: Run shared browser fixture tests
         env:
@@ -408,14 +386,15 @@ jobs:
             /tmp/ci-reports
 
   browser-storybook:
-    needs: build
+    needs: [changes, build, static-checks]
+    if: needs.changes.outputs.full_run == 'true' || needs.changes.outputs.run_storybook == 'true'
     runs-on: ubuntu-24.04
     container: mcr.microsoft.com/playwright:v1.64.1-noble@sha256:2f05f8a734509a7b3f26a912639488ee08f58a7b292d14d62271bcff9038768f
     timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
-        shard: ["1/3", "2/3", "3/3"]
+        shard: ["1/5", "2/5", "3/5", "4/5", "5/5"]
     defaults:
       run:
         shell: bash
@@ -425,20 +404,10 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Download build outputs
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+      - name: Set up workspace
+        uses: ./.github/actions/setup-workspace
         with:
-          name: build-outputs
-
-      - name: Set up Vite+, Node.js, and pnpm
-        uses: voidzero-dev/setup-vp@cab1ab9eaff52d4857875f4f2c016e36af8f2c76 # v1.22.0
-        with:
-          node-version-file: .node-version
-          cache: true
-          run-install: false
-
-      - name: Install dependencies
-        run: vp install --frozen-lockfile
+          download-build: "true"
 
       - name: Run Storybook browser tests
         env:
@@ -468,7 +437,8 @@ jobs:
             /tmp/ci-reports
 
   browser-demo:
-    needs: build
+    needs: [changes, build, static-checks]
+    if: needs.changes.outputs.full_run == 'true' || needs.changes.outputs.run_app == 'true'
     runs-on: ubuntu-24.04
     container: mcr.microsoft.com/playwright:v1.64.1-noble@sha256:2f05f8a734509a7b3f26a912639488ee08f58a7b292d14d62271bcff9038768f
     services:
@@ -487,7 +457,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: ["1/2", "2/2"]
+        shard: ["1/3", "2/3", "3/3"]
     defaults:
       run:
         shell: bash
@@ -497,45 +467,15 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Download build outputs
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+      - name: Set up workspace
+        uses: ./.github/actions/setup-workspace
         with:
-          name: build-outputs
-
-      - name: Set up Vite+, Node.js, and pnpm
-        uses: voidzero-dev/setup-vp@cab1ab9eaff52d4857875f4f2c016e36af8f2c76 # v1.22.0
-        with:
-          node-version-file: .node-version
-          cache: true
-          run-install: false
+          download-build: "true"
 
       - name: Forward loopback PostgreSQL port to service container
-        run: |
-          node -e '
-            const net = require("node:net");
-            net.createServer((client) => {
-              const upstream = net.connect(5432, "postgres");
-              client.pipe(upstream);
-              upstream.pipe(client);
-              client.on("error", () => upstream.destroy());
-              upstream.on("error", () => client.destroy());
-            }).listen(55432, "127.0.0.1");
-          ' </dev/null >/tmp/proxy.log 2>&1 &
-          ready=0
-          for _ in $(seq 1 30); do
-            if node -e 'require("node:net").connect(55432, "127.0.0.1").on("connect", () => process.exit(0)).on("error", () => process.exit(1))' 2>/dev/null; then
-              ready=1
-              break
-            fi
-            sleep 0.2
-          done
-          if [[ "$ready" -ne 1 ]]; then
-            cat /tmp/proxy.log || true
-            exit 1
-          fi
-
-      - name: Install dependencies
-        run: vp install --frozen-lockfile
+        uses: ./.github/actions/forward-service-ports
+        with:
+          forwards: "55432:postgres:5432"
 
       - name: Run demo browser tests
         env:
@@ -565,7 +505,8 @@ jobs:
             /tmp/proxy.log
 
   browser-workspace:
-    needs: build
+    needs: [changes, build, static-checks]
+    if: needs.changes.outputs.full_run == 'true' || needs.changes.outputs.run_app == 'true'
     runs-on: ubuntu-24.04
     container: mcr.microsoft.com/playwright:v1.64.1-noble@sha256:2f05f8a734509a7b3f26a912639488ee08f58a7b292d14d62271bcff9038768f
     services:
@@ -586,7 +527,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: ["1/3", "2/3", "3/3"]
+        shard: ["1/6", "2/6", "3/6", "4/6", "5/6", "6/6"]
     defaults:
       run:
         shell: bash
@@ -596,54 +537,15 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Download build outputs
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+      - name: Set up workspace
+        uses: ./.github/actions/setup-workspace
         with:
-          name: build-outputs
-
-      - name: Set up Vite+, Node.js, and pnpm
-        uses: voidzero-dev/setup-vp@cab1ab9eaff52d4857875f4f2c016e36af8f2c76 # v1.22.0
-        with:
-          node-version-file: .node-version
-          cache: true
-          run-install: false
+          download-build: "true"
 
       - name: Forward loopback service ports to service containers
-        run: |
-          node -e '
-            const net = require("node:net");
-            for (const [listenPort, targetHost, targetPort] of [[55432, "postgres", 5432], [8025, "mailpit", 8025]]) {
-              net.createServer((client) => {
-                const upstream = net.connect(targetPort, targetHost);
-                client.pipe(upstream);
-                upstream.pipe(client);
-                client.on("error", () => upstream.destroy());
-                upstream.on("error", () => client.destroy());
-              }).listen(listenPort, "127.0.0.1");
-            }
-          ' </dev/null >/tmp/proxy.log 2>&1 &
-          ready=0
-          for _ in $(seq 1 30); do
-            if node -e '
-              const net = require("node:net");
-              Promise.all([55432, 8025].map((port) => new Promise((resolve, reject) => {
-                const socket = net.connect(port, "127.0.0.1");
-                socket.on("connect", () => { socket.destroy(); resolve(); });
-                socket.on("error", reject);
-              }))).then(() => process.exit(0)).catch(() => process.exit(1));
-            ' 2>/dev/null; then
-              ready=1
-              break
-            fi
-            sleep 0.2
-          done
-          if [[ "$ready" -ne 1 ]]; then
-            cat /tmp/proxy.log || true
-            exit 1
-          fi
-
-      - name: Install dependencies
-        run: vp install --frozen-lockfile
+        uses: ./.github/actions/forward-service-ports
+        with:
+          forwards: "55432:postgres:5432,8025:mailpit:8025"
 
       - name: Run persisted workspace browser tests
         env:
@@ -678,8 +580,9 @@ jobs:
       - changes
       - renovate
       - docs-verify
+      - security-checks
       - build
-      - static-and-security
+      - static-checks
       - package-tests
       - storybook-vitest
       - integration
@@ -709,11 +612,14 @@ jobs:
             }
             const ranMain = needs.build?.result === "success";
             const ranDocs = needs["docs-verify"]?.result === "success";
+            const ranRenovateOnly =
+              needs.changes?.outputs?.renovate_only === "true" &&
+              needs.renovate?.result === "success";
             if (needs.changes?.result !== "success") {
               failed.push("changes did not succeed");
             }
-            if (!ranMain && !ranDocs) {
-              failed.push("neither full verification nor docs-verify ran");
+            if (!ranMain && !ranDocs && !ranRenovateOnly) {
+              failed.push("no verification path ran");
             }
             const summary = `${lines.join("\n")}\n`;
             console.log(summary);

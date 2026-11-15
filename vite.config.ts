@@ -127,7 +127,8 @@ export default defineConfig({
       "check:commit": { command: "commitlint --edit", cache: false },
       "test:commits": { command: "vp test tooling/verification/commits.test.ts", cache: false },
       "test:ci": {
-        command: "vp test tooling/verification/ci.test.ts tooling/verification/ci-summary.test.ts",
+        command:
+          "vp test tooling/verification/ci.test.ts tooling/verification/ci-changes.test.ts tooling/verification/ci-summary.test.ts",
         cache: false,
       },
       "ci:summary": { command: "vpx tooling/verification/ci-summary.ts", cache: false },

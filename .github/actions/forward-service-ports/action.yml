@@ -1,0 +1,52 @@
+name: Forward service ports
+description: Forward loopback ports to Docker Compose / GitHub Actions service containers.
+
+inputs:
+  forwards:
+    description: Comma-separated list of listenPort:targetHost:targetPort mappings
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Forward loopback service ports
+      shell: bash
+      env:
+        FORWARDS: ${{ inputs.forwards }}
+      run: |
+        node -e '
+          const net = require("node:net");
+          const mappings = process.env.FORWARDS.split(",").filter(Boolean).map((entry) => {
+            const [listenPort, targetHost, targetPort] = entry.split(":");
+            return [Number(listenPort), targetHost, Number(targetPort)];
+          });
+          for (const [listenPort, targetHost, targetPort] of mappings) {
+            net.createServer((client) => {
+              const upstream = net.connect(targetPort, targetHost);
+              client.pipe(upstream);
+              upstream.pipe(client);
+              client.on("error", () => upstream.destroy());
+              upstream.on("error", () => client.destroy());
+            }).listen(listenPort, "127.0.0.1");
+          }
+        ' </dev/null >/tmp/proxy.log 2>&1 &
+        ready=0
+        for _ in $(seq 1 30); do
+          if node -e '
+            const net = require("node:net");
+            const ports = process.env.FORWARDS.split(",").filter(Boolean).map((e) => Number(e.split(":")[0]));
+            Promise.all(ports.map((port) => new Promise((resolve, reject) => {
+              const socket = net.connect(port, "127.0.0.1");
+              socket.on("connect", () => { socket.destroy(); resolve(); });
+              socket.on("error", reject);
+            }))).then(() => process.exit(0)).catch(() => process.exit(1));
+          ' 2>/dev/null; then
+            ready=1
+            break
+          fi
+          sleep 0.2
+        done
+        if [[ "$ready" -ne 1 ]]; then
+          cat /tmp/proxy.log || true
+          exit 1
+        fi
