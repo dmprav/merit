@@ -452,19 +452,18 @@ describe("workspace application sections", () => {
     expect(screen.getByRole("tab", { name: /Applications/, selected: true })).toBeVisible();
   });
 
-  it("retains round details through a canonical redirect and opens review links from Applications", async () => {
+  it("retains the round section through a canonical redirect and opens review links from Applications", async () => {
     const { user, router } = await renderApplication(
-      "?section=details",
+      "?section=applications",
       "/app/alder/rounds/previous-title-k7m2p9x4n6rt",
     );
 
     expect(router.state.location.pathname).toBe(
       "/app/alder/rounds/neighbourhood-grants-k7m2p9x4n6rt",
     );
-    expect(router.state.location.search.section).toBe("overview");
-    expect(screen.getByRole("tab", { name: "Overview", selected: true })).toBeVisible();
+    expect(router.state.location.search.section).toBe("applications");
+    expect(screen.getByRole("tab", { name: /Applications/, selected: true })).toBeVisible();
 
-    await user.click(screen.getByRole("tab", { name: /Applications/ }));
     await user.click(screen.getByRole("link", { name: "1 outdated review, 1 awaiting review" }));
 
     expect(screen.getByRole("region", { name: "Reviewer assessments" })).toBeVisible();

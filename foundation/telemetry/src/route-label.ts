@@ -5,7 +5,7 @@ export type RouteDescriptor = {
   surface: RouteSurface;
 };
 
-const WORKSPACE_SECTIONS = new Set(["rounds", "applications", "contacts", "activity", "team"]);
+const WORKSPACE_SECTIONS = new Set(["rounds", "applications", "contacts", "activity", "work"]);
 
 const describeAppRoute = (segments: string[]): RouteDescriptor => {
   if (segments.length === 1) {
@@ -18,6 +18,13 @@ const describeAppRoute = (segments: string[]): RouteDescriptor => {
     return { route: "/app/:workspace", surface: "product" };
   }
   const section = segments[2]!;
+  if (section === "settings") {
+    return {
+      route:
+        segments[3] === "members" ? "/app/:workspace/settings/members" : "/app/:workspace/settings",
+      surface: "product",
+    };
+  }
   if (WORKSPACE_SECTIONS.has(section)) {
     return {
       route:
@@ -47,9 +54,6 @@ export const describeHttpRoute = (pathname: string): RouteDescriptor => {
   const segments = pathname.split("/").filter(Boolean);
   if (segments[0] === "invitations") {
     return { route: "/invitations/:token", surface: "product" };
-  }
-  if (segments[0] === "reviews") {
-    return { route: "/reviews/:id", surface: "product" };
   }
   if (segments[0] === "app") {
     return describeAppRoute(segments);

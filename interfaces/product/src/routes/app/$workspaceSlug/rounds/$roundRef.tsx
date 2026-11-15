@@ -51,13 +51,8 @@ const RoundPage = () => {
 };
 
 export const Route = createFileRoute("/_product/app/$workspaceSlug/rounds/$roundRef")({
-  validateSearch: (search: Record<string, unknown>): { section?: "overview" | "applications" } => ({
-    section:
-      search.section === "applications"
-        ? "applications"
-        : search.section === "overview" || search.section === "details"
-          ? "overview"
-          : undefined,
+  validateSearch: (search: Record<string, unknown>): { section?: "applications" } => ({
+    section: search.section === "applications" ? "applications" : undefined,
   }),
   loaderDeps: ({ search }) => search,
   loader: async ({ params, deps, context }) => {

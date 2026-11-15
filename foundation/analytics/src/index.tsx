@@ -37,11 +37,11 @@ const detailParamForSection = (section: string) => {
   if (section === "applications") {
     return ":application";
   }
-  if (section === "contacts") {
-    return ":contact";
-  }
   if (section === "work") {
     return ":assignment";
+  }
+  if (section === "settings") {
+    return "members";
   }
   return ":id";
 };
@@ -72,10 +72,7 @@ export const sanitizeAnalyticsPath = (value: string) => {
   if (first === "invitations") {
     return segments.length > 1 ? "/invitations/:token" : "/invitations";
   }
-  if (first === "reviews") {
-    return segments.length > 1 ? "/reviews/:assignment" : "/reviews";
-  }
-  if (first === "admin" && second === "organizations" && third && third !== "new") {
+  if (first === "admin" && second === "organizations" && third) {
     return "/admin/organizations/:organization";
   }
   if (first === "app") {

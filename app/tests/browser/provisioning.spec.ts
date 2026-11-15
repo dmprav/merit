@@ -12,8 +12,7 @@ test(
     await context.addCookies([
       { name: "merit-local-person", value: "operator", url: "http://127.0.0.1:3002" },
     ]);
-    await page.goto("/admin/organizations/new");
-    await expect(page).toHaveURL(/\/admin\/organizations$/);
+    await page.goto("/admin/organizations");
     await page.getByRole("button", { name: "Create organization", exact: true }).click();
     const dialog = page.getByRole("dialog", { name: "Create organization", exact: true });
     const nameInput = dialog.getByRole("textbox", { name: "Organization name" });

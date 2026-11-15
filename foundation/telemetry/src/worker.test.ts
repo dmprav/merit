@@ -63,10 +63,6 @@ describe("@merit/telemetry worker and Checkly integration", () => {
       route: "/invitations/:token",
       surface: "product",
     });
-    expect(describeHttpRoute("/reviews/rev-secret-id")).toEqual({
-      route: "/reviews/:id",
-      surface: "product",
-    });
     expect(describeHttpRoute("/app")).toEqual({ route: "/app", surface: "product" });
     expect(describeHttpRoute("/app/sign-in")).toEqual({
       route: "/app/sign-in",
@@ -82,6 +78,18 @@ describe("@merit/telemetry worker and Checkly integration", () => {
     });
     expect(describeHttpRoute("/app/alder/applications/workshop-123")).toEqual({
       route: "/app/:workspace/applications/:id",
+      surface: "product",
+    });
+    expect(describeHttpRoute("/app/alder/work/assign-123")).toEqual({
+      route: "/app/:workspace/work/:id",
+      surface: "product",
+    });
+    expect(describeHttpRoute("/app/alder/settings")).toEqual({
+      route: "/app/:workspace/settings",
+      surface: "product",
+    });
+    expect(describeHttpRoute("/app/alder/settings/members")).toEqual({
+      route: "/app/:workspace/settings/members",
       surface: "product",
     });
     expect(describeHttpRoute("/app/alder/unknown/extra")).toEqual({
