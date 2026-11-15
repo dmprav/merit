@@ -1,7 +1,7 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
-import { describe, expect, it, vi } from "vite-plus/test";
+import { describe, expect, expectTypeOf, it, vi } from "vite-plus/test";
 
 import { SearchPalette, type SearchPaletteGroup } from "./search-palette";
 
@@ -288,4 +288,15 @@ it("leaves middle-click links to the browser without closing the palette", async
   await user.pointer({ target: link, keys: "[MouseMiddle]" });
   expect(link).toHaveAttribute("href", "/records/a2");
   expect(onOpen).not.toHaveBeenCalled();
+});
+
+it("requires a heading for a group note", () => {
+  expectTypeOf<{ id: string; items: []; note: string }>().not.toExtend<SearchPaletteGroup>();
+  expectTypeOf<{ id: string; items: [] }>().toExtend<SearchPaletteGroup>();
+  expectTypeOf<{
+    id: string;
+    items: [];
+    heading: string;
+    note: string;
+  }>().toExtend<SearchPaletteGroup>();
 });

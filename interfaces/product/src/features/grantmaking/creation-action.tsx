@@ -8,15 +8,18 @@ import { creationLocation } from "./contracts/creation-location";
 
 export const WorkspaceCreateAction = ({
   data,
+  locationKey,
   renderTrigger,
   restoreTriggerFocus,
 }: {
   data: CreationData;
+  locationKey?: string;
   renderTrigger?: ComponentProps<typeof CreateAction>["renderTrigger"];
   restoreTriggerFocus?: () => void;
 }) => (
   <CreateAction
     data={data}
+    locationKey={locationKey}
     renderTrigger={renderTrigger}
     restoreTriggerFocus={restoreTriggerFocus}
     renderCreatedLink={(record, label) => (

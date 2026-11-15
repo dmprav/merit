@@ -1,5 +1,11 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { Link, useRouter, useNavigate, type LinkOptions } from "@tanstack/react-router";
+import {
+  Link,
+  useRouter,
+  useNavigate,
+  useLocation,
+  type LinkOptions,
+} from "@tanstack/react-router";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -54,6 +60,7 @@ export const WorkspaceSearch = ({
   const router = useRouter();
   const client = useQueryClient();
   const navigate = useNavigate();
+  const locationKey = useLocation({ select: (location) => location.href });
   const creation = workspaceCreationData(
     client,
     { kind: "round", workspaceSlug, workspaceName: workspace.name },
@@ -77,6 +84,7 @@ export const WorkspaceSearch = ({
   return (
     <WorkspaceCreateAction
       data={creation}
+      locationKey={locationKey}
       restoreTriggerFocus={restoreFocus}
       renderTrigger={(openCreation) => (
         <WorkspaceSearchDialog

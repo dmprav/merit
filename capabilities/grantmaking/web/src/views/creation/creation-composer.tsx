@@ -16,6 +16,8 @@ import { CreationForm } from "./creation-form";
 
 type CreationActionProps = {
   data: CreationData;
+  /** Navigation changes close a persistent composer while retaining drafts and saved feedback. */
+  locationKey?: string;
   /** Supplies an alternate entry point; its callback opens the existing draft without saving. */
   renderTrigger?: (open: () => void) => ReactNode;
   /** Restores a surviving alternate entry point when a closed composer’s notice is dismissed. */
@@ -31,12 +33,13 @@ export const CreateAction = (props: CreationActionProps) => (
 
 const CreationComposer = ({
   data,
+  locationKey,
   renderCreatedLink,
   renderTrigger,
   restoreTriggerFocus,
 }: CreationActionProps) => {
   const { t } = useTranslation("fundingRounds");
-  const creation = useCreation(data);
+  const creation = useCreation(data, locationKey);
   const focusId = useId();
   const { draft, target, open, created, saving, changeOpen, save, update, close, discard } =
     creation;

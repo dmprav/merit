@@ -1,5 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
-import { useLayoutEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { CreationData, CreationDraft } from "../../contracts/creation";
@@ -19,12 +19,14 @@ const hasInput = (draft: CreationDraft) =>
     value.trim(),
   );
 
-export const useCreation = (data: CreationData) => {
+export const useCreation = (data: CreationData, locationKey?: string) => {
   const { t } = useTranslation("fundingRounds");
   const { creations, setCreation, ready } = useCreationDrafts();
   const { target, draftKey: key } = data;
   const draft = creations[key];
   const [open, setOpen] = useState(false);
+  // A shell-mounted composer closes on navigation without losing its draft or saved outcome.
+  useEffect(() => setOpen(false), [locationKey]);
   useLayoutEffect(() => {
     if (open && ready && !draft) {
       setCreation(key, emptyDraft());

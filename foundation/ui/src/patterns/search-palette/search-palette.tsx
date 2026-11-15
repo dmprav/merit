@@ -29,11 +29,15 @@ export type SearchPaletteItem = {
 
 export type SearchPaletteGroup = {
   id: string;
-  heading?: string;
   items: readonly SearchPaletteItem[];
-  /** A non-interactive line below the group, such as how many matches are not shown. */
-  note?: string;
-};
+} & (
+  | {
+      heading: string;
+      /** A non-interactive line below the named group, such as how many matches are not shown. */
+      note?: string;
+    }
+  | { heading?: never; note?: never }
+);
 
 type SearchPaletteProps = {
   /** Names the search field. */
@@ -150,7 +154,7 @@ const SearchResults = ({
       className={styles.list}
     >
       {groups.flatMap((group) =>
-        group.heading
+        group.heading !== undefined
           ? [<SearchGroup key={group.id} group={group} onOpen={onOpen} busy={busy} />]
           : group.items.map((item) => (
               <SearchItem key={item.id} item={item} onOpen={onOpen} busy={busy} />

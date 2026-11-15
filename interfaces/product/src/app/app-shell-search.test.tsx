@@ -58,9 +58,12 @@ const found = {
   },
 };
 
-const show = (current: ShellContext = { kind: "workspace", workspace: alder }) =>
+const show = (
+  current: ShellContext = { kind: "workspace", workspace: alder },
+  client = createQueryClient(),
+) =>
   renderWithRouter(
-    <QueryClientProvider client={createQueryClient()}>
+    <QueryClientProvider client={client}>
       <GrantmakingDrafts>
         <WorkspaceNavigationContext value={{ workspaces: [alder], canAdminister: false }}>
           <AppShell current={current}>
@@ -413,3 +416,78 @@ it.each([false, true])(
     }
   },
 );
+
+it.each(["back", "query"])(
+  "closes search creation on %s navigation and resumes the unfinished draft",
+  async (navigation) => {
+    const { user, router } = await show();
+    if (navigation === "back") {
+      await act(() =>
+        router.navigate({ to: "/app/$workspaceSlug/contacts", params: { workspaceSlug: "alder" } }),
+      );
+    }
+    await user.click(screen.getByRole("button", { name: "Search" }));
+    await user.click(await screen.findByRole("option", { name: /Create funding round/ }));
+    await user.type(await screen.findByRole("textbox", { name: "Round name" }), "Unfinished round");
+
+    await act(async () => {
+      if (navigation === "back") {
+        router.history.back();
+      } else {
+        router.history.push("/app/alder/rounds?view=alternate");
+      }
+      await router.load();
+    });
+
+    await waitFor(() => expect(router.state.location.pathname).toBe("/app/alder/rounds"));
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", { name: "Create funding round" }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(createRound).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Search" }));
+    await user.click(await screen.findByRole("option", { name: /Create funding round/ }));
+    const title = await screen.findByRole("textbox", { name: "Round name" });
+    expect(title).toHaveValue("Unfinished round");
+    await waitFor(() => expect(title).toHaveFocus());
+  },
+);
+
+it("keeps saved feedback when a pending creation settles after navigation", async () => {
+  const client = createQueryClient();
+  vi.spyOn(client, "invalidateQueries").mockRejectedValueOnce(new Error("Refresh unavailable"));
+
+  let finish: (result: { status: "ok"; publicId: string }) => void = () => {};
+
+  vi.mocked(createRound).mockReturnValueOnce(
+    new Promise((resolve) => {
+      finish = resolve;
+    }),
+  );
+  const { user, router } = await show({ kind: "workspace", workspace: alder }, client);
+  await user.click(screen.getByRole("button", { name: "Search" }));
+  await user.click(await screen.findByRole("option", { name: /Create funding round/ }));
+  await user.type(await screen.findByRole("textbox", { name: "Round name" }), "Saved round");
+  await user.click(screen.getByRole("button", { name: "Create funding round" }));
+  await waitFor(() => expect(createRound).toHaveBeenCalledOnce());
+
+  await act(() =>
+    router.navigate({ to: "/app/$workspaceSlug/contacts", params: { workspaceSlug: "alder" } }),
+  );
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  await act(async () => finish({ status: "ok", publicId: "k7m2p9x4n6rt" }));
+
+  await waitFor(() =>
+    expect(router.state.location.pathname).toBe("/app/alder/rounds/saved-round-k7m2p9x4n6rt"),
+  );
+  expect(
+    await screen.findByText("Created successfully, but the list could not refresh."),
+  ).toBeVisible();
+  expect(screen.getByRole("link", { name: "Open round" })).toHaveAttribute(
+    "href",
+    "/app/alder/rounds/saved-round-k7m2p9x4n6rt",
+  );
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  expect(createRound).toHaveBeenCalledOnce();
+});
