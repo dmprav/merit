@@ -483,9 +483,6 @@ test("personal pins stay under their object type and survive reloads @cross-brow
   await navigation.getByRole("link", { name: "Workspace settings", exact: true }).click();
   await expect(page).toHaveURL(/\/app\/alder\/settings\/members$/);
   await expect(page.getByRole("heading", { name: "Members & access", exact: true })).toBeVisible();
-  await page.goto("/app/alder/team");
-  await expect(page).toHaveURL(/\/app\/alder\/settings\/members$/);
-  await expect(page.getByRole("main")).toBeFocused();
   navigation = await openNavigation(page);
   await navigation.getByRole("link", { name: "Contacts", exact: true }).click();
   await expect(page).toHaveURL(/\/app\/alder\/contacts$/);

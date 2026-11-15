@@ -57,8 +57,7 @@ it("sanitizes confidential route parameters and keeps public routes readable", (
     "/demo/workshop-saturdays",
   );
   expect(sanitizeAnalyticsPath("/invitations/secret-token-123")).toBe("/invitations/:token");
-  expect(sanitizeAnalyticsPath("/reviews/assign-123")).toBe("/reviews/:assignment");
-  expect(sanitizeAnalyticsPath("/admin/organizations/new")).toBe("/admin/organizations/new");
+  expect(sanitizeAnalyticsPath("/admin/organizations")).toBe("/admin/organizations");
   expect(sanitizeAnalyticsPath("/admin/organizations/org-123")).toBe(
     "/admin/organizations/:organization",
   );
@@ -70,8 +69,9 @@ it("sanitizes confidential route parameters and keeps public routes readable", (
   expect(sanitizeAnalyticsPath("/app/alder/applications/app-1?guide=workshop")).toBe(
     "/app/:workspace/applications/:application",
   );
-  expect(sanitizeAnalyticsPath("/app/alder/contacts/contact-1")).toBe(
-    "/app/:workspace/contacts/:contact",
+  expect(sanitizeAnalyticsPath("/app/alder/contacts")).toBe("/app/:workspace/contacts");
+  expect(sanitizeAnalyticsPath("/app/alder/settings/members")).toBe(
+    "/app/:workspace/settings/members",
   );
   expect(sanitizeAnalyticsPath("/app/alder/work")).toBe("/app/:workspace/work");
   expect(sanitizeAnalyticsPath("/app/alder/work/assign-123")).toBe(
