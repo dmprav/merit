@@ -1,3 +1,16 @@
+-- The final 60 bits of a v4 UUID contain only random bits (no version/variant bits).
+CREATE FUNCTION merit_public_id() RETURNS text LANGUAGE plpgsql VOLATILE AS $$
+DECLARE
+  bits bit(60) := ('x' || right(replace(gen_random_uuid()::text, '-', ''), 15))::bit(60);
+  alphabet constant text := '0123456789abcdefghjkmnpqrstvwxyz';
+  result text := '';
+BEGIN
+  FOR i IN 0..11 LOOP
+    result := result || substr(alphabet, substring(bits FROM i * 5 + 1 FOR 5)::integer + 1, 1);
+  END LOOP;
+  RETURN result;
+END $$;
+--> statement-breakpoint
 CREATE TABLE "application_cases" (
 	"id" text PRIMARY KEY DEFAULT merit_public_id() NOT NULL,
 	"organization_id" text NOT NULL,
