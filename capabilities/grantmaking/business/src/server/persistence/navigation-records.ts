@@ -1,7 +1,6 @@
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 
-import { applicationCases } from "@merit/applications/schema";
-import { currentMaterial } from "@merit/applications/scope";
+import { applicationCases, materialVersions } from "@merit/applications/schema";
 import { appUsers } from "@merit/auth/schema";
 import type { Database } from "@merit/db";
 import { memberships, organizations } from "@merit/organizations/schema";
@@ -60,11 +59,18 @@ const applicationTargets = (db: Database, userId: string, ids: string[]) =>
   db
     .select({
       id: applicationCases.id,
-      title: sql<string>`(${currentMaterial})->>'title'`,
+      title: materialVersions.title,
       context: fundingRounds.title,
       workspaceSlug: organizations.slug,
     })
     .from(applicationCases)
+    .innerJoin(
+      materialVersions,
+      and(
+        eq(materialVersions.caseId, applicationCases.id),
+        eq(materialVersions.version, applicationCases.materialVersion),
+      ),
+    )
     .innerJoin(fundingRounds, eq(fundingRounds.id, applicationCases.roundId))
     .innerJoin(organizations, eq(organizations.id, applicationCases.organizationId))
     .innerJoin(memberships, eq(memberships.organizationId, organizations.id))

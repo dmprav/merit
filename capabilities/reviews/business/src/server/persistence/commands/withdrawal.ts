@@ -1,7 +1,6 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
-import { applicationCases } from "@merit/applications/schema";
-import { currentMaterial } from "@merit/applications/scope";
+import { applicationCases, materialVersions } from "@merit/applications/schema";
 import type { Actor } from "@merit/auth";
 import type { Database } from "@merit/db";
 
@@ -29,8 +28,15 @@ export const closeReviewsForWithdrawal = async (
     .where(and(eq(reviewRequests.caseId, caseId), eq(reviewRequests.status, "outstanding")))
     .orderBy(reviewRequests.position);
   const [owner] = await tx
-    .select({ title: sql<string>`${currentMaterial}->>'title'`, roundId: applicationCases.roundId })
+    .select({ title: materialVersions.title, roundId: applicationCases.roundId })
     .from(applicationCases)
+    .innerJoin(
+      materialVersions,
+      and(
+        eq(materialVersions.caseId, applicationCases.id),
+        eq(materialVersions.version, applicationCases.materialVersion),
+      ),
+    )
     .where(eq(applicationCases.id, caseId));
   if (!owner) {
     throw new Error("Application lock must remain held while closing its reviews");

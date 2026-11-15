@@ -438,12 +438,17 @@ it("resolves live contact details without rewriting applications or history, and
   const previousPage = await read();
   const storedBefore = (
     await database.client.query(
-      "SELECT m.content AS snapshot, c.revision FROM application_cases c JOIN material_versions m ON m.case_id=c.id AND m.version=c.material_version WHERE c.id = $1",
+      "SELECT m.title, m.applicant_organization, m.has_submission, m.requested_minor_units, c.revision FROM application_cases c JOIN material_versions m ON m.case_id=c.id AND m.version=c.material_version WHERE c.id = $1",
       [address.publicId],
     )
   ).rows;
-  expect(storedBefore[0]).not.toHaveProperty("snapshot.submission.contact");
-  expect(storedBefore[0]).not.toHaveProperty("snapshot.submission.contactEmail");
+  const materialColumns = (
+    await database.client.query<{ column_name: string }>(
+      "SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='material_versions'",
+    )
+  ).rows.map((row) => row.column_name);
+  expect(materialColumns).not.toContain("contact");
+  expect(materialColumns).not.toContain("contact_email");
 
   const change = {
     workspaceSlug,
@@ -465,7 +470,7 @@ it("resolves live contact details without rewriting applications or history, and
   expect(
     (
       await database.client.query(
-        "SELECT m.content AS snapshot, c.revision FROM application_cases c JOIN material_versions m ON m.case_id=c.id AND m.version=c.material_version WHERE c.id = $1",
+        "SELECT m.title, m.applicant_organization, m.has_submission, m.requested_minor_units, c.revision FROM application_cases c JOIN material_versions m ON m.case_id=c.id AND m.version=c.material_version WHERE c.id = $1",
         [address.publicId],
       )
     ).rows,
@@ -708,7 +713,7 @@ it("records reviews using version references without decoding application conten
       await tx.execute(sql.raw(`GRANT USAGE ON SCHEMA public TO ${role}`));
       await tx.execute(
         sql.raw(
-          `GRANT SELECT ON app_users, memberships, organizations, application_cases, criteria_versions, review_states, review_requests, review_assignments, assessments, assessment_versions, contacts TO ${role}`,
+          `GRANT SELECT ON app_users, memberships, organizations, application_cases, criteria_versions, criteria_version_items, review_states, review_requests, review_assignments, assessments, assessment_versions, assessment_version_observations, contacts TO ${role}`,
         ),
       );
       await tx.execute(
@@ -717,13 +722,17 @@ it("records reviews using version references without decoding application conten
         ),
       );
       await tx.execute(
-        sql.raw(`GRANT SELECT (case_id, version, content) ON material_versions TO ${role}`),
+        sql.raw(`GRANT SELECT (case_id, version, title) ON material_versions TO ${role}`),
       );
       await tx.execute(sql.raw(`GRANT UPDATE (name) ON organizations TO ${role}`));
       await tx.execute(sql.raw(`GRANT UPDATE (id) ON funding_rounds, app_users TO ${role}`));
       await tx.execute(sql.raw(`GRANT UPDATE (user_id) ON memberships TO ${role}`));
       await tx.execute(sql.raw(`GRANT UPDATE (id) ON application_cases TO ${role}`));
-      await tx.execute(sql.raw(`GRANT INSERT ON assessments, assessment_versions TO ${role}`));
+      await tx.execute(
+        sql.raw(
+          `GRANT INSERT ON assessments, assessment_versions, assessment_version_observations TO ${role}`,
+        ),
+      );
       await tx.execute(sql.raw(`GRANT SELECT, INSERT ON audit_events TO ${role}`));
       await tx.execute(
         sql.raw(`GRANT INSERT, UPDATE ON review_states, review_requests TO ${role}`),
@@ -792,7 +801,7 @@ it("supports contacts and reviews with the documented runtime grants and immutab
       await tx.execute(sql.raw(`GRANT USAGE ON SCHEMA public TO ${role}`));
       await tx.execute(
         sql.raw(
-          `GRANT SELECT ON app_users, memberships, organizations, funding_rounds, application_cases, material_versions, material_drafts, criteria_versions, review_states, review_requests, review_assignments, assessments, assessment_versions, recommendation_versions TO ${role}`,
+          `GRANT SELECT ON app_users, memberships, organizations, funding_rounds, application_cases, material_versions, material_version_answers, material_version_evidence, material_drafts, material_draft_answers, criteria_versions, criteria_version_items, review_states, review_requests, review_assignments, assessments, assessment_versions, assessment_version_observations, recommendation_versions TO ${role}`,
         ),
       );
       await tx.execute(sql.raw(`GRANT UPDATE (name) ON organizations TO ${role}`));
@@ -801,12 +810,18 @@ it("supports contacts and reviews with the documented runtime grants and immutab
       await tx.execute(sql.raw(`GRANT UPDATE ON application_cases TO ${role}`));
       await tx.execute(sql.raw(`GRANT SELECT, INSERT ON audit_events TO ${role}`));
       await tx.execute(
-        sql.raw(`GRANT INSERT ON material_versions, assessments, assessment_versions TO ${role}`),
+        sql.raw(
+          `GRANT INSERT ON material_versions, material_version_answers, material_version_evidence, assessments, assessment_versions, assessment_version_observations TO ${role}`,
+        ),
       );
       await tx.execute(
         sql.raw(`GRANT INSERT, UPDATE ON review_states, review_requests TO ${role}`),
       );
-      await tx.execute(sql.raw(`GRANT INSERT, UPDATE, DELETE ON material_drafts TO ${role}`));
+      await tx.execute(
+        sql.raw(
+          `GRANT INSERT, UPDATE, DELETE ON material_drafts, material_draft_answers TO ${role}`,
+        ),
+      );
       await tx.execute(sql.raw(`GRANT SELECT, INSERT, UPDATE ON contacts TO ${role}`));
       await tx.execute(sql.raw(`SET LOCAL ROLE ${role}`));
       const input = {

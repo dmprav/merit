@@ -10,8 +10,11 @@ import { memberships, organizations } from "@merit/organizations/schema";
 import { organizationScope } from "@merit/organizations/scope";
 import { fundingRounds } from "@merit/rounds/schema";
 
+import type { ReviewerDraft } from "../../../domain/reviewer";
+import { provenanceColumns } from "../projections";
 import { readReviewerRecord } from "../reviewer-records";
 import {
+  reviewerDraftObservations,
   reviewerDrafts,
   reviewAssignments,
   reviewerCommandReceipts,
@@ -316,11 +319,51 @@ export const updateReviewerAssignment = (
   changes: Partial<typeof reviewAssignments.$inferInsert>,
 ) => tx.update(reviewAssignments).set(changes).where(eq(reviewAssignments.id, id));
 
-export const writeReviewerDraft = (
+const writeDraftObservations = async (
+  tx: ReviewerTransaction,
+  assignmentId: string,
+  observations: ReviewerDraft["observations"],
+) => {
+  await tx
+    .delete(reviewerDraftObservations)
+    .where(eq(reviewerDraftObservations.assignmentId, assignmentId));
+  if (observations.length > 0) {
+    await tx.insert(reviewerDraftObservations).values(
+      observations.map((obs, position) => ({
+        assignmentId,
+        position,
+        criterionId: obs.criterionId,
+        criterion: obs.criterion,
+        text: obs.text,
+      })),
+    );
+  }
+};
+
+export const writeReviewerDraft = async (
   tx: ReviewerTransaction,
   id: string,
-  changes: Partial<typeof reviewerDrafts.$inferInsert>,
-) => tx.update(reviewerDrafts).set(changes).where(eq(reviewerDrafts.assignmentId, id));
+  changes: {
+    content: ReviewerDraft;
+    revision: number;
+    lastCommandId: string | null;
+    updatedAt: Date;
+  },
+) => {
+  await tx
+    .update(reviewerDrafts)
+    .set({
+      position: changes.content.position,
+      amount: changes.content.amount,
+      reasoning: changes.content.reasoning,
+      note: changes.content.note,
+      revision: changes.revision,
+      lastCommandId: changes.lastCommandId,
+      updatedAt: changes.updatedAt,
+    })
+    .where(eq(reviewerDrafts.assignmentId, id));
+  await writeDraftObservations(tx, id, changes.content.observations);
+};
 
 export const updateParticipatingRequest = async (
   tx: ReviewerTransaction,
@@ -331,20 +374,18 @@ export const updateParticipatingRequest = async (
   name: string,
   cause?: "application_withdrawn",
 ) => {
+  const closed = status !== "outstanding";
+  const provenance = closed ? provenanceColumns(actorProvenance(actor)) : null;
   await tx
     .update(reviewRequests)
     .set({
       status,
-      closedBy:
-        status === "outstanding"
-          ? null
-          : {
-              userId: actor.userId,
-              name,
-              provenance: actorProvenance(actor),
-              recordedAt: new Date().toISOString(),
-              ...(cause ? { cause } : {}),
-            },
+      closedByUserId: closed ? actor.userId : null,
+      closedByName: closed ? name : null,
+      closedByRecordedAt: closed ? new Date() : null,
+      closedByProvenanceInterface: provenance?.interfaceValue ?? null,
+      closedByProvenanceClientId: provenance?.clientId ?? null,
+      closedCause: closed ? (cause ?? null) : null,
     })
     .where(and(eq(reviewRequests.caseId, caseId), eq(reviewRequests.id, requestId)));
   await tx
@@ -359,10 +400,27 @@ export const updateParticipatingRequest = async (
 export const createReviewerAssignment = async (
   tx: ReviewerTransaction,
   values: typeof reviewAssignments.$inferInsert,
-  draft: (typeof reviewerDrafts.$inferInsert)["content"],
+  draft: ReviewerDraft,
 ) => {
   await tx.insert(reviewAssignments).values(values);
-  await tx.insert(reviewerDrafts).values({ assignmentId: values.id, content: draft });
+  await tx.insert(reviewerDrafts).values({
+    assignmentId: values.id,
+    position: draft.position,
+    amount: draft.amount,
+    reasoning: draft.reasoning,
+    note: draft.note,
+  });
+  if (draft.observations.length > 0) {
+    await tx.insert(reviewerDraftObservations).values(
+      draft.observations.map((obs, position) => ({
+        assignmentId: values.id,
+        position,
+        criterionId: obs.criterionId,
+        criterion: obs.criterion,
+        text: obs.text,
+      })),
+    );
+  }
 };
 
 export const assignmentForRequest = async (

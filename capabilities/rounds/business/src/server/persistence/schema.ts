@@ -3,8 +3,8 @@ import {
   check,
   boolean,
   date,
+  foreignKey,
   integer,
-  jsonb,
   numeric,
   pgTable,
   primaryKey,
@@ -57,12 +57,32 @@ export const criteriaVersions = pgTable(
       .notNull()
       .references(() => fundingRounds.id, { onDelete: "cascade" }),
     version: integer().notNull(),
-    criteria: jsonb().notNull(),
     recordedAt: recordedAt(),
   },
   (t) => [
     primaryKey({ columns: [t.roundPublicId, t.version] }),
     check("criteria_version_positive", sql`${t.version} > 0`),
+  ],
+);
+export const criteriaVersionItems = pgTable(
+  "criteria_version_items",
+  {
+    roundPublicId: text("round_id").notNull(),
+    version: integer().notNull(),
+    position: integer().notNull(),
+    id: uuid("criterion_id").notNull(),
+    title: text().notNull(),
+    description: text(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.roundPublicId, t.version, t.position] }),
+    foreignKey({
+      columns: [t.roundPublicId, t.version],
+      foreignColumns: [criteriaVersions.roundPublicId, criteriaVersions.version],
+    }).onDelete("cascade"),
+    unique("criteria_version_items_criterion_key").on(t.roundPublicId, t.version, t.id),
+    check("criteria_version_items_position_check", sql`${t.position} >= 0`),
+    check("criteria_version_items_title_check", sql`length(btrim(${t.title})) > 0`),
   ],
 );
 export const roundCreationReceipts = pgTable(

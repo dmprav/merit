@@ -26,7 +26,7 @@ export const applicationWork: ApplicationWork = {
   allocationTotalProblem: async (tx, { organizationId, roundId, caseId }) => {
     // Matches the money limit `sum` enforces when totals are read.
     const result = await tx.execute<{ too_large: boolean }>(sql`
-      select coalesce(sum((r.content->'allocation'->>'minorUnits')::numeric), 0) > 999999999999999999999999999999 as too_large
+      select coalesce(sum(r.allocation_minor_units::numeric), 0) > 999999999999999999999999999999 as too_large
       from ${applicationCases} a
       join ${recommendationVersions} r on r.case_id = a.id
         and r.revision = (select max(v.revision) from ${recommendationVersions} v where v.case_id = a.id)

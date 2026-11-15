@@ -1,13 +1,13 @@
 import { and, eq, sql } from "drizzle-orm";
-import { z } from "zod";
 
 import { materialVersionSchema } from "@merit/applications/domain";
-import { applicationCases } from "@merit/applications/schema";
-import { currentMaterial, roundWithdrawnCount } from "@merit/applications/scope";
+import { applicationCases, materialVersions } from "@merit/applications/schema";
+import { requestedMoneyData, roundWithdrawnCount } from "@merit/applications/scope";
 import type { Provenance } from "@merit/auth";
 import type { Database } from "@merit/db";
-import { decodeMoney, moneyDataSchema } from "@merit/money";
+import { decodeMoney } from "@merit/money";
 import { fundingRounds } from "@merit/rounds/schema";
+import { toMoneyData } from "@merit/rounds/scope";
 
 import {
   decodeBudgetContext,
@@ -16,8 +16,7 @@ import {
   recommendationDataSchema,
 } from "../../../domain/encoding";
 import type { Recommendation } from "../../../domain/recommendation";
-import { recommendationRevision } from "../projections";
-import { currentRecommendation, roundAllocations } from "../projections";
+import { readCurrentRecommendationsMap, readRoundAllocations } from "../projections";
 import { recommendationVersions } from "../schema";
 
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
@@ -29,15 +28,24 @@ export const readRecommendationState = async (
 ) => {
   const [row] = await db
     .select({
-      title: sql<string>`${currentMaterial}->>'title'`,
+      title: materialVersions.title,
+      requestedMinorUnits: materialVersions.requestedMinorUnits,
+      requestedCurrency: materialVersions.requestedCurrency,
+      applicationVersion: applicationCases.materialVersion,
+      intakeStatus: applicationCases.intakeStatus,
       roundId: fundingRounds.id,
-      application: sql<unknown>`jsonb_build_object('version', ${applicationCases.materialVersion}, 'managerRecommendation', ${currentRecommendation}, 'requested', (${currentMaterial})->'requested', 'intakeStatus', ${applicationCases.intakeStatus})`,
-      round: sql<unknown>`jsonb_build_object('budget', ${sql`case when ${fundingRounds.budget} is null then null else jsonb_build_object('minorUnits', ${fundingRounds.budget}::text, 'currency', ${fundingRounds.currency}) end`})`,
-      allocations: roundAllocations,
+      roundBudget: fundingRounds.budget,
+      roundCurrency: fundingRounds.currency,
       withdrawnApplications: roundWithdrawnCount(fundingRounds),
-      recommendationVersion: recommendationRevision,
     })
     .from(applicationCases)
+    .innerJoin(
+      materialVersions,
+      and(
+        eq(materialVersions.caseId, applicationCases.id),
+        eq(materialVersions.version, applicationCases.materialVersion),
+      ),
+    )
     .innerJoin(
       fundingRounds,
       and(
@@ -51,33 +59,51 @@ export const readRecommendationState = async (
   if (!row) {
     return null;
   }
-  const application = z
-    .object({
-      version: materialVersionSchema,
-      managerRecommendation: z.unknown(),
-      requested: moneyDataSchema.nullable(),
-      intakeStatus: z.enum(["in_preparation", "ready"]),
-    })
-    .parse(row.application);
+
+  const [recs, allocations] = await Promise.all([
+    readCurrentRecommendationsMap(db, [publicId]),
+    readRoundAllocations(db, organizationId, row.roundId),
+  ]);
+  const current = recs.get(publicId);
+  const requestedData = requestedMoneyData(row.requestedMinorUnits, row.requestedCurrency);
+
   return {
-    recommendationVersion: row.recommendationVersion,
+    recommendationVersion: current?.revision ?? 0,
     title: row.title,
     roundId: row.roundId,
     application: {
-      ...application,
+      version: materialVersionSchema.parse(row.applicationVersion),
+      intakeStatus: row.intakeStatus,
       managerRecommendation:
-        application.managerRecommendation === null
-          ? null
-          : decodeRecommendation(application.managerRecommendation),
-      requested: application.requested === null ? null : decodeMoney(application.requested),
+        current === undefined ? null : decodeRecommendation(current.recommendation),
+      requested: requestedData === null ? null : decodeMoney(requestedData),
     },
     round: decodeBudgetContext(
-      z.object({ budget: z.unknown() }).parse(row.round).budget,
-      row.allocations,
+      toMoneyData(row.roundBudget, row.roundCurrency),
+      allocations,
       row.withdrawnApplications,
     ),
   };
 };
+
+export const recommendationColumns = (
+  content: ReturnType<typeof recommendationDataSchema.parse>,
+  provenance?: Provenance | null,
+) => ({
+  applicationVersion: content.recorded?.applicationVersion ?? null,
+  recordedDate: content.recorded?.date ?? null,
+  position: content.position,
+  allocationMinorUnits: content.allocation.minorUnits,
+  allocationCurrency: content.allocation.currency,
+  reasoning: content.reasoning,
+  authorUserId: content.author?.userId ?? null,
+  authorName: content.author?.name ?? null,
+  authorProvenanceInterface: content.author?.provenance?.interface ?? null,
+  authorProvenanceClientId:
+    content.author?.provenance?.interface === "mcp" ? content.author.provenance.clientId : null,
+  provenanceInterface: provenance?.interface ?? null,
+  provenanceClientId: provenance?.interface === "mcp" ? provenance.clientId : null,
+});
 
 export const writeRecommendation = async (
   db: Transaction,
@@ -100,10 +126,8 @@ export const writeRecommendation = async (
   await db.insert(recommendationVersions).values({
     caseId: input.publicId,
     revision: input.expectedRevision + 1,
-    applicationVersion: content.recorded?.applicationVersion ?? null,
     actorUserId: input.actorUserId,
-    provenance: input.provenance,
-    content,
+    ...recommendationColumns(content, input.provenance),
   });
   return true;
 };

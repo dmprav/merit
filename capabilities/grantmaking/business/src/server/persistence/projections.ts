@@ -1,10 +1,30 @@
-import { sql, type SQL } from "drizzle-orm";
+import type { readIntakeApplicationsMap } from "@merit/applications/scope";
+import type { readCurrentRecommendationsMap } from "@merit/recommendations/scope";
+import { reviewRevisionSchema } from "@merit/reviews/domain";
+import type { readReviewsByCasesMap } from "@merit/reviews/scope";
 
-import { currentIntakeApplication } from "@merit/applications/scope";
-import { currentRecommendation } from "@merit/recommendations/scope";
-import { currentReviews } from "@merit/reviews/scope";
+type IntakeRecord = NonNullable<
+  ReturnType<Awaited<ReturnType<typeof readIntakeApplicationsMap>>["get"]>
+>;
 
-export const moneyData = (minorUnits: SQL) =>
-  sql<unknown>`case when ${minorUnits} is null then null else jsonb_build_object('minorUnits', (${minorUnits})::text, 'currency', 'EUR') end`;
+type ReviewsRecord = NonNullable<
+  ReturnType<Awaited<ReturnType<typeof readReviewsByCasesMap>>["get"]>
+>;
 
-export const currentApplicationRecord = sql<unknown>`${currentIntakeApplication} || jsonb_build_object('reviews', ${currentReviews}, 'managerRecommendation', ${currentRecommendation})`;
+type RecommendationEntry = ReturnType<
+  Awaited<ReturnType<typeof readCurrentRecommendationsMap>>["get"]
+>;
+
+export const assembleApplicationRecord = (
+  intake: IntakeRecord,
+  reviews: ReviewsRecord | undefined,
+  recommendation: RecommendationEntry | undefined,
+) => ({
+  ...intake,
+  reviews: reviews ?? {
+    revision: reviewRevisionSchema.parse(0),
+    requests: [],
+    assessments: [],
+  },
+  managerRecommendation: recommendation?.recommendation ?? null,
+});

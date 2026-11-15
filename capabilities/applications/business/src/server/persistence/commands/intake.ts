@@ -12,16 +12,19 @@ import {
 import { workingRevisionSchema, type prepareIntakeChange } from "../../../domain/intake";
 import type { IntakeApplication } from "../../../domain/model";
 import {
-  currentIntakeApplication,
-  currentMaterial,
   activeCase,
-  workingRevision,
+  readIntakeApplicationsMap,
+  readWorkingRevisionsMap,
+  requestedMoneyData,
 } from "../projections";
 import {
   applicationCreationReceipts,
   applicationCases,
   materialVersions,
+  materialVersionAnswers,
+  materialVersionEvidence,
   materialDrafts,
+  materialDraftAnswers,
 } from "../schema";
 import { recordApplicationChange } from "./intake-history";
 
@@ -29,20 +32,15 @@ type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
 type ApplicationData = ReturnType<typeof encodeIntakeApplication>;
 
+type MaterialData = ReturnType<typeof encodeApplicationMaterial>;
+
 export const findIntakeApplication = async (
   db: Transaction,
   organizationId: string,
   publicId: string,
 ) => {
   const [row] = await db
-    .select({
-      id: applicationCases.id,
-      organizationId: applicationCases.organizationId,
-      roundId: applicationCases.roundId,
-      revision: applicationCases.revision,
-      snapshot: currentIntakeApplication,
-      workingRevision,
-    })
+    .select()
     .from(applicationCases)
     .where(
       and(eq(applicationCases.organizationId, organizationId), eq(applicationCases.id, publicId)),
@@ -50,14 +48,22 @@ export const findIntakeApplication = async (
   if (!row) {
     return undefined;
   }
+  const [applications, drafts] = await Promise.all([
+    readIntakeApplicationsMap(db, organizationId, [row]),
+    readWorkingRevisionsMap(db, [row.id]),
+  ]);
+  const snapshot = applications.get(row.id);
+  if (!snapshot) {
+    return undefined;
+  }
+  const working = drafts.get(row.id) ?? null;
   return {
     id: row.id,
     organizationId: row.organizationId,
     roundId: row.roundId,
     revision: row.revision,
-    application: decodeIntakeApplication(row.snapshot),
-    workingRevision:
-      row.workingRevision === null ? null : workingRevisionSchema.parse(row.workingRevision),
+    application: decodeIntakeApplication(snapshot),
+    workingRevision: working === null ? null : workingRevisionSchema.parse(working),
   };
 };
 
@@ -71,12 +77,76 @@ const caseContent = (snapshot: ApplicationData) => ({
   searchTitle: snapshot.title,
   searchApplicant: snapshot.submission?.organization ?? "",
   intakeStatus: snapshot.intakeStatus,
-  withdrawal: snapshot.withdrawal ?? null,
+  withdrawnOn: snapshot.withdrawal?.withdrawnOn ?? null,
+  withdrawalReason: snapshot.withdrawal?.reason ?? null,
+  withdrawalRecorderUserId: snapshot.withdrawal?.recorder.userId ?? null,
+  withdrawalRecorderName: snapshot.withdrawal?.recorder.name ?? null,
+  withdrawalRecordedAt: snapshot.withdrawal
+    ? new Date(snapshot.withdrawal.recorder.recordedAt)
+    : null,
   summary: snapshot.summary,
-  summaryAuthor: snapshot.summaryAuthor ?? null,
+  summaryAuthorUserId: snapshot.summaryAuthor?.userId ?? null,
+  summaryAuthorName: snapshot.summaryAuthor?.name ?? null,
+  summaryRecordedAt: snapshot.summaryAuthor ? new Date(snapshot.summaryAuthor.recordedAt) : null,
   attention: snapshot.attention,
   contactId: snapshot.contactId,
 });
+
+const insertMaterialVersionRows = async (
+  db: Transaction,
+  values: {
+    caseId: string;
+    material: MaterialData;
+    changeKind: string;
+    sourceKind: "recorded_external" | "fictional_example";
+    reason?: string | null;
+    recordedByUserId?: string;
+    recordedAt?: Date;
+  },
+) => {
+  const { material } = values;
+  await db.insert(materialVersions).values({
+    caseId: values.caseId,
+    version: material.version,
+    title: material.title,
+    requestedMinorUnits: material.requested?.minorUnits ?? null,
+    requestedCurrency: material.requested?.currency ?? null,
+    hasSubmission: material.submission !== undefined,
+    submissionVersion: material.submission?.version ?? null,
+    applicantOrganization: material.submission?.organization ?? null,
+    submittedOn: material.submission?.submittedOn ?? null,
+    projectPeriod: material.submission?.projectPeriod ?? null,
+    changeKind: values.changeKind,
+    sourceKind: values.sourceKind,
+    reason: values.reason ?? null,
+    recordedByUserId: values.recordedByUserId,
+    ...(values.recordedAt ? { recordedAt: values.recordedAt } : {}),
+  });
+  const answers = material.submission?.answers ?? [];
+  if (answers.length > 0) {
+    await db.insert(materialVersionAnswers).values(
+      answers.map((answer, position) => ({
+        caseId: values.caseId,
+        materialVersion: material.version,
+        position,
+        questionId: answer.questionId,
+        question: answer.question,
+        response: answer.response,
+      })),
+    );
+  }
+  if (material.evidence.length > 0) {
+    await db.insert(materialVersionEvidence).values(
+      material.evidence.map((entry, position) => ({
+        caseId: values.caseId,
+        materialVersion: material.version,
+        position,
+        evidenceVersion: entry.version,
+        passage: entry.passage,
+      })),
+    );
+  }
+};
 
 export const insertIntakeApplication = async (
   db: Transaction,
@@ -87,7 +157,7 @@ export const insertIntakeApplication = async (
     position?: number;
     revision?: number;
     recordedByUserId?: string;
-    source?: unknown;
+    source?: { kind: "recorded_external" | "fictional_example" };
     changeKind?: string;
   },
 ) => {
@@ -110,12 +180,11 @@ export const insertIntakeApplication = async (
       revision: values.revision ?? 0,
     })
     .returning();
-  await db.insert(materialVersions).values({
+  await insertMaterialVersionRows(db, {
     caseId: saved!.id,
-    version: values.snapshot.version,
-    content: encodeApplicationMaterial(decodeIntakeApplication(values.snapshot)),
+    material: encodeApplicationMaterial(decodeIntakeApplication(values.snapshot)),
     changeKind: values.changeKind ?? "recorded",
-    source: values.source ?? { kind: "recorded_external" },
+    sourceKind: values.source?.kind ?? "recorded_external",
     recordedByUserId: values.recordedByUserId,
   });
   return saved!;
@@ -131,12 +200,11 @@ export const insertDemoMaterialVersion = async (
     recordedAt: Date;
   },
 ) => {
-  await db.insert(materialVersions).values({
+  await insertMaterialVersionRows(db, {
     caseId: values.caseId,
-    version: values.content.version,
-    content: values.content,
+    material: values.content,
     changeKind: "recorded",
-    source: { kind: "fictional_example" },
+    sourceKind: "fictional_example",
     reason: values.reason,
     recordedByUserId: values.recordedByUserId,
     recordedAt: values.recordedAt,
@@ -161,12 +229,11 @@ const writeIntakeApplication = async (
     .where(eq(applicationCases.id, publicId));
   if (current!.materialVersion !== values.snapshot.version) {
     const material = encodeApplicationMaterial(decodeIntakeApplication(values.snapshot));
-    await db.insert(materialVersions).values({
+    await insertMaterialVersionRows(db, {
       caseId: publicId,
-      version: values.snapshot.version,
-      content: material,
+      material,
       changeKind: values.changeKind ?? "recorded",
-      source: { kind: "recorded_external" },
+      sourceKind: "recorded_external",
       reason: values.reason,
       recordedByUserId: values.recordedByUserId,
     });
@@ -182,16 +249,33 @@ const writeIntakeApplication = async (
     await db.delete(materialDrafts).where(eq(materialDrafts.caseId, publicId));
   } else {
     const draft = workingRevisionSchema.parse(values.workingRevision);
-    const row = {
+    const draftRow = {
       caseId: publicId,
       baseMaterialVersion: values.snapshot.version,
-      ...draft,
+      kind: draft.kind,
+      title: draft.content.title,
+      applicant: draft.content.applicant,
+      projectPeriod: draft.content.projectPeriod ?? null,
+      requested: draft.content.requested,
+      reason: draft.reason,
       revision: values.revision,
     };
     await db
       .insert(materialDrafts)
-      .values(row)
-      .onConflictDoUpdate({ target: materialDrafts.caseId, set: row });
+      .values(draftRow)
+      .onConflictDoUpdate({ target: materialDrafts.caseId, set: draftRow });
+    await db.delete(materialDraftAnswers).where(eq(materialDraftAnswers.caseId, publicId));
+    if (draft.content.answers.length > 0) {
+      await db.insert(materialDraftAnswers).values(
+        draft.content.answers.map((answer, position) => ({
+          caseId: publicId,
+          position,
+          questionId: answer.questionId,
+          question: answer.question,
+          response: answer.response,
+        })),
+      );
+    }
   }
 };
 
@@ -206,9 +290,17 @@ export const readRequestedAmounts = async (
   const rows = await db
     .select({
       publicId: applicationCases.id,
-      requested: sql<unknown>`(${currentMaterial})->'requested'`,
+      requestedMinorUnits: materialVersions.requestedMinorUnits,
+      requestedCurrency: materialVersions.requestedCurrency,
     })
     .from(applicationCases)
+    .innerJoin(
+      materialVersions,
+      and(
+        eq(materialVersions.caseId, applicationCases.id),
+        eq(materialVersions.version, applicationCases.materialVersion),
+      ),
+    )
     .where(
       and(
         eq(applicationCases.organizationId, organizationId),
@@ -217,10 +309,13 @@ export const readRequestedAmounts = async (
       ),
     );
 
-  return rows.map((row) => ({
-    publicId: row.publicId,
-    requested: row.requested === null ? null : decodeMoney(row.requested),
-  }));
+  return rows.map((row) => {
+    const requested = requestedMoneyData(row.requestedMinorUnits, row.requestedCurrency);
+    return {
+      publicId: row.publicId,
+      requested: requested === null ? null : decodeMoney(requested),
+    };
+  });
 };
 
 /** The caller holds the workspace and round locks for this transaction. */

@@ -331,9 +331,12 @@ describe("recording reviews", () => {
     });
   });
 
-  it.each(["1.001", "-1"])("rejects an unsupported assessment amount: %s", (amount) => {
-    expect(assessmentInputSchema.safeParse({ ...content, amount }).success).toBe(false);
-  });
+  it.each(["1.001", "-1", "-0", "-0.0", "-0.00"])(
+    "rejects an unsupported assessment amount: %s",
+    (amount) => {
+      expect(assessmentInputSchema.safeParse({ ...content, amount }).success).toBe(false);
+    },
+  );
 
   it("accepts a received assessment without a stated amount or position", () => {
     expect(assessmentInputSchema.safeParse(content).success).toBe(true);

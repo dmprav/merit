@@ -1,14 +1,22 @@
-import { and, eq, gt, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gt, lt, sql } from "drizzle-orm";
 
-import { applicationCases, materialVersions } from "@merit/applications/schema";
+import {
+  applicationCases,
+  materialDrafts,
+  materialVersionAnswers,
+  materialVersionEvidence,
+  materialVersions,
+} from "@merit/applications/schema";
 import {
   activeCase,
-  applicationDetails,
+  assembleApplicationDetails,
+  assembleCurrentSubmission,
   caseWithdrawn,
+  readContactsProfileMap,
+  readMaterialVersionRecord,
+  readWorkingRevisionsMap,
+  requestedMoneyData,
   roundWithdrawnCount,
-  currentMaterial,
-  currentSubmission,
-  workingRevision,
 } from "@merit/applications/scope";
 import { auditEvents } from "@merit/audit/schema";
 import { appUsers } from "@merit/auth/schema";
@@ -16,51 +24,79 @@ import type { Database } from "@merit/db";
 import { memberships, organizations } from "@merit/organizations/schema";
 import { organizationScope } from "@merit/organizations/scope";
 import { recommendationVersions } from "@merit/recommendations/schema";
-import { recommendationRevision } from "@merit/recommendations/scope";
-import { currentRecommendation } from "@merit/recommendations/scope";
+import {
+  assembleRecommendationRecord,
+  decodeProvenanceColumns,
+  readCurrentRecommendationsMap,
+  recommendationRevision,
+} from "@merit/recommendations/scope";
 import { reviewAssignments } from "@merit/reviews/participation-schema";
-import { reviewRequests, assessments, assessmentVersions } from "@merit/reviews/schema";
-import { reviewRevision } from "@merit/reviews/scope";
-import { assessmentRecord, currentReviews, reviewRequestRecord } from "@merit/reviews/scope";
-import { criteriaVersions, fundingRounds } from "@merit/rounds/schema";
-import { managerNeedsReassignment } from "@merit/rounds/scope";
-import { criteriaHistory, currentCriteria, roundRecord } from "@merit/rounds/scope";
-
-import { moneyData } from "../projections";
+import { assessments, assessmentVersions, reviewRequests } from "@merit/reviews/schema";
+import {
+  readAssessmentRecord,
+  readReviewRequestRecord,
+  readReviewsByCasesMap,
+  reviewRevision,
+} from "@merit/reviews/scope";
+import { fundingRounds } from "@merit/rounds/schema";
+import {
+  assembleRoundRecord,
+  criteriaVersionKey,
+  managerNeedsReassignment,
+  readCriteriaByVersionsMap,
+  readCriteriaVersionsMap,
+  readRoundCriteria,
+  toMoneyData,
+} from "@merit/rounds/scope";
 
 const roundFields = {
   roundId: fundingRounds.id,
   title: fundingRounds.title,
   preparationRevision: fundingRounds.revision,
   criteriaVersion: fundingRounds.criteriaVersion,
-  budget: moneyData(sql`${fundingRounds.budget}`),
+  budgetMinorUnits: fundingRounds.budget,
+  currency: fundingRounds.currency,
   applicationCount: sql<number>`(select count(*)::integer from ${applicationCases} a where a.organization_id = ${fundingRounds.organizationId} and a.round_id = ${fundingRounds.id})`,
 };
+
 const applicationFields = {
   applicationId: applicationCases.id,
   roundId: fundingRounds.id,
-  title: sql<string>`(${currentMaterial})->>'title'`,
+  title: materialVersions.title,
   applicationVersion: applicationCases.materialVersion,
   intakeRevision: applicationCases.revision,
-  reviewRevision: reviewRevision,
-  recommendationRevision: recommendationRevision,
+  reviewRevision,
+  recommendationRevision,
   intakeStatus: applicationCases.intakeStatus,
   withdrawn: caseWithdrawn,
-  requested: sql<unknown>`(${currentMaterial})->'requested'`,
+  requestedMinorUnits: materialVersions.requestedMinorUnits,
+  requestedCurrency: materialVersions.requestedCurrency,
   contactId: applicationCases.contactId,
-  hasWorkingRevision: sql<boolean>`${workingRevision} is not null`,
+  hasWorkingRevision: sql<boolean>`exists(select 1 from ${materialDrafts} where ${materialDrafts.caseId} = ${applicationCases.id})`,
 };
-
-const roundQuery = (db: Database) =>
-  db
-    .select(roundFields)
-    .from(fundingRounds)
-    .innerJoin(organizations, eq(organizations.id, fundingRounds.organizationId))
-    .innerJoin(memberships, eq(memberships.organizationId, organizations.id))
-    .innerJoin(appUsers, eq(appUsers.id, memberships.userId));
 
 const access = (actor: string, slug: string) =>
   and(eq(organizations.slug, slug), organizationScope(actor, "work_on_grants", organizations.id));
+
+const withRoundBudget = <T extends { budgetMinorUnits: string | null; currency: string }>({
+  budgetMinorUnits,
+  currency,
+  ...rest
+}: T) => ({
+  ...rest,
+  budget: toMoneyData(budgetMinorUnits, currency),
+});
+
+const withRequestedMoney = <
+  T extends { requestedMinorUnits: string | null; requestedCurrency: string | null },
+>({
+  requestedMinorUnits,
+  requestedCurrency,
+  ...rest
+}: T) => ({
+  ...rest,
+  requested: requestedMoneyData(requestedMinorUnits, requestedCurrency),
+});
 
 export const readGrantWorkspaceAccess = async (db: Database, actor: string, slug: string) => {
   const [row] = await db
@@ -80,12 +116,17 @@ export const readGrantWorkspaceAccess = async (db: Database, actor: string, slug
   return row;
 };
 
-export const readRoundSummaries = (
+export const readRoundSummaries = async (
   db: Database,
   actor: string,
   input: { workspaceSlug: string; after?: string; limit: number },
-) =>
-  roundQuery(db)
+) => {
+  const rows = await db
+    .select(roundFields)
+    .from(fundingRounds)
+    .innerJoin(organizations, eq(organizations.id, fundingRounds.organizationId))
+    .innerJoin(memberships, eq(memberships.organizationId, organizations.id))
+    .innerJoin(appUsers, eq(appUsers.id, memberships.userId))
     .where(
       and(
         access(actor, input.workspaceSlug),
@@ -94,6 +135,8 @@ export const readRoundSummaries = (
     )
     .orderBy(fundingRounds.id)
     .limit(input.limit + 1);
+  return rows.map(withRoundBudget);
+};
 
 export const readRoundIdentity = async (
   db: Database,
@@ -135,20 +178,20 @@ export const readRoundOverview = async (
       ...roundFields,
       managerUserId: fundingRounds.managerUserId,
       managerNeedsReassignment,
-      requested: sql<string>`(select coalesce(sum((m.content->'requested'->>'minorUnits')::numeric), 0)::text from ${applicationCases} a join ${materialVersions} m on m.case_id = a.id and m.version = a.material_version where a.organization_id = ${fundingRounds.organizationId} and a.round_id = ${fundingRounds.id} and ${activeCase("a")})`,
-      unknownRequests: sql<number>`(select count(*)::integer from ${applicationCases} a join ${materialVersions} m on m.case_id = a.id and m.version = a.material_version where a.organization_id = ${fundingRounds.organizationId} and a.round_id = ${fundingRounds.id} and ${activeCase("a")} and (m.content->'requested' is null or m.content->'requested' = 'null'::jsonb))`,
+      requested: sql<string>`(select coalesce(sum(m.requested_minor_units), 0)::text from ${applicationCases} a join ${materialVersions} m on m.case_id = a.id and m.version = a.material_version where a.organization_id = ${fundingRounds.organizationId} and a.round_id = ${fundingRounds.id} and ${activeCase("a")})`,
+      unknownRequests: sql<number>`(select count(*)::integer from ${applicationCases} a join ${materialVersions} m on m.case_id = a.id and m.version = a.material_version where a.organization_id = ${fundingRounds.organizationId} and a.round_id = ${fundingRounds.id} and ${activeCase("a")} and m.requested_minor_units is null)`,
       withdrawnApplications: roundWithdrawnCount(fundingRounds),
-      proposed: sql<string>`(select coalesce(sum((r.content->'allocation'->>'minorUnits')::numeric), 0)::text from ${applicationCases} a join ${recommendationVersions} r on r.case_id = a.id and r.revision = (select max(v.revision) from ${recommendationVersions} v where v.case_id = a.id) where a.organization_id = ${fundingRounds.organizationId} and a.round_id = ${fundingRounds.id} and ${activeCase("a")})`,
+      proposed: sql<string>`(select coalesce(sum(r.allocation_minor_units), 0)::text from ${applicationCases} a join ${recommendationVersions} r on r.case_id = a.id and r.revision = (select max(v.revision) from ${recommendationVersions} v where v.case_id = a.id) where a.organization_id = ${fundingRounds.organizationId} and a.round_id = ${fundingRounds.id} and ${activeCase("a")})`,
     })
     .from(fundingRounds)
     .innerJoin(organizations, eq(organizations.id, fundingRounds.organizationId))
     .innerJoin(memberships, eq(memberships.organizationId, organizations.id))
     .innerJoin(appUsers, eq(appUsers.id, memberships.userId))
     .where(and(access(actor, input.workspaceSlug), eq(fundingRounds.id, input.roundId)));
-  return row;
+  return row ? withRoundBudget(row) : undefined;
 };
 
-export const readApplicationSummaries = (
+export const readApplicationSummaries = async (
   db: Database,
   actor: string,
   input: {
@@ -158,10 +201,17 @@ export const readApplicationSummaries = (
     after?: string;
     limit: number;
   },
-) =>
-  db
+) => {
+  const rows = await db
     .select(applicationFields)
     .from(applicationCases)
+    .innerJoin(
+      materialVersions,
+      and(
+        eq(materialVersions.caseId, applicationCases.id),
+        eq(materialVersions.version, applicationCases.materialVersion),
+      ),
+    )
     .innerJoin(
       fundingRounds,
       and(
@@ -184,6 +234,8 @@ export const readApplicationSummaries = (
     )
     .orderBy(applicationCases.id)
     .limit(input.limit + 1);
+  return rows.map(withRequestedMoney);
+};
 
 export const readApplicationContext = async (
   db: Database,
@@ -200,6 +252,13 @@ export const readApplicationContext = async (
     })
     .from(applicationCases)
     .innerJoin(
+      materialVersions,
+      and(
+        eq(materialVersions.caseId, applicationCases.id),
+        eq(materialVersions.version, applicationCases.materialVersion),
+      ),
+    )
+    .innerJoin(
       fundingRounds,
       and(
         eq(fundingRounds.organizationId, applicationCases.organizationId),
@@ -210,18 +269,24 @@ export const readApplicationContext = async (
     .innerJoin(memberships, eq(memberships.organizationId, organizations.id))
     .innerJoin(appUsers, eq(appUsers.id, memberships.userId))
     .where(and(access(actor, input.workspaceSlug), eq(applicationCases.id, input.applicationId)));
-  return row;
+  return row ? withRequestedMoney(row) : undefined;
 };
 
-// SQL slices content before it crosses the database/Worker boundary. A fingerprint
-// binds every subsequent chunk to the same source value, including historical edits.
-const chunkFields = (source: SQL, offset: number, length: number) => ({
-  content: sql<
-    string | null
-  >`substring((${source})::text from ${offset + 1}::integer for ${length}::integer)`,
-  fingerprint: sql<string | null>`md5((${source})::text)`,
-  totalCharacters: sql<number | null>`char_length((${source})::text)`,
-});
+// Slicing serialized sections by Unicode code points bounds payloads at the Worker boundary,
+// with a content fingerprint binding every subsequent chunk to the same snapshot.
+const sliceJsonValue = async (value: unknown, offset: number, length: number) => {
+  const json = JSON.stringify(value);
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(json));
+  const fingerprint = Array.from(new Uint8Array(digest).subarray(0, 16), (byte) =>
+    byte.toString(16).padStart(2, "0"),
+  ).join("");
+  const chars = Array.from(json);
+  return {
+    content: chars.slice(offset, offset + length).join(""),
+    fingerprint,
+    totalCharacters: chars.length,
+  };
+};
 
 const readIntakeOrPreparationChange = async (
   db: Database,
@@ -235,23 +300,49 @@ const readIntakeOrPreparationChange = async (
   },
   kind: "intake" | "preparation",
 ) => {
-  const table = auditEvents;
-  const source = sql`jsonb_build_object('revision', ${table.targetRevision}, 'action', ${table.action}, 'reason', ${table.details}->'reason', 'actorUserId', ${table.actorUserId}, 'actorName', ${table.actorName}, 'formatVersion', ${table.formatVersion}, 'provenance', ${table.provenance}, 'recordedAt', ${table.recordedAt}, 'before', ${table.details}->'before', 'after', ${table.details}->'after')`;
   const [row] = await db
-    .select(chunkFields(source, input.offset, input.length))
-    .from(table)
-    .innerJoin(organizations, eq(organizations.id, table.organizationId))
+    .select({
+      revision: auditEvents.targetRevision,
+      action: auditEvents.action,
+      details: auditEvents.details,
+      actorUserId: auditEvents.actorUserId,
+      actorName: auditEvents.actorName,
+      formatVersion: auditEvents.formatVersion,
+      provenance: auditEvents.provenance,
+      recordedAt: auditEvents.recordedAt,
+    })
+    .from(auditEvents)
+    .innerJoin(organizations, eq(organizations.id, auditEvents.organizationId))
     .innerJoin(memberships, eq(memberships.organizationId, organizations.id))
     .innerJoin(appUsers, eq(appUsers.id, memberships.userId))
     .where(
       and(
         access(actor, input.workspaceSlug),
-        eq(table.targetId, input.recordId),
-        eq(table.targetType, kind === "intake" ? "application" : "round"),
-        eq(table.targetRevision, input.revision),
+        eq(auditEvents.targetId, input.recordId),
+        eq(auditEvents.targetType, kind === "intake" ? "application" : "round"),
+        eq(auditEvents.targetRevision, input.revision),
       ),
     );
-  return row;
+  if (!row) {
+    return undefined;
+  }
+  const details = (row.details ?? {}) as Record<string, unknown>;
+  return sliceJsonValue(
+    {
+      revision: row.revision,
+      action: row.action,
+      reason: details.reason ?? null,
+      actorUserId: row.actorUserId,
+      actorName: row.actorName,
+      formatVersion: row.formatVersion,
+      provenance: row.provenance,
+      recordedAt: row.recordedAt.toISOString(),
+      before: details.before ?? null,
+      after: details.after ?? null,
+    },
+    input.offset,
+    input.length,
+  );
 };
 
 export const readRoundContent = async (
@@ -274,45 +365,206 @@ export const readRoundContent = async (
       "preparation",
     );
   }
-  const sources = {
-    details: sql`${roundRecord} - 'criteria' - 'criteriaVersion' - 'criteriaHistory'`,
-    criteria: currentCriteria,
-    criteria_history: criteriaHistory,
-  };
   const [row] = await db
-    .select(chunkFields(sources[input.section], input.offset, input.length))
+    .select({ round: fundingRounds, foundation: organizations.name })
     .from(fundingRounds)
     .innerJoin(organizations, eq(organizations.id, fundingRounds.organizationId))
     .innerJoin(memberships, eq(memberships.organizationId, organizations.id))
     .innerJoin(appUsers, eq(appUsers.id, memberships.userId))
     .where(and(access(actor, input.workspaceSlug), eq(fundingRounds.id, input.roundId)));
-  return row;
+  if (!row) {
+    return undefined;
+  }
+
+  if (input.section === "details") {
+    const {
+      criteria: _criteria,
+      criteriaVersion: _criteriaVersion,
+      criteriaHistory: _criteriaHistory,
+      ...details
+    } = assembleRoundRecord(row.round, row.foundation, []);
+    return sliceJsonValue(details, input.offset, input.length);
+  }
+  if (input.section === "criteria") {
+    const roundCriteria = await readRoundCriteria(db, row.round.organizationId, row.round.id);
+    return sliceJsonValue(roundCriteria?.criteria ?? [], input.offset, input.length);
+  }
+  const historyMap = await readCriteriaVersionsMap(db, [row.round.id]);
+  return sliceJsonValue(historyMap.get(row.round.id) ?? [], input.offset, input.length);
+};
+
+type ApplicationContentInput = {
+  workspaceSlug: string;
+  applicationId: string;
+  section:
+    | "details"
+    | "submission"
+    | "material"
+    | "evidence"
+    | "reviews"
+    | "assessment"
+    | "review_request"
+    | "working_revision"
+    | "recommendation"
+    | "intake_change"
+    | "recommendation_change";
+  entryId?: string;
+  materialVersion?: number;
+  revision?: number;
+  offset: number;
+  length: number;
+};
+
+const readCurrentSubmissionPayload = async (
+  db: Database,
+  caseRow: typeof applicationCases.$inferSelect,
+  materialRow: typeof materialVersions.$inferSelect,
+) => {
+  const [answerRows, contactsMap] = await Promise.all([
+    materialRow.hasSubmission
+      ? db
+          .select()
+          .from(materialVersionAnswers)
+          .where(
+            and(
+              eq(materialVersionAnswers.caseId, caseRow.id),
+              eq(materialVersionAnswers.materialVersion, caseRow.materialVersion),
+            ),
+          )
+          .orderBy(asc(materialVersionAnswers.position))
+      : Promise.resolve([]),
+    readContactsProfileMap(db, caseRow.organizationId, [caseRow.contactId]),
+  ]);
+  const answers = answerRows.map((a) => ({
+    questionId: a.questionId,
+    question: a.question,
+    response: a.response,
+  }));
+  const contact = caseRow.contactId ? contactsMap.get(caseRow.contactId) : undefined;
+  return assembleCurrentSubmission(materialRow, answers, contact) ?? null;
+};
+
+const readRecommendationChangePayload = async (db: Database, caseId: string, revision: number) => {
+  const [current] = await db
+    .select()
+    .from(recommendationVersions)
+    .where(
+      and(eq(recommendationVersions.caseId, caseId), eq(recommendationVersions.revision, revision)),
+    );
+  if (!current) {
+    return undefined;
+  }
+  const [previous] = await db
+    .select()
+    .from(recommendationVersions)
+    .where(
+      and(eq(recommendationVersions.caseId, caseId), lt(recommendationVersions.revision, revision)),
+    )
+    .orderBy(desc(recommendationVersions.revision))
+    .limit(1);
+  return {
+    revision: current.revision,
+    actorUserId: current.actorUserId,
+    provenance:
+      decodeProvenanceColumns(current.provenanceInterface, current.provenanceClientId) ?? null,
+    recordedAt: current.recordedAt.toISOString(),
+    before: previous ? assembleRecommendationRecord(previous) : null,
+    after: assembleRecommendationRecord(current),
+  };
+};
+
+const readCurrentDetailsOrSubmission = async (
+  db: Database,
+  caseRow: typeof applicationCases.$inferSelect,
+  section: "details" | "submission",
+) => {
+  const [materialRow] = await db
+    .select()
+    .from(materialVersions)
+    .where(
+      and(
+        eq(materialVersions.caseId, caseRow.id),
+        eq(materialVersions.version, caseRow.materialVersion),
+      ),
+    );
+  if (!materialRow) {
+    return { found: false };
+  }
+  return {
+    found: true,
+    value:
+      section === "details"
+        ? assembleApplicationDetails(caseRow, materialRow)
+        : await readCurrentSubmissionPayload(db, caseRow, materialRow),
+  };
+};
+
+const readEvidenceSection = async (db: Database, caseRow: typeof applicationCases.$inferSelect) => {
+  const rows = await db
+    .select()
+    .from(materialVersionEvidence)
+    .where(
+      and(
+        eq(materialVersionEvidence.caseId, caseRow.id),
+        eq(materialVersionEvidence.materialVersion, caseRow.materialVersion),
+      ),
+    )
+    .orderBy(asc(materialVersionEvidence.position));
+  return {
+    found: true,
+    value: rows.map((row) => ({ version: row.evidenceVersion, passage: row.passage })),
+  };
+};
+
+const optionalResult = (value: unknown) => (value ? { found: true, value } : { found: false });
+
+type SectionReader = (
+  db: Database,
+  caseRow: typeof applicationCases.$inferSelect,
+  input: ApplicationContentInput,
+) => Promise<{ found: boolean; value?: unknown }>;
+
+const sectionReaders: Partial<Record<ApplicationContentInput["section"], SectionReader>> = {
+  details: (db, caseRow) => readCurrentDetailsOrSubmission(db, caseRow, "details"),
+  submission: (db, caseRow) => readCurrentDetailsOrSubmission(db, caseRow, "submission"),
+  material: async (db, caseRow, input) =>
+    optionalResult(await readMaterialVersionRecord(db, caseRow.id, input.materialVersion ?? -1)),
+  evidence: (db, caseRow) => readEvidenceSection(db, caseRow),
+  reviews: async (db, caseRow) => ({
+    found: true,
+    value: (await readReviewsByCasesMap(db, [caseRow.id])).get(caseRow.id),
+  }),
+  assessment: async (db, caseRow, input) =>
+    optionalResult(await readAssessmentRecord(db, caseRow.id, input.entryId ?? "")),
+  review_request: async (db, caseRow, input) =>
+    optionalResult(await readReviewRequestRecord(db, caseRow.id, input.entryId ?? "")),
+  working_revision: async (db, caseRow) => ({
+    found: true,
+    value: (await readWorkingRevisionsMap(db, [caseRow.id])).get(caseRow.id) ?? null,
+  }),
+  recommendation: async (db, caseRow) => ({
+    found: true,
+    value:
+      (await readCurrentRecommendationsMap(db, [caseRow.id])).get(caseRow.id)?.recommendation ??
+      null,
+  }),
+  recommendation_change: async (db, caseRow, input) =>
+    optionalResult(await readRecommendationChangePayload(db, caseRow.id, input.revision ?? -1)),
+};
+
+const resolveApplicationSection = async (
+  db: Database,
+  caseRow: typeof applicationCases.$inferSelect,
+  input: ApplicationContentInput,
+): Promise<{ found: boolean; value?: unknown }> => {
+  const reader = sectionReaders[input.section];
+  return reader ? reader(db, caseRow, input) : { found: false };
 };
 
 export const readApplicationContent = async (
   db: Database,
   actor: string,
-  input: {
-    workspaceSlug: string;
-    applicationId: string;
-    section:
-      | "details"
-      | "submission"
-      | "material"
-      | "evidence"
-      | "reviews"
-      | "assessment"
-      | "review_request"
-      | "working_revision"
-      | "recommendation"
-      | "intake_change"
-      | "recommendation_change";
-    entryId?: string;
-    materialVersion?: number;
-    revision?: number;
-    offset: number;
-    length: number;
-  },
+  input: ApplicationContentInput,
 ) => {
   if (input.section === "intake_change") {
     return readIntakeOrPreparationChange(
@@ -322,20 +574,8 @@ export const readApplicationContent = async (
       "intake",
     );
   }
-  const sources = {
-    details: applicationDetails,
-    submission: sql`coalesce(${currentSubmission}, 'null'::jsonb)`,
-    material: sql`(select jsonb_build_object('version', ${materialVersions.version}, 'content', ${materialVersions.content}, 'source', ${materialVersions.source}, 'changeKind', ${materialVersions.changeKind}, 'reason', ${materialVersions.reason}, 'recordedByUserId', ${materialVersions.recordedByUserId}, 'recordedAt', ${materialVersions.recordedAt}) from ${materialVersions} where ${materialVersions.caseId} = ${applicationCases.id} and ${materialVersions.version} = ${input.materialVersion ?? -1})`,
-    evidence: sql`(${currentMaterial})->'evidence'`,
-    reviews: currentReviews,
-    assessment: sql`(select ${assessmentRecord} from ${assessments} where ${assessments.caseId} = ${applicationCases.id} and ${assessments.id} = ${input.entryId ?? ""})`,
-    review_request: sql`(select ${reviewRequestRecord} from ${reviewRequests} where ${reviewRequests.caseId} = ${applicationCases.id} and ${reviewRequests.id} = ${input.entryId ?? ""})`,
-    working_revision: sql`coalesce(${workingRevision}, 'null'::jsonb)`,
-    recommendation: sql`coalesce(${currentRecommendation}, 'null'::jsonb)`,
-    recommendation_change: sql`(select jsonb_build_object('revision', h.revision, 'actorUserId', h.actor_user_id, 'provenance', h.provenance, 'recordedAt', h.recorded_at, 'before', (select previous.content from ${recommendationVersions} previous where previous.case_id = h.case_id and previous.revision < h.revision order by previous.revision desc limit 1), 'after', h.content) from ${recommendationVersions} h where h.case_id = ${applicationCases.id} and h.revision = ${input.revision ?? -1})`,
-  };
-  const [row] = await db
-    .select(chunkFields(sources[input.section], input.offset, input.length))
+  const [authorized] = await db
+    .select({ caseRow: applicationCases })
     .from(applicationCases)
     .innerJoin(
       fundingRounds,
@@ -348,7 +588,15 @@ export const readApplicationContent = async (
     .innerJoin(memberships, eq(memberships.organizationId, organizations.id))
     .innerJoin(appUsers, eq(appUsers.id, memberships.userId))
     .where(and(access(actor, input.workspaceSlug), eq(applicationCases.id, input.applicationId)));
-  return row;
+  if (!authorized) {
+    return undefined;
+  }
+
+  const resolved = await resolveApplicationSection(db, authorized.caseRow, input);
+  if (!resolved.found) {
+    return undefined;
+  }
+  return sliceJsonValue(resolved.value, input.offset, input.length);
 };
 
 export const readGrantHistory = (
@@ -414,49 +662,185 @@ export const readGrantHistory = (
     .limit(input.limit + 1);
 };
 
+type SelectedReviewTarget = {
+  caseId: string;
+  roundId: string;
+  applicationVersion: number;
+  reviewRevision: number;
+  criteriaVersion: number;
+};
+
+const readSelectedReviewTarget = async (
+  db: Database,
+  actor: string,
+  input: { workspaceSlug: string; applicationId: string },
+) => {
+  const [selected] = await db
+    .select({
+      caseId: applicationCases.id,
+      roundId: fundingRounds.id,
+      applicationVersion: applicationCases.materialVersion,
+      reviewRevision,
+      criteriaVersion: fundingRounds.criteriaVersion,
+    })
+    .from(applicationCases)
+    .innerJoin(
+      fundingRounds,
+      and(
+        eq(fundingRounds.organizationId, applicationCases.organizationId),
+        eq(fundingRounds.id, applicationCases.roundId),
+      ),
+    )
+    .innerJoin(organizations, eq(organizations.id, applicationCases.organizationId))
+    .innerJoin(memberships, eq(memberships.organizationId, organizations.id))
+    .innerJoin(appUsers, eq(appUsers.id, memberships.userId))
+    .where(and(access(actor, input.workspaceSlug), eq(applicationCases.id, input.applicationId)));
+  return selected;
+};
+
+const readReviewSummaryInputs = async (db: Database, selected: SelectedReviewTarget) => {
+  const [assessmentRows, versionRows, requestRows, assignmentRows] = await Promise.all([
+    db.select().from(assessments).where(eq(assessments.caseId, selected.caseId)),
+    db
+      .select({
+        assessmentId: assessmentVersions.assessmentId,
+        applicationVersion: assessmentVersions.applicationVersion,
+        criteriaRoundPublicId: assessmentVersions.criteriaRoundPublicId,
+        criteriaVersion: assessmentVersions.criteriaVersion,
+      })
+      .from(assessmentVersions)
+      .where(eq(assessmentVersions.caseId, selected.caseId))
+      .orderBy(desc(assessmentVersions.version)),
+    db
+      .select()
+      .from(reviewRequests)
+      .where(
+        and(eq(reviewRequests.caseId, selected.caseId), eq(reviewRequests.status, "outstanding")),
+      ),
+    db
+      .select({
+        requestId: reviewAssignments.requestId,
+        assessmentId: reviewAssignments.assessmentId,
+        status: reviewAssignments.status,
+        conflict: reviewAssignments.conflict,
+      })
+      .from(reviewAssignments)
+      .where(eq(reviewAssignments.caseId, selected.caseId)),
+  ]);
+
+  const supersededIds = new Set(
+    assessmentRows.flatMap((row) => (row.previousId ? [row.previousId] : [])),
+  );
+  const latestVersionByAssessment = new Map<string, (typeof versionRows)[number]>();
+  for (const version of versionRows) {
+    if (!latestVersionByAssessment.has(version.assessmentId)) {
+      latestVersionByAssessment.set(version.assessmentId, version);
+    }
+  }
+  const activeAssessments = assessmentRows.filter((row) => !supersededIds.has(row.id));
+  const criteriaPairs: { roundId: string; version: number }[] = [
+    { roundId: selected.roundId, version: selected.criteriaVersion },
+    ...activeAssessments.flatMap((row) => {
+      const v = latestVersionByAssessment.get(row.id);
+      return v && v.criteriaRoundPublicId !== null && v.criteriaVersion !== null
+        ? [{ roundId: v.criteriaRoundPublicId, version: v.criteriaVersion }]
+        : [];
+    }),
+    ...requestRows.map((req) => ({
+      roundId: req.criteriaRoundPublicId,
+      version: req.criteriaVersion,
+    })),
+  ];
+  const criteriaMap = await readCriteriaByVersionsMap(db, criteriaPairs);
+  return { activeAssessments, latestVersionByAssessment, requestRows, assignmentRows, criteriaMap };
+};
+
+const formatParticipation = (assignment?: { status: string; conflict: string }) =>
+  assignment
+    ? {
+        participation: {
+          status: assignment.status,
+          conflict: assignment.conflict !== "",
+        },
+      }
+    : {};
+
+const buildReviewSummaryEntries = (
+  selected: SelectedReviewTarget,
+  data: Awaited<ReturnType<typeof readReviewSummaryInputs>>,
+) => {
+  const { activeAssessments, latestVersionByAssessment, requestRows, assignmentRows, criteriaMap } =
+    data;
+  const assignmentByAssessment = new Map(
+    assignmentRows.flatMap((a) => (a.assessmentId ? [[a.assessmentId, a] as const] : [])),
+  );
+  const assignmentByRequest = new Map(assignmentRows.map((a) => [a.requestId, a] as const));
+  const currentCriteria =
+    criteriaMap.get(criteriaVersionKey(selected.roundId, selected.criteriaVersion)) ?? null;
+
+  return [
+    ...activeAssessments.flatMap((row) => {
+      const v = latestVersionByAssessment.get(row.id);
+      if (!v) {
+        return [];
+      }
+      return [
+        {
+          id: row.id,
+          kind: "assessment" as const,
+          contactId: row.contactId,
+          reviewer: row.reviewer,
+          applicationVersion: selected.applicationVersion,
+          criteriaVersion: selected.criteriaVersion,
+          reviewRevision: selected.reviewRevision,
+          recordedApplicationVersion: v.applicationVersion,
+          recordedCriteriaVersion: v.criteriaVersion,
+          recordedCriteria:
+            v.criteriaRoundPublicId !== null && v.criteriaVersion !== null
+              ? (criteriaMap.get(criteriaVersionKey(v.criteriaRoundPublicId, v.criteriaVersion)) ??
+                null)
+              : null,
+          currentCriteria,
+          ...(row.authorUserId !== null ? { authorUserId: row.authorUserId } : {}),
+          ...formatParticipation(assignmentByAssessment.get(row.id)),
+        },
+      ];
+    }),
+    ...requestRows.map((req) => ({
+      id: req.id,
+      kind: "request" as const,
+      contactId: req.contactId,
+      reviewer: req.reviewer,
+      applicationVersion: selected.applicationVersion,
+      criteriaVersion: selected.criteriaVersion,
+      reviewRevision: selected.reviewRevision,
+      recordedApplicationVersion: req.applicationVersion,
+      recordedCriteriaVersion: req.criteriaVersion,
+      recordedCriteria:
+        criteriaMap.get(criteriaVersionKey(req.criteriaRoundPublicId, req.criteriaVersion)) ?? [],
+      currentCriteria,
+      ...formatParticipation(assignmentByRequest.get(req.id)),
+    })),
+  ];
+};
+
 export const readReviewSummaries = async (
   db: Database,
   actor: string,
   input: { workspaceSlug: string; applicationId: string; after?: string; limit: number },
 ) => {
-  const result = await db.execute(sql`
-    with selected as (
-      select ${applicationCases.id} as case_id, ${applicationCases.materialVersion} as material_version,
-        ${reviewRevision} as review_revision,
-        ${fundingRounds.criteriaVersion} as criteria_version, ${currentCriteria} as criteria
-      from ${applicationCases}
-      join ${fundingRounds} on ${fundingRounds.organizationId} = ${applicationCases.organizationId} and ${fundingRounds.id} = ${applicationCases.roundId}
-      join ${organizations} on ${organizations.id} = ${applicationCases.organizationId}
-      join ${memberships} on ${memberships.organizationId} = ${organizations.id}
-      join ${appUsers} on ${appUsers.id} = ${memberships.userId}
-      where ${access(actor, input.workspaceSlug)} and ${applicationCases.id} = ${input.applicationId}
-    )
-    select jsonb_build_object(
-      'id', review.id, 'kind', review.kind, 'contactId', review.contact_id, 'reviewer', review.reviewer,
-      'applicationVersion', selected.material_version, 'criteriaVersion', selected.criteria_version, 'reviewRevision', selected.review_revision,
-      'recordedApplicationVersion', review.application_version, 'recordedCriteriaVersion', review.criteria_version,
-      'recordedCriteria', review.criteria, 'currentCriteria', selected.criteria
-    ) || case when review.author_user_id is null then '{}'::jsonb else jsonb_build_object('authorUserId', review.author_user_id) end
-      || case when review.participation_status is null then '{}'::jsonb else jsonb_build_object('participation', jsonb_build_object('status', review.participation_status, 'conflict', review.conflict <> '')) end as summary
-    from selected cross join lateral (
-      select a.id, a.contact_id, a.reviewer, 'assessment' as kind, a.author_user_id, assignment.status as participation_status, assignment.conflict,
-        v.material_version as application_version, v.criteria_version, c.criteria
-      from ${assessments} a
-      left join ${reviewAssignments} assignment on assignment.case_id = a.case_id and assignment.assessment_id = a.id
-      join lateral (select * from ${assessmentVersions} v where v.case_id = a.case_id and v.assessment_id = a.id order by v.version desc limit 1) v on true
-      left join ${criteriaVersions} c on c.round_id = v.criteria_round_id and c.version = v.criteria_version
-      where a.case_id = selected.case_id
-        and not exists (select 1 from ${assessments} newer where newer.case_id = a.case_id and newer.previous_id = a.id)
-      union all
-      select r.id, r.contact_id, r.reviewer, 'request' as kind, null::text as author_user_id, assignment.status as participation_status, assignment.conflict,
-        r.material_version as application_version, r.criteria_version, c.criteria
-      from ${reviewRequests} r
-      left join ${reviewAssignments} assignment on assignment.case_id = r.case_id and assignment.request_id = r.id
-      join ${criteriaVersions} c on c.round_id = r.criteria_round_id and c.version = r.criteria_version
-      where r.case_id = selected.case_id and r.status = 'outstanding'
-    ) review
-    where review.kind || ':' || review.id > ${input.after ?? ""}
-    order by review.kind || ':' || review.id limit ${input.limit + 1}
-  `);
-  return result.rows.map((row) => row.summary);
+  const selected = await readSelectedReviewTarget(db, actor, input);
+  if (!selected) {
+    return [];
+  }
+  const entries = buildReviewSummaryEntries(selected, await readReviewSummaryInputs(db, selected));
+  const after = input.after ?? "";
+  return entries
+    .filter((entry) => `${entry.kind}:${entry.id}` > after)
+    .sort((left, right) => {
+      const leftKey = `${left.kind}:${left.id}`;
+      const rightKey = `${right.kind}:${right.id}`;
+      return leftKey < rightKey ? -1 : leftKey > rightKey ? 1 : 0;
+    })
+    .slice(0, input.limit + 1);
 };

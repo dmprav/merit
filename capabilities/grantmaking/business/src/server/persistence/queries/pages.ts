@@ -1,18 +1,26 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 
 import { applicationCases, materialVersions } from "@merit/applications/schema";
-import { roundWithdrawnCount, workingRevision } from "@merit/applications/scope";
+import {
+  readIntakeApplicationsMap,
+  readWorkingRevisionsMap,
+  roundWithdrawnCount,
+} from "@merit/applications/scope";
 import { appUsers } from "@merit/auth/schema";
 import type { Database } from "@merit/db";
 import { memberships, organizations } from "@merit/organizations/schema";
 import { organizationScope } from "@merit/organizations/scope";
-import { recommendationRevision } from "@merit/recommendations/scope";
-import { roundAllocations } from "@merit/recommendations/scope";
+import { readCurrentRecommendationsMap, readRoundAllocations } from "@merit/recommendations/scope";
+import { readReviewsByCasesMap } from "@merit/reviews/scope";
 import { fundingRounds } from "@merit/rounds/schema";
-import { managerNeedsReassignment } from "@merit/rounds/scope";
-import { roundRecord } from "@merit/rounds/scope";
+import {
+  assembleRoundRecord,
+  managerNeedsReassignment,
+  readCriteriaVersionsMap,
+  toMoneyData,
+} from "@merit/rounds/scope";
 
-import { currentApplicationRecord, moneyData } from "../projections";
+import { assembleApplicationRecord } from "../projections";
 
 // Compose the overview in one authorized database snapshot; neither root stores this view.
 export const readPublicRound = async (
@@ -20,17 +28,14 @@ export const readPublicRound = async (
   userId: string,
   input: { workspaceSlug: string; publicId: string },
 ) => {
-  const belongsToRound = sql`${applicationCases.organizationId} = ${fundingRounds.organizationId} and ${applicationCases.roundId} = ${fundingRounds.id}`;
   const [row] = await db
     .select({
-      record: roundRecord,
+      round: fundingRounds,
+      foundation: organizations.name,
       organizationId: fundingRounds.organizationId,
       revision: fundingRounds.revision,
       managerNeedsReassignment,
       workspaceSlug: organizations.slug,
-      applications: sql<
-        unknown[]
-      >`(select coalesce(jsonb_agg(${currentApplicationRecord} order by ${applicationCases.position}), '[]'::jsonb) from ${applicationCases} where ${belongsToRound})`,
     })
     .from(fundingRounds)
     .innerJoin(organizations, eq(organizations.id, fundingRounds.organizationId))
@@ -47,13 +52,46 @@ export const readPublicRound = async (
     return null;
   }
 
+  const cases = await db
+    .select()
+    .from(applicationCases)
+    .where(
+      and(
+        eq(applicationCases.organizationId, row.organizationId),
+        eq(applicationCases.roundId, row.round.id),
+      ),
+    )
+    .orderBy(asc(applicationCases.position));
+  const caseIds = cases.map((item) => item.id);
+
+  const [historyMap, intakeMap, reviewsMap, recommendationsMap] = await Promise.all([
+    readCriteriaVersionsMap(db, [row.round.id]),
+    readIntakeApplicationsMap(db, row.organizationId, cases),
+    readReviewsByCasesMap(db, caseIds),
+    readCurrentRecommendationsMap(db, caseIds),
+  ]);
+
+  const record = assembleRoundRecord(row.round, row.foundation, historyMap.get(row.round.id) ?? []);
+  const applications = cases.flatMap((item) => {
+    const intake = intakeMap.get(item.id);
+    return intake
+      ? [
+          assembleApplicationRecord(
+            intake,
+            reviewsMap.get(item.id),
+            recommendationsMap.get(item.id),
+          ),
+        ]
+      : [];
+  });
+
   return {
     organizationId: row.organizationId,
     revision: row.revision,
     snapshot: {
-      ...(row.record as Record<string, unknown>),
+      ...record,
       managerNeedsReassignment: row.managerNeedsReassignment,
-      applications: row.applications,
+      applications,
     },
     workspaceSlug: row.workspaceSlug,
   };
@@ -67,19 +105,11 @@ export const readApplicationDetail = async (
 ) => {
   const [row] = await db
     .select({
-      application: currentApplicationRecord,
-      organizationId: applicationCases.organizationId,
-      round: roundRecord,
-      allocations: roundAllocations,
+      caseRow: applicationCases,
+      roundRow: fundingRounds,
+      foundation: organizations.name,
       withdrawnApplications: roundWithdrawnCount(fundingRounds),
       workspaceSlug: organizations.slug,
-      publicId: applicationCases.id,
-      recommendationVersion: recommendationRevision,
-      intakeRevision: applicationCases.revision,
-      materialVersions: sql<
-        number[]
-      >`(select coalesce(jsonb_agg(${materialVersions.version} order by ${materialVersions.version}), '[]'::jsonb) from ${materialVersions} where ${materialVersions.caseId} = ${applicationCases.id})`,
-      workingRevision,
     })
     .from(applicationCases)
     .innerJoin(
@@ -99,13 +129,57 @@ export const readApplicationDetail = async (
         organizationScope(userId, "work_on_grants", organizations.id),
       ),
     );
-  return row ?? null;
+  if (!row) {
+    return null;
+  }
+
+  const [
+    historyMap,
+    intakeMap,
+    reviewsMap,
+    recommendationsMap,
+    allocations,
+    workingRevisionsMap,
+    versionRows,
+  ] = await Promise.all([
+    readCriteriaVersionsMap(db, [row.roundRow.id]),
+    readIntakeApplicationsMap(db, row.caseRow.organizationId, [row.caseRow]),
+    readReviewsByCasesMap(db, [row.caseRow.id]),
+    readCurrentRecommendationsMap(db, [row.caseRow.id]),
+    readRoundAllocations(db, row.caseRow.organizationId, row.roundRow.id),
+    readWorkingRevisionsMap(db, [row.caseRow.id]),
+    db
+      .select({ version: materialVersions.version })
+      .from(materialVersions)
+      .where(eq(materialVersions.caseId, row.caseRow.id))
+      .orderBy(asc(materialVersions.version)),
+  ]);
+
+  const intake = intakeMap.get(row.caseRow.id);
+  if (!intake) {
+    return null;
+  }
+  const recommendation = recommendationsMap.get(row.caseRow.id);
+
+  return {
+    application: assembleApplicationRecord(intake, reviewsMap.get(row.caseRow.id), recommendation),
+    organizationId: row.caseRow.organizationId,
+    round: assembleRoundRecord(row.roundRow, row.foundation, historyMap.get(row.roundRow.id) ?? []),
+    allocations,
+    withdrawnApplications: row.withdrawnApplications,
+    workspaceSlug: row.workspaceSlug,
+    publicId: row.caseRow.id,
+    recommendationVersion: recommendation?.revision ?? 0,
+    intakeRevision: row.caseRow.revision,
+    materialVersions: versionRows.map((v) => v.version),
+    workingRevision: workingRevisionsMap.get(row.caseRow.id) ?? null,
+  };
 };
 
-export const listRoundSummaries = (db: Database, userId: string, workspaceSlug: string) => {
+export const listRoundSummaries = async (db: Database, userId: string, workspaceSlug: string) => {
   const grantAccess = organizationScope(userId, "work_on_grants", organizations.id);
 
-  return db
+  const rows = await db
     .select({
       canWorkOnGrants: sql<boolean>`${grantAccess}`,
       organizationId: organizations.id,
@@ -117,7 +191,8 @@ export const listRoundSummaries = (db: Database, userId: string, workspaceSlug: 
       manager: fundingRounds.managerName,
       managerNeedsReassignment,
       meetingDate: fundingRounds.meetingDate,
-      budget: moneyData(sql`${fundingRounds.budget}`),
+      budgetMinorUnits: fundingRounds.budget,
+      currency: fundingRounds.currency,
       applicationCount: sql<number>`(select count(*)::integer from ${applicationCases} where ${applicationCases.organizationId} = ${fundingRounds.organizationId} and ${applicationCases.roundId} = ${fundingRounds.id})`,
     })
     .from(organizations)
@@ -131,4 +206,9 @@ export const listRoundSummaries = (db: Database, userId: string, workspaceSlug: 
       ),
     )
     .orderBy(organizations.name, fundingRounds.title, fundingRounds.id);
+
+  return rows.map(({ budgetMinorUnits, currency, ...rest }) => ({
+    ...rest,
+    budget: rest.publicId === null ? null : toMoneyData(budgetMinorUnits, currency ?? "EUR"),
+  }));
 };
