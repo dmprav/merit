@@ -77,7 +77,6 @@ const infrastructure = category("{server,browser}", ["pure"]);
 
 // Upstream and sibling capabilities stay independent of downstream capabilities.
 const upstreamDisallowedTargets: Record<string, string> = {
-  audit: "{organizations,contacts,rounds,applications,reviews,recommendations,grantmaking}",
   organizations: "{contacts,rounds,applications,reviews,recommendations,grantmaking}",
   contacts: "{rounds,applications,reviews,recommendations,grantmaking}",
   rounds: "{applications,reviews,recommendations,grantmaking}",
@@ -216,11 +215,19 @@ const policies = [
     allow: { to: { element: { type: "business" }, ...serverImplementation } },
   },
   ...serverImports,
+  forbid(
+    {
+      element: { path: "capabilities/audit/business" },
+      file: { categories: { noneOf: ["composition-test"] } },
+    },
+    { element: { type: "business", path: "!capabilities/audit/business" } },
+    "Capability server imports require an approved consumer and public entry.",
+  ),
   ...Object.entries(upstreamDisallowedTargets).map(([from, disallowed]) =>
     forbid(
       {
         element: { path: `capabilities/${from}/business` },
-        file: { categories: { noneOf: ["test"] } },
+        file: { categories: { noneOf: ["composition-test"] } },
       },
       { element: { path: `capabilities/${disallowed}/business` } },
       "Capability server imports require an approved consumer and public entry.",

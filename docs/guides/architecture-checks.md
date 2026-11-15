@@ -113,12 +113,13 @@ depend on these privileged entries or the server assembly.
 application assembly by consumer role, public entry pattern, and resolved provider
 role (`business-assembly`, `business-demo`, `business-shared-persistence`,
 `business-command-persistence`, `business-grant-work`, `business-integrations`,
-and `business-reading`). All three must match, and `upstreamDisallowedTargets`
-keeps leaf (`audit`) and upstream/sibling grant-work capabilities independent of
-downstream capabilities. The policy also covers types, re-exports, and dynamic
-imports with known sources, and applies to unclassified server entries and newly
-added capabilities as well as the structured packages. Browser-safe dependencies
-retain their existing rules.
+and `business-reading`). All three must match, a leaf rule keeps `audit` isolated
+from all foreign business packages (current and newly added), and
+`upstreamDisallowedTargets` keeps upstream and sibling capabilities independent of
+downstream capabilities outside composition tests (`tests/` and `testing/`). The
+policy also covers types, re-exports, and dynamic imports with known sources, and
+applies to unclassified server entries and newly added capabilities as well as the
+structured packages. Browser-safe dependencies retain their existing rules.
 
 Current integrations have distinct responsibilities:
 

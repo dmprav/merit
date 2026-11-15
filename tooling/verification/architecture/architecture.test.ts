@@ -1162,6 +1162,25 @@ describe.concurrent("architecture rules", () => {
     );
   });
 
+  test("audit boundary rejects importing from new business packages", async () => {
+    await check(
+      {
+        ...auditFiles,
+        ...newFiles,
+        [`${newRoot}/package.json`]: JSON.stringify({
+          name: "@merit/new-capability",
+          type: "module",
+          exports: {
+            "./schema": "./src/server/persistence/schema.ts",
+          },
+        }),
+        "capabilities/audit/business/src/server/persistence/queries/probe.ts":
+          'export { value } from "@merit/new-capability/schema";',
+      },
+      crossCapabilityMessage,
+    );
+  });
+
   test.each([
     [`${grantmakingRoot}/src/server/commands/probe.ts`, "@merit/contacts/server"],
     [`${grantmakingRoot}/src/server/queries/probe.ts`, "@merit/contacts/server"],
@@ -1471,6 +1490,38 @@ describe.concurrent("architecture rules", () => {
       },
       crossCapabilityMessage,
     );
+  });
+
+  test.each([
+    [
+      "capabilities/reviews/business/src/server/persistence/projections.test.ts",
+      "@merit/recommendations/scope",
+      extractedCapabilityFiles,
+    ],
+    [
+      "capabilities/audit/business/src/server/persistence/queries/probe.test.ts",
+      "@merit/organizations/schema",
+      auditFiles,
+    ],
+  ])("colocated test %s cannot import restricted capability %s", async (path, source, files) => {
+    await check(
+      {
+        ...files,
+        [path]: `export { value } from "${source}";`,
+      },
+      crossCapabilityMessage,
+    );
+  });
+
+  test("composition tests keep cross-capability access across upstream and audit boundaries", async () => {
+    await check({
+      ...extractedCapabilityFiles,
+      ...auditFiles,
+      "capabilities/reviews/business/tests/scenario.integration.ts":
+        'export { value } from "@merit/recommendations/scope";',
+      "capabilities/audit/business/tests/scenario.integration.ts":
+        'export { value } from "@merit/organizations/schema";',
+    });
   });
   test("lifecycle contracts cannot import their persistence implementation", async () => {
     await check(
