@@ -114,6 +114,42 @@ export const Open: Story = {
   },
 };
 
+const searchQueryLabel = "Search by name";
+
+export const Search: Story = {
+  args: {
+    appearance: "search",
+    title: "Search the workspace",
+    closeLabel: "Close search",
+    trigger: <Button variant="secondary">Open search</Button>,
+    children: (
+      <label className={localStyles.searchField}>
+        <span className={localStyles.searchLabel}>{searchQueryLabel}</span>
+        {/* The dialog's initial focus is the field, as in a search box. */}
+        {/* oxlint-disable-next-line jsx-a11y/no-autofocus */}
+        <input autoFocus className={localStyles.searchInput} placeholder={searchQueryLabel} />
+      </label>
+    ),
+  },
+  play: async ({ canvas, userEvent, canvasElement }) => {
+    const trigger = canvas.getByRole("button", { name: "Open search" });
+    await userEvent.click(trigger);
+    const dialog = within(canvasElement.ownerDocument.body).getByRole("dialog", {
+      name: "Search the workspace",
+    });
+
+    await waitFor(() => expect(dialog).toBeVisible());
+    await waitFor(() => expect(within(dialog).getByRole("textbox")).toHaveFocus());
+    await expect(within(dialog).queryByRole("heading")).not.toBeInTheDocument();
+
+    await userEvent.keyboard("{Escape}");
+
+    await waitFor(() => expect(trigger).toHaveFocus());
+
+    await userEvent.click(trigger);
+  },
+};
+
 export const WithActions: Story = {
   args: {
     title: "Review guidance",

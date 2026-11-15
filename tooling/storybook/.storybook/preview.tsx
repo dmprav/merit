@@ -22,6 +22,7 @@ sb.mock(
   "../../../interfaces/product/src/features/grantmaking/data/server/funding-round.functions.ts",
 );
 sb.mock("../../../interfaces/product/src/features/grantmaking/data/server/activity.functions.ts");
+sb.mock("../../../interfaces/product/src/features/grantmaking/data/server/search.functions.ts");
 sb.mock("../../../interfaces/product/src/features/grantmaking/data/server/history.functions.ts");
 sb.mock(
   "../../../interfaces/product/src/features/grantmaking/data/server/creation/creation.functions.ts",
@@ -107,7 +108,7 @@ const preview: Preview = {
           "Features",
           [
             "Funding rounds",
-            ["List", "Create", "Overview", "Manage round", "Preparation form"],
+            ["List", "Create", "Overview", "Manage round", "Preparation form", "Workspace search"],
             "Applications",
             [
               "Create",

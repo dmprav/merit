@@ -16,6 +16,10 @@ const queries: [string, (service: GrantmakingQueries) => Promise<unknown>][] = [
   ["round list", (service) => service.listRounds(actor, workspaceSlug)],
   ["workspace applications", (service) => service.listWorkspaceApplications(actor, workspaceSlug)],
   [
+    "workspace search",
+    (service) => service.searchWorkspace(actor, { workspaceSlug, query: "community" }),
+  ],
+  [
     "round page",
     (service) => service.readRoundPage(actor, { workspaceSlug, publicId, kind: "round" }),
   ],

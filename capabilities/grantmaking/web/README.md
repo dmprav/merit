@@ -37,6 +37,31 @@ send them in a request body so a person's identifier never reaches a URL. See th
 for what Activity lists and the [stories](src/views/activity/workspace-activity.stories.tsx)
 for each state.
 
+## Search the workspace
+
+`@merit/grantmaking-web/search` exports `WorkspaceSearchDialog`, the box that jumps to a
+round or application. The interface supplies the open state, `data` from
+`@merit/grantmaking-web/data/search` bound to a transport that reads one query with an
+abort signal and rejects when search is unavailable, and `links` that return each
+result's address and render its router link. Mount the box per opening so each starts
+empty, and send typed text in a request body, as Activity does.
+
+The [controller](src/controllers/search/use-workspace-search.ts) waits about 150 ms for
+typing to pause and settles one query; the [data adapter](src/data/search/workspace-data.ts)
+cancels the request a newer query replaces, keeps earlier results on screen while the
+next load, and discards typed text and results when the box closes. While results load
+the box is busy with no highlight, and Enter does nothing. When settled results arrive the
+top match is highlighted, so Enter opens it; Up and Down move the highlight through both
+groups. Rows are real links: Enter or a click opens one in this tab and closes the box,
+while modifier-click or middle-click opens a new tab and leaves it open. Escape closes
+the box even with text typed. A failure keeps the typed text and offers **Try again**.
+On narrow screens the box fills the screen and Search sits in the navigation drawer,
+which closes first. The shell closes the box on any location change.
+
+The [workflow](../../../docs/workflows/review-and-decide.md#search-the-workspace) owns
+access, matching, order, and limits, and the [stories](src/views/search/workspace-search.stories.tsx)
+show each state.
+
 ## Scope drafts and examples
 
 Mount [GrantmakingDrafts](src/views/drafts.tsx) from `/drafts` around editable

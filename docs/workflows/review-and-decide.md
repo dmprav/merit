@@ -17,7 +17,8 @@ an isolated workspace with fictional starting data.
 
 ## Find and return to work
 
-Funding rounds and Applications provide independent workspace overviews. My work
+Funding rounds and Applications provide independent workspace overviews, and
+[Search](#search-the-workspace) finds a known record without paging them. My work
 lists the signed-in person's review assignments in the current workspace. Several rounds
 may be active at once; navigation does not establish a single current round.
 
@@ -33,6 +34,38 @@ come from recorded material, while review assignment titles describe the assigne
 material. Contacts remain a secondary directory; membership is available through
 Workspace settings → Members & access for members with directory access. The [workspace guide](../../interfaces/site/src/features/docs/workspace-guide.tsx)
 explains navigation and pin controls.
+
+## Search the workspace
+
+**Search**, at the top of workspace navigation or with Ctrl+K (⌘K on Apple platforms),
+finds a funding round or application by name or applicant and opens it. Current program
+managers can use it, as they can open Applications, including in a demo workspace; it is not
+offered to reviewers or to members who only manage settings. MCP clients use
+`search_workspace`, which runs the same operation with the same matching, order, limits, and
+access.
+
+A round matches on its title. An application matches on its title and its applicant, as
+recorded in its **current recorded version**: unrecorded working revisions and superseded
+versions never match, and recording a revision changes what matches. Case and accents are
+ignored, typos are not corrected, and `%`, `_`, and `\` count as ordinary characters. Every
+word typed must appear somewhere in the record's text, in any order, so "harbour trust" finds
+"Trust for the Harbour". Queries are limited to 200 characters, and an empty query finds nothing.
+
+Results come in two groups, **Funding rounds** (at most five) and **Applications** (at most
+ten). Each group counts every match, and a group with more matches than shown says so and asks
+for more words, because results are not paged. Within a group, closer matches come first: the
+whole query equals the title or applicant, then starts it, then every word appears. Active
+applications precede withdrawn ones, then titles and identifiers settle the order. Funding
+rounds are listed first, unless only applications hold an exact match. Applications open as
+they do from a pin, so their back link leads to the round.
+
+The typed text travels only in a request body, never a URL, history entry, or log. Each
+application stores its current title and applicant beside the recorded version in the same
+transaction that records it; renaming a round needs no extra writes. The
+[web integration guide](../../capabilities/grantmaking/web/README.md#search-the-workspace)
+explains the box's keyboard, loading, and failure behavior, and its
+[stories](../../capabilities/grantmaking/web/src/views/search/workspace-search.stories.tsx)
+show each state.
 
 ## Catch up on shared changes
 

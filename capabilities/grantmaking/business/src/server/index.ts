@@ -19,6 +19,8 @@ export { createGrantmakingService, createNavigationService } from "./service";
 
 export { listWorkspaceApplications } from "./queries/application-overview";
 
+export { searchWorkspace } from "./queries/workspace-search";
+
 export { listWorkspaceActivity } from "./queries/activity";
 
 export { applicationAuditHistory, roundBudgetHistory } from "./queries/history";

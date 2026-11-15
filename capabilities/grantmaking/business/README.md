@@ -86,6 +86,14 @@ links are resolved for the selected page. Creation receipts live in dedicated
 application and round tables and survive eligible record deletion. Retry handling
 never needs to interpret audit payloads.
 
+`searchWorkspace` finds rounds and applications by name or applicant for program
+managers. Rounds owns the match over its titles and Applications the match over the
+stored current title and applicant; Grantmaking composes them with access, the round
+title, ordering, and the limits in one read-only transaction and counts matches after
+access applies. Typed text is never logged, and the transports carry it in request
+bodies. The [workflow](../../../docs/workflows/review-and-decide.md#search-the-workspace)
+describes matching and order.
+
 ### Keep application history readable
 
 Applications owns creation receipts and the frozen intake snapshot format stored

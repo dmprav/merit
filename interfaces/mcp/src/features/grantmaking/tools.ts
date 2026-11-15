@@ -22,6 +22,8 @@ import {
   activityEntrySchema,
   workspaceActivityInput,
   workspaceActivitySchema,
+  workspaceSearchInput,
+  workspaceSearchSchema,
 } from "@merit/grantmaking/api";
 
 import type { RegisterTool } from "../../components/register-tool";
@@ -256,6 +258,24 @@ const registerActivityTool = (
   );
 };
 
+const registerSearchTool = (
+  register: RegisterTool,
+  actor: McpActor,
+  grantmaking: GrantmakingOperations,
+) => {
+  register(
+    "search_workspace",
+    {
+      ...read,
+      description:
+        "Find funding rounds and applications in a workspace by name or applicant, to locate a known record without listing and paging. Words in the query may appear in any order, in a round's title or in an application's title and applicant together; case and accents are ignored and typos are not corrected. Queries are limited to 200 characters. Returns at most 5 rounds and 10 applications, each group with its total number of matches, best match first (exact, then prefix, then contains; active applications before withdrawn ones). Only the current recorded application version is searched; unrecorded working revisions never match. Each result gives its public id and the fields shown in the web search; call get_application or the funding round tools with that id for details. Current program managers only.",
+      inputSchema: workspaceSearchInput,
+      outputSchema: workspaceSearchSchema,
+    },
+    (input) => grantmaking.searchWorkspace(actor, input),
+  );
+};
+
 export const registerGrantmakingTools = (
   register: RegisterTool,
   actor: McpActor,
@@ -265,5 +285,6 @@ export const registerGrantmakingTools = (
   registerRoundReadingTools(register, actor, grantmaking, origin);
   registerApplicationReadingTools(register, actor, grantmaking, origin);
   registerActivityTool(register, actor, grantmaking, origin);
+  registerSearchTool(register, actor, grantmaking);
   registerContentTools(register, actor, grantmaking);
 };

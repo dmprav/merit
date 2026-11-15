@@ -128,6 +128,30 @@ it("discovers and dispatches every new workflow with verified identity and origi
       result: { status: "ok", entries: [], people: [], nextCursor: null },
     },
     {
+      name: "search_workspace",
+      args: { workspaceSlug: "alder", query: "harbour trust" },
+      fn: operations.grantmaking.searchWorkspace,
+      result: {
+        status: "ok",
+        rounds: { results: [], total: 0 },
+        applications: {
+          total: 1,
+          results: [
+            {
+              id: applicationId,
+              title: "Boat repairs",
+              applicant: "Trust for the Harbour",
+              roundId: "b8q3w5j7c2df",
+              roundTitle: "Community grants",
+              intakeStatus: "ready" as const,
+              withdrawn: false,
+              matchQuality: "contains" as const,
+            },
+          ],
+        },
+      },
+    },
+    {
       name: "get_team",
       args: { workspaceSlug: "alder" },
       fn: operations.organizations.teamOverview,

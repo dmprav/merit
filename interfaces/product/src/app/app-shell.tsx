@@ -1,5 +1,12 @@
 import { Link, useLocation } from "@tanstack/react-router";
-import { useContext, type ReactNode, type ComponentProps } from "react";
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+  type ReactNode,
+  type ComponentProps,
+} from "react";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -14,8 +21,11 @@ import { Icon } from "@merit/ui/icon";
 
 import { DemoTools } from "../features/demo/demo-tools";
 import { workspaceRoundsLocation } from "../features/grantmaking/page-routing";
+import { WorkspaceSearch } from "../features/grantmaking/workspace-search";
 import { NavigationSection, NavigationPinsStatus } from "../features/navigation/navigation-section";
 import navigationStyles from "../features/navigation/navigation.module.css";
+import { SearchButton } from "../features/navigation/search-button";
+import { useSearchShortcut } from "../features/navigation/search-shortcut";
 import { WorkspaceNavigationContext } from "../features/workspace/workspace-navigation";
 import { workspaceHomeLocation } from "../shared/workspace-location";
 import { WorkspaceAccount } from "./workspace-account";
@@ -30,6 +40,22 @@ export type ShellWorkspace = {
   demoExpiresAt?: string | null;
 };
 
+/** The search box's open state and its shortcut; `available` says whether this person can search. */
+const useSearchBox = (available: boolean) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [focusRequest, setFocusRequest] = useState(0);
+  const open = useCallback(() => {
+    setIsOpen(true);
+    // An open box keeps its text and takes focus back to the field.
+    setFocusRequest((count) => count + 1);
+  }, []);
+  // Back and forward navigate too: the box never stays over a page it was not opened for.
+  const pathname = useLocation({ select: (location) => location.pathname });
+  useEffect(() => setIsOpen(false), [pathname]);
+  useSearchShortcut(available ? open : undefined);
+  return { isOpen, onOpenChange: setIsOpen, focusRequest, open: available ? open : undefined };
+};
+
 /** Every grant-work role uses the same workspace context. */
 export type ShellContext = { kind: "workspace"; workspace: ShellWorkspace };
 
@@ -37,39 +63,52 @@ export const AppShell = ({ current, children }: { current: ShellContext; childre
   const { t } = useTranslation(["common", "reviewer"]);
   const workspace = current.workspace;
   const name = workspace.name;
+  // Search covers grant work, so it follows the same access as the Applications overview.
+  const searchSlug = workspace.canWorkOnGrants ? workspace.slug : undefined;
+  const search = useSearchBox(searchSlug !== undefined);
 
   return (
-    <ApplicationShell
-      contextLabel={name}
-      openNavigationLabel={t("openNavigation")}
-      closeNavigationLabel={t("closeNavigation")}
-      utility={workspace?.kind === "demo" ? <DemoTools workspace={workspace} /> : undefined}
-      skipLabel={t("skipToContent")}
-      navigationLabel={t("mainNavigation")}
-      brand={
-        <Link {...workspaceHomeLocation(workspace)} aria-label={t("home")}>
-          <Brand />
-        </Link>
-      }
-      identity={<ContextIdentity name={name} workspace={workspace} />}
-      navigation={<AppNavigation workspace={workspace} />}
-      footer={
-        <>
-          <a
-            href="/docs"
-            target="_blank"
-            rel="noopener noreferrer"
-            className={shellStyles.documentationLink}
-            aria-label={t("docsNewTab")}
-          >
-            {t("docs")}
-          </a>
-          <WorkspaceAccount />
-        </>
-      }
-    >
-      {children}
-    </ApplicationShell>
+    <>
+      <ApplicationShell
+        contextLabel={name}
+        openNavigationLabel={t("openNavigation")}
+        closeNavigationLabel={t("closeNavigation")}
+        utility={workspace?.kind === "demo" ? <DemoTools workspace={workspace} /> : undefined}
+        skipLabel={t("skipToContent")}
+        navigationLabel={t("mainNavigation")}
+        brand={
+          <Link {...workspaceHomeLocation(workspace)} aria-label={t("home")}>
+            <Brand />
+          </Link>
+        }
+        identity={<ContextIdentity name={name} workspace={workspace} />}
+        navigation={<AppNavigation workspace={workspace} onSearch={search.open} />}
+        footer={
+          <>
+            <a
+              href="/docs"
+              target="_blank"
+              rel="noopener noreferrer"
+              className={shellStyles.documentationLink}
+              aria-label={t("docsNewTab")}
+            >
+              {t("docs")}
+            </a>
+            <WorkspaceAccount />
+          </>
+        }
+      >
+        {children}
+      </ApplicationShell>
+      {searchSlug && (
+        <WorkspaceSearch
+          workspaceSlug={searchSlug}
+          isOpen={search.isOpen}
+          onOpenChange={search.onOpenChange}
+          focusRequest={search.focusRequest}
+        />
+      )}
+    </>
   );
 };
 
@@ -113,7 +152,13 @@ export const AppPage = (
   );
 };
 
-const AppNavigation = ({ workspace }: { workspace: ShellWorkspace }) => {
+const AppNavigation = ({
+  workspace,
+  onSearch,
+}: {
+  workspace: ShellWorkspace;
+  onSearch?: () => void;
+}) => {
   const { t } = useTranslation(["web", "common", "reviewer"]);
   const { canAdminister } = useContext(WorkspaceNavigationContext);
   const grantWork = workspace?.canWorkOnGrants ? workspace.slug : undefined;
@@ -123,6 +168,7 @@ const AppNavigation = ({ workspace }: { workspace: ShellWorkspace }) => {
     <>
       {grantWork && (
         <>
+          {onSearch && <SearchButton onPress={onSearch} />}
           <NavigationSection
             title={t("navigation.rounds")}
             kind="round"

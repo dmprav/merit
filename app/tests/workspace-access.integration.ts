@@ -13,6 +13,7 @@ import {
   loadFundingRoundPage,
   loadFundingRounds,
   loadWorkspaceActivity,
+  loadWorkspaceSearch,
 } from "@merit/product/grantmaking";
 import { loadWorkspace } from "@merit/product/workspace";
 import { type SaveRecommendationRequest } from "@merit/recommendations/api";
@@ -293,6 +294,33 @@ it("serves workspace activity to program managers and withholds it from everyone
     (await callMcp(actor.userId, { workspaceSlug: "alder" }, "list_workspace_activity"))
       .structuredContent,
   ).toEqual({ status: "not_found" });
+});
+
+it("searches the workspace for program managers and withholds it from everyone else through both interfaces", async ({
+  database,
+  rounds: { createApplication },
+  transport: { services, callMcp },
+}) => {
+  const application = await createApplication("Harbour lights");
+  const search = { workspaceSlug: "alder", query: "harbour" };
+  const web = await loadWorkspaceSearch(search, services);
+  assert(web.status === "ok");
+  expect(web.applications.results).toMatchObject([
+    { id: application.publicId, title: "Harbour lights", roundTitle: "Community grants" },
+  ]);
+  expect((await callMcp(actor.userId, search, "search_workspace")).structuredContent).toEqual(web);
+
+  await database.client.query("UPDATE memberships SET role = 'member' WHERE user_id = 'dana'");
+  expect(await loadWorkspaceSearch(search, services)).toEqual({ status: "not_found" });
+  expect((await callMcp(actor.userId, search, "search_workspace")).structuredContent).toEqual({
+    status: "forbidden",
+  });
+
+  await database.client.query("DELETE FROM memberships WHERE user_id = 'dana'");
+  expect(await loadWorkspaceSearch(search, services)).toEqual({ status: "workspace_not_found" });
+  expect((await callMcp(actor.userId, search, "search_workspace")).structuredContent).toEqual({
+    status: "not_found",
+  });
 });
 
 it("conceals an empty workspace from a nonmember through both interfaces", async ({

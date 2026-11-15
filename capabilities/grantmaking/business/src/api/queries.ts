@@ -66,3 +66,18 @@ export {
 } from "./queries/activity";
 
 export { applicationAuditInput, roundBudgetHistoryInput } from "./queries/reading";
+
+export {
+  workspaceSearchInput,
+  workspaceSearchSchema,
+  workspaceSearchLimits,
+  workspaceSearchQueryLimit,
+  searchedRoundSchema,
+  searchedApplicationSchema,
+  matchQualitySchema,
+  searchGroupOrder,
+  type MatchQuality,
+  type SearchedRound,
+  type SearchedApplication,
+  type WorkspaceSearch,
+} from "./queries/workspace-search";

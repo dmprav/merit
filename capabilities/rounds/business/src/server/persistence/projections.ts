@@ -3,6 +3,7 @@ import { alias } from "drizzle-orm/pg-core";
 
 import { accessScope } from "@merit/access/scope";
 import { appUsers } from "@merit/auth/schema";
+import { containsEveryWord, matchRank, titleOrder, type SearchTerms } from "@merit/db/search";
 import { memberships, organizations } from "@merit/organizations/schema";
 
 import { fundingRounds, criteriaVersions } from "./schema";
@@ -40,3 +41,16 @@ export const managerNeedsReassignment = sql<boolean>`NOT EXISTS (
       "resource.organizationId": fundingRounds.organizationId,
     })}
 )`;
+
+// The round title is searched where it is stored, so renaming a round updates search with no
+// extra writes. The index covers this exact expression.
+const searchTitle = sql`${fundingRounds.title}`;
+
+/** Whether every word appears in the round's title. */
+export const roundSearchMatch = (terms: SearchTerms) => containsEveryWord(searchTitle, terms);
+
+/** Orders rounds by title the way people read it. */
+export const roundSearchTitleOrder = titleOrder(searchTitle);
+
+/** 0 when the title equals the whole query, 1 when it starts with it, 2 otherwise. */
+export const roundSearchRank = (terms: SearchTerms) => matchRank([searchTitle], terms);

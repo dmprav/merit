@@ -12,4 +12,5 @@ export type GrantmakingOperations = Pick<
   | "roundHistory"
   | "applicationHistory"
   | "listWorkspaceActivity"
+  | "searchWorkspace"
 >;

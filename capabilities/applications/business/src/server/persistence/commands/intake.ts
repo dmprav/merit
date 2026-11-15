@@ -63,8 +63,12 @@ export const findIntakeApplication = async (
 
 type IntakeState = NonNullable<Awaited<ReturnType<typeof findIntakeApplication>>>;
 
+// Search reads the current recorded title and applicant from the case row, so every write that
+// advances `material_version` stores them in the same statement.
 const caseContent = (snapshot: ApplicationData) => ({
   id: snapshot.id,
+  searchTitle: snapshot.title,
+  searchApplicant: snapshot.submission?.organization ?? "",
   intakeStatus: snapshot.intakeStatus,
   withdrawal: snapshot.withdrawal ?? null,
   summary: snapshot.summary,

@@ -35,6 +35,21 @@ and their assignments; applications does not know how. Reinstatement recomputes 
 requested-total limit like an amount change, and does not reopen anything the
 withdrawal closed.
 
+## Support workspace search
+
+`application_cases` stores the current recorded title and applicant organization
+(`search_title`, `search_applicant`) beside `material_version`. Every write that
+advances `material_version` updates them in the same statement, so working
+revisions, unrecorded drafts, and superseded versions never match a search. The
+migration backfilled existing rows from their current version, and demo seeding
+goes through the same write. `applicationSearchMatch` and `applicationSearchRank`
+in the [scope projections](src/server/persistence/projections.ts) build the match and
+quality SQL over those columns with the shared helpers in
+[`@merit/db/search`](../../../foundation/db/src/search.ts); Grantmaking composes
+them with access and the round title and never reads the columns itself. An
+expression index on the folded text lets PostgreSQL search thousands of applications
+without loading them.
+
 ## Preserve intake history
 
 The [history codec](src/server/persistence/history-encoding.ts) writes

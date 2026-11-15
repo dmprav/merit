@@ -33,6 +33,7 @@ import type {
 } from "./queries/reading";
 import type { RoundSummary } from "./queries/round-summary";
 import type { ApplicationView, ApplicationRoundContext, RoundView } from "./queries/round-view";
+import type { workspaceSearchInput, WorkspaceSearch } from "./queries/workspace-search";
 
 type NotFound = { status: "not_found" };
 
@@ -103,6 +104,10 @@ export interface GrantmakingQueries {
   ) => Promise<
     { status: "ok"; applications: ApplicationOverview[] } | NotFound | { status: "forbidden" }
   >;
+  searchWorkspace: (
+    actor: Actor,
+    input: z.input<typeof workspaceSearchInput>,
+  ) => Promise<WorkspaceSearch | NotFound | { status: "forbidden" }>;
   listWorkspaceActivity: (
     actor: Actor,
     input: z.input<typeof workspaceActivityInput>,

@@ -65,3 +65,16 @@
   padding: var(--space-1) var(--space-2);
   font-size: var(--text-meta);
 }
+
+.searchLabel {
+  min-width: 0;
+}
+
+.shortcut {
+  margin-inline-start: auto;
+  padding-inline-start: var(--space-3);
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--text-meta);
+  white-space: nowrap;
+}

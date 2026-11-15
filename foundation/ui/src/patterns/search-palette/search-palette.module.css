@@ -1,0 +1,198 @@
+.palette {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+
+.field {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--target-touch);
+  /* The dialog's small close control sits over the end of this row. */
+  padding-inline: var(--space-4) var(--search-close-reserve, var(--space-4));
+  border-bottom: 1px solid var(--border);
+}
+
+.icon {
+  flex-shrink: 0;
+  color: var(--muted);
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  min-height: var(--target-touch);
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: var(--foreground);
+  font-size: var(--text-body);
+  outline: none;
+}
+
+.input::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+
+/* Hide the native clear control; Escape closes the box. */
+.input::-webkit-search-cancel-button {
+  appearance: none;
+}
+
+.field:focus-within {
+  box-shadow: inset 0 -2px var(--focus);
+}
+
+/* A hairline sweeps under the field while results are replaced; they stay readable. */
+.progress {
+  position: relative;
+  z-index: 1;
+  height: 2px;
+  margin-bottom: -2px;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.palette[data-busy] .progress::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  width: 30%;
+  background: var(--action);
+  animation: search-progress 1.1s ease-in-out infinite;
+}
+
+.list {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--space-2);
+  outline: none;
+}
+
+.group + .group {
+  margin-top: var(--space-2);
+}
+
+/* The note reads as the group's last line: the header's parts sit around the rows. */
+.group {
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  display: contents;
+}
+
+.group > [role="group"] {
+  order: 1;
+}
+
+.heading {
+  order: 0;
+  padding: var(--space-2) var(--space-2) var(--space-1);
+  color: var(--muted);
+  font-size: var(--text-meta);
+  font-weight: 600;
+}
+
+.option {
+  display: grid;
+  gap: 2px;
+  min-height: var(--control-height-small);
+  border-radius: calc(var(--control-radius) - 2px);
+  padding: var(--space-2);
+  color: var(--foreground);
+  font-size: var(--text-control);
+  text-decoration: none;
+  cursor: pointer;
+  outline: none;
+}
+
+.option[data-hovered],
+.option[data-focused] {
+  background: var(--surface-muted);
+}
+
+.option[data-focus-visible] {
+  background: var(--action-subtle);
+  box-shadow: inset 3px 0 var(--focus);
+}
+
+.primary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.label {
+  flex-shrink: 0;
+  color: var(--muted);
+  font-size: var(--text-meta);
+}
+
+.detail {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: var(--text-caption);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.note {
+  order: 2;
+  padding: var(--space-2);
+  color: var(--muted);
+  font-size: var(--text-caption);
+  cursor: default;
+}
+
+.message {
+  padding: var(--space-5) var(--space-4);
+  color: var(--muted);
+  font-size: var(--text-detail);
+  overflow-wrap: anywhere;
+}
+
+@media (pointer: coarse) {
+  .option {
+    min-height: var(--target-touch);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .palette[data-busy] .progress::after {
+    animation: none;
+    width: 100%;
+    opacity: 0.5;
+  }
+}
+
+@keyframes search-progress {
+  from {
+    inset-inline-start: -30%;
+  }
+
+  to {
+    inset-inline-start: 100%;
+  }
+}
+
+/* Rows of an earlier query show no highlight while newer results load. */
+.palette[data-busy] .option:is([data-focused], [data-focus-visible]) {
+  background: none;
+  box-shadow: none;
+}
