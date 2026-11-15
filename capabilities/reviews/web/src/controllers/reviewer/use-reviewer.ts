@@ -159,26 +159,25 @@ export const useReviewer = (
       draft,
     };
     pendingSave.current = input;
+    let savedResult: { revision: number; content: Draft } | null = null;
     try {
       const result = await data.save(input);
       if (result.status === "ok") {
         pendingSave.current = null;
         setRevision(result.value.revision);
         setSaved(input.draft);
-        return { revision: result.value.revision, content: input.draft };
-      }
-      if (result.status === "conflict") {
+        savedResult = { revision: result.value.revision, content: input.draft };
+      } else if (result.status === "conflict") {
         await loadConflict();
       } else {
         setError(saveError(result.status));
       }
     } catch {
       setError("unavailable");
-    } finally {
-      working.current = false;
-      setBusy(false);
     }
-    return null;
+    working.current = false;
+    setBusy(false);
+    return savedResult;
   }, [
     draft,
     canWrite,
@@ -207,6 +206,39 @@ export const useReviewer = (
 
   useAutosave(canAutosave({ dirty, busy, error, canWrite, conflict, submissionPending }), save);
 
+  const applyResponse = async (
+    action: Parameters<ReviewerService["respond"]>[1]["action"],
+    note: string,
+  ) => {
+    const input = pendingResponse.current ?? {
+      assignmentId: page.assignment.id,
+      commandId: crypto.randomUUID(),
+      expectedRevision: page.assignment.revision,
+      action,
+      note,
+    };
+    pendingResponse.current = input;
+    const result = await data.respond(input);
+    if (result.status !== "ok") {
+      if (result.status !== "unavailable") {
+        pendingResponse.current = null;
+      }
+      setError(responseError(result));
+      return false;
+    }
+    const current = await data.read();
+    if (current.status !== "ok") {
+      setError("unavailable");
+      return false;
+    }
+    pendingResponse.current = null;
+    setPage(current.value);
+    update(current.value.draft?.content);
+    setSaved(current.value.draft?.content);
+    setRevision(current.value.draft?.revision ?? 0);
+    return true;
+  };
+
   const respond = async (
     action: Parameters<ReviewerService["respond"]>[1]["action"],
     note: string,
@@ -227,42 +259,15 @@ export const useReviewer = (
     working.current = true;
     setBusy(true);
     setError(null);
+    let succeeded = false;
     try {
-      const input = pendingResponse.current ?? {
-        assignmentId: page.assignment.id,
-        commandId: crypto.randomUUID(),
-        expectedRevision: page.assignment.revision,
-        action,
-        note,
-      };
-      pendingResponse.current = input;
-      const result = await data.respond(input);
-      if (result.status !== "ok") {
-        if (result.status !== "unavailable") {
-          pendingResponse.current = null;
-        }
-        setError(responseError(result));
-        return false;
-      }
-      const current = await data.read();
-      if (current.status === "ok") {
-        pendingResponse.current = null;
-        setPage(current.value);
-        update(current.value.draft?.content);
-        setSaved(current.value.draft?.content);
-        setRevision(current.value.draft?.revision ?? 0);
-      } else {
-        setError("unavailable");
-        return false;
-      }
-      return true;
+      succeeded = await applyResponse(action, note);
     } catch {
       setError("unavailable");
-      return false;
-    } finally {
-      working.current = false;
-      setBusy(false);
     }
+    working.current = false;
+    setBusy(false);
+    return succeeded;
   };
 
   const submissionFailure = async (failure: Failure) => {
@@ -323,16 +328,15 @@ export const useReviewer = (
         : await data.submit(input);
       if (result.status !== "ok") {
         await submissionFailure(result);
-        return;
+      } else {
+        submissionConfirmed.current = true;
+        await reloadSubmission();
       }
-      submissionConfirmed.current = true;
-      await reloadSubmission();
     } catch {
       setError(submissionConfirmed.current ? "submissionSaved" : "unavailable");
-    } finally {
-      working.current = false;
-      setBusy(false);
     }
+    working.current = false;
+    setBusy(false);
   };
 
   const reconcile = (useSaved: boolean) => {

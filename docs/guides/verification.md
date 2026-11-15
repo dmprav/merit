@@ -73,6 +73,7 @@ Choose checks for the part you changed:
 | When you need to…                                                    | Run…                                                                  |
 | -------------------------------------------------------------------- | --------------------------------------------------------------------- |
 | Check formatting, lint, and types                                    | `vp run check:code` (build first to generate route and Worker types)  |
+| Check React Compiler diagnostics across UI code                      | `vp run check:react-compiler`                                         |
 | Check capability packages without application-generated types        | `vp run -r typecheck`                                                 |
 | Typecheck one extracted web capability                               | `vp run @merit/grantmaking-web#typecheck`                             |
 | Check CSS correctness and spacing                                    | `vp run check:css`                                                    |

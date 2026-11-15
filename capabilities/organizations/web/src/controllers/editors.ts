@@ -169,7 +169,7 @@ const useMemberEditors = ({
         (accessDrafts[accessKey(member)]!.expectedMembershipId !== member.membershipId ||
           accessDrafts[accessKey(member)]!.expectedVersion !== member.version ||
           JSON.stringify([...accessDrafts[accessKey(member)]!.expectedInvitationIds].sort()) !==
-            JSON.stringify(memberRequest(team, member).expectedInvitationIds.sort())),
+            JSON.stringify([...memberRequest(team, member).expectedInvitationIds].sort())),
       ),
       onChange: (value: Access) =>
         updateAccess((current) => {

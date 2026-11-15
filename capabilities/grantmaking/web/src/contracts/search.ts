@@ -14,11 +14,8 @@ export type WorkspaceSearchRead = {
   retry: () => void;
 };
 
-/** The search operation a workspace supplies: a hook that reads one settled query. */
-export type WorkspaceSearchData = {
-  /** Sends nothing for an empty query. */
-  useResults: (query: string) => WorkspaceSearchRead;
-};
+/** The search operation a workspace supplies. */
+export type WorkspaceSearchData = WorkspaceSearchTransport;
 
 /** How a workspace's search reaches the server. */
 export type WorkspaceSearchTransport = {

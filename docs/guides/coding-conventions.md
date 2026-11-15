@@ -140,6 +140,16 @@ lint complements browser checks of keyboard interaction, focus, and shared contr
 A delegated event on a wrapper around real links can have a local exception with
 an explanation; it does not make the wrapper another interactive control.
 
+React Compiler is enabled across the UI packages and application
+([compiler configuration](../../tooling/react-compiler.ts)). Keep components and
+hooks optimizable: call hooks as statically imported functions rather than object
+methods (`obj.useHook()`), keep ref and value mutations inside the hook that owns
+them instead of mutating values returned from hooks, and avoid `try ... finally`
+blocks inside components or hooks (run cleanup after `try ... catch` instead).
+Omit boilerplate `useMemo` and `useCallback` in new code unless an explicit
+stability boundary requires them, and run `vp run check:react-compiler` to check
+for compiler diagnostics.
+
 Test lint accepts assertion helpers, custom fixtures, optional-state assertions,
 and Vitest assertion messages. The test runners reject focused `.only` tests,
 including local verification. SQL results have explicit row types, and fixtures
