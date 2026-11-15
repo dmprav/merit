@@ -125,7 +125,7 @@ afterEach(() => {
 
 const fetchRequest = (url: string) => serverEntry.fetch(new Request(url), {} as never);
 
-it("reuses one pg.Client across database calls in a web request and closes it after responding", async () => {
+it("checks out and closes a pg.Client per database call without holding connections across external I/O", async () => {
   const seenDbs: unknown[] = [];
 
   handlerFetch.mockImplementation(
@@ -134,9 +134,18 @@ it("reuses one pg.Client across database calls in a web request and closes it af
       expect(ctx).toBeDefined();
 
       seenDbs.push(await ctx!.workspace.readWorkspace({ userId: "u1" }, "alder"));
-      seenDbs.push(await ctx!.workspace.readWorkspace({ userId: "u1" }, "birch"));
-      const demoRead = (await ctx!.demo.read()) as unknown as { db: unknown };
-      seenDbs.push(demoRead.db);
+      // Connection is closed immediately when the operation finishes, before external HTTP calls.
+      expect(clients).toHaveLength(1);
+      expect(clients[0]!.end).toHaveBeenCalledOnce();
+
+      const [birchDb, demoRead] = await Promise.all([
+        ctx!.workspace.readWorkspace({ userId: "u1" }, "birch"),
+        ctx!.demo.read() as unknown as Promise<{ db: unknown }>,
+      ]);
+      seenDbs.push(birchDb, demoRead.db);
+      expect(clients).toHaveLength(3);
+      expect(clients[1]!.end).toHaveBeenCalledOnce();
+      expect(clients[2]!.end).toHaveBeenCalledOnce();
       return new Response("ok", { status: 200 });
     },
   );
@@ -145,14 +154,13 @@ it("reuses one pg.Client across database calls in a web request and closes it af
 
   expect(response.status).toBe(200);
   expect(response.headers.get("Content-Security-Policy")).toBe("frame-ancestors 'none'");
-  expect(clients).toHaveLength(1);
-  expect(clients[0]!.connect).toHaveBeenCalledOnce();
-  expect(clients[0]!.end).toHaveBeenCalledOnce();
-  expect(seenDbs[0]).toBe(seenDbs[1]);
-  expect(seenDbs[1]).toBe(seenDbs[2]);
+  expect(clients).toHaveLength(3);
+  expect(new Set(seenDbs).size).toBe(3);
+  expect(clients.every((client) => client.connect.mock.calls.length === 1)).toBe(true);
+  expect(clients.every((client) => client.end.mock.calls.length === 1)).toBe(true);
 });
 
-it("closes the request-scoped pg.Client in finally when the web handler throws", async () => {
+it("waits for in-flight database calls and closes their pg.Clients in finally when the web handler throws", async () => {
   handlerFetch.mockImplementation(
     async (_request: Request, options?: { context?: ApplicationRequestContext }) => {
       await options!.context!.workspace.readWorkspace({ userId: "u1" }, "alder");
@@ -167,25 +175,47 @@ it("closes the request-scoped pg.Client in finally when the web handler throws",
   expect(clients[0]!.end).toHaveBeenCalledOnce();
 });
 
-it("awaits handleMcp and closes the request-scoped pg.Client in finally on success and failure", async () => {
+it("awaits handleMcp, runs concurrent calls in parallel, and closes each pg.Client on success and failure", async () => {
   handleMcpMock.mockImplementationOnce(
     async (
       _request: Request,
       _config: unknown,
       dependencies: { database: <T>(op: (db: unknown) => Promise<T>) => Promise<T> },
     ) => {
-      const db1 = await dependencies.database(async (db) => db);
+      let releaseFirst!: () => void;
+      const firstGate = new Promise<void>((resolve) => {
+        releaseFirst = resolve;
+      });
+      let markFirstRunning!: () => void;
+      const firstRunning = new Promise<void>((resolve) => {
+        markFirstRunning = resolve;
+      });
+
+      const first = dependencies.database(async (db) => {
+        markFirstRunning();
+        await firstGate;
+        return db;
+      });
+      await firstRunning;
+
       const db2 = await dependencies.database(async (db) => db);
-      expect(db1).toBe(db2);
+      expect(clients).toHaveLength(2);
       expect(clients[0]!.end).not.toHaveBeenCalled();
+      expect(clients[1]!.end).toHaveBeenCalledOnce();
+
+      releaseFirst();
+      const db1 = await first;
+      expect(db1).not.toBe(db2);
+      expect(clients[0]!.end).toHaveBeenCalledOnce();
       return new Response("mcp ok", { status: 200 });
     },
   );
 
   const ok = await fetchRequest("https://merit.example/mcp/workspace");
   expect(ok.status).toBe(200);
-  expect(clients).toHaveLength(1);
+  expect(clients).toHaveLength(2);
   expect(clients[0]!.end).toHaveBeenCalledOnce();
+  expect(clients[1]!.end).toHaveBeenCalledOnce();
 
   handleMcpMock.mockImplementationOnce(
     async (
@@ -199,8 +229,8 @@ it("awaits handleMcp and closes the request-scoped pg.Client in finally on succe
   );
 
   await expect(fetchRequest("https://merit.example/mcp/workspace")).rejects.toThrow("mcp boom");
-  expect(clients).toHaveLength(2);
-  expect(clients[1]!.end).toHaveBeenCalledOnce();
+  expect(clients).toHaveLength(3);
+  expect(clients[2]!.end).toHaveBeenCalledOnce();
 });
 
 it("does not open any pg.Client when early routes or non-database requests complete", async () => {
@@ -219,7 +249,7 @@ it("does not open any pg.Client when early routes or non-database requests compl
   expect(clients).toHaveLength(0);
 });
 
-it("isolates pg.Client instances across concurrent HTTP requests", async () => {
+it("isolates pg.Client instances across concurrent HTTP requests and does not hold clients across pauses", async () => {
   const requestDbs: Record<string, unknown> = {};
   let releaseFirst!: () => void;
   const firstHold = new Promise<void>((resolve) => {
@@ -232,6 +262,10 @@ it("isolates pg.Client instances across concurrent HTTP requests", async () => {
       requestDbs[slug] = await options!.context!.workspace.readWorkspace({ userId: "u1" }, slug);
       if (slug === "first") {
         await firstHold;
+        requestDbs.firstAfterPause = await options!.context!.workspace.readWorkspace(
+          { userId: "u1" },
+          slug,
+        );
       }
       return new Response(slug, { status: 200 });
     },
@@ -242,14 +276,16 @@ it("isolates pg.Client instances across concurrent HTTP requests", async () => {
 
   const secondResponse = await secondPromise;
   expect(secondResponse.status).toBe(200);
-  expect(clients.filter((client) => client.end.mock.calls.length > 0)).toHaveLength(1);
+  // Both initial operations released their clients immediately instead of holding one open during firstHold.
+  expect(clients).toHaveLength(2);
+  expect(clients.filter((client) => client.end.mock.calls.length > 0)).toHaveLength(2);
 
   releaseFirst();
   const firstResponse = await firstPromise;
   expect(firstResponse.status).toBe(200);
 
-  expect(clients).toHaveLength(2);
+  expect(clients).toHaveLength(3);
   expect(requestDbs.first).not.toBe(requestDbs.second);
-  expect(clients[0]!.end).toHaveBeenCalledOnce();
-  expect(clients[1]!.end).toHaveBeenCalledOnce();
+  expect(requestDbs.firstAfterPause).not.toBe(requestDbs.first);
+  expect(clients.every((client) => client.end.mock.calls.length === 1)).toBe(true);
 });
