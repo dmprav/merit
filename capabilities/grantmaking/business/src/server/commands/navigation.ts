@@ -23,7 +23,6 @@ import {
 export const changeNavigationPin = (
   db: Database,
   actor: Actor,
-  emails: string[],
   input: NavigationPinChange,
 ): Promise<NavigationPinsResult> =>
   db.transaction(async (tx) => {
@@ -36,7 +35,7 @@ export const changeNavigationPin = (
     if (change.action === "unpin") {
       await removeNavigationPin(tx, actor.userId, change.target);
     } else {
-      const [target] = await resolveNavigationTargets(tx, actor.userId, emails, [change.target]);
+      const [target] = await resolveNavigationTargets(tx, actor.userId, [change.target]);
       if (!target) {
         return { status: "not_found" };
       }
@@ -44,7 +43,7 @@ export const changeNavigationPin = (
         const positions = (await storedPins(tx, actor.userId)).map((pin) => pin.position);
         await insertNavigationPin(tx, actor.userId, change.target, Math.max(-1, ...positions) + 1);
       } else {
-        const pins = await visibleNavigationPins(tx, actor.userId, emails);
+        const pins = await visibleNavigationPins(tx, actor.userId);
         const reordered = reorderNavigationPins(pins, change.target, change.before);
         if (!reordered) {
           return { status: "not_found" };
@@ -54,5 +53,5 @@ export const changeNavigationPin = (
         }
       }
     }
-    return { status: "ok", pins: await visibleNavigationPins(tx, actor.userId, emails) };
+    return { status: "ok", pins: await visibleNavigationPins(tx, actor.userId) };
   });

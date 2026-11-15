@@ -1,4 +1,3 @@
-import type { Actor } from "@merit/auth";
 import type { Database } from "@merit/db";
 
 import type { NavigationService } from "../api/navigation";
@@ -27,20 +26,9 @@ type Dependencies = {
   database: <T>(operation: (db: Database) => Promise<T>) => Promise<T>;
 };
 
-export const createNavigationService = ({
-  database,
-  verifiedEmails,
-}: Dependencies & {
-  verifiedEmails: (actor: Actor) => Promise<string[]>;
-}): NavigationService => ({
-  read: async (actor) => {
-    const emails = await verifiedEmails(actor);
-    return database((db) => readNavigationPins(db, actor, emails));
-  },
-  change: async (actor, input) => {
-    const emails = await verifiedEmails(actor);
-    return database((db) => changeNavigationPin(db, actor, emails, input));
-  },
+export const createNavigationService = ({ database }: Dependencies): NavigationService => ({
+  read: (actor) => database((db) => readNavigationPins(db, actor)),
+  change: (actor, input) => database((db) => changeNavigationPin(db, actor, input)),
 });
 
 export const createGrantmakingService = ({ database }: Dependencies): GrantmakingQueries => ({

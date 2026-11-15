@@ -28,30 +28,19 @@ import {
 type Dependencies = { database: <T>(operation: (db: Database) => Promise<T>) => Promise<T> };
 
 type ReviewerDependencies = Dependencies & {
-  verifiedEmails: (actor: Actor) => Promise<string[]>;
   send: (message: ReviewerMessage) => Promise<void>;
   reviewerUrl: (slug: string, id: string) => string;
   managerUrl: (slug: string, applicationId: string) => string;
 };
 
-const reviewerReads = ({
-  database,
-  verifiedEmails,
-}: ReviewerDependencies): Pick<ReviewerService, "read" | "list"> => ({
+const reviewerReads = ({ database }: Dependencies): Pick<ReviewerService, "read" | "list"> => ({
   read: async (actor, input) => {
     const parsed = reviewerAddressSchema.safeParse(input);
     if (!parsed.success) {
       return { status: "invalid" };
     }
-    const emails = await verifiedEmails(actor);
     return database((db) =>
-      readReviewerAssignment(
-        db,
-        actor,
-        emails,
-        parsed.data.assignmentId,
-        parsed.data.workspaceSlug,
-      ),
+      readReviewerAssignment(db, actor, parsed.data.assignmentId, parsed.data.workspaceSlug),
     );
   },
   list: async (actor, input) => {
@@ -59,13 +48,12 @@ const reviewerReads = ({
     if (!parsed.success) {
       return { status: "invalid" };
     }
-    const emails = await verifiedEmails(actor);
-    return database((db) => listReviewerAssignments(db, actor, emails, parsed.data?.workspaceSlug));
+    return database((db) => listReviewerAssignments(db, actor, parsed.data?.workspaceSlug));
   },
 });
 
 export const createReviewerService = (dependencies: ReviewerDependencies): ReviewerService => {
-  const { database, verifiedEmails } = dependencies;
+  const { database } = dependencies;
   const { read, list } = reviewerReads(dependencies);
 
   const forApplication: ReviewerService["forApplication"] = (actor, input) => {
@@ -91,8 +79,7 @@ export const createReviewerService = (dependencies: ReviewerDependencies): Revie
     forApplication,
     list,
     invite: async (actor, input) => {
-      const emails = await verifiedEmails(actor);
-      const result = await database((db) => inviteReviewer(db, actor, emails, input));
+      const result = await database((db) => inviteReviewer(db, actor, input));
       if (result.status !== "ok") {
         return result;
       }
@@ -110,8 +97,7 @@ export const createReviewerService = (dependencies: ReviewerDependencies): Revie
       return managerAssignment(actor, input, result.id);
     },
     respond: async (actor, input) => {
-      const emails = await verifiedEmails(actor);
-      const result = await database((db) => respondToReview(db, actor, emails, input));
+      const result = await database((db) => respondToReview(db, actor, input));
       if (result.status !== "ok") {
         return result;
       }

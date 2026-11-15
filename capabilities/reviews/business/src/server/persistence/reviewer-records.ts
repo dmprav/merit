@@ -105,10 +105,12 @@ export const lockActiveReviewer = async (tx: Transaction, userId: string) =>
       .for("share")
   )[0];
 
-export const reviewerOwns = (record: ReviewerRecord, userId: string, emails: string[]) =>
-  record.assignment.reviewerUserId !== null
-    ? record.assignment.reviewerUserId === userId
-    : emails.some((email) => email.toLowerCase() === record.assignment.email);
+/**
+ * An unbound assignment belongs to whoever holds its membership, whose email was verified when
+ * they accepted the workspace invitation; callers confirm that with `reviewerIdentityCurrent`.
+ */
+export const reviewerOwns = (record: ReviewerRecord, userId: string) =>
+  record.assignment.reviewerUserId === null || record.assignment.reviewerUserId === userId;
 
 const currentMembership = sql<boolean>`EXISTS (SELECT 1 FROM ${memberships}
   WHERE ${memberships.id} = ${reviewAssignments.membershipId}
@@ -198,6 +200,15 @@ export const reviewerMembershipByEmail = async (
       )
   )[0]?.id ?? null;
 
+/** The member's invitation email, verified when they accepted it; demo memberships have none. */
+export const memberEmail = async (db: Database, organizationId: string, userId: string) =>
+  (
+    await db
+      .select({ email: memberships.email })
+      .from(memberships)
+      .where(and(eq(memberships.organizationId, organizationId), eq(memberships.userId, userId)))
+  )[0]?.email ?? null;
+
 export const reviewerWorkspace = async (db: Database, userId: string, slug: string) =>
   (
     await db
@@ -213,12 +224,7 @@ export const reviewerWorkspace = async (db: Database, userId: string, slug: stri
       )
   )[0];
 
-export const listReviewerRecords = async (
-  db: Database,
-  userId: string,
-  emails: string[],
-  workspaceSlug?: string,
-) => {
+export const listReviewerRecords = async (db: Database, userId: string, workspaceSlug?: string) => {
   const rows = await selectReviewerRows(db)
     .innerJoin(
       memberships,
@@ -233,10 +239,7 @@ export const listReviewerRecords = async (
         activeOrganization,
         or(
           eq(reviewAssignments.reviewerUserId, userId),
-          and(
-            sql`${reviewAssignments.reviewerUserId} is null`,
-            inArray(reviewAssignments.email, emails),
-          ),
+          sql`${reviewAssignments.reviewerUserId} is null`,
         ),
       ),
     )
