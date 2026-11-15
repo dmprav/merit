@@ -513,7 +513,17 @@ test("personal pins stay under their object type and survive reloads @cross-brow
   } else if (contextShortcut === "Shift+F10" && testInfo.project.use.browserName !== "chromium") {
     // Linux Firefox/WebKit automation does not emit the native keyboard contextmenu event.
     // Exercise that event directly; Chromium and macOS cover the real keyboard shortcut.
-    await pinActions.dispatchEvent("contextmenu", { button: 0 });
+    await pinActions.evaluate((link) => {
+      const bounds = link.getBoundingClientRect();
+      link.dispatchEvent(
+        new MouseEvent("contextmenu", {
+          bubbles: true,
+          cancelable: true,
+          clientX: bounds.x + bounds.width / 2,
+          clientY: bounds.y + bounds.height / 2,
+        }),
+      );
+    });
     await expect(page.getByRole("menuitem", { name: "Move up", exact: true })).toBeVisible();
   } else {
     await page.keyboard.press(contextShortcut);
