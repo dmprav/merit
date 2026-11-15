@@ -12,14 +12,112 @@ export type RequestDatabase = {
   close: () => Promise<void>;
 };
 
+export type RequestDatabaseOptions = {
+  maxConcurrency?: number;
+};
+
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
-const createClient = (connectionString: string) =>
-  new Client({
+type SlotWaiter = {
+  resolve: (acquired: boolean) => void;
+};
+
+const DEFAULT_MAX_CONCURRENCY = 4;
+
+const createClient = (connectionString: string) => {
+  const client = new Client({
     connectionString,
     connectionTimeoutMillis: 5000,
     statement_timeout: 10000,
   });
+
+  if (typeof client.on === "function") {
+    client.on("error", () => undefined);
+  }
+
+  return client;
+};
+
+const executeWithClient = async <T>(
+  connectionString: string,
+  operation: (db: Database) => Promise<T>,
+): Promise<T> => {
+  const client = createClient(connectionString);
+  let completed = false;
+
+  try {
+    await withSpan("db.connect", () => client.connect(), {
+      kind: SpanKind.CLIENT,
+      attributes: { "db.system": "postgresql" },
+    });
+    const result = await operation(drizzle(client));
+    completed = true;
+    return result;
+  } finally {
+    if (completed) {
+      await client.end();
+    } else {
+      await client.end().catch(() => undefined);
+    }
+  }
+};
+
+const createConcurrencyGate = (maxConcurrency: number) => {
+  if (!Number.isInteger(maxConcurrency) || maxConcurrency < 1) {
+    throw new RangeError("maxConcurrency must be a positive integer.");
+  }
+
+  let active = 0;
+  let closed = false;
+  let closing: Promise<void> | undefined;
+  let resolveDrained: (() => void) | undefined;
+  const waiters: SlotWaiter[] = [];
+
+  const acquire = (): Promise<boolean> => {
+    if (closed) {
+      return Promise.resolve(false);
+    }
+    if (active < maxConcurrency) {
+      active += 1;
+      return Promise.resolve(true);
+    }
+
+    return new Promise<boolean>((resolve) => {
+      waiters.push({ resolve });
+    });
+  };
+
+  const release = () => {
+    const next = waiters.shift();
+    if (next) {
+      next.resolve(!closed);
+      if (!closed) {
+        return;
+      }
+    }
+
+    active -= 1;
+    if (closed && active === 0) {
+      resolveDrained?.();
+    }
+  };
+
+  const close = () => {
+    closed = true;
+    while (waiters.length > 0) {
+      waiters.shift()!.resolve(false);
+    }
+
+    return (closing ??=
+      active === 0
+        ? Promise.resolve()
+        : new Promise<void>((resolve) => {
+            resolveDrained = resolve;
+          }));
+  };
+
+  return { acquire, release, close, isClosed: () => closed };
+};
 
 /** Independent queries use one read-only snapshot. A supplied transaction retains its caller's mode. */
 export const readTransaction = <T>(
@@ -35,108 +133,42 @@ export const readTransaction = <T>(
     },
   );
 
-export const withDatabase = async <T>(
+export const withDatabase = <T>(
   connectionString: string,
   operation: (db: Database) => Promise<T>,
-): Promise<T> => {
-  const client = createClient(connectionString);
-
-  try {
-    await withSpan("db.connect", () => client.connect(), {
-      kind: SpanKind.CLIENT,
-      attributes: { "db.system": "postgresql" },
-    });
-    return await operation(drizzle(client));
-  } finally {
-    await client.end();
-  }
-};
+): Promise<T> => executeWithClient(connectionString, operation);
 
 /**
- * Lazily opens at most one pg.Client for a single HTTP request, serializes operations
- * (including transactions) on that client, and closes it when the request finishes.
+ * Checks out a short-lived pg.Client per operation with bounded per-request concurrency,
+ * allowing parallel SSR reads across Hyperdrive without holding connections open across
+ * external HTTP calls or exceeding Worker socket limits.
  * Never share a RequestDatabase across HTTP requests.
  */
-export const createRequestDatabase = (connectionString: string): RequestDatabase => {
-  let client: Client | undefined;
-  let db: Database | undefined;
-  let closed = false;
-  let closing: Promise<void> | undefined;
-  let queue: Promise<void> = Promise.resolve();
+export const createRequestDatabase = (
+  connectionString: string,
+  options?: RequestDatabaseOptions,
+): RequestDatabase => {
+  const gate = createConcurrencyGate(options?.maxConcurrency ?? DEFAULT_MAX_CONCURRENCY);
 
-  const ensureConnected = async (): Promise<Database> => {
-    if (db) {
-      return db;
-    }
-
-    const nextClient = createClient(connectionString);
-    if (typeof nextClient.on === "function") {
-      nextClient.on("error", () => {
-        if (client === nextClient) {
-          client = undefined;
-          db = undefined;
-        }
-      });
+  const run: DatabaseRunner = async (operation) => {
+    const acquired = await gate.acquire();
+    if (!acquired) {
+      throw new Error("Request database is closed.");
     }
 
     try {
-      await withSpan("db.connect", () => nextClient.connect(), {
+      if (gate.isClosed()) {
+        throw new Error("Request database is closed.");
+      }
+
+      return await withSpan("db.execute", () => executeWithClient(connectionString, operation), {
         kind: SpanKind.CLIENT,
         attributes: { "db.system": "postgresql" },
       });
-    } catch (error) {
-      await nextClient.end().catch(() => undefined);
-      throw error;
+    } finally {
+      gate.release();
     }
-
-    client = nextClient;
-    db = drizzle(nextClient);
-    return db;
   };
 
-  const run: DatabaseRunner = (operation) => {
-    if (closed) {
-      return Promise.reject(new Error("Request database is closed."));
-    }
-
-    const execution = queue.then(() =>
-      withSpan(
-        "db.execute",
-        async () => {
-          if (closed) {
-            throw new Error("Request database is closed.");
-          }
-
-          const database = await ensureConnected();
-          return operation(database);
-        },
-        {
-          kind: SpanKind.CLIENT,
-          attributes: { "db.system": "postgresql" },
-        },
-      ),
-    );
-
-    queue = execution.then(
-      () => undefined,
-      () => undefined,
-    );
-
-    return execution;
-  };
-
-  const close = () => {
-    closed = true;
-    return (closing ??= (async () => {
-      await queue;
-      if (client) {
-        const active = client;
-        client = undefined;
-        db = undefined;
-        await active.end();
-      }
-    })());
-  };
-
-  return { run, close };
+  return { run, close: gate.close };
 };
