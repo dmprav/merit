@@ -81,17 +81,53 @@ const attachOutcome = (span: Span, result: unknown): void => {
   }
 };
 
+const isPromiseLike = (value: unknown): value is PromiseLike<unknown> =>
+  value !== null &&
+  typeof value === "object" &&
+  "then" in value &&
+  typeof (value as { then?: unknown }).then === "function";
+
+const instrumentMethod =
+  (domain: string, method: string, fn: (...input: unknown[]) => unknown) =>
+  (...args: unknown[]) =>
+    trace.getTracer(TRACER_NAME).startActiveSpan(`service.${domain}.${method}`, (span) => {
+      let pending = false;
+      try {
+        const result = fn(...args);
+        if (isPromiseLike(result)) {
+          pending = true;
+          return Promise.resolve(result).then(
+            (resolved) => {
+              attachOutcome(span, resolved);
+              span.end();
+              return resolved;
+            },
+            (error: unknown) => {
+              recordSafeError(span, error);
+              span.end();
+              throw error;
+            },
+          );
+        }
+
+        attachOutcome(span, result);
+        return result;
+      } catch (error) {
+        recordSafeError(span, error);
+        throw error;
+      } finally {
+        if (!pending) {
+          span.end();
+        }
+      }
+    });
+
 export const instrumentService = <T extends object>(domain: string, service: T): T => {
   const wrapped: Record<string, unknown> = {};
   for (const [method, value] of Object.entries(service)) {
     wrapped[method] =
       typeof value === "function"
-        ? (...args: unknown[]) =>
-            withSpan(`service.${domain}.${method}`, async (span) => {
-              const result: unknown = await (value as (...input: unknown[]) => unknown)(...args);
-              attachOutcome(span, result);
-              return result;
-            })
+        ? instrumentMethod(domain, method, value as (...input: unknown[]) => unknown)
         : value;
   }
   return wrapped as T;

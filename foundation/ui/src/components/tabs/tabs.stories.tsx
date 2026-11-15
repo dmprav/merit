@@ -359,6 +359,8 @@ export const WithAction: Story = {
     ),
   },
   play: async ({ canvas, userEvent }) => {
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
     canvas.getByRole("tab", { name: "Evidence 12" }).focus();
     await userEvent.keyboard("{ArrowRight}");
 
