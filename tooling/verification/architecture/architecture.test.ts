@@ -217,6 +217,7 @@ const check = async (files: Record<string, string>, message?: string, viaVp = fa
       ["@tanstack/react-query", "interfaces/admin"],
       ["@tanstack/react-router", "interfaces/product"],
       ["react-aria-components", "foundation/ui"],
+      ["posthog-js", "foundation/analytics"],
     ]) {
       const require = createRequire(new URL(`../../../${owner}/package.json`, import.meta.url));
       const target = join(root, "node_modules", dependency!);

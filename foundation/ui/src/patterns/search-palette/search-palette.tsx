@@ -1,4 +1,4 @@
-import type { ComponentProps, ReactElement, ReactNode, Ref } from "react";
+import type { ComponentProps, ReactElement, ReactNode, Ref, KeyboardEvent } from "react";
 import { Autocomplete } from "react-aria-components/Autocomplete";
 import { Header, ListBox, ListBoxItem, ListBoxSection } from "react-aria-components/ListBox";
 import { Input, SearchField } from "react-aria-components/SearchField";
@@ -14,27 +14,35 @@ export type SearchPaletteItem = {
   id: string;
   /** The row as plain text, for assistive technology. */
   textValue: string;
-  href: string;
-  /** Renders the link element with the row's props; pass them to the router's link. */
-  renderLink: (props: SearchPaletteLinkProps) => ReactElement;
+  /** This item answers the current input even while other results are loading. */
+  availableWhileBusy?: boolean;
+  icon?: ComponentProps<typeof Icon>["name"];
   title: ReactNode;
   /** A quieter second line. */
   detail?: ReactNode;
   /** A short state beside the title. */
   label?: ReactNode;
-};
+} & (
+  | { href: string; renderLink: (props: SearchPaletteLinkProps) => ReactElement; onAction?: never }
+  | { href?: never; renderLink?: never; onAction: () => void }
+);
 
 export type SearchPaletteGroup = {
   id: string;
-  heading: string;
   items: readonly SearchPaletteItem[];
-  /** A non-interactive line below the group, such as how many matches are not shown. */
-  note?: string;
-};
+} & (
+  | {
+      heading: string;
+      /** A non-interactive line below the named group, such as how many matches are not shown. */
+      note?: string;
+    }
+  | { heading?: never; note?: never }
+);
 
 type SearchPaletteProps = {
   /** Names the search field. */
   label: string;
+  placeholder?: string;
   /** Names the list of results. */
   resultsLabel: string;
   /** The longest text the field accepts. */
@@ -42,10 +50,13 @@ type SearchPaletteProps = {
   value: string;
   onValueChange: (value: string) => void;
   groups: readonly SearchPaletteGroup[];
-  /** Results are being replaced; the previous ones stay visible. */
+  /** Results are being replaced; previous rows stay visible but disabled unless current. */
   busy?: boolean;
   /** Guidance, an empty result, or a failure; shown instead of the results. */
   message?: ReactNode;
+  /** Recovery or truncation feedback alongside usable results. */
+  feedback?: ReactNode;
+  keyboardHelp?: { navigate: string; open: string; close: string };
   /** Spoken politely when it changes; `announcementId` makes repeated text count as new. */
   announcement: string;
   announcementId: string | number;
@@ -59,12 +70,52 @@ type SearchPaletteProps = {
   onEscape?: () => void;
 };
 
+const SearchItem = ({
+  item,
+  onOpen,
+  busy,
+}: {
+  item: SearchPaletteItem;
+  onOpen?: (item: SearchPaletteItem) => void;
+  busy: boolean;
+}) => (
+  <ListBoxItem
+    id={item.id}
+    textValue={item.textValue}
+    href={busy && !item.availableWhileBusy ? undefined : item.href}
+    isDisabled={busy && !item.availableWhileBusy}
+    render={
+      !(busy && !item.availableWhileBusy) && item.renderLink
+        ? (props) => item.renderLink!(props as SearchPaletteLinkProps)
+        : undefined
+    }
+    onPress={(event) => {
+      if (!event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
+        onOpen?.(item);
+        item.onAction?.();
+      }
+    }}
+    className={styles.option}
+  >
+    {item.icon && <Icon name={item.icon} className={styles.rowIcon} />}
+    <span className={styles.content}>
+      <span className={styles.primary}>
+        <span className={styles.title}>{item.title}</span>
+        {item.label && <span className={styles.label}>{item.label}</span>}
+      </span>
+      {item.detail && <span className={styles.detail}>{item.detail}</span>}
+    </span>
+  </ListBoxItem>
+);
+
 const SearchGroup = ({
   group,
   onOpen,
+  busy,
 }: {
   group: SearchPaletteGroup;
   onOpen?: (item: SearchPaletteItem) => void;
+  busy: boolean;
 }) => (
   <ListBoxSection id={group.id} className={styles.group}>
     <Header className={styles.header}>
@@ -72,25 +123,7 @@ const SearchGroup = ({
       {group.note && <span className={styles.note}>{group.note}</span>}
     </Header>
     {group.items.map((item) => (
-      <ListBoxItem
-        key={item.id}
-        id={item.id}
-        textValue={item.textValue}
-        href={item.href}
-        render={(props) => item.renderLink(props as SearchPaletteLinkProps)}
-        onPress={(event) => {
-          if (!event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
-            onOpen?.(item);
-          }
-        }}
-        className={styles.option}
-      >
-        <span className={styles.primary}>
-          <span className={styles.title}>{item.title}</span>
-          {item.label && <span className={styles.label}>{item.label}</span>}
-        </span>
-        {item.detail && <span className={styles.detail}>{item.detail}</span>}
-      </ListBoxItem>
+      <SearchItem key={item.id} item={item} onOpen={onOpen} busy={busy} />
     ))}
   </ListBoxSection>
 );
@@ -108,28 +141,40 @@ const SearchResults = ({
   groups.some((group) => group.items.length > 0) && (
     <ListBox
       // Each settled result set mounts afresh, so React Aria highlights its top row; while
-      // newer results load the same rows stay, with their highlight hidden.
+      // newer results load only choices already answering the current input remain available.
       key={resultsId}
-      autoFocus={resultsId !== undefined && !busy ? "first" : false}
+      autoFocus={
+        resultsId !== undefined &&
+        (!busy || groups.some((group) => group.items.some((item) => item.availableWhileBusy)))
+          ? "first"
+          : false
+      }
       aria-label={label}
       selectionMode="none"
       className={styles.list}
     >
-      {groups.map((group) => (
-        <SearchGroup key={group.id} group={group} onOpen={onOpen} />
-      ))}
+      {groups.flatMap((group) =>
+        group.heading !== undefined
+          ? [<SearchGroup key={group.id} group={group} onOpen={onOpen} busy={busy} />]
+          : group.items.map((item) => (
+              <SearchItem key={item.id} item={item} onOpen={onOpen} busy={busy} />
+            )),
+      )}
     </ListBox>
   );
 
 /**
- * A search field above grouped results that arrive from elsewhere. The field keeps focus. The top
+ * A search field above links and actions, optionally grouped. The field keeps focus. The top
  * match is highlighted when settled results arrive, Up and Down move the highlight through every
- * row across groups, and Enter opens the highlighted row. Rows are real links, so the browser
+ * row across groups, and Enter opens the highlighted row. Navigation rows are real links, so the browser
  * handles modifier and middle clicks.
  */
 export const SearchPalette = ({
   label,
   resultsLabel,
+  placeholder,
+  keyboardHelp,
+  feedback,
   maxLength,
   value,
   onValueChange,
@@ -143,26 +188,31 @@ export const SearchPalette = ({
   onOpen,
   onEscape,
 }: SearchPaletteProps) => {
+  const pending = busy || undefined;
+
+  const onKeyDown = (event: KeyboardEvent) => {
+    if (onEscape && event.key === "Escape" && !event.nativeEvent.isComposing) {
+      event.stopPropagation();
+      onEscape();
+    }
+  };
+
   return (
     <div
       className={styles.palette}
-      data-busy={busy || undefined}
-      aria-busy={busy || undefined}
-      // Enter must not open a row of an earlier query while newer results load.
-      onKeyDownCapture={(event) => {
-        if (busy && event.key === "Enter") {
-          event.preventDefault();
-          event.stopPropagation();
-        } else if (onEscape && event.key === "Escape" && !event.nativeEvent.isComposing) {
-          event.stopPropagation();
-          onEscape();
-        }
-      }}
+      data-busy={pending}
+      aria-busy={pending}
+      onKeyDownCapture={onKeyDown}
     >
       <Autocomplete inputValue={value} onInputChange={onValueChange} disableAutoFocusFirst>
         <SearchField aria-label={label} className={styles.field} autoFocus>
           <Icon name="search" className={styles.icon} />
-          <Input ref={inputRef} className={styles.input} maxLength={maxLength} />
+          <Input
+            ref={inputRef}
+            className={styles.input}
+            placeholder={placeholder}
+            maxLength={maxLength}
+          />
         </SearchField>
         <div className={styles.progress} aria-hidden="true" />
         {message ? (
@@ -177,7 +227,31 @@ export const SearchPalette = ({
           />
         )}
       </Autocomplete>
+      <PaletteFooter feedback={feedback} keyboardHelp={keyboardHelp} />
       <StatusMessage message={announcement} eventId={announcementId} />
     </div>
   );
 };
+
+const PaletteFooter = ({
+  feedback,
+  keyboardHelp,
+}: Pick<SearchPaletteProps, "feedback" | "keyboardHelp">) => (
+  <>
+    {feedback && <div className={styles.feedback}>{feedback}</div>}
+    {keyboardHelp && (
+      <div className={styles.footer}>
+        <span>
+          <kbd>↑</kbd>
+          <kbd>↓</kbd> {keyboardHelp.navigate}
+        </span>
+        <span>
+          <kbd>Enter</kbd> {keyboardHelp.open}
+        </span>
+        <span>
+          <kbd>Esc</kbd> {keyboardHelp.close}
+        </span>
+      </div>
+    )}
+  </>
+);

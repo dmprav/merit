@@ -38,26 +38,36 @@ explains navigation and pin controls.
 ## Search the workspace
 
 **Search**, at the top of workspace navigation or with Ctrl+K (⌘K on Apple platforms),
-finds a funding round or application by name or applicant and opens it. Current program
+finds a funding round or application by name or applicant, opens workspace pages,
+and starts the existing funding-round creation form. Current program
 managers can use it, as they can open Applications, including in a demo workspace; it is not
 offered to reviewers or to members who only manage settings. MCP clients use
-`search_workspace`, which runs the same operation with the same matching, order, limits, and
-access.
+`search_workspace`, which returns records with the same matching, limits, and access.
+Its response retains separate record groups; browser pages and actions are local choices.
 
 A round matches on its title. An application matches on its title and its applicant, as
 recorded in its **current recorded version**: unrecorded working revisions and superseded
 versions never match, and recording a revision changes what matches. Case and accents are
 ignored, typos are not corrected, and `%`, `_`, and `\` count as ordinary characters. Every
 word typed must appear somewhere in the record's text, in any order, so "harbour trust" finds
-"Trust for the Harbour". Queries are limited to 200 characters, and an empty query finds nothing.
+"Trust for the Harbour". Queries are limited to 200 characters, and an empty query fetches no records.
 
-Results come in two groups, **Funding rounds** (at most five) and **Applications** (at most
-ten). Each group counts every match, and a group with more matches than shown says so and asks
-for more words, because results are not paged. Within a group, closer matches come first: the
-whole query equals the title or applicant, then starts it, then every word appears. Active
-applications precede withdrawn ones, then titles and identifiers settle the order. Funding
-rounds are listed first, unless only applications hold an exact match. Applications open as
-they do from a pin, so their back link leads to the round.
+The record response includes at most five funding rounds and ten applications, with
+separate totals counting all matches. The palette communicates any truncation and asks
+for more words. One mixed list ranks whole-query exact matches first, then prefixes,
+then matches containing every word. Records precede local choices of equal quality;
+equal-quality rounds precede applications, preserving each type's existing order.
+Within applications, active records precede withdrawn records, then titles and
+identifiers settle ties. Applications open as they do from a pin, with a back link to
+their round.
+
+An empty browser palette offers Funding rounds, Applications, Activity, Contacts,
+My work outside demos, and Workspace settings when directory access permits it.
+Typing matches these page names and the explicit **Go to** labels alongside records.
+**Create funding round** opens the existing creation form and resumes its unfinished
+draft, without saving a record. These choices follow current workspace access; they
+add no contacts search, filters, or recent-search history. Local choices remain usable
+when remote record search is pending or unavailable.
 
 The typed text travels only in a request body, never a URL, history entry, or log. Each
 application stores its current title and applicant beside the recorded version in the same

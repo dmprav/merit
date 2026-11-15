@@ -1,3 +1,4 @@
+import type { RefObject } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useCloseNavigation } from "@merit/ui/application-shell";
@@ -9,15 +10,23 @@ import styles from "./navigation.module.css";
 import { useShortcutPlatform } from "./search-shortcut";
 
 /** Opens workspace search, showing the shortcut that does the same from anywhere. */
-export const SearchButton = ({ onPress }: { onPress: () => void }) => {
+export const SearchButton = ({
+  onPress,
+  buttonRef,
+}: {
+  onPress: () => void;
+  buttonRef?: RefObject<HTMLButtonElement | null>;
+}) => {
   const { t } = useTranslation("web");
   const platform = useShortcutPlatform();
   const closeNavigation = useCloseNavigation();
 
+  const shortcut = platform === "unknown" ? "" : platform === "apple" ? "⌘ K" : "Ctrl K";
+
   return (
     <Button
       variant="quiet"
-      className={shellStyles.navigationItem}
+      className={`${shellStyles.navigationItem} ${styles.searchButton}`}
       onPress={() => {
         // The drawer closes before the search box opens over the page.
         closeNavigation();
@@ -25,14 +34,23 @@ export const SearchButton = ({ onPress }: { onPress: () => void }) => {
       }}
       // React Aria drops this attribute from its buttons, so it is set on the element itself.
       ref={(button) => {
-        button?.setAttribute("aria-keyshortcuts", platform === "apple" ? "Meta+K" : "Control+K");
+        if (buttonRef) {
+          buttonRef.current = button;
+        }
+        if (platform === "unknown") {
+          button?.removeAttribute("aria-keyshortcuts");
+        } else {
+          button?.setAttribute("aria-keyshortcuts", platform === "apple" ? "Meta+K" : "Control+K");
+        }
       }}
     >
       <Icon name="search" />
       <span className={styles.searchLabel}>{t("navigation.search")}</span>
-      <kbd className={styles.shortcut} aria-hidden="true">
-        {platform === "apple" ? "⌘K" : "Ctrl K"}
-      </kbd>
+      {shortcut && (
+        <kbd className={styles.shortcut} aria-hidden="true">
+          {shortcut}
+        </kbd>
+      )}
     </Button>
   );
 };

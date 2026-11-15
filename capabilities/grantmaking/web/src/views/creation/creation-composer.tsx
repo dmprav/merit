@@ -16,18 +16,30 @@ import { CreationForm } from "./creation-form";
 
 type CreationActionProps = {
   data: CreationData;
+  /** Navigation changes close a persistent composer while retaining drafts and saved feedback. */
+  locationKey?: string;
+  /** Supplies an alternate entry point; its callback opens the existing draft without saving. */
+  renderTrigger?: (open: () => void) => ReactNode;
+  /** Restores a surviving alternate entry point when a closed composer’s notice is dismissed. */
+  restoreTriggerFocus?: () => void;
   renderCreatedLink: (record: CreatedRecord, label: string) => ReactNode;
 };
 
 type CreationController = ReturnType<typeof useCreation>;
 
-export const CreateAction = ({ data, renderCreatedLink }: CreationActionProps) => (
-  <CreationComposer key={data.draftKey} data={data} renderCreatedLink={renderCreatedLink} />
+export const CreateAction = (props: CreationActionProps) => (
+  <CreationComposer key={props.data.draftKey} {...props} />
 );
 
-const CreationComposer = ({ data, renderCreatedLink }: CreationActionProps) => {
+const CreationComposer = ({
+  data,
+  locationKey,
+  renderCreatedLink,
+  renderTrigger,
+  restoreTriggerFocus,
+}: CreationActionProps) => {
   const { t } = useTranslation("fundingRounds");
-  const creation = useCreation(data);
+  const creation = useCreation(data, locationKey);
   const focusId = useId();
   const { draft, target, open, created, saving, changeOpen, save, update, close, discard } =
     creation;
@@ -37,7 +49,11 @@ const CreationComposer = ({ data, renderCreatedLink }: CreationActionProps) => {
       creation={creation}
       renderCreatedLink={renderCreatedLink}
       onDismiss={() => {
-        document.getElementById(`${focusId}-${open ? "title" : "trigger"}`)?.focus();
+        if (!open && restoreTriggerFocus) {
+          restoreTriggerFocus();
+        } else {
+          document.getElementById(`${focusId}-${open ? "title" : "trigger"}`)?.focus();
+        }
         creation.dismiss();
       }}
     />
@@ -50,6 +66,7 @@ const CreationComposer = ({ data, renderCreatedLink }: CreationActionProps) => {
         message={created ? t("creation.created", { title: created.title }) : null}
       />
       {!open && feedback && <div className={styles.confirmation}>{feedback}</div>}
+      {renderTrigger?.(creation.openEditor)}
       <FormDialog
         size="wide"
         title={label}
@@ -59,7 +76,11 @@ const CreationComposer = ({ data, renderCreatedLink }: CreationActionProps) => {
         isOpen={open}
         isDismissDisabled={saving}
         onOpenChange={changeOpen}
-        trigger={<CreationTrigger id={`${focusId}-trigger`} creation={creation} label={label} />}
+        trigger={
+          renderTrigger ? null : (
+            <CreationTrigger id={`${focusId}-trigger`} creation={creation} label={label} />
+          )
+        }
       >
         <StatusMessage
           eventId={created?.publicId ?? ""}

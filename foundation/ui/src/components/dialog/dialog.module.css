@@ -280,11 +280,13 @@
 }
 
 .modal[data-appearance="search"] {
-  max-width: 40rem;
+  box-shadow: var(--popover-shadow);
+  max-width: 44rem;
   max-height: calc(100dvh - var(--search-top) - 2rem);
 }
 
 .modal[data-appearance="search"] .dialog {
+  --search-field-height: calc(var(--target-touch) + var(--space-5));
   --search-close-reserve: calc(var(--control-height-small) + var(--space-3));
   position: relative;
   padding: 0;
@@ -295,7 +297,8 @@
 .searchClose {
   position: absolute;
   z-index: 1;
-  top: var(--space-2);
+  top: calc(var(--search-field-height) / 2);
+  transform: translateY(-50%);
   inset-inline-end: var(--space-2);
 }
 

@@ -1,11 +1,11 @@
-import { useEffect, useRef, type ReactElement } from "react";
+import { useEffect, useRef, type ReactNode, type ReactElement } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
-  searchGroupOrder,
+  orderedSearchRecords,
+  searchMatchRank,
+  type SearchRecord,
   workspaceSearchQueryLimit,
-  type SearchedApplication,
-  type SearchedRound,
   type WorkspaceSearch,
 } from "@merit/grantmaking/api";
 import { useFormat } from "@merit/i18n/format";
@@ -14,7 +14,6 @@ import { Button } from "@merit/ui/button";
 import { ModalDialog } from "@merit/ui/dialog";
 import {
   SearchPalette,
-  type SearchPaletteGroup,
   type SearchPaletteItem,
   type SearchPaletteLinkProps,
 } from "@merit/ui/search-palette";
@@ -23,9 +22,13 @@ import type { WorkspaceSearchData } from "../../contracts/search";
 import { useWorkspaceSearch } from "../../controllers/search/use-workspace-search";
 
 /** A record a search result opens. */
-export type SearchDestination =
-  | { kind: "round"; round: SearchedRound }
-  | { kind: "application"; application: SearchedApplication };
+export type SearchDestination = SearchRecord;
+
+/** Authorized destinations and actions supplied by the interface, in a stable order. */
+export type SearchCommand = SearchPaletteItem & {
+  /** Natural names as well as the displayed verb, so “Contacts” is an exact match. */
+  names: readonly string[];
+};
 
 /** The interface supplies each result's address and its router link. */
 export type SearchLinks = {
@@ -39,6 +42,7 @@ type WorkspaceSearchDialogProps = {
   onOpenChange: (isOpen: boolean) => void;
   data: WorkspaceSearchData;
   links: SearchLinks;
+  commands?: readonly SearchCommand[];
   /** Changes when the person asks to search again while the box is open. */
   focusRequest?: number;
 };
@@ -54,6 +58,7 @@ export const WorkspaceSearchDialog = ({
   data,
   links,
   focusRequest,
+  commands = [],
 }: WorkspaceSearchDialogProps) => {
   const { t } = useTranslation("fundingRounds");
 
@@ -67,7 +72,13 @@ export const WorkspaceSearchDialog = ({
       onOpenChange={onOpenChange}
     >
       {({ close }) => (
-        <SearchSession data={data} links={links} close={close} focusRequest={focusRequest} />
+        <SearchSession
+          data={data}
+          links={links}
+          commands={commands}
+          close={close}
+          focusRequest={focusRequest}
+        />
       )}
     </ModalDialog>
   );
@@ -79,8 +90,9 @@ const SearchSession = ({
   data,
   links,
   close,
+  commands = [],
   focusRequest,
-}: Pick<WorkspaceSearchDialogProps, "data" | "links" | "focusRequest"> & {
+}: Pick<WorkspaceSearchDialogProps, "data" | "links" | "commands" | "focusRequest"> & {
   close: () => void;
 }) => {
   const { t } = useTranslation("fundingRounds");
@@ -95,24 +107,50 @@ const SearchSession = ({
   }, [focusRequest]);
 
   const shown = search.status === "results" ? search : undefined;
-  const groups = shown ? searchGroups(shown.search, links, t, calendarDate) : [];
-  // Waiting covers the first request and a retry, which reads again from a clean slate.
   const busy = shown ? shown.busy : search.status === "waiting";
-  const { message, announcement } = searchFeedback(search, groups.length === 0, t);
+  const local = matchingCommands(commands, search.typed);
+  const records = shown ? searchItems(shown.search, links, t, calendarDate) : [];
+  const items = [...records, ...local].sort((a, b) => a.rank - b.rank).map(({ item }) => item);
+  const retry =
+    search.status === "failed" ? (
+      <Button
+        variant="secondary"
+        size="small"
+        onPress={() => {
+          input.current?.focus();
+          search.retry();
+        }}
+      >
+        {t("search.retry")}
+      </Button>
+    ) : undefined;
+  const feedback = searchFeedback(search, t, retry);
+  const message =
+    !items.length && search.status === "results"
+      ? t("search.noMatches", { query: search.query })
+      : undefined;
+  const announcement = searchAnnouncement(search, local.length, t);
 
   return (
     <SearchPalette
       label={t("search.field")}
       resultsLabel={t("search.results")}
+      placeholder={t("search.placeholder")}
+      keyboardHelp={{
+        navigate: t("search.navigate"),
+        open: t("search.open"),
+        close: t("search.dismiss"),
+      }}
       maxLength={workspaceSearchQueryLimit}
       value={search.typed}
       onValueChange={search.onChange}
-      groups={groups}
+      groups={[{ id: "results", items }]}
       busy={busy}
-      resultsId={shown?.updatedAt}
+      resultsId={`${search.typed}:${shown?.updatedAt ?? search.status}`}
       message={message}
+      feedback={feedback}
       announcement={announcement}
-      announcementId={shown ? shown.updatedAt : search.status}
+      announcementId={`${search.typed}:${shown?.updatedAt ?? search.status}`}
       inputRef={input}
       onOpen={close}
       // Escape closes even with text in the field, which would otherwise only clear it.
@@ -121,50 +159,76 @@ const SearchSession = ({
   );
 };
 
-/** Guidance, an empty result, or a failure instead of the results, and what to announce. */
 const searchFeedback = (
   search: ReturnType<typeof useWorkspaceSearch>,
-  noGroups: boolean,
   t: Translate,
+  retry: ReactNode,
 ) => {
   if (search.status === "failed") {
-    return {
-      message: (
-        <>
-          <span>{t("search.unavailable")}</span>{" "}
-          <Button variant="secondary" size="small" onPress={search.retry}>
-            {t("search.retry")}
-          </Button>
-        </>
-      ),
-      announcement: t("search.unavailable"),
-    };
+    return (
+      <>
+        <span>{t("search.unavailable")}</span> {retry}
+      </>
+    );
   }
-  if (search.status === "empty") {
-    return { message: t("search.hint"), announcement: "" };
+  if (search.status !== "results") {
+    return undefined;
   }
-  if (search.status === "waiting") {
-    // The first results are on their way: no guidance, only the busy indication.
-    return { message: undefined, announcement: "" };
-  }
-  return {
-    message: noGroups ? t("search.noMatches", { query: search.query }) : undefined,
-    announcement: search.busy ? "" : announcementFor(search.search, t),
-  };
+  const notes = truncationNotes(search.search, t);
+  return notes.length ? notes.map((note) => <div key={note}>{note}</div>) : undefined;
 };
 
-const searchGroups = (
+const searchAnnouncement = (
+  search: ReturnType<typeof useWorkspaceSearch>,
+  localCount: number,
+  t: Translate,
+) => {
+  const parts: string[] = [];
+  if (search.status === "failed") {
+    parts.push(t("search.unavailable"));
+  } else if (search.status === "results" && !search.busy) {
+    parts.push(announcementFor(search.search, t));
+  }
+  if (localCount) {
+    parts.push(t("search.announce.commands", { count: localCount }));
+  }
+  const announcement = parts.filter(Boolean).join(", ");
+  return (
+    announcement || (search.status === "results" && !search.busy ? t("search.announce.none") : "")
+  );
+};
+
+const fold = (text: string) =>
+  text.normalize("NFD").replace(/\p{M}/gu, "").toLocaleLowerCase().trim().replace(/\s+/g, " ");
+
+const matchingCommands = (commands: readonly SearchCommand[], query: string) => {
+  const text = fold(query);
+  const words = text.split(" ");
+  return commands.flatMap((item) => {
+    const names = item.names.map(fold);
+    if (!names.some((name) => words.every((word) => name.includes(word)))) {
+      return [];
+    }
+    const rank =
+      !text || names.includes(text) ? 0 : names.some((name) => name.startsWith(text)) ? 1 : 2;
+    return [{ item: { ...item, availableWhileBusy: true }, rank }];
+  });
+};
+
+const searchItems = (
   search: WorkspaceSearch,
   links: SearchLinks,
   t: Translate,
   calendarDate: (date: string) => string,
-): SearchPaletteGroup[] => {
+) => {
   const roundItems = search.rounds.results.map((round): SearchPaletteItem => {
     const destination = { kind: "round", round } as const;
     const detail =
       round.meetingDate === null ? t("search.notScheduled") : calendarDate(round.meetingDate);
     return {
       id: `round:${round.id}`,
+      icon: "layers",
+      label: t("search.round"),
       textValue: `${round.title}, ${detail}`,
       href: links.href(destination),
       renderLink: (props) => links.render(destination, props),
@@ -193,40 +257,46 @@ const searchGroups = (
     const label = status === "withdrawn" ? <Badge>{labelText}</Badge> : labelText;
     return {
       id: `application:${application.id}`,
+      icon: "application",
       textValue: `${application.title}, ${detail}${labelText ? `, ${labelText}` : ""}`,
       href: links.href(destination),
       renderLink: (props) => links.render(destination, props),
       title: application.title,
       detail,
-      label,
+      label: (
+        <>
+          {t("search.application")}
+          {label && <> · {label}</>}
+        </>
+      ),
     };
   });
-  const byGroup = {
-    rounds: {
-      id: "rounds",
-      heading: t("search.rounds"),
-      items: roundItems,
-      note:
-        search.rounds.total > roundItems.length
-          ? t("search.moreRounds", { shown: roundItems.length, total: search.rounds.total })
-          : undefined,
-    },
-    applications: {
-      id: "applications",
-      heading: t("search.applications"),
-      items: applicationItems,
-      note:
-        search.applications.total > applicationItems.length
-          ? t("search.moreApplications", {
-              shown: applicationItems.length,
-              total: search.applications.total,
-            })
-          : undefined,
-    },
-  };
-  return searchGroupOrder(search)
-    .map((group) => byGroup[group])
-    .filter((group) => group.items.length > 0);
+  const byId = new Map([...roundItems, ...applicationItems].map((item) => [item.id, item]));
+  return orderedSearchRecords(search).map((record) => {
+    const value = record.kind === "round" ? record.round : record.application;
+    return {
+      item: byId.get(`${record.kind}:${value.id}`)!,
+      rank: searchMatchRank(value.matchQuality),
+    };
+  });
+};
+
+const truncationNotes = (search: WorkspaceSearch, t: Translate) => {
+  const notes: string[] = [];
+  if (search.rounds.total > search.rounds.results.length) {
+    notes.push(
+      t("search.moreRounds", { shown: search.rounds.results.length, total: search.rounds.total }),
+    );
+  }
+  if (search.applications.total > search.applications.results.length) {
+    notes.push(
+      t("search.moreApplications", {
+        shown: search.applications.results.length,
+        total: search.applications.total,
+      }),
+    );
+  }
+  return notes;
 };
 
 /** "2 funding rounds, 10 of 43 applications", or "No results". */
@@ -252,7 +322,7 @@ const announcementFor = (search: WorkspaceSearch, t: Translate) => {
   }
 
   if (parts.length === 0) {
-    return t("search.announce.none");
+    return "";
   }
   return parts.length === 1
     ? parts[0]!

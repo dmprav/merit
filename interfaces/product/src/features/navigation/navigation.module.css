@@ -71,10 +71,27 @@
 }
 
 .shortcut {
+  visibility: hidden;
   margin-inline-start: auto;
   padding-inline-start: var(--space-3);
   color: var(--muted);
   font: inherit;
   font-size: var(--text-meta);
   white-space: nowrap;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .searchButton:hover .shortcut {
+    visibility: visible;
+  }
+}
+
+.searchButton:focus-visible .shortcut {
+  visibility: visible;
+}
+
+@media (pointer: coarse) {
+  .shortcut {
+    display: none;
+  }
 }

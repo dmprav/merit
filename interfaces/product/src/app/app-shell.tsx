@@ -4,6 +4,8 @@ import {
   useContext,
   useEffect,
   useState,
+  useRef,
+  type RefObject,
   type ReactNode,
   type ComponentProps,
 } from "react";
@@ -62,6 +64,7 @@ export type ShellContext = { kind: "workspace"; workspace: ShellWorkspace };
 export const AppShell = ({ current, children }: { current: ShellContext; children: ReactNode }) => {
   const { t } = useTranslation(["common", "reviewer"]);
   const workspace = current.workspace;
+  const searchButton = useRef<HTMLButtonElement>(null);
   const name = workspace.name;
   // Search covers grant work, so it follows the same access as the Applications overview.
   const searchSlug = workspace.canWorkOnGrants ? workspace.slug : undefined;
@@ -82,7 +85,9 @@ export const AppShell = ({ current, children }: { current: ShellContext; childre
           </Link>
         }
         identity={<ContextIdentity name={name} workspace={workspace} />}
-        navigation={<AppNavigation workspace={workspace} onSearch={search.open} />}
+        navigation={
+          <AppNavigation workspace={workspace} onSearch={search.open} searchButton={searchButton} />
+        }
         footer={
           <>
             <a
@@ -100,12 +105,14 @@ export const AppShell = ({ current, children }: { current: ShellContext; childre
       >
         {children}
       </ApplicationShell>
-      {searchSlug && (
+      {searchSlug && search.focusRequest > 0 && (
         <WorkspaceSearch
-          workspaceSlug={searchSlug}
+          key={searchSlug}
+          workspace={workspace}
           isOpen={search.isOpen}
           onOpenChange={search.onOpenChange}
           focusRequest={search.focusRequest}
+          restoreFocus={() => (searchButton.current ?? document.getElementById("main"))?.focus()}
         />
       )}
     </>
@@ -155,9 +162,11 @@ export const AppPage = (
 const AppNavigation = ({
   workspace,
   onSearch,
+  searchButton,
 }: {
   workspace: ShellWorkspace;
   onSearch?: () => void;
+  searchButton: RefObject<HTMLButtonElement | null>;
 }) => {
   const { t } = useTranslation(["web", "common", "reviewer"]);
   const { canAdminister } = useContext(WorkspaceNavigationContext);
@@ -168,7 +177,7 @@ const AppNavigation = ({
     <>
       {grantWork && (
         <>
-          {onSearch && <SearchButton onPress={onSearch} />}
+          {onSearch && <SearchButton onPress={onSearch} buttonRef={searchButton} />}
           <NavigationSection
             title={t("navigation.rounds")}
             kind="round"

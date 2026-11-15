@@ -11,7 +11,7 @@
   flex-shrink: 0;
   align-items: center;
   gap: var(--space-3);
-  min-height: var(--target-touch);
+  min-height: var(--search-field-height, calc(var(--target-touch) + var(--space-5)));
   /* The dialog's small close control sits over the end of this row. */
   padding-inline: var(--space-4) var(--search-close-reserve, var(--space-4));
   border-bottom: 1px solid var(--border);
@@ -45,7 +45,7 @@
 }
 
 .field:focus-within {
-  box-shadow: inset 0 -2px var(--focus);
+  box-shadow: inset 0 -1px var(--focus);
 }
 
 /* A hairline sweeps under the field while results are replaced; they stay readable. */
@@ -71,7 +71,7 @@
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: var(--space-2);
+  padding: var(--space-3);
   outline: none;
 }
 
@@ -102,11 +102,12 @@
 }
 
 .option {
-  display: grid;
-  gap: 2px;
-  min-height: var(--control-height-small);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--target-touch);
   border-radius: calc(var(--control-radius) - 2px);
-  padding: var(--space-2);
+  padding: var(--space-2) var(--space-3);
   color: var(--foreground);
   font-size: var(--text-control);
   text-decoration: none;
@@ -121,7 +122,8 @@
 
 .option[data-focus-visible] {
   background: var(--action-subtle);
-  box-shadow: inset 3px 0 var(--focus);
+  outline: 1px solid var(--focus);
+  outline-offset: -1px;
 }
 
 .primary {
@@ -167,12 +169,6 @@
   overflow-wrap: anywhere;
 }
 
-@media (pointer: coarse) {
-  .option {
-    min-height: var(--target-touch);
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .palette[data-busy] .progress::after {
     animation: none;
@@ -192,7 +188,73 @@
 }
 
 /* Rows of an earlier query show no highlight while newer results load. */
-.palette[data-busy] .option:is([data-focused], [data-focus-visible]) {
+.option[data-disabled]:is([data-focused], [data-focus-visible]) {
   background: none;
   box-shadow: none;
+}
+
+.content {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: var(--space-1);
+}
+
+.rowIcon {
+  flex-shrink: 0;
+  color: var(--muted);
+}
+
+.feedback {
+  padding: var(--space-2) var(--space-4);
+  color: var(--muted);
+  font-size: var(--text-caption);
+}
+
+.footer {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-5);
+  border-top: 1px solid var(--border);
+  padding: var(--space-3) var(--space-4);
+  color: var(--muted);
+  font-size: var(--text-caption);
+}
+
+.footer > span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.footer kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--space-5);
+  min-height: var(--space-5);
+  padding-inline: var(--space-1);
+  border: 1px solid var(--border);
+  border-radius: var(--space-1);
+  background: var(--surface-muted);
+  font: inherit;
+}
+
+@media (pointer: coarse) {
+  .footer {
+    display: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .field:focus-within {
+    border-bottom-color: Highlight;
+  }
+
+  .option[data-focused],
+  .option[data-focus-visible] {
+    outline: 1px solid Highlight;
+  }
 }
