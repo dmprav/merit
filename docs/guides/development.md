@@ -426,36 +426,51 @@ updates for three days, but does not enforce that age for dependencies selected
 during lockfile maintenance. OSV alerts supplement the existing dependency audit;
 they cover direct npm dependencies and remain experimental.
 
-When a pull request changes `renovate.json` or `.github/workflows/**`, or on manual
-Verify runs, the `renovate` job validates the repository configuration with
-Renovate's strict validator using a version- and digest-pinned container.
-Warnings, errors, and required configuration migrations fail the check. Use
-**Actions → Verify → Run workflow** to recheck the configuration. Review the
-onboarding preview or Dependency Dashboard as well: validation checks configuration
-validity, not whether package rules select the intended updates.
+When a pull request changes `renovate.json`, or on manual Verify runs, the `renovate`
+job validates the repository configuration with Renovate's strict validator using
+a version- and digest-pinned container. Warnings, errors, and required configuration
+migrations fail the check. Use **Actions → Verify → Run workflow** to recheck the
+configuration. Review the onboarding preview or Dependency Dashboard as well:
+validation checks configuration validity, not whether package rules select the
+intended updates.
 
 ### Pull-request verification
 
-The [Verify workflow](../../.github/workflows/verify.yml) starts with a `changes` job
-that routes documentation-only pull requests through `docs-verify` (`check:docs`,
-`test:docs`, formatting, `check:secrets`, and `test:ci`) while running every `ready`
-stage with fresh task results (`--no-cache`) for all other pull requests and manual
-dispatch runs.
+The [Verify workflow](../../.github/workflows/verify.yml) runs on pull requests
+targeting `main`, `merge_group`, pushes to `main`, and manual dispatch. It starts
+with a `changes` job ([`ci-changes.mjs`](../../tooling/verification/ci-changes.mjs))
+that diffs against the PR base commit:
 
-After `build` compiles the workspace and uploads the generated `build-outputs` artifact
-once per run, independent jobs fan out in parallel:
+- Documentation-only pull requests (including package `README.md` files) route
+  through `docs-verify` (`check:docs`, `test:docs`, formatting, `check:secrets`, and
+  `test:ci`).
+- `renovate.json`-only pull requests route through `renovate`.
+- Pull requests touching root/workflow configuration, pushes to `main`, `merge_group`,
+  and manual dispatch runs execute every `ready` stage with fresh task results
+  (`--no-cache`).
+- Package-scoped pull requests always run `build`, `static-checks`, and
+  `security-checks`, and use the workspace dependency graph to run `package-tests`,
+  `storybook-vitest`, `integration`, `tooling-self-tests`, and the `browser-*`
+  suites only for affected dependents.
 
-- `static-and-security` runs static analysis (`ready:static`) and security checks
-  (`check:security`).
-- `package-tests` runs workspace package tests with `--concurrency-limit 2` so shared
-  runners stay responsive.
+`security-checks`, `tooling-self-tests`, `browser-tooling`, and `storybook-vitest`
+run in parallel with `build`, while the container-backed Playwright suites
+(`browser-storybook`, `browser-demo`, and `browser-workspace`) wait on both
+`build` and `static-checks` so lint, type, or boundary failures fail fast.
+Shared workspace setup and service-port forwarding live in local composite actions
+under `.github/actions/`:
+
+- `static-checks` runs static analysis (`ready:static`).
+- `security-checks` runs secret scanning and dependency auditing (`check:security`).
+- `package-tests` runs affected workspace package tests with `--concurrency-limit 2`
+  so shared runners stay responsive.
 - `storybook-vitest` runs `@merit/storybook#test` inside the pinned Playwright container
   matching `@playwright/test` (`1.64.1`).
 - `integration` starts PostgreSQL and Mailpit via `compose.yaml` and runs
   `@merit/app#test:integration`.
 - `tooling-self-tests` runs `ready:tooling` followed by `test:checks`.
-- `browser-tooling`, `browser-storybook` (3 shards reusing the prebuilt Storybook
-  output), `browser-demo` (2 shards), and `browser-workspace` (3 shards) run all five
+- `browser-tooling`, `browser-storybook` (4 shards reusing the prebuilt Storybook
+  output), `browser-demo` (2 shards), and `browser-workspace` (4 shards) run all five
   Playwright projects inside the pinned Playwright container without retries. Service-backed
   browser jobs forward loopback ports (`127.0.0.1:55432` and `127.0.0.1:8025`) to
   pinned PostgreSQL and Mailpit service containers.
@@ -466,9 +481,9 @@ downloaded dependencies between CI runs.
 
 New commits cancel the previous run for that PR. Vitest and Playwright emit GitHub
 annotations and structured job summaries via `ci:summary`
-([`ci-summary.ts`](../../tooling/verification/ci-summary.ts)), and failed integration
-or browser shards retain service logs, browser screenshots, traces, and JSON/JUnit
-reports in artifacts for seven days. A manual run is also available through
+([`ci-summary.ts`](../../tooling/verification/ci-summary.ts)), and failed package,
+integration, or browser jobs retain service logs, browser screenshots, traces, and
+JSON/JUnit reports in artifacts for seven days. A manual run is also available through
 **Actions → Verify** after the workflow reaches the default branch. For screenshot
 failures, follow [visual baseline review](ui-verification.md#review-visual-changes);
 CI never accepts new screenshots automatically.

@@ -71,7 +71,7 @@ test("CI verify workflow covers every ready stage and sharded browser suite with
       "vp run --no-cache --ignore-depends-on ready:static",
     ],
     "ready:tests": [
-      "--filter '@merit/*' --filter '!@merit/storybook' test",
+      "${{ needs.changes.outputs.package_filters }} test",
       "vp run --no-cache @merit/storybook#test",
     ],
     "ready:runtime": [
@@ -93,13 +93,23 @@ test("CI verify workflow covers every ready stage and sharded browser suite with
   }
   expect(workflow).toContain("vp run --no-cache test:checks");
 
-  // External actions and container images must remain pinned by digest/SHA.
-  for (const [, ref] of workflow.matchAll(/^\s+uses:\s+(\S+)/gm)) {
-    assert(ref);
-    if (ref.startsWith("docker://")) {
-      expect(ref).toMatch(/@sha256:[0-9a-f]{64}$/);
-    } else {
-      expect(ref).toMatch(/@[0-9a-f]{40}$/);
+  // External actions and container images must remain pinned by digest/SHA,
+  // including inside local composite actions.
+  const actionFiles = [
+    workflow,
+    await readFile(`${repoRoot}/.github/actions/setup-workspace/action.yml`, "utf8"),
+    await readFile(`${repoRoot}/.github/actions/forward-service-ports/action.yml`, "utf8"),
+  ];
+  for (const contents of actionFiles) {
+    for (const [, ref] of contents.matchAll(/^\s+uses:\s+(\S+)/gm)) {
+      assert(ref);
+      if (ref.startsWith("./.github/actions/")) {
+        expect(existsSync(`${repoRoot}/${ref.slice(2)}/action.yml`)).toBe(true);
+      } else if (ref.startsWith("docker://")) {
+        expect(ref).toMatch(/@sha256:[0-9a-f]{64}$/);
+      } else {
+        expect(ref).toMatch(/@[0-9a-f]{40}$/);
+      }
     }
   }
   for (const [, image] of workflow.matchAll(/^\s+(?:container|image):\s+(\S+)/gm)) {
