@@ -53,6 +53,9 @@
       "path": "capabilities/rounds/web"
     },
     {
+      "path": "foundation/analytics"
+    },
+    {
       "path": "foundation/auth"
     },
     {

@@ -15,6 +15,7 @@ import { createMessages, MessagesProvider, type LocaleSettings } from "@merit/i1
 import { reportError } from "@merit/telemetry/errors";
 
 import { AccountProvider } from "./account-provider";
+import { ShellAnalyticsProvider } from "./analytics";
 import { appMessages } from "./messages";
 import localStyles from "./root.module.css";
 import stylesheet from "./style.css?url";
@@ -71,7 +72,9 @@ const Root = ({ children }: { children: ReactNode }) => {
       </head>
       <body>
         <MessagesProvider messages={appMessages} locale={locale}>
-          <AccountProvider>{children}</AccountProvider>
+          <ShellAnalyticsProvider>
+            <AccountProvider>{children}</AccountProvider>
+          </ShellAnalyticsProvider>
           {DevelopmentTools && (
             <ClientOnly>
               <Suspense>

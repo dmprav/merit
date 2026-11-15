@@ -15,6 +15,7 @@
   "dependencies": {
     "@clerk/tanstack-react-start": "catalog:",
     "@merit/access": "workspace:*",
+    "@merit/analytics": "workspace:*",
     "@merit/applications": "workspace:*",
     "@merit/applications-web": "workspace:*",
     "@merit/auth": "workspace:*",

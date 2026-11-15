@@ -2,6 +2,7 @@ import { ClerkProvider, useAuth } from "@clerk/tanstack-react-start";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, type ReactNode } from "react";
 
+import { useAnalytics } from "@merit/analytics";
 import { clearDrafts } from "@merit/drafts";
 import { productLinks } from "@merit/product/links";
 
@@ -11,6 +12,7 @@ const AccountSession = ({ children }: { children: ReactNode }) => {
     isLoaded ? { id: userId ?? null } : null,
   );
   const client = useQueryClient();
+  const analytics = useAnalytics();
   const changed = isLoaded && initialAccount !== null && initialAccount.id !== (userId ?? null);
 
   useEffect(() => {
@@ -21,12 +23,13 @@ const AccountSession = ({ children }: { children: ReactNode }) => {
       return;
     }
 
+    analytics.reset();
     // Reload also discards route data and unfinished drafts, including the admin interface.
     void Promise.all([clearDrafts(), client.cancelQueries()]).then(() => {
       client.clear();
       globalThis.location.reload();
     });
-  }, [changed, client, isLoaded, userId, initialAccount]);
+  }, [analytics, changed, client, isLoaded, userId, initialAccount]);
 
   return changed ? null : children;
 };

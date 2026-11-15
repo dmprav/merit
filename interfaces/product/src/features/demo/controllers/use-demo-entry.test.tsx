@@ -1,5 +1,8 @@
 import { act, renderHook } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { expect, it, vi } from "vite-plus/test";
+
+import { AnalyticsProvider } from "@merit/analytics";
 
 import type { StartDemo } from "../contracts";
 import { useDemoEntry } from "./use-demo-entry";
@@ -40,20 +43,33 @@ it("retains a retryable entry after a failed start and enters only a ready works
 it.each([false, true])(
   "keeps the visitor’s guided=%s choice through a failed start and retry",
   async (guided) => {
+    const analytics = { pageView: vi.fn(), track: vi.fn(), reset: vi.fn() };
+
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <AnalyticsProvider client={analytics}>{children}</AnalyticsProvider>
+    );
+
     const start = vi.fn<StartDemo>().mockResolvedValueOnce({ status: "limited" });
     const enter = vi.fn();
-    const { result } = renderHook(() => useDemoEntry({ status: "empty" }, start, enter, !guided));
+    const { result } = renderHook(() => useDemoEntry({ status: "empty" }, start, enter, !guided), {
+      wrapper,
+    });
     await act(() => result.current.start(false, guided));
 
     expect(result.current.state).toEqual({ status: "limited" });
     expect(result.current.pending).toBe(false);
     expect(enter).not.toHaveBeenCalled();
+    expect(analytics.track).not.toHaveBeenCalled();
 
     const ready = { status: "ready", workspaceSlug: "new-demo", expiresAt: "2027-01-25" } as const;
     start.mockResolvedValueOnce(ready);
     await act(() => result.current.start(false));
 
     expect(start).toHaveBeenLastCalledWith({ fresh: false });
+    expect(analytics.track).toHaveBeenCalledExactlyOnceWith("demo_started", {
+      guided,
+      fresh: false,
+    });
     expect(enter).toHaveBeenCalledExactlyOnceWith(ready, guided);
   },
 );

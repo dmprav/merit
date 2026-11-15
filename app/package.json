@@ -6,6 +6,7 @@
   "type": "module",
   "dependencies": {
     "@merit/admin": "workspace:*",
+    "@merit/analytics": "workspace:*",
     "@merit/applications": "workspace:*",
     "@merit/audit": "workspace:*",
     "@merit/auth": "workspace:*",
