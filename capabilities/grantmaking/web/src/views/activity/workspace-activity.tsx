@@ -8,9 +8,10 @@ import { ActionProvenance } from "@merit/ui/action-provenance";
 import { Button } from "@merit/ui/button";
 import { Select } from "@merit/ui/select";
 
+import type { ActivityFilters } from "../../contracts/pages";
 import styles from "./workspace-activity.module.css";
 
-export type ActivityFilters = { roundId: string; personId: string };
+export type { ActivityFilters };
 
 type ActivityRecord = NonNullable<ActivityEntry["record"]>;
 

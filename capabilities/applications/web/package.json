@@ -7,10 +7,10 @@
   "exports": {
     "./intake": "./src/intake.ts",
     "./messages": "./src/messages.tsx",
-    "./contracts": "./src/contracts.ts",
+    "./contracts": "./src/contracts/intake.ts",
     "./work": "./src/work.ts",
-    "./drafts": "./src/drafts.ts",
-    "./message-content": "./src/message-content.ts",
+    "./drafts": "./src/controllers/intake/drafts.tsx",
+    "./message-content": "./src/views/intake/messages.en.ts",
     "./data": "./src/data/intake/workspace-data.ts"
   },
   "dependencies": {

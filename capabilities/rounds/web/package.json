@@ -7,10 +7,10 @@
   "exports": {
     "./preparation": "./src/preparation.ts",
     "./messages": "./src/messages.tsx",
-    "./contracts": "./src/contracts.ts",
+    "./contracts": "./src/contracts/preparation.ts",
     "./work": "./src/work.ts",
-    "./drafts": "./src/drafts.ts",
-    "./message-content": "./src/message-content.ts",
+    "./drafts": "./src/controllers/preparation/drafts.tsx",
+    "./message-content": "./src/views/preparation/messages.en.ts",
     "./data": "./src/data/preparation/workspace-data.ts"
   },
   "dependencies": {

@@ -206,8 +206,8 @@ Their browser-safe APIs define service interfaces independently of the server
 implementations. Commands and queries have separate handlers and persistence;
 command persistence includes the state reads needed for a consistent change.
 Shared schema, locks, projections, and encoding cannot depend on either group.
-Live storage and public payloads reuse pure capability encoders; API adapters retain
-explicit public-field selection. Immutable stored-history encoding stays independent. The
+Live storage and public payloads reuse pure capability encoders exported through
+`domain/` and `api/`; immutable stored-history encoding stays independent. The
 [grantmaking guide](../../capabilities/grantmaking/business/extending-api.md),
 [contacts guide](../../capabilities/contacts/business/README.md), and
 [organizations guide](../../capabilities/organizations/business/README.md) map these roles.

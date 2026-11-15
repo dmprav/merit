@@ -19,7 +19,6 @@ import {
   reviewerSavedSchema,
   reviewerListSchema,
   reviewerHistorySchema,
-  applicationReviewersSchema,
   reviewerPageSchema,
   reviewerRevisionSchema,
 } from "./responses";
@@ -102,7 +101,7 @@ const registerManagerReviewerReads = (
       inputSchema: reviewerApplicationSchema
         .omit({ publicId: true })
         .extend({ applicationId: reviewerApplicationSchema.shape.publicId, ...pageInput.shape }),
-      outputSchema: applicationReviewersSchema,
+      outputSchema: reviewerListSchema,
       description:
         "For program managers: list invited application reviewer assignments, email delivery status, and assignment revision. Use list_application_reviews for received assessments, offline requests, and basis freshness, and list_reviewer_history for assignment lifecycle history. Never includes private drafts. Follow nextCursor as after.",
     },

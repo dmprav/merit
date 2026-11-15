@@ -2,12 +2,12 @@ import { env, waitUntil } from "cloudflare:workers";
 
 import handler, { createServerEntry } from "@tanstack/react-start/server-entry";
 
+import { createRequestDatabase } from "@merit/db";
 import { mcpResourceMetadata } from "@merit/mcp";
 import { reportError } from "@merit/telemetry/errors";
 import { describeHttpRoute, traceWorkerRequest } from "@merit/telemetry/worker";
 
 import type { ApplicationRequestContext } from "./request-context";
-import { createRequestDatabase } from "./server/database.server";
 import { createDemoServices, demoCookie } from "./server/demo.server";
 import { createEmailSender } from "./server/email-delivery.server";
 import { createWebIdentity } from "./server/identity.server";
@@ -42,7 +42,7 @@ export default createServerEntry({
             return new Response("Not found", { status: 404 });
           }
 
-          const requestDatabase = createRequestDatabase();
+          const requestDatabase = createRequestDatabase(env.HYPERDRIVE.connectionString);
           try {
             const dependencies = {
               database: requestDatabase.run,
@@ -120,7 +120,6 @@ const handleWebRequest = async (
     workspace: {
       ...services.grantmaking,
       ...services.contacts,
-      currentIdentity: identity.currentIdentity,
       readWorkspace: services.readWorkspace,
     },
   };

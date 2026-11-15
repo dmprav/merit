@@ -1070,7 +1070,6 @@ describe.concurrent("architecture rules", () => {
             ...(name === "applications"
               ? {
                   "./history": "./src/server/persistence/history-encoding.ts",
-                  "./encoding": "./src/server/persistence/encoding.ts",
                 }
               : {}),
             "./server/grant-work": "./src/server/grant-work.ts",
@@ -1475,7 +1474,7 @@ describe.concurrent("architecture rules", () => {
     await check({
       ...extractedCapabilityFiles,
       "capabilities/grantmaking/business/src/server/queries/probe.ts":
-        'export { value as history } from "@merit/applications/history"; export { value as encoding } from "@merit/applications/encoding";',
+        'export { value as history } from "@merit/applications/history";',
       "capabilities/grantmaking/business/src/server/demo.ts":
         'export { value } from "@merit/applications/history";',
     });

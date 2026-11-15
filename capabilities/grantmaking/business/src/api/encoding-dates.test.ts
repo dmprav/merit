@@ -3,7 +3,7 @@ import { assert, expect, it } from "vite-plus/test";
 import { fromMinorUnits } from "@merit/money";
 
 import { makeRound, makeReviewedApplication } from "../../tests/fixtures";
-import { decodeRoundOverview, encodeRoundOverview } from "./encoding";
+import { decodeRoundOverview, encodeRoundOverview } from "../domain/encoding";
 
 const makeDatedRound = () => {
   const application = makeReviewedApplication();

@@ -7,9 +7,9 @@ import type { Database } from "@merit/db";
 import { memberships, organizations } from "@merit/organizations/schema";
 import { membershipScope, organizationScope } from "@merit/organizations/scope";
 
+import { decodeRound, encodeRound, type FundingRoundData } from "../../../domain/encoding";
 import type { FundingRound } from "../../../domain/model";
 import type { prepareRoundChange } from "../../../domain/preparation";
-import { decodeRound, encodeRound, type FundingRoundData } from "../encoding";
 import { roundRecord } from "../projections";
 import { fundingRounds, roundCreationReceipts, criteriaVersions } from "../schema";
 

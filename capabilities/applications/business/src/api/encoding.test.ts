@@ -3,8 +3,12 @@ import { expect, it } from "vite-plus/test";
 import { fromMinorUnits } from "@merit/money";
 
 import { makeApplication } from "../../tests/fixtures";
-import * as stored from "../server/persistence/encoding";
-import { encodeApplicationMaterial, decodeApplicationMaterial } from "./encoding";
+import {
+  decodeIntakeApplication,
+  encodeIntakeApplication,
+  encodeApplicationMaterial,
+  decodeApplicationMaterial,
+} from "../domain/encoding";
 import {
   createApplicationRequestSchema,
   editApplicationRequestSchema,
@@ -33,8 +37,8 @@ it.each([null, fromMinorUnits(9007199254740993n)])(
       },
     });
     const before = structuredClone(application);
-    const decoded = stored.decodeIntakeApplication(
-      JSON.parse(JSON.stringify(stored.encodeIntakeApplication(application))),
+    const decoded = decodeIntakeApplication(
+      JSON.parse(JSON.stringify(encodeIntakeApplication(application))),
     );
     expect(decoded).toMatchObject({
       requested,
@@ -44,30 +48,28 @@ it.each([null, fromMinorUnits(9007199254740993n)])(
     });
     expect(decoded).not.toHaveProperty("reviews");
     expect(decoded).not.toHaveProperty("managerRecommendation");
-    for (const codec of [{ encodeApplicationMaterial, decodeApplicationMaterial }, stored]) {
-      const material = codec.decodeApplicationMaterial(
-        JSON.parse(JSON.stringify(codec.encodeApplicationMaterial(application))),
-      );
-      expect(material.requested).toEqual(requested);
-      expect(material.submission).toEqual({
-        version: 1,
-        organization: "Alder",
-        answers: application.submission!.answers,
-      });
-      for (const key of ["summary", "contactId", "reviews", "managerRecommendation"]) {
-        expect(material).not.toHaveProperty(key);
-      }
-      expect(() =>
-        codec.decodeApplicationMaterial({
-          ...codec.encodeApplicationMaterial(application),
-          version: 0,
-        }),
-      ).toThrow();
+    const material = decodeApplicationMaterial(
+      JSON.parse(JSON.stringify(encodeApplicationMaterial(application))),
+    );
+    expect(material.requested).toEqual(requested);
+    expect(material.submission).toEqual({
+      version: 1,
+      organization: "Alder",
+      answers: application.submission!.answers,
+    });
+    for (const key of ["summary", "contactId", "reviews", "managerRecommendation"]) {
+      expect(material).not.toHaveProperty(key);
     }
+    expect(() =>
+      decodeApplicationMaterial({
+        ...encodeApplicationMaterial(application),
+        version: 0,
+      }),
+    ).toThrow();
     expect(application).toEqual(before);
     expect(() =>
-      stored.decodeIntakeApplication({
-        ...stored.encodeIntakeApplication(application),
+      decodeIntakeApplication({
+        ...encodeIntakeApplication(application),
         requested: { minorUnits: "-1", currency: "EUR" },
       }),
     ).toThrow();

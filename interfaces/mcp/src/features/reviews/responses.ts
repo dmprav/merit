@@ -54,7 +54,6 @@ export const reviewerListSchema = z.object({
   assignments: z.array(reviewerSummarySchema),
   nextCursor: z.string().nullable(),
 });
-export const applicationReviewersSchema = reviewerListSchema;
 export const reviewerHistorySchema = z.object({
   status: z.literal("ok"),
   entries: z.array(

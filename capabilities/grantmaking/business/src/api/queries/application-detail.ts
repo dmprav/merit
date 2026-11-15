@@ -4,7 +4,7 @@ import { decodeMoney, encodeMoney, moneyDataSchema } from "@merit/money";
 import { decodeBudgetContext } from "@merit/recommendations/domain";
 import { fundingRoundSchema } from "@merit/rounds/domain";
 
-import { decodeApplication, encodeApplication } from "../encoding";
+import { decodeApplication, encodeApplication } from "../../domain/encoding";
 import { applicationView, type ApplicationRoundContext } from "./round-view";
 
 const contextSchema = fundingRoundSchema.pick({

@@ -1,4 +1,4 @@
-import { type encodeApplicationMaterial } from "@merit/applications/encoding";
+import { type encodeApplicationMaterial } from "@merit/applications/domain";
 import {
   insertIntakeApplication,
   insertDemoMaterialVersion,
@@ -9,7 +9,7 @@ import { insertDemoRecommendation } from "@merit/recommendations/server/demo";
 import { recordReviewChange } from "@merit/reviews/server/demo";
 import { deleteDemoRounds } from "@merit/rounds/server/demo";
 
-import { type encodeApplication, decodeApplication } from "../encoding";
+import { type encodeApplication, decodeApplication } from "../../../domain/encoding";
 
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 

@@ -55,10 +55,9 @@ Inside an existing transaction, they preserve its mode and rollback behavior.
 Shared schema, SQL projections, locks, and stored encoding remain independent of
 command and query handlers.
 
-Each owner keeps public encoding separate from stored encoding. Public fields are
+Each owner keeps public encoding separate from stored history encoding. Public fields are
 selected deliberately; future API additions must not silently rewrite old history.
-The combined [public encoding](src/api/encoding.ts) and
-[stored encoding](src/server/persistence/encoding.ts) remain here for composed records.
+The combined [record encoding](src/domain/encoding.ts) remains here for composed records.
 An `ApplicationRecord` is a reading view, not an input for saving all its parts.
 
 ## Verify the boundary

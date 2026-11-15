@@ -8,7 +8,7 @@ import {
   saveRecommendationRequestSchema,
   type SaveRecommendationRequest,
 } from "../../api/commands";
-import { decodeRecommendation } from "../../api/encoding";
+import { decodeRecommendation } from "../../domain/encoding";
 import { prepareRecommendation } from "../../domain/recommendation";
 import {
   readRecommendationState,

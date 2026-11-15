@@ -4,13 +4,13 @@ import { type Actor } from "@merit/auth";
 import type { Database } from "@merit/db";
 import { decodeMoney } from "@merit/money";
 
-import { workingRevisionSchema, type prepareIntakeChange } from "../../../domain/intake";
-import type { IntakeApplication } from "../../../domain/model";
 import {
   decodeIntakeApplication,
   encodeApplicationMaterial,
   encodeIntakeApplication,
-} from "../encoding";
+} from "../../../domain/encoding";
+import { workingRevisionSchema, type prepareIntakeChange } from "../../../domain/intake";
+import type { IntakeApplication } from "../../../domain/model";
 import {
   currentIntakeApplication,
   currentMaterial,

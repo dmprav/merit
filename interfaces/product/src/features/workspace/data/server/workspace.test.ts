@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from "vite-plus/test";
 
-import type { WorkspaceServices } from "../../../../shared/request-context";
 import { loadWorkspace } from "./workspace.server";
 
 describe("workspace entry", () => {
@@ -34,12 +33,12 @@ describe("workspace entry", () => {
         canViewTeam: true,
         administration: "owner" as const,
       };
-      const services: Pick<WorkspaceServices, "currentIdentity" | "readWorkspace"> = {
+      const services = {
         currentIdentity: async () => ({
-          status: "authenticated",
+          status: "authenticated" as const,
           actor: { userId },
         }),
-        readWorkspace: async (actor, slug) =>
+        readWorkspace: async (actor: { userId: string }, slug?: string) =>
           actor.userId === userId && slug === workspaceSlug ? workspace : null,
       };
 

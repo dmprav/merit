@@ -4,5 +4,5 @@ export {
   resolveGuestSession,
   renewGuestSession,
   ensureInactiveUser,
+  resolveAccountUser,
 } from "./persistence/identity";
-export { resolveAccountUser } from "./account";

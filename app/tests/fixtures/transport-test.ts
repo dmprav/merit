@@ -6,7 +6,6 @@ import { currentAccount } from "@merit/auth/session";
 import type { Database } from "@merit/db";
 import { roundTest } from "@merit/grantmaking/testing/rounds";
 import { handleWorkspaceMcp, mcpScopes } from "@merit/mcp";
-import type { WorkspaceServices } from "@merit/product/context";
 
 import { createAccountDemoServices } from "../../src/server/demo-workspace.server";
 import { createApplicationServices } from "../../src/server/services.server";
@@ -46,7 +45,7 @@ export const createTransport = (
     sendEmail,
     networkAddress: "integration",
   });
-  const services: WorkspaceServices = {
+  const services = {
     ...grantmaking,
     ...contacts,
     currentIdentity: async () => {
@@ -57,8 +56,8 @@ export const createTransport = (
 
       const user = await resolveAccountUser(db, account.clerkUserId);
       return user.status === "active"
-        ? { status: "authenticated", actor: { userId: user.userId } }
-        : { status: "unavailable" };
+        ? { status: "authenticated" as const, actor: { userId: user.userId } }
+        : { status: "unavailable" as const };
     },
     readWorkspace,
   };
