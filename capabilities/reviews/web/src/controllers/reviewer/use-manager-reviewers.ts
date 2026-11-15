@@ -41,6 +41,7 @@ export const useManagerReviewers = (data: ManagerReviewerData, reviewRevision: n
     receipt.current = { key, id };
     setPending(true);
     setError(null);
+    let succeeded = false;
     try {
       const result = await operation(id);
       if (result.status !== "ok") {
@@ -48,22 +49,21 @@ export const useManagerReviewers = (data: ManagerReviewerData, reviewRevision: n
         if (result.status !== "unavailable") {
           receipt.current = null;
         }
-        return false;
+      } else {
+        receipt.current = null;
+        await refresh();
+        try {
+          await data.refresh();
+        } catch {
+          setError("unavailable");
+        }
+        succeeded = true;
       }
-      receipt.current = null;
-      await refresh();
-      try {
-        await data.refresh();
-      } catch {
-        setError("unavailable");
-      }
-      return true;
     } catch {
       setError("unavailable");
-      return false;
-    } finally {
-      setPending(false);
     }
+    setPending(false);
+    return succeeded;
   };
 
   return {

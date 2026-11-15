@@ -71,6 +71,7 @@ export default defineConfig({
         command: [
           "vp run -r typecheck",
           "vp run check:code",
+          "vp run check:react-compiler",
           "vp run check:css",
           "vp run architecture",
           "vp run code-health",
@@ -98,6 +99,7 @@ export default defineConfig({
       "ready:tooling": {
         command: [
           "vp run test:docs",
+          "vp run test:react-compiler",
           "vp run test:fallow",
           "vp run test:architecture",
           "vp run test:security",
@@ -118,6 +120,10 @@ export default defineConfig({
         cache: false,
       },
       "check:code": { command: "vp check --deny-warnings", cache: { output: [] } },
+      "check:react-compiler": {
+        command: "vpx tooling/verification/react-compiler.ts",
+        cache: { output: [] },
+      },
       "check:commit": { command: "commitlint --edit", cache: false },
       "test:commits": { command: "vp test tooling/verification/commits.test.ts", cache: false },
       "test:ci": {
@@ -163,6 +169,10 @@ export default defineConfig({
         cache: false,
       },
       "test:docs": { command: "vp test tooling/verification/docs.test.ts", cache: false },
+      "test:react-compiler": {
+        command: "vp test tooling/verification/react-compiler.test.ts",
+        cache: false,
+      },
       "check:docs": {
         command: "remark . --ext md,mdx --ignore-path .gitignore --frail --no-stdout --quiet",
         cache: { output: [] },

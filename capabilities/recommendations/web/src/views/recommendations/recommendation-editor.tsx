@@ -76,7 +76,7 @@ export const RecommendationEditor = ({
 }: RecommendationEditorProps) => {
   const { t } = useTranslation("fundingRecommendations");
   const withdrawn = !canChangeRecommendation(application);
-  const { editButton, restoreFocus } = useRecommendationFocus();
+  const { editButton, markRestoreFocus } = useRecommendationFocus();
   const { isSaving, isOpen, canResume, open, close, save } = useRecommendationEditor({
     application,
     ready,
@@ -84,7 +84,7 @@ export const RecommendationEditor = ({
     onDraftChange,
     onSave,
     onClose: async () => {
-      restoreFocus.current = true;
+      markRestoreFocus();
       await onClose?.();
     },
   });
@@ -204,7 +204,12 @@ const useRecommendationFocus = () => {
     }
   });
 
-  return { editButton, restoreFocus };
+  return {
+    editButton,
+    markRestoreFocus: () => {
+      restoreFocus.current = true;
+    },
+  };
 };
 
 const RecommendationWriting = ({

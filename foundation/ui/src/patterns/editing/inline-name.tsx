@@ -153,9 +153,8 @@ const useNameEditing = ({
       }
     } catch {
       setError(errorMessage);
-    } finally {
-      setPending(false);
     }
+    setPending(false);
   };
 
   return {
