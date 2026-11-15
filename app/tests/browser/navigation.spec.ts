@@ -688,7 +688,6 @@ test("personal pins keep a fixed preview and manage the full overflow collection
   const actor = { userId: "dana" };
   const pins = createNavigationService({
     database: (operation) => operation(db),
-    verifiedEmails: async () => [],
   });
   const ids: string[] = [];
   for (let index = 1; index <= 7; index++) {

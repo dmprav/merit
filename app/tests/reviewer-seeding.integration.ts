@@ -13,7 +13,6 @@ it("seeds usable reviewer work once and preserves drafts, submissions and revoke
   const actor = { userId: "local-reviewer" };
   const service = createReviewerService({
     database: (operation) => operation(db),
-    verifiedEmails: async () => ["reviewer@example.test"],
     send: async () => {},
     reviewerUrl: (_slug, id) => id,
     managerUrl: (slug, id) => `${slug}/${id}`,

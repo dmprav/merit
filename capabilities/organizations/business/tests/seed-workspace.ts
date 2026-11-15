@@ -8,7 +8,7 @@ export const seedWorkspace = async (
   input: {
     organization: typeof organizations.$inferInsert;
     user: typeof appUsers.$inferInsert;
-    membership: Pick<typeof memberships.$inferInsert, "role" | "administration">;
+    membership: Pick<typeof memberships.$inferInsert, "role" | "administration" | "email">;
   },
 ) => {
   await db.transaction(async (tx) => {

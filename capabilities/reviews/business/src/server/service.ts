@@ -2,7 +2,6 @@ import type { Actor } from "@merit/auth";
 import type { Database } from "@merit/db";
 
 import {
-  reviewerActionSchema,
   reviewerAddressSchema,
   reviewerListInput,
   reviewerApplicationSchema,
@@ -20,8 +19,6 @@ import {
 import { deliverReviewerMessages } from "./commands/reviewer-delivery";
 import { saveApplicationReview } from "./commands/reviews";
 import {
-  assignmentAwaitsClaim,
-  reviewerHasUnclaimedAssignments,
   listReviewerAssignments,
   readReviewerAssignment,
   managerReviewerAssignments,
@@ -31,65 +28,33 @@ import {
 type Dependencies = { database: <T>(operation: (db: Database) => Promise<T>) => Promise<T> };
 
 type ReviewerDependencies = Dependencies & {
-  verifiedEmails: (actor: Actor) => Promise<string[]>;
   send: (message: ReviewerMessage) => Promise<void>;
   reviewerUrl: (slug: string, id: string) => string;
   managerUrl: (slug: string, applicationId: string) => string;
 };
 
-/**
- * Verified emails only decide access to assignments not yet bound to a reviewer, so the
- * external identity lookup happens only when such an assignment could be involved, and
- * always before a database transaction opens.
- */
-const claimEmails = ({ database, verifiedEmails }: ReviewerDependencies) => ({
-  forAssignment: async (actor: Actor, assignmentId: string) =>
-    (await database((db) => assignmentAwaitsClaim(db, assignmentId))) ? verifiedEmails(actor) : [],
-  forReviewer: async (actor: Actor) =>
-    (await database((db) => reviewerHasUnclaimedAssignments(db, actor.userId)))
-      ? verifiedEmails(actor)
-      : [],
+const reviewerReads = ({ database }: Dependencies): Pick<ReviewerService, "read" | "list"> => ({
+  read: async (actor, input) => {
+    const parsed = reviewerAddressSchema.safeParse(input);
+    if (!parsed.success) {
+      return { status: "invalid" };
+    }
+    return database((db) =>
+      readReviewerAssignment(db, actor, parsed.data.assignmentId, parsed.data.workspaceSlug),
+    );
+  },
+  list: async (actor, input) => {
+    const parsed = reviewerListInput.safeParse(input);
+    if (!parsed.success) {
+      return { status: "invalid" };
+    }
+    return database((db) => listReviewerAssignments(db, actor, parsed.data?.workspaceSlug));
+  },
 });
 
-const reviewerReads = (
-  dependencies: ReviewerDependencies,
-): Pick<ReviewerService, "read" | "list"> => {
-  const { database } = dependencies;
-  const emailsFor = claimEmails(dependencies);
-  return {
-    read: async (actor, input) => {
-      const parsed = reviewerAddressSchema.safeParse(input);
-      if (!parsed.success) {
-        return { status: "invalid" };
-      }
-      const emails = await emailsFor.forAssignment(actor, parsed.data.assignmentId);
-      return database((db) =>
-        readReviewerAssignment(
-          db,
-          actor,
-          emails,
-          parsed.data.assignmentId,
-          parsed.data.workspaceSlug,
-        ),
-      );
-    },
-    list: async (actor, input) => {
-      const parsed = reviewerListInput.safeParse(input);
-      if (!parsed.success) {
-        return { status: "invalid" };
-      }
-      const emails = await emailsFor.forReviewer(actor);
-      return database((db) =>
-        listReviewerAssignments(db, actor, emails, parsed.data?.workspaceSlug),
-      );
-    },
-  };
-};
-
 export const createReviewerService = (dependencies: ReviewerDependencies): ReviewerService => {
-  const { database, verifiedEmails } = dependencies;
+  const { database } = dependencies;
   const { read, list } = reviewerReads(dependencies);
-  const emailsFor = claimEmails(dependencies);
 
   const forApplication: ReviewerService["forApplication"] = (actor, input) => {
     const parsed = reviewerApplicationSchema.safeParse(input);
@@ -114,8 +79,7 @@ export const createReviewerService = (dependencies: ReviewerDependencies): Revie
     forApplication,
     list,
     invite: async (actor, input) => {
-      const emails = await verifiedEmails(actor);
-      const result = await database((db) => inviteReviewer(db, actor, emails, input));
+      const result = await database((db) => inviteReviewer(db, actor, input));
       if (result.status !== "ok") {
         return result;
       }
@@ -133,11 +97,7 @@ export const createReviewerService = (dependencies: ReviewerDependencies): Revie
       return managerAssignment(actor, input, result.id);
     },
     respond: async (actor, input) => {
-      const parsed = reviewerActionSchema.safeParse(input);
-      const emails = parsed.success
-        ? await emailsFor.forAssignment(actor, parsed.data.assignmentId)
-        : [];
-      const result = await database((db) => respondToReview(db, actor, emails, input));
+      const result = await database((db) => respondToReview(db, actor, input));
       if (result.status !== "ok") {
         return result;
       }

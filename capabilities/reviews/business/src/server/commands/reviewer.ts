@@ -47,6 +47,7 @@ import {
   permittedReviewerWork,
   readPrivateReviewerDraft,
   reviewerMembership,
+  memberEmail,
   reviewerMembershipByEmail,
   type ReviewerRecord,
 } from "../persistence/reviewer-records";
@@ -56,7 +57,6 @@ const expires = () => new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 export const inviteReviewer = async (
   db: Database,
   actor: Actor,
-  emails: string[],
   input: Parameters<ReviewerService["invite"]>[1],
 ) => {
   const parsed = inviteReviewerSchema.safeParse(input);
@@ -85,7 +85,7 @@ export const inviteReviewer = async (
     }
     const contact = await readContact(tx, access.organizationId, review.contactId);
     const email = contact?.email.trim().toLowerCase();
-    const managerEmail = emails[0]?.toLowerCase();
+    const managerEmail = await memberEmail(tx, access.organizationId, actor.userId);
     if (!contact || contact.archived || !email || !managerEmail || !email.includes("@")) {
       return { status: "invalid" } as const;
     }
@@ -181,7 +181,6 @@ export const manageReviewer = async (
 export const respondToReview = async (
   db: Database,
   actor: Actor,
-  emails: string[],
   input: Parameters<ReviewerService["respond"]>[1],
 ) => {
   const parsed = reviewerActionSchema.safeParse(input);
@@ -195,7 +194,7 @@ export const respondToReview = async (
     if (
       !record ||
       !user ||
-      !reviewerOwns(record, actor.userId, emails) ||
+      !reviewerOwns(record, actor.userId) ||
       !(await reviewerIdentityCurrent(tx, request.assignmentId, actor.userId))
     ) {
       return { status: "not_found" } as const;

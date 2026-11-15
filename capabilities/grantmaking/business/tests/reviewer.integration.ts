@@ -65,7 +65,6 @@ const it = roundTest.extend("reviewerScenario", async ({ db, database, rounds })
   let failDelivery = false;
   const service = createReviewerService({
     database: async (operation) => operation(db),
-    verifiedEmails: async (person) => [`${person.userId}@example.test`],
     send: async (message) => {
       if (failDelivery) {
         throw new Error("Sender unavailable");
@@ -641,10 +640,7 @@ it("pins only the person's own reviewer assignments, without granting staff acce
   database,
   reviewerScenario: s,
 }) => {
-  const navigation = createNavigationService({
-    database: (operation) => operation(db),
-    verifiedEmails: async (person) => [`${person.userId}@example.test`],
-  });
+  const navigation = createNavigationService({ database: (operation) => operation(db) });
   const target = { kind: "review" as const, id: s.assignmentId };
   const saved = await navigation.change(sam, { action: "pin", target });
   assert(saved.status === "ok");
@@ -801,31 +797,23 @@ it("requires an assignment membership and scopes My work to its workspace", asyn
   ).toEqual({ status: "not_found" });
 });
 
-it("requires the invited membership's identity even before acceptance", async ({
-  db,
+it("requires the invited membership even before acceptance", async ({
   database,
   reviewerScenario: s,
 }) => {
   await database.client.query(
-    "INSERT INTO memberships (organization_id, user_id, role) VALUES ('alder', 'other', 'reviewer')",
+    "INSERT INTO memberships (organization_id, user_id, email, role) VALUES ('alder', 'other', 'sam@example.test', 'reviewer')",
   );
-  const sameEmail = createReviewerService({
-    database: (operation) => operation(db),
-    verifiedEmails: async () => ["sam@example.test"],
-    send: async () => {},
-    reviewerUrl: (_slug, id) => id,
-    managerUrl: (_slug, id) => id,
-  });
   const other = { userId: "other" };
-  expect(await sameEmail.list(other, { workspaceSlug: "alder" })).toEqual({
+  expect(await s.service.list(other, { workspaceSlug: "alder" })).toEqual({
     status: "ok",
     value: [],
   });
-  expect(await sameEmail.read(other, { assignmentId: s.assignmentId })).toEqual({
+  expect(await s.service.read(other, { assignmentId: s.assignmentId })).toEqual({
     status: "not_found",
   });
   expect(
-    await sameEmail.respond(other, {
+    await s.service.respond(other, {
       assignmentId: s.assignmentId,
       commandId: randomUUID(),
       expectedRevision: 0,
@@ -834,37 +822,6 @@ it("requires the invited membership's identity even before acceptance", async ({
     }),
   ).toEqual({ status: "not_found" });
   expect(await s.respond("accept")).toMatchObject({ status: "ok" });
-});
-
-it("serves bound reviewer work without the external email lookup", async ({
-  db,
-  reviewerScenario: s,
-}) => {
-  expect(await s.respond("accept")).toMatchObject({ status: "ok" });
-  let lookups = 0;
-  const unreachable = createReviewerService({
-    database: (operation) => operation(db),
-    verifiedEmails: async () => {
-      lookups += 1;
-      throw new Error("Identity provider unavailable");
-    },
-    send: async () => {},
-    reviewerUrl: (_slug, id) => id,
-    managerUrl: (_slug, id) => id,
-  });
-  const page = await unreachable.read(sam, { assignmentId: s.assignmentId });
-  assert(page.status === "ok");
-  expect((await unreachable.list(sam, { workspaceSlug: "alder" })).status).toBe("ok");
-  expect(
-    await unreachable.respond(sam, {
-      assignmentId: s.assignmentId,
-      commandId: randomUUID(),
-      expectedRevision: page.value.assignment.revision,
-      action: "report_conflict",
-      note: "Former colleague",
-    }),
-  ).toMatchObject({ status: "ok" });
-  expect(lookups).toBe(0);
 });
 
 it("keeps an unaccepted assignment ended after removal and rejoining until explicit reinstatement", async ({

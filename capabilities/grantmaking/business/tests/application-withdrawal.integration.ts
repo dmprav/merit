@@ -91,7 +91,6 @@ const it = roundTest.extend("scenario", async ({ db, database, rounds }) => {
 
   const service = createReviewerService({
     database: async (operation) => operation(db),
-    verifiedEmails: async (person) => [`${person.userId}@example.test`],
     send: async () => {},
     reviewerUrl: (slug, id) => `https://merit.test/app/${slug}/work/${id}`,
     managerUrl: (slug, id) => `https://merit.test/app/${slug}/applications/${id}`,

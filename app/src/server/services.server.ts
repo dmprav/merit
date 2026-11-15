@@ -72,15 +72,11 @@ export const createApplicationServices = ({
 }) => {
   const { grantmaking, grantmakingQueries, rounds, applications, recommendations, reviews } =
     createGrantmakingServices(database);
-  const navigation = instrumentService(
-    "navigation",
-    createNavigationService({ database, verifiedEmails: identity.verifiedEmails }),
-  );
+  const navigation = instrumentService("navigation", createNavigationService({ database }));
   const reviewer = instrumentService(
     "reviewer",
     createReviewerService({
       database,
-      verifiedEmails: identity.verifiedEmails,
       reviewerUrl: (slug, id) => new URL(productLinks.review(slug, id), invitationOrigin).href,
       managerUrl: (slug, id) =>
         new URL(productLinks.application(slug, id, { tab: "reviews" }), invitationOrigin).href,

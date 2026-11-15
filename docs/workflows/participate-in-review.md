@@ -13,13 +13,14 @@ Create a review request with a workspace contact, then choose **Invite reviewer*
 The contact must first have accepted workspace membership with a reviewer or
 program-manager role. An owner or administrator invites them through Members &
 access; program managers manage assignments using their existing grant authority.
-A contact email and the requesting manager's verified email are required. An
+A contact email and the requesting manager's membership email are required. An
 optional response date is advisory; passing it never blocks saving or submission.
 Any current program manager can manage assignments. The requesting manager stays
 named as the contact for questions, which continue by email outside Merit.
 
 The invitation shows the applicant, application title, instructions, contact, and
-due date. Sign in with an account that verifies the invited email. Before accepting,
+due date. Sign in with the account that holds the invited membership; its email was
+verified when the member accepted the workspace invitation. Before accepting,
 the recipient can decline or report a possible conflict without opening the full
 application. Creating the invitation binds the assignment to the recipient’s current
 qualifying membership; acceptance binds it to that member’s account. The assignment
@@ -32,7 +33,7 @@ assignment in its workspace; signed-out recipients return there after signing in
 
 Invitations expire after seven days. Resending extends the invitation for the same
 person and assignment. The assignment URL is not a bearer credential: the server
-checks verified identity and current access on every operation. Reviewer invitations
+checks the signed-in member and current access on every operation. Reviewer invitations
 have a one-minute per-recipient cooldown within the organization and limits of 20
 per hour and 100 per day. Sending failure does not erase the assignment; its status
 is visible to managers. Sender acceptance does not prove delivery to the inbox.

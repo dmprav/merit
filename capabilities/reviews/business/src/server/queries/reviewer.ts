@@ -23,11 +23,6 @@ import {
   type ReviewerRecord,
 } from "../persistence/reviewer-records";
 
-export {
-  assignmentAwaitsClaim,
-  reviewerHasUnclaimedAssignments,
-} from "../persistence/reviewer-records";
-
 const reviewerSummary = (row: ReviewerRecord): ReviewerSummary => {
   const basisComparison = compareReviewBasis(
     {
@@ -71,7 +66,6 @@ const reviewerSummary = (row: ReviewerRecord): ReviewerSummary => {
 export const listReviewerAssignments = (
   db: Database,
   actor: Actor,
-  emails: string[],
   workspaceSlug?: string,
 ): ReturnType<ReviewerService["list"]> =>
   readTransaction(db, async (tx) => {
@@ -86,16 +80,13 @@ export const listReviewerAssignments = (
     }
     return {
       status: "ok",
-      value: (await listReviewerRecords(tx, actor.userId, emails, workspaceSlug)).map(
-        reviewerSummary,
-      ),
+      value: (await listReviewerRecords(tx, actor.userId, workspaceSlug)).map(reviewerSummary),
     };
   });
 
 export const readReviewerAssignment = (
   db: Database,
   actor: Actor,
-  emails: string[],
   id: string,
   workspaceSlug?: string,
 ): ReturnType<ReviewerService["read"]> =>
@@ -105,7 +96,7 @@ export const readReviewerAssignment = (
       !record ||
       (workspaceSlug !== undefined && record.slug !== workspaceSlug) ||
       !(await activeReviewer(tx, actor.userId)) ||
-      !reviewerOwns(record, actor.userId, emails) ||
+      !reviewerOwns(record, actor.userId) ||
       !(await reviewerIdentityCurrent(tx, id, actor.userId))
     ) {
       return { status: "not_found" };

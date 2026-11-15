@@ -18,7 +18,6 @@ import { roundTest as it } from "./round-test";
 const service = (db: Database) =>
   createNavigationService({
     database: (operation) => operation(db),
-    verifiedEmails: async () => [],
   });
 
 it("supports personal pins with the documented restricted runtime privileges", async ({

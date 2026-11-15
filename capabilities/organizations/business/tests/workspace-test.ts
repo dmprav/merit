@@ -9,11 +9,15 @@ export const workspaceTest = databaseTest.extend("workspaces", { auto: true }, a
   await seedWorkspace(db, {
     organization: { id: "alder", slug: workspaceSlug, name: "Alder Foundation" },
     user: { id: "dana", clerkUserId: "seed_alder", name: "Dana Reed" },
-    membership: { role: "program_manager", administration: "none" },
+    membership: { role: "program_manager", administration: "none", email: "dana@example.test" },
   });
   await seedWorkspace(db, {
     organization: { id: "birch", slug: "birch", name: "Birch Foundation" },
     user: { id: "birch-manager", clerkUserId: "seed_birch", name: "Birch manager" },
-    membership: { role: "program_manager", administration: "owner" },
+    membership: {
+      role: "program_manager",
+      administration: "owner",
+      email: "birch-manager@example.test",
+    },
   });
 });

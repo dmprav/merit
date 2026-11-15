@@ -91,36 +91,11 @@ export const lockActiveReviewer = async (tx: Transaction, userId: string) =>
   )[0];
 
 /**
- * Whether reaching this assignment may depend on the actor's verified emails. Binding to a
- * reviewer is permanent, so a bound assignment never needs them; unknown ids report false
- * because the read or command rejects them regardless.
+ * An unbound assignment belongs to whoever holds its membership, whose email was verified when
+ * they accepted the workspace invitation; callers confirm that with `reviewerIdentityCurrent`.
  */
-export const assignmentAwaitsClaim = async (db: Database, id: string) =>
-  (
-    await db
-      .select({ reviewerUserId: reviewAssignments.reviewerUserId })
-      .from(reviewAssignments)
-      .where(eq(reviewAssignments.id, id))
-  )[0]?.reviewerUserId === null;
-
-/** Whether any of the user's memberships hold an assignment not yet bound to a reviewer. */
-export const reviewerHasUnclaimedAssignments = async (db: Database, userId: string) =>
-  (
-    await db
-      .select({ id: reviewAssignments.id })
-      .from(reviewAssignments)
-      .innerJoin(
-        memberships,
-        and(eq(memberships.id, reviewAssignments.membershipId), eq(memberships.userId, userId)),
-      )
-      .where(sql`${reviewAssignments.reviewerUserId} is null`)
-      .limit(1)
-  ).length > 0;
-
-export const reviewerOwns = (record: ReviewerRecord, userId: string, emails: string[]) =>
-  record.assignment.reviewerUserId !== null
-    ? record.assignment.reviewerUserId === userId
-    : emails.some((email) => email.toLowerCase() === record.assignment.email);
+export const reviewerOwns = (record: ReviewerRecord, userId: string) =>
+  record.assignment.reviewerUserId === null || record.assignment.reviewerUserId === userId;
 
 const currentMembership = sql<boolean>`EXISTS (SELECT 1 FROM ${memberships}
   WHERE ${memberships.id} = ${reviewAssignments.membershipId}
@@ -210,6 +185,15 @@ export const reviewerMembershipByEmail = async (
       )
   )[0]?.id ?? null;
 
+/** The member's invitation email, verified when they accepted it; demo memberships have none. */
+export const memberEmail = async (db: Database, organizationId: string, userId: string) =>
+  (
+    await db
+      .select({ email: memberships.email })
+      .from(memberships)
+      .where(and(eq(memberships.organizationId, organizationId), eq(memberships.userId, userId)))
+  )[0]?.email ?? null;
+
 export const reviewerWorkspace = async (db: Database, userId: string, slug: string) =>
   (
     await db
@@ -225,12 +209,7 @@ export const reviewerWorkspace = async (db: Database, userId: string, slug: stri
       )
   )[0];
 
-export const listReviewerRecords = (
-  db: Database,
-  userId: string,
-  emails: string[],
-  workspaceSlug?: string,
-) =>
+export const listReviewerRecords = (db: Database, userId: string, workspaceSlug?: string) =>
   reviewerRecordQuery(db)
     .innerJoin(
       memberships,
@@ -245,10 +224,7 @@ export const listReviewerRecords = (
         activeOrganization,
         or(
           eq(reviewAssignments.reviewerUserId, userId),
-          and(
-            sql`${reviewAssignments.reviewerUserId} is null`,
-            inArray(reviewAssignments.email, emails),
-          ),
+          sql`${reviewAssignments.reviewerUserId} is null`,
         ),
       ),
     )

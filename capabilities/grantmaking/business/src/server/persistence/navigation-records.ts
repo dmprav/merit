@@ -79,7 +79,6 @@ const applicationTargets = (db: Database, userId: string, ids: string[]) =>
 export const resolveNavigationTargets = async (
   db: Database,
   userId: string,
-  emails: string[],
   targets: NavigationTarget[],
 ): Promise<NavigationPin[]> => {
   const ids = (kind: NavigationTarget["kind"]) =>
@@ -88,7 +87,7 @@ export const resolveNavigationTargets = async (
   const [rounds, applications, reviews] = await Promise.all([
     roundTargets(db, userId, ids("round")),
     applicationTargets(db, userId, ids("application")),
-    ids("review").length ? listReviewerRecords(db, userId, emails) : [],
+    ids("review").length ? listReviewerRecords(db, userId) : [],
   ]);
   const available: NavigationPin[] = [
     ...rounds.map((row) => ({
@@ -116,5 +115,5 @@ export const resolveNavigationTargets = async (
   });
 };
 
-export const visibleNavigationPins = async (db: Database, userId: string, emails: string[]) =>
-  resolveNavigationTargets(db, userId, emails, (await storedPins(db, userId)).map(storedPinTarget));
+export const visibleNavigationPins = async (db: Database, userId: string) =>
+  resolveNavigationTargets(db, userId, (await storedPins(db, userId)).map(storedPinTarget));
