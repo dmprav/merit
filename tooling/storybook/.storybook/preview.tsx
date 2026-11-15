@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 import type { Preview } from "@storybook/react-vite";
-import { useLayoutEffect } from "react";
+import { useInsertionEffect } from "react";
 import { STORY_FINISHED } from "storybook/internal/core-events";
 import { addons } from "storybook/preview-api";
 import { sb } from "storybook/test";
@@ -48,8 +48,8 @@ sb.mock("../../../interfaces/product/src/features/contacts/data/server/contacts.
 sb.mock("../../../interfaces/product/src/app/workspace-account.tsx");
 
 const Theme = ({ product, children }: { product: boolean; children: React.ReactNode }) => {
-  // Match the host's document-level theme so portals share the story's palette.
-  useLayoutEffect(() => {
+  // Apply before child useLayoutEffect hooks measure CSS tokens such as --text-control.
+  useInsertionEffect(() => {
     if (product) {
       document.documentElement.dataset.productTheme = "";
     } else {
