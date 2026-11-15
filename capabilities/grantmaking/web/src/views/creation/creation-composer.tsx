@@ -31,6 +31,14 @@ export const CreateAction = (props: CreationActionProps) => (
   <CreationComposer key={props.data.draftKey} {...props} />
 );
 
+const focusDismissTarget = (focusId: string, open: boolean, restoreTriggerFocus?: () => void) => {
+  if (!open && restoreTriggerFocus) {
+    restoreTriggerFocus();
+    return;
+  }
+  document.getElementById(`${focusId}-${open ? "title" : "trigger"}`)?.focus();
+};
+
 const CreationComposer = ({
   data,
   locationKey,
@@ -41,19 +49,16 @@ const CreationComposer = ({
   const { t } = useTranslation("fundingRounds");
   const creation = useCreation(data, locationKey);
   const focusId = useId();
-  const { draft, target, open, created, saving, changeOpen, save, update, close, discard } =
-    creation;
-  const label = t(target.kind === "round" ? "preparation.create" : "intake.add");
+  const { target, open, created, saving, changeOpen } = creation;
+  const isApplication = target.kind === "application";
+  const label = t(isApplication ? "intake.add" : "preparation.create");
+  const statusMessage = created ? t("creation.created", { title: created.title }) : null;
   const feedback = created && (
     <CreationFeedback
       creation={creation}
       renderCreatedLink={renderCreatedLink}
       onDismiss={() => {
-        if (!open && restoreTriggerFocus) {
-          restoreTriggerFocus();
-        } else {
-          document.getElementById(`${focusId}-${open ? "title" : "trigger"}`)?.focus();
-        }
+        focusDismissTarget(focusId, open, restoreTriggerFocus);
         creation.dismiss();
       }}
     />
@@ -61,18 +66,15 @@ const CreationComposer = ({
 
   return (
     <>
-      <StatusMessage
-        eventId={created?.publicId ?? ""}
-        message={created ? t("creation.created", { title: created.title }) : null}
-      />
+      <StatusMessage eventId={created?.publicId ?? ""} message={statusMessage} />
       {!open && feedback && <div className={styles.confirmation}>{feedback}</div>}
       {renderTrigger?.(creation.openEditor)}
       <FormDialog
         size="wide"
         title={label}
         closeLabel={t("preparation.close")}
-        context={target.kind === "application" ? target.roundTitle : undefined}
-        contextLabel={target.kind === "application" ? t("rounds.round") : undefined}
+        context={isApplication ? target.roundTitle : undefined}
+        contextLabel={isApplication ? t("rounds.round") : undefined}
         isOpen={open}
         isDismissDisabled={saving}
         onOpenChange={changeOpen}
@@ -82,29 +84,42 @@ const CreationComposer = ({
           )
         }
       >
-        <StatusMessage
-          eventId={created?.publicId ?? ""}
-          message={created ? t("creation.created", { title: created.title }) : null}
-        />
+        <StatusMessage eventId={created?.publicId ?? ""} message={statusMessage} />
         {feedback}
-        {!creation.ready || !draft ? (
-          <DialogContent label={label}>
-            <EditorLoading />
-          </DialogContent>
-        ) : (
-          <CreationForm
-            key={draft.requestId}
-            titleId={`${focusId}-title`}
-            draft={draft}
-            target={target}
-            onChange={update}
-            onClose={close}
-            onDiscard={discard}
-            onSave={save}
-          />
-        )}
+        <CreationDialogBody focusId={focusId} label={label} creation={creation} />
       </FormDialog>
     </>
+  );
+};
+
+const CreationDialogBody = ({
+  focusId,
+  label,
+  creation,
+}: {
+  focusId: string;
+  label: string;
+  creation: CreationController;
+}) => {
+  const { draft, target, ready, save, update, close, discard } = creation;
+  if (!ready || !draft) {
+    return (
+      <DialogContent label={label}>
+        <EditorLoading />
+      </DialogContent>
+    );
+  }
+  return (
+    <CreationForm
+      key={draft.requestId}
+      titleId={`${focusId}-title`}
+      draft={draft}
+      target={target}
+      onChange={update}
+      onClose={close}
+      onDiscard={discard}
+      onSave={save}
+    />
   );
 };
 
