@@ -9,13 +9,13 @@ import {
   editFundingApplication,
   selectApplicationContact,
 } from "@merit/applications/server";
+import { changeWorkspaceContact } from "@merit/contacts/server";
 import {
   getFundingApplicationContent,
   getFundingApplicationContext,
   getFundingRoundOverview,
 } from "@merit/grantmaking/server";
-import { fundingExampleIds } from "@merit/grantmaking/server/demo";
-import { seedExampleRounds } from "@merit/grantmaking/testing";
+import { fundingRoundContactUsage } from "@merit/grantmaking/server/integrations";
 import { actor, workspaceTest as it, workspaceSlug } from "@merit/organizations/testing/workspace";
 import { reviewRevisionSchema } from "@merit/reviews/domain";
 import { saveApplicationReview } from "@merit/reviews/server";
@@ -181,33 +181,73 @@ it("reads immutable material versions without mixing in later staff interpretati
 
 it("projects and clears the linked contact without putting profile data into recorded material", async ({
   db,
-  database,
 }) => {
-  await seedExampleRounds(db);
-  const { rows } = await database.client.query<{ id: string }>(
-    "SELECT id FROM application_cases WHERE organization_id='alder' AND id=$1",
-    [(await fundingExampleIds("alder")).applications.A1],
+  const round = await createFundingRound(db, actor, {
+    workspaceSlug,
+    requestId: randomUUID(),
+    title: "Contact projection",
+  });
+  assert(round.status === "ok");
+  const created = await createFundingApplication(db, actor, {
+    workspaceSlug,
+    publicId: round.publicId,
+    requestId: randomUUID(),
+    title: "Linked request",
+    applicant: "Community group",
+  });
+  assert(created.status === "ok");
+  const contact = await changeWorkspaceContact(
+    db,
+    actor,
+    {
+      workspaceSlug,
+      contactId: randomUUID(),
+      action: "create",
+      details: { name: "Robin Hale", email: "robin@example.test", affiliation: "" },
+    },
+    fundingRoundContactUsage,
   );
-  const application = rows[0];
-  assert.isDefined(application);
-  const input = { workspaceSlug, applicationId: application.id };
-  const original = await getFundingApplicationContent(db, actor, {
+  assert(contact.status === "ok");
+  const linkedContact = await editFundingApplication(
+    db,
+    actor,
+    {
+      workspaceSlug,
+      publicId: created.publicId,
+      expectedRevision: 0,
+      change: {
+        action: "save_content",
+        content: { applicant: "Community group (registered)" },
+        contactId: contact.contact.id,
+      },
+    },
+    applicationWork,
+  );
+  assert(linkedContact.status === "ok");
+  const input = { workspaceSlug, applicationId: created.publicId };
+  const recorded = await getFundingApplicationContent(db, actor, {
     ...input,
     section: "material",
-    materialVersion: 1,
+    materialVersion: 2,
   });
-  assert(original.status === "ok");
-  expect(JSON.parse(original.content)).not.toHaveProperty("content.submission.contact");
-  expect(JSON.parse(original.content)).not.toHaveProperty("content.submission.contactEmail");
+  assert(recorded.status === "ok");
+  expect(JSON.parse(recorded.content)).toMatchObject({
+    content: { submission: { organization: "Community group (registered)" } },
+  });
+  expect(JSON.parse(recorded.content)).not.toHaveProperty("content.submission.contact");
+  expect(JSON.parse(recorded.content)).not.toHaveProperty("content.submission.contactEmail");
 
   const linked = await getFundingApplicationContent(db, actor, { ...input, section: "submission" });
   assert(linked.status === "ok");
-  expect(JSON.parse(linked.content)).toHaveProperty("contact", expect.any(String));
+  expect(JSON.parse(linked.content)).toMatchObject({
+    contact: "Robin Hale",
+    contactEmail: "robin@example.test",
+  });
 
   const cleared = await selectApplicationContact(db, actor, {
     workspaceSlug,
-    publicId: application.id,
-    expectedRevision: 0,
+    publicId: created.publicId,
+    expectedRevision: linkedContact.revision,
     contactId: null,
   });
   assert(cleared.status === "ok");
@@ -222,9 +262,9 @@ it("projects and clears the linked contact without putting profile data into rec
     await getFundingApplicationContent(db, actor, {
       ...input,
       section: "material",
-      materialVersion: 1,
+      materialVersion: 2,
     }),
-  ).toEqual(original);
+  ).toEqual(recorded);
 });
 
 it("does not combine unrelated roundless requests into an artificial total", async ({ db }) => {
