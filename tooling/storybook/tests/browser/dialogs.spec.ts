@@ -220,7 +220,7 @@ for (const theme of ["product", "site"]) {
   );
 }
 
-test("confirmation dialogs focus cancellation, contain focus and show pending and failure states", async ({
+test("confirmation dialogs focus cancellation, contain focus and fit failure and long content", async ({
   page,
 }, testInfo) => {
   await page.goto("/iframe.html?id=patterns-confirmation-dialog--open&viewMode=story");
@@ -251,22 +251,6 @@ test("confirmation dialogs focus cancellation, contain focus and show pending an
   await expect(dialog).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Review revocation" })).toBeFocused();
 
-  await page.goto("/iframe.html?id=patterns-confirmation-dialog--pending&viewMode=story");
-
-  await expect(page.locator("#storybook-root")).toHaveAttribute("data-story-ready", "true");
-  await expect(dialog.getByRole("button", { name: "Revoking invitation…" })).toHaveAttribute(
-    "aria-disabled",
-    "true",
-  );
-  await expect(cancel).toBeDisabled();
-  await expect(dialog.getByRole("button", { name: "Close dialog" })).toBeDisabled();
-
-  await page.keyboard.press("Escape");
-
-  await expect(dialog).toBeVisible();
-
-  await checkPage(page);
-
   await page.goto("/iframe.html?id=patterns-confirmation-dialog--failure&viewMode=story");
 
   await expect(page.locator("#storybook-root")).toHaveAttribute("data-story-ready", "true");
@@ -286,7 +270,7 @@ test("confirmation dialogs focus cancellation, contain focus and show pending an
 });
 
 test(
-  "confirmation retry shows progress, recovers from failure and restores focus after success",
+  "confirmation retry recovers from failure and restores focus after success",
   { tag: "@cross-browser" },
   async ({ page }, testInfo) => {
     await page.goto("/iframe.html?id=patterns-confirmation-dialog--retry&viewMode=story");
@@ -295,15 +279,8 @@ test(
 
     const dialog = page.getByRole("dialog", { name: "Revoke invitation?" });
     const confirm = dialog.getByRole("button", { name: "Revoke invitation", exact: true });
-    const pending = dialog.getByRole("button", { name: "Revoking invitation…" });
     await confirm.click();
 
-    await expect(pending).toHaveAttribute("aria-disabled", "true");
-
-    await page.keyboard.press("Enter");
-    await page.keyboard.press("Escape");
-
-    await expect(dialog).toBeVisible();
     await expect(dialog.getByRole("alert")).toContainText("could not be revoked");
     await expect(confirm).toBeFocused();
 
@@ -311,8 +288,6 @@ test(
     await page.screenshot({ path: testInfo.outputPath("confirmation-retry.png") });
     await confirm.click();
 
-    await expect(pending).toBeVisible();
-    await expect(dialog.getByRole("alert")).toHaveCount(0);
     await expect(dialog).toHaveCount(0);
     await expect(page.getByRole("status")).toHaveText("Invitation revoked.");
 

@@ -102,47 +102,73 @@ it("searches people and commits a choice with the keyboard", async () => {
   expect(choose).toHaveBeenCalledWith("leah");
 });
 
-it("validates typed dates and commits calendar choices and clearing directly", async () => {
+const renderDateChoice = (value: string | null, invalidMessage = "Enter a valid date") => {
   const choose = vi.fn();
   const cancel = vi.fn();
-  const user = userEvent.setup();
   render(
     <MessagesProvider messages={{}}>
       <DateChoice
         applyLabel="Save date"
         cancelLabel="Cancel"
         onCancel={cancel}
-        value="2027-01-21"
+        value={value}
         label="Committee date"
         clearLabel="Clear date"
-        invalidMessage="Enter a valid date"
+        invalidMessage={invalidMessage}
         onChoose={choose}
       />
     </MessagesProvider>,
   );
-  await user.clear(screen.getByRole("textbox"));
-  await user.type(screen.getByRole("textbox"), "2027-02-31{Enter}");
+  return { choose, cancel, input: screen.getByRole("textbox", { name: "Committee date" }) };
+};
+
+it("rejects an impossible typed date without committing it", async () => {
+  const user = userEvent.setup();
+  const { choose, input } = renderDateChoice("2027-01-21");
+  await user.clear(input);
+  await user.type(input, "2027-02-31{Enter}");
+
+  expect(await screen.findByText("Enter a valid date")).toBeVisible();
+  expect(input).toHaveValue("2027-02-31");
+  expect(choose).not.toHaveBeenCalled();
+});
+
+it("commits a typed date when it is saved", async () => {
+  const user = userEvent.setup();
+  const { choose, input } = renderDateChoice("2027-01-21");
+  await user.clear(input);
+  await user.type(input, "2027-02-20");
 
   expect(choose).not.toHaveBeenCalled();
-  expect(await screen.findByText("Enter a valid date")).toBeVisible();
 
-  await user.clear(screen.getByRole("textbox"));
-  await user.type(screen.getByRole("textbox"), "2027-02-20");
   await user.click(screen.getByRole("button", { name: "Save date" }));
 
-  expect(choose).toHaveBeenLastCalledWith("2027-02-20");
+  expect(choose).toHaveBeenCalledExactlyOnceWith("2027-02-20");
+});
 
+it("commits a calendar choice directly and shows it in the field", async () => {
+  const user = userEvent.setup();
+  const { choose, input } = renderDateChoice("2027-01-21");
   await user.click(screen.getByRole("button", { name: "Friday, 22 January 2027" }));
 
-  expect(choose).toHaveBeenLastCalledWith("2027-01-22");
-  expect(screen.getByRole("textbox")).toHaveValue("2027-01-22");
+  expect(choose).toHaveBeenCalledExactlyOnceWith("2027-01-22");
+  expect(input).toHaveValue("2027-01-22");
+});
 
+it("commits clearing directly and empties the field", async () => {
+  const user = userEvent.setup();
+  const { choose, input } = renderDateChoice("2027-01-21");
   await user.click(screen.getByRole("button", { name: "Clear date" }));
 
-  expect(choose).toHaveBeenLastCalledWith(null);
-  expect(screen.getByRole("textbox")).toHaveValue("");
+  expect(choose).toHaveBeenCalledExactlyOnceWith(null);
+  expect(input).toHaveValue("");
+});
 
-  choose.mockClear();
+it("cancels from the keyboard without committing the draft", async () => {
+  const user = userEvent.setup();
+  const { choose, cancel, input } = renderDateChoice("2027-01-21");
+  await user.clear(input);
+  await user.type(input, "2027-02-20");
   screen.getByRole("button", { name: "Cancel" }).focus();
   await user.keyboard("{Enter}");
 
@@ -153,23 +179,11 @@ it("validates typed dates and commits calendar choices and clearing directly", a
 it.each(["0001-01-01", "9999-12-31"])(
   "keeps the out-of-range draft %s without committing it",
   async (date) => {
-    const choose = vi.fn();
     const user = userEvent.setup();
-    render(
-      <MessagesProvider messages={{}}>
-        <DateChoice
-          applyLabel="Save date"
-          cancelLabel="Cancel"
-          onCancel={vi.fn()}
-          value={null}
-          label="Committee date"
-          clearLabel="Clear date"
-          invalidMessage="Choose a year within 10 years of the current year."
-          onChoose={choose}
-        />
-      </MessagesProvider>,
+    const { choose, input } = renderDateChoice(
+      null,
+      "Choose a year within 10 years of the current year.",
     );
-    const input = screen.getByRole("textbox");
     await user.type(input, `${date}{Enter}`);
 
     expect(input).toHaveValue(date);
