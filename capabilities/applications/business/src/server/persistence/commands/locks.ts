@@ -43,15 +43,13 @@ export const lockApplicationCase = async (
   if (!identity) {
     return null;
   }
-  if (identity.roundId !== null) {
-    await db
-      .select({ id: fundingRounds.id })
-      .from(fundingRounds)
-      .where(
-        and(eq(fundingRounds.organizationId, workspace.id), eq(fundingRounds.id, identity.roundId)),
-      )
-      .for(roundMode);
-  }
+  await db
+    .select({ id: fundingRounds.id })
+    .from(fundingRounds)
+    .where(
+      and(eq(fundingRounds.organizationId, workspace.id), eq(fundingRounds.id, identity.roundId)),
+    )
+    .for(roundMode);
 
   const [lockedCase] = await db
     .select({ id: applicationCases.id, withdrawn: caseWithdrawn })

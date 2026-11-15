@@ -9,7 +9,7 @@ import {
   makeRound,
   makeReviewedApplication,
 } from "../../../tests/fixtures";
-import { encodeRoundOverview } from "../encoding";
+import { encodeRoundOverview } from "../../domain/encoding";
 import { applicationView, decodeRoundView, roundView } from "./round-view";
 
 it("recomputes exact totals from JSON records instead of accepting supplied totals", () => {

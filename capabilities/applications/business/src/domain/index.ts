@@ -1,3 +1,4 @@
+export * from "./encoding";
 export * from "./model";
 export * from "./intake";
 export * from "./intake-recording";

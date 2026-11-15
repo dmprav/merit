@@ -304,7 +304,7 @@ export const listApplicationReviewSummaries = async (
       return { status: "not_found" } as const;
     }
     const request = parsed.data;
-    if (!(await reads.readApplicationContext(tx, actor.userId, request))) {
+    if (!(await reads.readApplicationIdentity(tx, actor.userId, request))) {
       return { status: "not_found" } as const;
     }
     const rows = await reads.readReviewSummaries(tx, actor.userId, request);

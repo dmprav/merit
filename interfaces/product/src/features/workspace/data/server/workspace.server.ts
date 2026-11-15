@@ -1,9 +1,12 @@
+import type { Identity } from "@merit/auth";
 import { withActor } from "@merit/auth/request";
 
 import type { WorkspaceServices } from "../../../../shared/request-context";
 
 export const loadWorkspace = (
-  services: Pick<WorkspaceServices, "currentIdentity" | "readWorkspace">,
+  services: Pick<WorkspaceServices, "readWorkspace"> & {
+    currentIdentity: () => Promise<Identity>;
+  },
   workspaceSlug?: string,
 ) =>
   withActor(services.currentIdentity, async (actor) => {

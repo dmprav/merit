@@ -47,7 +47,7 @@ export const recordApplicationChange = async (
   change: {
     organizationId: string;
     publicId: string;
-    roundId: string | null;
+    roundId: string;
     revision: number;
     provenance?: Provenance | null;
     recordedAt?: Date;

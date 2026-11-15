@@ -17,7 +17,6 @@ import {
   listOrganizations,
   readOrganization,
 } from "../features/organizations/data/server/organizations.functions";
-import { Route as NewOrganizationRoute } from "../routes/admin.organizations.new";
 import { adminContextOptions } from "./data/queries";
 import { Route } from "./layout";
 
@@ -101,12 +100,8 @@ const renderPage = async (
   ].map((path) =>
     createRoute({ getParentRoute: () => Route, path, component: () => <h1>Page content</h1> }),
   );
-  NewOrganizationRoute.update({
-    getParentRoute: () => Route,
-    path: "/admin/organizations/new",
-  } as Parameters<typeof NewOrganizationRoute.update>[0]);
   const router = createRouter({
-    routeTree: root.addChildren([Route.addChildren([...children, NewOrganizationRoute])]),
+    routeTree: root.addChildren([Route.addChildren(children)]),
     history: createMemoryHistory({ initialEntries: [path] }),
   });
   await router.load();
@@ -127,8 +122,6 @@ const renderPage = async (
 it.each([
   ["/admin/organizations", "Organizations"],
   ["/admin/organizations/", "Organizations"],
-  ["/admin/organizations/new", "Organizations"],
-  ["/admin/organizations/new/", "Organizations"],
   ["/admin/organizations/org-1", "Alder Foundation"],
   ["/admin/access-requests", "Access requests"],
   ["/admin/access-requests/", "Access requests"],
@@ -152,7 +145,6 @@ it.each(["/admin/organizations/org-1", "/admin/organizations/org-1/"])(
 
 it.each([
   ["/admin/organizations", "Organizations"],
-  ["/admin/organizations/new", "Organizations"],
   ["/admin/organizations/org-1", "Alder Foundation"],
 ])(
   "keeps the verified operator's trail without workspace memberships at %s",

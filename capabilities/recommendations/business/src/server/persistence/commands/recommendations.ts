@@ -9,13 +9,13 @@ import type { Database } from "@merit/db";
 import { decodeMoney, moneyDataSchema } from "@merit/money";
 import { fundingRounds } from "@merit/rounds/schema";
 
-import type { Recommendation } from "../../../domain/recommendation";
 import {
   decodeBudgetContext,
   decodeRecommendation,
   encodeRecommendation,
   recommendationDataSchema,
-} from "../encoding";
+} from "../../../domain/encoding";
+import type { Recommendation } from "../../../domain/recommendation";
 import { recommendationRevision } from "../projections";
 import { currentRecommendation, roundAllocations } from "../projections";
 import { recommendationVersions } from "../schema";

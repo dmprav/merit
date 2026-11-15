@@ -8,10 +8,10 @@
     "./reviews": "./src/reviews.ts",
     "./reviewer": "./src/reviewer.ts",
     "./messages": "./src/messages.tsx",
-    "./message-content": "./src/message-content.ts",
+    "./message-content": "./src/views/reviews/status.messages.ts",
     "./work": "./src/work.ts",
-    "./contracts": "./src/contracts.ts",
-    "./drafts": "./src/drafts.ts",
+    "./contracts": "./src/contracts/reviews.ts",
+    "./drafts": "./src/controllers/reviews/drafts.tsx",
     "./data": "./src/data/reviews/workspace-data.ts"
   },
   "dependencies": {

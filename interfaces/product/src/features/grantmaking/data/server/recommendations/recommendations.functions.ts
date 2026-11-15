@@ -10,7 +10,7 @@ export const saveRecommendation = createServerFn({ method: "POST" })
   .validator(saveRecommendationRequestSchema)
   .handler(async ({ data, context }) => {
     setResponseHeader("Cache-Control", "private, no-store");
-    const result = await withActor(context.workspace.currentIdentity, (actor) =>
+    const result = await withActor(context.currentIdentity, (actor) =>
       context.workspace.saveRecommendation(actor, data),
     );
 

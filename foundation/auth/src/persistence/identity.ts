@@ -12,11 +12,14 @@ const tokenHash = async (token: string) =>
     (byte) => byte.toString(16).padStart(2, "0"),
   ).join("");
 
-/** Provider verification happens before this mapping; existing disabled users stay disabled. */
-export const findOrCreateAccountUser = async (db: Database, clerkUserId: string) => {
+/** The subject must already be verified by the identity provider; existing disabled users stay disabled. */
+export const resolveAccountUser = async (
+  db: Database,
+  clerkUserId: string,
+): Promise<{ status: "active"; userId: string } | { status: "disabled" }> => {
   const [existing] = await db.select().from(appUsers).where(eq(appUsers.clerkUserId, clerkUserId));
   if (existing) {
-    return existing;
+    return existing.active ? { status: "active", userId: existing.id } : { status: "disabled" };
   }
 
   await db
@@ -27,7 +30,7 @@ export const findOrCreateAccountUser = async (db: Database, clerkUserId: string)
   if (!user) {
     throw new Error("Account mapping was not persisted");
   }
-  return user;
+  return user.active ? { status: "active", userId: user.id } : { status: "disabled" };
 };
 
 export const createGuestSession = async (db: Database, name: string) => {

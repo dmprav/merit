@@ -12,7 +12,6 @@
     "./scope": "./src/server/persistence/projections.ts",
     "./locks": "./src/server/persistence/commands/locks.ts",
     "./readers": "./src/server/persistence/queries/preparation.ts",
-    "./encoding": "./src/server/persistence/encoding.ts",
     "./server/demo": "./src/server/demo.ts"
   },
   "dependencies": {

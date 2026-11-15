@@ -1,16 +1,16 @@
-import { encodeApplicationMaterial } from "@merit/applications/encoding";
+import { encodeApplicationMaterial } from "@merit/applications/domain";
 import { recordApplicationChange } from "@merit/applications/server/demo";
 import { seedExampleContacts } from "@merit/contacts/server/demo";
 import type { Database } from "@merit/db";
 import { fromMinorUnits } from "@merit/money";
-import { encodeRound } from "@merit/rounds/encoding";
+import { encodeRound } from "@merit/rounds/domain";
 import { insertPreparedRound } from "@merit/rounds/server/demo";
 
+import { decodeApplication, encodeRoundOverview } from "../domain/encoding";
 import { applicationRecordSchema } from "../domain/model";
 import { exampleRound } from "../examples/example-data";
 import { getExampleRound } from "../examples/get-example-round";
 import { insertExampleApplication, deleteDemoFunding } from "./persistence/commands/demo";
-import { decodeApplication, encodeRoundOverview } from "./persistence/encoding";
 
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 

@@ -1,6 +1,7 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ComponentProps } from "react";
 import { beforeEach, expect, it, vi } from "vite-plus/test";
 
 import { createQueryClient } from "@merit/query";
@@ -10,9 +11,26 @@ import { WebMessagesProvider } from "../../app/messages";
 import { applicationOptions, roundsOptions } from "../grantmaking/data/queries";
 import { teamOptions } from "../team/data/queries";
 import { workspaceOptions } from "../workspace/data/queries";
-import { ContactPicker, ContactsDirectory, type Contact } from "./contacts";
+import {
+  ContactPicker as BaseContactPicker,
+  ContactsDirectory as BaseContactsDirectory,
+  type Contact,
+} from "./contacts";
+import { WorkspaceContacts } from "./contacts-provider";
 import { contactsOptions } from "./data/queries";
 import { readContacts, saveContact } from "./data/server/contacts.functions";
+
+const ContactsDirectory = (props: ComponentProps<typeof BaseContactsDirectory>) => (
+  <WorkspaceContacts>
+    <BaseContactsDirectory {...props} />
+  </WorkspaceContacts>
+);
+
+const ContactPicker = (props: ComponentProps<typeof BaseContactPicker>) => (
+  <WorkspaceContacts>
+    <BaseContactPicker {...props} />
+  </WorkspaceContacts>
+);
 
 vi.mock("./data/server/contacts.functions", () => ({
   readContacts: vi.fn(),

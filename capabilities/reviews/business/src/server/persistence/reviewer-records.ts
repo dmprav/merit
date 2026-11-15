@@ -1,7 +1,7 @@
 import { and, eq, sql, desc, or, inArray } from "drizzle-orm";
 
 import { accessScope } from "@merit/access/scope";
-import { decodeApplicationMaterial } from "@merit/applications/encoding";
+import { decodeApplicationMaterial } from "@merit/applications/domain";
 import { applicationCases, materialVersions } from "@merit/applications/schema";
 import { appUsers } from "@merit/auth/schema";
 import type { Database } from "@merit/db";
@@ -53,7 +53,7 @@ const reviewerRecordQuery = (db: Database) =>
         eq(reviewRequests.id, reviewAssignments.requestId),
       ),
     )
-    .leftJoin(
+    .innerJoin(
       criteriaVersions,
       and(
         eq(criteriaVersions.roundPublicId, reviewRequests.criteriaRoundPublicId),
@@ -251,30 +251,24 @@ export const readPrivateReviewerDraft = async (db: Database, id: string) => {
 };
 
 export const readReviewerEvidence = async (db: Database, record: ReviewerRecord) => {
-  const [material] =
-    record.applicationVersion === null
-      ? []
-      : await db
-          .select({ content: materialVersions.content })
-          .from(materialVersions)
-          .where(
-            and(
-              eq(materialVersions.caseId, record.assignment.caseId),
-              eq(materialVersions.version, record.applicationVersion),
-            ),
-          );
-  const [criteria] =
-    record.criteriaRoundId === null || record.criteriaVersion === null
-      ? []
-      : await db
-          .select({ content: criteriaVersions.criteria })
-          .from(criteriaVersions)
-          .where(
-            and(
-              eq(criteriaVersions.roundPublicId, record.criteriaRoundId),
-              eq(criteriaVersions.version, record.criteriaVersion),
-            ),
-          );
+  const [material] = await db
+    .select({ content: materialVersions.content })
+    .from(materialVersions)
+    .where(
+      and(
+        eq(materialVersions.caseId, record.assignment.caseId),
+        eq(materialVersions.version, record.applicationVersion),
+      ),
+    );
+  const [criteria] = await db
+    .select({ content: criteriaVersions.criteria })
+    .from(criteriaVersions)
+    .where(
+      and(
+        eq(criteriaVersions.roundPublicId, record.criteriaRoundId),
+        eq(criteriaVersions.version, record.criteriaVersion),
+      ),
+    );
   return {
     material: decodeApplicationMaterial(material?.content),
     criteria: criteria ? reviewCriteriaSchema.parse(criteria.content) : null,

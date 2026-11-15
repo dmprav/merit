@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { workspaceSlugSchema } from "@merit/organizations/api";
 
-import { recommendationDataSchema } from "./encoding";
+import { recommendationDataSchema } from "../domain/encoding";
 
 const publicIdSchema = z.string().regex(/^[0-9a-hjkmnp-tv-z]{12}$/);
 

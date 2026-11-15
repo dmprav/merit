@@ -51,7 +51,7 @@ export const loadPublicPage = async (
   queryClient: QueryClient,
   workspaceSlug: string,
   ref: string,
-  search: { tab?: "reviews"; section?: "overview" | "applications" } = {},
+  search: { section?: "applications" } = {},
 ) => {
   const publicId = publicIdFromRef(ref);
   if (!publicId || !workspaceSlugSchema.safeParse(workspaceSlug).success) {

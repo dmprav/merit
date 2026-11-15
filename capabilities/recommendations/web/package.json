@@ -8,9 +8,9 @@
     "./recommendations": "./src/recommendations.ts",
     "./messages": "./src/messages.tsx",
     "./work": "./src/work.ts",
-    "./contracts": "./src/contracts.ts",
-    "./drafts": "./src/drafts.ts",
-    "./message-content": "./src/message-content.ts",
+    "./contracts": "./src/contracts/recommendations.ts",
+    "./drafts": "./src/controllers/recommendations/recommendation-drafts.tsx",
+    "./message-content": "./src/views/recommendations/messages.en.ts",
     "./data": "./src/data/recommendations/workspace-data.ts"
   },
   "dependencies": {

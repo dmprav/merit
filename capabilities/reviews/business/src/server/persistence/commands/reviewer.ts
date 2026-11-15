@@ -31,8 +31,7 @@ export const lockReviewerAssignment = async (tx: ReviewerTransaction, id: string
     .select({
       organizationId: reviewAssignments.organizationId,
       caseId: reviewAssignments.caseId,
-      roundId: applicationCases.roundId,
-      criteriaRoundId: reviewRequests.criteriaRoundPublicId,
+      roundId: reviewRequests.criteriaRoundPublicId,
     })
     .from(reviewAssignments)
     .innerJoin(applicationCases, eq(applicationCases.id, reviewAssignments.caseId))
@@ -52,16 +51,16 @@ export const lockReviewerAssignment = async (tx: ReviewerTransaction, id: string
     .from(organizations)
     .where(eq(organizations.id, target.organizationId))
     .for("share");
-  const roundId = target.criteriaRoundId ?? target.roundId;
-  if (roundId !== null) {
-    await tx
-      .select({ id: fundingRounds.id })
-      .from(fundingRounds)
-      .where(
-        and(eq(fundingRounds.organizationId, target.organizationId), eq(fundingRounds.id, roundId)),
-      )
-      .for("share");
-  }
+  await tx
+    .select({ id: fundingRounds.id })
+    .from(fundingRounds)
+    .where(
+      and(
+        eq(fundingRounds.organizationId, target.organizationId),
+        eq(fundingRounds.id, target.roundId),
+      ),
+    )
+    .for("share");
   await tx
     .select({ id: applicationCases.id })
     .from(applicationCases)
@@ -82,8 +81,7 @@ const lockManagedAssignmentRound = async (
 ) => {
   const [target] = await tx
     .select({
-      roundId: applicationCases.roundId,
-      criteriaRoundId: reviewRequests.criteriaRoundPublicId,
+      roundId: reviewRequests.criteriaRoundPublicId,
     })
     .from(reviewAssignments)
     .innerJoin(applicationCases, eq(applicationCases.id, reviewAssignments.caseId))
@@ -104,14 +102,11 @@ const lockManagedAssignmentRound = async (
   if (!target) {
     return false;
   }
-  const roundId = target.criteriaRoundId ?? target.roundId;
-  if (roundId !== null) {
-    await tx
-      .select({ id: fundingRounds.id })
-      .from(fundingRounds)
-      .where(and(eq(fundingRounds.organizationId, workspaceId), eq(fundingRounds.id, roundId)))
-      .for("share");
-  }
+  await tx
+    .select({ id: fundingRounds.id })
+    .from(fundingRounds)
+    .where(and(eq(fundingRounds.organizationId, workspaceId), eq(fundingRounds.id, target.roundId)))
+    .for("share");
   return true;
 };
 

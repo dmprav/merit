@@ -1,4 +1,4 @@
-import type { WorkspaceServices } from "@merit/product/context";
+import type { Identity } from "@merit/auth";
 
 const isLoopback = (hostname: string) => ["localhost", "127.0.0.1", "[::1]"].includes(hostname);
 
@@ -13,7 +13,7 @@ export const allowsLocalWorkspaceRequest = (request: Request) => {
   );
 };
 
-export const localWorkspaceIdentity: WorkspaceServices["currentIdentity"] = async () => ({
+export const localWorkspaceIdentity = async (): Promise<Identity> => ({
   status: "authenticated",
   actor: { userId: "local-workspace-manager" },
 });

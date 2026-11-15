@@ -1,7 +1,7 @@
 import { keepPreviousData, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
-import type { ActivityFilters } from "@merit/grantmaking-web/activity";
+import type { ActivityFilters } from "@merit/grantmaking-web/contracts/pages";
 
 import { activityOptions } from "./queries";
 

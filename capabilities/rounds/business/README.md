@@ -8,7 +8,7 @@ Creation receipts survive deletion in their own table. The explicit `budgetEstab
 flag preserves budget-change rules without relying on retained history.
 
 `@merit/rounds/api` is browser-safe. `@merit/rounds/server` supplies the service
-factory and authorized operations. `/schema`, `/scope`, `/readers`, and `/encoding`
+factory and authorized operations. `/schema`, `/scope`, and `/readers`
 serve approved server readers; `/locks` exposes only the round lock. `/server/demo`
 is reserved for trusted composition.
 

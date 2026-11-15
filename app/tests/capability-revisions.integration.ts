@@ -8,9 +8,20 @@ it("stores capability revisions independently and removes review state with its 
   await database.client.query(
     "INSERT INTO organizations (id,name,slug) VALUES ('alder','Alder','alder')",
   );
+  await database.client.query("BEGIN");
   await database.client.query(
-    "INSERT INTO application_cases (id,organization_id,intake_status,revision) VALUES ('reviewed','alder','ready',3),('empty','alder','in_preparation',0)",
+    "INSERT INTO funding_rounds (id,organization_id,manager_name,title,purpose,snapshot_date,decision_status,criteria_version) VALUES ('round-1','alder','Dana','Round','Purpose','2026-11-01','open',1)",
   );
+  await database.client.query(
+    "INSERT INTO criteria_versions (round_id,version,criteria) VALUES ('round-1',1,'[]')",
+  );
+  await database.client.query(
+    "INSERT INTO application_cases (id,organization_id,round_id,position,material_version,intake_status,revision) VALUES ('reviewed','alder','round-1',0,1,'ready',3),('empty','alder','round-1',1,1,'in_preparation',0)",
+  );
+  await database.client.query(
+    "INSERT INTO material_versions (case_id,version,content,change_kind,source) VALUES ('reviewed',1,'{}','initial','{\"interface\":\"web\"}'),('empty',1,'{}','initial','{\"interface\":\"web\"}')",
+  );
+  await database.client.query("COMMIT");
   await database.client.query(
     "INSERT INTO review_states (case_id,revision) VALUES ('reviewed',7),('empty',0)",
   );

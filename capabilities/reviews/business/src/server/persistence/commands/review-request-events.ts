@@ -16,11 +16,11 @@ export const recordReviewRequestEvent = (
       id: string;
       reviewer: string;
       contactId: string;
-      applicationVersion: number | null;
-      criteriaVersion: number | null;
+      applicationVersion: number;
+      criteriaVersion: number;
     };
     revision: number;
-    owner: { caseId: string; title: string; roundId: string | null };
+    owner: { caseId: string; title: string; roundId: string };
     replacesId?: string | null;
     /** Why a manager did not close the request, when something else did. */
     cause?: "application_withdrawn";

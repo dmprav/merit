@@ -103,11 +103,6 @@ const serverImports = [
     business("{rounds,applications,reviews,recommendations}", "shared-persistence"),
   ),
   permitServer(
-    business("grantmaking", "{{command,query,shared}-persistence,demo}"),
-    "@merit/{rounds,applications,recommendations}/encoding",
-    business("{rounds,applications,recommendations}", "shared-persistence"),
-  ),
-  permitServer(
     business("grantmaking", "queries"),
     "@merit/rounds/readers",
     business("rounds", "query-persistence"),
@@ -137,18 +132,18 @@ const serverImports = [
   ),
   permitServer(
     business("grantmaking", "{queries,demo}"),
-    "@merit/applications/{history,encoding}",
+    "@merit/applications/history",
     business("applications", "shared-persistence"),
   ),
   // Downstream workflows use application identity/material and round configuration.
   permitServer(
     business("{applications,reviews,recommendations}", "{command,query,shared}-persistence"),
-    "@merit/rounds/{schema,scope,encoding}",
+    "@merit/rounds/{schema,scope}",
     business("rounds", "shared-persistence"),
   ),
   permitServer(
     business("{reviews,recommendations}", "{command,query,shared}-persistence"),
-    "@merit/applications/{schema,scope,encoding}",
+    "@merit/applications/{schema,scope}",
     business("applications", "shared-persistence"),
   ),
   permitServer(

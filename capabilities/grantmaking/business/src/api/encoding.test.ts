@@ -11,7 +11,7 @@ import {
   decodeRoundOverview,
   encodeApplication,
   encodeRoundOverview,
-} from "./encoding";
+} from "../domain/encoding";
 
 describe("round JSON", () => {
   it("includes round preparation fields without application content or judgments", () => {

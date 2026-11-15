@@ -11,10 +11,15 @@ export const recommendationDataSchema = z.strictObject({
   allocation: moneyDataSchema,
 });
 
-export const encodeRecommendation = (value: Recommendation) => ({
-  ...value,
-  allocation: encodeMoney(value.allocation),
-});
+const recommendationOutputSchema = z.object(recommendationSchema.shape);
+
+export const encodeRecommendation = (value: Recommendation) => {
+  const recommendation = recommendationOutputSchema.parse(value);
+  return {
+    ...recommendation,
+    allocation: encodeMoney(recommendation.allocation),
+  };
+};
 
 export const decodeRecommendation = (input: unknown): Recommendation => {
   const value = recommendationDataSchema.parse(input);

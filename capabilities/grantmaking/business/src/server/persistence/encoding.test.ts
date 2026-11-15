@@ -1,14 +1,17 @@
 import { assert, expect, it } from "vite-plus/test";
 
-import { materialVersionSchema } from "@merit/applications/domain";
-import { decodeApplicationMaterial, encodeApplicationMaterial } from "@merit/applications/encoding";
+import {
+  decodeApplicationMaterial,
+  encodeApplicationMaterial,
+  materialVersionSchema,
+} from "@merit/applications/domain";
 import { encodeMoney, fromMinorUnits } from "@merit/money";
 import {
   decodeBudgetContext,
   decodeRecommendation,
   encodeRecommendation,
-} from "@merit/recommendations/encoding";
-import { decodeRound, encodeRound } from "@merit/rounds/encoding";
+} from "@merit/recommendations/domain";
+import { decodeRound, encodeRound } from "@merit/rounds/domain";
 
 import { makeApplication, makeRound, makeReviewedApplication } from "../../../tests/fixtures";
 import {
@@ -16,7 +19,7 @@ import {
   decodeRoundOverview,
   encodeApplication,
   encodeRoundOverview,
-} from "./encoding";
+} from "../../domain/encoding";
 
 const money = (minorUnits: bigint) => encodeMoney(fromMinorUnits(minorUnits));
 

@@ -1,8 +1,8 @@
 import { fromMinorUnits } from "@merit/money";
 
+import { encodeIntakeApplication } from "../../domain/encoding";
 import type { WorkingRevision } from "../../domain/intake";
 import type { IntakeApplication } from "../../domain/model";
-import { encodeIntakeApplication } from "./encoding";
 import { applicationHistorySchema } from "./history-format";
 
 export type IntakeSnapshot = {

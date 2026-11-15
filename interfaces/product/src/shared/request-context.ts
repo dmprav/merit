@@ -1,4 +1,4 @@
-import type { Actor, Identity } from "@merit/auth";
+import type { Actor } from "@merit/auth";
 import type { ContactService } from "@merit/contacts/api";
 import type { GrantmakingService } from "@merit/grantmaking/api";
 import type { Workspace } from "@merit/organizations/api";
@@ -25,6 +25,5 @@ export type WorkspaceServices = Pick<
   | "searchWorkspace"
 > &
   Pick<ContactService, "listContacts" | "changeContact" | "contactHistory"> & {
-    currentIdentity: () => Promise<Identity>;
     readWorkspace: (actor: Actor, workspaceSlug?: string) => Promise<Workspace | null>;
   };

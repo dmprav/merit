@@ -11,12 +11,12 @@
     "./messages": "./src/messages.tsx",
     "./examples/recommendation": "./src/examples/recommendation-example.tsx",
     "./contracts/creation": "./src/contracts/creation.ts",
-    "./applications": "./src/applications.ts",
+    "./applications": "./src/views/applications/application-view.tsx",
     "./rounds": "./src/rounds.ts",
     "./contracts/pages": "./src/contracts/pages.ts",
     "./data/creation": "./src/data/creation/workspace-data.ts",
-    "./activity": "./src/activity.ts",
-    "./search": "./src/search.ts",
+    "./activity": "./src/views/activity/workspace-activity.tsx",
+    "./search": "./src/views/search/workspace-search.tsx",
     "./data/search": "./src/data/search/workspace-data.ts"
   },
   "dependencies": {
