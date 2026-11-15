@@ -296,11 +296,11 @@ it("closes outstanding review requests and ends reviewer access without touching
 
   const draftContent = async () =>
     (
-      await database.client.query<{ content: { reasoning: string } }>(
-        "SELECT content FROM reviewer_drafts WHERE assignment_id = $1",
+      await database.client.query<{ reasoning: string }>(
+        "SELECT reasoning FROM reviewer_drafts WHERE assignment_id = $1",
         [s.assignmentId],
       )
-    ).rows[0]?.content.reasoning;
+    ).rows[0]?.reasoning;
 
   expect(await draftContent()).toBe("Private draft kept through withdrawal");
 

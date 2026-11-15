@@ -88,21 +88,86 @@ const createRecommendedApplication = async (
   return address;
 };
 
-const recommendationAuditQuery = `SELECT case_id AS application_public_id, revision,
-  actor_user_id, recorded_at, lag(content) OVER (PARTITION BY case_id ORDER BY revision) AS before,
-  content AS after FROM recommendation_versions`;
+type RecommendationRow = {
+  application_public_id: string;
+  revision: number;
+  actor_user_id: string | null;
+  recorded_at: Date;
+  position: string;
+  allocation_minor_units: string;
+  allocation_currency: string;
+  reasoning: string;
+  recorded_date: string | null;
+  application_version: number | null;
+  author_user_id: string | null;
+  author_name: string | null;
+  author_provenance_interface: string | null;
+  author_provenance_client_id: string | null;
+};
 
-const readAudit = async (client: PgClient) =>
-  (
-    await client.query<{
-      application_public_id: string;
-      revision: number;
-      actor_user_id: string;
-      recorded_at: Date;
-      before: unknown;
-      after: unknown;
-    }>(`${recommendationAuditQuery} ORDER BY application_public_id, revision`)
+const toEncodedRecommendation = (
+  row: Omit<
+    RecommendationRow,
+    "application_public_id" | "revision" | "actor_user_id" | "recorded_at"
+  >,
+) => ({
+  position: row.position,
+  allocation: { minorUnits: row.allocation_minor_units, currency: row.allocation_currency },
+  reasoning: row.reasoning,
+  ...(row.author_name !== null
+    ? {
+        author: {
+          ...(row.author_user_id !== null ? { userId: row.author_user_id } : {}),
+          name: row.author_name,
+          ...(row.author_provenance_interface === "web"
+            ? { provenance: { interface: "web" } }
+            : row.author_provenance_interface === "mcp" && row.author_provenance_client_id
+              ? { provenance: { interface: "mcp", clientId: row.author_provenance_client_id } }
+              : {}),
+        },
+      }
+    : {}),
+  ...(row.recorded_date !== null && row.application_version !== null
+    ? { recorded: { date: row.recorded_date, applicationVersion: row.application_version } }
+    : {}),
+});
+
+const readAudit = async (client: PgClient, minRevision = 0) => {
+  const rows = (
+    await client.query<RecommendationRow>(
+      `SELECT case_id AS application_public_id, revision, actor_user_id, recorded_at,
+         position, allocation_minor_units, allocation_currency, reasoning,
+         recorded_date::text, material_version AS application_version,
+         author_user_id, author_name, author_provenance_interface, author_provenance_client_id
+       FROM recommendation_versions ORDER BY case_id, revision`,
+    )
   ).rows;
+  const previousByCase = new Map<string, ReturnType<typeof toEncodedRecommendation>>();
+  const entries: {
+    application_public_id: string;
+    revision: number;
+    actor_user_id: string | null;
+    recorded_at: Date;
+    before: ReturnType<typeof toEncodedRecommendation> | null;
+    after: ReturnType<typeof toEncodedRecommendation>;
+  }[] = [];
+  for (const row of rows) {
+    const after = toEncodedRecommendation(row);
+    const before = previousByCase.get(row.application_public_id) ?? null;
+    previousByCase.set(row.application_public_id, after);
+    if (row.revision > minRevision) {
+      entries.push({
+        application_public_id: row.application_public_id,
+        revision: row.revision,
+        actor_user_id: row.actor_user_id,
+        recorded_at: row.recorded_at,
+        before,
+        after,
+      });
+    }
+  }
+  return entries;
+};
 
 const it = grantTest.extend("scenario", async ({ db, database }) => {
   const round = await createFundingRound(db, actor, {
@@ -336,11 +401,7 @@ describe("persisted recommendations", () => {
       expect(persisted.application.managerRecommendation).toEqual(recommendation);
       expect(persisted.recommendationVersion).toBe(2);
 
-      const audit = (
-        await database.client.query<{ recorded_at: Date }>(
-          `SELECT * FROM (${recommendationAuditQuery}) audit WHERE revision > 1`,
-        )
-      ).rows;
+      const audit = await readAudit(database.client, 1);
 
       expect(audit).toHaveLength(1);
       expect(audit[0]).toMatchObject({
@@ -404,18 +465,26 @@ describe("persisted recommendations", () => {
       ).toEqual([]);
 
       const row = (
-        await database.client.query<{
-          recommendation_version: number;
-          snapshot: { managerRecommendation: unknown };
-        }>(
-          "SELECT coalesce(r.revision, 0) AS recommendation_version, jsonb_build_object('managerRecommendation', r.content) AS snapshot FROM application_cases c LEFT JOIN recommendation_versions r ON r.case_id=c.id AND r.revision=(SELECT max(v.revision) FROM recommendation_versions v WHERE v.case_id=c.id) WHERE c.id = $1",
+        await database.client.query<
+          { recommendation_version: number } & Omit<
+            RecommendationRow,
+            "application_public_id" | "revision" | "actor_user_id" | "recorded_at"
+          >
+        >(
+          `SELECT coalesce(r.revision, 0) AS recommendation_version,
+             r.position, r.allocation_minor_units, r.allocation_currency, r.reasoning,
+             r.recorded_date::text, r.material_version AS application_version,
+             r.author_user_id, r.author_name, r.author_provenance_interface, r.author_provenance_client_id
+           FROM application_cases c
+           LEFT JOIN recommendation_versions r ON r.case_id=c.id AND r.revision=(SELECT max(v.revision) FROM recommendation_versions v WHERE v.case_id=c.id)
+           WHERE c.id = $1`,
           [request.publicId],
         )
       ).rows[0];
 
       assert.isDefined(row);
       expect(row.recommendation_version).toBe(1);
-      expect(row.snapshot.managerRecommendation).toEqual(
+      expect(toEncodedRecommendation(row)).toEqual(
         encodeRecommendation(original.application.managerRecommendation),
       );
     },
@@ -516,9 +585,9 @@ describe("persisted recommendations", () => {
     assert.isNotNull(original);
     const before = original.application.managerRecommendation;
     assert.isNotNull(before);
-    // Deliberately invalid case-only JSON must not be decoded by a recommendation save.
+    // Unrelated case columns must not break or be touched by a recommendation save.
     await database.client.query(
-      "UPDATE application_cases SET attention = '{}'::jsonb WHERE organization_id = 'alder'",
+      "UPDATE application_cases SET attention = ARRAY['unrelated']::text[] WHERE organization_id = 'alder'",
     );
     const result = await saveFundingRecommendation(db, actor, {
       ...request,
@@ -536,11 +605,10 @@ describe("persisted recommendations", () => {
     expect(encodeMoney(result.totals.proposed).minorUnits).toBe("11001");
     expect(encodeMoney(result.totals.remaining!).minorUnits).toBe("-1001");
 
-    const audit = (
-      await database.client.query<{ before: unknown; after: unknown }>(
-        `SELECT before, after FROM (${recommendationAuditQuery}) audit WHERE revision > 1`,
-      )
-    ).rows;
+    const audit = (await readAudit(database.client, 1)).map(({ before, after }) => ({
+      before,
+      after,
+    }));
 
     expect(audit).toEqual([
       { before: encodeRecommendation(before), after: encodeRecommendation(result.recommendation) },
@@ -661,13 +729,7 @@ describe("persisted recommendations", () => {
       request.recommendation.reasoning,
     );
     expect(page.recommendationVersion).toBe(2);
-    expect(
-      (
-        await database.client.query<{ recorded_at: Date }>(
-          `SELECT * FROM (${recommendationAuditQuery}) audit WHERE revision > 1`,
-        )
-      ).rows,
-    ).toHaveLength(1);
+    expect(await readAudit(database.client, 1)).toHaveLength(1);
   });
 
   it("validates totals against the committed sibling recommendation during concurrent saves", async ({
@@ -691,13 +753,7 @@ describe("persisted recommendations", () => {
       status: "invalid",
       error: "allocation_total_too_large",
     });
-    expect(
-      (
-        await database.client.query<{ recorded_at: Date }>(
-          `SELECT * FROM (${recommendationAuditQuery}) audit WHERE revision > 1`,
-        )
-      ).rows,
-    ).toHaveLength(1);
+    expect(await readAudit(database.client, 1)).toHaveLength(1);
 
     const saved = await getFundingApplicationPage(db, actor, scenario.selected);
     const siblingAfter = await getFundingApplicationPage(db, actor, scenario.sibling);

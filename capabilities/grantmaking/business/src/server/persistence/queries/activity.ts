@@ -1,7 +1,6 @@
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 
-import { applicationCases } from "@merit/applications/schema";
-import { currentMaterial } from "@merit/applications/scope";
+import { applicationCases, materialVersions } from "@merit/applications/schema";
 import type { Database } from "@merit/db";
 import { fundingRounds } from "@merit/rounds/schema";
 
@@ -26,8 +25,15 @@ export const readActivityRecords = async (
     applicationIds.length === 0
       ? []
       : await db
-          .select({ id: applicationCases.id, title: sql<string>`(${currentMaterial})->>'title'` })
+          .select({ id: applicationCases.id, title: materialVersions.title })
           .from(applicationCases)
+          .innerJoin(
+            materialVersions,
+            and(
+              eq(materialVersions.caseId, applicationCases.id),
+              eq(materialVersions.version, applicationCases.materialVersion),
+            ),
+          )
           .where(
             and(
               eq(applicationCases.organizationId, organizationId),

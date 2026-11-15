@@ -1,12 +1,12 @@
 import { sql } from "drizzle-orm";
 import {
   pgTable,
+  primaryKey,
   uuid,
   text,
   integer,
   date,
   timestamp,
-  jsonb,
   foreignKey,
   unique,
   check,
@@ -16,7 +16,7 @@ import {
 import { applicationCases } from "@merit/applications/schema";
 import { appUsers } from "@merit/auth/schema";
 
-import type { ReviewerDraft, ReviewerStatus } from "../../domain/reviewer";
+import type { ReviewerStatus } from "../../domain/reviewer";
 import { reviewRequests, assessments } from "./schema";
 
 export const reviewAssignments = pgTable(
@@ -82,11 +82,42 @@ export const reviewerDrafts = pgTable(
       .primaryKey()
       .references(() => reviewAssignments.id, { onDelete: "cascade" }),
     revision: integer().notNull().default(0),
-    content: jsonb().$type<ReviewerDraft>().notNull(),
+    position: text(),
+    amount: text(),
+    reasoning: text().notNull().default(""),
+    note: text().notNull().default(""),
     lastCommandId: uuid("last_command_id"),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [check("reviewer_draft_revision", sql`${t.revision} >= 0`)],
+  (t) => [
+    check("reviewer_draft_revision", sql`${t.revision} >= 0`),
+    check(
+      "reviewer_draft_position_check",
+      sql`${t.position} is null or ${t.position} in ('Fund', 'Fund with a condition', 'Defer', 'Decline')`,
+    ),
+    check("reviewer_draft_amount_check", sql`${t.amount} is null or length(${t.amount}) <= 32`),
+    check("reviewer_draft_reasoning_check", sql`length(${t.reasoning}) <= 20000`),
+    check("reviewer_draft_note_check", sql`length(${t.note}) <= 2000`),
+  ],
+);
+
+export const reviewerDraftObservations = pgTable(
+  "reviewer_draft_observations",
+  {
+    assignmentId: uuid("assignment_id")
+      .notNull()
+      .references(() => reviewerDrafts.assignmentId, { onDelete: "cascade" }),
+    position: integer().notNull(),
+    criterionId: uuid("criterion_id"),
+    criterion: text().notNull(),
+    text: text().notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.assignmentId, t.position] }),
+    check("reviewer_draft_observations_position_check", sql`${t.position} >= 0`),
+    check("reviewer_draft_observations_criterion_check", sql`length(${t.criterion}) <= 200`),
+    check("reviewer_draft_observations_text_check", sql`length(${t.text}) <= 5000`),
+  ],
 );
 
 export const reviewerCommandReceipts = pgTable(

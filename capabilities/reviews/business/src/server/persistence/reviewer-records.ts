@@ -1,25 +1,30 @@
-import { and, eq, sql, desc, or, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, or, sql } from "drizzle-orm";
 
 import { accessScope } from "@merit/access/scope";
 import { decodeApplicationMaterial } from "@merit/applications/domain";
 import { applicationCases, materialVersions } from "@merit/applications/schema";
+import { readMaterialVersionRecord } from "@merit/applications/scope";
 import { appUsers } from "@merit/auth/schema";
 import type { Database } from "@merit/db";
-import { organizations, memberships } from "@merit/organizations/schema";
+import { memberships, organizations } from "@merit/organizations/schema";
 import { activeOrganization, organizationScope } from "@merit/organizations/scope";
 import { reviewCriteriaSchema } from "@merit/rounds/domain";
-import { fundingRounds, criteriaVersions } from "@merit/rounds/schema";
-import { currentCriteria } from "@merit/rounds/scope";
+import { fundingRounds } from "@merit/rounds/schema";
+import {
+  criteriaVersionKey,
+  readCriteriaByVersionsMap,
+  type CriterionRecord,
+} from "@merit/rounds/scope";
 
 import { reviewerDraftSchema } from "../../domain/reviewer";
 import { reviewStateSchema } from "../../domain/reviews";
-import { assessmentRecord } from "./projections";
-import { reviewAssignments, reviewerDrafts } from "./reviewer-schema";
-import { reviewRequests, assessments } from "./schema";
+import { readAssessmentRecord } from "./projections";
+import { reviewAssignments, reviewerDraftObservations, reviewerDrafts } from "./reviewer-schema";
+import { reviewRequests } from "./schema";
 
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
-const reviewerRecordQuery = (db: Database) =>
+const selectReviewerRows = (db: Database) =>
   db
     .select({
       assignment: reviewAssignments,
@@ -27,12 +32,10 @@ const reviewerRecordQuery = (db: Database) =>
       applicationVersion: reviewRequests.applicationVersion,
       criteriaVersion: reviewRequests.criteriaVersion,
       criteriaRoundId: reviewRequests.criteriaRoundPublicId,
-      title: sql<string>`${materialVersions.content}->>'title'`,
-      applicant: sql<string>`coalesce(${materialVersions.content}->'submission'->>'organization', '')`,
+      title: materialVersions.title,
+      applicant: sql<string>`coalesce(${materialVersions.applicantOrganization}, '')`,
       currentVersion: applicationCases.materialVersion,
       currentCriteriaVersion: fundingRounds.criteriaVersion,
-      currentCriteria,
-      criteria: criteriaVersions.criteria,
       organization: organizations.name,
       slug: organizations.slug,
       delivery: sql<
@@ -54,13 +57,6 @@ const reviewerRecordQuery = (db: Database) =>
       ),
     )
     .innerJoin(
-      criteriaVersions,
-      and(
-        eq(criteriaVersions.roundPublicId, reviewRequests.criteriaRoundPublicId),
-        eq(criteriaVersions.version, reviewRequests.criteriaVersion),
-      ),
-    )
-    .innerJoin(
       materialVersions,
       and(
         eq(materialVersions.caseId, reviewAssignments.caseId),
@@ -68,8 +64,27 @@ const reviewerRecordQuery = (db: Database) =>
       ),
     );
 
+type RawReviewerRow = Awaited<ReturnType<typeof selectReviewerRows>>[number];
+
+const attachCriteria = async (db: Database, rows: RawReviewerRow[]) => {
+  if (rows.length === 0) {
+    return [];
+  }
+  const pairs = rows.flatMap((row) => [
+    { roundId: row.criteriaRoundId, version: row.criteriaVersion },
+    { roundId: row.criteriaRoundId, version: row.currentCriteriaVersion },
+  ]);
+  const criteriaMap: Map<string, CriterionRecord[]> = await readCriteriaByVersionsMap(db, pairs);
+  return rows.map((row) => ({
+    ...row,
+    criteria: criteriaMap.get(criteriaVersionKey(row.criteriaRoundId, row.criteriaVersion)) ?? [],
+    currentCriteria:
+      criteriaMap.get(criteriaVersionKey(row.criteriaRoundId, row.currentCriteriaVersion)) ?? null,
+  }));
+};
+
 export const readReviewerRecord = async (db: Database, id: string) =>
-  (await reviewerRecordQuery(db).where(eq(reviewAssignments.id, id)))[0];
+  (await attachCriteria(db, await selectReviewerRows(db).where(eq(reviewAssignments.id, id))))[0];
 
 export type ReviewerRecord = NonNullable<Awaited<ReturnType<typeof readReviewerRecord>>>;
 
@@ -198,13 +213,13 @@ export const reviewerWorkspace = async (db: Database, userId: string, slug: stri
       )
   )[0];
 
-export const listReviewerRecords = (
+export const listReviewerRecords = async (
   db: Database,
   userId: string,
   emails: string[],
   workspaceSlug?: string,
-) =>
-  reviewerRecordQuery(db)
+) => {
+  const rows = await selectReviewerRows(db)
     .innerJoin(
       memberships,
       and(eq(memberships.id, reviewAssignments.membershipId), eq(memberships.userId, userId)),
@@ -226,13 +241,15 @@ export const listReviewerRecords = (
       ),
     )
     .orderBy(desc(reviewAssignments.createdAt));
+  return attachCriteria(db, rows);
+};
 
-export const listManagerReviewerRecords = (
+export const listManagerReviewerRecords = async (
   db: Database,
   userId: string,
   input: { workspaceSlug: string; publicId: string; assignmentId?: string },
-) =>
-  reviewerRecordQuery(db)
+) => {
+  const rows = await selectReviewerRows(db)
     .innerJoin(memberships, eq(memberships.organizationId, organizations.id))
     .innerJoin(appUsers, eq(appUsers.id, memberships.userId))
     .where(
@@ -244,34 +261,50 @@ export const listManagerReviewerRecords = (
       ),
     )
     .orderBy(reviewAssignments.createdAt);
+  return attachCriteria(db, rows);
+};
 
 export const readPrivateReviewerDraft = async (db: Database, id: string) => {
-  const [row] = await db.select().from(reviewerDrafts).where(eq(reviewerDrafts.assignmentId, id));
-  return row ? { ...row, content: reviewerDraftSchema.parse(row.content) } : undefined;
+  const [[row], observationRows] = await Promise.all([
+    db.select().from(reviewerDrafts).where(eq(reviewerDrafts.assignmentId, id)),
+    db
+      .select()
+      .from(reviewerDraftObservations)
+      .where(eq(reviewerDraftObservations.assignmentId, id))
+      .orderBy(asc(reviewerDraftObservations.position)),
+  ]);
+  if (!row) {
+    return undefined;
+  }
+  return {
+    ...row,
+    content: reviewerDraftSchema.parse({
+      position: row.position,
+      amount: row.amount,
+      reasoning: row.reasoning,
+      observations: observationRows.map((obs) => ({
+        criterionId: obs.criterionId,
+        criterion: obs.criterion,
+        text: obs.text,
+      })),
+      note: row.note,
+    }),
+  };
 };
 
 export const readReviewerEvidence = async (db: Database, record: ReviewerRecord) => {
-  const [material] = await db
-    .select({ content: materialVersions.content })
-    .from(materialVersions)
-    .where(
-      and(
-        eq(materialVersions.caseId, record.assignment.caseId),
-        eq(materialVersions.version, record.applicationVersion),
-      ),
-    );
-  const [criteria] = await db
-    .select({ content: criteriaVersions.criteria })
-    .from(criteriaVersions)
-    .where(
-      and(
-        eq(criteriaVersions.roundPublicId, record.criteriaRoundId),
-        eq(criteriaVersions.version, record.criteriaVersion),
-      ),
-    );
+  const [materialRecord, criteriaMap] = await Promise.all([
+    readMaterialVersionRecord(db, record.assignment.caseId, record.applicationVersion),
+    readCriteriaByVersionsMap(db, [
+      { roundId: record.criteriaRoundId, version: record.criteriaVersion },
+    ]),
+  ]);
+  const criteria = criteriaMap.get(
+    criteriaVersionKey(record.criteriaRoundId, record.criteriaVersion),
+  );
   return {
-    material: decodeApplicationMaterial(material?.content),
-    criteria: criteria ? reviewCriteriaSchema.parse(criteria.content) : null,
+    material: decodeApplicationMaterial(materialRecord?.content),
+    criteria: criteria ? reviewCriteriaSchema.parse(criteria) : null,
   };
 };
 
@@ -279,14 +312,10 @@ export const readReviewerAssessment = async (db: Database, record: ReviewerRecor
   if (!record.assignment.assessmentId) {
     return null;
   }
-  const [row] = await db
-    .select({ value: sql<unknown>`${assessmentRecord}` })
-    .from(assessments)
-    .where(
-      and(
-        eq(assessments.caseId, record.assignment.caseId),
-        eq(assessments.id, record.assignment.assessmentId),
-      ),
-    );
-  return row ? reviewStateSchema.shape.assessments.element.parse(row.value) : null;
+  const assessment = await readAssessmentRecord(
+    db,
+    record.assignment.caseId,
+    record.assignment.assessmentId,
+  );
+  return assessment ? reviewStateSchema.shape.assessments.element.parse(assessment) : null;
 };

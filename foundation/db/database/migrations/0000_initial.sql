@@ -20,16 +20,24 @@ CREATE TABLE "application_cases" (
 	"revision" integer DEFAULT 0 NOT NULL,
 	"contact_id" uuid,
 	"intake_status" text NOT NULL,
-	"withdrawal" jsonb,
+	"withdrawn_on" date,
+	"withdrawal_reason" text,
+	"withdrawal_recorder_user_id" text,
+	"withdrawal_recorder_name" text,
+	"withdrawal_recorded_at" timestamp with time zone,
 	"search_title" text DEFAULT '' NOT NULL,
 	"search_applicant" text DEFAULT '' NOT NULL,
 	"summary" text DEFAULT '' NOT NULL,
-	"summary_author" jsonb,
-	"attention" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"summary_author_user_id" text,
+	"summary_author_name" text,
+	"summary_recorded_at" timestamp with time zone,
+	"attention" text[] DEFAULT '{}' NOT NULL,
 	CONSTRAINT "application_cases_owner_key" UNIQUE("organization_id","id"),
 	CONSTRAINT "application_cases_round_position_key" UNIQUE("organization_id","round_id","position"),
 	CONSTRAINT "application_cases_revisions_check" CHECK ("application_cases"."revision" >= 0),
-	CONSTRAINT "application_cases_status_check" CHECK ("application_cases"."intake_status" IN ('in_preparation', 'ready'))
+	CONSTRAINT "application_cases_status_check" CHECK ("application_cases"."intake_status" IN ('in_preparation', 'ready')),
+	CONSTRAINT "application_cases_withdrawal_check" CHECK (("application_cases"."withdrawn_on" IS NULL AND "application_cases"."withdrawal_reason" IS NULL AND "application_cases"."withdrawal_recorder_user_id" IS NULL AND "application_cases"."withdrawal_recorder_name" IS NULL AND "application_cases"."withdrawal_recorded_at" IS NULL) OR ("application_cases"."withdrawn_on" IS NOT NULL AND "application_cases"."withdrawal_reason" IS NOT NULL AND "application_cases"."withdrawal_recorder_user_id" IS NOT NULL AND "application_cases"."withdrawal_recorder_name" IS NOT NULL AND "application_cases"."withdrawal_recorded_at" IS NOT NULL)),
+	CONSTRAINT "application_cases_summary_author_check" CHECK (("application_cases"."summary_author_user_id" IS NULL AND "application_cases"."summary_author_name" IS NULL AND "application_cases"."summary_recorded_at" IS NULL) OR ("application_cases"."summary_author_user_id" IS NOT NULL AND "application_cases"."summary_author_name" IS NOT NULL AND "application_cases"."summary_recorded_at" IS NOT NULL))
 );
 --> statement-breakpoint
 CREATE TABLE "application_creation_receipts" (
@@ -39,26 +47,73 @@ CREATE TABLE "application_creation_receipts" (
 	CONSTRAINT "application_creation_receipts_organization_id_request_id_pk" PRIMARY KEY("organization_id","request_id")
 );
 --> statement-breakpoint
+CREATE TABLE "material_draft_answers" (
+	"case_id" text NOT NULL,
+	"position" integer NOT NULL,
+	"question_id" uuid NOT NULL,
+	"question" text NOT NULL,
+	"response" text NOT NULL,
+	CONSTRAINT "material_draft_answers_case_id_position_pk" PRIMARY KEY("case_id","position"),
+	CONSTRAINT "material_draft_answers_question_key" UNIQUE("case_id","question_id"),
+	CONSTRAINT "material_draft_answers_position_check" CHECK ("material_draft_answers"."position" >= 0)
+);
+--> statement-breakpoint
 CREATE TABLE "material_drafts" (
 	"case_id" text PRIMARY KEY NOT NULL,
 	"base_material_version" integer NOT NULL,
 	"kind" text NOT NULL,
-	"content" jsonb NOT NULL,
+	"title" text NOT NULL,
+	"applicant" text NOT NULL,
+	"project_period" text,
+	"requested" text NOT NULL,
 	"reason" text NOT NULL,
 	"revision" integer NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "material_version_answers" (
+	"case_id" text NOT NULL,
+	"material_version" integer NOT NULL,
+	"position" integer NOT NULL,
+	"question_id" uuid NOT NULL,
+	"question" text NOT NULL,
+	"response" text NOT NULL,
+	CONSTRAINT "material_version_answers_case_id_material_version_position_pk" PRIMARY KEY("case_id","material_version","position"),
+	CONSTRAINT "material_version_answers_question_key" UNIQUE("case_id","material_version","question_id"),
+	CONSTRAINT "material_version_answers_position_check" CHECK ("material_version_answers"."position" >= 0)
+);
+--> statement-breakpoint
+CREATE TABLE "material_version_evidence" (
+	"case_id" text NOT NULL,
+	"material_version" integer NOT NULL,
+	"position" integer NOT NULL,
+	"evidence_version" integer NOT NULL,
+	"passage" text NOT NULL,
+	CONSTRAINT "material_version_evidence_case_id_material_version_position_pk" PRIMARY KEY("case_id","material_version","position"),
+	CONSTRAINT "material_version_evidence_position_check" CHECK ("material_version_evidence"."position" >= 0),
+	CONSTRAINT "material_version_evidence_version_check" CHECK ("material_version_evidence"."evidence_version" > 0)
 );
 --> statement-breakpoint
 CREATE TABLE "material_versions" (
 	"case_id" text NOT NULL,
 	"version" integer NOT NULL,
-	"content" jsonb NOT NULL,
+	"title" text NOT NULL,
+	"requested_minor_units" numeric(30, 0),
+	"requested_currency" text,
+	"has_submission" boolean DEFAULT false NOT NULL,
+	"submission_version" integer,
+	"applicant_organization" text,
+	"submitted_on" date,
+	"project_period" text,
 	"change_kind" text NOT NULL,
-	"source" jsonb NOT NULL,
+	"source_kind" text DEFAULT 'recorded_external' NOT NULL,
 	"reason" text,
 	"recorded_by_user_id" text,
 	"recorded_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "material_versions_case_id_version_pk" PRIMARY KEY("case_id","version"),
-	CONSTRAINT "material_version_positive" CHECK ("material_versions"."version" > 0)
+	CONSTRAINT "material_version_positive" CHECK ("material_versions"."version" > 0),
+	CONSTRAINT "material_requested_check" CHECK (("material_versions"."requested_minor_units" IS NULL) = ("material_versions"."requested_currency" IS NULL) AND ("material_versions"."requested_minor_units" IS NULL OR ("material_versions"."requested_minor_units" >= 0 AND "material_versions"."requested_currency" = 'EUR'))),
+	CONSTRAINT "material_submission_check" CHECK ((NOT "material_versions"."has_submission" AND "material_versions"."submission_version" IS NULL AND "material_versions"."applicant_organization" IS NULL AND "material_versions"."submitted_on" IS NULL AND "material_versions"."project_period" IS NULL) OR ("material_versions"."has_submission" AND "material_versions"."submission_version" IS NOT NULL AND "material_versions"."submission_version" > 0)),
+	CONSTRAINT "material_source_kind_check" CHECK ("material_versions"."source_kind" IN ('recorded_external', 'fictional_example'))
 );
 --> statement-breakpoint
 CREATE TABLE "audit_events" (
@@ -175,12 +230,28 @@ CREATE TABLE "recommendation_versions" (
 	"case_id" text NOT NULL,
 	"revision" integer NOT NULL,
 	"material_version" integer,
-	"content" jsonb NOT NULL,
+	"recorded_date" date,
+	"position" text NOT NULL,
+	"allocation_minor_units" numeric(30, 0) NOT NULL,
+	"allocation_currency" text DEFAULT 'EUR' NOT NULL,
+	"reasoning" text NOT NULL,
+	"author_user_id" text,
+	"author_name" text,
+	"author_provenance_interface" text,
+	"author_provenance_client_id" text,
 	"actor_user_id" text,
-	"provenance" jsonb,
+	"provenance_interface" text,
+	"provenance_client_id" text,
 	"recorded_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "recommendation_versions_case_id_revision_pk" PRIMARY KEY("case_id","revision"),
-	CONSTRAINT "recommendation_version_positive" CHECK ("recommendation_versions"."revision" > 0)
+	CONSTRAINT "recommendation_version_positive" CHECK ("recommendation_versions"."revision" > 0),
+	CONSTRAINT "recommendation_position_check" CHECK ("recommendation_versions"."position" IN ('Fund', 'Fund with a condition', 'Defer')),
+	CONSTRAINT "recommendation_allocation_check" CHECK ("recommendation_versions"."allocation_minor_units" >= 0 AND "recommendation_versions"."allocation_currency" = 'EUR' AND (("recommendation_versions"."position" = 'Defer' AND "recommendation_versions"."allocation_minor_units" = 0) OR ("recommendation_versions"."position" IN ('Fund', 'Fund with a condition') AND "recommendation_versions"."allocation_minor_units" > 0))),
+	CONSTRAINT "recommendation_reasoning_check" CHECK (length(btrim("recommendation_versions"."reasoning")) > 0),
+	CONSTRAINT "recommendation_recorded_check" CHECK (("recommendation_versions"."recorded_date" IS NULL) = ("recommendation_versions"."material_version" IS NULL)),
+	CONSTRAINT "recommendation_author_check" CHECK ("recommendation_versions"."author_name" IS NOT NULL OR ("recommendation_versions"."author_user_id" IS NULL AND "recommendation_versions"."author_provenance_interface" IS NULL AND "recommendation_versions"."author_provenance_client_id" IS NULL)),
+	CONSTRAINT "recommendation_author_provenance_check" CHECK (("recommendation_versions"."author_provenance_interface" IS NULL AND "recommendation_versions"."author_provenance_client_id" IS NULL) OR ("recommendation_versions"."author_provenance_interface" = 'web' AND "recommendation_versions"."author_provenance_client_id" IS NULL) OR ("recommendation_versions"."author_provenance_interface" = 'mcp' AND "recommendation_versions"."author_provenance_client_id" IS NOT NULL AND length("recommendation_versions"."author_provenance_client_id") > 0)),
+	CONSTRAINT "recommendation_provenance_check" CHECK (("recommendation_versions"."provenance_interface" IS NULL AND "recommendation_versions"."provenance_client_id" IS NULL) OR ("recommendation_versions"."provenance_interface" = 'web' AND "recommendation_versions"."provenance_client_id" IS NULL) OR ("recommendation_versions"."provenance_interface" = 'mcp' AND "recommendation_versions"."provenance_client_id" IS NOT NULL AND length("recommendation_versions"."provenance_client_id") > 0))
 );
 --> statement-breakpoint
 CREATE TABLE "review_assignments" (
@@ -216,13 +287,32 @@ CREATE TABLE "reviewer_command_receipts" (
 	CONSTRAINT "reviewer_receipts_command_key" UNIQUE("assignment_id","command_id")
 );
 --> statement-breakpoint
+CREATE TABLE "reviewer_draft_observations" (
+	"assignment_id" uuid NOT NULL,
+	"position" integer NOT NULL,
+	"criterion_id" uuid,
+	"criterion" text NOT NULL,
+	"text" text NOT NULL,
+	CONSTRAINT "reviewer_draft_observations_assignment_id_position_pk" PRIMARY KEY("assignment_id","position"),
+	CONSTRAINT "reviewer_draft_observations_position_check" CHECK ("reviewer_draft_observations"."position" >= 0),
+	CONSTRAINT "reviewer_draft_observations_criterion_check" CHECK (length("reviewer_draft_observations"."criterion") <= 200),
+	CONSTRAINT "reviewer_draft_observations_text_check" CHECK (length("reviewer_draft_observations"."text") <= 5000)
+);
+--> statement-breakpoint
 CREATE TABLE "reviewer_drafts" (
 	"assignment_id" uuid PRIMARY KEY NOT NULL,
 	"revision" integer DEFAULT 0 NOT NULL,
-	"content" jsonb NOT NULL,
+	"position" text,
+	"amount" text,
+	"reasoning" text DEFAULT '' NOT NULL,
+	"note" text DEFAULT '' NOT NULL,
 	"last_command_id" uuid,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "reviewer_draft_revision" CHECK ("reviewer_drafts"."revision" >= 0)
+	CONSTRAINT "reviewer_draft_revision" CHECK ("reviewer_drafts"."revision" >= 0),
+	CONSTRAINT "reviewer_draft_position_check" CHECK ("reviewer_drafts"."position" is null or "reviewer_drafts"."position" in ('Fund', 'Fund with a condition', 'Defer', 'Decline')),
+	CONSTRAINT "reviewer_draft_amount_check" CHECK ("reviewer_drafts"."amount" is null or length("reviewer_drafts"."amount") <= 32),
+	CONSTRAINT "reviewer_draft_reasoning_check" CHECK (length("reviewer_drafts"."reasoning") <= 20000),
+	CONSTRAINT "reviewer_draft_note_check" CHECK (length("reviewer_drafts"."note") <= 2000)
 );
 --> statement-breakpoint
 CREATE TABLE "reviewer_messages" (
@@ -234,6 +324,21 @@ CREATE TABLE "reviewer_messages" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "assessment_version_observations" (
+	"case_id" text NOT NULL,
+	"assessment_id" text NOT NULL,
+	"version" integer NOT NULL,
+	"position" integer NOT NULL,
+	"criterion_id" uuid,
+	"criterion" text NOT NULL,
+	"text" text NOT NULL,
+	CONSTRAINT "assessment_version_observations_case_id_assessment_id_version_position_pk" PRIMARY KEY("case_id","assessment_id","version","position"),
+	CONSTRAINT "assessment_version_observations_version_check" CHECK ("assessment_version_observations"."version" >= 1),
+	CONSTRAINT "assessment_version_observations_position_check" CHECK ("assessment_version_observations"."position" >= 0),
+	CONSTRAINT "assessment_version_observations_criterion_check" CHECK (length("assessment_version_observations"."criterion") <= 200),
+	CONSTRAINT "assessment_version_observations_text_check" CHECK (length("assessment_version_observations"."text") <= 5000)
+);
+--> statement-breakpoint
 CREATE TABLE "assessment_versions" (
 	"organization_id" text NOT NULL,
 	"case_id" text NOT NULL,
@@ -242,11 +347,27 @@ CREATE TABLE "assessment_versions" (
 	"material_version" integer,
 	"criteria_round_id" text,
 	"criteria_version" integer,
-	"content" jsonb NOT NULL,
-	"recorder" jsonb,
+	"assessed_on" date,
+	"position" text,
+	"amount" text,
+	"reasoning" text NOT NULL,
+	"recorder_user_id" text,
+	"recorder_name" text,
+	"recorder_recorded_at" timestamp with time zone,
+	"recorder_provenance_interface" text,
+	"recorder_provenance_client_id" text,
 	"note" text NOT NULL,
 	"recorded_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "assessment_versions_case_id_assessment_id_version_pk" PRIMARY KEY("case_id","assessment_id","version")
+	CONSTRAINT "assessment_versions_case_id_assessment_id_version_pk" PRIMARY KEY("case_id","assessment_id","version"),
+	CONSTRAINT "assessment_versions_version_check" CHECK ("assessment_versions"."version" >= 1),
+	CONSTRAINT "assessment_versions_criteria_pair_check" CHECK (("assessment_versions"."criteria_round_id" is null) = ("assessment_versions"."criteria_version" is null)),
+	CONSTRAINT "assessment_versions_position_check" CHECK ("assessment_versions"."position" is null or "assessment_versions"."position" in ('Fund', 'Fund with a condition', 'Defer', 'Decline')),
+	CONSTRAINT "assessment_versions_amount_check" CHECK ("assessment_versions"."amount" is null or (length("assessment_versions"."amount") <= 32 and "assessment_versions"."amount" ~ '^\d+(?:\.\d{1,2})?$')),
+	CONSTRAINT "assessment_versions_position_amount_check" CHECK ("assessment_versions"."position" is null or "assessment_versions"."amount" is null or ("assessment_versions"."position" in ('Decline', 'Defer') and "assessment_versions"."amount" ~ '^0+(?:\.0{1,2})?$') or ("assessment_versions"."position" in ('Fund', 'Fund with a condition') and "assessment_versions"."amount" !~ '^0+(?:\.0{1,2})?$')),
+	CONSTRAINT "assessment_versions_reasoning_check" CHECK (length(btrim("assessment_versions"."reasoning")) > 0 and length("assessment_versions"."reasoning") <= 20000),
+	CONSTRAINT "assessment_versions_note_check" CHECK (length("assessment_versions"."note") <= 2000),
+	CONSTRAINT "assessment_versions_recorder_check" CHECK ((("assessment_versions"."recorder_user_id" is null) = ("assessment_versions"."recorder_name" is null)) and (("assessment_versions"."recorder_user_id" is null) = ("assessment_versions"."recorder_recorded_at" is null))),
+	CONSTRAINT "assessment_versions_recorder_provenance_check" CHECK (("assessment_versions"."recorder_provenance_interface" is null and "assessment_versions"."recorder_provenance_client_id" is null) or ("assessment_versions"."recorder_user_id" is not null and (("assessment_versions"."recorder_provenance_interface" = 'web' and "assessment_versions"."recorder_provenance_client_id" is null) or ("assessment_versions"."recorder_provenance_interface" = 'mcp' and "assessment_versions"."recorder_provenance_client_id" is not null and length(btrim("assessment_versions"."recorder_provenance_client_id")) > 0))))
 );
 --> statement-breakpoint
 CREATE TABLE "assessments" (
@@ -260,7 +381,8 @@ CREATE TABLE "assessments" (
 	"author_user_id" text,
 	"position" integer NOT NULL,
 	CONSTRAINT "assessments_case_id_id_pk" PRIMARY KEY("case_id","id"),
-	CONSTRAINT "assessments_request_key" UNIQUE("case_id","request_id")
+	CONSTRAINT "assessments_request_key" UNIQUE("case_id","request_id"),
+	CONSTRAINT "assessments_position_check" CHECK ("assessments"."position" >= 0)
 );
 --> statement-breakpoint
 CREATE TABLE "review_requests" (
@@ -273,10 +395,26 @@ CREATE TABLE "review_requests" (
 	"criteria_round_id" text NOT NULL,
 	"criteria_version" integer NOT NULL,
 	"status" text NOT NULL,
-	"recorder" jsonb,
-	"closed_by" jsonb,
+	"recorder_user_id" text,
+	"recorder_name" text,
+	"recorder_recorded_at" timestamp with time zone,
+	"recorder_provenance_interface" text,
+	"recorder_provenance_client_id" text,
+	"closed_by_user_id" text,
+	"closed_by_name" text,
+	"closed_by_recorded_at" timestamp with time zone,
+	"closed_by_provenance_interface" text,
+	"closed_by_provenance_client_id" text,
+	"closed_cause" text,
 	"position" integer NOT NULL,
-	CONSTRAINT "review_requests_case_id_id_pk" PRIMARY KEY("case_id","id")
+	CONSTRAINT "review_requests_case_id_id_pk" PRIMARY KEY("case_id","id"),
+	CONSTRAINT "review_requests_status_check" CHECK ("review_requests"."status" in ('outstanding', 'received', 'cancelled')),
+	CONSTRAINT "review_requests_position_check" CHECK ("review_requests"."position" >= 0),
+	CONSTRAINT "review_requests_recorder_check" CHECK ((("review_requests"."recorder_user_id" is null) = ("review_requests"."recorder_name" is null)) and (("review_requests"."recorder_user_id" is null) = ("review_requests"."recorder_recorded_at" is null))),
+	CONSTRAINT "review_requests_recorder_provenance_check" CHECK (("review_requests"."recorder_provenance_interface" is null and "review_requests"."recorder_provenance_client_id" is null) or ("review_requests"."recorder_user_id" is not null and (("review_requests"."recorder_provenance_interface" = 'web' and "review_requests"."recorder_provenance_client_id" is null) or ("review_requests"."recorder_provenance_interface" = 'mcp' and "review_requests"."recorder_provenance_client_id" is not null and length(btrim("review_requests"."recorder_provenance_client_id")) > 0)))),
+	CONSTRAINT "review_requests_closed_by_check" CHECK ((("review_requests"."closed_by_user_id" is null) = ("review_requests"."closed_by_name" is null)) and (("review_requests"."closed_by_user_id" is null) = ("review_requests"."closed_by_recorded_at" is null))),
+	CONSTRAINT "review_requests_closed_by_provenance_check" CHECK (("review_requests"."closed_by_provenance_interface" is null and "review_requests"."closed_by_provenance_client_id" is null) or ("review_requests"."closed_by_user_id" is not null and (("review_requests"."closed_by_provenance_interface" = 'web' and "review_requests"."closed_by_provenance_client_id" is null) or ("review_requests"."closed_by_provenance_interface" = 'mcp' and "review_requests"."closed_by_provenance_client_id" is not null and length(btrim("review_requests"."closed_by_provenance_client_id")) > 0)))),
+	CONSTRAINT "review_requests_closed_cause_check" CHECK ("review_requests"."closed_cause" is null or ("review_requests"."closed_by_user_id" is not null and "review_requests"."closed_cause" = 'application_withdrawn'))
 );
 --> statement-breakpoint
 CREATE TABLE "review_states" (
@@ -285,10 +423,22 @@ CREATE TABLE "review_states" (
 	CONSTRAINT "review_states_revision_check" CHECK ("review_states"."revision" >= 0)
 );
 --> statement-breakpoint
+CREATE TABLE "criteria_version_items" (
+	"round_id" text NOT NULL,
+	"version" integer NOT NULL,
+	"position" integer NOT NULL,
+	"criterion_id" uuid NOT NULL,
+	"title" text NOT NULL,
+	"description" text,
+	CONSTRAINT "criteria_version_items_round_id_version_position_pk" PRIMARY KEY("round_id","version","position"),
+	CONSTRAINT "criteria_version_items_criterion_key" UNIQUE("round_id","version","criterion_id"),
+	CONSTRAINT "criteria_version_items_position_check" CHECK ("criteria_version_items"."position" >= 0),
+	CONSTRAINT "criteria_version_items_title_check" CHECK (length(btrim("criteria_version_items"."title")) > 0)
+);
+--> statement-breakpoint
 CREATE TABLE "criteria_versions" (
 	"round_id" text NOT NULL,
 	"version" integer NOT NULL,
-	"criteria" jsonb NOT NULL,
 	"recorded_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "criteria_versions_round_id_version_pk" PRIMARY KEY("round_id","version"),
 	CONSTRAINT "criteria_version_positive" CHECK ("criteria_versions"."version" > 0)
@@ -339,8 +489,11 @@ ALTER TABLE "application_cases" ADD CONSTRAINT "application_cases_organization_i
 ALTER TABLE "application_cases" ADD CONSTRAINT "application_cases_organization_id_round_id_funding_rounds_organization_id_id_fk" FOREIGN KEY ("organization_id","round_id") REFERENCES "public"."funding_rounds"("organization_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "application_cases" ADD CONSTRAINT "application_cases_organization_id_contact_id_contacts_organization_id_id_fk" FOREIGN KEY ("organization_id","contact_id") REFERENCES "public"."contacts"("organization_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "application_creation_receipts" ADD CONSTRAINT "application_creation_receipts_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "material_draft_answers" ADD CONSTRAINT "material_draft_answers_case_id_material_drafts_case_id_fk" FOREIGN KEY ("case_id") REFERENCES "public"."material_drafts"("case_id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "material_drafts" ADD CONSTRAINT "material_drafts_case_id_application_cases_id_fk" FOREIGN KEY ("case_id") REFERENCES "public"."application_cases"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "material_drafts" ADD CONSTRAINT "material_drafts_case_id_base_material_version_material_versions_case_id_version_fk" FOREIGN KEY ("case_id","base_material_version") REFERENCES "public"."material_versions"("case_id","version") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "material_version_answers" ADD CONSTRAINT "material_version_answers_case_id_material_version_material_versions_case_id_version_fk" FOREIGN KEY ("case_id","material_version") REFERENCES "public"."material_versions"("case_id","version") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "material_version_evidence" ADD CONSTRAINT "material_version_evidence_case_id_material_version_material_versions_case_id_version_fk" FOREIGN KEY ("case_id","material_version") REFERENCES "public"."material_versions"("case_id","version") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "material_versions" ADD CONSTRAINT "material_versions_case_id_application_cases_id_fk" FOREIGN KEY ("case_id") REFERENCES "public"."application_cases"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "material_versions" ADD CONSTRAINT "material_versions_recorded_by_user_id_app_users_id_fk" FOREIGN KEY ("recorded_by_user_id") REFERENCES "public"."app_users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "audit_events" ADD CONSTRAINT "audit_events_actor_user_id_app_users_id_fk" FOREIGN KEY ("actor_user_id") REFERENCES "public"."app_users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -364,8 +517,10 @@ ALTER TABLE "review_assignments" ADD CONSTRAINT "review_assignments_organization
 ALTER TABLE "review_assignments" ADD CONSTRAINT "review_assignments_case_id_request_id_review_requests_case_id_id_fk" FOREIGN KEY ("case_id","request_id") REFERENCES "public"."review_requests"("case_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "review_assignments" ADD CONSTRAINT "review_assignments_case_id_assessment_id_assessments_case_id_id_fk" FOREIGN KEY ("case_id","assessment_id") REFERENCES "public"."assessments"("case_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "reviewer_command_receipts" ADD CONSTRAINT "reviewer_command_receipts_assignment_id_review_assignments_id_fk" FOREIGN KEY ("assignment_id") REFERENCES "public"."review_assignments"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "reviewer_draft_observations" ADD CONSTRAINT "reviewer_draft_observations_assignment_id_reviewer_drafts_assignment_id_fk" FOREIGN KEY ("assignment_id") REFERENCES "public"."reviewer_drafts"("assignment_id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "reviewer_drafts" ADD CONSTRAINT "reviewer_drafts_assignment_id_review_assignments_id_fk" FOREIGN KEY ("assignment_id") REFERENCES "public"."review_assignments"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "reviewer_messages" ADD CONSTRAINT "reviewer_messages_assignment_id_review_assignments_id_fk" FOREIGN KEY ("assignment_id") REFERENCES "public"."review_assignments"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "assessment_version_observations" ADD CONSTRAINT "assessment_version_observations_case_id_assessment_id_version_assessment_versions_case_id_assessment_id_version_fk" FOREIGN KEY ("case_id","assessment_id","version") REFERENCES "public"."assessment_versions"("case_id","assessment_id","version") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "assessment_versions" ADD CONSTRAINT "assessment_versions_organization_id_case_id_application_cases_organization_id_id_fk" FOREIGN KEY ("organization_id","case_id") REFERENCES "public"."application_cases"("organization_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "assessment_versions" ADD CONSTRAINT "assessment_versions_organization_id_criteria_round_id_funding_rounds_organization_id_id_fk" FOREIGN KEY ("organization_id","criteria_round_id") REFERENCES "public"."funding_rounds"("organization_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "assessment_versions" ADD CONSTRAINT "assessment_versions_case_id_assessment_id_assessments_case_id_id_fk" FOREIGN KEY ("case_id","assessment_id") REFERENCES "public"."assessments"("case_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -381,6 +536,7 @@ ALTER TABLE "review_requests" ADD CONSTRAINT "review_requests_organization_id_co
 ALTER TABLE "review_requests" ADD CONSTRAINT "review_requests_case_id_material_version_material_versions_case_id_version_fk" FOREIGN KEY ("case_id","material_version") REFERENCES "public"."material_versions"("case_id","version") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "review_requests" ADD CONSTRAINT "review_requests_criteria_round_id_criteria_version_criteria_versions_round_id_version_fk" FOREIGN KEY ("criteria_round_id","criteria_version") REFERENCES "public"."criteria_versions"("round_id","version") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "review_states" ADD CONSTRAINT "review_states_case_id_application_cases_id_fk" FOREIGN KEY ("case_id") REFERENCES "public"."application_cases"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "criteria_version_items" ADD CONSTRAINT "criteria_version_items_round_id_version_criteria_versions_round_id_version_fk" FOREIGN KEY ("round_id","version") REFERENCES "public"."criteria_versions"("round_id","version") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "criteria_versions" ADD CONSTRAINT "criteria_versions_round_id_funding_rounds_id_fk" FOREIGN KEY ("round_id") REFERENCES "public"."funding_rounds"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "funding_rounds" ADD CONSTRAINT "funding_rounds_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "funding_rounds" ADD CONSTRAINT "funding_rounds_manager_user_id_app_users_id_fk" FOREIGN KEY ("manager_user_id") REFERENCES "public"."app_users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -413,13 +569,6 @@ ALTER TABLE funding_rounds ADD CONSTRAINT funding_rounds_current_criteria_fk
   FOREIGN KEY (id, criteria_version) REFERENCES criteria_versions(round_id, version) DEFERRABLE INITIALLY DEFERRED;
 ALTER TABLE assessments ADD CONSTRAINT assessments_previous_fk
   FOREIGN KEY (case_id, previous_id) REFERENCES assessments(case_id, id);
-ALTER TABLE material_versions ADD CONSTRAINT material_content_check CHECK (
-  jsonb_typeof(content) = 'object' AND content->>'version' = version::text
-  AND NOT content ?| ARRAY['reviews', 'managerRecommendation', 'summary', 'summaryAuthor', 'contactId', 'intakeStatus']);
-ALTER TABLE assessment_versions ADD CONSTRAINT assessment_basis_check CHECK (
-  (criteria_round_id IS NULL) = (criteria_version IS NULL)
-  AND (content->>'applicationVersion')::integer IS NOT DISTINCT FROM material_version
-  AND (content->>'criteriaVersion')::integer IS NOT DISTINCT FROM criteria_version);
 CREATE UNIQUE INDEX review_requests_outstanding_key ON review_requests(case_id, contact_id) WHERE status = 'outstanding';
 --> statement-breakpoint
 CREATE FUNCTION grantmaking_preserve_version() RETURNS trigger LANGUAGE plpgsql AS $$
@@ -427,7 +576,7 @@ DECLARE
   owner_exists boolean;
 BEGIN
   IF TG_OP = 'DELETE' THEN
-    IF TG_TABLE_NAME = 'criteria_versions' THEN
+    IF TG_TABLE_NAME IN ('criteria_versions', 'criteria_version_items') THEN
       SELECT EXISTS (SELECT 1 FROM funding_rounds WHERE id = OLD.round_id) INTO owner_exists;
     ELSE
       SELECT EXISTS (SELECT 1 FROM application_cases WHERE id = OLD.case_id) INTO owner_exists;
@@ -440,8 +589,12 @@ BEGIN
 END $$;
 --> statement-breakpoint
 CREATE TRIGGER material_versions_immutable BEFORE UPDATE OR DELETE ON material_versions FOR EACH ROW EXECUTE FUNCTION grantmaking_preserve_version();
+CREATE TRIGGER material_version_answers_immutable BEFORE UPDATE OR DELETE ON material_version_answers FOR EACH ROW EXECUTE FUNCTION grantmaking_preserve_version();
+CREATE TRIGGER material_version_evidence_immutable BEFORE UPDATE OR DELETE ON material_version_evidence FOR EACH ROW EXECUTE FUNCTION grantmaking_preserve_version();
 CREATE TRIGGER criteria_versions_immutable BEFORE UPDATE OR DELETE ON criteria_versions FOR EACH ROW EXECUTE FUNCTION grantmaking_preserve_version();
+CREATE TRIGGER criteria_version_items_immutable BEFORE UPDATE OR DELETE ON criteria_version_items FOR EACH ROW EXECUTE FUNCTION grantmaking_preserve_version();
 CREATE TRIGGER assessment_versions_immutable BEFORE UPDATE OR DELETE ON assessment_versions FOR EACH ROW EXECUTE FUNCTION grantmaking_preserve_version();
+CREATE TRIGGER assessment_version_observations_immutable BEFORE UPDATE OR DELETE ON assessment_version_observations FOR EACH ROW EXECUTE FUNCTION grantmaking_preserve_version();
 CREATE TRIGGER recommendation_versions_immutable BEFORE UPDATE OR DELETE ON recommendation_versions FOR EACH ROW EXECUTE FUNCTION grantmaking_preserve_version();
 --> statement-breakpoint
 CREATE FUNCTION preserve_assessment_author() RETURNS trigger LANGUAGE plpgsql AS $$

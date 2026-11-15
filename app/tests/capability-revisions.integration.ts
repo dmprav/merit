@@ -13,20 +13,20 @@ it("stores capability revisions independently and removes review state with its 
     "INSERT INTO funding_rounds (id,organization_id,manager_name,title,purpose,snapshot_date,decision_status,criteria_version) VALUES ('round-1','alder','Dana','Round','Purpose','2026-11-01','open',1)",
   );
   await database.client.query(
-    "INSERT INTO criteria_versions (round_id,version,criteria) VALUES ('round-1',1,'[]')",
+    "INSERT INTO criteria_versions (round_id,version) VALUES ('round-1',1)",
   );
   await database.client.query(
     "INSERT INTO application_cases (id,organization_id,round_id,position,material_version,intake_status,revision) VALUES ('reviewed','alder','round-1',0,1,'ready',3),('empty','alder','round-1',1,1,'in_preparation',0)",
   );
   await database.client.query(
-    "INSERT INTO material_versions (case_id,version,content,change_kind,source) VALUES ('reviewed',1,'{}','initial','{\"interface\":\"web\"}'),('empty',1,'{}','initial','{\"interface\":\"web\"}')",
+    "INSERT INTO material_versions (case_id,version,title,change_kind,source_kind) VALUES ('reviewed',1,'Reviewed application','initial','recorded_external'),('empty',1,'Empty application','initial','recorded_external')",
   );
   await database.client.query("COMMIT");
   await database.client.query(
     "INSERT INTO review_states (case_id,revision) VALUES ('reviewed',7),('empty',0)",
   );
   await database.client.query(
-    "INSERT INTO recommendation_versions (case_id,revision,content) VALUES ('reviewed',1,'{\"reasoning\":\"First\"}'),('reviewed',2,'{\"reasoning\":\"Second\"}')",
+    "INSERT INTO recommendation_versions (case_id,revision,position,allocation_minor_units,allocation_currency,reasoning) VALUES ('reviewed',1,'Fund',1000,'EUR','First'),('reviewed',2,'Fund',2000,'EUR','Second')",
   );
   const history = (
     await database.client.query("SELECT * FROM recommendation_versions ORDER BY revision")

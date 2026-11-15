@@ -109,7 +109,7 @@ describe("funding-round preparation", () => {
         await tx.execute(sql.raw(`GRANT USAGE ON SCHEMA public TO ${role}`));
         await tx.execute(
           sql.raw(
-            `GRANT SELECT ON app_users, memberships, organizations, funding_rounds, criteria_versions TO ${role}`,
+            `GRANT SELECT ON app_users, memberships, organizations, funding_rounds, criteria_versions, criteria_version_items TO ${role}`,
           ),
         );
         await tx.execute(sql.raw(`GRANT UPDATE (name) ON organizations TO ${role}`));
@@ -119,7 +119,9 @@ describe("funding-round preparation", () => {
         await tx.execute(
           sql.raw(`GRANT SELECT, INSERT ON audit_events, round_creation_receipts TO ${role}`),
         );
-        await tx.execute(sql.raw(`GRANT INSERT ON criteria_versions TO ${role}`));
+        await tx.execute(
+          sql.raw(`GRANT INSERT ON criteria_versions, criteria_version_items TO ${role}`),
+        );
         await tx.execute(sql.raw(`SET LOCAL ROLE ${role}`));
 
         expect(
@@ -149,7 +151,7 @@ describe("funding-round preparation", () => {
         await tx.execute(sql.raw(`RESET ROLE`));
         await tx.execute(
           sql.raw(
-            `GRANT SELECT ON application_cases, contacts, material_versions, material_drafts, review_states, review_requests, assessments, assessment_versions, recommendation_versions TO ${role}`,
+            `GRANT SELECT ON application_cases, contacts, material_versions, material_version_answers, material_version_evidence, material_drafts, material_draft_answers, review_states, review_requests, assessments, assessment_versions, assessment_version_observations, recommendation_versions TO ${role}`,
           ),
         );
         await tx.execute(sql.raw(`SET LOCAL ROLE ${role}`));
@@ -607,7 +609,7 @@ describe("funding-round preparation", () => {
     const address = await create(db);
     const application = await createApplication(db, address.publicId);
     await database.client.query(
-      "UPDATE application_cases SET attention = '{}'::jsonb WHERE id = $1",
+      "UPDATE application_cases SET attention = ARRAY['unrelated']::text[] WHERE id = $1",
       [application.publicId],
     );
 

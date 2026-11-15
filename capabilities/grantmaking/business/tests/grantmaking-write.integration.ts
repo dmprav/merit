@@ -12,6 +12,7 @@ import { actor } from "@merit/organizations/testing/workspace";
 import { reviewRevisionSchema } from "@merit/reviews/domain";
 import { saveApplicationReview } from "@merit/reviews/server";
 import { criteriaVersionSchema } from "@merit/rounds/domain";
+import { editFundingRound } from "@merit/rounds/server";
 
 import { applicationWork } from "../src/server/persistence/commands/application-work";
 import { roundTest } from "./round-test";
@@ -41,6 +42,16 @@ const alder = { slug: "alder", userId: actor.userId };
 // One application with every kind of recorded version, and another whose material
 // has a second version that the first application lacks.
 const it = roundTest.extend("scenario", async ({ db, rounds }) => {
+  const editedRound = await editFundingRound(db, actor, {
+    workspaceSlug: rounds.pageInput.workspaceSlug,
+    publicId: rounds.pageInput.publicId,
+    expectedRevision: 0,
+    change: {
+      section: "criteria",
+      criteria: [{ id: randomUUID(), title: "Community fit", description: "Community benefit" }],
+    },
+  });
+  assert(editedRound.status === "ok", "Could not add criteria fixture");
   const address = await rounds.createApplication("Recorded application");
   await rounds.recommendApplication(address, "8000");
   const contactId = await createContact(db, alder, "Robin Hale");
@@ -52,7 +63,7 @@ const it = roundTest.extend("scenario", async ({ db, rounds }) => {
   assert(linked.status === "ok", "Could not link the applicant contact");
   const basis = {
     expectedApplicationVersion: materialVersionSchema.parse(1),
-    expectedCriteriaVersion: criteriaVersionSchema.parse(1),
+    expectedCriteriaVersion: criteriaVersionSchema.parse(2),
   };
   const requested = await saveApplicationReview(db, actor, {
     ...address,
@@ -114,10 +125,10 @@ const it = roundTest.extend("scenario", async ({ db, rounds }) => {
 });
 
 const versionUpdates = {
-  material: "UPDATE material_versions SET content=content",
-  criteria: "UPDATE criteria_versions SET criteria=criteria",
-  assessment: "UPDATE assessment_versions SET content=content",
-  recommendation: "UPDATE recommendation_versions SET content=content",
+  material: "UPDATE material_versions SET title=title",
+  criteria: "UPDATE criteria_versions SET version=version",
+  assessment: "UPDATE assessment_versions SET reasoning=reasoning",
+  recommendation: "UPDATE recommendation_versions SET reasoning=reasoning",
 };
 
 it.for(["material", "criteria", "assessment", "recommendation"] as const)(
@@ -134,6 +145,7 @@ it.for(["material", "criteria", "assessment", "recommendation"] as const)(
 it.for([
   "material_versions",
   "criteria_versions",
+  "criteria_version_items",
   "assessment_versions",
   "recommendation_versions",
 ] as const)(
@@ -236,16 +248,24 @@ it("keeps staff summary edits out of material versions and review bases", async 
   expect(after.application.summary).toBe("Staff interpretation after discussion.");
 });
 
-it("rejects staff interpretation embedded in a new material version", async ({
+it("enforces relational intake boundaries on recorded material versions", async ({
   database,
   scenario,
 }) => {
   await expect(
     database.client.query(
-      `INSERT INTO material_versions (case_id, version, content, change_kind, source)
-     SELECT case_id, 99, content || '{"version":99,"summary":"Internal judgment"}'::jsonb,
-       'correction', source FROM material_versions WHERE case_id=$1 AND version=1`,
+      `INSERT INTO material_versions (case_id, version, title, requested_minor_units, requested_currency, change_kind, source_kind)
+       VALUES ($1, 99, 'Invalid requested amount', -1, 'EUR', 'correction', 'recorded_external')`,
       [scenario.address.publicId],
     ),
   ).rejects.toMatchObject({ code: "23514" });
+  const columns = (
+    await database.client.query<{ column_name: string }>(
+      `SELECT column_name FROM information_schema.columns
+       WHERE table_schema = 'public' AND table_name = 'material_versions'`,
+    )
+  ).rows.map((row) => row.column_name);
+  expect(columns).not.toContain("summary");
+  expect(columns).not.toContain("reviews");
+  expect(columns).not.toContain("manager_recommendation");
 });
