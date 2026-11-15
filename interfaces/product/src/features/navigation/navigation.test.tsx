@@ -664,6 +664,16 @@ it("waits for popup teardown before recovering focus when a save resolves ahead 
       expect(focus).not.toHaveBeenCalled();
     });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    const fallbackTarget = document.createElement("button");
+    fallbackTarget.textContent = "Skip to content";
+    document.body.insertBefore(fallbackTarget, document.body.firstChild);
+    const restoreEvent = new CustomEvent("react-aria-focus-scope-restore", {
+      bubbles: true,
+      cancelable: true,
+    });
+    const allowFallback = fallbackTarget.dispatchEvent(restoreEvent);
+    fallbackTarget.remove();
+    expect(allowFallback).toBe(false);
     act(runFrame);
     expect(focus).toHaveBeenCalledOnce();
   } finally {

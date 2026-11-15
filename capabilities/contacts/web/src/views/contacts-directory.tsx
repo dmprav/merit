@@ -1,4 +1,4 @@
-import { useId, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import { FormDialog } from "@merit/forms";
@@ -113,6 +113,45 @@ type ContactsDirectoryProps = {
   contacts: Contact[];
 };
 
+const useContactsFocusRestore = ({
+  directoryId,
+  blocked,
+}: {
+  directoryId: string;
+  blocked: boolean;
+}) => {
+  const restoreTargetRef = useRef<string | null | undefined>(undefined);
+  const [focusRequest, setFocusRequest] = useState(0);
+
+  useEffect(() => {
+    if (blocked || restoreTargetRef.current === undefined) {
+      return;
+    }
+
+    const frame = requestAnimationFrame(() => {
+      const contactId = restoreTargetRef.current;
+      restoreTargetRef.current = undefined;
+
+      if (contactId === undefined) {
+        return;
+      }
+
+      const target = document.getElementById(`${directoryId}-${contactId ?? "add"}`);
+      (target && !target.matches(":disabled")
+        ? target
+        : document.getElementById(`${directoryId}-add`)
+      )?.focus();
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [blocked, directoryId, focusRequest]);
+
+  return (contactId?: string) => {
+    restoreTargetRef.current = contactId ?? null;
+    setFocusRequest((count) => count + 1);
+  };
+};
+
 export const ContactsDirectory = ({
   data,
   workspaceSlug,
@@ -128,8 +167,10 @@ export const ContactsDirectory = ({
   const [editing, setEditing] = useState<Contact | "new" | null>(null);
   const work = useContactsDirectory(workspaceSlug, data);
   const { pending: saving, changeArchived, contactSaved } = work;
-
-  const restoreFocus = (contactId?: string) => restoreDirectoryFocus(directoryId, contactId);
+  const restoreFocus = useContactsFocusRestore({
+    directoryId,
+    blocked: saving || editing !== null || pending,
+  });
 
   const closeEditor = () => {
     const contactId = editing && editing !== "new" ? editing.id : undefined;
@@ -367,14 +408,4 @@ const DirectoryFilters = ({
       />
     </div>
   );
-};
-
-const restoreDirectoryFocus = (directoryId: string, contactId?: string) => {
-  requestAnimationFrame(() => {
-    const target = document.getElementById(`${directoryId}-${contactId ?? "add"}`);
-    (target && !target.matches(":disabled")
-      ? target
-      : document.getElementById(`${directoryId}-add`)
-    )?.focus();
-  });
 };

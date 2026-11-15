@@ -55,3 +55,29 @@ it("prevents macOS context-menu Enter from activating the link before the menu o
     platform.mockRestore();
   }
 });
+
+it("moves focus into a context menu opened after a virtual focus event", async () => {
+  const user = userEvent.setup();
+  render(
+    <ActionMenu
+      label="Pin actions"
+      activation="contextMenu"
+      tooltip="Round · Workspace"
+      trigger={<a href="/round">Round</a>}
+      items={[{ id: "up", label: "Move up" }]}
+      onAction={vi.fn()}
+    />,
+  );
+  const link = screen.getByRole("link", { name: "Round" });
+  link.focus();
+  // Simulate native/CDP focus without prior pointer/keyboard modality.
+  window.dispatchEvent(new FocusEvent("focus", { bubbles: false }));
+  fireEvent.contextMenu(link);
+
+  const menu = await screen.findByRole("menu");
+  const container = menu.closest('[role="dialog"]') ?? menu;
+  await waitFor(() => expect(container.contains(document.activeElement)).toBe(true));
+
+  await user.keyboard("{Escape}");
+  await waitFor(() => expect(link).toHaveFocus());
+});

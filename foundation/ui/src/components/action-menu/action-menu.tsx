@@ -1,4 +1,11 @@
-import { cloneElement, type ComponentProps, type KeyboardEvent } from "react";
+import {
+  cloneElement,
+  useEffect,
+  useRef,
+  type ComponentProps,
+  type KeyboardEvent,
+  type RefObject,
+} from "react";
 import { Menu, MenuItem, MenuTrigger, Pressable } from "react-aria-components/Menu";
 import { Popover } from "react-aria-components/Popover";
 
@@ -26,6 +33,30 @@ const ContextTrigger = ({ trigger }: { trigger: ComponentProps<typeof Pressable>
   </Pressable>
 );
 
+const MenuFocusGuard = ({ menuRef }: { menuRef: RefObject<HTMLDivElement | null> }) => {
+  useEffect(() => {
+    const ensureFocus = () => {
+      const menu = menuRef.current;
+
+      if (!menu) {
+        return;
+      }
+
+      const container = menu.closest('[role="dialog"]') ?? menu;
+
+      if (!container.contains(document.activeElement)) {
+        menu.focus({ preventScroll: true });
+      }
+    };
+
+    ensureFocus();
+    const frame = requestAnimationFrame(ensureFocus);
+    return () => cancelAnimationFrame(frame);
+  }, [menuRef]);
+
+  return null;
+};
+
 export const ActionMenu = ({
   label,
   trigger,
@@ -41,31 +72,40 @@ export const ActionMenu = ({
   tooltip?: string;
   items: readonly { id: string; label: string }[];
   onAction: (id: string) => void;
-}) => (
-  <MenuTrigger trigger={activation}>
-    {activation === "contextMenu" ? (
-      tooltip ? (
-        <Tooltip content={tooltip}>
+}) => {
+  const menuRef = useRef<HTMLDivElement>(null);
+  return (
+    <MenuTrigger trigger={activation}>
+      {activation === "contextMenu" ? (
+        tooltip ? (
+          <Tooltip content={tooltip}>
+            <ContextTrigger trigger={trigger} />
+          </Tooltip>
+        ) : (
           <ContextTrigger trigger={trigger} />
-        </Tooltip>
+        )
       ) : (
-        <ContextTrigger trigger={trigger} />
-      )
-    ) : (
-      trigger
-    )}
-    <Popover
-      placement={activation === "contextMenu" ? undefined : "bottom end"}
-      offset={activation === "contextMenu" ? 0 : 4}
-      className={styles.popover}
-    >
-      <Menu aria-label={label} className={styles.menu} onAction={(key) => onAction(String(key))}>
-        {items.map((item) => (
-          <MenuItem id={item.id} key={item.id} className={styles.item}>
-            {item.label}
-          </MenuItem>
-        ))}
-      </Menu>
-    </Popover>
-  </MenuTrigger>
-);
+        trigger
+      )}
+      <Popover
+        placement={activation === "contextMenu" ? undefined : "bottom end"}
+        offset={activation === "contextMenu" ? 0 : 4}
+        className={styles.popover}
+      >
+        <MenuFocusGuard menuRef={menuRef} />
+        <Menu
+          ref={menuRef}
+          aria-label={label}
+          className={styles.menu}
+          onAction={(key) => onAction(String(key))}
+        >
+          {items.map((item) => (
+            <MenuItem id={item.id} key={item.id} className={styles.item}>
+              {item.label}
+            </MenuItem>
+          ))}
+        </Menu>
+      </Popover>
+    </MenuTrigger>
+  );
+};
