@@ -25,6 +25,10 @@ describe("audit records", () => {
       input: { ...record, target: { ...record.target, revision: null } },
     },
     {
+      reason: "a target ID of 200 characters",
+      input: { ...record, target: { ...record.target, id: "x".repeat(200) } },
+    },
+    {
       reason: "creation as revision zero",
       input: { ...record, target: { ...record.target, revision: 0 } },
     },
@@ -39,6 +43,7 @@ describe("audit records", () => {
   it.each([
     { reason: "an empty workspace", input: { ...record, organizationId: "" } },
     { reason: "an empty actor", input: { ...record, actor: { ...record.actor, userId: "" } } },
+    { reason: "a blank actor", input: { ...record, actor: { ...record.actor, userId: "  " } } },
     {
       reason: "MCP provenance without a client",
       input: {
@@ -56,6 +61,10 @@ describe("audit records", () => {
       input: { ...record, action: `a.${"b".repeat(127)}` },
     },
     { reason: "an empty target ID", input: { ...record, target: { ...record.target, id: "" } } },
+    {
+      reason: "a target ID over 200 characters",
+      input: { ...record, target: { ...record.target, id: "x".repeat(201) } },
+    },
     {
       reason: "an empty target type",
       input: { ...record, target: { ...record.target, type: "" } },
