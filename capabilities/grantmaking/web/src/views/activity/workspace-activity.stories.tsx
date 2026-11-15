@@ -166,7 +166,7 @@ export const MissingTarget: StoryObj<typeof meta> = {
     entries: [
       entry(1, { action: "application.deleted", record: null }),
       entry(2, { action: "widget.polished", record: null }),
-      ...recent.slice(1, 3),
+      ...recent.slice(2, 4),
     ],
   },
   play: async ({ canvasElement }) => {

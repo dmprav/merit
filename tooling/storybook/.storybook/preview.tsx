@@ -79,9 +79,27 @@ const preview: Preview = {
     delete canvasElement.dataset.storyReady;
     const channel = addons.getChannel();
 
-    const onFinished = ({ storyId, status }: { storyId: string; status: string }) => {
+    const onFinished = ({
+      storyId,
+      status,
+      reporters,
+    }: {
+      storyId: string;
+      status: string;
+      reporters?: Array<{ type: string; status: string; result?: unknown }>;
+    }) => {
       if (storyId === id) {
-        canvasElement.dataset.storyReady = status === "success" ? "true" : "error";
+        if (status === "success") {
+          delete canvasElement.dataset.storyError;
+          canvasElement.dataset.storyReady = "true";
+        } else {
+          const failures = (reporters ?? [])
+            .filter((report) => report.status === "failed")
+            .map((report) => ({ type: report.type, result: report.result }));
+          canvasElement.dataset.storyError =
+            failures.length > 0 ? JSON.stringify(failures) : status;
+          canvasElement.dataset.storyReady = "error";
+        }
       }
     };
 
@@ -94,6 +112,41 @@ const preview: Preview = {
       log.replaceChildren();
     }
     return () => channel.off(STORY_FINISHED, onFinished);
+  },
+  // Settle CSS transitions/animations (e.g. ModalDialog fade-in) before addon-a11y measures contrast.
+  afterEach: async ({ canvasElement }) => {
+    const doc = canvasElement.ownerDocument;
+    if (typeof doc.getAnimations !== "function") {
+      return;
+    }
+
+    const finiteRunning = () =>
+      doc
+        .getAnimations()
+        .filter(
+          (animation) =>
+            animation.playState === "running" &&
+            animation.effect?.getTiming().iterations !== Infinity,
+        );
+
+    let waitCycles = 0;
+
+    while (waitCycles < 20) {
+      const running = finiteRunning();
+      const transitioning = doc.querySelector("[data-entering], [data-exiting]");
+
+      if (running.length === 0 && !transitioning) {
+        break;
+      }
+
+      if (running.length > 0) {
+        await Promise.allSettled(running.map((animation) => animation.finished));
+      } else {
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      }
+
+      waitCycles += 1;
+    }
   },
   parameters: {
     options: {

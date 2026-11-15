@@ -101,6 +101,7 @@ const PinRow = ({
   change,
   current,
   popup = false,
+  suppressTooltips = false,
   onNavigate,
 }: {
   pins: NavigationPin[];
@@ -109,11 +110,13 @@ const PinRow = ({
   change: PinChange;
   current: boolean;
   popup?: boolean;
+  suppressTooltips?: boolean;
   onNavigate?: (event: MouseEvent<HTMLAnchorElement>) => void;
 }) => {
   const { t } = useTranslation("web");
   const pin = pins[index]!;
   const hint = pin.context ? `${pin.title} · ${pin.context}` : pin.title;
+  const showHintTooltip = !popup && !suppressTooltips;
   const link = (
     <Link
       {...pinLocation(pin)}
@@ -133,7 +136,7 @@ const PinRow = ({
     <ApplicationNavigationRow
       reorderKey={pin.target.id}
       action={
-        <Tooltip content={t("pins.unpin")}>
+        <Tooltip content={t("pins.unpin")} isDisabled={suppressTooltips}>
           <Button
             variant="quiet"
             size="small"
@@ -153,10 +156,10 @@ const PinRow = ({
           index={index}
           change={change}
           trigger={link}
-          tooltip={popup ? undefined : hint}
+          tooltip={showHintTooltip ? hint : undefined}
         />
       ) : (
-        <Tooltip customTrigger content={hint}>
+        <Tooltip customTrigger content={hint} isDisabled={!showHintTooltip}>
           {link}
         </Tooltip>
       )}
@@ -234,6 +237,74 @@ const usePopupList = () => {
   return { list, ref, afterRemoval };
 };
 
+const schedulePinFocusRecovery = ({
+  version,
+  interaction,
+  target,
+  surface,
+  active,
+  row,
+  dialog,
+  collection,
+  overflow,
+  popupList,
+  afterRemoval,
+}: {
+  version: number;
+  interaction: { current: number };
+  target: ReturnType<typeof recoveryTarget>;
+  surface: PinSurface;
+  active: Element | null;
+  row: HTMLElement | null | undefined;
+  dialog: Element | null | undefined;
+  collection: { current: HTMLAnchorElement | null };
+  overflow: { current: HTMLButtonElement | null };
+  popupList: { current: HTMLUListElement | null };
+  afterRemoval: (callback: () => void) => void;
+}) => {
+  const restoreFocus = () => {
+    const cleanupRestoreFallback = () => {
+      document.removeEventListener("react-aria-focus-scope-restore", suppressFallbackRestore, true);
+    };
+
+    const suppressFallbackRestore = (event: Event) => {
+      if (version !== interaction.current || document.activeElement !== document.body) {
+        cleanupRestoreFallback();
+        return;
+      }
+
+      event.preventDefault();
+    };
+
+    if (target === "collection" && surface === "popup") {
+      document.addEventListener("react-aria-focus-scope-restore", suppressFallbackRestore, true);
+    }
+
+    requestAnimationFrame(() => {
+      cleanupRestoreFallback();
+
+      if (version !== interaction.current || !ownsPinFocus(active, row, dialog)) {
+        return;
+      }
+
+      const controls = { collection: collection.current, overflow: overflow.current };
+      const control =
+        typeof target === "string"
+          ? controls[target]
+          : target && pinLink(popupList.current, target.id);
+      control?.focus();
+    });
+  };
+
+  // A frame can precede React's removal commit. The dialog still contains focus then,
+  // so wait for its list to detach before moving focus outside the closing popup.
+  if (target === "collection" && surface === "popup") {
+    afterRemoval(restoreFocus);
+  } else {
+    restoreFocus();
+  }
+};
+
 const useNavigationSection = ({ kind, workspaceSlug }: NavigationSectionProps) => {
   const state = useContext(NavigationPinsContext);
   const router = useRouter();
@@ -268,6 +339,7 @@ const useNavigationSection = ({ kind, workspaceSlug }: NavigationSectionProps) =
         reset();
       }
     });
+
     return () => {
       unsubscribe();
       interaction.current += 1;
@@ -290,6 +362,7 @@ const useNavigationSection = ({ kind, workspaceSlug }: NavigationSectionProps) =
     if (!state || state.busy || submitting.current) {
       return;
     }
+
     submitting.current = true;
     setError(null);
     const version = ++interaction.current;
@@ -299,38 +372,33 @@ const useNavigationSection = ({ kind, workspaceSlug }: NavigationSectionProps) =
     const dialog = row?.closest("[role=dialog]");
     const saved = await state.change(input);
     submitting.current = false;
+
     if (version !== interaction.current) {
       return;
     }
+
     if (!saved) {
       setError(surface);
       return;
     }
+
     if (input.action === "unpin" && pins.length <= PIN_PREVIEW_LIMIT + 1) {
       setOpen(false);
     }
-    const target = recoveryTarget(input, pins, surface);
 
-    const restoreFocus = () =>
-      requestAnimationFrame(() => {
-        if (version !== interaction.current || !ownsPinFocus(active, row, dialog)) {
-          return;
-        }
-        const controls = { collection: collection.current, overflow: overflow.current };
-        const control =
-          typeof target === "string"
-            ? controls[target]
-            : target && pinLink(popupList.current, target.id);
-        control?.focus();
-      });
-
-    // A frame can precede React's removal commit. The dialog still contains focus then,
-    // so wait for its list to detach before moving focus outside the closing popup.
-    if (target === "collection" && surface === "popup") {
-      afterRemoval(restoreFocus);
-    } else {
-      restoreFocus();
-    }
+    schedulePinFocusRecovery({
+      version,
+      interaction,
+      target: recoveryTarget(input, pins, surface),
+      surface,
+      active,
+      row,
+      dialog,
+      collection,
+      overflow,
+      popupList,
+      afterRemoval,
+    });
   };
 
   return {
@@ -353,6 +421,7 @@ const PinList = ({
   busy,
   change,
   popup = false,
+  suppressTooltips = false,
   listRef,
   onNavigate,
 }: {
@@ -361,6 +430,7 @@ const PinList = ({
   busy: boolean;
   change: PinChange;
   popup?: boolean;
+  suppressTooltips?: boolean;
   listRef?: Ref<HTMLUListElement>;
   onNavigate?: ComponentProps<typeof PinRow>["onNavigate"];
 }) => (
@@ -388,6 +458,7 @@ const PinList = ({
         busy={busy}
         change={change}
         popup={popup}
+        suppressTooltips={suppressTooltips}
         onNavigate={onNavigate}
       />
     ))}
@@ -416,6 +487,7 @@ export const NavigationSection = (props: NavigationSectionProps) => {
           pins={pins}
           currentPin={currentPin}
           busy={state?.busy ?? false}
+          suppressTooltips={open}
           change={(input) => change(input, "sidebar")}
         />
       )}
