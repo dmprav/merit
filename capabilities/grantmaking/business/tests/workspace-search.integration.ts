@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { readFileSync } from "node:fs";
 
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { assert, expect } from "vite-plus/test";
@@ -328,34 +327,4 @@ it("follows a renamed round without rewriting application rows", async ({ db, da
   expect((await database.client.query("SELECT xmin::text FROM application_cases")).rows).toEqual(
     before.rows,
   );
-});
-
-it("backfills the stored search text from each current recorded version", async ({
-  db,
-  database,
-}) => {
-  const round = await createRound(db, "Community grants");
-  await createApplication(db, round, "Backfilled title", "Backfilled applicant");
-  await database.client.query(
-    "UPDATE application_cases SET search_title = '', search_applicant = ''",
-  );
-  expect((await search(db, "backfilled")).applications.total).toBe(0);
-
-  const migration = readFileSync(
-    new URL(
-      "../../../../foundation/db/database/migrations/0001_workspace_search.sql",
-      import.meta.url,
-    ),
-    "utf8",
-  );
-  const backfill = migration
-    .split("--> statement-breakpoint")
-    .map((statement) => statement.trim())
-    .find((statement) => statement.includes("UPDATE application_cases"));
-  assert(backfill);
-  await database.client.query(backfill);
-
-  expect(await search(db, "backfilled applicant")).toMatchObject({
-    applications: { results: [{ title: "Backfilled title", applicant: "Backfilled applicant" }] },
-  });
 });

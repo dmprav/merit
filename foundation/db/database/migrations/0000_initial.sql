@@ -1,26 +1,15 @@
--- The final 60 bits of a v4 UUID contain only random bits (no version/variant bits).
-CREATE FUNCTION merit_public_id() RETURNS text LANGUAGE plpgsql VOLATILE AS $$
-DECLARE
-  bits bit(60) := ('x' || right(replace(gen_random_uuid()::text, '-', ''), 15))::bit(60);
-  alphabet constant text := '0123456789abcdefghjkmnpqrstvwxyz';
-  result text := '';
-BEGIN
-  FOR i IN 0..11 LOOP
-    result := result || substr(alphabet, substring(bits FROM i * 5 + 1 FOR 5)::integer + 1, 1);
-  END LOOP;
-  RETURN result;
-END $$;
---> statement-breakpoint
 CREATE TABLE "application_cases" (
 	"id" text PRIMARY KEY DEFAULT merit_public_id() NOT NULL,
 	"organization_id" text NOT NULL,
-	"round_id" text,
+	"round_id" text NOT NULL,
 	"position" integer DEFAULT 0 NOT NULL,
-	"material_version" integer,
+	"material_version" integer NOT NULL,
 	"revision" integer DEFAULT 0 NOT NULL,
 	"contact_id" uuid,
 	"intake_status" text NOT NULL,
 	"withdrawal" jsonb,
+	"search_title" text DEFAULT '' NOT NULL,
+	"search_applicant" text DEFAULT '' NOT NULL,
 	"summary" text DEFAULT '' NOT NULL,
 	"summary_author" jsonb,
 	"attention" jsonb DEFAULT '[]'::jsonb NOT NULL,
@@ -267,9 +256,9 @@ CREATE TABLE "review_requests" (
 	"id" text NOT NULL,
 	"contact_id" uuid NOT NULL,
 	"reviewer" text NOT NULL,
-	"material_version" integer,
-	"criteria_round_id" text,
-	"criteria_version" integer,
+	"material_version" integer NOT NULL,
+	"criteria_round_id" text NOT NULL,
+	"criteria_version" integer NOT NULL,
 	"status" text NOT NULL,
 	"recorder" jsonb,
 	"closed_by" jsonb,
@@ -369,14 +358,10 @@ ALTER TABLE "assessment_versions" ADD CONSTRAINT "assessment_versions_organizati
 ALTER TABLE "assessment_versions" ADD CONSTRAINT "assessment_versions_case_id_assessment_id_assessments_case_id_id_fk" FOREIGN KEY ("case_id","assessment_id") REFERENCES "public"."assessments"("case_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "assessment_versions" ADD CONSTRAINT "assessment_versions_case_id_material_version_material_versions_case_id_version_fk" FOREIGN KEY ("case_id","material_version") REFERENCES "public"."material_versions"("case_id","version") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "assessment_versions" ADD CONSTRAINT "assessment_versions_criteria_round_id_criteria_version_criteria_versions_round_id_version_fk" FOREIGN KEY ("criteria_round_id","criteria_version") REFERENCES "public"."criteria_versions"("round_id","version") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "assessments" ADD CONSTRAINT "assessments_case_id_application_cases_id_fk" FOREIGN KEY ("case_id") REFERENCES "public"."application_cases"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "assessments" ADD CONSTRAINT "assessments_contact_id_contacts_id_fk" FOREIGN KEY ("contact_id") REFERENCES "public"."contacts"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "assessments" ADD CONSTRAINT "assessments_author_user_id_app_users_id_fk" FOREIGN KEY ("author_user_id") REFERENCES "public"."app_users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "assessments" ADD CONSTRAINT "assessments_organization_id_case_id_application_cases_organization_id_id_fk" FOREIGN KEY ("organization_id","case_id") REFERENCES "public"."application_cases"("organization_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "assessments" ADD CONSTRAINT "assessments_organization_id_contact_id_contacts_organization_id_id_fk" FOREIGN KEY ("organization_id","contact_id") REFERENCES "public"."contacts"("organization_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "assessments" ADD CONSTRAINT "assessments_case_id_request_id_review_requests_case_id_id_fk" FOREIGN KEY ("case_id","request_id") REFERENCES "public"."review_requests"("case_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "review_requests" ADD CONSTRAINT "review_requests_case_id_application_cases_id_fk" FOREIGN KEY ("case_id") REFERENCES "public"."application_cases"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "review_requests" ADD CONSTRAINT "review_requests_contact_id_contacts_id_fk" FOREIGN KEY ("contact_id") REFERENCES "public"."contacts"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "review_requests" ADD CONSTRAINT "review_requests_organization_id_criteria_round_id_funding_rounds_organization_id_id_fk" FOREIGN KEY ("organization_id","criteria_round_id") REFERENCES "public"."funding_rounds"("organization_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "review_requests" ADD CONSTRAINT "review_requests_organization_id_case_id_application_cases_organization_id_id_fk" FOREIGN KEY ("organization_id","case_id") REFERENCES "public"."application_cases"("organization_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "review_requests" ADD CONSTRAINT "review_requests_organization_id_contact_id_contacts_organization_id_id_fk" FOREIGN KEY ("organization_id","contact_id") REFERENCES "public"."contacts"("organization_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -390,6 +375,7 @@ ALTER TABLE "round_creation_receipts" ADD CONSTRAINT "round_creation_receipts_or
 ALTER TABLE "guest_sessions" ADD CONSTRAINT "guest_sessions_user_id_app_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."app_users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "audit_events_workspace_time_idx" ON "audit_events" USING btree ("organization_id","recorded_at","id");--> statement-breakpoint
 CREATE INDEX "audit_events_subject_idx" ON "audit_events" USING btree ("organization_id","target_type","target_id","target_revision");--> statement-breakpoint
+CREATE INDEX "audit_events_subject_time_idx" ON "audit_events" USING btree ("organization_id","target_type","target_id","recorded_at","id");--> statement-breakpoint
 CREATE INDEX "audit_events_round_time_idx" ON "audit_events" USING btree ("organization_id","round_id","recorded_at","id");--> statement-breakpoint
 CREATE INDEX "audit_events_actor_time_idx" ON "audit_events" USING btree ("organization_id","actor_user_id","recorded_at","id");--> statement-breakpoint
 CREATE INDEX "audit_events_assignment_idx" ON "audit_events" USING btree ("organization_id","assignment_id","recorded_at","id");--> statement-breakpoint
@@ -417,8 +403,6 @@ ALTER TABLE assessments ADD CONSTRAINT assessments_previous_fk
 ALTER TABLE material_versions ADD CONSTRAINT material_content_check CHECK (
   jsonb_typeof(content) = 'object' AND content->>'version' = version::text
   AND NOT content ?| ARRAY['reviews', 'managerRecommendation', 'summary', 'summaryAuthor', 'contactId', 'intakeStatus']);
-ALTER TABLE review_requests ADD CONSTRAINT review_request_basis_pair_check CHECK (
-  (criteria_round_id IS NULL) = (criteria_version IS NULL));
 ALTER TABLE assessment_versions ADD CONSTRAINT assessment_basis_check CHECK (
   (criteria_round_id IS NULL) = (criteria_version IS NULL)
   AND (content->>'applicationVersion')::integer IS NOT DISTINCT FROM material_version
@@ -472,4 +456,18 @@ END $$;
 CREATE TRIGGER audit_events_immutable BEFORE UPDATE OR DELETE ON audit_events
   FOR EACH ROW EXECUTE FUNCTION audit_preserve_event();
 --> statement-breakpoint
-CREATE INDEX "audit_events_subject_time_idx" ON "audit_events" USING btree ("organization_id","target_type","target_id","recorded_at","id");
+CREATE EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA public;
+--> statement-breakpoint
+CREATE EXTENSION IF NOT EXISTS unaccent WITH SCHEMA public;
+--> statement-breakpoint
+-- unaccent is only STABLE, so indexes need this IMMUTABLE wrapper. Every search comparison
+-- (stored text, typed words) goes through it so both sides are folded the same way.
+CREATE FUNCTION merit_search_normalize(value text) RETURNS text
+  LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE
+  RETURN lower(public.unaccent('public.unaccent'::regdictionary, value));
+--> statement-breakpoint
+CREATE INDEX funding_rounds_title_search_idx ON funding_rounds
+  USING gin (merit_search_normalize(title) public.gin_trgm_ops);
+--> statement-breakpoint
+CREATE INDEX application_cases_search_idx ON application_cases
+  USING gin (merit_search_normalize(search_title || ' ' || search_applicant) public.gin_trgm_ops);

@@ -76,7 +76,7 @@ export const roundSummarySchema = z.object({
 });
 export const applicationSummarySchema = z.object({
   applicationId: recordId,
-  roundId: recordId.nullable(),
+  roundId: recordId,
   title: z.string(),
   applicationVersion: materialVersionSchema,
   intakeRevision: z.number().int().nonnegative(),
@@ -100,8 +100,8 @@ export const roundOverviewSchema = roundSummarySchema.extend({
   }),
 });
 export const applicationContextSchema = applicationSummarySchema.extend({
-  criteriaVersion: criteriaVersionSchema.nullable(),
-  roundPreparationRevision: z.number().int().nonnegative().nullable(),
+  criteriaVersion: criteriaVersionSchema,
+  roundPreparationRevision: z.number().int().nonnegative(),
   lastIntakeRevision: z.number().int().nonnegative(),
   lastRecommendationRevision: z.number().int().nonnegative(),
 });
@@ -138,7 +138,7 @@ export const reviewSummarySchema = z.object({
   contactId: z.string(),
   reviewer: z.string(),
   applicationVersion: materialVersionSchema,
-  criteriaVersion: criteriaVersionSchema.nullable(),
+  criteriaVersion: criteriaVersionSchema,
   reviewRevision: reviewRevisionSchema,
   recordedApplicationVersion: materialVersionSchema.nullable(),
   recordedCriteriaVersion: criteriaVersionSchema.nullable(),

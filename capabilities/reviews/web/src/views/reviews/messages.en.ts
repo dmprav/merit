@@ -81,8 +81,6 @@ export const en = {
   chooseCriteriaForNotes: "Choose the criteria used above to add notes.",
   requestSubmission: "Submission v{{version}}",
   requestCriteria: "Criteria v{{version}}",
-  requestSubmissionUnknown: "Submission not known",
-  requestCriteriaUnknown: "Criteria not known",
   requestAdded: "Added by {{name}}",
   requestClosed: "{{status}} by {{name}}",
   requestClosedWithdrawn: "Closed: application withdrawn, recorded by {{name}}",

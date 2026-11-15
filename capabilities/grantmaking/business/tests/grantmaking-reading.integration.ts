@@ -1,9 +1,7 @@
 import { randomUUID } from "node:crypto";
 
-import { sql } from "drizzle-orm";
 import { assert, expect } from "vite-plus/test";
 
-import { materialVersionSchema } from "@merit/applications/domain";
 import {
   createFundingApplication,
   editFundingApplication,
@@ -13,18 +11,14 @@ import { changeWorkspaceContact } from "@merit/contacts/server";
 import {
   getFundingApplicationContent,
   getFundingApplicationContext,
-  getFundingRoundOverview,
 } from "@merit/grantmaking/server";
 import { fundingRoundContactUsage } from "@merit/grantmaking/server/integrations";
 import { actor, workspaceTest as it, workspaceSlug } from "@merit/organizations/testing/workspace";
-import { reviewRevisionSchema } from "@merit/reviews/domain";
-import { saveApplicationReview } from "@merit/reviews/server";
-import { criteriaVersionSchema } from "@merit/rounds/domain";
 import { createFundingRound } from "@merit/rounds/server";
 
 import { applicationWork } from "../src/server/persistence/commands/application-work";
 
-it("keeps case identity and authorized material reads independent of round grouping", async ({
+it("reads authorized case context and material by application ID without round input", async ({
   db,
 }) => {
   const round = await createFundingRound(db, actor, {
@@ -50,30 +44,15 @@ it("keeps case identity and authorized material reads independent of round group
   });
   assert(application.status === "ok");
 
-  await db.execute(
-    sql`update application_cases set round_id = null where id = ${application.publicId}`,
-  );
-
-  expect(
-    await saveApplicationReview(db, actor, {
-      workspaceSlug,
-      publicId: application.publicId,
-      expectedRevision: reviewRevisionSchema.parse(0),
-      expectedApplicationVersion: materialVersionSchema.parse(1),
-      expectedCriteriaVersion: criteriaVersionSchema.parse(1),
-      change: { action: "request", id: randomUUID(), contactId: randomUUID(), replacesId: null },
-    }),
-  ).toEqual({ status: "invalid", error: "criteria_unavailable" });
-
   const input = { workspaceSlug, applicationId: application.publicId };
   expect(await getFundingApplicationContext(db, actor, input)).toMatchObject({
     status: "ok",
     application: {
       applicationId: application.publicId,
-      roundId: null,
+      roundId: round.publicId,
       title: "Independent request",
-      criteriaVersion: null,
-      roundPreparationRevision: null,
+      criteriaVersion: 1,
+      roundPreparationRevision: 0,
       requested: { minorUnits: "2501", currency: "EUR" },
     },
   });
@@ -85,12 +64,6 @@ it("keeps case identity and authorized material reads independent of round group
   expect(JSON.parse(material.content)).toMatchObject({ organization: "Community group" });
   expect(await getFundingApplicationContext(db, { userId: "birch-manager" }, input)).toEqual({
     status: "not_found",
-  });
-  expect(
-    await getFundingRoundOverview(db, actor, { workspaceSlug, roundId: round.publicId }),
-  ).toMatchObject({
-    status: "ok",
-    round: { applicationCount: 0, totals: { requested: { minorUnits: "0", currency: "EUR" } } },
   });
 });
 
@@ -265,41 +238,4 @@ it("projects and clears the linked contact without putting profile data into rec
       materialVersion: 2,
     }),
   ).toEqual(recorded);
-});
-
-it("does not combine unrelated roundless requests into an artificial total", async ({ db }) => {
-  const round = await createFundingRound(db, actor, {
-    workspaceSlug,
-    requestId: randomUUID(),
-    title: "Intake",
-  });
-  assert(round.status === "ok");
-  const ids: string[] = [];
-  for (const title of ["First request", "Second request"]) {
-    const result = await createFundingApplication(db, actor, {
-      workspaceSlug,
-      publicId: round.publicId,
-      requestId: randomUUID(),
-      title,
-      requested: "9999999999999999999999999999.99",
-    });
-    assert(result.status === "ok");
-    ids.push(result.publicId);
-    await db.execute(
-      sql`update application_cases set round_id = null where id = ${result.publicId}`,
-    );
-  }
-  expect(
-    await editFundingApplication(
-      db,
-      actor,
-      {
-        workspaceSlug,
-        publicId: ids[0]!,
-        expectedRevision: 0,
-        change: { action: "save_content", content: { title: "Revised first request" } },
-      },
-      applicationWork,
-    ),
-  ).toMatchObject({ status: "ok" });
 });

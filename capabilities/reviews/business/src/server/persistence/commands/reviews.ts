@@ -47,12 +47,8 @@ export const readReviewState = async (
 export const readReviewCriteria = async (
   db: Transaction,
   organizationId: string,
-  roundId: string | null,
+  roundId: string,
 ) => {
-  if (roundId === null) {
-    return undefined;
-  }
-
   const [row] = await db
     .select({
       criteria: sql<unknown>`${currentCriteria}`,
@@ -79,7 +75,7 @@ export const readMaterialVersions = async (db: Transaction, publicId: string) =>
 type ReviewOwner = {
   publicId: string;
   organizationId: string;
-  roundId: string | null;
+  roundId: string;
   reviews: ReviewState | null;
 };
 
@@ -107,7 +103,7 @@ const recordReviewRequests = async (
         organizationId: owner.organizationId,
         caseId: owner.publicId,
         position,
-        criteriaRoundPublicId: request.criteriaVersion === null ? null : owner.roundId,
+        criteriaRoundPublicId: owner.roundId,
       });
     }
   }
