@@ -2,12 +2,19 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
+import { GrantmakingDrafts } from "@merit/grantmaking-web/drafts";
 import { createQueryClient } from "@merit/query";
 
 import { renderWithRouter } from "../../tests/render-with-router";
+import { createRound } from "../features/grantmaking/data/server/creation/creation.functions";
 import { searchWorkspace } from "../features/grantmaking/data/server/search.functions";
 import { WorkspaceNavigationContext } from "../features/workspace/workspace-navigation";
 import { AppShell, type ShellContext, type ShellWorkspace } from "./app-shell";
+
+vi.mock("../features/grantmaking/data/server/creation/creation.functions", () => ({
+  createRound: vi.fn(),
+  createApplication: vi.fn(),
+}));
 
 vi.mock("../features/grantmaking/data/server/search.functions", () => ({
   searchWorkspace: vi.fn(),
@@ -54,14 +61,18 @@ const found = {
 const show = (current: ShellContext = { kind: "workspace", workspace: alder }) =>
   renderWithRouter(
     <QueryClientProvider client={createQueryClient()}>
-      <WorkspaceNavigationContext value={{ workspaces: [alder], canAdminister: false }}>
-        <AppShell current={current}>
-          <label>
-            Notes
-            <input />
-          </label>
-        </AppShell>
-      </WorkspaceNavigationContext>
+      <GrantmakingDrafts>
+        <WorkspaceNavigationContext value={{ workspaces: [alder], canAdminister: false }}>
+          <AppShell current={current}>
+            <main id="main" tabIndex={-1}>
+              <label>
+                Notes
+                <input />
+              </label>
+            </main>
+          </AppShell>
+        </WorkspaceNavigationContext>
+      </GrantmakingDrafts>
     </QueryClientProvider>,
     "/app/alder/rounds",
   );
@@ -69,6 +80,7 @@ const show = (current: ShellContext = { kind: "workspace", workspace: alder }) =
 const platform = vi.spyOn(window.navigator, "platform", "get");
 beforeEach(() => {
   platform.mockReturnValue("Linux x86_64");
+  vi.mocked(createRound).mockReset().mockResolvedValue({ status: "ok", publicId: "k7m2p9x4n6rt" });
   vi.mocked(searchWorkspace).mockResolvedValue(found);
 });
 afterEach(() => vi.mocked(searchWorkspace).mockReset());
@@ -111,7 +123,7 @@ describe("the Search button", () => {
     await show();
     const search = screen.getByRole("button", { name: "Search" });
 
-    expect(search).toHaveTextContent("⌘K");
+    expect(search).toHaveTextContent("⌘ K");
     expect(search).toHaveAttribute("aria-keyshortcuts", "Meta+K");
   });
 
@@ -284,3 +296,120 @@ describe("in the mobile drawer", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });
+
+describe("workspace choices", () => {
+  it.each([
+    { kind: "standard" as const, canViewTeam: true, count: 7, work: true, settings: true },
+    { kind: "demo" as const, canViewTeam: false, count: 5, work: false, settings: false },
+  ])(
+    "offers only available pages and creation in $kind",
+    async ({ kind, canViewTeam, count, work, settings }) => {
+      const { user } = await show({
+        kind: "workspace",
+        workspace: { ...alder, kind, canViewTeam },
+      });
+      await user.click(screen.getByRole("button", { name: "Search" }));
+      const dialog = within(await screen.findByRole("dialog", { name: "Search" }));
+      expect(dialog.getAllByRole("option")).toHaveLength(count);
+      expect(Boolean(dialog.queryByRole("option", { name: /Go to my work/ }))).toBe(work);
+      expect(Boolean(dialog.queryByRole("option", { name: /Go to workspace settings/ }))).toBe(
+        settings,
+      );
+      expect(dialog.getByRole("option", { name: /Create funding round/ })).toBeVisible();
+      expect(dialog.queryByRole("option", { name: /administration/i })).not.toBeInTheDocument();
+    },
+  );
+
+  it("opens an empty page choice with Enter without a remote search", async () => {
+    const { user, router } = await show();
+    await user.click(screen.getByRole("button", { name: "Search" }));
+    const dialog = within(await screen.findByRole("dialog", { name: "Search" }));
+    await waitFor(() =>
+      expect(dialog.getByRole("searchbox")).toHaveAttribute(
+        "aria-activedescendant",
+        dialog.getAllByRole("option")[0]!.id,
+      ),
+    );
+    await user.keyboard("{ArrowDown}{Enter}");
+    await waitFor(() => expect(router.state.location.pathname).toBe("/app/alder/applications"));
+    expect(searchWorkspace).not.toHaveBeenCalled();
+  });
+
+  it("opens the existing creation form without saving and reuses its draft on the next search", async () => {
+    const { user, router } = await show();
+    const opener = screen.getByRole("button", { name: "Search" });
+    await user.click(opener);
+    await user.click(await screen.findByRole("option", { name: /Create funding round/ }));
+    const name = await screen.findByRole("textbox", { name: "Round name" });
+    await waitFor(() => expect(name).toHaveFocus());
+    expect(screen.queryByRole("dialog", { name: "Search" })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Create funding round" })).toHaveLength(1);
+    await user.type(name, "Draft from search");
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await waitFor(() => expect(opener).toHaveFocus());
+    expect(router.state.location.pathname).toBe("/app/alder/rounds");
+    expect(createRound).not.toHaveBeenCalled();
+    await user.click(opener);
+    typeText(await screen.findByRole("searchbox"), "create");
+    await user.click(screen.getByRole("option", { name: /Create funding round/ }));
+    expect(await screen.findByRole("textbox", { name: "Round name" })).toHaveValue(
+      "Draft from search",
+    );
+  });
+
+  it("falls back to user agent when platform signals are empty", async () => {
+    platform.mockReturnValue("");
+    const agent = vi
+      .spyOn(window.navigator, "userAgent", "get")
+      .mockReturnValue("Mozilla/5.0 (Macintosh; Intel Mac OS X)");
+    try {
+      await show();
+      expect(screen.getByRole("button", { name: "Search" })).toHaveAttribute(
+        "aria-keyshortcuts",
+        "Meta+K",
+      );
+    } finally {
+      agent.mockRestore();
+    }
+  });
+});
+
+it.each([false, true])(
+  "returns focus to a surviving control after alternate-entry notice dismissal (mobile: %s)",
+  async (mobile) => {
+    const matchMedia = window.matchMedia;
+    const media = vi
+      .spyOn(window, "matchMedia")
+      .mockImplementation((query) =>
+        Object.assign(matchMedia(query), { matches: mobile && query === "(max-width: 600px)" }),
+      );
+    try {
+      const { user, router } = await show();
+      if (mobile) {
+        await user.click(screen.getByRole("button", { name: "Open navigation" }));
+      }
+      const opener = screen.getByRole("button", { name: "Search" });
+      await user.click(opener);
+      await user.click(await screen.findByRole("option", { name: /Create funding round/ }));
+      await user.type(await screen.findByRole("textbox", { name: "Round name" }), "New fund");
+      vi.spyOn(router, "navigate").mockRejectedValueOnce(new Error("Offline"));
+      await user.click(screen.getByRole("button", { name: "Create funding round" }));
+      expect(
+        await screen.findByText(
+          "Created successfully, but the page could not open. Use the link above to continue.",
+        ),
+      ).toBeVisible();
+      expect(screen.getByRole("link", { name: "Open round" })).toHaveAttribute(
+        "href",
+        "/app/alder/rounds/new-fund-k7m2p9x4n6rt",
+      );
+      await user.click(screen.getByRole("button", { name: "Dismiss confirmation" }));
+      expect(mobile ? screen.getByRole("main") : opener).toHaveFocus();
+      expect(screen.queryByRole("link", { name: "Open round" })).not.toBeInTheDocument();
+      expect(createRound).toHaveBeenCalledOnce();
+    } finally {
+      media.mockRestore();
+    }
+  },
+);

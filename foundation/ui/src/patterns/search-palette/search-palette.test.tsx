@@ -243,3 +243,49 @@ describe("search palette", () => {
     expect(await screen.findByText("2 funding rounds")).toHaveAttribute("role", "status");
   });
 });
+
+it("keeps current actions usable while stale links cannot activate", async () => {
+  const onOpen = vi.fn();
+  const onAction = vi.fn();
+  const user = userEvent.setup();
+  render(
+    <Palette
+      busy
+      resultsId={1}
+      onOpen={onOpen}
+      groups={[
+        {
+          id: "mixed",
+          items: [
+            item("stale", "Old record"),
+            {
+              id: "create",
+              textValue: "Create round",
+              title: "Create round",
+              onAction,
+              availableWhileBusy: true,
+            },
+          ],
+        },
+      ]}
+    />,
+  );
+  const stale = screen.getByRole("option", { name: "Old record" });
+  expect(stale).toHaveAttribute("aria-disabled", "true");
+  expect(stale).not.toHaveAttribute("href");
+  await user.click(stale);
+  expect(onOpen).not.toHaveBeenCalled();
+  await user.click(screen.getByRole("searchbox"));
+  await user.keyboard("{ArrowDown}{Enter}");
+  expect(onAction).toHaveBeenCalledOnce();
+});
+
+it("leaves middle-click links to the browser without closing the palette", async () => {
+  const onOpen = vi.fn();
+  const user = userEvent.setup();
+  render(<Palette onOpen={onOpen} />);
+  const link = screen.getByRole("option", { name: /^Lights/ });
+  await user.pointer({ target: link, keys: "[MouseMiddle]" });
+  expect(link).toHaveAttribute("href", "/records/a2");
+  expect(onOpen).not.toHaveBeenCalled();
+});

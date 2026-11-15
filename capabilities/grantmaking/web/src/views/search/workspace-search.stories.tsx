@@ -75,6 +75,37 @@ const Preview = ({ read }: { read: Read }) => {
           onOpenChange={setIsOpen}
           data={createWorkspaceSearchData({ scope: ["story"], read })}
           links={links}
+          commands={[
+            {
+              id: "rounds-page",
+              names: ["Funding rounds", "Go to funding rounds"],
+              title: "Go to funding rounds",
+              textValue: "Go to funding rounds",
+              icon: "layers",
+              label: "Page",
+              href: "#/rounds",
+              renderLink: ({ children, ...props }) => <a {...props}>{children}</a>,
+            },
+            {
+              id: "contacts-page",
+              names: ["Contacts", "Go to contacts"],
+              title: "Go to contacts",
+              textValue: "Go to contacts",
+              icon: "contacts",
+              label: "Page",
+              href: "#/contacts",
+              renderLink: ({ children, ...props }) => <a {...props}>{children}</a>,
+            },
+            {
+              id: "create",
+              names: ["Create funding round"],
+              title: "Create funding round",
+              textValue: "Create funding round",
+              icon: "add",
+              label: "Action",
+              onAction: () => setIsOpen(false),
+            },
+          ]}
         />
       </GrantmakingMessagesProvider>
     </QueryClientProvider>
@@ -110,15 +141,13 @@ const search = async (canvasElement: HTMLElement, text: string) => {
   return dialog;
 };
 
-export const Hint: Story = {
+export const WorkspaceChoices: Story = {
   args: { read: fn(async () => found([], [])) },
   play: async ({ canvasElement, args }) => {
     const dialog = within(await box(canvasElement));
 
     await waitFor(() =>
-      expect(
-        dialog.getByText("Search funding rounds and applications by name or applicant."),
-      ).toBeVisible(),
+      expect(dialog.getByRole("option", { name: /Go to contacts/ })).toBeVisible(),
     );
     await waitFor(() => expect(dialog.getByRole("searchbox")).toHaveFocus());
     await expect(args.read).not.toHaveBeenCalled();
@@ -142,14 +171,14 @@ export const Results: Story = {
   play: async ({ canvasElement }) => {
     const dialog = await search(canvasElement, "harbour");
 
-    await expect(await dialog.findByRole("group", { name: "Funding rounds" })).toBeVisible();
+    await expect(await dialog.findByRole("option", { name: /^Harbour fund 2027/ })).toBeVisible();
     await waitFor(() =>
       expect(dialog.getByRole("searchbox")).toHaveAttribute(
         "aria-activedescendant",
         dialog.getByRole("option", { name: /^Harbour fund 2027/ }).id,
       ),
     );
-    await expect(dialog.getByRole("group", { name: "Applications" })).toBeVisible();
+    await expect(dialog.getByRole("option", { name: /^Boat repairs/ })).toBeVisible();
     await expect(dialog.getByText("Not scheduled")).toBeVisible();
     await expect(dialog.getByRole("status")).toBeInTheDocument();
   },
@@ -166,11 +195,8 @@ export const ApplicationsFirst: Story = {
   play: async ({ canvasElement }) => {
     const dialog = await search(canvasElement, "boat repairs");
 
-    const applications = await dialog.findByRole("group", { name: "Applications" });
-    const rounds = dialog.getByRole("group", { name: "Funding rounds" });
-    await expect(
-      applications.compareDocumentPosition(rounds) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
+    await dialog.findByRole("option", { name: /^Boat repairs Application/ });
+    await expect(dialog.getAllByRole("option")[0]).toHaveTextContent(/Boat repairs\s*Application/);
   },
 };
 
@@ -195,7 +221,9 @@ export const StatusLabels: Story = {
   play: async ({ canvasElement }) => {
     const dialog = await search(canvasElement, "harbour");
 
-    await expect(await dialog.findByText("In preparation")).toBeVisible();
+    await expect(await dialog.findByRole("option", { name: /Quayside lights/ })).toHaveTextContent(
+      "In preparation",
+    );
     await expect(dialog.getByText("Withdrawn")).toBeVisible();
     await expect(dialog.getByText(/Applicant not known/)).toBeVisible();
   },
@@ -235,9 +263,7 @@ export const NoMatches: Story = {
   play: async ({ canvasElement }) => {
     const dialog = await search(canvasElement, "harbr");
 
-    await expect(
-      await dialog.findByText("No funding rounds or applications match “harbr”."),
-    ).toBeVisible();
+    await expect(await dialog.findByText("No results match “harbr”.")).toBeVisible();
     await expect(dialog.getByRole("searchbox")).toHaveValue("harbr");
   },
 };

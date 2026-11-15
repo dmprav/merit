@@ -11,7 +11,7 @@
   flex-shrink: 0;
   align-items: center;
   gap: var(--space-3);
-  min-height: var(--target-touch);
+  min-height: calc(var(--target-touch) + var(--space-3));
   /* The dialog's small close control sits over the end of this row. */
   padding-inline: var(--space-4) var(--search-close-reserve, var(--space-4));
   border-bottom: 1px solid var(--border);
@@ -102,8 +102,9 @@
 }
 
 .option {
-  display: grid;
-  gap: 2px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
   min-height: var(--control-height-small);
   border-radius: calc(var(--control-radius) - 2px);
   padding: var(--space-2);
@@ -121,7 +122,8 @@
 
 .option[data-focus-visible] {
   background: var(--action-subtle);
-  box-shadow: inset 3px 0 var(--focus);
+  outline: 1px solid var(--focus);
+  outline-offset: -1px;
 }
 
 .primary {
@@ -192,7 +194,52 @@
 }
 
 /* Rows of an earlier query show no highlight while newer results load. */
-.palette[data-busy] .option:is([data-focused], [data-focus-visible]) {
+.option[data-disabled]:is([data-focused], [data-focus-visible]) {
   background: none;
   box-shadow: none;
+}
+
+.content {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: var(--space-1);
+}
+
+.rowIcon {
+  flex-shrink: 0;
+  color: var(--muted);
+}
+
+.feedback {
+  padding: var(--space-2) var(--space-4);
+  color: var(--muted);
+  font-size: var(--text-caption);
+}
+
+.footer {
+  display: flex;
+  flex-shrink: 0;
+  gap: var(--space-4);
+  border-top: 1px solid var(--border);
+  padding: var(--space-2) var(--space-4);
+  color: var(--muted);
+  font-size: var(--text-meta);
+}
+
+.footer kbd {
+  font: inherit;
+}
+
+@media (pointer: coarse) {
+  .footer {
+    display: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .option[data-focused],
+  .option[data-focus-visible] {
+    outline: 1px solid Highlight;
+  }
 }

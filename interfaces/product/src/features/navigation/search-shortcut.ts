@@ -1,25 +1,31 @@
 import { useEffect, useSyncExternalStore } from "react";
 
-type ShortcutPlatform = "apple" | "other";
+type ShortcutPlatform = "apple" | "other" | "unknown";
 
 const noSubscription = () => () => {};
 
 const currentPlatform = (): ShortcutPlatform => {
   const platform =
-    (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform ??
-    navigator.platform;
-  return /Mac|iPhone|iPad|iPod/.test(platform) ? "apple" : "other";
+    (
+      navigator as Navigator & { userAgentData?: { platform?: string } }
+    ).userAgentData?.platform?.trim() || navigator.platform?.trim();
+  const signal = platform || navigator.userAgent;
+  if (!signal) {
+    return "unknown";
+  }
+  return /Mac|iPhone|iPad|iPod/i.test(signal) ? "apple" : "other";
 };
 
-/** The server and first render assume a keyboard with Ctrl, then hydration corrects it. */
+/** Hide the key hint until browser platform information is available after hydration. */
 export const useShortcutPlatform = () =>
-  useSyncExternalStore(noSubscription, currentPlatform, () => "other" as const);
+  useSyncExternalStore(noSubscription, currentPlatform, () => "unknown" as const);
 
 /** ⌘K on Apple platforms and Ctrl+K elsewhere, without other modifiers. */
 const isSearchShortcut = (
   event: Pick<KeyboardEvent, "key" | "metaKey" | "ctrlKey" | "altKey" | "shiftKey">,
   platform: ShortcutPlatform,
 ) =>
+  platform !== "unknown" &&
   event.key.toLowerCase() === "k" &&
   !event.altKey &&
   !event.shiftKey &&

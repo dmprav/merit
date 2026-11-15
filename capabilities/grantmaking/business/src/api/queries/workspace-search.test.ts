@@ -1,7 +1,7 @@
 import { expect, it } from "vite-plus/test";
 
 import {
-  searchGroupOrder,
+  orderedSearchRecords,
   workspaceSearchInput,
   workspaceSearchSchema,
   type MatchQuality,
@@ -49,16 +49,26 @@ it("keeps search results serializable and rejects unknown match qualities", () =
   ).toBe(false);
 });
 
-it.each([
-  { rounds: [], applications: [], order: ["rounds", "applications"] },
-  { rounds: ["contains"], applications: ["contains"], order: ["rounds", "applications"] },
-  { rounds: ["exact"], applications: ["exact"], order: ["rounds", "applications"] },
-  { rounds: ["exact"], applications: ["prefix"], order: ["rounds", "applications"] },
-  { rounds: ["prefix"], applications: ["exact"], order: ["applications", "rounds"] },
-  { rounds: [], applications: ["contains", "exact"], order: ["applications", "rounds"] },
-] satisfies { rounds: MatchQuality[]; applications: MatchQuality[]; order: string[] }[])(
-  "orders groups $order for rounds $rounds and applications $applications",
-  ({ rounds, applications, order }) => {
-    expect(searchGroupOrder(groups(rounds, applications))).toEqual(order);
-  },
-);
+it("merges exact, prefix and contains matches while preserving business ties and totals", () => {
+  const search = {
+    status: "ok" as const,
+    ...groups(["exact", "contains", "contains"], ["exact", "prefix", "contains"]),
+  };
+  const result = orderedSearchRecords(search);
+  expect(
+    result.map((record) => [
+      record.kind,
+      record.kind === "round" ? record.round.matchQuality : record.application.matchQuality,
+    ]),
+  ).toEqual([
+    ["round", "exact"],
+    ["application", "exact"],
+    ["application", "prefix"],
+    ["round", "contains"],
+    ["round", "contains"],
+    ["application", "contains"],
+  ]);
+  expect(result[3]).toEqual({ kind: "round", round: search.rounds.results[1] });
+  expect(search.rounds.total).toBe(3);
+  expect(orderedSearchRecords({ status: "ok", ...groups([], []) })).toEqual([]);
+});

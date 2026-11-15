@@ -171,6 +171,17 @@ export const en = {
     status: "Status",
   },
   backToWorkspace: "Back to workspace",
+  search: {
+    page: "Page",
+    action: "Action",
+    rounds: "Go to funding rounds",
+    applications: "Go to applications",
+    activity: "Go to activity",
+    work: "Go to my work",
+    contacts: "Go to contacts",
+    settings: "Go to workspace settings",
+    createRound: "Create funding round",
+  },
   navigation: {
     myWork: "My work",
     search: "Search",

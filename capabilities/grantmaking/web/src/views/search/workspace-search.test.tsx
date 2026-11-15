@@ -9,7 +9,7 @@ import { createQueryClient } from "@merit/query";
 
 import { createWorkspaceSearchData } from "../../data/search/workspace-data";
 import { GrantmakingMessagesProvider } from "../../messages";
-import { WorkspaceSearchDialog, type SearchLinks } from "./workspace-search";
+import { WorkspaceSearchDialog, type SearchLinks, type SearchCommand } from "./workspace-search";
 
 const round = (id: string, overrides: Partial<SearchedRound> = {}): SearchedRound => ({
   id,
@@ -109,8 +109,7 @@ const show = (
   };
 };
 
-const field = () =>
-  screen.getByRole("searchbox", { name: "Search funding rounds and applications" });
+const field = () => screen.getByRole("searchbox", { name: "Search workspace" });
 
 // user-event answers React Aria's synthetic blur, which moves the highlight while results render,
 // by dispatching `change` through act inside React's commit, which React rejects. Typing with
@@ -121,7 +120,7 @@ const typeText = (box: HTMLElement, text: string) => {
   fireEvent.change(box, { target: { value: (box as HTMLInputElement).value + text } });
 };
 
-const hint = "Search funding rounds and applications by name or applicant.";
+const hint = "Search and go to…";
 
 describe("opening", () => {
   it("opens empty with focus in the field and only guidance, sending nothing", async () => {
@@ -131,7 +130,7 @@ describe("opening", () => {
     expect(await screen.findByRole("dialog", { name: "Search" })).toBeVisible();
     await waitFor(() => expect(field()).toHaveFocus());
     expect(field()).toHaveValue("");
-    expect(screen.getByText(hint)).toBeVisible();
+    expect(screen.getByPlaceholderText(hint)).toBeVisible();
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
     expect(read).not.toHaveBeenCalled();
   });
@@ -141,7 +140,7 @@ describe("opening", () => {
     const { user } = show(read);
     const box = await screen.findByRole("searchbox");
 
-    expect(box).not.toHaveAttribute("placeholder");
+    expect(box).toHaveAttribute("placeholder", hint);
     expect(box).toHaveAttribute("maxlength", "200");
     await user.click(box);
     await user.paste("x".repeat(250));
@@ -155,7 +154,7 @@ describe("opening", () => {
 
     await new Promise((resolve) => setTimeout(resolve, 300));
     expect(read).not.toHaveBeenCalled();
-    expect(screen.getByText(hint)).toBeVisible();
+    expect(screen.getByPlaceholderText(hint)).toBeVisible();
   });
 
   it.each([
@@ -181,7 +180,7 @@ describe("opening", () => {
       await waitFor(() => expect(opener).toHaveFocus());
       await user.click(opener);
       expect(await screen.findByRole("searchbox")).toHaveValue("");
-      expect(screen.getByText(hint)).toBeVisible();
+      expect(screen.getByPlaceholderText(hint)).toBeVisible();
       expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
     },
   );
@@ -237,14 +236,14 @@ describe("requests", () => {
     );
     show(read);
     typeText(await screen.findByRole("searchbox"), "harbour");
-    expect(await screen.findByRole("option", { name: /Harbour fund/ })).toBeVisible();
+    expect(await screen.findByRole("option", { name: /^Harbour fund/ })).toBeVisible();
 
     typeText(field(), " trust");
 
     await waitFor(() => expect(read).toHaveBeenCalledTimes(2));
     const results = screen.getByRole("listbox", { name: "Search results" });
     expect(results.closest("[aria-busy]")).toHaveAttribute("aria-busy", "true");
-    expect(within(results).getByRole("option", { name: /Harbour fund/ })).toBeVisible();
+    expect(within(results).getByRole("option", { name: /^Harbour fund/ })).toBeVisible();
 
     finish(found([], [application("b8q3w5j7c2df")]));
 
@@ -281,18 +280,15 @@ describe("results", () => {
     show(read);
     typeText(await screen.findByRole("searchbox"), "harbour");
 
-    const rounds = await screen.findByRole("group", { name: /^Funding rounds/ });
-    const applications = screen.getByRole("group", { name: /^Applications/ });
-    expect(
-      rounds.compareDocumentPosition(applications) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-    expect(within(rounds).getByRole("option", { name: /Harbour fund/ })).toHaveTextContent(
+    const rounds = await screen.findByRole("listbox");
+    const applications = rounds;
+    expect(within(rounds).getByRole("option", { name: /^Harbour fund/ })).toHaveTextContent(
       "15 June 2027",
     );
     expect(within(rounds).getByRole("option", { name: /Spring grants/ })).toHaveTextContent(
       "Not scheduled",
     );
-    expect(within(rounds).getByRole("option", { name: /Harbour fund/ })).toHaveAttribute(
+    expect(within(rounds).getByRole("option", { name: /^Harbour fund/ })).toHaveAttribute(
       "href",
       "/rounds/k7m2p9x4n6rt",
     );
@@ -311,10 +307,8 @@ describe("results", () => {
     const withdrawn = within(applications).getByRole("option", { name: /Old slipway/ });
     expect(withdrawn).toHaveTextContent("Withdrawn");
     expect(withdrawn).not.toHaveTextContent("In preparation");
-    expect(
-      within(applications).getByText("Showing 3 of 43 applications. Type more to narrow."),
-    ).toBeVisible();
-    expect(within(rounds).queryByText(/Type more to narrow/)).not.toBeInTheDocument();
+    expect(screen.getByText("Showing 3 of 43 applications. Type more to narrow.")).toBeVisible();
+    expect(screen.queryByText(/Showing .*funding rounds/)).not.toBeInTheDocument();
     await waitFor(() =>
       expect(screen.getByRole("status")).toHaveTextContent(
         "2 funding rounds, 3 of 43 applications",
@@ -329,11 +323,8 @@ describe("results", () => {
     show(read);
     typeText(await screen.findByRole("searchbox"), "boat repairs");
 
-    const applications = await screen.findByRole("group", { name: /^Applications/ });
-    const rounds = screen.getByRole("group", { name: /^Funding rounds/ });
-    expect(
-      applications.compareDocumentPosition(rounds) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
+    await screen.findByRole("option", { name: /^Boat repairs/ });
+    expect(screen.getAllByRole("option")[0]).toHaveTextContent("Boat repairs");
   });
 
   it("omits a group without matches and reports 'No results' when nothing matches", async () => {
@@ -343,16 +334,14 @@ describe("results", () => {
     const { user } = show(read);
     typeText(await screen.findByRole("searchbox"), "harbour");
 
-    await screen.findByRole("group", { name: /^Funding rounds/ });
+    await screen.findByRole("option", { name: /^Harbour fund/ });
     expect(screen.queryByRole("group", { name: /^Applications/ })).not.toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("1 funding round"));
 
     await user.clear(field());
     typeText(field(), "harbr");
 
-    expect(
-      await screen.findByText("No funding rounds or applications match “harbr”."),
-    ).toBeVisible();
+    expect(await screen.findByText("No results match “harbr”.")).toBeVisible();
     expect(field()).toHaveValue("harbr");
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("No results"));
@@ -364,14 +353,12 @@ describe("results", () => {
     );
     show(read);
     typeText(await screen.findByRole("searchbox"), "harbr");
-    expect(
-      await screen.findByText("No funding rounds or applications match “harbr”."),
-    ).toBeVisible();
+    expect(await screen.findByText("No results match “harbr”.")).toBeVisible();
 
     typeText(field(), "o");
     await waitFor(() => expect(read).toHaveBeenCalledWith("harbro", expect.any(AbortSignal)));
 
-    expect(screen.getByText("No funding rounds or applications match “harbr”.")).toBeVisible();
+    expect(screen.getByText("No results match “harbr”.")).toBeVisible();
     expect(screen.queryByText(/match “harbro”/)).not.toBeInTheDocument();
   });
 
@@ -387,7 +374,7 @@ describe("results", () => {
     const read = vi.fn(async () => found([round("k7m2p9x4n6rt")], []));
     const { user } = show(read);
     typeText(await screen.findByRole("searchbox"), "harbour");
-    const row = await screen.findByRole("option", { name: /Harbour fund/ });
+    const row = await screen.findByRole("option", { name: /^Harbour fund/ });
 
     await user.keyboard("{Control>}");
     await user.click(row);
@@ -423,7 +410,7 @@ describe("highlight", () => {
 
     typeText(field(), " trust");
 
-    expect(top).toBeVisible();
+    expect(screen.getByRole("option", { name: /^Harbour fund/ })).toBeVisible();
     expect(field()).not.toHaveAttribute("aria-activedescendant");
     await user.keyboard("{Enter}");
     expect(screen.getByRole("dialog", { name: "Search" })).toBeVisible();
@@ -477,9 +464,103 @@ describe("failure", () => {
 
     await user.click(screen.getByRole("button", { name: "Try again" }));
 
-    expect(await screen.findByRole("option", { name: /Harbour fund/ })).toBeVisible();
+    expect(await screen.findByRole("option", { name: /^Harbour fund/ })).toBeVisible();
     expect(read).toHaveBeenCalledTimes(2);
     expect(read.mock.calls.map(([query]) => query)).toEqual(["harbour", "harbour"]);
     expect(screen.queryByText("Search isn’t available right now.")).not.toBeInTheDocument();
+  });
+});
+
+const localCommands = (onAction = vi.fn()): SearchCommand[] => [
+  {
+    id: "contacts",
+    names: ["Contacts", "Go to contacts"],
+    title: "Go to contacts",
+    textValue: "Go to contacts",
+    icon: "contacts",
+    label: "Page",
+    href: "/contacts",
+    renderLink: ({ children, ...props }) => <a {...props}>{children}</a>,
+  },
+  {
+    id: "create",
+    names: ["Create funding round"],
+    title: "Create funding round",
+    textValue: "Create funding round",
+    icon: "add",
+    label: "Action",
+    onAction,
+  },
+];
+
+describe("local pages and actions", () => {
+  it("opens empty with keyboard-operable choices and sends no request", async () => {
+    const read = vi.fn();
+    const action = vi.fn();
+    const { user } = show(read, { commands: localCommands(action) });
+    const first = await screen.findByRole("option", { name: /Go to contacts/ });
+    await waitFor(() => expect(field()).toHaveAttribute("aria-activedescendant", first.id));
+    expect(screen.getAllByRole("option")).toHaveLength(2);
+    await user.keyboard("{ArrowDown}{Enter}");
+    expect(action).toHaveBeenCalledOnce();
+    expect(read).not.toHaveBeenCalled();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it.each(["CÓNTÁCTS", "go contacts", "contacts to"])(
+    "matches every term without case or accents: %s",
+    async (query) => {
+      show(async () => found([], []), { commands: localCommands() });
+      typeText(await screen.findByRole("searchbox"), query);
+      await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("1 page or action"));
+      expect(screen.getAllByRole("option")).toHaveLength(1);
+      expect(screen.getByRole("option")).toHaveTextContent("Go to contacts");
+      expect(screen.queryByText(/No results/)).not.toBeInTheDocument();
+    },
+  );
+
+  it("ranks natural exact page names above partial records, with records first on equal quality", async () => {
+    const { user } = show(
+      async () =>
+        found(
+          [round("r", { title: "Contacts fund", matchQuality: "prefix" })],
+          [application("a", { title: "Contacts", matchQuality: "exact" })],
+        ),
+      { commands: localCommands() },
+    );
+    typeText(await screen.findByRole("searchbox"), "Contacts");
+    await screen.findByRole("option", { name: /^Contacts fund/ });
+    expect(screen.getAllByRole("option").map((row) => row.textContent)).toEqual([
+      expect.stringContaining("ContactsApplication"),
+      expect.stringContaining("Go to contacts"),
+      expect.stringContaining("Contacts fund"),
+    ]);
+    await user.clear(field());
+    typeText(field(), "contacts absent");
+    expect(screen.queryByRole("option", { name: /Go to contacts/ })).not.toBeInTheDocument();
+  });
+
+  it("keeps local actions usable during pending search and after failure with retry", async () => {
+    const action = vi.fn();
+
+    let reject: (reason: Error) => void = () => {};
+
+    const read = vi.fn(
+      () =>
+        new Promise<WorkspaceSearch>((_resolve, fail) => {
+          reject = fail;
+        }),
+    );
+    const { user } = show(read, { commands: localCommands(action) });
+    typeText(await screen.findByRole("searchbox"), "round create");
+    const choice = screen.getByRole("option", { name: /Create funding round/ });
+    expect(choice).not.toHaveAttribute("aria-disabled", "true");
+    await waitFor(() => expect(read).toHaveBeenCalledOnce());
+    reject(new Error("Offline"));
+    await screen.findByRole("button", { name: "Try again" });
+    expect(screen.getByRole("option", { name: /Create funding round/ })).toBeVisible();
+    expect(screen.queryByText(/No results/)).not.toBeInTheDocument();
+    await user.click(screen.getByRole("option", { name: /Create funding round/ }));
+    expect(action).toHaveBeenCalledOnce();
   });
 });

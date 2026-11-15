@@ -280,6 +280,7 @@
 }
 
 .modal[data-appearance="search"] {
+  box-shadow: var(--popover-shadow);
   max-width: 40rem;
   max-height: calc(100dvh - var(--search-top) - 2rem);
 }
