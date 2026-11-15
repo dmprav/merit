@@ -746,6 +746,7 @@ test("personal pins keep a fixed preview and manage the full overflow collection
   const overflow = rounds.getByRole("button", { name: "2 more…" });
   await overflow.click();
   const popup = page.getByRole("dialog", { name: "Pinned funding rounds", exact: true });
+  await expect(popup).toBeFocused();
   await expect(popup.getByRole("link")).toHaveCount(7);
   await expect(popup.getByRole("link", { name: "Pinned round 7", exact: true })).toHaveAttribute(
     "aria-current",
