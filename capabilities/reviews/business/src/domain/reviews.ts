@@ -29,6 +29,9 @@ export const assessmentInputSchema = z
         if (value === null) {
           return true;
         }
+        if (value.startsWith("-")) {
+          return false;
+        }
         const parsed = parseMoney(value);
         return parsed.ok && !isNegative(parsed.value);
       }, "Enter a nonnegative amount with at most two decimal places."),

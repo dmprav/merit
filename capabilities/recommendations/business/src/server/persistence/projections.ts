@@ -59,17 +59,15 @@ export const readCurrentRecommendationsMap = async (db: Database, caseIds: strin
     return result;
   }
   const rows = await db
-    .select()
+    .selectDistinctOn([recommendationVersions.caseId])
     .from(recommendationVersions)
     .where(inArray(recommendationVersions.caseId, uniqueIds))
-    .orderBy(desc(recommendationVersions.revision));
+    .orderBy(recommendationVersions.caseId, desc(recommendationVersions.revision));
   for (const row of rows) {
-    if (!result.has(row.caseId)) {
-      result.set(row.caseId, {
-        revision: row.revision,
-        recommendation: assembleRecommendationRecord(row),
-      });
-    }
+    result.set(row.caseId, {
+      revision: row.revision,
+      recommendation: assembleRecommendationRecord(row),
+    });
   }
   return result;
 };
@@ -79,21 +77,25 @@ export const readRoundAllocations = async (
   organizationId: string,
   roundId: string,
 ) => {
-  const activeCases = await db
-    .select({ id: applicationCases.id })
-    .from(applicationCases)
+  const rows = await db
+    .selectDistinctOn([recommendationVersions.caseId], {
+      minorUnits: recommendationVersions.allocationMinorUnits,
+      currency: recommendationVersions.allocationCurrency,
+    })
+    .from(recommendationVersions)
+    .innerJoin(applicationCases, eq(applicationCases.id, recommendationVersions.caseId))
     .where(
       and(
         eq(applicationCases.organizationId, organizationId),
         eq(applicationCases.roundId, roundId),
         activeCase("application_cases"),
       ),
-    );
-  const recs = await readCurrentRecommendationsMap(
-    db,
-    activeCases.map((row) => row.id),
-  );
-  return [...recs.values()].map((entry) => entry.recommendation.allocation);
+    )
+    .orderBy(recommendationVersions.caseId, desc(recommendationVersions.revision));
+  return rows.map((row) => ({
+    minorUnits: row.minorUnits,
+    currency: row.currency as "EUR",
+  }));
 };
 
 export const recommendationRevision = sql<number>`coalesce((select max(r.revision) from ${recommendationVersions} r where r.case_id = ${applicationCases.id}), 0)`;

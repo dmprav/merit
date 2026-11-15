@@ -575,6 +575,31 @@ CREATE FUNCTION grantmaking_preserve_version() RETURNS trigger LANGUAGE plpgsql 
 DECLARE
   owner_exists boolean;
 BEGIN
+  IF TG_OP = 'INSERT' THEN
+    IF TG_TABLE_NAME = 'criteria_version_items' THEN
+      IF EXISTS (
+        SELECT 1 FROM criteria_versions
+        WHERE round_id = NEW.round_id AND version = NEW.version AND age(xmin) > 0
+      ) THEN
+        RAISE EXCEPTION 'Recorded grantmaking versions cannot be changed while their owner exists' USING ERRCODE = '23514';
+      END IF;
+    ELSIF TG_TABLE_NAME IN ('material_version_answers', 'material_version_evidence') THEN
+      IF EXISTS (
+        SELECT 1 FROM material_versions
+        WHERE case_id = NEW.case_id AND version = NEW.material_version AND age(xmin) > 0
+      ) THEN
+        RAISE EXCEPTION 'Recorded grantmaking versions cannot be changed while their owner exists' USING ERRCODE = '23514';
+      END IF;
+    ELSIF TG_TABLE_NAME = 'assessment_version_observations' THEN
+      IF EXISTS (
+        SELECT 1 FROM assessment_versions
+        WHERE case_id = NEW.case_id AND assessment_id = NEW.assessment_id AND version = NEW.version AND age(xmin) > 0
+      ) THEN
+        RAISE EXCEPTION 'Recorded grantmaking versions cannot be changed while their owner exists' USING ERRCODE = '23514';
+      END IF;
+    END IF;
+    RETURN NEW;
+  END IF;
   IF TG_OP = 'DELETE' THEN
     IF TG_TABLE_NAME IN ('criteria_versions', 'criteria_version_items') THEN
       SELECT EXISTS (SELECT 1 FROM funding_rounds WHERE id = OLD.round_id) INTO owner_exists;
@@ -589,12 +614,12 @@ BEGIN
 END $$;
 --> statement-breakpoint
 CREATE TRIGGER material_versions_immutable BEFORE UPDATE OR DELETE ON material_versions FOR EACH ROW EXECUTE FUNCTION grantmaking_preserve_version();
-CREATE TRIGGER material_version_answers_immutable BEFORE UPDATE OR DELETE ON material_version_answers FOR EACH ROW EXECUTE FUNCTION grantmaking_preserve_version();
-CREATE TRIGGER material_version_evidence_immutable BEFORE UPDATE OR DELETE ON material_version_evidence FOR EACH ROW EXECUTE FUNCTION grantmaking_preserve_version();
+CREATE TRIGGER material_version_answers_immutable BEFORE INSERT OR UPDATE OR DELETE ON material_version_answers FOR EACH ROW EXECUTE FUNCTION grantmaking_preserve_version();
+CREATE TRIGGER material_version_evidence_immutable BEFORE INSERT OR UPDATE OR DELETE ON material_version_evidence FOR EACH ROW EXECUTE FUNCTION grantmaking_preserve_version();
 CREATE TRIGGER criteria_versions_immutable BEFORE UPDATE OR DELETE ON criteria_versions FOR EACH ROW EXECUTE FUNCTION grantmaking_preserve_version();
-CREATE TRIGGER criteria_version_items_immutable BEFORE UPDATE OR DELETE ON criteria_version_items FOR EACH ROW EXECUTE FUNCTION grantmaking_preserve_version();
+CREATE TRIGGER criteria_version_items_immutable BEFORE INSERT OR UPDATE OR DELETE ON criteria_version_items FOR EACH ROW EXECUTE FUNCTION grantmaking_preserve_version();
 CREATE TRIGGER assessment_versions_immutable BEFORE UPDATE OR DELETE ON assessment_versions FOR EACH ROW EXECUTE FUNCTION grantmaking_preserve_version();
-CREATE TRIGGER assessment_version_observations_immutable BEFORE UPDATE OR DELETE ON assessment_version_observations FOR EACH ROW EXECUTE FUNCTION grantmaking_preserve_version();
+CREATE TRIGGER assessment_version_observations_immutable BEFORE INSERT OR UPDATE OR DELETE ON assessment_version_observations FOR EACH ROW EXECUTE FUNCTION grantmaking_preserve_version();
 CREATE TRIGGER recommendation_versions_immutable BEFORE UPDATE OR DELETE ON recommendation_versions FOR EACH ROW EXECUTE FUNCTION grantmaking_preserve_version();
 --> statement-breakpoint
 CREATE FUNCTION preserve_assessment_author() RETURNS trigger LANGUAGE plpgsql AS $$
