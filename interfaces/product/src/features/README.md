@@ -29,6 +29,34 @@ settings only when authorized, the
 workspace switcher wherever another workspace is available, and Administration for
 operators.
 
+Applications opened from the workspace list use an Applications breadcrumb that
+restores its filters, sorting, and position. Applications opened from a round or
+direct URL retain the round hierarchy; the round breadcrumb opens its Applications
+section. Pin controls sit beside the current breadcrumb name across applications,
+rounds, and review assignments. An outline pin becomes filled when saved, with a
+tooltip naming the action. Sidebar pins use a single truncated title; hover or
+keyboard focus reveals the full title and round or workspace context, which also
+remains in the link's accessible name. Each section shows the first five pins.
+A hidden-count overflow control opens all saved pins in a bounded popup with full
+context. The sidebar stays fixed. When the current pin is hidden, its collection
+remains marked as the current location; the popup marks the actual current pin.
+
+Drag a pin within its list to reorder it. The insertion cue shows where it will
+land. Right-click, the platform context-menu keyboard shortcut (Control+Enter on
+macOS, Shift+F10 on Windows/Linux), or touch long-press opens Move up and Move down;
+Escape cancels without changing the saved order. Popup titles show full context
+without an additional tooltip. Every pin has a direct unpin control. Sidebar X actions
+overlay the trailing edge on hover or keyboard focus, leaving the full label width
+available at rest without reflow. Touch keeps controls visible with larger targets.
+Failed changes keep the saved order and offer retry in the active surface.
+Sidebar removal returns focus to the collection link; popup removal keeps the
+collection open and focuses the adjacent pin until only five remain, then closes
+and focuses the collection link. Moving a pin outside the preview focuses overflow.
+
+The workspace loader prepares pins alongside workspace access and discovery, so
+the initial page and hydrated sidebar share the same saved navigation. A failed
+pin read leaves the page usable and offers retry within the sidebar.
+
 Funding-round lists, contacts, and team management use the standard page width.
 Round details use the full width for applications and supporting properties.
 Application work uses `contained` inside the shell to keep desktop reference and

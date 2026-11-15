@@ -40,7 +40,7 @@ it("keeps a late read from undoing a confirmed pin and updates other navigation 
     </QueryClientProvider>,
     "/app/alder/rounds",
   );
-  const button = await screen.findByRole("button", { name: "Pin Community grants" });
+  const button = await screen.findByRole("button", { name: "Pin Community grants to sidebar" });
   await waitFor(() => expect(button).toBeEnabled());
   let finishRead!: (value: Awaited<ReturnType<typeof readNavigationPins>>) => void;
   vi.mocked(readNavigationPins).mockImplementationOnce(
@@ -55,7 +55,7 @@ it("keeps a late read from undoing a confirmed pin and updates other navigation 
   await waitFor(() => expect(readNavigationPins).toHaveBeenCalledTimes(2));
   await user.click(button);
   await waitFor(() =>
-    expect(screen.getByRole("button", { name: "Unpin Community grants" })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: "Pin Community grants to sidebar" })).toHaveAttribute(
       "aria-pressed",
       "true",
     ),
@@ -82,7 +82,7 @@ it("refreshes inaccessible pins after a rejected change", async () => {
     </QueryClientProvider>,
     "/app/alder/rounds",
   );
-  await user.click(await screen.findByRole("button", { name: "Unpin Community grants" }));
+  await user.click(await screen.findByRole("button", { name: "Pin Community grants to sidebar" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("Pins could not be saved");
   await waitFor(() => expect(client.getQueryData(key)).toEqual({ status: "ok", pins: [] }));
   client.clear();

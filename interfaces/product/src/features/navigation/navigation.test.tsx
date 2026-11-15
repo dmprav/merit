@@ -1,4 +1,5 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { useState } from "react";
 import { expect, it, vi } from "vite-plus/test";
 
 import type { NavigationPin } from "@merit/grantmaking/api";
@@ -32,6 +33,159 @@ const review: NavigationPin = {
   context: "Birch Foundation",
   workspaceSlug: "birch",
 };
+
+const manyPins = Array.from({ length: 7 }, (_, index): NavigationPin => ({
+  ...round,
+  target: { kind: "round", id: `00000000000${index + 1}` },
+  title: `Round ${index + 1}`,
+}));
+
+const section = () => (
+  <NavigationSection
+    title="Funding rounds"
+    kind="round"
+    workspaceSlug="alder"
+    icon="layers"
+    location={{ to: "/app/$workspaceSlug/rounds", params: { workspaceSlug: "alder" } }}
+  />
+);
+
+it("keeps the preview fixed while the full popup marks the hidden current pin", async () => {
+  const change = vi.fn(async () => true);
+  const { user } = await renderWithRouter(
+    <NavigationPinsContext value={state({ pins: manyPins, change })}>
+      {section()}
+    </NavigationPinsContext>,
+    "/app/alder/rounds/round-7-000000000007",
+  );
+  const preview = within(screen.getByRole("region", { name: "Funding rounds" }));
+  expect(preview.getAllByRole("link")).toHaveLength(6);
+  expect(preview.getByRole("link", { name: "Funding rounds" })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  expect(preview.queryByRole("button", { name: /Reorder/ })).not.toBeInTheDocument();
+  const overflow = screen.getByRole("button", { name: "2 more…" });
+  await user.click(overflow);
+  const popup = within(screen.getByRole("dialog", { name: "Pinned funding rounds" }));
+  expect(popup.getAllByRole("link")).toHaveLength(7);
+  expect(popup.queryByRole("button", { name: /Reorder/ })).not.toBeInTheDocument();
+  await user.tab();
+  await user.tab();
+  await user.tab();
+  expect(popup.getByRole("link", { name: "Round 1" })).toHaveFocus();
+  expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+  expect(popup.getByRole("link", { name: "Round 7" })).toHaveAttribute("aria-current", "page");
+  expect(preview.getAllByRole("link")).toHaveLength(6);
+  await user.keyboard("{Escape}");
+  await waitFor(() => expect(overflow).toHaveFocus());
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  await user.click(overflow);
+  await user.click(within(screen.getByRole("dialog")).getByRole("link", { name: "Round 1" }));
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  expect(change).not.toHaveBeenCalled();
+});
+
+it.each([0, 1, 5])("does not offer overflow for %i pins", async (count) => {
+  await renderWithRouter(
+    <NavigationPinsContext value={state({ pins: manyPins.slice(0, count) })}>
+      {section()}
+    </NavigationPinsContext>,
+  );
+  expect(screen.queryByRole("button", { name: /more…/ })).not.toBeInTheDocument();
+});
+
+it("cancels keyboard reordering without a mutation and keeps focus", async () => {
+  const change = vi.fn(async () => true);
+  const { user } = await renderWithRouter(
+    <NavigationPinsContext value={state({ pins: manyPins, change })}>
+      {section()}
+    </NavigationPinsContext>,
+  );
+  const trigger = screen.getByRole("link", { name: "Round 2" });
+  trigger.focus();
+  fireEvent.contextMenu(trigger);
+  await user.keyboard("{ArrowDown}{Escape}");
+  await waitFor(() => expect(trigger).toHaveFocus());
+  expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  expect(change).not.toHaveBeenCalled();
+  fireEvent.contextMenu(trigger);
+  await user.keyboard("{ArrowDown}{ArrowDown}{Enter}");
+  await waitFor(() =>
+    expect(change).toHaveBeenCalledWith({
+      action: "move",
+      target: manyPins[1]!.target,
+      before: manyPins[3]!.target,
+    }),
+  );
+});
+
+it.each([6, 7])(
+  "moves past the collapsed boundary with %i pins and restores focus",
+  async (count) => {
+    const change = vi.fn(async () => true);
+    const { user } = await renderWithRouter(
+      <NavigationPinsContext value={state({ pins: manyPins.slice(0, count), change })}>
+        {section()}
+      </NavigationPinsContext>,
+    );
+    fireEvent.contextMenu(screen.getByRole("link", { name: "Round 5" }));
+    await user.click(screen.getByRole("menuitem", { name: "Move down" }));
+    expect(change).toHaveBeenCalledWith({
+      action: "move",
+      target: manyPins[4]!.target,
+      before: count === 6 ? null : manyPins[6]!.target,
+    });
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: `${count - 5} more…` })).toHaveFocus(),
+    );
+  },
+);
+
+it("drops after the fifth visible pin before the first hidden pin", async () => {
+  const change = vi.fn(async () => true);
+  await renderWithRouter(
+    <NavigationPinsContext value={state({ pins: manyPins, change })}>
+      {section()}
+    </NavigationPinsContext>,
+  );
+  const first = screen.getByRole("link", { name: "Round 1" }).parentElement!;
+  const fifth = screen.getByRole("link", { name: "Round 5" }).parentElement!;
+  const dataTransfer = { clearData: vi.fn(), setData: vi.fn(), effectAllowed: "", dropEffect: "" };
+  fireEvent.dragStart(first, { dataTransfer });
+  fireEvent.dragOver(fifth, { dataTransfer, clientY: 10 });
+  expect(fifth).toHaveAttribute("data-drop-position", "after");
+  fireEvent.drop(fifth, { dataTransfer, clientY: 10 });
+  await waitFor(() =>
+    expect(change).toHaveBeenCalledWith({
+      action: "move",
+      target: manyPins[0]!.target,
+      before: manyPins[5]!.target,
+    }),
+  );
+});
+
+it("keeps full context accessible when the visible title is compact", async () => {
+  const { user } = await renderWithRouter(
+    <NavigationPinsContext value={state({ pins: [application] })}>
+      <NavigationSection
+        title="Applications"
+        kind="application"
+        workspaceSlug="alder"
+        icon="application"
+        location={{ to: "/app/$workspaceSlug/applications", params: { workspaceSlug: "alder" } }}
+      />
+    </NavigationPinsContext>,
+  );
+  await user.tab();
+  await user.tab();
+  const link = screen.getByRole("link", { name: "Community meals Community grants" });
+  expect(link).toHaveFocus();
+  expect(link).toHaveTextContent("Community meals");
+  expect(await screen.findByRole("tooltip")).toHaveTextContent(
+    "Community meals · Community grants",
+  );
+});
 
 const state = (overrides: Partial<NavigationPinsState> = {}): NavigationPinsState => ({
   pins: [],
@@ -78,7 +232,7 @@ it.each(["community-grants", "earlier-title"])(
     ).toHaveAttribute("href", "/app/alder/rounds/community-grants-000000000001");
     expect(
       within(navigation.getByRole("region", { name: "Applications" })).getByRole("link", {
-        name: "Community meals · Community grants",
+        name: "Community meals Community grants",
       }),
     ).toHaveAttribute(
       "href",
@@ -102,9 +256,9 @@ it("offers accessible reorder and unpin controls with retry after a failed save"
     </NavigationPinsContext>,
     "/app/alder/rounds",
   );
-  const trigger = screen.getByRole("button", { name: "Pin actions for Community grants" });
+  const trigger = screen.getByRole("link", { name: "Community grants" });
   trigger.focus();
-  await user.keyboard("{Enter}");
+  fireEvent.contextMenu(trigger);
   expect(screen.queryByRole("menuitem", { name: "Move up" })).not.toBeInTheDocument();
   await user.click(screen.getByRole("menuitem", { name: "Move down" }));
   await waitFor(() =>
@@ -112,13 +266,39 @@ it("offers accessible reorder and unpin controls with retry after a failed save"
   );
   expect(await screen.findByRole("alert")).toHaveTextContent("Pins could not be saved");
   change.mockResolvedValue(true);
-  await user.click(trigger);
-  await user.click(screen.getByRole("menuitem", { name: "Unpin" }));
+  await user.click(screen.getByRole("button", { name: "Unpin Community grants from sidebar" }));
   await waitFor(() =>
     expect(change).toHaveBeenLastCalledWith({ action: "unpin", target: round.target }),
   );
   await waitFor(() => expect(screen.getByRole("link", { name: "Funding rounds" })).toHaveFocus());
   expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+});
+
+it("unpins a single shortcut directly, retaining it on failure and restoring focus on success", async () => {
+  const change = vi.fn(async () => false);
+  const { user } = await renderWithRouter(
+    <NavigationPinsContext value={state({ pins: [round], change })}>
+      <NavigationSection
+        title="Funding rounds"
+        kind="round"
+        workspaceSlug="alder"
+        icon="layers"
+        location={{ to: "/app/$workspaceSlug/rounds", params: { workspaceSlug: "alder" } }}
+      />
+    </NavigationPinsContext>,
+    "/app/alder/rounds",
+  );
+  expect(screen.queryByRole("button", { name: /Reorder/ })).not.toBeInTheDocument();
+  const unpin = screen.getByRole("button", { name: "Unpin Community grants from sidebar" });
+  unpin.focus();
+  await user.keyboard("{Enter}");
+  expect(await screen.findByRole("alert")).toHaveTextContent("Pins could not be saved");
+  expect(screen.getByRole("link", { name: "Community grants" })).toBeInTheDocument();
+  change.mockResolvedValue(true);
+  await user.click(unpin);
+  await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+  expect(change).toHaveBeenLastCalledWith({ action: "unpin", target: round.target });
+  await waitFor(() => expect(screen.getByRole("link", { name: "Funding rounds" })).toHaveFocus());
 });
 
 it("links review pins to assignments and keeps the overview available if pins cannot load", async () => {
@@ -151,7 +331,7 @@ it("links review pins to assignments and keeps the overview available if pins ca
     "/app/birch/work",
   );
   expect(screen.getByRole("link", { name: "My work" })).toHaveAttribute("href", "/app/birch/work");
-  expect(screen.getByRole("link", { name: "Assigned meals · Birch Foundation" })).toHaveAttribute(
+  expect(screen.getByRole("link", { name: "Assigned meals Birch Foundation" })).toHaveAttribute(
     "href",
     `/app/birch/work/${review.target.id}`,
   );
@@ -168,7 +348,7 @@ it("does not present a failed pin as saved and allows retry", async () => {
       <PinButton target={round.target} title={round.title} />
     </NavigationPinsContext>,
   );
-  const button = screen.getByRole("button", { name: "Pin Community grants" });
+  const button = screen.getByRole("button", { name: "Pin Community grants to sidebar" });
   await user.click(button);
   expect(await screen.findByRole("alert")).toHaveTextContent("Pins could not be saved");
   expect(button).toHaveAttribute("aria-pressed", "false");
@@ -176,4 +356,85 @@ it("does not present a failed pin as saved and allows retry", async () => {
   await user.click(button);
   await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
   expect(change).toHaveBeenCalledTimes(2);
+});
+
+it("ignores duplicate changes while saving and leaves a failed item focused", async () => {
+  let finish!: (saved: boolean) => void;
+  const change = vi.fn(
+    () =>
+      new Promise<boolean>((resolve) => {
+        finish = resolve;
+      }),
+  );
+  const { user } = await renderWithRouter(
+    <NavigationPinsContext value={state({ pins: manyPins, change })}>
+      {section()}
+    </NavigationPinsContext>,
+  );
+  const unpin = screen.getByRole("button", { name: "Unpin Round 1 from sidebar" });
+  await user.click(unpin);
+  await user.click(unpin);
+  expect(change).toHaveBeenCalledTimes(1);
+  finish(false);
+  expect(await screen.findByRole("alert")).toHaveTextContent("Pins could not be saved");
+  expect(unpin).toHaveFocus();
+  expect(screen.getByRole("link", { name: "Round 1" })).toBeVisible();
+});
+
+it("does not redirect focus when the fifth pin moves upward", async () => {
+  const { user } = await renderWithRouter(
+    <NavigationPinsContext value={state({ pins: manyPins })}>{section()}</NavigationPinsContext>,
+  );
+  const trigger = screen.getByRole("link", { name: "Round 5" });
+  trigger.focus();
+  fireEvent.contextMenu(trigger);
+  await user.click(screen.getByRole("menuitem", { name: "Move up" }));
+  await waitFor(() => expect(trigger).toHaveFocus());
+});
+
+const ManagedPins = ({ count, fail = false }: { count: number; fail?: boolean }) => {
+  const [pins, setPins] = useState(manyPins.slice(0, count));
+  return (
+    <NavigationPinsContext
+      value={state({
+        pins,
+        change: async (input) => {
+          if (fail) {
+            return false;
+          }
+          if (input.action === "unpin") {
+            setPins((items) => items.filter((pin) => pin.target.id !== input.target.id));
+          }
+          return true;
+        },
+      })}
+    >
+      {section()}
+    </NavigationPinsContext>
+  );
+};
+
+it("keeps the popup open after removal, then closes at five and restores collection focus", async () => {
+  const { user } = await renderWithRouter(<ManagedPins count={7} />);
+  await user.click(screen.getByRole("button", { name: "2 more…" }));
+  const popup = within(screen.getByRole("dialog"));
+  await user.click(popup.getByRole("button", { name: "Unpin Round 2 from sidebar" }));
+  await waitFor(() => expect(popup.getByRole("link", { name: "Round 3" })).toHaveFocus());
+  expect(popup.getAllByRole("link")).toHaveLength(6);
+  expect(screen.getByRole("button", { name: "1 more…" })).toBeInTheDocument();
+  await user.click(popup.getByRole("button", { name: "Unpin Round 3 from sidebar" }));
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  await waitFor(() => expect(screen.getByRole("link", { name: "Funding rounds" })).toHaveFocus());
+  expect(screen.queryByRole("button", { name: /more…/ })).not.toBeInTheDocument();
+});
+
+it("retains a failed popup removal and reports the error inside the active surface", async () => {
+  const { user } = await renderWithRouter(<ManagedPins count={6} fail />);
+  await user.click(screen.getByRole("button", { name: "1 more…" }));
+  const popup = within(screen.getByRole("dialog"));
+  const unpin = popup.getByRole("button", { name: "Unpin Round 6 from sidebar" });
+  await user.click(unpin);
+  expect(await popup.findByRole("alert")).toHaveTextContent("Pins could not be saved");
+  expect(popup.getAllByRole("link")).toHaveLength(6);
+  expect(unpin).toHaveFocus();
 });

@@ -1,3 +1,4 @@
+import "../../../../../tests/local-request-cookies";
 import { QueryClientProvider } from "@tanstack/react-query";
 import {
   createMemoryHistory,
@@ -358,7 +359,9 @@ it("keeps the list context on application, review, and created links and restore
 
   await user.click(applicationLink);
 
-  const backLink = await screen.findByRole("link", { name: "Back to applications" });
+  const breadcrumb = within(await screen.findByRole("navigation", { name: "Breadcrumb" }));
+  const backLink = breadcrumb.getByRole("link", { name: "Applications" });
+  expect(breadcrumb.getAllByRole("listitem")).toHaveLength(2);
   const backLocation = new URL(backLink.getAttribute("href")!, "http://localhost");
 
   expect(backLocation.pathname).toBe("/app/alder/applications");
@@ -383,7 +386,11 @@ it("keeps the list context on application, review, and created links and restore
   await user.type(dialog.getByLabelText(/Project title/), "Zebra workshops");
   await user.click(dialog.getByRole("button", { name: "Add application" }));
 
-  expect(await screen.findByRole("link", { name: "Back to applications" })).toHaveAttribute(
+  expect(
+    within(await screen.findByRole("navigation", { name: "Breadcrumb" })).getByRole("link", {
+      name: "Applications",
+    }),
+  ).toHaveAttribute(
     "href",
     expect.stringContaining(
       `round=${roundId}&filter=preparing&sort=application&direction=descending`,

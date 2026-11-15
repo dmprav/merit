@@ -32,6 +32,7 @@
     "./notice": "./src/components/notice/notice.tsx",
     "./status-message": "./src/patterns/status-message/status-message.tsx",
     "./link.module.css": "./src/components/link/link.module.css",
+    "./application-navigation": "./src/patterns/application-shell/application-navigation.tsx",
     "./application-shell": "./src/patterns/application-shell/application-shell.tsx",
     "./application-shell.module.css": "./src/patterns/application-shell/application-shell.module.css",
     "./inline-name": "./src/patterns/editing/inline-name.tsx",

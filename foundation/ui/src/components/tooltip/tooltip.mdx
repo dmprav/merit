@@ -36,7 +36,9 @@ the tooltip to keep reading. The 120 ms fade follows the shared motion token and
 is skipped when reduced motion is preferred.
 
 The child must be a focusable React Aria control, such as Merit's `Button`, with
-its own accessible name. React Aria connects the explanation to the trigger and
+its own accessible name. For a native link or a router link that forwards its ref
+and DOM props, set `customTrigger`; the shared `Focusable` integration connects
+hover and keyboard focus without adding a wrapper element. React Aria connects the explanation to the trigger and
 positions it within the viewport. `content` accepts text only so the tooltip
 cannot become an inaccessible container for links or buttons.
 

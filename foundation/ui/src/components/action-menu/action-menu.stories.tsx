@@ -49,3 +49,26 @@ export const Keyboard: Story = {
     await userEvent.keyboard("{Enter}");
   },
 };
+
+export const ContextMenu: Story = {
+  args: {
+    activation: "contextMenu",
+    tooltip: "Community grants · Alder Foundation",
+    trigger: <a href="#community-grants">Community grants</a>,
+    items: [
+      { id: "up", label: "Move up" },
+      { id: "unpin", label: "Unpin" },
+    ],
+  },
+  play: async ({ canvas, canvasElement, userEvent }) => {
+    const link = canvas.getByRole("link", { name: "Community grants" });
+    link.focus();
+    await userEvent.keyboard(
+      navigator.platform.includes("Mac") ? "{Control>}{Enter}{/Control}" : "{Shift>}{F10}{/Shift}",
+    );
+    const body = within(canvasElement.ownerDocument.body);
+    await expect(await body.findByRole("menuitem", { name: "Move up" })).toBeVisible();
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(link).toHaveFocus());
+  },
+};

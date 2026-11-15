@@ -5,8 +5,10 @@ import { sameNavigationTarget, type NavigationTarget } from "@merit/grantmaking/
 import { Button } from "@merit/ui/button";
 import { Icon } from "@merit/ui/icon";
 import { Inline } from "@merit/ui/layout";
+import { Tooltip } from "@merit/ui/tooltip";
 
 import { NavigationPinsContext } from "./context";
+import styles from "./navigation.module.css";
 
 export const PinButton = ({ target, title }: { target: NavigationTarget; title: string }) => {
   const { t } = useTranslation("web");
@@ -17,21 +19,23 @@ export const PinButton = ({ target, title }: { target: NavigationTarget; title: 
   }
   const pinned = state.pins.some((pin) => sameNavigationTarget(pin.target, target));
   return (
-    <Inline gap={2}>
-      <Button
-        variant="quiet"
-        size="small"
-        aria-label={t(pinned ? "pins.unpinName" : "pins.pinName", { title })}
-        aria-pressed={pinned}
-        isDisabled={state.loading || state.unavailable || state.busy}
-        onPress={async () => {
-          setError(false);
-          setError(!(await state.change({ action: pinned ? "unpin" : "pin", target })));
-        }}
-      >
-        <Icon name="pin" />
-        {t(pinned ? "pins.pinned" : "pins.pin")}
-      </Button>
+    <Inline gap={2} className={styles.pinButton}>
+      <Tooltip content={t(pinned ? "pins.unpin" : "pins.pin")} placement="bottom">
+        <Button
+          variant="quiet"
+          size="small"
+          iconOnly
+          aria-label={t("pins.pinName", { title })}
+          aria-pressed={pinned}
+          isDisabled={state.loading || state.unavailable || state.busy}
+          onPress={async () => {
+            setError(false);
+            setError(!(await state.change({ action: pinned ? "unpin" : "pin", target })));
+          }}
+        >
+          <Icon name={pinned ? "pinned" : "pin"} />
+        </Button>
+      </Tooltip>
       {error && <span role="alert">{t("pins.saveError")}</span>}
     </Inline>
   );

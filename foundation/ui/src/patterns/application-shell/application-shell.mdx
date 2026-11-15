@@ -38,6 +38,39 @@ chooses which context a parent link restores; [breadcrumbs](?path=/docs/componen
 own the trail's presentation. Pass the current location through `locationKey` so
 page navigation can move focus to the main landmark.
 
+Use `breadcrumbAction` for a personal navigation action, such as pinning the
+current item to the sidebar. It sits beside the trail, outside the navigation
+landmark; record editing and workflow actions belong with the page content.
+
+Import `ApplicationNavigationList` and `ApplicationNavigationRow` from
+`@merit/ui/application-navigation`. They share the shell's navigation styling while
+owning row actions and pointer reordering independently of the shell layout.
+Use `ApplicationNavigationRow` when a navigation link has a secondary action.
+Supply the link as its child and a quiet button or menu trigger as `action`.
+The shell keeps the selected row together visually and reveals its action on
+hover or keyboard focus without reserving label space. Touch keeps the action
+visible beside the link with a minimum 44px target; narrow viewports retain the drawer. The [pin examples](?path=/story/product-navigation-pins--pinned)
+show this in context, including truncated labels, a full-list popup, and a link context menu. Use a custom-trigger `Tooltip` for full link text on hover and focus;
+retain the complete accessible name and essential context on the destination page.
+
+Wrap reorderable rows in `ApplicationNavigationList`, supply stable `reorderKey`
+values, and handle `onMove(id, target, position)`. Each row requires a `reorderKey`
+and renders its own `li`; place it directly in the list. The list commits the accepted insertion
+point even when a browser retargets the final drop to the list container.
+Each list scopes pointer drops
+locally; external and other-list drags cannot reorder it. The row displays a shared
+focus-color insertion cue. Links stay real links, including modified clicks.
+Supply an accessible reorder menu: `ActionMenu` with `activation="contextMenu"`
+adds platform right-click, keyboard, and touch long-press support to a real link.
+Its optional `tooltip` supplies full context for truncated sidebar labels on hover
+and keyboard focus; omit it when popup rows show that context directly. Use
+`appearance="popup"` on the list within a `PopoverDialog` for a full collection
+with an always-visible removal control. The title and row provide the pointer drag
+surface; action buttons do not start a drag. Menu keyboard navigation and touch
+actions provide the non-drag path.
+The feature owns saved order, hidden items, failure recovery, and focus when a
+successful action removes the focused item from the preview.
+
 `ApplicationPage` supplies responsive gutters and standard or full width. The
 [page composition pattern](?path=/docs/patterns-page-composition--docs)
 explains width, title density, and content hierarchy. Use `contained` for a workspace

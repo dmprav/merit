@@ -9,7 +9,7 @@ const meta = {
     docs: {
       description: {
         component:
-          "Show meaningful parent destinations in hierarchy order, followed by the current page as plain text. Supply a translated navigation label and native or router links; features own destinations and preserved route context. Breadcrumbs owns the navigation landmark, ordered list, decorative separators, current-page semantics, and focus styling. Compact text and a medium-weight current page keep the trail quiet but readable. Parent links use the same neutral hover and tinted, underlined keyboard focus as Tabs, with larger touch targets. ApplicationPage positions the component in its top bar. Long labels wrap and stay readable. Keep tabs and editing states outside the trail. An empty trail renders nothing.",
+          "Show meaningful parent destinations in hierarchy order, followed by the current page as plain text. Supply a translated navigation label and native or router links; features own destinations and preserved route context. Breadcrumbs owns the navigation landmark, ordered list, decorative separators, current-page semantics, and focus styling. Regular-weight text and muted parent links keep the trail quiet; the current page uses the foreground color. Parent links use the same neutral hover and tinted, underlined keyboard focus as Tabs, with larger touch targets. ApplicationPage positions the component in its top bar. Long labels wrap and stay readable. Keep tabs and editing states outside the trail. An empty trail renders nothing.",
       },
     },
   },

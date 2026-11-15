@@ -51,9 +51,9 @@
   text-decoration-thickness: 2px;
 }
 
-.item > [aria-current] {
+.item > span[aria-current="page"] {
   color: var(--foreground);
-  font-weight: 500;
+  font-weight: 400;
 }
 
 .separator {

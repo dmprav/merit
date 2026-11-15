@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { createIsomorphicFn } from "@tanstack/react-start";
+import { getCookie } from "@tanstack/react-start/server";
 import { useTranslation } from "react-i18next";
 
 import { ApplicationAccount } from "@merit/ui/application-shell";
@@ -10,21 +11,21 @@ const localPersonas = new Map<string, string>([
 ]);
 const defaultLocalPersona = "Dana Reed";
 
-const readLocalPersonCookie = () =>
-  document.cookie
-    .split(";")
-    .map((value) => value.trim())
-    .find((value) => value.startsWith("merit-local-person="))
-    ?.split("=")[1];
+const readLocalPersonCookie = createIsomorphicFn()
+  .server(() => getCookie("merit-local-person"))
+  .client(
+    () =>
+      document.cookie
+        .split(";")
+        .map((value) => value.trim())
+        .find((value) => value.startsWith("merit-local-person="))
+        ?.split("=")[1],
+  );
 
 export const LocalAccount = () => {
   const { t } = useTranslation("common");
-  const [name, setName] = useState<string | null>(null);
-
-  useEffect(() => {
-    const person = readLocalPersonCookie();
-    setName((person ? localPersonas.get(person) : undefined) ?? defaultLocalPersona);
-  }, []);
+  const person = readLocalPersonCookie();
+  const name = (person ? localPersonas.get(person) : undefined) ?? defaultLocalPersona;
 
   return (
     <ApplicationAccount

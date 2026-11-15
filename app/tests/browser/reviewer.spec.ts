@@ -99,15 +99,15 @@ test("an invited reviewer independently accepts, saves, submits and amends @cros
       reviewer.getByRole("heading", { name: "Application material", exact: true }),
     ).toBeVisible();
     const title = await reviewer.getByRole("heading", { level: 1 }).innerText();
-    await reviewer.getByRole("button", { name: `Pin ${title}`, exact: true }).click();
+    await reviewer.getByRole("button", { name: `Pin ${title} to sidebar`, exact: true }).click();
     await expect(
-      reviewer.getByRole("button", { name: `Unpin ${title}`, exact: true }),
+      reviewer.getByRole("button", { name: `Pin ${title} to sidebar`, exact: true }),
     ).toHaveAttribute("aria-pressed", "true");
     const reviewNavigation = await openNavigation(reviewer);
     await expect(
       reviewNavigation
         .getByRole("region", { name: "My work", exact: true })
-        .getByRole("link", { name: `${title} · Alder Foundation`, exact: true }),
+        .getByRole("link", { name: `${title} Alder Foundation`, exact: true }),
     ).toHaveAttribute("href", `/app/alder/work/${assignmentId}`);
     await expect(
       reviewNavigation.getByRole("link", { name: "Funding rounds", exact: true }),
@@ -168,7 +168,7 @@ test("an invited reviewer independently accepts, saves, submits and amends @cros
       "Independent assessment grounded in the application evidence.",
     );
     await expect(
-      reviewer.getByRole("button", { name: `Unpin ${title}`, exact: true }),
+      reviewer.getByRole("button", { name: `Pin ${title} to sidebar`, exact: true }),
     ).toHaveAttribute("aria-pressed", "true");
     const reasoning = "Keep this assessment while consulting the assignment list.";
     await context.setOffline(true);

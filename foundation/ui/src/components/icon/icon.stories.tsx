@@ -11,7 +11,8 @@ const meta = {
     docs: {
       description: {
         component: `Use Icon for interface symbols. Its Lucide glyphs share a 16 px size,
-1.75 stroke width, normal stroke scaling, and the surrounding text color. Extend
+1.75 stroke width, normal stroke scaling, and the surrounding text color. The filled
+pin uses a lighter 1.25 stroke and muted color to keep its saved state quiet. Extend
 the explicitly imported set as needed; use className for placement or motion to
 keep size and stroke consistent across controls.
 
@@ -36,6 +37,8 @@ export const Catalog: Story = {
           "warning",
           "info",
           "clock",
+          "pin",
+          "pinned",
           "home",
           "layers",
           "round",

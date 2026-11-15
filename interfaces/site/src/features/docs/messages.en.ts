@@ -66,7 +66,7 @@ export const docs = {
       navigation: {
         title: "Find and pin your work",
         body: "Funding rounds opens all rounds in your workspace. Applications opens applications across those rounds. Activity lists who changed shared grant work, newest first. Search, at the top of navigation or with Ctrl+K (⌘K on Apple devices) from anywhere in the workspace, finds a funding round or application by name or applicant, opens workspace pages, and starts the funding-round creation form. Choose a result to continue; opening creation resumes any unfinished draft. My work opens your own review assignments in the current workspace. Your responsibilities determine which destinations are available.",
-        pins: "Open a round, application, or review assignment and choose Pin at the top of the page. Your shortcut appears beneath Funding rounds, Applications, or My work in its workspace. You can pin several rounds. Use each pin’s actions menu to Move up, Move down, or Unpin. Pins are personal and follow your account across devices.",
+        pins: "Open a round, application, or review assignment and select the pin beside its breadcrumb name. A filled pin means it is saved. Each sidebar section shows your first five pins; choose the remaining count, such as 3 more…, to open the full list. Drag a shortcut to reorder it, or open its context menu with right-click, Control+Enter on macOS, Shift+F10 on Windows/Linux, or a long-press on touch screens, then choose Move up or Move down. Choose the X beside any shortcut to unpin it. The sidebar reveals X on hover or keyboard focus and keeps it visible on touch screens. Pins are personal and follow your account across devices.",
         settings:
           "Contacts is a secondary workspace directory for program managers. Owners and administrators use Workspace settings → Members & access to manage membership. Reviewers use the same workspace navigation with access to their own assignments.",
       },
@@ -127,7 +127,7 @@ export const docs = {
       create: {
         title: "Add an application",
         overview:
-          "Choose Applications in the sidebar to see applications across your workspace. Filter by Round and sort the list, then open an application or its round. Back to applications returns to the same filter, sort, and list position.",
+          "Choose Applications in the sidebar to see applications across your workspace. Filter by Round and sort the list, then open an application or its round. Choose Applications in the breadcrumb above the application to return to the same filter, sort, and list position.",
         steps: {
           open: "From Applications in the sidebar, choose a round under New application in, then choose Add application. You can also add an application from a funding round’s Applications section.",
           enter:
