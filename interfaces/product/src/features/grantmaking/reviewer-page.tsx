@@ -38,7 +38,7 @@ const ReviewerPage = ({
     <AppPage
       width="full"
       contained={Boolean(assignment)}
-      badge={
+      breadcrumbAction={
         assignment && (
           <PinButton
             target={{ kind: "review", id: assignment.id }}
@@ -47,7 +47,12 @@ const ReviewerPage = ({
         )
       }
       breadcrumb={[
-        <Link to="/app/$workspaceSlug/work" params={{ workspaceSlug }} key="work">
+        <Link
+          to="/app/$workspaceSlug/work"
+          params={{ workspaceSlug }}
+          key="work"
+          activeOptions={{ exact: true }}
+        >
           {t("web:navigation.myWork")}
         </Link>,
         ...(assignment ? [assignment.applicationTitle] : []),

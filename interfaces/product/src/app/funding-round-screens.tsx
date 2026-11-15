@@ -2,8 +2,6 @@ import { Link, type LinkOptions } from "@tanstack/react-router";
 import type { ComponentProps } from "react";
 import { useTranslation } from "react-i18next";
 
-import { Inline } from "@merit/ui/layout";
-
 import { ApplicationWork } from "../features/grantmaking/application-work";
 import { FundingRoundWork } from "../features/grantmaking/funding-round-work";
 import { FundingRoundsWork } from "../features/grantmaking/funding-rounds-work";
@@ -25,14 +23,14 @@ export const FundingRoundScreen = (props: ComponentProps<typeof FundingRoundWork
   return (
     <AppPage
       width="full"
-      badge={
+      breadcrumbAction={
         <PinButton
           target={{ kind: "round", id: props.data.round.id }}
           title={props.data.round.title}
         />
       }
       breadcrumb={[
-        <Link key="rounds" {...props.roundsLocation}>
+        <Link key="rounds" {...props.roundsLocation} activeOptions={{ exact: true }}>
           {t("navigation.rounds")}
         </Link>,
         props.data.round.title,
@@ -56,24 +54,27 @@ export const ApplicationScreen = ({
   return (
     <AppPage
       contained
-      badge={
-        <Inline gap={3}>
-          {applicationsLocation && (
-            <Link {...applicationsLocation}>{t("navigation.backToApplications")}</Link>
-          )}
-          <PinButton
-            target={{ kind: "application", id: props.data.application.id }}
-            title={props.data.application.title}
-          />
-        </Inline>
+      breadcrumbAction={
+        <PinButton
+          target={{ kind: "application", id: props.data.application.id }}
+          title={props.data.application.title}
+        />
       }
       breadcrumb={[
-        <Link key="rounds" {...roundsLocation}>
-          {t("navigation.rounds")}
-        </Link>,
-        <Link key="round" {...props.roundLocation}>
-          {props.data.round.title}
-        </Link>,
+        ...(applicationsLocation
+          ? [
+              <Link key="applications" {...applicationsLocation} activeOptions={{ exact: true }}>
+                {t("navigation.applications")}
+              </Link>,
+            ]
+          : [
+              <Link key="rounds" {...roundsLocation} activeOptions={{ exact: true }}>
+                {t("navigation.rounds")}
+              </Link>,
+              <Link key="round" {...props.roundLocation} activeOptions={{ exact: true }}>
+                {props.data.round.title}
+              </Link>,
+            ]),
         props.data.application.title,
       ]}
     >

@@ -39,6 +39,7 @@ const icons = {
   clock: Clock,
   info: Info,
   pin: Pin,
+  pinned: Pin,
   settings: Settings,
   add: Plus,
   discard: Trash2,
@@ -77,7 +78,8 @@ export const Icon = ({ name, className }: { name: keyof typeof icons; className?
     <Glyph
       aria-hidden="true"
       size={16}
-      strokeWidth={1.75}
+      strokeWidth={name === "pinned" ? 1.25 : 1.75}
+      fill={name === "pinned" ? "currentColor" : "none"}
       className={`${styles.icon} ${className ?? ""}`}
     />
   );

@@ -20,7 +20,10 @@ test("demo exposes the workspace applications overview", async ({ page }) => {
   await expect(page.getByRole("status").filter({ hasText: "3 of 3 applications" })).toBeVisible();
   await page.getByRole("link", { name: "Workshop Saturdays", exact: true }).click();
   await page.reload();
-  await page.getByRole("link", { name: "Back to applications", exact: true }).click();
+  await page
+    .getByRole("navigation", { name: "Breadcrumb" })
+    .getByRole("link", { name: "Applications", exact: true })
+    .click();
   await expect(page).toHaveURL(`${workspace}/applications`);
   await expect(page.getByRole("button", { name: "Demo guide", exact: true })).toBeEnabled();
 });

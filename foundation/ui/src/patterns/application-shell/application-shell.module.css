@@ -170,7 +170,7 @@ button.contextTrigger {
 }
 
 /* Navigation items are links, or a button that opens something over the page, such as Search. */
-.nav :is(a, .navigationItem) {
+:is(.nav, .navigationList) :is(a, .navigationItem) {
   border-radius: var(--control-radius);
   display: flex;
   align-items: center;
@@ -181,7 +181,7 @@ button.contextTrigger {
   font-size: var(--text-detail);
 }
 
-.nav :is(a, .navigationItem):hover,
+:is(.nav, .navigationList) :is(a, .navigationItem):hover,
 .nav .navigationItem[data-hovered] {
   background: var(--surface);
 }
@@ -200,10 +200,97 @@ button.contextTrigger {
   margin-top: var(--space-2);
 }
 
-.nav a[aria-current="page"] {
+:is(.nav, .navigationList) a[aria-current="page"] {
   background: var(--action-subtle);
   color: var(--action);
   font-weight: 600;
+}
+
+.navigationRow {
+  --navigation-row-background: var(--surface-muted);
+  --button-quiet-foreground: var(--muted);
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  border-radius: var(--control-radius);
+  background: var(--navigation-row-background);
+}
+
+.navigationRow:hover,
+.navigationRow:has([aria-expanded="true"]) {
+  --navigation-row-background: var(--surface);
+}
+
+.navigationRow:has(> a:is([aria-current="page"], :focus-visible)) {
+  --navigation-row-background: var(--action-subtle);
+}
+
+:is(.nav, .navigationList) .navigationRow > a,
+:is(.nav, .navigationList) .navigationRow > a:hover {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  font-weight: 400;
+}
+
+:is(.nav, .navigationList) .navigationRow > a[aria-current="page"] {
+  font-weight: 500;
+}
+
+.navigationAction {
+  display: flex;
+  flex-shrink: 0;
+}
+
+.navigationRow[draggable="true"] > a {
+  cursor: grab;
+}
+
+@media (pointer: coarse) {
+  :is(.nav, .navigationList) .navigationRow > a {
+    min-height: var(--target-touch);
+  }
+}
+
+.navigationRow[data-drop-position]::after {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  height: 2px;
+  background: var(--focus);
+  pointer-events: none;
+}
+
+.navigationRow[data-drop-position="before"]::after {
+  top: 0;
+}
+
+.navigationRow[data-drop-position="after"]::after {
+  bottom: 0;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .navigationAction {
+    position: absolute;
+    inset-inline-end: 0;
+    padding-inline-start: var(--space-2);
+    border-radius: var(--control-radius);
+    background: linear-gradient(
+      to right,
+      transparent,
+      var(--navigation-row-background) var(--space-2)
+    );
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .navigationRow:hover .navigationAction,
+  .navigationRow:focus-within .navigationAction,
+  .navigationAction:has([aria-expanded="true"]) {
+    opacity: 1;
+    pointer-events: auto;
+  }
 }
 
 .sidebarBottom {
@@ -282,8 +369,7 @@ button.accountTrigger,
   border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  gap: var(--space-2);
   padding: var(--space-3) var(--page-gutter);
   font-size: var(--text-caption);
 }
@@ -382,7 +468,7 @@ button.accountTrigger,
     white-space: nowrap;
   }
 
-  .drawerContent .nav :is(a, .navigationItem) {
+  .drawerContent :is(.nav, .navigationList) :is(a, .navigationItem) {
     min-height: 44px;
   }
 
@@ -515,11 +601,45 @@ button.accountTrigger,
   content: attr(data-initials);
 }
 
-.nav :is(a, .navigationItem):focus-visible,
+:is(.nav, .navigationList) :is(a, .navigationItem):focus-visible,
 .nav .navigationItem[data-focus-visible] {
   outline: none;
   background: var(--action-subtle);
   color: var(--action);
   box-shadow: inset 3px 0 var(--focus);
   text-decoration: none;
+}
+
+.navigationList[data-appearance="popup"] {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.navigationList[data-appearance="popup"] .navigationRow {
+  --navigation-row-background: var(--surface);
+}
+
+.navigationList[data-appearance="popup"] .navigationRow:hover {
+  --navigation-row-background: var(--surface-muted);
+}
+
+.navigationList[data-appearance="popup"]
+  .navigationRow:has(> a:is([aria-current="page"], :focus-visible)) {
+  --navigation-row-background: var(--action-subtle);
+}
+
+.navigationList[data-appearance="popup"] .navigationAction {
+  position: static;
+  opacity: 1;
+  pointer-events: auto;
+  background: none;
+  padding: 0;
+}
+
+/* Keep labels readable beside the always-visible touch removal control. */
+@media (min-width: 601px) and (pointer: coarse) {
+  .shell {
+    --sidebar-width: 244px;
+  }
 }

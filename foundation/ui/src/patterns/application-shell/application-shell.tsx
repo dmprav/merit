@@ -312,7 +312,7 @@ export const ApplicationPage = ({
   locationKey,
   breadcrumb,
   breadcrumbLabel,
-  badge,
+  breadcrumbAction,
   contained = false,
   width = "standard",
   centered = false,
@@ -321,7 +321,8 @@ export const ApplicationPage = ({
   locationKey: string;
   breadcrumb: readonly ReactNode[] | null;
   breadcrumbLabel: string;
-  badge?: ReactNode;
+  /** A personal navigation action beside the current location, such as pinning it. */
+  breadcrumbAction?: ReactNode;
   contained?: boolean;
   width?: "standard" | "full";
   centered?: boolean;
@@ -335,10 +336,10 @@ export const ApplicationPage = ({
 
   return (
     <>
-      {(!!breadcrumb?.length || badge != null) && (
+      {(!!breadcrumb?.length || breadcrumbAction != null) && (
         <div className={styles.topbar}>
           {breadcrumb != null && <Breadcrumbs label={breadcrumbLabel} items={breadcrumb} />}
-          {badge}
+          {breadcrumbAction}
         </div>
       )}
       <main

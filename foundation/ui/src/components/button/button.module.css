@@ -59,13 +59,14 @@
 
 .button[data-variant="quiet"] {
   background: transparent;
-  color: var(--foreground);
+  color: var(--button-quiet-foreground, var(--foreground));
 }
 
 .button[data-variant="quiet"]:is([data-hovered], a:hover, [aria-expanded="true"]):where(
     :not([data-disabled], [aria-disabled="true"])
   ) {
   background: var(--button-quiet-background, var(--surface-muted));
+  color: var(--foreground);
 }
 
 .button[data-variant="secondary"]:is([data-hovered], a:hover):where(:not([aria-disabled="true"])) {

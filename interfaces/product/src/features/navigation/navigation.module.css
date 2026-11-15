@@ -9,41 +9,24 @@
 .pins {
   list-style: none;
   padding: 0;
-  margin: var(--space-1) 0 var(--space-2) var(--space-4);
-  border-left: 1px solid var(--border);
-}
-
-.pin {
-  display: flex;
-  align-items: center;
-  min-width: 0;
-}
-
-.pin > a {
-  flex: 1;
-  min-width: 0;
+  margin: var(--space-1) 0 var(--space-2) var(--space-6);
 }
 
 .pinLabel {
-  display: grid;
   min-width: 0;
-}
-
-.pinLabel > span {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  overflow: hidden;
-  overflow-wrap: anywhere;
-}
-
-.pinLabel > small {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  color: var(--muted);
-  font-size: var(--text-meta);
-  font-weight: 400;
+  line-height: 1.5;
+}
+
+.overflow {
+  --button-quiet-foreground: var(--muted);
+  margin-inline-start: var(--space-6);
+}
+
+.pinButton {
+  --button-quiet-foreground: var(--muted);
 }
 
 .error {
@@ -94,4 +77,16 @@
   .shortcut {
     display: none;
   }
+}
+
+.popupLabel {
+  display: grid;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.popupLabel small {
+  color: var(--muted);
+  font-size: var(--text-caption);
+  font-weight: 400;
 }

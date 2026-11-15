@@ -116,3 +116,7 @@ list as described in [the skill](SKILL.md#6-learn-from-escapes).
 - After removing and restoring membership, do pending invitations and accepted
   assignments remain inaccessible until explicitly reinstated? See
   [review participation](../../../docs/workflows/participate-in-review.md).
+- Do navigation popups close on browser history changes, and do delayed saves
+  preserve focus when the user has moved to another page or control? Check both
+  before resolving the save and before any scheduled focus callback runs. See
+  [UI verification](../../../docs/guides/ui-verification.md#verification).

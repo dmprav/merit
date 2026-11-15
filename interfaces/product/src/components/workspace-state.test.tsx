@@ -1,3 +1,4 @@
+import "../../tests/local-request-cookies";
 import { QueryClientProvider } from "@tanstack/react-query";
 import {
   createMemoryHistory,
