@@ -31,9 +31,9 @@ export const applicationCases = pgTable(
     organizationId: text("organization_id")
       .notNull()
       .references(() => organizations.id),
-    roundId: text("round_id"),
+    roundId: text("round_id").notNull(),
     position: integer().notNull().default(0),
-    materialVersion: integer("material_version"),
+    materialVersion: integer("material_version").notNull(),
     revision: integer().notNull().default(0),
     contactId: uuid("contact_id"),
     intakeStatus: text("intake_status", { enum: ["in_preparation", "ready"] }).notNull(),

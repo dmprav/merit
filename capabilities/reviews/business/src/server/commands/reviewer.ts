@@ -80,12 +80,7 @@ export const inviteReviewer = async (
     }
     const row = await readReviewState(tx, access.organizationId, request.publicId);
     const review = row?.reviews.requests.find((value) => value.id === request.requestId);
-    if (
-      !review ||
-      review.status !== "outstanding" ||
-      !review.applicationVersion ||
-      !review.criteriaVersion
-    ) {
+    if (!review || review.status !== "outstanding") {
       return { status: "invalid" } as const;
     }
     const contact = await readContact(tx, access.organizationId, review.contactId);
@@ -333,7 +328,7 @@ export const submitReviewerAssessment = async (
     }
     const content = reviewerSubmission(
       draft.content,
-      { applicationVersion: record.applicationVersion!, criteriaVersion: record.criteriaVersion! },
+      { applicationVersion: record.applicationVersion, criteriaVersion: record.criteriaVersion },
       assignment.assessmentId !== null,
     );
     if (!content) {

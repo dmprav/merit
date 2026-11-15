@@ -80,7 +80,7 @@ export type ReviewerSummary = {
 export type ReviewerPage = {
   assignment: ReviewerSummary;
   material: ReturnType<typeof encodeApplicationMaterial> | null;
-  criteria: ReviewState["requests"][number]["criteria"];
+  criteria: ReviewState["requests"][number]["criteria"] | null;
   draft: { revision: number; content: ReviewerDraft } | null;
   assessment: ReviewState["assessments"][number] | null;
 };

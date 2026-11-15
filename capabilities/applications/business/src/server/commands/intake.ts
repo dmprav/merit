@@ -220,7 +220,7 @@ const intakeTotalProblem = async (
   change: EditApplicationRequest["change"],
   application: Parameters<typeof requestedTotalProblem>[1],
 ) => {
-  if (row.roundId === null || !amountChanges(change)) {
+  if (!amountChanges(change)) {
     return null;
   }
 

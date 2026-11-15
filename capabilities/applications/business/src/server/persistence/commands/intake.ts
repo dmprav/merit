@@ -67,6 +67,7 @@ type IntakeState = NonNullable<Awaited<ReturnType<typeof findIntakeApplication>>
 // advances `material_version` stores them in the same statement.
 const caseContent = (snapshot: ApplicationData) => ({
   id: snapshot.id,
+  materialVersion: snapshot.version,
   searchTitle: snapshot.title,
   searchApplicant: snapshot.submission?.organization ?? "",
   intakeStatus: snapshot.intakeStatus,
@@ -81,7 +82,7 @@ export const insertIntakeApplication = async (
   db: Transaction,
   values: {
     organizationId: string;
-    roundId: string | null;
+    roundId: string;
     snapshot: ApplicationData;
     position?: number;
     revision?: number;
@@ -96,9 +97,7 @@ export const insertIntakeApplication = async (
     .where(
       and(
         eq(applicationCases.organizationId, values.organizationId),
-        values.roundId === null
-          ? sql`${applicationCases.roundId} IS NULL`
-          : eq(applicationCases.roundId, values.roundId),
+        eq(applicationCases.roundId, values.roundId),
       ),
     );
   const [saved] = await db
@@ -119,10 +118,6 @@ export const insertIntakeApplication = async (
     source: values.source ?? { kind: "recorded_external" },
     recordedByUserId: values.recordedByUserId,
   });
-  await db
-    .update(applicationCases)
-    .set({ materialVersion: values.snapshot.version })
-    .where(eq(applicationCases.id, saved!.id));
   return saved!;
 };
 
@@ -181,7 +176,6 @@ const writeIntakeApplication = async (
     .set({
       ...caseContent(values.snapshot),
       revision: values.revision,
-      materialVersion: values.snapshot.version,
     })
     .where(eq(applicationCases.id, publicId));
   if (values.workingRevision === null) {

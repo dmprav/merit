@@ -121,7 +121,7 @@ export const readRoundOverview = async (
       managerUserId: fundingRounds.managerUserId,
       managerNeedsReassignment,
       requested: sql<string>`(select coalesce(sum((m.content->'requested'->>'minorUnits')::numeric), 0)::text from ${applicationCases} a join ${materialVersions} m on m.case_id = a.id and m.version = a.material_version where a.organization_id = ${fundingRounds.organizationId} and a.round_id = ${fundingRounds.id} and ${activeCase("a")})`,
-      unknownRequests: sql<number>`(select count(*)::integer from ${applicationCases} a left join ${materialVersions} m on m.case_id = a.id and m.version = a.material_version where a.organization_id = ${fundingRounds.organizationId} and a.round_id = ${fundingRounds.id} and ${activeCase("a")} and (m.content->'requested' is null or m.content->'requested' = 'null'::jsonb))`,
+      unknownRequests: sql<number>`(select count(*)::integer from ${applicationCases} a join ${materialVersions} m on m.case_id = a.id and m.version = a.material_version where a.organization_id = ${fundingRounds.organizationId} and a.round_id = ${fundingRounds.id} and ${activeCase("a")} and (m.content->'requested' is null or m.content->'requested' = 'null'::jsonb))`,
       withdrawnApplications: roundWithdrawnCount(fundingRounds),
       proposed: sql<string>`(select coalesce(sum((r.content->'allocation'->>'minorUnits')::numeric), 0)::text from ${applicationCases} a join ${recommendationVersions} r on r.case_id = a.id and r.revision = (select max(v.revision) from ${recommendationVersions} v where v.case_id = a.id) where a.organization_id = ${fundingRounds.organizationId} and a.round_id = ${fundingRounds.id} and ${activeCase("a")})`,
     })
@@ -147,7 +147,7 @@ export const readApplicationSummaries = (
   db
     .select(applicationFields)
     .from(applicationCases)
-    .leftJoin(
+    .innerJoin(
       fundingRounds,
       and(
         eq(fundingRounds.organizationId, applicationCases.organizationId),
@@ -184,7 +184,7 @@ export const readApplicationContext = async (
       lastRecommendationRevision: recommendationRevision,
     })
     .from(applicationCases)
-    .leftJoin(
+    .innerJoin(
       fundingRounds,
       and(
         eq(fundingRounds.organizationId, applicationCases.organizationId),
@@ -322,7 +322,7 @@ export const readApplicationContent = async (
   const [row] = await db
     .select(chunkFields(sources[input.section], input.offset, input.length))
     .from(applicationCases)
-    .leftJoin(
+    .innerJoin(
       fundingRounds,
       and(
         eq(fundingRounds.organizationId, applicationCases.organizationId),
@@ -410,7 +410,7 @@ export const readReviewSummaries = async (
         ${reviewRevision} as review_revision,
         ${fundingRounds.criteriaVersion} as criteria_version, ${currentCriteria} as criteria
       from ${applicationCases}
-      left join ${fundingRounds} on ${fundingRounds.organizationId} = ${applicationCases.organizationId} and ${fundingRounds.id} = ${applicationCases.roundId}
+      join ${fundingRounds} on ${fundingRounds.organizationId} = ${applicationCases.organizationId} and ${fundingRounds.id} = ${applicationCases.roundId}
       join ${organizations} on ${organizations.id} = ${applicationCases.organizationId}
       join ${memberships} on ${memberships.organizationId} = ${organizations.id}
       join ${appUsers} on ${appUsers.id} = ${memberships.userId}
@@ -437,7 +437,7 @@ export const readReviewSummaries = async (
         r.material_version as application_version, r.criteria_version, c.criteria
       from ${reviewRequests} r
       left join ${reviewAssignments} assignment on assignment.case_id = r.case_id and assignment.request_id = r.id
-      left join ${criteriaVersions} c on c.round_id = r.criteria_round_id and c.version = r.criteria_version
+      join ${criteriaVersions} c on c.round_id = r.criteria_round_id and c.version = r.criteria_version
       where r.case_id = selected.case_id and r.status = 'outstanding'
     ) review
     where review.kind || ':' || review.id > ${input.after ?? ""}

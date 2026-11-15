@@ -26,9 +26,9 @@ import {
 const reviewerSummary = (row: ReviewerRecord): ReviewerSummary => {
   const basisComparison = compareReviewBasis(
     {
-      applicationVersion: materialVersionSchema.nullable().parse(row.applicationVersion),
-      criteriaVersion: criteriaVersionSchema.nullable().parse(row.criteriaVersion),
-      criteria: reviewCriteriaSchema.nullable().parse(row.criteria),
+      applicationVersion: materialVersionSchema.parse(row.applicationVersion),
+      criteriaVersion: criteriaVersionSchema.parse(row.criteriaVersion),
+      criteria: reviewCriteriaSchema.parse(row.criteria),
     },
     {
       applicationVersion: materialVersionSchema.parse(row.currentVersion),
@@ -52,8 +52,8 @@ const reviewerSummary = (row: ReviewerRecord): ReviewerSummary => {
     dueDate: row.assignment.dueDate,
     managerName: row.assignment.managerName,
     managerEmail: row.assignment.managerEmail,
-    applicationVersion: row.applicationVersion!,
-    criteriaVersion: row.criteriaVersion!,
+    applicationVersion: row.applicationVersion,
+    criteriaVersion: row.criteriaVersion,
     materialChanged: basisComparison.applicationVersion === "different",
     criteriaChanged: basisComparison.criteriaContent === "different",
     conflict: row.assignment.conflict,

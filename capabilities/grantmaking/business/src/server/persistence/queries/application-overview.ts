@@ -23,7 +23,7 @@ const reviewBases = sql<unknown>`(select coalesce(jsonb_agg(basis), '[]'::jsonb)
   union all
   select jsonb_build_object('submission', null, 'criteria', c.criteria)
   from ${reviewRequests} r
-  left join ${criteriaVersions} c on c.round_id = r.criteria_round_id and c.version = r.criteria_version
+  join ${criteriaVersions} c on c.round_id = r.criteria_round_id and c.version = r.criteria_version
   where r.case_id = ${applicationCases.id} and r.status = 'outstanding'
 ) reviews)`;
 

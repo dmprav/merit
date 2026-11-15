@@ -85,7 +85,7 @@ const fixture = (
                 reviewer,
                 applicationVersion: original.version,
                 criteriaVersion: round.criteriaVersion,
-                criteria: null,
+                criteria: round.criteria,
                 status: "outstanding" as const,
                 recorder: { userId: "dana", name: "Dana Reed", recordedAt },
                 closedBy: null,

@@ -23,17 +23,13 @@ export const reviewRequests = pgTable(
   "review_requests",
   {
     organizationId: text("organization_id").notNull(),
-    caseId: text("case_id")
-      .notNull()
-      .references(() => applicationCases.id, { onDelete: "cascade" }),
+    caseId: text("case_id").notNull(),
     id: text().notNull(),
-    contactId: uuid("contact_id")
-      .notNull()
-      .references(() => contacts.id),
+    contactId: uuid("contact_id").notNull(),
     reviewer: text().notNull(),
-    applicationVersion: integer("material_version"),
-    criteriaRoundPublicId: text("criteria_round_id"),
-    criteriaVersion: integer("criteria_version"),
+    applicationVersion: integer("material_version").notNull(),
+    criteriaRoundPublicId: text("criteria_round_id").notNull(),
+    criteriaVersion: integer("criteria_version").notNull(),
     status: text({ enum: ["outstanding", "received", "cancelled"] }).notNull(),
     recorder: jsonb(),
     closedBy: jsonb("closed_by"),
@@ -67,13 +63,9 @@ export const assessments = pgTable(
   "assessments",
   {
     organizationId: text("organization_id").notNull(),
-    caseId: text("case_id")
-      .notNull()
-      .references(() => applicationCases.id, { onDelete: "cascade" }),
+    caseId: text("case_id").notNull(),
     id: text().notNull(),
-    contactId: uuid("contact_id")
-      .notNull()
-      .references(() => contacts.id),
+    contactId: uuid("contact_id").notNull(),
     reviewer: text().notNull(),
     requestId: text("request_id"),
     previousId: text("previous_id"),

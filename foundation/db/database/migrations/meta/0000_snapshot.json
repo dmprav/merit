@@ -1,5 +1,5 @@
 {
-  "id": "2ee48b30-14e3-4bee-9362-725f400b3003",
+  "id": "c17c1213-5426-44b5-9132-3a20109db881",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -25,7 +25,7 @@
           "name": "round_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "position": {
           "name": "position",
@@ -38,7 +38,7 @@
           "name": "material_version",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "revision": {
           "name": "revision",
@@ -64,6 +64,20 @@
           "type": "jsonb",
           "primaryKey": false,
           "notNull": false
+        },
+        "search_title": {
+          "name": "search_title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "search_applicant": {
+          "name": "search_applicant",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
         },
         "summary": {
           "name": "summary",
@@ -2092,24 +2106,6 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "assessments_case_id_application_cases_id_fk": {
-          "name": "assessments_case_id_application_cases_id_fk",
-          "tableFrom": "assessments",
-          "tableTo": "application_cases",
-          "columnsFrom": ["case_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "assessments_contact_id_contacts_id_fk": {
-          "name": "assessments_contact_id_contacts_id_fk",
-          "tableFrom": "assessments",
-          "tableTo": "contacts",
-          "columnsFrom": ["contact_id"],
-          "columnsTo": ["id"],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
         "assessments_author_user_id_app_users_id_fk": {
           "name": "assessments_author_user_id_app_users_id_fk",
           "tableFrom": "assessments",
@@ -2202,19 +2198,19 @@
           "name": "material_version",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "criteria_round_id": {
           "name": "criteria_round_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "criteria_version": {
           "name": "criteria_version",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "status": {
           "name": "status",
@@ -2243,24 +2239,6 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "review_requests_case_id_application_cases_id_fk": {
-          "name": "review_requests_case_id_application_cases_id_fk",
-          "tableFrom": "review_requests",
-          "tableTo": "application_cases",
-          "columnsFrom": ["case_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "review_requests_contact_id_contacts_id_fk": {
-          "name": "review_requests_contact_id_contacts_id_fk",
-          "tableFrom": "review_requests",
-          "tableTo": "contacts",
-          "columnsFrom": ["contact_id"],
-          "columnsTo": ["id"],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
         "review_requests_organization_id_criteria_round_id_funding_rounds_organization_id_id_fk": {
           "name": "review_requests_organization_id_criteria_round_id_funding_rounds_organization_id_id_fk",
           "tableFrom": "review_requests",
