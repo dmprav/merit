@@ -63,9 +63,7 @@ export const ContextMenu: Story = {
   play: async ({ canvas, canvasElement, userEvent }) => {
     const link = canvas.getByRole("link", { name: "Community grants" });
     link.focus();
-    await userEvent.keyboard(
-      navigator.platform.includes("Mac") ? "{Control>}{Enter}{/Control}" : "{Shift>}{F10}{/Shift}",
-    );
+    await userEvent.pointer({ keys: "[MouseRight]", target: link });
     const body = within(canvasElement.ownerDocument.body);
     await expect(await body.findByRole("menuitem", { name: "Move up" })).toBeVisible();
     await userEvent.keyboard("{Escape}");

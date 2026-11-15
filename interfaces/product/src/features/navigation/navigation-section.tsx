@@ -1,4 +1,4 @@
-import { Link, useLocation, type LinkOptions } from "@tanstack/react-router";
+import { Link, useLocation, useRouter, type LinkOptions } from "@tanstack/react-router";
 import {
   useContext,
   useEffect,
@@ -27,6 +27,7 @@ import { NavigationPinsContext } from "./context";
 import styles from "./navigation.module.css";
 
 const PIN_PREVIEW_LIMIT = 5;
+const PIN_SEGMENTS = { review: "work", round: "rounds", application: "applications" };
 
 const pinLocation = (pin: NavigationPin): LinkOptions => {
   if (pin.target.kind === "review") {
@@ -111,6 +112,7 @@ const PinRow = ({
 }) => {
   const { t } = useTranslation("web");
   const pin = pins[index]!;
+  const hint = pin.context ? `${pin.title} · ${pin.context}` : pin.title;
   const link = (
     <Link
       {...pinLocation(pin)}
@@ -150,10 +152,10 @@ const PinRow = ({
           index={index}
           change={change}
           trigger={link}
-          tooltip={popup ? undefined : pin.context ? `${pin.title} · ${pin.context}` : pin.title}
+          tooltip={popup ? undefined : hint}
         />
       ) : (
-        <Tooltip customTrigger content={pin.context ? `${pin.title} · ${pin.context}` : pin.title}>
+        <Tooltip customTrigger content={hint}>
           {link}
         </Tooltip>
       )}
@@ -169,8 +171,48 @@ type NavigationSectionProps = {
   icon: ComponentProps<typeof Icon>["name"];
 };
 
+type PinSurface = "sidebar" | "popup";
+
+/** Choose a surviving control only when a successful change removes the source row. */
+const recoveryTarget = (input: NavigationPinChange, pins: NavigationPin[], surface: PinSurface) => {
+  if (input.action === "unpin") {
+    if (surface === "sidebar" || pins.length <= PIN_PREVIEW_LIMIT + 1) {
+      return "collection";
+    }
+    const index = pins.findIndex((pin) => pin.target.id === input.target.id);
+    return (pins[index + 1] ?? pins[index - 1])?.target;
+  }
+  if (input.action !== "move" || surface !== "sidebar") {
+    return null;
+  }
+  const destination = input.before
+    ? pins.findIndex((pin) => pin.target.id === input.before!.id)
+    : pins.length;
+  return destination > PIN_PREVIEW_LIMIT ? "overflow" : null;
+};
+
+const pinLink = (container: HTMLElement | null, id: string) =>
+  Array.from(container?.querySelectorAll<HTMLAnchorElement>("a[data-pin-id]") ?? []).find(
+    (link) => link.dataset.pinId === id,
+  );
+
+/** Menus restore to their row; removed controls fall back to their dialog or the body. */
+const ownsPinFocus = (
+  active: Element | null,
+  row: HTMLElement | null | undefined,
+  dialog: Element | null | undefined,
+) => {
+  const current = document.activeElement;
+  return (
+    current === active ||
+    row?.contains(current) ||
+    (!active?.isConnected && (current === document.body || current === dialog))
+  );
+};
+
 const useNavigationSection = ({ kind, workspaceSlug }: NavigationSectionProps) => {
   const state = useContext(NavigationPinsContext);
+  const router = useRouter();
   const pathname = useLocation({ select: (location) => location.pathname });
   const collection = useRef<HTMLAnchorElement>(null);
   const overflow = useRef<HTMLButtonElement>(null);
@@ -178,60 +220,97 @@ const useNavigationSection = ({ kind, workspaceSlug }: NavigationSectionProps) =
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<"sidebar" | "popup" | null>(null);
   const submitting = useRef(false);
+  const interaction = useRef(0);
   const pins =
     state?.pins.filter((pin) => pin.target.kind === kind && pin.workspaceSlug === workspaceSlug) ??
     [];
-  const segment = kind === "review" ? "work" : kind === "round" ? "rounds" : "applications";
+  const segment = PIN_SEGMENTS[kind];
   const currentPin = pathname.includes(`/${segment}/`)
     ? pins.find((pin) => pathname.replace(/\/$/, "").endsWith(pin.target.id))
     : undefined;
 
   useEffect(() => {
-    if (open && pins.length <= PIN_PREVIEW_LIMIT) {
+    const reset = () => {
+      interaction.current += 1;
       setOpen(false);
-      requestAnimationFrame(() => collection.current?.focus());
-    }
-  }, [open, pins.length]);
+      setError(null);
+    };
 
-  const change = async (input: NavigationPinChange, surface: "sidebar" | "popup") => {
+    reset();
+    // Like search, overflow belongs to the page where it was opened. Invalidate before
+    // the new page takes focus, including Back/Forward and already scheduled recovery.
+    const unsubscribe = router.subscribe("onBeforeNavigate", ({ hrefChanged }) => {
+      if (hrefChanged) {
+        reset();
+      }
+    });
+    return () => {
+      unsubscribe();
+      interaction.current += 1;
+    };
+  }, [router, kind, workspaceSlug]);
+
+  useEffect(() => {
+    if (pins.length <= PIN_PREVIEW_LIMIT) {
+      setOpen(false);
+    }
+  }, [pins.length]);
+
+  const onOpenChange = (next: boolean) => {
+    interaction.current += 1;
+    setError(null);
+    setOpen(next);
+  };
+
+  const change = async (input: NavigationPinChange, surface: PinSurface) => {
     if (!state || state.busy || submitting.current) {
       return;
     }
     submitting.current = true;
     setError(null);
-    const index = pins.findIndex((pin) => pin.target.id === input.target.id);
-    const neighbour = pins[index + 1] ?? pins[index - 1];
+    const version = ++interaction.current;
+    const active = document.activeElement;
+    const container = surface === "popup" ? popupList.current : collection.current?.parentElement;
+    const row = pinLink(container ?? null, input.target.id)?.closest("li");
+    const dialog = row?.closest("[role=dialog]");
     const saved = await state.change(input);
     submitting.current = false;
+    if (version !== interaction.current) {
+      return;
+    }
     if (!saved) {
       setError(surface);
       return;
     }
-    if (input.action === "unpin") {
-      if (surface === "sidebar" || pins.length <= PIN_PREVIEW_LIMIT + 1) {
-        if (pins.length <= PIN_PREVIEW_LIMIT + 1) {
-          setOpen(false);
-        }
-        requestAnimationFrame(() => collection.current?.focus());
-      } else {
-        requestAnimationFrame(() => {
-          const links = popupList.current?.querySelectorAll<HTMLAnchorElement>("a[data-pin-id]");
-          Array.from(links ?? [])
-            .find((link) => link.dataset.pinId === neighbour?.target.id)
-            ?.focus();
-        });
-      }
-    } else if (input.action === "move" && surface === "sidebar") {
-      const destination = input.before
-        ? pins.findIndex((pin) => pin.target.id === input.before!.id)
-        : pins.length;
-      if (destination > PIN_PREVIEW_LIMIT) {
-        requestAnimationFrame(() => overflow.current?.focus());
-      }
+    if (input.action === "unpin" && pins.length <= PIN_PREVIEW_LIMIT + 1) {
+      setOpen(false);
     }
+    const target = recoveryTarget(input, pins, surface);
+    requestAnimationFrame(() => {
+      if (version !== interaction.current || !ownsPinFocus(active, row, dialog)) {
+        return;
+      }
+      const controls = { collection: collection.current, overflow: overflow.current };
+      const control =
+        typeof target === "string"
+          ? controls[target]
+          : target && pinLink(popupList.current, target.id);
+      control?.focus();
+    });
   };
 
-  return { state, pins, currentPin, collection, overflow, popupList, open, setOpen, error, change };
+  return {
+    state,
+    pins,
+    currentPin,
+    collection,
+    overflow,
+    popupList,
+    open,
+    setOpen: onOpenChange,
+    error,
+    change,
+  };
 };
 
 const PinList = ({

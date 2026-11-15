@@ -112,9 +112,7 @@ export const PinContextMenu: Story = {
       name: "Neighbour Table Local Connections 2027",
     });
     trigger.focus();
-    await userEvent.keyboard(
-      navigator.platform.includes("Mac") ? "{Control>}{Enter}{/Control}" : "{Shift>}{F10}{/Shift}",
-    );
+    await userEvent.pointer({ keys: "[MouseRight]", target: trigger });
     await waitFor(() => expect(body.getByRole("menuitem", { name: "Move down" })).toBeVisible());
   },
 };

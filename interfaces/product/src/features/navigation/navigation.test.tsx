@@ -1,8 +1,10 @@
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { useLocation } from "@tanstack/react-router";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { useState } from "react";
 import { expect, it, vi } from "vite-plus/test";
 
 import type { NavigationPin } from "@merit/grantmaking/api";
+import { ApplicationPage } from "@merit/ui/application-shell";
 
 import { renderWithRouter } from "../../../tests/render-with-router";
 import { AppShell } from "../../app/app-shell";
@@ -437,4 +439,179 @@ it("retains a failed popup removal and reports the error inside the active surfa
   expect(await popup.findByRole("alert")).toHaveTextContent("Pins could not be saved");
   expect(popup.getAllByRole("link")).toHaveLength(6);
   expect(unpin).toHaveFocus();
+});
+
+const NavigationPage = () => {
+  const href = useLocation({ select: (location) => location.href });
+  return (
+    <>
+      {section()}
+      <ApplicationPage locationKey={href} breadcrumb={null} breadcrumbLabel="Breadcrumb">
+        <input aria-label="Page field" />
+      </ApplicationPage>
+    </>
+  );
+};
+
+it("closes the pin popup on browser back and forward without taking page focus", async () => {
+  const { router, user } = await renderWithRouter(
+    <NavigationPinsContext value={state({ pins: manyPins })}>
+      <NavigationPage />
+    </NavigationPinsContext>,
+    "/app/alder/rounds",
+  );
+  await act(() =>
+    router.navigate({ to: "/app/$workspaceSlug/applications", params: { workspaceSlug: "alder" } }),
+  );
+  for (const navigate of [() => router.history.back(), () => router.history.forward()]) {
+    await user.click(screen.getByRole("button", { name: "2 more…" }));
+    await act(async () => {
+      navigate();
+    });
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("main")).toHaveFocus());
+  }
+});
+
+it.each([true, false])(
+  "ignores a delayed pin save after leaving and returning to the page (saved=%s)",
+  async (saved) => {
+    let finish!: (saved: boolean) => void;
+    const change = vi.fn(
+      () =>
+        new Promise<boolean>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const { router, user } = await renderWithRouter(
+      <NavigationPinsContext value={state({ pins: manyPins, change })}>
+        <NavigationPage />
+      </NavigationPinsContext>,
+      "/app/alder/rounds",
+    );
+    await user.click(screen.getByRole("button", { name: "Unpin Round 1 from sidebar" }));
+    await act(() =>
+      router.navigate({
+        to: "/app/$workspaceSlug/applications",
+        params: { workspaceSlug: "alder" },
+      }),
+    );
+    await act(async () => {
+      router.history.back();
+    });
+    await waitFor(() => expect(screen.getByRole("main")).toHaveFocus());
+    await act(async () => {
+      finish(saved);
+      await new Promise(requestAnimationFrame);
+    });
+    expect(screen.getByRole("main")).toHaveFocus();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  },
+);
+
+it("keeps focus where the user moved it while a hidden-boundary move saves", async () => {
+  let finish!: (saved: boolean) => void;
+  const change = vi.fn(
+    () =>
+      new Promise<boolean>((resolve) => {
+        finish = resolve;
+      }),
+  );
+  const { user } = await renderWithRouter(
+    <NavigationPinsContext value={state({ pins: manyPins, change })}>
+      <NavigationPage />
+    </NavigationPinsContext>,
+  );
+  fireEvent.contextMenu(screen.getByRole("link", { name: "Round 5" }));
+  await user.click(screen.getByRole("menuitem", { name: "Move down" }));
+  const field = screen.getByRole("textbox", { name: "Page field" });
+  await user.click(field);
+  await act(async () => {
+    finish(true);
+    await new Promise(requestAnimationFrame);
+  });
+  expect(field).toHaveFocus();
+});
+
+it("does not report an old popup save failure in a reopened popup", async () => {
+  let finish!: (saved: boolean) => void;
+  const change = vi.fn(
+    () =>
+      new Promise<boolean>((resolve) => {
+        finish = resolve;
+      }),
+  );
+  const { user } = await renderWithRouter(
+    <NavigationPinsContext value={state({ pins: manyPins, change })}>
+      {section()}
+    </NavigationPinsContext>,
+  );
+  const overflow = screen.getByRole("button", { name: "2 more…" });
+  await user.click(overflow);
+  await user.click(
+    within(screen.getByRole("dialog")).getByRole("button", { name: "Unpin Round 1 from sidebar" }),
+  );
+  await user.keyboard("{Escape}");
+  await user.click(overflow);
+  await act(async () => {
+    finish(false);
+  });
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+});
+
+it.each(["navigation", "focus"])(
+  "checks %s again before a scheduled focus recovery runs",
+  async (transition) => {
+    let finish!: (saved: boolean) => void;
+    const change = vi.fn(
+      () =>
+        new Promise<boolean>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const { router, user } = await renderWithRouter(
+      <NavigationPinsContext value={state({ pins: manyPins, change })}>
+        <NavigationPage />
+      </NavigationPinsContext>,
+      "/app/alder/rounds",
+    );
+    await user.click(screen.getByRole("button", { name: "Unpin Round 1 from sidebar" }));
+    const frames: FrameRequestCallback[] = [];
+    const animation = vi
+      .spyOn(window, "requestAnimationFrame")
+      .mockImplementation((callback) => frames.push(callback));
+    try {
+      await act(async () => {
+        finish(true);
+      });
+      expect(frames.length).toBeGreaterThan(0);
+      const field = screen.getByRole("textbox", { name: "Page field" });
+      if (transition === "navigation") {
+        await act(() =>
+          router.navigate({
+            to: "/app/$workspaceSlug/applications",
+            params: { workspaceSlug: "alder" },
+          }),
+        );
+      } else {
+        field.focus();
+      }
+      act(() => {
+        frames.forEach((callback) => callback(0));
+      });
+      expect(transition === "navigation" ? screen.getByRole("main") : field).toHaveFocus();
+    } finally {
+      animation.mockRestore();
+    }
+  },
+);
+
+it("keeps overflow open when route data refreshes without navigation", async () => {
+  const { router, user } = await renderWithRouter(
+    <NavigationPinsContext value={state({ pins: manyPins })}>{section()}</NavigationPinsContext>,
+    "/app/alder/rounds",
+  );
+  await user.click(screen.getByRole("button", { name: "2 more…" }));
+  await act(() => router.invalidate());
+  expect(screen.getByRole("dialog", { name: "Pinned funding rounds" })).toBeVisible();
 });
