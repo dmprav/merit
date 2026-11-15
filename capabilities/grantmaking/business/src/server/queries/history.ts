@@ -4,11 +4,7 @@ import type { Actor } from "@merit/auth";
 import { readTransaction, type Database } from "@merit/db";
 
 import { applicationAuditInput, roundBudgetHistoryInput } from "../../api/queries/reading";
-import {
-  readApplicationContext,
-  readGrantWorkspaceAccess,
-  readRoundOverview,
-} from "../persistence/queries/reading";
+import { readApplicationIdentity, readRoundIdentity } from "../persistence/queries/reading";
 import { readApplicationHistory, readRoundHistory } from "./history-records";
 
 export const applicationAuditHistory = (
@@ -22,15 +18,15 @@ export const applicationAuditHistory = (
       return { status: "not_found" } as const;
     }
     const request = parsed.data;
-    const workspace = await readGrantWorkspaceAccess(tx, actor.userId, request.workspaceSlug);
-    if (!workspace?.allowed || !(await readApplicationContext(tx, actor.userId, request))) {
+    const application = await readApplicationIdentity(tx, actor.userId, request);
+    if (!application) {
       return { status: "not_found" } as const;
     }
     return {
       status: "ok",
       ...(await readApplicationHistory(
         tx,
-        workspace.organizationId,
+        application.organizationId,
         request.applicationId,
         request,
       )),
@@ -48,12 +44,12 @@ export const roundBudgetHistory = (
       return { status: "not_found" } as const;
     }
     const request = parsed.data;
-    const workspace = await readGrantWorkspaceAccess(tx, actor.userId, request.workspaceSlug);
-    if (!workspace?.allowed || !(await readRoundOverview(tx, actor.userId, request))) {
+    const round = await readRoundIdentity(tx, actor.userId, request);
+    if (!round) {
       return { status: "not_found" } as const;
     }
     return {
       status: "ok",
-      ...(await readRoundHistory(tx, workspace.organizationId, request.roundId, request)),
+      ...(await readRoundHistory(tx, round.organizationId, request.roundId, request)),
     } as const;
   });

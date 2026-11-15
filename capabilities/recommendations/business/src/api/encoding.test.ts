@@ -2,9 +2,12 @@ import { expect, it } from "vite-plus/test";
 
 import { fromMinorUnits, encodeMoney } from "@merit/money";
 
-import * as stored from "../server/persistence/encoding";
+import {
+  decodeBudgetContext,
+  encodeRecommendation,
+  decodeRecommendation,
+} from "../domain/encoding";
 import { saveRecommendationRequestSchema } from "./commands";
-import { encodeRecommendation, decodeRecommendation } from "./encoding";
 
 it.each(["Fund", "Defer"] as const)(
   "preserves a %s recommendation in public and stored JSON",
@@ -15,19 +18,15 @@ it.each(["Fund", "Defer"] as const)(
       reasoning: "Proceed after discussion.",
       recorded: { date: "2027-01-18", applicationVersion: 1 },
     };
-    for (const codec of [{ encodeRecommendation, decodeRecommendation }, stored]) {
-      expect(
-        codec.decodeRecommendation(
-          JSON.parse(JSON.stringify(codec.encodeRecommendation(recommendation))),
-        ),
-      ).toEqual(recommendation);
-      expect(() =>
-        codec.decodeRecommendation({
-          ...codec.encodeRecommendation(recommendation),
-          allocation: { minorUnits: "1.5", currency: "EUR" },
-        }),
-      ).toThrow();
-    }
+    expect(
+      decodeRecommendation(JSON.parse(JSON.stringify(encodeRecommendation(recommendation)))),
+    ).toEqual(recommendation);
+    expect(() =>
+      decodeRecommendation({
+        ...encodeRecommendation(recommendation),
+        allocation: { minorUnits: "1.5", currency: "EUR" },
+      }),
+    ).toThrow();
     const withInternalNote = { ...recommendation, internalNote: "private" };
     expect(encodeRecommendation(withInternalNote)).not.toHaveProperty("internalNote");
     expect(
@@ -43,7 +42,7 @@ it.each(["Fund", "Defer"] as const)(
 );
 
 it.each([null, fromMinorUnits(10000n)])("preserves unknown and exceeded budgets: %s", (budget) => {
-  const context = stored.decodeBudgetContext(
+  const context = decodeBudgetContext(
     budget && encodeMoney(budget),
     [encodeMoney(fromMinorUnits(12001n)), null, encodeMoney(fromMinorUnits(0n))],
     0,
@@ -56,9 +55,9 @@ it.each([null, fromMinorUnits(10000n)])("preserves unknown and exceeded budgets:
   });
 });
 it("rejects negative and overflowing persisted allocation totals", () => {
-  expect(() => stored.decodeBudgetContext(null, [encodeMoney(fromMinorUnits(-1n))], 0)).toThrow();
+  expect(() => decodeBudgetContext(null, [encodeMoney(fromMinorUnits(-1n))], 0)).toThrow();
   expect(() =>
-    stored.decodeBudgetContext(
+    decodeBudgetContext(
       null,
       [encodeMoney(fromMinorUnits(10n ** 30n - 1n)), encodeMoney(fromMinorUnits(1n))],
       0,

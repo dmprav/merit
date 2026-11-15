@@ -7,7 +7,7 @@ import {
   type IntakeApplication,
 } from "./model";
 
-const materialDataSchema = applicationMaterialSchema.extend({
+export const applicationMaterialDataSchema = applicationMaterialSchema.extend({
   requested: moneyDataSchema.nullable(),
 });
 const intakeDataSchema = intakeApplicationSchema.extend({ requested: moneyDataSchema.nullable() });
@@ -18,7 +18,7 @@ export const encodeApplicationMaterial = (input: ApplicationMaterial) => {
 };
 
 export const decodeApplicationMaterial = (input: unknown): ApplicationMaterial => {
-  const value = materialDataSchema.parse(input);
+  const value = applicationMaterialDataSchema.parse(input);
   return applicationMaterialSchema.parse({
     ...value,
     requested: value.requested === null ? null : decodeMoney(value.requested),

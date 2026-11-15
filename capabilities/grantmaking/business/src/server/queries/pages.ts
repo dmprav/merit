@@ -15,7 +15,7 @@ import { decodeApplicationContext } from "../../api/queries/application-detail";
 import type { IntakeState, PreparationState } from "../../api/queries/editing-state";
 import { roundView } from "../../api/queries/round-view";
 import { applicationView } from "../../api/queries/round-view";
-import { decodeApplication, decodeRoundOverview } from "../persistence/encoding";
+import { decodeApplication, decodeRoundOverview } from "../../domain/encoding";
 import {
   readApplicationDetail,
   readPublicRound,

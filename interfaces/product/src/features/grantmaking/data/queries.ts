@@ -1,6 +1,6 @@
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 
-import type { ActivityFilters } from "@merit/grantmaking-web/activity";
+import type { ActivityFilters } from "@merit/grantmaking-web/contracts/pages";
 import { workspaceSlugSchema } from "@merit/organizations/api";
 import { available } from "@merit/query";
 

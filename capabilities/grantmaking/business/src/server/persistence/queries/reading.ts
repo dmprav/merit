@@ -101,12 +101,27 @@ export const readRoundIdentity = async (
   input: { workspaceSlug: string; roundId: string },
 ) => {
   const [row] = await db
-    .select({ roundId: fundingRounds.id })
+    .select({ roundId: fundingRounds.id, organizationId: organizations.id })
     .from(fundingRounds)
     .innerJoin(organizations, eq(organizations.id, fundingRounds.organizationId))
     .innerJoin(memberships, eq(memberships.organizationId, organizations.id))
     .innerJoin(appUsers, eq(appUsers.id, memberships.userId))
     .where(and(access(actor, input.workspaceSlug), eq(fundingRounds.id, input.roundId)));
+  return row;
+};
+
+export const readApplicationIdentity = async (
+  db: Database,
+  actor: string,
+  input: { workspaceSlug: string; applicationId: string },
+) => {
+  const [row] = await db
+    .select({ applicationId: applicationCases.id, organizationId: organizations.id })
+    .from(applicationCases)
+    .innerJoin(organizations, eq(organizations.id, applicationCases.organizationId))
+    .innerJoin(memberships, eq(memberships.organizationId, organizations.id))
+    .innerJoin(appUsers, eq(appUsers.id, memberships.userId))
+    .where(and(access(actor, input.workspaceSlug), eq(applicationCases.id, input.applicationId)));
   return row;
 };
 

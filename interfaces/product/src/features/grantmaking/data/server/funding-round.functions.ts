@@ -21,7 +21,10 @@ export const readFundingRounds = createServerFn({ method: "GET" })
   .validator(workspaceSlugSchema)
   .handler(async ({ data, context }) => {
     setResponseHeader("Cache-Control", "private, no-store");
-    const result = await loadFundingRounds(data, context.workspace);
+    const result = await loadFundingRounds(data, {
+      ...context.workspace,
+      currentIdentity: context.currentIdentity,
+    });
     return result.status === "ok"
       ? { ...result, rounds: result.rounds.map(encodeRoundSummary) }
       : result;
@@ -31,7 +34,10 @@ export const readFundingRoundPage = createServerFn({ method: "GET" })
   .validator(publicRoundRequestSchema)
   .handler(async ({ data, context }) => {
     setResponseHeader("Cache-Control", "private, no-store");
-    const result = await loadFundingRoundPage(data, context.workspace);
+    const result = await loadFundingRoundPage(data, {
+      ...context.workspace,
+      currentIdentity: context.currentIdentity,
+    });
     return result.status === "ok"
       ? { ...result, round: encodeRoundOverview(result.round) }
       : result;
@@ -41,7 +47,10 @@ export const readFundingApplicationPage = createServerFn({ method: "GET" })
   .validator(applicationRequestSchema)
   .handler(async ({ data, context }) => {
     setResponseHeader("Cache-Control", "private, no-store");
-    const result = await loadFundingApplicationPage(data, context.workspace);
+    const result = await loadFundingApplicationPage(data, {
+      ...context.workspace,
+      currentIdentity: context.currentIdentity,
+    });
     return result.status === "ok" ? { ...result, ...encodeApplicationDetail(result) } : result;
   });
 
@@ -49,5 +58,8 @@ export const readWorkspaceApplications = createServerFn({ method: "GET" })
   .validator(workspaceSlugSchema)
   .handler(async ({ data, context }) => {
     setResponseHeader("Cache-Control", "private, no-store");
-    return loadWorkspaceApplications(data, context.workspace);
+    return loadWorkspaceApplications(data, {
+      ...context.workspace,
+      currentIdentity: context.currentIdentity,
+    });
   });

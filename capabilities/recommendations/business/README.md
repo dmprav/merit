@@ -15,7 +15,7 @@ recommendation version and audit event commit or roll back together.
 
 `/api` contains browser-safe inputs, outcomes, and public JSON encoding. `/server`
 exposes the service factory and authorized save. Approved composition reads use
-`/schema`, `/scope`, and `/encoding`. Public field selection and stored-history
+`/schema` and `/scope`. Public field selection and stored-history
 encoding remain separate contracts. Recommendation rules need application facts,
 budget, and allocation totals; they do not import review implementation.
 

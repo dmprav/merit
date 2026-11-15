@@ -8,7 +8,7 @@ export const editApplication = createServerFn({ method: "POST" })
   .validator(editApplicationRequestSchema)
   .handler(async ({ data, context }) => {
     setResponseHeader("Cache-Control", "private, no-store");
-    return withActor(context.workspace.currentIdentity, (actor) =>
+    return withActor(context.currentIdentity, (actor) =>
       context.workspace.editApplication(actor, data),
     );
   });

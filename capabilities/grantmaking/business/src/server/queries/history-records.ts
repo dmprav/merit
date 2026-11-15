@@ -1,4 +1,4 @@
-import { encodeIntakeApplication } from "@merit/applications/encoding";
+import { encodeIntakeApplication } from "@merit/applications/domain";
 import { decodeApplicationHistory } from "@merit/applications/history";
 import { readAuditHistory } from "@merit/audit/server/read";
 import type { Database } from "@merit/db";

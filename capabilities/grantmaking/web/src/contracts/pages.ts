@@ -43,3 +43,5 @@ export const applicationFilters = [
 ] as const;
 
 export type ApplicationFilter = (typeof applicationFilters)[number];
+
+export type ActivityFilters = { roundId: string; personId: string };

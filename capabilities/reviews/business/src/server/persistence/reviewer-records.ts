@@ -1,7 +1,7 @@
 import { and, eq, sql, desc, or, inArray } from "drizzle-orm";
 
 import { accessScope } from "@merit/access/scope";
-import { decodeApplicationMaterial } from "@merit/applications/encoding";
+import { decodeApplicationMaterial } from "@merit/applications/domain";
 import { applicationCases, materialVersions } from "@merit/applications/schema";
 import { appUsers } from "@merit/auth/schema";
 import type { Database } from "@merit/db";

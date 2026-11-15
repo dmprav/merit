@@ -9,5 +9,5 @@ export const readWorkspace = createServerFn({ method: "GET" })
   .validator(workspaceSlugSchema.optional())
   .handler(async ({ context, data }) => {
     setResponseHeader("Cache-Control", "private, no-store");
-    return loadWorkspace(context.workspace, data);
+    return loadWorkspace({ ...context.workspace, currentIdentity: context.currentIdentity }, data);
   });

@@ -2,7 +2,6 @@ import { isDeepStrictEqual } from "node:util";
 
 import { expect, it, vi } from "vite-plus/test";
 
-import type { WorkspaceServices } from "../../../../shared/request-context";
 import {
   loadFundingRoundPage,
   loadFundingRounds,
@@ -24,8 +23,11 @@ it.each([
 });
 
 it("uses the authenticated actor and selected workspace for application discovery", async () => {
-  const services: Pick<WorkspaceServices, "currentIdentity" | "listWorkspaceApplications"> = {
-    currentIdentity: async () => ({ status: "authenticated", actor: { userId: "manager" } }),
+  const services: Parameters<typeof loadWorkspaceApplications>[1] = {
+    currentIdentity: async () => ({
+      status: "authenticated",
+      actor: { userId: "manager" },
+    }),
     listWorkspaceApplications: async (actor, slug) =>
       actor.userId === "manager" && slug === "alder"
         ? { status: "ok", applications: [] }
@@ -69,12 +71,12 @@ it.each([
       budget: null,
     },
   ];
-  const services: Pick<WorkspaceServices, "currentIdentity" | "listRounds"> = {
-    currentIdentity: async () => ({ status: "authenticated", actor: { userId } }),
-    listRounds: async (actor, slug) =>
+  const services = {
+    currentIdentity: async () => ({ status: "authenticated" as const, actor: { userId } }),
+    listRounds: async (actor: { userId: string }, slug: string) =>
       actor.userId === userId && slug === workspaceSlug
-        ? { status: "ok", rounds }
-        : { status: "forbidden" },
+        ? ({ status: "ok", rounds } as const)
+        : ({ status: "forbidden" } as const),
   };
 
   expect(await loadFundingRounds(workspaceSlug, services)).toEqual({ status: "ok", rounds });
@@ -152,12 +154,12 @@ it.each([
 it("reads the selected workspace's activity as the authenticated actor, with filters from the request", async () => {
   const page = { status: "ok" as const, entries: [], people: [], nextCursor: null };
   const input = { workspaceSlug: "alder", roundId: "k7m2p9x4n6rt", personId: "dana", limit: 50 };
-  const services: Pick<WorkspaceServices, "currentIdentity" | "listWorkspaceActivity"> = {
+  const services = {
     currentIdentity: async () => manager,
-    listWorkspaceActivity: async (actor, request) =>
+    listWorkspaceActivity: async (actor: { userId: string }, request: unknown) =>
       actor.userId === "manager" && isDeepStrictEqual(request, input)
         ? page
-        : { status: "forbidden" },
+        : ({ status: "forbidden" } as const),
   };
 
   expect(await loadWorkspaceActivity(input, services)).toEqual(page);
