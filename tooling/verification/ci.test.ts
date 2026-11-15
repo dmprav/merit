@@ -112,6 +112,12 @@ test("CI verify workflow covers every ready stage and sharded browser suite with
       }
     }
   }
+  const forwardPortsAction = await readFile(
+    `${repoRoot}/.github/actions/forward-service-ports/action.yml`,
+    "utf8",
+  );
+  expect(actionFiles[1]).toContain("download-build:");
+  expect(forwardPortsAction).toContain("forwards:");
   for (const [, image] of workflow.matchAll(/^\s+(?:container|image):\s+(\S+)/gm)) {
     assert(image);
     expect(image).toMatch(/@sha256:[0-9a-f]{64}$/);

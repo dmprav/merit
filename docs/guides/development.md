@@ -469,8 +469,8 @@ under `.github/actions/`:
 - `integration` starts PostgreSQL and Mailpit via `compose.yaml` and runs
   `@merit/app#test:integration`.
 - `tooling-self-tests` runs `ready:tooling` followed by `test:checks`.
-- `browser-tooling`, `browser-storybook` (4 shards reusing the prebuilt Storybook
-  output), `browser-demo` (2 shards), and `browser-workspace` (4 shards) run all five
+- `browser-tooling`, `browser-storybook` (5 shards reusing the prebuilt Storybook
+  output), `browser-demo` (3 shards), and `browser-workspace` (6 shards) run all five
   Playwright projects inside the pinned Playwright container without retries. Service-backed
   browser jobs forward loopback ports (`127.0.0.1:55432` and `127.0.0.1:8025`) to
   pinned PostgreSQL and Mailpit service containers.
