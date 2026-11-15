@@ -718,13 +718,15 @@ test("split editor keeps the draft and reference available without moving save a
 
   if (mobile) {
     await page.getByRole("link", { name: "Go to recommendation", exact: true }).click();
+    await expect(page).toHaveURL(/#.*-work$/);
   }
 
   await expect(reasoning).toHaveValue("Keep provider confirmation as a condition.");
 
-  await save.scrollIntoViewIfNeeded();
-
-  await expect(save).toBeInViewport();
+  await expect(async () => {
+    await save.scrollIntoViewIfNeeded();
+    await expect(save).toBeInViewport({ timeout: 500 });
+  }).toPass();
   if (!mobile) {
     expect((await save.boundingBox())!.y).toBe(saveTop);
   }
@@ -757,9 +759,11 @@ test("split editor keeps the draft and reference available without moving save a
 
     await page.setViewportSize({ width: 1280, height: 500 });
     await page.getByRole("link", { name: "Go to recommendation", exact: true }).click();
-    await save.scrollIntoViewIfNeeded();
-
-    await expect(save).toBeInViewport();
+    await expect(page).toHaveURL(/#.*-work$/);
+    await expect(async () => {
+      await save.scrollIntoViewIfNeeded();
+      await expect(save).toBeInViewport({ timeout: 500 });
+    }).toPass();
 
     await checkPage(page);
   }
