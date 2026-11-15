@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { assert, expect } from "vite-plus/test";
 
-import type { IntakeChange } from "@merit/applications/domain";
+import { materialVersionSchema, type IntakeChange } from "@merit/applications/domain";
 import { createFundingApplication, editFundingApplication } from "@merit/applications/server";
 import { roundHasApplications } from "@merit/applications/server/integrations";
 import storedHistory from "@merit/applications/testing/history";
@@ -15,6 +15,8 @@ import { fromMinorUnits, toDecimal } from "@merit/money";
 import { actor, workspaceTest as it, workspaceSlug } from "@merit/organizations/testing/workspace";
 import { encodeRecommendation } from "@merit/recommendations/api";
 import { saveFundingRecommendation } from "@merit/recommendations/server";
+import { reviewRevisionSchema, type ReviewChange } from "@merit/reviews/domain";
+import { saveApplicationReview } from "@merit/reviews/server";
 import { createFundingRound, deleteFundingRound } from "@merit/rounds/server";
 
 import { applicationWork } from "../src/server/persistence/commands/application-work";
@@ -269,6 +271,21 @@ const recommend = async (
   });
 };
 
+const review = async (
+  db: NodePgDatabase,
+  scenario: Awaited<ReturnType<typeof setup>>,
+  change: ReviewChange,
+) => {
+  const page = await scenario.read();
+  return saveApplicationReview(db, actor, {
+    ...scenario.address,
+    expectedRevision: reviewRevisionSchema.parse(page.application.reviews.revision),
+    expectedApplicationVersion: materialVersionSchema.parse(page.application.version),
+    expectedCriteriaVersion: page.round.criteriaVersion,
+    change,
+  });
+};
+
 const setupRecommended = async (db: NodePgDatabase) => {
   const scenario = await setup(db);
   assert((await scenario.change({ action: "save_content", content })).status === "ok");
@@ -444,18 +461,36 @@ it("records a new recommendation against the published application version", asy
   ).toBe(revised.application.version);
 });
 
-it("rejects deletion of recommended work without changing its content or history", async ({
-  db,
-}) => {
-  const scenario = await setupRecommended(db);
-  const before = await scenario.read();
+it.for(["a deferral", "an outstanding review request", "a cancelled review request"] as const)(
+  "rejects deleting preparation whose only usage is %s without changing its content or history",
+  async (usage, { db }) => {
+    const scenario = await setup(db);
+    if (usage === "a deferral") {
+      assert((await recommend(db, scenario, "Defer")).status === "ok");
+    } else {
+      const contact = await setupContact(db);
+      const id = randomUUID();
+      const requested = await review(db, scenario, {
+        action: "request",
+        id,
+        contactId: contact.id,
+        replacesId: null,
+      });
+      assert(requested.status === "ok");
+      if (usage === "a cancelled review request") {
+        assert((await review(db, scenario, { action: "cancel", id })).status === "ok");
+      }
+    }
+    const before = await scenario.read();
+    expect(before.application.intakeStatus).toBe("in_preparation");
 
-  expect(await scenario.change({ action: "delete" })).toMatchObject({
-    status: "invalid",
-    error: "application_in_use",
-  });
-  expect(await scenario.read()).toEqual(before);
-});
+    expect(await scenario.change({ action: "delete" })).toEqual({
+      status: "invalid",
+      error: "application_in_use",
+    });
+    expect(await scenario.read()).toEqual(before);
+  },
+);
 
 it("rejects concurrent edits, preserves the winner, and checks current tenant and grant access", async ({
   db,
