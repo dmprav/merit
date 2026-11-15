@@ -110,8 +110,6 @@ const newFiles = Object.fromEntries(
 const roleFixtures = [
   { name: "New capability", root: newRoot, files: newFiles },
   { name: "Organizations", root: organizationsRoot, files: organizationsFiles },
-  { name: "Grantmaking", root: grantmakingRoot, files: grantmakingFiles },
-  { name: "Contacts", root: contactsRoot, files: contactsFiles },
 ];
 const collaborationFiles = {
   ...grantmakingFiles,
@@ -1183,8 +1181,6 @@ describe.concurrent("architecture rules", () => {
     [`${grantmakingRoot}/src/server/persistence/queries/probe.test.ts`, "@merit/contacts/server"],
     ["capabilities/new-capability/business/src/server/probe.ts", "@merit/contacts/server"],
     ["capabilities/new-capability/business/src/server/probe.ts", "@merit/organizations/schema"],
-    ["app/src/feature.server.ts", "@merit/contacts/server"],
-    ["app/src/feature.ts", "@merit/contacts/server"],
     ["app/src/server.ts", "@merit/contacts/server"],
     ["app/src/server/mcp.server.ts", "@merit/contacts/server"],
     ["interfaces/mcp/src/feature.ts", "@merit/contacts/server"],
@@ -1289,22 +1285,54 @@ describe.concurrent("architecture rules", () => {
     );
   });
 
-  test("cross-capability policy denies new providers until their server entry has a consumer", async () => {
-    await check(
-      {
-        ...collaborationFiles,
-        "capabilities/new-capability/business/package.json": JSON.stringify({
-          name: "@merit/new-capability",
-          type: "module",
-          exports: { "./server": "./src/server/index.ts" },
-        }),
-        "capabilities/new-capability/business/src/server/index.ts": "export const value = 1;",
-        "app/src/server/services.server.ts":
-          'export { value } from "@merit/new-capability/server";',
-      },
-      crossCapabilityMessage,
-    );
+  test("new capabilities inherit role-based assembly, demo, persistence, and audit permissions without registration", async () => {
+    await check({
+      ...auditFiles,
+      ...newFiles,
+      "capabilities/new-capability/business/src/domain/probe.ts":
+        'export type { Value } from "@merit/organizations/api";',
+      "capabilities/new-capability/business/src/server/commands/probe.ts":
+        'export { value as audit } from "@merit/audit/server/record"; export { value as lock } from "@merit/organizations/locks";',
+      "capabilities/new-capability/business/src/server/queries/probe.ts":
+        'export { value } from "@merit/audit/server/read";',
+      "capabilities/new-capability/business/src/server/persistence/projections.ts":
+        'export { value as org } from "@merit/organizations/schema"; export { value as policy } from "@merit/access/scope";',
+      "app/src/server/services.server.ts":
+        'export { value as service } from "@merit/new-capability/server"; export { value as integrations } from "@merit/new-capability/server/integrations";',
+      "app/scripts/clean-demos.ts": 'export { value } from "@merit/new-capability/server/demo";',
+    });
   });
+
+  test.each([
+    ["interfaces/mcp/src/feature.ts", "@merit/new-capability/server", crossCapabilityMessage],
+    [
+      "capabilities/new-capability/business/src/server/queries/probe.ts",
+      "@merit/organizations/locks",
+      crossCapabilityMessage,
+    ],
+    [
+      "app/src/server/services.server.ts",
+      "@merit/new-capability/server/demo",
+      crossCapabilityMessage,
+    ],
+    [
+      "capabilities/new-capability/business/src/domain/probe.ts",
+      "@merit/grantmaking/examples",
+      "Pure business code may use only approved browser-safe dependencies",
+    ],
+  ])(
+    "new capabilities still reject unapproved access: %s -> %s",
+    async (path, specifier, message) => {
+      await check(
+        {
+          ...collaborationFiles,
+          ...newFiles,
+          [path]: `export { value } from "${specifier}";`,
+        },
+        message,
+      );
+    },
+  );
 
   test("cross-capability imports cannot hide an undeclared relationship behind an approved barrel", async () => {
     await check(

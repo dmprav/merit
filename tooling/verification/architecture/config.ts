@@ -55,21 +55,16 @@ const businessRoles: Record<string, [pattern: string, allowed: string]> = {
   examples: ["examples/**", "{domain,api,examples}"],
 };
 
-const pureImports = {
-  audit: "@merit/auth",
-  organizations: "@merit/{auth,access,audit/api}",
-  grantmaking:
-    "@merit/{money,auth,audit/api,organizations/api,{rounds,applications,reviews,recommendations}/{domain,api}}",
-  contacts: "@merit/{auth,organizations/api,audit/api}",
-  rounds: "@merit/{auth,money,dates,organizations/api}",
-  applications: "@merit/{auth,money,dates,organizations/api}",
-  reviews:
-    "@merit/{auth,money,dates,audit/api,organizations/api,applications/{domain,api},rounds/domain}",
-  recommendations: "@merit/{auth,money,dates,organizations/api,{applications,rounds}/domain}",
-};
-
 const business = (name: string, role: string) => ({
   element: { path: `capabilities/${name}/business` },
+  ...category(`business-${role}`),
+});
+
+const anyBusiness = (role: string, excludedCapability?: string) => ({
+  element: {
+    type: "business",
+    ...(excludedCapability ? { path: `!capabilities/${excludedCapability}/business` } : {}),
+  },
   ...category(`business-${role}`),
 });
 
@@ -80,27 +75,51 @@ const pureBusiness = {
 const serverImplementation = category("server", ["pure"]);
 const infrastructure = category("{server,browser}", ["pure"]);
 
-// Match the consumer, public specifier, and resolved provider. Later policies can still deny an import.
-const serverImports = [
-  // Audit is a trusted storage integration; owning capabilities authorize every history read.
+// Upstream and sibling capabilities stay independent of downstream capabilities.
+const upstreamDisallowedTargets: Record<string, string> = {
+  audit: "{organizations,contacts,rounds,applications,reviews,recommendations,grantmaking}",
+  organizations: "{contacts,rounds,applications,reviews,recommendations,grantmaking}",
+  contacts: "{rounds,applications,reviews,recommendations,grantmaking}",
+  rounds: "{applications,reviews,recommendations,grantmaking}",
+  applications: "{reviews,recommendations,grantmaking}",
+  reviews: "{recommendations,grantmaking}",
+  recommendations: "{reviews,grantmaking}",
+};
+
+// Match the consumer, public specifier, and resolved provider role. Later policies can still deny an import.
+const serverImports: DependenciesPolicy[] = [
+  // Audit is a trusted storage integration; write-owning capabilities record events and authorize reads.
   permitServer(
-    business(
-      "{organizations,contacts,applications,rounds,reviews,recommendations}",
-      "{commands,command-persistence}",
-    ),
+    anyBusiness("{commands,command-persistence}", "grantmaking"),
     "@merit/audit/server/record",
     business("audit", "integrations"),
   ),
+  permitServer(anyBusiness("queries"), "@merit/audit/server/read", business("audit", "reading")),
+  // Composition and persistence read across capabilities through owned schema, scope, and projections.
   permitServer(
-    business("{organizations,grantmaking}", "query-persistence"),
-    "@merit/audit/schema",
-    business("audit", "shared-persistence"),
+    anyBusiness("{command,query,shared}-persistence"),
+    "@merit/*/{schema,scope}",
+    anyBusiness("shared-persistence"),
   ),
-  // Composition reads each capability through its owned records and projections.
   permitServer(
-    business("grantmaking", "{{command,query,shared}-persistence,demo}"),
-    "@merit/{rounds,applications,reviews,recommendations}/{schema,scope}",
-    business("{rounds,applications,reviews,recommendations}", "shared-persistence"),
+    business("grantmaking", "demo"),
+    "@merit/*/{schema,scope}",
+    anyBusiness("shared-persistence"),
+  ),
+  permitServer(anyBusiness("shared-persistence"), "@merit/access/scope", {
+    file: { path: "capabilities/access/src/persistence/scope.ts" },
+  }),
+  permitServer(anyBusiness("commands"), "@merit/*/locks", anyBusiness("command-persistence")),
+  permitServer(
+    anyBusiness("{commands,queries,command-persistence,integrations}"),
+    "@merit/*/server/grant-work",
+    anyBusiness("grant-work"),
+    "type",
+  ),
+  permitServer(
+    business("{applications,reviews}", "commands"),
+    "@merit/contacts/scope",
+    business("contacts", "shared-persistence"),
   ),
   permitServer(
     business("grantmaking", "queries"),
@@ -113,15 +132,9 @@ const serverImports = [
     business("reviews", "shared-persistence"),
   ),
   permitServer(
-    business("grantmaking", "{command-persistence,demo}"),
-    "@merit/{rounds,applications,reviews,recommendations}/server/demo",
-    business("{rounds,applications,reviews,recommendations}", "demo"),
-  ),
-  permitServer(
-    business("grantmaking", "command-persistence"),
-    "@merit/applications/server/grant-work",
-    business("applications", "grant-work"),
-    "type",
+    business("grantmaking", "{queries,demo}"),
+    "@merit/applications/history",
+    business("applications", "shared-persistence"),
   ),
   // Withdrawal closes outstanding reviews through the reviews capability's own operation, which
   // owns request status, reviewer access, and audit; grantmaking only supplies the transaction.
@@ -131,95 +144,20 @@ const serverImports = [
     business("reviews", "integrations"),
   ),
   permitServer(
-    business("grantmaking", "{queries,demo}"),
-    "@merit/applications/history",
-    business("applications", "shared-persistence"),
+    business("grantmaking", "{command-persistence,demo}"),
+    "@merit/*/server/demo",
+    anyBusiness("demo", "organizations"),
   ),
-  // Downstream workflows use application identity/material and round configuration.
+  // Application assembly wires service implementations, lifecycle integrations, and demo seeding.
   permitServer(
-    business("{applications,reviews,recommendations}", "{command,query,shared}-persistence"),
-    "@merit/rounds/{schema,scope}",
-    business("rounds", "shared-persistence"),
-  ),
-  permitServer(
-    business("{reviews,recommendations}", "{command,query,shared}-persistence"),
-    "@merit/applications/{schema,scope}",
-    business("applications", "shared-persistence"),
-  ),
-  permitServer(
-    business("{reviews,recommendations}", "commands"),
-    "@merit/applications/locks",
-    business("applications", "command-persistence"),
-  ),
-  permitServer(
-    business("applications", "commands"),
-    "@merit/rounds/locks",
-    business("rounds", "command-persistence"),
-  ),
-  permitServer(
-    business("{grantmaking,contacts,organizations,reviews}", "queries"),
-    "@merit/audit/server/read",
-    business("audit", "reading"),
-  ),
-  permitServer(
-    business("{applications,reviews}", "commands"),
-    "@merit/contacts/scope",
-    business("contacts", "shared-persistence"),
-  ),
-  permitServer(
-    business("{grantmaking,rounds,applications,reviews,recommendations,contacts}", "commands"),
-    "@merit/organizations/locks",
-    business("organizations", "command-persistence"),
-  ),
-  permitServer(
-    business(
-      "{grantmaking,applications,reviews,recommendations}",
-      "{command,query,shared}-persistence",
-    ),
-    "@merit/contacts/schema",
-    business("contacts", "shared-persistence"),
-  ),
-  permitServer(
-    business(
-      "{grantmaking,rounds,applications,reviews,recommendations,contacts}",
-      "{command,query,shared}-persistence",
-    ),
-    "@merit/organizations/{schema,scope}",
-    business("organizations", "shared-persistence"),
-  ),
-  permitServer(
-    business("grantmaking", "integrations"),
-    "@merit/contacts/server/grant-work",
-    business("contacts", "grant-work"),
-    "type",
-  ),
-  permitServer(
-    business("grantmaking", "demo"),
-    "@merit/contacts/server/demo",
-    business("contacts", "demo"),
-  ),
-  permitServer(
-    business(
-      "{grantmaking,rounds,applications,reviews,recommendations,organizations}",
-      "shared-persistence",
-    ),
-    "@merit/access/scope",
-    {
-      file: { path: "capabilities/access/src/persistence/scope.ts" },
-    },
+    { file: { path: "app/src/server/services.server.ts" } },
+    "@merit/*/server",
+    anyBusiness("assembly"),
   ),
   permitServer(
     { file: { path: "app/src/server/services.server.ts" } },
-    "@merit/{contacts,grantmaking,organizations,rounds,applications,reviews,recommendations}/server",
-    business(
-      "{contacts,grantmaking,organizations,rounds,applications,reviews,recommendations}",
-      "assembly",
-    ),
-  ),
-  permitServer(
-    { file: { path: "app/src/server/services.server.ts" } },
-    "@merit/{applications,grantmaking,reviews}/server/integrations",
-    business("{applications,grantmaking,reviews}", "integrations"),
+    "@merit/*/server/integrations",
+    anyBusiness("integrations"),
   ),
   permitServer(
     {
@@ -238,8 +176,8 @@ const serverImports = [
         ],
       },
     },
-    "@merit/{contacts,grantmaking,organizations,audit}/server/demo",
-    business("{contacts,grantmaking,organizations,audit}", "demo"),
+    "@merit/*/server/demo",
+    anyBusiness("demo"),
   ),
 ];
 
@@ -250,11 +188,15 @@ const policies = [
     { module: { origin: "local" }, element: { path: "!{{ from.element.path }}" } },
     "Pure business code may use only approved browser-safe dependencies.",
   ),
-  ...Object.entries(pureImports).map(([name, source]): DependenciesPolicy => ({
-    from: { ...pureBusiness, element: { path: `capabilities/${name}/business` } },
-    dependency: { source },
-    allow: { to: category("pure") },
-  })),
+  {
+    from: pureBusiness,
+    allow: {
+      to: [
+        { element: { type: "foundation" }, ...category("pure") },
+        { element: { type: "business" }, ...category("pure", ["business-examples"]) },
+      ],
+    },
+  },
   forbid(
     pureBusiness,
     { module: { origin: ["external", "core"] } },
@@ -274,6 +216,16 @@ const policies = [
     allow: { to: { element: { type: "business" }, ...serverImplementation } },
   },
   ...serverImports,
+  ...Object.entries(upstreamDisallowedTargets).map(([from, disallowed]) =>
+    forbid(
+      {
+        element: { path: `capabilities/${from}/business` },
+        file: { categories: { noneOf: ["test"] } },
+      },
+      { element: { path: `capabilities/${disallowed}/business` } },
+      "Capability server imports require an approved consumer and public entry.",
+    ),
+  ),
   forbid(
     { element: { type: "foundation" } },
     { element: { type: ["business", "web", "interface", "app"] } },

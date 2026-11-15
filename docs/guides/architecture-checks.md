@@ -20,7 +20,7 @@ tests may compose their capability’s layers wherever they are placed.
 | Dependency direction              | Foundation stays independent of capabilities and application code; capabilities stay independent of interfaces and assembly; business never imports web code; interfaces never import assembly. These rules also apply to tests and types. |
 | Public package APIs               | Cross-package production imports use `@merit/` exports. Private subpaths, relative paths, and aliases cannot bypass those exports. Tests use public APIs across packages, with access to repository test harnesses.                        |
 | Pure business rules and contracts | Domain and contract files cannot import server implementation or browser UI, including through types or re-export barrels.                                                                                                                 |
-| Cross-capability server imports   | Server entries require an approved consumer role or assembly location, public specifier, and resolved provider role. New capabilities and unapproved exports are denied by default.                                                        |
+| Cross-capability server imports   | Server entries require an approved consumer role or assembly location, public specifier, and resolved provider role. Unapproved consumer roles, public entries, and upstream/sibling dependencies are denied by default.                   |
 | Structured business roles         | Domain, API, handlers, persistence, assembly, and examples follow explicit dependency directions. Public and private barrels cannot bypass them.                                                                                           |
 | Browser/server separation         | Browser source cannot import server implementation. Interface server functions and server modules can adapt business operations. Request contexts use browser-safe API types; server types have no exception.                              |
 | Production independence           | Runtime code cannot depend on tests, stories, mocks, scripts, or build configuration.                                                                                                                                                      |
@@ -75,10 +75,13 @@ assembly. Keep their public meaning clear through review and contract tests;
 the checker treats `api/` as one browser-safe role. Request contexts use that
 interface without importing server types.
 
-`pureImports` records each capability's approved browser-safe workspace entries.
-Pure business code may also use Zod, but not arbitrary external libraries, Node
-builtins, database code, or browser UI. A new capability inherits those safety
-rules and needs a declaration only when it consumes another package's pure entry.
+Pure business code (`domain/`, `api/`, and `examples/`) may import `pure` entries
+from `@merit/` foundation and business packages (excluding cross-capability
+`examples/`) as well as Zod, while `package.json` declarations, Fallow cycle
+checks, and capability direction rules govern which packages may depend on one
+another. Pure business code cannot use arbitrary external libraries, Node
+builtins, database code, or browser UI. New capabilities inherit these rules
+automatically without capability registration.
 
 Tests and fixtures may compose local layers regardless of their directory.
 Colocation helps readers find focused behavior checks; it does not restrict which
@@ -107,22 +110,26 @@ depend on these privileged entries or the server assembly.
 ## Connect capabilities through declared integrations
 
 `serverImports` declares permitted server imports between capabilities and from
-application assembly. Each permission identifies the consumer, public import
-specifier, and resolved provider role or file. All three must match. The policy also covers types,
-re-exports, and dynamic imports with known sources. It applies to unclassified
-server entries and newly added capabilities as well as the structured packages.
-Browser-safe dependencies retain their existing rules.
+application assembly by consumer role, public entry pattern, and resolved provider
+role (`business-assembly`, `business-demo`, `business-shared-persistence`,
+`business-command-persistence`, `business-grant-work`, `business-integrations`,
+and `business-reading`). All three must match, and `upstreamDisallowedTargets`
+keeps leaf (`audit`) and upstream/sibling grant-work capabilities independent of
+downstream capabilities. The policy also covers types, re-exports, and dynamic
+imports with known sources, and applies to unclassified server entries and newly
+added capabilities as well as the structured packages. Browser-safe dependencies
+retain their existing rules.
 
 Current integrations have distinct responsibilities:
 
-| Consumer                            | Permitted integration                                                                                                            |
-| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| Applications and Reviews commands   | Contact lookup through `@merit/contacts/scope`.                                                                                  |
-| Grant-work and Contacts commands    | Organization locks through `@merit/organizations/locks`.                                                                         |
-| Approved persistence roles          | Contact, organization, and audit schemas and organization read predicates; shared policy bindings may use `@merit/access/scope`. |
-| Grantmaking's contact-usage adapter | The type-only `@merit/contacts/server/grant-work` interface, implemented for injection by application assembly.                  |
-| Grantmaking demo seeding            | Contact demo seeding through `@merit/contacts/server/demo`.                                                                      |
-| Audit recording and history         | Commands record through `@merit/audit/server/record`; queries read through `@merit/audit/server/read`.                           |
+| Consumer                            | Permitted integration                                                                                               |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Applications and Reviews commands   | Contact lookup through `@merit/contacts/scope`.                                                                     |
+| Capability commands                 | Organization locks through `@merit/organizations/locks` (and downstream grant-work locks).                          |
+| Approved persistence roles          | Shared schemas and scopes through `./schema` and `./scope`; shared policy bindings may use `@merit/access/scope`.   |
+| Grantmaking's contact-usage adapter | The type-only `@merit/contacts/server/grant-work` interface, implemented for injection by application assembly.     |
+| Grantmaking demo seeding            | Grant-work and contact demo seeding through `@merit/*/server/demo`, excluding `organizations/server/demo`.          |
+| Audit recording and history         | Write-owning commands record through `@merit/audit/server/record`; queries read through `@merit/audit/server/read`. |
 
 Organizations, Contacts, Applications, Rounds, Reviews, and Recommendations record
 audit events from their commands in the existing transaction. Grantmaking, Contacts,
@@ -154,10 +161,12 @@ types; they cannot instantiate capability services through direct server imports
 
 For a new collaboration, let the receiving capability define the information or
 behavior it needs. Supply the implementation from application assembly, as with
-the contacts grant-work interface. Declare a direct server import only when its
-consumer role and caller obligations are intentional, then add positive and
-negative architecture fixtures for it. Keep permissions narrow when adding an
-entry or moving an assembly location.
+the contacts grant-work interface. New capabilities inherit standard assembly,
+demo, persistence, lock, and audit policies automatically when they follow the
+common `businessRoles` layout and `package.json` `exports`. Declare a direct
+entry rule in `serverImports` only for non-standard server entries or specialized
+consumer obligations, then add positive and negative architecture fixtures for it.
+Keep permissions narrow when adding an entry or moving an assembly location.
 
 Integration scenarios and seed helpers under `tests/` and `testing/` may compose
 server entries. Colocated tests retain their source role’s cross-capability server
