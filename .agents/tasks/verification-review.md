@@ -29,6 +29,18 @@ Read each one in full. Each file is named after its pull request; read that pull
 request's title and description for context, and its review threads when a
 dismissed finding needs it.
 
+Earlier reviews removed the records they read, so also read the records removed
+in the last four weeks. List the removing commits and paths, then read each
+record as it was just before its removal:
+
+```sh
+git log --since='4 weeks ago' --diff-filter=D --format='commit %H' --name-only -- 'verifications/*.md'
+git show <commit>^:verifications/<number>.md
+```
+
+These earlier records only help decide what recurs in step 3; this review fixes
+and removes only the current ones.
+
 ## 3. Find recurring problems
 
 Collect the entries from every record and group them by cause:
@@ -44,9 +56,11 @@ Collect the entries from every record and group them by cause:
   guidance is wrong or the code's guidance is unclear. A dismissal whose reason
   doesn't hold is a problem even once.
 
-A cause that appears in two or more records is recurring. Leave one-off entries
-alone unless the bullets above say otherwise; the next runs will show whether
-they recur.
+A cause in a current record is recurring when it appears in two or more records,
+counting the earlier ones. Skip a cause that an earlier review already fixed, or
+that has an open issue, unless a current record shows the fix didn't work; then
+reopen or comment on its issue. Leave one-off entries alone unless the bullets
+above say otherwise; the next runs will show whether they recur.
 
 ## 4. Fix each problem where it belongs
 
