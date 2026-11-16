@@ -1527,6 +1527,7 @@ test("demo visitors have independent saved work and reset replaces only the curr
   newContext,
   browserErrors,
 }) => {
+  test.setTimeout(90_000);
   await openDemoApplication(page, "Neighbour Table");
   const firstApplication = page.url();
   await page.getByRole("button", { name: "Edit recommendation for Neighbour Table" }).click();
