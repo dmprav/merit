@@ -17,15 +17,11 @@
   overflow-wrap: anywhere;
 }
 
-.name {
+.identity .name {
   margin: 0;
   font-size: inherit;
   font-weight: inherit;
   line-height: inherit;
-}
-
-.name:is(h2, h3) {
-  font-weight: 600;
 }
 
 .nameLine {

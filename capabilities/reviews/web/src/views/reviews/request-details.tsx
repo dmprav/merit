@@ -42,9 +42,13 @@ export const RequestDetails = ({ request }: { request: Request }) => {
   return (
     <div className={styles.requestDetails}>
       <p>
-        {t("requestSubmission", { version: request.applicationVersion })}
+        {request.applicationVersion === null
+          ? t("applicationBasisUnknown")
+          : t("requestSubmission", { version: request.applicationVersion })}
         {" · "}
-        {t("requestCriteria", { version: request.criteriaVersion })}
+        {request.criteriaVersion === null
+          ? t("criteriaBasisUnknown")
+          : t("requestCriteria", { version: request.criteriaVersion })}
       </p>
       {request.recorder ? (
         <RequestEvent

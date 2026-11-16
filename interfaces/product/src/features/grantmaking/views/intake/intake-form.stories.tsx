@@ -11,13 +11,17 @@ import {
   type IntakeSection,
 } from "@merit/applications-web/intake";
 import { useApplicationIntake } from "@merit/applications-web/intake";
-import { IntakeForm } from "@merit/applications-web/intake";
+import { ApplicationDetails, IntakeForm } from "@merit/applications-web/intake";
 import type { IntakeChange } from "@merit/applications/domain";
-import { FormDialog } from "@merit/forms";
 import { GrantmakingDrafts } from "@merit/grantmaking-web/drafts";
+import { ApplicationContainedPreview } from "@merit/grantmaking-web/testing";
 import { getExampleRound } from "@merit/grantmaking/examples";
 import { fromMinorUnits } from "@merit/money";
 import { Button } from "@merit/ui/button";
+import { Reading } from "@merit/ui/layout";
+import { PageHeader } from "@merit/ui/page-header";
+import { ReferencePane, ReferenceWorkspace, WorkPane } from "@merit/ui/reference-workspace";
+import { SectionHeader } from "@merit/ui/section-header";
 
 import { StoryEnvironment } from "../../../../../tests/storybook";
 import { readContacts } from "../../../contacts/data/server/contacts.functions";
@@ -112,23 +116,44 @@ const IntakeSession = ({
     } as IntakeDraft);
   }, [intake, section, conflict]);
 
+  const label =
+    section === "content"
+      ? "Edit applicant submission"
+      : section === "details"
+        ? "Edit staff summary"
+        : section === "title"
+          ? "Correct application title"
+          : "Edit application details";
+
+  const editor = (
+    <section>
+      <SectionHeader title={label} />
+      {intake.section ? (
+        <IntakeForm editor={{ ...intake.editor, latest }} onClose={intake.close} />
+      ) : (
+        <Button onPress={() => intake.open(section)}>Edit</Button>
+      )}
+    </section>
+  );
+
   return (
-    <FormDialog
-      title={
-        section === "content"
-          ? "Edit applicant submission"
-          : section === "details"
-            ? "Edit staff summary"
-            : section === "title"
-              ? "Correct application title"
-              : "Edit application details"
-      }
-      closeLabel="Close"
-      trigger={<Button>Edit</Button>}
-      defaultOpen
-    >
-      <IntakeForm editor={{ ...intake.editor, latest }} onClose={intake.close} />
-    </FormDialog>
+    <ApplicationContainedPreview locationKey="intake-form">
+      <ReferenceWorkspace header={<PageHeader title={application.title} density="compact" />}>
+        {section === "content" ? (
+          <>
+            <ReferencePane label={label}>{editor}</ReferencePane>
+            <WorkPane label="Application details">
+              <SectionHeader title="Application details" />
+              <ApplicationDetails application={application} />
+            </WorkPane>
+          </>
+        ) : (
+          <WorkPane as="section" label={label}>
+            <Reading>{editor}</Reading>
+          </WorkPane>
+        )}
+      </ReferenceWorkspace>
+    </ApplicationContainedPreview>
   );
 };
 
@@ -161,16 +186,14 @@ type Story = StoryObj<typeof meta>;
 
 export const PartialIntake: Story = {
   play: async ({ canvasElement }) => {
-    const dialog = within(canvasElement.ownerDocument.body).getByRole("dialog");
-    const form = within(dialog);
-    const amount = form.getByRole("textbox", { name: /Requested amount/ });
+    const canvas = within(canvasElement);
+    await expect(canvas.queryByRole("complementary")).not.toBeInTheDocument();
+    await expect(canvas.queryByText("Neighbourhood Kitchen")).not.toBeInTheDocument();
+    const form = canvas.getByRole("form");
+    const editor = within(form);
+    const amount = editor.getByRole("textbox", { name: /Requested amount/ });
     await userEvent.type(amount, "24.001");
-    await userEvent.click(form.getByRole("button", { name: "Save" }));
-
-    await expect(
-      form.getByText("Enter a nonnegative amount with at most two decimal places."),
-    ).toBeVisible();
-
+    await expect(amount).toHaveValue("24.00");
     await userEvent.clear(amount);
   },
 };
@@ -178,17 +201,29 @@ export const WorkingRevision: Story = { args: { working: true, section: "content
 export const ApplicantSubmission: Story = { args: { section: "content" } };
 export const NameCorrection: Story = { args: { section: "title", working: true } };
 export const StaffSummary: Story = { args: { section: "details" } };
-export const ConcurrentChanges: Story = { args: { conflict: true } };
+export const ConcurrentChanges: Story = {
+  args: { conflict: true },
+  play: async ({ canvas }) => {
+    const conflict = within(canvas.getByRole("region", { name: "Review conflicting changes" }));
+    const saved = within(conflict.getByRole("region", { name: "Latest saved values" }));
+    const draft = within(conflict.getByRole("region", { name: "Your unsaved changes" }));
+    await expect(saved.getByText("€28,000")).toBeVisible();
+    await expect(draft.getByText("Neighbourhood Kitchen — local edit")).toBeVisible();
+    await expect(canvas.queryByRole("form")).not.toBeInTheDocument();
+    await expect(conflict.getByRole("button", { name: "Keep my changes" })).toBeEnabled();
+    await expect(conflict.getByRole("button", { name: "Use saved values" })).toBeEnabled();
+  },
+};
 
 export const Saving: Story = {
   args: {
     onSave: fn<(value: IntakeChange) => Promise<string | null>>(() => new Promise(() => {})),
   },
   play: async ({ canvasElement }) => {
-    const dialog = within(within(canvasElement.ownerDocument.body).getByRole("dialog"));
-    await userEvent.click(dialog.getByRole("button", { name: "Save" }));
+    const form = within(within(canvasElement).getByRole("form"));
+    await userEvent.click(form.getByRole("button", { name: "Save" }));
 
-    await expect(dialog.getByRole("button", { name: "Saving…" })).toBeDisabled();
+    await expect(form.getByRole("button", { name: "Saving…" })).toBeDisabled();
   },
 };
 export const SaveFailure: Story = {
@@ -198,37 +233,41 @@ export const SaveFailure: Story = {
     ),
   },
   play: async ({ canvasElement }) => {
-    const dialog = within(within(canvasElement.ownerDocument.body).getByRole("dialog"));
-    await userEvent.type(dialog.getByRole("textbox", { name: /Requested amount/ }), "24000");
-    await userEvent.click(dialog.getByRole("button", { name: "Save" }));
+    const form = within(within(canvasElement).getByRole("form"));
+    await userEvent.type(form.getByRole("textbox", { name: /Requested amount/ }), "24000");
+    await userEvent.click(form.getByRole("button", { name: "Save" }));
 
-    await expect(await dialog.findByRole("alert")).toHaveTextContent("Your changes are preserved");
-    await expect(dialog.getByRole("textbox", { name: /Requested amount/ })).toHaveValue("24000");
+    await expect(await form.findByRole("alert")).toHaveTextContent("Your changes are preserved");
+    await expect(form.getByRole("textbox", { name: /Requested amount/ })).toHaveValue("24000.00");
   },
 };
 export const KeepLocalChanges: Story = {
   args: { conflict: true },
   play: async ({ canvasElement }) => {
-    const dialog = within(within(canvasElement.ownerDocument.body).getByRole("dialog"));
-    await userEvent.click(dialog.getByRole("button", { name: "Keep my changes" }));
+    const canvas = within(canvasElement);
+    const conflict = within(canvas.getByRole("region", { name: "Review conflicting changes" }));
+    await userEvent.click(conflict.getByRole("button", { name: "Keep my changes" }));
+    const form = within(canvas.getByRole("form"));
 
-    await expect(dialog.getByRole("textbox", { name: "Applicant" })).toHaveValue(
+    await expect(form.getByRole("textbox", { name: "Applicant" })).toHaveValue(
       "Neighbourhood Kitchen — local edit",
     );
-    await expect(dialog.getByRole("textbox", { name: /Requested amount/ })).toHaveValue("28000.00");
-    await expect(dialog.getByRole("button", { name: "Save" })).toBeEnabled();
+    await expect(form.getByRole("textbox", { name: /Requested amount/ })).toHaveValue("28000.00");
+    await expect(form.getByRole("button", { name: "Save" })).toBeEnabled();
   },
 };
 export const UseLatestValues: Story = {
   args: { conflict: true },
   play: async ({ canvasElement }) => {
-    const dialog = within(within(canvasElement.ownerDocument.body).getByRole("dialog"));
-    await userEvent.click(dialog.getByRole("button", { name: "Use saved values" }));
+    const canvas = within(canvasElement);
+    const conflict = within(canvas.getByRole("region", { name: "Review conflicting changes" }));
+    await userEvent.click(conflict.getByRole("button", { name: "Use saved values" }));
+    const form = within(canvas.getByRole("form"));
 
-    await expect(dialog.getByRole("textbox", { name: "Applicant" })).toHaveValue(
+    await expect(form.getByRole("textbox", { name: "Applicant" })).toHaveValue(
       "Neighbourhood Kitchen",
     );
-    await expect(dialog.getByRole("textbox", { name: /Requested amount/ })).toHaveValue("28000.00");
+    await expect(form.getByRole("textbox", { name: /Requested amount/ })).toHaveValue("28000.00");
   },
 };
 
@@ -236,23 +275,23 @@ export const ReorderSections: Story = {
   args: { section: "content" },
   play: async ({ canvasElement }) => {
     const body = within(canvasElement.ownerDocument.body);
-    const dialog = within(body.getByRole("dialog"));
-    await userEvent.click(dialog.getByRole("button", { name: "Add section" }));
+    const form = within(within(canvasElement).getByRole("form"));
+    await userEvent.click(form.getByRole("button", { name: "Add section" }));
     await userEvent.type(
-      dialog.getAllByRole("textbox", { name: "Heading or question" })[1]!,
+      form.getAllByRole("textbox", { name: "Heading or question" })[1]!,
       "Budget",
     );
-    await userEvent.click(dialog.getByRole("button", { name: "Section 2 actions" }));
+    await userEvent.click(form.getByRole("button", { name: "Section 2 actions" }));
     await userEvent.click(body.getByRole("menuitem", { name: "Move up" }));
 
-    await expect(dialog.getAllByRole("textbox", { name: "Heading or question" })[0]).toHaveValue(
+    await expect(form.getAllByRole("textbox", { name: "Heading or question" })[0]).toHaveValue(
       "Budget",
     );
 
-    await userEvent.click(dialog.getByRole("button", { name: "Section 1 actions" }));
+    await userEvent.click(form.getByRole("button", { name: "Section 1 actions" }));
     await userEvent.click(body.getByRole("menuitem", { name: "Remove section" }));
 
-    await expect(dialog.getByRole("textbox", { name: "Heading or question" })).toHaveValue(
+    await expect(form.getByRole("textbox", { name: "Heading or question" })).toHaveValue(
       "Project plan",
     );
   },

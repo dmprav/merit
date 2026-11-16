@@ -8,6 +8,7 @@ import type {
 import { useFormat } from "@merit/i18n/format";
 import { ActionProvenance } from "@merit/ui/action-provenance";
 import shellStyles from "@merit/ui/application-shell.module.css";
+import { Button } from "@merit/ui/button";
 import { PersonIdentity } from "@merit/ui/person-identity";
 import { StatusMessage } from "@merit/ui/status-message";
 
@@ -69,7 +70,9 @@ export const ApplicationRecommendationSummary = ({
   application,
   manager,
   action,
+  onInspectVersion,
 }: {
+  onInspectVersion?: (version: number) => void;
   application: Application;
   manager: ApplicationRoundContext["manager"];
   action?: ReactNode;
@@ -101,15 +104,19 @@ export const ApplicationRecommendationSummary = ({
                 {t("applications.proposedAmount", { amount: money(recommendation.allocation) })}
               </span>
             )}
-            {basis != null && (
-              <span className={styles.judgmentBasis}>
-                {basis !== application.version && (
-                  <span className={styles.attentionDot} aria-hidden="true" />
-                )}
-                {t(basis !== application.version ? "workspace.earlierBasis" : "workspace.basis", {
-                  version: basis,
-                })}
-              </span>
+          </div>
+          <div className={styles.judgmentBasis}>
+            <span>
+              {basis == null
+                ? t("workspace.basisUnknown")
+                : t(basis !== application.version ? "workspace.earlierBasis" : "workspace.basis", {
+                    version: basis,
+                  })}
+            </span>
+            {basis != null && basis !== application.version && onInspectVersion && (
+              <Button variant="quiet" size="small" onPress={() => onInspectVersion(basis)}>
+                {t("workspace.compareChanges")}
+              </Button>
             )}
           </div>
           <p className={styles.prose}>{recommendation.reasoning}</p>

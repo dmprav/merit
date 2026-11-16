@@ -42,44 +42,48 @@ export const RequestPicker = ({
       title={t(replacing ? "replace" : "request")}
       closeLabel={t("close")}
       placement="bottom end"
+      appearance="compact"
       trigger={trigger}
       isOpen={open}
       isDismissDisabled={pending || editingContact}
       onOpenChange={changeOpen}
     >
-      <div className={styles.form} aria-busy={pending}>
-        <p className={styles.requestHint}>{t("quickRequestHint")}</p>
-        <ContactPicker
-          isEligible={isEligibleReviewer}
-          direct
-          isRequired
-          workspaceSlug={workspaceSlug}
-          label={t("reviewer")}
-          value={attempt?.contactId ?? null}
-          onChange={(id) => void choose(id)}
-          isDisabled={pending}
-          disabledContactIds={disabledContactIds}
-          onEditorOpenChange={setEditingContact}
-        />
-        {pending && (
-          <p role="status" className={styles.meta}>
-            {t("saving")}
-          </p>
-        )}
-        {error && (
-          <Notice tone="danger" role="alert">
-            {reviewError(t, error)}{" "}
-            <Button
-              size="small"
-              variant="quiet"
-              isDisabled={pending}
-              onPress={() => void choose(attempt?.contactId ?? null)}
-            >
-              {t("retry")}
-            </Button>
-          </Notice>
-        )}
-      </div>
+      {({ closeButton }) => (
+        <div className={styles.form} aria-busy={pending}>
+          <ContactPicker
+            isEligible={isEligibleReviewer}
+            direct
+            headerActions={closeButton}
+            isRequired
+            workspaceSlug={workspaceSlug}
+            label={t("reviewer")}
+            value={attempt?.contactId ?? null}
+            onChange={(id) => void choose(id)}
+            isDisabled={pending}
+            disabledContactIds={disabledContactIds}
+            onEditorOpenChange={setEditingContact}
+          />
+          <p className={styles.requestHint}>{t("quickRequestHint")}</p>
+          {pending && (
+            <p role="status" className={styles.meta}>
+              {t("saving")}
+            </p>
+          )}
+          {error && (
+            <Notice tone="danger" role="alert">
+              {reviewError(t, error)}{" "}
+              <Button
+                size="small"
+                variant="quiet"
+                isDisabled={pending}
+                onPress={() => void choose(attempt?.contactId ?? null)}
+              >
+                {t("retry")}
+              </Button>
+            </Notice>
+          )}
+        </div>
+      )}
     </PopoverDialog>
   );
 };

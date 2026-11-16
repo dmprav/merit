@@ -7,6 +7,7 @@ import { calendarDateInputSchema } from "@merit/dates";
 import {
   Form,
   FormActions,
+  FormMoneyField,
   FormDateField,
   FormSelect,
   FormTextField,
@@ -44,7 +45,6 @@ type ReviewFormProps = {
   onSave: (value: ReviewFormValues) => Promise<ReviewProblem | null>;
   onDiscard: () => void;
   onClose: () => void;
-  conflict: boolean;
 };
 
 export const ReviewForm = ({
@@ -56,16 +56,17 @@ export const ReviewForm = ({
   onSave,
   onDiscard,
   onClose,
-  conflict,
   followUp,
 }: ReviewFormProps) => {
   const { t } = useTranslation(["reviews", "common"]);
   const [showNotes, setShowNotes] = useState(false);
   const { form, submission } = useReviewForm({ draft, onChange, onSave });
-  const submitLabel = t(draft.mode === "request" ? "request" : "saveAssessment");
+  const submitLabel = t("saveAssessment");
 
   return (
     <Form
+      scrollFields
+      className={styles.editorForm}
       label={t(draft.mode)}
       submission={submission}
       actions={
@@ -76,7 +77,6 @@ export const ReviewForm = ({
           cancelLabel={t("close")}
           submitLabel={submitLabel}
           submittingLabel={submitLabel}
-          isSubmitDisabled={conflict}
         />
       }
     >
@@ -105,18 +105,14 @@ export const ReviewForm = ({
             )}
           </form.Field>
         )}
-        {draft.mode === "request" ? (
-          <p className={styles.requestHint}>{t("requestHint")}</p>
-        ) : (
-          <AssessmentFields
-            form={form}
-            draft={draft}
-            versions={versions}
-            criteriaHistory={criteriaHistory}
-            showNotes={showNotes}
-            setShowNotes={setShowNotes}
-          />
-        )}
+        <AssessmentFields
+          form={form}
+          draft={draft}
+          versions={versions}
+          criteriaHistory={criteriaHistory}
+          showNotes={showNotes}
+          setShowNotes={setShowNotes}
+        />
       </div>
     </Form>
   );
@@ -135,16 +131,14 @@ const useReviewForm = ({
         if (!value.contactId) {
           ctx.addIssue({ code: "custom", path: ["contactId"], message: t("contactUnavailable") });
         }
-        if (draft.mode !== "request") {
-          const parsed = assessmentFormSchema.safeParse(contentFromValues(value));
-          if (!parsed.success) {
-            for (const issue of parsed.error.issues) {
-              ctx.addIssue({
-                code: "custom",
-                path: issue.path,
-                message: t(issue.path[0] === "date" ? "dateInvalid" : "invalidReview"),
-              });
-            }
+        const parsed = assessmentFormSchema.safeParse(contentFromValues(value));
+        if (!parsed.success) {
+          for (const issue of parsed.error.issues) {
+            ctx.addIssue({
+              code: "custom",
+              path: issue.path,
+              message: t(issue.path[0] === "date" ? "dateInvalid" : "invalidReview"),
+            });
           }
         }
       }),
@@ -203,8 +197,9 @@ const AssessmentFields = ({
         </form.Field>
         <form.Field name="amount">
           {(field) => (
-            <FormTextField
+            <FormMoneyField
               field={field}
+              precisionMessage={t("amountPrecision")}
               label={t("amount")}
               placeholder={t("notStated")}
               prefix={{
@@ -212,7 +207,6 @@ const AssessmentFields = ({
                 label: t("common:euros"),
                 isHidden: !field.state.value.trim(),
               }}
-              inputMode="decimal"
               maxLength={32}
             />
           )}

@@ -33,7 +33,7 @@ it("shows workspace review tasks, status, localized due dates, and scoped links"
   expect(within(invitation).getByText("10 February 2027")).toBeVisible();
   const inProgress = within(assignments).getByRole("row", { name: /Workshop Saturdays/ });
   expect(within(inProgress).getByText("In progress")).toBeVisible();
-  expect(within(inProgress).getByText("No due date")).toBeVisible();
+  expect(within(inProgress).getByText("No response date requested")).toBeVisible();
   expect(within(assignments).getByText("Submitted")).toBeVisible();
 });
 

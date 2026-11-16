@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ReactNode, Ref, ComponentProps } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useLocaleSettings } from "@merit/i18n";
@@ -12,9 +12,7 @@ import {
   type ReviewState,
 } from "@merit/reviews/domain";
 import { ActionProvenance } from "@merit/ui/action-provenance";
-import { Badge } from "@merit/ui/badge";
 import { Button } from "@merit/ui/button";
-import { DialogContent, ModalDialog, PopoverDialog } from "@merit/ui/dialog";
 import { Icon } from "@merit/ui/icon";
 import { Inline, Stack } from "@merit/ui/layout";
 import { PersonIdentity } from "@merit/ui/person-identity";
@@ -24,6 +22,7 @@ import type { ReviewApplication, ReviewRound } from "../../contracts/reviews";
 import { AssessmentOutcome } from "./assessment-outcome";
 import { RequestDetails } from "./request-details";
 import styles from "./review-work.module.css";
+import type { ReviewReading, ReviewInspection } from "./use-review-reading";
 
 const RecordedAssessment = ({
   version,
@@ -31,7 +30,13 @@ const RecordedAssessment = ({
   criteria,
   criteriaVersion,
   onInspectVersion,
+  onInspectCriteria,
+  criteriaAction,
+  detailed = false,
 }: {
+  detailed?: boolean;
+  onInspectCriteria?: () => void;
+  criteriaAction?: string;
   version: ReviewState["assessments"][number]["versions"][number];
   applicationVersion: NonNullable<ReviewBasis["applicationVersion"]>;
   criteriaVersion: NonNullable<ReviewBasis["criteriaVersion"]>;
@@ -40,35 +45,80 @@ const RecordedAssessment = ({
 }) => {
   const { t } = useTranslation("reviews");
   const { content } = version;
-  const basis = compareReviewBasis(
-    { ...content, criteria: version.criteria },
-    { applicationVersion, criteriaVersion, criteria },
-  );
   const amount = content.amount === null ? null : parseMoney(content.amount);
 
   return (
     <>
+      <AssessmentOutcome position={content.position} amount={amount?.ok ? amount.value : null} />
+      <AssessmentBasisNotice
+        version={version}
+        applicationVersion={applicationVersion}
+        criteriaVersion={criteriaVersion}
+        criteria={criteria}
+        onInspectVersion={onInspectVersion}
+      />
+      <p className={styles.reasoning}>{content.reasoning}</p>
+      {detailed &&
+        content.observations
+          .filter((observation) => observation.text.trim())
+          .map((observation, index) => (
+            <div key={index} className={styles.reasoning}>
+              <strong>{observation.criterion}</strong>
+              <p>{observation.text}</p>
+            </div>
+          ))}
+      {detailed ? (
+        <AssessmentDetails
+          version={version}
+          onInspectCriteria={onInspectCriteria}
+          criteriaAction={criteriaAction}
+        />
+      ) : (
+        <p className={styles.meta}>
+          {content.date ? <AssessmentDate date={content.date} /> : t("dateUnknown")}
+          {content.applicationVersion === applicationVersion && (
+            <> · {t("reviewedVersion", { version: content.applicationVersion })}</>
+          )}
+        </p>
+      )}
+    </>
+  );
+};
+
+const AssessmentBasisNotice = ({
+  version,
+  applicationVersion,
+  criteriaVersion,
+  criteria,
+  onInspectVersion,
+}: ComponentProps<typeof RecordedAssessment>) => {
+  const { t } = useTranslation("reviews");
+  const { content } = version;
+  const basis = compareReviewBasis(
+    { ...content, criteria: version.criteria },
+    { applicationVersion, criteriaVersion, criteria },
+  );
+  return (
+    <>
       {reviewFreshness(basis) !== "current" && (
-        <Inline>
+        <Inline className={styles.reviewBasis}>
           {basis.applicationVersion === "different" && (
             <>
-              <Badge tone="warning">{t("applicationChanged")}</Badge>
+              <span>{t("earlierSubmission")}</span>
               {onInspectVersion && (
                 <Button
                   variant="quiet"
                   size="small"
                   onPress={() => onInspectVersion(content.applicationVersion!)}
                 >
-                  {t("viewVersionHistory")} <Icon name="right" />
+                  {t("compareChanges")}
                 </Button>
               )}
             </>
           )}
-          {basis.criteriaContent === "different" && (
-            <Badge tone="warning">{t("criteriaChanged")}</Badge>
-          )}
+          {basis.criteriaContent === "different" && <span>{t("criteriaChanged")}</span>}
           {(basis.applicationVersion === "unknown" || basis.criteriaContent === "unknown") && (
-            <Badge>
+            <span>
               {t(
                 basis.applicationVersion === "unknown" && basis.criteriaContent === "unknown"
                   ? "basisUnknown"
@@ -76,31 +126,22 @@ const RecordedAssessment = ({
                     ? "applicationBasisUnknown"
                     : "criteriaBasisUnknown",
               )}
-            </Badge>
+            </span>
           )}
         </Inline>
       )}
-      <AssessmentOutcome position={content.position} amount={amount?.ok ? amount.value : null} />
-      <p className={styles.reasoning}>{content.reasoning}</p>
-      {content.observations
-        .filter((observation) => observation.text.trim())
-        .map((observation, index) => (
-          <div key={index} className={styles.reasoning}>
-            <strong>{observation.criterion}</strong>
-            <p>{observation.text}</p>
-          </div>
-        ))}
-      <AssessmentDetails version={version} criteria={criteria} />
     </>
   );
 };
 
 const AssessmentDetails = ({
   version,
-  criteria,
+  onInspectCriteria,
+  criteriaAction,
 }: {
+  criteriaAction?: string;
   version: ReviewState["assessments"][number]["versions"][number];
-  criteria: NonNullable<ReviewRound["criteria"]>;
+  onInspectCriteria?: () => void;
 }) => {
   const { t } = useTranslation("reviews");
   const { formatLocale } = useLocaleSettings();
@@ -108,134 +149,208 @@ const AssessmentDetails = ({
   const { content } = version;
 
   return (
-    <PopoverDialog
-      title={t("inspectBasis")}
-      closeLabel={t("close")}
-      placement="bottom start"
-      trigger={
-        <Button size="small" variant="quiet">
-          {t("inspectBasis")}
-        </Button>
-      }
-    >
-      <div className={styles.reviewDetails}>
-        <dl className={styles.detailFacts}>
-          <dt>{t("assessmentDate")}</dt>
-          <dd>{content.date ? calendarDate(content.date) : t("unknown")}</dd>
-          <dt>{t("recordedByLabel")}</dt>
-          <dd>{version.recorder?.name ?? t("unknown")}</dd>
-          {version.recorder && (
-            <>
-              <dt>{t("recordedAtLabel")}</dt>
-              <dd>
-                <time dateTime={version.recorder.recordedAt}>
-                  {new Date(version.recorder.recordedAt).toLocaleString(formatLocale, {
-                    day: "numeric",
-                    month: "short",
-                    year: "numeric",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                    timeZone: "UTC",
-                  })}{" "}
-                  UTC
-                </time>
-              </dd>
-              <dt>{t("recordedThrough")}</dt>
-              <dd>
-                <ActionProvenance value={version.recorder.provenance} />
-              </dd>
-            </>
-          )}
-          <dt>{t("submission")}</dt>
-          <dd>
-            {content.applicationVersion === null
-              ? t("unknown")
-              : t("version", { version: content.applicationVersion })}
-          </dd>
-        </dl>
-        {version.note && <p className={styles.reasoning}>{version.note}</p>}
-        <section className={styles.detailCriteria}>
-          <h3>{t("originalCriteria")}</h3>
-          {version.criteria === null ? (
-            <p className={styles.meta}>{t("unknown")}</p>
-          ) : (
-            <dl>
-              {version.criteria.map((item, index) => (
-                <div key={index}>
-                  <dt>{item.title}</dt>
-                  {item.description && <dd>{item.description}</dd>}
-                </div>
-              ))}
-            </dl>
-          )}
-        </section>
-        {compareCriteriaContent(version.criteria, criteria) === "different" && (
-          <section className={styles.detailCriteria}>
-            <h3>{t("latestCriteria")}</h3>
-            <dl>
-              {criteria.map((item, index) => (
-                <div key={index}>
-                  <dt>{item.title}</dt>
-                  {item.description && <dd>{item.description}</dd>}
-                </div>
-              ))}
-            </dl>
-          </section>
+    <section className={styles.reviewDetails} aria-label={t("inspectBasis")}>
+      <dl className={styles.detailFacts}>
+        <dt>{t("assessmentDate")}</dt>
+        <dd>{content.date ? calendarDate(content.date) : t("unknown")}</dd>
+        <dt>{t("recordedByLabel")}</dt>
+        <dd>{version.recorder?.name ?? t("unknown")}</dd>
+        {version.recorder && (
+          <>
+            <dt>{t("recordedAtLabel")}</dt>
+            <dd>
+              <time dateTime={version.recorder.recordedAt}>
+                {new Date(version.recorder.recordedAt).toLocaleString(formatLocale, {
+                  day: "numeric",
+                  month: "short",
+                  year: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  timeZone: "UTC",
+                })}{" "}
+                UTC
+              </time>
+            </dd>
+            <dt>{t("recordedThrough")}</dt>
+            <dd>
+              <ActionProvenance value={version.recorder.provenance} />
+            </dd>
+          </>
         )}
-      </div>
-    </PopoverDialog>
+        <dt>{t("submission")}</dt>
+        <dd>
+          {content.applicationVersion === null
+            ? t("unknown")
+            : t("version", { version: content.applicationVersion })}
+        </dd>
+        <dt>{t("criteriaVersion")}</dt>
+        <dd>
+          {content.criteriaVersion === null
+            ? t("unknown")
+            : t("version", { version: content.criteriaVersion })}
+        </dd>
+      </dl>
+      {version.note && (
+        <div>
+          <strong>{t("note")}</strong>
+          <p className={styles.reasoning}>{version.note}</p>
+        </div>
+      )}
+      <Button
+        variant="quiet"
+        size="small"
+        alignment="start"
+        data-review-action={criteriaAction}
+        onPress={onInspectCriteria}
+      >
+        {t("criteriaUsed")} <Icon name="right" />
+      </Button>
+    </section>
+  );
+};
+
+const AssessmentCriteria = ({
+  version,
+  criteria,
+  criteriaVersion,
+}: {
+  version: ReviewState["assessments"][number]["versions"][number];
+  criteria: ReviewRound["criteria"];
+  criteriaVersion: ReviewRound["criteriaVersion"];
+}) => {
+  const { t } = useTranslation("reviews");
+  return (
+    <div className={styles.reviewDetails}>
+      <section aria-label={t("originalCriteria")} className={styles.detailCriteria}>
+        <p className={styles.meta}>
+          {version.content.criteriaVersion === null
+            ? t("criteriaBasisUnknown")
+            : t("version", { version: version.content.criteriaVersion })}
+        </p>
+        <CriteriaRecord criteria={version.criteria} />
+      </section>
+      {compareCriteriaContent(version.criteria, criteria) === "different" && (
+        <section aria-label={t("latestCriteria")} className={styles.detailCriteria}>
+          <h3>{t("latestCriteria")}</h3>
+          <p className={styles.meta}>{t("version", { version: criteriaVersion })}</p>
+          <CriteriaRecord criteria={criteria} />
+        </section>
+      )}
+    </div>
+  );
+};
+
+const CriteriaRecord = ({
+  criteria,
+}: {
+  criteria: ReviewState["assessments"][number]["versions"][number]["criteria"];
+}) => {
+  const { t } = useTranslation("reviews");
+  return criteria === null ? (
+    <p className={styles.meta}>{t("unknown")}</p>
+  ) : (
+    <dl>
+      {criteria.map((item, index) => (
+        <div key={index}>
+          <dt>{item.title}</dt>
+          {item.description && <dd>{item.description}</dd>}
+        </div>
+      ))}
+    </dl>
   );
 };
 
 type ReviewContentProps = {
   application: ReviewApplication;
   round: ReviewRound;
+  title?: string;
   headerActions?: ReactNode;
-  feedback?: ReactNode;
   assessmentActions?: (assessment: ReviewState["assessments"][number]) => ReactNode;
   requestActions?: (request: ReviewState["requests"][number]) => ReactNode;
-  selectedId?: string;
+  reading: ReviewReading;
   onInspectVersion?: (version: ReviewApplication["version"]) => void;
 };
 
 export const ReviewContent = ({
   application,
   round,
+  title,
   headerActions,
-  feedback,
   assessmentActions,
   requestActions,
-  selectedId,
+  reading,
   onInspectVersion,
 }: ReviewContentProps) => {
   const { t } = useTranslation("reviews");
+  const { inspection, previous, root, heading, inspect, back } = reading;
+  const focusedId = inspection && "id" in inspection ? inspection.id : undefined;
   const state = application.reviews;
-  const criteria = round.criteria;
-  const superseded = new Set(
-    state.assessments.flatMap((item) => (item.previousId ? [item.previousId] : [])),
-  );
-  const latest = state.assessments.filter(
-    (item) => !superseded.has(item.id) && (!selectedId || item.id === selectedId),
-  );
-  const pending = state.requests.filter(
-    (request) => request.status === "outstanding" && (!selectedId || request.id === selectedId),
-  );
+  const { latest, pending } = reviewEntries(state, focusedId);
 
   return (
-    <Stack as="section" gap={5} aria-label={t("title")} className={styles.reviews}>
-      {!selectedId && (
-        <SectionHeader
-          title={t("title")}
-          className={styles.reviewHeader}
-          count={latest.length || undefined}
-          aside={headerActions}
+    <section ref={root} aria-label={title ?? t("title")} className={styles.reviews}>
+      <ReviewReadingHeader
+        title={title}
+        inspection={inspection}
+        previous={previous}
+        heading={heading}
+        back={back}
+        count={latest.length}
+        actions={headerActions}
+      />
+      {inspection?.kind === "requests" ? (
+        <ReviewRequestHistory requests={state.requests} />
+      ) : inspection?.kind === "criteria" ? (
+        <>
+          {latest[0] && <PersonIdentity name={latest[0].reviewer} nameAs="h3" />}
+          <AssessmentCriteria
+            version={inspection.version}
+            criteria={round.criteria}
+            criteriaVersion={round.criteriaVersion}
+          />
+        </>
+      ) : (
+        <AssessmentList
+          application={application}
+          round={round}
+          entries={{ latest, pending }}
+          focusedId={focusedId}
+          inspection={inspection}
+          inspect={inspect}
+          assessmentActions={assessmentActions}
+          requestActions={requestActions}
+          onInspectVersion={onInspectVersion}
         />
       )}
-      {feedback}
-      {selectedId && !latest.length && !pending.length && <p>{t("selectedUnavailable")}</p>}
-      {!selectedId && !state.assessments.length && !state.requests.length && (
-        <p>{t("noReviews")}</p>
-      )}
+    </section>
+  );
+};
+
+const AssessmentList = ({
+  application,
+  round,
+  entries: { latest, pending },
+  focusedId,
+  inspection,
+  inspect,
+  assessmentActions,
+  requestActions,
+  onInspectVersion,
+}: Pick<
+  ReviewContentProps,
+  "application" | "round" | "assessmentActions" | "requestActions" | "onInspectVersion"
+> & {
+  entries: ReturnType<typeof reviewEntries>;
+  focusedId?: string;
+  inspection: ReviewInspection | null;
+  inspect: (inspection: ReviewInspection) => void;
+}) => {
+  const { t } = useTranslation("reviews");
+  const state = application.reviews;
+  return (
+    <>
+      {focusedId && !latest.length && !pending.length && <p>{t("selectedUnavailable")}</p>}
+      {!focusedId && !state.assessments.length && !state.requests.length && <p>{t("noReviews")}</p>}
       {latest.map((assessment) => (
         <AssessmentEntry
           key={assessment.id}
@@ -243,48 +358,156 @@ export const ReviewContent = ({
           application={application}
           round={round}
           assessmentActions={assessmentActions}
-          selectedId={selectedId}
+          detailed={Boolean(inspection)}
+          showHistory={inspection?.kind === "history"}
+          onDetails={() => inspect({ kind: "assessment", id: assessment.id })}
+          onHistory={() => inspect({ kind: "history", id: assessment.id })}
+          onInspectCriteria={(version) => inspect({ kind: "criteria", id: assessment.id, version })}
           onInspectVersion={onInspectVersion}
         />
       ))}
       {pending.length > 0 && (
-        <Stack as="section" gap={3} aria-label={t("awaitingTitle")}>
-          {!selectedId && (
-            <SectionHeader
-              title={t("awaitingTitle")}
-              count={pending.length}
-              className={styles.reviewHeader}
-            />
-          )}
-          {pending.map((request) => {
-            const basis = compareReviewBasis(request, {
-              applicationVersion: application.version,
-              criteriaVersion: round.criteriaVersion,
-              criteria,
-            });
-            const freshness = reviewFreshness(basis);
-            return (
-              <article key={request.id} aria-label={request.reviewer} className={styles.pendingRow}>
-                <div className={styles.requestPerson}>
-                  <PersonIdentity name={request.reviewer} description={t("outstanding")} />
-                  {selectedId && <RequestDetails request={request} />}
-                  {freshness === "outdated" ? (
-                    <p className={styles.requestChange}>{t("requestChanged")}</p>
-                  ) : (
-                    freshness === "unknown" && (
-                      <p className={styles.requestChange}>{t("basisUnknown")}</p>
-                    )
-                  )}
-                </div>
-                {requestActions?.(request)}
-              </article>
-            );
-          })}
-        </Stack>
+        <PendingRequests
+          pending={pending}
+          focusedId={focusedId}
+          application={application}
+          round={round}
+          requestActions={requestActions}
+        />
       )}
-      {!selectedId && state.requests.length > 0 && (
-        <ReviewRequestHistory requests={state.requests} />
+      {!focusedId && state.requests.length > 0 && (
+        <Button
+          size="small"
+          variant="quiet"
+          alignment="start"
+          data-review-action="requests"
+          onPress={() => inspect({ kind: "requests" })}
+        >
+          {t("requestHistory")} <span className={styles.meta}>{state.requests.length}</span>
+        </Button>
       )}
+    </>
+  );
+};
+
+const ReviewReadingHeader = ({
+  title,
+  inspection,
+  previous,
+  heading,
+  back,
+  count,
+  actions,
+}: {
+  title?: string;
+  inspection: ReviewInspection | null;
+  previous: ReviewInspection | null;
+  heading: Ref<HTMLHeadingElement>;
+  back: () => void;
+  count: number;
+  actions?: ReactNode;
+}) => {
+  const { t } = useTranslation("reviews");
+  if (inspection) {
+    return (
+      <>
+        <Button size="small" variant="quiet" alignment="start" onPress={back}>
+          <Icon name="left" />
+          {t(inspectionReturnLabel(previous))}
+        </Button>
+        <h2 ref={heading} tabIndex={-1}>
+          {t(inspectionTitle(inspection))}
+        </h2>
+      </>
+    );
+  }
+  return (
+    <SectionHeader
+      title={title ?? t("title")}
+      className={styles.reviewHeader}
+      count={count || undefined}
+      aside={actions}
+    />
+  );
+};
+
+const inspectionReturnLabel = (previous: ReviewInspection | null) => {
+  if (previous?.kind === "history") {
+    return "backHistory";
+  }
+  return previous?.kind === "assessment" || previous?.kind === "review"
+    ? "backAssessment"
+    : "backReviews";
+};
+
+const inspectionTitle = (inspection: ReviewInspection) =>
+  (
+    {
+      review: "assessmentTitle",
+      requests: "requestHistory",
+      criteria: "originalCriteria",
+      history: "assessmentHistory",
+      assessment: "inspectBasis",
+    } as const
+  )[inspection.kind];
+
+const reviewEntries = (state: ReviewState, focusedId: string | undefined) => {
+  const superseded = new Set(
+    state.assessments.flatMap((item) => (item.previousId ? [item.previousId] : [])),
+  );
+  const latest = state.assessments.filter(
+    (item) => !superseded.has(item.id) && (!focusedId || item.id === focusedId),
+  );
+  const pending = state.requests.filter(
+    (request) => request.status === "outstanding" && (!focusedId || request.id === focusedId),
+  );
+  return { latest, pending };
+};
+
+const PendingRequests = ({
+  pending,
+  focusedId,
+  application,
+  round,
+  requestActions,
+}: Pick<ReviewContentProps, "application" | "round" | "requestActions"> & {
+  focusedId?: string;
+  pending: ReviewState["requests"];
+}) => {
+  const { t } = useTranslation("reviews");
+  return (
+    <Stack as="section" gap={3} aria-label={t("awaitingTitle")}>
+      {!focusedId && (
+        <SectionHeader
+          title={t("awaitingTitle")}
+          count={pending.length}
+          className={styles.reviewHeader}
+        />
+      )}
+      {pending.map((request) => {
+        const basis = compareReviewBasis(request, {
+          applicationVersion: application.version,
+          criteriaVersion: round.criteriaVersion,
+          criteria: round.criteria,
+        });
+        const freshness = reviewFreshness(basis);
+        return (
+          <article key={request.id} aria-label={request.reviewer} className={styles.pendingRow}>
+            <div className={styles.requestPerson}>
+              <PersonIdentity name={request.reviewer} description={t("outstanding")} />
+              {focusedId && <RequestDetails request={request} />}
+              {freshness === "outdated" ? (
+                <p className={styles.requestChange}>{t("requestChanged")}</p>
+              ) : (
+                freshness === "unknown" && (
+                  <p className={styles.requestChange}>{t("basisUnknown")}</p>
+                )
+              )}
+            </div>
+            {requestActions?.(request)}
+          </article>
+        );
+      })}
     </Stack>
   );
 };
@@ -294,95 +517,128 @@ const AssessmentEntry = ({
   application,
   round,
   assessmentActions,
-  selectedId,
   onInspectVersion,
-}: Pick<
-  ReviewContentProps,
-  "application" | "round" | "assessmentActions" | "selectedId" | "onInspectVersion"
-> & { assessment: ReviewState["assessments"][number] }) => {
+  detailed,
+  showHistory,
+  onDetails,
+  onHistory,
+  onInspectCriteria,
+}: Pick<ReviewContentProps, "application" | "round" | "assessmentActions" | "onInspectVersion"> & {
+  assessment: ReviewState["assessments"][number];
+  detailed: boolean;
+  showHistory: boolean;
+  onDetails: () => void;
+  onHistory: () => void;
+  onInspectCriteria: (version: ReviewState["assessments"][number]["versions"][number]) => void;
+}) => {
   const { t } = useTranslation("reviews");
-  const { calendarDate } = useFormat();
-  const state = application.reviews;
   const criteria = round.criteria;
+  const latest = assessment.versions.at(-1)!;
   return (
     <article aria-label={t("by", { name: assessment.reviewer })} className={styles.assessment}>
       <div className={styles.assessmentHeader}>
-        <PersonIdentity
-          name={assessment.reviewer}
-          nameAs="h3"
-          description={
-            assessment.authorUserId
-              ? t("submittedBy", {
-                  name: assessment.versions.at(-1)!.recorder?.name ?? assessment.reviewer,
-                })
-              : assessment.versions.at(-1)!.content.date
-                ? calendarDate(assessment.versions.at(-1)!.content.date!)
-                : assessment.versions.at(-1)!.recorder
-                  ? t("recordedBy", { name: assessment.versions.at(-1)!.recorder!.name })
-                  : undefined
-          }
-        />
+        <PersonIdentity name={assessment.reviewer} nameAs="h3" />
         {assessmentActions?.(assessment)}
       </div>
       <Stack gap={3} className={styles.assessmentContent}>
-        <RecordedAssessment
-          version={assessment.versions.at(-1)!}
-          applicationVersion={application.version}
-          criteriaVersion={round.criteriaVersion}
-          criteria={criteria}
-          onInspectVersion={selectedId ? onInspectVersion : undefined}
-        />
-        {(assessment.previousId || assessment.versions.length > 1) && (
-          <ModalDialog
-            title={t("assessmentHistory")}
-            closeLabel={t("close")}
-            size="wide"
-            trigger={
-              <Button size="small" variant="quiet">
-                {t("assessmentHistory")}
-              </Button>
-            }
+        {showHistory ? (
+          <AssessmentHistory
+            assessment={assessment}
+            application={application}
+            round={round}
+            onInspectVersion={onInspectVersion}
+            onInspectCriteria={onInspectCriteria}
+          />
+        ) : (
+          <RecordedAssessment
+            version={latest}
+            applicationVersion={application.version}
+            criteriaVersion={round.criteriaVersion}
+            criteria={criteria}
+            detailed={detailed}
+            onInspectVersion={onInspectVersion}
+            onInspectCriteria={() => onInspectCriteria(latest)}
+            criteriaAction={`${assessment.id}:criteria`}
+          />
+        )}
+        {!detailed && (
+          <Button
+            size="small"
+            variant="quiet"
+            alignment="start"
+            data-review-action={`${assessment.id}:details`}
+            onPress={onDetails}
           >
-            <DialogContent label={t("assessmentHistory")}>
-              {state.assessments
-                .filter((item) => item.contactId === assessment.contactId)
-                .flatMap((item) =>
-                  (item.id === assessment.id ? item.versions.slice(0, -1) : item.versions).map(
-                    (version, index) => (
-                      <div key={`${item.id}/${index}`} className={styles.card}>
-                        <strong>{t("editCount", { version: index + 1 })}</strong>
-                        <RecordedAssessment
-                          version={version}
-                          applicationVersion={application.version}
-                          criteriaVersion={round.criteriaVersion}
-                          criteria={criteria}
-                          onInspectVersion={selectedId ? onInspectVersion : undefined}
-                        />
-                      </div>
-                    ),
-                  ),
-                )}
-            </DialogContent>
-          </ModalDialog>
+            {t("inspectBasis")}
+            <Icon name="right" />
+          </Button>
+        )}
+        {!showHistory && (assessment.previousId || assessment.versions.length > 1) && (
+          <Button
+            size="small"
+            variant="quiet"
+            alignment="start"
+            data-review-action={`${assessment.id}:history`}
+            onPress={onHistory}
+          >
+            {t("assessmentHistory")}
+            <Icon name="right" />
+          </Button>
         )}
       </Stack>
     </article>
   );
 };
 
+const AssessmentHistory = ({
+  assessment,
+  application,
+  round,
+  onInspectVersion,
+  onInspectCriteria,
+}: Pick<ReviewContentProps, "application" | "round" | "onInspectVersion"> & {
+  assessment: ReviewState["assessments"][number];
+  onInspectCriteria: (version: ReviewState["assessments"][number]["versions"][number]) => void;
+}) => {
+  const { t } = useTranslation("reviews");
+  const state = application.reviews;
+  const criteria = round.criteria;
+  return (
+    <>
+      {state.assessments
+        .filter((item) => item.contactId === assessment.contactId)
+        .flatMap((item) =>
+          (item.id === assessment.id ? item.versions.slice(0, -1) : item.versions).map(
+            (version, index) => (
+              <section key={`${item.id}/${index}`} className={styles.card}>
+                <h3>{t("editCount", { version: index + 1 })}</h3>
+                <RecordedAssessment
+                  version={version}
+                  detailed
+                  applicationVersion={application.version}
+                  criteriaVersion={round.criteriaVersion}
+                  criteria={criteria}
+                  onInspectVersion={onInspectVersion}
+                  onInspectCriteria={() => onInspectCriteria(version)}
+                  criteriaAction={`${item.id}:${index}:criteria`}
+                />
+              </section>
+            ),
+          ),
+        )}
+    </>
+  );
+};
+
+const AssessmentDate = ({ date }: { date: string }) => {
+  const { calendarDate } = useFormat();
+  return calendarDate(date);
+};
+
 const ReviewRequestHistory = ({ requests }: { requests: ReviewState["requests"] }) => {
   const { t } = useTranslation("reviews");
   return (
-    <PopoverDialog
-      title={t("requestHistory")}
-      closeLabel={t("close")}
-      placement="top start"
-      trigger={
-        <Button size="small" variant="quiet">
-          {t("requestHistory")} <span className={styles.meta}>{requests.length}</span>
-        </Button>
-      }
-    >
+    <section aria-label={t("requestHistory")}>
       <ul className={styles.requestHistoryList}>
         {requests.map((request) => (
           <li key={request.id}>
@@ -404,6 +660,6 @@ const ReviewRequestHistory = ({ requests }: { requests: ReviewState["requests"] 
           </li>
         ))}
       </ul>
-    </PopoverDialog>
+    </section>
   );
 };

@@ -1,5 +1,6 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ComponentProps } from "react";
 import { describe, expect, it, vi } from "vite-plus/test";
 
 import {
@@ -11,8 +12,16 @@ import {
 import { criteriaVersionSchema } from "@merit/rounds/domain";
 
 import { GrantmakingMessagesProvider } from "../../testing/providers";
-import { ReviewContent } from "./review-content";
+import { ReviewContent as ReviewPresentation } from "./review-content";
 import { ReviewWork } from "./review-work";
+import { useReviewReading } from "./use-review-reading";
+
+const ReviewContent = ({
+  selectedId,
+  ...props
+}: Omit<ComponentProps<typeof ReviewPresentation>, "reading"> & { selectedId?: string }) => (
+  <ReviewPresentation {...props} reading={useReviewReading(selectedId)} />
+);
 
 const round = makeRound();
 const assessment = makeAssessment({ reviewer: "Sam Morgan" });
@@ -123,10 +132,13 @@ it.each([
     }
     await userEvent.setup().click(article.getByRole("button", { name: "Review details" }));
 
-    const details = within(screen.getByRole("dialog", { name: "Review details" }));
-    const original = within(
-      details.getByRole("heading", { name: "Criteria reviewed" }).parentElement!,
-    );
+    const details = within(screen.getByRole("region", { name: "Review details" }));
+    expect(details.queryByText("Original guidance")).not.toBeInTheDocument();
+    await userEvent.setup().click(details.getByRole("button", { name: "View criteria used" }));
+    expect(screen.queryByRole("region", { name: "Review details" })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Criteria reviewed" })).toHaveFocus();
+    expect(screen.getByRole("heading", { name: "Sam Morgan" })).toBeVisible();
+    const original = within(screen.getByRole("region", { name: "Criteria reviewed" }));
     if (reviewed === null) {
       expect(original.getByText("Not known")).toBeVisible();
     } else {
@@ -138,17 +150,19 @@ it.each([
       }
     }
     if (comparison) {
-      const latest = within(
-        details.getByRole("heading", { name: "Current criteria" }).parentElement!,
-      );
+      const latest = within(screen.getByRole("region", { name: "Current criteria" }));
       expect(latest.queryAllByRole("term")).toHaveLength(current.length);
       for (const criterion of current) {
         expect(latest.getByText(criterion.title)).toBeVisible();
         expect(latest.getByText(criterion.description)).toBeVisible();
       }
     } else {
-      expect(details.queryByRole("heading", { name: "Current criteria" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "Current criteria" })).not.toBeInTheDocument();
     }
+    await userEvent.setup().click(screen.getByRole("button", { name: "Back to assessment" }));
+    expect(screen.getByRole("button", { name: "View criteria used" })).toHaveFocus();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Back to assessments" }));
+    expect(screen.getByRole("button", { name: "Review details" })).toHaveFocus();
   },
 );
 
@@ -184,10 +198,8 @@ it("keeps unknown review facts explicit without inventing recording details or a
   );
 
   expect(screen.getByText("Review basis unknown")).toBeVisible();
-  expect(screen.queryByRole("button", { name: "View version history" })).not.toBeInTheDocument();
-  await userEvent.setup().click(screen.getByRole("button", { name: "Review details" }));
-
-  const details = within(screen.getByRole("dialog", { name: "Review details" }));
+  expect(screen.queryByRole("button", { name: "Compare changes" })).not.toBeInTheDocument();
+  const details = within(screen.getByRole("region", { name: "Review details" }));
   for (const label of ["Assessment date", "Recorded by", "Submission"]) {
     expect(details.getByText(label, { selector: "dt" }).nextElementSibling).toHaveTextContent(
       "Not known",
@@ -232,7 +244,7 @@ it("shows the assessment date separately from recording time, attribution, and c
   );
   await userEvent.setup().click(screen.getByRole("button", { name: "Review details" }));
 
-  const details = within(screen.getByRole("dialog", { name: "Review details" }));
+  const details = within(screen.getByRole("region", { name: "Review details" }));
   expect(details.getByText("15 January 2027")).toBeVisible();
   expect(details.getByText("18 Jan 2027, 14:30 UTC")).toHaveAttribute(
     "datetime",
@@ -241,7 +253,7 @@ it("shows the assessment date separately from recording time, attribution, and c
   expect(details.getByText("Dana Reed")).toBeVisible();
   expect(details.getByText(/grant-assistant/)).toBeVisible();
   expect(details.getByText("Corrected the received transcription.")).toBeVisible();
-  expect(details.getByText("Version 1")).toBeVisible();
+  expect(details.getAllByText("Version 1")).toHaveLength(2);
 });
 
 describe("selected review", () => {
@@ -262,15 +274,13 @@ describe("selected review", () => {
     expect(screen.queryByRole("heading", { name: /Reviewer assessments/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Request history/ })).not.toBeInTheDocument();
 
-    await userEvent.setup().click(screen.getByRole("button", { name: "View version history" }));
+    await userEvent.setup().click(screen.getByRole("button", { name: "Compare changes" }));
 
     expect(inspect).toHaveBeenCalledWith(1);
 
-    await userEvent.setup().click(screen.getByText("Review details"));
-
     expect(
-      within(screen.getByRole("dialog", { name: "Review details" })).getByText("Version 1"),
-    ).toBeVisible();
+      within(screen.getByRole("region", { name: "Review details" })).getAllByText("Version 1"),
+    ).toHaveLength(2);
   });
 
   it("retains assessment history and record actions without showing global management actions", async () => {
@@ -319,13 +329,16 @@ describe("selected review", () => {
     await userEvent.setup().click(screen.getByText("Earlier assessments and edits"));
 
     expect(screen.getByText("The earlier judgment remains available.")).toBeVisible();
-    const history = within(screen.getByRole("dialog", { name: "Earlier assessments and edits" }));
-    await userEvent.setup().click(history.getByRole("button", { name: "Review details" }));
-
-    const details = within(screen.getByRole("dialog", { name: "Review details" }));
-    expect(details.getByText("Version 1")).toBeVisible();
-    expect(details.getByText("Original guidance")).toBeVisible();
-    expect(details.getByText("Revised guidance")).toBeVisible();
+    const details = within(screen.getByRole("region", { name: "Review details" }));
+    expect(details.getAllByText("Version 1")).toHaveLength(2);
+    await userEvent.setup().click(details.getByRole("button", { name: "View criteria used" }));
+    expect(screen.getByText("Original guidance")).toBeVisible();
+    expect(screen.getByText("Revised guidance")).toBeVisible();
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: "Back to assessment history" }));
+    expect(screen.getByRole("button", { name: "View criteria used" })).toHaveFocus();
+    expect(screen.getByText("The earlier judgment remains available.")).toBeVisible();
   });
 
   it("keeps a selected pending request and its actions distinct from submitted assessments", () => {
@@ -367,7 +380,7 @@ describe("selected review", () => {
     expect(screen.getByRole("article", { name: "Assessment by Sam Morgan" })).toBeVisible();
     expect(screen.getByRole("article", { name: "Jules Patel" })).toBeVisible();
     expect(screen.getByRole("button", { name: /Request history/ })).toBeVisible();
-    expect(screen.queryByRole("button", { name: "View version history" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Compare changes" })).not.toBeInTheDocument();
   });
 });
 

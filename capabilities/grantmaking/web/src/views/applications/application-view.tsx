@@ -1,4 +1,4 @@
-import type { ReactNode, ComponentProps } from "react";
+import { useState, type ReactNode, type ComponentProps } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { IntakeState } from "@merit/applications-web/contracts";
@@ -8,13 +8,11 @@ import type {
   ApplicationRoundContext,
   ApplicationView as Application,
 } from "@merit/grantmaking/api";
-import { useFormat } from "@merit/i18n/format";
 import { RemotePagedContent } from "@merit/query/pages";
 import { ApplicationRecommendationSummary } from "@merit/recommendations-web/work";
 import type { ReviewData } from "@merit/reviews-web/contracts";
-import { ReviewWork, ReviewOverview } from "@merit/reviews-web/work";
+import { ReviewWork, ReviewOverview, type ReviewWorkspace } from "@merit/reviews-web/work";
 import { ActionMenu } from "@merit/ui/action-menu";
-import { Badge } from "@merit/ui/badge";
 import { Button } from "@merit/ui/button";
 import { Icon } from "@merit/ui/icon";
 import { PageHeader } from "@merit/ui/page-header";
@@ -58,19 +56,15 @@ export const ApplicationView = (props: ApplicationViewProps) => {
     tab = "evidence",
     onTabChange,
   } = props;
-  const state = useApplicationNavigation({ tab, onTabChange, editorOpen: Boolean(editor) });
   // A withdrawn application keeps its reviews and recommendation readable but accepts no work.
   const locked = readOnly || isWithdrawn(application);
-  const { inspectHistory, revealIntake } = state;
   const history = intake?.data.state.history ?? intakeState?.history ?? [];
-
-  const work = (selected?: string) => (
+  return (
     <ReviewWork
       application={application}
       round={round}
       data={locked ? null : reviewData}
-      selectedId={selected}
-      onInspectVersion={inspectHistory}
+      disabled={Boolean(editor)}
       availableApplicationVersions={
         intake?.data.state.materialVersions ??
         intakeState?.materialVersions ??
@@ -82,22 +76,37 @@ export const ApplicationView = (props: ApplicationViewProps) => {
             )
           : undefined)
       }
-    />
-  );
-
-  return (
-    <ApplicationIntake application={application} session={intake} onReveal={revealIntake}>
-      {(content) => (
-        <ApplicationLayout
+    >
+      {(review) => (
+        <ApplicationWorkspace
           {...props}
-          readOnly={readOnly}
+          review={review}
           locked={locked}
-          content={content}
-          state={state}
           history={history}
-          work={work}
+          tab={tab}
+          onTabChange={onTabChange}
         />
       )}
+    </ReviewWork>
+  );
+};
+
+const ApplicationWorkspace = (
+  props: ApplicationViewProps & {
+    review: ReviewWorkspace;
+    locked: boolean;
+    history: NonNullable<IntakeState["history"]>;
+  },
+) => {
+  const { application, intake, editor, review, tab = "evidence", onTabChange } = props;
+  const state = useApplicationNavigation({
+    tab,
+    onTabChange,
+    editorOpen: Boolean(editor) || review.active,
+  });
+  return (
+    <ApplicationIntake application={application} session={intake} onReveal={state.revealIntake}>
+      {(content) => <ApplicationLayout {...props} content={content} state={state} />}
     </ApplicationIntake>
   );
 };
@@ -107,12 +116,12 @@ type ApplicationLayoutProps = ApplicationViewProps & {
   content: Parameters<ComponentProps<typeof ApplicationIntake>["children"]>[0];
   state: ReturnType<typeof useApplicationNavigation>;
   history: NonNullable<IntakeState["history"]>;
-  work: (selected?: string) => ReactNode;
+  review: ReviewWorkspace;
 };
 
 const ApplicationLayout = (props: ApplicationLayoutProps) => {
   const { t } = useTranslation(["fundingRounds", "reviews"]);
-  const { editor, content } = props;
+  const { editor, content, review } = props;
   const labels: Record<ApplicationReference, string> = {
     evidence: t("workspace.submission"),
     reviews: t("workspace.assessments"),
@@ -124,9 +133,20 @@ const ApplicationLayout = (props: ApplicationLayoutProps) => {
     <div className={styles.view}>
       <ReferenceWorkspace
         header={<ApplicationHeader {...props} />}
-        toWorkLabel={t(editor ? "workspace.toEditor" : "workspace.toOverview")}
+        toWorkLabel={t(
+          editor
+            ? "workspace.toEditor"
+            : review.active
+              ? "workspace.toReviewTask"
+              : "workspace.toOverview",
+        )}
         toReferenceLabel={t("workspace.browseReference")}
-        after={content.feedback}
+        after={
+          <>
+            {content.feedback}
+            {review.feedback}
+          </>
+        }
       >
         <ApplicationReferencePane {...props} labels={labels} />
         <ApplicationWorkPane {...props} />
@@ -135,59 +155,34 @@ const ApplicationLayout = (props: ApplicationLayoutProps) => {
   );
 };
 
-const ApplicationHeader = ({
-  application,
-  content,
-  readOnly,
-  navigation,
-  state,
-}: ApplicationLayoutProps) => {
+const ApplicationHeader = ({ application, content, navigation }: ApplicationLayoutProps) => {
   const { t } = useTranslation(["fundingRounds", "reviews"]);
-  const { money } = useFormat();
-  const { inspectHistory, changeReference } = state;
   return (
     <PageHeader
       density="compact"
       title={content.title}
-      description={
-        <div className={styles.headerMeta}>
-          {application.submission?.organization && (
-            <span>{application.submission.organization}</span>
-          )}
-          <strong>
-            {application.requested === null
-              ? t("intake.unknownAmount")
-              : t("applications.requestAmount", { amount: money(application.requested) })}
-          </strong>
-          <span>{t("workspace.version", { version: application.version })}</span>
-          <Button variant="quiet" size="small" onPress={() => inspectHistory()}>
-            {t("workspace.viewHistory")}
-            <Icon name="right" />
-          </Button>
-        </div>
-      }
+      description={application.submission?.organization}
       actions={
         <>
-          {readOnly && <Badge>{t("mode.readOnly")}</Badge>}
           {navigation}
-          <ActionMenu
-            label={t("intake.moreActions")}
-            trigger={
-              <Button
-                size="small"
-                variant="quiet"
-                iconOnly
-                isDisabled={content.menu.disabled}
-                aria-label={t("intake.moreActions")}
-              >
-                <Icon name="more" />
-              </Button>
-            }
-            items={[...content.menu.items, { id: "reviews", label: t("workspace.allReviews") }]}
-            onAction={(action) =>
-              action === "reviews" ? changeReference("reviews") : content.menu.onAction(action)
-            }
-          />
+          {content.menu.items.length > 0 && (
+            <ActionMenu
+              label={t("intake.moreActions")}
+              trigger={
+                <Button
+                  size="small"
+                  variant="quiet"
+                  iconOnly
+                  isDisabled={content.menu.disabled}
+                  aria-label={t("intake.moreActions")}
+                >
+                  <Icon name="more" />
+                </Button>
+              }
+              items={content.menu.items}
+              onAction={content.menu.onAction}
+            />
+          )}
         </>
       }
     />
@@ -197,12 +192,11 @@ const ApplicationHeader = ({
 const ApplicationReferencePane = ({
   labels,
   application,
-  editor,
   content,
   state,
   history,
   intake,
-  work,
+  review,
 }: ApplicationLayoutProps & { labels: Record<ApplicationReference, string> }) => {
   const { t } = useTranslation(["fundingRounds", "reviews"]);
   const {
@@ -219,16 +213,14 @@ const ApplicationReferencePane = ({
       label={t("workspace.reference")}
       viewportRef={referenceViewport}
       toolbar={
-        editor && (
-          <ReferenceSwitcher
-            label={t("workspace.reference")}
-            triggerLabel={t("workspace.referenceLabel", { name: labels[reference] })}
-            options={labels}
-            selected={reference}
-            onChange={changeReference}
-            triggerRef={referenceMenu}
-          />
-        )
+        <ReferenceSwitcher
+          label={t("workspace.reference")}
+          triggerLabel={t("workspace.referenceLabel", { name: labels[reference] })}
+          options={labels}
+          selected={reference}
+          onChange={changeReference}
+          triggerRef={referenceMenu}
+        />
       }
     >
       {Object.keys(labels).map((key) => (
@@ -240,23 +232,17 @@ const ApplicationReferencePane = ({
           }
           hidden={reference !== key}
         >
-          {key !== "evidence" && !editor && (
+          {key === "history" && (
             <div className={styles.historyHeading}>
-              <Button variant="quiet" size="small" onPress={() => changeReference("evidence")}>
-                <Icon name="left" />
-                {t("workspace.backApplication")}
-              </Button>
-              {key !== "reviews" && (
-                <h2 ref={key === "history" ? historyHeading : undefined} tabIndex={-1}>
-                  {labels[key as ApplicationReference]}
-                </h2>
-              )}
+              <h2 ref={historyHeading} tabIndex={-1}>
+                {labels.history}
+              </h2>
             </div>
           )}
           {key === "evidence" ? (
             content.evidence
           ) : key === "reviews" ? (
-            work()
+            review.content(state.inspectHistory)
           ) : key === "details" ? (
             content.details
           ) : (
@@ -268,16 +254,13 @@ const ApplicationReferencePane = ({
               {(page) => (
                 <PagedContent {...page}>
                   {(entries, hasMore) => (
-                    <>
-                      <ApplicationHistory
-                        key={`${application.id}:${historyVisit}`}
-                        application={application}
-                        history={entries}
-                        hasMore={hasMore}
-                        initialFromVersion={historyFrom}
-                      />
-                      {Boolean(entries.length) && <ApplicationAuditHistory history={entries} />}
-                    </>
+                    <ApplicationHistoryContent
+                      key={`${application.id}:${historyVisit}`}
+                      application={application}
+                      history={entries}
+                      hasMore={hasMore}
+                      initialFromVersion={historyFrom}
+                    />
                   )}
                 </PagedContent>
               )}
@@ -297,56 +280,64 @@ const ApplicationWorkPane = ({
   content,
   locked,
   recommendationAction,
-  work,
+  review,
   state,
 }: ApplicationLayoutProps) => {
   const { t } = useTranslation(["fundingRounds", "reviews"]);
-  const {
-    selectedId,
-    selectedHeading,
-    back,
-    changeReference,
-    selectReview,
-    registerReviewTrigger,
-  } = state;
+  const { changeReference } = state;
+  const active = Boolean(editor) || review.active;
   return (
     <WorkPane
       label={t("workspace.title")}
-      fill={Boolean(editor)}
-      title={
-        (editor || selectedId) && t(editor ? "applications.recommendation" : "workspace.assessment")
-      }
-      titleRef={selectedHeading}
-      titleActions={
-        editor ? (
-          editorCloseAction
-        ) : (
-          <Button variant="quiet" size="small" onPress={back}>
-            <Icon name="left" />
-            {t("workspace.backOverview")}
-          </Button>
-        )
-      }
+      fill={Boolean(editor) || review.fill}
+      title={active && (editor ? t("applications.recommendation") : review.editorTitle)}
+      titleActions={editor ? editorCloseAction : review.editorCloseAction}
     >
-      {editor ? (
-        <div className={styles.recommendation}>{editor}</div>
-      ) : selectedId ? (
-        work(selectedId)
-      ) : (
+      <ApplicationTaskContent editor={editor} review={review} notice={content.notice} />
+      {!active && (
         <ApplicationWorkOverview
           application={application}
           manager={round.manager}
+          onInspectVersion={state.inspectHistory}
           overview={content.overview}
           readOnly={locked}
           recommendationAction={recommendationAction}
-          onShowAll={() => changeReference("reviews")}
-          onSelect={selectReview}
-          triggerRef={registerReviewTrigger}
+          actions={review.actions}
+          onShowAll={() => {
+            review.reading.showAll();
+            changeReference("reviews");
+          }}
+          onSelect={(id) => {
+            changeReference("reviews", false);
+            review.reading.openReview(id);
+          }}
+          triggerRef={review.reading.registerTrigger}
         />
       )}
     </WorkPane>
   );
 };
+
+const ApplicationTaskContent = ({
+  editor,
+  review,
+  notice,
+}: {
+  editor?: ReactNode;
+  review: ReviewWorkspace;
+  notice: ReactNode;
+}) => (
+  <>
+    {notice && <div className={styles.workspaceNotice}>{notice}</div>}
+    {editor && <div className={styles.recommendation}>{editor}</div>}
+    <div
+      hidden={Boolean(editor) || !review.active}
+      className={review.fill ? styles.recommendation : undefined}
+    >
+      {review.editor}
+    </div>
+  </>
+);
 
 const ApplicationWorkOverview = ({
   application,
@@ -357,11 +348,14 @@ const ApplicationWorkOverview = ({
   onShowAll,
   onSelect,
   triggerRef,
+  actions,
+  onInspectVersion,
 }: ComponentProps<typeof ReviewOverview> & {
   manager: ApplicationRoundContext["manager"];
   overview: ReactNode;
   readOnly: boolean;
   recommendationAction?: ReactNode;
+  onInspectVersion: (version: number) => void;
 }) => (
   <div className={styles.context}>
     {overview}
@@ -370,6 +364,7 @@ const ApplicationWorkOverview = ({
         application={application}
         manager={manager}
         action={!readOnly && recommendationAction}
+        onInspectVersion={onInspectVersion}
       />
     ) : null}
     <ReviewOverview
@@ -377,6 +372,7 @@ const ApplicationWorkOverview = ({
       onShowAll={onShowAll}
       onSelect={onSelect}
       triggerRef={triggerRef}
+      actions={actions}
     />
     {application.intakeStatus === "in_preparation" &&
       !application.managerRecommendation &&
@@ -384,3 +380,17 @@ const ApplicationWorkOverview = ({
       recommendationAction}
   </div>
 );
+
+const ApplicationHistoryContent = (props: ComponentProps<typeof ApplicationHistory>) => {
+  const [inspectingAudit, setInspectingAudit] = useState(false);
+  return (
+    <>
+      <div hidden={inspectingAudit}>
+        <ApplicationHistory {...props} />
+      </div>
+      {Boolean(props.history.length) && (
+        <ApplicationAuditHistory history={props.history} onInspect={setInspectingAudit} />
+      )}
+    </>
+  );
+};

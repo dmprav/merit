@@ -11,14 +11,6 @@ export const reviewCommand = (
 ): { change: ReviewChange; baseline: ReviewBaseline } => {
   let change: ReviewChange;
   switch (draft.mode) {
-    case "request":
-      change = {
-        action: "request",
-        id: draft.id,
-        contactId: values.contactId,
-        replacesId: draft.replacesId,
-      };
-      break;
     case "edit":
       change = {
         action: "edit",

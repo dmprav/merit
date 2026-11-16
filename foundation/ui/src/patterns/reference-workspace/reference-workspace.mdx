@@ -25,8 +25,9 @@ and links named by `toWorkLabel` and `toReferenceLabel` move between them.
   scattering buttons across the page.
 - `ReferencePane` holds the material people consult. Add a `ReferenceSwitcher`
   when there is more than one kind of material, such as the application and its
-  criteria. Keep each choice mounted with `hidden` so reading positions and
-  unfinished input survive switching.
+  criteria. Keep the switcher in the same place when reading and editing, with
+  the same labels for the same destinations. Keep each choice mounted with
+  `hidden` so reading positions and unfinished input survive switching.
 - `WorkPane` holds the task. A `title` gives it a pane header for state actions,
   such as closing an editor or starting an amendment. `footer` keeps status and
   the commitment action visible; on stacked screens it stays at the bottom of the
@@ -34,19 +35,48 @@ and links named by `toWorkLabel` and `toReferenceLabel` move between them.
   body and footer.
 
 Use `as="section"` for a work pane that is the page's main task, and the default
-`aside` when it supports the reference. Supply a `WorkPane` alone when no reference
-material is available yet, such as before a reviewer accepts an invitation; it
-then uses the full width.
+`aside` when it supports the reference. Supply a `WorkPane` alone when sustained
+work needs this frame without reference material; it then uses the full width.
+When no task is open, the work pane can summarize facts and progress without
+repeating the reference material. Opening sustained editing replaces that overview
+with one task. Keep its controller and draft above this presentation choice, and
+restore a useful trigger and reading position on Close. Reserve dialogs for short
+actions that need their own focused surface.
+
+For a short entry task, such as accepting an invitation, use a bounded page
+composition sized to its content instead of reserving a full-height workspace.
 
 <Canvas of={Workspace.WorkOnly} story={{ inline: false, height: "320px" }} />
 
 ## Keep reading position and focus
+
+Inspect substantial supporting material in the reference pane while an editor is
+open. Keep the editor mounted and its actions available. Within a reference, an
+explicit detail view and Back action give long assessments and history enough
+reading space without covering the work with another overlay. Returning restores
+the originating control and reading position. Small value pickers and bounded
+forms can still use the shared dialog patterns.
 
 `useReferenceViewport` tracks the chosen reference and restores each one's scroll
 position when people return to it. Switching moves focus to the reference viewport
 so keyboard users can scroll it. Pass `focusViewport: false` while an editor beside
 it should keep focus. The feature owns which references exist, any URL state that
 selects them, and focus targets inside its content.
+
+For list/detail navigation inside a pane, `useReadingNavigation` owns the visit
+trail, heading focus, and restoration of reading position. Attach its `root` and
+`heading` refs to the current view. Call `open` with the feature's destination and
+a function that resolves the originating control after it remounts; `back` restores
+that control's focus and the saved scroll position. Use `previous` to label Back
+with its actual destination. The feature owns destination types and content.
+An optional initial destination opens an existing selection. Use `reset` to replace
+the trail when opening a selection from outside the pane, supplying its return
+control; call it without a destination to show the list. This keeps external
+selection and nested inspection in one navigation owner without remounting content.
+The hook follows the physical scroll owner for nested dialogs and document
+scrolling for stacked or standalone content; it does not change the selected
+reference. Its owner can live above the pane; attach the refs to the rendered
+reading content so it can locate that pane.
 
 The [application overview](?path=/story/features-applications-overview--evidence),
 [recommendation editor](?path=/story/features-applications-recommendation--resume-editing),

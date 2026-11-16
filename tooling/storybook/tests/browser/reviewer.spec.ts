@@ -86,7 +86,7 @@ test("reviewer recovery and long content remain readable @cross-browser", async 
 test("reviewer dialogs fit the screen and return keyboard focus @cross-browser", async ({
   page,
 }, testInfo) => {
-  // Reviewer participation actions open from the page's More actions menu.
+  // Occasional reviewer and manager commands reopen through their More actions menu.
   for (const [id, title, trigger, menuItem] of [
     [
       `${reviewer}--report-conflict`,
@@ -97,7 +97,12 @@ test("reviewer dialogs fit the screen and return keyboard focus @cross-browser",
     [`${reviewer}--withdraw`, "Withdraw from this review?", "More actions", "Withdraw from review"],
     [`${manager}--invite`, "Invite reviewer", "Invite reviewer", null],
     [`${manager}--conflict-resolution`, "Clear conflict", "Clear conflict", null],
-    [`${manager}--end-access`, "End Sam Morgan’s access?", "End access", null],
+    [
+      `${manager}--end-access`,
+      "End Sam Morgan’s access?",
+      "More actions for Sam Morgan",
+      "End access",
+    ],
   ] as const) {
     await page.goto(`/iframe.html?id=${id}&viewMode=story`);
     await expect(page.locator("#storybook-root")).toHaveAttribute("data-story-ready", "true");
@@ -171,7 +176,13 @@ test("reviewer validation feedback stays with the writing task @cross-browser", 
   if (await toAssessment.isVisible()) {
     await toAssessment.click();
   }
-  await expect(page.getByRole("alert")).toBeInViewport();
+  const reasoning = page.getByRole("textbox", { name: "Overall reasoning", exact: true });
+  await page.getByRole("button", { name: "Submit assessment", exact: true }).click();
+  await expect(reasoning).toBeFocused();
+  await expect(reasoning).toHaveAttribute("aria-invalid", "true");
+  await expect(reasoning).toBeInViewport();
+  await expect(reasoning).toHaveAccessibleDescription(/Give the reasoning/);
+  await expect(page.getByRole("alert")).toHaveCount(0);
   await checkPage(page);
 });
 
@@ -200,7 +211,7 @@ test("reviewer writing supports enlarged text and display preferences @cross-bro
     }
     if (id.endsWith("--sending")) {
       await expect(
-        page.getByRole("dialog").getByRole("button", { name: "Invite reviewer", exact: true }),
+        page.getByRole("dialog").getByRole("button", { name: "Sending invitation…", exact: true }),
       ).toBeDisabled();
     }
   }

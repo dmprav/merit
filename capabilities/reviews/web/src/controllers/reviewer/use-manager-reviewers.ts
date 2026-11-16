@@ -1,102 +1,134 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useEffectEvent, useRef, useState } from "react";
 
+import { useWorkflowRefresh } from "@merit/query/refresh";
 import type { ReviewerSummary, ReviewerEvent } from "@merit/reviews/api";
 
 import type { ManagerReviewerData } from "../../contracts/reviewer";
 
-export const useManagerReviewers = (data: ManagerReviewerData, reviewRevision: number) => {
-  const [assignments, setAssignments] = useState<
-    (ReviewerSummary & { history?: ReviewerEvent[] })[]
-  >([]);
-  const [error, setError] = useState<string | null>(null);
+type Assignments = (ReviewerSummary & { history?: ReviewerEvent[] })[];
+
+type ManagerFailure = Exclude<Awaited<ReturnType<ManagerReviewerData["invite"]>>, { status: "ok" }>;
+
+export const useManagerReviewers = (
+  data: ManagerReviewerData | undefined,
+  reviewRevision: number,
+) => {
+  const [failure, setFailure] = useState<ManagerFailure | null>(null);
   const [pending, setPending] = useState(false);
-  const [loaded, setLoaded] = useState(false);
   const receipt = useRef<{ key: string; id: string } | null>(null);
-  const refresh = useCallback(async () => {
-    try {
-      const result = await data.read();
-      if (result.status === "ok") {
-        setAssignments(result.value);
-        setLoaded(true);
-        return true;
-      }
-    } catch {
-      /* Keep the last confirmed list available for retry. */
-    }
-    setError("unavailable");
-    return false;
-  }, [data]);
-  useEffect(() => {
-    void refresh();
-  }, [refresh, reviewRevision]);
+  const records = useReviewerAssignments(data, reviewRevision);
 
   const command = async (
     key: string,
     operation: (id: string) => ReturnType<ManagerReviewerData["invite"]>,
   ) => {
-    if (pending) {
+    if (!data || pending || records.refreshing) {
       return false;
     }
     const id = receipt.current?.key === key ? receipt.current.id : crypto.randomUUID();
     receipt.current = { key, id };
     setPending(true);
-    setError(null);
+    setFailure(null);
     let succeeded = false;
     try {
       const result = await operation(id);
       if (result.status !== "ok") {
-        setError(managerError(result));
+        setFailure(result);
         if (result.status !== "unavailable") {
           receipt.current = null;
         }
       } else {
         receipt.current = null;
-        await refresh();
-        try {
-          await data.refresh();
-        } catch {
-          setError("unavailable");
-        }
         succeeded = true;
+        await records.acceptSaved(result.value);
       }
     } catch {
-      setError("unavailable");
+      setFailure({ status: "unavailable" });
     }
     setPending(false);
     return succeeded;
   };
 
-  return {
-    assignments,
-    error,
-    pending,
-    loaded,
-    refresh,
-    invite: (requestId: string, due: string | null) =>
-      command(`invite:${requestId}:${due}`, (id) => data.invite(requestId, due, id)),
-    manage: (
-      assignment: ReviewerSummary,
-      action: Parameters<ManagerReviewerData["manage"]>[1],
-      note = "",
-    ) =>
-      command(`${assignment.id}:${assignment.revision}:${action}:${note}`, (id) =>
-        data.manage(assignment, action, note, id),
-      ),
-  };
+  return data
+    ? {
+        historySource: data.historySource,
+        assignments: records.assignments,
+        failure,
+        refreshError: records.refreshError,
+        pending: pending || records.refreshing,
+        loaded: records.loaded,
+        refresh: () => {
+          setFailure(null);
+          return records.retry();
+        },
+        invite: (requestId: string, due: string | null) =>
+          command(`invite:${requestId}:${due}`, (id) => data.invite(requestId, due, id)),
+        manage: (
+          assignment: ReviewerSummary,
+          action: Parameters<ManagerReviewerData["manage"]>[1],
+          note = "",
+        ) =>
+          command(`${assignment.id}:${assignment.revision}:${action}:${note}`, (id) =>
+            data.manage(assignment, action, note, id),
+          ),
+      }
+    : null;
 };
 
-const managerError = ({ status, error }: { status: string; error?: string }) => {
-  if (error === "workspace_membership_required") {
-    return "reviewerMembershipRequired";
-  }
-  if (error === "application_withdrawn") {
-    return "applicationWithdrawn";
-  }
-  if (status === "limited") {
-    return "limited";
-  }
-  if (status === "invalid") {
-    return "inviteInvalid";
-  }
-  return status === "conflict" ? "stale" : "unavailable";
+/** Retains confirmed assignments and owns read recovery independently of command outcomes. */
+const useReviewerAssignments = (data: ManagerReviewerData | undefined, reviewRevision: number) => {
+  const [assignments, setAssignments] = useState<Assignments>([]);
+  const [loaded, setLoaded] = useState(false);
+  const savedRefreshPending = useRef(false);
+  const readAssignments = useCallback(async () => {
+    if (!data) {
+      return;
+    }
+    const result = await data.read();
+    if (result.status !== "ok") {
+      throw new Error("Reviewer assignments could not be loaded");
+    }
+    setAssignments(result.value);
+    setLoaded(true);
+  }, [data]);
+  const { refresh, refreshError, refreshing } = useWorkflowRefresh(async (context) => {
+    await readAssignments();
+    if (context === "saved") {
+      await data?.refresh();
+    }
+  });
+
+  const refreshSaved = async () => {
+    savedRefreshPending.current = true;
+    await refresh("saved");
+    savedRefreshPending.current = false;
+  };
+
+  const retry = () => (refreshError === "saved" ? refreshSaved() : refresh("read"));
+
+  const refreshAssignments = useEffectEvent(() => {
+    // A saved refresh already reloads assignments; a partial read must not clear its outcome.
+    if (!savedRefreshPending.current) {
+      void retry();
+    }
+  });
+  useEffect(() => {
+    refreshAssignments();
+  }, [readAssignments, reviewRevision]);
+
+  return {
+    assignments,
+    loaded,
+    refreshError,
+    refreshing,
+    retry,
+    acceptSaved: async (assignment: ReviewerSummary) => {
+      setAssignments((current) =>
+        current.some((item) => item.id === assignment.id)
+          ? current.map((item) => (item.id === assignment.id ? { ...item, ...assignment } : item))
+          : [...current, assignment],
+      );
+      await refreshSaved();
+    },
+  };
 };

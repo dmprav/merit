@@ -70,6 +70,7 @@
 
 .popover[data-appearance="compact"] {
   width: min(20rem, calc(100vw - 32px));
+  scroll-padding-block: var(--space-3);
 }
 
 .popover[data-appearance="compact"] .dialog {
@@ -244,6 +245,7 @@
 
 .overlay:is([data-placement="center"], [data-placement="end"]) .context {
   flex: 1 1 12rem;
+  white-space: normal;
 }
 
 .overlay:is([data-placement="center"], [data-placement="end"]) .title {

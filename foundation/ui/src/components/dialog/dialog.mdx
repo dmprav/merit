@@ -8,15 +8,16 @@ import * as Dialog from "./dialog.stories";
 Use a dialog for a bounded task or reference material that should preserve the
 surrounding work. Choose the composition by what the person needs to do:
 
-| Task                                 | Composition                                                                |
-| ------------------------------------ | -------------------------------------------------------------------------- |
-| Read short information               | `ModalDialog` with `DialogContent`.                                        |
-| Read substantial evidence or history | A wide `ModalDialog` with `DialogContent`; use `reading` for prose.        |
-| Browse records related to a row      | `ModalDialog` with `placement="end"` and `DialogContent`.                  |
-| Create or edit a record              | [Form dialog](?path=/docs/patterns-form-dialog--docs), sized for the task. |
-| Authorize a consequential action     | [Confirmation dialog](?path=/docs/patterns-confirmation-dialog--docs).     |
-| Jump to a record by name             | `ModalDialog` with `appearance="search"`.                                  |
-| Work beside an individual value      | `PopoverDialog`, with content and actions appropriate to that small task.  |
+| Task                                          | Composition                                                                                    |
+| --------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Read short information                        | `ModalDialog` with `DialogContent`.                                                            |
+| Read substantial evidence during another task | The reference pane in a [reference workspace](?path=/docs/patterns-reference-workspace--docs). |
+| Browse records related to a row               | `ModalDialog` with `placement="end"` and `DialogContent`.                                      |
+| Complete a short form                         | [Form dialog](?path=/docs/patterns-form-dialog--docs), sized for the task.                     |
+| Write while consulting evidence               | A `Form` in the reference workspace's work pane.                                               |
+| Authorize a consequential action              | [Confirmation dialog](?path=/docs/patterns-confirmation-dialog--docs).                         |
+| Jump to a record by name                      | `ModalDialog` with `appearance="search"`.                                                      |
+| Work beside an individual value               | `PopoverDialog`, with content and actions appropriate to that small task.                      |
 
 The shared frame owns the backdrop, focus containment, accessible title, close
 control, and motion. Centered dialogs and standard popovers have a compact tinted
@@ -100,8 +101,9 @@ and tinted footer through this layout, with width chosen for the task.
 
 For work within a fixed parent, supply `context` and a localized `contextLabel`
 when the relationship needs naming, such as “Round: Community grants”. The title
-and context share a compact row where space permits; long context wraps while
-the close control stays reachable. Omit context when it adds no useful orientation.
+and context share a compact row where space permits. Long context wraps in reading
+order on every screen, while the close control stays reachable.
+Omit context when it adds no useful orientation.
 
 Supply `closeLabel` from the message catalog. The close control and Escape use
 the same dismissal path. Enable backdrop dismissal only when it fits the task.

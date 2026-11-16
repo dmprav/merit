@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ComponentProps } from "react";
 import { expect, it, vi } from "vite-plus/test";
@@ -19,7 +19,7 @@ const revision = {
 const states = [
   {
     name: "preparation",
-    heading: "Application preparation",
+    heading: "Applicant submission",
     badge: "In preparation",
     action: "Mark ready for review",
     command: "markReady",
@@ -27,15 +27,15 @@ const states = [
   },
   {
     name: "ready",
-    heading: "Manage submission",
+    heading: "Applicant submission",
     badge: "Ready for review",
-    action: "Start revised submission",
-    command: "startRevision",
+    action: null,
+    command: null,
     workingRevision: null,
   },
   {
     name: "revision",
-    heading: "Working revision",
+    heading: "Applicant submission",
     badge: null,
     action: "Record revision",
     command: "publishRevision",
@@ -43,7 +43,7 @@ const states = [
   },
   {
     name: "correction",
-    heading: "Working correction",
+    heading: "Applicant submission",
     badge: null,
     action: "Record revision",
     command: "publishRevision",
@@ -53,6 +53,8 @@ const states = [
 
 const renderControls = (state: (typeof states)[number]) => {
   const intake: ComponentProps<typeof IntakeControls>["intake"] = {
+    confirmation: null,
+    error: null,
     ready: true,
     application: {
       ...application,
@@ -65,22 +67,18 @@ const renderControls = (state: (typeof states)[number]) => {
     section: null,
     unsavedContent: false,
     missingFields: [],
-    canStartRevision: state.name === "ready",
     pending: false,
-    startRevision: vi.fn().mockResolvedValue(null),
     markReady: vi.fn().mockResolvedValue(null),
     publishRevision: vi.fn().mockResolvedValue(null),
   };
-  const onReveal = vi.fn();
-  const { rerender } = render(<IntakeControls intake={intake} onReveal={onReveal} />, {
+  const { rerender } = render(<IntakeControls intake={intake} />, {
     wrapper: GrantmakingMessagesProvider,
   });
   return {
     intake,
-    onReveal,
     user: userEvent.setup(),
     update: (changes: Partial<typeof intake>) =>
-      rerender(<IntakeControls intake={{ ...intake, ...changes }} onReveal={onReveal} />),
+      rerender(<IntakeControls intake={{ ...intake, ...changes }} />),
   };
 };
 
@@ -90,14 +88,19 @@ const statusBadges = () =>
     .map((node) => node.textContent);
 
 it.each(states)("keeps $name status visible while its action is pending", async (state) => {
-  const { intake, onReveal, user, update } = renderControls(state);
+  const { intake, user, update } = renderControls(state);
   expect(screen.getByRole("heading", { name: state.heading })).toBeVisible();
   expect(statusBadges()).toEqual(state.badge ? [state.badge] : []);
+  if (!state.action) {
+    expect(
+      screen.queryByRole("button", { name: "Start revised submission" }),
+    ).not.toBeInTheDocument();
+    return;
+  }
   const action = screen.getByRole("button", { name: state.action });
   expect(action).toBeEnabled();
   await user.click(action);
   expect(intake[state.command]).toHaveBeenCalledOnce();
-  expect(onReveal).toHaveBeenCalledTimes(state.name === "ready" ? 1 : 0);
 
   update({ pending: true });
   expect(action).toBeDisabled();
@@ -113,7 +116,7 @@ it.each(states.filter((state) => state.name !== "ready"))(
     const { intake, user, update } = renderControls(state);
     update({ unsavedContent: true });
     expect(screen.getByRole("heading", { name: state.heading })).toBeVisible();
-    expect(statusBadges()).toEqual(["Unsaved edits"]);
+    expect(statusBadges()).toEqual([...(state.badge ? [state.badge] : []), "Unsaved edits"]);
     const action = screen.getByRole("button", { name: state.action });
     expect(action).toBeDisabled();
     expect(screen.getByText(/Save or discard your unsaved application edits/)).toBeVisible();
@@ -122,7 +125,7 @@ it.each(states.filter((state) => state.name !== "ready"))(
 
     update({ unsavedContent: true, section: "content" });
     expect(screen.queryByRole("button", { name: state.action })).not.toBeInTheDocument();
-    expect(statusBadges()).toEqual(["Unsaved edits"]);
+    expect(statusBadges()).toEqual([...(state.badge ? [state.badge] : []), "Unsaved edits"]);
 
     update({ section: "details" });
     expect(screen.getByRole("button", { name: state.action })).toBeEnabled();
@@ -155,6 +158,8 @@ it("shows the withdrawal facts and offers only reinstatement while withdrawn", a
   render(
     <IntakeControls
       intake={{
+        confirmation: null,
+        error: null,
         ready: true,
         application: {
           ...application,
@@ -171,21 +176,19 @@ it("shows the withdrawal facts and offers only reinstatement while withdrawn", a
         section: null,
         unsavedContent: false,
         missingFields: [],
-        canStartRevision: false,
         pending: false,
-        startRevision: vi.fn(),
         markReady: vi.fn(),
         publishRevision: vi.fn(),
         setConfirmation,
       }}
-      onReveal={vi.fn()}
     />,
     { wrapper: GrantmakingMessagesProvider },
   );
 
-  expect(screen.getByRole("heading", { name: "Withdrawn application" })).toBeVisible();
+  expect(screen.getByRole("heading", { name: "Applicant submission" })).toBeVisible();
   expect(screen.queryByRole("heading", { name: "Manage submission" })).not.toBeInTheDocument();
-  expect(screen.getByText("Withdrawn")).toBeVisible();
+  expect(screen.queryByText("Withdrawn", { exact: true })).not.toBeInTheDocument();
+  expect(screen.getByRole("region", { name: "Withdrawn" })).toBeVisible();
   expect(screen.queryByText("Ready for review")).not.toBeInTheDocument();
   expect(screen.getByText(/3 February 2027/)).toBeVisible();
   expect(screen.getByText("Recorded by Dana Reed")).toBeVisible();
@@ -197,4 +200,16 @@ it("shows the withdrawal facts and offers only reinstatement while withdrawn", a
 
   await userEvent.setup().click(screen.getByRole("button", { name: "Reinstate application" }));
   expect(setConfirmation).toHaveBeenCalledWith("reinstate");
+});
+
+it("keeps a failed revision recording beside its action without repeating it in confirmations", () => {
+  const { update } = renderControls(states[2]);
+  update({ error: { status: "unavailable" } });
+
+  const preparation = within(screen.getByRole("region", { name: "Application preparation" }));
+  expect(preparation.getByRole("alert")).toHaveTextContent("Could not save the application");
+  expect(preparation.getByRole("button", { name: "Record revision" })).toBeEnabled();
+
+  update({ error: { status: "unavailable" }, confirmation: "discard_revision" });
+  expect(preparation.queryByRole("alert")).not.toBeInTheDocument();
 });

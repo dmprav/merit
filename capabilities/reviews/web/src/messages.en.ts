@@ -30,7 +30,7 @@ export const en = {
   workspace: {
     allReviews: "Manage reviews",
     noPosition: "No position recorded",
-    earlierBasis: "Earlier submission v{{version}}",
+    earlierBasis: "Based on an earlier submission",
     reviewedBasis: "Reviewed v{{version}}",
     requestedBasis: "Requested v{{version}}",
   },

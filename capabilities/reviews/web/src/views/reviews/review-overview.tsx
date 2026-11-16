@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import { type ApplicationView as Application } from "@merit/grantmaking/api";
@@ -16,7 +17,9 @@ export const ReviewOverview = ({
   onShowAll,
   onSelect,
   triggerRef,
+  actions,
 }: {
+  actions?: ReactNode;
   application: Application;
   onShowAll: () => void;
   onSelect: (id: string) => void;
@@ -38,15 +41,14 @@ export const ReviewOverview = ({
       <div className={styles.sectionHeading}>
         <h2>{t("assessments.shortTitle")}</h2>
         <Button variant="quiet" size="small" onPress={onShowAll}>
-          {t("workspace.allReviews")}
+          {t("reviews:allAssessments")}
         </Button>
       </div>
       <p className={styles.meta}>{status}</p>
+      {actions}
       <div className={styles.reviewList}>
         {application.assessments.map((assessment) => {
-          const request = application.reviews.requests.find((item) => item.id === assessment.id);
           const reviewed = assessment.submission;
-          const version = reviewed?.applicationVersion ?? request?.applicationVersion;
 
           return (
             <Button
@@ -74,32 +76,44 @@ export const ReviewOverview = ({
                       {t("reviews:proposed", { amount: money(reviewed.recommendation.allocation) })}
                     </span>
                   )}
-                  <span className={styles.judgmentBasis}>
-                    {assessment.status === "outdated" && (
-                      <span className={styles.attentionDot} aria-hidden="true" />
-                    )}
-                    <span>
-                      {version == null
-                        ? t("reviews:applicationBasisUnknown")
-                        : t(
-                            reviewed
-                              ? version !== application.version
-                                ? "workspace.earlierBasis"
-                                : "workspace.reviewedBasis"
-                              : "workspace.requestedBasis",
-                            { version },
-                          )}
-                    </span>
-                    {assessment.criteriaChanged && <span>{t("reviews:criteriaChanged")}</span>}
-                    {assessment.criteriaUnknown && <span>{t("reviews:criteriaBasisUnknown")}</span>}
-                  </span>
                 </span>
-                {reviewed && <span className={styles.prose}>{reviewed.reasoning}</span>}
+                <ReviewChoiceBasis application={application} assessment={assessment} />
               </span>
             </Button>
           );
         })}
       </div>
     </section>
+  );
+};
+
+const ReviewChoiceBasis = ({
+  application,
+  assessment,
+}: {
+  application: Application;
+  assessment: Application["assessments"][number];
+}) => {
+  const { t } = useTranslation(["reviewGrant", "reviews"]);
+  const request = application.reviews.requests.find((item) => item.id === assessment.id);
+  const reviewed = assessment.submission;
+  const version = reviewed?.applicationVersion ?? request?.applicationVersion;
+  return (
+    <span className={styles.judgmentBasis}>
+      <span>
+        {version == null
+          ? t("reviews:applicationBasisUnknown")
+          : t(
+              reviewed
+                ? version !== application.version
+                  ? "workspace.earlierBasis"
+                  : "workspace.reviewedBasis"
+                : "workspace.requestedBasis",
+              { version },
+            )}
+      </span>
+      {assessment.criteriaChanged && <span>{t("reviews:criteriaChanged")}</span>}
+      {assessment.criteriaUnknown && <span>{t("reviews:criteriaBasisUnknown")}</span>}
+    </span>
   );
 };

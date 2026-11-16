@@ -139,9 +139,7 @@ export const Validation: Story = {
     await userEvent.click(canvas.getByRole("button", { name: "Save recommendation" }));
 
     await waitFor(() => expect(amount).toHaveFocus());
-    await expect(amount).toHaveAccessibleDescription(
-      /Enter an amount with no more than two decimal places/,
-    );
+    await expect(amount).toHaveAccessibleDescription(/Enter an amount\./);
   },
 };
 

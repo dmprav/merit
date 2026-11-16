@@ -21,11 +21,13 @@ export type ReviewerErrorKey =
 export const ReviewerFeedback = ({ work }: { work: ReviewerWork }) => {
   const { t } = useTranslation("reviewer");
   const error = work.error as ReviewerErrorKey | null;
-  if (!error || work.conflict) {
+  const status = work.page.assignment.status;
+  const accessExplained = ["cancelled", "declined", "conflict"].includes(status);
+  if (!error || work.conflict || (error === "accessLost" && accessExplained)) {
     return null;
   }
   return (
-    <Notice role="alert" tone="danger">
+    <Notice appearance="inline" role="alert" tone="danger">
       {t(error)}{" "}
       {error !== "submissionInvalid" && (
         <Button variant="quiet" onPress={() => void work.refresh()}>

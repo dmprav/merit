@@ -1,74 +1,184 @@
+import { useRef, type Ref } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { IntakeState } from "@merit/applications-web/contracts";
 import { useFormat } from "@merit/i18n/format";
 import { decodeMoney } from "@merit/money";
 import { ActionProvenance } from "@merit/ui/action-provenance";
-import { DescriptionList, DescriptionListItem } from "@merit/ui/description-list";
+import { Button } from "@merit/ui/button";
+import { Icon } from "@merit/ui/icon";
 import { Inline } from "@merit/ui/layout";
+import { Notice } from "@merit/ui/notice";
+import { useReadingNavigation } from "@merit/ui/reference-workspace";
 import { Timestamp } from "@merit/ui/timestamp";
 
 import styles from "./application-audit-history.module.css";
+import { HistoricalApplication, SnapshotComparison } from "./application-history";
+import type { HistorySnapshot } from "./application-history-model";
 
 /** Complete recorded intake activity, including changes within a submission version. */
-export const ApplicationAuditHistory = ({ history }: { history: IntakeState["history"] }) => {
+export const ApplicationAuditHistory = ({
+  history,
+  onInspect,
+}: {
+  history: readonly IntakeState["history"][number][];
+  onInspect?: (inspecting: boolean) => void;
+}) => {
   const { t } = useTranslation(["fundingRounds", "common"]);
   const { calendarDate } = useFormat();
+  const {
+    destination: selectedRevision,
+    root,
+    heading,
+    open,
+    back,
+  } = useReadingNavigation<number>();
+  const selected = history.find((entry) => entry.revision === selectedRevision);
+  const triggers = useRef(new Map<number, HTMLButtonElement>());
+
+  if (selected) {
+    return (
+      <HistoricalChange
+        entry={selected}
+        rootRef={root}
+        headingRef={heading}
+        onBack={() => {
+          back();
+          onInspect?.(false);
+        }}
+      />
+    );
+  }
 
   return (
-    <details className={styles.history}>
-      <summary>{t("intake.history")}</summary>
+    <section ref={root} className={styles.history} aria-label={t("intake.history")}>
+      <h2>{t("intake.history")}</h2>
       {history.length === 0 && <p>{t("intake.unrecordedHistory")}</p>}
-      <ol>
-        {history.map((entry) => (
-          <li key={entry.revision}>
-            <p>
-              <strong>{t(historyLabel(entry.action))}</strong>
-            </p>
-            <Inline align="baseline" gap={3}>
-              <span>
-                {t("common:recordedBy", { name: entry.actor ?? t("preparation.unknownPerson") })}
-              </span>
-              <ActionProvenance value={entry.provenance} />
-              <Timestamp value={entry.recordedAt} />
-            </Inline>
-            {entry.action === "application.withdraw" && entry.after?.withdrawal && (
-              <p>
-                {t("intake.withdrawnOn", {
-                  date: calendarDate(entry.after.withdrawal.withdrawnOn),
-                })}
-              </p>
-            )}
-            {entry.reason && <p className={styles.reading}>{entry.reason}</p>}
-            {(entry.action === "application.created" ||
-              entry.action === "application.material_changed" ||
-              entry.action === "application.marked_ready" ||
-              entry.action === "application.revision_recorded" ||
-              entry.action === "application.correction_recorded" ||
-              entry.action === "application.summary_changed" ||
-              entry.action === "application.contact_changed") && (
-              <>
-                {entry.before &&
-                  (entry.action === "application.revision_recorded" ||
-                    entry.action === "application.correction_recorded" ||
-                    entry.action === "application.summary_changed" ||
-                    entry.action === "application.contact_changed") && (
-                    <HistoricalApplication
-                      value={entry.before}
-                      label={t("intake.previousVersion")}
-                    />
-                  )}
-                {entry.after && (
-                  <HistoricalApplication value={entry.after} label={t("intake.recordedVersion")} />
-                )}
-              </>
-            )}
-          </li>
-        ))}
+      <ol className={styles.events}>
+        {history
+          .toSorted((left, right) => right.revision - left.revision)
+          .map((entry) => (
+            <li key={entry.revision}>
+              <h3>{t(historyLabel(entry.action))}</h3>
+              <Inline align="baseline" gap={3} className={styles.meta}>
+                <span>
+                  {t("common:recordedBy", { name: entry.actor ?? t("preparation.unknownPerson") })}
+                </span>
+                <ActionProvenance value={entry.provenance} />
+                <Timestamp value={entry.recordedAt} />
+              </Inline>
+              {entry.action === "application.withdraw" && entry.after?.withdrawal && (
+                <p>
+                  {t("intake.withdrawnOn", {
+                    date: calendarDate(entry.after.withdrawal.withdrawnOn),
+                  })}
+                </p>
+              )}
+              {entry.reason && <p className={styles.reading}>{entry.reason}</p>}
+              {inspectableActions.has(entry.action) && (entry.before || entry.after) && (
+                <Button
+                  size="small"
+                  variant="quiet"
+                  alignment="start"
+                  ref={(element) => {
+                    if (element) {
+                      triggers.current.set(entry.revision, element);
+                    } else {
+                      triggers.current.delete(entry.revision);
+                    }
+                  }}
+                  onPress={() => {
+                    open(entry.revision, () => triggers.current.get(entry.revision) ?? null);
+                    onInspect?.(true);
+                  }}
+                >
+                  {t("history.inspectEvent")}
+                  <Icon name="right" />
+                </Button>
+              )}
+            </li>
+          ))}
       </ol>
-    </details>
+    </section>
   );
 };
+
+const HistoricalChange = ({
+  entry,
+  rootRef,
+  headingRef,
+  onBack,
+}: {
+  entry: IntakeState["history"][number];
+  rootRef: Ref<HTMLElement>;
+  headingRef: Ref<HTMLHeadingElement>;
+  onBack: () => void;
+}) => {
+  const { t } = useTranslation(["fundingRounds", "common"]);
+  return (
+    <section ref={rootRef} className={styles.history} aria-label={t("intake.history")}>
+      <Button size="small" variant="quiet" alignment="start" onPress={onBack}>
+        <Icon name="left" />
+        {t("history.backEvents")}
+      </Button>
+      <h2 ref={headingRef} tabIndex={-1}>
+        {t(historyLabel(entry.action))}
+      </h2>
+      <Inline align="baseline" gap={3} className={styles.meta}>
+        <span>
+          {t("common:recordedBy", { name: entry.actor ?? t("preparation.unknownPerson") })}
+        </span>
+        <ActionProvenance value={entry.provenance} />
+        <Timestamp value={entry.recordedAt} />
+      </Inline>
+      {entry.reason && <p className={styles.reading}>{entry.reason}</p>}
+      {entry.before && entry.after ? (
+        <SnapshotComparison
+          before={historySnapshot(entry.before)}
+          after={historySnapshot(entry.after)}
+          labels={{
+            fromLabel: t("history.previousRecord", { version: entry.before.version }),
+            toLabel: t("history.recordedRecord", { version: entry.after.version }),
+          }}
+          includeRecord
+        />
+      ) : (
+        <>
+          <Notice tone="neutral">{t("history.missingEventSnapshot")}</Notice>
+          {entry.before && (
+            <HistoricalApplication
+              value={historySnapshot(entry.before)}
+              label={t("history.previousRecord", { version: entry.before.version })}
+            />
+          )}
+          {entry.after && (
+            <HistoricalApplication
+              value={historySnapshot(entry.after)}
+              label={t("history.recordedRecord", { version: entry.after.version })}
+            />
+          )}
+        </>
+      )}
+    </section>
+  );
+};
+
+const historySnapshot = (
+  value: NonNullable<IntakeState["history"][number]["after"]>,
+): HistorySnapshot => ({
+  ...value,
+  requested: value.requested === null ? null : decodeMoney(value.requested),
+});
+
+const inspectableActions = new Set([
+  "application.created",
+  "application.material_changed",
+  "application.marked_ready",
+  "application.revision_recorded",
+  "application.correction_recorded",
+  "application.summary_changed",
+  "application.contact_changed",
+]);
 
 const historyLabels = {
   "application.contact_changed": "intake.eventDetails",
@@ -87,54 +197,3 @@ const historyLabels = {
 
 const historyLabel = (action: string) =>
   historyLabels[action as keyof typeof historyLabels] ?? "intake.history";
-
-const HistoricalApplication = ({
-  value,
-  label,
-}: {
-  value: NonNullable<IntakeState["history"][number]["after"]>;
-  label: string;
-}) => {
-  const { t } = useTranslation("fundingRounds");
-  const { money } = useFormat();
-
-  return (
-    <details>
-      <summary>
-        {label} ({t("intake.version", { version: value.version })})
-      </summary>
-      <p>
-        <strong>{value.title}</strong>
-      </p>
-      <DescriptionList>
-        <DescriptionListItem label={t("intake.applicant")}>
-          {value.submission?.organization || t("intake.notKnown")}
-        </DescriptionListItem>
-        <DescriptionListItem label={t("intake.requested")}>
-          {value.requested ? money(decodeMoney(value.requested)) : t("intake.notKnown")}
-        </DescriptionListItem>
-      </DescriptionList>
-      {value.submission?.projectPeriod && (
-        <p>
-          {t("evidence.projectPeriod")}: {value.submission.projectPeriod}
-        </p>
-      )}
-      {value.submission?.contact && (
-        <p>
-          {t("intake.contact")}: {value.submission.contact} {value.submission.contactEmail}
-        </p>
-      )}
-      {value.summaryAuthor && (
-        <p className={styles.reading}>
-          {t("intake.summaryBy", { name: value.summaryAuthor.name })}: {value.summary}
-        </p>
-      )}
-      {value.submission?.answers.map((answer, index) => (
-        <div key={index} className={styles.reading}>
-          <strong>{answer.question}</strong>
-          <p>{answer.response}</p>
-        </div>
-      ))}
-    </details>
-  );
-};

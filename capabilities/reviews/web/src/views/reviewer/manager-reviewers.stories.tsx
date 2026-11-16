@@ -1,11 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { expect, fn, waitFor, within } from "storybook/test";
+import { expect, waitFor, within } from "storybook/test";
 
 import type { ReviewerSummary } from "@merit/reviews/api";
 import { Stack } from "@merit/ui/layout";
 import { PageHeader } from "@merit/ui/page-header";
 
+import { useManagerReviewers } from "../../controllers/reviewer/use-manager-reviewers";
 import { ManagerReviewers } from "./manager-reviewers";
 import {
   ReviewPreviewFrame,
@@ -17,11 +18,9 @@ import {
 const ManagerPreview = ({
   assignment,
   scenario,
-  onAssignmentsChange,
 }: {
   assignment: ReviewerSummary | null;
   scenario: "ordinary" | "pending" | "failure" | "membership";
-  onAssignmentsChange: (assignments: ReviewerSummary[]) => void;
 }) => {
   const [data] = useState(() =>
     managerTransport(
@@ -32,7 +31,12 @@ const ManagerPreview = ({
               {
                 ...assignment,
                 history: [
-                  { action: "invite", actor: "Dana Reed", note: "", at: "2027-01-15T10:00:00Z" },
+                  {
+                    action: "review_assignment.invited",
+                    actor: "Dana Reed",
+                    note: "",
+                    at: "2027-01-15T10:00:00Z",
+                  },
                 ],
               },
             ]
@@ -41,20 +45,13 @@ const ManagerPreview = ({
       scenario,
     ),
   );
+  const reviews = managerReviews();
+  const work = useManagerReviewers(data, reviews.revision)!;
   return (
     <ReviewPreviewFrame manager>
       <Stack gap={5}>
-        <PageHeader
-          title="Neighbour Table"
-          kicker="Manage reviews"
-          description="Invite an independent assessment of the application."
-        />
-        <h2>Review work</h2>
-        <ManagerReviewers
-          reviews={managerReviews()}
-          data={data}
-          onAssignmentsChange={onAssignmentsChange}
-        />
+        <PageHeader title="Neighbour Table" />
+        <ManagerReviewers reviews={reviews} work={work} />
       </Stack>
     </ReviewPreviewFrame>
   );
@@ -68,7 +65,6 @@ const meta = {
   args: {
     assignment: { ...reviewerPage().assignment, status: "invited" },
     scenario: "ordinary",
-    onAssignmentsChange: fn(),
   },
   argTypes: { assignment: { control: false }, scenario: { control: false } },
 } satisfies Meta<typeof ManagerPreview>;
@@ -101,10 +97,7 @@ export const Sending: Story = {
       }),
     );
     await context.userEvent.click(dialog.getByRole("button", { name: "Invite reviewer" }));
-    await expect(dialog.getByRole("button", { name: "Invite reviewer" })).toHaveAttribute(
-      "aria-disabled",
-      "true",
-    );
+    await expect(dialog.getByRole("button", { name: "Sending invitation…" })).toBeDisabled();
   },
 };
 
@@ -176,7 +169,12 @@ export const ConflictResolution: Story = {
 export const EndAccess: Story = {
   args: { assignment: reviewerPage().assignment },
   play: async ({ canvas, userEvent, canvasElement }) => {
-    await userEvent.click(await canvas.findByRole("button", { name: "End access" }));
+    await userEvent.click(
+      await canvas.findByRole("button", { name: "More actions for Sam Morgan" }),
+    );
+    await userEvent.click(
+      await within(canvasElement.ownerDocument.body).findByRole("menuitem", { name: "End access" }),
+    );
     await waitFor(() =>
       expect(
         within(canvasElement.ownerDocument.body).getByRole("dialog", {
@@ -189,12 +187,13 @@ export const EndAccess: Story = {
 
 export const UndeliveredInvitation: Story = {
   args: { assignment: { ...reviewerPage().assignment, status: "invited", delivery: "failed" } },
-  play: async ({ canvas }) => {
+  play: async ({ canvas, canvasElement, userEvent }) => {
     await expect(canvas.getByText("Email sending failed")).toBeVisible();
-    await expect(canvas.getByRole("button", { name: "Resend invitation" })).toHaveAttribute(
-      "data-variant",
-      "primary",
-    );
+    await userEvent.click(canvas.getByRole("button", { name: "More actions for Sam Morgan" }));
+    await expect(
+      within(canvasElement.ownerDocument.body).getByRole("menuitem", { name: "Resend invitation" }),
+    ).toBeVisible();
+    await userEvent.keyboard("{Escape}");
   },
 };
 
@@ -222,7 +221,7 @@ export const ExpiredInvitation: Story = {
   play: async ({ canvas }) => {
     await expect(canvas.getByText("Invitation expired")).toBeVisible();
     // The due date reads as a labelled, localized date rather than an ISO value.
-    await expect(canvas.getByText(/Response requested by .*2027/)).toBeVisible();
+    await expect(canvas.getByText(/February .*2027|10 February 2027/)).toBeVisible();
     await expect(canvas.queryByText(/2027-02-10/)).toBeNull();
   },
 };

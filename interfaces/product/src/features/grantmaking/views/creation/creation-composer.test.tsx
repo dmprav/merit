@@ -187,7 +187,7 @@ it("opens the saved application and clears the draft for the next creation", asy
   await user.click(screen.getByRole("button", { name: "Add application" }));
   let dialog = within(screen.getByRole("dialog"));
 
-  expect(dialog.getByText("Community grants")).toBeVisible();
+  expect(dialog.getByText("Round: Community grants")).toBeVisible();
 
   await user.type(dialog.getByRole("textbox", { name: "Project title" }), "Community meals");
   await user.tab();

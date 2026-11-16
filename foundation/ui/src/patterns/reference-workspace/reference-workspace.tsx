@@ -3,10 +3,13 @@ import {
   use,
   useEffect,
   useId,
+  useImperativeHandle,
+  useLayoutEffect,
   useRef,
   useState,
   type ReactNode,
   type Ref,
+  type RefObject,
 } from "react";
 
 import { ActionMenu } from "../../components/action-menu/action-menu";
@@ -16,6 +19,8 @@ import styles from "./reference-workspace.module.css";
 
 /** Matches the stylesheet breakpoint where the panes stack and the document scrolls. */
 export const stackedPanesQuery = "(max-width: 900px), (max-height: 599px)";
+
+const ReadingViewportContext = createContext<RefObject<HTMLElement | null> | null>(null);
 
 const WorkspaceContext = createContext<{ id: string; toReferenceLabel?: string } | null>(null);
 
@@ -82,19 +87,24 @@ export const ReferencePane = ({
   children: ReactNode;
 }) => {
   const { id } = useWorkspace();
+  const viewport = useRef<HTMLDivElement>(null);
+  useImperativeHandle(viewportRef, () => viewport.current!, []);
   return (
-    <div className={styles.reference} id={`${id}-reference`}>
-      {toolbar && <div className={styles.toolbar}>{toolbar}</div>}
-      <div
-        className={styles.content}
-        ref={viewportRef}
-        tabIndex={0}
-        role="group"
-        aria-label={label}
-      >
-        {children}
+    <ReadingViewportContext value={viewport}>
+      <div className={styles.reference} id={`${id}-reference`}>
+        {toolbar && <div className={styles.toolbar}>{toolbar}</div>}
+        <div
+          className={styles.content}
+          ref={viewport}
+          data-reading-viewport
+          tabIndex={0}
+          role="group"
+          aria-label={label}
+        >
+          {children}
+        </div>
       </div>
-    </div>
+    </ReadingViewportContext>
   );
 };
 
@@ -124,33 +134,38 @@ export const WorkPane = ({
   children: ReactNode;
 }) => {
   const { id, toReferenceLabel } = useWorkspace();
+  const viewport = useRef<HTMLDivElement>(null);
   return (
-    <Element id={`${id}-work`} className={styles.work} aria-label={label}>
-      {toReferenceLabel && (
-        <a className={styles.jump} href={`${"#"}${id}-reference`}>
-          {toReferenceLabel}
-          <Icon name="ascending" />
-        </a>
-      )}
-      {title && (
-        <div className={styles.toolbar} data-title>
-          <h2 ref={titleRef} tabIndex={-1}>
-            {title}
-          </h2>
-          {titleActions}
+    <ReadingViewportContext value={viewport}>
+      <Element id={`${id}-work`} className={styles.work} aria-label={label}>
+        {toReferenceLabel && (
+          <a className={styles.jump} href={`${"#"}${id}-reference`}>
+            {toReferenceLabel}
+            <Icon name="ascending" />
+          </a>
+        )}
+        {title && (
+          <div className={styles.toolbar} data-title>
+            <h2 ref={titleRef} tabIndex={-1}>
+              {title}
+            </h2>
+            {titleActions}
+          </div>
+        )}
+        <div
+          ref={viewport}
+          data-reading-viewport
+          className={styles.content}
+          data-fill={fill || undefined}
+          tabIndex={fill ? undefined : 0}
+          role="group"
+          aria-label={label}
+        >
+          {children}
         </div>
-      )}
-      <div
-        className={styles.content}
-        data-fill={fill || undefined}
-        tabIndex={fill ? undefined : 0}
-        role="group"
-        aria-label={label}
-      >
-        {children}
-      </div>
-      {footer && <div className={styles.footer}>{footer}</div>}
-    </Element>
+        {footer && <div className={styles.footer}>{footer}</div>}
+      </Element>
+    </ReadingViewportContext>
   );
 };
 
@@ -238,4 +253,108 @@ export const useReferenceViewport = <Key extends string>(initial: Key) => {
       scrollPositions.current[target] = 0;
     },
   };
+};
+
+/**
+ * Captures reading position before an in-pane list is replaced. Call the returned
+ * restore function in a layout effect after the list mounts again, and restore
+ * its trigger's focus with preventScroll. The physical scroll owner wins for
+ * nested dialogs; stacked panes and standalone content use document scrolling.
+ */
+const useReadingPosition = (anchor: RefObject<HTMLElement | null>) => {
+  const viewport = use(ReadingViewportContext);
+  return () => {
+    const owner = readingScrollOwner(
+      anchor.current,
+      anchor.current?.closest<HTMLElement>("[data-reading-viewport]") ?? viewport?.current ?? null,
+    );
+    const top = owner ? owner.scrollTop : window.scrollY;
+    const left = owner ? owner.scrollLeft : window.scrollX;
+    return () => {
+      if (owner) {
+        if (owner.isConnected) {
+          owner.scrollTop = top;
+          owner.scrollLeft = left;
+        }
+      } else {
+        window.scrollTo({ top, left, behavior: "instant" });
+      }
+    };
+  };
+};
+
+/**
+ * Visits details within a pane and returns through their reading positions.
+ * Attach root and heading to each destination. Resolve the originating control
+ * after it remounts; Back restores its focus without moving the saved position.
+ * Destinations and their labels remain feature-owned.
+ */
+export const useReadingNavigation = <Destination,>(initial: Destination | null = null) => {
+  const root = useRef<HTMLElement>(null);
+  const heading = useRef<HTMLHeadingElement>(null);
+  const capturePosition = useReadingPosition(root);
+
+  type Visit = {
+    destination: Destination | null;
+    target: () => HTMLElement | null;
+    restore: () => void;
+  };
+
+  const trail = useRef<Visit[]>([]);
+  const returning = useRef<Visit | null>(null);
+  const [navigation, setNavigation] = useState<{
+    destination: Destination | null;
+    previous: Destination | null;
+  }>({ destination: initial, previous: null });
+
+  useLayoutEffect(() => {
+    if (returning.current) {
+      returning.current.target()?.focus({ preventScroll: true });
+      returning.current.restore();
+      returning.current = null;
+    } else if (navigation.destination !== null) {
+      heading.current?.focus();
+    }
+  }, [navigation]);
+
+  return {
+    ...navigation,
+    root,
+    heading,
+    /** Replace the trail when entering from outside the reading pane or returning to its list. */
+    reset: (destination: Destination | null = null, target: Visit["target"] = () => null) => {
+      trail.current =
+        destination === null ? [] : [{ destination: null, target, restore: capturePosition() }];
+      returning.current = null;
+      setNavigation({ destination, previous: null });
+    },
+    open: (destination: Destination, target: Visit["target"]) => {
+      trail.current.push({
+        destination: navigation.destination,
+        target,
+        restore: capturePosition(),
+      });
+      setNavigation({ destination, previous: navigation.destination });
+    },
+    back: () => {
+      returning.current = trail.current.pop() ?? null;
+      setNavigation({
+        destination: returning.current?.destination ?? null,
+        previous: trail.current.at(-1)?.destination ?? null,
+      });
+    },
+  };
+};
+
+const readingScrollOwner = (anchor: HTMLElement | null, viewport: HTMLElement | null) => {
+  const stacked = window.matchMedia(stackedPanesQuery).matches;
+  for (let element = anchor?.parentElement; element; element = element.parentElement) {
+    if (element === viewport) {
+      return stacked ? null : viewport;
+    }
+    if (/auto|scroll/.test(getComputedStyle(element).overflowY)) {
+      return element;
+    }
+  }
+  return null;
 };

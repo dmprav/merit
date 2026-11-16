@@ -14,7 +14,9 @@ export const en = {
   },
   workspace: {
     basis: "Submission v{{version}}",
-    earlierBasis: "Earlier submission v{{version}}",
+    earlierBasis: "Based on an earlier submission",
+    basisUnknown: "Submission basis not known",
+    compareChanges: "Compare changes",
   },
   applications: {
     notRecommended: "Not yet recommended",
@@ -28,8 +30,9 @@ export const en = {
     version: "{{date}} · v{{version}}",
   },
   validation: {
-    amountFormat: "Enter an amount with no more than two decimal places, such as 24000.50.",
-    amountPrecision: "Enter no more than two decimal places. The amount was not changed.",
+    amountRequired: "Enter an amount.",
+    amountFormat: "Enter a valid amount.",
+    amountPrecision: "Amount unchanged. Use up to two decimal places.",
     reasoningRequired: "Explain your recommendation.",
     reasoningTooLong: "Keep the reasoning under 5,000 characters.",
     deferralAllocation: "A deferral must reserve €0.",

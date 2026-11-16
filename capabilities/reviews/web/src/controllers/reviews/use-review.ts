@@ -13,6 +13,7 @@ import type {
 } from "../../contracts/reviews";
 import { useReviewDrafts, type ReviewDraft, type ReviewFormValues } from "./drafts";
 import { reviewCommand } from "./review-command";
+import { reviewConflictComparison } from "./review-comparison";
 import { valuesFromContent } from "./values";
 
 const applicationVersionsForReview = (
@@ -96,6 +97,7 @@ export const useReview = ({
     pending,
     versions,
     conflict,
+    comparison: draft ? reviewConflictComparison(draft, state, currentBaseline) : null,
     saving,
     beginRequest: (replacesId: string | null = null): ReviewRequest => {
       return (contactId, id) =>
@@ -177,14 +179,13 @@ type ReviewOpening = {
   mode: ReviewDraft["mode"];
   contactId: string;
   id: string;
-  replacesId: string | null;
 };
 
 const newReviewDraft = (
   application: ReviewProps["application"],
   criteriaVersion: ReviewBaseline["criteriaVersion"],
   pending: ReviewProps["application"]["reviews"]["requests"],
-  { mode, contactId, id, replacesId }: ReviewOpening,
+  { mode, contactId, id }: ReviewOpening,
 ): ReviewDraft => {
   const assessment = application.reviews.assessments.find((item) => item.id === id);
   const request = pending.find((item) => item.contactId === contactId);
@@ -205,7 +206,6 @@ const newReviewDraft = (
   return {
     mode,
     id,
-    replacesId,
     revision: application.reviews.revision,
     applicationVersion: application.version,
     criteriaVersion,
@@ -244,15 +244,10 @@ const useReviewEditing = (
     }
   }, [ready, opening, editing, draft, initialize]);
 
-  const start = (
-    mode: ReviewDraft["mode"],
-    contactId = "",
-    id: string = crypto.randomUUID(),
-    replacesId: string | null = null,
-  ) => {
+  const start = (mode: ReviewDraft["mode"], contactId = "", id: string = crypto.randomUUID()) => {
     setEditing(true);
     setError(null);
-    const request = { mode, contactId, id, replacesId };
+    const request = { mode, contactId, id };
     if (!ready) {
       setOpening(request);
     } else {

@@ -67,6 +67,33 @@ const section = (heading: string) =>
   within(screen.getByRole("heading", { name: heading }).closest("section")!);
 
 describe("application history comparison", () => {
+  it("identifies an order-only revision and keeps both section orders available in the full record", async () => {
+    const before = application(1);
+    const after = application(2);
+    after.submission.answers = [...before.submission.answers].reverse();
+    renderComparison(before, after);
+
+    expect(
+      screen.getByText(
+        "Submission sections were reordered. Select Full record to compare their order.",
+      ),
+    ).toBeVisible();
+    expect(
+      screen.queryByText("No changes to these recorded fields or submitted sections."),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Changed", { exact: true })).not.toBeInTheDocument();
+
+    await userEvent.setup().click(screen.getByRole("tab", { name: "Full record" }));
+
+    const headings = (name: string) =>
+      within(screen.getByRole("region", { name }))
+        .getAllByRole("heading", { level: 4 })
+        .map((heading) => heading.textContent);
+
+    expect(headings("Version 1")).toEqual(["Project overview", "Delivery plan"]);
+    expect(headings("Version 2 (current)")).toEqual(["Delivery plan", "Project overview"]);
+  });
+
   it("formats both snapshots consistently and keeps missing facts distinct from empty text", () => {
     const before = application(1);
     const after = application(2);
@@ -165,7 +192,7 @@ describe("application history comparison", () => {
     },
   );
 
-  it("keeps reordered, changed, added, and removed sections beside their correct versions", () => {
+  it("defaults to changes and replaces the comparison with complete before and after records", async () => {
     const before = application(1);
     const after = application(2);
     before.submission!.answers = [
@@ -206,23 +233,15 @@ describe("application history comparison", () => {
 
     expect(
       screen.getAllByRole("heading", { level: 3 }).map((heading) => heading.textContent),
-    ).toEqual([
-      "Version 1 → Version 2",
-      "Requested funding",
-      "Budget",
-      "Purpose",
-      "Access",
-      "Old venue",
-    ]);
+    ).toEqual(["Version 1 → Version 2", "Budget", "Access", "Old venue"]);
     expect(section("Budget").getByText("Version 1").parentElement).toHaveTextContent(
       "Original costs.",
     );
     expect(section("Budget").getByText("Version 2 (current)").parentElement).toHaveTextContent(
       "Updated costs.",
     );
-    expect(section("Purpose").getByText("Unchanged")).toBeVisible();
-    expect(section("Purpose").getAllByText("Bring neighbours together.")).toHaveLength(1);
-    expect(section("Purpose").queryByText("Version 1")).not.toBeInTheDocument();
+    expect(section("Budget").getByText("Changed")).toBeVisible();
+    expect(screen.queryByRole("heading", { name: "Purpose" })).not.toBeInTheDocument();
     expect(section("Access").getByText("Added")).toBeVisible();
     expect(section("Access").getByText("Version 1").parentElement).toHaveTextContent(
       "Not present in this version",
@@ -237,6 +256,25 @@ describe("application history comparison", () => {
     expect(section("Old venue").getByText("Version 2 (current)").parentElement).toHaveTextContent(
       "Not present in this version",
     );
+    expect(screen.getByRole("tab", { name: "Changes" })).toHaveAttribute("aria-selected", "true");
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("tab", { name: "Full record" }));
+    const previousRecord = within(screen.getByRole("region", { name: "Version 1" }));
+    const currentRecord = within(screen.getByRole("region", { name: "Version 2 (current)" }));
+    expect(previousRecord.getByText("Original costs.")).toBeVisible();
+    expect(currentRecord.getByText("Updated costs.")).toBeVisible();
+    expect(previousRecord.getByText("Bring neighbours together.")).toBeVisible();
+    expect(currentRecord.getByText("Bring neighbours together.")).toBeVisible();
+    expect(previousRecord.getByRole("heading", { name: "Old venue" })).toBeVisible();
+    expect(currentRecord.queryByRole("heading", { name: "Old venue" })).not.toBeInTheDocument();
+    expect(currentRecord.getByRole("heading", { name: "Access" })).toBeVisible();
+    expect(previousRecord.queryByRole("heading", { name: "Access" })).not.toBeInTheDocument();
+    expect(screen.getAllByText("Original costs.")).toHaveLength(1);
+    expect(screen.queryByRole("tabpanel", { name: "Changes" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("tab", { name: "Changes" }));
+    expect(section("Budget").getByText("Changed")).toBeVisible();
+    expect(screen.queryByRole("region", { name: "Version 1" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Purpose" })).not.toBeInTheDocument();
   });
 
   it.each([
@@ -273,7 +311,7 @@ describe("application history comparison", () => {
     },
   );
 
-  it("treats recorded empty submissions as available material", () => {
+  it("treats recorded empty submissions as available material", async () => {
     const before = application(1);
     const after = application(2);
     before.submission!.answers = [];
@@ -283,8 +321,14 @@ describe("application history comparison", () => {
     expect(
       screen.queryByText("Submitted material was not recorded for this version."),
     ).not.toBeInTheDocument();
-    expect(section("Requested funding").getByText("Unchanged")).toBeVisible();
-    expect(screen.getAllByRole("heading", { level: 3 })).toHaveLength(2);
+    expect(
+      screen.getByText("No changes to these recorded fields or submitted sections."),
+    ).toBeVisible();
+    expect(screen.queryByRole("heading", { name: "Requested funding" })).not.toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("tab", { name: "Full record" }));
+    expect(screen.getByRole("region", { name: "Version 1" })).toBeVisible();
+    expect(screen.getByRole("region", { name: "Version 2 (current)" })).toBeVisible();
+    expect(screen.getAllByText("Requested amount")).toHaveLength(2);
   });
 
   it("starts with the latest pair and allows nonadjacent comparisons without misattributing reasons", async () => {
@@ -299,8 +343,8 @@ describe("application history comparison", () => {
       "Version 3 (current)",
     );
     expect(screen.queryByText("Reason for version 2.")).not.toBeInTheDocument();
-    expect(screen.getByText("We bring neighbours together.")).toBeVisible();
-    expect(screen.getAllByText("Unchanged")).toHaveLength(2);
+    expect(screen.queryByText("We bring neighbours together.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Unchanged")).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /Compare from/ }));
     await user.click(screen.getByRole("option", { name: "Version 1" }));
@@ -339,6 +383,11 @@ describe("application history comparison", () => {
       ),
     ).toBeVisible();
     expect(screen.queryByText("Delivery arrangements 2.")).not.toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Version 3 (current)" })).toHaveTextContent(
+      "Delivery arrangements 3.",
+    );
+    expect(screen.queryByRole("tab", { name: "Changes" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Added", { exact: true })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /Compare from/ }));
     await user.click(screen.getByRole("option", { name: "Version 2" }));
@@ -355,6 +404,9 @@ describe("application history comparison", () => {
       screen.getByText("An earlier submission is not available for comparison."),
     ).toBeVisible();
     expect(screen.queryByRole("button", { name: /Compare from/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Version 3 (current)" })).toHaveTextContent(
+      "Delivery arrangements 3.",
+    );
   });
 });
 

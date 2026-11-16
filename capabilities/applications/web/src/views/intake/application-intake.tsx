@@ -6,6 +6,7 @@ import { intakeContent, intakeLimits } from "@merit/applications/domain";
 import { calendarDateSchema, todayCalendarDate } from "@merit/dates";
 import { useFormat } from "@merit/i18n/format";
 import { parseMoney } from "@merit/money";
+import shell from "@merit/ui/application-shell.module.css";
 import { Badge } from "@merit/ui/badge";
 import { Button } from "@merit/ui/button";
 import { ConfirmationDialog } from "@merit/ui/confirmation-dialog";
@@ -13,7 +14,7 @@ import { DateField } from "@merit/ui/date-field";
 import { DialogContent, ModalDialog } from "@merit/ui/dialog";
 import { Icon } from "@merit/ui/icon";
 import { InlineName } from "@merit/ui/inline-name";
-import { Inline } from "@merit/ui/layout";
+import { Inline, Reading } from "@merit/ui/layout";
 import { Notice } from "@merit/ui/notice";
 import { StatusMessage } from "@merit/ui/status-message";
 import { TextField } from "@merit/ui/text-field";
@@ -24,7 +25,7 @@ import type { ApplicationIntakeController } from "../../controllers/intake/use-a
 import styles from "./application-intake.module.css";
 import { intakeError } from "./messages";
 
-export const IntakeEditButton = ({
+export const IntakeSectionEditButton = ({
   intake,
   hasSummary,
   section,
@@ -57,21 +58,48 @@ export const IntakeEditButton = ({
   const addSummary = section === "details" && !hasSummary;
 
   return (
+    <IntakeEditButton
+      label={label}
+      changed={changed}
+      add={addSummary}
+      isDisabled={intake.pending}
+      triggerRef={triggerRef}
+      onPress={() => {
+        intake.open(section);
+        onReveal?.();
+      }}
+    />
+  );
+};
+
+export const IntakeEditButton = ({
+  label,
+  changed = false,
+  add = false,
+  isDisabled,
+  triggerRef,
+  onPress,
+}: {
+  label: string;
+  changed?: boolean;
+  add?: boolean;
+  isDisabled: boolean;
+  triggerRef?: Ref<HTMLButtonElement>;
+  onPress: () => void;
+}) => {
+  return (
     <Tooltip content={label}>
       <Button
         ref={triggerRef}
         size="small"
         variant="quiet"
-        isDisabled={intake.pending}
-        iconOnly={!addSummary}
+        isDisabled={isDisabled}
+        iconOnly={!add}
         data-draft={changed || undefined}
         aria-label={label}
-        onPress={() => {
-          intake.open(section);
-          onReveal?.();
-        }}
+        onPress={onPress}
       >
-        {addSummary ? (
+        {add ? (
           <>
             <Icon name="add" />
             {label}
@@ -139,10 +167,7 @@ export const intakeMenuItems = (
   return actions.map((id) => ({ id, label: t(labels[id]) }));
 };
 
-export const IntakeControls = ({
-  intake,
-  onReveal,
-}: {
+type IntakeControlsProps = {
   intake: Pick<
     ApplicationIntakeController,
     | "application"
@@ -153,19 +178,30 @@ export const IntakeControls = ({
     | "unsavedContent"
     | "workingRevision"
     | "missingFields"
-    | "canStartRevision"
     | "pending"
-    | "startRevision"
     | "markReady"
     | "publishRevision"
     | "setConfirmation"
+    | "confirmation"
+    | "error"
   >;
-  onReveal: () => void;
-}) => {
+  headingActions?: ReactNode;
+};
+
+export const IntakeControls = ({ intake, headingActions }: IntakeControlsProps) => {
   const { t } = useTranslation("applicationIntake");
   const { application, preparing, section, unsavedContent } = intake;
   if (intake.withdrawn) {
-    return <ReinstateStatus intake={intake} />;
+    return (
+      <div className={styles.intake}>
+        <Inline gap={3} justify="between">
+          <h2>{t("workspace.submission")}</h2>
+          {headingActions}
+        </Inline>
+        <ReinstateStatus intake={intake} />
+        <IntakeTaskFeedback intake={intake} />
+      </div>
+    );
   }
   const working = intake.workingRevision;
   const editingContent = section !== null && section !== "details";
@@ -180,27 +216,18 @@ export const IntakeControls = ({
   return (
     <section className={styles.intake} aria-label={t("intake.preparation")}>
       <Inline gap={3} justify="between">
-        <IntakeStatus
-          preparing={preparing}
-          workingRevision={working}
-          unsavedContent={unsavedContent}
-        />
-        {!editingContent && (
-          <div className={styles.actions}>
-            {intake.canStartRevision && (
-              <Button
-                size="small"
-                variant="secondary"
-                isDisabled={intake.pending}
-                onPress={() => {
-                  onReveal();
-                  void intake.startRevision();
-                }}
-              >
-                {t("intake.startRevision")}
-              </Button>
-            )}
-            {preparing ? (
+        <Inline gap={3} align="baseline">
+          <h2>{t("workspace.submission")}</h2>
+          <IntakeStatus
+            preparing={preparing}
+            workingRevision={working}
+            unsavedContent={unsavedContent}
+          />
+        </Inline>
+        <div className={styles.actions}>
+          {headingActions}
+          {!editingContent &&
+            (preparing ? (
               <Button
                 size="small"
                 isDisabled={!intake.ready || intake.pending || missing.length > 0 || unsavedContent}
@@ -218,10 +245,10 @@ export const IntakeControls = ({
                   {t("intake.recordRevision")}
                 </Button>
               )
-            )}
-          </div>
-        )}
+            ))}
+        </div>
       </Inline>
+      <IntakeTaskFeedback intake={intake} />
       {preparing && !editingContent && missing.length > 0 && (
         <p className={styles.hint}>
           {t("intake.missing", { fields: missing.map((field) => t(fields[field])).join(", ") })}
@@ -281,61 +308,39 @@ export const WithdrawalStatus = ({
   }
 
   return (
-    <section className={styles.intake} aria-label={t("intake.preparation")}>
+    <section className={styles.withdrawal} aria-label={t("intake.withdrawn")}>
       <Inline gap={3} justify="between">
-        <IntakeStatus withdrawn preparing={application.intakeStatus === "in_preparation"} />
+        <h3>{t("intake.withdrawnOn", { date: calendarDate(withdrawal.withdrawnOn) })}</h3>
         {action}
       </Inline>
-      <div className={styles.withdrawal}>
-        <p>
-          <strong>{t("intake.withdrawnOn", { date: calendarDate(withdrawal.withdrawnOn) })}</strong>
-        </p>
-        <p className={styles.hint}>
-          {t("intake.withdrawalRecordedBy", { name: withdrawal.recorder.name })}
-        </p>
-        <p className={styles.reason}>{withdrawal.reason}</p>
-      </div>
+      <p className={styles.hint}>
+        {t("intake.withdrawalRecordedBy", { name: withdrawal.recorder.name })}
+      </p>
+      <Reading as="p" className={styles.reason}>
+        {withdrawal.reason}
+      </Reading>
     </section>
   );
 };
 
 type StatusState = Partial<
   Pick<ApplicationIntakeController, "preparing" | "workingRevision" | "unsavedContent">
-> & { withdrawn?: boolean };
+>;
 
-const statusHeading = ({ withdrawn, workingRevision: working, preparing }: StatusState) => {
-  if (withdrawn) {
-    return "intake.withdrawnHeading";
-  }
-  if (working) {
-    return working.kind === "correction" ? "intake.workingCorrection" : "intake.workingRevision";
-  }
-  return preparing ? "intake.preparation" : "intake.manageSubmission";
-};
-
-const statusBadge = ({
-  withdrawn,
-  workingRevision: working,
-  preparing,
-  unsavedContent,
-}: StatusState) => {
-  if (withdrawn) {
-    return "intake.withdrawn";
-  }
-  if (unsavedContent) {
-    return "intake.unsaved";
-  }
-  return working ? null : preparing ? "intake.preparing" : "intake.ready";
-};
-
-const IntakeStatus = (state: StatusState) => {
+const IntakeStatus = ({ preparing, workingRevision, unsavedContent }: StatusState) => {
   const { t } = useTranslation("applicationIntake");
-  const badge = statusBadge(state);
+  const status = workingRevision
+    ? workingRevision.kind === "correction"
+      ? "intake.workingCorrection"
+      : "intake.workingRevision"
+    : preparing
+      ? "intake.preparing"
+      : "intake.ready";
 
   return (
     <div className={styles.status}>
-      <h2>{t(statusHeading(state))}</h2>
-      {badge && <Badge>{t(badge)}</Badge>}
+      <span>{t(status)}</span>
+      {unsavedContent && <Badge>{t("intake.unsaved")}</Badge>}
     </div>
   );
 };
@@ -371,12 +376,13 @@ const RevisionPreview = ({
       >
         <DialogContent
           label={t(editingContent ? "intake.currentSubmission" : "intake.previewRevision")}
+          reading
         >
-          <div className={styles.preview}>
+          <Reading className={styles.preview}>
             <div>
               <h3>{preview.title}</h3>
-              <p className={styles.hint}>{preview.applicant}</p>
-              <p className={styles.hint}>
+              <p>{preview.applicant}</p>
+              <p>
                 {previewAmount?.ok
                   ? t("applications.requestAmount", { amount: money(previewAmount.value) })
                   : t("intake.unknownAmount")}
@@ -388,18 +394,18 @@ const RevisionPreview = ({
               </p>
             )}
             {preview.answers.map((answer, index) => (
-              <section key={index} className={styles.reading}>
-                <h4>{answer.question}</h4>
+              <section key={index}>
+                <h3>{answer.question}</h3>
                 <p>{answer.response}</p>
               </section>
             ))}
             {!editingContent && (
-              <section className={styles.changeReason}>
+              <section>
                 <h3>{t("intake.reason")}</h3>
                 <p>{working.reason || t("intake.reasonHint")}</p>
               </section>
             )}
-          </div>
+          </Reading>
         </DialogContent>
       </ModalDialog>
     </Inline>
@@ -426,7 +432,7 @@ export const IntakeFeedback = ({
   >;
 }) => {
   const { t } = useTranslation(["applicationIntake", "common"]);
-  const { confirmation, refreshError, refreshing, refresh, error: failure, saved } = intake;
+  const { confirmation, error: failure, saved } = intake;
   const error =
     confirmation && failure?.status === "conflict"
       ? t("intake.confirmationConflict")
@@ -434,25 +440,8 @@ export const IntakeFeedback = ({
 
   return (
     <>
-      {refreshError && (
-        <Notice as="div" tone="warning" role="alert">
-          <p>{t("intake.refreshError")}</p>
-          <Button
-            size="small"
-            variant="secondary"
-            isPending={refreshing}
-            onPress={() => void refresh()}
-          >
-            {t("intake.refresh")}
-          </Button>
-        </Notice>
-      )}
-      {error && (
-        <Notice tone="danger" role="alert">
-          {error}
-        </Notice>
-      )}
       <StatusMessage
+        className={shell.confirmation}
         message={saved ? t("intake.saved") : null}
         eventId={saved}
         confirmation={Boolean(saved)}
@@ -460,6 +449,49 @@ export const IntakeFeedback = ({
       <IntakeConfirmations intake={intake} error={error} />
     </>
   );
+};
+
+const IntakeTaskFeedback = ({
+  intake,
+}: {
+  intake: Pick<ApplicationIntakeController, "confirmation" | "error">;
+}) => {
+  const { t } = useTranslation("applicationIntake");
+  const error = !intake.confirmation && intakeError(t, intake.error);
+
+  return error ? (
+    <Notice appearance="inline" tone="danger" role="alert">
+      {error}
+    </Notice>
+  ) : null;
+};
+
+export const IntakeRefreshFeedback = ({
+  intake,
+}: {
+  intake: Pick<ApplicationIntakeController, "refreshError" | "refreshing" | "refresh">;
+}) => {
+  const { t } = useTranslation("applicationIntake");
+
+  return intake.refreshError ? (
+    <Notice
+      appearance="inline"
+      tone="warning"
+      role="alert"
+      actions={
+        <Button
+          size="small"
+          variant="quiet"
+          isPending={intake.refreshing}
+          onPress={() => void intake.refresh()}
+        >
+          {t("intake.refresh")}
+        </Button>
+      }
+    >
+      {t("intake.refreshError")}
+    </Notice>
+  ) : null;
 };
 
 const IntakeConfirmations = ({

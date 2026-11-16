@@ -1,0 +1,14 @@
+.field {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.feedback {
+  color: var(--muted);
+  font-size: var(--text-caption);
+}
+
+.feedback:empty {
+  display: none;
+}

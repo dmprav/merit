@@ -12,6 +12,8 @@ type ButtonProps = AriaButtonProps & {
   variant?: "primary" | "secondary" | "quiet" | "destructive";
   size?: "small" | "medium" | "large";
   iconOnly?: boolean;
+  /** Align a quiet action's content with surrounding text while retaining its padded target. */
+  alignment?: "default" | "start";
   ref?: Ref<HTMLButtonElement>;
 };
 
@@ -23,6 +25,7 @@ export const Button = ({
   variant = "primary",
   size = "medium",
   iconOnly = false,
+  alignment = "default",
   className,
   children,
   ...props
@@ -33,6 +36,7 @@ export const Button = ({
       data-variant={variant}
       data-size={size}
       data-icon-only={iconOnly || undefined}
+      data-alignment={alignment === "start" ? alignment : undefined}
       className={composeRenderProps(
         className,
         (className) => `${styles.button} ${className ?? ""}`,

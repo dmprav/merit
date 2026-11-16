@@ -5,15 +5,19 @@ import type { ReactNode } from "react";
 import { afterEach, expect, it, vi } from "vite-plus/test";
 
 import { materialVersionSchema } from "@merit/applications/domain";
+import type { ContactsSource } from "@merit/contacts-web/contracts";
+import { ContactsProvider } from "@merit/contacts-web/provider";
 import { readDraftStorage, seedDraftStorage } from "@merit/drafts/testing";
 import { makeApplication, makeAssessment, makeRound } from "@merit/grantmaking/testing/fixtures";
 import { createQueryClient } from "@merit/query";
 import { reviewRevisionSchema } from "@merit/reviews/domain";
 import { criteriaVersionSchema } from "@merit/rounds/domain";
 
+import type { ManagerReviewerData } from "../../contracts/reviewer";
 import type { ReviewData, ReviewProps } from "../../contracts/reviews";
 import { GrantmakingMessagesProvider } from "../../testing/providers";
 import { GrantmakingDrafts } from "../../testing/providers";
+import { reviewerPage } from "../reviewer/reviewer.story-fixtures";
 import { ReviewWork } from "./review-work";
 
 // jsdom cannot scroll a newly revealed writing field into view.
@@ -62,7 +66,11 @@ const request = {
 const draftKey = "alder/b8q3w5j7c2df";
 afterEach(() => sessionStorage.clear());
 
-const renderReview = (overrides: Partial<ReviewProps> = {}, scope = "dana") => {
+const renderReview = (
+  overrides: Partial<ReviewProps> = {},
+  scope = "dana",
+  contactsSource?: ContactsSource,
+) => {
   const data: ReviewData = {
     draftKey,
     workspaceSlug: "alder",
@@ -77,7 +85,13 @@ const renderReview = (overrides: Partial<ReviewProps> = {}, scope = "dana") => {
     wrapper: ({ children }: { children: ReactNode }) => (
       <QueryClientProvider client={client}>
         <GrantmakingMessagesProvider>
-          <GrantmakingDrafts storageScope={scope}>{children}</GrantmakingDrafts>
+          <GrantmakingDrafts storageScope={scope}>
+            {contactsSource ? (
+              <ContactsProvider source={contactsSource}>{children}</ContactsProvider>
+            ) : (
+              children
+            )}
+          </GrantmakingDrafts>
         </GrantmakingMessagesProvider>
       </QueryClientProvider>
     ),
@@ -91,7 +105,7 @@ const openCorrection = async (user: ReturnType<typeof userEvent.setup>) => {
     await screen.findByRole("button", { name: `Assessment actions for ${assessment.reviewer}` }),
   );
   await user.click(await screen.findByRole("menuitem", { name: "Edit recorded assessment" }));
-  return within(screen.getByRole("form", { name: "Edit recorded assessment" }));
+  return within(await screen.findByRole("form", { name: "Edit recorded assessment" }));
 };
 
 it("shows an assessment and its basis with only review facts and no draft or query provider", () => {
@@ -102,7 +116,7 @@ it("shows an assessment and its basis with only review facts and no draft or que
   expect(
     screen.getByRole("article", { name: `Assessment by ${assessment.reviewer}` }),
   ).toBeVisible();
-  expect(screen.getByText("Application changed since this assessment")).toBeVisible();
+  expect(screen.getByText("Based on an earlier submission")).toBeVisible();
   expect(screen.queryByRole("button", { name: "Record assessment" })).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: /Assessment actions/ })).not.toBeInTheDocument();
 });
@@ -259,7 +273,6 @@ it("recovers existing account-scoped review drafts and clears them only after a 
     [draftKey]: {
       mode: "edit",
       id: assessment.id,
-      replacesId: null,
       revision: application.reviews.revision,
       applicationVersion: application.version,
       criteriaVersion: round.criteriaVersion,
@@ -338,12 +351,14 @@ it.each(["review", "application", "criteria"] as const)(
 
     await user.clear(form.getByRole("textbox", { name: "Assessment text" }));
     await user.type(form.getByRole("textbox", { name: "Assessment text" }), "My correction");
+    await user.type(form.getByRole("textbox", { name: "Proposed amount" }), "18000");
 
     const currentApplication = {
       ...application,
       version: materialVersionSchema.parse(application.version + Number(changed === "application")),
       reviews: {
         ...application.reviews,
+        requests: [request],
         revision: reviewRevisionSchema.parse(
           application.reviews.revision + Number(changed === "review"),
         ),
@@ -357,14 +372,40 @@ it.each(["review", "application", "criteria"] as const)(
     };
     rerender(<ReviewWork {...props} application={currentApplication} round={currentRound} />);
 
-    expect(form.getByRole("textbox", { name: "Assessment text" })).toHaveValue("My correction");
-    expect(form.getByRole("button", { name: "Save assessment" })).toBeDisabled();
+    const recovery = within(screen.getByRole("complementary", { name: "Review task" }));
+    expect(recovery.getByRole("heading", { name: "Review changed" })).toHaveFocus();
+    expect(
+      within(recovery.getByRole("region", { name: "Saved assessment and your draft" })).getByText(
+        "My correction",
+      ),
+    ).toBeVisible();
+    expect(
+      recovery.getByRole("region", { name: "Saved assessment and your draft" }),
+    ).toHaveTextContent("Local participation.");
+    expect(
+      recovery.getByRole("region", { name: "Saved assessment and your draft" }),
+    ).toHaveTextContent("€18,000");
+    expect(recovery.queryByText(request.reviewer)).not.toBeInTheDocument();
+    expect(
+      recovery.getByText(
+        changed === "application"
+          ? "Version 2 → Version 3"
+          : changed === "criteria"
+            ? "Version 1 → Version 2"
+            : "Version 3 → Version 4",
+      ),
+    ).toBeVisible();
+    expect(
+      recovery.queryByRole("heading", { name: "Reviewer assessments" }),
+    ).not.toBeInTheDocument();
+    expect(recovery.queryByRole("button", { name: "Save assessment" })).not.toBeInTheDocument();
+    expect(recovery.getByRole("alert")).toBeVisible();
     expect(data.save).not.toHaveBeenCalled();
 
-    await user.click(
-      await screen.findByRole("button", { name: "Keep draft after reviewing current work" }),
-    );
-    await user.click(form.getByRole("button", { name: "Save assessment" }));
+    await user.click(await screen.findByRole("button", { name: "Keep my draft" }));
+    const resumed = within(screen.getByRole("form", { name: "Edit recorded assessment" }));
+    expect(resumed.getByRole("textbox", { name: "Assessment text" })).toHaveValue("My correction");
+    await user.click(resumed.getByRole("button", { name: "Save assessment" }));
 
     const expectedContent: unknown = expect.objectContaining({ reasoning: "My correction" });
     expect(data.save).toHaveBeenCalledExactlyOnceWith(
@@ -534,7 +575,7 @@ it("reports a failed conflict refresh without claiming the correction was saved"
   await user.type(form.getByRole("textbox", { name: "Assessment text" }), " My correction.");
   await user.click(form.getByRole("button", { name: "Save assessment" }));
 
-  expect(form.getByRole("alert")).toHaveTextContent("This work changed while you were editing.");
+  expect(form.getByRole("alert")).toHaveTextContent("The saved work changed.");
   expect(
     screen.getByText(
       "The latest information could not be loaded. Try again to review current work.",
@@ -573,4 +614,281 @@ it("adds criterion notes without losing them when the criteria basis changes or 
     expect.objectContaining({ content: expectedContent }),
     expect.anything(),
   );
+});
+
+it("rejects excess typed and pasted precision without rounding a recorded assessment amount", async () => {
+  const { user } = renderReview();
+  const form = await openCorrection(user);
+  const amount = form.getByRole("textbox", { name: "Proposed amount" });
+  await user.type(amount, "123.456");
+  expect(amount).toHaveValue("123.45");
+  expect(amount).toHaveAccessibleDescription(/Use numbers with up to two decimal places/);
+  await user.clear(amount);
+  await user.paste("99.999");
+  expect(amount).toHaveValue("");
+  expect(amount).toHaveAccessibleDescription(/Use numbers with up to two decimal places/);
+  await user.paste("12,50");
+  await user.tab();
+  expect(amount).toHaveValue("12.50");
+});
+
+it("preserves invalid restored assessment amounts and blocks saving without rounding", async () => {
+  await seedDraftStorage("dana", "reviews", {
+    [draftKey]: {
+      mode: "edit",
+      id: assessment.id,
+      revision: application.reviews.revision,
+      applicationVersion: application.version,
+      criteriaVersion: round.criteriaVersion,
+      values: {
+        contactId: assessment.contactId,
+        applicationVersion: "1",
+        criteriaVersion: "1",
+        date: "",
+        position: "Fund",
+        amount: "123.456",
+        reasoning: "Recovered correction",
+        observations: [],
+        note: "",
+      },
+    },
+  });
+  const { user, data } = renderReview();
+  await user.click(await screen.findByRole("button", { name: "Resume editing" }));
+  const form = within(screen.getByRole("form", { name: "Edit recorded assessment" }));
+  const amount = form.getByRole("textbox", { name: "Proposed amount" });
+  await user.click(amount);
+  await user.tab();
+  await user.click(form.getByRole("button", { name: "Save assessment" }));
+  expect(amount).toHaveValue("123.456");
+  expect(amount).toHaveAttribute("aria-invalid", "true");
+  expect(data.save).not.toHaveBeenCalled();
+});
+
+const seedConflictingReview = (mode: "record" | "edit", contactId: string, date = "") =>
+  seedDraftStorage("dana", "reviews", {
+    [draftKey]: {
+      mode,
+      id: mode === "edit" ? assessment.id : "retained-review",
+      revision: application.reviews.revision - 1,
+      applicationVersion: application.version,
+      criteriaVersion: round.criteriaVersion,
+      values: {
+        contactId,
+        applicationVersion: "1",
+        criteriaVersion: "1",
+        date,
+        position: "Fund",
+        amount: "18000",
+        reasoning: "Preserved judgment.",
+        observations: [],
+        note: "Preserved change note.",
+      },
+    },
+  });
+
+it.each([
+  { mode: "record", date: "2027-01-20", expected: "20 January 2027" },
+  { mode: "edit", date: "", expected: "Not known" },
+  { mode: "record", date: "invalid restored date", expected: "invalid restored date" },
+] as const)(
+  "identifies a conflicting $mode draft and preserves its date ($date)",
+  async ({ mode, date, expected }) => {
+    await seedConflictingReview(mode, assessment.contactId, date);
+    const { user, data } = renderReview();
+    await user.click(await screen.findByRole("button", { name: "Resume editing" }));
+    const draft = within(screen.getByRole("region", { name: "Saved assessment and your draft" }));
+    expect(
+      draft.getByText("Reviewer", { selector: "dt" }).parentElement?.lastElementChild,
+    ).toHaveTextContent(assessment.reviewer);
+    expect(draft.getByText("Assessment date")).toBeVisible();
+    expect(
+      draft.getByText("Assessment date", { selector: "dt" }).parentElement?.lastElementChild,
+    ).toHaveTextContent(expected);
+    expect(draft.getByText("Preserved judgment.")).toBeVisible();
+    expect(draft.getByText("Preserved change note.")).toBeVisible();
+    expect(data.save).not.toHaveBeenCalled();
+  },
+);
+
+it("resolves the newly selected reviewer in a conflicting assessment draft before a resolution", async () => {
+  await seedConflictingReview("record", "new-reviewer");
+  let resolveContacts!: (value: Awaited<ReturnType<ContactsSource["read"]>>) => void;
+  const source: ContactsSource = {
+    scope: (workspace) => [workspace],
+    read: vi.fn<ContactsSource["read"]>(
+      () =>
+        new Promise((resolve) => {
+          resolveContacts = resolve;
+        }),
+    ),
+    save: vi.fn(),
+  };
+  const { user, data } = renderReview({}, "dana", source);
+  await user.click(await screen.findByRole("button", { name: "Resume editing" }));
+  const draft = within(screen.getByRole("region", { name: "Saved assessment and your draft" }));
+  expect(draft.getByText("Reviewer details unavailable")).toBeVisible();
+  await act(async () =>
+    resolveContacts({
+      status: "ok",
+      workspaceName: "Alder",
+      contacts: [
+        {
+          id: "new-reviewer",
+          name: "New Reviewer",
+          email: "new@example.test",
+          affiliation: "",
+          archived: false,
+          revision: 0,
+          applicationTitles: [],
+        },
+      ],
+    }),
+  );
+  expect(await draft.findByText("New Reviewer", { exact: true })).toBeVisible();
+  expect(draft.queryByText("Reviewer details unavailable")).not.toBeInTheDocument();
+  expect(draft.getByText("Assessment date")).toBeVisible();
+  expect(draft.getByText("€18,000")).toBeVisible();
+  expect(data.save).not.toHaveBeenCalled();
+});
+
+it.each([
+  { contactId: "missing-reviewer", expected: "Reviewer details unavailable" },
+  { contactId: "", expected: "No reviewer selected" },
+])(
+  "truthfully identifies an unavailable assessment draft selection ($contactId)",
+  async ({ contactId, expected }) => {
+    await seedConflictingReview("record", contactId);
+    const source: ContactsSource = {
+      scope: (workspace) => [workspace],
+      read: vi.fn().mockResolvedValue({ status: "ok", workspaceName: "Alder", contacts: [] }),
+      save: vi.fn(),
+    };
+    const { user, data } = renderReview({}, "dana", source);
+    await user.click(await screen.findByRole("button", { name: "Resume editing" }));
+    const draft = within(screen.getByRole("region", { name: "Saved assessment and your draft" }));
+    expect(draft.getByText(expected)).toBeVisible();
+    expect(draft.queryByText(assessment.reviewer)).not.toBeInTheDocument();
+    expect(data.save).not.toHaveBeenCalled();
+  },
+);
+
+it("keeps reference focus when a delayed assessment save completes", async () => {
+  const { user, data } = renderReview();
+  let finish!: (result: Awaited<ReturnType<ReviewData["save"]>>) => void;
+  vi.mocked(data.save).mockImplementation(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  const form = await openCorrection(user);
+  await user.click(form.getByRole("button", { name: "Save assessment" }));
+  const details = screen.getByRole("button", { name: "Review details" });
+  details.focus();
+  await act(async () => finish({ status: "ok", revision: reviewRevisionSchema.parse(4) }));
+  await waitFor(() =>
+    expect(
+      screen.queryByRole("form", { name: "Edit recorded assessment" }),
+    ).not.toBeInTheDocument(),
+  );
+  await act(async () => {
+    await new Promise(requestAnimationFrame);
+  });
+  expect(details).toHaveFocus();
+});
+
+it("keeps reference focus when current context changes and restores writing after explicit conflict resolution", async () => {
+  const { user, props, rerender } = renderReview();
+  const form = await openCorrection(user);
+  await user.type(form.getByRole("textbox", { name: "Assessment text" }), "Preserved writing");
+  const reference = screen.getByRole("button", { name: "Review details" });
+  reference.focus();
+  rerender(
+    <ReviewWork
+      {...props}
+      application={{ ...application, version: materialVersionSchema.parse(3) }}
+    />,
+  );
+  expect(screen.getByRole("region", { name: "Saved assessment and your draft" })).toBeVisible();
+  expect(reference).toHaveFocus();
+  await user.click(screen.getByRole("button", { name: "Keep my draft" }));
+  expect(screen.getByRole("textbox", { name: "Assessment text" })).toHaveFocus();
+  expect(screen.getByRole("textbox", { name: "Assessment text" })).toHaveValue(
+    "Local participation.Preserved writing",
+  );
+});
+it("compares a retained assessment against that assessment without borrowing request attribution", async () => {
+  await seedConflictingReview("record", assessment.contactId);
+  const earlier = {
+    ...assessment,
+    versions: [
+      {
+        ...assessment.versions[0]!,
+        recorder: {
+          userId: "wrong",
+          name: "Assessment Recorder",
+          recordedAt: "2027-01-01T10:00:00Z",
+        },
+      },
+    ],
+  };
+  const requested = {
+    ...request,
+    contactId: assessment.contactId,
+    reviewer: assessment.reviewer,
+    applicationVersion: application.version,
+    criteriaVersion: round.criteriaVersion,
+    recorder: { userId: "right", name: "Request Recorder", recordedAt: "2027-01-02T11:00:00Z" },
+  };
+  const { user } = renderReview({
+    application: {
+      ...application,
+      reviews: { ...application.reviews, assessments: [earlier], requests: [requested] },
+    },
+  });
+  await user.click(await screen.findByRole("button", { name: "Resume editing" }));
+  const comparison = within(
+    screen.getByRole("region", { name: "Saved assessment and your draft" }),
+  );
+  expect(comparison.getByText(/Recorded by Assessment Recorder/)).toBeVisible();
+  expect(comparison.queryByText(/Request Recorder/)).not.toBeInTheDocument();
+  expect(comparison.queryByText(/vnull/)).not.toBeInTheDocument();
+  expect(
+    comparison.getByText("Application material reviewed", { selector: "dt" }).nextElementSibling,
+  ).toHaveTextContent("Version 1");
+  expect(
+    comparison.getByText("Criteria used", { selector: "dt" }).nextElementSibling,
+  ).toHaveTextContent("Version 1");
+});
+
+it("loads assignments independently of the management view before allowing manual recording", async () => {
+  let finish!: (value: Awaited<ReturnType<ManagerReviewerData["read"]>>) => void;
+  const participation: ManagerReviewerData = {
+    read: vi.fn<ManagerReviewerData["read"]>(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    ),
+    invite: vi.fn(),
+    manage: vi.fn(),
+    refresh: vi.fn(),
+  };
+  const { user } = renderReview({
+    application: { ...application, reviews: { ...application.reviews, requests: [request] } },
+    data: { draftKey, workspaceSlug: "alder", participation, save: vi.fn(), refresh: vi.fn() },
+  });
+  const pending = within(screen.getByRole("article", { name: request.reviewer }));
+  expect(pending.getByRole("button", { name: "Record assessment" })).toBeDisabled();
+  expect(screen.queryByRole("region", { name: "Reviewer access" })).not.toBeInTheDocument();
+  await act(async () =>
+    finish({ status: "ok", value: [{ ...reviewerPage().assignment, requestId: request.id }] }),
+  );
+  expect(pending.queryByRole("button", { name: "Record assessment" })).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Manage reviews" }));
+  expect(await screen.findByText("sam@example.test")).toBeVisible();
+  await user.click(screen.getByRole("button", { name: "Close review task" }));
+  await user.click(screen.getByRole("button", { name: "Manage reviews" }));
+  expect(participation.read).toHaveBeenCalledTimes(1);
 });

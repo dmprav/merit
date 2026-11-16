@@ -1,6 +1,8 @@
-import { useEffect, useState } from "react";
+import { useRef, useState, type Ref } from "react";
 import { useTranslation } from "react-i18next";
+import { z } from "zod";
 
+import { Form, FormActions, FormDateField, FormDialog, FormTextField, useForm } from "@merit/forms";
 import { useLocaleSettings } from "@merit/i18n";
 import { useFormat } from "@merit/i18n/format";
 import type { PageSource } from "@merit/query/contracts";
@@ -8,27 +10,27 @@ import { RemotePagedContent } from "@merit/query/pages";
 import type { ReviewerEvent } from "@merit/reviews/api";
 import type { ReviewerSummary } from "@merit/reviews/api";
 import { isInvitationExpired, type ReviewerStatus, type ReviewState } from "@merit/reviews/domain";
+import { ActionMenu } from "@merit/ui/action-menu";
 import { Badge } from "@merit/ui/badge";
 import { Button } from "@merit/ui/button";
 import { ConfirmationDialog } from "@merit/ui/confirmation-dialog";
-import { DateField } from "@merit/ui/date-field";
+import { Icon } from "@merit/ui/icon";
 import { Inline, Stack } from "@merit/ui/layout";
 import { Notice } from "@merit/ui/notice";
 import { PagedContent } from "@merit/ui/paged-content";
-import { TextField } from "@merit/ui/text-field";
+import { PersonIdentity } from "@merit/ui/person-identity";
+import { useReadingNavigation } from "@merit/ui/reference-workspace";
 
-import type { ManagerReviewerData } from "../../contracts/reviewer";
-import { useManagerReviewers } from "../../controllers/reviewer/use-manager-reviewers";
+import type { useManagerReviewers } from "../../controllers/reviewer/use-manager-reviewers";
 import type { en } from "./messages.en.ts";
 import styles from "./reviewer.module.css";
 
 type ManagerReviewersProps = {
   reviews: ReviewState;
-  data: ManagerReviewerData;
-  onAssignmentsChange: (assignments: ReviewerSummary[]) => void;
+  work: ManagerWork;
 };
 
-type ManagerWork = ReturnType<typeof useManagerReviewers>;
+type ManagerWork = NonNullable<ReturnType<typeof useManagerReviewers>>;
 
 type ManagerError =
   | "limited"
@@ -40,6 +42,22 @@ type ManagerError =
   | null;
 
 type ReviewRequest = ReviewState["requests"][number];
+
+const managerError = (failure: ManagerWork["failure"]): ManagerError => {
+  if (!failure) {
+    return null;
+  }
+  if (failure.status === "invalid") {
+    if (failure.error === "workspace_membership_required") {
+      return "reviewerMembershipRequired";
+    }
+    return failure.error === "application_withdrawn" ? "applicationWithdrawn" : "inviteInvalid";
+  }
+  if (failure.status === "limited") {
+    return "limited";
+  }
+  return failure.status === "conflict" ? "stale" : "unavailable";
+};
 
 /**
  * Keeps the dialog's subject while it closes, so its title and text do not empty mid-exit.
@@ -58,16 +76,12 @@ const useDialogTarget = <T,>() => {
   };
 };
 
-export const ManagerReviewers = ({ reviews, data, onAssignmentsChange }: ManagerReviewersProps) => {
+export const ManagerReviewers = ({ reviews, work }: ManagerReviewersProps) => {
   const { t } = useTranslation("reviewer");
-  const work = useManagerReviewers(data, reviews.revision);
-  useEffect(() => {
-    onAssignmentsChange(work.assignments);
-  }, [work.assignments, onAssignmentsChange]);
   const inviting = useDialogTarget<ReviewRequest>();
   const revoking = useDialogTarget<ReviewerSummary>();
   const clearing = useDialogTarget<ReviewerSummary>();
-  const errorKey = work.error as ManagerError;
+  const errorKey = managerError(work.failure);
   const uninvited = reviews.requests.filter(
     (request) =>
       request.status === "outstanding" &&
@@ -76,11 +90,22 @@ export const ManagerReviewers = ({ reviews, data, onAssignmentsChange }: Manager
 
   return (
     <Stack as="section" gap={3} aria-label={t("reviewerAccess")}>
-      <h3>{t("reviewerAccess")}</h3>
-      {errorKey && (
-        <Notice tone="danger" role="alert">
+      {errorKey && !inviting.isOpen && !clearing.isOpen && !revoking.isOpen && (
+        <Notice appearance="inline" tone="danger" role="alert">
           {t(errorKey)}{" "}
-          <Button variant="quiet" onPress={() => void work.refresh()}>
+          <Button variant="quiet" isDisabled={work.pending} onPress={() => void work.refresh()}>
+            {t("refresh")}
+          </Button>
+        </Notice>
+      )}
+      {work.refreshError && (
+        <Notice appearance="inline" tone="warning" role="alert">
+          {t(
+            work.refreshError === "saved"
+              ? "participationSavedRefreshError"
+              : "participationReadError",
+          )}{" "}
+          <Button variant="quiet" isDisabled={work.pending} onPress={() => void work.refresh()}>
             {t("refresh")}
           </Button>
         </Notice>
@@ -88,23 +113,24 @@ export const ManagerReviewers = ({ reviews, data, onAssignmentsChange }: Manager
       {work.loaded && !reviews.requests.length && <p>{t("noAssignments")}</p>}
       {work.loaded &&
         uninvited.map((request) => (
-          <Inline key={request.id}>
-            <span>{request.reviewer}</span>
+          <div key={request.id} className={styles.assignmentRow}>
+            <PersonIdentity name={request.reviewer} />
+            <span className={styles.hint}>{t("notInvited")}</span>
             <Button
-              variant="quiet"
+              variant="secondary"
               size="small"
               isDisabled={work.pending}
               onPress={() => inviting.open(request)}
             >
               {t("invite")}
             </Button>
-          </Inline>
+          </div>
         ))}
       {work.assignments.map((assignment) => (
         <ReviewerAssignment
           key={assignment.id}
           assignment={assignment}
-          historySource={data.historySource?.(assignment)}
+          historySource={work.historySource?.(assignment)}
           work={work}
           onClear={() => clearing.open(assignment)}
           onRevoke={() => revoking.open(assignment)}
@@ -154,7 +180,6 @@ export const ManagerReviewers = ({ reviews, data, onAssignmentsChange }: Manager
 type AssignmentState = {
   label: `status.${ReviewerStatus}` | `invitationState.${keyof typeof en.invitationState}`;
   tone: "neutral" | "warning" | "danger";
-  detail: "invitationExpired" | "invitationFailed" | "invitationSent" | "invitationPending" | null;
   /** The invitation cannot reach the reviewer until it is resent. */
   needsResend: boolean;
 };
@@ -165,7 +190,6 @@ const assignmentState = (assignment: ReviewerSummary): AssignmentState => {
     return {
       label: "invitationState.expired",
       tone: "warning",
-      detail: "invitationExpired",
       needsResend: true,
     };
   }
@@ -173,7 +197,6 @@ const assignmentState = (assignment: ReviewerSummary): AssignmentState => {
     return {
       label: "invitationState.undelivered",
       tone: "danger",
-      detail: "invitationFailed",
       needsResend: true,
     };
   }
@@ -181,14 +204,12 @@ const assignmentState = (assignment: ReviewerSummary): AssignmentState => {
     return {
       label: "status.invited",
       tone: "neutral",
-      detail: assignment.delivery === "sent" ? "invitationSent" : "invitationPending",
       needsResend: false,
     };
   }
   return {
     label: `status.${assignment.status}`,
     tone: assignment.status === "conflict" ? "warning" : "neutral",
-    detail: null,
     needsResend: false,
   };
 };
@@ -209,46 +230,110 @@ const ReviewerAssignment = ({
   historySource,
 }: AssignmentProps) => {
   const { t } = useTranslation("reviewer");
-  const format = useFormat();
   const state = assignmentState(assignment);
+  const {
+    destination: historyOpen,
+    heading: historyHeading,
+    root,
+    open,
+    back,
+  } = useReadingNavigation<true>();
+  const historyTrigger = useRef<HTMLButtonElement>(null);
   return (
-    <Stack gap={3} className={styles.assignment}>
-      <Inline>
-        <strong>{assignment.reviewer}</strong>
-        <Badge tone={state.tone}>{t(state.label)}</Badge>
-      </Inline>
-      <p className={styles.hint}>
-        {assignment.email}
-        {assignment.dueDate &&
-          ` · ${t("dueOn", { date: format.calendarDate(assignment.dueDate) })}`}
-      </p>
-      {state.detail && <p>{t(state.detail)}</p>}
-      {assignment.conflict && (
-        <Notice tone="warning">
-          <strong>{t("reportedConflict")}</strong> {assignment.conflict}
-        </Notice>
+    <section ref={root} className={styles.assignment} aria-label={assignment.reviewer}>
+      {historyOpen ? (
+        <Stack gap={4}>
+          <Inline>
+            <Button variant="quiet" size="small" alignment="start" onPress={back}>
+              {t("backToReviewers")}
+            </Button>
+            <h3 ref={historyHeading} tabIndex={-1} className={styles.noteTitle}>
+              {t("historyFor", { name: assignment.reviewer })}
+            </h3>
+          </Inline>
+          <AssignmentHistory history={assignment.history ?? []} source={historySource} />
+        </Stack>
+      ) : (
+        <Stack gap={3}>
+          <div className={styles.assignmentRow}>
+            <PersonIdentity name={assignment.reviewer} description={assignment.email} />
+            <AssignmentActions
+              assignment={assignment}
+              work={work}
+              triggerRef={historyTrigger}
+              onClear={onClear}
+              onRevoke={onRevoke}
+              onHistory={() => {
+                open(true, () => historyTrigger.current);
+              }}
+            />
+            <AssignmentFacts assignment={assignment} state={state} />
+          </div>
+          {assignment.conflict && (
+            <p className={styles.writing}>
+              <span className={styles.hint}>{t("reportedConflict")}: </span>
+              {assignment.conflict}
+            </p>
+          )}
+          {assignment.notification && assignment.notification !== "sent" && (
+            <Notice appearance="inline" tone="warning">
+              {t("notificationFailed")}{" "}
+              <Button
+                variant="quiet"
+                isDisabled={work.pending}
+                onPress={() => void work.manage(assignment, "retry_notification")}
+              >
+                {t("retryNotification")}
+              </Button>
+            </Notice>
+          )}
+        </Stack>
       )}
-      {assignment.notification && assignment.notification !== "sent" && (
-        <Notice tone="warning">
-          {t("notificationFailed")}{" "}
-          <Button
-            variant="quiet"
-            isDisabled={work.pending}
-            onPress={() => void work.manage(assignment, "retry_notification")}
-          >
-            {t("retryNotification")}
-          </Button>
-        </Notice>
+    </section>
+  );
+};
+
+const AssignmentFacts = ({
+  assignment,
+  state,
+}: {
+  assignment: ReviewerSummary;
+  state: AssignmentState;
+}) => {
+  const { t } = useTranslation("reviewer");
+  const format = useFormat();
+  return (
+    <dl className={styles.assignmentFacts}>
+      <div>
+        <dt>{t("participation")}</dt>
+        <dd>
+          <Badge tone={assignment.status === "conflict" ? "warning" : "neutral"}>
+            {t(
+              assignment.status === "invited" &&
+                (state.needsResend || assignment.delivery !== "sent")
+                ? "notAccepted"
+                : `status.${assignment.status}`,
+            )}
+          </Badge>
+        </dd>
+      </div>
+      <div>
+        <dt>{t("due")}</dt>
+        <dd>{assignment.dueDate ? format.calendarDate(assignment.dueDate) : t("noDue")}</dd>
+      </div>
+      {assignment.status === "invited" && (
+        <div>
+          <dt>{t("delivery")}</dt>
+          <dd>
+            {state.needsResend ? (
+              <Badge tone={state.tone}>{t(state.label)}</Badge>
+            ) : (
+              t(assignment.delivery === "sent" ? "invitationSent" : "invitationPending")
+            )}
+          </dd>
+        </div>
       )}
-      <AssignmentActions
-        assignment={assignment}
-        work={work}
-        needsResend={state.needsResend}
-        onClear={onClear}
-        onRevoke={onRevoke}
-      />
-      <AssignmentHistory history={assignment.history ?? []} source={historySource} />
-    </Stack>
+    </dl>
   );
 };
 
@@ -259,21 +344,19 @@ const AssignmentHistory = ({
   history: ReviewerEvent[];
   source?: PageSource<ReviewerEvent>;
 }) => {
-  const [open, setOpen] = useState(false);
   const { t } = useTranslation("reviewer");
   const { formatLocale } = useLocaleSettings();
   return (
-    <details className={styles.history} onToggle={(event) => setOpen(event.currentTarget.open)}>
-      <summary>{t("recordHistory")}</summary>
-      <RemotePagedContent source={source} entries={history} active={open}>
-        {(page) => (
-          <PagedContent {...page}>
-            {(entries) => (
-              <ol>
-                {/* Newest first: the latest change usually explains the current status. */}
-                {entries.map((event, index) => (
-                  <li key={index}>
-                    {t(`event.${eventLabel(event.action)}`)} · {event.actor} ·{" "}
+    <RemotePagedContent source={source} entries={history} active>
+      {(page) => (
+        <PagedContent {...page}>
+          {(entries) => (
+            <ol className={styles.events}>
+              {/* Newest first: the latest change usually explains the current status. */}
+              {entries.map((event, index) => (
+                <li key={index}>
+                  <div className={styles.eventHeading}>
+                    <span>{t(`event.${eventLabel(event.action)}`)}</span>
                     <time dateTime={event.at} title={event.at}>
                       {new Date(event.at).toLocaleString(formatLocale, {
                         day: "numeric",
@@ -285,44 +368,43 @@ const AssignmentHistory = ({
                       })}{" "}
                       UTC
                     </time>
-                    {event.note && <p className={styles.writing}>{event.note}</p>}
-                  </li>
-                ))}
-              </ol>
-            )}
-          </PagedContent>
-        )}
-      </RemotePagedContent>
-    </details>
+                  </div>
+                  <p className={styles.hint}>{event.actor}</p>
+                  {event.note && <p className={styles.writing}>{event.note}</p>}
+                </li>
+              ))}
+            </ol>
+          )}
+        </PagedContent>
+      )}
+    </RemotePagedContent>
   );
 };
 
 const AssignmentActions = ({
   assignment,
   work,
-  needsResend,
   onClear,
   onRevoke,
-}: AssignmentProps & { needsResend: boolean }) => {
+  onHistory,
+  triggerRef,
+}: AssignmentProps & { onHistory: () => void; triggerRef: Ref<HTMLButtonElement> }) => {
   const { t } = useTranslation("reviewer");
+  const items = [
+    ...(assignment.status === "invited" ? [{ id: "resend", label: t("resend") }] : []),
+    ...(!["cancelled", "declined"].includes(assignment.status)
+      ? [{ id: "revoke", label: t("revoke") }]
+      : []),
+    { id: "history", label: t("recordHistory") },
+  ];
   return (
     <Inline>
-      {assignment.status === "invited" && (
-        <Button
-          variant={needsResend ? "primary" : "secondary"}
-          size="small"
-          isDisabled={work.pending}
-          onPress={() => void work.manage(assignment, "resend")}
-        >
-          {t("resend")}
-        </Button>
-      )}
       {assignment.status === "conflict" && (
         <Button variant="secondary" size="small" isDisabled={work.pending} onPress={onClear}>
           {t("clearConflict")}
         </Button>
       )}
-      {assignment.status === "cancelled" ? (
+      {assignment.status === "cancelled" && (
         <Button
           variant="secondary"
           size="small"
@@ -331,13 +413,32 @@ const AssignmentActions = ({
         >
           {t("reinstate")}
         </Button>
-      ) : (
-        assignment.status !== "declined" && (
-          <Button variant="quiet" size="small" isDisabled={work.pending} onPress={onRevoke}>
-            {t("revoke")}
-          </Button>
-        )
       )}
+      <ActionMenu
+        label={t("reviewerActions", { name: assignment.reviewer })}
+        trigger={
+          <Button
+            ref={triggerRef}
+            variant="quiet"
+            size="small"
+            iconOnly
+            isDisabled={work.pending}
+            aria-label={t("reviewerActions", { name: assignment.reviewer })}
+          >
+            <Icon name="more" />
+          </Button>
+        }
+        items={items}
+        onAction={(action) => {
+          if (action === "history") {
+            onHistory();
+          } else if (action === "revoke") {
+            onRevoke();
+          } else {
+            void work.manage(assignment, "resend");
+          }
+        }}
+      />
     </Inline>
   );
 };
@@ -357,35 +458,54 @@ const InviteReviewerDialog = ({
   onClose,
 }: DialogProps<{ request: ReviewRequest | null }>) => {
   const { t } = useTranslation("reviewer");
-  const [due, setDue] = useState("");
+  const { form, submission } = useForm({
+    defaultValues: { due: "" },
+    schema: z.object({ due: z.union([z.literal(""), z.iso.date(t("dateInvalid"))]) }),
+    onSubmit: async ({ due }) => {
+      if (request && (await work.invite(request.id, due || null))) {
+        onClose();
+      }
+      return null;
+    },
+    submitErrorMessage: t("unavailable"),
+  });
+  const status = {
+    ...submission,
+    isSubmitting: submission.isSubmitting || work.pending,
+    error: errorKey ? t(errorKey) : submission.error,
+  };
   return (
-    <ConfirmationDialog
+    <FormDialog
       title={t("invite")}
-      description={t("invitationHelp", { name: request?.reviewer ?? "" })}
+      context={request?.reviewer}
       closeLabel={t("close")}
-      cancelLabel={t("cancel")}
-      confirmLabel={t("invite")}
+      trigger={null}
       isOpen={isOpen}
       onOpenChange={(open) => {
         if (!open) {
           onClose();
         }
       }}
-      isPending={work.pending}
-      error={errorKey ? t(errorKey) : null}
-      onConfirm={async () => {
-        if (request && (await work.invite(request.id, due || null))) {
-          onClose();
-        }
-      }}
+      isDismissDisabled={status.isSubmitting}
     >
-      <DateField
-        label={t("due")}
-        value={due}
-        onChange={(value) => setDue(value ?? "")}
-        description={t("dueHelp")}
-      />
-    </ConfirmationDialog>
+      <Form
+        label={t("invite")}
+        submission={status}
+        actions={
+          <FormActions
+            submission={status}
+            onCancel={onClose}
+            cancelLabel={t("cancel")}
+            submitLabel={t("invite")}
+            submittingLabel={t("sending")}
+          />
+        }
+      >
+        <form.Field name="due">
+          {(field) => <FormDateField field={field} label={t("due")} />}
+        </form.Field>
+      </Form>
+    </FormDialog>
   );
 };
 
@@ -397,53 +517,70 @@ const ClearConflictDialog = ({
   onClose,
 }: DialogProps<{ assignment: ReviewerSummary | null }>) => {
   const { t } = useTranslation("reviewer");
-  const [resolution, setResolution] = useState("");
-  const [missing, setMissing] = useState(false);
+  const { form, submission } = useForm({
+    defaultValues: { resolution: "" },
+    schema: z.object({ resolution: z.string().trim().min(1, t("resolutionRequired")).max(2000) }),
+    onSubmit: async ({ resolution }) => {
+      if (assignment && (await work.manage(assignment, "clear_conflict", resolution))) {
+        onClose();
+      }
+      return null;
+    },
+    submitErrorMessage: t("unavailable"),
+  });
+  const status = {
+    ...submission,
+    isSubmitting: submission.isSubmitting || work.pending,
+    error: errorKey ? t(errorKey) : submission.error,
+  };
   return (
-    <ConfirmationDialog
+    <FormDialog
       title={t("clearConflict")}
-      description={t("clearConflictHelp", { name: assignment?.reviewer ?? "" })}
+      context={assignment?.reviewer}
       closeLabel={t("close")}
-      cancelLabel={t("cancel")}
-      confirmLabel={t("clearConflict")}
+      trigger={null}
       isOpen={isOpen}
       onOpenChange={(open) => {
         if (!open) {
           onClose();
         }
       }}
-      isPending={work.pending}
-      error={errorKey ? t(errorKey) : null}
-      onConfirm={async () => {
-        if (!resolution.trim()) {
-          setMissing(true);
-          return;
-        }
-        if (assignment && (await work.manage(assignment, "clear_conflict", resolution))) {
-          onClose();
-        }
-      }}
+      isDismissDisabled={status.isSubmitting}
     >
-      {assignment?.conflict && (
-        <Stack gap={1}>
-          <strong>{t("reportedConflict")}</strong>
-          <p className={styles.writing}>{assignment.conflict}</p>
-        </Stack>
-      )}
-      <TextField
-        label={t("resolution")}
-        isRequired
-        multiline
-        maxLength={2000}
-        value={resolution}
-        onChange={(value) => {
-          setResolution(value);
-          setMissing(false);
-        }}
-        isInvalid={missing}
-        errorMessage={t("resolutionRequired")}
-      />
-    </ConfirmationDialog>
+      <Form
+        label={t("clearConflict")}
+        submission={status}
+        actions={
+          <FormActions
+            submission={status}
+            onCancel={onClose}
+            cancelLabel={t("cancel")}
+            submitLabel={t("clearConflict")}
+            submittingLabel={t("working")}
+          />
+        }
+      >
+        {assignment?.conflict && (
+          <div>
+            <p className={styles.hint}>{t("reportedConflict")}</p>
+            <p className={styles.writing}>{assignment.conflict}</p>
+          </div>
+        )}
+        <p>{t("clearConflictHelp", { name: assignment?.reviewer ?? "" })}</p>
+        <form.Field name="resolution">
+          {(field) => (
+            <FormTextField
+              field={field}
+              label={t("resolution")}
+              isRequired
+              multiline
+              rows={3}
+              maxLength={2000}
+            />
+          )}
+        </form.Field>
+      </Form>
+    </FormDialog>
   );
 };
 

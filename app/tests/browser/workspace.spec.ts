@@ -78,7 +78,8 @@ test("demo and workspace show the expected assessment and inspectable review bas
   await expect(page).toHaveTitle("Workshop Saturdays · Merit");
   await expect(page.getByRole("main")).toBeFocused();
 
-  await page.getByRole("button", { name: "Manage reviews", exact: true }).click();
+  await page.getByRole("button", { name: /^Reference material:/ }).click();
+  await page.getByRole("menuitem", { name: "Reviewer assessments", exact: true }).click();
   const assessment = page.getByRole("article", { name: "Assessment by Sam Morgan" });
   for (const surface of ["workspace", "demo"]) {
     if (surface === "demo") {
@@ -100,14 +101,18 @@ test("demo and workspace show the expected assessment and inspectable review bas
       ),
     ).toBeVisible();
     await expect(
-      assessment.getByText("Application changed since this assessment", { exact: true }),
+      assessment.getByText("Based on an earlier submission", { exact: true }),
     ).toBeVisible();
 
     await assessment.getByText("Review details", { exact: true }).click();
 
     await expect(
-      page.getByRole("dialog", { name: "Review details" }).getByText("Version 1", { exact: true }),
-    ).toBeVisible();
+      page
+        .getByRole("region", { name: "Review details", exact: true })
+        .getByRole("term")
+        .filter({ hasText: /^Submission$/ })
+        .locator("+ dd"),
+    ).toHaveText("Version 1");
 
     await page.screenshot({
       path: testInfo.outputPath(`${surface}-review-details.png`),
@@ -191,7 +196,8 @@ test(
     await expect(page).toHaveTitle("Workshop Saturdays · Merit");
     await expect(page.getByRole("main")).toBeFocused();
 
-    await page.getByRole("button", { name: "Manage reviews", exact: true }).click();
+    await page.getByRole("button", { name: /^Reference material:/ }).click();
+    await page.getByRole("menuitem", { name: "Reviewer assessments", exact: true }).click();
 
     await expect(page.getByRole("article", { name: "Assessment by Sam Morgan" })).toBeVisible();
     await expect(page.locator("vite-error-overlay")).toHaveCount(0);

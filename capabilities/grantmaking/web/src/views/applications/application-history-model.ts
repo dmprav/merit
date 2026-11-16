@@ -2,7 +2,8 @@ import type { IntakeState } from "@merit/applications-web/contracts";
 import type { ApplicationView as Application } from "@merit/grantmaking/api";
 import { decodeMoney } from "@merit/money";
 
-export type HistorySnapshot = Pick<Application, "version" | "title" | "requested" | "submission">;
+export type HistorySnapshot = Pick<Application, "version" | "title" | "requested" | "submission"> &
+  Partial<Pick<Application, "summary" | "summaryAuthor" | "intakeStatus">>;
 
 export type ApplicationHistoryEntry = IntakeState["history"][number];
 
@@ -21,10 +22,8 @@ export const applicationHistorySnapshots = (
       }
 
       snapshots.set(value.version, {
-        version: value.version,
-        title: value.title,
+        ...value,
         requested: value.requested === null ? null : decodeMoney(value.requested),
-        submission: value.submission,
       });
     }
   }
@@ -72,6 +71,16 @@ export const compareSubmissionAnswers = (
         status: "removed",
       })),
   ];
+};
+
+export const submissionAnswersReordered = (before: readonly Answer[], after: readonly Answer[]) => {
+  const previousIds = new Set(before.map((answer) => answer.questionId));
+  const currentIds = new Set(after.map((answer) => answer.questionId));
+  const previousOrder = before.filter((answer) => currentIds.has(answer.questionId));
+  const currentOrder = after.filter((answer) => previousIds.has(answer.questionId));
+  return previousOrder.some(
+    (answer, index) => answer.questionId !== currentOrder[index]?.questionId,
+  );
 };
 
 export const comparedHistoryEntries = (

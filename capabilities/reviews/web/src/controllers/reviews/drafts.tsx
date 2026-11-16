@@ -7,9 +7,8 @@ import { saveReviewRequestSchema } from "@merit/reviews/api";
 const text = z.string();
 const baseline = saveReviewRequestSchema.shape;
 export const reviewDraftSchema = z.object({
-  mode: z.enum(["request", "record", "edit"]),
+  mode: z.enum(["record", "edit"]),
   id: text,
-  replacesId: text.nullable(),
   revision: baseline.expectedRevision,
   applicationVersion: baseline.expectedApplicationVersion,
   criteriaVersion: baseline.expectedCriteriaVersion,

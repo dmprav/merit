@@ -9,6 +9,7 @@ import { ApplicationPage } from "@merit/ui/application-shell";
 import { PageHeader } from "@merit/ui/page-header";
 
 import { GrantmakingMessagesProvider } from "../../messages";
+import { ApplicationAuditHistory } from "./application-audit-history";
 import { ApplicationHistory } from "./application-history";
 import type { ApplicationHistoryEntry } from "./application-history-model";
 
@@ -63,15 +64,25 @@ const history = [
   },
 ] satisfies [ApplicationHistoryEntry, ApplicationHistoryEntry];
 
-const HistoryPreview = ({ scenario }: { scenario: "versions" | "missing" | "empty" }) => (
+const HistoryPreview = ({
+  scenario,
+}: {
+  scenario: "versions" | "missing" | "empty" | "audit" | "missingEvent";
+}) => (
   <GrantmakingMessagesProvider>
     <ApplicationPage locationKey="history" breadcrumb={null} breadcrumbLabel="Breadcrumb">
       <PageHeader title="Version history" />
-      <ApplicationHistory
-        application={third}
-        history={scenario === "empty" ? [] : scenario === "missing" ? history.slice(1) : history}
-        initialFromVersion={scenario === "empty" ? undefined : 1}
-      />
+      {scenario === "audit" || scenario === "missingEvent" ? (
+        <ApplicationAuditHistory
+          history={scenario === "missingEvent" ? [{ ...history[0], before: null }] : history}
+        />
+      ) : (
+        <ApplicationHistory
+          application={third}
+          history={scenario === "empty" ? [] : scenario === "missing" ? history.slice(1) : history}
+          initialFromVersion={scenario === "empty" ? undefined : 1}
+        />
+      )}
     </ApplicationPage>
   </GrantmakingMessagesProvider>
 );
@@ -98,3 +109,50 @@ export const AcrossThreeVersions: Story = {
 };
 export const MissingReviewedVersion: Story = { args: { scenario: "missing" } };
 export const NoEarlierSnapshot: Story = { args: { scenario: "empty" } };
+
+export const RecordedEvents: Story = {
+  args: { scenario: "audit" },
+  play: async ({ canvas, userEvent }) => {
+    await expect(canvas.getAllByRole("listitem")).toHaveLength(2);
+    await userEvent.click(canvas.getAllByRole("button", { name: "View recorded change" })[0]!);
+    await expect(canvas.getByRole("heading", { name: "Project purpose and access" })).toBeVisible();
+    await expect(
+      canvas.queryByRole("region", { name: /^Previous material/ }),
+    ).not.toBeInTheDocument();
+    await userEvent.click(canvas.getByRole("tab", { name: "Full record" }));
+    await expect(canvas.getByRole("region", { name: /^Previous material/ })).toBeVisible();
+    await expect(canvas.getByRole("region", { name: /^Recorded material/ })).toBeVisible();
+    await expect(canvas.queryByRole("list")).not.toBeInTheDocument();
+  },
+};
+
+export const RecordedChange: Story = {
+  args: { scenario: "audit" },
+  play: async ({ canvas, userEvent }) => {
+    await userEvent.click(canvas.getAllByRole("button", { name: "View recorded change" })[0]!);
+    await expect(canvas.getByRole("heading", { name: "Project purpose and access" })).toBeVisible();
+    await expect(canvas.getByText(history[1].reason)).toBeVisible();
+    await expect(canvas.getByRole("tab", { name: "Full record" })).toBeVisible();
+    await expect(
+      canvas.queryByRole("region", { name: /^Previous material/ }),
+    ).not.toBeInTheDocument();
+  },
+};
+
+export const FullVersionRecords: Story = {
+  play: async ({ canvas, userEvent }) => {
+    await userEvent.click(canvas.getByRole("tab", { name: "Full record" }));
+    await expect(canvas.getByRole("region", { name: "Version 1" })).toBeVisible();
+    await expect(canvas.getByRole("region", { name: "Version 3 (current)" })).toBeVisible();
+    await expect(canvas.queryByRole("tabpanel", { name: "Changes" })).not.toBeInTheDocument();
+  },
+};
+
+export const MissingEventSnapshot: Story = {
+  args: { scenario: "missingEvent" },
+  play: async ({ canvas, userEvent }) => {
+    await userEvent.click(canvas.getByRole("button", { name: "View recorded change" }));
+    await expect(canvas.getByRole("region", { name: /^Recorded material/ })).toBeVisible();
+    await expect(canvas.queryByRole("tab", { name: "Changes" })).not.toBeInTheDocument();
+  },
+};

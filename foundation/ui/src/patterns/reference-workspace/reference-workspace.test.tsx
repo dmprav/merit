@@ -1,4 +1,6 @@
 import { act, render, screen } from "@testing-library/react";
+import { useRef } from "react";
+import { createPortal } from "react-dom";
 import { afterEach, beforeEach, expect, it, vi } from "vite-plus/test";
 
 import {
@@ -6,6 +8,7 @@ import {
   ReferenceWorkspace,
   WorkPane,
   useReferenceViewport,
+  useReadingNavigation,
 } from "./reference-workspace";
 
 type Reference = "document" | "guidelines";
@@ -91,4 +94,137 @@ it("requires panes to be placed inside a workspace", () => {
       </WorkPane>,
     ),
   ).toThrow("inside ReferenceWorkspace");
+});
+
+const ReadingList = () => {
+  const trigger = useRef<HTMLButtonElement>(null);
+  const { destination: detail, root, heading, open, back } = useReadingNavigation<true>();
+  return (
+    <section ref={root}>
+      {detail ? (
+        <>
+          <h2 ref={heading} tabIndex={-1}>
+            Item details
+          </h2>
+          <button onClick={back}>Back to list</button>
+        </>
+      ) : (
+        <button
+          ref={trigger}
+          onClick={() => {
+            open(true, () => trigger.current);
+          }}
+        >
+          Inspect item
+        </button>
+      )}
+    </section>
+  );
+};
+
+const ReadingWorkspace = () => {
+  const { destination, root, heading, open, back, reset } = useReadingNavigation<string>();
+  const first = useRef<HTMLButtonElement>(null);
+  const second = useRef<HTMLButtonElement>(null);
+  return (
+    <ReferenceWorkspace>
+      <ReferencePane label="Reference">
+        <section ref={root}>
+          {destination ? (
+            <>
+              <h2 ref={heading} tabIndex={-1}>
+                {destination}
+              </h2>
+              <button onClick={back}>Back</button>
+              <button onClick={() => open("Criteria", () => null)}>Inspect criteria</button>
+            </>
+          ) : (
+            <p>All assessments</p>
+          )}
+        </section>
+      </ReferencePane>
+      <WorkPane label="Overview">
+        <button ref={first} onClick={() => reset("First assessment", () => first.current)}>
+          First
+        </button>
+        <button ref={second} onClick={() => reset("Second assessment", () => second.current)}>
+          Second
+        </button>
+        <button onClick={() => reset()}>Show all</button>
+      </WorkPane>
+    </ReferenceWorkspace>
+  );
+};
+
+it("replaces a nested visit from the overview and restores the physical pane when navigation lives above it", () => {
+  render(<ReadingWorkspace />);
+  const viewport = screen.getByRole("group", { name: "Reference" });
+  act(() => screen.getByRole("button", { name: "First" }).click());
+  act(() => screen.getByRole("button", { name: "Inspect criteria" }).click());
+  viewport.scrollTop = 240;
+  act(() => screen.getByRole("button", { name: "Second" }).click());
+  expect(screen.getByRole("heading", { name: "Second assessment" })).toHaveFocus();
+  viewport.scrollTop = 0;
+  act(() => screen.getByRole("button", { name: "Back" }).click());
+  expect(screen.getByText("All assessments")).toBeVisible();
+  expect(viewport.scrollTop).toBe(240);
+  expect(screen.getByRole("button", { name: "Second" })).toHaveFocus();
+  act(() => screen.getByRole("button", { name: "First" }).click());
+  act(() => screen.getByRole("button", { name: "Show all" }).click());
+  expect(screen.getByText("All assessments")).toBeVisible();
+});
+
+it("restores the owning pane after an internal detail visit and retains trigger focus", () => {
+  render(
+    <ReferenceWorkspace>
+      <ReferencePane label="Reference">
+        <ReadingList />
+      </ReferencePane>
+    </ReferenceWorkspace>,
+  );
+  const viewport = screen.getByRole("group", { name: "Reference" });
+  viewport.scrollTop = 360;
+  act(() => screen.getByRole("button", { name: "Inspect item" }).click());
+  viewport.scrollTop = 20;
+  act(() => screen.getByRole("button", { name: "Back to list" }).click());
+  expect(viewport.scrollTop).toBe(360);
+  expect(screen.getByRole("button", { name: "Inspect item" })).toHaveFocus();
+});
+
+it("restores document position for stacked panes", () => {
+  vi.stubGlobal("matchMedia", () => ({ matches: true }));
+  vi.stubGlobal("scrollY", 640);
+  vi.stubGlobal("scrollTo", vi.fn());
+  render(
+    <ReferenceWorkspace>
+      <ReferencePane label="Reference">
+        <ReadingList />
+      </ReferencePane>
+    </ReferenceWorkspace>,
+  );
+  act(() => screen.getByRole("button", { name: "Inspect item" }).click());
+  vi.stubGlobal("scrollY", 20);
+  act(() => screen.getByRole("button", { name: "Back to list" }).click());
+  expect(window.scrollTo).toHaveBeenCalledWith({ top: 640, left: 0, behavior: "instant" });
+});
+
+it("uses a portaled dialog's physical scroll owner instead of its inherited reference pane", () => {
+  const dialog = document.createElement("div");
+  dialog.style.overflowY = "auto";
+  document.body.append(dialog);
+  const view = render(
+    <ReferenceWorkspace>
+      <ReferencePane label="Reference">{createPortal(<ReadingList />, dialog)}</ReferencePane>
+    </ReferenceWorkspace>,
+  );
+  const viewport = screen.getByRole("group", { name: "Reference" });
+  viewport.scrollTop = 300;
+  dialog.scrollTop = 180;
+  act(() => screen.getByRole("button", { name: "Inspect item" }).click());
+  dialog.scrollTop = 0;
+  act(() => screen.getByRole("button", { name: "Back to list" }).click());
+  expect(dialog.scrollTop).toBe(180);
+  expect(viewport.scrollTop).toBe(300);
+  view.unmount();
+  dialog.remove();
 });

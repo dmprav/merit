@@ -416,7 +416,7 @@ it("formats allocations on blur and saves the same cents shown in the budget pre
   await user.paste("1.005");
 
   expect(amount).toHaveValue("20000.00");
-  expect(screen.getByText(/The amount was not changed/)).toBeVisible();
+  expect(screen.getByText(/Amount unchanged/)).toBeVisible();
 
   await user.tab();
 
@@ -451,6 +451,35 @@ it("keeps a withdrawn application's recommendation readable but not editable", (
 
   expect(screen.getByRole("button", { name: /Resume editing recommendation for/ })).toBeDisabled();
   expect(screen.queryByRole("form")).not.toBeInTheDocument();
+});
+
+it("keeps an invalid recovered amount until corrected without rounding or saving it", async () => {
+  const user = userEvent.setup();
+  const onSave = vi.fn().mockResolvedValue(null);
+  render(
+    <EditableRecommendation
+      draft={{ position: "Fund", amount: "1.005", reasoning: "Recovered recommendation." }}
+      onSave={onSave}
+    />,
+    { wrapper: GrantmakingMessagesProvider },
+  );
+  await user.click(screen.getByRole("button", { name: /Resume editing recommendation for/ }));
+  await user.click(screen.getByRole("button", { name: "Save recommendation" }));
+
+  const amount = screen.getByRole("textbox", { name: "Proposed allocation" });
+  expect(amount).toHaveFocus();
+  expect(amount).toHaveValue("1.005");
+  expect(amount).toHaveAccessibleDescription(/Enter a valid amount\./);
+  expect(onSave).not.toHaveBeenCalled();
+
+  await user.clear(amount);
+  await user.type(amount, "1.00");
+  await user.click(screen.getByRole("button", { name: "Save recommendation" }));
+  expect(onSave).toHaveBeenCalledExactlyOnceWith({
+    position: "Fund",
+    allocation: fromMinorUnits(100n),
+    reasoning: "Recovered recommendation.",
+  });
 });
 
 it.each([

@@ -23,6 +23,7 @@
     "./layout": "./src/components/layout/layout.tsx",
     "./tabs": "./src/components/tabs/tabs.tsx",
     "./text-field": "./src/components/fields/text-field/text-field.tsx",
+    "./money-field": "./src/components/fields/money-field/money-field.tsx",
     "./search-field": "./src/components/fields/search-field/search-field.tsx",
     "./date-field": "./src/components/fields/date-field/date-field.tsx",
     "./calendar": "./src/components/calendar/calendar.tsx",
@@ -51,6 +52,7 @@
   "dependencies": {
     "@merit/dates": "workspace:*",
     "@merit/i18n": "workspace:*",
+    "@merit/money": "workspace:*",
     "lucide-react": "catalog:",
     "react-aria-components": "catalog:",
     "react-i18next": "catalog:"

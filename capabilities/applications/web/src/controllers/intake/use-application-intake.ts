@@ -23,6 +23,7 @@ import {
   intakeConfirmationChange,
   outstandingReviewCount,
   intakeDraftChanged,
+  intakeConflictComparison,
   newIntakeDraft,
   reconcileIntake,
   type IntakeConfirmation,
@@ -73,6 +74,7 @@ export const useApplicationIntake = ({
       pending: saving.pending,
       reason: editing.reason,
       conflict: intakeDraftConflict(editing.draft, editing.reasonDraft, intake.revision),
+      comparison: intakeConflictComparison(editing.draft, editing.latest, editing.reason),
       discard: editing.discard,
       updateDraft: editing.updateDraft,
       changeReason: editing.changeReason,
@@ -84,7 +86,7 @@ export const useApplicationIntake = ({
     application,
     withdrawn: isWithdrawn(application),
     outstandingReviews: outstandingReviewCount(application),
-    contact: intakeContact(data),
+    metadataEditing: intakeMetadataEditing(application, data, editing.section),
     workingRevision: intake.workingRevision,
     canStartRevision: canStartIntakeRevision(application, intake.workingRevision),
     missingFields: missingIntakeFields(intakeContent(application)),
@@ -127,9 +129,20 @@ export const useApplicationIntake = ({
   };
 };
 
-const intakeContact = (data: IntakeData) =>
-  data.selectContact
+const intakeMetadataEditing = (
+  application: Application,
+  data: IntakeData,
+  section: IntakeSection | null,
+) => {
+  if (isWithdrawn(application)) {
+    return { kind: "read" } as const;
+  }
+  if (canEditIntakeContent(application, data.state.workingRevision) || section === "metadata") {
+    return { kind: "intake" } as const;
+  }
+  return data.selectContact
     ? {
+        kind: "contact" as const,
         data: {
           workspaceSlug: data.workspaceSlug,
           selectContact: data.selectContact,
@@ -139,7 +152,8 @@ const intakeContact = (data: IntakeData) =>
         revision: data.state.revision,
         publicId: data.publicId,
       }
-    : null;
+    : { kind: "read" as const };
+};
 
 const useIntakeEditing = (
   application: Application,

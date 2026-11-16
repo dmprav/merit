@@ -9,6 +9,7 @@ import {
   applicationHistorySnapshots,
   comparedHistoryEntries,
   compareSubmissionAnswers,
+  submissionAnswersReordered,
   type ApplicationHistoryEntry,
 } from "./application-history-model";
 
@@ -68,7 +69,14 @@ describe("application history snapshots", () => {
   });
 
   it("uses the latest recorded details of an earlier version without depending on input order", () => {
-    const correction = { ...entry(3, 2, 2), after: snapshot(2, "Corrected contact record") };
+    const correction = {
+      ...entry(3, 2, 2),
+      after: {
+        ...snapshot(2, "Corrected contact record"),
+        summary: "Staff summary at this revision.",
+        summaryAuthor: { name: "Dana Reed", userId: "dana", recordedAt: "2027-01-19T11:00:00Z" },
+      },
+    };
 
     expect(
       applicationHistorySnapshots(
@@ -78,8 +86,13 @@ describe("application history snapshots", () => {
           submission: { version: materialVersionSchema.parse(3), answers: [] },
         },
         [correction, entry(2, 1, 2)],
-      )[1]?.title,
-    ).toBe("Corrected contact record");
+      )[1],
+    ).toMatchObject({
+      title: "Corrected contact record",
+      summary: correction.after.summary,
+      summaryAuthor: correction.after.summaryAuthor,
+      intakeStatus: correction.after.intakeStatus,
+    });
   });
 
   it("attributes a nonadjacent comparison to all included version-changing events", () => {
@@ -118,4 +131,17 @@ it("compares identities across renaming, duplicate headings, reordering, and rep
   expect(
     compareSubmissionAnswers([{ ...a, question: "" }], [{ ...a, question: "" }])[0]?.status,
   ).toBe("unchanged");
+});
+
+it("detects reordered retained sections by identity without treating additions or removals as moves", () => {
+  const a = { questionId: "a", question: "Plan", response: "First" };
+  const b = { questionId: "b", question: "Plan", response: "Second" };
+  const c = { questionId: "c", question: "", response: "Third" };
+
+  expect(submissionAnswersReordered([a, b], [b, a])).toBe(true);
+  expect(submissionAnswersReordered([a, b, c], [c, { ...a, question: "Renamed" }])).toBe(true);
+  expect(submissionAnswersReordered([a, b], [c, a, b])).toBe(false);
+  expect(submissionAnswersReordered([a, b, c], [a, c])).toBe(false);
+  expect(submissionAnswersReordered([a], [{ ...a, response: "Edited" }])).toBe(false);
+  expect(submissionAnswersReordered([], [a])).toBe(false);
 });

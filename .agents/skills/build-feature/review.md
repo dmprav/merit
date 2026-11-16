@@ -118,5 +118,39 @@ list as described in [the skill](SKILL.md#6-learn-from-escapes).
   [review participation](../../../docs/workflows/participate-in-review.md).
 - Do navigation popups close on browser history changes, and do delayed saves
   preserve focus when the user has moved to another page or control? Check both
-  before resolving the save and before any scheduled focus callback runs. See
+  before resolving the save and before any scheduled focus callback runs. When a
+  control disappears, does focus reach its remaining target regardless of menu
+  or popup teardown order? See
   [UI verification](../../../docs/guides/ui-verification.md#verification).
+- For work that uses reference material, can the person read that material while
+  editing in the established workspace? Check close, resume, switching tasks,
+  and keyboard return without losing either draft or reading position.
+- Do conflict comparisons align the same record and fields on both sides, and
+  does history identify actual changed values before showing complete snapshots?
+  Check the exact historical basis and unknown values remain available.
+- Does each invitation, withdrawn, access-ended, and recovery state have one
+  clear outcome heading, a distinct preserved draft when needed, and one action
+  hierarchy? Compare the complete desktop and narrow screen, not isolated controls.
+
+- Do isolated stories use the connected screen’s task placement, and are synthetic
+  test controls visibly outside the product frame? See
+  [Storybook states](../../../docs/guides/storybook.md#develop-states-in-storybook).
+- Do judgments give outcomes, qualifications, and attribution distinct emphasis,
+  with historical basis visible before someone acts? Check normal names, baseline
+  alignment, and supporting-detail navigation across assessments and recommendations.
+  See [give emphasis a reason](../../../docs/foundations/experience.md#give-emphasis-a-reason).
+- Does compacting a header preserve its visibly labeled next workflow action,
+  remove duplicate navigation, and keep full destination context accessible with
+  keyboard and touch? See [design for repeated use](../../../docs/foundations/experience.md#design-for-repeated-use).
+
+- When editing a whole section, do its values remain passive until the section edit
+  action is used, without parallel row-level edit controls? Check preparation and
+  recorded states against [editing scope](../../../foundation/ui/src/patterns/editing/editing.mdx).
+- Do complete historical records use one consistent label/value treatment for their
+  metadata, keeping staff interpretation separate from applicant responses? See
+  [evidence and interpretation](../../../docs/foundations/experience.md#make-evidence-and-assistance-inspectable).
+
+- Do capability and connected-route tests wait for observable readiness before
+  interacting with restored drafts or capturing an animated scroll position,
+  while retaining their draft, recovery, focus, and exact restoration assertions? See [test behavior](../../../docs/guides/testing.md#test-behavior)
+  and [UI verification](../../../docs/guides/ui-verification.md#verification).

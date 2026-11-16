@@ -8,6 +8,7 @@ import type { FundingRoundOverviewData } from "@merit/grantmaking/api";
 import { getExampleRound } from "@merit/grantmaking/examples";
 import { reviewRevisionSchema } from "@merit/reviews/domain";
 import { Button } from "@merit/ui/button";
+import { Inline, Stack } from "@merit/ui/layout";
 
 import { GrantmakingMessagesProvider } from "../../messages";
 import { ApplicationContainedPreview } from "../../testing/application-preview";
@@ -100,7 +101,10 @@ export const Reviews: Story = {
   args: { application: round.applications[2]!, tab: "reviews" },
   play: async ({ canvas }) => {
     await expect(
-      canvas.getByText("Application changed since this assessment", { exact: true }),
+      within(canvas.getByRole("region", { name: "Reviewer assessments" })).getByText(
+        "Based on an earlier submission",
+        { exact: true },
+      ),
     ).toBeVisible();
     await expect(
       within(canvas.getByRole("region", { name: "Reviewer assessments" })).getByText(
@@ -137,21 +141,20 @@ export const ReadOnly: Story = { args: { readOnly: true, tab: "reviews" } };
 const ExternalReferencePreview = (props: PreviewProps) => {
   const [tab, setTab] = useState<"evidence" | "reviews">("evidence");
   return (
-    <ApplicationPreview
-      {...props}
-      tab={tab}
-      onTabChange={setTab}
-      navigation={
-        <>
+    <Stack gap={3}>
+      <section aria-label="Story controls">
+        <h2>Story controls: external navigation</h2>
+        <Inline>
           <Button variant="quiet" onPress={() => setTab("evidence")}>
             Open submission externally
           </Button>
           <Button variant="quiet" onPress={() => setTab("reviews")}>
             Open assessments externally
           </Button>
-        </>
-      }
-    />
+        </Inline>
+      </section>
+      <ApplicationPreview {...props} tab={tab} onTabChange={setTab} />
+    </Stack>
   );
 };
 
@@ -164,5 +167,35 @@ export const ExternalReferenceNavigation: Story = {
           "The extra buttons simulate a parent changing the reference destination. Reading positions and focus follow the same transition as local navigation.",
       },
     },
+  },
+};
+
+export const ReviewDetails: Story = {
+  args: Reviews.args,
+  play: async ({ canvas, userEvent }) => {
+    const reviews = within(canvas.getByRole("region", { name: "Reviewer assessments" }));
+    await userEvent.click(reviews.getAllByRole("button", { name: "Review details" })[0]!);
+    await expect(reviews.getByRole("region", { name: "Review details" })).toBeVisible();
+    await expect(reviews.getByRole("button", { name: "Back to assessments" })).toBeVisible();
+    await expect(canvas.queryByRole("dialog")).not.toBeInTheDocument();
+  },
+};
+
+export const ReferenceNavigation: Story = {
+  play: async ({ canvas, canvasElement, userEvent }) => {
+    for (const name of [
+      "Reviewer assessments",
+      "Version history",
+      "Application details",
+      "Applicant submission",
+    ]) {
+      await userEvent.click(canvas.getByRole("button", { name: /^Reference material:/ }));
+      await userEvent.click(
+        within(canvasElement.ownerDocument.body).getByRole("menuitem", { name }),
+      );
+      await expect(
+        canvas.getByRole("button", { name: `Reference material: ${name}` }),
+      ).toBeVisible();
+    }
   },
 };

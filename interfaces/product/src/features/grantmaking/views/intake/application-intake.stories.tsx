@@ -20,6 +20,7 @@ import { StoryEnvironment } from "../../../../../tests/storybook";
 import { readContacts } from "../../../contacts/data/server/contacts.functions";
 import { workspaceIntakeData } from "../../data/intake/workspace-data";
 import { applicationOptions } from "../../data/queries";
+import { selectContact } from "../../data/server/applications/application-contact.functions";
 import { readFundingApplicationPage } from "../../data/server/funding-round.functions";
 import { readApplicationHistory } from "../../data/server/history.functions";
 import { editApplication } from "../../data/server/intake/intake.functions";
@@ -215,6 +216,32 @@ const meta = {
       contacts,
     });
     mocked(readFundingApplicationPage).mockImplementation(async () => page);
+    mocked(selectContact).mockImplementation(async ({ data }) => {
+      if (data.expectedRevision !== page.intake.revision) {
+        return { status: "conflict" };
+      }
+      const { application, round: context } = decodeApplicationDetail(page);
+      const contact = contacts.find((item) => item.id === data.contactId);
+      page = {
+        ...page,
+        ...encodeApplicationDetail({
+          application: {
+            ...application,
+            contactId: data.contactId,
+            submission: {
+              ...application.submission,
+              version: application.version,
+              answers: application.submission?.answers ?? [],
+              contact: contact?.name ?? "",
+              contactEmail: contact?.email ?? "",
+            },
+          },
+          round: context,
+        }),
+        intake: { ...page.intake, revision: page.intake.revision + 1 },
+      };
+      return { status: "ok", revision: page.intake.revision };
+    });
     mocked(editApplication).mockImplementation(async ({ data }) => {
       const { application, round: context } = decodeApplicationDetail(page);
       const changed = prepareIntakeChange(
@@ -286,8 +313,27 @@ export const ReadinessChecks: Story = {
     ).toBeDisabled();
   },
 };
-export const ReadyToMark: Story = { args: { state: "complete" } };
-export const ReadyForReview: Story = { args: { state: "ready" } };
+export const ReadyToMark: Story = {
+  args: { state: "complete" },
+  play: async ({ canvas }) => {
+    await expect(
+      await canvas.findByRole("button", { name: "Mark ready for review" }),
+    ).toBeEnabled();
+  },
+};
+export const ReadyForReview: Story = {
+  args: { state: "ready" },
+  play: async ({ canvas, userEvent }) => {
+    await expect(
+      canvas.queryByRole("button", { name: "Start revised submission" }),
+    ).not.toBeInTheDocument();
+    await userEvent.click(canvas.getByRole("button", { name: "Application actions" }));
+    await expect(
+      within(document.body).getByRole("menuitem", { name: "Start revised submission" }),
+    ).toBeVisible();
+    await userEvent.keyboard("{Escape}");
+  },
+};
 export const WorkingRevision: Story = {
   args: { state: "revision" },
   play: async ({ canvas, canvasElement, userEvent }) => {
@@ -334,15 +380,21 @@ export const ConfirmDiscardRevision: Story = {
 export const History: Story = {
   args: { state: "history" },
   play: async ({ canvas, userEvent }) => {
-    await userEvent.click(await canvas.findByRole("button", { name: "View version history" }));
-    const disclosure = await canvas.findByText("Application history");
-    await userEvent.click(disclosure);
-    const audit = within(disclosure.closest("details")!);
+    await userEvent.click(canvas.getByRole("button", { name: /^Reference material:/ }));
+    await userEvent.click(within(document.body).getByRole("menuitem", { name: "Version history" }));
+    let audit = within(await canvas.findByRole("region", { name: "Application history" }));
 
     await expect(audit.getByText("via MCP client example-client")).toBeVisible();
 
-    await userEvent.click(audit.getByText(/Previous material \(Version/));
-    await userEvent.click(audit.getByText(/Recorded material \(Version/));
+    await userEvent.click(audit.getByRole("button", { name: "View recorded change" }));
+    audit = within(await canvas.findByRole("region", { name: "Application history" }));
+    await expect(audit.getByRole("heading", { name: "Requested funding" })).toBeVisible();
+    await expect(
+      audit.queryByRole("region", { name: /^Previous material/ }),
+    ).not.toBeInTheDocument();
+    await userEvent.click(audit.getByRole("tab", { name: "Full record" }));
+    await expect(audit.getByRole("region", { name: /^Previous material/ })).toBeVisible();
+    await expect(audit.getByRole("region", { name: /^Recorded material/ })).toBeVisible();
 
     await waitFor(async () =>
       expect(audit.getByText("Include accessible transport to the venue.")).toBeVisible(),
@@ -506,22 +558,31 @@ export const SeparateEditingScopes: Story = {
     );
     await userEvent.click(form.getByRole("button", { name: "Save" }));
 
-    await expect(await canvas.findByText("€24,000 requested")).toBeVisible();
+    await expect(
+      await within(canvas.getByRole("complementary", { name: "Application workspace" })).findByText(
+        "€24,000",
+      ),
+    ).toBeVisible();
     await expect(canvas.getByRole("button", { name: "Mark ready for review" })).toBeDisabled();
 
     await userEvent.click(
       canvas.getByRole("button", { name: "Continue editing application details" }),
     );
-    form = within(canvas.getByRole("form", { name: "Edit application details" }));
+    const conflict = within(canvas.getByRole("region", { name: "Review conflicting changes" }));
+    await expect(
+      within(conflict.getByRole("region", { name: "Your unsaved changes" })).getByText("€28,000"),
+    ).toBeVisible();
+    await expect(conflict.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
 
-    await expect(form.getByRole("textbox", { name: "Requested amount" })).toHaveValue("28000");
-    await expect(form.getByRole("button", { name: "Save" })).toBeDisabled();
-
-    await userEvent.click(form.getByRole("button", { name: "Keep my changes" }));
+    await userEvent.click(conflict.getByRole("button", { name: "Keep my changes" }));
     form = within(canvas.getByRole("form", { name: "Edit application details" }));
     await userEvent.click(form.getByRole("button", { name: "Save" }));
 
-    await expect(await canvas.findByText("€28,000 requested")).toBeVisible();
+    await expect(
+      await within(canvas.getByRole("complementary", { name: "Application workspace" })).findByText(
+        "€28,000",
+      ),
+    ).toBeVisible();
     await expect(canvas.getByRole("button", { name: "Mark ready for review" })).toBeEnabled();
   },
 };
@@ -542,7 +603,9 @@ export const EditContactAndProjectDates: Story = {
 
     await userEvent.keyboard("{Escape}");
 
-    await expect(canvas.queryByText("Reference")).not.toBeInTheDocument();
+    await expect(
+      canvas.getByRole("button", { name: "Reference material: Applicant submission" }),
+    ).toBeVisible();
 
     await userEvent.click(canvas.getByRole("button", { name: "Edit application details" }));
     let form = within(canvas.getByRole("form", { name: "Edit application details" }));
@@ -597,5 +660,68 @@ export const EditContactAndProjectDates: Story = {
 
     await expect(panel.getByText("April–September 2027")).toBeVisible();
     await expect(canvas.getByRole("button", { name: "Edit application details" })).toBeVisible();
+  },
+};
+
+export const ReconcileApplicationDetails: Story = {
+  args: { state: "complete" },
+  play: async ({ canvas, userEvent }) => {
+    await userEvent.click(canvas.getByRole("button", { name: "Edit application details" }));
+    const details = within(canvas.getByRole("form", { name: "Edit application details" }));
+    const amount = details.getByRole("textbox", { name: "Requested amount" });
+    await userEvent.clear(amount);
+    await userEvent.type(amount, "28500.50");
+    await userEvent.click(details.getByRole("button", { name: "Close" }));
+    await userEvent.click(canvas.getByRole("button", { name: "Edit applicant submission" }));
+    const submission = within(canvas.getByRole("form", { name: "Edit applicant submission" }));
+    await userEvent.type(
+      submission.getAllByRole("textbox", { name: "Applicant’s response" })[0]!,
+      " We also provide transport.",
+    );
+    await userEvent.click(submission.getByRole("button", { name: "Save" }));
+    await userEvent.click(
+      await canvas.findByRole("button", { name: "Continue editing application details" }),
+    );
+    const conflict = within(canvas.getByRole("region", { name: "Review conflicting changes" }));
+    await expect(
+      within(conflict.getByRole("region", { name: "Latest saved values" })).getByText("€24,000"),
+    ).toBeVisible();
+    await expect(
+      within(conflict.getByRole("region", { name: "Your unsaved changes" })).getByText(
+        "€28,500.50",
+      ),
+    ).toBeVisible();
+    await expect(conflict.queryByRole("textbox")).not.toBeInTheDocument();
+  },
+};
+
+export const EditRecordedContact: Story = {
+  args: { state: "ready" },
+  play: async ({ canvas, canvasElement, userEvent }) => {
+    const body = within(canvasElement.ownerDocument.body);
+    await expect(canvas.queryByRole("button", { name: /Change contact/ })).not.toBeInTheDocument();
+    await userEvent.click(canvas.getByRole("button", { name: "Edit application details" }));
+    const editor = within(canvas.getByRole("group", { name: "Edit application details" }));
+    await expect(editor.queryByRole("textbox")).not.toBeInTheDocument();
+    await userEvent.click(editor.getByRole("button", { name: /Change contact/ }));
+    await userEvent.click(await body.findByRole("option", { name: /Sam Morgan/ }));
+    await waitFor(() =>
+      expect(editor.getByRole("button", { name: "Change contact: Sam Morgan" })).toBeEnabled(),
+    );
+    await expect(mocked(editApplication)).not.toHaveBeenCalled();
+    await expect(mocked(selectContact)).toHaveBeenCalledTimes(1);
+    await userEvent.click(editor.getByRole("button", { name: "Close" }));
+    await waitFor(() =>
+      expect(canvas.getByRole("button", { name: "Edit application details" })).toHaveFocus(),
+    );
+    await expect(canvas.queryByRole("button", { name: /Change contact/ })).not.toBeInTheDocument();
+    await userEvent.click(canvas.getByRole("button", { name: "Undo" }));
+    await waitFor(() =>
+      expect(canvas.queryByRole("button", { name: "Undo" })).not.toBeInTheDocument(),
+    );
+    await expect(mocked(selectContact)).toHaveBeenLastCalledWith({
+      data: { workspaceSlug: "alder", publicId, contactId: contacts[0]!.id, expectedRevision: 3 },
+    });
+    await userEvent.click(canvas.getByRole("button", { name: "Edit application details" }));
   },
 };

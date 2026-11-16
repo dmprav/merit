@@ -91,10 +91,8 @@ it("keeps the application readable while restoring and preserves an early-open e
   expect(screen.getByRole("button", { name: "Close" })).toBeEnabled();
   expect(setApplicationEdit).not.toHaveBeenCalled();
   recover();
-  expect(await screen.findByRole("textbox", { name: "Staff summary" })).toHaveValue(
-    "Unfinished staff summary",
-  );
-  expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+  expect(await screen.findByText("Unfinished staff summary")).toBeVisible();
+  expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
   expect(screen.getByText("Latest saved values", { exact: true })).toBeVisible();
   expect(setApplicationEdit).not.toHaveBeenCalled();
   expect(data.save).not.toHaveBeenCalled();
@@ -111,9 +109,8 @@ it("closes an intake editor during restoration without losing or reopening recov
   expect(screen.getByText("Saved staff summary")).toBeVisible();
   expect(setApplicationEdit).not.toHaveBeenCalled();
   await user.click(screen.getByRole("button", { name: "Continue editing summary" }));
-  expect(screen.getByRole("textbox", { name: "Staff summary" })).toHaveValue(
-    "Unfinished staff summary",
-  );
+  expect(screen.getByText("Unfinished staff summary")).toBeVisible();
+  expect(screen.getByRole("region", { name: "Your unsaved changes" })).toBeVisible();
 });
 
 it("saves recovered intake writing against its original revision once recovery is ready", async () => {

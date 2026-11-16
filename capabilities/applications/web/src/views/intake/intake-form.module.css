@@ -3,7 +3,7 @@
   gap: var(--space-5);
 }
 
-.longEditor > fieldset {
+.longEditor > fieldset:last-child {
   position: sticky;
   bottom: 0;
   z-index: 2;
@@ -31,16 +31,11 @@
   white-space: nowrap;
 }
 
-.amountField {
-  max-width: 12rem;
-}
-
 .section {
   min-width: 0;
   margin: 0;
-  padding: var(--space-4) 0 0;
+  padding: 0;
   border: 0;
-  border-top: 1px solid var(--border);
   display: grid;
   gap: var(--space-3);
 }
@@ -66,15 +61,49 @@
   line-height: var(--leading-reading);
 }
 
-.latest {
-  margin-block: var(--space-3);
-  white-space: pre-line;
+@media (min-width: 901px) and (min-height: 600px) {
+  .longEditor > fieldset:last-child {
+    /* Reach the pane edge past its bottom content padding. */
+    bottom: calc(-1 * var(--space-6));
+  }
+}
+
+.conflict {
+  display: grid;
+  gap: var(--space-4);
+  padding-block: var(--space-4);
+  border-block: 1px solid var(--border);
+  container-type: inline-size;
+}
+
+.conflict > button {
+  justify-self: start;
+}
+
+.comparison {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-5);
+}
+
+.comparisonValues {
+  display: grid;
+  align-content: start;
+  gap: var(--space-4);
+  min-width: 0;
+  font-size: var(--text-detail);
+  line-height: var(--leading-reading);
+  white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 
-@media (min-width: 901px) and (min-height: 600px) {
-  .longEditor > fieldset {
-    /* Reach the pane edge past its bottom content padding. */
-    bottom: calc(-1 * var(--space-6));
+.comparisonValues h4 {
+  font-size: var(--text-section);
+  font-weight: 600;
+}
+
+@container (max-width: 24rem) {
+  .comparison {
+    grid-template-columns: 1fr;
   }
 }

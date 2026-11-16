@@ -29,8 +29,8 @@ it.each([
     const dialog = screen.getByRole("dialog", { name: "Record application" });
 
     expect(within(dialog).getByRole("heading", { name: "Record application" })).toBeVisible();
-    expect(within(dialog).queryAllByText("Neighbourhood grants")).toHaveLength(contextCount);
-    expect(within(dialog).queryAllByText("Round:")).toHaveLength(labelCount);
+    expect(within(dialog).queryAllByText(/Neighbourhood grants$/)).toHaveLength(contextCount);
+    expect(within(dialog).queryAllByText(/^Round:/)).toHaveLength(labelCount);
   },
 );
 

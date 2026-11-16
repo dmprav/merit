@@ -11,15 +11,23 @@ cache update, with the tests that cover each boundary.
 
 The application overview brings the manager's recommendation and reviewer
 judgments together, with comparable authors, roles, proposed amounts, and
-reasoning. Compact summaries identify earlier material; details retain the full
-recording provenance and access to corrections and follow-ups. Keep unknown
-dates or versions explicit.
+reasoning. Outcome and amount share a baseline. An earlier submission qualifies
+the outcome on its own line before reasoning, with **Compare changes** opening
+the recommendation's actual recorded submission basis. Details retain exact
+versions, recording provenance, and access to corrections and follow-ups. Keep
+unknown dates or versions explicit and offer no invented comparison target.
 
 Keep a compact budget summary alongside application work: the proposed total,
 remaining amount if approved, or amount above budget. Use **Proposed allocation**
 and **Save recommendation** to make the action's scope clear. Place a brief note
 beside the allocation when a deferral reserves nothing or a conditional
 recommendation counts in full.
+
+Group the available and draft-adjusted amounts as two aligned rows, with emphasis
+on their values. Spacing is sufficient to separate this context from the fields;
+it does not need another bordered panel. Amount entry rejects extra decimal
+places without rounding. Keep corrective feedback short and beside the amount;
+a missing amount asks for an amount rather than explaining numeric precision.
 
 Optional budget help explains the current draft's effect alongside other saved
 recommendations and that saving does not commit funding. Link to

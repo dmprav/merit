@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState, type ReactNode, type Ref } from "react";
+import { useEffect, useRef, type ReactNode, type Ref } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
   Form,
   FormActions,
+  FormMoneyField,
   FormSelect,
   FormTextField,
   useForm,
@@ -13,7 +14,7 @@ import { type ApplicationRoundContext } from "@merit/grantmaking/api";
 import type { ApplicationView as Application } from "@merit/grantmaking/api";
 import { useFormat } from "@merit/i18n/format";
 import { absolute, isNegative, fromMinorUnits } from "@merit/money";
-import { normalizeMoneyInput, moneyInput, parseMoneyInput } from "@merit/money/input";
+import { parseMoneyInput } from "@merit/money/input";
 import {
   recommendationPositions,
   recommendationLimits,
@@ -303,7 +304,6 @@ const RecommendationForm = ({
 }: RecommendationFormProps) => {
   const { t } = useTranslation(["fundingRecommendations", "common"]);
   const { title } = application;
-  const [amountInputError, setAmountInputError] = useState(false);
   const formSchema = recommendationFormSchema(t);
 
   const { form, submission } = useForm({
@@ -339,10 +339,9 @@ const RecommendationForm = ({
         />
       }
     >
-      <Stack gap={5} className={localStyles.fields}>
+      <Stack gap={5}>
         {application.intakeStatus === "in_preparation" && <p>{t("intake.fundingNotReady")}</p>}
-        <AllocationFields form={form} setAmountInputError={setAmountInputError} />
-        <span role="status">{amountInputError ? t("validation.amountPrecision") : ""}</span>
+        <AllocationFields form={form} />
         <form.Field name="reasoning">
           {(field) => (
             <FormTextField
@@ -363,28 +362,14 @@ const RecommendationForm = ({
 
 type RecommendationFormModel = ReturnType<typeof useForm<RecommendationDraft>>["form"];
 
-const AllocationFields = ({
-  form,
-  setAmountInputError,
-}: {
-  form: RecommendationFormModel;
-  setAmountInputError: (value: boolean) => void;
-}) => {
+const AllocationFields = ({ form }: { form: RecommendationFormModel }) => {
   const { t } = useTranslation(["fundingRecommendations", "common"]);
   return (
     <div className={localStyles.allocationFields}>
       <form.Field name="position">
         {(field) => (
           <FormSelect
-            field={{
-              name: field.name,
-              state: field.state,
-              handleBlur: field.handleBlur,
-              handleChange: (value) => {
-                setAmountInputError(false);
-                field.handleChange(value);
-              },
-            }}
+            field={field}
             label={t("editor.position")}
             isRequired
             autoFocus
@@ -400,28 +385,15 @@ const AllocationFields = ({
           position !== "Defer" && (
             <form.Field name="amount">
               {(field) => (
-                <FormTextField
-                  field={{
-                    name: field.name,
-                    state: field.state,
-                    handleBlur: field.handleBlur,
-                    handleChange: (value) => {
-                      // Reject excess precision with feedback while retaining the previous input.
-                      const accepted = moneyInput(value);
-                      setAmountInputError(accepted === null);
-                      if (accepted !== null) {
-                        field.handleChange(accepted);
-                      }
-                    },
-                  }}
+                <FormMoneyField
+                  field={field}
                   label={t("editor.amount")}
                   isRequired
                   prefix={{ text: "€", label: t("common:euros") }}
+                  precisionMessage={t("validation.amountPrecision")}
                   description={
                     position === "Fund with a condition" ? t("editor.conditionalHint") : undefined
                   }
-                  inputMode="decimal"
-                  onBlur={() => field.handleChange(normalizeMoneyInput(field.state.value))}
                 />
               )}
             </form.Field>

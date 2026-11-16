@@ -4,7 +4,11 @@ import userEvent from "@testing-library/user-event";
 import { expect, it, vi } from "vite-plus/test";
 
 import type { ApplicationContactData } from "@merit/applications-web/contracts";
-import { ApplicationContact } from "@merit/applications-web/intake";
+import { ApplicationIntake } from "@merit/applications-web/work";
+import { ContactDrafts } from "@merit/contacts-web/drafts";
+import { GrantmakingDrafts } from "@merit/grantmaking-web/drafts";
+import { applicationView } from "@merit/grantmaking/api";
+import { makeApplication } from "@merit/grantmaking/testing/fixtures";
 import { createQueryClient } from "@merit/query";
 
 import { WebMessagesProvider } from "../../../../app/messages";
@@ -16,7 +20,11 @@ vi.mock("../../../contacts/data/server/contacts.functions", () => ({
   saveContact: vi.fn(),
 }));
 
-const setup = () => {
+const setup = (
+  name?: string,
+  status: "ready" | "in_preparation" | "withdrawn" = "ready",
+  readOnly = false,
+) => {
   vi.mocked(readContacts).mockResolvedValue({
     status: "ok",
     workspaceName: "Alder",
@@ -34,6 +42,10 @@ const setup = () => {
   });
   const data = {
     workspaceSlug: "alder",
+    publicId: "b8q3w5j7c2df",
+    draftKey: "test-application-contact",
+    state: { revision: 3, workingRevision: null, history: [] },
+    save: vi.fn().mockResolvedValue({ status: "ok", revision: 4 }),
     selectContact: vi.fn<ApplicationContactData["selectContact"]>().mockResolvedValue({
       status: "ok",
       revision: 4,
@@ -42,23 +54,79 @@ const setup = () => {
     refreshCurrent: vi.fn<ApplicationContactData["refreshCurrent"]>().mockResolvedValue(undefined),
   };
   const client = createQueryClient();
-  render(<ApplicationContact data={data} contactId={null} revision={3} />, {
-    wrapper: ({ children }) => (
-      <QueryClientProvider client={client}>
-        <WebMessagesProvider>
-          <WorkspaceContacts>{children}</WorkspaceContacts>
-        </WebMessagesProvider>
-      </QueryClientProvider>
-    ),
-  });
+  const application = applicationView(
+    makeApplication({
+      contactId: null,
+      intakeStatus: status === "in_preparation" ? "in_preparation" : "ready",
+      ...(status === "withdrawn"
+        ? {
+            withdrawal: {
+              withdrawnOn: "2027-01-20",
+              reason: "Applicant withdrew.",
+              recorder: { userId: "dana", name: "Dana Reed", recordedAt: "2027-01-20T12:00:00Z" },
+            },
+          }
+        : {}),
+      submission: {
+        version: 1,
+        organization: "Repair Collective",
+        contact: name ?? "",
+        answers: [],
+      },
+    }),
+  );
+  render(
+    <ApplicationIntake
+      application={application}
+      session={readOnly ? undefined : { data, onDeleted: async () => {} }}
+      onReveal={() => {}}
+    >
+      {({ overview }) => overview}
+    </ApplicationIntake>,
+    {
+      wrapper: ({ children }) => (
+        <QueryClientProvider client={client}>
+          <WebMessagesProvider>
+            <GrantmakingDrafts>
+              <ContactDrafts>
+                <WorkspaceContacts>{children}</WorkspaceContacts>
+              </ContactDrafts>
+            </GrantmakingDrafts>
+          </WebMessagesProvider>
+        </QueryClientProvider>
+      ),
+    },
+  );
 
   return { data, user: userEvent.setup() };
 };
+
+it("uses one section pencil, read-only recorded facts, and a contact choice only in edit mode", async () => {
+  const { user } = setup("Leah Martin");
+  const name = screen.getByText("Leah Martin");
+  expect(name.closest("button")).toBeNull();
+  await user.click(name);
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+  expect(screen.queryByRole("button", { name: /Change contact/ })).not.toBeInTheDocument();
+  const section = screen.getByRole("region", { name: "Application details" });
+  expect(within(section).getAllByRole("button")).toHaveLength(1);
+  await user.click(screen.getByRole("button", { name: "Edit application details" }));
+  expect(within(section).queryByRole("textbox")).not.toBeInTheDocument();
+  expect(within(section).getByText("Repair Collective")).toBeVisible();
+  const choice = screen.getByRole("button", { name: "Change contact: Leah Martin" });
+  expect(choice).toHaveFocus();
+  await user.click(choice);
+  const picker = within(await screen.findByRole("dialog", { name: "Change contact" }));
+  expect(picker.getByRole("textbox", { name: "Find a contact" })).toBeVisible();
+  expect(await picker.findByRole("option", { name: /Sam Morgan/ })).toBeVisible();
+});
 
 it.each([false, true])(
   "retries a committed refresh failure without assigning again (picker reopened: %s)",
   async (reopen) => {
     const { data, user } = setup();
+    await user.click(screen.getByRole("button", { name: "Edit application details" }));
     data.refresh.mockRejectedValueOnce(new Error("Offline"));
     await user.click(screen.getByRole("button", { name: "Change contact" }));
     await user.click(await screen.findByRole("option", { name: /Sam Morgan/ }));
@@ -116,6 +184,7 @@ it.each([
   "explains a $result.status write failure inside and outside the picker",
   async ({ result, message }) => {
     const { data, user } = setup();
+    await user.click(screen.getByRole("button", { name: "Edit application details" }));
     data.selectContact.mockResolvedValueOnce(result);
     await user.click(screen.getByRole("button", { name: "Change contact" }));
     await user.click(await screen.findByRole("option", { name: /Sam Morgan/ }));
@@ -143,6 +212,7 @@ it.each([
 
 it("keeps a conflicting assignment distinct from a failed read and disables actions during retry", async () => {
   const { data, user } = setup();
+  await user.click(screen.getByRole("button", { name: "Edit application details" }));
   data.selectContact.mockResolvedValueOnce({ status: "conflict" });
   data.refreshCurrent.mockRejectedValueOnce(new Error("Offline"));
   await user.click(screen.getByRole("button", { name: "Change contact" }));
@@ -190,6 +260,7 @@ it("keeps a conflicting assignment distinct from a failed read and disables acti
 
 it("returns keyboard focus to the contact control after a slow post-save refresh", async () => {
   const { data, user } = setup();
+  await user.click(screen.getByRole("button", { name: "Edit application details" }));
 
   let finishRefresh = () => {};
 
@@ -200,11 +271,13 @@ it("returns keyboard focus to the contact control after a slow post-save refresh
       }),
   );
   const trigger = screen.getByRole("button", { name: "Change contact" });
+  const close = screen.getByRole("button", { name: "Close" });
   await user.click(trigger);
   await user.click(await screen.findByRole("option", { name: /Sam Morgan/ }));
 
   await waitFor(() => expect(data.refresh).toHaveBeenCalledTimes(1));
   expect(trigger).toBeDisabled();
+  expect(close).toBeDisabled();
   // Let the closed popover finish restoring focus while refresh still disables the trigger.
   await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   await act(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
@@ -214,4 +287,77 @@ it("returns keyboard focus to the contact control after a slow post-save refresh
   await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   expect(trigger).toBeEnabled();
   await waitFor(() => expect(trigger).toHaveFocus());
+});
+
+it("keeps Undo and refresh recovery after closing the section and returns focus to its pencil", async () => {
+  const { data, user } = setup();
+  data.refresh.mockRejectedValueOnce(new Error("Offline"));
+  await user.click(screen.getByRole("button", { name: "Edit application details" }));
+  await user.click(screen.getByRole("button", { name: "Change contact" }));
+  await user.click(await screen.findByRole("option", { name: /Sam Morgan/ }));
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  await user.click(screen.getByRole("button", { name: "Close" }));
+  await waitFor(() =>
+    expect(screen.getByRole("button", { name: "Edit application details" })).toHaveFocus(),
+  );
+  expect(screen.queryByRole("button", { name: /Change contact/ })).not.toBeInTheDocument();
+  expect(screen.getByRole("alert")).toHaveTextContent(
+    "Saved, but the latest information could not be loaded.",
+  );
+  await user.click(screen.getByRole("button", { name: "Retry" }));
+  expect(data.selectContact).toHaveBeenCalledExactlyOnceWith("sam", 3);
+  await user.click(screen.getByRole("button", { name: "Undo" }));
+  expect(data.selectContact).toHaveBeenLastCalledWith(null, 4);
+});
+
+it("keeps a nested contact draft and prevents the section from closing underneath it", async () => {
+  const { user } = setup();
+  await user.click(screen.getByRole("button", { name: "Edit application details" }));
+  const editor = screen.getByRole("group", { name: "Edit application details" });
+  const close = within(editor).getByRole("button", { name: "Close" });
+  await user.click(screen.getByRole("button", { name: "Change contact" }));
+  await user.click(await screen.findByRole("button", { name: "Add contact" }));
+  const nested = within(screen.getByRole("dialog", { name: "Add contact" }));
+  await user.type(nested.getByRole("textbox", { name: "Name" }), "Unfinished contact");
+  expect(close).toBeDisabled();
+  await user.keyboard("{Escape}");
+  await waitFor(() =>
+    expect(screen.queryByRole("dialog", { name: "Add contact" })).not.toBeInTheDocument(),
+  );
+  expect(screen.getByRole("dialog", { name: "Change contact" })).toBeVisible();
+  await waitFor(() => expect(screen.getByRole("button", { name: "Resume contact" })).toHaveFocus());
+  await user.keyboard("{Escape}");
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  await user.click(close);
+  await user.click(screen.getByRole("button", { name: "Edit application details" }));
+  await user.click(screen.getByRole("button", { name: "Change contact" }));
+  await user.click(await screen.findByRole("button", { name: "Resume contact" }));
+  expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue("Unfinished contact");
+});
+
+it("prepares a contact change through the section form and commits only on Save", async () => {
+  const { data, user } = setup(undefined, "in_preparation");
+  expect(screen.queryByRole("button", { name: /Change contact/ })).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Edit application details" }));
+  const form = within(await screen.findByRole("form", { name: "Edit application details" }));
+  await user.click(await form.findByRole("button", { name: /Applicant contact/ }));
+  await user.click(await screen.findByRole("option", { name: /Sam Morgan/ }));
+  expect(data.save).not.toHaveBeenCalled();
+  expect(data.selectContact).not.toHaveBeenCalled();
+  await user.click(form.getByRole("button", { name: "Save" }));
+  await waitFor(() =>
+    expect(data.save).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ action: "save_content", contactId: "sam" }),
+      3,
+    ),
+  );
+  expect(data.selectContact).not.toHaveBeenCalled();
+});
+
+it.each(["withdrawn", "read-only"])("has no details or contact edit control when %s", (mode) => {
+  setup("Sam Morgan", mode === "withdrawn" ? "withdrawn" : "ready", mode === "read-only");
+  expect(screen.getByText("Sam Morgan")).toBeVisible();
+  expect(
+    screen.queryByRole("button", { name: /Change contact|Edit application details/ }),
+  ).not.toBeInTheDocument();
 });
