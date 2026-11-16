@@ -1,9 +1,11 @@
+import type { IntakeState } from "@merit/applications/api";
 import { workingRevisionSchema, materialVersionSchema } from "@merit/applications/domain";
 import type { Actor } from "@merit/auth";
 import { readTransaction, type Database } from "@merit/db";
 import { decodeMoney, subtract } from "@merit/money";
 import { workspaceSlugSchema } from "@merit/organizations/api";
 import { reviewProgress } from "@merit/reviews/domain";
+import type { PreparationState } from "@merit/rounds/api";
 import { decodeRound } from "@merit/rounds/domain";
 import { readManagerCandidates } from "@merit/rounds/readers";
 
@@ -15,7 +17,6 @@ import {
   decodeRoundSummary,
 } from "../../api/queries";
 import { decodeApplicationContext } from "../../api/queries/application-detail";
-import type { IntakeState, PreparationState } from "../../api/queries/editing-state";
 import { applicationView } from "../../api/queries/round-view";
 import { decodeApplication } from "../../domain/encoding";
 import { readRoundTotals } from "../persistence/queries/application-overview";

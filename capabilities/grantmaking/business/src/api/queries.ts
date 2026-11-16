@@ -50,7 +50,6 @@ export {
 } from "./queries/application-detail";
 export { encodeRoundSummary, decodeRoundSummary } from "./queries/round-summary";
 export type { RoundSummary } from "./queries/round-summary";
-export type { IntakeState, PreparationState } from "./queries/editing-state";
 
 export {
   applicationOverviewSchema,

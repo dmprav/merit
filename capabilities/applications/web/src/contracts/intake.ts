@@ -4,12 +4,11 @@ import type {
   editApplicationRequestSchema,
   selectContactRequestSchema,
 } from "@merit/applications/api";
-import type { IntakeSaveError } from "@merit/applications/api";
+import type { IntakeSaveError, IntakeState } from "@merit/applications/api";
 import type { IntakeChange } from "@merit/applications/domain";
-import type { IntakeState } from "@merit/grantmaking/api";
 import type { PageSource } from "@merit/query/contracts";
 
-export type { IntakeState } from "@merit/grantmaking/api";
+export type { IntakeState } from "@merit/applications/api";
 
 export type IntakeSaveResult =
   | { status: "ok"; revision: number }
