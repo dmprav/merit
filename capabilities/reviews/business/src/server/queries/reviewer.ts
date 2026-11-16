@@ -146,7 +146,7 @@ export const managerReviewerHistory = (
   readTransaction(db, async (tx) => {
     const parsed = reviewerHistoryInput.safeParse(input);
     if (!parsed.success) {
-      return { status: "invalid" };
+      return { status: "invalid", error: "invalid_input" };
     }
     const request = parsed.data;
     const [record] = await listManagerReviewerRecords(tx, actor.userId, request);

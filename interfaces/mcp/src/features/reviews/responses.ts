@@ -4,6 +4,7 @@ import { applicationMaterialDataSchema } from "@merit/applications/api";
 import { publicIdSchema } from "@merit/db/identifiers";
 import {
   reviewerDraftSchema,
+  reviewerProblems,
   reviewerStatuses,
   reviewBasisComparisonSchema,
   reviewCriteriaSchema,
@@ -18,7 +19,7 @@ export const reviewSavedSchema = z.object({
 
 export const reviewerErrorSchema = z.object({
   status: z.enum(["not_found", "forbidden", "conflict", "invalid", "expired", "limited"]),
-  error: z.enum(["application_withdrawn", "workspace_membership_required"]).optional(),
+  error: z.enum(reviewerProblems).optional(),
 });
 const reviewerSummarySchema = z.object({
   id: z.uuid(),

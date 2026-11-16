@@ -317,7 +317,7 @@ it("completes an independently authored review with reviewer membership and no s
     }),
   ).toMatchObject({ status: "invalid", error: "reviewer_authored" });
   expect(await s.save("Amended independent reasoning")).toMatchObject({ status: "ok" });
-  expect(await s.submit()).toEqual({ status: "invalid" });
+  expect(await s.submit()).toEqual({ status: "invalid", error: "submission_incomplete" });
   expect(await submitted()).toHaveLength(1);
   expect(await s.save("Amended independent reasoning", "Corrected interpretation")).toMatchObject({
     status: "ok",
@@ -377,7 +377,7 @@ it("pauses conflicts and revokes immediately while preserving private drafts for
     status: "ok",
     value: { status: "conflict" },
   });
-  expect(await s.manage("clear_conflict")).toEqual({ status: "invalid" });
+  expect(await s.manage("clear_conflict")).toEqual({ status: "invalid", error: "note_required" });
   expect(
     await s.manage("clear_conflict", "No current relationship or financial interest"),
   ).toMatchObject({ status: "ok", value: { status: "invited" } });
@@ -428,7 +428,7 @@ it("pauses conflicts and revokes immediately while preserving private drafts for
   ).toHaveLength(1);
   await s.manage("clear_conflict", "Relationship assessed; reviewer can proceed");
   expect((await s.read()).assignment).toMatchObject({ status: "invited", hasSubmitted: true });
-  expect(await s.respond("decline")).toEqual({ status: "invalid" });
+  expect(await s.respond("decline")).toEqual({ status: "invalid", error: "action_unavailable" });
   expect(await s.respond("accept")).toMatchObject({ status: "ok", value: { status: "submitted" } });
 });
 
@@ -768,6 +768,7 @@ it("reads assignment history separately with paging and current manager access",
   });
   expect(await s.service.history(actor, { ...input, after: "invalid" })).toEqual({
     status: "invalid",
+    error: "invalid_input",
   });
   const assignments = await s.service.forApplication(actor, s.address);
   assert(assignments.status === "ok");

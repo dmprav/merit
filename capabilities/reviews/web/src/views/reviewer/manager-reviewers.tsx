@@ -9,7 +9,12 @@ import type { PageSource } from "@merit/query/contracts";
 import { RemotePagedContent } from "@merit/query/pages";
 import type { ReviewerEvent } from "@merit/reviews/api";
 import type { ReviewerSummary } from "@merit/reviews/api";
-import { isInvitationExpired, type ReviewerStatus, type ReviewState } from "@merit/reviews/domain";
+import {
+  isInvitationExpired,
+  type ReviewerProblem,
+  type ReviewerStatus,
+  type ReviewState,
+} from "@merit/reviews/domain";
 import { ActionMenu } from "@merit/ui/action-menu";
 import { Badge } from "@merit/ui/badge";
 import { Button } from "@merit/ui/button";
@@ -36,10 +41,24 @@ type ManagerError =
   | "limited"
   | "inviteInvalid"
   | "reviewerMembershipRequired"
+  | "contactUnavailable"
+  | "contactEmailRequired"
+  | "managerEmailRequired"
   | "stale"
   | "applicationWithdrawn"
   | "unavailable"
   | null;
+
+const invalidErrors: Partial<Record<ReviewerProblem, ManagerError>> = {
+  application_withdrawn: "applicationWithdrawn",
+  workspace_membership_required: "reviewerMembershipRequired",
+  contact_unavailable: "contactUnavailable",
+  contact_email_required: "contactEmailRequired",
+  manager_email_required: "managerEmailRequired",
+  invitation_exists: "stale",
+  request_unavailable: "stale",
+  action_unavailable: "stale",
+};
 
 type ReviewRequest = ReviewState["requests"][number];
 
@@ -48,10 +67,7 @@ const managerError = (failure: ManagerWork["failure"]): ManagerError => {
     return null;
   }
   if (failure.status === "invalid") {
-    if (failure.error === "workspace_membership_required") {
-      return "reviewerMembershipRequired";
-    }
-    return failure.error === "application_withdrawn" ? "applicationWithdrawn" : "inviteInvalid";
+    return invalidErrors[failure.error] ?? "inviteInvalid";
   }
   if (failure.status === "limited") {
     return "limited";

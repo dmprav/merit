@@ -3,13 +3,17 @@ import { expect, it } from "vite-plus/test";
 import {
   emptyReviewerDraft,
   isInvitationExpired,
-  nextReviewerStatus,
+  decideInvitation,
+  decideManagerAction,
+  decideParticipation,
+  resumptionProblem,
   reviewerSubmission,
   reviewerSubmissionProblems,
   reviewerDraftSchema,
   type ReviewerDraft,
   type ReviewerStatus,
   type ParticipationAction,
+  type ReviewerProblem,
 } from "./index";
 
 const basis = { applicationVersion: 2, criteriaVersion: 3 };
@@ -77,28 +81,28 @@ it("requires a change note before an amendment can be submitted", () => {
 it.each([
   ["invited", "accept", false, false, "", "", "accepted"],
   ["invited", "accept", true, true, "", "", "submitted"],
-  ["accepted", "accept", true, false, "", "", null],
+  ["accepted", "accept", true, false, "", "", "action_unavailable"],
   ["invited", "decline", false, false, "", "", "declined"],
   ["accepted", "decline", true, false, "", "", "declined"],
-  ["invited", "decline", true, true, "", "", null],
-  ["submitted", "decline", true, true, "", "", null],
+  ["invited", "decline", true, true, "", "", "action_unavailable"],
+  ["submitted", "decline", true, true, "", "", "action_unavailable"],
   ["invited", "report_conflict", false, false, "", "Personal connection", "conflict"],
   ["submitted", "report_conflict", true, true, "", "New connection", "conflict"],
-  ["accepted", "report_conflict", true, false, "", "", null],
-  ["accepted", "report_conflict", true, false, "", "   ", null],
-  ["cancelled", "report_conflict", true, false, "", "Connection", null],
+  ["accepted", "report_conflict", true, false, "", "", "note_required"],
+  ["accepted", "report_conflict", true, false, "", "   ", "note_required"],
+  ["cancelled", "report_conflict", true, false, "", "Connection", "action_unavailable"],
   ["conflict", "clear_conflict", true, false, "Connection", "Reviewed; no overlap", "invited"],
-  ["conflict", "clear_conflict", true, false, "Connection", "", null],
-  ["conflict", "clear_conflict", true, false, "Connection", "   ", null],
-  ["invited", "clear_conflict", false, false, "", "Clear", null],
+  ["conflict", "clear_conflict", true, false, "Connection", "", "note_required"],
+  ["conflict", "clear_conflict", true, false, "Connection", "   ", "note_required"],
+  ["invited", "clear_conflict", false, false, "", "Clear", "action_unavailable"],
   ["submitted", "cancel", true, true, "", "", "cancelled"],
-  ["cancelled", "cancel", true, false, "", "", null],
-  ["declined", "cancel", false, false, "", "", null],
+  ["cancelled", "cancel", true, false, "", "", "action_unavailable"],
+  ["declined", "cancel", false, false, "", "", "action_unavailable"],
   ["cancelled", "reinstate", true, false, "Unresolved", "", "conflict"],
   ["cancelled", "reinstate", false, false, "", "", "invited"],
   ["cancelled", "reinstate", true, false, "", "", "accepted"],
   ["cancelled", "reinstate", true, true, "", "", "submitted"],
-  ["accepted", "reinstate", true, false, "", "", null],
+  ["accepted", "reinstate", true, false, "", "", "action_unavailable"],
 ] as [
   ReviewerStatus,
   ParticipationAction,
@@ -106,15 +110,70 @@ it.each([
   boolean,
   string,
   string,
-  ReviewerStatus | null,
+  ReviewerStatus | ReviewerProblem,
 ][])(
   "%s / %s preserves consent, conflict and completion",
   (status, action, accepted, submitted, conflict, note, expected) => {
-    expect(nextReviewerStatus({ status, accepted, submitted, conflict }, action, note)).toBe(
-      expected,
-    );
+    const decision = decideParticipation({ status, accepted, submitted, conflict }, action, note);
+    expect(decision.ok ? decision.status : decision.error).toBe(expected);
   },
 );
+
+const participation = { accepted: false, submitted: false, conflict: "" };
+
+it.each([
+  ["resend", "invited", false, "invited"],
+  ["resend", "accepted", false, "action_unavailable"],
+  ["retry_notification", "submitted", true, "submitted"],
+  ["retry_notification", "accepted", false, "action_unavailable"],
+  ["cancel", "accepted", false, "cancelled"],
+] as const)(
+  "%s on a %s assignment is decided before any delivery",
+  (action, status, submitted, expected) => {
+    const decision = decideManagerAction({ ...participation, status, submitted }, action, "");
+    expect(decision.ok ? decision.status : decision.error).toBe(expected);
+  },
+);
+
+const invitation = {
+  withdrawn: false,
+  request: { status: "outstanding" },
+  contact: { email: " Ada@Example.test ", archived: false },
+  managerEmail: "manager@example.test",
+};
+
+it("invites the contact's normalized email with the manager as the contact for questions", () => {
+  expect(decideInvitation(invitation)).toEqual({
+    ok: true,
+    email: "ada@example.test",
+    managerEmail: "manager@example.test",
+  });
+});
+
+it.each([
+  ["application_withdrawn", { withdrawn: true, request: undefined }],
+  ["request_unavailable", { request: undefined }],
+  ["request_unavailable", { request: { status: "received" } }],
+  ["contact_unavailable", { contact: null }],
+  ["contact_unavailable", { contact: { email: "ada@example.test", archived: true } }],
+  ["contact_email_required", { contact: { email: "  ", archived: false } }],
+  ["contact_email_required", { contact: { email: "ada.example.test", archived: false } }],
+  ["manager_email_required", { managerEmail: null }],
+] as const)("explains a rejected invitation as %s", (error, change) => {
+  expect(decideInvitation({ ...invitation, ...change })).toEqual({ ok: false, error });
+});
+
+it.each([
+  [{ status: "cancelled", contactArchived: true, followUpOutstanding: true }, null],
+  [{ status: "invited", contactArchived: true, followUpOutstanding: false }, "contact_unavailable"],
+  [{ status: "accepted", contactArchived: false, followUpOutstanding: true }, "conflict"],
+  [
+    { status: "accepted", submitted: true, contactArchived: false, followUpOutstanding: true },
+    null,
+  ],
+] as const)("resumes an assignment only without displacing other work (%j)", (facts, expected) => {
+  expect(resumptionProblem({ submitted: false, ...facts })).toBe(expected);
+});
 
 it("reports each submission problem beside its field, in reading order", () => {
   const draft = emptyReviewerDraft();

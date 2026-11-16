@@ -413,7 +413,7 @@ const responseError = ({ status, error }: Failure) => {
   if (error === "application_withdrawn") {
     return "applicationWithdrawn";
   }
-  if (status === "conflict") {
+  if (status === "conflict" || error === "action_unavailable") {
     return "stale";
   }
   return status === "expired" ? "expired" : "unavailable";
