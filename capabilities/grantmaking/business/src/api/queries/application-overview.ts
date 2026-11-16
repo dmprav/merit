@@ -1,9 +1,12 @@
 import { z } from "zod";
 
+import { moneyDataSchema } from "@merit/money";
 import { recommendationSchema } from "@merit/recommendations/domain";
 
 import { applicationRecordSchema } from "../../domain/model";
 import { publicIdSchema } from "../identifiers";
+
+export { applicationFilters, type ApplicationFilter } from "../../domain/application-filter";
 
 export const applicationOverviewSchema = z.object({
   id: publicIdSchema,
@@ -13,6 +16,7 @@ export const applicationOverviewSchema = z.object({
   roundTitle: z.string(),
   intakeStatus: applicationRecordSchema.shape.intakeStatus,
   withdrawn: z.boolean(),
+  requested: moneyDataSchema.nullable(),
   reviews: z.object({
     current: z.number().int().nonnegative(),
     outdated: z.number().int().nonnegative(),
@@ -21,8 +25,26 @@ export const applicationOverviewSchema = z.object({
   }),
   criteriaChanged: z.boolean(),
   recommendation: z
-    .object({ position: recommendationSchema.shape.position, outdated: z.boolean() })
+    .object({
+      position: recommendationSchema.shape.position,
+      outdated: z.boolean(),
+      allocation: moneyDataSchema,
+    })
     .nullable(),
 });
 
 export type ApplicationOverview = z.infer<typeof applicationOverviewSchema>;
+
+export {
+  workspaceApplicationsInput,
+  workspaceApplicationsPageSize,
+  type WorkspaceApplicationsInput,
+  type WorkspaceApplicationsQuery,
+} from "../../domain/application-list";
+
+export type WorkspaceApplicationsPage = {
+  applications: ApplicationOverview[];
+  total: number;
+  matching: number;
+  offset: number;
+};

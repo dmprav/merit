@@ -19,6 +19,7 @@ export const useWorkspaceContacts = (
       query.data?.status === "ok"
         ? query.data.contacts.map((contact) => ({
             ...contact,
+            applicationsSource: source.applications?.(workspaceSlug, contact),
             historySource: source.history?.(workspaceSlug, contact),
           }))
         : initial,

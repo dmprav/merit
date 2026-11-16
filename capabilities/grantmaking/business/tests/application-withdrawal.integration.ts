@@ -710,8 +710,14 @@ it("excludes withdrawn applications from every total and discloses how many", as
     withdrawnApplications: 2,
     reviews: { assigned: 0 },
   });
-  expect(page.applications).toHaveLength(3);
-  expect(page.applications.filter((application) => application.withdrawal)).toHaveLength(2);
+  expect(page.applicationCount).toBe(3);
+  const applications = await listWorkspaceApplications(db, actor, {
+    workspaceSlug: "alder",
+    roundId: pageInput.publicId,
+  });
+  assert(applications.status === "ok");
+  expect(applications.applications).toHaveLength(3);
+  expect(applications.applications.filter((application) => application.withdrawn)).toHaveLength(2);
 
   // The sibling's recommendation context ignores the withdrawn allocation.
   const siblingPage = await s.read(s.sibling);
@@ -758,17 +764,56 @@ it("excludes withdrawn applications from review progress and flags them in lists
     (await getFundingRoundPage(db, actor, { ...pageInput, kind: "round" }))!.round.totals.reviews;
 
   expect(await progress()).toMatchObject({ assigned: 2, outstanding: 1 });
+  expect(
+    (await getFundingRoundPage(db, actor, { ...pageInput, kind: "round" }))!.round.criteriaImpact,
+  ).toEqual({ assessments: 1, requests: 1 });
 
   expect(await s.edit(withdrawal())).toMatchObject({ status: "ok" });
   expect(await progress()).toMatchObject({ assigned: 0, outstanding: 0 });
+  expect(
+    (await getFundingRoundPage(db, actor, { ...pageInput, kind: "round" }))!.round.criteriaImpact,
+  ).toEqual({ assessments: 1, requests: 0 });
 
-  const overviews = await listWorkspaceApplications(db, actor, "alder");
+  const overviews = await listWorkspaceApplications(db, actor, { workspaceSlug: "alder" });
   assert(overviews.status === "ok");
   expect(
     Object.fromEntries(
       overviews.applications.map((application) => [application.title, application.withdrawn]),
     ),
   ).toEqual({ "Amount not known": false, "Neighbouring project": false, "Withdrawn meals": true });
+
+  const withdrawn = await listWorkspaceApplications(db, actor, {
+    workspaceSlug: "alder",
+    filter: { participation: "withdrawn" },
+  });
+  expect(withdrawn).toMatchObject({
+    status: "ok",
+    matching: 1,
+    applications: [{ id: s.address.publicId, withdrawn: true }],
+  });
+  const ready = await listWorkspaceApplications(db, actor, {
+    workspaceSlug: "alder",
+    filter: { readiness: "ready" },
+  });
+  assert(ready.status === "ok");
+  expect(ready.applications.some((application) => application.id === s.address.publicId)).toBe(
+    true,
+  );
+  const active = await listWorkspaceApplications(db, actor, {
+    workspaceSlug: "alder",
+    filter: { participation: "active", readiness: "ready" },
+  });
+  assert(active.status === "ok");
+  expect(active.applications.every((application) => !application.withdrawn)).toBe(true);
+  const withdrawnReady = await listWorkspaceApplications(db, actor, {
+    workspaceSlug: "alder",
+    filter: { participation: "withdrawn", readiness: "ready" },
+  });
+  expect(withdrawnReady).toMatchObject({
+    status: "ok",
+    matching: 1,
+    applications: [{ id: s.address.publicId, withdrawn: true }],
+  });
 
   const listed = await listFundingApplications(db, actor, {
     workspaceSlug: "alder",

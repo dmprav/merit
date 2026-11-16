@@ -1,6 +1,6 @@
 import { isWithdrawn, type ApplicationWithdrawal } from "@merit/applications/domain";
 import { add, subtract, fromMinorUnits, type Money } from "@merit/money";
-import { assessmentStatus } from "@merit/reviews/domain";
+import { assessmentStatus, reviewProgress } from "@merit/reviews/domain";
 
 export const summarizeRound = (
   budget: Money | null,
@@ -17,7 +17,7 @@ export const summarizeRound = (
     unknownRequests: 0,
     withdrawnApplications: 0,
     proposed: fromMinorUnits(0n),
-    reviews: { assigned: 0, submitted: 0, current: 0, outdated: 0, outstanding: 0, unknown: 0 },
+    reviews: { current: 0, outdated: 0, outstanding: 0, unknown: 0 },
   };
   for (const application of applications) {
     // Withdrawn applications are neither funding demand nor active review work.
@@ -36,13 +36,13 @@ export const summarizeRound = (
 
     for (const assessment of application.assessments) {
       const status = assessmentStatus(assessment, application.version);
-      totals.reviews.assigned++;
       totals.reviews[status]++;
-      if (status !== "outstanding") {
-        totals.reviews.submitted++;
-      }
     }
   }
 
-  return { ...totals, remaining: budget === null ? null : subtract(budget, totals.proposed) };
+  return {
+    ...totals,
+    reviews: { ...totals.reviews, ...reviewProgress(totals.reviews) },
+    remaining: budget === null ? null : subtract(budget, totals.proposed),
+  };
 };

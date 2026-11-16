@@ -14,7 +14,10 @@ const round = { workspaceSlug, roundId: publicId };
 const application = { workspaceSlug, applicationId: publicId };
 const queries: [string, (service: GrantmakingQueries) => Promise<unknown>][] = [
   ["round list", (service) => service.listRounds(actor, workspaceSlug)],
-  ["workspace applications", (service) => service.listWorkspaceApplications(actor, workspaceSlug)],
+  [
+    "workspace applications",
+    (service) => service.listWorkspaceApplications(actor, { workspaceSlug: workspaceSlug }),
+  ],
   [
     "workspace search",
     (service) => service.searchWorkspace(actor, { workspaceSlug, query: "community" }),

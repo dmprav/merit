@@ -713,7 +713,7 @@ it("uses one freshness policy for reviewer, manager, workspace and MCP reads aft
       status: "ok",
       reviews: [{ basisComparison, freshness: submitted ? freshness : "outstanding" }],
     });
-    const overview = await listWorkspaceApplications(db, actor, "alder");
+    const overview = await listWorkspaceApplications(db, actor, { workspaceSlug: "alder" });
     assert(overview.status === "ok");
     expect(
       overview.applications.find((application) => application.id === s.address.publicId),

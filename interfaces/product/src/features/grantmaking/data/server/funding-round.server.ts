@@ -7,6 +7,7 @@ import type {
   PublicRoundRequest,
   workspaceActivityInput,
   workspaceSearchInput,
+  WorkspaceApplicationsInput,
 } from "@merit/grantmaking/api";
 
 import type { WorkspaceServices } from "../../../../shared/request-context";
@@ -47,11 +48,11 @@ export const loadFundingApplicationPage = (
   });
 
 export const loadWorkspaceApplications = (
-  workspaceSlug: string,
+  input: WorkspaceApplicationsInput,
   services: WithIdentity<Pick<WorkspaceServices, "listWorkspaceApplications">>,
 ) =>
   withActor(services.currentIdentity, async (actor) => {
-    const result = await services.listWorkspaceApplications(actor, workspaceSlug);
+    const result = await services.listWorkspaceApplications(actor, input);
     if (result.status === "not_found") {
       return { status: "workspace_not_found" } as const;
     }

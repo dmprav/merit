@@ -3,9 +3,10 @@ import { setResponseHeader } from "@tanstack/react-start/server";
 
 import {
   applicationRequestSchema,
+  workspaceApplicationsInput,
   encodeApplicationDetail,
   publicRoundRequestSchema,
-  encodeRoundOverview,
+  encodeRoundPage,
   encodeRoundSummary,
 } from "@merit/grantmaking/api";
 import { workspaceSlugSchema } from "@merit/organizations/api";
@@ -38,9 +39,7 @@ export const readFundingRoundPage = createServerFn({ method: "GET" })
       ...context.workspace,
       currentIdentity: context.currentIdentity,
     });
-    return result.status === "ok"
-      ? { ...result, round: encodeRoundOverview(result.round) }
-      : result;
+    return result.status === "ok" ? { ...result, round: encodeRoundPage(result.round) } : result;
   });
 
 export const readFundingApplicationPage = createServerFn({ method: "GET" })
@@ -54,8 +53,8 @@ export const readFundingApplicationPage = createServerFn({ method: "GET" })
     return result.status === "ok" ? { ...result, ...encodeApplicationDetail(result) } : result;
   });
 
-export const readWorkspaceApplications = createServerFn({ method: "GET" })
-  .validator(workspaceSlugSchema)
+export const readWorkspaceApplications = createServerFn({ method: "POST" })
+  .validator(workspaceApplicationsInput)
   .handler(async ({ data, context }) => {
     setResponseHeader("Cache-Control", "private, no-store");
     return loadWorkspaceApplications(data, {

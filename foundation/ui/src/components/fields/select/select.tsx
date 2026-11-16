@@ -27,6 +27,7 @@ export type SelectProps<Id extends string> = Pick<
   | "placeholder"
 > &
   FieldPresentationProps & {
+    appearance?: "field" | "criterion";
     items: readonly { id: Id; label: string; description?: string; isDisabled?: boolean }[];
     selectedKey?: Id | null;
     defaultSelectedKey?: Id;
@@ -43,6 +44,7 @@ export const Select = <Id extends string>({
   defaultSelectedKey,
   onSelectionChange,
   actions,
+  appearance = "field",
   ...props
 }: SelectProps<Id>) => {
   const descriptionId = useId();
@@ -70,20 +72,14 @@ export const Select = <Id extends string>({
         }
       }}
       className={`${fieldStyles.field} ${styles.select}`}
+      data-appearance={appearance}
     >
       {({ isInvalid }) => (
         <>
           <FieldLabel required={showRequired} requiredId={requiredId}>
             {label}
           </FieldLabel>
-          <Button data-invalid-focus-target={isInvalid || undefined} className={styles.trigger}>
-            <SelectValue className={styles.value}>
-              {({ selectedText, isPlaceholder, defaultChildren }) =>
-                isPlaceholder ? defaultChildren : selectedText
-              }
-            </SelectValue>
-            <Icon name="down" className={styles.indicator} />
-          </Button>
+          <SelectTrigger label={label} appearance={appearance} isInvalid={isInvalid} />
           <Popover className={styles.popover} offset={4}>
             <ListBox className={styles.list}>
               {items.map((item) => (
@@ -132,6 +128,42 @@ export const Select = <Id extends string>({
         </>
       )}
     </AriaSelect>
+  );
+};
+
+const SelectTrigger = ({
+  label,
+  appearance,
+  isInvalid,
+}: {
+  label: string;
+  appearance: "field" | "criterion";
+  isInvalid: boolean;
+}) => {
+  const criterionId = useId();
+  return (
+    <Button
+      data-invalid-focus-target={isInvalid || undefined}
+      className={styles.trigger}
+      aria-labelledby={
+        appearance === "criterion" ? `${criterionId}-label ${criterionId}-value` : undefined
+      }
+    >
+      {appearance === "criterion" && (
+        <span className={styles.criterionLabel} id={`${criterionId}-label`}>
+          {label}{" "}
+        </span>
+      )}
+      <SelectValue
+        className={styles.value}
+        id={appearance === "criterion" ? `${criterionId}-value` : undefined}
+      >
+        {({ selectedText, isPlaceholder, defaultChildren }) =>
+          isPlaceholder ? defaultChildren : selectedText
+        }
+      </SelectValue>
+      <Icon name="down" className={styles.indicator} />
+    </Button>
   );
 };
 

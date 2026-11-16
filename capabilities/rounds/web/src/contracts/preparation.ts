@@ -4,9 +4,26 @@ import type { PreparationState } from "@merit/grantmaking/api";
 import type { PageSource } from "@merit/query/contracts";
 import type { editRoundRequestSchema, deleteRoundRequestSchema } from "@merit/rounds/api";
 import type { PreparationSaveError } from "@merit/rounds/api";
-import type { RoundChange } from "@merit/rounds/domain";
+import type { FundingRound, RoundChange } from "@merit/rounds/domain";
 
 export type { PreparationState } from "@merit/grantmaking/api";
+
+/** Round properties and the impact facts needed to edit or delete the round. */
+export type PreparationRound = Pick<
+  FundingRound,
+  | "title"
+  | "purpose"
+  | "budget"
+  | "meetingDate"
+  | "criteria"
+  | "manager"
+  | "managerUserId"
+  | "managerNeedsReassignment"
+  | "decisionStatus"
+> & {
+  applicationCount: number;
+  criteriaImpact: { assessments: number; requests: number };
+};
 
 export type PreparationFailure =
   | { status: "invalid"; error: PreparationSaveError }

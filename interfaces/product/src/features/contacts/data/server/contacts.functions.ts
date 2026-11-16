@@ -4,6 +4,9 @@ import { setResponseHeader } from "@tanstack/react-start/server";
 import { withActor } from "@merit/auth/request";
 import { contactHistoryInput } from "@merit/contacts/api";
 import { contactsRequestSchema, contactCommandSchema } from "@merit/contacts/api";
+import { contactApplicationListInput } from "@merit/grantmaking/api";
+
+import { loadContactApplications } from "./contacts.server";
 
 export const readContacts = createServerFn({ method: "GET" })
   .validator(contactsRequestSchema)
@@ -29,4 +32,14 @@ export const readContactHistory = createServerFn({ method: "GET" })
     return withActor(context.currentIdentity, (actor) =>
       context.workspace.contactHistory(actor, data),
     );
+  });
+
+export const readContactApplications = createServerFn({ method: "GET" })
+  .validator(contactApplicationListInput)
+  .handler(({ context, data }) => {
+    setResponseHeader("Cache-Control", "private, no-store");
+    return loadContactApplications(data, {
+      ...context.workspace,
+      currentIdentity: context.currentIdentity,
+    });
   });

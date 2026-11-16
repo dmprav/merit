@@ -5,7 +5,7 @@ import { useState } from "react";
 import { expect, waitFor, mocked, within } from "storybook/test";
 
 import { GrantmakingDrafts } from "@merit/grantmaking-web/drafts";
-import { FundingRoundView } from "@merit/grantmaking-web/rounds";
+import { FundingRoundPreview as FundingRoundView } from "@merit/grantmaking-web/testing";
 import { roundView, type RoundView } from "@merit/grantmaking/api";
 import { getExampleRound } from "@merit/grantmaking/examples";
 import { encodeMoney, fromMinorUnits } from "@merit/money";
@@ -95,16 +95,19 @@ const RoundSession = ({ round }: { round: RoundView }) => {
 const RoundManagementPreview = ({
   empty = false,
   reassign = false,
+  longManager = false,
   conflict = false,
   safe = false,
 }: {
   empty?: boolean;
   reassign?: boolean;
+  longManager?: boolean;
   conflict?: boolean;
   safe?: boolean;
 }) => {
   const round: RoundView = roundView({
     ...example,
+    manager: longManager ? "Alexandria Montgomery-Worthington" : example.manager,
     applications: empty ? [] : example.applications,
   });
   if (reassign) {
@@ -147,7 +150,15 @@ export default meta;
 
 type Story = StoryObj<typeof meta>;
 
-export const Overview: Story = {};
+export const Overview: Story = {
+  play: async ({ canvas }) => {
+    const manager = await canvas.findByRole("button", { name: "Assign manager: Dana Reed" });
+    const name = within(manager).getByText("Dana Reed");
+    await expect(name.getBoundingClientRect().height).toBeLessThanOrEqual(
+      Number.parseFloat(getComputedStyle(name).lineHeight),
+    );
+  },
+};
 export const CriteriaWithReviews: Story = {
   play: async ({ canvas, canvasElement, userEvent }) => {
     await userEvent.click(await canvas.findByRole("button", { name: "Edit criteria" }));
@@ -156,7 +167,11 @@ export const CriteriaWithReviews: Story = {
     await expect(editor.getByText(/Saving preserves earlier criteria/)).toBeVisible();
   },
 };
-export const ManagerNeedsReassignment: Story = { args: { reassign: true } };
+export const ManagerNeedsReassignment: Story = {
+  args: { reassign: true },
+  play: Overview.play,
+};
+export const LongManager: Story = { args: { reassign: true, longManager: true } };
 export const AssignManager: Story = {
   args: { reassign: true },
   play: async ({ canvas, canvasElement, userEvent }) => {

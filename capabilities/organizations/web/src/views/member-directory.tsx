@@ -5,7 +5,6 @@ import { memberActions, permits } from "@merit/access";
 import type { Team } from "@merit/organizations/api";
 import { DataTable, type TableColumn } from "@merit/tables";
 import { ActionMenu } from "@merit/ui/action-menu";
-import { Badge } from "@merit/ui/badge";
 import { Button } from "@merit/ui/button";
 import { Icon } from "@merit/ui/icon";
 import { PersonIdentity } from "@merit/ui/person-identity";
@@ -87,12 +86,11 @@ export const MemberDirectory = (props: DirectoryProps) => {
     {
       id: "person",
       header: t("person"),
-      layout: { width: "36%" },
+      layout: { width: "32%" },
       cell: ({ member }) => (
         <PersonIdentity
           name={member.name || member.email || t("unknownName")}
           annotation={member.userId === team.subject.userId ? t("you") : undefined}
-          status={!member.active ? <Badge tone="danger">{t("disabled")}</Badge> : undefined}
           description={member.email || t("unknownEmail")}
         />
       ),
@@ -100,14 +98,19 @@ export const MemberDirectory = (props: DirectoryProps) => {
     {
       id: "administration",
       header: t("administration"),
-      layout: { width: "24%" },
+      layout: { width: "23%" },
       cell: ({ member }) => <>{t(member.administration)}</>,
     },
     {
       id: "role",
       header: t("grantAccess"),
-      layout: { width: "22%" },
+      layout: { width: "21%" },
       cell: ({ member }) => <>{t(member.role)}</>,
+    },
+    {
+      id: "account",
+      header: t("account"),
+      cell: ({ member }) => t(member.active ? "active" : "disabled"),
     },
     ...(canManage
       ? [
@@ -128,6 +131,7 @@ export const MemberDirectory = (props: DirectoryProps) => {
   return (
     <DataTable
       data={team.members.map((member) => ({ ...props, member }))}
+      density="compact"
       columns={columns}
       getRowId={(row) => row.member.userId}
       label={t("members")}

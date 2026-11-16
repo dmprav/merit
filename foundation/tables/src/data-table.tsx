@@ -62,7 +62,8 @@ type DataTableProps<T extends object> = {
 };
 
 /**
- * Renders a complete, already-loaded collection with stable, unique row IDs.
+ * Renders records with stable, unique row IDs. Local sorting expects a complete collection;
+ * use sorting.manual for a page already ordered by its server.
  * Supply sorting to enable controlled single-column ordering. Missing values sort
  * last in either direction; clearing sorting restores source order without mutation.
  * A selection for an absent or display-only column uses source order until valid again.
@@ -83,18 +84,22 @@ export const DataTable = <T extends object>({
   stickyHeader,
 }: DataTableProps<T>) => {
   const sortableColumns = columns.filter((column) => column.sort);
+  const showSorting = data.length > 0 || sorting?.manual;
   const activeSort = sortableColumns.some((column) => column.id === sorting?.value?.columnId)
     ? (sorting?.value ?? null)
     : null;
   const tableSorting: SortingState = activeSort
     ? [{ id: activeSort.columnId, desc: activeSort.direction === "descending" }]
     : [];
-  const tableColumns: ColumnDef<typeof features, T>[] = columns.map(({ id, sort }) => ({
-    id,
-    accessorFn: sort ? (record) => sort.value(record) ?? undefined : undefined,
-    sortFn: sort ? (left, right) => sort.compare(left.original, right.original) : undefined,
-    enableSorting: Boolean(sorting && sort),
-  }));
+  const tableColumns: ColumnDef<typeof features, T>[] = columns.map(({ id, sort }) => {
+    const localSort = sort === true ? undefined : sort;
+    return {
+      id,
+      accessorFn: localSort && ((record) => localSort.value(record) ?? undefined),
+      sortFn: localSort && ((left, right) => localSort.compare(left.original, right.original)),
+      enableSorting: Boolean(sorting && sort),
+    };
+  });
   const table = useTable({
     features,
     data,
@@ -107,18 +112,15 @@ export const DataTable = <T extends object>({
         next ? { columnId: next.id, direction: next.desc ? "descending" : "ascending" } : null,
       );
     },
+    manualSorting: sorting?.manual ?? false,
     enableMultiSort: false,
     defaultColumn: { sortDescFirst: false, sortUndefined: "last" },
   });
 
   return (
     <div className={styles.container}>
-      {state && (
-        <p className={styles.message} role={state.type === "error" ? "alert" : "status"}>
-          {state.message}
-        </p>
-      )}
-      {data.length > 0 && sortableColumns.length > 0 && sorting && (
+      <TableStatus state={state} />
+      {showSorting && sortableColumns.length > 0 && sorting && (
         <MobileSortControl columns={sortableColumns} {...sorting} value={activeSort} />
       )}
       <TableScrollArea stickyHeader={stickyHeader} label={label}>
@@ -138,7 +140,7 @@ export const DataTable = <T extends object>({
                   direction={activeSort?.columnId === column.id ? activeSort.direction : undefined}
                   top={stickyHeader?.mode === "page" ? stickyHeader.top : undefined}
                   onSort={
-                    data.length > 0 && sorting && column.sort
+                    showSorting && sorting && column.sort
                       ? () => table.getColumn(column.id)?.toggleSorting()
                       : undefined
                   }
@@ -169,6 +171,13 @@ export const DataTable = <T extends object>({
     </div>
   );
 };
+
+const TableStatus = ({ state }: { state?: TableState }) =>
+  state?.message ? (
+    <p className={styles.message} role={state.type === "error" ? "alert" : "status"}>
+      {state.message}
+    </p>
+  ) : null;
 
 const TableCell = <T extends object>({
   column,

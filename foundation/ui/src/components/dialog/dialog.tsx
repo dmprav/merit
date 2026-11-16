@@ -25,7 +25,7 @@ type ModalDialogProps = Omit<ModalOverlayProps, "children" | "className"> & {
 } & (
     | {
         appearance?: "default";
-        placement?: "center" | "start";
+        placement?: "center" | "start" | "end";
       }
     | {
         /** Shared form frame with a stable desktop position and tinted footer. */
@@ -108,7 +108,7 @@ export const PopoverDialog = ({
         containerPadding={16}
         maxHeight={560}
         // Compact pickers lock background scrolling so nested forms do not dismiss their parent.
-        isNonModal={!compact}
+        isNonModal={!compact && appearance !== "compact"}
         isKeyboardDismissDisabled={isDismissDisabled}
         shouldCloseOnInteractOutside={() => !isDismissDisabled}
       >

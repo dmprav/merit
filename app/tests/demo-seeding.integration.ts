@@ -11,6 +11,7 @@ import {
   getFundingApplicationPage,
   getFundingRoundPage,
   listFundingRounds,
+  listWorkspaceApplications,
   searchWorkspace,
 } from "@merit/grantmaking/server";
 import { applicationWork } from "@merit/grantmaking/server/integrations";
@@ -158,7 +159,18 @@ it("creates independent applications with exact amounts and permanent public IDs
   }
 
   expect(
-    encodeRoundOverview((await getFundingRoundPage(db, actor, pageInput))!.round),
+    encodeRoundOverview({
+      ...(await getFundingRoundPage(db, actor, pageInput))!.round,
+      applications: await Promise.all(
+        original.applications.map(
+          async (application) =>
+            (await getFundingApplicationPage(db, actor, {
+              workspaceSlug: "alder",
+              publicId: application.id,
+            }))!.application,
+        ),
+      ),
+    }),
   ).toMatchObject({
     ...original,
     managerUserId: "dana",
@@ -247,7 +259,12 @@ it("resolves public identities under current permissions and preserves them acro
 
   expect(page).not.toBeNull();
 
-  const application = page!.round.applications[2];
+  const listedApplications = await listWorkspaceApplications(db, actor, {
+    workspaceSlug: "alder",
+    roundId: page!.round.id,
+  });
+  assert(listedApplications.status === "ok");
+  const application = listedApplications.applications[2];
 
   assert.isDefined(application);
 
@@ -317,14 +334,14 @@ it("resolves public identities under current permissions and preserves them acro
   expect(renamed!.round.id).toBe(page!.round.id);
   expect(renamed!.application.id).toBe(application.id);
 
-  expect(
-    (
-      (await getFundingRoundPage(db, actor, pageInput))!.round.applications[2] ??
-      assert.fail(
-        "Expected (await getFundingRoundPage(db, actor, pageInput))!.round.applications[2]",
-      )
-    ).title,
-  ).toBe("Renamed application");
+  const refreshed = await listWorkspaceApplications(db, actor, {
+    workspaceSlug: "alder",
+    roundId: pageInput.publicId,
+  });
+  assert(refreshed.status === "ok");
+  expect(refreshed.applications.find((row) => row.id === application.id)?.title).toBe(
+    "Renamed application",
+  );
 
   await database.client.query("DELETE FROM memberships WHERE user_id = 'dana'");
 

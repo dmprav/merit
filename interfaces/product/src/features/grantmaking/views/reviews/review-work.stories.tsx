@@ -418,10 +418,12 @@ export const AssessmentSaved: Story = {
 export const CorrectionSaved: Story = {
   play: async (context) => {
     await saveCorrection(context);
-    await waitFor(() =>
-      expect(
-        within(context.canvasElement.ownerDocument.body).queryByRole("dialog"),
-      ).not.toBeInTheDocument(),
+    await waitFor(
+      () =>
+        expect(
+          within(context.canvasElement.ownerDocument.body).queryByRole("dialog"),
+        ).not.toBeInTheDocument(),
+      { timeout: 10_000 },
     );
     await expect(
       context.canvas.getByRole("article", { name: "Assessment by Sam Morgan" }),

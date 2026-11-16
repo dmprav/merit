@@ -120,13 +120,14 @@ it("validates persisted criteria rows instead of trusting inferred database type
 it("reads one application with round-wide budget context without decoding sibling content", async ({
   db,
   database,
-  rounds: { createApplication, recommendApplication },
+  rounds: { createApplication, recommendApplication, pageInput },
 }) => {
   const selected = await createApplication("Selected application");
   const sibling = await createApplication("Sibling application");
   await recommendApplication(sibling, "3000");
   const original = await getFundingApplicationPage(db, actor, selected);
   assert.isNotNull(original);
+  const originalRound = await getFundingRoundPage(db, actor, pageInput);
 
   await database.client.query(
     "UPDATE application_cases SET attention = ARRAY['note']::text[] WHERE id = $1",
@@ -134,6 +135,7 @@ it("reads one application with round-wide budget context without decoding siblin
   );
   const detail = await getFundingApplicationPage(db, actor, selected);
   assert.isNotNull(detail);
+  expect(await getFundingRoundPage(db, actor, pageInput)).toEqual(originalRound);
 
   expect(encodeApplicationDetail(detail)).toEqual(encodeApplicationDetail(original));
   expect(encodeApplicationDetail(detail).round).toMatchObject({

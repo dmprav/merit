@@ -71,6 +71,17 @@ See [architecture](../../docs/foundations/architecture.md) and the
 
 ## Bounded collections
 
+Include filters, sorting and page position in each collection query's identity.
+Derive defaults and normalized request types from the business input schema so
+loaders and mounted observers share an identity for equivalent requests. Keep
+feature-specific filtering and session restoration in the capability's data adapter;
+the browser interface supplies transport, routing and cross-capability cache scopes.
+When a route loader fetches only the default page, the observer for a page restored
+from session state must revalidate stale data on mount. Invalidating an inactive
+page alone does not refresh its rows or counts. A short freshness window can
+avoid repeating the loader's just-completed read; mutation invalidation must
+still make the affected pages stale immediately.
+
 `PageSource` from `@merit/query/contracts` carries the private query key and a
 cursor-based read. Capability data adapters bind it to their authorized transport.
 Return `null` for missing or denied resources, and throw for a retryable read

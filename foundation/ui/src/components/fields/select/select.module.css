@@ -69,6 +69,47 @@
   transform: rotate(180deg);
 }
 
+.select[data-appearance="criterion"] > span {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.select[data-appearance="criterion"] .trigger {
+  display: grid;
+  grid-template-columns: fit-content(50%) minmax(0, 1fr) auto;
+  gap: var(--space-2);
+  border-color: transparent;
+  padding-inline: var(--space-2);
+  background: transparent;
+}
+
+.select[data-appearance="criterion"] .trigger:is([data-hovered], [aria-expanded="true"]) {
+  background: var(--surface-muted);
+}
+
+.select[data-appearance="criterion"] .trigger[data-focus-visible] {
+  background: var(--action-subtle);
+  box-shadow: inset 3px 0 var(--focus);
+}
+
+.select[data-appearance="criterion"] .trigger:not([data-focus-visible]) {
+  box-shadow: none;
+}
+
+.select[data-appearance="criterion"] .value {
+  text-align: end;
+  color: var(--muted);
+}
+
+.criterionLabel {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .popover {
   z-index: 50;
   display: flex;

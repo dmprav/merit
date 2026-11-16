@@ -1,13 +1,23 @@
 import { assert, beforeEach, expect, it, vi } from "vite-plus/test";
 
-import { encodeApplicationDetail, roundView } from "@merit/grantmaking/api";
+import { encodeApplicationDetail, encodeRoundPage, roundView } from "@merit/grantmaking/api";
 import { makeApplication, makeRound } from "@merit/grantmaking/testing/fixtures";
 import { createQueryClient } from "@merit/query";
 
-import { readFundingApplicationPage } from "./data/server/funding-round.functions";
-import { loadApplicationPage } from "./page-routing";
+import { resourceRef } from "./contracts/resource-url";
+import { applicationsOptions } from "./data/queries";
+import {
+  readFundingApplicationPage,
+  readFundingRoundPage,
+  readWorkspaceApplications,
+} from "./data/server/funding-round.functions";
+import { loadApplicationPage, loadPublicPage } from "./page-routing";
 
-vi.mock("./data/server/funding-round.functions", () => ({ readFundingApplicationPage: vi.fn() }));
+vi.mock("./data/server/funding-round.functions", () => ({
+  readFundingApplicationPage: vi.fn(),
+  readFundingRoundPage: vi.fn(),
+  readWorkspaceApplications: vi.fn(),
+}));
 const publicId = "b8q3w5j7c2df";
 const round = roundView(
   makeRound({
@@ -28,6 +38,27 @@ const page = {
   workspaceSlug: "alder",
 };
 beforeEach(() => vi.mocked(readFundingApplicationPage).mockReset());
+
+it("keeps an authorized round available when its application list fails and retries the list", async () => {
+  const client = createQueryClient();
+  const roundPage = {
+    status: "ok" as const,
+    round: encodeRoundPage(round),
+    workspaceSlug: "alder",
+    preparation: { revision: 0, managers: [], budgetHistory: [] },
+  };
+  vi.mocked(readFundingRoundPage).mockResolvedValue(roundPage);
+  vi.mocked(readWorkspaceApplications).mockRejectedValueOnce(new Error("List unavailable"));
+  const ref = resourceRef(round.title, round.id);
+
+  await expect(loadPublicPage(client, "alder", ref)).resolves.toEqual(roundPage);
+  const options = applicationsOptions("alder", { roundId: round.id });
+  expect(client.getQueryState(options.queryKey)?.status).toBe("error");
+
+  const recovered = { status: "ok" as const, applications: [], total: 0, matching: 0, offset: 0 };
+  vi.mocked(readWorkspaceApplications).mockResolvedValueOnce(recovered);
+  await expect(client.fetchQuery(options)).resolves.toEqual(recovered);
+});
 
 it("redirects stale titles and ID-only links after authorization, retaining review state", async () => {
   vi.mocked(readFundingApplicationPage).mockResolvedValue(page);

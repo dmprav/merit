@@ -1,0 +1,17 @@
+.field {
+  min-width: 0;
+}
+
+.icon {
+  flex-shrink: 0;
+  margin-inline-start: var(--space-3);
+  color: var(--muted);
+}
+
+.field input {
+  padding-inline-start: var(--space-2);
+}
+
+.field input::-webkit-search-cancel-button {
+  display: none;
+}

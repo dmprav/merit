@@ -111,6 +111,7 @@ const Layout = () => {
       footer={<AdminFooter />}
     >
       <ApplicationPage
+        width={adminPageWidth(pagePath)}
         locationKey={pathname}
         breadcrumbLabel={t("breadcrumb")}
         breadcrumb={adminBreadcrumb(
@@ -124,6 +125,9 @@ const Layout = () => {
     </ApplicationShell>
   );
 };
+
+const adminPageWidth = (pagePath: string) =>
+  ["/admin/access-requests", "/admin/organizations"].includes(pagePath) ? "full" : "standard";
 
 const adminRecoveryLocation = (signedOut: boolean, workspaces: Workspace[]) => {
   if (signedOut) {

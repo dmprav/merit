@@ -11,7 +11,7 @@ import { emptyReviews } from "@merit/reviews/domain";
 import { ApplicationPage } from "@merit/ui/application-shell";
 
 import { GrantmakingMessagesProvider } from "../../messages";
-import { FundingRoundView } from "./funding-round-view";
+import { FundingRoundPreview as FundingRoundView } from "../../testing/application-list-preview";
 
 const example = getExampleRound();
 const overBudget = updateRecommendation(example, "A3", {
@@ -78,7 +78,7 @@ export const OutdatedReviews: Story = {
     ),
   },
   play: async ({ canvas }) => {
-    for (const status of canvas.getAllByText("1 outdated review, 1 awaiting review")) {
+    for (const status of canvas.getAllByText("1 of 2 reviewed")) {
       await expect(status).toBeVisible();
     }
   },
@@ -138,8 +138,13 @@ const withdrawnRound = encodeRoundOverview(
 
 export const WithdrawnApplication: Story = {
   args: { section: "applications", round: withdrawnRound },
-  play: async ({ canvas }) => {
-    await expect(canvas.getByText("1 withdrawn application not counted.")).toBeVisible();
+  play: async ({ canvas, canvasElement, userEvent }) => {
+    await userEvent.click(canvas.getByRole("button", { name: "Round totals scope" }));
+    const body = within(canvasElement.ownerDocument.body);
+    await expect(body.getByRole("dialog", { name: "Round totals scope" })).toHaveTextContent(
+      "1 withdrawn application not counted.",
+    );
+    await userEvent.click(body.getByRole("button", { name: "Close total details" }));
     const applications = within(canvas.getByRole("table", { name: "Applications" }));
     await expect(applications.getByText("Withdrawn", { exact: true })).toBeVisible();
   },
@@ -147,9 +152,11 @@ export const WithdrawnApplication: Story = {
 export const WithdrawnFilter: Story = {
   args: { section: "applications", round: withdrawnRound },
   play: async ({ canvas, userEvent }) => {
-    await userEvent.click(canvas.getByRole("button", { name: /Show/ }));
+    await userEvent.click(canvas.getByRole("button", { name: "Filter" }));
+    await userEvent.click(within(document.body).getByRole("button", { name: "Participation Any" }));
     await userEvent.click(await within(document.body).findByRole("option", { name: "Withdrawn" }));
 
+    await userEvent.keyboard("{Escape}");
     await expect(canvas.getByRole("status")).toHaveTextContent("1 of");
   },
 };
@@ -157,6 +164,16 @@ export const WithdrawnFilter: Story = {
 export const ReadOnly: Story = { args: { readOnly: true } };
 export const ManagerNeedsReassignment: Story = {
   args: { round: { ...encodeRoundOverview(example), managerNeedsReassignment: true } },
+};
+export const LongManager: Story = {
+  args: {
+    section: "applications",
+    round: {
+      ...encodeRoundOverview(example),
+      manager: "Alexandria Montgomery-Worthington",
+      managerNeedsReassignment: true,
+    },
+  },
 };
 
 const largerRound = roundView({
@@ -184,11 +201,15 @@ const largerRound = roundView({
 export const ManyApplications: Story = {
   args: { round: encodeRoundOverview(largerRound), section: "applications" },
   play: async ({ canvas, userEvent }) => {
-    await userEvent.type(canvas.getByRole("searchbox"), "Riverside");
+    await userEvent.click(canvas.getByRole("button", { name: "Filter" }));
+    await userEvent.type(within(document.body).getByRole("searchbox"), "Riverside");
+    await userEvent.keyboard("{Escape}");
 
     await expect(canvas.getByRole("status")).toHaveTextContent("3 of 24 applications");
 
-    await userEvent.click(canvas.getByRole("button", { name: "Clear filters" }));
+    await userEvent.click(canvas.getByRole("button", { name: "Filter" }));
+    await userEvent.click(within(document.body).getByRole("button", { name: "Clear filters" }));
+    await userEvent.keyboard("{Escape}");
 
     await expect(canvas.getAllByRole("row")).toHaveLength(25);
   },

@@ -1,6 +1,8 @@
 import { render, screen, within } from "@testing-library/react";
 import { expect, it, vi } from "vite-plus/test";
 
+import { formatTimestamp } from "@merit/i18n/format";
+
 import { teamFixture } from "../../tests/team.fixtures";
 import { OrganizationMessagesProvider } from "../messages";
 import { InvitationDirectory } from "./invitation-directory";
@@ -44,3 +46,19 @@ it.each([
     expect(within(row).getByRole("button", { name: /Actions for invitation/ })).toBeEnabled();
   },
 );
+
+it("shows the expiry instant in local time without an extra disclosure", () => {
+  render(
+    <InvitationDirectory
+      team={teamFixture}
+      isDisabled={false}
+      onResend={vi.fn()}
+      onRevoke={vi.fn()}
+    />,
+    { wrapper: OrganizationMessagesProvider },
+  );
+  const value = new Date(teamFixture.invitations[0]!.expiresAt).toISOString();
+  const time = screen.getByText(formatTimestamp(value, "en-GB"));
+  expect(time).toHaveAttribute("datetime", value);
+  expect(time.closest("details")).toBeNull();
+});

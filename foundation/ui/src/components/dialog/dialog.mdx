@@ -12,6 +12,7 @@ surrounding work. Choose the composition by what the person needs to do:
 | ------------------------------------ | -------------------------------------------------------------------------- |
 | Read short information               | `ModalDialog` with `DialogContent`.                                        |
 | Read substantial evidence or history | A wide `ModalDialog` with `DialogContent`; use `reading` for prose.        |
+| Browse records related to a row      | `ModalDialog` with `placement="end"` and `DialogContent`.                  |
 | Create or edit a record              | [Form dialog](?path=/docs/patterns-form-dialog--docs), sized for the task. |
 | Authorize a consequential action     | [Confirmation dialog](?path=/docs/patterns-confirmation-dialog--docs).     |
 | Jump to a record by name             | `ModalDialog` with `appearance="search"`.                                  |
@@ -20,6 +21,14 @@ surrounding work. Choose the composition by what the person needs to do:
 The shared frame owns the backdrop, focus containment, accessible title, close
 control, and motion. Centered dialogs and standard popovers have a compact tinted
 header. Navigation drawers retain their edge placement and navigation layout.
+
+For a collection opened from a row, use `placement="end"`. The drawer fills the
+viewport height at the right edge, keeping its heading and close control above
+the independently scrolling `DialogContent`. At widths up to 600px it fills the
+screen. Keep related records as native links inside the body so each destination
+can also open in another tab.
+
+<Canvas of={Dialog.EndDrawer} />
 
 ## Work beside a value
 
@@ -31,8 +40,10 @@ footer is present, it scrolls with the content so utilities cannot squeeze out
 the reading area. The heading stays visible. Long titles wrap beside the close
 control.
 
-The compact appearance lets pickers supply their own heading and place the
-provided `closeButton` alongside it.
+The compact appearance lets pickers and small filter panels place the supplied
+`closeButton` beside their own first row. Its title remains an accessible name
+without a decorative header or footer. Compact panels contain focus and dismiss
+on outside press at every width.
 
 <Canvas of={Dialog.Popover} />
 
@@ -65,7 +76,7 @@ its height participates in the whole-dialog scrolling fallback. It supplies padd
 scrollbar and focus treatment, and the footer separator. The content can grow to
 the available height while the header and actions stay visible.
 When enlarged text or long translations leave too little space for the body,
-the centered dialog scrolls as one surface instead. The heading, fields, feedback,
+the centered dialog or end drawer scrolls as one surface instead. The heading, fields, feedback,
 and actions remain reachable without squeezing the work into a single line.
 Focusing a field or action inside the content reveals the whole control with
 space around it in every engine, so its border never sits under a scrolling edge.
@@ -99,8 +110,8 @@ header close control, Escape, and outside dismissal together.
 
 Features own what closing means for their draft and what success commits. Follow
 the [editing pattern](?path=/docs/patterns-editing--docs) for Close, Discard, and
-Resume behavior. Shared modal dialogs fade in with a small upward movement;
-navigation drawers slide from their edge, and popover dialogs use a smaller,
+Resume behavior. Centered modal dialogs fade in place;
+drawers slide from their edge, and popover dialogs use a smaller,
 quicker entrance. Closing starts gently and accelerates out. Focus and input remain
 available during entrance, and reduced-motion preferences skip the transitions.
 

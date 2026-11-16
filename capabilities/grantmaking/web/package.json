@@ -17,7 +17,8 @@
     "./data/creation": "./src/data/creation/workspace-data.ts",
     "./activity": "./src/views/activity/workspace-activity.tsx",
     "./search": "./src/views/search/workspace-search.tsx",
-    "./data/search": "./src/data/search/workspace-data.ts"
+    "./data/search": "./src/data/search/workspace-data.ts",
+    "./data/applications": "./src/data/applications/index.ts"
   },
   "dependencies": {
     "@merit/applications": "workspace:*",

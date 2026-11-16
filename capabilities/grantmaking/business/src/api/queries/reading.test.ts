@@ -1,9 +1,42 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { applicationContentInput, roundListInput } from "./reading";
+import {
+  applicationContentInput,
+  contactApplicationSummarySchema,
+  roundListInput,
+} from "./reading";
 
 const workspaceSlug = "alder";
 const applicationId = "0123456789ab";
+
+it("requires actual round context and a recognized relationship for contact application summaries", () => {
+  const summary = {
+    applicationId,
+    roundId: "0123456789ac",
+    title: "Neighbour Table",
+    roundTitle: "Community grants",
+    relationships: ["applicant_contact", "review_requested", "assessment_recorded"],
+    applicationVersion: 1,
+    intakeRevision: 0,
+    reviewRevision: 0,
+    recommendationRevision: 0,
+    intakeStatus: "in_preparation",
+    withdrawn: false,
+    requested: null,
+    contactId: null,
+    hasWorkingRevision: false,
+  };
+  expect(contactApplicationSummarySchema.parse(summary)).toEqual(summary);
+  expect(
+    contactApplicationSummarySchema.safeParse({ ...summary, roundTitle: undefined }).success,
+  ).toBe(false);
+  expect(contactApplicationSummarySchema.safeParse({ ...summary, relationships: [] }).success).toBe(
+    false,
+  );
+  expect(
+    contactApplicationSummarySchema.safeParse({ ...summary, relationships: ["member"] }).success,
+  ).toBe(false);
+});
 
 describe("round list requests", () => {
   it("defaults to a page of 20 rounds", () => {

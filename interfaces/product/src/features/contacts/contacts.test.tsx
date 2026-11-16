@@ -4,7 +4,9 @@ import userEvent from "@testing-library/user-event";
 import type { ComponentProps } from "react";
 import { beforeEach, expect, it, vi } from "vite-plus/test";
 
+import { materialVersionSchema } from "@merit/applications/domain";
 import { createQueryClient } from "@merit/query";
+import { reviewRevisionSchema } from "@merit/reviews/domain";
 
 import { renderWithRouter } from "../../../tests/render-with-router";
 import { WebMessagesProvider } from "../../app/messages";
@@ -18,7 +20,11 @@ import {
 } from "./contacts";
 import { WorkspaceContacts } from "./contacts-provider";
 import { contactsOptions } from "./data/queries";
-import { readContacts, saveContact } from "./data/server/contacts.functions";
+import {
+  readContacts,
+  saveContact,
+  readContactApplications,
+} from "./data/server/contacts.functions";
 
 const ContactsDirectory = (props: ComponentProps<typeof BaseContactsDirectory>) => (
   <WorkspaceContacts>
@@ -35,6 +41,7 @@ const ContactPicker = (props: ComponentProps<typeof BaseContactPicker>) => (
 vi.mock("./data/server/contacts.functions", () => ({
   readContacts: vi.fn(),
   saveContact: vi.fn(),
+  readContactApplications: vi.fn(),
 }));
 vi.mock("../grantmaking/data/server/funding-round.functions", () => ({}));
 vi.mock("../team/data/server/team.functions", () => ({}));
@@ -43,6 +50,7 @@ vi.mock("../workspace/data/server/workspace.functions", () => ({}));
 beforeEach(() => {
   vi.mocked(readContacts).mockReset();
   vi.mocked(saveContact).mockReset();
+  vi.mocked(readContactApplications).mockReset();
 });
 
 it.each([false, true])(
@@ -69,8 +77,11 @@ it.each([false, true])(
       </QueryClientProvider>,
     );
     if (archived) {
+      await user.click(screen.getByRole("button", { name: "Filter" }));
       await user.click(screen.getByRole("button", { name: /Status/ }));
       await user.click(screen.getByRole("option", { name: "Archived" }));
+      await waitFor(() => expect(screen.getByRole("button", { name: /Status/ })).toHaveFocus());
+      await user.keyboard("{Escape}");
     }
     await user.click(screen.getByRole("button", { name: "Actions for Sam Morgan" }));
     await user.click(screen.getByRole("menuitem", { name: archived ? "Restore" : "Archive" }));
@@ -192,8 +203,11 @@ it.each([
     );
 
     if (archived) {
+      await user.click(screen.getByRole("button", { name: "Filter" }));
       await user.click(await screen.findByRole("button", { name: /Status/ }));
       await user.click(await screen.findByRole("option", { name: "Archived" }));
+      await waitFor(() => expect(screen.getByRole("button", { name: /Status/ })).toHaveFocus());
+      await user.keyboard("{Escape}");
     }
     await user.click(await screen.findByRole("button", { name: "Actions for Sam Morgan" }));
     await user.click(
@@ -442,25 +456,26 @@ it("finds same-name contacts by application, switches status, and returns focus 
     </QueryClientProvider>,
   );
 
-  expect(screen.getByRole("table", { name: "Contacts" })).toHaveTextContent("Workshop Saturdays");
+  expect(screen.getByText("1 application")).toBeVisible();
   expect(screen.queryByText("Ride Together")).not.toBeInTheDocument();
 
-  await user.type(screen.getByRole("textbox", { name: "Find a contact" }), "Ride Together");
-
+  await user.click(screen.getByRole("button", { name: "Filter" }));
+  await user.type(screen.getByRole("searchbox", { name: "Find a contact" }), "Ride Together");
   expect(screen.getByText("No contacts match your search.")).toBeVisible();
-
   await user.click(await screen.findByRole("button", { name: /Status/ }));
   await user.click(await screen.findByRole("option", { name: "Archived" }));
+  await waitFor(() => expect(screen.getByRole("button", { name: /Status/ })).toHaveFocus());
+  await user.keyboard("{Escape}");
+  expect(screen.getByRole("table")).toHaveTextContent("Sam Morgan");
+  expect(screen.queryByText("sam@example.test")).not.toBeInTheDocument();
 
-  expect(screen.getByRole("table", { name: "Contacts" })).toHaveTextContent("Ride Together");
-
-  await user.type(screen.getByRole("textbox", { name: "Find a contact" }), " missing");
+  await user.click(screen.getByRole("button", { name: "Filter" }));
+  await user.type(screen.getByRole("searchbox", { name: "Find a contact" }), " missing");
   expect(screen.getByText("No contacts match your search.")).toBeVisible();
   await user.click(await screen.findByRole("button", { name: "Clear search" }));
-
-  expect(screen.getByRole("textbox", { name: "Find a contact" })).toHaveValue("");
-  expect(screen.getByRole("textbox", { name: "Find a contact" })).toHaveFocus();
-  expect(screen.getByRole("table", { name: "Contacts" })).toHaveTextContent("Ride Together");
+  expect(screen.getByRole("searchbox", { name: "Find a contact" })).toHaveValue("");
+  await user.keyboard("{Escape}");
+  expect(screen.getByText("1 application")).toBeVisible();
   expect(screen.queryByText("Workshop Saturdays")).not.toBeInTheDocument();
 
   await user.click(await screen.findByRole("button", { name: "Actions for Sam Morgan" }));
@@ -624,7 +639,12 @@ it("retains the contact revision on resume and blocks dismissal during a save", 
   await user.click(await screen.findByRole("menuitem", { name: "Edit contact details" }));
   await user.type(screen.getByRole("textbox", { name: "Name" }), " Taylor");
   await user.keyboard("{Escape}");
-  await user.click(await screen.findByRole("button", { name: "Resume editing" }));
+  const actions = await screen.findByRole("button", { name: "Actions for Sam" });
+  expect(actions).toHaveAttribute("data-draft", "true");
+  expect(actions).toHaveAccessibleDescription("Resume editing");
+  expect(document.querySelectorAll("[data-draft]")).toHaveLength(1);
+  await user.click(actions);
+  await user.click(await screen.findByRole("menuitem", { name: "Resume editing" }));
   await user.click(await screen.findByRole("button", { name: "Save contact" }));
 
   await waitFor(() =>
@@ -643,4 +663,63 @@ it("retains the contact revision on resume and blocks dismissal during a save", 
 
   expect(await screen.findByRole("alert")).toHaveTextContent("Could not save");
   expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue("Sam Taylor");
+});
+
+it("connects the contact count to an authenticated paged source and native overview links", async () => {
+  const contact = {
+    id: "60000000-0000-4000-8000-000000000001",
+    name: "Leah",
+    email: "",
+    affiliation: "",
+    archived: false,
+    revision: 0,
+    applicationTitles: ["Neighbour Table"],
+    history: [],
+  };
+  vi.mocked(readContacts).mockResolvedValue({
+    status: "ok",
+    workspaceName: "Alder",
+    contacts: [contact],
+  });
+  vi.mocked(readContactApplications).mockResolvedValue({
+    status: "ok",
+    applications: [
+      {
+        applicationId: "k7m2p9x4n6rt",
+        roundId: "m7m2p9x4n6rt",
+        title: "Neighbour Table",
+        roundTitle: "Community grants 2026",
+        relationships: ["applicant_contact", "assessment_recorded"],
+        applicationVersion: materialVersionSchema.parse(1),
+        intakeRevision: 0,
+        reviewRevision: reviewRevisionSchema.parse(0),
+        recommendationRevision: 0,
+        intakeStatus: "in_preparation",
+        withdrawn: false,
+        requested: null,
+        contactId: contact.id,
+        hasWorkingRevision: false,
+      },
+    ],
+    nextCursor: null,
+  });
+  const client = createQueryClient();
+  const { user } = await renderWithRouter(
+    <QueryClientProvider client={client}>
+      <ContactsDirectory workspaceSlug="alder" contacts={[]} />
+    </QueryClientProvider>,
+  );
+  const trigger = await screen.findByRole("button", { name: "1 application" });
+  expect(readContactApplications).not.toHaveBeenCalled();
+  await user.click(trigger);
+  expect(
+    await screen.findByRole("link", {
+      name: "Neighbour Table Community grants 2026 Contact for the applicant · Provided an assessment",
+    }),
+  ).toHaveAttribute("href", "/app/alder/applications/k7m2p9x4n6rt");
+  expect(readContactApplications).toHaveBeenCalledWith({
+    data: { workspaceSlug: "alder", contactId: contact.id, after: undefined },
+    signal: expect.any(AbortSignal) as unknown,
+  });
+  client.clear();
 });

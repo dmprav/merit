@@ -11,7 +11,7 @@ import { AppPage } from "./app-shell";
 export const FundingRoundsScreen = (props: ComponentProps<typeof FundingRoundsWork>) => {
   const { t } = useTranslation("web");
   return (
-    <AppPage breadcrumb={[t("navigation.rounds")]}>
+    <AppPage width="full" breadcrumb={[t("navigation.rounds")]}>
       <FundingRoundsWork {...props} />
     </AppPage>
   );

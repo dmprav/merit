@@ -490,7 +490,10 @@ it("resolves live contact details without rewriting applications or history, and
     publicId: page.round.id,
     kind: "round",
   });
-  expect(round?.round.applications[0]?.submission?.contact).toBe("Sam Morgan");
+  expect(round?.round.applicationCount).toBe(1);
+  expect(
+    (await getFundingApplicationPage(db, actor, address))?.application.submission?.contact,
+  ).toBe("Sam Morgan");
   expect(
     await editFundingApplication(
       db,

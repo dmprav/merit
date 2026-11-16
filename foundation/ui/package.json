@@ -5,6 +5,9 @@
   "license": "UNLICENSED",
   "type": "module",
   "exports": {
+    "./status-indicator": "./src/patterns/status-indicator/status-indicator.tsx",
+    "./timestamp": "./src/patterns/timestamp/timestamp.tsx",
+    "./collection-toolbar": "./src/patterns/collection-toolbar/collection-toolbar.tsx",
     "./action-menu": "./src/components/action-menu/action-menu.tsx",
     "./avatar": "./src/components/avatar/avatar.tsx",
     "./person-identity": "./src/patterns/person-identity/person-identity.tsx",
@@ -20,6 +23,7 @@
     "./layout": "./src/components/layout/layout.tsx",
     "./tabs": "./src/components/tabs/tabs.tsx",
     "./text-field": "./src/components/fields/text-field/text-field.tsx",
+    "./search-field": "./src/components/fields/search-field/search-field.tsx",
     "./date-field": "./src/components/fields/date-field/date-field.tsx",
     "./calendar": "./src/components/calendar/calendar.tsx",
     "./select": "./src/components/fields/select/select.tsx",

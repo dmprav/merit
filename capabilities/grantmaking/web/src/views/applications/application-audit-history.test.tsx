@@ -6,6 +6,7 @@ import type { IntakeState } from "@merit/applications-web/contracts";
 import { materialVersionSchema } from "@merit/applications/domain";
 import { encodeApplicationDetail, applicationView, roundView } from "@merit/grantmaking/api";
 import { makeApplication, makeRound } from "@merit/grantmaking/testing/fixtures";
+import { formatTimestamp } from "@merit/i18n/format";
 
 import { GrantmakingMessagesProvider } from "../../messages";
 import { ApplicationAuditHistory } from "./application-audit-history";
@@ -48,7 +49,7 @@ it("keeps same-version contact and staff-summary changes inspectable with their 
   expect(screen.getByText("via MCP client grant-assistant")).toBeVisible();
   expect(screen.getByText(/Contact or staff summary updated/)).toBeVisible();
 
-  const timestamp = screen.getByText("20/01/2027, 12:00:00 UTC");
+  const timestamp = screen.getByText(formatTimestamp(recordedAt, "en-GB"));
 
   expect(timestamp).toBeVisible();
   expect(timestamp).toHaveAttribute("datetime", recordedAt);

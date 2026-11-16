@@ -2,7 +2,6 @@ import { useNavigate, type LinkOptions } from "@tanstack/react-router";
 import type { ComponentProps } from "react";
 
 import type { RoundData } from "@merit/grantmaking-web/contracts/pages";
-import { useApplicationListView } from "@merit/grantmaking-web/rounds";
 import { FundingRoundView } from "@merit/grantmaking-web/rounds";
 
 import { WorkspaceCreateAction } from "./creation-action";
@@ -24,7 +23,6 @@ export const FundingRoundWork = (props: FundingRoundWorkProps) => (
 
 const FundingRoundContent = ({ data, roundsLocation, ...props }: FundingRoundWorkProps) => {
   const navigate = useNavigate();
-  const applicationList = useApplicationListView(data.round.id);
 
   return (
     <FundingRoundView
@@ -35,7 +33,7 @@ const FundingRoundContent = ({ data, roundsLocation, ...props }: FundingRoundWor
           ? { data: data.preparation, onDeleted: () => navigate(roundsLocation) }
           : undefined
       }
-      applicationList={applicationList}
+      applicationList={data.applicationList}
       applicationAction={
         data.createApplication && <WorkspaceCreateAction data={data.createApplication} />
       }

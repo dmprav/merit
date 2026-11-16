@@ -79,8 +79,11 @@ test(
     await expect(page.getByRole("status").filter({ hasText: "4 of 4 applications" })).toBeVisible();
     await expect(page.getByRole("link", { name: "Next year's meals", exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Add application", exact: true })).toBeDisabled();
-    await page.getByRole("button", { name: "All rounds Round", exact: true }).click();
+    await page.getByRole("button", { name: "Filter", exact: true }).click();
+    await page.getByRole("button", { name: "Round All rounds", exact: true }).click();
     await page.getByRole("option", { name: "Local Connections 2027", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Round Local Connections 2027" })).toBeFocused();
+    await page.keyboard.press("Escape");
     await expect(page.getByRole("status").filter({ hasText: "3 of 4 applications" })).toBeVisible();
     if (testInfo.project.use.isMobile) {
       await page.getByRole("button", { name: /Sort applications/ }).click();
@@ -349,9 +352,12 @@ test("application list preserves search, filter, sort, and position when returni
 
   await page.getByRole("link", { name: "Local Connections 2027", exact: true }).click();
   await page.getByRole("tab", { name: /Applications/ }).click();
+  await page.getByRole("button", { name: "Filter", exact: true }).click();
   await page.getByRole("searchbox", { name: "Search applications" }).fill("repair");
-  await page.getByRole("button", { name: /Show/ }).click();
+  await page.getByRole("button", { name: "Reviews Any", exact: true }).click();
   await page.getByRole("option", { name: "Awaiting reviews", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Reviews Awaiting reviews" })).toBeFocused();
+  await page.keyboard.press("Escape");
   if (testInfo.project.name === "mobile") {
     await page.getByRole("button", { name: /Sort applications/ }).click();
     await page.getByRole("option", { name: "Requested (descending)", exact: true }).click();
@@ -377,8 +383,10 @@ test("application list preserves search, filter, sort, and position when returni
 
   await expect(page).toHaveURL(/section=applications/);
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(listPosition);
+  await page.getByRole("button", { name: "Filter", exact: true }).click();
   await expect(page.getByRole("searchbox")).toHaveValue("repair");
-  await expect(page.getByRole("button", { name: /Show/ })).toContainText("Awaiting reviews");
+  await expect(page.getByRole("button", { name: "Reviews Awaiting reviews" })).toBeVisible();
+  await page.keyboard.press("Escape");
 
   if (testInfo.project.name === "mobile") {
     await expect(page.getByRole("button", { name: /Sort applications/ })).toContainText(
@@ -395,7 +403,9 @@ test("application list preserves search, filter, sort, and position when returni
     page.getByRole("table", { name: "Applications", exact: true }).getByRole("row"),
   ).toHaveCount(2);
 
+  await page.getByRole("button", { name: "Filter", exact: true }).click();
   await page.getByRole("button", { name: "Clear filters" }).click();
+  await page.keyboard.press("Escape");
 
   await expect(
     page.getByRole("table", { name: "Applications", exact: true }).getByRole("row"),

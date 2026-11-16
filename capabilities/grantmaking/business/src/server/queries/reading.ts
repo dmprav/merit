@@ -9,6 +9,7 @@ import {
   reviewListInput,
   reviewSummarySchema,
   contactApplicationListInput,
+  contactApplicationSummarySchema,
   roundReadInput,
   applicationReadInput,
   roundListInput,
@@ -282,9 +283,16 @@ export const listContactApplications = async (
       return { status: "not_found" } as const;
     }
     const rows = await reads.readApplicationSummaries(tx, actor.userId, request);
-    const applications = rows
-      .slice(0, request.limit)
-      .map((row) => applicationSummarySchema.parse(row));
+    const applications = rows.slice(0, request.limit).map((row) =>
+      contactApplicationSummarySchema.parse({
+        ...row,
+        relationships: [
+          ...(row.applicantContact ? ["applicant_contact"] : []),
+          ...(row.reviewRequested ? ["review_requested"] : []),
+          ...(row.assessmentRecorded ? ["assessment_recorded"] : []),
+        ],
+      }),
+    );
     return {
       status: "ok",
       applications,

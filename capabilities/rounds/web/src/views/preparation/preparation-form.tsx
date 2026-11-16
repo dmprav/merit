@@ -3,10 +3,13 @@ import { useTranslation } from "react-i18next";
 import { z } from "zod";
 
 import { Form, FormActions, FormTextField, useForm, useTranslatedSchema } from "@merit/forms";
-import { type RoundView } from "@merit/grantmaking/api";
 import { useFormat } from "@merit/i18n/format";
 import { parseMoneyInput } from "@merit/money/input";
-import { budgetChangeRequirements, roundPreparationLimits } from "@merit/rounds/domain";
+import {
+  budgetChangeRequirements,
+  roundPreparationLimits,
+  type FundingRound,
+} from "@merit/rounds/domain";
 
 import {
   hasPreparationChanges,
@@ -22,7 +25,7 @@ type FormSection = "purpose" | "criteria" | "budget";
 
 type FormProps = {
   draft: PreparationDraft;
-  round: RoundView;
+  round: Pick<FundingRound, "budget">;
   onChange: (draft: PreparationDraft) => void;
   onSave: (draft: PreparationDraft) => Promise<string | null>;
   onCancel: () => void;

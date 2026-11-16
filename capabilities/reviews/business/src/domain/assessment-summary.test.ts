@@ -2,7 +2,24 @@ import { expect, it } from "vite-plus/test";
 
 import { materialVersionSchema } from "@merit/applications/domain";
 
-import { assessmentStatus, summarizeAssessments } from "./index";
+import { assessmentStatus, reviewProgress, summarizeAssessments } from "./index";
+
+it.each([
+  [
+    { current: 0, outdated: 0, outstanding: 0, unknown: 0 },
+    { submitted: 0, assigned: 0 },
+  ],
+  [
+    { current: 2, outdated: 1, outstanding: 3, unknown: 1 },
+    { submitted: 4, assigned: 7 },
+  ],
+  [
+    { current: 0, outdated: 1, outstanding: 0, unknown: 1 },
+    { submitted: 2, assigned: 2 },
+  ],
+])("counts submitted reviews independently of their freshness: %j", (reviews, expected) => {
+  expect(reviewProgress(reviews)).toEqual(expected);
+});
 
 it("counts each review status separately without changing the assessments", () => {
   const assessments = [

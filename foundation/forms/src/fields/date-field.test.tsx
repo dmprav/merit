@@ -83,8 +83,9 @@ it("blocks changes from an open calendar during submission and preserves failed 
       }),
   );
   render(<Example onSubmit={save} />);
+  const form = screen.getByRole("form");
   await user.click(screen.getByRole("button", { name: "Choose date for Date" }));
-  fireEvent.submit(screen.getByRole("form"));
+  fireEvent.submit(form);
 
   const day = screen.getByRole("button", { name: "Friday, 22 January 2027" });
   await waitFor(() => expect(day).toHaveAttribute("aria-disabled", "true"));
@@ -92,6 +93,7 @@ it("blocks changes from an open calendar during submission and preserves failed 
   expect(save).toHaveBeenCalledExactlyOnceWith({ date: "2027-01-21" });
 
   await act(async () => finish("Could not save. Try again."));
+  await user.keyboard("{Escape}");
 
   expect(screen.getByRole("textbox", { name: "Date" })).toHaveValue("2027-01-21");
   expect(screen.getByText("Could not save. Try again.")).toBeVisible();

@@ -5,7 +5,7 @@ import { assert, beforeEach, expect, it, vi } from "vite-plus/test";
 
 import { readDraftStorage, seedDraftStorage } from "@merit/drafts/testing";
 import { GrantmakingDrafts } from "@merit/grantmaking-web/drafts";
-import { FundingRoundView } from "@merit/grantmaking-web/rounds";
+import { FundingRoundPreview as FundingRoundView } from "@merit/grantmaking-web/testing";
 import { roundView } from "@merit/grantmaking/api";
 import { makeApplication, makeRound } from "@merit/grantmaking/testing/fixtures";
 import { fromMinorUnits } from "@merit/money";
@@ -119,14 +119,14 @@ const PreparationControls = ({
   return (
     <>
       <RoundActions
-        hasApplications={Boolean(controller.round.applications.length)}
+        hasApplications={Boolean(controller.round.applicationCount)}
         pending={controller.pending}
         onDelete={() => controller.setDeleting(true)}
         triggerRef={controller.registerMenuTrigger}
       />
       {repeatActions && (
         <RoundActions
-          hasApplications={Boolean(controller.round.applications.length)}
+          hasApplications={Boolean(controller.round.applicationCount)}
           pending={controller.pending}
           onDelete={() => controller.setDeleting(true)}
           triggerRef={controller.registerMenuTrigger}

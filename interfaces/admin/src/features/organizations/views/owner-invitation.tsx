@@ -1,10 +1,11 @@
 import { useTranslation } from "react-i18next";
 
-import { useLocaleSettings } from "@merit/i18n";
 import { administratorInvitationState, type OrganizationSummary } from "@merit/organizations/api";
 import { Badge } from "@merit/ui/badge";
 import { DescriptionList, DescriptionListItem } from "@merit/ui/description-list";
+import { Icon } from "@merit/ui/icon";
 import { Notice } from "@merit/ui/notice";
+import { Timestamp } from "@merit/ui/timestamp";
 
 import type { Organization } from "../contracts";
 import styles from "./organization.module.css";
@@ -23,35 +24,41 @@ export const invitationNeedsAttention = (
   );
 };
 
-const tones = {
-  needsAdmin: "warning",
-  expired: "warning",
-  pending: "neutral",
-  joined: "success",
+const invitationPresentation = {
+  needsAdmin: { label: "needsAdmin", tone: "warning", icon: "warning" },
+  expired: { label: "expired", tone: "warning", icon: "warning" },
+  pending: { label: "pending", tone: "neutral", icon: "clock" },
+  joined: { label: "joined", tone: "success", icon: "check" },
+  failed: { label: "deliveryFailedShort", tone: "danger", icon: "warning" },
+  unconfirmed: { label: "deliveryPendingShort", tone: "warning", icon: "info" },
 } as const;
-
-export const invitationTimestamp = (date: Date | string, formatLocale: string) =>
-  new Intl.DateTimeFormat(formatLocale, {
-    dateStyle: "medium",
-    timeStyle: "short",
-    timeZone: "UTC",
-  }).format(new Date(date)) + " UTC";
 
 export const InvitationBadge = ({
   invitation,
   hasOwner = false,
+  appearance,
 }: {
   invitation: OrganizationSummary["invitation"] | Invitation;
   hasOwner?: boolean;
+  appearance?: "plain";
 }) => {
   const { t } = useTranslation("administration");
   const state = administratorInvitationState(invitation, new Date(), hasOwner);
-  return <Badge tone={tones[state]}>{t(state)}</Badge>;
+  const delivery = appearance === "plain" && state === "pending" ? invitation?.delivery : undefined;
+  const presentation =
+    invitationPresentation[
+      delivery === "failed" ? "failed" : delivery === "pending" ? "unconfirmed" : state
+    ];
+  return (
+    <Badge appearance={appearance} tone={presentation.tone}>
+      {appearance === "plain" && <Icon name={presentation.icon} />}
+      {t(presentation.label)}
+    </Badge>
+  );
 };
 
 const InvitationRecord = ({ invitation }: { invitation: NonNullable<Invitation> }) => {
   const { t } = useTranslation("administration");
-  const { formatLocale } = useLocaleSettings();
 
   return (
     <DescriptionList>
@@ -60,7 +67,7 @@ const InvitationRecord = ({ invitation }: { invitation: NonNullable<Invitation> 
       </DescriptionListItem>
       {invitation.acceptedAt ? (
         <DescriptionListItem label={t("acceptedLabel")}>
-          {invitationTimestamp(invitation.acceptedAt, formatLocale)}
+          <Timestamp value={new Date(invitation.acceptedAt).toISOString()} />
         </DescriptionListItem>
       ) : (
         !invitation.revokedAt && (
@@ -75,7 +82,7 @@ const InvitationRecord = ({ invitation }: { invitation: NonNullable<Invitation> 
               )}
             </DescriptionListItem>
             <DescriptionListItem label={t("expiresLabel")}>
-              {invitationTimestamp(invitation.expiresAt, formatLocale)}
+              <Timestamp value={new Date(invitation.expiresAt).toISOString()} />
             </DescriptionListItem>
           </>
         )

@@ -10,6 +10,7 @@ export type AccessRequestsData = {
   reviewing: boolean;
   error: Exclude<ReviewResult, { status: "ok" }> | null;
   refreshFailed: boolean;
+  refreshing: boolean;
   review: (email: string) => Promise<void>;
   refresh: () => Promise<void>;
 };

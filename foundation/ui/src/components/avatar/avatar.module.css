@@ -21,3 +21,15 @@
 .avatar::before {
   content: attr(data-initials);
 }
+
+.avatar[data-empty] {
+  background: transparent;
+}
+
+.avatar[data-empty]::before {
+  content: "";
+  width: 70%;
+  height: 70%;
+  border: 1px solid var(--muted);
+  border-radius: 50%;
+}

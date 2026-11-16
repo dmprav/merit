@@ -1,8 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState, type ComponentProps } from "react";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, userEvent, within, waitFor } from "storybook/test";
 
 import type { ActivityEntry } from "@merit/grantmaking/api";
+import { formatTimestamp } from "@merit/i18n/format";
 import { ApplicationPage } from "@merit/ui/application-shell";
 
 import { GrantmakingMessagesProvider } from "../../messages";
@@ -17,46 +18,74 @@ const people = [
   { id: "former", name: null },
 ];
 
-const entry = (index: number, overrides: Partial<ActivityEntry> = {}): ActivityEntry => ({
-  id: `00000000-0000-4000-a000-${String(index).padStart(12, "0")}`,
-  recordedAt: new Date(Date.UTC(2027, 0, 20, 12, 0, 0) - index * 3_600_000).toISOString(),
-  actor: "Dana Reed",
-  provenance: { interface: "web" },
-  action: "application.created",
-  subject: {
-    type: "application",
-    id: "b8q3w5j7c2df",
-    revision: 0,
-    name: null,
-    roundId: null,
-    applicationId: "b8q3w5j7c2df",
-  },
-  reason: null,
-  record: { kind: "application", id: "b8q3w5j7c2df", title: "Workshop Saturdays" },
-  ...overrides,
-});
+const workshop = { kind: "application", id: "b8q3w5j7c2df", title: "Workshop Saturdays" } as const;
+const neighbour = { kind: "application", id: "0123456789ac", title: "Neighbour Table" } as const;
+const canal = { kind: "application", id: "c8q3w5j7c2df", title: "Canal Garden" } as const;
+const repairs = { kind: "application", id: "d8q3w5j7c2df", title: "Repair Together" } as const;
+const localRound = { kind: "round", id: "k7m2p9x4n6rt", title: "Local Connections 2027" } as const;
+
+const entry = (index: number, overrides: Partial<ActivityEntry> = {}): ActivityEntry => {
+  const record = overrides.record ?? workshop;
+  return {
+    id: `00000000-0000-4000-a000-${String(index).padStart(12, "0")}`,
+    recordedAt: new Date(Date.UTC(2027, 0, 20, 12, 0, 0) - index * 3_600_000).toISOString(),
+    actor: "Dana Reed",
+    provenance: { interface: "web" },
+    action: "application.created",
+    subject: {
+      type: overrides.action?.split(".")[0] ?? record.kind,
+      id: record.id,
+      revision: 0,
+      name: record.title,
+      roundId: localRound.id,
+      applicationId: record.kind === "application" ? record.id : null,
+    },
+    reason: null,
+    record,
+    ...overrides,
+  };
+};
 
 const recent: ActivityEntry[] = [
   entry(1, { action: "recommendation.recorded" }),
-  entry(2, {
-    action: "assessment.submitted",
-    actor: "Sam Morgan",
-    record: { kind: "application", id: "0123456789ac", title: "Neighbour Table" },
-  }),
+  entry(2, { action: "assessment.submitted", actor: "Sam Morgan", record: neighbour }),
   entry(3, {
-    action: "round.budget_changed",
-    record: { kind: "round", id: "k7m2p9x4n6rt", title: "Local Connections 2027" },
+    action: "application.withdraw",
+    record: canal,
+    reason:
+      "The residents secured funding through the parks partnership and no longer need this grant.",
   }),
-  entry(4, { action: "application.marked_ready" }),
-  entry(5),
+  entry(4, { action: "round.budget_changed", record: localRound }),
+  entry(5, { action: "application.marked_ready", record: repairs }),
+  entry(6, {
+    action: "application.summary_changed",
+    provenance: { interface: "mcp", clientId: "grant-assistant" },
+    record: repairs,
+  }),
 ];
 
-const olderPage = [6, 7, 8].map((index) =>
-  entry(index, {
-    action: "round.criteria_changed",
-    record: { kind: "round", id: "h7m2p9x4n6rt", title: "Community grants 2028" },
-  }),
-);
+const earlier: ActivityEntry[] = [
+  entry(7, { action: "assessment.recorded", actor: "Sam Morgan" }),
+  entry(8, { action: "review_assignment.accepted", actor: "Sam Morgan", record: neighbour }),
+  entry(9, { action: "review_assignment.invited", record: neighbour }),
+  entry(10, { action: "review_request.created", record: neighbour }),
+  entry(11, { action: "application.marked_ready", record: neighbour }),
+  entry(12, { action: "application.contact_changed", record: canal }),
+  entry(13, { action: "application.marked_ready" }),
+  entry(14, { action: "application.material_changed", record: repairs }),
+  entry(15, { action: "application.summary_changed", record: neighbour }),
+  entry(16, { action: "application.material_changed" }),
+  entry(17, { action: "round.manager_changed", record: localRound }),
+  entry(18, { record: repairs }),
+];
+
+const olderPage: ActivityEntry[] = [
+  entry(19, { record: canal }),
+  entry(20, { record: neighbour }),
+  entry(21),
+  entry(22, { action: "round.criteria_changed", record: localRound }),
+  entry(23, { action: "round.created", record: localRound }),
+];
 
 const Preview = ({
   initialFilters,
@@ -120,7 +149,9 @@ export const Populated: StoryObj<typeof meta> = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.getAllByText("Dana Reed")).not.toHaveLength(0);
-    await expect(canvas.getByText("20/01/2027, 11:00:00 UTC")).toBeVisible();
+    await expect(
+      canvas.getByText(formatTimestamp("2027-01-20T11:00:00.000Z", "en-GB")),
+    ).toBeVisible();
     await expect(canvas.getByRole("link", { name: "Neighbour Table" })).toBeVisible();
     await expect(canvas.getByText("Recommendation saved")).toBeVisible();
   },
@@ -131,6 +162,9 @@ export const LongText: StoryObj<typeof meta> = {
     entries: [
       entry(1, {
         actor: "Alexandria Catherine Montgomery-Featherstonehaugh of the Regional Community Fund",
+        action: "application.withdraw",
+        reason:
+          "The applicant is revising the partnership and transport arrangements with the neighbourhood associations. They will return once residents and the new project coordinator have reviewed the proposed timetable together.",
         record: {
           kind: "application",
           id: "b8q3w5j7c2df",
@@ -157,21 +191,33 @@ export const McpProvenance: StoryObj<typeof meta> = {
     ],
   },
   play: async ({ canvasElement }) => {
-    await expect(within(canvasElement).getByText("via MCP client grant-assistant")).toBeVisible();
+    await userEvent.click(
+      within(canvasElement).getAllByRole("button", { name: /view event details/ })[0]!,
+    );
+    const page = within(canvasElement.ownerDocument.body);
+    await expect(page.getByRole("dialog")).toHaveTextContent("via MCP client grant-assistant");
   },
 };
 
 export const MissingTarget: StoryObj<typeof meta> = {
   args: {
     entries: [
-      entry(1, { action: "application.deleted", record: null }),
-      entry(2, { action: "widget.polished", record: null }),
+      entry(1, {
+        action: "application.deleted",
+        record: null,
+        subject: { ...entry(1).subject, name: null },
+      }),
+      entry(2, {
+        action: "widget.polished",
+        record: null,
+        subject: { ...entry(2).subject, name: null },
+      }),
       ...recent.slice(2, 4),
     ],
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getAllByText("No longer available")).toHaveLength(2);
+    await expect(canvas.getAllByText("No longer available", { selector: "span" })).toHaveLength(2);
     await expect(canvas.getByText("Changed")).toBeVisible();
   },
 };
@@ -188,7 +234,7 @@ export const EmptyFilter: StoryObj<typeof meta> = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.getByText("No activity matches these filters.")).toBeVisible();
-    await expect(canvas.getByRole("button", { name: "Clear filters" })).toBeVisible();
+    await expect(canvas.getByRole("button", { name: /Remove round filter/ })).toBeVisible();
   },
 };
 
@@ -196,14 +242,17 @@ export const ClearFilters: StoryObj<typeof meta> = {
   args: { ...EmptyFilter.args },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: "Clear filters" }));
+    await userEvent.click(canvas.getByRole("button", { name: "Filter" }));
+    const page = within(canvasElement.ownerDocument.body);
+    await userEvent.click(page.getByRole("button", { name: "Clear filters" }));
+    await userEvent.keyboard("{Escape}");
     await expect(canvas.getByText("No activity yet.")).toBeVisible();
     await expect(canvas.queryByRole("button", { name: "Clear filters" })).not.toBeInTheDocument();
   },
 };
 
 export const MorePages: StoryObj<typeof meta> = {
-  args: { more: olderPage },
+  args: { entries: [...recent, ...earlier], more: olderPage },
   play: async ({ canvasElement }) => {
     await expect(
       within(canvasElement).getByRole("button", { name: "Show older activity" }),
@@ -212,11 +261,11 @@ export const MorePages: StoryObj<typeof meta> = {
 };
 
 export const ShowOlderActivity: StoryObj<typeof meta> = {
-  args: { more: olderPage },
+  args: { entries: [...recent, ...earlier], more: olderPage },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: "Show older activity" }));
-    await expect(canvas.getAllByText("Round criteria changed")).toHaveLength(3);
+    canvas.getByRole("button", { name: "Show older activity" }).scrollIntoView();
+    await waitFor(() => expect(canvas.getAllByText("Round criteria changed")).toHaveLength(1));
     await expect(
       canvas.queryByRole("button", { name: "Show older activity" }),
     ).not.toBeInTheDocument();
@@ -225,3 +274,19 @@ export const ShowOlderActivity: StoryObj<typeof meta> = {
 
 export const Loading: StoryObj<typeof meta> = { args: { status: "refreshing" } };
 export const Failed: StoryObj<typeof meta> = { args: { status: "failed", onRetry: () => {} } };
+
+export const InitialLoading: StoryObj<typeof meta> = {
+  args: { entries: [], status: "refreshing" },
+};
+
+export const EventDetails: StoryObj<typeof meta> = {
+  play: async ({ canvasElement }) => {
+    await userEvent.click(
+      within(canvasElement).getByRole("button", { name: /Application withdrawn:/ }),
+    );
+    const page = within(canvasElement.ownerDocument.body);
+    await expect(page.getByRole("dialog", { name: "Application withdrawn" })).toHaveTextContent(
+      "The residents secured funding through the parks partnership",
+    );
+  },
+};

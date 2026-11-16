@@ -28,7 +28,7 @@ const TeamPage = () => {
   }
 
   return (
-    <AppPage breadcrumb={[t("web:navigation.settings"), t("title")]}>
+    <AppPage width="full" breadcrumb={[t("web:navigation.settings"), t("title")]}>
       <TeamView key={result.value.organization.id} initial={result.value} />
     </AppPage>
   );

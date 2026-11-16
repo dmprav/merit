@@ -80,3 +80,24 @@ it("hides entries and controls when access is denied", () => {
   expect(screen.queryByText("secret")).not.toBeInTheDocument();
   expect(screen.queryByRole("button")).not.toBeInTheDocument();
 });
+
+it("retains the same retry control during recovery and announces completion only through the caller", async () => {
+  const retry = vi.fn();
+  const user = userEvent.setup();
+
+  const view = (fetching: boolean) => (
+    <PagedContent entries={["kept"]} failed fetching={fetching} retry={retry}>
+      {(entries) => <p>{entries.join(", ")}</p>}
+    </PagedContent>
+  );
+
+  const { rerender } = render(view(false), { wrapper });
+  const control = screen.getByRole("button", { name: "Try again" });
+  await user.click(control);
+  expect(retry).toHaveBeenCalledOnce();
+  rerender(view(true));
+  expect(screen.getByRole("button", { name: "Try again" })).toBe(control);
+  expect(control).toHaveAttribute("aria-disabled", "true");
+  expect(screen.getByRole("status")).toHaveTextContent("Loading history");
+  expect(screen.getByText("kept")).toBeVisible();
+});

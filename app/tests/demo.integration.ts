@@ -111,14 +111,13 @@ test("creates independent complete examples and resumes concurrent starts", asyn
     { workspaceSlug: first.workspace.slug, publicId: rounds[0]!.publicId, kind: "round" },
   );
 
-  expect(page?.round.applications).toHaveLength(3);
+  expect(page?.round.applicationCount).toBe(3);
 
   const ids = await fundingExampleIds(first.workspace.id);
-  const revised = page!.round.applications.find((item) => item.id === ids.applications.A3)!;
   const detail = await getFundingApplicationPage(
     db,
     { userId: "alice" },
-    { workspaceSlug: first.workspace.slug, publicId: revised.id },
+    { workspaceSlug: first.workspace.slug, publicId: ids.applications.A3! },
   );
 
   expect(detail?.intake.history).toHaveLength(1);
@@ -137,7 +136,7 @@ test("creates independent complete examples and resumes concurrent starts", asyn
     await getFundingApplicationPage(
       db,
       { userId: "bob" },
-      { workspaceSlug: first.workspace.slug, publicId: revised.id },
+      { workspaceSlug: first.workspace.slug, publicId: ids.applications.A3! },
     ),
   ).toBeNull();
 });

@@ -53,7 +53,11 @@ export const preparationMessages = {
     budgetUnset: "Budget not set",
     purposeUnset: "No purpose set yet.",
     responsibleManager: "Responsible manager",
-    reassignmentNeeded: "Reassignment needed. Assign a current program manager.",
+    reassignmentStatus: "Reassignment needed",
+    reassignmentNeeded:
+      "This person can no longer manage this round. Assign a current program manager.",
+    closeReassignment: "Close reassignment details",
+    unassigned: "Unassigned",
     unknownPerson: "Name not recorded",
     chooseManager: "Choose a program manager",
     criteriaImpact:

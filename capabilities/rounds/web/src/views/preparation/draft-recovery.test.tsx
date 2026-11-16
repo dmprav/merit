@@ -3,6 +3,7 @@ import { act, render, renderHook, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event";
 import { expect, it, vi } from "vite-plus/test";
 
+import { roundView } from "@merit/grantmaking/api";
 import { getExampleRound } from "@merit/grantmaking/examples";
 import { createQueryClient } from "@merit/query";
 
@@ -16,12 +17,12 @@ import { useRoundPreparation } from "../../controllers/preparation/use-round-pre
 import { GrantmakingMessagesProvider } from "../../testing/providers";
 import { RoundPreparation } from "./preparation-content";
 
-const round = {
+const round = roundView({
   ...getExampleRound(),
   title: "Saved round",
   purpose: "Saved purpose",
   applications: [],
-};
+});
 const recovered = {
   ...preparationDraft("purpose", round, 1),
   value: { purpose: "Unfinished purpose" },

@@ -1,7 +1,10 @@
 import { workingRevisionSchema, materialVersionSchema } from "@merit/applications/domain";
 import type { Actor } from "@merit/auth";
 import { readTransaction, type Database } from "@merit/db";
+import { decodeMoney, subtract } from "@merit/money";
 import { workspaceSlugSchema } from "@merit/organizations/api";
+import { reviewProgress } from "@merit/reviews/domain";
+import { decodeRound } from "@merit/rounds/domain";
 import { readManagerCandidates } from "@merit/rounds/readers";
 
 import {
@@ -13,9 +16,9 @@ import {
 } from "../../api/queries";
 import { decodeApplicationContext } from "../../api/queries/application-detail";
 import type { IntakeState, PreparationState } from "../../api/queries/editing-state";
-import { roundView } from "../../api/queries/round-view";
 import { applicationView } from "../../api/queries/round-view";
-import { decodeApplication, decodeRoundOverview } from "../../domain/encoding";
+import { decodeApplication } from "../../domain/encoding";
+import { readRoundTotals } from "../persistence/queries/application-overview";
 import {
   readApplicationDetail,
   readPublicRound,
@@ -59,7 +62,22 @@ export const getFundingRoundPage = async (
       return null;
     }
 
-    const round = roundView(decodeRoundOverview(row.snapshot));
+    const properties = decodeRound(row.snapshot);
+    const totals = await readRoundTotals(tx, actor.userId, row.workspaceSlug, properties.id);
+    const proposed = decodeMoney({ minorUnits: totals.proposed, currency: "EUR" });
+    const round = {
+      ...properties,
+      applicationCount: totals.applicationCount,
+      criteriaImpact: totals.criteriaImpact,
+      totals: {
+        requested: decodeMoney({ minorUnits: totals.requested, currency: "EUR" }),
+        proposed,
+        remaining: properties.budget === null ? null : subtract(properties.budget, proposed),
+        unknownRequests: totals.unknownRequests,
+        withdrawnApplications: totals.withdrawnApplications,
+        reviews: { ...totals.reviews, ...reviewProgress(totals.reviews) },
+      },
+    };
     const [managers, history] = await Promise.all([
       readManagerCandidates(tx, row.organizationId),
       readRoundHistory(tx, row.organizationId, round.id),

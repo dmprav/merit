@@ -84,7 +84,7 @@ grant work, newest first, so a program manager can catch up without visiting eve
 record. Only current program managers can read it, through web and through MCP with
 the grant read scope. Other members are sent to Members & access.
 
-Each entry shows when (UTC, as in other histories), who (the name recorded at the
+Each entry shows when in the viewer’s local time, who (the name recorded at the
 time, or "Unknown person", with the web or MCP-client provenance), what changed,
 and the record's current title with a link to its default page. A record that has
 since been deleted shows the name recorded with the entry, without a link, or "No
@@ -103,8 +103,9 @@ Contact and team changes remain in contact history and Members & access. An entr
 written in the same transaction as the change it describes, so a rejected or
 conflicting write leaves none and a failure to record it leaves the change unsaved.
 
-Activity shows 50 entries at a time; **Show older activity** loads the next page
-(MCP: follow `nextCursor`). The **Round** filter matches the round and its
+Activity loads 50 entries at a time and loads the next page as the reader approaches
+the end, with a manual loading control also available (MCP: follow `nextCursor`).
+A failed read keeps loaded entries visible and offers a retry. The **Round** filter matches the round and its
 applications, including their review requests, reviewer responses, assessments, and
 recommendations; **Person** matches the
 recorded person. The filters belong to the page and reset when it is left. Unlike

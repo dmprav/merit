@@ -20,6 +20,7 @@ export type WorkspaceServices = Pick<
   | "readRoundPage"
   | "saveRecommendation"
   | "listRounds"
+  | "listContactApplications"
   | "listWorkspaceApplications"
   | "listWorkspaceActivity"
   | "searchWorkspace"

@@ -45,6 +45,8 @@ export const en = {
   unknownName: "Member",
   unknownEmail: "Email not recorded",
   you: "You",
+  account: "Account",
+  active: "Active",
   disabled: "Account disabled",
   edit: "Edit access",
   editPerson: "Edit access for {{person}}",

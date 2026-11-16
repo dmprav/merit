@@ -2,20 +2,22 @@ import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import { FormDialog } from "@merit/forms";
+import { RemotePagedContent } from "@merit/query/pages";
 import { DataTable, type TableColumn } from "@merit/tables";
 import { ActionMenu } from "@merit/ui/action-menu";
+import shellStyles from "@merit/ui/application-shell.module.css";
 import { Button } from "@merit/ui/button";
+import { CollectionFilter, CollectionToolbar } from "@merit/ui/collection-toolbar";
+import { DialogContent, ModalDialog } from "@merit/ui/dialog";
 import { Icon } from "@merit/ui/icon";
-import { Inline, Stack } from "@merit/ui/layout";
+import { Stack } from "@merit/ui/layout";
 import { Notice } from "@merit/ui/notice";
 import { PageHeader } from "@merit/ui/page-header";
+import { PagedContent } from "@merit/ui/paged-content";
 import { PersonIdentity } from "@merit/ui/person-identity";
-import { Select } from "@merit/ui/select";
 import { StatusMessage } from "@merit/ui/status-message";
-import { TextField } from "@merit/ui/text-field";
-import { Tooltip } from "@merit/ui/tooltip";
 
-import type { Contact, ContactsData } from "../contracts";
+import type { Contact, ContactApplication, ContactsData } from "../contracts";
 import { useContactsDirectory } from "../controllers/directory";
 import { useContactDrafts } from "../controllers/drafts";
 import { ContactEditor } from "./contact-editor";
@@ -27,87 +29,167 @@ type ContactRow = {
   directoryId: string;
   saving: boolean;
   hasDraft: boolean;
+  renderApplicationLink: ContactsDirectoryProps["renderApplicationLink"];
   onEdit: (contact: Contact) => void;
   onArchive: (contact: Contact) => void;
 };
 
-// Stable cells keep the history dialog and its focus target mounted during directory updates.
-const ContactIdentityCell = (props: Pick<ContactRow, "contact" | "hasDraft" | "onEdit">) => {
+// Stable cells keep dialogs and their focus targets mounted during directory updates.
+const ContactIdentityCell = ({ contact }: Pick<ContactRow, "contact">) => (
+  <PersonIdentity name={contact.name || contact.email} />
+);
+
+const ContactApplicationsCell = ({
+  contact,
+  renderApplicationLink,
+}: Pick<ContactRow, "contact" | "renderApplicationLink">) => {
   const { t } = useTranslation("contacts");
-  const { contact, hasDraft, onEdit } = props;
+  const [open, setOpen] = useState(false);
+  const titles = contact.applicationTitles ?? [];
+  if (titles.length === 0) {
+    return (
+      <span className={styles.meta} role="img" aria-label={t("noApplications")}>
+        —
+      </span>
+    );
+  }
+
+  if (!contact.applicationsSource) {
+    return <span className={styles.meta}>{t("applicationCount", { count: titles.length })}</span>;
+  }
 
   return (
-    <Stack gap={1} className={styles.identity}>
-      <strong>
-        <PersonIdentity name={contact.name || contact.email} />
-      </strong>
-      {(hasDraft ||
-        !!contact.historySource ||
-        !!contact.history?.length ||
-        !!contact.applicationTitles?.length) && (
-        <Stack gap={1} className={styles.identityDetails}>
-          {(hasDraft || !!contact.historySource || !!contact.history?.length) && (
-            <Inline className={styles.identityActions}>
-              {(!!contact.historySource || !!contact.history?.length) && (
-                <ContactHistory contact={contact} />
-              )}
-              {hasDraft && (
-                <Tooltip content={t("resumeEdit")}>
-                  <Button
-                    size="small"
-                    variant="quiet"
-                    iconOnly
-                    data-draft
-                    aria-label={t("resumeEdit")}
-                    onPress={() => onEdit(contact)}
-                  >
-                    <Icon name="edit" />
-                  </Button>
-                </Tooltip>
-              )}
-            </Inline>
+    <ModalDialog
+      placement="end"
+      isOpen={open}
+      onOpenChange={setOpen}
+      title={t("applicationsFor", { person: contact.name || contact.email })}
+      closeLabel={t("close")}
+      trigger={
+        <Button variant="quiet" size="small">
+          {t("applicationCount", { count: titles.length })}
+        </Button>
+      }
+    >
+      <DialogContent label={t("applicationsFor", { person: contact.name || contact.email })}>
+        <RemotePagedContent source={contact.applicationsSource} entries={[]} active={open}>
+          {(page) => (
+            <PagedContent
+              {...page}
+              labels={{
+                loading: t("applicationsLoading"),
+                failed: t("applicationsFailed"),
+                unavailable: t("applicationsUnavailable"),
+                more: t("applicationsMore"),
+              }}
+            >
+              {(entries) =>
+                entries.length === 0 ? (
+                  <p className={styles.meta}>{t("noApplications")}</p>
+                ) : (
+                  <ul className={styles.applicationTitles}>
+                    {entries.map((application) => (
+                      <li key={application.publicId}>
+                        {renderApplicationLink(
+                          application,
+                          <>
+                            <span>{application.title}</span>{" "}
+                            <span className={styles.meta}>{application.roundTitle}</span>{" "}
+                            <span className={styles.meta}>
+                              {application.relationships
+                                .map((relationship) =>
+                                  t(`applicationRelationships.${relationship}`),
+                                )
+                                .join(" · ")}
+                            </span>
+                          </>,
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )
+              }
+            </PagedContent>
           )}
-          {!!contact.applicationTitles?.length && (
-            <span className={styles.meta}>{contact.applicationTitles.join(", ")}</span>
-          )}
-        </Stack>
-      )}
-    </Stack>
+        </RemotePagedContent>
+      </DialogContent>
+    </ModalDialog>
   );
 };
 
 const ContactActionsCell = (
-  props: Pick<ContactRow, "contact" | "directoryId" | "saving" | "onEdit" | "onArchive">,
+  props: Pick<
+    ContactRow,
+    "contact" | "directoryId" | "saving" | "hasDraft" | "onEdit" | "onArchive"
+  >,
 ) => {
   const { t } = useTranslation("contacts");
-  const { contact, directoryId, saving, onEdit, onArchive } = props;
+  const { contact, directoryId, saving, hasDraft, onEdit, onArchive } = props;
+  const draftDescription = useId();
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const restoreFocus = useContactsFocusRestore({ directoryId, blocked: saving || historyOpen });
+  const hasHistory = !!contact.historySource || !!contact.history?.length;
 
   return (
-    <ActionMenu
-      label={t("contactActions", { person: contact.name || contact.email })}
-      trigger={
-        <Button
-          id={`${directoryId}-${contact.id}`}
-          variant="quiet"
-          size="small"
-          iconOnly
-          isDisabled={saving}
-          aria-label={t("contactActions", { person: contact.name || contact.email })}
-        >
-          <Icon name="more" />
-        </Button>
-      }
-      items={[
-        { id: "edit", label: t("editContact") },
-        { id: "archive", label: t(contact.archived ? "restore" : "archive") },
-      ]}
-      onAction={(action) => (action === "edit" ? onEdit(contact) : onArchive(contact))}
-    />
+    <>
+      {hasDraft && (
+        <span id={draftDescription} hidden>
+          {t("resumeEdit")}
+        </span>
+      )}
+      <ActionMenu
+        label={t("contactActions", { person: contact.name || contact.email })}
+        trigger={
+          <Button
+            id={`${directoryId}-${contact.id}`}
+            variant="quiet"
+            size="small"
+            iconOnly
+            data-draft={hasDraft || undefined}
+            aria-describedby={hasDraft ? draftDescription : undefined}
+            isDisabled={saving}
+            aria-label={t("contactActions", { person: contact.name || contact.email })}
+          >
+            <Icon name="more" />
+          </Button>
+        }
+        items={[
+          { id: "edit", label: t(hasDraft ? "resumeEdit" : "editContact") },
+          ...(hasHistory ? [{ id: "history", label: t("history") }] : []),
+          { id: "archive", label: t(contact.archived ? "restore" : "archive") },
+        ]}
+        onAction={(action) => {
+          if (action === "history") {
+            setHistoryOpen(true);
+          } else if (action === "edit") {
+            onEdit(contact);
+          } else {
+            onArchive(contact);
+          }
+        }}
+      />
+      {hasHistory && (
+        <ContactHistory
+          contact={contact}
+          isOpen={historyOpen}
+          onOpenChange={(open) => {
+            setHistoryOpen(open);
+            if (!open) {
+              restoreFocus(contact.id);
+            }
+          }}
+        />
+      )}
+    </>
   );
 };
 
 type ContactsDirectoryProps = {
-  renderApplicationLink: (record: { publicId: string; title: string }) => ReactNode;
+  renderApplicationLink: (
+    record: Pick<ContactApplication, "publicId" | "title">,
+    children: ReactNode,
+    destination?: "reviews",
+  ) => ReactNode;
   data: ContactsData;
   workspaceSlug: string;
   contacts: Contact[];
@@ -197,33 +279,32 @@ export const ContactsDirectory = ({
           </Button>
         }
       />
-      <Stack>
-        <DirectoryFilters
-          directoryId={directoryId}
-          search={search}
-          setSearch={setSearch}
-          archived={archived}
-          setArchived={setArchived}
-        />
-        <DirectoryFeedback work={work} renderApplicationLink={renderApplicationLink} />
-        <ContactsTable
-          rows={shown.map((contact) => ({
-            contact,
-            directoryId,
-            saving,
-            hasDraft: draftStore.has(workspaceSlug, contact.id),
-            onEdit: setEditing,
-            // The query can still render the old row after a committed archive-state change.
-            onArchive: (item: Contact) =>
-              void changeArchived(item).then((changed) =>
-                restoreFocus(changed ? undefined : item.id),
-              ),
-          }))}
-          searching={Boolean(query)}
-          archived={archived}
-          hasContacts={contacts.length > 0}
-        />
-      </Stack>
+      <DirectoryFilters
+        count={shown.length}
+        search={search}
+        setSearch={setSearch}
+        archived={archived}
+        setArchived={setArchived}
+      />
+      <DirectoryFeedback work={work} renderApplicationLink={renderApplicationLink} />
+      <ContactsTable
+        rows={shown.map((contact) => ({
+          contact,
+          renderApplicationLink,
+          directoryId,
+          saving,
+          hasDraft: draftStore.has(workspaceSlug, contact.id),
+          onEdit: setEditing,
+          // The query can still render the old row after a committed archive-state change.
+          onArchive: (item: Contact) =>
+            void changeArchived(item).then((changed) =>
+              restoreFocus(changed ? undefined : item.id),
+            ),
+        }))}
+        searching={Boolean(query)}
+        archived={archived}
+        hasContacts={contacts.length > 0}
+      />
       <FormDialog
         isDismissDisabled={pending}
         title={t(editing === "new" ? "addContact" : "editContact")}
@@ -273,13 +354,13 @@ const ContactsTable = ({
     {
       id: "name",
       header: t("name"),
-      layout: { width: "34%" },
+      layout: { width: "28%" },
       cell: (record) => <ContactIdentityCell {...record} />,
     },
     {
       id: "affiliation",
       header: t("affiliation"),
-      layout: { width: "28%" },
+      layout: { width: "24%" },
       cell: ({ contact }) =>
         contact.affiliation || <span className={styles.meta}>{t("notProvided")}</span>,
     },
@@ -288,6 +369,12 @@ const ContactsTable = ({
       header: t("email"),
       cell: ({ contact }) =>
         contact.email || <span className={styles.meta}>{t("notProvided")}</span>,
+    },
+    {
+      id: "applications",
+      header: t("applications"),
+      layout: { width: "10rem" },
+      cell: (record) => <ContactApplicationsCell {...record} />,
     },
     {
       id: "actions",
@@ -300,6 +387,7 @@ const ContactsTable = ({
   return (
     <DataTable
       data={rows}
+      density="compact"
       columns={columns}
       getRowId={(row) => row.contact.id}
       label={t("contacts")}
@@ -321,91 +409,118 @@ const DirectoryFeedback = ({
   renderApplicationLink,
 }: {
   work: ReturnType<typeof useContactsDirectory>;
-  renderApplicationLink: (record: { publicId: string; title: string }) => ReactNode;
+  renderApplicationLink: ContactsDirectoryProps["renderApplicationLink"];
 }) => {
   const { t } = useTranslation("contacts");
   const { error, refreshError, outstanding, saved, pending: saving, retryRefresh } = work;
 
   return (
     <>
-      {error && (
-        <Notice tone="danger" role="alert">
-          {t(error === "conflict" ? "conflict" : "error")}
-        </Notice>
-      )}
-      {refreshError && (
-        <Notice tone="warning" role="alert">
-          {t(refreshError === "saved" ? "refreshError" : "refreshReadError")}{" "}
-          <Button variant="quiet" isDisabled={saving} onPress={() => void retryRefresh()}>
-            {t("retry")}
-          </Button>
-        </Notice>
-      )}
-      {outstanding.length > 0 && (
-        <Notice as="div" tone="warning">
-          <p>{t("outstandingContacts")}</p>
-          <ul>
-            {outstanding.map((item) => (
-              <li key={item.publicId}>{renderApplicationLink(item)}</li>
-            ))}
-          </ul>
-        </Notice>
+      {(error || refreshError || outstanding.length > 0) && (
+        <Stack gap={3} className={styles.feedback}>
+          {error && (
+            <Notice tone="danger" role="alert">
+              {t(error === "conflict" ? "conflict" : "error")}
+            </Notice>
+          )}
+          {refreshError && (
+            <Notice
+              tone="warning"
+              appearance="inline"
+              role="alert"
+              title={t(refreshError === "saved" ? "refreshError" : "refreshReadError")}
+              actions={
+                <Button
+                  variant="quiet"
+                  size="small"
+                  isDisabled={saving}
+                  onPress={() => void retryRefresh()}
+                >
+                  {t("retry")}
+                </Button>
+              }
+            />
+          )}
+          {outstanding.length > 0 && (
+            <Notice as="div" tone="warning">
+              <p>{t("outstandingContacts")}</p>
+              <ul>
+                {outstanding.map((item) => (
+                  <li key={item.publicId}>{renderApplicationLink(item, item.title, "reviews")}</li>
+                ))}
+              </ul>
+            </Notice>
+          )}
+        </Stack>
       )}
       <StatusMessage
         message={saved ? t("saved") : null}
         eventId={saved}
         confirmation={Boolean(saved)}
+        className={shellStyles.confirmation}
       />
     </>
   );
 };
 
 const DirectoryFilters = ({
-  directoryId,
+  count,
   search,
   setSearch,
   archived,
   setArchived,
 }: {
-  directoryId: string;
+  count: number;
   search: string;
   setSearch: (value: string) => void;
   archived: boolean;
   setArchived: (value: boolean) => void;
 }) => {
   const { t } = useTranslation("contacts");
-  const query = search.trim();
   return (
-    <div className={styles.toolbar}>
-      <div className={styles.searchControls}>
-        <TextField
-          id={`${directoryId}-search`}
-          label={t("search")}
-          placeholder={t("searchPlaceholder")}
-          value={search}
-          onChange={setSearch}
+    <CollectionToolbar
+      filterLabel={t("filter")}
+      filterTitle={t("filterContacts")}
+      closeLabel={t("closeFilters")}
+      summary={t("contactCount", { count })}
+      search={{
+        label: t("search"),
+        clearLabel: t("clearSearch"),
+        placeholder: t("searchPlaceholder"),
+        value: search,
+        onChange: setSearch,
+      }}
+      chips={
+        archived
+          ? [
+              {
+                id: "archived",
+                label: t("archived"),
+                removeLabel: t("removeArchivedFilter"),
+                onRemove: () => setArchived(false),
+              },
+            ]
+          : []
+      }
+      reset={{
+        label: t("resetFilters"),
+        isDisabled: !archived && !search,
+        onReset: () => {
+          setArchived(false);
+          setSearch("");
+        },
+      }}
+      filters={
+        <CollectionFilter
+          label={t("status")}
+          selectedKey={archived ? "archived" : "active"}
+          onSelectionChange={(key) => setArchived(key === "archived")}
+          items={[
+            { id: "active", label: t("active") },
+            { id: "archived", label: t("archived") },
+          ]}
         />
-        <Button
-          variant="quiet"
-          size="small"
-          isDisabled={!query}
-          onPress={() => {
-            setSearch("");
-            document.getElementById(`${directoryId}-search`)?.focus();
-          }}
-        >
-          {t("clearSearch")}
-        </Button>
-      </div>
-      <Select
-        label={t("status")}
-        selectedKey={archived ? "archived" : "active"}
-        onSelectionChange={(key) => setArchived(key === "archived")}
-        items={[
-          { id: "active", label: t("active") },
-          { id: "archived", label: t("archived") },
-        ]}
-      />
-    </div>
+      }
+    />
   );
 };

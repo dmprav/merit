@@ -1,6 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import { expect, it } from "vite-plus/test";
 
+import { formatTimestamp } from "@merit/i18n/format";
+
 import { AdminMessages } from "../../../app/messages";
 import { invitation } from "./invitation.fixtures";
 import { InvitationSummary } from "./owner-invitation";
@@ -22,7 +24,7 @@ it("shows the recipient, sending result, and expiry while an owner invitation is
   expect(screen.getAllByRole("definition").map((value) => value.textContent)).toEqual([
     invitation.email,
     "Email accepted by sender",
-    "8 Nov 2099, 12:00 UTC",
+    formatTimestamp("2099-11-08T12:00:00Z", "en-GB"),
   ]);
 });
 
@@ -43,7 +45,7 @@ it.each([
   expect(screen.getByText("Owner invitation pending")).toBeVisible();
   expect(screen.getByText(status, { exact: true })).toBeVisible();
   expect(screen.getByText(help)).toBeVisible();
-  expect(screen.getByText("8 Nov 2099, 12:00 UTC")).toBeVisible();
+  expect(screen.getByText(formatTimestamp("2099-11-08T12:00:00Z", "en-GB"))).toBeVisible();
 });
 
 it("asks for a new invitation after expiry, including when sending also failed", () => {
@@ -52,7 +54,7 @@ it("asks for a new invitation after expiry, including when sending also failed",
   });
 
   expect(screen.getByText("Invitation expired")).toBeVisible();
-  expect(screen.getByText("1 Jan 2020, 00:00 UTC")).toBeVisible();
+  expect(screen.getByText(formatTimestamp("2020-01-01T00:00:00Z", "en-GB"))).toBeVisible();
   expect(
     screen.getByText(
       "This invitation can no longer be accepted. Send a new invitation to continue onboarding.",
@@ -80,7 +82,7 @@ it("shows when the owner joined", () => {
   expect(terms()).toEqual(["Recipient", "Joined"]);
   expect(screen.getAllByRole("definition").map((value) => value.textContent)).toEqual([
     invitation.email,
-    "2 Nov 2026, 12:00 UTC",
+    formatTimestamp("2026-11-02T12:00:00Z", "en-GB"),
   ]);
 });
 
@@ -115,7 +117,7 @@ it("shows an existing owner without onboarding warnings from an old invitation",
   expect(screen.getByText("The initial owner invitation was accepted.")).toBeVisible();
   expect(screen.getByText(invitation.email)).toBeVisible();
   expect(screen.getByText("Email could not be sent", { exact: true })).toBeVisible();
-  expect(screen.getByText("1 Jan 2020, 00:00 UTC")).toBeVisible();
+  expect(screen.getByText(formatTimestamp("2020-01-01T00:00:00Z", "en-GB"))).toBeVisible();
   expect(
     screen.queryByText("Email could not be sent. Resend the invitation to try again."),
   ).not.toBeInTheDocument();

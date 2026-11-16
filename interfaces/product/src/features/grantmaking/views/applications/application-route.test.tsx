@@ -12,7 +12,8 @@ import userEvent from "@testing-library/user-event";
 import { assert, afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { ApplicationListViews } from "@merit/grantmaking-web/rounds";
-import { encodeRoundOverview, encodeApplicationDetail } from "@merit/grantmaking/api";
+import { applicationOverviewForPreview } from "@merit/grantmaking-web/testing";
+import { encodeRoundPage, encodeApplicationDetail } from "@merit/grantmaking/api";
 import { roundView } from "@merit/grantmaking/api";
 import { makeApplication, makeRound } from "@merit/grantmaking/testing/fixtures";
 import { defaultLocale } from "@merit/i18n";
@@ -30,6 +31,7 @@ import { readWorkspace } from "../../../workspace/data/server/workspace.function
 import {
   readFundingRoundPage,
   readFundingApplicationPage,
+  readWorkspaceApplications,
 } from "../../data/server/funding-round.functions";
 import { saveRecommendation } from "../../data/server/recommendations/recommendations.functions";
 
@@ -116,7 +118,7 @@ const routeRound = () =>
 const pageData = () => ({
   status: "ok" as const,
   preparation: { revision: 0, managers: [], budgetHistory: [] },
-  round: encodeRoundOverview(routeRound()),
+  round: encodeRoundPage(routeRound()),
   workspaceSlug: "alder",
 });
 
@@ -137,6 +139,7 @@ const applicationData = () => {
 vi.mock("../../data/server/funding-round.functions", () => ({
   readFundingRoundPage: vi.fn(),
   readFundingApplicationPage: vi.fn(),
+  readWorkspaceApplications: vi.fn(),
 }));
 vi.mock("../../data/server/reviews/reviewer.functions", () => ({
   applicationReviewers: vi.fn(async () => ({ status: "ok", value: [] })),
@@ -191,6 +194,26 @@ beforeEach(() => {
     .mockReset()
     .mockImplementation(async () => applicationData());
   vi.mocked(saveRecommendation).mockReset();
+  vi.mocked(readWorkspaceApplications)
+    .mockReset()
+    .mockImplementation(async ({ data }) => {
+      const round = routeRound();
+      const applications = round.applications.map((application) =>
+        applicationOverviewForPreview(round, application),
+      );
+      if (data.sort === "application") {
+        applications.sort(
+          (a, b) => a.title.localeCompare(b.title) * (data.direction === "descending" ? -1 : 1),
+        );
+      }
+      return {
+        status: "ok",
+        applications,
+        total: applications.length,
+        matching: applications.length,
+        offset: 0,
+      };
+    });
 });
 
 afterEach(() => vi.restoreAllMocks());
@@ -464,7 +487,7 @@ describe("workspace application sections", () => {
     expect(router.state.location.search.section).toBe("applications");
     expect(screen.getByRole("tab", { name: /Applications/, selected: true })).toBeVisible();
 
-    await user.click(screen.getByRole("link", { name: "1 outdated review, 1 awaiting review" }));
+    await user.click(screen.getByRole("link", { name: /1 of 2 reviewed/ }));
 
     expect(screen.getByRole("region", { name: "Reviewer assessments" })).toBeVisible();
     expect(router.state.location.pathname).toBe(applicationPath);

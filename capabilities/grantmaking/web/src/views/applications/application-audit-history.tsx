@@ -1,19 +1,18 @@
 import { useTranslation } from "react-i18next";
 
 import type { IntakeState } from "@merit/applications-web/contracts";
-import { useLocaleSettings } from "@merit/i18n";
 import { useFormat } from "@merit/i18n/format";
 import { decodeMoney } from "@merit/money";
 import { ActionProvenance } from "@merit/ui/action-provenance";
 import { DescriptionList, DescriptionListItem } from "@merit/ui/description-list";
 import { Inline } from "@merit/ui/layout";
+import { Timestamp } from "@merit/ui/timestamp";
 
 import styles from "./application-audit-history.module.css";
 
 /** Complete recorded intake activity, including changes within a submission version. */
 export const ApplicationAuditHistory = ({ history }: { history: IntakeState["history"] }) => {
   const { t } = useTranslation(["fundingRounds", "common"]);
-  const { formatLocale } = useLocaleSettings();
   const { calendarDate } = useFormat();
 
   return (
@@ -31,9 +30,7 @@ export const ApplicationAuditHistory = ({ history }: { history: IntakeState["his
                 {t("common:recordedBy", { name: entry.actor ?? t("preparation.unknownPerson") })}
               </span>
               <ActionProvenance value={entry.provenance} />
-              <time dateTime={entry.recordedAt}>
-                {new Date(entry.recordedAt).toLocaleString(formatLocale, { timeZone: "UTC" })} UTC
-              </time>
+              <Timestamp value={entry.recordedAt} />
             </Inline>
             {entry.action === "application.withdraw" && entry.after?.withdrawal && (
               <p>

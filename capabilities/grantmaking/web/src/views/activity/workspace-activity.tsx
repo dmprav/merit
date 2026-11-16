@@ -1,12 +1,16 @@
-import type { ComponentProps, ReactNode } from "react";
+import { useCallback, useEffect, useRef, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { ActivityEntry, ActivityPerson } from "@merit/grantmaking/api";
-import { useLocaleSettings } from "@merit/i18n";
-import { DataTable, type TableColumn } from "@merit/tables";
 import { ActionProvenance } from "@merit/ui/action-provenance";
 import { Button } from "@merit/ui/button";
-import { Select } from "@merit/ui/select";
+import { CollectionFilter, CollectionToolbar } from "@merit/ui/collection-toolbar";
+import { DescriptionList, DescriptionListItem } from "@merit/ui/description-list";
+import { DialogContent, ModalDialog } from "@merit/ui/dialog";
+import { Icon } from "@merit/ui/icon";
+import { Reading, Stack } from "@merit/ui/layout";
+import { CollectionRecovery, useCollectionRecovery } from "@merit/ui/paged-content";
+import { Timestamp } from "@merit/ui/timestamp";
 
 import type { ActivityFilters } from "../../contracts/pages";
 import styles from "./workspace-activity.module.css";
@@ -87,148 +91,300 @@ export const WorkspaceActivity = ({
   renderRecordLink,
 }: WorkspaceActivityProps) => {
   const { t } = useTranslation(["fundingRounds", "contacts"]);
-  const columns = useActivityColumns(renderRecordLink);
   const filtered = Boolean(filters.roundId || filters.personId);
+  const { end, showMore } = useActivityPaging({ entries, filters, status, hasMore, onShowMore });
+
+  const summary = useActivitySummary(status, entries.length, filtered);
+  const pending = status === "refreshing" || status === "loadingMore";
+  const recovering = useCollectionRecovery(status === "failed", pending);
+  const recoveryMessage = t(pending ? "activity.loading" : "activity.loadError");
 
   return (
-    <>
+    <div className={styles.activity}>
       <FilterControls
         people={people}
         rounds={rounds}
         filters={filters}
         onFiltersChange={onFiltersChange}
+        summary={summary}
       />
-      <DataTable
-        data={entries}
-        columns={columns}
-        getRowId={(row) => row.id}
-        label={t("activity.title")}
-        emptyMessage={t(filtered ? "activity.noMatches" : "activity.empty")}
-        state={tableState(status, t)}
-      />
-      <div className={styles.more}>
-        {status === "failed"
-          ? onRetry && (
-              <Button variant="secondary" onPress={onRetry}>
-                {t("activity.retry")}
-              </Button>
-            )
-          : hasMore && (
-              <Button
-                variant="secondary"
-                onPress={onShowMore}
-                isPending={status === "loadingMore"}
-                isDisabled={status === "refreshing"}
-              >
-                {t("activity.showOlder")}
-              </Button>
-            )}
+      <ActivityEvents entries={entries} renderRecordLink={renderRecordLink} />
+      {recovering && (
+        <CollectionRecovery
+          message={recoveryMessage}
+          retryLabel={t("activity.retry")}
+          isPending={pending}
+          onRetry={onRetry}
+        />
+      )}
+      <div ref={end} className={styles.more}>
+        {!recovering && hasMore && (
+          <Button
+            variant="quiet"
+            size="small"
+            onPress={showMore}
+            isPending={status === "loadingMore"}
+            isDisabled={status === "refreshing"}
+          >
+            {t("activity.showOlder")}
+          </Button>
+        )}
       </div>
-    </>
+    </div>
   );
 };
 
-const tableState = (
-  status: NonNullable<WorkspaceActivityProps["status"]>,
-  t: (key: "activity.loading" | "activity.loadError") => string,
-): ComponentProps<typeof DataTable>["state"] =>
-  status === "refreshing" || status === "loadingMore"
-    ? { type: "loading", message: t("activity.loading") }
-    : status === "failed"
-      ? { type: "error", message: t("activity.loadError") }
-      : undefined;
+const ActivityEvents = ({
+  entries,
+  renderRecordLink,
+}: Pick<WorkspaceActivityProps, "entries" | "renderRecordLink">) => {
+  const { t } = useTranslation("fundingRounds");
+  if (entries.length === 0) {
+    return null;
+  }
+  return (
+    <ol className={styles.events} aria-label={t("activity.title")}>
+      {entries.map((entry) => (
+        <ActivityEvent key={entry.id} entry={entry} renderRecordLink={renderRecordLink} />
+      ))}
+    </ol>
+  );
+};
+
+const useActivitySummary = (
+  status: WorkspaceActivityProps["status"],
+  count: number,
+  filtered: boolean,
+) => {
+  const { t } = useTranslation("fundingRounds");
+  if (status === "refreshing" || status === "loadingMore") {
+    return t("activity.loading");
+  }
+  if (count > 0) {
+    return t("activity.loaded", { count });
+  }
+  if (status === "failed") {
+    return "";
+  }
+  return t(filtered ? "activity.noMatches" : "activity.empty");
+};
+
+const useActivityPaging = ({
+  entries,
+  filters,
+  status = "ready",
+  hasMore,
+  onShowMore,
+}: Pick<WorkspaceActivityProps, "entries" | "filters" | "status" | "hasMore" | "onShowMore">) => {
+  const end = useRef<HTMLDivElement>(null);
+  const requestedPage = useRef<string | null>(null);
+  const page = JSON.stringify([filters.roundId, filters.personId, entries.at(-1)?.id]);
+  const showMore = useCallback(() => {
+    if (status !== "ready" || !hasMore || requestedPage.current === page) {
+      return;
+    }
+    requestedPage.current = page;
+    onShowMore();
+  }, [status, hasMore, page, onShowMore]);
+
+  useEffect(() => {
+    requestedPage.current = null;
+  }, [page]);
+
+  useEffect(() => {
+    if (status !== "ready" || !hasMore || !end.current || !globalThis.IntersectionObserver) {
+      return;
+    }
+    let active = true;
+    const observer = new IntersectionObserver(
+      (observed) => {
+        if (active && observed.some((entry) => entry.isIntersecting)) {
+          showMore();
+        }
+      },
+      { rootMargin: "240px" },
+    );
+    observer.observe(end.current);
+    return () => {
+      active = false;
+      observer.disconnect();
+    };
+  }, [status, hasMore, page, showMore]);
+
+  return { end, showMore };
+};
 
 const FilterControls = ({
   people,
   rounds,
   filters,
   onFiltersChange,
-}: Pick<WorkspaceActivityProps, "people" | "rounds" | "filters" | "onFiltersChange">) => {
+  summary,
+}: Pick<WorkspaceActivityProps, "people" | "rounds" | "filters" | "onFiltersChange"> & {
+  summary: string;
+}) => {
   const { t } = useTranslation(["fundingRounds", "contacts"]);
+  const roundLabel =
+    rounds.find((round) => round.id === filters.roundId)?.title || t("rounds.round");
+  const personLabel =
+    people.find((person) => person.id === filters.personId)?.name || t("contacts:unknownPerson");
+  const chips = [
+    ...(filters.roundId
+      ? [
+          {
+            id: "round",
+            label: roundLabel,
+            removeLabel: t("activity.removeRound", { round: roundLabel }),
+            onRemove: () => onFiltersChange({ ...filters, roundId: "" }),
+          },
+        ]
+      : []),
+    ...(filters.personId
+      ? [
+          {
+            id: "person",
+            label: personLabel,
+            removeLabel: t("activity.removePerson", { person: personLabel }),
+            onRemove: () => onFiltersChange({ ...filters, personId: "" }),
+          },
+        ]
+      : []),
+  ];
 
   return (
-    <div className={styles.controls}>
-      <Select
-        label={t("rounds.round")}
-        selectedKey={filters.roundId || "all"}
-        onSelectionChange={(id) => onFiltersChange({ ...filters, roundId: id === "all" ? "" : id })}
-        items={[
-          { id: "all", label: t("overview.allRounds") },
-          ...rounds.map((round) => ({ id: round.id, label: round.title })),
-        ]}
-      />
-      <Select
-        label={t("activity.person")}
-        selectedKey={filters.personId || "all"}
-        onSelectionChange={(id) =>
-          onFiltersChange({ ...filters, personId: id === "all" ? "" : id })
-        }
-        items={[
-          { id: "all", label: t("activity.allPeople") },
-          ...people.map((person) => ({
-            id: person.id,
-            label: person.name || t("contacts:unknownPerson"),
-          })),
-        ]}
-      />
-      {(filters.roundId || filters.personId) && (
-        <Button variant="secondary" onPress={() => onFiltersChange({ roundId: "", personId: "" })}>
-          {t("activity.clearFilters")}
-        </Button>
-      )}
-    </div>
+    <CollectionToolbar
+      filterLabel={t("activity.filter")}
+      filterTitle={t("activity.filters")}
+      closeLabel={t("activity.closeFilters")}
+      chips={chips}
+      summary={summary}
+      reset={{
+        label: t("activity.clearFilters"),
+        onReset: () => onFiltersChange({ roundId: "", personId: "" }),
+        isDisabled: chips.length === 0,
+      }}
+      filters={
+        <>
+          <CollectionFilter
+            label={t("rounds.round")}
+            selectedKey={filters.roundId || "all"}
+            onSelectionChange={(id) =>
+              onFiltersChange({ ...filters, roundId: id === "all" ? "" : id })
+            }
+            items={[
+              { id: "all", label: t("overview.allRounds") },
+              ...rounds.map((round) => ({ id: round.id, label: round.title })),
+            ]}
+          />
+          <CollectionFilter
+            label={t("activity.person")}
+            selectedKey={filters.personId || "all"}
+            onSelectionChange={(id) =>
+              onFiltersChange({ ...filters, personId: id === "all" ? "" : id })
+            }
+            items={[
+              { id: "all", label: t("activity.allPeople") },
+              ...people.map((person) => ({
+                id: person.id,
+                label: person.name || t("contacts:unknownPerson"),
+              })),
+            ]}
+          />
+        </>
+      }
+    />
   );
 };
 
-const useActivityColumns = (renderRecordLink: WorkspaceActivityProps["renderRecordLink"]) => {
+const ActivityEvent = ({
+  entry,
+  renderRecordLink,
+}: {
+  entry: ActivityEntry;
+  renderRecordLink: WorkspaceActivityProps["renderRecordLink"];
+}) => {
   const { t } = useTranslation(["fundingRounds", "contacts"]);
-  const { formatLocale } = useLocaleSettings();
-
-  return [
-    {
-      id: "when",
-      header: t("activity.when"),
-      layout: { width: "18%", wrap: false },
-      cell: (row) => (
-        <time dateTime={row.recordedAt}>
-          {new Date(row.recordedAt).toLocaleString(formatLocale, { timeZone: "UTC" })} UTC
-        </time>
-      ),
-    },
-    {
-      id: "who",
-      header: t("activity.who"),
-      layout: { width: "24%" },
-      cell: (row) => (
-        <div className={styles.who}>
-          <span className={styles.text}>{row.actor || t("contacts:unknownPerson")}</span>
-          <ActionProvenance value={row.provenance} />
-        </div>
-      ),
-    },
-    {
-      id: "what",
-      header: t("activity.what"),
-      layout: { width: "24%" },
-      cell: (row) => (
-        <>
-          {t(actionLabel(row.action))}
-          {row.reason && <p className={styles.reason}>{row.reason}</p>}
-        </>
-      ),
-    },
-    {
-      id: "record",
-      header: t("activity.record"),
-      layout: { primary: true },
-      cell: (row) =>
-        row.record ? (
-          <span className={styles.text}>{renderRecordLink(row.record, row.record.title)}</span>
-        ) : (
-          <span className={styles.muted}>
-            {row.subject.name || t("activity.unavailableRecord")}
+  const recordTitle = entry.record?.title || entry.subject.name || t("activity.unavailableRecord");
+  const actor = entry.actor || t("contacts:unknownPerson");
+  const action = t(actionLabel(entry.action));
+  return (
+    <li className={styles.event}>
+      <div className={styles.content}>
+        <div className={styles.action}>
+          <ModalDialog
+            placement="end"
+            title={action}
+            closeLabel={t("activity.closeDetails")}
+            trigger={
+              <Button
+                variant="quiet"
+                size="small"
+                className={styles.actionTrigger}
+                aria-label={t("activity.openDetails", { action, record: recordTitle })}
+              >
+                {action}
+                <Icon name="right" />
+              </Button>
+            }
+          >
+            <DialogContent label={action}>
+              <ActivityDetails entry={entry} renderRecordLink={renderRecordLink} />
+            </DialogContent>
+          </ModalDialog>
+          <span className={styles.record}>
+            {entry.record ? (
+              renderRecordLink(entry.record, recordTitle)
+            ) : (
+              <span className={styles.muted}>{recordTitle}</span>
+            )}
           </span>
-        ),
-    },
-  ] satisfies TableColumn<ActivityEntry>[];
+        </div>
+        <p className={styles.metadata}>
+          <span className={styles.actor}>{actor}</span>
+        </p>
+      </div>
+      <Timestamp value={entry.recordedAt} className={styles.metadata} />
+    </li>
+  );
+};
+
+const ActivityDetails = ({
+  entry,
+  renderRecordLink,
+}: {
+  entry: ActivityEntry;
+  renderRecordLink: WorkspaceActivityProps["renderRecordLink"];
+}) => {
+  const { t } = useTranslation(["fundingRounds", "contacts"]);
+  const recordTitle = entry.record?.title || entry.subject.name || t("activity.unavailableRecord");
+  return (
+    <Stack gap={5}>
+      <DescriptionList layout="rows">
+        <DescriptionListItem label={t("activity.record")}>
+          {entry.record ? renderRecordLink(entry.record, recordTitle) : recordTitle}
+          {!entry.record && entry.subject.name && (
+            <span className={styles.muted}>{t("activity.unavailableRecord")}</span>
+          )}
+        </DescriptionListItem>
+        <DescriptionListItem label={t("activity.person")}>
+          {entry.actor || t("contacts:unknownPerson")}
+        </DescriptionListItem>
+        <DescriptionListItem label={t("activity.recordedAt")}>
+          <Timestamp value={entry.recordedAt} />
+        </DescriptionListItem>
+        <DescriptionListItem label={t("activity.source")}>
+          <ActionProvenance value={entry.provenance} />
+        </DescriptionListItem>
+      </DescriptionList>
+      {entry.reason && (
+        <DescriptionList>
+          <DescriptionListItem label={t("activity.reason")}>
+            <Reading as="p" className={styles.reason}>
+              {entry.reason}
+            </Reading>
+          </DescriptionListItem>
+        </DescriptionList>
+      )}
+    </Stack>
+  );
 };

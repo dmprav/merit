@@ -101,8 +101,14 @@ export const ResumedDraft: Story = {
     await context.userEvent.click(
       within(dialog.getByRole("form")).getByRole("button", { name: "Close" }),
     );
+    const actions = await context.canvas.findByRole("button", { name: "Actions for Leah Martin" });
+    await expect(actions).toHaveAttribute("data-draft", "true");
+    await expect(actions).toHaveAccessibleDescription("Resume editing");
+    await context.userEvent.click(actions);
     await context.userEvent.click(
-      await context.canvas.findByRole("button", { name: "Resume editing" }),
+      within(context.canvasElement.ownerDocument.body).getByRole("menuitem", {
+        name: "Resume editing",
+      }),
     );
     await expect(
       within(context.canvasElement.ownerDocument.body).getByRole("textbox", {

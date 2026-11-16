@@ -24,7 +24,12 @@ const meta = {
   decorators: [
     (Story) => (
       <StoryEnvironment path="/app/alder/settings/members">
-        <ApplicationPage locationKey="team" breadcrumb={null} breadcrumbLabel="Breadcrumb">
+        <ApplicationPage
+          width="full"
+          locationKey="team"
+          breadcrumb={null}
+          breadcrumbLabel="Breadcrumb"
+        >
           <Story />
         </ApplicationPage>
       </StoryEnvironment>

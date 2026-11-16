@@ -1,14 +1,16 @@
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 
 import type { ActivityFilters } from "@merit/grantmaking-web/contracts/pages";
+import { applicationListOptions } from "@merit/grantmaking-web/data/applications";
+import type { WorkspaceApplicationsInput } from "@merit/grantmaking/api";
 import { workspaceSlugSchema } from "@merit/organizations/api";
 import { available } from "@merit/query";
 
 import { grantWorkQueryKey } from "../../../shared/grant-work-query-key";
 import { publicIdFromRef } from "../contracts/resource-url";
+import { applicationListSource } from "./application-list-source";
 import { readWorkspaceActivity } from "./server/activity.functions";
 import {
-  readWorkspaceApplications,
   readFundingRounds,
   readFundingRoundPage,
   readFundingApplicationPage,
@@ -49,12 +51,10 @@ export const applicationOptions = (workspaceSlug: string, publicId: string) =>
           ),
   });
 
-export const applicationsOptions = (workspaceSlug: string) =>
-  queryOptions({
-    queryKey: [...fundingRoundsQueryKey(workspaceSlug), "applications"],
-    queryFn: async ({ signal }) =>
-      available(await readWorkspaceApplications({ signal, data: workspaceSlug })),
-  });
+export const applicationsOptions = (
+  workspaceSlug: string,
+  options: Omit<WorkspaceApplicationsInput, "workspaceSlug"> = {},
+) => applicationListOptions(applicationListSource, { ...options, workspaceSlug });
 
 export const activityOptions = (workspaceSlug: string, filters: ActivityFilters) =>
   infiniteQueryOptions({

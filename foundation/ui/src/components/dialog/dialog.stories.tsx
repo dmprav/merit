@@ -246,6 +246,16 @@ export const LongContent: Story = {
   },
 };
 
+export const EndDrawer: Story = {
+  ...LongContent,
+  args: {
+    ...LongContent.args,
+    appearance: "default",
+    placement: "end",
+    size: "default",
+  },
+};
+
 export const FloatingLongContent: Story = {
   ...LongContent,
   args: {

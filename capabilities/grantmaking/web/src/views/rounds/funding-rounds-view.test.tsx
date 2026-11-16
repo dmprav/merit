@@ -54,6 +54,8 @@ describe("funding rounds list", () => {
       "Budget",
     ]);
     expect(within(headers[2]!).queryByRole("button")).not.toBeInTheDocument();
+    expect(screen.queryByText("Alder Foundation")).not.toBeInTheDocument();
+    expect(screen.getByText("Preparing").closest("[data-appearance]")).toBeNull();
   });
 
   it("renders all four responsible manager states from trimmed name and reassignment status", () => {
@@ -95,15 +97,12 @@ describe("funding rounds list", () => {
     const formerCell = formerRow.getAllByRole("cell")[2]!;
     expect(within(formerCell).getByText("Samira Patel")).toBeVisible();
     expect(formerCell.querySelector("[data-initials]")).toHaveAttribute("data-initials", "SP");
-    const reassignmentBadge = within(formerCell).getByText("Reassignment needed");
-    expect(reassignmentBadge).toBeVisible();
-    expect(reassignmentBadge).toHaveAttribute("data-tone", "warning");
+    expect(within(formerCell).getByRole("button", { name: "Reassignment needed" })).toBeVisible();
 
     const unassignedRow = within(screen.getByRole("row", { name: /Unassigned round/ }));
     const unassignedCell = unassignedRow.getAllByRole("cell")[2]!;
-    const needsAssignmentBadge = within(unassignedCell).getByText("Needs assignment");
-    expect(needsAssignmentBadge).toBeVisible();
-    expect(needsAssignmentBadge).toHaveAttribute("data-tone", "warning");
+    expect(within(unassignedCell).getByText("Unassigned")).toBeVisible();
+    expect(within(unassignedCell).queryByRole("button")).not.toBeInTheDocument();
     expect(unassignedCell.querySelector("[data-initials]")).toBeNull();
     expect(within(unassignedCell).queryByText("Name not recorded")).not.toBeInTheDocument();
 

@@ -16,7 +16,6 @@ it("preserves a valid application list location while discarding unrelated searc
     params: { workspaceSlug: "alder" },
     search: {
       round: "k7m2p9x4n6rt",
-      filter: "awaiting",
       sort: "application",
       direction: "descending",
     },
@@ -33,9 +32,8 @@ it("discards invalid or default round, filter, and sort parameters", () => {
     }),
   ).toEqual({
     round: undefined,
-    filter: undefined,
     sort: undefined,
     direction: undefined,
   });
-  expect(applicationsSearch({ filter: "invalid" }).filter).toBeUndefined();
+  expect(applicationsSearch({ filter: "awaiting", query: "private" })).not.toHaveProperty("filter");
 });

@@ -10,7 +10,7 @@ import type {
 import {
   decodeApplicationDetail,
   decodeRoundSummary,
-  decodeRoundView,
+  decodeRoundPage,
 } from "@merit/grantmaking/api";
 
 import { WorkspaceNavigationContext } from "../../workspace/workspace-navigation";
@@ -21,19 +21,29 @@ import { applicationOptions, roundOptions, roundsOptions } from "./queries";
 import { workspaceRecommendationData } from "./recommendations/workspace-data";
 import { workspaceReviewData } from "./reviews/workspace-data";
 import { saveRecommendation } from "./server/recommendations/recommendations.functions";
+import { useWorkspaceApplications } from "./workspace-applications";
 
 export const useWorkspaceRoundData = (workspaceSlug: string, publicId: string) => {
   const client = useQueryClient();
   const navigate = useNavigate();
   const { data: current } = useSuspenseQuery(roundOptions(workspaceSlug, publicId));
+  const applicationList = useWorkspaceApplications(workspaceSlug, {
+    viewId: publicId,
+    roundId: publicId || undefined,
+    enabled: current.status === "ok",
+  });
 
   return useMemo(() => {
     if (current.status !== "ok") {
       return current;
     }
 
+    if (applicationList.status !== "ok") {
+      return { status: applicationList.status };
+    }
     const data: RoundData = {
-      round: decodeRoundView(current.round),
+      applicationList,
+      round: decodeRoundPage(current.round),
       preparation: workspacePreparationData(client, workspaceSlug, publicId, current.preparation),
       createApplication: workspaceCreationData(
         client,
@@ -48,7 +58,7 @@ export const useWorkspaceRoundData = (workspaceSlug: string, publicId: string) =
     };
 
     return { status: "ok" as const, data, workspaceSlug: current.workspaceSlug };
-  }, [current, client, workspaceSlug, publicId, navigate]);
+  }, [current, client, workspaceSlug, publicId, navigate, applicationList]);
 };
 
 export const useWorkspaceApplicationData = (workspaceSlug: string, publicId: string) => {

@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useIsFetching, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import type { AccessRequestsData, ReviewResult } from "../contracts";
@@ -8,6 +8,7 @@ import { reviewAccessRequest } from "./server/access-requests.functions";
 export const useAccessRequestsData = (): AccessRequestsData => {
   const client = useQueryClient();
   const [refreshFailed, setRefreshFailed] = useState(false);
+  const refreshing = useIsFetching({ queryKey: accessRequestsOptions().queryKey }) > 0;
 
   const refresh = async () => {
     try {
@@ -58,6 +59,7 @@ export const useAccessRequestsData = (): AccessRequestsData => {
     error:
       !mutation.isPending && mutation.data && mutation.data.status !== "ok" ? mutation.data : null,
     refreshFailed,
+    refreshing,
     review: async (email) => {
       await mutation.mutateAsync(email);
     },

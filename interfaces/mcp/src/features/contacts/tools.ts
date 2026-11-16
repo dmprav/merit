@@ -9,7 +9,7 @@ import {
 } from "@merit/contacts/api";
 import {
   contactApplicationListInput,
-  applicationSummarySchema,
+  contactApplicationSummarySchema,
   publicIdSchema,
 } from "@merit/grantmaking/api";
 
@@ -59,11 +59,11 @@ export const registerContactTools = (
     {
       ...read,
       description:
-        "List applications where this contact is an applicant or a recorded reviewer, including historical review associations, in stable applicationId order. Follow nextCursor. The application contactId identifies its current applicant contact; inspect reviews for reviewer associations.",
+        "List related applications in stable applicationId order, with funding round titles and applicant-contact, review-request, and recorded-assessment relationships. Includes historical review associations. Follow nextCursor. The application contactId identifies its current applicant contact.",
       inputSchema: contactApplicationListInput,
       outputSchema: z.object({
         status: z.literal("ok"),
-        applications: z.array(applicationSummarySchema),
+        applications: z.array(contactApplicationSummarySchema),
         nextCursor: publicIdSchema.nullable(),
       }),
     },
