@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import { FormDialog } from "@merit/forms";
@@ -21,6 +21,8 @@ type ContactSelectionProps = {
   autoFocus?: boolean;
   onBlur?: () => void;
   direct?: boolean;
+  /** Actions beside search when the picker is shown directly. */
+  headerActions?: ReactNode;
   emptySelectionLabel?: string;
   isRequired?: boolean;
 };
@@ -145,6 +147,7 @@ const ContactSelection = ({
   autoFocus,
   onBlur,
   direct = false,
+  headerActions,
   emptySelectionLabel,
   isRequired = false,
   canSelect,
@@ -157,27 +160,22 @@ const ContactSelection = ({
   onCreate: () => void;
 }) => {
   const { t } = useTranslation("contacts");
-  let selectedKey = value;
-  const items = contacts
-    .filter((contact) => !contact.archived || contact.id === value)
-    .map((contact) => ({
-      ...contactOption(contact, direct, t("archived")),
-      isDisabled: !canSelect(contact),
-    }));
-  if (!isRequired) {
-    selectedKey = value ?? "none";
-    items.unshift({
-      id: "none",
-      label: emptySelectionLabel ?? t("noContact"),
-      isDisabled: false,
-    });
-  }
+  const { items, selectedKey } = contactChoices({
+    contacts,
+    value,
+    direct,
+    archivedLabel: t("archived"),
+    canSelect,
+    isRequired,
+    emptyLabel: emptySelectionLabel ?? t("noContact"),
+  });
 
   const choose = (id: string) => onChange(id === "none" ? null : id);
 
   if (direct) {
     return (
       <ChoiceList
+        headerActions={headerActions}
         label={label}
         searchLabel={t("search")}
         emptyLabel={t("emptyContacts")}
@@ -234,5 +232,37 @@ const contactOption = (contact: Contact, direct: boolean, archivedLabel: string)
     ]
       .filter(Boolean)
       .join(", "),
+  };
+};
+
+const contactChoices = ({
+  contacts,
+  value,
+  direct,
+  archivedLabel,
+  canSelect,
+  isRequired,
+  emptyLabel,
+}: {
+  contacts: Contact[];
+  value: string | null;
+  direct: boolean;
+  archivedLabel: string;
+  canSelect: (contact: Contact) => boolean;
+  isRequired: boolean;
+  emptyLabel: string;
+}) => {
+  const items = contacts
+    .filter((contact) => !contact.archived || contact.id === value)
+    .map((contact) => ({
+      ...contactOption(contact, direct, archivedLabel),
+      isDisabled: !canSelect(contact),
+    }));
+  if (isRequired) {
+    return { items, selectedKey: value };
+  }
+  return {
+    items: [{ id: "none", label: emptyLabel, isDisabled: false }, ...items],
+    selectedKey: value ?? "none",
   };
 };

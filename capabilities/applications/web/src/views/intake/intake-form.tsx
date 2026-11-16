@@ -1,12 +1,29 @@
-import { useState, type ReactNode, type ComponentProps } from "react";
+import {
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+  type Ref,
+  type ComponentProps,
+} from "react";
 import { useTranslation } from "react-i18next";
 import { z } from "zod";
 
 import { intakeContentSchema, intakeDetailsSchema, intakeLimits } from "@merit/applications/domain";
-import { ContactPicker } from "@merit/contacts-web/contacts";
-import { Form, FormActions, FormTextField, useForm, useTranslatedSchema } from "@merit/forms";
+import { ContactLabel, ContactPicker } from "@merit/contacts-web/contacts";
+import {
+  Form,
+  FormActions,
+  FormMoneyField,
+  FormTextField,
+  useForm,
+  useTranslatedSchema,
+} from "@merit/forms";
+import { useFormat } from "@merit/i18n/format";
+import { parseMoney } from "@merit/money";
 import { ActionMenu } from "@merit/ui/action-menu";
 import { Button } from "@merit/ui/button";
+import { DescriptionList, DescriptionListItem } from "@merit/ui/description-list";
 import { EditorLoading, EditorClose } from "@merit/ui/editor-loading";
 import { Icon } from "@merit/ui/icon";
 import { Notice } from "@merit/ui/notice";
@@ -15,6 +32,7 @@ import { TextField } from "@merit/ui/text-field";
 import type {
   IntakeDraft,
   IntakeSection,
+  IntakeSnapshot,
   IntakeValues,
   SectionDraft,
 } from "../../controllers/intake/intake-state";
@@ -22,6 +40,7 @@ import type { ApplicationIntakeController } from "../../controllers/intake/use-a
 import { ApplicationDetails } from "./application-details";
 import styles from "./intake-form.module.css";
 import { intakeError } from "./messages";
+import { SubmissionAnswers } from "./submission-answers";
 
 type EditorProps = { editor: ApplicationIntakeController["editor"]; onClose: () => void };
 
@@ -78,7 +97,15 @@ const EditorFrame = ({
   const { section, conflict } = editor;
   const isRevision = Boolean(editor.workingRevision) && section !== "details";
 
-  return (
+  const focusWithin = useRef(true);
+  const conflictHeading = useRef<HTMLHeadingElement>(null);
+  useLayoutEffect(() => {
+    if (conflict && focusWithin.current) {
+      conflictHeading.current?.focus();
+    }
+  }, [conflict]);
+
+  const form = (
     <Form
       label={t(sectionLabels[section ?? "details"])}
       submission={submission}
@@ -105,7 +132,6 @@ const EditorFrame = ({
       }
     >
       <div className={styles.fields}>
-        {conflict && <IntakeConflict editor={editor} />}
         {isRevision && (
           <p className={styles.hint}>
             {t(section === "metadata" ? "intake.workingDetailsHint" : "intake.workingDraftHint")}
@@ -126,45 +152,53 @@ const EditorFrame = ({
       </div>
     </Form>
   );
+  return (
+    <div
+      onFocusCapture={() => {
+        focusWithin.current = true;
+      }}
+      onBlurCapture={(event) => {
+        focusWithin.current = event.currentTarget.contains(event.relatedTarget);
+      }}
+    >
+      {conflict ? (
+        <IntakeConflict editor={editor} onClose={onClose} headingRef={conflictHeading} />
+      ) : (
+        form
+      )}
+    </div>
+  );
 };
 
-const IntakeConflict = ({ editor }: Pick<EditorProps, "editor">) => {
+const IntakeConflict = ({
+  editor,
+  onClose,
+  headingRef,
+}: EditorProps & { headingRef: Ref<HTMLHeadingElement> }) => {
   const { t } = useTranslation("applicationIntake");
-  const { section, latest } = editor;
 
   return (
-    <Notice as="div" tone="warning">
-      <p>{t("intake.conflict")}</p>
-      <details>
-        <summary>{t("intake.latest")}</summary>
-        {section === "title" && <p>{latest.content.title}</p>}
-        {section === "metadata" && (
-          <>
-            <p>
-              {t("intake.applicant")}: {latest.content.applicant || t("intake.notKnown")}
-            </p>
-            <p>
-              {t("intake.requested")}: {latest.content.requested || t("intake.notKnown")}
-            </p>
-            <p>
-              {t("intake.contact")}:{" "}
-              {editor.application.submission?.contact || t("intake.notKnown")}
-            </p>
-            <p>
-              {t("evidence.projectPeriod")}: {latest.content.projectPeriod || t("intake.notKnown")}
-            </p>
-          </>
-        )}
-        {section === "content" &&
-          latest.content.answers.map((answer, index) => (
-            <div key={index}>
-              <strong>{answer.question}</strong>
-              <p className={styles.latest}>{answer.response}</p>
-            </div>
-          ))}
-        {section === "details" ? <p>{latest.summary}</p> : <p>{latest.reason}</p>}
-      </details>
-      <p>{t("intake.keepChangesHelp")}</p>
+    <section
+      className={styles.conflict}
+      aria-label={t("intake.reconcile")}
+      onKeyDown={(event) => {
+        if (event.key === "Escape" && !event.defaultPrevented && !editor.pending) {
+          event.preventDefault();
+          onClose();
+        }
+      }}
+    >
+      <h3 ref={headingRef} tabIndex={-1}>
+        {t("intake.reconcile")}
+      </h3>
+      <Notice appearance="inline" tone="warning">
+        {t("intake.conflict")}
+      </Notice>
+      <div className={styles.comparison}>
+        <ConflictValues editor={editor} saved />
+        <ConflictValues editor={editor} />
+      </div>
+      <p className={styles.hint}>{t("intake.keepChangesHelp")}</p>
       <div className={styles.actions}>
         <Button size="small" onPress={editor.keepMyChanges}>
           {t("intake.keepChanges")}
@@ -173,7 +207,93 @@ const IntakeConflict = ({ editor }: Pick<EditorProps, "editor">) => {
           {t("intake.useLatest")}
         </Button>
       </div>
-    </Notice>
+      <EditorClose
+        autoFocus={false}
+        isDisabled={editor.pending}
+        label={t("preparation.close")}
+        onClose={onClose}
+      />
+    </section>
+  );
+};
+
+const ConflictValues = ({
+  editor,
+  saved = false,
+}: Pick<EditorProps, "editor"> & { saved?: boolean }) => {
+  const { t } = useTranslation(["applicationIntake", "contacts"]);
+  const { comparison } = editor;
+  if (!comparison) {
+    return null;
+  }
+  const label = t(saved ? "intake.latest" : "intake.yourDraft");
+  const { section } = comparison;
+  const value = saved ? comparison.saved : comparison.unsaved;
+  const { content, contactId } = value;
+
+  return (
+    <section aria-label={label} className={styles.comparisonValues}>
+      <h4>{label}</h4>
+      <DescriptionList>
+        {section === "title" && (
+          <DescriptionListItem label={t("intake.projectTitle")}>
+            {content.title}
+          </DescriptionListItem>
+        )}
+        {section === "metadata" && (
+          <ConflictMetadata editor={editor} content={content} contactId={contactId} />
+        )}
+        {section === "details" && (
+          <DescriptionListItem label={t("intake.staffSummary")}>
+            {value.summary}
+          </DescriptionListItem>
+        )}
+        {section !== "details" && editor.workingRevision && (
+          <DescriptionListItem label={t("intake.reason")}>{value.reason}</DescriptionListItem>
+        )}
+      </DescriptionList>
+      {section === "content" && <SubmissionAnswers answers={content.answers} headingLevel={5} />}
+    </section>
+  );
+};
+
+const ConflictMetadata = ({
+  editor,
+  content,
+  contactId,
+}: Pick<EditorProps, "editor"> & {
+  content: IntakeSnapshot["content"];
+  contactId: IntakeSnapshot["contactId"];
+}) => {
+  const { t } = useTranslation(["applicationIntake", "contacts"]);
+  const { money } = useFormat();
+  const amount = parseMoney(content.requested);
+  const contact =
+    contactId === editor.latest.contactId && editor.application.submission?.contact ? (
+      editor.application.submission.contact
+    ) : contactId ? (
+      <ContactLabel
+        workspaceSlug={editor.workspaceSlug}
+        contactId={contactId}
+        fallback={t("intake.contactNotAvailable")}
+      />
+    ) : (
+      t("contacts:noContact")
+    );
+
+  return (
+    <>
+      <DescriptionListItem label={t("intake.applicant")}>
+        {content.applicant || t("intake.notKnown")}
+      </DescriptionListItem>
+      <DescriptionListItem label={t("intake.requested")}>
+        {amount.ok ? money(amount.value) : content.requested || t("intake.notKnown")}
+      </DescriptionListItem>
+      <DescriptionListItem label={t("intake.contact")}>{contact}</DescriptionListItem>
+      <DescriptionListItem label={t("evidence.projectPeriod")}>
+        {content.projectPeriod || t("intake.notKnown")}
+      </DescriptionListItem>
+    </>
   );
 };
 
@@ -270,11 +390,11 @@ const MetadataForm = (props: SectionProps<"metadata">) => {
           requested: (
             <form.Field name="requested">
               {(field) => (
-                <FormTextField
+                <FormMoneyField
                   field={field}
-                  className={`${styles.metadataField} ${styles.amountField}`}
+                  precisionMessage={t("intake.amountPrecision")}
+                  className={styles.metadataField}
                   label={t("intake.requested")}
-                  inputMode="decimal"
                   placeholder={t("intake.notKnown")}
                   prefix={{
                     text: "€",
@@ -387,7 +507,6 @@ const SummaryForm = (props: SectionProps<"details">) => {
           <FormTextField
             field={field}
             label={t("intake.staffSummary")}
-
             multiline
             rows={5}
             autoFocus

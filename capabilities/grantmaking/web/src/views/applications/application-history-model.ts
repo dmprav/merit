@@ -2,7 +2,8 @@ import type { IntakeState } from "@merit/applications-web/contracts";
 import type { ApplicationView as Application } from "@merit/grantmaking/api";
 import { decodeMoney } from "@merit/money";
 
-export type HistorySnapshot = Pick<Application, "version" | "title" | "requested" | "submission">;
+export type HistorySnapshot = Pick<Application, "version" | "title" | "requested" | "submission"> &
+  Partial<Pick<Application, "summary" | "summaryAuthor" | "intakeStatus">>;
 
 export type ApplicationHistoryEntry = IntakeState["history"][number];
 
@@ -21,10 +22,8 @@ export const applicationHistorySnapshots = (
       }
 
       snapshots.set(value.version, {
-        version: value.version,
-        title: value.title,
+        ...value,
         requested: value.requested === null ? null : decodeMoney(value.requested),
-        submission: value.submission,
       });
     }
   }

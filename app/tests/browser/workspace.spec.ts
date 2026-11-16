@@ -106,7 +106,7 @@ test("demo and workspace show the expected assessment and inspectable review bas
     await assessment.getByText("Review details", { exact: true }).click();
 
     await expect(
-      page.getByRole("dialog", { name: "Review details" }).getByText("Version 1", { exact: true }),
+      page.getByRole("region", { name: "Review details" }).getByText("Version 1", { exact: true }),
     ).toBeVisible();
 
     await page.screenshot({

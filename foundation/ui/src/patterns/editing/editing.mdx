@@ -83,9 +83,11 @@ and wide forms, context wrapping, validation, and pending and failed saves.
 feature styles arrange fields within that body. Nested editors retain their own
 form presentation and submit independently.
 The default width fits short forms, such as requesting a review. Choose
-`size="wide"` for sustained writing, such as recording one. Use `ModalDialog` for
-other bounded content, or an inline editor or adjacent writing panel when
-reference material is needed. The container does not change Close semantics.
+`size="wide"` for a bounded form whose fields need more room. Sustained writing,
+such as recording an assessment, belongs beside its reference material in the
+workspace. Short property forms replace the values they edit in place; do not
+repeat saved values beside them except when resolving conflicting changes.
+The container does not change Close semantics.
 
 Beside headings, use a pencil icon to edit or resume, with an accessible action
 name and tooltip. Set `data-draft` on the shared `Button` for a visible draft dot

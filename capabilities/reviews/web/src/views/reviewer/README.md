@@ -24,28 +24,35 @@ shows the assigned version and any change warning. Narrow screens stack the pane
 with links between them and keep the save status and **Submit** at the bottom of
 the viewport.
 
-The header carries the facts a reviewer needs while writing: applicant, requested
-amount, response date, and the requesting manager with an email link. Occasional,
-consequential actions—reporting a possible conflict and withdrawing—sit in its
-**More actions** menu. An invitation has no reference material yet, so its work
-pane uses the full width and offers **Accept review**, **Decline review**, and
-conflict reporting together beneath the invitation and assessment expectations.
+The application header groups the applicant and requested amount. The requesting
+manager and response date belong to the assessment task beneath its heading.
+Occasional, consequential actions—reporting a possible conflict and withdrawing—sit
+in **More actions**. Before acceptance, a bounded invitation leads with the task
+title, then the application identity, requester, response date, and response actions.
+Application material remains unavailable until acceptance. Authorized submission
+answers use the same reading component as the manager's intake view; each caller
+retains its own material source and access checks.
 
 ## Managing reviewers
 
-Each assignment's badge names what the manager needs to know first, combining
-status, invitation expiry, and email delivery: an expired invitation and a failed
-send replace **Awaiting acceptance**, as they do in the workspace
-[invitation directory](../../../../../organizations/web/src/views/invitation-directory.tsx),
-with the same delivery wording. When the invitation cannot reach the reviewer,
-**Resend invitation** becomes the card's primary action. Response dates are
-labelled and localized; history lists the newest event first with UTC times, as
-review request details do.
+Each assignment groups person identity, participation, response date, and invitation
+email state in aligned records. Delivery remains separate from acceptance: failed,
+unconfirmed, or expired invitations do not imply waiting on the recipient.
+Each reviewer's **More actions** menu contains resend, end access, and assignment
+history commands. Conflict clearance and reinstatement stay visibly labeled.
+Assignment history opens in place as an event list with UTC times; returning
+restores the menu trigger's focus and the list's reading position.
 
-Inviting, clearing a conflict, and ending access use the shared confirmation
-dialog and name the reviewer. Clearing a conflict shows the reported conflict
-beside the explanation field, states that the reviewer must accept again, and
-reports a missing explanation beside the field rather than disabling the action.
+Inviting and clearing a conflict use compact shared form dialogs; ending access
+uses a confirmation. Conflict clearance keeps the reported explanation visible,
+states that the reviewer must accept again, and focuses a missing explanation.
+Membership guidance appears when invitation fails because the prerequisite is
+missing. The optional response date never becomes a submission deadline.
+
+The participation controller keeps command failures separate from refresh failures.
+A confirmed invitation or access change closes its dialog and retains the known
+assignment even if refreshing fails. Refresh retries the assignment and workspace
+reads after a saved change; it never repeats that command.
 
 ## Writing and amending
 
@@ -54,19 +61,31 @@ proposed amount on one row, overall reasoning, then optional notes, each shown w
 its criterion's description. **Submit** first checks the draft against the
 [reviews domain](../../../../business/src/domain/reviewer.ts) rule that the server
 also applies. Each problem then appears beside its field, focus moves to the first
-one, and a short summary sits beside **Submit**. The amount field rejects excess
-precision as people type, as the recommendation editor does.
+one. Privacy information stays beside **Submit**. The amount field rejects excess
+precision as people type or paste, as the recommendation editor does; restored
+invalid values remain visible and cannot be submitted.
 
 Submitted work shows the judgment, its date, and earlier versions with their
-amendment notes. A pencil action in the pane header opens an amendment. Its footer
+amendment notes. An icon-only pencil in the pane header opens an amendment, with
+an accessible **Amend assessment** label and tooltip on hover or keyboard focus. Its footer
 follows the [editing pattern](../../../../../../foundation/ui/src/patterns/editing/editing.mdx):
 **Close** keeps the autosaved amendment and the header then offers **Resume
-amendment** with a draft marker, while **Discard amendment** returns the draft to
+amendment** through the same pencil's label and tooltip with a draft marker, while **Discard amendment** returns the draft to
 the submitted assessment. Returning to the page opens the reading view first.
 Submission is confirmed with the shared status message.
 
 When two devices saved different drafts, both versions appear in full, labelled,
-side by side where the pane allows, with the choice between them beneath.
+side by side where the pane allows, beneath a short inline warning. The comparison
+itself stays neutral, with explicit choices beneath. Reporting a possible conflict
+uses a compact form dialog; closing it preserves the explanation on the current page.
+
+When access ends, one state heading and explanation replace the application and
+editor. Any unsaved writing stays in a separate **Unsaved assessment** section.
+**Copy draft** copies its field labels and exact values, including criterion notes
+and the amendment explanation. A confirmation follows a successful clipboard
+write; failure leaves the text visible with a retry or manual-copy explanation.
+Conflict comparisons and retained drafts share a lossless field representation with
+copying, including invalid amounts. Submitted judgments use their validated summary.
 
 ## Verify changes
 

@@ -17,7 +17,6 @@ const round = makeRound();
 const recovered: ReviewDraft = {
   mode: "record",
   id: "original-review",
-  replacesId: null,
   revision: application.reviews.revision,
   applicationVersion: application.version,
   criteriaVersion: round.criteriaVersion,
@@ -65,10 +64,10 @@ const setup = () => {
   };
 };
 
-it("opens the review dialog while recovering and retains the recovered assessment and baseline", async () => {
+it("opens the review pane while recovering and retains the recovered assessment and baseline", async () => {
   const { user, setReviewEdit, finish } = setup();
   await user.click(screen.getByRole("button", { name: "Record assessment" }));
-  expect(screen.getByRole("dialog", { name: "Record assessment" })).toBeVisible();
+  expect(screen.getByRole("region", { name: "Record assessment" })).toBeVisible();
   expect(screen.getByText("Preparing editor…")).toBeVisible();
   expect(screen.queryByRole("form")).not.toBeInTheDocument();
   expect(setReviewEdit).not.toHaveBeenCalled();
@@ -82,7 +81,7 @@ it("opens the review dialog while recovering and retains the recovered assessmen
 it("closing review recovery leaves restored writing available without opening or changing it", async () => {
   const { user, setReviewEdit, finish } = setup();
   await user.click(screen.getByRole("button", { name: "Record assessment" }));
-  await user.click(screen.getByRole("button", { name: "Close" }));
+  await user.click(screen.getByRole("button", { name: "Close review task" }));
   finish(recovered);
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   expect(setReviewEdit).not.toHaveBeenCalled();

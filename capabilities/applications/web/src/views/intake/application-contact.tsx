@@ -1,9 +1,12 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type Ref } from "react";
 import { useTranslation } from "react-i18next";
 
 import { ContactPicker } from "@merit/contacts-web/contacts";
+import type { ApplicationView as Application } from "@merit/grantmaking/api";
+import shell from "@merit/ui/application-shell.module.css";
 import { Button } from "@merit/ui/button";
 import { PopoverDialog } from "@merit/ui/dialog";
+import { Inline } from "@merit/ui/layout";
 import { Notice } from "@merit/ui/notice";
 import { PersonIdentity } from "@merit/ui/person-identity";
 import { PropertyButton } from "@merit/ui/property-button";
@@ -12,34 +15,123 @@ import { StatusMessage } from "@merit/ui/status-message";
 import type { ApplicationContactData } from "../../contracts/intake";
 import { useApplicationContact } from "../../controllers/intake/use-application-contact";
 import styles from "./application-contact.module.css";
+import { ApplicationDetails } from "./application-details";
+import { IntakeEditButton } from "./application-intake";
+import contentStyles from "./intake-content.module.css";
 
-export const ApplicationContact = ({
-  data,
-  revision,
-  contactId,
-  name,
-}: {
+type ContactSectionProps = {
   data: ApplicationContactData;
   revision: number;
-  contactId: string | null;
-  name?: string;
-}) => {
-  const { t } = useTranslation("applicationIntake");
-  const { workspaceSlug } = data;
+  application: Application;
+  isDisabled: boolean;
+};
+
+export const ApplicationContact = (props: ContactSectionProps) => {
+  const { data, revision, application, isDisabled } = props;
+  const { t } = useTranslation(["applicationIntake", "contacts"]);
+  const name = application.submission?.contact;
+  const [editing, setEditing] = useState(false);
   const [editingContact, setEditingContact] = useState(false);
-  const {
+  const contact = useApplicationContact(data, application.contactId, revision);
+  const { open, saved, canUndo, pending, undoSelection } = contact;
+  const { trigger, sectionTrigger } = useContactFocus(contact, editing);
+
+  const editingDisabled = pending || isDisabled;
+  const closeDisabled = editingDisabled || open || editingContact;
+
+  const close = () => {
+    setEditing(false);
+    requestAnimationFrame(() => sectionTrigger.current?.focus());
+  };
+
+  const identity = name ? <PersonIdentity name={name} /> : <span>{t("contacts:noContact")}</span>;
+
+  return (
+    <section aria-label={t("workspace.details")}>
+      <Inline justify="between" className={contentStyles.sectionHeading}>
+        <h2>{t("workspace.details")}</h2>
+        {!editing && (
+          <IntakeEditButton
+            label={t("intake.editMetadata")}
+            isDisabled={editingDisabled}
+            onPress={() => setEditing(true)}
+            triggerRef={sectionTrigger}
+          />
+        )}
+      </Inline>
+      <div
+        role="group"
+        aria-label={editing ? t("intake.editMetadata") : undefined}
+        onKeyDown={(event) => {
+          if (editing && event.key === "Escape" && !closeDisabled) {
+            event.stopPropagation();
+            close();
+          }
+        }}
+      >
+        <ApplicationDetails
+          application={application}
+          contact={
+            editing ? (
+              <ContactChoice
+                application={application}
+                contact={contact}
+                workspaceSlug={data.workspaceSlug}
+                isDisabled={isDisabled}
+                editingContact={editingContact}
+                onEditorOpenChange={setEditingContact}
+                triggerRef={trigger}
+              />
+            ) : (
+              identity
+            )
+          }
+        />
+        {!open && <ContactFeedback {...contact} />}
+        <Inline className={styles.actions}>
+          {canUndo && (
+            <Button
+              size="small"
+              variant="quiet"
+              isDisabled={editingDisabled}
+              onPress={() => void undoSelection()}
+            >
+              {t("preparation.undo")}
+            </Button>
+          )}
+          {editing && (
+            <Button
+              size="small"
+              variant="quiet"
+              className={styles.close}
+              isDisabled={closeDisabled}
+              onPress={close}
+            >
+              {t("preparation.close")}
+            </Button>
+          )}
+        </Inline>
+      </div>
+      <StatusMessage
+        className={shell.confirmation}
+        message={saved ? t("contactSelection.saved") : null}
+        eventId={saved}
+        confirmation={Boolean(saved)}
+      />
+    </section>
+  );
+};
+
+const useContactFocus = (
+  {
     open,
-    changeOpen,
-    saved,
-    canUndo,
-    failure,
-    refreshError,
     pending,
-    selectContact,
-    undoSelection,
-    retryRefresh,
-  } = useApplicationContact(data, contactId, revision);
+    saved,
+  }: Pick<ReturnType<typeof useApplicationContact>, "open" | "pending" | "saved">,
+  editing: boolean,
+) => {
   const trigger = useRef<HTMLButtonElement>(null);
+  const sectionTrigger = useRef<HTMLButtonElement>(null);
   const focusedSave = useRef(0);
 
   useEffect(() => {
@@ -47,74 +139,74 @@ export const ApplicationContact = ({
       focusedSave.current = saved;
       // The popover may close while refresh still disables its return target.
       if (document.activeElement === document.body) {
-        trigger.current?.focus();
+        (editing ? trigger : sectionTrigger).current?.focus();
       }
     }
-  }, [open, pending, saved]);
+  }, [editing, open, pending, saved]);
 
-  const feedback = (
-    <ContactFeedback
-      failure={failure}
-      refreshError={refreshError}
-      pending={pending}
-      retryRefresh={retryRefresh}
-    />
-  );
+  return { trigger, sectionTrigger };
+};
+
+const ContactChoice = ({
+  application,
+  contact,
+  workspaceSlug,
+  isDisabled,
+  editingContact,
+  onEditorOpenChange,
+  triggerRef,
+}: {
+  application: Application;
+  contact: ReturnType<typeof useApplicationContact>;
+  workspaceSlug: string;
+  isDisabled: boolean;
+  editingContact: boolean;
+  onEditorOpenChange: (open: boolean) => void;
+  triggerRef: Ref<HTMLButtonElement>;
+}) => {
+  const { t } = useTranslation(["applicationIntake", "contacts"]);
+  const name = application.submission?.contact;
+  const label = name
+    ? t("contactSelection.changeContactValue", { name })
+    : t("contactSelection.changeContact");
 
   return (
-    <>
-      <PopoverDialog
-        title={t("contactSelection.changeContact")}
-        closeLabel={t("contactSelection.close")}
-        placement="bottom start"
-        isOpen={open}
-        onOpenChange={changeOpen}
-        isDismissDisabled={pending || editingContact}
-        trigger={
-          <PropertyButton
-            ref={trigger}
-            action="choose"
-            isDisabled={pending}
-            label={
-              name
-                ? t("contactSelection.changeContactValue", { name })
-                : t("contactSelection.changeContact")
-            }
-          >
-            {name ? <PersonIdentity name={name} /> : t("contactSelection.changeContact")}
-          </PropertyButton>
-        }
-      >
+    <PopoverDialog
+      title={t("contactSelection.changeContact")}
+      closeLabel={t("contactSelection.close")}
+      placement="bottom start"
+      appearance="compact"
+      isOpen={contact.open}
+      onOpenChange={contact.changeOpen}
+      isDismissDisabled={contact.pending || editingContact}
+      trigger={
+        <PropertyButton
+          ref={triggerRef}
+          action="choose"
+          label={label}
+          isDisabled={contact.pending || isDisabled}
+          autoFocus
+        >
+          {name ? <PersonIdentity name={name} /> : <span>{t("contacts:noContact")}</span>}
+        </PropertyButton>
+      }
+    >
+      {({ closeButton }) => (
         <div className={styles.form}>
           <ContactPicker
             direct
+            headerActions={closeButton}
             workspaceSlug={workspaceSlug}
             label={t("contactSelection.contact")}
-            value={contactId}
-            isDisabled={pending}
-            onChange={(selected) => void selectContact(selected)}
-            onEditorOpenChange={setEditingContact}
+            value={application.contactId}
+            isDisabled={contact.pending}
+            onChange={(selected) => void contact.selectContact(selected)}
+            onEditorOpenChange={onEditorOpenChange}
           />
-          {feedback}
+          <ContactFeedback {...contact} />
         </div>
-      </PopoverDialog>
-      {!open && feedback}
-      {canUndo && (
-        <Button
-          size="small"
-          variant="quiet"
-          isDisabled={pending}
-          onPress={() => void undoSelection()}
-        >
-          {t("preparation.undo")}
-        </Button>
       )}
-      <StatusMessage
-        message={saved ? t("contactSelection.saved") : null}
-        eventId={saved}
-        confirmation={Boolean(saved)}
-      />
-    </>
+    </PopoverDialog>
   );
 };
 
@@ -147,12 +239,12 @@ const ContactFeedback = ({
   return (
     <>
       {error && (
-        <Notice tone="danger" role="alert">
+        <Notice appearance="inline" tone="danger" role="alert">
           {error}
         </Notice>
       )}
       {refreshError && (
-        <Notice tone="warning" role="alert">
+        <Notice appearance="inline" tone="warning" role="alert">
           {t(
             refreshError === "saved"
               ? "contactSelection.refreshError"

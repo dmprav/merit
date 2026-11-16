@@ -147,7 +147,7 @@ export const docs = {
         material:
           "Use Edit applicant submission beside Applicant submission to enter headings or original questions and the applicant’s responses. Save partial work as you go. Your interpretation belongs in Add staff summary, separate from the applicant’s material.",
         contacts:
-          "Select an applicant contact when useful. Choosing a contact does not grant access. In the details form, Save commits the selection; the separate Change contact action saves immediately and offers Undo.",
+          "Use the pencil beside Application details to select an applicant contact. Choosing a contact does not grant access. During preparation or revision, Save commits the selection. On a recorded application, contact choices save immediately and offer Undo.",
         contactsAction: "Understand shared contact details",
       },
       ready: {
@@ -216,7 +216,7 @@ export const docs = {
         shared:
           "In Contacts, open the person’s actions menu and choose Edit contact details. Save contact updates their current profile wherever it is used in this workspace. Historical application records and assessment attribution retain their recorded details; editing a profile does not make reviews outdated.",
         assignment:
-          "Use Change contact on an application when a different person should be associated with that request. This changes that application’s contact; it does not rename the original person or change their other applications.",
+          "Use the pencil beside Application details, then select the applicant contact when a different person should be associated with that request. This changes that application’s contact; it does not rename the original person or change their other applications.",
         applicationsAction: "Record or update an application’s contact",
       },
       archive: {

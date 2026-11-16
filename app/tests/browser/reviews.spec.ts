@@ -81,7 +81,8 @@ test("contacts and reviews preserve judgments across application and criteria ch
     page.getByRole("button", { name: "Mark ready for review", exact: true }),
   ).toBeHidden();
 
-  await page.getByRole("button", { name: "Manage reviews", exact: true }).click();
+  await page.getByRole("button", { name: /^Reference material:/ }).click();
+  await page.getByRole("menuitem", { name: "Reviewer assessments", exact: true }).click();
   await page.getByRole("button", { name: "Record assessment", exact: true }).click();
   await page
     .getByRole("form", { name: "Record assessment" })
@@ -116,8 +117,10 @@ test("contacts and reviews preserve judgments across application and criteria ch
     .getByRole("form", { name: "Record assessment" })
     .getByRole("button", { name: "Close", exact: true })
     .click();
-  await page.getByRole("button", { name: "Back to application", exact: true }).click();
-  await page.getByRole("button", { name: "Manage reviews", exact: true }).click();
+  await page.getByRole("button", { name: /^Reference material:/ }).click();
+  await page.getByRole("menuitem", { name: "Applicant submission", exact: true }).click();
+  await page.getByRole("button", { name: /^Reference material:/ }).click();
+  await page.getByRole("menuitem", { name: "Reviewer assessments", exact: true }).click();
   await page.getByRole("button", { name: "Resume editing", exact: true }).click();
 
   await expect(form.getByRole("textbox", { name: "Assessment text" })).toHaveValue(
@@ -139,7 +142,8 @@ test("contacts and reviews preserve judgments across application and criteria ch
 
   await expect(page.getByRole("button", { name: /Edit recommendation for/ })).toBeVisible();
 
-  await page.getByRole("button", { name: "Back to application", exact: true }).click();
+  await page.getByRole("button", { name: /^Reference material:/ }).click();
+  await page.getByRole("menuitem", { name: "Applicant submission", exact: true }).click();
   await page.getByRole("button", { name: "Application actions", exact: true }).click();
   await page.getByRole("menuitem", { name: "Start revised submission" }).click();
   await page.getByRole("button", { name: "Edit application details" }).click();
@@ -154,12 +158,13 @@ test("contacts and reviews preserve judgments across application and criteria ch
 
   await page.getByRole("button", { name: "Record revision", exact: true }).click();
 
-  await expect(page.getByText("€22,000 requested", { exact: true })).toBeVisible();
+  await expect(page.getByRole("definition").filter({ hasText: /^€22,000$/ })).toBeVisible();
 
-  await page.getByRole("button", { name: "Manage reviews", exact: true }).click();
+  await page.getByRole("button", { name: /^Reference material:/ }).click();
+  await page.getByRole("menuitem", { name: "Reviewer assessments", exact: true }).click();
 
   await expect(
-    page.getByText("Application changed since this assessment", { exact: true }).first(),
+    page.getByText("Based on an earlier submission", { exact: true }).first(),
   ).toBeVisible();
   await expect(
     page
@@ -222,10 +227,7 @@ test("contacts and reviews preserve judgments across application and criteria ch
     page.getByText("Practical plan supported by the free venue.", { exact: true }),
   ).toBeVisible();
 
-  await page
-    .getByRole("dialog", { name: "Earlier assessments and edits" })
-    .getByRole("button", { name: "Close", exact: true })
-    .click();
+  await page.getByRole("button", { name: "Back to assessments", exact: true }).click();
   await page.goto("/app/alder/contacts");
 
   await expect(page.getByRole("main")).toBeFocused();

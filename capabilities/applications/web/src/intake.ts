@@ -1,7 +1,7 @@
 import type {} from "./messages";
 
 export type { IntakeSession } from "./views/intake/intake-content";
-export { ApplicationContact } from "./views/intake/application-contact";
+export { ApplicationDetails } from "./views/intake/application-details";
 export { IntakeForm } from "./views/intake/intake-form";
 export { useApplicationIntake } from "./controllers/intake/use-application-intake";
 export {
@@ -11,3 +11,5 @@ export {
   type IntakeSnapshot,
   type IntakeSection,
 } from "./controllers/intake/intake-state";
+
+export { SubmissionAnswers } from "./views/intake/submission-answers";

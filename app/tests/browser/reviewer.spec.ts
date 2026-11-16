@@ -74,6 +74,7 @@ test("an invited reviewer independently accepts, saves, submits and amends @cros
       ],
     );
     await page.goto(`/app/alder/applications/${application.id}?tab=reviews`);
+    await expect(page.getByRole("main")).toBeFocused();
     await page.getByRole("button", { name: "Manage reviews", exact: true }).click();
     const panel = page.getByRole("region", { name: "Reviewer participation" });
     await panel.getByRole("button", { name: "Invite reviewer", exact: true }).click();
@@ -231,7 +232,10 @@ test("an invited reviewer independently accepts, saves, submits and amends @cros
     await expect(page.getByRole("main")).toBeFocused();
     await page.getByRole("button", { name: "Manage reviews", exact: true }).click();
     await expect(panel.getByText("Submitted", { exact: true })).toBeVisible();
-    await panel.getByRole("button", { name: "End access", exact: true }).click();
+    await panel
+      .getByRole("button", { name: "More actions for Independent reviewer", exact: true })
+      .click();
+    await page.getByRole("menuitem", { name: "End access", exact: true }).click();
     await page
       .getByRole("dialog", { name: "End Independent reviewer’s access?" })
       .getByRole("button", { name: "End access", exact: true })

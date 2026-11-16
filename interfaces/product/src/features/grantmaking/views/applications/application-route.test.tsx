@@ -499,12 +499,13 @@ describe("workspace application sections", () => {
     expect(screen.getByRole("region", { name: "Reviewer assessments" })).toBeVisible();
 
     vi.mocked(window.scrollTo).mockClear();
-    await user.click(screen.getByRole("button", { name: "Back to application" }));
+    await user.click(screen.getByRole("button", { name: /^Reference material:/ }));
+    await user.click(screen.getByRole("menuitem", { name: "Applicant submission" }));
 
     expect(router.state.location.search.tab).toBeUndefined();
     expect(screen.getByRole("region", { name: "Applicant submission" })).toBeVisible();
 
-    await user.click(screen.getByRole("button", { name: "Manage reviews" }));
+    await user.click(screen.getByRole("button", { name: "All assessments" }));
 
     expect(router.state.location.search).toEqual({ tab: "reviews" });
     expect(router.history.length).toBe(2);
@@ -674,21 +675,45 @@ it("shows the assessment and its historical basis", async () => {
     expect(view.getByText("Recommends funding", { exact: true })).toBeVisible();
     expect(view.getByText("€18,000 proposed", { exact: true })).toBeVisible();
     expect(view.getByText("The original venue makes the budget credible.")).toBeVisible();
-    expect(
-      view.getByText("Application changed since this assessment", { exact: true }),
-    ).toBeVisible();
+    expect(view.getByText("Based on an earlier submission", { exact: true })).toBeVisible();
+    expect(view.getByRole("button", { name: "Compare changes" })).toBeVisible();
   };
 
   expectAssessment(assessment);
   await workspace.user.click(within(assessment).getByText("Review details"));
-  const details = within(screen.getByRole("dialog", { name: "Review details" }));
+  const details = within(screen.getByRole("region", { name: "Review details" }));
 
-  expect(details.getByText("Submission", { exact: true })).toBeVisible();
-  expect(details.getByText("Version 1", { exact: true })).toBeVisible();
+  const submission = details.getByText("Submission", { exact: true });
+  expect(submission).toBeVisible();
+  expect(submission.nextElementSibling).toHaveTextContent("Version 1");
 
-  await workspace.user.keyboard("{Escape}");
+  await workspace.user.click(screen.getByRole("button", { name: "Back to assessments" }));
 
   expect(
-    within(assessment).getByRole("button", { name: "Assessment actions for Sam Morgan" }),
+    within(screen.getByRole("article", { name: "Assessment by Sam Morgan" })).getByRole("button", {
+      name: "Assessment actions for Sam Morgan",
+    }),
   ).toBeVisible();
+});
+
+it("records assessment work beside readable references with one retained draft", async () => {
+  const { user } = await renderApplication();
+  await user.click(screen.getByRole("button", { name: "Assessment actions for Sam Morgan" }));
+  await user.click(screen.getByRole("menuitem", { name: "Edit recorded assessment" }));
+  const pane = within(screen.getByRole("complementary", { name: "Application workspace" }));
+  const form = pane.getByRole("form", { name: "Edit recorded assessment" });
+  const text = within(form).getByRole("textbox", { name: "Assessment text" });
+  await user.clear(text);
+  await user.type(text, "Keep this recorded assessment.");
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: /^Reference material:/ }));
+  await user.click(screen.getByRole("menuitem", { name: "Applicant submission" }));
+  expect(screen.getByRole("region", { name: "Applicant submission" })).toBeVisible();
+  expect(pane.getByRole("form", { name: "Edit recorded assessment" })).toBe(form);
+  await user.click(within(form).getByRole("button", { name: "Close" }));
+  await user.click(pane.getByRole("button", { name: "Resume editing" }));
+  expect(pane.getByRole("textbox", { name: "Assessment text" })).toHaveValue(
+    "Keep this recorded assessment.",
+  );
+  await user.click(pane.getByRole("button", { name: "Discard draft" }));
 });

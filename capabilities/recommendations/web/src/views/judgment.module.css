@@ -62,18 +62,9 @@
 .recommendationSummary {
   display: grid;
   gap: var(--space-1);
-  border-block: 1px solid var(--border);
-  padding-block: var(--space-5);
+  padding-block: var(--space-4);
 }
 
 .recommendationSummary > h2 {
   margin-bottom: var(--space-3);
-}
-
-.attentionDot {
-  width: 5px;
-  height: 5px;
-  flex-shrink: 0;
-  border-radius: 50%;
-  background: var(--warning);
 }

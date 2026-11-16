@@ -229,14 +229,18 @@ type Story = StoryObj<typeof meta>;
 export const ChangedApplication: Story = {
   play: async ({ canvas }) => {
     await expect(canvas.getByRole("article", { name: "Assessment by Sam Morgan" })).toBeVisible();
-    await expect(canvas.getByText("Application changed since this assessment")).toBeVisible();
+    await expect(
+      within(canvas.getByRole("article", { name: "Assessment by Sam Morgan" })).getByText(
+        "Based on an earlier submission",
+      ),
+    ).toBeVisible();
     await expect(canvas.getByRole("heading", { name: /Awaiting assessments/ })).toBeVisible();
   },
 };
 export const RecordingAssessment: Story = {
   play: async ({ canvas, canvasElement, userEvent }) => {
     await userEvent.click(canvas.getAllByRole("button", { name: "Record assessment" })[0]!);
-    const dialog = within(canvasElement.ownerDocument.body).getByRole("dialog", {
+    const dialog = within(canvasElement.ownerDocument.body).getByRole("form", {
       name: "Record assessment",
     });
 
@@ -252,7 +256,7 @@ export const DraftRecovery: Story = {
     const page = within(canvasElement.ownerDocument.body);
     await userEvent.click(canvas.getAllByRole("button", { name: "Record assessment" })[0]!);
     await userEvent.type(
-      within(page.getByRole("dialog")).getByRole("textbox", { name: "Assessment text" }),
+      within(page.getByRole("form")).getByRole("textbox", { name: "Assessment text" }),
       "The venue costs need clarification.",
     );
     await userEvent.click(
@@ -263,7 +267,7 @@ export const DraftRecovery: Story = {
     await userEvent.click(canvas.getByRole("button", { name: "Resume editing" }));
 
     await expect(
-      within(page.getByRole("dialog")).getByRole("textbox", { name: "Assessment text" }),
+      within(page.getByRole("form")).getByRole("textbox", { name: "Assessment text" }),
     ).toHaveValue("The venue costs need clarification.");
   },
 };
@@ -292,7 +296,7 @@ export const RequestHistory: Story = {
   play: async ({ canvas, canvasElement, userEvent }) => {
     await userEvent.click(canvas.getByRole("button", { name: /Request history/ }));
     const details = within(
-      within(canvasElement.ownerDocument.body).getByRole("dialog", { name: "Request history" }),
+      within(canvasElement.ownerDocument.body).getByRole("region", { name: "Request history" }),
     );
 
     await waitFor(() => expect(details.getByText("Added by Dana Reed")).toBeVisible());
@@ -304,11 +308,16 @@ export const AssessmentDetails: Story = {
   play: async ({ canvas, canvasElement, userEvent }) => {
     await userEvent.click(canvas.getAllByRole("button", { name: "Review details" })[0]!);
     const details = within(
-      within(canvasElement.ownerDocument.body).getByRole("dialog", { name: "Review details" }),
+      within(canvasElement.ownerDocument.body).getByRole("region", { name: "Review details" }),
     );
 
     await waitFor(() => expect(details.getByText("Dana Reed")).toBeVisible());
-    await expect(details.getByText("Criteria reviewed")).toBeVisible();
+    await expect(details.queryByText("Criteria reviewed")).not.toBeInTheDocument();
+    await userEvent.click(details.getByRole("button", { name: "View criteria used" }));
+    await expect(canvas.getByRole("heading", { name: "Criteria reviewed" })).toHaveFocus();
+    await expect(canvas.queryByRole("region", { name: "Review details" })).not.toBeInTheDocument();
+    await userEvent.click(canvas.getByRole("button", { name: "Back to assessment" }));
+    await expect(canvas.getByRole("button", { name: "View criteria used" })).toHaveFocus();
   },
 };
 
@@ -338,7 +347,7 @@ export const CriterionNotes: Story = {
   play: async ({ canvas, canvasElement, userEvent }) => {
     const pending = within(canvas.getByRole("article", { name: "Jules Patel" }));
     await userEvent.click(pending.getByRole("button", { name: "Record assessment" }));
-    const dialog = within(within(canvasElement.ownerDocument.body).getByRole("dialog"));
+    const dialog = within(within(canvasElement.ownerDocument.body).getByRole("form"));
     await userEvent.click(dialog.getByRole("button", { name: "Add criterion notes" }));
     await userEvent.type(
       dialog.getByRole("textbox", { name: round.criteria![0]!.title }),
@@ -379,7 +388,7 @@ const correctAssessment = async ({ canvas, canvasElement, userEvent }: Context) 
   const page = within(canvasElement.ownerDocument.body);
   await userEvent.click(canvas.getByRole("button", { name: "Assessment actions for Sam Morgan" }));
   await userEvent.click(page.getByRole("menuitem", { name: "Edit recorded assessment" }));
-  const dialog = within(await page.findByRole("dialog", { name: "Edit recorded assessment" }));
+  const dialog = within(await page.findByRole("complementary", { name: "Application workspace" }));
   // Paste the replacement: per-key typing is covered by DraftRecovery and AssessmentSaved,
   // and typing every character here makes the conflict and refresh stories slow to settle.
   await userEvent.clear(dialog.getByRole("textbox", { name: "Assessment text" }));
@@ -403,13 +412,13 @@ export const AssessmentSaved: Story = {
     const pending = within(context.canvas.getByRole("article", { name: "Jules Patel" }));
     await context.userEvent.click(pending.getByRole("button", { name: "Record assessment" }));
     const page = within(context.canvasElement.ownerDocument.body);
-    const dialog = within(await page.findByRole("dialog", { name: "Record assessment" }));
+    const dialog = within(await page.findByRole("form", { name: "Record assessment" }));
     await context.userEvent.type(
       dialog.getByRole("textbox", { name: "Assessment text" }),
       "The revised budget makes the venue costs clear.",
     );
     await context.userEvent.click(dialog.getByRole("button", { name: "Save assessment" }));
-    await waitFor(() => expect(page.queryByRole("dialog")).not.toBeInTheDocument());
+    await waitFor(() => expect(page.queryByRole("form")).not.toBeInTheDocument());
     await expect(
       context.canvas.getByRole("article", { name: "Assessment by Jules Patel" }),
     ).toHaveTextContent("The revised budget makes the venue costs clear.");
@@ -421,7 +430,7 @@ export const CorrectionSaved: Story = {
     await waitFor(
       () =>
         expect(
-          within(context.canvasElement.ownerDocument.body).queryByRole("dialog"),
+          within(context.canvasElement.ownerDocument.body).queryByRole("form"),
         ).not.toBeInTheDocument(),
       { timeout: 10_000 },
     );
@@ -459,14 +468,15 @@ export const ConcurrentChanges: Story = {
   play: async (context) => {
     const dialog = await saveCorrection(context);
     await waitFor(async () =>
-      expect(
-        await dialog.findByRole("button", { name: "Keep draft after reviewing current work" }),
-      ).toBeVisible(),
+      expect(await dialog.findByRole("button", { name: "Keep my draft" })).toBeVisible(),
     );
-    await expect(dialog.getByRole("textbox", { name: "Assessment text" })).toHaveValue(
-      "The revised venue costs are supported by a written quote.",
-    );
-    await expect(dialog.getByRole("button", { name: "Save assessment" })).toBeDisabled();
+    await expect(
+      dialog.getByRole("region", { name: "Saved assessment and your draft" }),
+    ).toHaveTextContent("The revised venue costs are supported by a written quote.");
+    await expect(
+      dialog.getByRole("region", { name: "Saved assessment and your draft" }),
+    ).toBeVisible();
+    await expect(dialog.queryByRole("button", { name: "Save assessment" })).not.toBeInTheDocument();
   },
 };
 export const SavedButRefreshFailed: Story = {
@@ -475,7 +485,7 @@ export const SavedButRefreshFailed: Story = {
     await saveCorrection(context);
     await waitFor(() =>
       expect(
-        within(context.canvasElement.ownerDocument.body).queryByRole("dialog"),
+        within(context.canvasElement.ownerDocument.body).queryByRole("form"),
       ).not.toBeInTheDocument(),
     );
     await expect(context.canvas.getByRole("alert")).toHaveTextContent(

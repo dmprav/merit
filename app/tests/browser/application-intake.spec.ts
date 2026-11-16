@@ -27,7 +27,12 @@ test("record, complete, recommend, and revise an application without a budget", 
 
   await expect(page).toHaveURL(/\/app\/alder\/applications\/[^/]+$/);
   await expect(page).toHaveTitle("Weekly meals · Merit");
-  await expect(page.getByText("Requested amount not known", { exact: true })).toBeVisible();
+  await expect(
+    page
+      .getByRole("term")
+      .filter({ hasText: /^Requested amount$/ })
+      .locator(".."),
+  ).toContainText("Requested amount—");
 
   const applicationUrl = page.url();
 
@@ -52,12 +57,16 @@ test("record, complete, recommend, and revise an application without a budget", 
   ).toBeVisible();
 
   await page.getByRole("button", { name: "Edit application details", exact: true }).click();
-  await dialog.getByRole("textbox", { name: "Requested amount" }).fill("24000.001");
-  await dialog.getByRole("button", { name: "Save", exact: true }).click();
+  const requested = dialog.getByRole("textbox", { name: "Requested amount" });
+  await requested.fill("24000.00");
+  await requested.press("End");
+  await requested.press("1");
 
-  await expect(dialog.getByRole("alert")).toContainText("at most two decimal places");
+  await expect(requested).toHaveValue("24000.00");
 
-  await dialog.getByRole("textbox", { name: "Requested amount" }).fill("24000");
+  await requested.fill("24000.001");
+
+  await expect(requested).toHaveValue("24000.00");
   await dialog.getByRole("button", { name: "Save", exact: true }).click();
   await page.getByRole("button", { name: "Edit applicant submission", exact: true }).click();
   dialog = page.getByRole("form", { name: "Edit applicant submission", exact: true });
@@ -77,7 +86,7 @@ test("record, complete, recommend, and revise an application without a budget", 
     .getByRole("button", { name: "Continue editing applicant submission", exact: true })
     .click();
 
-  await expect(page.getByText("€24,000 requested", { exact: true })).toBeVisible();
+  await expect(page.getByRole("definition").filter({ hasText: /^€24,000$/ })).toBeVisible();
   await expect(dialog.getByRole("textbox", { name: "Applicant’s response" })).toHaveValue(
     "Weekly shared meals for local residents.",
   );
@@ -87,51 +96,39 @@ test("record, complete, recommend, and revise an application without a budget", 
 
   await expect(colleague.getByRole("main")).toBeFocused();
 
-  const contactControl = colleague.getByRole("button", { name: "Change contact", exact: true });
-  await contactControl.focus();
-  await contactControl.press("Enter");
-  const changeContactDialog = colleague.getByRole("dialog", { name: "Change contact" });
-  const addContact = changeContactDialog.getByRole("button", { name: "Add contact", exact: true });
-  await addContact.click();
+  await expect(colleague.getByRole("button", { name: /Change contact/ })).toBeHidden();
+  const detailsPencil = colleague.getByRole("button", {
+    name: "Edit application details",
+    exact: true,
+  });
+  await detailsPencil.focus();
+  await detailsPencil.press("Enter");
+  const metadataForm = colleague.getByRole("form", { name: "Edit application details" });
+  const contactControl = metadataForm.getByRole("button", { name: /Applicant contact/ });
+  await contactControl.click();
+  await colleague.getByRole("button", { name: "Add contact", exact: true }).click();
   const createContactDialog = colleague.getByRole("dialog", { name: "Add contact" });
   await expect(
     createContactDialog.getByRole("textbox", { name: "Name", exact: true }),
   ).toBeFocused();
   await colleague.keyboard.press("Escape");
-
   await expect(createContactDialog).not.toBeVisible();
-  await expect(changeContactDialog).toBeVisible();
-  await expect(addContact).toBeFocused();
-  await addContact.press("Enter");
+  await expect(contactControl).toBeFocused();
+  await contactControl.press("Enter");
+  await colleague.getByRole("button", { name: "Add contact", exact: true }).click();
   await createContactDialog.getByRole("textbox", { name: "Name", exact: true }).fill("Leah Martin");
   await createContactDialog
     .getByRole("textbox", { name: "Email", exact: true })
     .fill(`leah.${testInfo.project.name}@example.test`);
   await createContactDialog.getByRole("button", { name: "Save contact", exact: true }).click();
-
   await expect(createContactDialog).not.toBeVisible();
-  await expect(changeContactDialog).not.toBeVisible();
-  const assignedContact = colleague.getByRole("button", {
-    name: "Change contact: Leah Martin",
-    exact: true,
-  });
-  await expect(assignedContact).toBeFocused();
-
-  await colleague.getByRole("button", { name: "Undo", exact: true }).click();
-
-  await expect(
-    colleague.getByRole("button", { name: "Change contact", exact: true }),
-  ).toBeVisible();
-  await expect(contactControl).toBeFocused();
-
-  await colleague.getByRole("button", { name: "Change contact", exact: true }).click();
-  await changeContactDialog
-    .getByRole("textbox", { name: "Find a contact" })
-    .fill(`leah.${testInfo.project.name}@example.test`);
-  await changeContactDialog.getByRole("option", { name: /Leah Martin/ }).click();
-
-  await expect(changeContactDialog).not.toBeVisible();
-  await expect(assignedContact).toBeFocused();
+  await expect(contactControl).toContainText("Leah Martin");
+  await metadataForm.getByRole("button", { name: "Close", exact: true }).click();
+  await expect(colleague.getByRole("button", { name: /Change contact/ })).toBeHidden();
+  await colleague.getByRole("button", { name: "Continue editing application details" }).click();
+  await expect(contactControl).toContainText("Leah Martin");
+  await metadataForm.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(metadataForm).not.toBeVisible();
 
   await colleague.getByRole("button", { name: "Add staff summary" }).click();
   const contactDialog = colleague.getByRole("form", { name: "Edit staff summary" });
@@ -145,9 +142,19 @@ test("record, complete, recommend, and revise an application without a budget", 
   await colleague.close();
   await dialog.getByRole("button", { name: "Save", exact: true }).click();
 
-  await expect(dialog.getByRole("button", { name: "Keep my changes" })).toBeVisible();
+  const conflict = page.getByRole("region", { name: "Review conflicting changes" });
+  await expect(conflict).toBeVisible();
+  await expect(dialog).not.toBeVisible();
+  await expect(conflict.getByRole("region", { name: "Latest saved values" })).toBeVisible();
+  await expect(
+    conflict
+      .getByRole("region", { name: "Your unsaved changes" })
+      .getByText("Weekly shared meals for local residents.", { exact: true }),
+  ).toBeVisible();
 
-  await dialog.getByRole("button", { name: "Keep my changes" }).click();
+  await conflict.getByRole("button", { name: "Keep my changes" }).click();
+
+  await expect(conflict).not.toBeVisible();
 
   await expect(dialog.getByRole("textbox", { name: "Applicant’s response" })).toHaveValue(
     "Weekly shared meals for local residents.",
@@ -170,6 +177,35 @@ test("record, complete, recommend, and revise an application without a budget", 
   await expect(
     page.getByRole("button", { name: "Mark ready for review", exact: true }),
   ).toBeHidden();
+
+  await expect(page.getByRole("button", { name: /Change contact/ })).toBeHidden();
+  await page.getByRole("button", { name: "Edit application details", exact: true }).click();
+  const contactEditor = page.getByRole("group", { name: "Edit application details" });
+  await expect(contactEditor.getByRole("textbox")).toHaveCount(0);
+  const recordedContact = contactEditor.getByRole("button", {
+    name: "Change contact: Leah Martin",
+    exact: true,
+  });
+  await expect(recordedContact).toBeFocused();
+  await recordedContact.press("Enter");
+  const contactPicker = page.getByRole("dialog", { name: "Change contact" });
+  await expect(contactPicker.getByRole("textbox", { name: "Find a contact" })).toBeFocused();
+  await contactPicker.getByRole("option", { name: "No contact", exact: true }).click();
+  await expect(contactPicker).not.toBeVisible();
+  await expect(
+    contactEditor.getByRole("button", { name: "Change contact", exact: true }),
+  ).toBeFocused();
+  await contactEditor.getByRole("button", { name: "Close", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Edit application details", exact: true }),
+  ).toBeFocused();
+  await expect(page.getByRole("button", { name: /Change contact/ })).toBeHidden();
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await expect(
+    page
+      .getByRole("complementary", { name: "Application workspace" })
+      .getByText("Leah Martin", { exact: true }),
+  ).toBeVisible();
 
   await page.getByRole("button", { name: /Add recommendation for/ }).click();
   await page
@@ -202,20 +238,23 @@ test("record, complete, recommend, and revise an application without a budget", 
   await page.reload();
 
   await expect(page.getByRole("main")).toBeFocused();
-  await expect(page.getByText("€24,000 requested", { exact: true })).toBeVisible();
+  await expect(page.getByRole("definition").filter({ hasText: /^€24,000$/ })).toBeVisible();
 
   await page.getByRole("button", { name: "Record revision", exact: true }).click();
 
-  await expect(page.getByText("€28,000 requested", { exact: true })).toBeVisible();
+  await expect(page.getByRole("definition").filter({ hasText: /^€28,000$/ })).toBeVisible();
   await expect(
-    page.getByRole("region", { name: "Manager recommendation" }).getByText(/Earlier submission v/),
+    page
+      .getByRole("region", { name: "Manager recommendation" })
+      .getByText("Based on an earlier submission", { exact: true }),
   ).toBeVisible();
   await expect(
     page.getByText("The submitted plan supports funding.", { exact: true }),
   ).toBeVisible();
 
   await page.screenshot({ path: testInfo.outputPath("application-revised-review.png") });
-  await page.getByRole("button", { name: "View version history", exact: true }).click();
+  await page.getByRole("button", { name: /^Reference material:/ }).click();
+  await page.getByRole("menuitem", { name: "Version history", exact: true }).click();
 
   await expect(
     page
@@ -398,7 +437,7 @@ test("create and continue preparing a round and application", async ({ page }, t
 
   await expect(page).toHaveTitle("Neighbourhood meals · Merit");
   await expect(page.getByRole("main")).toBeFocused();
-  await expect(page.getByText("€12.50 requested", { exact: true })).toBeVisible();
+  await expect(page.getByRole("definition").filter({ hasText: /^€12\.50$/ })).toBeVisible();
   await expect(
     page
       .getByRole("complementary", { name: "Application workspace" })

@@ -10,7 +10,6 @@ import { reviewDraftSchema } from "./drafts";
 const stored = {
   mode: "edit",
   id: "assessment",
-  replacesId: null,
   revision: 0,
   applicationVersion: 2,
   criteriaVersion: 3,
@@ -42,3 +41,8 @@ it.each(["applicationVersion", "criteriaVersion"])(
     expect(reviewDraftSchema.safeParse({ ...stored, [field]: 0 }).success).toBe(false);
   },
 );
+
+it("rejects obsolete request drafts while retaining assessment drafts", () => {
+  expect(reviewDraftSchema.safeParse({ ...stored, mode: "request" }).success).toBe(false);
+  expect(reviewDraftSchema.safeParse({ ...stored, mode: "record" }).success).toBe(true);
+});

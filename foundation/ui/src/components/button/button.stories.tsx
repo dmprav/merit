@@ -81,6 +81,27 @@ export const Overview: Story = {
 };
 
 export const Playground: Story = {};
+export const AlignedWithContent: Story = {
+  args: {
+    variant: "quiet",
+    size: "small",
+    alignment: "start",
+    children: (
+      <>
+        Review details
+        <Icon name="right" />
+      </>
+    ),
+  },
+  render: (args) => (
+    <section className={localStyles.variant}>
+      <p>The reviewer supports the proposal with a revised amount.</p>
+      <div>
+        <Button {...args} />
+      </div>
+    </section>
+  ),
+};
 export const MutedSurface: Story = {
   args: { variant: "quiet", children: "Show details", "aria-expanded": false },
   parameters: {

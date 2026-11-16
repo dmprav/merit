@@ -22,9 +22,12 @@ in **Application actions**:
 
 The details editor keeps the reading view's label/value rows, replacing editable
 values with inputs while leaving the submission date read-only. The contact picker
-inside that form waits for Save; the standalone picker commits immediately and
-offers Undo. Explain when a working revision saves a contact change immediately
-while material remains unpublished.
+inside that form waits for Save. The reading view has one pencil beside the section
+heading and static contact information. For a recorded application without an active
+revision, that pencil opens a section edit mode: recorded facts stay read-only and
+the contact value becomes a picker. Contact selections commit immediately and offer
+Undo. Close returns focus to the section pencil and retains feedback and Undo; it
+is unavailable while a contact choice or nested editor is open or a save is pending.
 
 Show the staff summary in the working panel alongside application details. When
 absent, offer **Add staff summary** without an empty summary block. Submitted
@@ -38,16 +41,17 @@ and response together and use a section menu for moving or removing a section.
 unfinished writing with **Continue editing**. Saving or discarding one section
 must leave the others' drafts intact.
 
-Show missing-field guidance while preparation is incomplete; a complete record
-needs only **Mark ready for review**. Keep marking ready and recording a revision
+Keep the **Applicant submission** heading, preparation or revision status, version,
+edit pencil, and primary workflow action in one header that wraps on narrow screens.
+Show missing-field guidance while preparation is incomplete;
+a complete record needs only **Mark ready for review**. Keep marking ready and recording a revision
 separate from editing, after unsaved application content has been saved or
 discarded. During preparation, omit empty recommendation and review sections
 while retaining their actions. Existing deferrals, requests, and assessments stay
 visible.
 
-Keep **Correct intake** and **Discard working revision** in **Application actions**.
-Offer **Start revised submission** with submission management as well as in the
-actions menu. A recorded-title correction retains the current heading until the
+Keep **Start revised submission**, **Correct intake**, and **Discard working revision**
+in **Application actions**. A recorded-title correction retains the current heading until the
 correction is recorded. Identify the working revision and the version still current.
 Use **Review saved working revision** outside the editor and **View current
 submission** while editing, preserving unsaved writing. Shared-revision discard
@@ -60,15 +64,26 @@ the dialog, review the current work, and open confirmation again.
 Its confirmation is the destructive shared dialog titled with the application name,
 with a required **Withdrawal date** (defaulting to today) and **Reason**, and it names
 how many outstanding review requests will close only when there are some. While
-withdrawn, the intake status area shows a **Withdrawn** badge with the date, recorder,
-and reason, plus **Reinstate application**; every section edit, revision action,
+withdrawn, a distinct record under the submission heading shows the withdrawal
+date, recorder, and reason, plus **Reinstate application**; every section edit, revision action,
 and readiness action is hidden, and the reviews and recommendation editors follow.
 Reinstating asks for a reason and says closed review requests stay closed. Both
 confirmations keep the revision seen when they opened, like deletion.
 
-Version comparisons show changed material before and after. Keep unchanged
-sections readable once, marked **Unchanged**. Preserve attribution and routes to
-application history without making readers leave the comparison.
+Version and recorded-change comparisons open in **Changes**, showing changed fields
+and sections with labeled previous and recorded values. **Full record** replaces
+the comparison with the complete before and after records, including unchanged
+material. Use saved event snapshots for recorded changes; when a snapshot is
+absent, show the available record with an explanation instead of a diff. Keep
+reasons and attribution visible in either mode.
+
+An intake conflict temporarily replaces the form with one reconciliation task.
+Compare the saved and unsaved values for that editor, with labeled facts and
+formatted amounts. Keep invalid recovered amounts exact. Choosing a resolution
+returns to editing for review before saving; closing preserves the original draft.
+
+`SubmissionAnswers` owns the shared reading layout for manager and reviewer
+submissions. Each caller supplies only its authorized source and owns its heading.
 
 ## Connect editors to intake actions
 
@@ -77,6 +92,11 @@ section eligibility, opening an editor, original revision baselines, and save
 commands. Forms receive its focused editor interface and supply edited values.
 The pure [intake state helpers](../../controllers/intake/intake-state.ts) build
 section saves and title corrections from those values and their baselines.
+They also construct the saved and unsaved comparison sources, retaining omitted
+versus cleared contacts and exact recovery text. The controller identifies whether
+application details offer intake editing, immediate contact editing, or reading
+only. Edit buttons receive presentation state and an action; they do not reconstruct
+that choice or impersonate another workflow's controller.
 Keep this coordination out of controls so a background refresh cannot silently
 replace the revision against which someone started writing.
 

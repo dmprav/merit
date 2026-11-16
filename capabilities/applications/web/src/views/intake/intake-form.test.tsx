@@ -15,7 +15,10 @@ import { GrantmakingMessagesProvider } from "../../testing/providers";
 import { GrantmakingDrafts } from "../../testing/providers";
 import { IntakeForm } from "./intake-form";
 
-vi.mock("@merit/contacts-web/contacts", () => ({ ContactPicker: () => null }));
+vi.mock("@merit/contacts-web/contacts", () => ({
+  ContactPicker: () => null,
+  ContactLabel: ({ fallback }: { fallback: ReactNode }) => fallback,
+}));
 
 const application = applicationView(
   makeApplication({
@@ -72,17 +75,18 @@ const Session = ({
   return (
     <>
       <button onClick={() => intake.open(section)}>Edit</button>
+      <button>Read application reference</button>
       <IntakeForm editor={intake.editor} onClose={intake.close} />
     </>
   );
 };
 
-const renderForm = (section: IntakeSection) => {
+const renderForm = (section: IntakeSection, initialWorking = working) => {
   const data: IntakeData = {
     draftKey: "conflicting-intake",
     workspaceSlug: "alder",
     publicId: "b8q3w5j7c2df",
-    state: { revision: 1, workingRevision: working, history: [] },
+    state: { revision: 1, workingRevision: initialWorking, history: [] },
     save: vi.fn<IntakeData["save"]>().mockResolvedValue({ status: "ok", revision: 3 }),
     refresh: async () => {},
     refreshCurrent: async () => {},
@@ -109,13 +113,7 @@ const sections = [
   {
     section: "metadata",
     field: "Applicant",
-    saved: [
-      "Applicant: Saved applicant",
-      "Requested amount: 28000.00",
-      "Applicant contact: Leah",
-      "Project dates: Summer",
-      "Saved explanation",
-    ],
+    saved: ["Saved applicant", "€28,000", "Leah", "Summer", "Saved explanation"],
   },
   {
     section: "content",
@@ -125,7 +123,10 @@ const sections = [
   { section: "details", field: "Staff summary", saved: ["Saved summary"] },
 ] as const;
 
-const conflictedForm = async (section: (typeof sections)[number]["section"]) => {
+const conflictedForm = async (
+  section: (typeof sections)[number]["section"],
+  readingReference = false,
+) => {
   const rendered = renderForm(section);
   const { user, data, rerender } = rendered;
   const field = sections.find((item) => item.section === section)!.field;
@@ -137,6 +138,9 @@ const conflictedForm = async (section: (typeof sections)[number]["section"]) => 
     fireEvent.change(screen.getByRole("textbox", { name: "What changed and why" }), {
       target: { value: "My explanation" },
     });
+  }
+  if (readingReference) {
+    await user.click(screen.getByRole("button", { name: "Read application reference" }));
   }
   rerender(
     <Session
@@ -153,21 +157,23 @@ const conflictedForm = async (section: (typeof sections)[number]["section"]) => 
 };
 
 it.each(sections)(
-  "shows the saved $section values and keeps save disabled until the conflict is resolved",
+  "compares saved and unsaved $section values before editing resumes",
   async ({ section, field, saved }) => {
-    const { user, data } = await conflictedForm(section);
+    const { data } = await conflictedForm(section);
 
-    expect(screen.getByRole("textbox", { name: field })).toHaveValue("My unfinished changes");
-    const save = screen.getByRole("button", {
-      name: section === "details" ? "Save" : "Save working revision",
-    });
-    expect(save).toBeDisabled();
-    await user.click(save);
+    expect(screen.queryByRole("textbox", { name: field })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", {
+        name: section === "details" ? "Save" : "Save working revision",
+      }),
+    ).not.toBeInTheDocument();
+    const draft = within(screen.getByRole("region", { name: "Your unsaved changes" }));
+    expect(draft.getByText("My unfinished changes")).toBeVisible();
+    expect(screen.getAllByRole("heading", { name: "Review conflicting changes" })).toHaveLength(1);
     expect(data.save).not.toHaveBeenCalled();
 
-    const disclosure = screen.getByText("Latest saved values", { exact: true });
-    await user.click(disclosure);
-    const preview = within(disclosure.parentElement!);
+    const preview = within(screen.getByRole("region", { name: "Latest saved values" }));
+    expect(preview.getByRole("heading", { name: "Latest saved values" })).toBeVisible();
     for (const value of saved) {
       expect(preview.getByText(value, { exact: true })).toBeVisible();
     }
@@ -207,3 +213,75 @@ it.each(["Keep my changes", "Use saved values"] as const)(
     ]);
   },
 );
+
+it("limits entered money precision while retaining invalid recovered amounts for validation", async () => {
+  const { user, data, rerender } = renderForm("metadata");
+  await user.click(screen.getByRole("button", { name: "Edit" }));
+  const amount = screen.getByRole("textbox", { name: "Requested amount" });
+  await user.clear(amount);
+  await user.type(amount, "24,001");
+  expect(amount).toHaveValue("24.00");
+
+  await user.click(screen.getByRole("button", { name: "Discard changes" }));
+  rerender(
+    <Session
+      section="metadata"
+      data={{
+        ...data,
+        state: {
+          ...data.state,
+          workingRevision: { ...working, content: { ...working.content, requested: "24.001" } },
+        },
+      }}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: "Edit" }));
+  expect(screen.getByRole("textbox", { name: "Requested amount" })).toHaveValue("24.001");
+  await user.click(screen.getByRole("button", { name: "Save working revision" }));
+  expect(
+    screen.getByText("Enter a nonnegative amount with at most two decimal places."),
+  ).toBeVisible();
+  expect(data.save).not.toHaveBeenCalled();
+});
+
+it("keeps invalid recovered amounts exact in the conflict comparison", async () => {
+  const { user, data, rerender } = renderForm("metadata", {
+    ...working,
+    content: { ...working.content, requested: "24.001" },
+  });
+  await user.click(screen.getByRole("button", { name: "Edit" }));
+  rerender(
+    <Session
+      section="metadata"
+      data={{ ...data, state: { ...data.state, revision: 2, workingRevision: latest } }}
+    />,
+  );
+  const draft = within(screen.getByRole("region", { name: "Your unsaved changes" }));
+  expect(draft.getByText("24.001")).toBeVisible();
+  expect(draft.queryByText("€24")).not.toBeInTheDocument();
+  expect(data.save).not.toHaveBeenCalled();
+});
+
+it("moves focus from a replaced editor to its reconciliation heading", async () => {
+  await conflictedForm("metadata");
+  expect(screen.getByRole("heading", { name: "Review conflicting changes" })).toHaveFocus();
+});
+
+it("keeps reference focus when an editor becomes conflicted in the background", async () => {
+  await conflictedForm("metadata", true);
+  expect(screen.getByRole("region", { name: "Review conflicting changes" })).toBeVisible();
+  expect(screen.getByRole("button", { name: "Read application reference" })).toHaveFocus();
+});
+
+it("closes an unresolved conflict with Escape and retains the draft for reopening", async () => {
+  const { user, data } = await conflictedForm("metadata");
+  await user.keyboard("{Escape}");
+  expect(
+    screen.queryByRole("region", { name: "Review conflicting changes" }),
+  ).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Edit" }));
+  const draft = within(screen.getByRole("region", { name: "Your unsaved changes" }));
+  expect(draft.getByText("My unfinished changes")).toBeVisible();
+  expect(screen.getByRole("heading", { name: "Review conflicting changes" })).toHaveFocus();
+  expect(data.save).not.toHaveBeenCalled();
+});

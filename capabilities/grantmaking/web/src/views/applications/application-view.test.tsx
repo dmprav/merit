@@ -1,5 +1,5 @@
 import { QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ComponentProps } from "react";
 import { describe, expect, it, vi } from "vite-plus/test";
@@ -86,7 +86,119 @@ const application = applicationView(
 const workspace = () =>
   within(screen.getByRole("complementary", { name: "Application workspace" }));
 
+const reference = () => within(screen.getByRole("group", { name: "Reference" }));
+
 describe("application workspace", () => {
+  it("opens the requested review or full list when leaving a criteria inspection", async () => {
+    const user = userEvent.setup();
+    render(<ApplicationView round={round} application={application} />, {
+      wrapper: GrantmakingMessagesProvider,
+    });
+    await user.click(workspace().getByRole("button", { name: /Sam Morgan/ }));
+    await user.click(reference().getByRole("button", { name: "View criteria used" }));
+    await user.click(workspace().getByRole("button", { name: /Jules Patel/ }));
+    expect(reference().getByRole("article", { name: "Jules Patel" })).toBeVisible();
+    expect(
+      reference().queryByRole("heading", { name: "Criteria reviewed" }),
+    ).not.toBeInTheDocument();
+    await user.click(workspace().getByRole("button", { name: "All assessments" }));
+    await user.click(reference().getByRole("button", { name: "Review details" }));
+    await user.click(reference().getByRole("button", { name: "View criteria used" }));
+    await user.click(workspace().getByRole("button", { name: "All assessments" }));
+    expect(reference().getByRole("article", { name: "Assessment by Sam Morgan" })).toBeVisible();
+    expect(reference().getByRole("article", { name: "Jules Patel" })).toBeVisible();
+    expect(
+      reference().queryByRole("heading", { name: "Criteria reviewed" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("opens the manager recommendation's actual earlier submission basis", async () => {
+    const user = userEvent.setup();
+    render(
+      <ApplicationView
+        round={round}
+        application={{
+          ...application,
+          managerRecommendation: {
+            ...application.managerRecommendation!,
+            recorded: { date: "2027-01-18", applicationVersion: 1 },
+          },
+        }}
+      />,
+      { wrapper: GrantmakingMessagesProvider },
+    );
+    const recommendation = within(
+      workspace().getByRole("region", { name: "Manager recommendation" }),
+    );
+    const qualification = recommendation.getByText("Based on an earlier submission");
+    expect(qualification).toBeVisible();
+    expect(
+      qualification.compareDocumentPosition(
+        recommendation.getByText("Await the revised assessment."),
+      ) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    await user.click(recommendation.getByRole("button", { name: "Compare changes" }));
+    expect(
+      screen.getByRole("button", { name: "Reference material: Version history" }),
+    ).toBeVisible();
+    expect(
+      screen.getByText(
+        "Version 1 is not available for comparison. Choose another recorded version.",
+      ),
+    ).toBeVisible();
+  });
+
+  it("keeps an unknown recommendation basis explicit without inventing a comparison", () => {
+    render(
+      <ApplicationView
+        round={round}
+        application={{
+          ...application,
+          managerRecommendation: { ...application.managerRecommendation!, recorded: undefined },
+        }}
+      />,
+      { wrapper: GrantmakingMessagesProvider },
+    );
+    const recommendation = within(
+      workspace().getByRole("region", { name: "Manager recommendation" }),
+    );
+    expect(recommendation.getByText("Submission basis not known")).toBeVisible();
+    expect(
+      recommendation.queryByRole("button", { name: "Compare changes" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("returns from criteria to the same assessment and reading position beside an open draft", async () => {
+    const user = userEvent.setup();
+    render(
+      <ApplicationView
+        round={round}
+        application={application}
+        tab="reviews"
+        editor={<input aria-label="Recommendation draft" />}
+      />,
+      { wrapper: GrantmakingMessagesProvider },
+    );
+    const writing = workspace().getByRole("textbox", { name: "Recommendation draft" });
+    await user.type(writing, "Keep this reasoning");
+    const viewport = screen.getByRole("group", { name: "Reference" });
+    viewport.scrollTop = 240;
+    await user.click(reference().getByRole("button", { name: "Review details" }));
+    viewport.scrollTop = 160;
+    await user.click(reference().getByRole("button", { name: "View criteria used" }));
+    expect(reference().getByRole("heading", { name: "Criteria reviewed" })).toHaveFocus();
+    expect(reference().queryByRole("article")).not.toBeInTheDocument();
+    expect(workspace().getByRole("textbox", { name: "Recommendation draft" })).toBe(writing);
+    expect(writing).toHaveValue("Keep this reasoning");
+    viewport.scrollTop = 80;
+    await user.click(reference().getByRole("button", { name: "Back to assessment" }));
+    expect(reference().getByRole("button", { name: "View criteria used" })).toHaveFocus();
+    expect(viewport.scrollTop).toBe(160);
+    await user.click(reference().getByRole("button", { name: "Back to assessments" }));
+    expect(reference().getByRole("button", { name: "Review details" })).toHaveFocus();
+    expect(viewport.scrollTop).toBe(240);
+  });
+
   it("opens the submission, separate staff summary and review overview together", () => {
     render(
       <ApplicationView
@@ -119,34 +231,30 @@ describe("application workspace", () => {
     expect(screen.queryByRole("article", { name: /Assessment by/ })).not.toBeInTheDocument();
   });
 
-  it("opens one full assessment beside the submission and returns to the overview", async () => {
+  it("opens an assessment in the reference pane and returns focus to its overview row", async () => {
     const user = userEvent.setup();
     render(<ApplicationView round={round} application={application} />, {
       wrapper: GrantmakingMessagesProvider,
     });
     await user.click(workspace().getByRole("button", { name: /Sam Morgan/ }));
     const assessment = within(
-      workspace().getByRole("article", { name: "Assessment by Sam Morgan" }),
+      reference().getByRole("article", { name: "Assessment by Sam Morgan" }),
     );
 
-    expect(workspace().getByRole("heading", { name: "Assessment" })).toHaveFocus();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Assessment" })).toHaveFocus());
     expect(assessment.getByText("Recommends funding", { exact: true })).toBeVisible();
     expect(assessment.getByText("€18,000 proposed")).toBeVisible();
-    expect(assessment.getByText("14 January 2027", { exact: true })).toBeVisible();
-    expect(
-      assessment.getByText("Application changed since this assessment", { exact: true }),
-    ).toBeVisible();
-    expect(workspace().queryByText("Jules Patel")).not.toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Project overview" })).toBeVisible();
+    expect(assessment.getByText(/14 January 2027/)).toBeVisible();
+    expect(assessment.getByText("Based on an earlier submission", { exact: true })).toBeVisible();
+    expect(reference().queryByText("Jules Patel")).not.toBeInTheDocument();
+    expect(workspace().getByRole("region", { name: "Manager recommendation" })).toBeVisible();
 
-    await user.click(assessment.getByText("Review details"));
-    const details = within(screen.getByRole("dialog", { name: "Review details" }));
+    const details = within(screen.getByRole("region", { name: "Review details" }));
 
     expect(details.getByText("Submission", { exact: true })).toBeVisible();
-    expect(details.getByText("Version 1", { exact: true })).toBeVisible();
+    expect(details.getAllByText("Version 1", { exact: true })).toHaveLength(2);
 
-    await user.keyboard("{Escape}");
-    await user.click(workspace().getByRole("button", { name: "Back to overview" }));
+    await user.click(reference().getByRole("button", { name: "Back to assessments" }));
 
     expect(workspace().getByRole("region", { name: "Manager recommendation" })).toBeVisible();
     await waitFor(() =>
@@ -154,7 +262,7 @@ describe("application workspace", () => {
     );
   });
 
-  it("preserves the selected review through editing and restores its heading when editing closes", async () => {
+  it("preserves the selected review through editing without interrupting writing focus", async () => {
     const user = userEvent.setup();
     const props = { round, application };
     const view = render(<ApplicationView {...props} />, {
@@ -169,12 +277,11 @@ describe("application workspace", () => {
 
     expect(input).toHaveFocus();
     expect(input).toHaveValue("Keep this reasoning");
-    expect(workspace().queryByRole("article", { name: /Assessment by/ })).not.toBeInTheDocument();
+    expect(reference().getByRole("article", { name: "Assessment by Sam Morgan" })).toBeVisible();
 
     view.rerender(<ApplicationView {...props} tab="reviews" />);
 
-    expect(workspace().getByRole("article", { name: "Assessment by Sam Morgan" })).toBeVisible();
-    expect(workspace().getByRole("heading", { name: "Assessment" })).toHaveFocus();
+    expect(reference().getByRole("article", { name: "Assessment by Sam Morgan" })).toBeVisible();
   });
 
   it("keeps pending requests distinct from a submitted funding judgment", async () => {
@@ -189,12 +296,12 @@ describe("application workspace", () => {
     expect(choice).not.toHaveTextContent("€0");
 
     await user.click(choice);
-    const pending = within(workspace().getByRole("article", { name: "Jules Patel" }));
+    const pending = within(reference().getByRole("article", { name: "Jules Patel" }));
 
     expect(pending.getByText("Awaiting assessment")).toBeVisible();
     expect(pending.queryByText("No funding proposed")).not.toBeInTheDocument();
     expect(pending.queryByText("Recommends deferral")).not.toBeInTheDocument();
-    expect(workspace().queryByRole("article", { name: /Assessment by/ })).not.toBeInTheDocument();
+    expect(reference().queryByRole("article", { name: /Assessment by/ })).not.toBeInTheDocument();
   });
 
   it("opens all reviews in the reference pane while retaining the overview", async () => {
@@ -267,7 +374,7 @@ describe("application workspace", () => {
     render(<ApplicationView round={round} application={conditional} />, {
       wrapper: GrantmakingMessagesProvider,
     });
-    await user.click(workspace().getByRole("button", { name: "Manage reviews" }));
+    await user.click(workspace().getByRole("button", { name: "All assessments" }));
     const sam = within(screen.getByRole("article", { name: "Assessment by Sam Morgan" }));
     const jules = within(screen.getByRole("article", { name: "Assessment by Jules Patel" }));
 
@@ -280,8 +387,10 @@ describe("application workspace", () => {
 
     expect(manager.getByText("Fund with a condition")).toBeVisible();
     expect(manager.getByText("€28,000 proposed")).toBeVisible();
+    await waitFor(() => expect(screen.getByRole("group", { name: "Reference" })).toHaveFocus());
 
-    await user.click(screen.getByRole("button", { name: "Back to application" }));
+    await user.click(screen.getByRole("button", { name: /^Reference material:/ }));
+    await user.click(screen.getByRole("menuitem", { name: "Applicant submission" }));
 
     expect(screen.getByRole("heading", { name: "Project overview" })).toBeVisible();
     expect(screen.queryByRole("article", { name: /Assessment by/ })).not.toBeInTheDocument();
@@ -318,18 +427,18 @@ describe("application workspace", () => {
 
     await user.click(choice);
     const assessment = within(
-      workspace().getByRole("article", { name: "Assessment by Sam Morgan" }),
+      reference().getByRole("article", { name: "Assessment by Sam Morgan" }),
     );
 
     expect(assessment.getByText("Review basis unknown")).toBeVisible();
 
-    await user.click(assessment.getByText("Review details"));
-    const details = within(screen.getByRole("dialog", { name: "Review details" }));
+    const details = within(screen.getByRole("region", { name: "Review details" }));
     const submission = details.getByText("Submission", { exact: true });
 
     expect(submission.nextElementSibling).toHaveTextContent("Not known");
 
-    const criteria = details.getByRole("heading", { name: "Criteria reviewed" }).parentElement!;
+    await user.click(details.getByRole("button", { name: "View criteria used" }));
+    const criteria = screen.getByRole("region", { name: "Criteria reviewed" });
 
     expect(within(criteria).getByText("Not known", { exact: true })).toBeVisible();
   });
@@ -382,7 +491,7 @@ describe("application workspace", () => {
     expect(recommendation.getByText("Not yet recommended")).toBeVisible();
     expect(recommendation.queryByText("Defer")).not.toBeInTheDocument();
 
-    await user.click(workspace().getByRole("button", { name: "Manage reviews" }));
+    await user.click(workspace().getByRole("button", { name: "All assessments" }));
 
     expect(screen.getByText("No assessments or review requests yet.")).toBeVisible();
   });
@@ -430,10 +539,12 @@ describe("application workspace", () => {
       );
 
       expect(screen.queryByRole("button", { name: "Edit recommendation" })).not.toBeInTheDocument();
+      expect(screen.queryByText("Read only", { exact: true })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "More actions" })).not.toBeInTheDocument();
 
       await user.click(workspace().getByRole("button", { name: /Sam Morgan/ }));
 
-      expect(workspace().getByRole("article", { name: "Assessment by Sam Morgan" })).toBeVisible();
+      expect(reference().getByRole("article", { name: "Assessment by Sam Morgan" })).toBeVisible();
       expect(screen.queryByRole("button", { name: /Assessment actions/ })).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Record assessment" })).not.toBeInTheDocument();
     },
@@ -461,7 +572,7 @@ describe("application workspace", () => {
       { wrapper: GrantmakingMessagesProvider },
     );
     expect(screen.getByRole("button", { name: "Edit recommendation" })).toBeVisible();
-    await user.click(workspace().getByRole("button", { name: "Manage reviews" }));
+    await user.click(workspace().getByRole("button", { name: "All assessments" }));
     expect(screen.getByRole("button", { name: "Add review request" })).toBeVisible();
     view.unmount();
 
@@ -485,12 +596,12 @@ describe("application workspace", () => {
     );
 
     expect(screen.queryByRole("button", { name: "Edit recommendation" })).not.toBeInTheDocument();
-    await user.click(workspace().getByRole("button", { name: "Manage reviews" }));
+    await user.click(workspace().getByRole("button", { name: "All assessments" }));
     expect(screen.queryByRole("button", { name: "Add review request" })).not.toBeInTheDocument();
     expect(workspace().getByRole("region", { name: "Manager recommendation" })).toBeVisible();
     expect(workspace().getByText("Await the revised assessment.")).toBeVisible();
     await user.click(workspace().getByRole("button", { name: /Sam Morgan/ }));
-    expect(workspace().getByRole("article", { name: "Assessment by Sam Morgan" })).toBeVisible();
+    expect(reference().getByRole("article", { name: "Assessment by Sam Morgan" })).toBeVisible();
     expect(screen.queryByRole("button", { name: /Assessment actions/ })).not.toBeInTheDocument();
   });
 
@@ -520,6 +631,30 @@ describe("application workspace", () => {
       expect(screen.getByRole("textbox", { name: "Recommendation draft" })).toBe(editor);
       expect(editor).toHaveValue("Keep this reasoning");
       expect(screen.queryByRole("button", { name: "Back to application" })).not.toBeInTheDocument();
+      if (name === "Reviewer assessments") {
+        const reviews = within(screen.getByRole("region", { name: "Reviewer assessments" }));
+        const reference = screen.getByRole("group", { name: "Reference" });
+        await act(async () => {
+          await new Promise(requestAnimationFrame);
+        });
+        reference.scrollTop = 275;
+        await user.click(reviews.getByRole("button", { name: "Review details" }));
+        expect(reviews.getByRole("region", { name: "Review details" })).toBeVisible();
+        expect(reviews.getByRole("heading", { name: "Review details" })).toHaveFocus();
+        expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+        expect(screen.getByRole("textbox", { name: "Recommendation draft" })).toBe(editor);
+        reference.scrollTop = 0;
+        await user.click(reviews.getByRole("button", { name: "Back to assessments" }));
+        expect(reference.scrollTop).toBe(275);
+        await waitFor(() =>
+          expect(reviews.getByRole("button", { name: "Review details" })).toHaveFocus(),
+        );
+        await user.click(reviews.getByRole("button", { name: /Request history/ }));
+        expect(reviews.getByRole("region", { name: "Request history" })).toBeVisible();
+        expect(screen.getByRole("textbox", { name: "Recommendation draft" })).toBe(editor);
+        expect(editor).toHaveValue("Keep this reasoning");
+        await user.click(reviews.getByRole("button", { name: "Back to assessments" }));
+      }
     }
 
     expect(screen.getByRole("heading", { name: "Project overview" })).toBeVisible();
@@ -531,8 +666,11 @@ describe("application workspace", () => {
     const view = render(<ApplicationView {...props} tab="reviews" />, {
       wrapper: GrantmakingMessagesProvider,
     });
-    await user.click(screen.getByRole("button", { name: "Back to application" }));
-    await user.click(screen.getByRole("button", { name: "View version history" }));
+    await user.click(screen.getByRole("button", { name: /^Reference material:/ }));
+    await user.click(screen.getByRole("menuitem", { name: "Applicant submission" }));
+    await waitFor(() => expect(screen.getByRole("group", { name: "Reference" })).toHaveFocus());
+    await user.click(screen.getByRole("button", { name: /^Reference material:/ }));
+    await user.click(screen.getByRole("menuitem", { name: "Version history" }));
     view.rerender(<ApplicationView {...props} tab="evidence" />);
 
     expect(screen.getByRole("region", { name: "Version history" })).toBeVisible();
@@ -548,22 +686,27 @@ describe("application workspace", () => {
     render(<ApplicationView round={round} application={application} />, {
       wrapper: GrantmakingMessagesProvider,
     });
-    await user.click(screen.getByRole("button", { name: "View version history" }));
+    await user.click(screen.getByRole("button", { name: /^Reference material:/ }));
+    await user.click(screen.getByRole("menuitem", { name: "Version history" }));
 
     expect(
       screen.getByText("An earlier submission is not available for comparison."),
     ).toBeVisible();
+    await waitFor(() => expect(screen.getByRole("group", { name: "Reference" })).toHaveFocus());
 
-    await user.click(screen.getByRole("button", { name: "Back to application" }));
+    await user.click(screen.getByRole("button", { name: /^Reference material:/ }));
+    await user.click(screen.getByRole("menuitem", { name: "Applicant submission" }));
     await user.click(workspace().getByRole("button", { name: /Sam Morgan/ }));
-    await user.click(workspace().getByRole("button", { name: "View version history" }));
+    await user.click(reference().getByRole("button", { name: "Compare changes" }));
 
     expect(
       screen.getByText(
         "Version 1 is not available for comparison. Choose another recorded version.",
       ),
     ).toBeVisible();
-    expect(workspace().getByRole("article", { name: "Assessment by Sam Morgan" })).toBeVisible();
+    expect(
+      reference().queryByRole("article", { name: "Assessment by Sam Morgan" }),
+    ).not.toBeInTheDocument();
   });
 });
 
@@ -576,7 +719,8 @@ it("restores each reference position on external tab changes without requesting 
   });
   const reference = screen.getByRole("group", { name: "Reference" });
   reference.scrollTop = 250;
-  await user.click(screen.getByRole("button", { name: "Back to application" }));
+  await user.click(screen.getByRole("button", { name: /^Reference material:/ }));
+  await user.click(screen.getByRole("menuitem", { name: "Applicant submission" }));
   await waitFor(() => expect(reference.scrollTop).toBe(0));
   view.rerender(<ApplicationView {...props} tab="evidence" />);
   reference.scrollTop = 100;
@@ -587,4 +731,76 @@ it("restores each reference position on external tab changes without requesting 
   view.rerender(<ApplicationView {...props} tab="evidence" />);
   await waitFor(() => expect(reference.scrollTop).toBe(100));
   expect(requested).toEqual(["evidence"]);
+});
+
+it("keeps one assessment form in the work pane while references change and resumes its preserved draft", async () => {
+  const user = userEvent.setup();
+  const data = {
+    draftKey: "single-review-controller",
+    workspaceSlug: "alder",
+    save: vi.fn(),
+    refresh: vi.fn(),
+  };
+  render(
+    <QueryClientProvider client={createQueryClient()}>
+      <GrantmakingDrafts storageScope="single-review-controller">
+        <ApplicationView application={application} round={round} reviewData={data} tab="reviews" />
+      </GrantmakingDrafts>
+    </QueryClientProvider>,
+    { wrapper: GrantmakingMessagesProvider },
+  );
+  await user.click(screen.getByRole("button", { name: "Assessment actions for Sam Morgan" }));
+  await user.click(screen.getByRole("menuitem", { name: "Edit recorded assessment" }));
+  const form = workspace().getByRole("form", { name: "Edit recorded assessment" });
+  const writing = within(form).getByRole("textbox", { name: "Assessment text" });
+  await user.clear(writing);
+  await user.type(writing, "A preserved assessment draft.");
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  for (const label of ["Applicant submission", "Reviewer assessments", "Application details"]) {
+    await user.click(screen.getByRole("button", { name: /^Reference material:/ }));
+    await user.click(screen.getByRole("menuitem", { name: label }));
+    expect(workspace().getByRole("form", { name: "Edit recorded assessment" })).toBe(form);
+    expect(writing).toHaveValue("A preserved assessment draft.");
+  }
+  await act(async () => {
+    await new Promise(requestAnimationFrame);
+  });
+  await user.click(within(form).getByRole("button", { name: "Close" }));
+  const resume = workspace().getByRole("button", { name: "Resume editing" });
+  await waitFor(() => expect(resume).toHaveFocus());
+  await user.click(resume);
+  expect(workspace().getByRole("textbox", { name: "Assessment text" })).toHaveValue(
+    "A preserved assessment draft.",
+  );
+  await user.click(workspace().getByRole("button", { name: "Discard draft" }));
+  expect(data.save).not.toHaveBeenCalled();
+});
+
+it("keeps assessment reading available and disables authoring while a recommendation task is open", () => {
+  render(
+    <QueryClientProvider client={createQueryClient()}>
+      <GrantmakingDrafts storageScope="recommendation-active">
+        <ApplicationView
+          application={application}
+          round={round}
+          tab="reviews"
+          editor={<input aria-label="Recommendation draft" />}
+          reviewData={{
+            draftKey: "recommendation-active",
+            workspaceSlug: "alder",
+            save: vi.fn(),
+            refresh: vi.fn(),
+          }}
+        />
+      </GrantmakingDrafts>
+    </QueryClientProvider>,
+    { wrapper: GrantmakingMessagesProvider },
+  );
+  expect(reference().getByRole("article", { name: "Assessment by Sam Morgan" })).toBeVisible();
+  expect(
+    reference().getByRole("button", { name: "Assessment actions for Sam Morgan" }),
+  ).toBeDisabled();
+  expect(reference().getByRole("button", { name: "Record assessment" })).toBeDisabled();
+  expect(reference().getByRole("button", { name: "Review details" })).toBeEnabled();
+  expect(workspace().getByRole("textbox", { name: "Recommendation draft" })).toBeVisible();
 });

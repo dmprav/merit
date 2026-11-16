@@ -14,9 +14,10 @@ submission follows the same validation as the visible button.
 
 All form dialogs share a stable desktop position, context header, backdrop,
 responsive spacing, and tinted footer. The default width fits shorter forms,
-such as inviting a member or entering contact details. Use `size="wide"` for
-sustained writing, such as creating an application or recording a review. Size
-changes the available width within the same
+such as inviting a member or entering contact details. Use `size="wide"` when
+a bounded form needs more room. Sustained assessment or recommendation writing
+belongs in the [reference workspace](?path=/docs/patterns-reference-workspace--docs)
+work pane, keeping its source material available. Size changes the available width within the same
 [content layout](?path=/docs/components-dialog--docs).
 
 <Canvas of={FormDialogs.Compact} />
@@ -32,6 +33,10 @@ arrange their fields inside it; they do not need their own scroll or footer CSS.
 Shared forms separate their children by `space-2` (8 px); individual fields own
 label and feedback spacing, as described by the [field guidance](?path=/docs/components-fields--docs).
 Nested forms retain their own presentation and submit independently.
+
+Form fields and explanatory prose use the shared body typography. Reading
+material can use its own reading treatment; important consequences remain in the
+form body beside the action they explain.
 
 <Canvas of={FormDialogs.LongContent} />
 

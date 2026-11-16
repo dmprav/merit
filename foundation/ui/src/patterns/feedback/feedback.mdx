@@ -40,6 +40,18 @@ above the tinted action footer and outside the scrolling body. Feedback stays
 visible while the footer retains its single purpose: committing or leaving the
 task. Field validation stays beside its field.
 
+When field messages explain what needs correcting, focus the first invalid field
+instead of repeating a generic validation banner. Reserve form-level feedback for
+problems that cannot be assigned to one field, such as a failed save.
+
+A concurrent edit needs a short warning and an explicit reconciliation step.
+Keep the affected record's saved and local content in a neutral comparison beneath
+the warning, with matching labels and clearly named choices. Explain changed
+application or review context separately when it affects the draft; an entire
+collection of unrelated records is not a comparison of that draft. Long drafts
+are reading material, not part of the warning container. The feature owns which differences matter, whether editing can
+continue, and the revision checks required before a choice can be saved.
+
 Use accessible danger text for inline errors, consistent with field validation;
 color and icons supplement the explanation. Other inline Notice tones retain
 normal text contrast. A compact warning about a prospective side effect follows

@@ -2,7 +2,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ResourceLanguage } from "i18next";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { expect, it, vi } from "vite-plus/test";
 
 import type { IntakeData, IntakeState } from "@merit/applications-web/contracts";
@@ -54,6 +54,7 @@ const renderIntake = (
   storageScope?: string,
   messages: ResourceLanguage = grantmakingMessages,
   base = original,
+  editor?: ReactNode,
 ) => {
   const calls = vi.fn<IntakeData["save"]>();
 
@@ -118,6 +119,7 @@ const renderIntake = (
         round={round}
         intakeState={intake}
         intake={session}
+        editor={editor}
       />
     );
   };
@@ -192,11 +194,13 @@ it("translates the requested-amount rule and permits a corrected draft", async (
   await user.click(await screen.findByRole("button", { name: "Edit application details" }));
   calls.mockClear();
   const amount = await screen.findByRole("textbox", { name: "Requested amount" });
-  fireEvent.change(amount, { target: { value: "-1" } });
+  fireEvent.change(amount, { target: { value: "." } });
   await user.click(await screen.findByRole("button", { name: "Save working revision" }));
 
-  expect(amount).toHaveAccessibleDescription("Translated amount rule Euros");
-  expect(amount).toHaveValue("-1");
+  expect(screen.getByRole("textbox", { name: "Requested amount" })).toHaveAccessibleDescription(
+    "Translated amount rule Euros",
+  );
+  expect(screen.getByRole("textbox", { name: "Requested amount" })).toHaveValue(".");
   expect(calls).not.toHaveBeenCalled();
 
   fireEvent.change(amount, { target: { value: "29000.50" } });
@@ -212,32 +216,78 @@ it("translates the requested-amount rule and permits a corrected draft", async (
   });
 });
 
-it("retains a committed action's refresh warning and retries the read without repeating the write", async () => {
-  const refresh = vi
-    .fn<IntakeData["refresh"]>()
-    .mockRejectedValueOnce(new Error("Offline"))
-    .mockRejectedValueOnce(new Error("Still offline"))
-    .mockResolvedValue(undefined);
-  const { user, calls } = renderIntake(refresh);
-  await user.click(await screen.findByRole("button", { name: "Application actions" }));
-  await user.click(await screen.findByRole("menuitem", { name: "Start revised submission" }));
+it.each(["Start revised submission", "Correct intake"])(
+  "keeps a failed %s action visible with the active submission",
+  async (action) => {
+    const { user, calls } = renderIntake();
+    calls.mockResolvedValueOnce({ status: "unavailable" });
+    await user.click(screen.getByRole("button", { name: "Application actions" }));
+    await user.click(screen.getByRole("menuitem", { name: action }));
 
-  expect(await screen.findByRole("alert")).toHaveTextContent("Your change was saved");
+    const submission = within(screen.getByRole("region", { name: "Applicant submission" }));
+    expect(await submission.findByRole("alert")).toHaveTextContent(
+      "Could not save the application",
+    );
+    expect(
+      submission.queryByRole("button", { name: "Start revised submission" }),
+    ).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("group", { name: "Reference" })).toHaveFocus());
+    await user.click(screen.getByRole("button", { name: "Application actions" }));
+    expect(await screen.findByRole("menuitem", { name: action })).toBeVisible();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("heading", { name: "Working revision" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Working correction" })).not.toBeInTheDocument();
+    expect(calls).toHaveBeenCalledExactlyOnceWith(
+      { action: "start_revision", kind: action === "Correct intake" ? "correction" : "revision" },
+      0,
+    );
+  },
+);
 
-  await user.click(await screen.findByRole("button", { name: "Refresh application" }));
+it.each([false, true])(
+  "retains a committed action's refresh warning and retries without rewriting (recommendation editor: %s)",
+  async (editingRecommendation) => {
+    const refresh = vi
+      .fn<IntakeData["refresh"]>()
+      .mockRejectedValueOnce(new Error("Offline"))
+      .mockRejectedValueOnce(new Error("Still offline"))
+      .mockResolvedValue(undefined);
+    const { user, calls } = renderIntake(
+      refresh,
+      undefined,
+      grantmakingMessages,
+      original,
+      editingRecommendation ? (
+        <textarea aria-label="Recommendation draft" defaultValue="Keep this reasoning" />
+      ) : undefined,
+    );
+    await user.click(await screen.findByRole("button", { name: "Application actions" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Start revised submission" }));
 
-  expect(screen.getByRole("alert")).toHaveTextContent("Your change was saved");
+    const workspace = within(screen.getByRole("complementary", { name: "Application workspace" }));
+    expect(await workspace.findByRole("alert")).toHaveTextContent("Your change was saved");
+    if (editingRecommendation) {
+      expect(workspace.getByRole("textbox", { name: "Recommendation draft" })).toHaveValue(
+        "Keep this reasoning",
+      );
+    }
 
-  await user.click(await screen.findByRole("button", { name: "Refresh application" }));
+    await user.click(await screen.findByRole("button", { name: "Refresh application" }));
 
-  await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
-  expect(refresh).toHaveBeenCalledTimes(3);
-  expect(calls).toHaveBeenCalledTimes(1);
-});
+    expect(screen.getByRole("alert")).toHaveTextContent("Your change was saved");
+
+    await user.click(await screen.findByRole("button", { name: "Refresh application" }));
+
+    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+    expect(refresh).toHaveBeenCalledTimes(3);
+    expect(calls).toHaveBeenCalledTimes(1);
+  },
+);
 
 it("keeps an inline submitted title change in a correction until it is explained and recorded", async () => {
   const { user, calls } = renderIntake();
-  await user.click(await screen.findByRole("button", { name: "View version history" }));
+  await user.click(screen.getByRole("button", { name: /^Reference material:/ }));
+  await user.click(screen.getByRole("menuitem", { name: "Version history" }));
   await user.click(await screen.findByRole("button", { name: original.title }));
   const title = screen.getByRole("textbox", { name: "Correct application title" });
   await user.clear(title);
@@ -313,14 +363,15 @@ it("brings a newly started revision into view from application management", asyn
     expect(screen.getByRole("button", { name: "Edit applicant submission" })).toBeVisible(),
   );
   expect(screen.getByRole("region", { name: "Applicant submission" })).toBeVisible();
+  await waitFor(() => expect(screen.getByRole("group", { name: "Reference" })).toHaveFocus());
 
-  await user.click(await screen.findByRole("button", { name: "View version history" }));
+  await user.click(screen.getByRole("button", { name: /^Reference material:/ }));
+  await user.click(screen.getByRole("menuitem", { name: "Version history" }));
 
-  await waitFor(() =>
-    expect(screen.getAllByRole("heading", { name: "Version history" })[0]).toHaveFocus(),
-  );
+  await waitFor(() => expect(screen.getByRole("group", { name: "Reference" })).toHaveFocus());
 
-  await user.click(await screen.findByRole("button", { name: "Back to application" }));
+  await user.click(screen.getByRole("button", { name: /^Reference material:/ }));
+  await user.click(screen.getByRole("menuitem", { name: "Applicant submission" }));
   await user.click(await screen.findByRole("button", { name: "Edit applicant submission" }));
 
   expect(screen.getByRole("form", { name: "Edit applicant submission" })).toBeVisible();
@@ -389,10 +440,9 @@ it("saves details independently and reconciles preserved submission writing befo
     await screen.findByRole("button", { name: "Continue editing applicant submission" }),
   );
 
-  expect(screen.getAllByRole("textbox", { name: "Applicant’s response" })[0]).toHaveValue(
-    "Unfinished local writing",
-  );
-  expect(screen.getByRole("button", { name: "Save working revision" })).toBeDisabled();
+  const conflictDraft = within(screen.getByRole("region", { name: "Your unsaved changes" }));
+  expect(conflictDraft.getByText("Unfinished local writing")).toBeVisible();
+  expect(screen.queryByRole("button", { name: "Save working revision" })).not.toBeInTheDocument();
 
   await user.click(await screen.findByRole("button", { name: "Keep my changes" }));
 
@@ -500,9 +550,8 @@ it("withdraws with a date and reason, then offers only reinstatement while the c
   expect(
     dialog.getByText(/The application, its material, reviews, and recommendation are kept/),
   ).toBeVisible();
-  expect(dialog.getByText(/Withdrawal is not a rejection/)).toBeVisible();
+  expect(dialog.queryByText(/Withdrawal is not a rejection/)).not.toBeInTheDocument();
   expect(dialog.queryByText(/outstanding review request/)).not.toBeInTheDocument();
-  expect(dialog.getByText(/Withdrawal is not a rejection\.$/)).toBeVisible();
   expect(dialog.getByRole("textbox", { name: /Withdrawal date/ })).toHaveValue(
     new Date().toLocaleDateString("sv"),
   );
@@ -530,11 +579,16 @@ it("withdraws with a date and reason, then offers only reinstatement while the c
     0,
   );
   expect(await screen.findByRole("button", { name: "Reinstate application" })).toBeVisible();
-  expect(screen.getByText("Withdrawn")).toBeVisible();
+  expect(screen.getByRole("region", { name: "Withdrawn" })).toBeVisible();
+  expect(screen.queryByText("Withdrawn", { exact: true })).not.toBeInTheDocument();
   expect(screen.getByText("Withdrawn on 4 March 2020")).toBeVisible();
   expect(screen.getByText("Recorded by Dana Reed")).toBeVisible();
   expect(screen.getByText("The applicant found other funding.")).toBeVisible();
-  expect(screen.queryByText("Ready for review")).not.toBeInTheDocument();
+  expect(
+    within(screen.getByRole("region", { name: "Applicant submission" })).queryByText(
+      "Ready for review",
+    ),
+  ).not.toBeInTheDocument();
 
   // Every edit affordance is gone; the content stays readable.
   for (const name of [
@@ -546,13 +600,12 @@ it("withdraws with a date and reason, then offers only reinstatement while the c
     expect(screen.queryByRole("button", { name })).not.toBeInTheDocument();
   }
   expect(screen.queryByRole("button", { name: "Rename application" })).not.toBeInTheDocument();
-  expect(screen.getByText("Weekly repairs.")).toBeVisible();
-  await user.click(screen.getByRole("button", { name: "Application actions" }));
-  expect(screen.queryByRole("menuitem", { name: "Withdraw application" })).not.toBeInTheDocument();
   expect(
-    screen.queryByRole("menuitem", { name: "Start revised submission" }),
-  ).not.toBeInTheDocument();
-  await user.keyboard("{Escape}");
+    within(screen.getByRole("region", { name: "Applicant submission" })).getByText(
+      "Weekly repairs.",
+    ),
+  ).toBeVisible();
+  expect(screen.queryByRole("button", { name: "Application actions" })).not.toBeInTheDocument();
 
   await user.click(screen.getByRole("button", { name: "Reinstate application" }));
   const reinstate = within(
@@ -590,7 +643,7 @@ it("states how many outstanding review requests will close", async () => {
   const { user } = renderIntake(undefined, undefined, undefined, withRequests);
 
   expect(await openWithdrawal(user)).toHaveAccessibleDescription(
-    /Withdrawal is not a rejection\. 2 outstanding review requests will close, and their reviewers’ access will end\./,
+    /The application, its material, reviews, and recommendation are kept\. 2 outstanding review requests will close, and their reviewers’ access will end\./,
   );
 });
 

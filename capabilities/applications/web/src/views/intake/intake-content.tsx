@@ -1,7 +1,6 @@
 import { useRef, type ReactNode, type Ref } from "react";
 import { useTranslation } from "react-i18next";
 
-import { isWithdrawn } from "@merit/applications/domain";
 import type { ApplicationView as Application } from "@merit/grantmaking/api";
 import { Inline, Reading } from "@merit/ui/layout";
 
@@ -15,14 +14,16 @@ import { ApplicationContact } from "./application-contact";
 import { ApplicationDetails } from "./application-details";
 import {
   IntakeControls,
-  IntakeEditButton,
+  IntakeSectionEditButton,
   IntakeFeedback,
+  IntakeRefreshFeedback,
   IntakeTitle,
   WithdrawalStatus,
   intakeMenuItems,
 } from "./application-intake";
 import styles from "./intake-content.module.css";
 import { IntakeForm } from "./intake-form";
+import { SubmissionAnswers } from "./submission-answers";
 
 export type IntakeSession = { data: IntakeData; onDeleted: () => Promise<void> };
 
@@ -32,6 +33,7 @@ type IntakeContent = {
   evidence: ReactNode;
   details: ReactNode;
   feedback: ReactNode;
+  notice: ReactNode;
   menu: {
     items: { id: string; label: string }[];
     disabled: boolean;
@@ -66,11 +68,6 @@ const IntakePresentation = ({
   intakeEditing,
 }: Props & { intakeEditing?: ApplicationIntakeController }) => {
   const { t } = useTranslation("applicationIntake");
-  const preparing = application.intakeStatus === "in_preparation";
-  const activeIntake =
-    preparing ||
-    isWithdrawn(application) ||
-    Boolean(intakeEditing?.workingRevision || intakeEditing?.section === "content");
   const intakeTitle = useRef<HTMLSpanElement>(null);
   const intakeTriggers = useRef<Partial<Record<IntakeSection, HTMLButtonElement | null>>>({});
 
@@ -86,32 +83,16 @@ const IntakePresentation = ({
     });
   };
 
-  const facts = (editable = false) => (
-    <IntakeFacts application={application} intakeEditing={intakeEditing} editable={editable} />
-  );
-
   const overview = (
     <>
-      <section>
-        <Inline justify="between" className={styles.sectionHeading}>
-          <h2>{t("workspace.details")}</h2>
-          {intakeEditing && (
-            <IntakeEditButton
-              intake={intakeEditing}
-              hasSummary={Boolean(application.summary)}
-              section="metadata"
-              triggerRef={(element) => {
-                intakeTriggers.current.metadata = element;
-              }}
-            />
-          )}
-        </Inline>
-        {intakeEditing?.section === "metadata" ? (
-          <IntakeForm editor={intakeEditing.editor} onClose={closeIntake} />
-        ) : (
-          facts(true)
-        )}
-      </section>
+      <IntakeMetadata
+        application={application}
+        intakeEditing={intakeEditing}
+        onClose={closeIntake}
+        triggerRef={(element) => {
+          intakeTriggers.current.metadata = element;
+        }}
+      />
       <StaffSummary
         application={application}
         intakeEditing={intakeEditing}
@@ -126,7 +107,6 @@ const IntakePresentation = ({
     <ApplicantSubmission
       application={application}
       intakeEditing={intakeEditing}
-      activeIntake={activeIntake}
       onClose={closeIntake}
       onReveal={revealIntake}
       triggerRef={(element) => {
@@ -145,13 +125,11 @@ const IntakePresentation = ({
     evidence,
     details: (
       <div className={styles.document}>
-        {facts()}
-        {!activeIntake && intakeEditing && (
-          <IntakeControls intake={intakeEditing} onReveal={revealIntake} />
-        )}
+        <ApplicationDetails application={application} />
       </div>
     ),
     feedback: intakeEditing && <IntakeFeedback intake={intakeEditing} />,
+    notice: intakeEditing?.refreshError && <IntakeRefreshFeedback intake={intakeEditing} />,
     menu: {
       items: intakeEditing ? intakeMenuItems(intakeEditing.menuActions, t) : [],
       disabled: Boolean(intakeEditing?.pending),
@@ -167,6 +145,41 @@ type SectionProps = {
   triggerRef: Ref<HTMLButtonElement>;
 };
 
+const IntakeMetadata = ({ application, intakeEditing, onClose, triggerRef }: SectionProps) => {
+  const { t } = useTranslation("applicationIntake");
+  const mode = intakeEditing?.metadataEditing;
+  const contact = mode?.kind === "contact" ? mode : null;
+
+  return contact ? (
+    <ApplicationContact
+      key={contact.publicId}
+      application={application}
+      data={contact.data}
+      revision={contact.revision}
+      isDisabled={Boolean(intakeEditing?.pending)}
+    />
+  ) : (
+    <section>
+      <Inline justify="between" className={styles.sectionHeading}>
+        <h2>{t("workspace.details")}</h2>
+        {intakeEditing && (
+          <IntakeSectionEditButton
+            intake={intakeEditing}
+            hasSummary={Boolean(application.summary)}
+            section="metadata"
+            triggerRef={triggerRef}
+          />
+        )}
+      </Inline>
+      {intakeEditing?.section === "metadata" ? (
+        <IntakeForm editor={intakeEditing.editor} onClose={onClose} />
+      ) : (
+        <ApplicationDetails application={application} />
+      )}
+    </section>
+  );
+};
+
 const StaffSummary = ({ application, intakeEditing, onClose, triggerRef }: SectionProps) => {
   const { t } = useTranslation("applicationIntake");
 
@@ -179,7 +192,7 @@ const StaffSummary = ({ application, intakeEditing, onClose, triggerRef }: Secti
           <Inline justify="between" className={styles.sectionHeading}>
             <h2>{t("intake.staffSummary")}</h2>
             {intakeEditing && (
-              <IntakeEditButton
+              <IntakeSectionEditButton
                 intake={intakeEditing}
                 hasSummary={Boolean(application.summary)}
                 section="details"
@@ -198,7 +211,7 @@ const StaffSummary = ({ application, intakeEditing, onClose, triggerRef }: Secti
     </section>
   ) : (
     intakeEditing && (
-      <IntakeEditButton
+      <IntakeSectionEditButton
         intake={intakeEditing}
         hasSummary={Boolean(application.summary)}
         section="details"
@@ -211,59 +224,52 @@ const StaffSummary = ({ application, intakeEditing, onClose, triggerRef }: Secti
 const ApplicantSubmission = ({
   application,
   intakeEditing,
-  activeIntake,
   onClose,
   onReveal,
   triggerRef,
-}: SectionProps & { activeIntake: boolean; onReveal: () => void }) => {
+}: SectionProps & { onReveal: () => void }) => {
   const { t } = useTranslation("applicationIntake");
   const submission = application.submission;
 
+  const actions = (
+    <div className={styles.submissionActions}>
+      <span className={styles.meta}>
+        {t("workspace.version", { version: application.version })}
+      </span>
+      {intakeEditing && (
+        <IntakeSectionEditButton
+          intake={intakeEditing}
+          hasSummary={Boolean(application.summary)}
+          section="content"
+          triggerRef={triggerRef}
+          onReveal={onReveal}
+        />
+      )}
+    </div>
+  );
+
   return (
     <div className={styles.document}>
-      {activeIntake &&
-        (intakeEditing ? (
-          <IntakeControls intake={intakeEditing} onReveal={onReveal} />
-        ) : (
-          application.withdrawal && <WithdrawalStatus application={application} />
-        ))}
+      {intakeEditing ? (
+        <IntakeControls intake={intakeEditing} headingActions={actions} />
+      ) : (
+        <>
+          <Inline justify="between" className={styles.sectionHeading}>
+            <h2>{t("workspace.submission")}</h2>
+            {actions}
+          </Inline>
+          {application.withdrawal && <WithdrawalStatus application={application} />}
+        </>
+      )}
       {intakeEditing?.section === "title" && (
         <IntakeForm editor={intakeEditing.editor} onClose={onClose} />
       )}
-      <Inline justify="between" className={styles.sectionHeading}>
-        <h2>{t("workspace.submission")}</h2>
-        <div className={styles.submissionActions}>
-          <span className={styles.meta}>
-            {t("workspace.version", { version: application.version })}
-          </span>
-          {intakeEditing && (
-            <IntakeEditButton
-              intake={intakeEditing}
-              hasSummary={Boolean(application.summary)}
-              section="content"
-              triggerRef={triggerRef}
-              onReveal={onReveal}
-            />
-          )}
-        </div>
-      </Inline>
       {intakeEditing?.section === "content" ? (
         <IntakeForm editor={intakeEditing.editor} onClose={onClose} />
+      ) : submission ? (
+        <SubmissionAnswers answers={submission.answers} />
       ) : (
-        <>
-          {submission ? (
-            submission.answers.map((answer, index) => (
-              <section key={index} className={styles.evidenceSection}>
-                <h3>{answer.question}</h3>
-                <Reading as="p" className={styles.prose}>
-                  {answer.response}
-                </Reading>
-              </section>
-            ))
-          ) : (
-            <p>{t("evidence.unavailable")}</p>
-          )}
-        </>
+        <p>{t("evidence.unavailable")}</p>
       )}
     </div>
   );
@@ -288,28 +294,3 @@ const intakeAction = (
     intakeEditing.setConfirmation(action);
   }
 };
-
-const IntakeFacts = ({
-  application,
-  intakeEditing,
-  editable,
-}: {
-  application: Application;
-  intakeEditing?: ApplicationIntakeController;
-  editable: boolean;
-}) => (
-  <ApplicationDetails
-    application={application}
-    contact={
-      editable && !isWithdrawn(application) && intakeEditing?.contact ? (
-        <ApplicationContact
-          key={intakeEditing.contact.publicId}
-          name={application.submission?.contact}
-          data={intakeEditing.contact.data}
-          revision={intakeEditing.contact.revision}
-          contactId={application.contactId}
-        />
-      ) : undefined
-    }
-  />
-);

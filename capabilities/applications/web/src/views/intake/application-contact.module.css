@@ -2,3 +2,11 @@
   display: grid;
   gap: var(--space-4);
 }
+
+.actions:not(:empty) {
+  margin-top: var(--space-4);
+}
+
+.close {
+  margin-inline-start: auto;
+}

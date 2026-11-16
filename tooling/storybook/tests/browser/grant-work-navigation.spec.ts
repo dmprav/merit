@@ -16,11 +16,17 @@ test(
       await trigger.press("Enter");
 
       await expect(
-        workspace.getByRole("heading", { name: "Assessment", exact: true }),
+        page
+          .getByRole("group", { name: "Reference", exact: true })
+          .getByRole("heading", { name: "Assessment", exact: true }),
       ).toBeFocused();
-      await expect(workspace.getByRole("article", { name: reviewer })).toBeVisible();
-      await expect(page.getByRole("region", { name: "Applicant submission" })).toBeVisible();
-      await workspace.getByRole("button", { name: "Back to overview" }).press("Enter");
+      await expect(
+        page
+          .getByRole("group", { name: "Reference", exact: true })
+          .getByRole("article", { name: reviewer }),
+      ).toBeVisible();
+      await expect(workspace.getByRole("heading", { name: "Application details" })).toBeVisible();
+      await page.getByRole("button", { name: "Back to assessments", exact: true }).press("Enter");
 
       await expect(trigger).toBeFocused();
       await expect(trigger).toBeInViewport();
@@ -86,7 +92,7 @@ test(
 );
 
 test(
-  "assessment details preserve history context and restore both focus targets",
+  "assessment details and history stay in the pane and restore their originating controls",
   { tag: "@cross-browser" },
   async ({ page }) => {
     await page.goto(
@@ -97,34 +103,43 @@ test(
     const latestDetails = assessment.getByRole("button", { name: "Review details", exact: true });
     await latestDetails.focus();
     await latestDetails.press("Enter");
-    const details = page.getByRole("dialog", { name: "Review details", exact: true });
+    const details = page.getByRole("region", { name: "Review details", exact: true });
 
-    await expect(details.getByText("Version 1", { exact: true })).toBeVisible();
+    await expect(
+      details
+        .getByRole("term")
+        .filter({ hasText: /^Submission$/ })
+        .locator(".."),
+    ).toContainText("Version 1");
     await expect(details.getByText("Dana Reed", { exact: true })).toBeVisible();
-    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await page.getByRole("button", { name: "Back to assessments", exact: true }).click();
     await expect(details).toHaveCount(0);
     await expect(latestDetails).toBeFocused();
 
     const historyAction = assessment.getByRole("button", { name: "Earlier assessments and edits" });
     await historyAction.click();
-    const history = page.getByRole("dialog", {
+    const history = page.getByRole("heading", {
       name: "Earlier assessments and edits",
       exact: true,
     });
-    await expect(history).toContainText("The free venue makes the budget credible.");
-    const earlierDetails = history.getByRole("button", { name: "Review details", exact: true });
-    await earlierDetails.focus();
-    await earlierDetails.press("Enter");
-
-    await expect(details.getByText("Version 1", { exact: true })).toBeVisible();
-    await expect(details.getByRole("heading", { name: "Criteria reviewed" })).toBeVisible();
-    await checkPage(page);
-    await page.keyboard.press("Escape");
-
+    await expect(history).toBeFocused();
+    await expect(assessment).toContainText("The free venue makes the budget credible.");
+    await expect(
+      details
+        .getByRole("term")
+        .filter({ hasText: /^Submission$/ })
+        .locator(".."),
+    ).toContainText("Version 1");
+    const criteriaAction = details.getByRole("button", { name: "View criteria used" });
+    await criteriaAction.click();
+    await expect(page.getByRole("heading", { name: "Criteria reviewed" })).toBeFocused();
     await expect(details).toHaveCount(0);
-    await expect(history).toBeVisible();
-    await expect(earlierDetails).toBeFocused();
-    await history.getByRole("button", { name: "Close", exact: true }).click();
+    await checkPage(page);
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await page.getByRole("button", { name: "Back to assessment history", exact: true }).click();
+    await expect(criteriaAction).toBeFocused();
+    await page.getByRole("button", { name: "Back to assessments", exact: true }).click();
 
     await expect(history).toHaveCount(0);
     await expect(historyAction).toBeFocused();
@@ -143,20 +158,20 @@ for (const choice of ["Keep my changes", "Use saved values"]) {
         "/iframe.html?id=features-applications-intake-form--concurrent-changes&viewMode=story",
       );
       await expect(page.locator("#storybook-root")).toHaveAttribute("data-story-ready", "true");
-      const dialog = page.getByRole("dialog", { name: "Edit application details", exact: true });
-      const applicant = dialog.getByRole("textbox", { name: "Applicant", exact: true });
-
-      await expect(applicant).toHaveValue("Neighbourhood Kitchen — local edit");
-      await expect(dialog.getByRole("button", { name: "Save", exact: true })).toBeDisabled();
-      await dialog.getByText("Latest saved values", { exact: true }).click();
-      await expect(
-        dialog.getByText("Applicant: Neighbourhood Kitchen", { exact: true }),
-      ).toBeVisible();
-      await expect(dialog.getByText("Requested amount: 28000.00", { exact: true })).toBeVisible();
-      const recover = dialog.getByRole("button", { name: choice, exact: true });
+      const conflict = page.getByRole("region", {
+        name: "Review conflicting changes",
+        exact: true,
+      });
+      const saved = conflict.getByRole("region", { name: "Latest saved values", exact: true });
+      await expect(saved.getByText("Neighbourhood Kitchen", { exact: true })).toBeVisible();
+      await expect(saved.getByText("€28,000", { exact: true })).toBeVisible();
+      await expect(page.getByRole("textbox", { name: "Applicant", exact: true })).toHaveCount(0);
+      const recover = conflict.getByRole("button", { name: choice, exact: true });
       await recover.focus();
       await recover.press("Enter");
 
+      const dialog = page.getByRole("form", { name: "Edit application details", exact: true });
+      const applicant = dialog.getByRole("textbox", { name: "Applicant", exact: true });
       await expect(applicant).toBeFocused();
       await expect(applicant).toHaveValue(
         choice === "Keep my changes"
@@ -172,6 +187,45 @@ for (const choice of ["Keep my changes", "Use saved values"]) {
     },
   );
 }
+
+test(
+  "inspecting a review preserves recommendation writing and restores its reading position",
+  { tag: "@cross-browser" },
+  async ({ page }, testInfo) => {
+    if (!testInfo.project.use.isMobile) {
+      await page.setViewportSize({ width: 1280, height: 640 });
+    }
+    await page.goto(
+      "/iframe.html?id=features-applications-recommendation--resume-editing&viewMode=story",
+    );
+    await expect(page.locator("#storybook-root")).toHaveAttribute("data-story-ready", "true");
+    const reference = page.getByRole("group", { name: "Reference", exact: true });
+    const detail = reference
+      .getByRole("article", { name: "Assessment by Jules Patel", exact: true })
+      .getByRole("button", { name: "Review details", exact: true });
+    await detail.focus();
+
+    const readPosition = () =>
+      testInfo.project.use.isMobile
+        ? page.evaluate(() => window.scrollY)
+        : reference.evaluate((element) => element.scrollTop);
+
+    const position = await readPosition();
+    expect(position).toBeGreaterThan(0);
+    await detail.press("Enter");
+
+    await expect(reference.getByRole("region", { name: "Review details" })).toBeVisible();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(page.getByRole("textbox", { name: "Reasoning", exact: true })).toHaveValue(
+      "Confirm the delivery dates.",
+    );
+    await reference.getByRole("button", { name: "Back to assessments", exact: true }).click();
+
+    await expect(detail).toBeFocused();
+    await expect.poll(readPosition).toBe(position);
+    await checkPage(page);
+  },
+);
 
 test(
   "review request controls restore focus and replace reviewers without changing assessments",

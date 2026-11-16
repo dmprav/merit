@@ -30,6 +30,10 @@ effect, a removal confirmation, and failure feedback. Use this form for settled
 choices that future work should reuse. Link existing stories instead of copying
 fixtures or preserving superseded alternatives. Mark synthetic boundary fixtures
 as such so they do not imply a normal product workflow.
+Keep synthetic navigation and test controls outside the product frame. Isolated
+form stories should use the same editing placement as the connected screen, or a
+clearly bounded standalone form; they must not introduce duplicate saved values
+or a second pane that the actual task does not use.
 
 Give each story a distinct purpose: explain a choice, expose a meaningful state,
 or protect an important interaction. Show simple visual variants together in a

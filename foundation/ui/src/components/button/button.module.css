@@ -87,6 +87,14 @@
   font-size: var(--text-caption);
 }
 
+.button[data-variant="quiet"][data-alignment="start"] {
+  margin-inline-start: calc(-1 * (var(--space-3) + 1px));
+}
+
+.button[data-variant="quiet"][data-alignment="start"][data-size="small"] {
+  margin-inline-start: calc(-1 * (var(--space-2) + 1px));
+}
+
 .button[data-icon-only] {
   width: var(--control-height-small);
   padding: 0;

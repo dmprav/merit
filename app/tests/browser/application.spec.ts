@@ -416,14 +416,16 @@ test("person identity identifies contacts, reviewers and managers", async ({ pag
 
   const reviewChoice = workspace.getByRole("button", { name: /Sam Morgan/ });
   await reviewChoice.click();
-  const review = workspace.getByRole("article", { name: "Assessment by Sam Morgan" });
+  const review = page
+    .getByRole("group", { name: "Reference", exact: true })
+    .getByRole("article", { name: "Assessment by Sam Morgan" });
 
   await expect(review.getByText("Recommends funding", { exact: true })).toBeVisible();
   await expect(review.getByText("Sam Morgan", { exact: true })).toBeVisible();
 
   await checkPage(page);
   await page.screenshot({ path: testInfo.outputPath("person-identity-reviews.png") });
-  await workspace.getByRole("button", { name: "Back to overview" }).click();
+  await page.getByRole("button", { name: "Back to assessments", exact: true }).click();
 
   await expect(reviewChoice).toBeFocused();
 
@@ -498,8 +500,9 @@ test("application reading keeps desktop navigation fixed and restores reference 
     await expect(page.getByRole("button", { name: "Demo guide", exact: true })).toBeInViewport();
 
     const readingPosition = await viewport.evaluate((node) => node.scrollTop);
-    await page.getByRole("button", { name: "Manage reviews", exact: true }).click();
-    await page.getByRole("button", { name: "Back to application", exact: true }).click();
+    await page.getByRole("button", { name: "All assessments", exact: true }).click();
+    await page.getByRole("button", { name: /^Reference material:/ }).click();
+    await page.getByRole("menuitem", { name: "Applicant submission", exact: true }).click();
 
     await expect.poll(() => viewport.evaluate((node) => node.scrollTop)).toBe(readingPosition);
 
@@ -592,9 +595,7 @@ test("recommendation amount rejects invalid native clipboard content without rep
   await allocation.press("ControlOrMeta+V");
 
   await expect(allocation).toHaveValue("22000.00");
-  await expect(
-    page.getByText("Enter no more than two decimal places. The amount was not changed."),
-  ).toBeVisible();
+  await expect(page.getByText("Amount unchanged. Use up to two decimal places.")).toBeVisible();
 });
 
 test("saving announces success with a compact, centred confirmation and restores focus", async ({
@@ -972,7 +973,7 @@ test("round list restores its position and keeps application drafts independent"
 
   await page.getByRole("link", { name: "Workshop Saturdays" }).click();
 
-  await page.getByRole("button", { name: "Manage reviews", exact: true }).click();
+  await page.getByRole("button", { name: "All assessments", exact: true }).click();
   await page.getByRole("button", { name: "Edit recommendation for Workshop Saturdays" }).click();
   const reasoning = page.getByRole("textbox", { name: "Reasoning", exact: true });
   await reasoning.fill("A draft for Workshop Saturdays.");
@@ -989,7 +990,7 @@ test("round list restores its position and keeps application drafts independent"
 
   await expect(page.getByRole("form")).toHaveCount(0);
 
-  await page.getByRole("button", { name: "Manage reviews", exact: true }).click();
+  await page.getByRole("button", { name: "All assessments", exact: true }).click();
   await checkPage(page);
   await page.screenshot({ path: testInfo.outputPath("application-navigation.png") });
   await page.getByRole("button", { name: "Edit recommendation for Ride Together" }).click();
@@ -999,7 +1000,7 @@ test("round list restores its position and keeps application drafts independent"
 
   await expect(page.getByRole("form")).toHaveCount(0);
 
-  await page.getByRole("button", { name: "Manage reviews", exact: true }).click();
+  await page.getByRole("button", { name: "All assessments", exact: true }).click();
 
   await expect(
     page.getByRole("button", { name: /Resume editing recommendation for/ }),
@@ -1015,7 +1016,7 @@ test("round list restores its position and keeps application drafts independent"
 
   await expect(page.getByRole("form")).toHaveCount(0);
 
-  await page.getByRole("button", { name: "Manage reviews", exact: true }).click();
+  await page.getByRole("button", { name: "All assessments", exact: true }).click();
   await page.getByRole("button", { name: /Resume editing recommendation for/ }).click();
 
   await expect(reasoning).toHaveValue("A separate draft for Ride Together.");
@@ -1061,7 +1062,7 @@ test(
 
     await expect(launcher).toBeFocused();
 
-    await page.getByRole("button", { name: "Manage reviews", exact: true }).click();
+    await page.getByRole("button", { name: "All assessments", exact: true }).click();
 
     await expect(
       page.getByRole("region", { name: "Reviewer assessments", exact: true }),
@@ -1197,7 +1198,8 @@ test("workspace URLs preserve review state and canonicalize stale titles", async
     page.getByRole("region", { name: "Reviewer assessments", exact: true }),
   ).toBeVisible();
 
-  await page.getByRole("button", { name: "Back to application", exact: true }).click();
+  await page.getByRole("button", { name: /^Reference material:/ }).click();
+  await page.getByRole("menuitem", { name: "Applicant submission", exact: true }).click();
 
   await expect(
     page.getByRole("region", { name: "Applicant submission", exact: true }),

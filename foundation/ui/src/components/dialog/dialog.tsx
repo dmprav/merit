@@ -184,13 +184,9 @@ const ModalDialogHeader = ({
         {title}
       </Heading>
       {context && (
-        <span className={styles.context}>
-          {contextLabel && (
-            <>
-              <span>{contextLabel}:</span>{" "}
-            </>
-          )}
-          <span>{context}</span>
+        <span className={styles.context} data-dialog-context>
+          {contextLabel && <>{contextLabel}: </>}
+          {context}
         </span>
       )}
     </div>

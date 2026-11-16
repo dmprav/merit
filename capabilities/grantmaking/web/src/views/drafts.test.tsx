@@ -39,7 +39,6 @@ const recommendation = {
 const review: ReviewDraft = {
   mode: "record",
   id: "new-review",
-  replacesId: null,
   revision: reviewRevisionSchema.parse(5),
   applicationVersion: materialVersionSchema.parse(2),
   criteriaVersion: criteriaVersionSchema.parse(3),

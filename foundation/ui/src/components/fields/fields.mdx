@@ -1,5 +1,6 @@
 import { Canvas, Meta } from "@storybook/addon-docs/blocks";
 import * as TextFields from "./text-field/text-field.stories";
+import * as MoneyFields from "./money-field/money-field.stories";
 
 <Meta title="Components/Fields" />
 
@@ -40,6 +41,17 @@ places a fixed responsibility beside an editable role. The
 explanations inside the menu where people compare options.
 
 <Canvas of={TextFields.ReadOnlyFocused} />
+
+## Enter money without rounding
+
+Use `MoneyField` for controlled decimal money text, or `FormMoneyField` with a
+shared form. It accepts decimal commas and grouped paste with a decimal point,
+rejects excess precision with localized feedback beside the input, and normalizes
+accepted values on blur. Invalid restored text stays exact until corrected.
+Features supply the currency prefix, labels, and precision message, and retain
+responsibility for required amounts, allowed funding positions, and save validation.
+
+<Canvas of={MoneyFields.Default} />
 
 ## Search within a collection
 

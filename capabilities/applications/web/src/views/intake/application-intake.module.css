@@ -2,8 +2,6 @@
   display: grid;
   gap: var(--space-3);
   margin-bottom: 0;
-  padding-bottom: var(--space-5);
-  border-bottom: 1px solid var(--border);
 }
 
 .status,
@@ -14,10 +12,13 @@
   gap: var(--space-2);
 }
 
-.status h2,
-.changeReason h3 {
+.status {
   font-size: var(--text-caption);
   font-weight: 500;
+}
+
+.actions {
+  margin-inline-start: auto;
 }
 
 .hint {
@@ -31,45 +32,23 @@
   gap: var(--space-5);
 }
 
-.preview > div h3 {
-  font-size: var(--text-body);
-  font-weight: 500;
-  margin-bottom: var(--space-1);
-}
-
-.reading {
-  font-size: var(--text-reading);
-  line-height: var(--leading-reading);
-  max-width: var(--measure-reading);
-}
-
-.reading h4 {
-  font-size: var(--text-body);
+.preview h3 {
+  font-size: inherit;
   font-weight: 500;
   margin-bottom: var(--space-2);
 }
 
-.reading p,
-.changeReason p {
+.preview p {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 
-.changeReason {
-  border-top: 1px solid var(--border);
-  padding-top: var(--space-4);
-}
-
-.changeReason p {
-  font-size: var(--text-caption);
-  line-height: var(--leading-reading);
-  margin-top: var(--space-2);
-}
-
 .withdrawal {
   display: grid;
-  gap: var(--space-1);
+  gap: var(--space-3);
   min-width: 0;
+  border-block: 1px solid var(--border);
+  padding-block: var(--space-4);
 }
 
 .withdrawal p {
@@ -79,7 +58,7 @@
 .reason {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  font-size: var(--text-caption);
+  font-size: var(--text-reading);
   line-height: var(--leading-reading);
   max-width: var(--measure-reading);
 }

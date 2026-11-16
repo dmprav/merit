@@ -1,12 +1,16 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { SubmissionAnswers } from "@merit/applications-web/intake";
 import { materialVersionSchema } from "@merit/applications/domain";
 import { useFormat } from "@merit/i18n/format";
 import { ActionProvenance } from "@merit/ui/action-provenance";
+import { DescriptionList, DescriptionListItem } from "@merit/ui/description-list";
 import { Inline, Stack } from "@merit/ui/layout";
 import { Notice } from "@merit/ui/notice";
 import { Select } from "@merit/ui/select";
+import { Tabs } from "@merit/ui/tabs";
+import { Timestamp } from "@merit/ui/timestamp";
 
 import {
   applicationHistorySnapshots,
@@ -59,6 +63,7 @@ export const ApplicationHistory = ({
       <Stack as="section" gap={6} className={styles.history} aria-label={t("history.title")}>
         <h2 className={styles.accessibleHeading}>{t("history.title")}</h2>
         <Notice tone="neutral">{t(missing.empty)}</Notice>
+        <HistoricalApplication value={application} label={versionLabel(application.version)} />
       </Stack>
     );
   }
@@ -112,11 +117,15 @@ export const ApplicationHistory = ({
         />
       </div>
       {!before || !after || selection.from >= selection.to ? (
-        <Notice tone="neutral">
-          {t(missing.selected, {
-            version: !after ? selection.to : selection.from,
-          })}
-        </Notice>
+        <>
+          <Notice tone="neutral">
+            {t(missing.selected, {
+              version: !after ? selection.to : selection.from,
+            })}
+          </Notice>
+          {before && <HistoricalApplication value={before} label={labels.fromLabel} />}
+          {after && <HistoricalApplication value={after} label={labels.toLabel} />}
+        </>
       ) : (
         <>
           {entries.length > 0 && <RecordedUpdates entries={entries} />}
@@ -127,15 +136,48 @@ export const ApplicationHistory = ({
   );
 };
 
-const SnapshotComparison = ({
-  before,
-  after,
-  labels,
-}: {
+type SnapshotComparisonProps = {
   before: HistorySnapshot;
   after: HistorySnapshot;
   labels: { fromLabel: string; toLabel: string };
-}) => {
+  includeRecord?: boolean;
+};
+
+export const SnapshotComparison = (props: SnapshotComparisonProps) => {
+  const { t } = useTranslation(["fundingRounds", "common"]);
+  return (
+    <Tabs
+      label={t("history.display")}
+      defaultSelectedKey="changes"
+      scrollBackwardLabel={t("common:scrollTabsBackward")}
+      scrollForwardLabel={t("common:scrollTabsForward")}
+      items={[
+        {
+          id: "changes",
+          label: t("history.changes"),
+          content: <SnapshotChanges {...props} />,
+        },
+        {
+          id: "full",
+          label: t("history.fullRecord"),
+          content: (
+            <div className={styles.snapshots}>
+              <HistoricalApplication value={props.before} label={props.labels.fromLabel} />
+              <HistoricalApplication value={props.after} label={props.labels.toLabel} />
+            </div>
+          ),
+        },
+      ]}
+    />
+  );
+};
+
+const SnapshotChanges = ({
+  before,
+  after,
+  labels,
+  includeRecord = false,
+}: SnapshotComparisonProps) => {
   const { t } = useTranslation("fundingRounds");
   const format = useFormat();
   const previous = snapshotFacts(before, format);
@@ -148,31 +190,55 @@ const SnapshotComparison = ({
     "contactEmail",
     "projectPeriod",
     "submittedOn",
+    ...(includeRecord ? (["summary", "summaryAuthor", "intakeStatus"] as const) : []),
   ] as const;
+  const answers =
+    before.submission && after.submission
+      ? compareSubmissionAnswers(before.submission.answers, after.submission.answers)
+      : [];
+  const hasChanges =
+    fields.some((field) => previous[field] !== current[field]) ||
+    answers.some((answer) => answer.status !== "unchanged");
 
   return (
-    <>
+    <div className={styles.changes}>
+      {!hasChanges && before.submission && after.submission && (
+        <p className={styles.meta}>{t("history.noChanges")}</p>
+      )}
       {fields
-        .filter((field) => field === "requested" || previous[field] !== current[field])
+        .filter((field) => previous[field] !== current[field])
         .map((field) => (
           <ComparisonSection
             key={field}
             label={t(`history.${field}`)}
-            before={previous[field]}
-            after={current[field]}
+            before={
+              field === "intakeStatus" && previous[field]
+                ? t(previous[field] === "ready" ? "intake.ready" : "intake.preparing")
+                : previous[field]
+            }
+            after={
+              field === "intakeStatus" && current[field]
+                ? t(current[field] === "ready" ? "intake.ready" : "intake.preparing")
+                : current[field]
+            }
             {...labels}
           />
         ))}
       <SubmissionComparison before={before.submission} after={after.submission} labels={labels} />
-    </>
+    </div>
   );
 };
 
 const snapshotFacts = (
   snapshot: HistorySnapshot,
-  { money, calendarDate }: ReturnType<typeof useFormat>,
+  { money, calendarDate, timestamp }: ReturnType<typeof useFormat>,
 ) => ({
   titleField: snapshot.title,
+  summary: snapshot.summary ?? null,
+  summaryAuthor: snapshot.summaryAuthor
+    ? `${snapshot.summaryAuthor.name} · ${timestamp(snapshot.summaryAuthor.recordedAt)}`
+    : null,
+  intakeStatus: snapshot.intakeStatus ?? null,
   applicant: snapshot.submission?.organization ?? null,
   requested: snapshot.requested === null ? null : money(snapshot.requested),
   contact: snapshot.submission?.contact ?? null,
@@ -199,20 +265,24 @@ const SubmissionComparison = ({
 
   return (
     <>
-      {compareSubmissionAnswers(before.answers, after.answers).map((answer, index) => (
-        <ComparisonSection
-          key={index}
-          label={answer.after?.question || answer.before?.question || t("history.untitledSection")}
-          beforeHeading={answer.before?.question}
-          afterHeading={answer.after?.question}
-          before={answer.before?.response ?? null}
-          after={answer.after?.response ?? null}
-          presence={
-            answer.status === "added" || answer.status === "removed" ? answer.status : undefined
-          }
-          {...labels}
-        />
-      ))}
+      {compareSubmissionAnswers(before.answers, after.answers)
+        .filter((answer) => answer.status !== "unchanged")
+        .map((answer, index) => (
+          <ComparisonSection
+            key={index}
+            label={
+              answer.after?.question || answer.before?.question || t("history.untitledSection")
+            }
+            beforeHeading={answer.before?.question}
+            afterHeading={answer.after?.question}
+            before={answer.before?.response ?? null}
+            after={answer.after?.response ?? null}
+            presence={
+              answer.status === "added" || answer.status === "removed" ? answer.status : undefined
+            }
+            {...labels}
+          />
+        ))}
     </>
   );
 };
@@ -238,12 +308,12 @@ const ComparisonSection = ({
 }) => {
   const { t } = useTranslation("fundingRounds");
   const renamed = beforeHeading !== afterHeading;
-  const unchanged = before === after && !renamed;
   const presenceLabels = {
     added: "history.added",
     removed: "history.removed",
+    changed: "history.changed",
   } as const;
-  const statusLabel = unchanged ? "history.unchanged" : presence && presenceLabels[presence];
+  const statusLabel = presenceLabels[presence ?? "changed"];
   const missingLabels = {
     added: "history.notPresent",
     removed: "history.notPresent",
@@ -253,29 +323,25 @@ const ComparisonSection = ({
   const afterValue = after ?? t(missingLabel);
 
   return (
-    <section className={styles.section} data-unchanged={unchanged || undefined}>
+    <section className={styles.section}>
       <div className={styles.sectionHeading}>
         <h3>{label}</h3>
-        {statusLabel && <span className={styles.meta}>{t(statusLabel)}</span>}
+        <span className={styles.meta}>{t(statusLabel)}</span>
       </div>
-      {unchanged ? (
-        <p className={styles.prose}>{after ?? t("history.unknown")}</p>
-      ) : (
-        <div className={styles.comparison}>
-          <ComparedValue
-            label={fromLabel}
-            heading={beforeHeading}
-            showHeading={renamed}
-            value={beforeValue}
-          />
-          <ComparedValue
-            label={toLabel}
-            heading={afterHeading}
-            showHeading={renamed}
-            value={afterValue}
-          />
-        </div>
-      )}
+      <div className={styles.comparison}>
+        <ComparedValue
+          label={fromLabel}
+          heading={beforeHeading}
+          showHeading={renamed}
+          value={beforeValue}
+        />
+        <ComparedValue
+          label={toLabel}
+          heading={afterHeading}
+          showHeading={renamed}
+          value={afterValue}
+        />
+      </div>
     </section>
   );
 };
@@ -345,3 +411,81 @@ const missingHistoryMessages = {
     selected: "history.missingSnapshot",
   },
 } as const;
+
+export const HistoricalApplication = ({
+  value,
+  label,
+}: {
+  value: HistorySnapshot;
+  label: string;
+}) => {
+  const { t } = useTranslation("fundingRounds");
+  const { money, calendarDate } = useFormat();
+
+  return (
+    <section aria-label={label} className={styles.snapshot}>
+      <h3>{label}</h3>
+      <p className={styles.snapshotTitle}>{value.title}</p>
+      <DescriptionList layout="rows">
+        <DescriptionListItem label={t("history.intakeStatus")}>
+          {value.intakeStatus
+            ? t(value.intakeStatus === "ready" ? "intake.ready" : "intake.preparing")
+            : t("history.unknown")}
+        </DescriptionListItem>
+        <DescriptionListItem label={t("intake.applicant")}>
+          {value.submission?.organization ?? t("intake.notKnown")}
+        </DescriptionListItem>
+        <DescriptionListItem label={t("intake.requested")}>
+          {value.requested ? money(value.requested) : t("intake.notKnown")}
+        </DescriptionListItem>
+        {value.submission?.submittedOn && (
+          <DescriptionListItem label={t("history.submittedOn")}>
+            {calendarDate(value.submission.submittedOn)}
+          </DescriptionListItem>
+        )}
+        {value.submission?.projectPeriod && (
+          <DescriptionListItem label={t("evidence.projectPeriod")}>
+            {value.submission.projectPeriod}
+          </DescriptionListItem>
+        )}
+        {value.submission?.contact && (
+          <DescriptionListItem label={t("intake.contact")}>
+            {value.submission.contact}
+          </DescriptionListItem>
+        )}
+        {value.submission?.contactEmail && (
+          <DescriptionListItem label={t("history.contactEmail")}>
+            {value.submission.contactEmail}
+          </DescriptionListItem>
+        )}
+      </DescriptionList>
+      <HistoricalSummary value={value} />
+      {value.submission ? (
+        <SubmissionAnswers answers={value.submission.answers} headingLevel={4} />
+      ) : (
+        <p>{t("history.noSubmission")}</p>
+      )}
+    </section>
+  );
+};
+
+const HistoricalSummary = ({ value }: { value: HistorySnapshot }) => {
+  const { t } = useTranslation(["fundingRounds", "common"]);
+  return value.summaryAuthor || value.summary ? (
+    <section className={styles.snapshotSummary}>
+      <h4>{t("history.summary")}</h4>
+      <p className={styles.meta}>
+        {t("common:recordedBy", {
+          name: value.summaryAuthor?.name ?? t("preparation.unknownPerson"),
+        })}
+        {value.summaryAuthor && (
+          <>
+            {" "}
+            · <Timestamp value={value.summaryAuthor.recordedAt} />
+          </>
+        )}
+      </p>
+      <p className={styles.prose}>{value.summary}</p>
+    </section>
+  ) : null;
+};

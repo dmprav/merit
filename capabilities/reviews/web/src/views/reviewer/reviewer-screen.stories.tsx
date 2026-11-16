@@ -59,6 +59,11 @@ invitation.material = null;
 invitation.criteria = null;
 invitation.draft = null;
 export const Invitation: Story = { args: { initial: invitation } };
+export const InvitationWithResponseDate: Story = {
+  args: {
+    initial: { ...invitation, assignment: { ...invitation.assignment, dueDate: "2027-02-10" } },
+  },
+};
 
 const longPage = reviewerPage();
 longPage.assignment.applicationTitle =

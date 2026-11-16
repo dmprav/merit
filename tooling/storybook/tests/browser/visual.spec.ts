@@ -26,6 +26,14 @@ for (const id of [
     await page.goto(`/iframe.html?id=${id}&viewMode=story`);
 
     await expect(page.locator("#storybook-root")).toHaveAttribute("data-story-ready", "true");
+    if (id === "patterns-form-dialog--with-context") {
+      const dialog = page.getByRole("dialog", { name: "Write a note", exact: true });
+      await expect(dialog).toBeInViewport();
+      await expect(dialog.getByRole("textbox", { name: "Title", exact: true })).toBeFocused();
+      // Capture the fixed overlay in its viewport without moving the scroll-locked page.
+      await expect(page).toHaveScreenshot(`${id}.png`);
+      return;
+    }
     // Keep fixed and sticky elements at their initial position in full-page captures.
     await page.evaluate(() => window.scrollTo(0, 0));
     await expect(page).toHaveScreenshot(`${id}.png`, { fullPage: true });

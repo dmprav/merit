@@ -1,5 +1,25 @@
 import { test, expect, checkPage } from "@merit/test-support/browser";
 
+test(
+  "long dialog context is readable with keyboard and touch",
+  { tag: "@cross-browser" },
+  async ({ page }) => {
+    await page.goto("/iframe.html?id=patterns-form-dialog--long-context&viewMode=story");
+    await expect(page.locator("#storybook-root")).toHaveAttribute("data-story-ready", "true");
+    const dialog = page.getByRole("dialog", { name: "Write a note", exact: true });
+    const context = dialog.locator("[data-dialog-context]");
+    const name =
+      "Community partnerships for accessible neighbourhood spaces and year-round activities";
+    await expect(context).toContainText(name);
+    await expect(context).toHaveCSS("white-space", "normal");
+    await expect(context.getByRole("button")).toHaveCount(0);
+    expect(await context.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
+    await dialog.getByRole("textbox", { name: "Title", exact: true }).focus();
+    await expect(page.getByRole("tooltip")).toBeHidden();
+    await checkPage(page);
+  },
+);
+
 test("future award amendment keeps evidence and consequences visible through confirmation", async ({
   page,
 }, testInfo) => {

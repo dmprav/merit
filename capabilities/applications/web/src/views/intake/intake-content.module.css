@@ -46,6 +46,6 @@
   padding-bottom: var(--space-4);
 }
 
-.evidenceSection h3 {
+.evidenceSection :is(h3, h4, h5) {
   margin-bottom: var(--space-3);
 }

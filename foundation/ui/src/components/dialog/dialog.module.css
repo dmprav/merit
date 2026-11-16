@@ -244,6 +244,7 @@
 
 .overlay:is([data-placement="center"], [data-placement="end"]) .context {
   flex: 1 1 12rem;
+  white-space: normal;
 }
 
 .overlay:is([data-placement="center"], [data-placement="end"]) .title {

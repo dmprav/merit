@@ -1,42 +1,10 @@
-import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from "react";
+import { useEffectEvent, useLayoutEffect, useRef, useState } from "react";
 
 import { useReferenceViewport } from "@merit/ui/reference-workspace";
 
 export type ApplicationReference = "evidence" | "reviews" | "history" | "details";
 
 type Tab = "evidence" | "reviews";
-
-const useReviewSelection = (editorOpen: boolean) => {
-  const [selectedId, selectReview] = useState<string | null>(null);
-  const selectedHeading = useRef<HTMLHeadingElement>(null);
-  const reviewTriggers = useRef(new Map<string, HTMLButtonElement>());
-
-  useEffect(() => {
-    if (selectedId && !editorOpen) {
-      selectedHeading.current?.focus({ preventScroll: true });
-    }
-  }, [selectedId, editorOpen]);
-
-  const back = () => {
-    const previous = selectedId;
-    selectReview(null);
-    requestAnimationFrame(() => previous && reviewTriggers.current.get(previous)?.focus());
-  };
-
-  return {
-    selectedId,
-    selectReview,
-    selectedHeading,
-    back,
-    registerReviewTrigger: (id: string, element: HTMLButtonElement | null) => {
-      if (element) {
-        reviewTriggers.current.set(id, element);
-      } else {
-        reviewTriggers.current.delete(id);
-      }
-    },
-  };
-};
 
 /** Owns reference transitions and focus across the reading and working panes. */
 export const useApplicationNavigation = ({
@@ -51,11 +19,9 @@ export const useApplicationNavigation = ({
   const viewport = useReferenceViewport<ApplicationReference>(tab);
   const { reference, referenceViewport, resetScroll } = viewport;
 
-  const moveReference = (next: ApplicationReference) =>
-    viewport.moveReference(next, { focusViewport: !editorOpen });
+  const moveReference = useReferenceNavigation(viewport, editorOpen);
 
   const requestedTab = useRef<Tab | null>(null);
-  const reviewSelection = useReviewSelection(editorOpen);
   const [historyFrom, setHistoryFrom] = useState<number>();
   const [historyVisit, setHistoryVisit] = useState(0);
   const referenceMenu = useRef<HTMLButtonElement>(null);
@@ -75,8 +41,8 @@ export const useApplicationNavigation = ({
     receiveTab();
   }, [tab]);
 
-  const changeReference = (next: ApplicationReference) => {
-    moveReference(next);
+  const changeReference = (next: ApplicationReference, focus = true) => {
+    moveReference(next, focus);
     if (next === "evidence" || next === "reviews") {
       if (onTabChange && next !== tab) {
         requestedTab.current = next;
@@ -107,7 +73,6 @@ export const useApplicationNavigation = ({
   };
 
   return {
-    ...reviewSelection,
     reference,
     historyFrom,
     historyVisit,
@@ -118,4 +83,37 @@ export const useApplicationNavigation = ({
     revealIntake,
     inspectHistory,
   };
+};
+
+const useReferenceNavigation = (
+  viewport: ReturnType<typeof useReferenceViewport<ApplicationReference>>,
+  editorOpen: boolean,
+) => {
+  const focusFrame = useRef<number | null>(null);
+
+  const moveReference = (next: ApplicationReference, focus = true) => {
+    viewport.moveReference(next, { focusViewport: false });
+    if (focusFrame.current !== null) {
+      cancelAnimationFrame(focusFrame.current);
+    }
+    if (!editorOpen && focus) {
+      focusFrame.current = requestAnimationFrame(() =>
+        viewport.referenceViewport.current?.focus({ preventScroll: true }),
+      );
+    }
+  };
+
+  useLayoutEffect(() => {
+    // Opening a task cancels reference focus queued by the preceding navigation.
+    if (editorOpen && focusFrame.current !== null) {
+      cancelAnimationFrame(focusFrame.current);
+    }
+    return () => {
+      if (focusFrame.current !== null) {
+        cancelAnimationFrame(focusFrame.current);
+      }
+    };
+  }, [editorOpen]);
+
+  return moveReference;
 };

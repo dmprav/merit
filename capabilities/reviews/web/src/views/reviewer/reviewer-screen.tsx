@@ -1,6 +1,9 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { z } from "zod";
 
+import { SubmissionAnswers } from "@merit/applications-web/intake";
+import { Form, FormActions, FormDialog, FormTextField, useForm } from "@merit/forms";
 import { useFormat } from "@merit/i18n/format";
 import { decodeMoney } from "@merit/money";
 import type { ReviewerPage } from "@merit/reviews/api";
@@ -9,19 +12,16 @@ import { ActionMenu } from "@merit/ui/action-menu";
 import { Badge } from "@merit/ui/badge";
 import { Button } from "@merit/ui/button";
 import { ConfirmationDialog } from "@merit/ui/confirmation-dialog";
-import { ModalDialog, DialogContent } from "@merit/ui/dialog";
 import { Icon } from "@merit/ui/icon";
-import { Inline, Reading, Stack } from "@merit/ui/layout";
+import { Inline, Stack } from "@merit/ui/layout";
 import { Notice } from "@merit/ui/notice";
 import { PageHeader } from "@merit/ui/page-header";
 import {
   ReferencePane,
   ReferenceSwitcher,
   ReferenceWorkspace,
-  WorkPane,
   useReferenceViewport,
 } from "@merit/ui/reference-workspace";
-import { TextField } from "@merit/ui/text-field";
 
 import type { ReviewerData } from "../../contracts/reviewer";
 import { useReviewer, type ReviewerSession } from "../../controllers/reviewer/use-reviewer";
@@ -56,37 +56,37 @@ export const ReviewerScreen = ({
 
   return (
     <div className={styles.screen}>
-      <ReferenceWorkspace
-        header={
-          <ReviewerHeader
-            work={work}
-            expired={expired}
-            onWithdraw={() => setWithdrawOpen(true)}
-            onConflict={() => setConflictOpen(true)}
-          />
-        }
-        toWorkLabel={material ? t("toAssessment") : undefined}
-        toReferenceLabel={material ? t("toMaterial") : undefined}
-      >
-        {material ? (
-          <>
-            <ReviewerReference page={page} material={material} reference={reference} />
-            <ReviewerAssessment work={work} />
-          </>
-        ) : (
-          <WorkPane
-            as="section"
-            label={t(assignment.status === "invited" ? "invitation" : "assignment")}
-          >
-            <ReviewerParticipation
+      {material ? (
+        <ReferenceWorkspace
+          header={
+            <ReviewerHeader
               work={work}
               expired={expired}
-              onDecline={() => setWithdrawOpen(true)}
+              onWithdraw={() => setWithdrawOpen(true)}
               onConflict={() => setConflictOpen(true)}
             />
-          </WorkPane>
-        )}
-      </ReferenceWorkspace>
+          }
+          toWorkLabel={t("toAssessment")}
+          toReferenceLabel={t("toMaterial")}
+        >
+          <ReviewerReference page={page} material={material} reference={reference} />
+          <ReviewerAssessment work={work} />
+        </ReferenceWorkspace>
+      ) : (
+        <div
+          className={styles.invitationView}
+          tabIndex={0}
+          role="group"
+          aria-label={t("assignment")}
+        >
+          <ReviewerParticipation
+            work={work}
+            expired={expired}
+            onDecline={() => setWithdrawOpen(true)}
+            onConflict={() => setConflictOpen(true)}
+          />
+        </div>
+      )}
       <ConflictDialog work={work} isOpen={conflictOpen} onOpenChange={setConflictOpen} />
       <ConfirmationDialog
         title={t("withdrawTitle")}
@@ -105,29 +105,6 @@ export const ReviewerScreen = ({
         }}
       />
     </div>
-  );
-};
-
-const ParticipationNotices = ({
-  assignment,
-  expired,
-}: {
-  assignment: ReviewerPage["assignment"];
-  expired: boolean;
-}) => {
-  const { t } = useTranslation("reviewer");
-  return (
-    <>
-      {assignment.status === "conflict" && (
-        <Notice tone="warning">
-          {t("paused")} {assignment.conflict}
-        </Notice>
-      )}
-      {(assignment.status === "cancelled" || assignment.status === "declined") && (
-        <Notice>{t("ended")}</Notice>
-      )}
-      {expired && <Notice tone="warning">{t("expired")}</Notice>}
-    </>
   );
 };
 
@@ -168,12 +145,7 @@ const ReviewerReference = ({
           version={t("applicationVersion", { version: assignment.applicationVersion })}
         />
         {assignment.materialChanged && <Notice tone="warning">{t("changed")}</Notice>}
-        {material.submission?.answers.map((answer, index) => (
-          <section key={index}>
-            <h3>{answer.question}</h3>
-            <p className={styles.writing}>{answer.response}</p>
-          </section>
-        ))}
+        {material.submission && <SubmissionAnswers answers={material.submission.answers} />}
         {material.evidence.map((evidence, index) => (
           <blockquote className={styles.writing} key={index}>
             {evidence.passage}
@@ -233,23 +205,16 @@ const ReviewerHeader = ({
       title={assignment.applicationTitle}
       status={<Badge>{t(`status.${assignment.status}`)}</Badge>}
       description={
-        <div className={styles.headerMeta}>
-          <span>{assignment.applicant}</span>
-          {page.material?.requested && (
-            <strong>
-              {t("requested", { amount: format.money(decodeMoney(page.material.requested)) })}
-            </strong>
-          )}
-          <span>
-            {assignment.dueDate
-              ? t("dueOn", { date: format.calendarDate(assignment.dueDate) })
-              : t("noDue")}
-          </span>
-          <span>
-            {t("requestedBy", { name: assignment.managerName })} ·{" "}
-            <a href={`mailto:${assignment.managerEmail}`}>{t("contact")}</a>
-          </span>
-        </div>
+        <Stack gap={2}>
+          <div className={styles.headerMeta}>
+            <span>{assignment.applicant}</span>
+            {page.material?.requested && (
+              <span>
+                {t("requested", { amount: format.money(decodeMoney(page.material.requested)) })}
+              </span>
+            )}
+          </div>
+        </Stack>
       }
       actions={
         <>
@@ -293,19 +258,66 @@ const ReviewerParticipation = ({
 }) => {
   const { t } = useTranslation("reviewer");
   const assignment = work.page.assignment;
+  const format = useFormat();
+  const invited = assignment.status === "invited" && !expired;
+  const title = expired
+    ? t("invitationState.expired")
+    : assignment.status === "invited"
+      ? t("invitation")
+      : t(`status.${assignment.status}`);
   return (
-    <Reading>
+    <section className={styles.participation} aria-label={title}>
       <Stack gap={5}>
+        <PageHeader density="compact" kicker={assignment.organization} title={title} />
+        <Stack gap={3}>
+          <div>
+            <p className={styles.applicationIdentity}>{assignment.applicationTitle}</p>
+            <p className={styles.hint}>{assignment.applicant}</p>
+          </div>
+          <p className={styles.requester}>
+            {invited ? (
+              t("invitedBy", { name: assignment.managerName })
+            ) : (
+              <a href={`mailto:${assignment.managerEmail}`}>
+                {t("contactManager", { name: assignment.managerName })}
+              </a>
+            )}
+          </p>
+          {invited && (
+            <>
+              <p className={styles.responseDate}>
+                {assignment.dueDate
+                  ? t("dueOn", { date: format.calendarDate(assignment.dueDate) })
+                  : t("noDue")}
+              </p>
+              <p>{t("invitationTask")}</p>
+            </>
+          )}
+          {expired && <p>{t("expired")}</p>}
+          {(assignment.status === "cancelled" || assignment.status === "declined") && (
+            <p>{t("ended")}</p>
+          )}
+          {assignment.status === "conflict" && (
+            <>
+              <p>{t("paused")}</p>
+              {assignment.conflict && (
+                <div>
+                  <p className={styles.noteTitle}>{t("reportedConflict")}</p>
+                  <p className={styles.writing}>{assignment.conflict}</p>
+                </div>
+              )}
+            </>
+          )}
+        </Stack>
+        {work.busy && (
+          <p role="status" className={styles.working}>
+            {t("working")}
+          </p>
+        )}
         <ReviewerFeedback work={work} />
-        <ParticipationNotices assignment={assignment} expired={expired} />
         <RetainedDraft work={work} />
-        {assignment.status === "invited" && !expired && (
+        {invited && (
           <>
-            <Stack gap={3}>
-              <h2>{t("invitation")}</h2>
-              <p>{t("invitedBy", { name: assignment.managerName })}</p>
-              <p className={styles.invitationHelp}>{t("instructions")}</p>
-            </Stack>
             <Inline className={styles.participationActions}>
               <Button isDisabled={work.busy} onPress={() => void work.respond("accept", "")}>
                 {t("accept")}
@@ -322,7 +334,7 @@ const ReviewerParticipation = ({
           </>
         )}
       </Stack>
-    </Reading>
+    </section>
   );
 };
 
@@ -336,44 +348,61 @@ const ConflictDialog = ({
   onOpenChange: (open: boolean) => void;
 }) => {
   const { t } = useTranslation("reviewer");
-  const [conflictNote, setConflictNote] = useState("");
-  const errorKey = work.error as "unavailable" | "saveConflict" | "stale" | "expired" | null;
+  const errorKey = work.error as ReviewerErrorKey | null;
+  const { form, submission } = useForm({
+    defaultValues: { note: "" },
+    schema: z.object({ note: z.string().trim().min(1, t("conflictRequired")).max(2000) }),
+    onSubmit: async ({ note }) => {
+      if (await work.respond("report_conflict", note)) {
+        form.reset();
+        onOpenChange(false);
+      }
+      return null;
+    },
+    submitErrorMessage: t("unavailable"),
+  });
+  const status = {
+    ...submission,
+    isSubmitting: submission.isSubmitting || work.busy,
+    error: errorKey ? t(errorKey) : submission.error,
+  };
   return (
-    <ModalDialog
+    <FormDialog
       title={t("conflict")}
       closeLabel={t("close")}
+      context={work.page.assignment.applicationTitle}
       trigger={null}
       isOpen={isOpen}
       onOpenChange={onOpenChange}
-      isDismissDisabled={work.busy}
+      isDismissDisabled={status.isSubmitting}
     >
-      <DialogContent label={t("conflict")}>
-        <Stack gap={4}>
-          {errorKey && (
-            <Notice role="alert" tone="danger">
-              {t(errorKey)}
-            </Notice>
-          )}
-          <TextField
-            label={t("conflictNote")}
-            isRequired
-            multiline
-            maxLength={2000}
-            value={conflictNote}
-            onChange={setConflictNote}
+      <Form
+        label={t("conflict")}
+        submission={status}
+        actions={
+          <FormActions
+            submission={status}
+            onCancel={() => onOpenChange(false)}
+            cancelLabel={t("close")}
+            submitLabel={t("report")}
+            submittingLabel={t("working")}
           />
-          <Button
-            isDisabled={work.busy || !conflictNote.trim()}
-            onPress={async () => {
-              if (await work.respond("report_conflict", conflictNote)) {
-                onOpenChange(false);
-              }
-            }}
-          >
-            {t("report")}
-          </Button>
-        </Stack>
-      </DialogContent>
-    </ModalDialog>
+        }
+      >
+        <p>{t("conflictEffect")}</p>
+        <form.Field name="note">
+          {(field) => (
+            <FormTextField
+              field={field}
+              label={t("conflictNote")}
+              isRequired
+              multiline
+              rows={3}
+              maxLength={2000}
+            />
+          )}
+        </form.Field>
+      </Form>
+    </FormDialog>
   );
 };

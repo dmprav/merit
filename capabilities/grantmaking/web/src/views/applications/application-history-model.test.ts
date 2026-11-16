@@ -68,7 +68,14 @@ describe("application history snapshots", () => {
   });
 
   it("uses the latest recorded details of an earlier version without depending on input order", () => {
-    const correction = { ...entry(3, 2, 2), after: snapshot(2, "Corrected contact record") };
+    const correction = {
+      ...entry(3, 2, 2),
+      after: {
+        ...snapshot(2, "Corrected contact record"),
+        summary: "Staff summary at this revision.",
+        summaryAuthor: { name: "Dana Reed", userId: "dana", recordedAt: "2027-01-19T11:00:00Z" },
+      },
+    };
 
     expect(
       applicationHistorySnapshots(
@@ -78,8 +85,13 @@ describe("application history snapshots", () => {
           submission: { version: materialVersionSchema.parse(3), answers: [] },
         },
         [correction, entry(2, 1, 2)],
-      )[1]?.title,
-    ).toBe("Corrected contact record");
+      )[1],
+    ).toMatchObject({
+      title: "Corrected contact record",
+      summary: correction.after.summary,
+      summaryAuthor: correction.after.summaryAuthor,
+      intakeStatus: correction.after.intakeStatus,
+    });
   });
 
   it("attributes a nonadjacent comparison to all included version-changing events", () => {

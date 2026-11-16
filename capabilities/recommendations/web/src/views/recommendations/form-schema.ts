@@ -21,7 +21,7 @@ export const recommendationFormSchema = (t: TFunction<"fundingRecommendations">)
         context.addIssue({
           code: "custom",
           path: ["amount"],
-          message: t("validation.amountFormat"),
+          message: t(draft.amount.trim() ? "validation.amountFormat" : "validation.amountRequired"),
         });
         return z.NEVER;
       }

@@ -1,5 +1,6 @@
 export const intakeMessages = {
   intake: {
+    amountPrecision: "Enter an amount with up to two decimal places.",
     amountInvalid: "Enter a nonnegative amount with at most two decimal places.",
     resumeSummary: "Continue editing summary",
     defer: "Defer application",
@@ -13,6 +14,7 @@ export const intakeMessages = {
     viewCurrentSubmission: "View current submission",
     currentVersionUnchanged: "Version {{version}} remains current until this revision is recorded.",
     saveWorkingRevision: "Save working revision",
+    contactNotAvailable: "Contact unavailable",
     contactUnavailable:
       "This contact is no longer available. Select an active contact and save again.",
     contactConflict:
@@ -71,10 +73,12 @@ export const intakeMessages = {
     refresh: "Refresh application",
     emailInvalid: "Enter a valid email address or leave it blank.",
     conflict:
-      "This application has changed since you started editing. Your edits are preserved. Review the latest saved values and choose how to continue.",
+      "The application changed. Your edits are preserved. Review the saved values before continuing.",
     confirmationConflict:
       "This application has changed. Close this dialog, review the latest saved work, and start this action again.",
     latest: "Latest saved values",
+    yourDraft: "Your unsaved changes",
+    reconcile: "Review conflicting changes",
     keepChanges: "Keep my changes",
     keepChangesHelp:
       "Keeping your changes uses the latest saved values for fields you haven’t edited. Review the result before saving.",
@@ -97,8 +101,7 @@ export const intakeMessages = {
     withdraw: "Withdraw application",
     withdrawFor: "Withdraw application: {{title}}",
     reinstateFor: "Reinstate application: {{title}}",
-    withdrawDescription:
-      "Record that the applicant withdrew this application. The application, its material, reviews, and recommendation are kept. Withdrawal is not a rejection.",
+    withdrawDescription: "The application, its material, reviews, and recommendation are kept.",
     withdrawClosesReviews_one:
       "{{count}} outstanding review request will close, and its reviewer’s access will end.",
     withdrawClosesReviews_other:
