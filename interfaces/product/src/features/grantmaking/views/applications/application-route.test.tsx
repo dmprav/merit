@@ -701,7 +701,7 @@ it("records assessment work beside readable references with one retained draft",
   await user.click(screen.getByRole("button", { name: "Assessment actions for Sam Morgan" }));
   await user.click(screen.getByRole("menuitem", { name: "Edit recorded assessment" }));
   const pane = within(screen.getByRole("complementary", { name: "Application workspace" }));
-  const form = pane.getByRole("form", { name: "Edit recorded assessment" });
+  const form = await pane.findByRole("form", { name: "Edit recorded assessment" });
   const text = within(form).getByRole("textbox", { name: "Assessment text" });
   await user.clear(text);
   await user.type(text, "Keep this recorded assessment.");

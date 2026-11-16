@@ -118,7 +118,9 @@ list as described in [the skill](SKILL.md#6-learn-from-escapes).
   [review participation](../../../docs/workflows/participate-in-review.md).
 - Do navigation popups close on browser history changes, and do delayed saves
   preserve focus when the user has moved to another page or control? Check both
-  before resolving the save and before any scheduled focus callback runs. See
+  before resolving the save and before any scheduled focus callback runs. When a
+  control disappears, does focus reach its remaining target regardless of menu
+  or popup teardown order? See
   [UI verification](../../../docs/guides/ui-verification.md#verification).
 - For work that uses reference material, can the person read that material while
   editing in the established workspace? Check close, resume, switching tasks,
@@ -148,7 +150,7 @@ list as described in [the skill](SKILL.md#6-learn-from-escapes).
   metadata, keeping staff interpretation separate from applicant responses? See
   [evidence and interpretation](../../../docs/foundations/experience.md#make-evidence-and-assistance-inspectable).
 
-- Do tests wait for observable readiness before interacting with restored drafts
-  or capturing an animated scroll position, while retaining their draft, recovery,
-  focus, and exact restoration assertions? See [test behavior](../../../docs/guides/testing.md#test-behavior)
+- Do capability and connected-route tests wait for observable readiness before
+  interacting with restored drafts or capturing an animated scroll position,
+  while retaining their draft, recovery, focus, and exact restoration assertions? See [test behavior](../../../docs/guides/testing.md#test-behavior)
   and [UI verification](../../../docs/guides/ui-verification.md#verification).

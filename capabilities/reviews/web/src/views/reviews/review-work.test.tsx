@@ -105,7 +105,7 @@ const openCorrection = async (user: ReturnType<typeof userEvent.setup>) => {
     await screen.findByRole("button", { name: `Assessment actions for ${assessment.reviewer}` }),
   );
   await user.click(await screen.findByRole("menuitem", { name: "Edit recorded assessment" }));
-  return within(screen.getByRole("form", { name: "Edit recorded assessment" }));
+  return within(await screen.findByRole("form", { name: "Edit recorded assessment" }));
 };
 
 it("shows an assessment and its basis with only review facts and no draft or query provider", () => {

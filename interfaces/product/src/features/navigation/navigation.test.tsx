@@ -634,6 +634,61 @@ const DelayedPins = ({ saved }: { saved: Promise<void> }) => {
   );
 };
 
+const DelayedBoundaryMove = ({ saved }: { saved: Promise<void> }) => {
+  const [pins, setPins] = useState(manyPins);
+  return (
+    <NavigationPinsContext
+      value={state({
+        pins,
+        change: async () => {
+          await saved;
+          setPins([...manyPins.slice(0, 4), manyPins[5]!, manyPins[4]!, manyPins[6]!]);
+          return true;
+        },
+      })}
+    >
+      {section()}
+    </NavigationPinsContext>
+  );
+};
+
+it("keeps menu fallback restoration from taking focus after a pin moves into overflow", async () => {
+  let finish!: () => void;
+  const saved = new Promise<void>((resolve) => {
+    finish = resolve;
+  });
+  const { user } = await renderWithRouter(<DelayedBoundaryMove saved={saved} />);
+  const row = screen.getByRole("link", { name: "Round 5" });
+  fireEvent.contextMenu(row);
+  await user.click(screen.getByRole("menuitem", { name: "Move down" }));
+  const frames: FrameRequestCallback[] = [];
+  const animation = vi
+    .spyOn(window, "requestAnimationFrame")
+    .mockImplementation((callback) => frames.push(callback));
+  const fallbackTarget = document.createElement("button");
+  fallbackTarget.textContent = "Skip to content";
+  document.body.insertBefore(fallbackTarget, document.body.firstChild);
+
+  try {
+    await act(async () => {
+      finish();
+    });
+    expect(row).not.toBeInTheDocument();
+    expect(document.body).toHaveFocus();
+    const allowFallback = fallbackTarget.dispatchEvent(
+      new CustomEvent("react-aria-focus-scope-restore", { bubbles: true, cancelable: true }),
+    );
+    if (allowFallback) {
+      fallbackTarget.focus();
+    }
+    act(() => frames.splice(0).forEach((callback) => callback(0)));
+    expect(screen.getByRole("button", { name: "2 more…" })).toHaveFocus();
+  } finally {
+    animation.mockRestore();
+    fallbackTarget.remove();
+  }
+});
+
 it("waits for popup teardown before recovering focus when a save resolves ahead of its render", async () => {
   let finish!: () => void;
   const saved = new Promise<void>((resolve) => {

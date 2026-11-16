@@ -276,7 +276,7 @@ const schedulePinFocusRecovery = ({
       event.preventDefault();
     };
 
-    if (target === "collection" && surface === "popup") {
+    if ((target === "collection" && surface === "popup") || target === "overflow") {
       document.addEventListener("react-aria-focus-scope-restore", suppressFallbackRestore, true);
     }
 

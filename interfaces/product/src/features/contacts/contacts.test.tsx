@@ -643,6 +643,7 @@ it("retains the contact revision on resume and blocks dismissal during a save", 
   expect(actions).toHaveAttribute("data-draft", "true");
   expect(actions).toHaveAccessibleDescription("Resume editing");
   expect(document.querySelectorAll("[data-draft]")).toHaveLength(1);
+  await waitFor(() => expect(actions).toHaveFocus());
   await user.click(actions);
   await user.click(await screen.findByRole("menuitem", { name: "Resume editing" }));
   await user.click(await screen.findByRole("button", { name: "Save contact" }));
