@@ -220,9 +220,7 @@ for (const theme of ["product", "site"]) {
   );
 }
 
-test("confirmation dialogs focus cancellation, contain focus and fit failure and long content", async ({
-  page,
-}, testInfo) => {
+test("confirmation dialogs focus cancellation and contain focus", async ({ page }, testInfo) => {
   await page.goto("/iframe.html?id=patterns-confirmation-dialog--open&viewMode=story");
 
   await expect(page.locator("#storybook-root")).toHaveAttribute("data-story-ready", "true");
@@ -250,19 +248,32 @@ test("confirmation dialogs focus cancellation, contain focus and fit failure and
 
   await expect(dialog).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Review revocation" })).toBeFocused();
+});
 
+test("confirmation dialogs show a failure with the action still available", async ({
+  page,
+}, testInfo) => {
   await page.goto("/iframe.html?id=patterns-confirmation-dialog--failure&viewMode=story");
 
   await expect(page.locator("#storybook-root")).toHaveAttribute("data-story-ready", "true");
+  const dialog = page.getByRole("dialog", { name: "Revoke invitation?" });
+  const confirm = dialog.getByRole("button", { name: "Revoke invitation", exact: true });
   await expect(dialog.getByRole("alert")).toContainText("could not be revoked");
   await expect(confirm).toBeEnabled();
 
   await checkPage(page);
   await page.screenshot({ path: testInfo.outputPath("confirmation-failure.png") });
+});
 
+test("confirmation dialogs keep the action in view with long content", async ({
+  page,
+}, testInfo) => {
   await page.goto("/iframe.html?id=patterns-confirmation-dialog--long-content&viewMode=story");
 
   await expect(page.locator("#storybook-root")).toHaveAttribute("data-story-ready", "true");
+  const confirm = page
+    .getByRole("dialog", { name: "Revoke invitation?" })
+    .getByRole("button", { name: "Revoke invitation", exact: true });
   await expect(confirm).toBeInViewport();
 
   await checkPage(page);

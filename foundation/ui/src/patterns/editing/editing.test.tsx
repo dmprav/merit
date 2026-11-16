@@ -48,12 +48,27 @@ it("renames with Enter using the save boundary captured when editing began", asy
   await waitFor(() =>
     expect(screen.getByRole("button", { name: "Community grants" })).toHaveFocus(),
   );
+});
 
+it("cancels a rename with Escape without saving and returns focus to the name", async () => {
+  const save = vi.fn(async () => null);
+  render(
+    <InlineName
+      value="Community grants"
+      label="Rename round"
+      saveLabel="Save name"
+      cancelLabel="Cancel"
+      errorMessage="Could not save"
+      onSave={save}
+    />,
+  );
+  const user = userEvent.setup();
   await user.click(screen.getByRole("button", { name: "Community grants" }));
   await user.type(screen.getByRole("textbox"), " cancelled");
   await user.keyboard("{Escape}");
 
-  expect(after).not.toHaveBeenCalled();
+  expect(save).not.toHaveBeenCalled();
+  expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Community grants" })).toHaveFocus();
 });
 
