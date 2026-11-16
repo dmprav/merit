@@ -16,6 +16,7 @@ import {
   applicationHistorySnapshots,
   compareSubmissionAnswers,
   comparedHistoryEntries,
+  submissionAnswersReordered,
   type ApplicationHistoryEntry,
   type HistorySnapshot,
 } from "./application-history-model";
@@ -196,7 +197,12 @@ const SnapshotChanges = ({
     before.submission && after.submission
       ? compareSubmissionAnswers(before.submission.answers, after.submission.answers)
       : [];
+  const reordered =
+    before.submission &&
+    after.submission &&
+    submissionAnswersReordered(before.submission.answers, after.submission.answers);
   const hasChanges =
+    reordered ||
     fields.some((field) => previous[field] !== current[field]) ||
     answers.some((answer) => answer.status !== "unchanged");
 
@@ -205,6 +211,7 @@ const SnapshotChanges = ({
       {!hasChanges && before.submission && after.submission && (
         <p className={styles.meta}>{t("history.noChanges")}</p>
       )}
+      {reordered && <Notice tone="neutral">{t("history.reordered")}</Notice>}
       {fields
         .filter((field) => previous[field] !== current[field])
         .map((field) => (

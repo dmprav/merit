@@ -11,6 +11,7 @@ export type ReviewWorkspace = {
   content: (onInspectVersion?: (version: ReviewApplication["version"]) => void) => ReactNode;
   reading: Pick<ReviewReading, "openReview" | "showAll" | "registerTrigger">;
   editor: ReactNode;
+  feedback?: ReactNode;
   active: boolean;
   fill?: boolean;
   editorTitle?: string;

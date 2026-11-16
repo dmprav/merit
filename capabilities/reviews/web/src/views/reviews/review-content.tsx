@@ -265,7 +265,6 @@ type ReviewContentProps = {
   round: ReviewRound;
   title?: string;
   headerActions?: ReactNode;
-  feedback?: ReactNode;
   assessmentActions?: (assessment: ReviewState["assessments"][number]) => ReactNode;
   requestActions?: (request: ReviewState["requests"][number]) => ReactNode;
   reading: ReviewReading;
@@ -277,7 +276,6 @@ export const ReviewContent = ({
   round,
   title,
   headerActions,
-  feedback,
   assessmentActions,
   requestActions,
   reading,
@@ -300,7 +298,6 @@ export const ReviewContent = ({
         count={latest.length}
         actions={headerActions}
       />
-      {feedback}
       {inspection?.kind === "requests" ? (
         <ReviewRequestHistory requests={state.requests} />
       ) : inspection?.kind === "criteria" ? (

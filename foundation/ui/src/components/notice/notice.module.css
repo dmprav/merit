@@ -96,6 +96,10 @@
   flex-basis: auto;
 }
 
+.notice[data-appearance="inline"] .actions {
+  flex-shrink: 0;
+}
+
 .icon {
   color: var(--notice-accent);
   margin-top: 2px;

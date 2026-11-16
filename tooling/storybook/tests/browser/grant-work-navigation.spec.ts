@@ -267,6 +267,40 @@ test(
 );
 
 test(
+  "compact review pickers keep search and actions reachable in a short viewport",
+  { tag: "@cross-browser" },
+  async ({ page }, testInfo) => {
+    await page.setViewportSize({ ...page.viewportSize()!, height: 360 });
+    await page.goto(
+      "/iframe.html?id=features-applications-manage-reviews--changed-application&viewMode=story",
+    );
+    await expect(page.locator("#storybook-root")).toHaveAttribute("data-story-ready", "true");
+    const add = page.getByRole("button", { name: "Add review request", exact: true });
+    await add.focus();
+    await add.press("Enter");
+    const picker = page.getByRole("dialog", { name: "Add review request", exact: true });
+    const surface = picker.locator("..");
+    const search = picker.getByRole("textbox", { name: "Find a contact" });
+    await expect(search).toBeFocused();
+    await expect(search).toBeInViewport({ ratio: 1 });
+    await expect(picker.getByRole("option", { name: /Jules Patel/ })).toBeDisabled();
+    expect(await surface.evaluate((node) => node.scrollHeight > node.clientHeight)).toBe(true);
+
+    const create = picker.getByRole("button", { name: "Add contact", exact: true });
+    await create.focus();
+    await expect(create).toBeInViewport({ ratio: 1 });
+    await expect.poll(() => surface.evaluate((node) => node.scrollTop)).toBeGreaterThan(0);
+    await search.focus();
+    await expect(search).toBeInViewport({ ratio: 1 });
+    await checkPage(page);
+    await page.screenshot({ path: testInfo.outputPath("compact-picker-short-viewport.png") });
+    await page.keyboard.press("Escape");
+    await expect(picker).toHaveCount(0);
+    await expect(add).toBeFocused();
+  },
+);
+
+test(
   "external reference navigation restores reading position and focus",
   { tag: "@cross-browser" },
   async ({ page }, testInfo) => {

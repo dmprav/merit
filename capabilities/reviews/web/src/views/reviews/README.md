@@ -75,7 +75,7 @@ original basis. **Back to assessments** restores the originating action and read
 position. Request history follows the same in-pane navigation and groups each
 request's status, basis, dated events, actors, and interfaces.
 
-`ReviewWork` owns one review controller and supplies reading, action and task
+`ReviewWork` owns one review controller and supplies reading, action, task and feedback
 slots to the application workspace. Recording, correction and **Manage reviews**
 occupy the right task pane; left-side reference navigation leaves an active form
 mounted. Reviewer assignments and commands share one controller above the reading
@@ -98,6 +98,10 @@ comparison content neutral, explain the conflict in short inline feedback, and
 put the explicit discard or keep-draft decisions in the footer. Keeping a draft
 acknowledges the current revisions; it does not save. Ordinary save failures retain
 the form and its entries. Successful writes use the shell confirmation placement.
+Render the feedback slot outside switchable references so a saved-but-not-refreshed
+warning and Retry remain available after the editor closes, regardless of which
+material the person is reading. Retry refreshes the saved state without repeating
+the write.
 The review controller supplies [comparison facts](../../controllers/reviews/review-comparison.ts):
 the matching recorded assessment, outstanding request, or missing record, plus
 changed revision baselines. Views format these facts without selecting records or

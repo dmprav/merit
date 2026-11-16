@@ -482,7 +482,16 @@ export const ConcurrentChanges: Story = {
 export const SavedButRefreshFailed: Story = {
   args: { refreshFailure: true },
   play: async (context) => {
-    await saveCorrection(context);
+    const form = await correctAssessment(context);
+    await context.userEvent.click(
+      context.canvas.getByRole("button", { name: /^Reference material:/ }),
+    );
+    await context.userEvent.click(
+      within(context.canvasElement.ownerDocument.body).getByRole("menuitem", {
+        name: "Applicant submission",
+      }),
+    );
+    await context.userEvent.click(form.getByRole("button", { name: "Save assessment" }));
     await waitFor(() =>
       expect(
         within(context.canvasElement.ownerDocument.body).queryByRole("form"),

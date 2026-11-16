@@ -776,6 +776,43 @@ it("keeps one assessment form in the work pane while references change and resum
   expect(data.save).not.toHaveBeenCalled();
 });
 
+it("keeps saved-review refresh recovery visible when another reference is selected", async () => {
+  const user = userEvent.setup();
+  const data = {
+    draftKey: "review-refresh-recovery",
+    workspaceSlug: "alder",
+    save: vi.fn().mockResolvedValue({ status: "ok", revision: reviewRevisionSchema.parse(3) }),
+    refresh: vi.fn().mockRejectedValueOnce(new Error("Offline")).mockResolvedValue(undefined),
+  };
+  render(
+    <QueryClientProvider client={createQueryClient()}>
+      <GrantmakingDrafts storageScope="review-refresh-recovery">
+        <ApplicationView application={application} round={round} reviewData={data} tab="reviews" />
+      </GrantmakingDrafts>
+    </QueryClientProvider>,
+    { wrapper: GrantmakingMessagesProvider },
+  );
+  await user.click(screen.getByRole("button", { name: "Assessment actions for Sam Morgan" }));
+  await user.click(screen.getByRole("menuitem", { name: "Edit recorded assessment" }));
+  const form = workspace().getByRole("form", { name: "Edit recorded assessment" });
+  await user.type(within(form).getByRole("textbox", { name: "Assessment text" }), " Confirmed.");
+  await user.click(screen.getByRole("button", { name: /^Reference material:/ }));
+  await user.click(screen.getByRole("menuitem", { name: "Applicant submission" }));
+  await user.click(within(form).getByRole("button", { name: "Save assessment" }));
+
+  expect(await screen.findByRole("alert")).toHaveTextContent("Saved, but the latest information");
+  await waitFor(() => expect(form).not.toBeInTheDocument());
+  expect(
+    screen.getByRole("button", { name: "Reference material: Applicant submission" }),
+  ).toBeVisible();
+  expect(screen.getByRole("button", { name: "Retry" })).toBeVisible();
+  await user.click(screen.getByRole("button", { name: "Retry" }));
+
+  await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+  expect(data.refresh).toHaveBeenCalledTimes(2);
+  expect(data.save).toHaveBeenCalledTimes(1);
+});
+
 it("keeps assessment reading available and disables authoring while a recommendation task is open", () => {
   render(
     <QueryClientProvider client={createQueryClient()}>

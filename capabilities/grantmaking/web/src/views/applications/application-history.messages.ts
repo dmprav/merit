@@ -18,6 +18,7 @@ export const applicationHistoryMessages = {
   previousRecord: "Previous material (Version {{version}})",
   recordedRecord: "Recorded material (Version {{version}})",
   noChanges: "No changes to these recorded fields or submitted sections.",
+  reordered: "Submission sections were reordered. Select Full record to compare their order.",
   missingEventSnapshot:
     "Only the available recorded material is shown. A comparison is not available for this event.",
   summary: "Staff summary",

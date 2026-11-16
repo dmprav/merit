@@ -67,6 +67,33 @@ const section = (heading: string) =>
   within(screen.getByRole("heading", { name: heading }).closest("section")!);
 
 describe("application history comparison", () => {
+  it("identifies an order-only revision and keeps both section orders available in the full record", async () => {
+    const before = application(1);
+    const after = application(2);
+    after.submission.answers = [...before.submission.answers].reverse();
+    renderComparison(before, after);
+
+    expect(
+      screen.getByText(
+        "Submission sections were reordered. Select Full record to compare their order.",
+      ),
+    ).toBeVisible();
+    expect(
+      screen.queryByText("No changes to these recorded fields or submitted sections."),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Changed", { exact: true })).not.toBeInTheDocument();
+
+    await userEvent.setup().click(screen.getByRole("tab", { name: "Full record" }));
+
+    const headings = (name: string) =>
+      within(screen.getByRole("region", { name }))
+        .getAllByRole("heading", { level: 4 })
+        .map((heading) => heading.textContent);
+
+    expect(headings("Version 1")).toEqual(["Project overview", "Delivery plan"]);
+    expect(headings("Version 2 (current)")).toEqual(["Delivery plan", "Project overview"]);
+  });
+
   it("formats both snapshots consistently and keeps missing facts distinct from empty text", () => {
     const before = application(1);
     const after = application(2);

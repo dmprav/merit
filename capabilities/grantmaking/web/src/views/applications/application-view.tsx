@@ -141,7 +141,12 @@ const ApplicationLayout = (props: ApplicationLayoutProps) => {
               : "workspace.toOverview",
         )}
         toReferenceLabel={t("workspace.browseReference")}
-        after={content.feedback}
+        after={
+          <>
+            {content.feedback}
+            {review.feedback}
+          </>
+        }
       >
         <ApplicationReferencePane {...props} labels={labels} />
         <ApplicationWorkPane {...props} />

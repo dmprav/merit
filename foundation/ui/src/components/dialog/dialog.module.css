@@ -70,6 +70,7 @@
 
 .popover[data-appearance="compact"] {
   width: min(20rem, calc(100vw - 32px));
+  scroll-padding-block: var(--space-3);
 }
 
 .popover[data-appearance="compact"] .dialog {

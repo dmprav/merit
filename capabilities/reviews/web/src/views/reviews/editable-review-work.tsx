@@ -88,7 +88,6 @@ export const EditableReviewWork = ({
       application={application}
       round={round}
       headerActions={headerActions}
-      feedback={<ReviewFeedback work={work} />}
       assessmentActions={(assessment) => (
         <AssessmentActions
           assessment={assessment}
@@ -116,6 +115,7 @@ export const EditableReviewWork = ({
     content,
     reading,
     editor,
+    feedback: <ReviewFeedback work={work} />,
     active,
     fill: editing,
     editorTitle,
@@ -128,6 +128,7 @@ export const EditableReviewWork = ({
 const ReviewWorkspaceFrame = ({
   content,
   editor,
+  feedback,
   active,
   fill,
   editorTitle,
@@ -135,7 +136,7 @@ const ReviewWorkspaceFrame = ({
 }: ReviewWorkspace) => {
   const { t } = useTranslation("reviews");
   return (
-    <ReferenceWorkspace>
+    <ReferenceWorkspace after={feedback}>
       <ReferencePane label={t("title")}>{content()}</ReferencePane>
       <WorkPane
         label={t("reviewTask")}
@@ -708,18 +709,33 @@ const ReviewFeedback = ({ work }: { work: ReturnType<typeof useReview> }) => {
   const { error, refreshError, refreshing, refresh, saved } = work;
   return (
     <>
-      {error && (
-        <Notice appearance="inline" role="alert" tone="danger">
-          {reviewError(t, error)}
-        </Notice>
-      )}
-      {refreshError && (
-        <Notice appearance="inline" role="alert" tone="warning">
-          {t(refreshError === "saved" ? "refreshError" : "refreshReadError")}{" "}
-          <Button variant="quiet" isDisabled={refreshing} onPress={() => void refresh()}>
-            {t("retry")}
-          </Button>
-        </Notice>
+      {(error || refreshError) && (
+        <div className={styles.workspaceFeedback}>
+          {error && (
+            <Notice appearance="inline" role="alert" tone="danger">
+              {reviewError(t, error)}
+            </Notice>
+          )}
+          {refreshError && (
+            <Notice
+              appearance="inline"
+              role="alert"
+              tone="warning"
+              actions={
+                <Button
+                  size="small"
+                  variant="quiet"
+                  isPending={refreshing}
+                  onPress={() => void refresh()}
+                >
+                  {t("retry")}
+                </Button>
+              }
+            >
+              {t(refreshError === "saved" ? "refreshError" : "refreshReadError")}
+            </Notice>
+          )}
+        </div>
       )}
       <StatusMessage
         message={saved ? t("saved") : null}

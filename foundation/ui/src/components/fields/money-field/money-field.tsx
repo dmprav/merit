@@ -36,7 +36,9 @@ export const MoneyField = ({
             .join(" ") || undefined
         }
         onChange={(next) => {
-          const accepted = moneyInput(next);
+          const accepted =
+            moneyInput(next) ??
+            (moneyInput(value) === null && removesText(value, next) ? next : null);
           setRejected(accepted === null);
           if (accepted !== null) {
             onChange(accepted);
@@ -55,4 +57,15 @@ export const MoneyField = ({
       </span>
     </div>
   );
+};
+
+const removesText = (previous: string, next: string) => {
+  if (next.length >= previous.length) {
+    return false;
+  }
+  let start = 0;
+  while (start < next.length && previous[start] === next[start]) {
+    start += 1;
+  }
+  return previous.slice(start + previous.length - next.length) === next.slice(start);
 };

@@ -3,6 +3,13 @@
   gap: var(--space-4);
 }
 
+.workspaceFeedback {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--pane-inset);
+  border-top: 1px solid var(--border);
+}
+
 .card {
   padding-block: var(--space-4);
   border-bottom: 1px solid var(--border);

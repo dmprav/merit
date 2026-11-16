@@ -53,6 +53,37 @@ it("keeps invalid restored text exact until the person replaces it", async () =>
   expect(input).toHaveValue("0.50");
 });
 
+it("allows repeated corrective deletions from restored excess precision", async () => {
+  const user = userEvent.setup();
+  render(<Example initial="123.4567" />);
+  const input = screen.getByRole("textbox", { name: "Amount" });
+  await user.click(input);
+  await user.keyboard("{End}{Backspace}");
+  expect(input).toHaveValue("123.456");
+  await user.keyboard("{Backspace}");
+  expect(input).toHaveValue("123.45");
+  await user.keyboard("6");
+  expect(input).toHaveValue("123.45");
+  expect(screen.getByRole("status")).toHaveTextContent("Use up to two decimal places.");
+});
+
+it("allows deleting a range from invalid text without allowing a shorter invalid replacement", async () => {
+  const user = userEvent.setup();
+  render(<Example initial="123.4567" />);
+  const input = screen.getByRole<HTMLInputElement>("textbox", { name: "Amount" });
+  await user.tripleClick(input);
+  await user.paste("12.345");
+  expect(input).toHaveValue("123.4567");
+  await user.keyboard("{Home}{ArrowRight>4/}{Delete}");
+  expect(input).toHaveValue("123.567");
+  expect(screen.getByRole("status")).toBeEmptyDOMElement();
+  input.setSelectionRange(5, 7);
+  await user.keyboard("{Backspace}");
+  expect(input).toHaveValue("123.5");
+  await user.tab();
+  expect(input).toHaveValue("123.50");
+});
+
 it("does not normalize a read-only value when focus leaves it", async () => {
   const user = userEvent.setup();
   const onChange = vi.fn();

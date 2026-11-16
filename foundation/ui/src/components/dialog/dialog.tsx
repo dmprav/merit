@@ -62,6 +62,14 @@ const subscribeViewport = (onChange: () => void) => {
 
 const isCompactViewport = () => window.matchMedia(compactQuery).matches;
 
+const pixelAlignedTriggerRect = (target: Element) => {
+  const rect = target.getBoundingClientRect();
+  // Positioning rounds to CSS pixels; matching bounds prevents a fractional
+  // fit from flipping and resizing the picker inside its ResizeObserver.
+  const top = Math.floor(rect.top);
+  return new DOMRect(rect.x, top, rect.width, Math.ceil(rect.bottom) - top);
+};
+
 /** Supplies a persistent heading and a keyboard-scrollable body around the content. */
 export const PopoverDialog = ({
   title,
@@ -107,6 +115,7 @@ export const PopoverDialog = ({
         offset={8}
         containerPadding={16}
         maxHeight={560}
+        getTargetRect={appearance === "compact" ? pixelAlignedTriggerRect : undefined}
         // Compact pickers lock background scrolling so nested forms do not dismiss their parent.
         isNonModal={!compact && appearance !== "compact"}
         isKeyboardDismissDisabled={isDismissDisabled}

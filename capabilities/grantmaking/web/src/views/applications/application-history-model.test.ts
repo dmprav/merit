@@ -9,6 +9,7 @@ import {
   applicationHistorySnapshots,
   comparedHistoryEntries,
   compareSubmissionAnswers,
+  submissionAnswersReordered,
   type ApplicationHistoryEntry,
 } from "./application-history-model";
 
@@ -130,4 +131,17 @@ it("compares identities across renaming, duplicate headings, reordering, and rep
   expect(
     compareSubmissionAnswers([{ ...a, question: "" }], [{ ...a, question: "" }])[0]?.status,
   ).toBe("unchanged");
+});
+
+it("detects reordered retained sections by identity without treating additions or removals as moves", () => {
+  const a = { questionId: "a", question: "Plan", response: "First" };
+  const b = { questionId: "b", question: "Plan", response: "Second" };
+  const c = { questionId: "c", question: "", response: "Third" };
+
+  expect(submissionAnswersReordered([a, b], [b, a])).toBe(true);
+  expect(submissionAnswersReordered([a, b, c], [c, { ...a, question: "Renamed" }])).toBe(true);
+  expect(submissionAnswersReordered([a, b], [c, a, b])).toBe(false);
+  expect(submissionAnswersReordered([a, b, c], [a, c])).toBe(false);
+  expect(submissionAnswersReordered([a], [{ ...a, response: "Edited" }])).toBe(false);
+  expect(submissionAnswersReordered([], [a])).toBe(false);
 });

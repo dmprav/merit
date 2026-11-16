@@ -73,6 +73,16 @@ export const compareSubmissionAnswers = (
   ];
 };
 
+export const submissionAnswersReordered = (before: readonly Answer[], after: readonly Answer[]) => {
+  const previousIds = new Set(before.map((answer) => answer.questionId));
+  const currentIds = new Set(after.map((answer) => answer.questionId));
+  const previousOrder = before.filter((answer) => currentIds.has(answer.questionId));
+  const currentOrder = after.filter((answer) => previousIds.has(answer.questionId));
+  return previousOrder.some(
+    (answer, index) => answer.questionId !== currentOrder[index]?.questionId,
+  );
+};
+
 export const comparedHistoryEntries = (
   history: readonly ApplicationHistoryEntry[],
   from: number,
