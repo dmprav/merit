@@ -179,7 +179,7 @@ and treating zero as negative. Restore each mutation before trying the next one.
 For a surviving mutation, determine whether it changes observable behavior and
 add a missing behavior test when warranted. Run the restored package's full
 coverage suite afterward. Record the mutations, failed assertions, and survivors
-in the change's verification notes. This is a focused review technique; there is
+in the change's [verification record](verification.md#record-verification). This is a focused review technique; there is
 no project-wide mutation score requirement.
 
 ## Test data

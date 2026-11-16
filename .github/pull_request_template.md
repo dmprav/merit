@@ -13,8 +13,8 @@ Link the issue for further context. -->
 <!-- 3–6 concise bullets on what the diff alone doesn't show: resulting behavior,
 key decisions, and named precedents when matching an existing pattern. Don't
 list files, restate contents, or paste specs, run logs, or test inventories.
-Mention verification only for checks CI doesn't run and remaining gaps, in a
-short line. Leave out links that expire or are private, such as Actions runs. -->
+Checks and gaps belong in the verification record (docs/guides/verification.md#record-verification),
+not here. Leave out links that expire or are private, such as Actions runs. -->
 
 ## Follow-ups
 

@@ -53,6 +53,33 @@ jobs:
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: node tooling/verification/ci-changes.ts
 
+  verification-record:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: voidzero-dev/setup-vp@cab1ab9eaff52d4857875f4f2c016e36af8f2c76 # v1.22.0
+        with:
+          node-version-file: .node-version
+          cache: false
+          run-install: false
+
+      - name: Check verification record
+        shell: bash
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node tooling/verification/verification-record.ts
+
   renovate:
     needs: changes
     if: needs.changes.outputs.renovate == 'true'
@@ -72,7 +99,7 @@ jobs:
 
   docs-verify:
     needs: changes
-    if: needs.changes.outputs.docs_only == 'true'
+    if: needs.changes.outputs.docs_only == 'true' || needs.changes.outputs.renovate_only == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     defaults:
@@ -578,6 +605,7 @@ jobs:
     if: always()
     needs:
       - changes
+      - verification-record
       - renovate
       - docs-verify
       - security-checks

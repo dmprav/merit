@@ -17,8 +17,9 @@ Start with the [documentation overview](docs/README.md) and
 
 Keep each pull request focused on one coherent, reviewable outcome. Use the
 [change-scope guidance](AGENTS.md#complete-the-change) to decide what belongs
-together and when to split larger work. Describe the problem, the resulting
-behavior, and the checks you ran. Full verification is required before merging.
+together and when to split larger work. Describe the problem and the resulting
+behavior, and add a [verification record](docs/guides/verification.md#record-verification)
+of the checks you ran. Full verification is required before merging.
 The [PR workflow](.github/workflows/verify.yml) runs the complete suite for pull
 requests targeting `main`; see the [verification guide](docs/guides/verification.md#verification)
 for local checks and the initial CI rollout.

@@ -37,6 +37,41 @@ describe("ci-changes", () => {
     expect(result.run_storybook).toBe(false);
   });
 
+  test("routes verification records like documentation", () => {
+    const docsResult = classifyChangedFiles({
+      eventName: "pull_request",
+      changedFiles: ["docs/guides/verification.md", "verifications/42.md"],
+      workspacePackages,
+    });
+    expect(docsResult.docs_only).toBe(true);
+
+    const cleanupResult = classifyChangedFiles({
+      eventName: "pull_request",
+      changedFiles: ["verifications/40.md", "verifications/41.md"],
+      workspacePackages,
+    });
+    expect(cleanupResult.docs_only).toBe(true);
+
+    const codeResult = classifyChangedFiles({
+      eventName: "pull_request",
+      changedFiles: ["capabilities/grantmaking/business/src/index.ts", "verifications/42.md"],
+      workspacePackages,
+    });
+    expect(codeResult.docs_only).toBe(false);
+    expect(codeResult.full_run).toBe(false);
+    expect(codeResult.run_tooling).toBe(false);
+    expect(codeResult.package_filters).toContain("--filter '@merit/grantmaking'");
+
+    const renovateResult = classifyChangedFiles({
+      eventName: "pull_request",
+      changedFiles: ["renovate.json", "verifications/42.md"],
+      workspacePackages,
+    });
+    expect(renovateResult.renovate_only).toBe(true);
+    expect(renovateResult.docs_only).toBe(false);
+    expect(renovateResult.full_run).toBe(false);
+  });
+
   test("classifies renovate-only PRs without triggering full suite", () => {
     const result = classifyChangedFiles({
       eventName: "pull_request",
