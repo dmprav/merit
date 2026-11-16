@@ -43,11 +43,21 @@ it("loads history only when opened and retries an older page without hiding reco
     after: contact,
   });
 
-  const read = vi
-    .fn<PageSource<ContactHistoryEntry>["read"]>()
-    .mockResolvedValueOnce({ entries: [entry(1, "Dana")], nextCursor: "older" })
-    .mockRejectedValueOnce(new Error("Offline"))
-    .mockResolvedValueOnce({ entries: [entry(0, "Sam")], nextCursor: null });
+  // Each page depends on the cursor it is asked for; the first older-page read fails.
+  let offline = true;
+  const read = vi.fn<PageSource<ContactHistoryEntry>["read"]>(async (after) => {
+    if (after === undefined) {
+      return { entries: [entry(1, "Dana")], nextCursor: "older" };
+    }
+    if (after !== "older") {
+      return { entries: [], nextCursor: null };
+    }
+    if (offline) {
+      offline = false;
+      throw new Error("Offline");
+    }
+    return { entries: [entry(0, "Sam")], nextCursor: null };
+  });
   render(
     <QueryClientProvider client={createQueryClient()}>
       <ContactsMessagesProvider>
@@ -74,7 +84,6 @@ it("loads history only when opened and retries an older page without hiding reco
   await waitFor(() =>
     expect(screen.queryByRole("button", { name: "Load older entries" })).not.toBeInTheDocument(),
   );
-  expect(read.mock.calls.map((call) => call[0])).toEqual([undefined, "older", "older"]);
 });
 
 const saved = {

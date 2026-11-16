@@ -326,7 +326,7 @@ it("keeps subsequent operations working and preserves operation errors when clea
   await requestDb.close();
 });
 
-it("cleans up a failed connection attempt and rejects operations after close", async () => {
+it("cleans up a failed connection attempt and connects again for the next operation", async () => {
   const requestDb = createRequestDatabase("postgres://merit:merit@localhost/connect-fail");
   nextConnectError.current = new Error("connection refused");
 
@@ -339,11 +339,16 @@ it("cleans up a failed connection attempt and rejects operations after close", a
   expect(clients[1]!.end).toHaveBeenCalledOnce();
 
   await requestDb.close();
+});
 
-  await expect(requestDb.run(async () => "after-close")).rejects.toThrow(
-    "Request database is closed.",
-  );
-  expect(clients).toHaveLength(2);
+it("rejects operations after close without opening a client", async () => {
+  const requestDb = createRequestDatabase("postgres://merit:merit@localhost/closed");
+  const operation = vi.fn(async () => "after-close");
+  await requestDb.close();
+
+  await expect(requestDb.run(operation)).rejects.toThrow("Request database is closed.");
+  expect(operation).not.toHaveBeenCalled();
+  expect(clients).toHaveLength(0);
 });
 
 it("rejects non-positive or non-integer maxConcurrency", () => {
@@ -355,18 +360,16 @@ it("rejects non-positive or non-integer maxConcurrency", () => {
   ).toThrow(RangeError);
 });
 
-it("isolates pg.Client instances across separate request databases", async () => {
+it("keeps another request's database open when one request closes its own", async () => {
   const reqA = createRequestDatabase("postgres://merit:merit@localhost/db");
   const reqB = createRequestDatabase("postgres://merit:merit@localhost/db");
 
-  const [dbA, dbB] = await Promise.all([reqA.run(async (db) => db), reqB.run(async (db) => db)]);
+  expect(await reqA.run(async () => "a")).toBe("a");
+  await reqA.close();
 
+  await expect(reqB.run(async () => "b")).resolves.toBe("b");
   expect(clients).toHaveLength(2);
-  expect(dbA).not.toBe(dbB);
-
-  await Promise.all([reqA.close(), reqB.close()]);
-  expect(clients[0]!.end).toHaveBeenCalledOnce();
-  expect(clients[1]!.end).toHaveBeenCalledOnce();
+  await reqB.close();
 });
 
 it("keeps withDatabase creating and closing one client per standalone call", async () => {

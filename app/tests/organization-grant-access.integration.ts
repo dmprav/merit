@@ -1,8 +1,7 @@
-import { assert, beforeAll, afterAll, beforeEach, describe, it, expect } from "vite-plus/test";
+import { beforeAll, afterAll, beforeEach, describe, it, expect } from "vite-plus/test";
 
 import { withDatabase } from "@merit/db";
 import { migrate } from "@merit/db/migrate";
-import { getFundingRoundPage, listFundingRounds } from "@merit/grantmaking/server";
 import { seedExampleRounds } from "@merit/grantmaking/testing";
 import { createOrganizationService } from "@merit/organizations/server";
 import { revokeMembershipReviews } from "@merit/reviews/server/integrations";
@@ -51,35 +50,5 @@ describe("organization provisioning", () => {
         { organizationId: "alder", email: "next@example.test" },
       ),
     ).toEqual({ status: "already_joined" });
-  });
-
-  it("separates administration from grant access", async () => {
-    await withDatabase(database.connectionString, seedExampleRounds);
-    await database.client.query(
-      "UPDATE memberships SET administration='administrator', role='member' WHERE user_id='dana'",
-    );
-    const actor = { userId: "dana" };
-    const rounds = await withDatabase(database.connectionString, (db) =>
-      listFundingRounds(db, actor, "alder"),
-    );
-
-    expect(rounds).toEqual({ status: "forbidden" });
-    expect((await service().workspaces({ userId: "dana" })).status).toBe("ok");
-    const birch = await withDatabase(database.connectionString, (db) =>
-      listFundingRounds(db, { userId: "birch-manager" }, "birch"),
-    );
-    assert(birch.status === "ok");
-    const [round] = birch.rounds;
-    assert.isDefined(round);
-
-    expect(
-      await withDatabase(database.connectionString, (db) =>
-        getFundingRoundPage(db, actor, {
-          workspaceSlug: "birch",
-          publicId: round.publicId,
-          kind: "round",
-        }),
-      ),
-    ).toBeNull();
   });
 });

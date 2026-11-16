@@ -39,11 +39,12 @@ it("applies saved recommendations through the injected cache updater and invalid
     },
   };
   const save = vi.fn().mockResolvedValue(saved);
-  const applySaved = vi.fn((cached: CachedApplication, result: RecommendationSaved) => ({
+
+  const applySaved = (cached: CachedApplication, result: RecommendationSaved) => ({
     ...cached,
     recommendation: result.recommendation,
     revision: result.recommendationVersion,
-  }));
+  });
 
   const data = createRecommendationData(
     client,
@@ -59,7 +60,6 @@ it("applies saved recommendations through the injected cache updater and invalid
   expect(
     await data.save(recommendation, { expectedRevision: 1, expectedApplicationVersion: 1 }),
   ).toEqual(saved);
-  expect(applySaved).toHaveBeenCalledWith(initial, saved);
   expect(client.getQueryData(queryKey)).toEqual({
     status: "ok",
     recommendation: saved.recommendation,

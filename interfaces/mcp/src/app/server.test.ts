@@ -119,40 +119,65 @@ describe("workspace MCP contracts", () => {
       await client.close();
     }
   });
-  it("challenges for missing OAuth scopes before executing the operation", async () => {
-    const operations = testOperations();
-    const response = await handleWorkspaceMcp(
-      new Request(endpoint, {
-        method: "POST",
-        headers: {
-          host: endpoint.host,
-          "Content-Type": "application/json",
-          Accept: "application/json, text/event-stream",
-          "MCP-Protocol-Version": "2025-11-25",
-        },
-        body: JSON.stringify({
-          jsonrpc: "2.0",
-          id: 1,
-          method: "tools/call",
-          params: {
-            name: "create_funding_round",
-            arguments: {
-              workspaceSlug: "alder",
-              requestId: "00000000-0000-4000-a000-000000000001",
-              title: "New round",
-            },
+  it.each([
+    ["create_funding_round", "grants:write", ["workspace:read"]],
+    ["list_workspace_activity", "workspace:read", ["grants:write"]],
+    ["invite_member", "team:write", ["workspace:read", "grants:write"]],
+    ["get_reviewer_assignment", "reviews:read", ["workspace:read", "grants:write", "team:write"]],
+    [
+      "submit_reviewer_assessment",
+      "reviews:write",
+      ["workspace:read", "grants:write", "team:write"],
+    ],
+    ["get_navigation_pins", "profile:read", ["workspace:read", "grants:write", "team:write"]],
+    ["change_navigation_pin", "profile:write", ["workspace:read", "grants:write", "team:write"]],
+    [
+      "get_membership_invitation",
+      "onboarding:read",
+      ["workspace:read", "grants:write", "team:write"],
+    ],
+    [
+      "accept_membership_invitation",
+      "onboarding:write",
+      ["workspace:read", "grants:write", "team:write"],
+    ],
+    ["list_organizations", "admin:read", ["workspace:read", "grants:write", "team:write"]],
+    ["create_organization", "admin:write", ["workspace:read", "grants:write", "team:write"]],
+  ])(
+    "challenges %s for the %s scope before executing any operation",
+    async (name, scope, granted) => {
+      const operations = testOperations();
+      const response = await handleWorkspaceMcp(
+        new Request(endpoint, {
+          method: "POST",
+          headers: {
+            host: endpoint.host,
+            "Content-Type": "application/json",
+            Accept: "application/json, text/event-stream",
+            "MCP-Protocol-Version": "2025-11-25",
           },
+          body: JSON.stringify({
+            jsonrpc: "2.0",
+            id: 1,
+            method: "tools/call",
+            params: { name, arguments: {} },
+          }),
         }),
-      }),
-      endpoint.href,
-      { ...operations, authenticate: async () => ({ ...actor, scopes: ["workspace:read"] }) },
-    );
-    expect(response.status).toBe(403);
-    expect(response.headers.get("WWW-Authenticate")).toContain('error="insufficient_scope"');
-    expect(response.headers.get("WWW-Authenticate")).toContain("grants:write");
-    expect(response.headers.get("WWW-Authenticate")).toContain("resource_metadata=");
-    expect(operations.rounds.createRound).not.toHaveBeenCalled();
-  });
+        endpoint.href,
+        { ...operations, authenticate: async () => ({ ...actor, scopes: granted }) },
+      );
+      const challenge = response.headers.get("WWW-Authenticate");
+      expect(response.status).toBe(403);
+      expect(challenge).toContain('error="insufficient_scope"');
+      expect(challenge).toContain(scope);
+      expect(challenge).toContain("resource_metadata=");
+      for (const service of Object.values(operations)) {
+        for (const operation of Object.values(service)) {
+          expect(operation).not.toHaveBeenCalled();
+        }
+      }
+    },
+  );
   it("does not allow deletion through the ordinary edit tool", async () => {
     const operations = testOperations();
     const client = await connect(operations);
@@ -381,31 +406,6 @@ describe("workspace MCP contracts", () => {
     } finally {
       await client.close();
     }
-  });
-  it("requires the grant read scope for workspace activity", async () => {
-    const operations = testOperations();
-    const response = await handleWorkspaceMcp(
-      new Request(endpoint, {
-        method: "POST",
-        headers: {
-          host: endpoint.host,
-          "Content-Type": "application/json",
-          Accept: "application/json, text/event-stream",
-          "MCP-Protocol-Version": "2025-11-25",
-        },
-        body: JSON.stringify({
-          jsonrpc: "2.0",
-          id: 1,
-          method: "tools/call",
-          params: { name: "list_workspace_activity", arguments: { workspaceSlug: "alder" } },
-        }),
-      }),
-      endpoint.href,
-      { ...operations, authenticate: async () => ({ ...actor, scopes: ["grants:write"] }) },
-    );
-    expect(response.status).toBe(403);
-    expect(response.headers.get("WWW-Authenticate")).toContain("workspace:read");
-    expect(operations.grantmaking.listWorkspaceActivity).not.toHaveBeenCalled();
   });
   it("searches a workspace and returns each group's results with its total", async () => {
     const operations = testOperations();

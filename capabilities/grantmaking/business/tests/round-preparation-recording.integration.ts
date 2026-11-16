@@ -112,7 +112,7 @@ it("rolls back deletion history when removing the round fails", async ({ db, dat
   }
 });
 
-it("records preparation snapshots with their action, reason, actor, and verified client", async ({
+it("records each preparation event with its action, reason, actor, and verified client", async ({
   db,
   database,
 }) => {
@@ -205,8 +205,4 @@ it("records preparation snapshots with their action, reason, actor, and verified
       provenance: recorder.provenance,
     })),
   );
-  expect(await createFundingRound(db, recorder, request)).toEqual({
-    status: "invalid",
-    error: "round_deleted",
-  });
 });

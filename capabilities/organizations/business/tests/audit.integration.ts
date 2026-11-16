@@ -329,55 +329,92 @@ describe("reading workspace activity", () => {
   });
 });
 
-test("pages subject histories through timestamp ties and keeps subject, assignment and tenant scopes", async ({
-  db,
-}) => {
-  const at = new Date("2026-11-01T10:00:00Z");
-  await db.transaction(async (tx) => {
-    for (let revision = 0; revision < 23; revision++) {
-      await recordAuditEvent(tx, {
-        ...event,
-        target: { ...event.target, revision },
-        recordedAt: at,
-        context: { assignmentId: "assignment-a" },
-        details: { revision },
-      });
-    }
-    await recordAuditEvent(tx, {
-      ...event,
-      target: { ...event.target, id: "other" },
-      recordedAt: at,
-    });
-    await recordAuditEvent(tx, {
-      ...event,
-      action: "contact.updated",
-      target: { type: "contact", id: event.target.id, revision: 1 },
-      recordedAt: at,
-    });
-  });
-  const input = {
+describe("reading subject history", () => {
+  const subject = {
     organizationId: "alder",
     targetTypes: ["recommendation"],
     targetId: event.target.id,
   };
-  const first = await readAuditHistory(db, input);
-  expect(first.entries).toHaveLength(20);
-  assert(first.nextCursor);
-  const rest = await readAuditHistory(db, { ...input, after: first.nextCursor });
-  expect(rest.entries).toHaveLength(3);
-  expect(rest.nextCursor).toBeNull();
-  expect(new Set([...first.entries, ...rest.entries].map((row) => row.id)).size).toBe(23);
-  expect(await readAuditHistory(db, { ...input, organizationId: "birch" })).toEqual({
-    entries: [],
-    nextCursor: null,
+
+  test("pages a subject's history newest first by a stable cursor, including timestamp ties", async ({
+    db,
+  }) => {
+    const tied = new Date("2026-11-01T10:00:00Z");
+    await db.transaction(async (tx) => {
+      await record(tx, {
+        target: { ...event.target, revision: 0 },
+        recordedAt: new Date("2026-10-31T10:00:00Z"),
+      });
+      for (let revision = 1; revision <= 22; revision++) {
+        await record(tx, { target: { ...event.target, revision }, recordedAt: tied });
+      }
+      await record(tx, {
+        target: { ...event.target, revision: 23 },
+        recordedAt: new Date("2026-11-02T10:00:00Z"),
+      });
+    });
+
+    const first = await readAuditHistory(db, subject);
+    expect(first.entries).toHaveLength(20);
+    assert(first.nextCursor);
+    const rest = await readAuditHistory(db, { ...subject, after: first.nextCursor });
+    expect(rest.entries).toHaveLength(4);
+    expect(rest.nextCursor).toBeNull();
+
+    const entries = [...first.entries, ...rest.entries];
+    expect(entries.at(0)?.targetRevision).toBe(23);
+    expect(entries.at(-1)?.targetRevision).toBe(0);
+    // Events recorded at the same time continue in descending id order across the page boundary.
+    const tiedIds = entries.slice(1, -1).map((entry) => entry.id);
+    expect(new Set(tiedIds).size).toBe(22);
+    expect(tiedIds).toEqual(tiedIds.toSorted().toReversed());
   });
-  expect(await readAuditHistory(db, { ...input, assignmentId: "assignment-b" })).toEqual({
-    entries: [],
-    nextCursor: null,
-  });
-  expect(await readAuditHistory(db, { ...input, action: "recommendation.missing" })).toEqual({
-    entries: [],
-    nextCursor: null,
+
+  test("limits a history to the caller's workspace, subject types, subject, assignment and action", async ({
+    db,
+  }) => {
+    await db.transaction(async (tx) => {
+      await record(tx, { context: { assignmentId: "assignment-a" } });
+      await record(tx, {
+        action: "recommendation.amended",
+        context: { assignmentId: "assignment-b" },
+      });
+      await record(tx, {
+        target: { ...event.target, id: "other" },
+        context: { assignmentId: "assignment-a" },
+      });
+      await record(tx, {
+        action: "contact.updated",
+        target: { type: "contact", id: event.target.id, revision: 1 },
+      });
+      await record(tx, {
+        organizationId: "birch",
+        actor: { ...event.actor, userId: "birch-manager" },
+      });
+    });
+
+    const events = async (input: Partial<Parameters<typeof readAuditHistory>[1]>) =>
+      (await readAuditHistory(db, { ...subject, ...input })).entries
+        .map((entry) => `${entry.organizationId}:${entry.targetId}:${entry.action}`)
+        .sort();
+
+    expect(await events({})).toEqual([
+      "alder:k7m2p9x4n6rt:recommendation.amended",
+      "alder:k7m2p9x4n6rt:recommendation.recorded",
+    ]);
+    expect(await events({ targetId: undefined, assignmentId: "assignment-a" })).toEqual([
+      "alder:k7m2p9x4n6rt:recommendation.recorded",
+      "alder:other:recommendation.recorded",
+    ]);
+    expect(await events({ action: "recommendation.amended" })).toEqual([
+      "alder:k7m2p9x4n6rt:recommendation.amended",
+    ]);
+    expect(await events({ targetTypes: ["contact"] })).toEqual([
+      "alder:k7m2p9x4n6rt:contact.updated",
+    ]);
+    expect(await events({ organizationId: "birch" })).toEqual([
+      "birch:k7m2p9x4n6rt:recommendation.recorded",
+    ]);
   });
 });
 

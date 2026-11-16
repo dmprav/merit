@@ -204,13 +204,16 @@ it("searches the selected workspace as the authenticated actor", async () => {
     rounds: { results: [], total: 0 },
     applications: { results: [], total: 0 },
   };
-  const searchWorkspace = vi.fn(async () => found);
   const input = { workspaceSlug: "alder", query: "harbour trust" };
+  const services = {
+    currentIdentity: async () => manager,
+    searchWorkspace: async (actor: { userId: string }, request: unknown) =>
+      actor.userId === "manager" && isDeepStrictEqual(request, input)
+        ? found
+        : ({ status: "forbidden" } as const),
+  };
 
-  expect(
-    await loadWorkspaceSearch(input, { currentIdentity: async () => manager, searchWorkspace }),
-  ).toEqual(found);
-  expect(searchWorkspace).toHaveBeenCalledWith({ userId: "manager" }, input);
+  expect(await loadWorkspaceSearch(input, services)).toEqual(found);
 });
 
 it("does not search for a signed-out visitor", async () => {

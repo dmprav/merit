@@ -7,65 +7,71 @@ import {
   reviewerSubmission,
   reviewerSubmissionProblems,
   reviewerDraftSchema,
+  type ReviewerDraft,
   type ReviewerStatus,
   type ParticipationAction,
 } from "./index";
-import { assessmentInputSchema } from "./index";
 
-it("requires a complete judgment while allowing incomplete private writing", () => {
+const basis = { applicationVersion: 2, criteriaVersion: 3 };
+const funded: ReviewerDraft = {
+  ...emptyReviewerDraft(),
+  reasoning: "Clear evidence of benefit",
+  position: "Fund",
+  amount: "20",
+};
+
+it("starts an empty private draft that the draft format accepts", () => {
   const draft = emptyReviewerDraft();
-  const basis = { applicationVersion: 2, criteriaVersion: 3 };
+
   expect(reviewerDraftSchema.parse(draft)).toEqual(draft);
-  expect(reviewerSubmission(draft, basis, false)).toBeNull();
-  expect(reviewerSubmission({ ...draft, reasoning: "Useful evidence" }, basis, false)).toBeNull();
-  expect(
-    reviewerSubmission({ ...draft, reasoning: "Useful evidence", position: "Fund" }, basis, false),
-  ).toBeNull();
-  expect(
-    reviewerSubmission(
-      { ...draft, reasoning: "Useful evidence", position: "Fund with a condition" },
-      basis,
-      false,
-    ),
-  ).toBeNull();
-  const funded = {
-    ...draft,
-    reasoning: "Clear evidence of benefit",
-    position: "Fund" as const,
-    amount: "20",
-  };
-  expect(reviewerSubmission(funded, basis, false)).toMatchObject({
+});
+
+it.each([
+  { name: "an empty draft", draft: emptyReviewerDraft() },
+  { name: "reasoning without a position", draft: { ...funded, position: null, amount: null } },
+  { name: "a position without reasoning", draft: { ...funded, reasoning: "" } },
+  { name: "funding without an amount", draft: { ...funded, amount: null } },
+  {
+    name: "conditional funding without an amount",
+    draft: { ...funded, position: "Fund with a condition", amount: null },
+  },
+  { name: "funding of zero", draft: { ...funded, amount: "0" } },
+  { name: "a decline with a positive amount", draft: { ...funded, position: "Decline" } },
+] satisfies { name: string; draft: ReviewerDraft }[])(
+  "keeps $name from submission",
+  ({ draft }) => {
+    expect(reviewerSubmission(draft, basis, false)).toBeNull();
+  },
+);
+
+it.each([
+  { name: "funding with an amount", draft: funded },
+  {
+    name: "conditional funding with an amount",
+    draft: { ...funded, position: "Fund with a condition" },
+  },
+  { name: "a deferral without an amount", draft: { ...funded, position: "Defer", amount: null } },
+  { name: "a decline without an amount", draft: { ...funded, position: "Decline", amount: null } },
+  { name: "a decline of zero", draft: { ...funded, position: "Decline", amount: "0" } },
+] satisfies { name: string; draft: ReviewerDraft }[])("submits $name", ({ draft }) => {
+  expect(reviewerSubmission(draft, basis, false)).not.toBeNull();
+});
+
+it("submits the judgment against the assigned basis without a recorded date", () => {
+  expect(reviewerSubmission(funded, basis, false)).toEqual({
     ...basis,
-    reasoning: funded.reasoning,
+    date: null,
     position: "Fund",
     amount: "20",
-    date: null,
+    reasoning: funded.reasoning,
+    observations: [],
   });
+});
+
+it("requires a change note before an amendment can be submitted", () => {
   expect(reviewerSubmission(funded, basis, true)).toBeNull();
+  expect(reviewerSubmission({ ...funded, note: " " }, basis, true)).toBeNull();
   expect(reviewerSubmission({ ...funded, note: "Corrected amount" }, basis, true)).not.toBeNull();
-  expect(
-    reviewerSubmission({ ...funded, position: "Fund with a condition" }, basis, false),
-  ).not.toBeNull();
-  expect(
-    reviewerSubmission({ ...funded, position: "Defer", amount: null }, basis, false),
-  ).not.toBeNull();
-  for (const amount of [null, "0"]) {
-    expect(
-      reviewerSubmission({ ...funded, position: "Decline", amount }, basis, false),
-    ).not.toBeNull();
-  }
-  expect(reviewerSubmission({ ...funded, position: "Decline" }, basis, false)).toBeNull();
-  expect(reviewerSubmission({ ...funded, amount: "0" }, basis, false)).toBeNull();
-  expect(
-    assessmentInputSchema.safeParse({
-      ...basis,
-      date: null,
-      position: "Decline",
-      amount: "0",
-      reasoning: "Outside remit",
-      observations: [],
-    }).success,
-  ).toBe(true);
 });
 
 it.each([
@@ -79,9 +85,11 @@ it.each([
   ["invited", "report_conflict", false, false, "", "Personal connection", "conflict"],
   ["submitted", "report_conflict", true, true, "", "New connection", "conflict"],
   ["accepted", "report_conflict", true, false, "", "", null],
+  ["accepted", "report_conflict", true, false, "", "   ", null],
   ["cancelled", "report_conflict", true, false, "", "Connection", null],
   ["conflict", "clear_conflict", true, false, "Connection", "Reviewed; no overlap", "invited"],
   ["conflict", "clear_conflict", true, false, "Connection", "", null],
+  ["conflict", "clear_conflict", true, false, "Connection", "   ", null],
   ["invited", "clear_conflict", false, false, "", "Clear", null],
   ["submitted", "cancel", true, true, "", "", "cancelled"],
   ["cancelled", "cancel", true, false, "", "", null],
@@ -141,7 +149,6 @@ it("reports each submission problem beside its field, in reading order", () => {
       false,
     ),
   ).toEqual(["content"]);
-  const basis = { applicationVersion: 1, criteriaVersion: 1 };
   for (const candidate of [
     draft,
     { ...draft, position: "Fund" as const, reasoning: "Evidence" },

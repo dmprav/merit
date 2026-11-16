@@ -68,7 +68,7 @@ it.each(["Escape", "Close dialog", "Keep invitation"])(
   },
 );
 
-it("blocks repeated confirmation and every dismissal while pending, then permits retry after failure", async () => {
+const pendingConfirmation = async () => {
   const user = userEvent.setup();
   let finish!: (error: string | null) => void;
   const confirm = vi.fn(
@@ -83,6 +83,12 @@ it("blocks repeated confirmation and every dismissal while pending, then permits
   const action = screen.getByRole("button", { name: "Revoke invitation" });
   await user.click(action);
 
+  return { user, confirm, trigger, action, finish: (error: string | null) => finish(error) };
+};
+
+it("blocks repeated confirmation and every dismissal while pending", async () => {
+  const { user, confirm, action } = await pendingConfirmation();
+
   expect(action).toHaveAccessibleName("Revoking invitation…");
   expect(action).toHaveAttribute("aria-disabled", "true");
   expect(screen.getByRole("button", { name: "Keep invitation" })).toBeDisabled();
@@ -96,7 +102,11 @@ it("blocks repeated confirmation and every dismissal while pending, then permits
   await user.click(dialog.parentElement!.parentElement!);
 
   expect(dialog).toBeVisible();
-  expect(confirm).toHaveBeenCalledTimes(1);
+  expect(confirm).toHaveBeenCalledOnce();
+});
+
+it("shows a failed confirmation in the dialog and permits a retry", async () => {
+  const { user, confirm, action, finish } = await pendingConfirmation();
 
   await act(async () => finish("Could not revoke the invitation. Try again."));
 
@@ -110,6 +120,10 @@ it("blocks repeated confirmation and every dismissal while pending, then permits
 
   expect(confirm).toHaveBeenCalledTimes(2);
   expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+});
+
+it("closes after a confirmed action and restores trigger focus", async () => {
+  const { trigger, finish } = await pendingConfirmation();
 
   await act(async () => finish(null));
 
