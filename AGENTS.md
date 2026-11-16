@@ -54,7 +54,7 @@ for check selection and full workspace verification milestones; use the
 [development guide](docs/guides/development.md) for setup.
 
 Before weakening coverage or required tests, follow the
-[coverage policy](docs/guides/development.md#coverage-policy-changes), including
+[coverage policy](docs/guides/testing.md#coverage-policy-changes), including
 its explicit user-approval requirement.
 
 Maintain documentation as a coherent explanation for its reader. Read the

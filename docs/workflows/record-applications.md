@@ -47,7 +47,7 @@ the material version. The [business model](../../capabilities/grantmaking/busine
 maps these independent counters and the bases that assessments and recommendations
 retain. The sections below explain each action's prerequisites and recovery.
 
-## Create an application
+## Find applications across rounds
 
 Program managers can discover applications across the workspace's funding rounds,
 search by application or applicant, filter by round or work state, and open a
@@ -55,6 +55,8 @@ case directly. The overview keeps intake readiness, review progress and
 freshness, and the manager recommendation distinct. Opening an application and
 returning preserves the originating list's search, filters, and sort. This
 overview uses the same current program-manager access as application pages.
+
+## Create an application
 
 A program manager records an application in a round. Only its project title is
 required; applicant, requested amount, and submitted material can be added during
