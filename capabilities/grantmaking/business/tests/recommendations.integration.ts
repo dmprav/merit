@@ -132,7 +132,7 @@ const toEncodedRecommendation = (
     : {}),
 });
 
-const readAudit = async (client: PgClient, minRevision = 0) => {
+const readRecommendationVersions = async (client: PgClient, minRevision = 0) => {
   const rows = (
     await client.query<RecommendationRow>(
       `SELECT case_id AS application_public_id, revision, actor_user_id, recorded_at,
@@ -196,7 +196,7 @@ const it = grantTest.extend("scenario", async ({ db, database }) => {
     round: { workspaceSlug, publicId: round.publicId, kind: "round" as const },
     selected,
     sibling,
-    audit: await readAudit(database.client),
+    versions: await readRecommendationVersions(database.client),
   };
 });
 
@@ -401,7 +401,7 @@ describe("persisted recommendations", () => {
       expect(persisted.application.managerRecommendation).toEqual(recommendation);
       expect(persisted.recommendationVersion).toBe(2);
 
-      const audit = await readAudit(database.client, 1);
+      const audit = await readRecommendationVersions(database.client, 1);
 
       expect(audit).toHaveLength(1);
       expect(audit[0]).toMatchObject({
@@ -459,7 +459,7 @@ describe("persisted recommendations", () => {
           denial === "wrong_workspace" ? { ...request, workspaceSlug: "birch" } : request,
         ),
       ).toEqual({ status: "not_found" });
-      expect(await readAudit(database.client)).toEqual(scenario.audit);
+      expect(await readRecommendationVersions(database.client)).toEqual(scenario.versions);
       expect(
         (await database.client.query("SELECT id FROM audit_events WHERE target_revision>1")).rows,
       ).toEqual([]);
@@ -575,7 +575,7 @@ describe("persisted recommendations", () => {
     },
   );
 
-  it("saves using budget, intake readiness, versions and recommendations, allowing proposals above budget", async ({
+  it("allows proposals above the budget and reports the overspend without touching other case fields", async ({
     db,
     database,
     scenario,
@@ -605,14 +605,23 @@ describe("persisted recommendations", () => {
     expect(encodeMoney(result.totals.proposed).minorUnits).toBe("11001");
     expect(encodeMoney(result.totals.remaining!).minorUnits).toBe("-1001");
 
-    const audit = (await readAudit(database.client, 1)).map(({ before, after }) => ({
-      before,
-      after,
-    }));
+    const audit = (await readRecommendationVersions(database.client, 1)).map(
+      ({ before, after }) => ({
+        before,
+        after,
+      }),
+    );
 
     expect(audit).toEqual([
       { before: encodeRecommendation(before), after: encodeRecommendation(result.recommendation) },
     ]);
+    expect(
+      (
+        await database.client.query("SELECT attention FROM application_cases WHERE id = $1", [
+          request.publicId,
+        ])
+      ).rows,
+    ).toEqual([{ attention: ["unrelated"] }]);
   });
 
   it("returns the current budget with committed totals for subsequent editor previews", async ({
@@ -643,17 +652,35 @@ describe("persisted recommendations", () => {
     );
   });
 
-  it("applies domain validation before writing", async ({ db, database, scenario }) => {
-    const request = recommendationRequest(scenario.selected.publicId);
+  it.for([
+    { problem: "a malformed application ID", change: { publicId: "not-a-public-id" } },
+    {
+      problem: "a funded deferral",
+      change: {
+        recommendation: {
+          position: "Defer",
+          allocation: { currency: "EUR", minorUnits: "4000" },
+          reasoning: "Updated after checking the evidence.",
+        },
+      },
+    },
+  ] satisfies { problem: string; change: Partial<SaveRecommendationRequest> }[])(
+    "rejects $problem without writing",
+    async ({ change }, { db, database, scenario }) => {
+      const events = (await database.client.query("SELECT * FROM audit_events ORDER BY id")).rows;
 
-    expect(
-      await saveFundingRecommendation(db, actor, {
-        ...request,
-        recommendation: { ...request.recommendation, position: "Defer" },
-      }),
-    ).toEqual({ status: "invalid", error: "invalid_recommendation" });
-    expect(await readAudit(database.client)).toEqual(scenario.audit);
-  });
+      expect(
+        await saveFundingRecommendation(db, actor, {
+          ...recommendationRequest(scenario.selected.publicId),
+          ...change,
+        }),
+      ).toEqual({ status: "invalid", error: "invalid_recommendation" });
+      expect(await readRecommendationVersions(database.client)).toEqual(scenario.versions);
+      expect((await database.client.query("SELECT * FROM audit_events ORDER BY id")).rows).toEqual(
+        events,
+      );
+    },
+  );
 
   it.for(["recommendation_versions", "audit_events"])(
     "rolls back the recommendation if writing %s fails",
@@ -668,7 +695,7 @@ describe("persisted recommendations", () => {
       try {
         await expect(saveFundingRecommendation(db, actor, request)).rejects.toThrow();
         expect(await getFundingRoundPage(db, actor, scenario.round)).toEqual(original);
-        expect(await readAudit(database.client)).toEqual(scenario.audit);
+        expect(await readRecommendationVersions(database.client)).toEqual(scenario.versions);
         expect(
           (await database.client.query("SELECT id FROM audit_events WHERE target_revision>1")).rows,
         ).toEqual([]);
@@ -699,7 +726,7 @@ describe("persisted recommendations", () => {
       ),
     ).rejects.toMatchObject({ cause: { message: "Audit recording failed" } });
     expect(await getFundingApplicationPage(db, actor, scenario.selected)).toEqual(before);
-    expect(await readAudit(database.client)).toEqual(scenario.audit);
+    expect(await readRecommendationVersions(database.client)).toEqual(scenario.versions);
     expect(
       (await database.client.query("SELECT id FROM audit_events WHERE target_revision>1")).rows,
     ).toEqual([]);
@@ -729,7 +756,7 @@ describe("persisted recommendations", () => {
       request.recommendation.reasoning,
     );
     expect(page.recommendationVersion).toBe(2);
-    expect(await readAudit(database.client, 1)).toHaveLength(1);
+    expect(await readRecommendationVersions(database.client, 1)).toHaveLength(1);
   });
 
   it("validates totals against the committed sibling recommendation during concurrent saves", async ({
@@ -753,7 +780,7 @@ describe("persisted recommendations", () => {
       status: "invalid",
       error: "allocation_total_too_large",
     });
-    expect(await readAudit(database.client, 1)).toHaveLength(1);
+    expect(await readRecommendationVersions(database.client, 1)).toHaveLength(1);
 
     const saved = await getFundingApplicationPage(db, actor, scenario.selected);
     const siblingAfter = await getFundingApplicationPage(db, actor, scenario.sibling);
@@ -810,33 +837,33 @@ describe("persisted recommendations", () => {
       await blocker.query("COMMIT");
 
       expect(await pending).toEqual({ status: "not_found" });
-      expect(await readAudit(database.client)).toEqual(scenario.audit);
+      expect(await readRecommendationVersions(database.client)).toEqual(scenario.versions);
     } finally {
       await blocker.query("ROLLBACK");
       await pending;
       await Promise.all([blocker.end(), saver.end()]);
     }
   });
-});
 
-it("keeps an unchanged recommendation revision and audit history", async ({
-  db,
-  database,
-  scenario,
-}) => {
-  const request = recommendationRequest(scenario.selected.publicId);
-  const saved = await saveFundingRecommendation(db, actor, request);
-  assert(saved.status === "ok");
-  const before = (await database.client.query("SELECT * FROM audit_events ORDER BY id")).rows;
-  const versions = await readAudit(database.client);
-  expect(
-    await saveFundingRecommendation(db, actor, {
-      ...request,
-      expectedRevision: saved.recommendationVersion,
-    }),
-  ).toEqual(saved);
-  expect((await database.client.query("SELECT * FROM audit_events ORDER BY id")).rows).toEqual(
-    before,
-  );
-  expect(await readAudit(database.client)).toEqual(versions);
+  it("keeps an unchanged recommendation revision and audit history", async ({
+    db,
+    database,
+    scenario,
+  }) => {
+    const request = recommendationRequest(scenario.selected.publicId);
+    const saved = await saveFundingRecommendation(db, actor, request);
+    assert(saved.status === "ok");
+    const before = (await database.client.query("SELECT * FROM audit_events ORDER BY id")).rows;
+    const versions = await readRecommendationVersions(database.client);
+    expect(
+      await saveFundingRecommendation(db, actor, {
+        ...request,
+        expectedRevision: saved.recommendationVersion,
+      }),
+    ).toEqual(saved);
+    expect((await database.client.query("SELECT * FROM audit_events ORDER BY id")).rows).toEqual(
+      before,
+    );
+    expect(await readRecommendationVersions(database.client)).toEqual(versions);
+  });
 });
