@@ -751,7 +751,7 @@ it("keeps one assessment form in the work pane while references change and resum
   );
   await user.click(screen.getByRole("button", { name: "Assessment actions for Sam Morgan" }));
   await user.click(screen.getByRole("menuitem", { name: "Edit recorded assessment" }));
-  const form = workspace().getByRole("form", { name: "Edit recorded assessment" });
+  const form = await workspace().findByRole("form", { name: "Edit recorded assessment" });
   const writing = within(form).getByRole("textbox", { name: "Assessment text" });
   await user.clear(writing);
   await user.type(writing, "A preserved assessment draft.");
@@ -794,7 +794,7 @@ it("keeps saved-review refresh recovery visible when another reference is select
   );
   await user.click(screen.getByRole("button", { name: "Assessment actions for Sam Morgan" }));
   await user.click(screen.getByRole("menuitem", { name: "Edit recorded assessment" }));
-  const form = workspace().getByRole("form", { name: "Edit recorded assessment" });
+  const form = await workspace().findByRole("form", { name: "Edit recorded assessment" });
   await user.type(within(form).getByRole("textbox", { name: "Assessment text" }), " Confirmed.");
   await user.click(screen.getByRole("button", { name: /^Reference material:/ }));
   await user.click(screen.getByRole("menuitem", { name: "Applicant submission" }));

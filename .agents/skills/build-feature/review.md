@@ -147,3 +147,8 @@ list as described in [the skill](SKILL.md#6-learn-from-escapes).
 - Do complete historical records use one consistent label/value treatment for their
   metadata, keeping staff interpretation separate from applicant responses? See
   [evidence and interpretation](../../../docs/foundations/experience.md#make-evidence-and-assistance-inspectable).
+
+- Do tests wait for observable readiness before interacting with restored drafts
+  or capturing an animated scroll position, while retaining their draft, recovery,
+  focus, and exact restoration assertions? See [test behavior](../../../docs/guides/testing.md#test-behavior)
+  and [UI verification](../../../docs/guides/ui-verification.md#verification).

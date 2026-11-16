@@ -485,13 +485,14 @@ test("application reading keeps desktop navigation fixed and restores reference 
     const titleTop = (await title.boundingBox())!.y;
     await viewport.focus();
     await viewport.press("End");
+    // End scrolls across frames; capture the position only after reaching the bottom.
     await expect
       .poll(() =>
         viewport.evaluate((node) =>
           Math.abs(node.scrollHeight - node.clientHeight - node.scrollTop),
         ),
       )
-      .toBeLessThanOrEqual(1);
+      .toBe(0);
 
     await expect(budgetAnswer).toBeInViewport();
     expect((await title.boundingBox())!.y).toBe(titleTop);
@@ -683,13 +684,14 @@ test("split editor keeps the draft and reference available without moving save a
   if (!mobile) {
     await viewport.focus();
     await viewport.press("End");
+    // End scrolls across frames; capture the position only after reaching the bottom.
     await expect
       .poll(() =>
         viewport.evaluate((node) =>
           Math.abs(node.scrollHeight - node.clientHeight - node.scrollTop),
         ),
       )
-      .toBeLessThanOrEqual(1);
+      .toBe(0);
   }
 
   const position = await viewport.evaluate((node) => node.scrollTop);
