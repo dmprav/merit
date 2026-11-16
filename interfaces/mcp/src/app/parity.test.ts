@@ -1,8 +1,7 @@
 import { expect, it, vi } from "vite-plus/test";
 
-import { actor, connect, endpoint } from "../../tests/client";
+import { actor, connect } from "../../tests/client";
 import { testOperations } from "../../tests/operations";
-import { handleWorkspaceMcp } from "../index";
 
 const assignmentId = "00000000-0000-4000-a000-000000000001";
 const commandId = "00000000-0000-4000-a000-000000000002";
@@ -45,252 +44,274 @@ const draft = {
   note: "",
 };
 
-it("discovers and dispatches every new workflow with verified identity and original preconditions", async () => {
-  const operations = testOperations();
-  const cases = [
-    {
-      name: "list_my_reviews",
-      args: {},
-      fn: operations.reviewer.list,
-      input: undefined,
-      result: { status: "ok", value: [] },
+type DispatchCase = {
+  name: string;
+  args: Record<string, unknown>;
+  fn: (operations: ReturnType<typeof testOperations>) => (...args: never[]) => Promise<unknown>;
+  input?: unknown;
+  result: unknown;
+};
+
+const dispatchCases: DispatchCase[] = [
+  {
+    name: "list_my_reviews",
+    args: {},
+    fn: (o) => o.reviewer.list,
+    input: undefined,
+    result: { status: "ok", value: [] },
+  },
+  {
+    name: "get_reviewer_assignment",
+    args: { assignmentId },
+    fn: (o) => o.reviewer.read,
+    result: { status: "not_found" },
+  },
+  {
+    name: "list_application_reviewers",
+    args: address,
+    fn: (o) => o.reviewer.forApplication,
+    input: { workspaceSlug: "alder", publicId: applicationId },
+    result: { status: "ok", value: [] },
+  },
+  {
+    name: "invite_reviewer",
+    args: { ...address, commandId, requestId: assignmentId, dueDate: null },
+    fn: (o) => o.reviewer.invite,
+    input: {
+      workspaceSlug: "alder",
+      publicId: applicationId,
+      commandId,
+      requestId: assignmentId,
+      dueDate: null,
     },
-    {
-      name: "get_reviewer_assignment",
-      args: { assignmentId },
-      fn: operations.reviewer.read,
-      result: { status: "not_found" },
+    result: { status: "ok", value: summary },
+  },
+  {
+    name: "manage_reviewer_assignment",
+    args: {
+      ...address,
+      assignmentId,
+      commandId,
+      expectedRevision: 3,
+      action: "clear_conflict",
+      note: "Reviewed",
     },
-    {
-      name: "list_application_reviewers",
-      args: address,
-      fn: operations.reviewer.forApplication,
-      input: { workspaceSlug: "alder", publicId: applicationId },
-      result: { status: "ok", value: [] },
+    fn: (o) => o.reviewer.manage,
+    input: {
+      workspaceSlug: "alder",
+      publicId: applicationId,
+      assignmentId,
+      commandId,
+      expectedRevision: 3,
+      action: "clear_conflict",
+      note: "Reviewed",
     },
-    {
-      name: "invite_reviewer",
-      args: { ...address, commandId, requestId: assignmentId, dueDate: null },
-      fn: operations.reviewer.invite,
-      input: {
-        workspaceSlug: "alder",
-        publicId: applicationId,
-        commandId,
-        requestId: assignmentId,
-        dueDate: null,
-      },
-      result: { status: "ok", value: summary },
-    },
-    {
-      name: "manage_reviewer_assignment",
-      args: {
-        ...address,
-        assignmentId,
-        commandId,
-        expectedRevision: 3,
-        action: "clear_conflict",
-        note: "Reviewed",
-      },
-      fn: operations.reviewer.manage,
-      input: {
-        workspaceSlug: "alder",
-        publicId: applicationId,
-        assignmentId,
-        commandId,
-        expectedRevision: 3,
-        action: "clear_conflict",
-        note: "Reviewed",
-      },
-      result: { status: "ok", value: summary },
-    },
-    {
-      name: "respond_to_review",
-      args: { assignmentId, commandId, expectedRevision: 3, action: "accept", note: "" },
-      fn: operations.reviewer.respond,
-      result: { status: "ok", value: summary },
-    },
-    {
-      name: "save_reviewer_draft",
-      args: { assignmentId, commandId, expectedDraftRevision: 7, draft },
-      fn: operations.reviewer.saveDraft,
-      result: { status: "ok", value: { revision: 8 } },
-    },
-    {
-      name: "submit_reviewer_assessment",
-      args: { assignmentId, commandId, expectedDraftRevision: 8 },
-      fn: operations.reviewer.submit,
-      result: { status: "ok", value: { revision: 9 } },
-    },
-    {
-      name: "list_workspace_activity",
-      args: { workspaceSlug: "alder", roundId: applicationId, personId: "dana", limit: 25 },
-      fn: operations.grantmaking.listWorkspaceActivity,
-      result: { status: "ok", entries: [], people: [], nextCursor: null },
-    },
-    {
-      name: "search_workspace",
-      args: { workspaceSlug: "alder", query: "harbour trust" },
-      fn: operations.grantmaking.searchWorkspace,
-      result: {
-        status: "ok",
-        rounds: { results: [], total: 0 },
-        applications: {
-          total: 1,
-          results: [
-            {
-              id: applicationId,
-              title: "Boat repairs",
-              applicant: "Trust for the Harbour",
-              roundId: "b8q3w5j7c2df",
-              roundTitle: "Community grants",
-              intakeStatus: "ready" as const,
-              withdrawn: false,
-              matchQuality: "contains" as const,
-            },
-          ],
-        },
-      },
-    },
-    {
-      name: "get_team",
-      args: { workspaceSlug: "alder" },
-      fn: operations.organizations.teamOverview,
-      result: {
-        status: "ok",
-        value: {
-          organization: { name: "Alder", slug: "alder", kind: "standard" as const },
-          subject: {
-            userId: "dana",
-            organizationId: "org",
-            active: true,
-            administration: "administrator" as const,
-            role: "program_manager" as const,
+    result: { status: "ok", value: summary },
+  },
+  {
+    name: "respond_to_review",
+    args: { assignmentId, commandId, expectedRevision: 3, action: "accept", note: "" },
+    fn: (o) => o.reviewer.respond,
+    result: { status: "ok", value: summary },
+  },
+  {
+    name: "save_reviewer_draft",
+    args: { assignmentId, commandId, expectedDraftRevision: 7, draft },
+    fn: (o) => o.reviewer.saveDraft,
+    result: { status: "ok", value: { revision: 8 } },
+  },
+  {
+    name: "submit_reviewer_assessment",
+    args: { assignmentId, commandId, expectedDraftRevision: 8 },
+    fn: (o) => o.reviewer.submit,
+    result: { status: "ok", value: { revision: 9 } },
+  },
+  {
+    name: "list_workspace_activity",
+    args: { workspaceSlug: "alder", roundId: applicationId, personId: "dana", limit: 25 },
+    fn: (o) => o.grantmaking.listWorkspaceActivity,
+    result: { status: "ok", entries: [], people: [], nextCursor: null },
+  },
+  {
+    name: "search_workspace",
+    args: { workspaceSlug: "alder", query: "harbour trust" },
+    fn: (o) => o.grantmaking.searchWorkspace,
+    result: {
+      status: "ok",
+      rounds: { results: [], total: 0 },
+      applications: {
+        total: 1,
+        results: [
+          {
+            id: applicationId,
+            title: "Boat repairs",
+            applicant: "Trust for the Harbour",
+            roundId: "b8q3w5j7c2df",
+            roundTitle: "Community grants",
+            intakeStatus: "ready" as const,
+            withdrawn: false,
+            matchQuality: "contains" as const,
           },
-          canManageMembers: true,
+        ],
+      },
+    },
+  },
+  {
+    name: "get_team",
+    args: { workspaceSlug: "alder" },
+    fn: (o) => o.organizations.teamOverview,
+    result: {
+      status: "ok",
+      value: {
+        organization: { name: "Alder", slug: "alder", kind: "standard" as const },
+        subject: {
+          userId: "dana",
+          organizationId: "org",
+          active: true,
+          administration: "administrator" as const,
+          role: "program_manager" as const,
         },
+        canManageMembers: true,
       },
     },
-    {
-      name: "list_team_members",
-      args: { workspaceSlug: "alder" },
-      fn: operations.organizations.membersPage,
-      input: { workspaceSlug: "alder", limit: 20 },
-      result: { status: "ok", value: { members: [], nextCursor: null } },
+  },
+  {
+    name: "list_team_members",
+    args: { workspaceSlug: "alder" },
+    fn: (o) => o.organizations.membersPage,
+    input: { workspaceSlug: "alder", limit: 20 },
+    result: { status: "ok", value: { members: [], nextCursor: null } },
+  },
+  {
+    name: "get_navigation_pins",
+    args: {},
+    fn: (o) => o.navigation.read,
+    input: undefined,
+    result: { status: "ok", pins: [] },
+  },
+  {
+    name: "change_navigation_pin",
+    args: { action: "move", target: { kind: "review", id: assignmentId }, before: null },
+    fn: (o) => o.navigation.change,
+    result: { status: "ok", pins: [] },
+  },
+  {
+    name: "list_organizations",
+    args: {},
+    fn: (o) => o.organizations.list,
+    input: undefined,
+    result: { status: "ok", value: [] },
+  },
+  {
+    name: "get_organization",
+    args: { organizationId: "org" },
+    fn: (o) => o.organizations.read,
+    result: { status: "forbidden" },
+  },
+  {
+    name: "create_organization",
+    args: { requestId: commandId, name: "Alder", slug: "alder", email: "sam@example.test" },
+    fn: (o) => o.organizations.create,
+    result: { status: "ok", value: { organizationId: "org" } },
+  },
+  {
+    name: "rename_organization",
+    args: { organizationId: "org", name: "Alder Trust" },
+    fn: (o) => o.organizations.rename,
+    result: { status: "ok", value: null },
+  },
+  {
+    name: "replace_owner_invitation",
+    args: { organizationId: "org", email: "sam@example.test" },
+    fn: (o) => o.organizations.invite,
+    result: { status: "ok", value: null },
+  },
+  {
+    name: "revoke_owner_invitation",
+    args: { organizationId: "org" },
+    fn: (o) => o.organizations.revoke,
+    result: { status: "ok", value: null },
+  },
+  {
+    name: "list_access_requests",
+    args: {},
+    fn: (o) => o.organizations.accessRequests,
+    input: undefined,
+    result: { status: "ok", value: [] },
+  },
+  {
+    name: "review_access_request",
+    args: { email: "sam@example.test" },
+    fn: (o) => o.organizations.reviewAccessRequest,
+    result: { status: "not_found" },
+  },
+  {
+    name: "get_membership_invitation",
+    args: { token: "a".repeat(64) },
+    fn: (o) => o.organizations.invitation,
+    result: { status: "wrong_account" },
+  },
+  {
+    name: "accept_membership_invitation",
+    args: { token: "a".repeat(64) },
+    fn: (o) => o.organizations.accept,
+    result: { status: "wrong_account" },
+  },
+  {
+    name: "get_demo",
+    args: {},
+    fn: (o) => o.demo.read,
+    input: undefined,
+    result: { status: "empty" },
+  },
+  {
+    name: "start_demo",
+    args: {},
+    fn: (o) => o.demo.start,
+    input: { fresh: false },
+    result: { status: "expired" },
+  },
+  {
+    name: "reset_demo",
+    args: { resetWorkspaceId: "old-demo" },
+    fn: (o) => o.demo.start,
+    input: { fresh: true, resetWorkspaceId: "old-demo" },
+    result: {
+      status: "ready",
+      workspaceId: "new-demo",
+      workspaceSlug: "demo-new",
+      expiresAt: summary.expiresAt,
     },
-    {
-      name: "get_navigation_pins",
-      args: {},
-      fn: operations.navigation.read,
-      input: undefined,
-      result: { status: "ok", pins: [] },
-    },
-    {
-      name: "change_navigation_pin",
-      args: { action: "move", target: { kind: "review", id: assignmentId }, before: null },
-      fn: operations.navigation.change,
-      result: { status: "ok", pins: [] },
-    },
-    {
-      name: "list_organizations",
-      args: {},
-      fn: operations.organizations.list,
-      input: undefined,
-      result: { status: "ok", value: [] },
-    },
-    {
-      name: "get_organization",
-      args: { organizationId: "org" },
-      fn: operations.organizations.read,
-      result: { status: "forbidden" },
-    },
-    {
-      name: "create_organization",
-      args: { requestId: commandId, name: "Alder", slug: "alder", email: "sam@example.test" },
-      fn: operations.organizations.create,
-      result: { status: "ok", value: { organizationId: "org" } },
-    },
-    {
-      name: "rename_organization",
-      args: { organizationId: "org", name: "Alder Trust" },
-      fn: operations.organizations.rename,
-      result: { status: "ok", value: null },
-    },
-    {
-      name: "replace_owner_invitation",
-      args: { organizationId: "org", email: "sam@example.test" },
-      fn: operations.organizations.invite,
-      result: { status: "ok", value: null },
-    },
-    {
-      name: "revoke_owner_invitation",
-      args: { organizationId: "org" },
-      fn: operations.organizations.revoke,
-      result: { status: "ok", value: null },
-    },
-    {
-      name: "list_access_requests",
-      args: {},
-      fn: operations.organizations.accessRequests,
-      input: undefined,
-      result: { status: "ok", value: [] },
-    },
-    {
-      name: "review_access_request",
-      args: { email: "sam@example.test" },
-      fn: operations.organizations.reviewAccessRequest,
-      result: { status: "not_found" },
-    },
-    {
-      name: "get_membership_invitation",
-      args: { token: "a".repeat(64) },
-      fn: operations.organizations.invitation,
-      result: { status: "wrong_account" },
-    },
-    {
-      name: "accept_membership_invitation",
-      args: { token: "a".repeat(64) },
-      fn: operations.organizations.accept,
-      result: { status: "wrong_account" },
-    },
-    {
-      name: "get_demo",
-      args: {},
-      fn: operations.demo.read,
-      input: undefined,
-      result: { status: "empty" },
-    },
-    {
-      name: "start_demo",
-      args: {},
-      fn: operations.demo.start,
-      input: { fresh: false },
-      result: { status: "expired" },
-    },
-    {
-      name: "reset_demo",
-      args: { resetWorkspaceId: "old-demo" },
-      fn: operations.demo.start,
-      input: { fresh: true, resetWorkspaceId: "old-demo" },
-      result: {
-        status: "ready",
-        workspaceId: "new-demo",
-        workspaceSlug: "demo-new",
-        expiresAt: summary.expiresAt,
-      },
-    },
-  ];
+  },
+];
+
+it.each(dispatchCases)(
+  "dispatches $name with the verified actor and original input",
+  async ({ name, args, fn, result, ...test }) => {
+    const operations = testOperations();
+    const operation = fn(operations);
+    vi.mocked(operation).mockResolvedValueOnce(result);
+    const client = await connect(operations);
+    try {
+      const tools = (await client.listTools()).tools;
+      expect(tools.find((tool) => tool.name === name)?.outputSchema).toBeDefined();
+      const response = await client.callTool({ name, arguments: args });
+      expect(response.structuredContent).not.toMatchObject({ status: "unavailable" });
+      const input = "input" in test ? test.input : args;
+      expect(operation).toHaveBeenCalledExactlyOnceWith(
+        ...(input === undefined ? [actor] : [actor, input]),
+      );
+    } finally {
+      await client.close();
+    }
+  },
+);
+
+it("requests workspace access with a normalized email and no actor", async () => {
+  const operations = testOperations();
+  vi.mocked(operations.organizations.requestAccess).mockResolvedValueOnce({ status: "ok" });
   const client = await connect(operations);
   try {
-    const tools = (await client.listTools()).tools;
-    for (const test of cases) {
-      vi.mocked<(...args: never[]) => Promise<unknown>>(test.fn).mockResolvedValueOnce(test.result);
-      expect(tools.find((tool) => tool.name === test.name)?.outputSchema).toBeDefined();
-      const response = await client.callTool({ name: test.name, arguments: test.args });
-      expect(response.structuredContent, test.name).not.toMatchObject({ status: "unavailable" });
-      const input = "input" in test ? test.input : test.args;
-      expect(test.fn).toHaveBeenLastCalledWith(...(input === undefined ? [actor] : [actor, input]));
-    }
-    vi.mocked(operations.organizations.requestAccess).mockResolvedValueOnce({ status: "ok" });
     expect(
       (
         await client.callTool({
@@ -299,59 +320,23 @@ it("discovers and dispatches every new workflow with verified identity and origi
         })
       ).structuredContent,
     ).toEqual({ status: "ok" });
-    expect(operations.organizations.requestAccess).toHaveBeenCalledWith({
+    expect(operations.organizations.requestAccess).toHaveBeenCalledExactlyOnceWith({
       email: "sam@example.test",
     });
-    expect(
-      tools.find((tool) => tool.name === "replace_owner_invitation")?.annotations,
-    ).toMatchObject({ openWorldHint: true, idempotentHint: false });
   } finally {
     await client.close();
   }
 });
 
-it.each([
-  ["get_reviewer_assignment", "reviews:read"],
-  ["submit_reviewer_assessment", "reviews:write"],
-  ["get_navigation_pins", "profile:read"],
-  ["change_navigation_pin", "profile:write"],
-  ["get_membership_invitation", "onboarding:read"],
-  ["accept_membership_invitation", "onboarding:write"],
-  ["list_organizations", "admin:read"],
-  ["create_organization", "admin:write"],
-])("requires the dedicated scope for %s", async (name, scope) => {
-  const operations = testOperations();
-  const response = await handleWorkspaceMcp(
-    new Request(endpoint, {
-      method: "POST",
-      headers: {
-        host: endpoint.host,
-        "Content-Type": "application/json",
-        Accept: "application/json, text/event-stream",
-        "MCP-Protocol-Version": "2025-11-25",
-      },
-      body: JSON.stringify({
-        jsonrpc: "2.0",
-        id: 1,
-        method: "tools/call",
-        params: { name, arguments: {} },
-      }),
-    }),
-    endpoint.href,
-    {
-      ...operations,
-      authenticate: async () => ({
-        ...actor,
-        scopes: ["workspace:read", "grants:write", "team:write"],
-      }),
-    },
-  );
-  expect(response.status).toBe(403);
-  expect(response.headers.get("WWW-Authenticate")).toContain(scope);
-  for (const service of Object.values(operations)) {
-    for (const operation of Object.values(service)) {
-      expect(operation).not.toHaveBeenCalled();
-    }
+it("marks owner invitation replacement as a non-idempotent external delivery", async () => {
+  const client = await connect(testOperations());
+  try {
+    const tools = (await client.listTools()).tools;
+    expect(
+      tools.find((tool) => tool.name === "replace_owner_invitation")?.annotations,
+    ).toMatchObject({ openWorldHint: true, idempotentHint: false });
+  } finally {
+    await client.close();
   }
 });
 

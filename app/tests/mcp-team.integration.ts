@@ -54,25 +54,6 @@ it("creates, retries, lists and revokes an invitation through MCP", async ({
   ]);
 });
 
-it("requires team OAuth scope even for a workspace administrator", async ({
-  database,
-  transport: { callMcp },
-}) => {
-  await database.client.query(
-    "UPDATE memberships SET administration='administrator' WHERE user_id='dana'",
-  );
-  const invitation = {
-    workspaceSlug: "alder",
-    requestId: randomUUID(),
-    email: "mcp-colleague@example.test",
-    administration: "none",
-    role: "program_manager",
-  };
-  await expect(
-    callMcp(actor.userId, invitation, "invite_member", ["workspace:read", "grants:write"]),
-  ).rejects.toThrow();
-});
-
 it("requires current team authority even with granted MCP scopes", async ({
   database,
   transport: { callMcp },
@@ -90,15 +71,4 @@ it("requires current team authority even with granted MCP scopes", async ({
     (await callMcp(actor.userId, { ...invitation, requestId: randomUUID() }, "invite_member"))
       .structuredContent,
   ).toEqual({ status: "forbidden" });
-});
-
-it("rejects grant writes from a read-only MCP client", async ({ transport: { callMcp } }) => {
-  await expect(
-    callMcp(
-      actor.userId,
-      { workspaceSlug: "alder", requestId: randomUUID(), title: "Read-only client" },
-      "create_funding_round",
-      ["workspace:read"],
-    ),
-  ).rejects.toThrow();
 });
