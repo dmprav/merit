@@ -33,9 +33,7 @@ describe("local workspace isolation", () => {
     expect(localProvisioningIdentity(request("unknown"))).toBeUndefined();
   });
 
-  it("only accepts loopback requests, same-origin browser calls and a local database", () => {
-    expect(() => assertLocalWorkspaceDatabase(database)).not.toThrow();
-
+  it("only accepts loopback requests and same-origin browser calls", () => {
     const url = "http://127.0.0.1:3000/app";
 
     expect(allowsLocalWorkspaceRequest(new Request(url))).toBe(true);
@@ -59,6 +57,13 @@ describe("local workspace isolation", () => {
 
     for (const host of ["example.com", "localhost.example.com", "192.168.1.1"]) {
       expect(allowsLocalWorkspaceRequest(new Request(`http://${host}/app`))).toBe(false);
+    }
+  });
+
+  it("only uses a loopback PostgreSQL database", () => {
+    expect(() => assertLocalWorkspaceDatabase(database)).not.toThrow();
+
+    for (const host of ["example.com", "localhost.example.com", "192.168.1.1"]) {
       expect(() => assertLocalWorkspaceDatabase(`postgres://user:pass@${host}/merit`)).toThrow(
         "loopback PostgreSQL",
       );
