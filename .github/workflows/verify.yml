@@ -99,7 +99,7 @@ jobs:
 
   docs-verify:
     needs: changes
-    if: needs.changes.outputs.docs_only == 'true'
+    if: needs.changes.outputs.docs_only == 'true' || needs.changes.outputs.renovate_only == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     defaults:

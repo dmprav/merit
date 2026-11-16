@@ -61,6 +61,15 @@ describe("ci-changes", () => {
     expect(codeResult.full_run).toBe(false);
     expect(codeResult.run_tooling).toBe(false);
     expect(codeResult.package_filters).toContain("--filter '@merit/grantmaking'");
+
+    const renovateResult = classifyChangedFiles({
+      eventName: "pull_request",
+      changedFiles: ["renovate.json", "verifications/42.md"],
+      workspacePackages,
+    });
+    expect(renovateResult.renovate_only).toBe(true);
+    expect(renovateResult.docs_only).toBe(false);
+    expect(renovateResult.full_run).toBe(false);
   });
 
   test("classifies renovate-only PRs without triggering full suite", () => {

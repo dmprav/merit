@@ -35,9 +35,10 @@ const WORKSPACE_PACKAGE_PATTERNS = [
 
 const ALL_PACKAGES_FILTER = "--filter '@merit/*' --filter '!@merit/storybook'";
 
-// Verification records accompany any change, so they route like documentation.
 const DOC_FILE_PATTERN =
-  /^(docs\/|verifications\/|\.remarkrc\.mjs$|\.github\/pull_request_template\.md$|\.github\/ISSUE_TEMPLATE\/)/;
+  /^(docs\/|\.remarkrc\.mjs$|\.github\/pull_request_template\.md$|\.github\/ISSUE_TEMPLATE\/)/;
+// Verification records accompany any change, so they never widen its checks.
+const RECORD_FILE_PATTERN = /^verifications\//;
 const README_OR_ROOT_MD_PATTERN = /(^|\/)README\.md$|^[^/]+\.md$/;
 
 const ROOT_OR_INFRA_PATTERN =
@@ -48,8 +49,10 @@ const GITHUB_INFRA_PATTERN = /^\.github\/(workflows|actions|rulesets)\//;
 const STORYBOOK_SOURCE_PATTERN =
   /^(foundation\/(ui|forms|tables)\/src\/|interfaces\/(product|admin)\/src\/|capabilities\/[^/]+\/web\/src\/)/;
 
+const isRecordFile = (file: string) => RECORD_FILE_PATTERN.test(file);
+
 const isDocFile = (file: string) =>
-  DOC_FILE_PATTERN.test(file) || README_OR_ROOT_MD_PATTERN.test(file);
+  DOC_FILE_PATTERN.test(file) || README_OR_ROOT_MD_PATTERN.test(file) || isRecordFile(file);
 
 const isRootOrInfraFile = (file: string) =>
   ROOT_OR_INFRA_PATTERN.test(file) || GITHUB_INFRA_PATTERN.test(file);
@@ -158,7 +161,7 @@ export const classifyChangedFiles = ({
   const files = changedFiles.filter(Boolean);
   const renovate = files.includes("renovate.json");
   const docsOnly = files.length > 0 && files.every(isDocFile);
-  const renovateOnly = files.length > 0 && files.every((f) => f === "renovate.json");
+  const renovateOnly = renovate && files.every((f) => f === "renovate.json" || isRecordFile(f));
 
   if (docsOnly || renovateOnly) {
     return {

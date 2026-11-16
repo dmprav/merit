@@ -48,12 +48,64 @@ export const parseNameStatus = (raw: string): ChangedFile[] =>
       return [{ status: "modified", path: first }];
     });
 
+type Section = { heading: string; hasContent: boolean };
+
+/** Removes HTML comment text from a line, tracking comments that span lines. */
+const visibleText = (line: string, inComment: boolean) => {
+  let visible = "";
+  let rest = line;
+  let commented = inComment;
+  while (rest) {
+    const marker = commented ? "-->" : "<!--";
+    const index = rest.indexOf(marker);
+    if (!commented) {
+      visible += index < 0 ? rest : rest.slice(0, index);
+    }
+    rest = index < 0 ? "" : rest.slice(index + marker.length);
+    commented = index < 0 ? commented : !commented;
+  }
+  return { visible, inComment: commented };
+};
+
+/**
+ * Collects level-two sections, treating fenced code as section content rather
+ * than headings and ignoring HTML comments.
+ */
+const recordSections = (content: string): Section[] => {
+  const sections: Section[] = [];
+  let fence: RegExp | null = null;
+  let inComment = false;
+
+  for (const line of content.split(/\r?\n/)) {
+    const current = sections.at(-1);
+    if (fence) {
+      fence = fence.test(line) ? null : fence;
+      if (current) {
+        current.hasContent = true;
+      }
+      continue;
+    }
+
+    const text = visibleText(line, inComment);
+    inComment = text.inComment;
+    const opening = /^ {0,3}(`{3,}|~{3,})/.exec(text.visible)?.[1];
+    const heading = /^## +(.+?)\s*$/.exec(text.visible)?.[1];
+    if (opening) {
+      fence = new RegExp(`^ {0,3}${opening[0]}{${opening.length},}\\s*$`);
+    }
+    if (heading && !opening) {
+      sections.push({ heading, hasContent: false });
+    } else if (current && text.visible.trim()) {
+      current.hasContent = true;
+    }
+  }
+  return sections;
+};
+
 /** Returns a problem for each missing, reordered, unexpected, or empty section. */
 export const checkRecordContent = (path: string, content: string): string[] => {
-  const withoutComments = content.replace(/<!--[\s\S]*?-->/g, "");
-  const parts = withoutComments.split(/^## +(.+?)\s*$/m);
-  const headings = parts.filter((_, index) => index % 2 === 1);
-  const bodies = parts.filter((_, index) => index > 0 && index % 2 === 0);
+  const sections = recordSections(content);
+  const headings = sections.map((section) => section.heading);
 
   if (headings.join("\n") !== RECORD_SECTIONS.join("\n")) {
     return [
@@ -61,10 +113,8 @@ export const checkRecordContent = (path: string, content: string): string[] => {
     ];
   }
 
-  return headings.flatMap((heading, index) =>
-    bodies[index]?.trim()
-      ? []
-      : [`${path}: "## ${heading}" is empty; write "None." if nothing applies.`],
+  return sections.flatMap(({ heading, hasContent }) =>
+    hasContent ? [] : [`${path}: "## ${heading}" is empty; write "None." if nothing applies.`],
   );
 };
 

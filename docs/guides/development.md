@@ -444,7 +444,8 @@ that diffs against the PR base commit:
 - Documentation-only pull requests (including package `README.md` files and
   verification records) route through `docs-verify` (`check:docs`, `test:docs`,
   formatting, `check:secrets`, and `test:ci`).
-- `renovate.json`-only pull requests route through `renovate`.
+- `renovate.json`-only pull requests, with or without a verification record, route
+  through `renovate` and `docs-verify`.
 - Pull requests touching root/workflow configuration, pushes to `main`, `merge_group`,
   and manual dispatch runs execute every `ready` stage with fresh task results
   (`--no-cache`).

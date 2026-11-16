@@ -117,6 +117,36 @@ describe("verification record", () => {
     ]);
   });
 
+  test("treats fenced code as content, not as section headings", () => {
+    const quoted = completeRecord.replace(
+      "## Did not verify\n\nNone.",
+      "## Did not verify\n\n````md\n## Quoted heading\n```\n## Still quoted\n```\n````",
+    );
+    expect(checkRecordContent("r.md", quoted)).toEqual([]);
+
+    const tildes = completeRecord.replace(
+      "## Did not verify\n\nNone.",
+      "## Did not verify\n\n~~~\n## Quoted heading\n~~~",
+    );
+    expect(checkRecordContent("r.md", tildes)).toEqual([]);
+  });
+
+  test("ignores headings and text inside HTML comments", () => {
+    const commented = completeRecord.replace(
+      "## Did not verify\n\nNone.",
+      "## Did not verify\n\n<!-- placeholder\n## Lessons\nmore -->",
+    );
+    expect(checkRecordContent("r.md", commented)).toEqual([
+      'r.md: "## Did not verify" is empty; write "None." if nothing applies.',
+    ]);
+
+    const inline = completeRecord.replace(
+      "None.\n\n## Dismissed",
+      "<!-- a --> None. <!-- b -->\n\n## Dismissed",
+    );
+    expect(checkRecordContent("r.md", inline)).toEqual([]);
+  });
+
   test("parses git name-status output, splitting renames", () => {
     expect(
       parseNameStatus(
