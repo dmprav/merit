@@ -113,14 +113,14 @@ it("pages a round's budget changes without its other events", async ({ db }) => 
   });
   assert(older.status === "ok");
 
-  expect(
-    [...newest.entries, ...older.entries].map(({ action, reason, before, after }) => ({
-      action,
-      reason,
-      before: before?.minorUnits ?? null,
-      after: after?.minorUnits ?? null,
-    })),
-  ).toEqual([
+  const toChange = ({ action, reason, before, after }: (typeof newest.entries)[number]) => ({
+    action,
+    reason,
+    before: before?.minorUnits ?? null,
+    after: after?.minorUnits ?? null,
+  });
+
+  expect(newest.entries.map(toChange)).toEqual([
     {
       action: "round.budget_changed",
       reason: "Updated funding",
@@ -133,6 +133,8 @@ it("pages a round's budget changes without its other events", async ({ db }) => 
       before: "100000",
       after: "100100",
     },
+  ]);
+  expect(older.entries.map(toChange)).toEqual([
     { action: "round.budget_changed", reason: "Updated funding", before: null, after: "100000" },
   ]);
   expect(older.nextCursor).toBeNull();
