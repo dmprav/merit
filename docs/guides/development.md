@@ -262,11 +262,6 @@ performance, and database integration. [Write and maintain tests](testing.md)
 covers test design, fixtures, and coverage. Use [coding conventions](coding-conventions.md)
 when writing or reviewing code.
 
-### Coverage policy changes
-
-Follow the [coverage policy](testing.md#coverage-policy-changes) before weakening
-coverage or required tests; it requires explicit user approval.
-
 ## Commit changes
 
 Use [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/)
