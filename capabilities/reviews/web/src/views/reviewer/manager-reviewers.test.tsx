@@ -51,6 +51,32 @@ it("keeps an invitation failure open with the actual missing membership prerequi
   expect(invitation.getByRole("button", { name: "Invite reviewer" })).toBeEnabled();
 });
 
+it.each([
+  ["contact_unavailable", "This contact is archived"],
+  ["contact_email_required", "Add an email address to this contact"],
+  ["manager_email_required", "Your workspace membership has no email address"],
+  ["request_unavailable", "The assignment changed"],
+  ["invalid_input", "could not be made as entered"],
+] as const)("explains a %s invitation rejection with its recovery", async (error, message) => {
+  const data = managerTransport({ status: "ok", value: [] });
+  vi.mocked(data.invite).mockResolvedValueOnce({ status: "invalid", error });
+  const { user } = renderManager(data);
+  await user.click(await screen.findByRole("button", { name: "Invite reviewer" }));
+  const invitation = within(screen.getByRole("dialog", { name: "Invite reviewer" }));
+  await user.click(invitation.getByRole("button", { name: "Invite reviewer" }));
+  expect(await invitation.findByRole("alert")).toHaveTextContent(message);
+});
+
+it("asks for a refresh when an assignment action no longer applies", async () => {
+  const assignment = { ...reviewerPage().assignment, status: "invited" as const };
+  const data = managerTransport({ status: "ok", value: [assignment] });
+  vi.mocked(data.manage).mockResolvedValueOnce({ status: "invalid", error: "action_unavailable" });
+  const { user } = renderManager(data);
+  await user.click(await screen.findByRole("button", { name: "More actions for Sam Morgan" }));
+  await user.click(await screen.findByRole("menuitem", { name: "Resend invitation" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("The assignment changed");
+});
+
 it("separates invitation delivery from participation and opens readable assignment history", async () => {
   const assignment = {
     ...reviewerPage().assignment,
