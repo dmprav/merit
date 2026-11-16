@@ -1,9 +1,8 @@
 import { z } from "zod";
 
 import { provenanceSchema } from "@merit/auth";
+import { publicIdSchema } from "@merit/db/identifiers";
 import { workspaceSlugSchema } from "@merit/organizations/api";
-
-import { publicIdSchema } from "../identifiers";
 
 export const workspaceActivityInput = z.strictObject({
   workspaceSlug: workspaceSlugSchema,

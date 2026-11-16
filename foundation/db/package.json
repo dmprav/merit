@@ -7,12 +7,14 @@
   "exports": {
     ".": "./src/connection.ts",
     "./search": "./src/search.ts",
-    "./migrate": "./database/migrate.ts"
+    "./migrate": "./database/migrate.ts",
+    "./identifiers": "./src/identifiers.ts"
   },
   "dependencies": {
     "@merit/telemetry": "workspace:*",
     "drizzle-orm": "catalog:",
-    "pg": "catalog:"
+    "pg": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",

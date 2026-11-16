@@ -1,6 +1,7 @@
 import { z } from "zod";
 
-import { publicIdSchema, totalsDataSchema, encodeBudgetTotals } from "@merit/grantmaking/api";
+import { publicIdSchema } from "@merit/db/identifiers";
+import { totalsDataSchema, encodeBudgetTotals } from "@merit/grantmaking/api";
 import { encodeMoney, moneyDataSchema } from "@merit/money";
 import {
   recommendationDataSchema,

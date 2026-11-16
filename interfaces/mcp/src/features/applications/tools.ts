@@ -7,7 +7,8 @@ import {
   type ApplicationsService,
 } from "@merit/applications/api";
 import { intakeChanges } from "@merit/applications/domain";
-import { applicationReadInput, publicIdSchema } from "@merit/grantmaking/api";
+import { publicIdSchema } from "@merit/db/identifiers";
+import { applicationReadInput } from "@merit/grantmaking/api";
 
 import type { RegisterTool } from "../../components/register-tool";
 import { grantWriteOptions, revision } from "../../components/tool-options";

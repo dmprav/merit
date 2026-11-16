@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { publicIdSchema } from "@merit/db/identifiers";
 import { workspaceSlugSchema } from "@merit/organizations/api";
 
 import {
@@ -17,7 +18,7 @@ export type IntakeSaveError =
 
 const address = {
   workspaceSlug: workspaceSlugSchema,
-  publicId: z.string().regex(/^[0-9a-hjkmnp-tv-z]{12}$/),
+  publicId: publicIdSchema,
 };
 export const createApplicationRequestSchema = z.strictObject({
   ...address,

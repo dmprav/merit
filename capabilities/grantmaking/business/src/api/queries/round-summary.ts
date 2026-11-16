@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { publicIdSchema } from "@merit/db/identifiers";
 import { decodeMoney, encodeMoney, moneyDataSchema } from "@merit/money";
 import { fundingRoundSchema } from "@merit/rounds/domain";
 
@@ -7,7 +8,7 @@ const summaryFields = {
   organizationId: z.string().min(1),
   organizationName: z.string().min(1),
   workspaceSlug: z.string().min(1),
-  publicId: z.string().regex(/^[0-9a-hjkmnp-tv-z]{12}$/),
+  publicId: publicIdSchema,
   title: z.string(),
   decisionStatus: z.string(),
   manager: fundingRoundSchema.shape.manager,

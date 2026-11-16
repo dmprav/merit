@@ -1,4 +1,4 @@
-import { publicIdSchema } from "@merit/grantmaking/api";
+import { publicIdSchema } from "@merit/db/identifiers";
 
 export const resourceRef = (title: string, publicId: string) => {
   const slug =

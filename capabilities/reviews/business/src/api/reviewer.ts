@@ -4,12 +4,11 @@ import type { encodeApplicationMaterial } from "@merit/applications/api";
 import { auditPageInput } from "@merit/audit/api";
 import type { Actor } from "@merit/auth";
 import { calendarDateSchema } from "@merit/dates";
+import { publicIdSchema } from "@merit/db/identifiers";
 
 import type { ReviewBasisComparison } from "../domain/basis";
 import { reviewerDraftSchema, type ReviewerDraft, type ReviewerStatus } from "../domain/reviewer";
 import type { ReviewState } from "../domain/reviews";
-
-const publicIdSchema = z.string().regex(/^[0-9a-hjkmnp-tv-z]{12}$/);
 
 export const reviewerListInput = z
   .strictObject({ workspaceSlug: z.string().min(1).max(80) })

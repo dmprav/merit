@@ -1,4 +1,4 @@
-import { publicIdSchema } from "@merit/grantmaking/api";
+import { publicIdSchema } from "@merit/db/identifiers";
 import { saveReviewRequestSchema, type ReviewService } from "@merit/reviews/api";
 import { reviewChanges } from "@merit/reviews/domain";
 
