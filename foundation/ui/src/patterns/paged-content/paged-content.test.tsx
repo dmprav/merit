@@ -25,36 +25,47 @@ it("renders static entries directly when no remote paging flags are supplied", (
   expect(screen.queryByRole("button")).not.toBeInTheDocument();
 });
 
-it("renders loading, failure retry, and load-more controls from state props", async () => {
-  const retry = vi.fn();
-  const more = vi.fn();
-  const user = userEvent.setup();
-
-  const { rerender } = render(
+it("announces loading before the first page arrives", () => {
+  render(
     <PagedContent entries={[]} loaded={false} pending>
       {(entries) => <p>{entries.join(", ")}</p>}
     </PagedContent>,
     { wrapper },
   );
-  expect(screen.getByRole("status")).toHaveTextContent("Loading history");
 
-  rerender(
+  expect(screen.getByRole("status")).toHaveTextContent("Loading history");
+});
+
+it("offers older entries below the loaded page while more remain", async () => {
+  const more = vi.fn();
+  const user = userEvent.setup();
+  render(
     <PagedContent entries={["recent"]} loaded hasMore more={more}>
       {(entries, hasMore) => <p>{`${entries.join(", ")}:${hasMore}`}</p>}
     </PagedContent>,
+    { wrapper },
   );
+
   expect(screen.getByText("recent:true")).toBeVisible();
   await user.click(screen.getByRole("button", { name: "Load older entries" }));
-  expect(more).toHaveBeenCalledTimes(1);
+  expect(more).toHaveBeenCalledOnce();
+});
 
-  rerender(
+it("keeps loaded entries and replaces the older-entries control with a retry after a failed read", async () => {
+  const retry = vi.fn();
+  const user = userEvent.setup();
+  render(
     <PagedContent entries={["recent"]} loaded failed hasMore retry={retry}>
       {(entries) => <p>{entries.join(", ")}</p>}
     </PagedContent>,
+    { wrapper },
   );
+
+  expect(screen.getByText("recent")).toBeVisible();
   expect(screen.getByRole("alert")).toHaveTextContent("History could not be loaded.");
+  expect(screen.queryByRole("button", { name: "Load older entries" })).not.toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "Try again" }));
-  expect(retry).toHaveBeenCalledTimes(1);
+  expect(retry).toHaveBeenCalledOnce();
 });
 
 it("hides entries and controls when access is denied", () => {

@@ -410,6 +410,7 @@ it.for(["administrator", "owner"])(
       workspace: { role: "member" },
     });
     expect(await loadFundingRounds("alder", services)).toEqual({ status: "not_found" });
+    expect(await listFundingRounds(db, actor, "alder")).toEqual({ status: "forbidden" });
     expect(
       (await database.client.query("SELECT 1 FROM recommendation_versions")).rows,
     ).toHaveLength(0);

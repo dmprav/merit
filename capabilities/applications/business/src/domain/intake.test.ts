@@ -452,58 +452,73 @@ describe("application intake", () => {
   });
 
   it.each(["correction", "revision"] as const)(
-    "keeps a %s separate, requires a reason, and preserves old judgments on recording",
+    "starts a %s from the recorded material without changing it",
     (kind) => {
       const application = makeReviewedApplication();
-      const started = prepareIntakeChange(
-        application,
-        null,
-        { action: "start_revision", kind },
-        author,
-      );
+      const before = structuredClone(application);
 
-      if (!started.ok || !started.workingRevision) {
-        throw new Error("Expected working revision");
-      }
+      expect(
+        prepareIntakeChange(application, null, { action: "start_revision", kind }, author),
+      ).toEqual({
+        ok: true,
+        application: before,
+        workingRevision: { kind, reason: "", content: intakeContent(application) },
+        action: "start_revision",
+        reason: null,
+      });
+      expect(application).toEqual(before);
+    },
+  );
 
-      const draft = {
-        ...started.workingRevision,
-        content: { ...started.workingRevision.content, requested: "28000" },
+  it.each(["correction", "revision"] as const)(
+    "requires a reason before recording a %s",
+    (kind) => {
+      const application = makeReviewedApplication();
+      const before = structuredClone(application);
+      const draft: WorkingRevision = {
+        kind,
+        reason: "",
+        content: { ...intakeContent(application), requested: "28000" },
       };
-      const saved = prepareIntakeChange(
-        application,
-        started.workingRevision,
-        {
-          action: "save_revision",
-          draft: { ...draft, content: { requested: draft.content.requested } },
-        },
-        author,
-      );
 
-      expect(saved).toMatchObject({ ok: true, application });
       expect(
         prepareIntakeChange(application, draft, { action: "publish_revision" }, author),
-      ).toMatchObject({ ok: false, error: "reason_required" });
+      ).toEqual({ ok: false, error: "reason_required" });
+      expect(application).toEqual(before);
+    },
+  );
+
+  it.each(["correction", "revision"] as const)(
+    "records a %s as a new material version with its reason, keeping existing judgments",
+    (kind) => {
+      const application = makeReviewedApplication();
+      const before = structuredClone(application);
+      const draft: WorkingRevision = {
+        kind,
+        reason: "Venue costs changed.",
+        content: { ...intakeContent(application), requested: "28000" },
+      };
 
       const recorded = prepareIntakeChange(
         application,
-        { ...draft, reason: "Venue costs changed." },
+        draft,
         { action: "publish_revision" },
         author,
       );
 
-      if (!recorded.ok) {
-        throw new Error("Expected recording");
-      }
-      expect(recorded).toMatchObject({ action: kind, reason: "Venue costs changed." });
-      expect(recorded.application.version).toBe(application.version + 1);
-      expect(recorded.application).toMatchObject({
-        managerRecommendation: application.managerRecommendation,
+      expect(recorded).toMatchObject({
+        ok: true,
+        action: kind,
+        reason: "Venue costs changed.",
+        workingRevision: null,
+        application: {
+          version: application.version + 1,
+          requested: fromMinorUnits(2800000n),
+          reviews: application.reviews,
+          managerRecommendation: application.managerRecommendation,
+        },
       });
-      expect(recorded.workingRevision).toBeNull();
-
-      expect(recorded.application).toMatchObject({ reviews: application.reviews });
-      expect(application.requested).toEqual(fromMinorUnits(2400000n));
+      expect(application).toEqual(before);
     },
   );
 

@@ -321,7 +321,7 @@ for (const theme of ["product", "site"] as const) {
 
 for (const theme of ["product", "site"]) {
   test(
-    `buttons keep pending icons and enlarged labels within their targets in ${theme}`,
+    `pending icon-only buttons keep their icon centred within the target in ${theme}`,
     { tag: "@cross-browser" },
     async ({ page }, testInfo) => {
       await page.goto(
@@ -352,7 +352,13 @@ for (const theme of ["product", "site"]) {
         "none",
       );
       await page.screenshot({ path: testInfo.outputPath(`buttons-${theme}-pending.png`) });
+    },
+  );
 
+  test(
+    `buttons keep enlarged long labels within their targets in ${theme}`,
+    { tag: "@cross-browser" },
+    async ({ page }, testInfo) => {
       await page.setViewportSize({ width: 320, height: 640 });
       await page.goto(
         `/iframe.html?id=components-button--long-label&viewMode=story&globals=theme:${theme}`,

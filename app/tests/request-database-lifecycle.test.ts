@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, it, vi } from "vite-plus/test";
 
-const { clients, mockDrizzle, handlerFetch, handleMcpMock, mcpResourceMetadataMock } = vi.hoisted(
-  () => {
+const { clients, connectGate, mockDrizzle, handlerFetch, handleMcpMock, mcpResourceMetadataMock } =
+  vi.hoisted(() => {
     type ClientRecord = {
       connectionString: string;
       connect: ReturnType<typeof vi.fn>;
@@ -13,16 +13,18 @@ const { clients, mockDrizzle, handlerFetch, handleMcpMock, mcpResourceMetadataMo
     const fetchFn = vi.fn();
     const mcpFn = vi.fn();
     const metadataFn = vi.fn(() => new Response("metadata", { status: 200 }));
+    // Holds new connections open until a test releases them.
+    const gate: { current?: Promise<void> } = {};
 
     return {
       clients: records,
+      connectGate: gate,
       mockDrizzle: drizzleFn,
       handlerFetch: fetchFn,
       handleMcpMock: mcpFn,
       mcpResourceMetadataMock: metadataFn,
     };
-  },
-);
+  });
 
 vi.mock("cloudflare:workers", () => ({
   waitUntil: vi.fn(),
@@ -51,7 +53,9 @@ vi.mock("@tanstack/react-start/server-entry", () => ({
 vi.mock("pg", () => {
   class FakeClient {
     connectionString: string;
-    connect = vi.fn(async () => undefined);
+    connect = vi.fn(async () => {
+      await connectGate.current;
+    });
     end = vi.fn(async () => undefined);
     on = vi.fn(() => this);
 
@@ -113,6 +117,7 @@ import serverEntry from "../src/server";
 
 beforeEach(() => {
   clients.length = 0;
+  connectGate.current = undefined;
   mockDrizzle.mockClear();
   handlerFetch.mockReset();
   handleMcpMock.mockReset();
@@ -123,7 +128,7 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-const fetchRequest = (url: string) => serverEntry.fetch(new Request(url), {} as never);
+const fetchRequest = async (url: string) => serverEntry.fetch(new Request(url), {} as never);
 
 it("checks out and closes a pg.Client per database call without holding connections across external I/O", async () => {
   const seenDbs: unknown[] = [];
@@ -153,85 +158,83 @@ it("checks out and closes a pg.Client per database call without holding connecti
   const response = await fetchRequest("https://merit.example/app");
 
   expect(response.status).toBe(200);
-  expect(response.headers.get("Content-Security-Policy")).toBe("frame-ancestors 'none'");
   expect(clients).toHaveLength(3);
   expect(new Set(seenDbs).size).toBe(3);
   expect(clients.every((client) => client.connect.mock.calls.length === 1)).toBe(true);
   expect(clients.every((client) => client.end.mock.calls.length === 1)).toBe(true);
 });
 
-it("waits for in-flight database calls and closes their pg.Clients in finally when the web handler throws", async () => {
+it("prevents web responses from being framed", async () => {
+  handlerFetch.mockResolvedValueOnce(new Response("page", { status: 200 }));
+
+  const response = await fetchRequest("https://merit.example/app");
+
+  expect(response.headers.get("Content-Security-Policy")).toBe("frame-ancestors 'none'");
+});
+
+it("waits for in-flight database calls and closes their pg.Clients before reporting a web handler failure", async () => {
+  let releaseConnection!: () => void;
+  connectGate.current = new Promise<void>((resolve) => {
+    releaseConnection = resolve;
+  });
   handlerFetch.mockImplementation(
     async (_request: Request, options?: { context?: ApplicationRequestContext }) => {
-      await options!.context!.workspace.readWorkspace({ userId: "u1" }, "alder");
+      void options!.context!.workspace.readWorkspace({ userId: "u1" }, "alder");
       throw new Error("handler boom");
     },
   );
+  let settled = false;
+  const response = fetchRequest("https://merit.example/app").finally(() => {
+    settled = true;
+  });
 
-  await expect(fetchRequest("https://merit.example/app")).rejects.toThrow("handler boom");
+  await vi.waitFor(() => expect(clients).toHaveLength(1));
+  await new Promise((resolve) => setTimeout(resolve, 0));
 
-  expect(clients).toHaveLength(1);
-  expect(clients[0]!.connect).toHaveBeenCalledOnce();
+  expect(settled).toBe(false);
+
+  releaseConnection();
+
+  await expect(response).rejects.toThrow("handler boom");
   expect(clients[0]!.end).toHaveBeenCalledOnce();
 });
 
-it("awaits handleMcp, runs concurrent calls in parallel, and closes each pg.Client on success and failure", async () => {
-  handleMcpMock.mockImplementationOnce(
-    async (
-      _request: Request,
-      _config: unknown,
-      dependencies: { database: <T>(op: (db: unknown) => Promise<T>) => Promise<T> },
-    ) => {
-      let releaseFirst!: () => void;
-      const firstGate = new Promise<void>((resolve) => {
-        releaseFirst = resolve;
-      });
-      let markFirstRunning!: () => void;
-      const firstRunning = new Promise<void>((resolve) => {
-        markFirstRunning = resolve;
-      });
-
-      const first = dependencies.database(async (db) => {
-        markFirstRunning();
-        await firstGate;
-        return db;
-      });
-      await firstRunning;
-
-      const db2 = await dependencies.database(async (db) => db);
-      expect(clients).toHaveLength(2);
-      expect(clients[0]!.end).not.toHaveBeenCalled();
-      expect(clients[1]!.end).toHaveBeenCalledOnce();
-
-      releaseFirst();
-      const db1 = await first;
-      expect(db1).not.toBe(db2);
-      expect(clients[0]!.end).toHaveBeenCalledOnce();
-      return new Response("mcp ok", { status: 200 });
-    },
-  );
-
-  const ok = await fetchRequest("https://merit.example/mcp/workspace");
-  expect(ok.status).toBe(200);
-  expect(clients).toHaveLength(2);
-  expect(clients[0]!.end).toHaveBeenCalledOnce();
-  expect(clients[1]!.end).toHaveBeenCalledOnce();
-
-  handleMcpMock.mockImplementationOnce(
-    async (
-      _request: Request,
-      _config: unknown,
-      dependencies: { database: <T>(op: (db: unknown) => Promise<T>) => Promise<T> },
-    ) => {
-      await dependencies.database(async (db) => db);
+it.each([
+  {
+    outcome: "succeeds",
+    respond: async () => new Response("mcp ok", { status: 200 }),
+    settle: (response: Promise<Response>) =>
+      expect(response).resolves.toHaveProperty("status", 200),
+  },
+  {
+    outcome: "throws",
+    respond: async () => {
       throw new Error("mcp boom");
     },
-  );
+    settle: (response: Promise<Response>) => expect(response).rejects.toThrow("mcp boom"),
+  },
+])(
+  "gives MCP the request database and closes its pg.Client when MCP $outcome",
+  async ({ respond, settle }) => {
+    handleMcpMock.mockImplementationOnce(
+      async (
+        _request: Request,
+        _config: unknown,
+        dependencies: { database: <T>(op: (db: unknown) => Promise<T>) => Promise<T> },
+      ) => {
+        await dependencies.database(async (db) => db);
+        return respond();
+      },
+    );
 
-  await expect(fetchRequest("https://merit.example/mcp/workspace")).rejects.toThrow("mcp boom");
-  expect(clients).toHaveLength(3);
-  expect(clients[2]!.end).toHaveBeenCalledOnce();
-});
+    await settle(fetchRequest("https://merit.example/mcp/workspace"));
+
+    expect(handleMcpMock).toHaveBeenCalledOnce();
+    expect(clients).toHaveLength(1);
+    expect(clients[0]!.connectionString).toBe("postgres://merit:merit@hyperdrive.local/merit");
+    expect(clients[0]!.end).toHaveBeenCalledOnce();
+  },
+);
 
 it("does not open any pg.Client when early routes or non-database requests complete", async () => {
   const metadata = await fetchRequest(

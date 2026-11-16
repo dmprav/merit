@@ -63,45 +63,63 @@ it("can retry an initial failure without requesting an older page", async () => 
   expect(read.mock.calls.map((call) => call[0])).toEqual([undefined, undefined]);
 });
 
-it("defers RemotePagedContent reads until active and renders static entries without a source", async () => {
-  const client = createQueryClient();
+const remoteWrapper = (client = createQueryClient()) =>
+  function Wrapper({ children }: { children: ReactNode }) {
+    return createElement(QueryClientProvider, { client }, children);
+  };
+
+const RemoteProbe = ({
+  source,
+  entries,
+  active,
+}: {
+  source?: PageSource<string>;
+  entries: string[];
+  active: boolean;
+}) => {
+  const render = (page: { entries: string[]; loaded: boolean }) =>
+    createElement("p", null, page.loaded ? page.entries.join(",") : "loading");
+
+  return RemotePagedContent<string>({ source, entries, active, children: render });
+};
+
+it("renders static entries without a remote source", () => {
+  const view = render(createElement(RemoteProbe, { entries: ["static"], active: false }), {
+    wrapper: remoteWrapper(),
+  });
+
+  expect(view.getByText("static")).toBeTruthy();
+});
+
+it("defers remote reads until the content is active", async () => {
   const read = vi
     .fn<PageSource<string>["read"]>()
     .mockResolvedValueOnce({ entries: ["remote"], nextCursor: null });
   const source = { queryKey: ["private", "remote-history"], read };
-
-  const wrapper = ({ children }: { children: ReactNode }) =>
-    createElement(QueryClientProvider, { client }, children);
-
-  const Probe = ({
-    source: itemSource,
-    entries,
-    active,
-  }: {
-    source?: PageSource<string>;
-    entries: string[];
-    active: boolean;
-  }) => {
-    const render = (page: { entries: string[]; loaded: boolean }) =>
-      createElement("p", null, page.loaded ? page.entries.join(",") : "loading");
-
-    return RemotePagedContent<string>({
-      source: itemSource,
-      entries,
-      active,
-      children: render,
-    });
-  };
-
-  const staticView = render(createElement(Probe, { entries: ["static"], active: false }), {
-    wrapper,
+  const view = render(createElement(RemoteProbe, { source, entries: [], active: false }), {
+    wrapper: remoteWrapper(),
   });
-  expect(staticView.getByText("static")).toBeTruthy();
 
-  const view = render(createElement(Probe, { source, entries: [], active: false }), { wrapper });
   expect(read).not.toHaveBeenCalled();
 
-  view.rerender(createElement(Probe, { source, entries: [], active: true }));
+  view.rerender(createElement(RemoteProbe, { source, entries: [], active: true }));
+
   await waitFor(() => expect(view.getByText("remote")).toBeTruthy());
-  expect(read).toHaveBeenCalledTimes(1);
+});
+
+it("reads the current entries again when closed content is reopened", async () => {
+  const read = vi
+    .fn<PageSource<string>["read"]>()
+    .mockResolvedValueOnce({ entries: ["first"], nextCursor: null })
+    .mockResolvedValueOnce({ entries: ["recorded since"], nextCursor: null });
+  const source = { queryKey: ["private", "reopened-history"], read };
+  const view = render(createElement(RemoteProbe, { source, entries: [], active: true }), {
+    wrapper: remoteWrapper(),
+  });
+  await waitFor(() => expect(view.getByText("first")).toBeTruthy());
+
+  view.rerender(createElement(RemoteProbe, { source, entries: [], active: false }));
+  view.rerender(createElement(RemoteProbe, { source, entries: [], active: true }));
+
+  await waitFor(() => expect(view.getByText("recorded since")).toBeTruthy());
 });

@@ -50,72 +50,80 @@ const apply = (state: ReviewState, change: ReviewChange) => {
   return result.state;
 };
 
+const recordedBy = (authorUserId: string) => {
+  const result = prepareReviewChange(emptyReviews(), record, { ...context, authorUserId });
+
+  if (!result.ok) {
+    throw new Error(result.error);
+  }
+
+  return result.state;
+};
+
 describe("recording reviews", () => {
-  it("preserves authenticated reviewer authorship across recording and amendments", () => {
-    const recorded = prepareReviewChange(emptyReviews(), record, {
-      ...context,
-      authorUserId: "sam",
-    });
-    assert.isTrue(recorded.ok);
-    expect(recorded.state.assessments[0]?.authorUserId).toBe("sam");
+  it("preserves the authenticated reviewer as an assessment's author", () => {
+    expect(recordedBy("sam").assessments[0]?.authorUserId).toBe("sam");
+  });
 
-    const source = recorded.state;
+  it.each([
+    { editor: "a manager", authorUserId: undefined, note: "" },
+    { editor: "another reviewer", authorUserId: "other", note: "Attempt" },
+  ])(
+    "rejects $editor editing a reviewer-authored assessment without changing it",
+    ({ authorUserId, note }) => {
+      const source = recordedBy("sam");
+      const before = structuredClone(source);
+
+      expect(
+        prepareReviewChange(
+          source,
+          { action: "edit", id: record.id, content: { ...content, reasoning: "Replaced" }, note },
+          { ...context, authorUserId },
+        ),
+      ).toEqual({ ok: false, error: "reviewer_authored" });
+      expect(source).toEqual(before);
+    },
+  );
+
+  it("records the author's amendment as a new version with its note", () => {
+    const source = recordedBy("sam");
     const before = structuredClone(source);
-    expect(
-      prepareReviewChange(
-        source,
-        {
-          action: "edit",
-          id: record.id,
-          content: { ...content, reasoning: "Manager replacement" },
-          note: "",
-        },
-        context,
-      ),
-    ).toEqual({ ok: false, error: "reviewer_authored" });
-    expect(
-      prepareReviewChange(
-        source,
-        {
-          action: "edit",
-          id: record.id,
-          content: { ...content, reasoning: "Other reviewer replacement" },
-          note: "Attempt",
-        },
-        { ...context, authorUserId: "other" },
-      ),
-    ).toEqual({ ok: false, error: "reviewer_authored" });
-    expect(source).toEqual(before);
+    const amended = { ...content, reasoning: "Amended reasoning" };
 
-    const amended = prepareReviewChange(
+    const result = prepareReviewChange(
       source,
-      {
-        action: "edit",
-        id: record.id,
-        content: { ...content, reasoning: "Amended reasoning" },
-        note: "Clarified evidence",
-      },
+      { action: "edit", id: record.id, content: amended, note: "Clarified evidence" },
       { ...context, authorUserId: "sam" },
     );
-    assert.isTrue(amended.ok);
-    expect(amended.state.revision).toBe(source.revision + 1);
-    expect(amended.state.assessments[0]?.versions).toHaveLength(2);
-    expect(amended.state.assessments[0]?.versions[1]?.note).toBe("Clarified evidence");
 
-    const managerOwned = apply(emptyReviews(), record);
+    assert.isTrue(result.ok);
+    expect(result.state.revision).toBe(source.revision + 1);
+    expect(result.state.assessments[0]?.versions).toEqual([
+      ...source.assessments[0]!.versions,
+      { content: amended, criteria, recorder: context.recorder, note: "Clarified evidence" },
+    ]);
+    expect(source).toEqual(before);
+  });
+
+  it("rejects a reviewer editing an assessment recorded by a manager", () => {
+    const source = apply(emptyReviews(), record);
+    const before = structuredClone(source);
+
     expect(
       prepareReviewChange(
-        managerOwned,
+        source,
         {
           action: "edit",
           id: record.id,
-          content: { ...content, reasoning: "Reviewer hijack" },
-          note: "Nope",
+          content: { ...content, reasoning: "Reviewer replacement" },
+          note: "Replaced",
         },
         { ...context, authorUserId: "sam" },
       ),
     ).toEqual({ ok: false, error: "reviewer_authored" });
+    expect(source).toEqual(before);
   });
+
   it("cancels an outstanding request with its author and advances the revision once", () => {
     const source = apply(emptyReviews(), request);
     const before = structuredClone(source);

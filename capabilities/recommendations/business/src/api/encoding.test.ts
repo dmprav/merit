@@ -9,33 +9,49 @@ import {
 } from "../domain/encoding";
 import { saveRecommendationRequestSchema } from "./commands";
 
+const recorded = (position: "Fund" | "Defer") => ({
+  position,
+  allocation: fromMinorUnits(position === "Fund" ? 9007199254740993n : 0n),
+  reasoning: "Proceed after discussion.",
+  recorded: { date: "2027-01-18", applicationVersion: 1 },
+});
+
 it.each(["Fund", "Defer"] as const)(
   "preserves a %s recommendation in public and stored JSON",
   (position) => {
-    const recommendation = {
-      position,
-      allocation: fromMinorUnits(position === "Fund" ? 9007199254740993n : 0n),
-      reasoning: "Proceed after discussion.",
-      recorded: { date: "2027-01-18", applicationVersion: 1 },
-    };
+    const recommendation = recorded(position);
+
     expect(
       decodeRecommendation(JSON.parse(JSON.stringify(encodeRecommendation(recommendation)))),
     ).toEqual(recommendation);
-    expect(() =>
-      decodeRecommendation({
-        ...encodeRecommendation(recommendation),
-        allocation: { minorUnits: "1.5", currency: "EUR" },
-      }),
-    ).toThrow();
-    const withInternalNote = { ...recommendation, internalNote: "private" };
-    expect(encodeRecommendation(withInternalNote)).not.toHaveProperty("internalNote");
+  },
+);
+
+it("rejects a stored allocation with fractional minor units", () => {
+  expect(() =>
+    decodeRecommendation({
+      ...encodeRecommendation(recorded("Fund")),
+      allocation: { minorUnits: "1.5", currency: "EUR" },
+    }),
+  ).toThrow();
+});
+
+it("leaves fields outside the recommendation contract out of its encoding", () => {
+  const withInternalNote = { ...recorded("Fund"), internalNote: "private" };
+
+  expect(encodeRecommendation(withInternalNote)).not.toHaveProperty("internalNote");
+});
+
+it.each(["Fund", "Defer"] as const)(
+  "accepts an encoded %s recommendation in a save request",
+  (position) => {
     expect(
       saveRecommendationRequestSchema.safeParse({
         workspaceSlug: "alder",
         publicId: "0123456789ab",
         expectedRevision: 0,
         expectedApplicationVersion: 1,
-        recommendation: encodeRecommendation(recommendation),
+        recommendation: encodeRecommendation(recorded(position)),
       }).success,
     ).toBe(true);
   },
