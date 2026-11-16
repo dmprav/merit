@@ -10,6 +10,10 @@ demo. Their identity stays separate from accounts, membership, and recorded judg
 Managers can also select or add a contact while preparing an application or
 [requesting or recording a review](review-applications.md).
 The same contact can be used across applications and rounds in that workspace.
+Associated applications include applicant contacts, review requests, and recorded
+assessments. Each related application shows its funding round and the contact's
+relationships to it; one application can have several relationships. Managers can
+open those applications from the directory, within their existing grant-work access.
 
 A contact has a name and optional email or affiliation. Existing applicant contacts
 with only an email remain valid; a reviewer's name is required when attributing an
@@ -63,6 +67,11 @@ cancel requested work. Managers can restore an archived contact.
 Applicant contacts and reviewers use the same contact capability. Existing email-only
 contacts and uncertain identities remain separate; matching names or email addresses
 never automatically merges people. Contact merging is not implemented.
+
+Contact history records who changed the profile, when, and through which interface.
+Each revision identifies the changed fields, including removed values and archive
+or restore changes. The saved profile remains available for context. This history
+is separate from workspace Activity, which covers grant work.
 
 Keep recorded application details, reviewer attribution, and recording history.
 Accounts, memberships, and invitations retain their identity and access meaning;

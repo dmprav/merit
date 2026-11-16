@@ -18,7 +18,12 @@ const meta = {
   decorators: [
     (Story) => (
       <OrganizationMessagesProvider>
-        <ApplicationPage locationKey="team-members" breadcrumb={null} breadcrumbLabel="Breadcrumb">
+        <ApplicationPage
+          width="full"
+          locationKey="team-members"
+          breadcrumb={null}
+          breadcrumbLabel="Breadcrumb"
+        >
           <PageHeader title="Team" />
           <Story />
         </ApplicationPage>
@@ -72,6 +77,12 @@ export const DisabledAccount: Story = {
         index === 1 ? { ...member, active: false } : member,
       ),
     },
+  },
+  play: async ({ canvas }) => {
+    const row = canvas.getByRole("row", { name: /Morgan Lee/ });
+    const cells = within(row).getAllByRole("cell");
+    await expect(cells[0]).not.toHaveTextContent("Account disabled");
+    await expect(cells[3]).toHaveTextContent("Account disabled");
   },
 };
 export const Pending: Story = { args: { isDisabled: true } };

@@ -45,25 +45,28 @@ const Example = ({
   emptyMessage = "No items yet.",
   initialSort = null,
   stickyHeader,
+  manual = false,
 }: {
   items?: Item[];
   state?: TableState;
   emptyMessage?: string;
   initialSort?: TableSort;
   stickyHeader?: ComponentProps<typeof DataTable>["stickyHeader"];
+  manual?: boolean;
 }) => {
   const [sorting, setSorting] = useState<TableSort>(initialSort);
 
   return (
     <DataTable
       data={items}
-      columns={columns}
+      columns={manual ? columns.map((column) => ({ ...column, sort: true as const })) : columns}
       getRowId={(item) => item.id}
       label="Items"
       emptyMessage={emptyMessage}
       state={state}
       stickyHeader={stickyHeader}
       sorting={{
+        manual,
         value: sorting,
         onChange: setSorting,
         labels: {
@@ -423,3 +426,38 @@ it("limits the public contract to a single sort and complete sorting configurati
   expectTypeOf<TableColumn<Item>>().not.toHaveProperty("sortUndefined");
   expectTypeOf<TableColumn<Item>>().not.toHaveProperty("footer");
 });
+
+it("emits server sorting changes without rearranging a partial page", async () => {
+  const user = userEvent.setup();
+  render(<Example manual />);
+  await user.click(screen.getByRole("button", { name: "Name" }));
+  expect(names()).toEqual(["Birch", "Cedar", "Alder"]);
+  expect(screen.getByRole("button", { name: "Name" }).closest("th")).toHaveAttribute(
+    "aria-sort",
+    "ascending",
+  );
+  await user.click(screen.getByRole("button", { name: "Name" }));
+  expect(names()).toEqual(["Birch", "Cedar", "Alder"]);
+  expect(screen.getByRole("button", { name: "Name" }).closest("th")).toHaveAttribute(
+    "aria-sort",
+    "descending",
+  );
+});
+
+it.each(["header", "mobile"])(
+  "keeps the %s sort control and focus while a server page is replaced",
+  (control) => {
+    const { rerender } = render(<Example manual />);
+    const name = control === "header" ? "Name" : /Sort items/;
+    const trigger = screen.getByRole("button", { name });
+    trigger.focus();
+
+    rerender(<Example manual items={[]} state={{ type: "loading" }} />);
+    expect(screen.getByRole("button", { name })).toBe(trigger);
+    expect(trigger).toHaveFocus();
+
+    rerender(<Example manual />);
+    expect(screen.getByRole("button", { name })).toBe(trigger);
+    expect(trigger).toHaveFocus();
+  },
+);

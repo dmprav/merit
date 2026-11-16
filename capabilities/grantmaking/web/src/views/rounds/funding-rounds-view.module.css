@@ -1,4 +1,9 @@
-.title {
+.title,
+.title a[href] {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
   font-size: var(--text-detail);
   font-weight: 500;
 }
@@ -22,8 +27,8 @@
   }
 }
 
-.organization {
-  color: var(--muted);
-  font-size: var(--text-caption);
-  margin-top: var(--space-1);
+.manager {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
 }

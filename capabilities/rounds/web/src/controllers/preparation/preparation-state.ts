@@ -1,11 +1,15 @@
 import type { z } from "zod";
 
-import type { RoundView } from "@merit/grantmaking/api";
 import { toDecimal } from "@merit/money";
 import { parseMoneyInput } from "@merit/money/input";
-import type { RoundChange } from "@merit/rounds/domain";
+import type { FundingRound, RoundChange } from "@merit/rounds/domain";
 
 import type { preparationStorage } from "./storage";
+
+type EditableRound = Pick<
+  FundingRound,
+  "title" | "purpose" | "meetingDate" | "criteria" | "budget" | "managerUserId"
+>;
 
 export type PreparationDraft = z.infer<typeof preparationStorage>;
 
@@ -43,7 +47,7 @@ const sectionValue = <S extends PreparationSection>(
 
 export const preparationDraft = <S extends PreparationSection>(
   section: S,
-  round: RoundView,
+  round: EditableRound,
   revision: number,
 ): PreparationSectionDraft<S> => {
   const values: PreparationSnapshot = {
@@ -106,7 +110,7 @@ export const hasPreparationDraft = (draft: PreparationDraft) =>
 // saved value; ordered criteria remain one deliberate conflict choice.
 export const reconcilePreparation = <D extends PreparationDraft>(
   draft: D,
-  round: RoundView,
+  round: EditableRound,
   revision: number,
   choices: Partial<Record<PreparationField, "mine" | "saved">> = {},
 ) => {

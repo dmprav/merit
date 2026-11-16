@@ -92,24 +92,7 @@ export const RoundEditor = ({
   const { t } = useTranslation(["roundPreparation", "common"]);
   const { round } = preparation;
   const draft = preparation.draftFor(section);
-  const criteriaImpact = {
-    assessments: round.applications.reduce(
-      (count, application) =>
-        count +
-        application.assessments.filter(
-          (assessment) => assessment.submission && !assessment.criteriaUnknown,
-        ).length,
-      0,
-    ),
-    requests: round.applications.reduce(
-      (count, application) =>
-        count +
-        application.assessments.filter(
-          (assessment) => !assessment.submission && !assessment.criteriaUnknown,
-        ).length,
-      0,
-    ),
-  };
+  const { criteriaImpact } = round;
 
   if (!preparation.ready || !draft) {
     const loading = <EditorLoading />;
@@ -248,13 +231,17 @@ export const RoundManager = ({
 }) => {
   const { t } = useTranslation("roundPreparation");
   const { round, pending, managers } = preparation;
+  const name = round.manager.trim();
+  const valueText =
+    name ||
+    t(round.managerNeedsReassignment ? "preparation.unassigned" : "preparation.unknownPerson");
 
   return (
     <QuickEditor
       preparation={preparation}
       section="manager"
-      value={<PersonIdentity name={round.manager} />}
-      valueText={round.manager}
+      value={<PersonIdentity name={valueText} isPlaceholder={!name} />}
+      valueText={valueText}
     >
       {({ closeButton }) => (
         <ChoiceList
@@ -376,7 +363,7 @@ export const RoundActions = ({
 
 export const RoundDeleteConfirmation = ({ preparation }: Props) => {
   const { t } = useTranslation(["roundPreparation", "common"]);
-  if (preparation.round.applications.length) {
+  if (preparation.round.applicationCount) {
     return null;
   }
 

@@ -226,7 +226,15 @@ test("record, complete, recommend, and revise an application without a budget", 
   await page.screenshot({ path: testInfo.outputPath("application-history.png") });
   await page.goto(roundUrl);
 
-  await expect(page.getByText("Earlier application version", { exact: true })).toBeVisible();
+  await expect(page.getByRole("main")).toBeFocused();
+
+  await page
+    .getByRole("button", { name: "Recommendation uses an earlier version", exact: true })
+    .click();
+  await expect(
+    page.getByRole("dialog", { name: "Recommendation uses an earlier version" }),
+  ).toContainText("This recommendation was recorded for an earlier application version.");
+  await page.keyboard.press("Escape");
   await expect(
     page
       .getByRole("row")

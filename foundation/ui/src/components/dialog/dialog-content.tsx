@@ -52,7 +52,9 @@ const useDialogOverflow = ({
 
   useLayoutEffect(() => {
     const content = contentRef.current;
-    const dialog = content?.closest<HTMLElement>('[data-modal-dialog="center"]');
+    const dialog = content?.closest<HTMLElement>(
+      '[data-modal-dialog="center"], [data-modal-dialog="end"]',
+    );
     const header = dialog?.querySelector<HTMLElement>(":scope > [data-dialog-header]");
     const body = content?.querySelector<HTMLElement>(":scope > [data-dialog-body]");
     if (

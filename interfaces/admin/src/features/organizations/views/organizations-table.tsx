@@ -4,12 +4,12 @@ import { useTranslation } from "react-i18next";
 import { useLocaleSettings } from "@merit/i18n";
 import { administratorInvitationState, type OrganizationSummary } from "@merit/organizations/api";
 import { DataTable, type TableColumn } from "@merit/tables";
-import { Badge } from "@merit/ui/badge";
 import { StateMessage } from "@merit/ui/state-message";
+import { Timestamp } from "@merit/ui/timestamp";
 
 import type { OrganizationListView } from "../controllers/drafts";
 import styles from "./organization.module.css";
-import { InvitationBadge, invitationTimestamp } from "./owner-invitation";
+import { InvitationBadge } from "./owner-invitation";
 
 type OrganizationsTableProps = {
   organizations: OrganizationSummary[];
@@ -33,6 +33,7 @@ export const OrganizationsTable = ({
   return (
     <DataTable
       data={organizations}
+      density="compact"
       columns={columns}
       getRowId={(org) => org.id}
       label={t("organizations")}
@@ -73,48 +74,10 @@ const useOrganizationColumns = (renderLink: OrganizationsTableProps["renderLink"
     {
       id: "invitation",
       header: t("invitation"),
-      layout: { width: "34%" },
-      cell: (org) => {
-        const state = administratorInvitationState(org.invitation, new Date(), org.hasOwner);
-        const sendingProblem =
-          (state === "pending" || state === "expired") && org.invitation?.delivery !== "sent";
-
-        return (
-          <div className={styles.cell}>
-            <div>
-              {sendingProblem && state === "pending" ? (
-                <Badge tone={org.invitation?.delivery === "failed" ? "danger" : "warning"}>
-                  {t(
-                    org.invitation?.delivery === "failed"
-                      ? "deliveryFailedShort"
-                      : "deliveryPendingShort",
-                  )}
-                </Badge>
-              ) : (
-                <InvitationBadge invitation={org.invitation} hasOwner={org.hasOwner} />
-              )}
-            </div>
-            {sendingProblem && (
-              <span className={styles.muted}>
-                {state === "pending"
-                  ? t("pending")
-                  : t(
-                      org.invitation?.delivery === "failed"
-                        ? "deliveryFailedShort"
-                        : "deliveryPendingShort",
-                    )}
-              </span>
-            )}
-            {(state === "pending" || state === "expired") && org.invitation && (
-              <span className={styles.muted}>
-                {t("expires", {
-                  date: invitationTimestamp(org.invitation.expiresAt, formatLocale),
-                })}
-              </span>
-            )}
-          </div>
-        );
-      },
+      layout: { width: "22%" },
+      cell: (org) => (
+        <InvitationBadge appearance="plain" invitation={org.invitation} hasOwner={org.hasOwner} />
+      ),
     },
     {
       id: "recipient",
@@ -123,6 +86,19 @@ const useOrganizationColumns = (renderLink: OrganizationsTableProps["renderLink"
       cell: (org) => (
         <span className={styles.muted}>{org.invitation?.email ?? t("noRecipient")}</span>
       ),
+    },
+    {
+      id: "expires",
+      header: t("expiresLabel"),
+      layout: { width: "12rem" },
+      cell: (org) => {
+        const state = administratorInvitationState(org.invitation, new Date(), org.hasOwner);
+        return org.invitation && (state === "pending" || state === "expired") ? (
+          <Timestamp value={new Date(org.invitation.expiresAt).toISOString()} />
+        ) : (
+          <span className={styles.muted}>—</span>
+        );
+      },
     },
   ];
   return columns;

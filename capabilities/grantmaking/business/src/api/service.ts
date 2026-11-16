@@ -8,7 +8,10 @@ import type { RoundsService } from "@merit/rounds/api";
 
 import type { ApplicationRequest, PublicRoundRequest } from "./queries";
 import type { workspaceActivityInput, WorkspaceActivity } from "./queries/activity";
-import type { ApplicationOverview } from "./queries/application-overview";
+import type {
+  WorkspaceApplicationsPage,
+  WorkspaceApplicationsInput,
+} from "./queries/application-overview";
 import type { IntakeState, PreparationState } from "./queries/editing-state";
 import type {
   applicationAuditInput,
@@ -16,6 +19,7 @@ import type {
   reviewListInput,
   reviewSummarySchema,
   contactApplicationListInput,
+  contactApplicationSummarySchema,
   roundReadInput,
   applicationReadInput,
   roundListInput,
@@ -31,8 +35,9 @@ import type {
   contentChunkSchema,
   historySummarySchema,
 } from "./queries/reading";
+import type { RoundPage } from "./queries/round-page";
 import type { RoundSummary } from "./queries/round-summary";
-import type { ApplicationView, ApplicationRoundContext, RoundView } from "./queries/round-view";
+import type { ApplicationView, ApplicationRoundContext } from "./queries/round-view";
 import type { workspaceSearchInput, WorkspaceSearch } from "./queries/workspace-search";
 
 type NotFound = { status: "not_found" };
@@ -90,7 +95,7 @@ export interface GrantmakingQueries {
     actor: Actor,
     input: PublicRoundRequest,
   ) => Promise<{
-    round: RoundView;
+    round: RoundPage;
     workspaceSlug: string;
     preparation: PreparationState;
   } | null>;
@@ -100,10 +105,8 @@ export interface GrantmakingQueries {
   ) => Promise<{ status: "ok"; rounds: RoundSummary[] } | NotFound | { status: "forbidden" }>;
   listWorkspaceApplications: (
     actor: Actor,
-    workspaceSlug: string,
-  ) => Promise<
-    { status: "ok"; applications: ApplicationOverview[] } | NotFound | { status: "forbidden" }
-  >;
+    input: WorkspaceApplicationsInput,
+  ) => Promise<({ status: "ok" } & WorkspaceApplicationsPage) | NotFound | { status: "forbidden" }>;
   searchWorkspace: (
     actor: Actor,
     input: z.input<typeof workspaceSearchInput>,
@@ -122,7 +125,14 @@ export interface GrantmakingQueries {
   listContactApplications: (
     actor: Actor,
     input: z.input<typeof contactApplicationListInput>,
-  ) => Promise<ApplicationListResult>;
+  ) => Promise<
+    | {
+        status: "ok";
+        applications: z.output<typeof contactApplicationSummarySchema>[];
+        nextCursor: string | null;
+      }
+    | NotFound
+  >;
   listRoundSummaries: (
     actor: Actor,
     input: z.input<typeof roundListInput>,

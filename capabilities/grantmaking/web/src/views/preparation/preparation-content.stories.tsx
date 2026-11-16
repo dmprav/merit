@@ -9,8 +9,8 @@ import type { PreparationData } from "@merit/rounds-web/contracts";
 import { ApplicationPage } from "@merit/ui/application-shell";
 
 import { GrantmakingMessagesProvider } from "../../messages";
+import { FundingRoundPreview as FundingRoundView } from "../../testing/application-list-preview";
 import { GrantmakingDrafts } from "../drafts";
-import { FundingRoundView } from "../rounds/funding-round-view";
 
 const deleteRound = fn<PreparationData["delete"]>();
 const onDeleted = fn<() => Promise<void>>();

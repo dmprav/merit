@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, fn } from "storybook/test";
 
+import { roundView } from "@merit/grantmaking/api";
 import { getExampleRound } from "@merit/grantmaking/examples";
 import { StatusMessage } from "@merit/ui/status-message";
 
@@ -12,7 +13,7 @@ import {
 import { GrantmakingMessagesProvider } from "../../testing/providers";
 import { PreparationForm } from "./preparation-form";
 
-const round = {
+const round = roundView({
   ...getExampleRound(),
   title: "Community grants",
   purpose: "",
@@ -21,7 +22,7 @@ const round = {
   criteria: [],
   applications: [],
   managerUserId: "dana",
-};
+});
 
 const PreparationExample = ({
   section,

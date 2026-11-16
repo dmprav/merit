@@ -439,11 +439,8 @@ it("publishes a revision with authored history while preserving the recommendati
     kind: "round",
   });
   assert.isNotNull(roundPage);
-  const requested = roundPage.round.applications.find(
-    ({ id }) => id === revised.application.id,
-  )?.requested;
-  assert.isOk(requested);
-  expect(toDecimal(requested)).toBe("28000.00");
+  expect(toDecimal(roundPage.round.totals.requested)).toBe("28000.00");
+  expect(roundPage.round.applicationCount).toBe(1);
 });
 
 it("records a new recommendation against the published application version", async ({ db }) => {

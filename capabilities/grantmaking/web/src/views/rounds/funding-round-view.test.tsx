@@ -1,7 +1,8 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { assert, describe, expect, it } from "vite-plus/test";
 
+import { materialVersionSchema } from "@merit/applications/domain";
 import { roundView } from "@merit/grantmaking/api";
 import {
   makeApplication,
@@ -14,7 +15,7 @@ import { fromMinorUnits } from "@merit/money";
 import { reviewRevisionSchema } from "@merit/reviews/domain";
 
 import { GrantmakingMessagesProvider } from "../../messages";
-import { FundingRoundView } from "./funding-round-view";
+import { FundingRoundPreview as FundingRoundView } from "../../testing/application-list-preview";
 
 // The list owns its three states: current reviews, a conditional proposal, and revised material.
 const makeRoundWithReviewStates = () =>
@@ -96,11 +97,13 @@ describe("funding round overview", () => {
     await user.click(screen.getByRole("tab", { name: /Applications/ }));
 
     expect(properties).toBeVisible();
+    expect(within(properties).getByRole("region", { name: "Round summary" })).toBeVisible();
     expect(screen.getByText("Decisions pending")).toBeVisible();
 
     await user.click(screen.getByRole("tab", { name: "Overview" }));
 
     expect(screen.getByRole("complementary", { name: "Round properties" })).toBeVisible();
+    expect(screen.queryByRole("region", { name: "Round summary" })).not.toBeInTheDocument();
   });
 
   it("sorts exact allocations, keeps missing recommendations last, and retains sorting across tabs", async () => {
@@ -174,13 +177,16 @@ describe("funding round overview", () => {
       wrapper: GrantmakingMessagesProvider,
     });
 
-    expect(
-      screen.getByText("4 current reviews, 1 outdated review, 1 awaiting review"),
-    ).toBeVisible();
+    const summary = within(screen.getByRole("complementary", { name: "Round properties" }));
+    expect(summary.getByText("5 of 6 reviewed")).toBeVisible();
+    expect(summary.getByRole("button", { name: "Review details for this round" })).toBeVisible();
 
     const workshop = within(screen.getByRole("row", { name: /Workshop Saturdays/ }));
 
-    expect(workshop.getByText("1 outdated review, 1 awaiting review")).toBeVisible();
+    expect(workshop.getByText("1 of 2 reviewed")).toBeVisible();
+    expect(
+      workshop.getByRole("button", { name: "Review details for Workshop Saturdays" }),
+    ).toBeVisible();
     expect(screen.queryByText("Updated budget needs review")).not.toBeInTheDocument();
     expect(screen.queryByText("Written provider confirmation missing")).not.toBeInTheDocument();
   });
@@ -231,12 +237,12 @@ describe("funding round overview", () => {
 
     const unassigned = within(screen.getByRole("row", { name: /Neighbour Table/ }));
 
-    expect(unassigned.getByText("No reviewers assigned.")).toBeVisible();
+    expect(unassigned.getByText("None assigned")).toBeVisible();
     expect(unassigned.queryByText(/current/)).not.toBeInTheDocument();
 
     const reviewed = within(screen.getByRole("row", { name: /Ride Together/ }));
 
-    expect(reviewed.getByText("2 current reviews")).toBeVisible();
+    expect(reviewed.getByText("2 of 2 reviewed")).toBeVisible();
   });
 
   it("keeps an absent manager recommendation distinct from a deferral", () => {
@@ -264,7 +270,8 @@ describe("funding round overview", () => {
   });
 });
 
-it("distinguishes unknown requests and an unset budget from confirmed zero amounts", () => {
+it("qualifies known requests and explains unknown amounts beside the total", async () => {
+  const user = userEvent.setup();
   const round = { ...makeRoundWithReviewStates(), budget: null };
 
   assert.isDefined(round.applications[0]);
@@ -281,7 +288,7 @@ it("distinguishes unknown requests and an unset budget from confirmed zero amoun
 
   expect(summary.getByText("Known requests")).toBeVisible();
   expect(summary.getByText("€22,000")).toBeVisible();
-  expect(summary.getByText("1 requested amount is not known.")).toBeVisible();
+  expect(summary.queryByText("1 requested amount is not known.")).not.toBeInTheDocument();
   expect(
     within(screen.getByRole("complementary", { name: "Round properties" })).getByText("Not set"),
   ).toBeVisible();
@@ -292,6 +299,10 @@ it("distinguishes unknown requests and an unset budget from confirmed zero amoun
     ),
   ).toBeVisible();
   expect(within(screen.getByRole("row", { name: /Ride Together/ })).getByText("€0")).toBeVisible();
+  await user.click(summary.getByRole("button", { name: "Unknown requested amounts" }));
+  expect(screen.getByRole("dialog", { name: "Unknown requested amounts" })).toHaveTextContent(
+    "1 requested amount is not known.",
+  );
 });
 
 it("combines applicant search and review filters without changing whole-round totals", async () => {
@@ -301,27 +312,55 @@ it("combines applicant search and review filters without changing whole-round to
   });
   const summary = screen.getByRole("region", { name: "Round summary" });
   const originalSummary = summary.textContent;
+  await user.click(screen.getByRole("button", { name: "Filter" }));
   await user.type(screen.getByRole("searchbox", { name: "Search applications" }), "  REPAIR  ");
+  await user.keyboard("{Escape}");
+  await waitFor(() =>
+    expect(screen.queryByRole("dialog", { name: "Filter applications" })).not.toBeInTheDocument(),
+  );
 
   expect(screen.getByRole("row", { name: /Workshop Saturdays/ })).toBeVisible();
   expect(screen.queryByRole("row", { name: /Neighbour Table/ })).not.toBeInTheDocument();
   expect(screen.getByRole("status")).toHaveTextContent("1 of 3 applications");
 
-  await user.click(screen.getByRole("button", { name: /Show/ }));
+  if (!screen.queryByRole("dialog", { name: "Filter applications" })) {
+    await user.click(screen.getByRole("button", { name: "Filter" }));
+  }
+  await user.click(screen.getByRole("button", { name: "Reviews Any" }));
   await user.click(screen.getByRole("option", { name: "Awaiting reviews" }));
+  await waitFor(() => expect(document.activeElement).toHaveAttribute("aria-haspopup", "listbox"));
+  await user.keyboard("{Escape}");
+  await waitFor(() =>
+    expect(screen.queryByRole("dialog", { name: "Filter applications" })).not.toBeInTheDocument(),
+  );
 
   expect(screen.getByRole("row", { name: /Workshop Saturdays/ })).toBeVisible();
 
-  await user.click(screen.getByRole("button", { name: /Show/ }));
+  if (!screen.queryByRole("dialog", { name: "Filter applications" })) {
+    await user.click(screen.getByRole("button", { name: "Filter" }));
+  }
+  await user.click(screen.getByRole("button", { name: "Recommendation Any" }));
   await user.click(screen.getByRole("option", { name: "No recommendation" }));
+  await waitFor(() => expect(document.activeElement).toHaveAttribute("aria-haspopup", "listbox"));
+  await user.keyboard("{Escape}");
+  await waitFor(() =>
+    expect(screen.queryByRole("dialog", { name: "Filter applications" })).not.toBeInTheDocument(),
+  );
 
   expect(screen.getByText("No applications match your search and filter.")).toBeVisible();
   expect(summary.textContent).toBe(originalSummary);
 
+  if (!screen.queryByRole("dialog", { name: "Filter applications" })) {
+    await user.click(screen.getByRole("button", { name: "Filter" }));
+  }
   await user.click(screen.getByRole("button", { name: "Clear filters" }));
 
-  expect(screen.getAllByRole("row")).toHaveLength(4);
   expect(screen.getByRole("searchbox")).toHaveValue("");
+  await user.keyboard("{Escape}");
+  await waitFor(() =>
+    expect(screen.queryByRole("dialog", { name: "Filter applications" })).not.toBeInTheDocument(),
+  );
+  expect(screen.getAllByRole("row")).toHaveLength(4);
 });
 
 const withdrawal = {
@@ -357,7 +396,8 @@ const makeRoundWithWithdrawal = () => {
   });
 };
 
-it("labels withdrawn applications and discloses them beside totals that leave them out", () => {
+it("labels withdrawn applications and explains exclusions through whole-round scope", async () => {
+  const user = userEvent.setup();
   const without = render(
     <FundingRoundView round={makeRoundWithReviewStates()} section="applications" />,
     {
@@ -375,48 +415,74 @@ it("labels withdrawn applications and discloses them beside totals that leave th
   });
   const summary = screen.getByRole("region", { name: "Round summary" });
 
-  expect(within(summary).getByText("1 withdrawn application not counted.")).toBeVisible();
-  expect(summary.textContent?.replace("1 withdrawn application not counted.", "")).toBe(unchanged);
+  expect(
+    within(summary).queryByText("1 withdrawn application not counted."),
+  ).not.toBeInTheDocument();
+  expect(summary.textContent).toBe(unchanged);
   expect(
     within(screen.getByRole("row", { name: /Garden Share/ })).getByText("Withdrawn"),
   ).toBeVisible();
   expect(
     within(screen.getByRole("row", { name: /Neighbour Table/ })).queryByText("Withdrawn"),
   ).not.toBeInTheDocument();
+  await user.click(within(summary).getByRole("button", { name: "Round totals scope" }));
+  const explanation = screen.getByRole("dialog", { name: "Round totals scope" });
+  expect(explanation).toHaveTextContent(
+    "Totals cover the whole round, regardless of the application filters.",
+  );
+  expect(explanation).toHaveTextContent("1 withdrawn application not counted.");
 });
 
-it("keeps withdrawn applications out of the work filters and shows only them in their own", async () => {
+it("combines participation and review criteria without implicitly excluding withdrawn applications", async () => {
   const user = userEvent.setup();
   render(<FundingRoundView round={makeRoundWithWithdrawal()} section="applications" />, {
     wrapper: GrantmakingMessagesProvider,
   });
 
-  const choose = async (name: string) => {
-    await user.click(screen.getByRole("button", { name: /Show/ }));
-    await user.click(screen.getByRole("option", { name }));
-  };
-
   expect(screen.getByRole("row", { name: /Garden Share/ })).toBeVisible();
+  await user.click(screen.getByRole("button", { name: "Filter" }));
+  await user.click(screen.getByRole("button", { name: "Reviews Any" }));
+  await user.click(screen.getByRole("option", { name: "Awaiting reviews" }));
+  await waitFor(() => expect(document.activeElement).toHaveAttribute("aria-haspopup", "listbox"));
+  await user.keyboard("{Escape}");
+  await waitFor(() =>
+    expect(screen.queryByRole("dialog", { name: "Filter applications" })).not.toBeInTheDocument(),
+  );
+  expect(screen.getByRole("row", { name: /Garden Share/ })).toBeVisible();
+  expect(screen.getByRole("row", { name: /Workshop Saturdays/ })).toBeVisible();
 
-  for (const filter of [
-    "In preparation",
-    "Awaiting reviews",
-    "No reviewers assigned",
-    "Changed evidence or criteria",
-    "Review basis not known",
-    "No recommendation",
-  ]) {
-    await choose(filter);
-    expect(screen.queryByRole("row", { name: /Garden Share/ }), filter).not.toBeInTheDocument();
-  }
+  await user.click(screen.getByRole("button", { name: "Filter" }));
+  await user.click(screen.getByRole("button", { name: "Participation Any" }));
+  await user.click(screen.getByRole("option", { name: "Active" }));
+  await waitFor(() => expect(document.activeElement).toHaveAttribute("aria-haspopup", "listbox"));
+  await user.keyboard("{Escape}");
+  await waitFor(() =>
+    expect(screen.queryByRole("dialog", { name: "Filter applications" })).not.toBeInTheDocument(),
+  );
+  expect(screen.queryByRole("row", { name: /Garden Share/ })).not.toBeInTheDocument();
+  expect(screen.getByRole("row", { name: /Workshop Saturdays/ })).toBeVisible();
 
-  await choose("Withdrawn");
+  await user.click(screen.getByRole("button", { name: "Filter" }));
+  await user.click(screen.getByRole("button", { name: "Participation Active" }));
+  await user.click(screen.getByRole("option", { name: "Withdrawn" }));
+  await waitFor(() => expect(document.activeElement).toHaveAttribute("aria-haspopup", "listbox"));
+  await user.keyboard("{Escape}");
+  await waitFor(() =>
+    expect(screen.queryByRole("dialog", { name: "Filter applications" })).not.toBeInTheDocument(),
+  );
   expect(screen.getByRole("status")).toHaveTextContent("1 of 4 applications");
   expect(screen.getByRole("row", { name: /Garden Share/ })).toBeVisible();
-  expect(screen.queryByRole("row", { name: /Neighbour Table/ })).not.toBeInTheDocument();
+  expect(screen.queryByRole("row", { name: /Workshop Saturdays/ })).not.toBeInTheDocument();
 
   // Sorting still works across the mixed list.
+  if (!screen.queryByRole("dialog", { name: "Filter applications" })) {
+    await user.click(screen.getByRole("button", { name: "Filter" }));
+  }
   await user.click(screen.getByRole("button", { name: "Clear filters" }));
+  await user.keyboard("{Escape}");
+  await waitFor(() =>
+    expect(screen.queryByRole("dialog", { name: "Filter applications" })).not.toBeInTheDocument(),
+  );
   await user.click(screen.getByRole("button", { name: "Requested" }));
   const rows = screen.getAllByRole("row").slice(1);
   expect(rows).toHaveLength(4);
@@ -451,4 +517,64 @@ it("sorts requested amounts exactly and keeps unknown amounts last in both direc
 
   expect(screen.getAllByRole("row")[1]).toHaveTextContent("Ride Together");
   expect(screen.getAllByRole("row")[3]).toHaveTextContent("Neighbour Table");
+});
+
+it.each([
+  ["Dana Reed", false, "Dana Reed", false],
+  ["Samira Patel", true, "Samira Patel", true],
+  ["  ", true, "Unassigned", false],
+  ["  ", false, "Name not recorded", false],
+])(
+  "keeps manager identity and assignment states explicit in round properties",
+  (manager, managerNeedsReassignment, label, warning) => {
+    const round = { ...makeRoundWithReviewStates(), manager, managerNeedsReassignment };
+    render(<FundingRoundView round={round} />, { wrapper: GrantmakingMessagesProvider });
+    const properties = within(screen.getByRole("complementary", { name: "Round properties" }));
+    expect(properties.getByText(label)).toBeVisible();
+    expect(Boolean(properties.queryByRole("button", { name: "Reassignment needed" }))).toBe(
+      warning,
+    );
+  },
+);
+
+it("keeps excess allocations visible and explains their draft status beside the affected fact", async () => {
+  const user = userEvent.setup();
+  const round = makeRoundWithReviewStates();
+  round.budget = fromMinorUnits(5000000n);
+  render(<FundingRoundView round={roundView(round)} section="applications" />, {
+    wrapper: GrantmakingMessagesProvider,
+  });
+  const summary = within(screen.getByRole("region", { name: "Round summary" }));
+  expect(summary.getByText("Over budget if approved")).toBeVisible();
+  expect(summary.getByText("€2,000")).toBeVisible();
+  expect(summary.queryByText(/These are draft recommendations/)).not.toBeInTheDocument();
+  const warning = summary.getByRole("button", { name: "Over budget" });
+  expect(warning.closest("dd")).toHaveTextContent("€2,000");
+  await user.click(warning);
+  expect(screen.getByRole("dialog", { name: "Over budget" })).toHaveTextContent(
+    "Proposed allocations exceed the round budget by €2,000. These are draft recommendations, not funding commitments.",
+  );
+});
+
+it("keeps an earlier recommendation warning separate from review progress", async () => {
+  const user = userEvent.setup();
+  const round = makeRoundWithReviewStates();
+  const first = round.applications[0]!;
+  first.version = materialVersionSchema.parse(2);
+  first.managerRecommendation!.recorded = { applicationVersion: 1, date: "2027-01-10" };
+  render(<FundingRoundView round={round} section="applications" />, {
+    wrapper: GrantmakingMessagesProvider,
+  });
+  const cells = within(screen.getByRole("row", { name: /Neighbour Table/ })).getAllByRole("cell");
+  const warning = within(cells[2]!).getByRole("button", {
+    name: "Recommendation uses an earlier version",
+  });
+  expect(
+    within(cells[1]!).queryByRole("button", { name: "Recommendation uses an earlier version" }),
+  ).not.toBeInTheDocument();
+  expect(screen.queryByText("Earlier version")).not.toBeInTheDocument();
+  await user.click(warning);
+  expect(screen.getByRole("dialog")).toHaveTextContent(
+    "This recommendation was recorded for an earlier application version.",
+  );
 });

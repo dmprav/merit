@@ -15,10 +15,13 @@ it.each([
   { outcome: "not_found", status: "workspace_not_found" },
 ] as const)("presents $outcome application discovery as $status", async ({ outcome, status }) => {
   expect(
-    await loadWorkspaceApplications("alder", {
-      currentIdentity: async () => ({ status: "authenticated", actor: { userId: "manager" } }),
-      listWorkspaceApplications: async () => ({ status: outcome }),
-    }),
+    await loadWorkspaceApplications(
+      { workspaceSlug: "alder" },
+      {
+        currentIdentity: async () => ({ status: "authenticated", actor: { userId: "manager" } }),
+        listWorkspaceApplications: async () => ({ status: outcome }),
+      },
+    ),
   ).toEqual({ status });
 });
 
@@ -28,25 +31,31 @@ it("uses the authenticated actor and selected workspace for application discover
       status: "authenticated",
       actor: { userId: "manager" },
     }),
-    listWorkspaceApplications: async (actor, slug) =>
-      actor.userId === "manager" && slug === "alder"
-        ? { status: "ok", applications: [] }
+    listWorkspaceApplications: async (actor, input) =>
+      actor.userId === "manager" && input.workspaceSlug === "alder"
+        ? { status: "ok", applications: [], total: 0, matching: 0, offset: 0 }
         : { status: "forbidden" },
   };
 
-  expect(await loadWorkspaceApplications("alder", services)).toEqual({
+  expect(await loadWorkspaceApplications({ workspaceSlug: "alder" }, services)).toEqual({
     status: "ok",
     applications: [],
+    total: 0,
+    matching: 0,
+    offset: 0,
   });
 });
 
 it("does not discover applications for a signed-out visitor", async () => {
   const listWorkspaceApplications = vi.fn();
   expect(
-    await loadWorkspaceApplications("alder", {
-      currentIdentity: async () => ({ status: "signed_out" }),
-      listWorkspaceApplications,
-    }),
+    await loadWorkspaceApplications(
+      { workspaceSlug: "alder" },
+      {
+        currentIdentity: async () => ({ status: "signed_out" }),
+        listWorkspaceApplications,
+      },
+    ),
   ).toEqual({ status: "signed_out" });
   expect(listWorkspaceApplications).not.toHaveBeenCalled();
 });

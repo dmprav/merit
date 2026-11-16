@@ -3,12 +3,13 @@ import type { RoundSummary } from "@merit/grantmaking/api";
 import type {
   ApplicationView as Application,
   ApplicationRoundContext,
-  RoundView,
+  RoundPage,
 } from "@merit/grantmaking/api";
 import type { RecommendationData } from "@merit/recommendations-web/contracts";
 import type { ReviewData } from "@merit/reviews-web/contracts";
 import type { PreparationData } from "@merit/rounds-web/contracts";
 
+import type { ApplicationList } from "./application-list";
 import type { CreationData } from "./creation";
 
 export type ApplicationData = {
@@ -21,7 +22,8 @@ export type ApplicationData = {
 };
 
 export type RoundData = {
-  round: RoundView;
+  applicationList: ApplicationList;
+  round: RoundPage;
   preparation: PreparationData | null;
   createApplication: CreationData | null;
 };
@@ -30,18 +32,5 @@ export type RoundsData = {
   rounds: readonly RoundSummary[];
   createRound: CreationData | null;
 };
-
-export const applicationFilters = [
-  "all",
-  "preparing",
-  "awaiting",
-  "unassigned",
-  "changed",
-  "unknown",
-  "unwritten",
-  "withdrawn",
-] as const;
-
-export type ApplicationFilter = (typeof applicationFilters)[number];
 
 export type ActivityFilters = { roundId: string; personId: string };

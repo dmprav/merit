@@ -35,6 +35,29 @@ Use the [application shell](?path=/docs/patterns-application-shell--docs) for na
 and [layout primitives](?path=/docs/components-layout-primitives--docs) for simple flows.
 The shared frame supports different tasks; each feature owns its particular arrangement.
 
+Use the [collection toolbar](?path=/docs/patterns-collection-toolbar--docs) to keep
+filtering, active filter chips, optional scoped search and counts together above
+a table or chronological list. Its fields and filtering semantics belong to the
+feature; the shared pattern owns their compact presentation and focus behavior.
+
+Choose a table when people compare the same properties across records, such as
+application review progress or funding-round budgets. Use a chronological list
+when the event and its context matter more than column-by-column comparison, as
+in Activity. Keep ordinary values and localized timestamps plain and reserve warning
+emphasis for facts that change the next action. A shared
+[status indicator](?path=/docs/patterns-status-indicator--docs) keeps a brief
+qualification beside its value, available through hover, focus, and tap without
+making every row taller. Keep substantial evidence in the owning workflow.
+
+Keep loading feedback and result counts in the toolbar where possible. Place
+collection page failures and retry beside the paging controls through
+`CollectionRecovery` from `@merit/ui/paged-content`, so a failure remains visible
+where the user requested more records. Keep existing records and the retry control
+mounted while retrying; successful page navigation may return focus to the list start.
+Large collections need bounded server reads: filtering and sorting apply to the full
+authorized collection before pagination, and counts describe the matching scope.
+Preserve the selected view when someone opens a record and returns to the list.
+
 ## Organize sections
 
 Use `SectionHeader` for sections beneath the page heading. Connect the section's

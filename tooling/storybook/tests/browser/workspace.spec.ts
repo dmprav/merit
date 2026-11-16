@@ -238,7 +238,7 @@ test(
 );
 
 test(
-  "contact history keeps comparison readable and returns to the directory",
+  "contact history keeps changes readable and returns to the directory",
   { tag: "@cross-browser" },
   async ({ page }, testInfo) => {
     await page.goto("/iframe.html?id=features-contacts-directory--long-history&viewMode=story");
@@ -246,23 +246,15 @@ test(
 
     const dialog = page.getByRole("dialog", { name: "Contact history" });
     const history = dialog.getByRole("region", { name: "Contact history" });
-    const before = await dialog
-      .getByRole("group", { name: "Before", exact: true })
-      .first()
-      .boundingBox();
-    const saved = await dialog
-      .getByRole("group", { name: "Saved", exact: true })
-      .nth(1)
-      .boundingBox();
-
-    expect(before).not.toBeNull();
-    expect(saved).not.toBeNull();
-    if (testInfo.project.use.isMobile) {
-      expect(saved!.y).toBeGreaterThan(before!.y + before!.height);
-    } else {
-      expect(saved!.y).toBeCloseTo(before!.y, 0);
-      expect(saved!.x).toBeGreaterThan(before!.x + before!.width);
-    }
+    await expect(dialog.getByRole("heading", { name: "Contact created" })).toBeVisible();
+    const revision = dialog.getByRole("listitem").nth(1);
+    await expect(revision.getByText("Affiliation", { exact: true }).first()).toBeVisible();
+    await expect(revision.getByText("Name", { exact: true })).not.toBeVisible();
+    await revision.getByText("Saved contact details").click();
+    await expect(revision.getByText("Name", { exact: true })).toBeVisible();
+    await expect
+      .poll(() => dialog.evaluate((node) => node.scrollWidth - node.clientWidth))
+      .toBeLessThanOrEqual(1);
     await checkPage(page);
     await page.screenshot({ path: testInfo.outputPath("contact-history.png") });
     const close = dialog.getByRole("button", { name: "Close", exact: true });
@@ -276,9 +268,7 @@ test(
     await page.keyboard.press("Escape");
 
     await expect(dialog).not.toBeVisible();
-    await expect(
-      page.getByRole("button", { name: "Contact history for Leah Martin" }),
-    ).toBeFocused();
+    await expect(page.getByRole("button", { name: "Actions for Leah Martin" })).toBeFocused();
     await expect(page.getByRole("table", { name: "Contacts" })).toBeVisible();
   },
 );
@@ -289,66 +279,173 @@ test(
   async ({ page }) => {
     await page.goto("/iframe.html?id=features-contacts-directory--overview&viewMode=story");
     await expect(page.locator("#storybook-root")).toHaveAttribute("data-story-ready", "true");
-    const search = page.getByRole("textbox", { name: "Find a contact" });
+    await page.getByRole("button", { name: "Filter", exact: true }).click();
+    const search = page.getByRole("searchbox", { name: "Find a contact" });
     const actions = page.getByRole("button", { name: "Actions for Leah Martin" });
     const add = page.getByRole("button", { name: "Add contact", exact: true });
     await search.fill("Leah");
+    await page.keyboard.press("Escape");
     await actions.click();
     await page.getByRole("menuitem", { name: "Archive", exact: true }).click();
 
     await expect(actions).toHaveCount(0);
     await expect(page.getByText("No contacts match your search.")).toBeVisible();
     await expect(add).toBeFocused();
-    await expect(search).toHaveValue("Leah");
+    await expect(
+      page.getByRole("button", { name: "Clear search: Find a contact: Leah" }),
+    ).toBeVisible();
 
+    await page.getByRole("button", { name: "Filter", exact: true }).click();
     await page.getByRole("button", { name: /Status/ }).click();
     await page.getByRole("option", { name: "Archived", exact: true }).click();
+    await page.keyboard.press("Escape");
     await actions.click();
     await page.getByRole("menuitem", { name: "Restore", exact: true }).click();
 
     await expect(actions).toHaveCount(0);
     await expect(page.getByText("No contacts match your search.")).toBeVisible();
     await expect(add).toBeFocused();
-    await expect(search).toHaveValue("Leah");
+    await expect(
+      page.getByRole("button", { name: "Clear search: Find a contact: Leah" }),
+    ).toBeVisible();
 
-    await page.getByRole("button", { name: /Status/ }).click();
-    await page.getByRole("option", { name: "Active", exact: true }).click();
+    await page.getByRole("button", { name: "Remove Archived filter" }).click();
     await expect(actions).toBeVisible();
     await checkPage(page);
   },
 );
 
 test(
-  "contact search keeps the toolbar stable and supporting content aligned",
+  "contact search keeps the toolbar stable and related applications reachable",
   { tag: "@cross-browser" },
   async ({ page }, testInfo) => {
     await page.goto("/iframe.html?id=features-contacts-directory--overview&viewMode=story");
     await expect(page.locator("#storybook-root")).toHaveAttribute("data-story-ready", "true");
-
-    const search = page.getByRole("textbox", { name: "Find a contact" });
-    const clear = page.getByRole("button", { name: "Clear search" });
     const table = page.getByRole("table", { name: "Contacts" });
     const tableTop = (await table.boundingBox())!.y;
-    const fieldBounds = (await search.boundingBox())!;
-    const clearBounds = (await clear.boundingBox())!;
+    await page.getByRole("button", { name: "Filter", exact: true }).click();
 
-    await expect(clear).toBeDisabled();
-    expect(clearBounds.y + clearBounds.height).toBeCloseTo(fieldBounds.y + fieldBounds.height, 0);
-    await search.fill("Leah");
-
-    await expect(clear).toBeEnabled();
+    const search = page.getByRole("searchbox", { name: "Find a contact" });
+    await search.fill("Neighbour Table");
+    await page.keyboard.press("Escape");
+    await expect(table.getByText("Leah Martin", { exact: true })).toBeVisible();
     expect((await table.boundingBox())!.y).toBeCloseTo(tableTop, 0);
-    await clear.click();
+    await page.getByRole("button", { name: "Filter", exact: true }).click();
+    await page.getByRole("button", { name: "Clear search", exact: true }).click();
 
-    await expect(search).toBeFocused();
     await expect(search).toHaveValue("");
+    await page.keyboard.press("Escape");
     expect((await table.boundingBox())!.y).toBeCloseTo(tableTop, 0);
-    const name = table.getByText("Leah Martin", { exact: true });
-    const supporting = table.getByText("Neighbour Table", { exact: true });
-    expect((await supporting.boundingBox())!.x).toBeCloseTo((await name.boundingBox())!.x, 0);
+    const related = table.getByRole("button", { name: "1 application", exact: true });
+    await related.click();
+    const dialog = page.getByRole("dialog", { name: "Related applications: Leah Martin" });
+    await expect(
+      dialog.getByRole("link", {
+        name: "Neighbour Table Community grants 2026 Contact for the applicant",
+        exact: true,
+      }),
+    ).toHaveAttribute("href", /\/applications\//);
+    await dialog.getByRole("button", { name: "Close", exact: true }).click();
+    await expect(related).toBeFocused();
 
     await checkPage(page);
     await page.screenshot({ path: testInfo.outputPath("contacts-toolbar.png") });
+  },
+);
+
+test(
+  "contact application drawer bounds a long list and keeps the close action reachable",
+  { tag: "@cross-browser" },
+  async ({ page }) => {
+    await page.setViewportSize({ width: page.viewportSize()!.width, height: 360 });
+    await page.goto(
+      "/iframe.html?id=features-contacts-directory--many-applications&viewMode=story",
+    );
+    await expect(page.locator("#storybook-root")).toHaveAttribute("data-story-ready", "true");
+    const dialog = page.getByRole("dialog", { name: "Related applications: Leah Martin" });
+    await expect(dialog).toHaveAttribute("data-modal-dialog", "end");
+    const titles = dialog.getByRole("region", { name: "Related applications: Leah Martin" });
+    await expect(dialog.getByRole("listitem")).toHaveCount(30);
+    const links = dialog.getByRole("link");
+    await expect(links).toHaveCount(30);
+    await expect(links.first()).toHaveAccessibleName(
+      "Neighbour Table Community grants 2026 Contact for the applicant",
+    );
+    await expect(links.nth(1)).toHaveAccessibleName(
+      "Saturday repair café Neighbourhood partnerships 2025 Asked to review",
+    );
+    await expect(links.nth(2)).toHaveAccessibleName(
+      "School holiday kitchens Stronger communities Provided an assessment",
+    );
+    await expect(links.first()).toHaveAttribute("href", /\/applications\//);
+    await expect
+      .poll(() => titles.evaluate((node) => node.scrollHeight - node.clientHeight))
+      .toBeGreaterThan(0);
+    await expect(dialog.getByRole("button", { name: "Close", exact: true })).toBeInViewport();
+    const close = dialog.getByRole("button", { name: "Close", exact: true });
+    const closeTop = (await close.boundingBox())!.y;
+    const viewport = page.viewportSize()!;
+    const frame = (await dialog.boundingBox())!;
+    expect(frame.x + frame.width).toBeCloseTo(viewport.width, 0);
+    expect(frame.height).toBeCloseTo(viewport.height, 0);
+    if (viewport.width <= 600) {
+      expect(frame.x).toBe(0);
+    }
+    await titles.focus();
+    await page.keyboard.press("End");
+    await expect.poll(() => titles.evaluate((node) => node.scrollTop)).toBeGreaterThan(0);
+    expect((await close.boundingBox())!.y).toBeCloseTo(closeTop, 0);
+    await expect
+      .poll(() => dialog.evaluate((node) => node.scrollWidth - node.clientWidth))
+      .toBeLessThanOrEqual(1);
+    await links.last().focus();
+    await expect(links.last()).toBeInViewport();
+    await expect(dialog.getByRole("button", { name: "Close", exact: true })).toBeInViewport();
+    await page.keyboard.press("Tab");
+    await expect(close).toBeFocused();
+    await checkPage(page);
+    await page.keyboard.press("Escape");
+    await expect(dialog).not.toBeVisible();
+    await expect(page.getByRole("button", { name: "30 applications", exact: true })).toBeFocused();
+  },
+);
+
+test(
+  "contact drafts stay on the row menu and saved feedback leaves the table in place",
+  { tag: "@cross-browser" },
+  async ({ page }) => {
+    await page.goto("/iframe.html?id=features-contacts-directory--overview&viewMode=story");
+    await expect(page.locator("#storybook-root")).toHaveAttribute("data-story-ready", "true");
+    const table = page.getByRole("table", { name: "Contacts" });
+    const tableTop = (await table.boundingBox())!.y;
+    const actions = table.getByRole("button", { name: "Actions for Leah Martin" });
+    await actions.click();
+    await page.getByRole("menuitem", { name: "Edit contact details" }).click();
+    const editor = page.getByRole("dialog", { name: "Edit contact details" });
+    await editor.getByRole("textbox", { name: "Affiliation" }).fill("Community Kitchen");
+    await page.keyboard.press("Escape");
+    await expect(actions).toBeFocused();
+    await expect(actions).toHaveAttribute("data-draft", "true");
+    await expect(actions).toHaveAccessibleDescription("Resume editing");
+    await expect(table.locator("[data-draft]")).toHaveCount(1);
+    expect((await table.boundingBox())!.y).toBeCloseTo(tableTop, 0);
+    await actions.click();
+    await page.getByRole("menuitem", { name: "Resume editing" }).click();
+    await expect(editor.getByRole("textbox", { name: "Affiliation" })).toHaveValue(
+      "Community Kitchen",
+    );
+    await editor.getByRole("button", { name: "Save contact" }).click();
+    await expect(editor).not.toBeVisible();
+    await expect(table.getByText("Community Kitchen")).toBeVisible();
+    await expect(actions).not.toHaveAttribute("data-draft");
+    await expect(page.getByRole("status").filter({ hasText: "Saved" })).toHaveCount(1);
+    await expect(page.locator('[aria-hidden="true"]').filter({ hasText: /^Saved$/ })).toHaveCSS(
+      "position",
+      "fixed",
+    );
+    expect((await table.boundingBox())!.y).toBeCloseTo(tableTop, 0);
+    await expect(actions).toBeFocused();
+    await checkPage(page);
   },
 );
 

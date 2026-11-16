@@ -389,7 +389,8 @@ button.accountTrigger,
   border-bottom: 1px solid var(--border);
 }
 
-.shell .confirmation {
+.shell .confirmation,
+.content .confirmation {
   position: fixed;
   z-index: 30;
   bottom: var(--space-4);

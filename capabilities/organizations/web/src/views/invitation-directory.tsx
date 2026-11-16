@@ -2,7 +2,6 @@ import { useRef } from "react";
 import { useTranslation } from "react-i18next";
 
 import { permits } from "@merit/access";
-import { useLocaleSettings } from "@merit/i18n";
 import type { Team } from "@merit/organizations/api";
 import { DataTable, type TableColumn } from "@merit/tables";
 import { ActionMenu } from "@merit/ui/action-menu";
@@ -10,6 +9,7 @@ import { Badge } from "@merit/ui/badge";
 import { Button } from "@merit/ui/button";
 import { Icon } from "@merit/ui/icon";
 import { PersonIdentity } from "@merit/ui/person-identity";
+import { Timestamp } from "@merit/ui/timestamp";
 
 type Invitation = Team["invitations"][number];
 
@@ -85,21 +85,6 @@ const InvitationStatus = ({ invitation }: { invitation: Invitation }) => {
   );
 };
 
-const InvitationExpiry = ({ invitation }: { invitation: Invitation }) => {
-  const { formatLocale } = useLocaleSettings();
-  const date = new Date(invitation.expiresAt);
-  return (
-    <time dateTime={date.toISOString()}>
-      {date.toLocaleDateString(formatLocale, {
-        timeZone: "UTC",
-        day: "numeric",
-        month: "short",
-        year: "numeric",
-      })}
-    </time>
-  );
-};
-
 export const InvitationDirectory = (props: DirectoryProps) => {
   const { team } = props;
   const { t } = useTranslation("team");
@@ -131,8 +116,8 @@ export const InvitationDirectory = (props: DirectoryProps) => {
     {
       id: "expires",
       header: t("expiry"),
-      layout: { width: "8rem" },
-      cell: ({ invitation }) => <InvitationExpiry invitation={invitation} />,
+      layout: { width: "12rem" },
+      cell: ({ invitation }) => <Timestamp value={new Date(invitation.expiresAt).toISOString()} />,
     },
     {
       id: "actions",

@@ -45,7 +45,12 @@ const meta = {
   },
   decorators: [
     (Story) => (
-      <ApplicationPage locationKey="rounds" breadcrumb={null} breadcrumbLabel="Breadcrumb">
+      <ApplicationPage
+        width="full"
+        locationKey="rounds"
+        breadcrumb={null}
+        breadcrumbLabel="Breadcrumb"
+      >
         <GrantmakingMessagesProvider>
           <Story />
         </GrantmakingMessagesProvider>

@@ -1,10 +1,13 @@
 import { useMutation } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
-import type { RoundView } from "@merit/grantmaking/api";
 import { useWorkflowRefresh } from "@merit/query/refresh";
 
-import type { PreparationData, PreparationFailure } from "../../contracts/preparation";
+import type {
+  PreparationData,
+  PreparationFailure,
+  PreparationRound,
+} from "../../contracts/preparation";
 import { usePreparationDrafts } from "./drafts";
 import {
   draftChange,
@@ -18,7 +21,7 @@ import {
 export type PreparationProblem = PreparationFailure | { status: "busy" };
 
 type UseRoundPreparationOptions = {
-  round: RoundView;
+  round: PreparationRound;
   data: PreparationData;
   onDeleted: () => Promise<void>;
   onRestoreFocus: (section: PreparationSection | null) => void;

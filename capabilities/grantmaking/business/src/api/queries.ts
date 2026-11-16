@@ -34,12 +34,13 @@ export {
   readingErrorSchema,
 } from "./queries/reading";
 
-export { contactApplicationListInput } from "./queries/reading";
+export { contactApplicationListInput, contactApplicationSummarySchema } from "./queries/reading";
 
 export { reviewListInput, reviewSummarySchema } from "./queries/reading";
 
 export { roundView, applicationView, decodeRoundView } from "./queries/round-view";
 export type { RoundView, ApplicationView, ApplicationRoundContext } from "./queries/round-view";
+export { encodeRoundPage, decodeRoundPage, type RoundPage } from "./queries/round-page";
 export { updateRecommendation } from "./queries/recommendation-preview";
 export {
   encodeApplicationDetail,
@@ -53,6 +54,13 @@ export type { IntakeState, PreparationState } from "./queries/editing-state";
 
 export {
   applicationOverviewSchema,
+  applicationFilters,
+  workspaceApplicationsInput,
+  workspaceApplicationsPageSize,
+  type ApplicationFilter,
+  type WorkspaceApplicationsInput,
+  type WorkspaceApplicationsQuery,
+  type WorkspaceApplicationsPage,
   type ApplicationOverview,
 } from "./queries/application-overview";
 

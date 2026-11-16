@@ -1,0 +1,24 @@
+import { Canvas, Meta } from "@storybook/addon-docs/blocks";
+import * as Status from "./status-indicator.stories";
+
+<Meta of={Status} />
+
+# Explain a status qualification
+
+Place `StatusIndicator` after the value it qualifies, such as review progress or
+an earlier recommendation. Keep the status itself visible and give the icon a
+specific accessible label. The feature owns the meaning and localized explanation.
+
+<Canvas of={Status.Default} />
+
+The same concise explanation appears on hover or keyboard focus and in a compact
+panel on click or tap. Escape, outside press, and the close control dismiss the
+panel and return focus to its trigger. Keep the explanation to one or two sentences;
+substantial evidence belongs in the owning workflow.
+
+<Canvas of={Status.Keyboard} />
+<Canvas of={Status.Explanation} />
+
+Use warning for a qualification that needs attention and muted for neutral
+supporting context. Keep consequences that change an editing decision visible
+beside that action instead of hiding them in an indicator.

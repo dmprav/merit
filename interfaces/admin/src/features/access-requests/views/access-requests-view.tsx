@@ -1,13 +1,16 @@
 import { useTranslation } from "react-i18next";
 
-import { useLocaleSettings } from "@merit/i18n";
 import type { AccessRequest } from "@merit/organizations/api";
 import { DataTable, type TableColumn } from "@merit/tables";
 import { Button } from "@merit/ui/button";
+import { PopoverDialog } from "@merit/ui/dialog";
+import { Icon } from "@merit/ui/icon";
 import { Notice } from "@merit/ui/notice";
 import { PageHeader } from "@merit/ui/page-header";
+import { Timestamp } from "@merit/ui/timestamp";
 
 import type { AccessRequestsData } from "../contracts";
+import styles from "./access-requests-view.module.css";
 
 export const AccessRequestsView = ({
   requests,
@@ -16,19 +19,14 @@ export const AccessRequestsView = ({
   requests: AccessRequest[];
   data: AccessRequestsData;
 }) => {
-  const { t } = useTranslation("administration");
-  const { formatLocale } = useLocaleSettings();
+  const { t } = useTranslation(["administration", "common"]);
 
   const columns: TableColumn<AccessRequest>[] = [
     { id: "email", header: t("requests.email"), cell: (record) => record.email },
     {
       id: "requestedAt",
       header: t("requests.received"),
-      cell: (record) => (
-        <time dateTime={new Date(record.requestedAt).toISOString()}>
-          {new Date(record.requestedAt).toLocaleString(formatLocale, { timeZone: "UTC" })} UTC
-        </time>
-      ),
+      cell: (record) => <Timestamp value={new Date(record.requestedAt).toISOString()} />,
     },
     {
       id: "reviewed",
@@ -38,6 +36,7 @@ export const AccessRequestsView = ({
     {
       id: "actions",
       header: t("requests.actions"),
+      layout: { width: "10rem", align: "end", rowActions: true },
       cell: (record) =>
         !record.reviewedAt && (
           <Button
@@ -54,27 +53,68 @@ export const AccessRequestsView = ({
 
   return (
     <>
-      <PageHeader title={t("requests.title")} description={t("requests.description")} />
+      <PageHeader title={t("requests.title")} actions={<RequestHelp />} />
       {data.error && (
-        <Notice tone="danger" role="alert">
+        <Notice tone="danger" appearance="inline" role="alert">
           {t("requests.error")}
         </Notice>
       )}
       {data.refreshFailed && (
-        <Notice as="div" tone="warning" role="alert">
-          <p>{t("requests.refreshError")}</p>
-          <Button variant="secondary" onPress={() => void data.refresh()}>
-            {t("requests.refresh")}
-          </Button>
+        <Notice
+          appearance="inline"
+          tone="warning"
+          role="alert"
+          actions={
+            <Button
+              variant="quiet"
+              size="small"
+              isPending={data.refreshing}
+              onPress={() => void data.refresh()}
+            >
+              {t("requests.refresh")}
+            </Button>
+          }
+        >
+          {t("requests.refreshError")}
         </Notice>
       )}
       <DataTable
         data={requests}
+        density="compact"
         columns={columns}
         getRowId={(request) => request.email}
         label={t("requests.title")}
         emptyMessage={t("requests.empty")}
       />
     </>
+  );
+};
+
+const RequestHelp = () => {
+  const { t } = useTranslation(["administration", "common"]);
+  return (
+    <PopoverDialog
+      title={t("requests.about")}
+      closeLabel={t("common:closeDialog")}
+      appearance="compact"
+      placement="bottom end"
+      trigger={
+        <Button variant="quiet" size="small">
+          <Icon name="info" />
+          {t("requests.about")}
+        </Button>
+      }
+    >
+      {({ closeButton }) => (
+        <div className={styles.help}>
+          <div className={styles.helpHeading}>
+            <h2>{t("requests.about")}</h2>
+            {closeButton}
+          </div>
+          <p>{t("requests.description")}</p>
+          <p>{t("requests.reviewExplanation")}</p>
+        </div>
+      )}
+    </PopoverDialog>
   );
 };

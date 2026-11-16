@@ -5,10 +5,17 @@ import styles from "./description-list.module.css";
 export const DescriptionList = ({
   children,
   className = "",
+  layout = "stacked",
 }: {
   children: ReactNode;
   className?: string;
-}) => <dl className={`${styles.list} ${className}`}>{children}</dl>;
+  /** Compact rows put labels beside values, stacking again when their container is too narrow. */
+  layout?: "stacked" | "rows";
+}) => (
+  <dl className={`${styles.list} ${className}`} data-layout={layout}>
+    {children}
+  </dl>
+);
 
 export const DescriptionListItem = ({
   label,

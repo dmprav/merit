@@ -4,6 +4,22 @@ Use this guide when changing request controls, assessment forms, and supporting
 history. The [review workflow](../../../../../../docs/workflows/review-applications.md)
 owns request completion, judgment attribution, review bases, and version changes.
 
+## Compare review work in collections
+
+`ReviewSummary` presents completed reviews out of assigned reviews as a neutral
+progress label in workspace and round application tables. Completion includes
+current, outdated and unknown-basis reviews; it does not imply freshness or
+success. No assignments reads **None assigned**. When available, the label links
+directly to review work using a native link.
+
+One adjacent status hint qualifies outdated or unknown review bases and changed
+criteria. It exposes the full count breakdown and each applicable reason on
+hover, keyboard focus or press. Ordinary progress needs no hint. Screen-reader
+text always retains the freshness counts. Use the domain's `summarizeAssessments`
+when starting from assessments.
+The [workspace examples](../../../../../../capabilities/grantmaking/web/src/views/rounds/applications-overview.stories.tsx)
+include long titles, unknown review bases and withdrawn applications.
+
 ## Request a review
 
 **Add review request** opens the searchable [request picker](request-picker.tsx).

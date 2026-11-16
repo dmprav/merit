@@ -9,8 +9,8 @@ import { createQueryClient } from "@merit/query";
 import type { PreparationData } from "@merit/rounds-web/contracts";
 
 import { GrantmakingMessagesProvider } from "../../messages";
+import { FundingRoundPreview as FundingRoundView } from "../../testing/application-list-preview";
 import { GrantmakingDrafts } from "../drafts";
-import { FundingRoundView } from "../rounds/funding-round-view";
 
 const setup = () => {
   const data: PreparationData = {

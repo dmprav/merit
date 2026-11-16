@@ -225,7 +225,7 @@ describe("funding-round preparation", () => {
       decisionStatus: "Preparing",
       managerUserId: "dana",
       managerNeedsReassignment: false,
-      applications: [],
+      applicationCount: 0,
       totals: { remaining: null },
     });
     expect(
@@ -597,9 +597,11 @@ describe("funding-round preparation", () => {
 
     expect(await getFundingRoundPage(db, actor, { ...address, kind: "round" })).toMatchObject({
       preparation: { revision: 0 },
-      round: { applications: [{ title: "Community meals" }] },
+      round: { applicationCount: 1 },
     });
-    expect(await getFundingApplicationPage(db, actor, applicationAddress)).not.toBeNull();
+    expect(await getFundingApplicationPage(db, actor, applicationAddress)).toMatchObject({
+      application: { title: "Community meals" },
+    });
   });
 
   it("checks for applications without decoding their content when deleting a round", async ({
@@ -688,7 +690,10 @@ describe("funding-round preparation", () => {
     expect(page?.round).toMatchObject({
       managerUserId: "pat",
       manager: "Pat Taylor",
-      applications: [{ managerRecommendation: { author: { userId: "dana", name: "Dana Reed" } } }],
+    });
+    expect(application?.application.managerRecommendation?.author).toMatchObject({
+      userId: "dana",
+      name: "Dana Reed",
     });
     expect(application?.application.managerRecommendation).toEqual(saved.recommendation);
   });

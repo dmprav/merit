@@ -1,13 +1,13 @@
 import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { RoundView } from "@merit/grantmaking/api";
 import { useFormat } from "@merit/i18n/format";
 import { parseMoneyInput } from "@merit/money/input";
 import { Button } from "@merit/ui/button";
 import { Notice } from "@merit/ui/notice";
 import { Select } from "@merit/ui/select";
 
+import type { PreparationRound } from "../../contracts/preparation";
 import {
   reconcilePreparation,
   type PreparationDraft,
@@ -23,7 +23,7 @@ export const LatestPreparation = ({
   onReconcile,
 }: {
   draft: PreparationDraft;
-  round: RoundView;
+  round: PreparationRound;
   revision: number;
   managers: readonly { userId: string; name: string | null; email: string | null }[];
   onReconcile: (draft: PreparationDraft) => void;

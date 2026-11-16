@@ -35,22 +35,18 @@
   margin-top: var(--space-5);
 }
 
-.warning {
-  color: var(--warning);
+.manager {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  width: 100%;
+  min-width: 0;
 }
 
 .muted {
   color: var(--muted);
 }
 
-@media (max-width: 1350px) {
-  .properties {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 760px) {
-  .properties {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+.properties {
+  max-width: 420px;
 }

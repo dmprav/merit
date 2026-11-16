@@ -64,6 +64,12 @@
   opacity: 0.65;
 }
 
+@media (hover: hover) and (pointer: fine) {
+  .sortIcon {
+    opacity: 0;
+  }
+}
+
 .table th[aria-sort] .sortIcon,
 .sortButton:is([data-hovered], [data-focus-visible]) .sortIcon {
   opacity: 1;

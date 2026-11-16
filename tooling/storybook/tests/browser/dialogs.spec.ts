@@ -220,6 +220,45 @@ for (const theme of ["product", "site"]) {
   );
 }
 
+test(
+  "end drawers keep long headings, content and actions reachable with enlarged text",
+  { tag: "@cross-browser" },
+  async ({ page }, testInfo) => {
+    await page.setViewportSize({ width: 390, height: 360 });
+    await page.goto("/iframe.html?id=components-dialog--end-drawer&viewMode=story");
+    await expect(page.locator("#storybook-root")).toHaveAttribute("data-story-ready", "true");
+    const dialog = page.getByRole("dialog");
+    const body = dialog.getByRole("region", { name: "Supporting evidence guidance" });
+    const close = dialog.getByRole("button", { name: "Close dialog" });
+    const done = dialog.getByRole("button", { name: "Done" });
+    await page.evaluate(() => {
+      document.documentElement.style.fontSize = "200%";
+    });
+    await expect(dialog).toHaveAttribute("data-scroll-content");
+    await close.focus();
+    await expect(close).toBeInViewport({ ratio: 1 });
+    await body.focus();
+    await page.keyboard.press("End");
+    await expect.poll(() => dialog.evaluate((node) => node.scrollTop)).toBeGreaterThan(0);
+    await done.focus();
+    await expect(done).toBeInViewport({ ratio: 1 });
+    await checkPage(page);
+    await page.screenshot({ path: testInfo.outputPath("end-drawer-enlarged-text.png") });
+    await close.focus();
+    await expect(close).toBeInViewport({ ratio: 1 });
+    await page.evaluate(() => {
+      document.documentElement.style.fontSize = "100%";
+    });
+    await expect(dialog).not.toHaveAttribute("data-scroll-content");
+    await expect.poll(() => dialog.evaluate((node) => node.scrollTop)).toBe(0);
+    await expect(close).toBeInViewport({ ratio: 1 });
+    await expect(done).toBeInViewport({ ratio: 1 });
+    await page.keyboard.press("Escape");
+    await expect(dialog).not.toBeVisible();
+    await expect(page.getByRole("button", { name: "Open dialog" })).toBeFocused();
+  },
+);
+
 test("confirmation dialogs focus cancellation, contain focus and fit failure and long content", async ({
   page,
 }, testInfo) => {

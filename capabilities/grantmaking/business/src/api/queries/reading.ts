@@ -88,6 +88,12 @@ export const applicationSummarySchema = z.object({
   contactId: z.string().nullable(),
   hasWorkingRevision: z.boolean(),
 });
+export const contactApplicationSummarySchema = applicationSummarySchema.extend({
+  roundTitle: z.string(),
+  relationships: z
+    .array(z.enum(["applicant_contact", "review_requested", "assessment_recorded"]))
+    .min(1),
+});
 export const roundOverviewSchema = roundSummarySchema.extend({
   managerUserId: z.string().nullable(),
   managerNeedsReassignment: z.boolean(),

@@ -17,6 +17,7 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Compact: Story = {};
+export const Unassigned: Story = { args: { name: "Unassigned", isPlaceholder: true } };
 export const WithDescription: Story = { args: { description: "Program manager" } };
 export const CurrentPerson: Story = {
   args: { description: "dana@example.test", annotation: "You" },
@@ -25,7 +26,7 @@ export const DisabledAccount: Story = {
   args: {
     name: "Morgan Lee",
     description: "morgan@example.test",
-    status: <Badge tone="danger">Account disabled</Badge>,
+    status: <Badge appearance="plain">Account disabled</Badge>,
   },
 };
 

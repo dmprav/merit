@@ -17,7 +17,7 @@ const ContactsPage = () => {
   }
 
   return (
-    <AppPage breadcrumb={[t("contacts")]}>
+    <AppPage width="full" breadcrumb={[t("contacts")]}>
       <ContactsDirectory workspaceSlug={workspaceSlug} contacts={data.contacts} />
     </AppPage>
   );

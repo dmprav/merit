@@ -38,8 +38,8 @@ export const createGrantmakingService = ({ database }: Dependencies): Grantmakin
   readApplicationPage: (actor, input) =>
     database((db) => getFundingApplicationPage(db, actor, input)),
   readRoundPage: (actor, input) => database((db) => getFundingRoundPage(db, actor, input)),
-  listWorkspaceApplications: (actor, slug) =>
-    database((db) => listWorkspaceApplications(db, actor, slug)),
+  listWorkspaceApplications: (actor, input) =>
+    database((db) => listWorkspaceApplications(db, actor, input)),
   searchWorkspace: (actor, input) => database((db) => searchWorkspace(db, actor, input)),
   listWorkspaceActivity: (actor, input) =>
     database((db) => listWorkspaceActivity(db, actor, input)),

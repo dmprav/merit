@@ -52,38 +52,8 @@ export const readPublicRound = async (
     return null;
   }
 
-  const cases = await db
-    .select()
-    .from(applicationCases)
-    .where(
-      and(
-        eq(applicationCases.organizationId, row.organizationId),
-        eq(applicationCases.roundId, row.round.id),
-      ),
-    )
-    .orderBy(asc(applicationCases.position));
-  const caseIds = cases.map((item) => item.id);
-
-  const [historyMap, intakeMap, reviewsMap, recommendationsMap] = await Promise.all([
-    readCriteriaVersionsMap(db, [row.round.id]),
-    readIntakeApplicationsMap(db, row.organizationId, cases),
-    readReviewsByCasesMap(db, caseIds),
-    readCurrentRecommendationsMap(db, caseIds),
-  ]);
-
+  const historyMap = await readCriteriaVersionsMap(db, [row.round.id]);
   const record = assembleRoundRecord(row.round, row.foundation, historyMap.get(row.round.id) ?? []);
-  const applications = cases.flatMap((item) => {
-    const intake = intakeMap.get(item.id);
-    return intake
-      ? [
-          assembleApplicationRecord(
-            intake,
-            reviewsMap.get(item.id),
-            recommendationsMap.get(item.id),
-          ),
-        ]
-      : [];
-  });
 
   return {
     organizationId: row.organizationId,
@@ -91,7 +61,6 @@ export const readPublicRound = async (
     snapshot: {
       ...record,
       managerNeedsReassignment: row.managerNeedsReassignment,
-      applications,
     },
     workspaceSlug: row.workspaceSlug,
   };

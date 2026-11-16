@@ -163,11 +163,12 @@ const renderActivity = async () => {
 
 it("keeps filters out of the address and sends them in the request body", async () => {
   const { user, router } = await renderActivity();
-  await screen.findByRole("table", { name: "Activity" });
+  await screen.findByRole("list", { name: "Activity" });
 
-  await user.click(screen.getByRole("button", { name: "All rounds Round" }));
+  await user.click(screen.getByRole("button", { name: "Filter" }));
+  await user.click(screen.getByRole("button", { name: "Round All rounds" }));
   await user.click(screen.getByRole("option", { name: "Neighbourhood grants" }));
-  await user.click(await screen.findByRole("button", { name: "All people Person" }));
+  await user.click(await screen.findByRole("button", { name: "Person All people" }));
   await user.click(screen.getByRole("option", { name: "Dana Reed" }));
 
   await waitFor(() =>
@@ -184,9 +185,14 @@ it("keeps filters out of the address and sends them in the request body", async 
 
 it("follows the cursor with the same filters and drops it when a filter changes", async () => {
   const { user } = await renderActivity();
-  await screen.findByRole("table", { name: "Activity" });
-  await user.click(screen.getByRole("button", { name: "All people Person" }));
+  await screen.findByRole("list", { name: "Activity" });
+  await user.click(screen.getByRole("button", { name: "Filter" }));
+  await user.click(screen.getByRole("button", { name: "Person All people" }));
   await user.click(screen.getByRole("option", { name: "Dana Reed" }));
+  await waitFor(() =>
+    expect(screen.getByRole("button", { name: "Person Dana Reed" })).toHaveFocus(),
+  );
+  await user.keyboard("{Escape}");
   await user.click(await screen.findByRole("button", { name: "Show older activity" }));
 
   expect(await screen.findByText("Round criteria changed")).toBeVisible();
@@ -198,14 +204,15 @@ it("follows the cursor with the same filters and drops it when a filter changes"
   });
   expect(screen.queryByRole("button", { name: "Show older activity" })).not.toBeInTheDocument();
 
+  await user.click(screen.getByRole("button", { name: "Filter" }));
   await user.click(screen.getByRole("button", { name: "Clear filters" }));
   await waitFor(() => expect(requests().at(-1)).toMatchObject({ personId: undefined }));
   expect(requests().at(-1)?.after).toBeUndefined();
 });
 
-it("links each record to its default page", async () => {
-  await renderActivity();
-  const table = within(await screen.findByRole("table", { name: "Activity" }));
+it("links each record to its default page from the list and event drawer", async () => {
+  const { user } = await renderActivity();
+  const table = within(await screen.findByRole("list", { name: "Activity" }));
 
   expect(table.getByRole("link", { name: "Workshop Saturdays" })).toHaveAttribute(
     "href",
@@ -215,17 +222,23 @@ it("links each record to its default page", async () => {
     "href",
     "/app/alder/rounds/neighbourhood-grants-k7m2p9x4n6rt",
   );
+  await user.click(table.getByRole("button", { name: /Application recorded:/ }));
+  const drawer = within(screen.getByRole("dialog", { name: "Application recorded" }));
+  expect(drawer.getByRole("link", { name: "Workshop Saturdays" })).toHaveAttribute(
+    "href",
+    "/app/alder/applications/workshop-saturdays-b8q3w5j7c2df",
+  );
 });
 
 it("reports a failed older page, keeps the entries, and retries that page", async () => {
   const { user } = await renderActivity();
-  await screen.findByRole("table", { name: "Activity" });
+  await screen.findByRole("list", { name: "Activity" });
   vi.mocked(readWorkspaceActivity).mockResolvedValueOnce({ status: "unavailable" } as never);
 
   await user.click(screen.getByRole("button", { name: "Show older activity" }));
 
   expect(await screen.findByRole("alert")).toHaveTextContent("Activity could not be loaded.");
-  expect(screen.getByText("Workshop Saturdays")).toBeVisible();
+  expect(screen.getByRole("link", { name: "Workshop Saturdays" })).toBeVisible();
 
   await user.click(screen.getByRole("button", { name: "Try again" }));
 
@@ -236,23 +249,28 @@ it("reports a failed older page, keeps the entries, and retries that page", asyn
 
 it("keeps the filters on the page when a filter change fails, and retries", async () => {
   const { user } = await renderActivity();
-  await screen.findByRole("table", { name: "Activity" });
+  await screen.findByRole("list", { name: "Activity" });
   vi.mocked(readWorkspaceActivity).mockImplementation(async ({ data }) =>
     data.personId ? ({ status: "unavailable" } as never) : first,
   );
 
-  await user.click(screen.getByRole("button", { name: "All people Person" }));
+  await user.click(screen.getByRole("button", { name: "Filter" }));
+  await user.click(screen.getByRole("button", { name: "Person All people" }));
   await user.click(screen.getByRole("option", { name: "Dana Reed" }));
 
-  expect(await screen.findByRole("alert")).toHaveTextContent("Activity could not be loaded.");
-  expect(screen.getByRole("button", { name: "Dana Reed Person" })).toBeVisible();
+  expect(screen.getByRole("button", { name: "Person Dana Reed" })).toBeVisible();
   expect(screen.getByRole("button", { name: "Clear filters" })).toBeVisible();
+  await waitFor(() =>
+    expect(screen.getByRole("button", { name: "Person Dana Reed" })).toHaveFocus(),
+  );
+  await user.keyboard("{Escape}");
+  expect(await screen.findByRole("alert")).toHaveTextContent("Activity could not be loaded.");
 
   vi.mocked(readWorkspaceActivity).mockImplementation(async () => first);
   await user.click(screen.getByRole("button", { name: "Try again" }));
 
   await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
-  expect(screen.getByText("Workshop Saturdays")).toBeVisible();
+  expect(screen.getByRole("link", { name: "Workshop Saturdays" })).toBeVisible();
 });
 
 it("tells people without program-manager access that activity is not available", async () => {
@@ -263,6 +281,6 @@ it("tells people without program-manager access that activity is not available",
   await renderActivity();
 
   expect(await screen.findByRole("heading", { name: "Activity not available" })).toBeVisible();
-  expect(screen.queryByRole("table", { name: "Activity" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("list", { name: "Activity" })).not.toBeInTheDocument();
   expect(requests()).toHaveLength(1);
 });

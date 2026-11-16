@@ -4,7 +4,7 @@ import { useState } from "react";
 import { describe, expect, it } from "vite-plus/test";
 
 import { Button } from "../button/button";
-import { ModalDialog } from "./dialog";
+import { DialogContent, ModalDialog } from "./dialog";
 
 it.each([
   { context: "Neighbourhood grants", contextLabel: "Round", contextCount: 1, labelCount: 1 },
@@ -86,6 +86,35 @@ it("ignores backdrop clicks when disabled while allowing Escape and the close bu
   await user.click(screen.getByRole("button", { name: "Close dialog" }));
 
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  await waitFor(() => expect(trigger).toHaveFocus());
+});
+
+it("contains keyboard focus in an end drawer and returns it to the opener", async () => {
+  const user = userEvent.setup();
+  render(
+    <ModalDialog
+      placement="end"
+      title="Related applications"
+      closeLabel="Close applications"
+      trigger={<Button>2 applications</Button>}
+    >
+      <DialogContent label="Related applications">
+        <a href="/first">First application</a>
+        <a href="/last">Last application</a>
+      </DialogContent>
+    </ModalDialog>,
+  );
+  const trigger = screen.getByRole("button", { name: "2 applications" });
+  await user.click(trigger);
+  const dialog = screen.getByRole("dialog", { name: "Related applications" });
+  expect(dialog).toHaveAttribute("data-modal-dialog", "end");
+  const last = within(dialog).getByRole("link", { name: "Last application" });
+  last.focus();
+  await user.tab();
+  expect(within(dialog).getByRole("button", { name: "Close applications" })).toHaveFocus();
+  await user.tab();
+  expect(within(dialog).getByRole("region", { name: "Related applications" })).toHaveFocus();
+  await user.keyboard("{Escape}");
   await waitFor(() => expect(trigger).toHaveFocus());
 });
 

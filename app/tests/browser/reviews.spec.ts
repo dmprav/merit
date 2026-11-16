@@ -23,7 +23,14 @@ test("contacts and reviews preserve judgments across application and criteria ch
     await expect(dialog).not.toBeVisible();
   }
 
-  await page.getByRole("textbox", { name: "Find a contact" }).fill(`${stamp}`);
+  await page.getByRole("button", { name: "Filter", exact: true }).click();
+  await page.getByRole("searchbox", { name: "Find a contact" }).fill(stamp);
+  await page.keyboard.press("Escape");
+
+  await expect(page.getByRole("button", { name: `Actions for ${sam}`, exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: `Actions for ${jules}`, exact: true }),
+  ).toBeVisible();
 
   await page.goto("/app/alder/rounds");
 
@@ -182,9 +189,16 @@ test("contacts and reviews preserve judgments across application and criteria ch
 
   await page.getByRole("tab", { name: /Applications/ }).click();
 
-  await expect(page.getByRole("link", { name: /Criteria changed/ })).toBeVisible();
-
-  await page.goto(applicationUrl + "?tab=reviews");
+  await page
+    .getByRole("button", { name: "Review details for Workshop Saturdays acceptance", exact: true })
+    .click();
+  await expect(
+    page.getByRole("dialog", { name: "Review details for Workshop Saturdays acceptance" }),
+  ).toContainText(
+    "The current criteria differ from the criteria used for at least one review or request.",
+  );
+  await page.keyboard.press("Escape");
+  await page.getByRole("link", { name: /1 of 2 reviewed/ }).click();
 
   await expect(page.getByRole("main")).toBeFocused();
   await expect(
@@ -216,7 +230,9 @@ test("contacts and reviews preserve judgments across application and criteria ch
 
   await expect(page.getByRole("main")).toBeFocused();
 
-  await page.getByRole("textbox", { name: "Find a contact" }).fill(jules);
+  await page.getByRole("button", { name: "Filter", exact: true }).click();
+  await page.getByRole("searchbox", { name: "Find a contact" }).fill(jules);
+  await page.keyboard.press("Escape");
   await page.getByRole("button", { name: `Actions for ${jules}`, exact: true }).click();
   await page.getByRole("menuitem", { name: "Archive", exact: true }).click();
 

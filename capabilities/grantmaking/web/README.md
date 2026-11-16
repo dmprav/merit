@@ -26,16 +26,83 @@ contact changes use the product's shared grant-work scope. Query infrastructure
 owns the [account and fetched-data lifecycle](../../../foundation/query/README.md).
 Capability messages are exposed through `/messages` for interface composition.
 
+## Compare applications
+
+Workspace and round application views use compact, sortable tables with the
+shared collection toolbar. Open **Filter** for application and applicant search,
+round selection and the independent participation, readiness, review, evidence,
+and recommendation criteria. All criteria are visible, with **Any** until a value
+is selected. Selected criteria combine with AND and remain visible as removable chips;
+**Clear filters** is inside the popover. List state is preserved on return from
+an application. Participation alone controls whether withdrawn applications are
+included; other criteria can match withdrawn records. Changed evidence or criteria
+includes outdated reviews, changed assessment criteria, and recommendations from
+an earlier application version.
+
+Review progress links directly to review work when a destination is available.
+A single adjacent status hint explains outdated reviews, unknown review bases or
+changed criteria with their full count breakdown. Recommendations from an earlier
+application version carry their own status hint. The round's properties panel
+contains its whole-round financial summary and review progress only in the
+Applications tab, with qualifications following the affected financial values.
+Summary rows reserve space for a trailing status hint so values remain aligned
+even when no hint is needed. On
+narrow screens the properties and summary follow the collection. Filtering never
+changes those whole-round totals.
+Both application tables use the same bounded query and collection controls, reading
+at most 50 summaries after applying round, search, independent criteria and global
+sorting. Money sorting retains exact amounts and places unknown amounts last.
+Previous/Next navigation shows the range and exact matching count. Round metadata,
+financial and review totals, and counts of reviews affected by criteria changes
+are separate aggregates; the round page does not load application detail records.
+
+`@merit/grantmaking-web/data/applications` owns query normalization, debouncing,
+page recovery and session restoration. Interfaces supply transport and the private
+cache scope. Supply a stable `viewId` within the workspace to identify session
+preferences independently of the selected round filter. Query text and criteria
+stay in account-session state and POST bodies. Sorting also uses session state
+unless the caller supplies a controlled `sorting` value and change action together.
+The workspace interface binds that pair to its address; round lists retain their
+own session sorting. Changing a filter, query or order starts at the first page.
+A failed page read keeps the previous page and offers a read-only retry beside the
+page controls. Production views require controlled list data. Static stories and
+tests use the explicit local list adapters from `/testing`.
+
+Round preparation accepts its own `PreparationRound` contract: round properties,
+the application count, and counts of reviews affected by criteria changes. Grantmaking
+supplies those facts alongside its separate financial and review summaries, so
+preparation does not depend on the application-list projection.
+
 ## Show workspace activity
 
 `@merit/grantmaking-web/activity` exports `WorkspaceActivity`, a presentational
-table of who changed shared grant work. The product route supplies the entries,
+chronological list of who changed shared grant work. The product route supplies the entries,
 the Round and Person options, the filter values, and link renderers, as it does for
 the Applications overview. Filters are page state: keep them in component state and
 send them in a request body so a person's identifier never reaches a URL. See the
 [workflow](../../../docs/workflows/review-and-decide.md#catch-up-on-shared-changes)
 for what Activity lists and the [stories](src/views/activity/workspace-activity.stories.tsx)
 for each state.
+
+The shared collection toolbar contains Round and Person filters, removable
+selections, reset, and loading status. Timestamps show plain local date and time
+in the viewer’s browser timezone. The view requests
+the next cursor page near the list end, retains a keyboard-accessible manual
+loading control, and stops automatic requests after a failure until the caller
+retries. Recovery uses the same `CollectionRecovery` from `@merit/ui/paged-content`
+as paged applications and related-record lists. Place it at the list end where an
+older-page request starts, retaining its retry control during the request.
+
+Activity rows keep the event, target, actor and local time visible. The event action
+opens the shared end drawer with full record and actor details, the recorded time,
+source provenance and any recorded reason. Closing restores the action's focus
+and the list position. Native record links remain separate from the drawer trigger
+and retain normal navigation and open-in-new-tab behavior.
+
+Chronological browsing loads continuously; application worklists use bounded pages
+for comparison and returning to work. Activity retains ordinary loaded rows so
+opening and closing a drawer preserves their measured height and reading position
+across browsers. Loaded data and DOM remain retained; this is not virtualization.
 
 ## Search the workspace
 

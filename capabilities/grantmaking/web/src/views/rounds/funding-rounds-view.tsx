@@ -4,9 +4,9 @@ import { useTranslation } from "react-i18next";
 import type { RoundSummary } from "@merit/grantmaking/api";
 import { useFormat } from "@merit/i18n/format";
 import { DataTable, type TableColumn } from "@merit/tables";
-import { Badge } from "@merit/ui/badge";
 import { PageHeader } from "@merit/ui/page-header";
 import { PersonIdentity } from "@merit/ui/person-identity";
+import { StatusIndicator } from "@merit/ui/status-indicator";
 
 import styles from "./funding-rounds-view.module.css";
 
@@ -15,22 +15,25 @@ const ResponsibleManagerCell = ({ round }: { round: RoundSummary }) => {
   const manager = round.manager.trim();
 
   if (!manager) {
-    return round.managerNeedsReassignment ? (
-      <Badge tone="warning">{t("rounds.needsAssignment")}</Badge>
-    ) : (
-      <>{t("preparation.unknownPerson")}</>
+    return (
+      <PersonIdentity
+        name={t(round.managerNeedsReassignment ? "rounds.unassigned" : "preparation.unknownPerson")}
+        isPlaceholder
+      />
     );
   }
 
   return (
-    <PersonIdentity
-      name={manager}
-      description={
-        round.managerNeedsReassignment ? (
-          <Badge tone="warning">{t("rounds.reassignmentNeeded")}</Badge>
-        ) : undefined
-      }
-    />
+    <span className={styles.manager}>
+      <PersonIdentity name={manager} />
+      {round.managerNeedsReassignment && (
+        <StatusIndicator
+          label={t("rounds.reassignmentNeeded")}
+          explanation={t("rounds.reassignmentExplanation")}
+          closeLabel={t("rounds.closeReassignment")}
+        />
+      )}
+    </span>
   );
 };
 
@@ -52,18 +55,13 @@ export const FundingRoundsView = ({
       id: "round",
       header: t("rounds.round"),
       layout: { width: "26%", primary: true },
-      cell: (round) => (
-        <>
-          <div className={styles.title}>{renderRoundLink(round)}</div>
-          <p className={styles.organization}>{round.organizationName}</p>
-        </>
-      ),
+      cell: (round) => <div className={styles.title}>{renderRoundLink(round)}</div>,
     },
     {
       id: "status",
       header: t("round.status"),
       layout: { width: "14%" },
-      cell: (round) => <Badge>{round.decisionStatus}</Badge>,
+      cell: (round) => round.decisionStatus,
     },
     {
       id: "manager",
@@ -109,6 +107,7 @@ export const FundingRoundsView = ({
       <PageHeader title={t("workspace.rounds")} actions={createAction} />
       <DataTable
         data={rounds}
+        density="compact"
         columns={columns}
         getRowId={(round) => round.publicId}
         label={t("workspace.rounds")}

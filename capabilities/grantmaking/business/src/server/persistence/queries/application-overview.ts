@@ -1,104 +1,44 @@
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 
 import { applicationCases, materialVersions } from "@merit/applications/schema";
 import { caseWithdrawn } from "@merit/applications/scope";
 import { appUsers } from "@merit/auth/schema";
 import type { Database } from "@merit/db";
+import { titleOrder } from "@merit/db/search";
 import { memberships, organizations } from "@merit/organizations/schema";
 import { organizationScope } from "@merit/organizations/scope";
-import { readCurrentRecommendationsMap } from "@merit/recommendations/scope";
-import { assessments, assessmentVersions, reviewRequests } from "@merit/reviews/schema";
+import { recommendationVersions } from "@merit/recommendations/schema";
+import { reviewOverview } from "@merit/reviews/scope";
 import { fundingRounds } from "@merit/rounds/schema";
-import {
-  criteriaVersionKey,
-  readCriteriaByVersionsMap,
-  type CriterionRecord,
-} from "@merit/rounds/scope";
 
-type CriteriaMap = Map<string, CriterionRecord[]>;
+import type { ApplicationFilter } from "../../../domain/application-filter";
+import type { WorkspaceApplicationsQuery } from "../../../domain/application-list";
 
-const assessmentBasisKey = (caseId: string, assessmentId: string) => `${caseId}:${assessmentId}`;
-
-const collectBasisPairs = (
-  rows: { roundId: string; criteriaVersion: number }[],
-  latestVersions: { criteriaRoundPublicId: string | null; criteriaVersion: number | null }[],
-  outstanding: { criteriaRoundPublicId: string; criteriaVersion: number }[],
-) => {
-  const pairs: { roundId: string; version: number }[] = rows.map((row) => ({
-    roundId: row.roundId,
-    version: row.criteriaVersion,
-  }));
-  for (const v of latestVersions) {
-    if (v.criteriaRoundPublicId !== null && v.criteriaVersion !== null) {
-      pairs.push({ roundId: v.criteriaRoundPublicId, version: v.criteriaVersion });
-    }
-  }
-  for (const r of outstanding) {
-    pairs.push({ roundId: r.criteriaRoundPublicId, version: r.criteriaVersion });
-  }
-  return pairs;
-};
-
-const groupReviewBases = (
-  latestAssessments: {
-    caseId: string;
-    applicationVersion: number | null;
-    criteriaRoundPublicId: string | null;
-    criteriaVersion: number | null;
-  }[],
-  outstandingRequests: {
-    caseId: string;
-    criteriaRoundPublicId: string;
-    criteriaVersion: number;
-  }[],
-  criteriaMap: CriteriaMap,
-) => {
-  const basesByCase = new Map<
-    string,
-    {
-      submission: { applicationVersion: number | null } | null;
-      criteria: CriterionRecord[] | null;
-    }[]
-  >();
-  for (const item of latestAssessments) {
-    const list = basesByCase.get(item.caseId) ?? [];
-    list.push({
-      submission: { applicationVersion: item.applicationVersion },
-      criteria:
-        item.criteriaRoundPublicId !== null && item.criteriaVersion !== null
-          ? (criteriaMap.get(
-              criteriaVersionKey(item.criteriaRoundPublicId, item.criteriaVersion),
-            ) ?? null)
-          : null,
-    });
-    basesByCase.set(item.caseId, list);
-  }
-  for (const request of outstandingRequests) {
-    const list = basesByCase.get(request.caseId) ?? [];
-    list.push({
-      submission: null,
-      criteria:
-        criteriaMap.get(
-          criteriaVersionKey(request.criteriaRoundPublicId, request.criteriaVersion),
-        ) ?? null,
-    });
-    basesByCase.set(request.caseId, list);
-  }
-  return basesByCase;
-};
-
-const readOverviewApplications = (db: Database, userId: string, workspaceSlug: string) =>
+const overviewRows = (db: Database, userId: string, workspaceSlug: string) =>
   db
     .select({
       id: applicationCases.id,
       title: materialVersions.title,
-      applicant: sql<string | null>`nullif(${materialVersions.applicantOrganization}, '')`,
-      version: applicationCases.materialVersion,
-      intakeStatus: applicationCases.intakeStatus,
-      withdrawn: caseWithdrawn,
-      roundId: fundingRounds.id,
-      roundTitle: fundingRounds.title,
-      criteriaVersion: fundingRounds.criteriaVersion,
+      applicant: sql<string | null>`nullif(${materialVersions.applicantOrganization}, '')`.as(
+        "applicant",
+      ),
+      roundId: sql<string>`${fundingRounds.id}`.as("roundId"),
+      roundTitle: sql<string>`${fundingRounds.title}`.as("roundTitle"),
+      position: applicationCases.position,
+      requested: sql`case when ${materialVersions.requestedMinorUnits} is null then null else
+        jsonb_build_object('minorUnits', ${materialVersions.requestedMinorUnits}::text, 'currency', 'EUR') end`.as(
+        "requested",
+      ),
+      recommendation: sql`(select jsonb_build_object('position', r.position, 'outdated',
+        r.recorded_date is not null and r.material_version is not null and r.material_version <> ${applicationCases.materialVersion},
+        'allocation', jsonb_build_object('minorUnits', r.allocation_minor_units::text, 'currency', r.allocation_currency))
+        from ${recommendationVersions} r where r.case_id = ${applicationCases.id} order by r.revision desc limit 1)`.as(
+        "recommendation",
+      ),
+      intakeStatus: sql<string>`${applicationCases.intakeStatus}`.as("intakeStatus"),
+      withdrawn: caseWithdrawn.as("withdrawn"),
+      version: sql<number>`${applicationCases.materialVersion}`.as("version"),
+      criteriaVersion: sql<number>`${fundingRounds.criteriaVersion}`.as("criteriaVersion"),
     })
     .from(applicationCases)
     .innerJoin(
@@ -123,105 +63,131 @@ const readOverviewApplications = (db: Database, userId: string, workspaceSlug: s
         eq(organizations.slug, workspaceSlug),
         organizationScope(userId, "work_on_grants", organizations.id),
       ),
-    )
-    .orderBy(fundingRounds.title, fundingRounds.id, applicationCases.position, applicationCases.id);
+    );
 
-type OverviewApplicationRow = Awaited<ReturnType<typeof readOverviewApplications>>[number];
-
-const readOverviewContext = async (db: Database, rows: OverviewApplicationRow[]) => {
-  const caseIds = rows.map((row) => row.id);
-  const [assessmentRows, versionRows, outstandingRequests, recommendationsMap] = await Promise.all([
-    db
-      .select({
-        caseId: assessments.caseId,
-        id: assessments.id,
-        previousId: assessments.previousId,
-      })
-      .from(assessments)
-      .where(inArray(assessments.caseId, caseIds)),
-    db
-      .select({
-        caseId: assessmentVersions.caseId,
-        assessmentId: assessmentVersions.assessmentId,
-        applicationVersion: assessmentVersions.applicationVersion,
-        criteriaRoundPublicId: assessmentVersions.criteriaRoundPublicId,
-        criteriaVersion: assessmentVersions.criteriaVersion,
-      })
-      .from(assessmentVersions)
-      .where(inArray(assessmentVersions.caseId, caseIds))
-      .orderBy(desc(assessmentVersions.version)),
-    db
-      .select({
-        caseId: reviewRequests.caseId,
-        criteriaRoundPublicId: reviewRequests.criteriaRoundPublicId,
-        criteriaVersion: reviewRequests.criteriaVersion,
-      })
-      .from(reviewRequests)
-      .where(
-        and(inArray(reviewRequests.caseId, caseIds), eq(reviewRequests.status, "outstanding")),
-      ),
-    readCurrentRecommendationsMap(db, caseIds),
-  ]);
-
-  const superseded = new Set(
-    assessmentRows.flatMap((row) =>
-      row.previousId ? [assessmentBasisKey(row.caseId, row.previousId)] : [],
-    ),
+const reviewsFor = (alias: "b" | "p") => {
+  const row = sql.identifier(alias);
+  return reviewOverview(
+    sql`${row}.id`,
+    sql`${row}.version`,
+    sql`${row}."roundId"`,
+    sql`${row}."criteriaVersion"`,
   );
-  const latestVersionByAssessment = new Map<string, (typeof versionRows)[number]>();
-  for (const version of versionRows) {
-    const key = assessmentBasisKey(version.caseId, version.assessmentId);
-    if (!superseded.has(key) && !latestVersionByAssessment.has(key)) {
-      latestVersionByAssessment.set(key, version);
-    }
-  }
-  const latestAssessments = [...latestVersionByAssessment.values()];
-  const criteriaMap = await readCriteriaByVersionsMap(
-    db,
-    collectBasisPairs(rows, latestAssessments, outstandingRequests),
-  );
-  return {
-    criteriaMap,
-    recommendationsMap,
-    reviewBasesByCase: groupReviewBases(latestAssessments, outstandingRequests, criteriaMap),
+};
+
+const workFilter = (filter: ApplicationFilter) =>
+  and(
+    filter.participation ? sql`withdrawn = ${filter.participation === "withdrawn"}` : undefined,
+    filter.readiness
+      ? sql`"intakeStatus" = ${filter.readiness === "ready" ? "ready" : "in_preparation"}`
+      : undefined,
+    filter.reviews === "awaiting" ? sql`(review_summary->>'outstanding')::integer > 0` : undefined,
+    filter.reviews === "unassigned"
+      ? sql`(review_summary->>'current')::integer + (review_summary->>'outdated')::integer + (review_summary->>'outstanding')::integer + (review_summary->>'unknown')::integer = 0`
+      : undefined,
+    filter.evidence === "changed"
+      ? sql`((review_summary->>'outdated')::integer > 0 or (review_summary->>'criteriaChanged')::boolean or coalesce((recommendation->>'outdated')::boolean, false))`
+      : undefined,
+    filter.evidence === "unknown" ? sql`(review_summary->>'unknown')::integer > 0` : undefined,
+    filter.recommendation === "missing" ? sql`recommendation is null` : undefined,
+  ) ?? sql`true`;
+
+const order = (input: WorkspaceApplicationsQuery) => {
+  const direction = input.direction === "descending" ? desc : asc;
+  const columns = {
+    application: titleOrder(sql`title`),
+    applicant: titleOrder(sql`applicant`),
+    round: titleOrder(sql`"roundTitle"`),
+    requested: sql`(requested->>'minorUnits')::numeric`,
+    proposed: sql`(recommendation->'allocation'->>'minorUnits')::numeric`,
+    intake: sql`case when withdrawn then 'Withdrawn' when "intakeStatus" = 'ready' then 'Ready' else 'In preparation' end`,
   };
+  return input.sort
+    ? sql`${direction(columns[input.sort])} nulls last, id asc`
+    : sql`"roundTitle" asc, "roundId" asc, position asc, id asc`;
 };
 
 export const readApplicationOverviews = async (
   db: Database,
   userId: string,
-  workspaceSlug: string,
+  input: WorkspaceApplicationsQuery,
+  pageSize: number,
 ) => {
-  const rows = await readOverviewApplications(db, userId, workspaceSlug);
-  if (rows.length === 0) {
-    return [];
-  }
-
-  const { criteriaMap, recommendationsMap, reviewBasesByCase } = await readOverviewContext(
-    db,
-    rows,
+  const needsReviews = Boolean(input.filter.reviews || input.filter.evidence);
+  const selected = and(
+    input.roundId ? sql`b."roundId" = ${input.roundId}` : sql`true`,
+    // strpos treats %, _, quotes, and backslashes literally.
+    input.query
+      ? sql`strpos(lower(b.title || ' ' || coalesce(b.applicant, '')), lower(${input.query})) > 0`
+      : undefined,
   );
-  return rows.map((row) => {
-    const recommendation = recommendationsMap.get(row.id)?.recommendation;
-    return {
-      id: row.id,
-      title: row.title,
-      applicant: row.applicant,
-      version: row.version,
-      intakeStatus: row.intakeStatus,
-      withdrawn: row.withdrawn,
-      roundId: row.roundId,
-      roundTitle: row.roundTitle,
-      criteria: criteriaMap.get(criteriaVersionKey(row.roundId, row.criteriaVersion)) ?? [],
-      reviewBases: reviewBasesByCase.get(row.id) ?? [],
-      recommendation: recommendation
-        ? {
-            position: recommendation.position,
-            outdated: recommendation.recorded
-              ? recommendation.recorded.applicationVersion !== row.version
-              : false,
-          }
-        : null,
-    };
-  });
+  const offset = sql`least(${input.offset}, greatest(0, (matching - 1) / ${pageSize}) * ${pageSize})`;
+  // Materialized facts are shared by count and page; page selection precedes display projections.
+  const result = await db.execute<{
+    applications: (Record<string, unknown> & { reviews: { criteriaChanged: boolean } })[];
+    total: number;
+    matching: number;
+    offset: number;
+  }>(sql`
+    with workspace as materialized (${overviewRows(db, userId, input.workspaceSlug)}),
+    facts as materialized (
+      select b.*, ${needsReviews ? reviewsFor("b") : sql`null::jsonb`} as review_summary
+      from workspace b where ${selected}
+    ),
+    matched as materialized (select * from facts where ${workFilter(input.filter)}),
+    counts as (select (select count(*)::integer from workspace) as total, count(*)::integer as matching from matched),
+    page as materialized (
+      select * from matched order by ${order(input)} limit ${pageSize}
+      offset (select ${offset} from counts)
+    ),
+    display as materialized (
+      select p.id, p.title, p.applicant, p."roundId", p."roundTitle", p.position, p."intakeStatus", p.withdrawn,
+        p.requested, p.recommendation, ${needsReviews ? sql`p.review_summary` : reviewsFor("p")} as reviews
+      from page p
+    )
+    select total, matching, ${offset} as offset,
+      (select coalesce(jsonb_agg(to_jsonb(d) order by ${order(input)}), '[]'::jsonb) from display d) as applications
+    from counts
+  `);
+  return result.rows[0]!;
+};
+
+/** Whole-round aggregates use the same authorized summary facts, independent of list filters. */
+export const readRoundTotals = async (
+  db: Database,
+  userId: string,
+  workspaceSlug: string,
+  roundId: string,
+) => {
+  const result = await db.execute<{
+    applicationCount: number;
+    requested: string;
+    proposed: string;
+    unknownRequests: number;
+    withdrawnApplications: number;
+    criteriaImpact: { assessments: number; requests: number };
+    reviews: { current: number; outdated: number; outstanding: number; unknown: number };
+  }>(sql`
+    with applications as materialized (
+      select b.*, ${reviewsFor("b")} as reviews
+      from (${overviewRows(db, userId, workspaceSlug)}) b where b."roundId" = ${roundId}
+    )
+    select count(*)::integer as "applicationCount",
+      coalesce(sum((requested->>'minorUnits')::numeric) filter (where not withdrawn), 0)::text as requested,
+      coalesce(sum((recommendation->'allocation'->>'minorUnits')::numeric) filter (where not withdrawn), 0)::text as proposed,
+      count(*) filter (where not withdrawn and requested is null)::integer as "unknownRequests",
+      count(*) filter (where withdrawn)::integer as "withdrawnApplications",
+      jsonb_build_object(
+        'current', coalesce(sum((reviews->>'current')::integer) filter (where not withdrawn), 0),
+        'outdated', coalesce(sum((reviews->>'outdated')::integer) filter (where not withdrawn), 0),
+        'outstanding', coalesce(sum((reviews->>'outstanding')::integer) filter (where not withdrawn), 0),
+        'unknown', coalesce(sum((reviews->>'unknown')::integer) filter (where not withdrawn), 0)
+      ) as reviews,
+      jsonb_build_object(
+        'assessments', coalesce(sum((reviews->>'criteriaAssessments')::integer), 0),
+        'requests', coalesce(sum((reviews->>'criteriaRequests')::integer), 0)
+      ) as "criteriaImpact"
+    from applications
+  `);
+  return result.rows[0]!;
 };

@@ -85,6 +85,35 @@ it("reports a committed review when updating the cache fails", async () => {
   client.clear();
 });
 
+it("exposes pending refresh progress while preserving the saved review", async () => {
+  const { result, client } = setup();
+  vi.mocked(readAccessRequests).mockRejectedValueOnce(new Error("Read failed"));
+  await act(() => result.current.data.review(request.email));
+  let finish!: (value: Awaited<ReturnType<typeof readAccessRequests>>) => void;
+  vi.mocked(readAccessRequests).mockReturnValueOnce(
+    new Promise((resolve) => {
+      finish = resolve;
+    }),
+  );
+
+  let pending!: Promise<void>;
+  act(() => {
+    pending = result.current.data.refresh();
+  });
+  await waitFor(() => expect(result.current.data.refreshing).toBe(true));
+  expect(result.current.data.refreshFailed).toBe(true);
+  expect(result.current.query.data).toEqual({ status: "ok", value: [reviewed] });
+  expect(reviewAccessRequest).toHaveBeenCalledOnce();
+
+  await act(async () => {
+    finish({ status: "ok", value: [reviewed] });
+    await pending;
+  });
+  await waitFor(() => expect(result.current.data.refreshing).toBe(false));
+  expect(result.current.data.refreshFailed).toBe(false);
+  client.clear();
+});
+
 it.each(["rejected", "unavailable"])(
   "retains the original record after a %s write and permits retry",
   async (failure) => {

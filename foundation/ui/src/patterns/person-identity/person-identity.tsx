@@ -9,6 +9,7 @@ export const PersonIdentity = ({
   description,
   annotation,
   status,
+  isPlaceholder = false,
   nameAs: Name = "span",
   className = "",
 }: {
@@ -18,6 +19,8 @@ export const PersonIdentity = ({
   annotation?: string;
   /** A visible account status badge beside the name; the caller owns its meaning and tone. */
   status?: ReactNode;
+  /** No person is selected: retain avatar alignment with an unfilled circle. */
+  isPlaceholder?: boolean;
   nameAs?: "span" | "h2" | "h3";
   className?: string;
 }) => {
@@ -25,7 +28,10 @@ export const PersonIdentity = ({
 
   return (
     <Container className={`${styles.identity} ${className}`} data-detailed={description != null}>
-      <Avatar name={name} size={description != null || Name !== "span" ? "regular" : "compact"} />
+      <Avatar
+        name={isPlaceholder ? undefined : name}
+        size={description != null || Name !== "span" ? "regular" : "compact"}
+      />
       <Container className={styles.copy}>
         <Container className={styles.nameLine}>
           <Name className={styles.name}>{name}</Name>

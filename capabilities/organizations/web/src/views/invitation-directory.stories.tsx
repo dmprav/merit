@@ -43,6 +43,7 @@ const meta = {
     (Story) => (
       <OrganizationMessagesProvider>
         <ApplicationPage
+          width="full"
           locationKey="team-invitations"
           breadcrumb={null}
           breadcrumbLabel="Breadcrumb"

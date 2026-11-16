@@ -20,3 +20,11 @@ export const readContactHistory = fn<
 >(async () => {
   throw new Error("Configure readContactHistory in the story");
 });
+
+export const readContactApplications = fn<
+  (
+    ...args: Parameters<typeof actual.readContactApplications>
+  ) => ReturnType<typeof actual.readContactApplications>
+>(async () => {
+  throw new Error("Configure readContactApplications in the story");
+});

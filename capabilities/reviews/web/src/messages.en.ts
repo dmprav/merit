@@ -1,6 +1,15 @@
 import { reviewStatusMessages } from "./views/reviews/status.messages";
 
 export const en = {
+  collection: {
+    close: "Close review details",
+    inspect: "Review details for {{title}}",
+    progress: "{{completed}} of {{total}} reviewed",
+    round: "this round",
+    none: "None assigned",
+    criteriaExplanation:
+      "The current criteria differ from the criteria used for at least one review or request. Inspect the review basis before relying on it.",
+  },
   reviews: reviewStatusMessages,
   position: {
     decline: "Decline",

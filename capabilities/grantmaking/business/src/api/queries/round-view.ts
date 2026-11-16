@@ -42,6 +42,23 @@ export const roundView = (round: FundingRoundOverview) => {
 
   return {
     ...round,
+    applicationCount: applications.length,
+    criteriaImpact: {
+      assessments: applications.reduce(
+        (count, application) =>
+          count +
+          application.assessments.filter((review) => review.submission && !review.criteriaUnknown)
+            .length,
+        0,
+      ),
+      requests: applications.reduce(
+        (count, application) =>
+          count +
+          application.assessments.filter((review) => !review.submission && !review.criteriaUnknown)
+            .length,
+        0,
+      ),
+    },
     totals: summarizeRound(round.budget, applications),
     applications,
   };

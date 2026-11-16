@@ -19,6 +19,7 @@ import History from "lucide-react/icons/history";
 import House from "lucide-react/icons/house";
 import Info from "lucide-react/icons/info";
 import Layers from "lucide-react/icons/layers";
+import ListFilter from "lucide-react/icons/list-filter";
 import LoaderCircle from "lucide-react/icons/loader-circle";
 import LogOut from "lucide-react/icons/log-out";
 import Menu from "lucide-react/icons/menu";
@@ -69,6 +70,7 @@ const icons = {
   reset: RotateCcw,
   close: X,
   search: Search,
+  filter: ListFilter,
 } as const;
 
 export const Icon = ({ name, className }: { name: keyof typeof icons; className?: string }) => {

@@ -2,33 +2,37 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, it } from "vite-plus/test";
 
-import {
-  ApplicationListViews,
-  useApplicationListView,
-  useWorkspaceApplicationList,
-} from "./application-list-views";
+import { ApplicationListViews, useApplicationListView } from "./application-list-views";
 
 const List = ({ roundId }: { roundId: string }) => {
-  const { sorting, onSortingChange, query, filter, onFilterChange } =
+  const { sorting, onSortingChange, query, filter, onFilterChange, onQueryChange } =
     useApplicationListView(roundId);
 
   return (
     <button
       onClick={() => {
         onSortingChange({ columnId: "application", direction: "descending" });
-        onFilterChange({ query: "repair", filter: "awaiting" });
+        onQueryChange("repair");
+        onFilterChange({ reviews: "awaiting" });
       }}
     >
-      {`${query} ${filter} ${sorting ? "Descending" : "Default order"}`}
+      {`${query} ${filter.reviews ?? "all"} ${sorting ? "Descending" : "Default order"}`}
     </button>
   );
 };
 
 const WorkspaceList = ({ workspaceSlug }: { workspaceSlug: string }) => {
-  const { query, onQueryChange } = useWorkspaceApplicationList(workspaceSlug);
+  const { query, onQueryChange, filter, onFilterChange } = useApplicationListView(
+    `workspace/${workspaceSlug}`,
+  );
 
   return (
-    <button onClick={() => onQueryChange("collective")}>{`workspace:${query || "empty"}`}</button>
+    <button
+      onClick={() => {
+        onQueryChange("collective");
+        onFilterChange({ participation: "active", evidence: "changed" });
+      }}
+    >{`workspace:${query || "empty"}:${filter.participation ?? "any"}:${filter.evidence ?? "any"}`}</button>
   );
 };
 
@@ -46,25 +50,25 @@ it("keeps rounds and workspaces independent and clears search, filters, and sort
   await user.click(screen.getByRole("button", { name: "all Default order" }));
 
   expect(screen.getByRole("button", { name: "repair awaiting Descending" })).toBeVisible();
-  expect(screen.getByRole("button", { name: "workspace:empty" })).toBeVisible();
+  expect(screen.getByRole("button", { name: "workspace:empty:any:any" })).toBeVisible();
 
-  await user.click(screen.getByRole("button", { name: "workspace:empty" }));
+  await user.click(screen.getByRole("button", { name: "workspace:empty:any:any" }));
 
-  expect(screen.getByRole("button", { name: "workspace:collective" })).toBeVisible();
+  expect(screen.getByRole("button", { name: "workspace:collective:active:changed" })).toBeVisible();
   expect(screen.getByRole("button", { name: "repair awaiting Descending" })).toBeVisible();
 
   rerender(page("birch-round"));
 
   expect(screen.getByRole("button", { name: "all Default order" })).toBeVisible();
-  expect(screen.getByRole("button", { name: "workspace:empty" })).toBeVisible();
+  expect(screen.getByRole("button", { name: "workspace:empty:any:any" })).toBeVisible();
 
   rerender(page("alder-round"));
 
   expect(screen.getByRole("button", { name: "repair awaiting Descending" })).toBeVisible();
-  expect(screen.getByRole("button", { name: "workspace:collective" })).toBeVisible();
+  expect(screen.getByRole("button", { name: "workspace:collective:active:changed" })).toBeVisible();
 
   rerender(page("alder-round", "next"));
 
   expect(screen.getByRole("button", { name: "all Default order" })).toBeVisible();
-  expect(screen.getByRole("button", { name: "workspace:empty" })).toBeVisible();
+  expect(screen.getByRole("button", { name: "workspace:empty:any:any" })).toBeVisible();
 });

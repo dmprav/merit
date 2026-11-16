@@ -401,6 +401,10 @@ it("returns the same review freshness as shared web reads without loading histor
     });
     assert(usage.status === "ok");
     expect(usage.applications.map((item) => item.applicationId)).toEqual([created.publicId]);
+    expect(usage.applications[0]).toMatchObject({
+      roundTitle: "Review summaries",
+      relationships: [summary.kind === "assessment" ? "assessment_recorded" : "review_requested"],
+    });
   }
   const assessment = await getFundingApplicationContent(db, actor, {
     ...input,
@@ -447,7 +451,9 @@ it("returns typed error statuses on malformed query inputs and distinguishes for
     }),
   ).toEqual({ status: "invalid_range" });
   expect(await listFundingRounds(db, actor, "BAD SLUG")).toEqual({ status: "not_found" });
-  expect(await listWorkspaceApplications(db, actor, "BAD SLUG")).toEqual({ status: "not_found" });
+  expect(await listWorkspaceApplications(db, actor, { workspaceSlug: "BAD SLUG" })).toEqual({
+    status: "not_found",
+  });
   await expect(
     listWorkspaceActivity(db, actor, { workspaceSlug: "BAD SLUG" }),
   ).rejects.toMatchObject({ name: "ZodError" });
@@ -477,7 +483,7 @@ it("returns typed error statuses on malformed query inputs and distinguishes for
   expect(await listFundingRoundSummaries(db, actor, { workspaceSlug })).toEqual({
     status: "forbidden",
   });
-  expect(await listWorkspaceApplications(db, actor, workspaceSlug)).toEqual({
+  expect(await listWorkspaceApplications(db, actor, { workspaceSlug: workspaceSlug })).toEqual({
     status: "forbidden",
   });
 

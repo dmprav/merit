@@ -41,6 +41,15 @@ explanations inside the menu where people compare options.
 
 <Canvas of={TextFields.ReadOnlyFocused} />
 
+## Search within a collection
+
+Use `SearchField` for a scoped query. Its search icon, input, and clear action share
+one boundary and focus treatment. The accessible label names the collection;
+the placeholder can describe what matches. Clear appears only when there is text
+and returns focus to the input. Escape belongs to the containing panel and does
+not erase the query. The [search field examples](?path=/story/components-search-field--clearing)
+and [collection toolbar](?path=/docs/patterns-collection-toolbar--docs) show the interaction.
+
 ## Keep feedback beside the field
 
 Give empty or malformed values specific corrective messages and preserve entries

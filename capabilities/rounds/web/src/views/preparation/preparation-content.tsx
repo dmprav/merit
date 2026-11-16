@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { RoundView } from "@merit/grantmaking/api";
 import { useFormat } from "@merit/i18n/format";
 import { Badge } from "@merit/ui/badge";
 import { Button } from "@merit/ui/button";
@@ -9,8 +8,9 @@ import { DescriptionList, DescriptionListItem } from "@merit/ui/description-list
 import { PersonIdentity } from "@merit/ui/person-identity";
 import { SectionHeader } from "@merit/ui/section-header";
 import { StateMessage } from "@merit/ui/state-message";
+import { StatusIndicator } from "@merit/ui/status-indicator";
 
-import type { PreparationData } from "../../contracts/preparation";
+import type { PreparationData, PreparationRound } from "../../contracts/preparation";
 import styles from "./preparation-content.module.css";
 import {
   RoundTitle,
@@ -36,7 +36,7 @@ type Content = {
 };
 
 type Props = {
-  round: RoundView;
+  round: PreparationRound;
   session?: PreparationSession;
   children: (content: Content) => ReactNode;
 };
@@ -83,7 +83,7 @@ const PreparationPresentation = ({
     title: preparation ? <RoundTitle preparation={preparation} /> : round.title,
     actions: preparation && (
       <RoundActions
-        hasApplications={Boolean(preparation.round.applications.length)}
+        hasApplications={Boolean(preparation.round.applicationCount)}
         pending={preparation.pending || !preparation.ready}
         onDelete={() => preparation.setDeleting(true)}
         triggerRef={preparation.registerMenuTrigger}
@@ -103,7 +103,7 @@ const RoundOverview = ({
   round,
   preparation,
 }: {
-  round: RoundView;
+  round: PreparationRound;
   preparation?: PreparationEditing;
 }) => {
   const { t } = useTranslation("roundPreparation");
@@ -156,14 +156,14 @@ const RoundProperties = ({
   round,
   preparation,
 }: {
-  round: RoundView;
+  round: PreparationRound;
   preparation?: PreparationEditing;
 }) => {
   const { t } = useTranslation("roundPreparation");
   const { money, calendarDate } = useFormat();
 
   return (
-    <DescriptionList className={styles.properties}>
+    <DescriptionList className={styles.properties} layout="rows">
       <DescriptionListItem label={t("round.status")}>
         <Badge>{round.decisionStatus}</Badge>
       </DescriptionListItem>
@@ -186,14 +186,29 @@ const RoundProperties = ({
         )}
       </DescriptionListItem>
       <DescriptionListItem label={t("preparation.responsibleManager")}>
-        {preparation ? (
-          <RoundManager preparation={preparation} />
-        ) : (
-          <PersonIdentity name={round.manager} />
-        )}
-        {round.managerNeedsReassignment && (
-          <p className={styles.warning}>{t("preparation.reassignmentNeeded")}</p>
-        )}
+        <span className={styles.manager}>
+          {preparation ? (
+            <RoundManager preparation={preparation} />
+          ) : round.manager.trim() ? (
+            <PersonIdentity name={round.manager.trim()} />
+          ) : (
+            <PersonIdentity
+              name={t(
+                round.managerNeedsReassignment
+                  ? "preparation.unassigned"
+                  : "preparation.unknownPerson",
+              )}
+              isPlaceholder
+            />
+          )}
+          {round.manager.trim() && round.managerNeedsReassignment && (
+            <StatusIndicator
+              label={t("preparation.reassignmentStatus")}
+              explanation={t("preparation.reassignmentNeeded")}
+              closeLabel={t("preparation.closeReassignment")}
+            />
+          )}
+        </span>
       </DescriptionListItem>
     </DescriptionList>
   );

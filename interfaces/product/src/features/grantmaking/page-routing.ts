@@ -4,12 +4,7 @@ import { redirect } from "@tanstack/react-router";
 import { workspaceSlugSchema } from "@merit/organizations/api";
 
 import { publicIdFromRef, resourceRef } from "./contracts/resource-url";
-import { roundOptions, applicationOptions } from "./data/queries";
-
-type Page = {
-  workspaceSlug: string;
-  round: { title: string; applications: { id: string; title: string }[] };
-};
+import { roundOptions, applicationOptions, applicationsOptions } from "./data/queries";
 
 export const workspaceRoundsLocation = (workspaceSlug: string) => ({
   to: "/app/$workspaceSlug/rounds" as const,
@@ -27,20 +22,13 @@ export const roundLocation = (page: {
   },
 });
 
-export const applicationLocation = (page: Page, applicationId: string) => {
-  const application = page.round.applications.find((item) => item.id === applicationId);
-  if (!application) {
-    return null;
-  }
-
-  return {
-    to: "/app/$workspaceSlug/applications/$applicationRef" as const,
-    params: {
-      workspaceSlug: page.workspaceSlug,
-      applicationRef: resourceRef(application.title, application.id),
-    },
-  };
-};
+export const applicationLocation = (
+  workspaceSlug: string,
+  application: { id: string; title: string },
+) => ({
+  to: "/app/$workspaceSlug/applications/$applicationRef" as const,
+  params: { workspaceSlug, applicationRef: resourceRef(application.title, application.id) },
+});
 
 /**
  * Resolve a title-and-ID or ID-only reference within a workspace. After access is
@@ -79,6 +67,7 @@ export const loadPublicPage = async (
     });
   }
 
+  await queryClient.fetchQuery(applicationsOptions(workspaceSlug, { roundId: publicId }));
   return page;
 };
 

@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, lt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, lt, or, sql } from "drizzle-orm";
 
 import {
   applicationCases,
@@ -202,8 +202,18 @@ export const readApplicationSummaries = async (
     limit: number;
   },
 ) => {
+  const relationships = input.contactId
+    ? {
+        applicantContact: sql<boolean>`coalesce(${applicationCases.contactId} = ${input.contactId}, false)`,
+        reviewRequested: sql<boolean>`exists(select 1 from ${reviewRequests} where ${reviewRequests.caseId} = ${applicationCases.id} and ${reviewRequests.contactId} = ${input.contactId})`,
+        assessmentRecorded: sql<boolean>`exists(select 1 from ${assessments} where ${assessments.caseId} = ${applicationCases.id} and ${assessments.contactId} = ${input.contactId})`,
+      }
+    : undefined;
   const rows = await db
-    .select(applicationFields)
+    .select({
+      ...applicationFields,
+      ...(relationships ? { roundTitle: fundingRounds.title, ...relationships } : {}),
+    })
     .from(applicationCases)
     .innerJoin(
       materialVersions,
@@ -226,9 +236,7 @@ export const readApplicationSummaries = async (
       and(
         access(actor, input.workspaceSlug),
         input.roundId ? eq(fundingRounds.id, input.roundId) : undefined,
-        input.contactId
-          ? sql`(${applicationCases.contactId} = ${input.contactId} or exists (select 1 from ${reviewRequests} where ${reviewRequests.caseId} = ${applicationCases.id} and ${reviewRequests.contactId} = ${input.contactId}) or exists (select 1 from ${assessments} where ${assessments.caseId} = ${applicationCases.id} and ${assessments.contactId} = ${input.contactId}))`
-          : undefined,
+        relationships ? or(...Object.values(relationships)) : undefined,
         input.after ? gt(applicationCases.id, input.after) : undefined,
       ),
     )

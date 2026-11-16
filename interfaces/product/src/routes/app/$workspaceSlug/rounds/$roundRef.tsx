@@ -24,7 +24,6 @@ const RoundPage = () => {
   }
 
   const roundsLocation = workspaceRoundsLocation(params.workspaceSlug);
-  const page = { workspaceSlug: result.workspaceSlug, round: result.data.round };
 
   return (
     <FundingRoundScreen
@@ -39,12 +38,15 @@ const RoundPage = () => {
         });
       }}
       renderReviewLink={(application, children) => (
-        <Link {...applicationLocation(page, application.id)!} search={{ tab: "reviews" }}>
+        <Link
+          {...applicationLocation(result.workspaceSlug, application)}
+          search={{ tab: "reviews" }}
+        >
           {children}
         </Link>
       )}
       renderApplicationLink={(application) => (
-        <Link {...applicationLocation(page, application.id)!}>{application.title}</Link>
+        <Link {...applicationLocation(result.workspaceSlug, application)}>{application.title}</Link>
       )}
     />
   );

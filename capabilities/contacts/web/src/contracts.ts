@@ -7,9 +7,17 @@ import type {
 } from "@merit/contacts/api";
 import type { PageSource } from "@merit/query/contracts";
 
+export type ContactApplication = {
+  publicId: string;
+  title: string;
+  roundTitle: string;
+  relationships: ("applicant_contact" | "review_requested" | "assessment_recorded")[];
+};
+
 export type Contact = Omit<DirectoryContact, "applicationTitles" | "history"> & {
   applicationTitles?: string[];
   history?: ContactHistoryEntry[];
+  applicationsSource?: PageSource<ContactApplication>;
   historySource?: PageSource<ContactHistoryEntry>;
 };
 
@@ -24,6 +32,7 @@ export type ContactsData = {
 };
 
 export type ContactsSource = {
+  applications?: (workspaceSlug: string, contact: Contact) => PageSource<ContactApplication>;
   history?: (workspaceSlug: string, contact: Contact) => PageSource<ContactHistoryEntry>;
   scope: (workspaceSlug: string) => readonly unknown[];
   read: (

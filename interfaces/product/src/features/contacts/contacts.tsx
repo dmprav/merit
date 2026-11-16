@@ -5,6 +5,7 @@ import {
   ContactPicker as Picker,
   ContactsDirectory as Directory,
 } from "@merit/contacts-web/contacts";
+import linkStyles from "@merit/ui/link.module.css";
 
 export type { Contact } from "@merit/contacts-web/contracts";
 
@@ -15,13 +16,14 @@ export const ContactsDirectory = (
 ) => (
   <Directory
     {...props}
-    renderApplicationLink={(item) => (
+    renderApplicationLink={(item, children, destination) => (
       <Link
+        className={`${linkStyles.text} ${destination ? "" : linkStyles.standalone}`}
         to="/app/$workspaceSlug/applications/$applicationRef"
         params={{ workspaceSlug: props.workspaceSlug, applicationRef: item.publicId }}
-        search={{ tab: "reviews" }}
+        search={{ tab: destination }}
       >
-        {item.title}
+        {children}
       </Link>
     )}
   />

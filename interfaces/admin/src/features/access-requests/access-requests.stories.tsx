@@ -40,6 +40,7 @@ const meta = {
     (Story) => (
       <StoryEnvironment path="/admin/access-requests">
         <ApplicationPage
+          width="full"
           locationKey="access-requests"
           breadcrumb={null}
           breadcrumbLabel="Breadcrumb"
@@ -79,6 +80,16 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const NewAndReviewed: Story = {};
+export const AboutRequests: Story = {
+  play: async ({ canvas, canvasElement, userEvent }) => {
+    await userEvent.click(canvas.getByRole("button", { name: "About requests" }));
+    const dialog = within(canvasElement.ownerDocument.body).getByRole("dialog", {
+      name: "About requests",
+    });
+    await expect(dialog).toHaveTextContent("Email addresses are unverified");
+    await expect(dialog).toHaveTextContent("Marking reviewed sends no email and grants no access");
+  },
+};
 export const Empty: Story = { args: { initial: { status: "ok", value: [] } } };
 export const MarkedReviewed: Story = {
   play: async ({ canvas, userEvent }) => {
@@ -125,6 +136,18 @@ export const RefreshRecovery: Story = {
     await SavedButRefreshFailed.play!(context);
     await context.userEvent.click(context.canvas.getByRole("button", { name: "Refresh requests" }));
     await waitFor(() => expect(context.canvas.queryByRole("alert")).not.toBeInTheDocument());
+    await expect(reviewAccessRequest).toHaveBeenCalledTimes(1);
+  },
+};
+export const Refreshing: Story = {
+  play: async (context) => {
+    await SavedButRefreshFailed.play!(context);
+    mocked(readAccessRequests).mockImplementationOnce(() => new Promise(() => {}));
+    await context.userEvent.click(context.canvas.getByRole("button", { name: "Refresh requests" }));
+    await expect(context.canvas.getByRole("button", { name: "Refresh requests" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
     await expect(reviewAccessRequest).toHaveBeenCalledTimes(1);
   },
 };

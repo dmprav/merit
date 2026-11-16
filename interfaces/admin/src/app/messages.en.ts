@@ -20,8 +20,10 @@ export const en = {
     "Draft recovery is unavailable in this browser. Keep this page open to preserve your changes.",
   requests: {
     title: "Access requests",
-    description:
-      "Requests to explore the Merit portfolio prototype. Email addresses are unverified. Review each request before using the organization invitation workflow; marking reviewed sends no email and grants no access.",
+    about: "About requests",
+    description: "Requests to explore the Merit prototype. Email addresses are unverified.",
+    reviewExplanation:
+      "Marking reviewed sends no email and grants no access. Use organization invitations to grant access.",
     email: "Email address",
     received: "Requested",
     status: "Status",
