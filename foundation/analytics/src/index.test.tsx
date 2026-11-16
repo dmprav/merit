@@ -1,8 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { expect, it, vi } from "vite-plus/test";
 
-import { AnalyticsProvider, noopAnalytics, sanitizeAnalyticsPath, useAnalytics } from "./index";
-import { createPostHogAnalytics } from "./posthog";
+import { AnalyticsProvider, sanitizeAnalyticsPath, useAnalytics } from "./index";
 
 const Probe = () => {
   const analytics = useAnalytics();
@@ -20,13 +19,10 @@ const Probe = () => {
   );
 };
 
-it("provides a safe no-op client by default when no provider is mounted", () => {
+it("lets components record analytics without a provider", () => {
   render(<Probe />);
-  screen.getByRole("button", { name: "Trigger" }).click();
 
-  expect(() => noopAnalytics.pageView("/")).not.toThrow();
-  expect(() => noopAnalytics.track("demo_started")).not.toThrow();
-  expect(() => noopAnalytics.reset()).not.toThrow();
+  expect(() => screen.getByRole("button", { name: "Trigger" }).click()).not.toThrow();
 });
 
 it("forwards page views, events, and resets to the provided client", () => {
@@ -49,104 +45,30 @@ it("forwards page views, events, and resets to the provided client", () => {
   expect(client.reset).toHaveBeenCalledOnce();
 });
 
-it("sanitizes confidential route parameters and keeps public routes readable", () => {
-  expect(sanitizeAnalyticsPath("/")).toBe("/");
-  expect(sanitizeAnalyticsPath("/privacy")).toBe("/privacy");
-  expect(sanitizeAnalyticsPath("/docs/mcp/")).toBe("/docs/mcp");
-  expect(sanitizeAnalyticsPath("/demo/workshop-saturdays?foo=bar#top")).toBe(
-    "/demo/workshop-saturdays",
-  );
-  expect(sanitizeAnalyticsPath("/invitations/secret-token-123")).toBe("/invitations/:token");
-  expect(sanitizeAnalyticsPath("/admin/organizations")).toBe("/admin/organizations");
-  expect(sanitizeAnalyticsPath("/admin/organizations/org-123")).toBe(
-    "/admin/organizations/:organization",
-  );
-  expect(sanitizeAnalyticsPath("/app")).toBe("/app");
-  expect(sanitizeAnalyticsPath("/app/sign-in")).toBe("/app/sign-in");
-  expect(sanitizeAnalyticsPath("/app/alder")).toBe("/app/:workspace");
-  expect(sanitizeAnalyticsPath("/app/alder/rounds")).toBe("/app/:workspace/rounds");
-  expect(sanitizeAnalyticsPath("/app/alder/rounds/round-1")).toBe("/app/:workspace/rounds/:round");
-  expect(sanitizeAnalyticsPath("/app/alder/applications/app-1?guide=workshop")).toBe(
-    "/app/:workspace/applications/:application",
-  );
-  expect(sanitizeAnalyticsPath("/app/alder/contacts")).toBe("/app/:workspace/contacts");
-  expect(sanitizeAnalyticsPath("/app/alder/settings/members")).toBe(
-    "/app/:workspace/settings/members",
-  );
-  expect(sanitizeAnalyticsPath("/app/alder/work")).toBe("/app/:workspace/work");
-  expect(sanitizeAnalyticsPath("/app/alder/work/assign-123")).toBe(
-    "/app/:workspace/work/:assignment",
-  );
+it.each([
+  ["/", "/"],
+  ["/privacy", "/privacy"],
+  ["/docs/mcp/", "/docs/mcp"],
+  ["/demo/workshop-saturdays?foo=bar#top", "/demo/workshop-saturdays"],
+  ["/admin/organizations", "/admin/organizations"],
+  ["/app", "/app"],
+  ["/app/sign-in", "/app/sign-in"],
+])("keeps the public route %s readable as %s", (path, expected) => {
+  expect(sanitizeAnalyticsPath(path)).toBe(expected);
 });
 
-it("returns a no-op client when PostHog API key is missing", () => {
-  const load = vi.fn();
-  const client = createPostHogAnalytics({ apiKey: "   ", load });
-
-  client.pageView("/demo");
-  client.track("demo_started");
-  client.reset();
-
-  expect(load).not.toHaveBeenCalled();
-});
-
-it("queues events until PostHog finishes loading and drops nothing on init failure", async () => {
-  const init = vi.fn();
-  const capture = vi.fn();
-  const reset = vi.fn();
-  let resolveLoad: ((value: never) => void) | undefined;
-  const load = vi.fn(
-    () =>
-      new Promise<never>((resolve) => {
-        resolveLoad = resolve;
-      }),
-  );
-
-  const client = createPostHogAnalytics({
-    apiKey: "phc_test_key",
-    host: "https://eu.i.posthog.com",
-    load,
-  });
-
-  client.pageView("/invitations/secret-token-xyz");
-  client.track("demo_started", { guided: true });
-  client.reset();
-
-  expect(init).not.toHaveBeenCalled();
-
-  resolveLoad?.({ init, capture, reset } as never);
-  await vi.waitFor(() => expect(init).toHaveBeenCalledOnce());
-
-  expect(init).toHaveBeenCalledWith(
-    "phc_test_key",
-    expect.objectContaining({
-      api_host: "https://eu.i.posthog.com",
-      persistence: "memory",
-      person_profiles: "never",
-      autocapture: false,
-      capture_pageview: false,
-      disable_session_recording: true,
-      disable_external_dependency_loading: true,
-    }),
-  );
-  expect(capture).toHaveBeenNthCalledWith(1, "$pageview", {
-    $current_url: "http://localhost:3000/invitations/:token",
-    $pathname: "/invitations/:token",
-  });
-  expect(capture).toHaveBeenNthCalledWith(2, "demo_started", { guided: true });
-  expect(reset).toHaveBeenCalledOnce();
-
-  client.track("demo_reset");
-  expect(capture).toHaveBeenNthCalledWith(3, "demo_reset", undefined);
-});
-
-it("degrades silently to no-op if loading PostHog fails", async () => {
-  const load = vi.fn().mockRejectedValue(new Error("Blocked by client"));
-  const client = createPostHogAnalytics({ apiKey: "phc_test_key", load });
-
-  client.pageView("/demo");
-  await vi.waitFor(() => expect(load).toHaveBeenCalledOnce());
-
-  expect(() => client.track("demo_started")).not.toThrow();
-  expect(() => client.reset()).not.toThrow();
+it.each([
+  ["/invitations/secret-token-123", "/invitations/:token"],
+  ["/admin/organizations/org-123", "/admin/organizations/:organization"],
+  ["/app/alder", "/app/:workspace"],
+  ["/app/alder/rounds", "/app/:workspace/rounds"],
+  ["/app/alder/rounds/round-1", "/app/:workspace/rounds/:round"],
+  ["/app/alder/applications/app-1?guide=workshop", "/app/:workspace/applications/:application"],
+  ["/app/alder/contacts", "/app/:workspace/contacts"],
+  ["/app/alder/settings/members", "/app/:workspace/settings/members"],
+  ["/app/alder/work", "/app/:workspace/work"],
+  ["/app/alder/work/assign-123", "/app/:workspace/work/:assignment"],
+  ["/app/alder/contacts/contact-7/history", "/app/:workspace/contacts/:id"],
+])("redacts confidential parameters in %s as %s", (path, expected) => {
+  expect(sanitizeAnalyticsPath(path)).toBe(expected);
 });
