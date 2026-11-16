@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { publicIdSchema } from "@merit/grantmaking/api";
+import { publicIdSchema } from "@merit/db/identifiers";
 import {
   createRoundRequestSchema,
   editRoundRequestSchema,

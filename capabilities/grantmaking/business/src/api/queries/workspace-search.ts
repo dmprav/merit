@@ -1,9 +1,9 @@
 import { z } from "zod";
 
+import { publicIdSchema } from "@merit/db/identifiers";
 import { workspaceSlugSchema } from "@merit/organizations/api";
 import { fundingRoundSchema } from "@merit/rounds/domain";
 
-import { publicIdSchema } from "../identifiers";
 import { applicationOverviewSchema } from "./application-overview";
 
 /** The longest query the search accepts. */

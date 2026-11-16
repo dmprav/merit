@@ -7,10 +7,10 @@ import {
   contactReadInput,
   contactHistoryInput,
 } from "@merit/contacts/api";
+import { publicIdSchema } from "@merit/db/identifiers";
 import {
   contactApplicationListInput,
   contactApplicationSummarySchema,
-  publicIdSchema,
 } from "@merit/grantmaking/api";
 
 import type { RegisterTool } from "../../components/register-tool";

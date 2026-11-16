@@ -1,9 +1,9 @@
 import { z } from "zod";
 
+import { publicIdSchema } from "@merit/db/identifiers";
 import {
   reviewListInput,
   reviewSummarySchema,
-  publicIdSchema,
   roundReadInput,
   applicationReadInput,
   roundListInput,

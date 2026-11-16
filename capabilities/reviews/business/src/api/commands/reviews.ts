@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { materialVersionSchema } from "@merit/applications/domain";
+import { publicIdSchema } from "@merit/db/identifiers";
 import { workspaceSlugSchema } from "@merit/organizations/api";
 import { criteriaVersionSchema } from "@merit/rounds/domain";
 
@@ -11,7 +12,7 @@ export type ReviewSaveError = ReviewChangeError | "invalid_review";
 
 const workspace = z.strictObject({ workspaceSlug: workspaceSlugSchema });
 export const saveReviewRequestSchema = workspace.extend({
-  publicId: z.string().regex(/^[0-9a-hjkmnp-tv-z]{12}$/),
+  publicId: publicIdSchema,
   expectedRevision: reviewRevisionSchema,
   expectedApplicationVersion: materialVersionSchema,
   expectedCriteriaVersion: criteriaVersionSchema,

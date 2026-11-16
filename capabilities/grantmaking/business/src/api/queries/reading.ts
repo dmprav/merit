@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { materialVersionSchema } from "@merit/applications/domain";
 import { auditPageInput } from "@merit/audit/api";
+import { publicIdSchema } from "@merit/db/identifiers";
 import { moneyDataSchema } from "@merit/money";
 import { workspaceSlugSchema } from "@merit/organizations/api";
 import { reviewRevisionSchema } from "@merit/reviews/domain";
@@ -9,21 +10,20 @@ import { reviewBasisComparisonSchema } from "@merit/reviews/domain";
 import { reviewerStatuses } from "@merit/reviews/domain";
 import { criteriaVersionSchema } from "@merit/rounds/domain";
 
-const recordId = z.string().regex(/^[0-9a-hjkmnp-tv-z]{12}$/);
 export const roundReadInput = z.strictObject({
   workspaceSlug: workspaceSlugSchema,
-  roundId: recordId,
+  roundId: publicIdSchema,
 });
 export const applicationReadInput = z.strictObject({
   workspaceSlug: workspaceSlugSchema,
-  applicationId: recordId,
+  applicationId: publicIdSchema,
 });
 export const roundListInput = z.strictObject({
   workspaceSlug: workspaceSlugSchema,
-  after: recordId.optional(),
+  after: publicIdSchema.optional(),
   limit: z.number().int().min(1).max(50).default(20),
 });
-export const applicationListInput = roundListInput.extend({ roundId: recordId });
+export const applicationListInput = roundListInput.extend({ roundId: publicIdSchema });
 const contentRange = {
   offset: z.number().int().min(0).max(2147483646).default(0),
   length: z.number().int().min(1).max(8000).default(8000),
@@ -67,7 +67,7 @@ export const applicationHistoryInput = applicationReadInput.extend({
 });
 
 export const roundSummarySchema = z.object({
-  roundId: recordId,
+  roundId: publicIdSchema,
   title: z.string(),
   preparationRevision: z.number().int().nonnegative(),
   criteriaVersion: criteriaVersionSchema,
@@ -75,8 +75,8 @@ export const roundSummarySchema = z.object({
   applicationCount: z.number().int().nonnegative(),
 });
 export const applicationSummarySchema = z.object({
-  applicationId: recordId,
-  roundId: recordId,
+  applicationId: publicIdSchema,
+  roundId: publicIdSchema,
   title: z.string(),
   applicationVersion: materialVersionSchema,
   intakeRevision: z.number().int().nonnegative(),

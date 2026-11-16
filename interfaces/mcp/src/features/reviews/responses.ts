@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { applicationMaterialDataSchema } from "@merit/applications/api";
-import { publicIdSchema } from "@merit/grantmaking/api";
+import { publicIdSchema } from "@merit/db/identifiers";
 import {
   reviewerDraftSchema,
   reviewerStatuses,

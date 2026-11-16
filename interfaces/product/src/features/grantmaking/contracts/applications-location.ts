@@ -1,4 +1,4 @@
-import { publicIdSchema } from "@merit/grantmaking/api";
+import { publicIdSchema } from "@merit/db/identifiers";
 
 export type ApplicationsSearch = {
   round?: string;

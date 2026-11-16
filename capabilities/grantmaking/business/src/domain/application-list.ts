@@ -1,9 +1,9 @@
 import { z } from "zod";
 
+import { publicIdSchema } from "@merit/db/identifiers";
 import { workspaceSlugSchema } from "@merit/organizations/api";
 
 import { applicationFilters } from "./application-filter";
-import { publicIdSchema } from "./identifiers";
 
 const applicationFilterSchema = z.strictObject({
   participation: z.enum(applicationFilters.participation).optional(),

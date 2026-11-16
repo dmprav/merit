@@ -1758,6 +1758,9 @@ importers:
       pg:
         specifier: 'catalog:'
         version: 8.23.1
+      zod:
+        specifier: 'catalog:'
+        version: 4.6.7
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
@@ -2273,6 +2276,9 @@ importers:
       '@merit/contacts':
         specifier: workspace:*
         version: link:../../capabilities/contacts/business
+      '@merit/db':
+        specifier: workspace:*
+        version: link:../../foundation/db
       '@merit/grantmaking':
         specifier: workspace:*
         version: link:../../capabilities/grantmaking/business
@@ -2343,6 +2349,9 @@ importers:
       '@merit/dates':
         specifier: workspace:*
         version: link:../../foundation/dates
+      '@merit/db':
+        specifier: workspace:*
+        version: link:../../foundation/db
       '@merit/drafts':
         specifier: workspace:*
         version: link:../../foundation/drafts

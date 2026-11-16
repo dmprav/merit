@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { publicIdSchema } from "@merit/db/identifiers";
 import { isNegative, parseMoney } from "@merit/money";
 import { workspaceSlugSchema } from "@merit/organizations/api";
 
@@ -36,7 +37,7 @@ export const createRoundRequestSchema = z.strictObject({
 });
 export const editRoundRequestSchema = z.strictObject({
   workspaceSlug: workspaceSlugSchema,
-  publicId: z.string().regex(/^[0-9a-hjkmnp-tv-z]{12}$/),
+  publicId: publicIdSchema,
   expectedRevision: z.number().int().nonnegative(),
   change: roundChangeSchema,
 });

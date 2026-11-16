@@ -1,9 +1,9 @@
 import { z } from "zod";
 
 import type { Actor } from "@merit/auth";
+import { publicIdSchema } from "@merit/db/identifiers";
 
 import type { NavigationPin } from "../domain/navigation";
-import { publicIdSchema } from "./identifiers";
 
 export type { NavigationPin, NavigationTarget } from "../domain/navigation";
 export { sameNavigationTarget, sameNavigationSection } from "../domain/navigation";

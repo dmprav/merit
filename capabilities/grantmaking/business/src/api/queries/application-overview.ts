@@ -1,10 +1,10 @@
 import { z } from "zod";
 
+import { publicIdSchema } from "@merit/db/identifiers";
 import { moneyDataSchema } from "@merit/money";
 import { recommendationSchema } from "@merit/recommendations/domain";
 
 import { applicationRecordSchema } from "../../domain/model";
-import { publicIdSchema } from "../identifiers";
 
 export { applicationFilters, type ApplicationFilter } from "../../domain/application-filter";
 

@@ -1,10 +1,9 @@
 import { z } from "zod";
 
+import { publicIdSchema } from "@merit/db/identifiers";
 import { workspaceSlugSchema } from "@merit/organizations/api";
 
 import { recommendationDataSchema } from "../domain/encoding";
-
-const publicIdSchema = z.string().regex(/^[0-9a-hjkmnp-tv-z]{12}$/);
 
 export const saveRecommendationRequestSchema = z.strictObject({
   workspaceSlug: workspaceSlugSchema,

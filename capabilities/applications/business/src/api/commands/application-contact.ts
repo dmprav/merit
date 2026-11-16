@@ -1,10 +1,11 @@
 import { z } from "zod";
 
+import { publicIdSchema } from "@merit/db/identifiers";
 import { workspaceSlugSchema } from "@merit/organizations/api";
 
 const workspace = z.strictObject({ workspaceSlug: workspaceSlugSchema });
 export const selectContactRequestSchema = workspace.extend({
-  publicId: z.string().regex(/^[0-9a-hjkmnp-tv-z]{12}$/),
+  publicId: publicIdSchema,
   expectedRevision: z.number().int().nonnegative(),
   contactId: z.uuid().nullable(),
 });
