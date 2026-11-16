@@ -35,8 +35,9 @@ const WORKSPACE_PACKAGE_PATTERNS = [
 
 const ALL_PACKAGES_FILTER = "--filter '@merit/*' --filter '!@merit/storybook'";
 
+// Verification records accompany any change, so they route like documentation.
 const DOC_FILE_PATTERN =
-  /^(docs\/|\.remarkrc\.mjs$|\.github\/pull_request_template\.md$|\.github\/ISSUE_TEMPLATE\/)/;
+  /^(docs\/|verifications\/|\.remarkrc\.mjs$|\.github\/pull_request_template\.md$|\.github\/ISSUE_TEMPLATE\/)/;
 const README_OR_ROOT_MD_PATTERN = /(^|\/)README\.md$|^[^/]+\.md$/;
 
 const ROOT_OR_INFRA_PATTERN =

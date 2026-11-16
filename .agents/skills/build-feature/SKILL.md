@@ -152,21 +152,25 @@ two rounds and carry what remains to **Follow-ups**.
 
 Commits follow the
 [commit conventions](../../../docs/guides/development.md#commit-changes). Open a
-pull request with the [repository template](../../../.github/pull_request_template.md),
+draft pull request with the [repository template](../../../.github/pull_request_template.md),
 keeping the description concise rather than pasting the approved brief:
 
 - **Why:** 1–2 sentences on the outcome and the issue link.
 - **What changed:** concise bullets for the resulting behavior, key departures,
-  the **precedents** reused (file/story paths for review), non-CI checks run or
-  gaps, any rejected review findings with their reasons, and for UI changes the
-  stories/routes, states, and widths compared (or side-by-side screenshots where
-  attachable), as
-  [UI verification](../../../docs/guides/ui-verification.md#verification) asks.
+  and the **precedents** reused (file/story paths for review).
 - **Follow-ups:** only unresolved findings or concrete friction that needs
   action; omit when empty.
 
+Then add the [verification record](../../../docs/guides/verification.md#record-verification):
+the checks from the brief's **Verification** and their results, gaps, review
+findings rejected with their reasons, and for UI changes the stories/routes,
+states, and widths compared, as
+[UI verification](../../../docs/guides/ui-verification.md#verification) asks.
+Attach side-by-side screenshots to the pull request where possible. Mark the
+pull request ready.
+
 Greptile reviews the pull request after it opens. Triage its comments like
-reviewer findings.
+reviewer findings, and add the ones you reject to the record.
 
 ## 6. Learn from escapes
 

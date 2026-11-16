@@ -40,7 +40,8 @@ git log --reverse --first-parent --format='%h %s' <recorded commit>..origin/main
 Skip commits titled `docs: review documentation`. For each remaining commit,
 review these documents:
 
-- every Markdown or MDX document the commit changed;
+- every Markdown or MDX document the commit changed, except verification
+  records in `verifications/`;
 - documents that link to or name a path the commit changed;
 - the README or MDX beside the changed code.
 
@@ -54,7 +55,7 @@ record; later commits wait for the next run.
 List the documents in a stable order:
 
 ```sh
-git ls-files '*.md' '*.mdx' ':!:.github/**' ':!:.agents/**'
+git ls-files '*.md' '*.mdx' ':!:.github/**' ':!:.agents/**' ':!:verifications/**'
 ```
 
 Count the days from 2026-11-13 to today in UTC, divide by the number of

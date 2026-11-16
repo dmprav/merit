@@ -19,9 +19,8 @@ rendered behavior. Use the [commands below](#while-developing) and the
 Stop once the applicable checks pass. Reuse passing results while their relevant
 source, dependencies, configuration, and runtime conditions remain unchanged.
 Repeat or broaden checks when subsequent edits, failures, or unresolved risks
-justify it. Report the checks performed and any remaining verification gaps.
-In a pull request, mention only checks CI doesn't run, such as a manual mutation
-check, and the gaps; the required `verify` check reports the rest.
+justify it. Report the checks performed and any remaining verification gaps in
+the pull request's [verification record](#record-verification).
 
 Run full workspace verification with `vp run ready` before merging or releasing
 completed changes, when explicitly requested, or when a change has broad effects
@@ -108,6 +107,55 @@ setup is required.
 
 The commit-msg hook separately validates [commit conventions](development.md#commit-changes).
 Use `vp run check:commit /path/to/commit-message.txt` to check a draft message.
+
+## Record verification
+
+Each pull request adds a verification record, `verifications/<pull request number>.md`,
+stating what its author checked and what stayed unchecked. Writing the record makes
+skipped checks explicit, keeps the pull request description short for readers of
+the history, and leaves data for finding where verification repeatedly falls short.
+
+1. Open the pull request as a draft to get its number.
+2. Add the record on the branch, using the template below.
+3. Update it as verification continues, including review findings you dismiss
+   after the pull request opens.
+4. Mark the pull request ready for review.
+
+The `verification-record` job in the required `verify` check fails until the
+record is present and complete, and when the pull request adds or changes another
+pull request's record. Renovate and Dependabot pull requests, and pull requests
+that only remove records, need none.
+
+```md
+# Verification record
+
+## Checks run
+
+- `vp run @merit/reviews#test`: passed.
+
+## Could not verify
+
+- Live Clerk sign-in: the environment has no Clerk credentials.
+
+## Did not verify
+
+None.
+
+## Dismissed review findings
+
+- <Finding and who raised it>: <the guide, brief, or precedent that answers it>.
+```
+
+| Section                   | Contains                                                                             |
+| ------------------------- | ------------------------------------------------------------------------------------ |
+| Checks run                | Checks you ran for this change and their results. CI reports its own checks.         |
+| Could not verify          | Checks the change needed that the environment prevented, with what blocked each one. |
+| Did not verify            | Checks the change needed that you chose not to run, with the reason.                 |
+| Dismissed review findings | Reviewer and automated review findings you did not act on, each with its reason.     |
+
+Write "None." in a section with nothing to report. Record facts about this change
+in the past tense. Advice for future work belongs in the pull request's
+**Follow-ups**, where it can become an issue or a guide change.
 
 ## Security checks
 
@@ -204,7 +252,7 @@ engine checks do not establish compatibility with every current branded release
 or a physical device. Check Chrome, Edge, Firefox, and Safari releases and real
 devices where behavior depends on them, including Safari on iOS. Record the
 browsers and versions, exercised behavior, results, and any gaps in the change's
-verification notes. Follow the [UI checks](ui-verification.md#verification) for accessibility
+[verification record](#record-verification). Follow the [UI checks](ui-verification.md#verification) for accessibility
 and interaction details.
 
 Playwright is temporarily pinned to 1.64.1 because 1.65.0's Firefox crashes when

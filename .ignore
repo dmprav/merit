@@ -1,0 +1,3 @@
+# Verification records are working data for review, not guidance; keep them out of
+# ripgrep-based search. Git, formatting, and secret scanning still include them.
+verifications/

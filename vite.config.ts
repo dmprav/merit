@@ -128,7 +128,7 @@ export default defineConfig({
       "test:commits": { command: "vp test tooling/verification/commits.test.ts", cache: false },
       "test:ci": {
         command:
-          "vp test tooling/verification/ci.test.ts tooling/verification/ci-changes.test.ts tooling/verification/ci-summary.test.ts",
+          "vp test tooling/verification/ci.test.ts tooling/verification/ci-changes.test.ts tooling/verification/ci-summary.test.ts tooling/verification/verification-record.test.ts",
         cache: false,
       },
       "ci:summary": { command: "vpx tooling/verification/ci-summary.ts", cache: false },

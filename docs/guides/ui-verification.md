@@ -21,7 +21,7 @@ or pattern and compare their rendered states at the same viewport and theme.
 Check hierarchy, typography, density, framing, alignment, and selection and focus
 treatments. Explain differences through the person's task; shared tokens alone
 do not establish consistency. Record the reference story or screen and any
-intentional differences in the change's verification notes. When no suitable
+intentional differences in the change's [verification record](verification.md#record-verification). When no suitable
 pattern exists, use the relevant foundations to assess the new shared pattern.
 
 Inspect the states where the interaction happens: open menus and dialogs,

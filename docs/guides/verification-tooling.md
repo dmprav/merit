@@ -73,6 +73,22 @@ check Markdown and MDX parsing, links between documents, missing files and ancho
 and ignored generated files. `vp run check:docs` checks the actual documentation;
 the [documentation guide](documentation.md) describes its scope.
 
+## Check verification records
+
+The `verification-record` job runs
+[`verification-record.ts`](../../tooling/verification/verification-record.ts) on
+pull requests. It owns the required record sections, exemptions, and diff rules
+that the [verification guide](verification.md#record-verification) describes; keep
+the guide's template and the script's sections in step. Run `vp run test:ci`
+after changing either. Change routing treats records as documentation, so a
+record never widens the checks a pull request runs.
+
+Records are data about one change, not guidance for later work. The root
+[`.ignore`](../../.ignore) keeps `verifications/` out of ripgrep-based search, which
+coding agents use to find guidance, while Git, formatting, the documentation check,
+and secret scanning still include the records. The regression tests assert that
+entry remains.
+
 ## Check architecture enforcement
 
 The [architecture checks](architecture-checks.md) enforce package dependency

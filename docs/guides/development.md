@@ -441,9 +441,9 @@ targeting `main`, `merge_group`, pushes to `main`, and manual dispatch. It start
 with a `changes` job ([`ci-changes.ts`](../../tooling/verification/ci-changes.ts))
 that diffs against the PR base commit:
 
-- Documentation-only pull requests (including package `README.md` files) route
-  through `docs-verify` (`check:docs`, `test:docs`, formatting, `check:secrets`, and
-  `test:ci`).
+- Documentation-only pull requests (including package `README.md` files and
+  verification records) route through `docs-verify` (`check:docs`, `test:docs`,
+  formatting, `check:secrets`, and `test:ci`).
 - `renovate.json`-only pull requests route through `renovate`.
 - Pull requests touching root/workflow configuration, pushes to `main`, `merge_group`,
   and manual dispatch runs execute every `ready` stage with fresh task results
@@ -475,6 +475,9 @@ under `.github/actions/`:
   browser jobs forward loopback ports (`127.0.0.1:55432` and `127.0.0.1:8025`) to
   pinned PostgreSQL and Mailpit service containers.
 
+On every pull request, the `verification-record` job
+([`verification-record.ts`](../../tooling/verification/verification-record.ts)) checks
+the pull request's [verification record](verification.md#record-verification).
 The `verify` aggregator job collects all job results and publishes the required `verify`
 status check. Jobs read the existing Vite+, Node.js, and pnpm pins and cache only
 downloaded dependencies between CI runs.
