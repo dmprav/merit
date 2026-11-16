@@ -1,10 +1,10 @@
 import type { z } from "zod";
 
-import type { ApplicationsService } from "@merit/applications/api";
+import type { ApplicationsService, IntakeState } from "@merit/applications/api";
 import type { Actor } from "@merit/auth";
 import type { RecommendationsService } from "@merit/recommendations/api";
 import type { ReviewService } from "@merit/reviews/api";
-import type { RoundsService } from "@merit/rounds/api";
+import type { PreparationState, RoundsService } from "@merit/rounds/api";
 
 import type { ApplicationRequest, PublicRoundRequest } from "./queries";
 import type { workspaceActivityInput, WorkspaceActivity } from "./queries/activity";
@@ -12,7 +12,6 @@ import type {
   WorkspaceApplicationsPage,
   WorkspaceApplicationsInput,
 } from "./queries/application-overview";
-import type { IntakeState, PreparationState } from "./queries/editing-state";
 import type {
   applicationAuditInput,
   roundBudgetHistoryInput,

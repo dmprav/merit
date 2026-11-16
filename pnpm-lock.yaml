@@ -1595,9 +1595,6 @@ importers:
       '@merit/forms':
         specifier: workspace:*
         version: link:../../../foundation/forms
-      '@merit/grantmaking':
-        specifier: workspace:*
-        version: link:../../grantmaking/business
       '@merit/i18n':
         specifier: workspace:*
         version: link:../../../foundation/i18n
@@ -1632,6 +1629,9 @@ importers:
         specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
+      '@merit/grantmaking':
+        specifier: workspace:*
+        version: link:../../grantmaking/business
       '@merit/test-support':
         specifier: workspace:*
         version: link:../../../tooling/testing

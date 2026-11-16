@@ -6,3 +6,4 @@ export {
   decodeApplicationMaterial,
 } from "../domain/encoding";
 export type { ApplicationsService } from "./service";
+export type { IntakeState } from "./editing-state";

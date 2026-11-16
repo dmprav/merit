@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import type { Provenance } from "@merit/auth";
+
 const identifier = z.string().trim().min(1).max(200);
 
 export type ActivityCursor = { recordedAt: Date; id: string };
@@ -48,3 +50,15 @@ export const activityInputSchema = auditPageInput.extend({
 });
 
 export type ActivityInput = z.input<typeof activityInputSchema>;
+
+/** One recorded change to a subject, with the owner's before and after values. */
+export type RecordedChange<T> = {
+  revision: number;
+  action: string;
+  reason: string | null;
+  recordedAt: string;
+  actor: string | null;
+  provenance: Provenance | null;
+  before: T | null;
+  after: T | null;
+};
