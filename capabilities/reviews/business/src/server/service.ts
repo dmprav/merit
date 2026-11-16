@@ -37,7 +37,7 @@ const reviewerReads = ({ database }: Dependencies): Pick<ReviewerService, "read"
   read: async (actor, input) => {
     const parsed = reviewerAddressSchema.safeParse(input);
     if (!parsed.success) {
-      return { status: "invalid" };
+      return { status: "invalid", error: "invalid_input" };
     }
     return database((db) =>
       readReviewerAssignment(db, actor, parsed.data.assignmentId, parsed.data.workspaceSlug),
@@ -46,7 +46,7 @@ const reviewerReads = ({ database }: Dependencies): Pick<ReviewerService, "read"
   list: async (actor, input) => {
     const parsed = reviewerListInput.safeParse(input);
     if (!parsed.success) {
-      return { status: "invalid" };
+      return { status: "invalid", error: "invalid_input" };
     }
     return database((db) => listReviewerAssignments(db, actor, parsed.data?.workspaceSlug));
   },
@@ -60,7 +60,7 @@ export const createReviewerService = (dependencies: ReviewerDependencies): Revie
     const parsed = reviewerApplicationSchema.safeParse(input);
     return parsed.success
       ? database((db) => managerReviewerAssignments(db, actor, parsed.data))
-      : Promise.resolve({ status: "invalid" });
+      : Promise.resolve({ status: "invalid", error: "invalid_input" });
   };
 
   const managerAssignment = async (

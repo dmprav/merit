@@ -7,7 +7,12 @@ import { calendarDateSchema } from "@merit/dates";
 import { publicIdSchema } from "@merit/db/identifiers";
 
 import type { ReviewBasisComparison } from "../domain/basis";
-import { reviewerDraftSchema, type ReviewerDraft, type ReviewerStatus } from "../domain/reviewer";
+import {
+  reviewerDraftSchema,
+  type ReviewerDraft,
+  type ReviewerProblem,
+  type ReviewerStatus,
+} from "../domain/reviewer";
 import type { ReviewState } from "../domain/reviews";
 
 export const reviewerListInput = z
@@ -87,7 +92,7 @@ export type ReviewerPage = {
 export type ReviewerResult<T> =
   | { status: "ok"; value: T }
   | { status: "not_found" | "forbidden" | "conflict" | "expired" | "limited" }
-  | { status: "invalid"; error?: "application_withdrawn" | "workspace_membership_required" };
+  | { status: "invalid"; error: ReviewerProblem };
 
 export type ReviewerEvent = { action: string; actor: string | null; at: string; note: string };
 

@@ -13,10 +13,15 @@ import {
   type ReviewerService,
 } from "../../api/reviewer";
 import {
+  decideInvitation,
+  decideManagerAction,
+  decideParticipation,
   emptyReviewerDraft,
   isInvitationExpired,
-  nextReviewerStatus,
+  resumptionProblem,
   reviewerSubmission,
+  type ParticipationAction,
+  type ReviewerStatus,
 } from "../../domain/reviewer";
 import { prepareReviewChange } from "../../domain/reviews";
 import {
@@ -61,7 +66,7 @@ export const inviteReviewer = async (
 ) => {
   const parsed = inviteReviewerSchema.safeParse(input);
   if (!parsed.success) {
-    return { status: "invalid" } as const;
+    return { status: "invalid", error: "invalid_input" } as const;
   }
   const request = parsed.data;
   return db.transaction(async (tx) => {
@@ -73,22 +78,20 @@ export const inviteReviewer = async (
     if (existing) {
       return existing.id === request.commandId && existing.dueDate === request.dueDate
         ? ({ status: "ok", id: existing.id } as const)
-        : ({ status: "invalid" } as const);
-    }
-    if (access.withdrawn) {
-      return { status: "invalid", error: "application_withdrawn" } as const;
+        : ({ status: "invalid", error: "invitation_exists" } as const);
     }
     const row = await readReviewState(tx, access.organizationId, request.publicId);
     const review = row?.reviews.requests.find((value) => value.id === request.requestId);
-    if (!review || review.status !== "outstanding") {
-      return { status: "invalid" } as const;
+    const invitation = decideInvitation({
+      withdrawn: access.withdrawn,
+      request: review,
+      contact: review && (await readContact(tx, access.organizationId, review.contactId)),
+      managerEmail: await memberEmail(tx, access.organizationId, actor.userId),
+    });
+    if (!invitation.ok) {
+      return { status: "invalid", error: invitation.error } as const;
     }
-    const contact = await readContact(tx, access.organizationId, review.contactId);
-    const email = contact?.email.trim().toLowerCase();
-    const managerEmail = await memberEmail(tx, access.organizationId, actor.userId);
-    if (!contact || contact.archived || !email || !managerEmail || !email.includes("@")) {
-      return { status: "invalid" } as const;
-    }
+    const { email, managerEmail } = invitation;
     const membershipId = await reviewerMembershipByEmail(tx, access.organizationId, email);
     if (!membershipId) {
       return { status: "invalid", error: "workspace_membership_required" } as const;
@@ -133,7 +136,7 @@ export const manageReviewer = async (
 ) => {
   const parsed = manageReviewerSchema.safeParse(input);
   if (!parsed.success) {
-    return { status: "invalid" } as const;
+    return { status: "invalid", error: "invalid_input" } as const;
   }
   const request = parsed.data;
   return db.transaction(async (tx) => {
@@ -185,7 +188,7 @@ export const respondToReview = async (
 ) => {
   const parsed = reviewerActionSchema.safeParse(input);
   if (!parsed.success) {
-    return { status: "invalid" } as const;
+    return { status: "invalid", error: "invalid_input" } as const;
   }
   const request = parsed.data;
   return db.transaction(async (tx) => {
@@ -212,19 +215,11 @@ export const respondToReview = async (
     if (isInvitationExpired(assignment)) {
       return { status: "expired" } as const;
     }
-    const status = nextReviewerStatus(
-      {
-        status: assignment.status,
-        accepted: assignment.acceptedAt !== null,
-        submitted: assignment.assessmentId !== null,
-        conflict: assignment.conflict,
-      },
-      request.action,
-      request.note,
-    );
-    if (!status) {
-      return { status: "invalid" } as const;
+    const decision = decideParticipation(participation(assignment), request.action, request.note);
+    if (!decision.ok) {
+      return { status: "invalid", error: decision.error } as const;
     }
+    const { status } = decision;
     const revision = assignment.revision + 1;
     await updateReviewerAssignment(tx, assignment.id, {
       status,
@@ -257,7 +252,7 @@ export const saveReviewerDraft = async (
 ): ReturnType<ReviewerService["saveDraft"]> => {
   const parsed = saveReviewerDraftSchema.safeParse(input);
   if (!parsed.success) {
-    return { status: "invalid" };
+    return { status: "invalid", error: "invalid_input" };
   }
   const request = parsed.data;
   return db.transaction(async (tx) => {
@@ -300,7 +295,7 @@ export const submitReviewerAssessment = async (
 ): ReturnType<ReviewerService["submit"]> => {
   const parsed = submitReviewerSchema.safeParse(input);
   if (!parsed.success) {
-    return { status: "invalid" };
+    return { status: "invalid", error: "invalid_input" };
   }
   const request = parsed.data;
   return db.transaction(async (tx) => {
@@ -331,7 +326,7 @@ export const submitReviewerAssessment = async (
       assignment.assessmentId !== null,
     );
     if (!content) {
-      return { status: "invalid" };
+      return { status: "invalid", error: "submission_incomplete" };
     }
     const row = await readReviewState(tx, assignment.organizationId, assignment.caseId);
     const round = await readReviewCriteria(tx, assignment.organizationId, record.criteriaRoundId);
@@ -372,36 +367,36 @@ export const submitReviewerAssessment = async (
   });
 };
 
-const resumptionProblem = async (
+const participation = (assignment: ReviewerRecord["assignment"]) => ({
+  status: assignment.status,
+  accepted: assignment.acceptedAt !== null,
+  submitted: assignment.assessmentId !== null,
+  conflict: assignment.conflict,
+});
+
+const resumption = async (
   tx: ReviewerTransaction,
   assignment: ReviewerRecord["assignment"],
-  status: string,
+  status: ReviewerStatus,
 ) => {
-  // A follow-up request may already occupy this contact's outstanding work.
   const state = await readReviewState(tx, assignment.organizationId, assignment.caseId);
   const contactId = state?.reviews.requests.find(
     (item) => item.id === assignment.requestId,
   )?.contactId;
-  if (
-    status !== "cancelled" &&
-    contactId &&
-    (await readContact(tx, assignment.organizationId, contactId))?.archived
-  ) {
-    return "invalid" as const;
-  }
-  if (
-    !assignment.assessmentId &&
-    status !== "cancelled" &&
-    state?.reviews.requests.some(
-      (value) =>
-        value.id !== assignment.requestId &&
-        value.contactId === contactId &&
-        value.status === "outstanding",
-    )
-  ) {
-    return "conflict" as const;
-  }
-  return null;
+  const contact = contactId ? await readContact(tx, assignment.organizationId, contactId) : null;
+  return resumptionProblem({
+    status,
+    submitted: assignment.assessmentId !== null,
+    contactArchived: Boolean(contact?.archived),
+    followUpOutstanding: Boolean(
+      state?.reviews.requests.some(
+        (value) =>
+          value.id !== assignment.requestId &&
+          value.contactId === contactId &&
+          value.status === "outstanding",
+      ),
+    ),
+  });
 };
 
 const changeReviewerParticipation = async (
@@ -409,31 +404,19 @@ const changeReviewerParticipation = async (
   assignment: ReviewerRecord["assignment"],
   actor: Actor,
   name: string,
-  request: Parameters<ReviewerService["manage"]>[1],
+  action: ParticipationAction,
+  status: ReviewerStatus,
 ) => {
-  if (request.action === "resend" || request.action === "retry_notification") {
-    return { status: "invalid" } as const;
+  const problem = await resumption(tx, assignment, status);
+  if (problem === "conflict") {
+    return { status: "conflict" } as const;
+  }
+  if (problem) {
+    return { status: "invalid", error: problem } as const;
   }
   const revision = assignment.revision + 1;
-  const status = nextReviewerStatus(
-    {
-      status: assignment.status,
-      accepted: assignment.acceptedAt !== null,
-      submitted: assignment.assessmentId !== null,
-      conflict: assignment.conflict,
-    },
-    request.action,
-    request.note,
-  );
-  if (!status) {
-    return { status: "invalid" } as const;
-  }
-  const problem = await resumptionProblem(tx, assignment, status);
-  if (problem) {
-    return { status: problem } as const;
-  }
   const membershipId =
-    request.action === "reinstate"
+    action === "reinstate"
       ? assignment.reviewerUserId
         ? await reviewerMembership(tx, assignment.organizationId, assignment.reviewerUserId)
         : await reviewerMembershipByEmail(tx, assignment.organizationId, assignment.email)
@@ -444,8 +427,8 @@ const changeReviewerParticipation = async (
   await updateReviewerAssignment(tx, assignment.id, {
     status,
     revision,
-    ...(request.action === "reinstate" ? { membershipId } : {}),
-    ...(request.action === "clear_conflict" ? { conflict: "", expiresAt: expires() } : {}),
+    ...(action === "reinstate" ? { membershipId } : {}),
+    ...(action === "clear_conflict" ? { conflict: "", expiresAt: expires() } : {}),
     ...(status === "invited" ? { expiresAt: expires() } : {}),
   });
   await updateParticipatingRequest(
@@ -506,9 +489,9 @@ const recordOwnAssessment = async (
     },
   );
   if (!result.ok) {
-    return {
-      status: result.error === "reviewer_authored" ? "forbidden" : "invalid",
-    } as const;
+    return result.error === "reviewer_authored"
+      ? ({ status: "forbidden" } as const)
+      : ({ status: "invalid", error: result.error } as const);
   }
   const version =
     result.state.assessments.find((value) => value.id === assessmentId)?.versions.length ?? 1;
@@ -534,14 +517,15 @@ const applyManagerAction = async (
   name: string,
   request: Parameters<ReviewerService["manage"]>[1],
 ) => {
-  const revision = assignment.revision + 1;
+  const decision = decideManagerAction(participation(assignment), request.action, request.note);
+  if (!decision.ok) {
+    return { status: "invalid", error: decision.error } as const;
+  }
   if (request.action === "resend") {
-    if (assignment.status !== "invited") {
-      return { status: "invalid" } as const;
-    }
     if (await invitationLimited(tx, assignment.organizationId, assignment.email)) {
       return { status: "limited" } as const;
     }
+    const revision = assignment.revision + 1;
     await updateReviewerAssignment(tx, assignment.id, { expiresAt: expires(), revision });
     await queueReviewerMessage(
       tx,
@@ -550,12 +534,15 @@ const applyManagerAction = async (
       "invitation",
       assignment.email,
     );
-  } else if (request.action === "retry_notification") {
-    if (!assignment.assessmentId) {
-      return { status: "invalid" } as const;
-    }
-  } else {
-    const changed = await changeReviewerParticipation(tx, assignment, actor, name, request);
+  } else if (request.action !== "retry_notification") {
+    const changed = await changeReviewerParticipation(
+      tx,
+      assignment,
+      actor,
+      name,
+      request.action,
+      decision.status,
+    );
     if (changed.status !== "ok") {
       return changed;
     }

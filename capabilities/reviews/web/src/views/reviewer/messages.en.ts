@@ -144,8 +144,12 @@ export const en = {
   withdrawHelp: "This ends your access and tells the manager you will not complete the assessment.",
   reviewerMembershipRequired:
     "This contact must first join the workspace as a reviewer or program manager. Ask an owner or administrator to invite them through Members & access, then send the review invitation.",
-  inviteInvalid:
-    "The reviewer needs a contact email, and the requesting manager must be signed in with a verified email. Invitations are available in standard workspaces.",
+  contactUnavailable:
+    "This contact is archived. Restore the contact before inviting them or resuming their assignment.",
+  contactEmailRequired: "Add an email address to this contact before inviting them.",
+  managerEmailRequired:
+    "Your workspace membership has no email address for reviewer questions. Ask an owner or administrator to check Members & access.",
+  inviteInvalid: "The change could not be made as entered. Check the details and try again.",
   limited:
     "Please wait before sending another invitation. Invitation sending is limited to protect recipients.",
   event: {

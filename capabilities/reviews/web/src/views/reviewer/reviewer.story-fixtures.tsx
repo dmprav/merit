@@ -172,7 +172,7 @@ export const reviewerTransport = (initial: ReviewerPage, scenario: SaveScenario 
         !content.data.position ||
         (page.assessment && !page.draft?.content.note.trim())
       ) {
-        return { status: "invalid" };
+        return { status: "invalid", error: "submission_incomplete" };
       }
       const assessment = page.assessment ?? submittedPage().assessment!;
       page.assessment = {
