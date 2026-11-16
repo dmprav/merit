@@ -175,6 +175,8 @@ describe("the keyboard shortcut", () => {
     const { user } = await show();
     pressK({ ctrlKey: true });
     const dialog = await screen.findByRole("dialog", { name: "Search" });
+    // Let opening finish placing focus so the click below is the last focus change.
+    await waitFor(() => expect(within(dialog).getByRole("searchbox")).toHaveFocus());
     typeText(within(dialog).getByRole("searchbox"), "harbour");
     await user.click(dialog);
     expect(within(dialog).getByRole("searchbox")).not.toHaveFocus();
@@ -355,6 +357,8 @@ describe("workspace choices", () => {
     expect(createRound).not.toHaveBeenCalled();
     await user.click(opener);
     typeText(await screen.findByRole("searchbox"), "create");
+    // Arriving records replace the result list; choose the action from the settled list.
+    await screen.findByRole("option", { name: /^Boat repairs/ });
     await user.click(screen.getByRole("option", { name: /Create funding round/ }));
     expect(await screen.findByRole("textbox", { name: "Round name" })).toHaveValue(
       "Draft from search",
