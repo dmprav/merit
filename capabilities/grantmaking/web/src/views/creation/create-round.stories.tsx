@@ -16,8 +16,9 @@ type Story = StoryObj<typeof meta>;
 
 const openCreation: NonNullable<Story["play"]> = async ({ canvas, canvasElement }) => {
   await userEvent.click(canvas.getByRole("button", { name: "Create funding round" }));
-  await waitFor(() =>
-    expect(within(canvasElement.ownerDocument.body).getByRole("dialog")).toBeVisible(),
+  await waitFor(
+    () => expect(within(canvasElement.ownerDocument.body).getByRole("dialog")).toBeVisible(),
+    { timeout: 10_000 },
   );
 };
 

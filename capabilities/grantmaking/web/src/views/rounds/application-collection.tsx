@@ -118,7 +118,7 @@ const overviewTableState = (pagination: Pagination) => {
 
 const OverviewSummary = ({ pagination }: { pagination: Pagination }) => {
   const { t } = useTranslation("fundingRounds");
-  if (pagination.loading) {
+  if (pagination.loading && pagination.total === 0) {
     return t("overview.loading");
   }
   return t("applications.filtered", { count: pagination.matching, total: pagination.total });

@@ -1,11 +1,16 @@
 import { randomUUID } from "node:crypto";
 
+import { drizzle } from "drizzle-orm/node-postgres";
 import { assert, expect } from "vite-plus/test";
 
 import { materialVersionSchema } from "@merit/applications/domain";
 import { createFundingApplication } from "@merit/applications/server";
 import { changeWorkspaceContact } from "@merit/contacts/server";
-import { matchesApplicationCriteria, type ApplicationFilter } from "@merit/grantmaking/api";
+import {
+  matchesApplicationCriteria,
+  workspaceApplicationsInput,
+  type ApplicationFilter,
+} from "@merit/grantmaking/api";
 import {
   getFundingRoundPage,
   getFundingApplicationPage,
@@ -21,7 +26,53 @@ import { saveApplicationReview } from "@merit/reviews/server";
 import { criteriaVersionSchema } from "@merit/rounds/domain";
 import { editFundingRound } from "@merit/rounds/server";
 
+import { readApplicationOverviews } from "../src/server/persistence/queries/application-overview";
 import { roundTest as it } from "./round-test";
+
+it("reads recommendations only for the page or the round's selected filter and sort", async ({
+  db,
+  database,
+  rounds,
+}) => {
+  await seedExampleRounds(db);
+  await rounds.createApplication("First local application");
+  await rounds.createApplication("Second local application");
+  const queries: { text: string; values: unknown[] }[] = [];
+  const measured = drizzle(database.client, {
+    logger: { logQuery: (text, values) => queries.push({ text, values }) },
+  });
+  for (const [selection, expectedReads] of [
+    [{}, 1],
+    [{ roundId: rounds.pageInput.publicId }, 1],
+    [{ roundId: rounds.pageInput.publicId, filter: { recommendation: "missing" } }, 2],
+    [{ roundId: rounds.pageInput.publicId, sort: "proposed" }, 2],
+  ] as const) {
+    queries.length = 0;
+    await readApplicationOverviews(
+      measured,
+      actor.userId,
+      workspaceApplicationsInput.parse({ workspaceSlug: "alder", ...selection }),
+      1,
+    );
+    const query = queries[0];
+    assert.isDefined(query);
+
+    type Plan = { "Relation Name"?: string; "Actual Loops": number; Plans?: Plan[] };
+
+    const plan = await database.client.query<{ "QUERY PLAN": [{ Plan: Plan }] }>(
+      `explain (analyze, format json) ${query.text}`,
+      query.values,
+    );
+
+    const recommendationReads = (node: Plan): number =>
+      (node["Relation Name"] === "recommendation_versions" ? node["Actual Loops"] : 0) +
+      (node.Plans ?? []).reduce((count, child) => count + recommendationReads(child), 0);
+
+    const result = plan.rows[0];
+    assert.isDefined(result);
+    expect(recommendationReads(result["QUERY PLAN"][0].Plan)).toBe(expectedReads);
+  }
+});
 
 it("lists applications across rounds with the same review facts as their round pages", async ({
   db,

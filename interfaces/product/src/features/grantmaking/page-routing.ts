@@ -67,7 +67,8 @@ export const loadPublicPage = async (
     });
   }
 
-  await queryClient.fetchQuery(applicationsOptions(workspaceSlug, { roundId: publicId }));
+  // List failures belong to the collection's retry control, not the round's route boundary.
+  await queryClient.prefetchQuery(applicationsOptions(workspaceSlug, { roundId: publicId }));
   return page;
 };
 

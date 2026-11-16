@@ -380,6 +380,8 @@ it("moves focus to the table start only when a successful page change still owns
   const { rerender } = render(view(0), { wrapper: GrantmakingMessagesProvider });
   await user.click(screen.getByRole("button", { name: "Next" }));
   rerender(view(0, true));
+  expect(screen.getByRole("status")).toHaveTextContent("107 of 107 applications");
+  expect(screen.getByRole("table", { name: "Applications" })).toHaveAttribute("aria-busy", "true");
   rerender(view(50));
   expect(screen.getByRole("group", { name: "Applications" })).toHaveFocus();
   await user.click(screen.getByRole("button", { name: "Next" }));

@@ -29,12 +29,6 @@ const overviewRows = (db: Database, userId: string, workspaceSlug: string) =>
         jsonb_build_object('minorUnits', ${materialVersions.requestedMinorUnits}::text, 'currency', 'EUR') end`.as(
         "requested",
       ),
-      recommendation: sql`(select jsonb_build_object('position', r.position, 'outdated',
-        r.recorded_date is not null and r.material_version is not null and r.material_version <> ${applicationCases.materialVersion},
-        'allocation', jsonb_build_object('minorUnits', r.allocation_minor_units::text, 'currency', r.allocation_currency))
-        from ${recommendationVersions} r where r.case_id = ${applicationCases.id} order by r.revision desc limit 1)`.as(
-        "recommendation",
-      ),
       intakeStatus: sql<string>`${applicationCases.intakeStatus}`.as("intakeStatus"),
       withdrawn: caseWithdrawn.as("withdrawn"),
       version: sql<number>`${applicationCases.materialVersion}`.as("version"),
@@ -73,6 +67,14 @@ const reviewsFor = (alias: "b" | "p") => {
     sql`${row}."roundId"`,
     sql`${row}."criteriaVersion"`,
   );
+};
+
+const recommendationFor = (alias: "b" | "p") => {
+  const row = sql.identifier(alias);
+  return sql`(select jsonb_build_object('position', r.position, 'outdated',
+    r.recorded_date is not null and r.material_version is not null and r.material_version <> ${row}.version,
+    'allocation', jsonb_build_object('minorUnits', r.allocation_minor_units::text, 'currency', r.allocation_currency))
+    from ${recommendationVersions} r where r.case_id = ${row}.id order by r.revision desc limit 1)`;
 };
 
 const workFilter = (filter: ApplicationFilter) =>
@@ -114,6 +116,9 @@ export const readApplicationOverviews = async (
   pageSize: number,
 ) => {
   const needsReviews = Boolean(input.filter.reviews || input.filter.evidence);
+  const needsRecommendation = Boolean(
+    input.filter.recommendation || input.filter.evidence === "changed" || input.sort === "proposed",
+  );
   const selected = and(
     input.roundId ? sql`b."roundId" = ${input.roundId}` : sql`true`,
     // strpos treats %, _, quotes, and backslashes literally.
@@ -131,7 +136,8 @@ export const readApplicationOverviews = async (
   }>(sql`
     with workspace as materialized (${overviewRows(db, userId, input.workspaceSlug)}),
     facts as materialized (
-      select b.*, ${needsReviews ? reviewsFor("b") : sql`null::jsonb`} as review_summary
+      select b.*, ${needsReviews ? reviewsFor("b") : sql`null::jsonb`} as review_summary,
+        ${needsRecommendation ? recommendationFor("b") : sql`null::jsonb`} as recommendation
       from workspace b where ${selected}
     ),
     matched as materialized (select * from facts where ${workFilter(input.filter)}),
@@ -142,7 +148,8 @@ export const readApplicationOverviews = async (
     ),
     display as materialized (
       select p.id, p.title, p.applicant, p."roundId", p."roundTitle", p.position, p."intakeStatus", p.withdrawn,
-        p.requested, p.recommendation, ${needsReviews ? sql`p.review_summary` : reviewsFor("p")} as reviews
+        p.requested, ${needsRecommendation ? sql`p.recommendation` : recommendationFor("p")} as recommendation,
+        ${needsReviews ? sql`p.review_summary` : reviewsFor("p")} as reviews
       from page p
     )
     select total, matching, ${offset} as offset,
@@ -169,7 +176,7 @@ export const readRoundTotals = async (
     reviews: { current: number; outdated: number; outstanding: number; unknown: number };
   }>(sql`
     with applications as materialized (
-      select b.*, ${reviewsFor("b")} as reviews
+      select b.*, ${reviewsFor("b")} as reviews, ${recommendationFor("b")} as recommendation
       from (${overviewRows(db, userId, workspaceSlug)}) b where b."roundId" = ${roundId}
     )
     select count(*)::integer as "applicationCount",
