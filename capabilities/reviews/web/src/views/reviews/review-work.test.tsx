@@ -17,7 +17,6 @@ import { GrantmakingDrafts } from "../../testing/providers";
 import { ReviewWork } from "./review-work";
 
 // jsdom cannot scroll a newly revealed writing field into view.
-Element.prototype.scrollIntoView = vi.fn();
 
 const criteria = [
   {

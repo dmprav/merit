@@ -1,6 +1,6 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { expect, it, vi } from "vite-plus/test";
+import { expect, it } from "vite-plus/test";
 
 import { GrantmakingMessagesProvider } from "../../testing/providers";
 import { ReviewerScreen } from "./reviewer-screen";
@@ -10,8 +10,6 @@ import {
   submittedPage,
   type SaveScenario,
 } from "./reviewer.story-fixtures.tsx";
-
-Element.prototype.scrollIntoView = vi.fn();
 
 const invitation = () => {
   const page = reviewerPage();
