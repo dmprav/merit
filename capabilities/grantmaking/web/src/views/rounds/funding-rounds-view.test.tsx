@@ -1,4 +1,5 @@
 import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vite-plus/test";
 
 import type { RoundSummary } from "@merit/grantmaking/api";
@@ -38,6 +39,12 @@ const renderRounds = (rounds: readonly RoundSummary[]) =>
     { wrapper: GrantmakingMessagesProvider },
   );
 
+const managerCell = (title: string) =>
+  within(screen.getByRole("row", { name: new RegExp(title) })).getAllByRole("cell")[2]!;
+
+const initials = (cell: HTMLElement) =>
+  cell.querySelector("[data-initials]")?.getAttribute("data-initials");
+
 describe("funding rounds list", () => {
   it("places Responsible manager between Status and Applications without sorting", () => {
     renderRounds([makeSummary()]);
@@ -54,63 +61,58 @@ describe("funding rounds list", () => {
       "Budget",
     ]);
     expect(within(headers[2]!).queryByRole("button")).not.toBeInTheDocument();
+  });
+
+  it("shows each round's status as plain text without its organization name", () => {
+    renderRounds([makeSummary()]);
+
     expect(screen.queryByText("Alder Foundation")).not.toBeInTheDocument();
     expect(screen.getByText("Preparing").closest("[data-appearance]")).toBeNull();
   });
 
-  it("renders all four responsible manager states from trimmed name and reassignment status", () => {
+  it("identifies a current manager by trimmed name and initials without a warning", () => {
+    renderRounds([makeSummary({ title: "Active manager round", manager: "  Dana Reed  " })]);
+
+    const cell = managerCell("Active manager round");
+    expect(within(cell).getByText("Dana Reed")).toBeVisible();
+    expect(initials(cell)).toBe("DR");
+    expect(within(cell).queryByRole("button")).not.toBeInTheDocument();
+  });
+
+  it("keeps a former manager's name and explains that the round needs reassignment", async () => {
+    const user = userEvent.setup();
     renderRounds([
       makeSummary({
-        publicId: "b8q3w5j7c2df",
-        title: "Active manager round",
-        manager: "  Dana Reed  ",
-        managerNeedsReassignment: false,
-      }),
-      makeSummary({
-        publicId: "c7m2p9x4n6rt",
         title: "Former manager round",
         manager: "Samira Patel",
         managerNeedsReassignment: true,
       }),
-      makeSummary({
-        publicId: "h7m2p9x4n6rt",
-        title: "Unassigned round",
-        manager: "   ",
-        managerNeedsReassignment: true,
-      }),
-      makeSummary({
-        publicId: "m7n2p9x4k6rt",
-        title: "Unnamed manager round",
-        manager: "   ",
-        managerNeedsReassignment: false,
-      }),
     ]);
 
-    const activeRow = within(screen.getByRole("row", { name: /Active manager round/ }));
-    const activeCell = activeRow.getAllByRole("cell")[2]!;
-    expect(within(activeCell).getByText("Dana Reed")).toBeVisible();
-    expect(activeCell.querySelector("[data-initials]")).toHaveAttribute("data-initials", "DR");
-    expect(within(activeCell).queryByText("Reassignment needed")).not.toBeInTheDocument();
-    expect(within(activeCell).queryByText("Needs assignment")).not.toBeInTheDocument();
+    const cell = managerCell("Former manager round");
+    expect(within(cell).getByText("Samira Patel")).toBeVisible();
+    expect(initials(cell)).toBe("SP");
+    await user.click(within(cell).getByRole("button", { name: "Reassignment needed" }));
 
-    const formerRow = within(screen.getByRole("row", { name: /Former manager round/ }));
-    const formerCell = formerRow.getAllByRole("cell")[2]!;
-    expect(within(formerCell).getByText("Samira Patel")).toBeVisible();
-    expect(formerCell.querySelector("[data-initials]")).toHaveAttribute("data-initials", "SP");
-    expect(within(formerCell).getByRole("button", { name: "Reassignment needed" })).toBeVisible();
-
-    const unassignedRow = within(screen.getByRole("row", { name: /Unassigned round/ }));
-    const unassignedCell = unassignedRow.getAllByRole("cell")[2]!;
-    expect(within(unassignedCell).getByText("Unassigned")).toBeVisible();
-    expect(within(unassignedCell).queryByRole("button")).not.toBeInTheDocument();
-    expect(unassignedCell.querySelector("[data-initials]")).toBeNull();
-    expect(within(unassignedCell).queryByText("Name not recorded")).not.toBeInTheDocument();
-
-    const unnamedRow = within(screen.getByRole("row", { name: /Unnamed manager round/ }));
-    const unnamedCell = unnamedRow.getAllByRole("cell")[2]!;
-    expect(within(unnamedCell).getByText("Name not recorded")).toBeVisible();
-    expect(unnamedCell.querySelector("[data-initials]")).toBeNull();
-    expect(within(unnamedCell).queryByText("Needs assignment")).not.toBeInTheDocument();
-    expect(within(unnamedCell).queryByText("Reassignment needed")).not.toBeInTheDocument();
+    expect(await screen.findByRole("dialog", { name: "Reassignment needed" })).toHaveTextContent(
+      "This person can no longer manage this round. Assign a current program manager.",
+    );
   });
+
+  it.each([
+    { state: "unassigned", managerNeedsReassignment: true, label: "Unassigned" },
+    { state: "unnamed", managerNeedsReassignment: false, label: "Name not recorded" },
+  ])(
+    "labels a round without a manager name as $state without initials or a warning",
+    ({ managerNeedsReassignment, label }) => {
+      renderRounds([
+        makeSummary({ title: "Nameless round", manager: "   ", managerNeedsReassignment }),
+      ]);
+
+      const cell = managerCell("Nameless round");
+      expect(within(cell).getByText(label)).toBeVisible();
+      expect(initials(cell)).toBeUndefined();
+      expect(within(cell).queryByRole("button")).not.toBeInTheDocument();
+    },
+  );
 });

@@ -486,10 +486,14 @@ it("returns typed error statuses on malformed query inputs and distinguishes for
   expect(await listWorkspaceApplications(db, actor, { workspaceSlug: workspaceSlug })).toEqual({
     status: "forbidden",
   });
+});
+
+it("removes demo funding rounds only from the given workspace", async ({ db, database }) => {
+  await seedExampleRounds(db);
 
   await db.transaction((tx) => removeDemoFunding(tx, workspaceSlug));
-  const { rows } = await database.client.query<{ count: string }>(
-    "SELECT count(*)::text AS count FROM funding_rounds WHERE organization_id = 'alder'",
+  const { rows } = await database.client.query<{ organization_id: string; count: string }>(
+    "SELECT organization_id, count(*)::text AS count FROM funding_rounds GROUP BY organization_id",
   );
-  expect(rows[0]?.count).toBe("0");
+  expect(rows).toEqual([{ organization_id: "birch", count: "1" }]);
 });

@@ -738,12 +738,6 @@ describe("funding-round preparation", () => {
     expect(
       (await getFundingRoundPage(db, { userId: "pat" }, { ...address, kind: "round" }))?.round,
     ).toMatchObject({ manager: "Dana Reed", managerNeedsReassignment: true });
-    const listed = await listFundingRounds(db, { userId: "pat" }, workspaceSlug);
-    assert(listed.status === "ok");
-    expect(listed.rounds.find((round) => round.publicId === address.publicId)).toMatchObject({
-      manager: "Dana Reed",
-      managerNeedsReassignment: true,
-    });
   });
 
   it("lists manager and reassignment state for active, former, and unassigned round managers", async ({
