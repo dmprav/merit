@@ -158,7 +158,7 @@ Write "None." in a section with nothing to report. Record facts about this chang
 in the past tense. Advice for future work belongs in the pull request's
 **Follow-ups**, where it can become an issue or a guide change.
 
-A weekly [verification review](../../.agents/tasks/verification-review.md) reads
+A recurring [verification review](../../.agents/tasks/verification-review.md) reads
 the merged records, fixes the problems that recur, and removes the records it read.
 
 ## Security checks

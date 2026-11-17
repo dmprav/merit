@@ -2,7 +2,7 @@
 
 Turn Merit's [verification records](../../docs/guides/verification.md#record-verification)
 into fixes for the gaps they show, and remove the records once read, as one pull
-request. This task runs every week on a schedule, and anyone can also run it by
+request. This task runs every other day on a schedule, and anyone can also run it by
 hand. Every record in `verifications/` on the default branch is waiting for
 review; the review removes the records it read, so the next run starts with
 only newer ones.
