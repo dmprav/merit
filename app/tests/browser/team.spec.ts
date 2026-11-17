@@ -9,7 +9,6 @@ test("owner invites an administrator, grant access is explicit, and removal expl
   page,
   context,
   request,
-  workspaceDatabase,
 }, testInfo) => {
   const open = async (url: string) => {
     await page.goto(url);
@@ -58,16 +57,6 @@ test("owner invites an administrator, grant access is explicit, and removal expl
   await expect(page).toHaveTitle("Members & access · Merit");
 
   await page.screenshot({ path: testInfo.outputPath("team-directory.png"), fullPage: true });
-  await expect(page.getByText("Access history")).toHaveCount(0);
-  // Team no longer displays audit history; verify the persisted event at its owner.
-  expect(
-    (
-      await workspaceDatabase.query(
-        "SELECT e.action FROM audit_events e JOIN organizations o ON o.id = e.organization_id WHERE o.slug = $1 AND e.action = 'organization.created'",
-        [slug],
-      )
-    ).rows,
-  ).toEqual([{ action: "organization.created" }]);
   await page.getByRole("button", { name: "Invite member", exact: true }).click();
   let dialog = page.getByRole("dialog", { name: "Invite member", exact: true });
   await dialog.getByRole("textbox", { name: "Email address" }).fill("dana@example.test");
@@ -94,14 +83,6 @@ test("owner invites an administrator, grant access is explicit, and removal expl
   await expect(page.getByRole("row").filter({ hasText: "dana@example.test" })).toContainText(
     "Awaiting acceptance",
   );
-  expect(
-    (
-      await workspaceDatabase.query(
-        "SELECT e.action FROM audit_events e JOIN organizations o ON o.id = e.organization_id WHERE o.slug = $1 AND e.action = 'team_invitation.issued' AND e.details->>'email' = $2",
-        [slug, "dana@example.test"],
-      )
-    ).rows,
-  ).toEqual([{ action: "team_invitation.issued" }]);
 
   const danaLink = await invitationLink(request, "dana@example.test", name);
   await identity("manager");

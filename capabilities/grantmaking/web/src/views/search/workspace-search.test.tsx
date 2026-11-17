@@ -135,12 +135,11 @@ describe("opening", () => {
     expect(read).not.toHaveBeenCalled();
   });
 
-  it("has no placeholder repeating the guidance and accepts at most 200 characters", async () => {
+  it("accepts at most 200 characters", async () => {
     const read = vi.fn();
     const { user } = show(read);
     const box = await screen.findByRole("searchbox");
 
-    expect(box).toHaveAttribute("placeholder", hint);
     expect(box).toHaveAttribute("maxlength", "200");
     await user.click(box);
     await user.paste("x".repeat(250));

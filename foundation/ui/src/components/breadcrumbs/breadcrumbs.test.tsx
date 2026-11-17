@@ -35,14 +35,17 @@ it("identifies the current location and keeps parent links in hierarchy order", 
   }
 });
 
-it("supports a current-page-only trail and omits an empty navigation landmark", () => {
-  const { rerender } = render(<Breadcrumbs label="Location" items={["Organizations"]} />);
+it("marks a current-page-only trail without a separator", () => {
+  render(<Breadcrumbs label="Location" items={["Organizations"]} />);
+  const navigation = screen.getByRole("navigation", { name: "Location" });
 
-  expect(screen.getByText("Organizations")).toHaveAttribute("aria-current", "page");
-  expect(screen.getAllByRole("listitem")).toHaveLength(1);
-  expect(screen.queryByText("/")).not.toBeInTheDocument();
+  expect(within(navigation).getByText("Organizations")).toHaveAttribute("aria-current", "page");
+  expect(within(navigation).getAllByRole("listitem")).toHaveLength(1);
+  expect(within(navigation).queryByText("/")).not.toBeInTheDocument();
+});
 
-  rerender(<Breadcrumbs label="Location" items={[]} />);
+it("omits the navigation landmark when there is no location", () => {
+  render(<Breadcrumbs label="Location" items={[]} />);
 
   expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
 });

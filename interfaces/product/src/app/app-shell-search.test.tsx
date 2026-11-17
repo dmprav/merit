@@ -130,6 +130,22 @@ describe("the Search button", () => {
     expect(search).toHaveAttribute("aria-keyshortcuts", "Meta+K");
   });
 
+  it("shows ⌘K when only the user agent identifies an Apple platform", async () => {
+    platform.mockReturnValue("");
+    const agent = vi
+      .spyOn(window.navigator, "userAgent", "get")
+      .mockReturnValue("Mozilla/5.0 (Macintosh; Intel Mac OS X)");
+    try {
+      await show();
+      expect(screen.getByRole("button", { name: "Search" })).toHaveAttribute(
+        "aria-keyshortcuts",
+        "Meta+K",
+      );
+    } finally {
+      agent.mockRestore();
+    }
+  });
+
   it.each([
     ["settings-only members", { kind: "workspace", workspace: settingsOnly }],
     ["reviewers", { kind: "workspace", workspace: reviewer }],
@@ -363,22 +379,6 @@ describe("workspace choices", () => {
     expect(await screen.findByRole("textbox", { name: "Round name" })).toHaveValue(
       "Draft from search",
     );
-  });
-
-  it("falls back to user agent when platform signals are empty", async () => {
-    platform.mockReturnValue("");
-    const agent = vi
-      .spyOn(window.navigator, "userAgent", "get")
-      .mockReturnValue("Mozilla/5.0 (Macintosh; Intel Mac OS X)");
-    try {
-      await show();
-      expect(screen.getByRole("button", { name: "Search" })).toHaveAttribute(
-        "aria-keyshortcuts",
-        "Meta+K",
-      );
-    } finally {
-      agent.mockRestore();
-    }
   });
 });
 

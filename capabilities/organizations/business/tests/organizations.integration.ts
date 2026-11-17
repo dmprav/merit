@@ -313,6 +313,30 @@ describe("organization provisioning", () => {
     ).toEqual([]);
   });
 
+  it("records who created the organization with its address and owner invitation", async () => {
+    const { input, organizationId } = await create();
+    const [invitation] = (
+      await database.client.query<{ id: string }>("SELECT id FROM organization_invitations")
+    ).rows;
+    assert.isDefined(invitation);
+
+    expect(
+      (
+        await database.client.query(
+          "SELECT actor_user_id, target_type, target_id, details FROM audit_events WHERE organization_id=$1 AND action='organization.created'",
+          [organizationId],
+        )
+      ).rows,
+    ).toEqual([
+      {
+        actor_user_id: "operator",
+        target_type: "organization",
+        target_id: organizationId,
+        details: { name: input.name, slug: input.slug, invitationId: invitation.id },
+      },
+    ]);
+  });
+
   it("records a name change without changing the workspace address", async () => {
     const { organizationId } = await create();
 

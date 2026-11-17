@@ -146,32 +146,31 @@ beforeEach(async () => {
 });
 
 describe("organization team", () => {
-  it("separates ownership, administration and grant access and protects directory privacy", async () => {
+  it("keeps organization responsibility separate from grant access", async () => {
     await join("admin", "administrator", "member");
-    await join("manager");
-    await invite("waiting");
-    const owner = await team();
 
-    expect(owner.subject).toMatchObject({ administration: "owner", role: "program_manager" });
+    expect((await team()).subject).toMatchObject({
+      administration: "owner",
+      role: "program_manager",
+    });
     expect((await team("admin")).subject).toMatchObject({
       administration: "administrator",
       role: "member",
     });
     expect(await service().workspaces({ userId: "admin" })).toMatchObject({
       status: "ok",
-      value: [{ slug: "team", role: "member" }],
+      value: [{ slug: "team", administration: "administrator", role: "member" }],
     });
+  });
 
-    const manager = await team("manager");
+  it("shows program managers the member directory without invitations or invitation authority", async () => {
+    await join("manager");
+    await invite("waiting");
 
-    expect(manager.members).toHaveLength(3);
-    expect(manager.invitations).toEqual([]);
-    expect(await service().team({ userId: "operator" }, input)).toEqual({
-      status: "forbidden",
-    });
-    expect(await service().team({ userId: "outsider" }, input)).toEqual({
-      status: "forbidden",
-    });
+    const directory = await team("manager");
+
+    expect(directory.members.map((member) => member.userId).sort()).toEqual(["manager", "owner"]);
+    expect(directory.invitations).toEqual([]);
     expect(
       await service().inviteMember(
         { userId: "manager" },
@@ -186,131 +185,174 @@ describe("organization team", () => {
     ).toEqual({ status: "forbidden" });
   });
 
-  it("reserves administrator appointments to the owner, permits explicit self-grant, and prevents owner removal and self-demotion", async () => {
-    await join("admin", "administrator", "member");
-    await ageInvitations("manager@example.test");
-    await join("manager");
-
-    expect(
-      await service().changeMember(
-        { userId: "admin" },
-        {
-          ...(await memberRequest("manager")),
-          administration: "administrator",
-          role: "program_manager",
-        },
-      ),
-    ).toEqual({ status: "forbidden" });
-    expect(
-      await service().inviteMember(
-        { userId: "admin" },
-        {
-          ...input,
-          requestId: randomUUID(),
-          email: "new-admin@example.test",
-          administration: "administrator",
-          role: "member",
-        },
-      ),
-    ).toEqual({ status: "forbidden" });
-    expect(
-      (
-        await service().changeMember(
-          { userId: "admin" },
-          {
-            ...(await memberRequest("admin")),
-            administration: "administrator",
-            role: "program_manager",
-          },
-        )
-      ).status,
-    ).toBe("ok");
-    expect(
-      await service().changeMember(
-        { userId: "admin" },
-        {
-          ...(await memberRequest("admin")),
-          administration: "none",
-          role: "program_manager",
-        },
-      ),
-    ).toEqual({ status: "self_change" });
-    expect(await service().removeMember({ userId: "admin" }, await memberRequest("admin"))).toEqual(
-      {
-        status: "self_change",
-      },
-    );
-    expect(await service().removeMember({ userId: "owner" }, await memberRequest("owner"))).toEqual(
-      {
-        status: "owner_protected",
-      },
-    );
-    expect(await service().removeMember({ userId: "admin" }, await memberRequest("owner"))).toEqual(
-      {
-        status: "owner_protected",
-      },
-    );
-    expect(
-      await service().changeMember(
-        { userId: "owner" },
-        {
-          ...(await memberRequest("owner")),
-          administration: "none",
-          role: "program_manager",
-        },
-      ),
-    ).toEqual({ status: "owner_protected" });
-
-    await join("peer", "administrator");
-
-    expect(await service().removeMember({ userId: "admin" }, await memberRequest("peer"))).toEqual({
-      status: "forbidden",
-    });
-    expect(
-      (
-        await service().changeMember(
-          { userId: "owner" },
-          {
-            ...(await memberRequest("manager")),
-            administration: "administrator",
-            role: "program_manager",
-          },
-        )
-      ).status,
-    ).toBe("ok");
+  it.each(["operator", "outsider"])("hides the team from the nonmember %s", async (userId) => {
+    expect(await service().team({ userId }, input)).toEqual({ status: "forbidden" });
   });
 
-  it("does not modify a current member through an invitation and retries invitation creation safely", async () => {
-    const request = {
+  describe("membership authority", () => {
+    const appointment = { administration: "administrator", role: "program_manager" } as const;
+    const relinquished = { administration: "none", role: "program_manager" } as const;
+
+    it.each([
+      {
+        rule: "reserves appointing administrators to the owner",
+        actor: "admin",
+        target: "manager",
+        change: appointment,
+        status: "forbidden",
+      },
+      {
+        rule: "prevents an administrator from relinquishing their own administration",
+        actor: "admin",
+        target: "admin",
+        change: relinquished,
+        status: "self_change",
+      },
+      {
+        rule: "prevents an administrator from removing themselves",
+        actor: "admin",
+        target: "admin",
+        change: null,
+        status: "self_change",
+      },
+      {
+        rule: "prevents an administrator from removing a peer administrator",
+        actor: "admin",
+        target: "peer",
+        change: null,
+        status: "forbidden",
+      },
+      {
+        rule: "prevents an administrator from removing the owner",
+        actor: "admin",
+        target: "owner",
+        change: null,
+        status: "owner_protected",
+      },
+      {
+        rule: "prevents the owner from removing themselves",
+        actor: "owner",
+        target: "owner",
+        change: null,
+        status: "owner_protected",
+      },
+      {
+        rule: "prevents the owner from relinquishing ownership",
+        actor: "owner",
+        target: "owner",
+        change: relinquished,
+        status: "owner_protected",
+      },
+    ] as const)("$rule without changing the team", async ({ actor, target, change, status }) => {
+      await join("admin", "administrator", "member");
+      await join("peer", "administrator");
+      await join("manager");
+      const before = await team();
+      const request = await memberRequest(target);
+
+      const result =
+        change === null
+          ? await service().removeMember({ userId: actor }, request)
+          : await service().changeMember({ userId: actor }, { ...request, ...change });
+
+      expect(result).toEqual({ status });
+      expect(await team()).toEqual(before);
+    });
+
+    it("reserves inviting administrators to the owner", async () => {
+      await join("admin", "administrator", "member");
+
+      expect(
+        await service().inviteMember(
+          { userId: "admin" },
+          {
+            ...input,
+            requestId: randomUUID(),
+            email: "new-admin@example.test",
+            ...appointment,
+          },
+        ),
+      ).toEqual({ status: "forbidden" });
+      expect((await team()).invitations).toEqual([]);
+    });
+
+    it("lets an administrator change their own grant access explicitly", async () => {
+      await join("admin", "administrator", "member");
+
+      const result = await service().changeMember(
+        { userId: "admin" },
+        { ...(await memberRequest("admin")), ...appointment },
+      );
+
+      expect(result.status).toBe("ok");
+      expect((await team("admin")).subject).toMatchObject(appointment);
+    });
+
+    it("lets the owner appoint an administrator", async () => {
+      await join("manager");
+
+      const result = await service().changeMember(
+        { userId: "owner" },
+        { ...(await memberRequest("manager")), ...appointment },
+      );
+
+      expect(result.status).toBe("ok");
+      expect((await team("manager")).subject).toMatchObject(appointment);
+    });
+  });
+
+  describe("issuing team invitations", () => {
+    const request = () => ({
       ...input,
       requestId: randomUUID(),
-      email: "MEMBER@example.test",
+      email: "member@example.test",
       administration: "none" as const,
       role: "program_manager" as const,
-    };
-    const before = messages.length;
+    });
 
-    expect((await service().inviteMember({ userId: "owner" }, request)).status).toBe("ok");
-    expect((await service().inviteMember({ userId: "owner" }, request)).status).toBe("ok");
-    expect(messages).toHaveLength(before + 1);
-    expect(
-      (await service().inviteMember({ userId: "owner" }, { ...request, requestId: randomUUID() }))
-        .status,
-    ).toBe("invitation_exists");
-    expect((await service().accept({ userId: "member" }, { token: token() })).status).toBe("ok");
-    expect(
-      (
+    it("delivers one invitation when the same request is retried", async () => {
+      const invitation = request();
+      const before = messages.length;
+
+      expect(await service().inviteMember({ userId: "owner" }, invitation)).toEqual({
+        status: "ok",
+        value: { invitationId: invitation.requestId },
+      });
+      expect(await service().inviteMember({ userId: "owner" }, invitation)).toEqual({
+        status: "ok",
+        value: { invitationId: invitation.requestId },
+      });
+      expect(messages).toHaveLength(before + 1);
+      expect((await team()).invitations.map((pending) => pending.id)).toEqual([
+        invitation.requestId,
+      ]);
+    });
+
+    it("rejects a second invitation to an address that already has one outstanding", async () => {
+      const first = request();
+      await service().inviteMember({ userId: "owner" }, first);
+
+      expect(
         await service().inviteMember(
           { userId: "owner" },
-          {
-            ...request,
-            requestId: randomUUID(),
-            administration: "administrator",
-          },
-        )
-      ).status,
-    ).toBe("membership_conflict");
-    expect((await team("member")).subject.administration).toBe("none");
+          { ...request(), email: "MEMBER@example.test" },
+        ),
+      ).toEqual({ status: "invitation_exists" });
+      expect((await team()).invitations.map((pending) => pending.id)).toEqual([first.requestId]);
+    });
+
+    it("does not change a current member's access through an invitation", async () => {
+      await join("member");
+      const before = await team();
+
+      expect(
+        await service().inviteMember(
+          { userId: "owner" },
+          { ...request(), administration: "administrator" },
+        ),
+      ).toEqual({ status: "membership_conflict" });
+      expect(await team()).toEqual(before);
+    });
   });
 
   it("preserves ownership and issued invitations when an administrator changes the owner's grant access", async () => {
@@ -537,16 +579,22 @@ describe("organization team", () => {
     expect((await team("admin")).subject.administration).toBe("none");
   });
 
-  it("rejects stale edits and changed handover impacts, then revokes invitations when an administrator is demoted", async () => {
+  it("rejects removal when the administrator issued invitations after the form opened", async () => {
     await join("admin", "administrator");
-    const stale = await memberRequest("admin");
+    const opened = await memberRequest("admin");
     const link = await invite("colleague", "none", "program_manager", "admin");
 
-    expect(await service().removeMember({ userId: "owner" }, stale)).toEqual({
+    expect(await service().removeMember({ userId: "owner" }, opened)).toEqual({
       status: "conflict",
     });
+    expect((await team("admin")).subject.administration).toBe("administrator");
+    expect((await service().accept({ userId: "colleague" }, { token: link })).status).toBe("ok");
+  });
 
+  it("accepts only one of two concurrent changes to the same membership version", async () => {
+    await join("admin", "administrator");
     const request = await memberRequest("admin");
+
     const results = await Promise.all([
       service().changeMember(
         { userId: "owner" },
@@ -558,19 +606,23 @@ describe("organization team", () => {
       ),
     ]);
 
-    expect(results.map((r) => r.status).sort()).toEqual(["conflict", "ok"]);
+    expect(results.map((result) => result.status).sort()).toEqual(["conflict", "ok"]);
+    const member = (await team()).members.find((m) => m.userId === "admin");
+    expect(member?.version).toBe(request.expectedVersion + 1);
+  });
 
-    if ((await team("admin")).subject.administration !== "none") {
-      await service().changeMember(
-        { userId: "owner" },
-        {
-          ...(await memberRequest("admin")),
-          administration: "none",
-          role: "program_manager",
-        },
-      );
-    }
+  it("revokes invitations an administrator issued when they are demoted", async () => {
+    await join("admin", "administrator");
+    const link = await invite("colleague", "none", "program_manager", "admin");
 
+    expect(
+      (
+        await service().changeMember(
+          { userId: "owner" },
+          { ...(await memberRequest("admin")), administration: "none", role: "program_manager" },
+        )
+      ).status,
+    ).toBe("ok");
     expect(await service().accept({ userId: "colleague" }, { token: link })).toEqual({
       status: "revoked",
     });
@@ -647,43 +699,44 @@ describe("organization team", () => {
     expect(["revoked", "already_joined"]).toContain(results.find((r) => r.status !== "ok")?.status);
   });
 
-  it("preserves the current link on cooldown and counts revoked invitations", async () => {
+  it("keeps the current link when a resend is still in cooldown", async () => {
     const link = await invite("waiting");
     const invitationId = (
-      (await team()).invitations[0] ?? assert.fail("Expected (await team()).invitations[0]")
+      (await team()).invitations[0] ?? assert.fail("Expected an outstanding invitation")
     ).id;
     const before = messages.length;
 
     expect(
       await service().resendMemberInvitation({ userId: "owner" }, { ...input, invitationId }),
     ).toEqual({ status: "invitation_cooldown" });
-    expect(await service().invitation({ userId: "waiting" }, { token: link })).toMatchObject({
-      status: "ok",
-    });
     expect(messages).toHaveLength(before);
-    expect(
-      ((await team()).invitations[0] ?? assert.fail("Expected (await team()).invitations[0]")).id,
-    ).toBe(invitationId);
+    expect((await team()).invitations.map((pending) => pending.id)).toEqual([invitationId]);
+    expect((await service().accept({ userId: "waiting" }, { token: link })).status).toBe("ok");
+  });
 
+  it("applies the cooldown to a new invitation after the previous one was revoked", async () => {
+    await invite("waiting");
+    const invitationId = (
+      (await team()).invitations[0] ?? assert.fail("Expected an outstanding invitation")
+    ).id;
     await service().revokeMemberInvitation({ userId: "owner" }, { ...input, invitationId });
+    const before = messages.length;
+    const reinvitation = {
+      ...input,
+      requestId: randomUUID(),
+      email: "WAITING@example.test",
+      administration: "none" as const,
+      role: "program_manager" as const,
+    };
 
-    expect(
-      await service().inviteMember(
-        { userId: "owner" },
-        {
-          ...input,
-          requestId: randomUUID(),
-          email: "WAITING@example.test",
-          administration: "none",
-          role: "program_manager",
-        },
-      ),
-    ).toEqual({ status: "invitation_cooldown" });
+    expect(await service().inviteMember({ userId: "owner" }, reinvitation)).toEqual({
+      status: "invitation_cooldown",
+    });
     expect(messages).toHaveLength(before);
 
     await ageInvitations("waiting@example.test");
-    await invite("waiting");
 
+    expect((await service().inviteMember({ userId: "owner" }, reinvitation)).status).toBe("ok");
     expect(messages).toHaveLength(before + 1);
   });
 

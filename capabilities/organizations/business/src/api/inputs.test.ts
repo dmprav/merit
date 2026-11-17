@@ -55,9 +55,12 @@ describe("organization input boundaries", () => {
     }
   });
 
-  it("suggests a bounded address without trailing separators and normalizes identity email", () => {
+  it("suggests a bounded address without trailing separators", () => {
     expect(suggestSlug("  Éducation & Arts! ")).toBe("education-arts");
     expect(suggestSlug("a".repeat(79) + " - extra")).toBe("a".repeat(79));
+  });
+
+  it("normalizes the owner's email so it matches their verified identity", () => {
     expect(createOrganizationInput.parse({ ...input, email: "Person@Example.test" }).email).toBe(
       "person@example.test",
     );

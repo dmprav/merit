@@ -1,7 +1,7 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { expect, it, vi } from "vite-plus/test";
+import { beforeEach, expect, it, vi } from "vite-plus/test";
 
 import { materialVersionSchema } from "@merit/applications/domain";
 import { GrantmakingDrafts } from "@merit/grantmaking-web/drafts";
@@ -53,58 +53,50 @@ const Picker = ({ baseline, save }: { baseline: ReviewBaseline; save: ReviewData
   );
 };
 
-it("records a request on selection, prevents duplicate clicks, and retries the same command against the opened version", async () => {
+type SaveResult = Awaited<ReturnType<ReviewData["save"]>>;
+
+const contact = (id: string, name: string, email: string) => ({
+  id,
+  name,
+  email,
+  affiliation: "",
+  archived: false,
+  revision: 0,
+  applicationTitles: [],
+});
+
+beforeEach(() => {
   vi.mocked(readContacts).mockResolvedValue({
     status: "ok",
     workspaceName: "Alder",
     contacts: [
-      {
-        id: "email-only",
-        name: "",
-        email: "reviewer@example.test",
-        affiliation: "",
-        archived: false,
-        revision: 0,
-        applicationTitles: [],
-      },
-      {
-        id: "sam",
-        name: "Sam Morgan",
-        email: "sam@example.test",
-        affiliation: "",
-        archived: false,
-        revision: 0,
-        applicationTitles: [],
-      },
-      {
-        id: "jules",
-        name: "Jules Patel",
-        email: "",
-        affiliation: "",
-        archived: false,
-        revision: 0,
-        applicationTitles: [],
-      },
+      contact("unnamed", "", "reviewer@example.test"),
+      contact("sam", "Sam Morgan", "sam@example.test"),
+      contact("jules", "Jules Patel", "jules@example.test"),
     ],
   });
-  let finish!: (result: Awaited<ReturnType<ReviewData["save"]>>) => void;
-  const save = vi
-    .fn<ReviewData["save"]>()
-    .mockImplementationOnce(
-      () =>
-        new Promise<Awaited<ReturnType<ReviewData["save"]>>>((resolve) => {
-          finish = resolve;
-        }),
-    )
-    .mockResolvedValueOnce({ status: "ok", revision: reviewRevisionSchema.parse(2) });
-  const baseline: ReviewBaseline = {
-    revision: reviewRevisionSchema.parse(1),
-    applicationVersion: materialVersionSchema.parse(2),
-    criteriaVersion: criteriaVersionSchema.parse(1),
-  };
+});
+
+const opened: ReviewBaseline = {
+  revision: reviewRevisionSchema.parse(1),
+  applicationVersion: materialVersionSchema.parse(2),
+  criteriaVersion: criteriaVersionSchema.parse(1),
+};
+const newer: ReviewBaseline = {
+  revision: reviewRevisionSchema.parse(2),
+  applicationVersion: materialVersionSchema.parse(3),
+  criteriaVersion: criteriaVersionSchema.parse(2),
+};
+const request = {
+  action: "request",
+  contactId: "sam",
+  id: expect.any(String) as unknown,
+  replacesId: null,
+};
+
+const showPicker = async (save: ReviewData["save"]) => {
   const client = createQueryClient();
-  const props = { baseline, save };
-  const view = render(<Picker {...props} />, {
+  const view = render(<Picker baseline={opened} save={save} />, {
     wrapper: ({ children }) => (
       <QueryClientProvider client={client}>
         <WebMessagesProvider>
@@ -118,60 +110,98 @@ it("records a request on selection, prevents duplicate clicks, and retries the s
   const user = userEvent.setup();
   await user.click(await screen.findByRole("button", { name: "Add review request" }));
   const picker = within(screen.getByRole("dialog"));
+  await screen.findByRole("option", { name: /Sam Morgan/ });
+  return {
+    picker,
+    user,
+    rerender: (baseline: ReviewBaseline) =>
+      view.rerender(<Picker baseline={baseline} save={save} />),
+  };
+};
 
-  await waitFor(() =>
-    expect(picker.getByRole("option", { name: /Jules Patel/ })).toHaveAttribute(
-      "aria-disabled",
-      "true",
-    ),
+it("offers only named contacts who have not already been requested", async () => {
+  const { picker } = await showPicker(vi.fn<ReviewData["save"]>());
+
+  expect(picker.getByRole("option", { name: /Sam Morgan/ })).not.toHaveAttribute(
+    "aria-disabled",
+    "true",
   );
-  expect(picker.queryByRole("option", { name: "No contact" })).not.toBeInTheDocument();
+  expect(picker.getByRole("option", { name: /Jules Patel/ })).toHaveAttribute(
+    "aria-disabled",
+    "true",
+  );
   expect(picker.getByRole("option", { name: "reviewer@example.test" })).toHaveAttribute(
     "aria-disabled",
     "true",
   );
+  expect(picker.queryByRole("option", { name: "No contact" })).not.toBeInTheDocument();
+});
 
-  view.rerender(
-    <Picker
-      {...props}
-      baseline={{
-        revision: reviewRevisionSchema.parse(2),
-        applicationVersion: materialVersionSchema.parse(3),
-        criteriaVersion: criteriaVersionSchema.parse(2),
-      }}
-    />,
-  );
+it("records the selected reviewer against the version the picker opened with", async () => {
+  const save = vi.fn<ReviewData["save"]>().mockResolvedValue({
+    status: "ok",
+    revision: reviewRevisionSchema.parse(2),
+  });
+  const { picker, user, rerender } = await showPicker(save);
+
+  rerender(newer);
   await user.click(picker.getByRole("option", { name: /Sam Morgan/ }));
 
-  expect(save).toHaveBeenCalledExactlyOnceWith(
-    { action: "request", contactId: "sam", id: expect.any(String) as unknown, replacesId: null },
-    baseline,
-  );
+  expect(save).toHaveBeenCalledExactlyOnceWith(request, opened);
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+});
+
+it("blocks closing and further choices while the request saves", async () => {
+  const save = vi
+    .fn<ReviewData["save"]>()
+    .mockImplementation(() => new Promise<SaveResult>(() => {}));
+  const { picker, user } = await showPicker(save);
+
+  await user.click(picker.getByRole("option", { name: /Sam Morgan/ }));
+
   expect(picker.getByRole("button", { name: "Close" })).toBeDisabled();
   expect(picker.getByRole("option", { name: /Sam Morgan/ })).toHaveAttribute(
     "aria-disabled",
     "true",
   );
+  await user.click(picker.getByRole("option", { name: /Sam Morgan/ }));
+  expect(save).toHaveBeenCalledOnce();
+});
 
-  finish({ status: "unavailable" });
+it("retries a failed request with the same command and opened version", async () => {
+  const save = vi
+    .fn<ReviewData["save"]>()
+    .mockResolvedValueOnce({ status: "unavailable" })
+    .mockResolvedValueOnce({ status: "ok", revision: reviewRevisionSchema.parse(2) });
+  const { picker, user, rerender } = await showPicker(save);
+  await user.click(picker.getByRole("option", { name: /Sam Morgan/ }));
 
   await waitFor(() =>
     expect(picker.getByRole("alert")).toHaveTextContent(
       "Could not save. Your changes are preserved; please try again.",
     ),
   );
-
+  rerender(newer);
   await user.click(picker.getByRole("button", { name: "Retry" }));
 
   await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  expect(save).toHaveBeenCalledTimes(2);
   expect(save.mock.calls[1]).toEqual(save.mock.calls[0]);
+  expect(save.mock.calls[1]?.[1]).toEqual(opened);
+});
 
-  await user.click(await screen.findByRole("button", { name: "Add review request" }));
-  save.mockResolvedValueOnce({ status: "ok", revision: reviewRevisionSchema.parse(3) });
+it("starts a new request from the current version when the picker reopens", async () => {
+  const save = vi
+    .fn<ReviewData["save"]>()
+    .mockResolvedValue({ status: "ok", revision: reviewRevisionSchema.parse(2) });
+  const { picker, user, rerender } = await showPicker(save);
+  await user.click(picker.getByRole("option", { name: /Sam Morgan/ }));
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+
+  rerender(newer);
+  await user.click(screen.getByRole("button", { name: "Add review request" }));
   await user.click(within(screen.getByRole("dialog")).getByRole("option", { name: /Sam Morgan/ }));
-  expect(save).toHaveBeenLastCalledWith(
-    { action: "request", contactId: "sam", id: expect.any(String) as unknown, replacesId: null },
-    { revision: 2, applicationVersion: 3, criteriaVersion: 2 },
-  );
-  expect(save.mock.calls[2]?.[0]).not.toEqual(save.mock.calls[0]?.[0]);
+
+  expect(save).toHaveBeenLastCalledWith(request, newer);
+  expect(save.mock.calls[1]?.[0]).not.toEqual(save.mock.calls[0]?.[0]);
 });
