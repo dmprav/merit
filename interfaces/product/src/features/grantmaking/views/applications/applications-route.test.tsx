@@ -11,6 +11,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, it, vi } from "vite-plus/test";
 
+import { emptyApplicationDocuments } from "@merit/applications/domain";
 import { ApplicationListViews } from "@merit/grantmaking-web/rounds";
 import {
   encodeApplicationDetail,
@@ -119,6 +120,7 @@ const applicationPageData = () => {
   return {
     status: "ok" as const,
     ...encodeApplicationDetail({ round, application: round.applications[0]! }),
+    documents: emptyApplicationDocuments(),
     recommendationVersion: 0,
     intake: { revision: 0, workingRevision: null, history: [] },
     workspaceSlug: workspace.slug,

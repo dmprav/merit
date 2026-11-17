@@ -9,6 +9,7 @@ import type { IntakeChange } from "@merit/applications/domain";
 import type { PageSource } from "@merit/query/contracts";
 
 export type { IntakeState } from "@merit/applications/api";
+export type { ApplicationDocumentSession, DocumentFileResult } from "./documents";
 
 export type IntakeSaveResult =
   | { status: "ok"; revision: number }

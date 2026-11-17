@@ -2,6 +2,7 @@ import { and, asc, eq, sql } from "drizzle-orm";
 
 import { applicationCases, materialVersions } from "@merit/applications/schema";
 import {
+  readApplicationDocuments,
   readIntakeApplicationsMap,
   readWorkingRevisionsMap,
   roundWithdrawnCount,
@@ -110,6 +111,7 @@ export const readApplicationDetail = async (
     allocations,
     workingRevisionsMap,
     versionRows,
+    documents,
   ] = await Promise.all([
     readCriteriaVersionsMap(db, [row.roundRow.id]),
     readIntakeApplicationsMap(db, row.caseRow.organizationId, [row.caseRow]),
@@ -122,6 +124,7 @@ export const readApplicationDetail = async (
       .from(materialVersions)
       .where(eq(materialVersions.caseId, row.caseRow.id))
       .orderBy(asc(materialVersions.version)),
+    readApplicationDocuments(db, row.caseRow.id),
   ]);
 
   const intake = intakeMap.get(row.caseRow.id);
@@ -142,6 +145,7 @@ export const readApplicationDetail = async (
     intakeRevision: row.caseRow.revision,
     materialVersions: versionRows.map((v) => v.version),
     workingRevision: workingRevisionsMap.get(row.caseRow.id) ?? null,
+    documents,
   };
 };
 

@@ -289,6 +289,7 @@ describe("workspace MCP contracts", () => {
       id: "00000000-0000-4000-a000-000000000009",
       recordedAt: "2027-01-20T12:00:00.000Z",
       reason: null,
+      documentRole: null,
       actor: null,
       provenance: { interface: "mcp" as const, clientId: "grant-assistant" },
       action: "round.budget_changed",

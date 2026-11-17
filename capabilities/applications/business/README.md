@@ -12,7 +12,13 @@ Unchanged saves keep their revision and create no history. Creation receipts sur
 eligible deletion, so retrying a creation cannot recreate a deleted application.
 
 Applications owns creation-receipt lookup and the intake payload recorded atomically
-through [Audit](../../audit/business/README.md), including actor provenance. Assembly supplies a
+through [Audit](../../audit/business/README.md), including actor provenance. It also
+owns one proposal PDF and one budget PDF for a case. Each accepted file is a new
+version of that role; earlier bytes, filename, page count, and attribution stay.
+A page citation names one existing version and is not edited. These writes use the
+same program-manager lock as other intake changes, record `application.document.attach`
+or `application.document.cite` in that transaction, and do not advance intake
+revision or material version. Assembly supplies a
 [transaction-bound collaborator](src/server/grant-work.ts) for downstream usage
 checks. Any review request, assessment, or recommendation prevents deletion,
 including a cancelled request.

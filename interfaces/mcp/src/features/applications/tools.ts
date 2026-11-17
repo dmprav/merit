@@ -1,8 +1,12 @@
 import { z } from "zod";
 
 import {
+  attachApplicationDocumentInputSchema,
+  citeApplicationDocumentInputSchema,
   createApplicationRequestSchema,
   editApplicationRequestSchema,
+  listApplicationDocumentsInputSchema,
+  readApplicationDocumentFileInputSchema,
   selectContactRequestSchema,
   type ApplicationsService,
 } from "@merit/applications/api";
@@ -11,9 +15,17 @@ import { publicIdSchema } from "@merit/db/identifiers";
 import { applicationReadInput } from "@merit/grantmaking/api";
 
 import type { RegisterTool } from "../../components/register-tool";
-import { grantWriteOptions, revision } from "../../components/tool-options";
+import { grantWriteOptions, readAnnotations, revision } from "../../components/tool-options";
 import type { McpActor } from "../../contracts";
-import { applicationCreatedSchema, applicationSavedSchema } from "./responses";
+import {
+  applicationCreatedSchema,
+  applicationDocumentFileSchema,
+  applicationDocumentsResultSchema,
+  applicationSavedSchema,
+  attachedDocumentSchema,
+  citedDocumentSchema,
+  documentReadErrorSchema,
+} from "./responses";
 
 const lifecycle = [
   [
@@ -107,6 +119,7 @@ export const registerApplicationTools = (
     },
   );
   registerIntakeLifecycleTools(register, actor, applications);
+  registerApplicationDocumentTools(register, actor, applications);
   register(
     "select_application_contact",
     {
@@ -126,6 +139,111 @@ export const registerApplicationTools = (
       });
       return result.status === "ok"
         ? { status: "ok" as const, applicationId, intakeRevision: result.revision }
+        : result;
+    },
+  );
+};
+
+const registerApplicationDocumentTools = (
+  register: RegisterTool,
+  actor: McpActor,
+  applications: ApplicationsService,
+) => {
+  registerApplicationDocumentReads(register, actor, applications);
+  registerApplicationDocumentWrites(register, actor, applications);
+};
+
+const registerApplicationDocumentReads = (
+  register: RegisterTool,
+  actor: McpActor,
+  applications: ApplicationsService,
+) => {
+  const documentRead = {
+    scope: "workspace:read" as const,
+    annotations: readAnnotations,
+    errorSchema: documentReadErrorSchema,
+  };
+  register(
+    "list_application_documents",
+    {
+      ...documentRead,
+      description:
+        "Read proposal and budget PDF versions and page references for an application, newest first, without the file bytes. An empty slot has no version. Withdrawn applications remain readable.",
+      inputSchema: listApplicationDocumentsInputSchema
+        .omit({ publicId: true })
+        .extend({ applicationId: listApplicationDocumentsInputSchema.shape.publicId }),
+      outputSchema: applicationDocumentsResultSchema,
+    },
+    async ({ applicationId, ...input }) =>
+      applications.listApplicationDocuments(actor, { ...input, publicId: applicationId }),
+  );
+  register(
+    "read_application_document_file",
+    {
+      ...documentRead,
+      description:
+        "Read one proposal or budget version as base64. Program managers use this tool. Reviewers use the assignment file tool.",
+      inputSchema: readApplicationDocumentFileInputSchema
+        .omit({ publicId: true })
+        .extend({ applicationId: readApplicationDocumentFileInputSchema.shape.publicId }),
+      outputSchema: applicationDocumentFileSchema,
+    },
+    async ({ applicationId, ...input }) =>
+      applications.readApplicationDocumentFile(actor, { ...input, publicId: applicationId }),
+  );
+};
+
+const registerApplicationDocumentWrites = (
+  register: RegisterTool,
+  actor: McpActor,
+  applications: ApplicationsService,
+) => {
+  const documentWrite = {
+    scope: grantWriteOptions.scope,
+    errorSchema: grantWriteOptions.errorSchema,
+    annotations: {
+      ...grantWriteOptions.annotations,
+      idempotentHint: false,
+      destructiveHint: false,
+    },
+  };
+  register(
+    "attach_application_document",
+    {
+      ...documentWrite,
+      description:
+        "Attach a proposal or budget PDF. expectedVersion is 0 when the slot is empty, otherwise the current version last read. A mismatch writes nothing. The same bytes still create a new version. This does not change intake revision or review freshness. Send the file as base64.",
+      inputSchema: attachApplicationDocumentInputSchema
+        .omit({ publicId: true })
+        .extend({ applicationId: attachApplicationDocumentInputSchema.shape.publicId }),
+      outputSchema: attachedDocumentSchema,
+    },
+    async ({ applicationId, ...input }) => {
+      const result = await applications.attachApplicationDocument(actor, {
+        ...input,
+        publicId: applicationId,
+      });
+      return result.status === "ok" ? { status: "ok" as const, version: result.version } : result;
+    },
+  );
+  register(
+    "cite_application_document_page",
+    {
+      ...documentWrite,
+      description:
+        "Record a reference to one page of an existing proposal or budget version. The note is optional. Citations stay when a newer version is attached and do not use expectedVersion.",
+      inputSchema: citeApplicationDocumentInputSchema
+        .omit({ publicId: true })
+        .extend({ applicationId: citeApplicationDocumentInputSchema.shape.publicId }),
+      outputSchema: citedDocumentSchema,
+    },
+    async ({ applicationId, ...input }) => {
+      const result = await applications.citeApplicationDocumentPage(actor, {
+        ...input,
+        publicId: applicationId,
+      });
+      return result.status === "ok"
+        ? { status: "ok" as const, citationId: result.citationId }
         : result;
     },
   );

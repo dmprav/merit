@@ -59,8 +59,19 @@ const actionLabels = {
 } as const;
 
 /** Actions recorded by a later release still read sensibly. */
-const actionLabel = (action: string) =>
-  actionLabels[action as keyof typeof actionLabels] ?? "activity.changed";
+const actionLabel = (entry: ActivityEntry) => {
+  const attached = entry.action === "application.document.attach";
+  const cited = entry.action === "application.document.cite";
+  if (attached || cited) {
+    if (entry.documentRole === "proposal") {
+      return attached ? "activity.actions.attachedProposal" : "activity.actions.citedProposal";
+    }
+    if (entry.documentRole === "budget") {
+      return attached ? "activity.actions.attachedBudget" : "activity.actions.citedBudget";
+    }
+  }
+  return actionLabels[entry.action as keyof typeof actionLabels] ?? "activity.changed";
+};
 
 type WorkspaceActivityProps = {
   entries: readonly ActivityEntry[];
@@ -306,7 +317,7 @@ const ActivityEvent = ({
   const { t } = useTranslation(["fundingRounds", "contacts"]);
   const recordTitle = entry.record?.title || entry.subject.name || t("activity.unavailableRecord");
   const actor = entry.actor || t("contacts:unknownPerson");
-  const action = t(actionLabel(entry.action));
+  const action = t(actionLabel(entry));
   return (
     <li className={styles.event}>
       <div className={styles.content}>

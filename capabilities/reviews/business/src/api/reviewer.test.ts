@@ -6,6 +6,7 @@ import {
   reviewerAddressSchema,
   reviewerApplicationSchema,
   reviewerActionSchema,
+  reviewerDocumentFileInput,
   saveReviewerDraftSchema,
   submitReviewerSchema,
 } from "./index";
@@ -82,4 +83,13 @@ it("accepts incomplete drafts but bounds content and never accepts authorship fr
     submitReviewerSchema.safeParse({ assignmentId, commandId, expectedDraftRevision: 1 }).success,
   ).toBe(true);
   expect(submitReviewerSchema.safeParse({ assignmentId, commandId }).success).toBe(false);
+  expect(
+    reviewerDocumentFileInput.safeParse({ assignmentId, role: "budget", version: 2 }).success,
+  ).toBe(true);
+  expect(
+    reviewerDocumentFileInput.safeParse({ assignmentId, role: "letter", version: 2 }).success,
+  ).toBe(false);
+  expect(
+    reviewerDocumentFileInput.safeParse({ assignmentId, role: "budget", version: 0 }).success,
+  ).toBe(false);
 });

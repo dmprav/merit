@@ -44,8 +44,10 @@ export const activityInputSchema = auditPageInput.extend({
   actorUserId: identifier.optional(),
   roundId: identifier.optional(),
   targetTypes: z.array(identifier).min(1).max(20),
-  /** Actions whose recorded reason the feed carries; other details are never selected. */
+  /** Actions whose recorded reason the feed carries. */
   reasonActions: z.array(identifier).max(20).default([]),
+  /** Actions whose recorded proposal or budget role the feed carries. Other details are never selected. */
+  roleActions: z.array(identifier).max(20).default([]),
   limit: z.number().int().min(1).max(50).default(50),
 });
 

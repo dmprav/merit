@@ -27,6 +27,7 @@
     "@merit/organizations": "workspace:*",
     "@merit/rounds": "workspace:*",
     "drizzle-orm": "catalog:",
+    "unpdf": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

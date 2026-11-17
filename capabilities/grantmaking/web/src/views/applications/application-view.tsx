@@ -2,7 +2,12 @@ import { useState, type ReactNode, type ComponentProps } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { IntakeState } from "@merit/applications-web/contracts";
+import {
+  ApplicationDocuments,
+  type ApplicationDocumentSession,
+} from "@merit/applications-web/documents";
 import { ApplicationIntake, type IntakeSession } from "@merit/applications-web/work";
+import type { ApplicationDocuments as ApplicationDocumentSnapshot } from "@merit/applications/api";
 import { isWithdrawn } from "@merit/applications/domain";
 import type {
   ApplicationRoundContext,
@@ -37,6 +42,8 @@ type ApplicationViewProps = {
   editor?: ReactNode;
   editorCloseAction?: ReactNode;
   intake?: IntakeSession;
+  documents?: ApplicationDocumentSnapshot;
+  documentSession?: ApplicationDocumentSession;
   reviewData?: ReviewData | null;
   intakeState?: IntakeState;
   recommendationAction?: ReactNode;
@@ -124,6 +131,7 @@ const ApplicationLayout = (props: ApplicationLayoutProps) => {
   const { editor, content, review } = props;
   const labels: Record<ApplicationReference, string> = {
     evidence: t("workspace.submission"),
+    documents: t("workspace.documents"),
     reviews: t("workspace.assessments"),
     history: t("workspace.history"),
     details: t("workspace.details"),
@@ -197,6 +205,9 @@ const ApplicationReferencePane = ({
   history,
   intake,
   review,
+  documents,
+  documentSession,
+  readOnly = false,
 }: ApplicationLayoutProps & { labels: Record<ApplicationReference, string> }) => {
   const { t } = useTranslation(["fundingRounds", "reviews"]);
   const {
@@ -228,7 +239,11 @@ const ApplicationReferencePane = ({
           key={key}
           role={key === "reviews" || key === "history" ? undefined : "region"}
           aria-label={
-            key === "reviews" || key === "history" ? undefined : labels[key as ApplicationReference]
+            key === "reviews" || key === "history"
+              ? undefined
+              : key === "documents"
+                ? t("workspace.sourceDocuments")
+                : labels[key as ApplicationReference]
           }
           hidden={reference !== key}
         >
@@ -241,6 +256,13 @@ const ApplicationReferencePane = ({
           )}
           {key === "evidence" ? (
             content.evidence
+          ) : key === "documents" ? (
+            <ApplicationDocuments
+              mode="manage"
+              documents={documents}
+              canWrite={!readOnly && !isWithdrawn(application) && Boolean(documentSession?.attach)}
+              session={documentSession ?? { readFile: async () => ({ status: "not_found" }) }}
+            />
           ) : key === "reviews" ? (
             review.content(state.inspectHistory)
           ) : key === "details" ? (

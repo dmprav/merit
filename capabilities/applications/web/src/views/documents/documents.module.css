@@ -1,0 +1,83 @@
+.documents {
+  display: grid;
+  gap: var(--space-6);
+}
+
+/* The story shell has no sidebar, so the stage uses the full viewport. */
+.stageOnly {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.heading h2,
+.slot h3,
+.reader h2 {
+  font-size: var(--text-section);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.heading,
+.readerHeading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-4);
+}
+
+.version,
+.meta {
+  color: var(--muted);
+  font-size: var(--text-detail);
+}
+
+.slot,
+.reader,
+.citation {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.reader > button,
+.citation > button {
+  justify-self: start;
+}
+
+.facts {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.actions,
+.pageControl {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--space-3);
+}
+
+.pageField {
+  width: 6rem;
+}
+
+.note {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.file {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.frame {
+  width: 100%;
+  min-height: 24rem;
+  border: 1px solid var(--border);
+  background: var(--surface);
+}

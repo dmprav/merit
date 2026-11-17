@@ -38,8 +38,10 @@ export const listWorkspaceActivity = (
         "recommendation",
         "review_request",
         "review_assignment",
+        "application_document",
       ],
       reasonActions: ["application.withdraw", "application.reinstate"],
+      roleActions: ["application.document.attach", "application.document.cite"],
       actorUserId: request.personId,
       roundId: request.roundId,
       after: request.after,
@@ -78,6 +80,10 @@ export const listWorkspaceActivity = (
           applicationId: event.applicationId,
         },
         reason: event.reason,
+        documentRole:
+          event.documentRole === "proposal" || event.documentRole === "budget"
+            ? event.documentRole
+            : null,
         record: resolve(event),
       })),
       people: activity.people.map((person) => ({ id: person.userId, name: person.name })),

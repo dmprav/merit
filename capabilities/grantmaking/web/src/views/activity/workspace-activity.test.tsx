@@ -24,6 +24,7 @@ const entry = (id: number, overrides: Partial<ActivityEntry> = {}): ActivityEntr
     applicationId: "b8q3w5j7c2df",
   },
   reason: null,
+  documentRole: null,
   record: { kind: "application", id: "b8q3w5j7c2df", title: "Workshop Saturdays" },
   ...overrides,
 });
@@ -442,4 +443,20 @@ it("announces initial loading without calling the workspace empty", () => {
   show({ entries: [], status: "refreshing" });
   expect(screen.getByRole("status")).toHaveTextContent("Loading activity…");
   expect(screen.queryByText("No activity yet.")).not.toBeInTheDocument();
+});
+
+it("labels proposal and budget documents without the filename", () => {
+  show({
+    entries: [
+      entry(1, { action: "application.document.attach", documentRole: "proposal" }),
+      entry(2, { action: "application.document.attach", documentRole: "budget" }),
+      entry(3, { action: "application.document.cite", documentRole: "proposal" }),
+      entry(4, { action: "application.document.cite", documentRole: "budget" }),
+    ],
+  });
+  expect(screen.getByText("Attached proposal")).toBeInTheDocument();
+  expect(screen.getByText("Attached budget")).toBeInTheDocument();
+  expect(screen.getByText("Cited a proposal page")).toBeInTheDocument();
+  expect(screen.getByText("Cited a budget page")).toBeInTheDocument();
+  expect(screen.queryByText(/\.pdf/)).not.toBeInTheDocument();
 });

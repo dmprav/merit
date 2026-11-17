@@ -2,7 +2,9 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { z } from "zod";
 
+import { ApplicationDocuments } from "@merit/applications-web/documents";
 import { SubmissionAnswers } from "@merit/applications-web/intake";
+import { emptyApplicationDocuments } from "@merit/applications/domain";
 import { Form, FormActions, FormDialog, FormTextField, useForm } from "@merit/forms";
 import { useFormat } from "@merit/i18n/format";
 import { decodeMoney } from "@merit/money";
@@ -29,7 +31,7 @@ import { ReviewerAssessment, RetainedDraft } from "./reviewer-assessment";
 import { ReviewerFeedback, type ReviewerErrorKey, type ReviewerWork } from "./reviewer-feedback";
 import styles from "./reviewer.module.css";
 
-type ReviewerReferenceKey = "material" | "criteria";
+type ReviewerReferenceKey = "material" | "documents" | "criteria";
 
 export const ReviewerScreen = ({
   initial,
@@ -69,7 +71,12 @@ export const ReviewerScreen = ({
           toWorkLabel={t("toAssessment")}
           toReferenceLabel={t("toMaterial")}
         >
-          <ReviewerReference page={page} material={material} reference={reference} />
+          <ReviewerReference
+            page={page}
+            material={material}
+            reference={reference}
+            readFile={data.readDocument}
+          />
           <ReviewerAssessment work={work} />
         </ReferenceWorkspace>
       ) : (
@@ -112,10 +119,12 @@ const ReviewerReference = ({
   page,
   material,
   reference: initialReference,
+  readFile,
 }: {
   page: ReviewerPage;
   material: NonNullable<ReviewerPage["material"]>;
   reference: ReviewerReferenceKey;
+  readFile: ReviewerData["readDocument"];
 }) => {
   const { t } = useTranslation("reviewer");
   const { reference, referenceViewport, moveReference } =
@@ -123,6 +132,7 @@ const ReviewerReference = ({
   const assignment = page.assignment;
   const labels: Record<ReviewerReferenceKey, string> = {
     material: t("evidence"),
+    documents: t("documents"),
     criteria: t("criteria"),
   };
   return (
@@ -151,6 +161,14 @@ const ReviewerReference = ({
             {evidence.passage}
           </blockquote>
         ))}
+      </Stack>
+      <Stack as="section" gap={4} aria-label={labels.documents} hidden={reference !== "documents"}>
+        <ApplicationDocuments
+          mode="review"
+          documents={page.documents ?? emptyApplicationDocuments()}
+          canWrite={false}
+          session={{ readFile }}
+        />
       </Stack>
       <Stack as="section" gap={4} aria-label={labels.criteria} hidden={reference !== "criteria"}>
         <ReferenceHeading

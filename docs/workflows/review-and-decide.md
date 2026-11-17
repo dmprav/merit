@@ -136,7 +136,7 @@ ownership and cross-capability coordination.
 
 ## Beyond recommendations
 
-Applicant-facing submission, attachments, live AI processing, reviewer discussions,
+Applicant-facing submission, live AI processing, reviewer discussions,
 committee briefs, publication, and funding decision recording are not implemented.
 [Future committee design](committee-decisions.md) preserves the agreed direction
 separately from current behavior. GitHub issues and milestones track delivery.

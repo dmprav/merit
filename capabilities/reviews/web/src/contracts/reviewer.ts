@@ -1,3 +1,5 @@
+import type { DocumentFileResult } from "@merit/applications-web/contracts";
+import type { SourceDocumentRole } from "@merit/applications/api";
 import type { PageSource } from "@merit/query/contracts";
 import type {
   ReviewerService,
@@ -20,6 +22,10 @@ export type ReviewerData = {
   submit: (
     input: Parameters<ReviewerService["submit"]>[1],
   ) => Promise<ReviewerResponse<{ revision: number }>>;
+  readDocument: (input: {
+    role: SourceDocumentRole;
+    version: number;
+  }) => Promise<DocumentFileResult>;
 };
 
 export type ManagerReviewerData = {

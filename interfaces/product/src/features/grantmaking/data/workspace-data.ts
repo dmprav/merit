@@ -20,6 +20,11 @@ import { workspacePreparationData } from "./preparation/workspace-data";
 import { applicationOptions, roundOptions, roundsOptions } from "./queries";
 import { workspaceRecommendationData } from "./recommendations/workspace-data";
 import { workspaceReviewData } from "./reviews/workspace-data";
+import {
+  attachApplicationDocument,
+  citeApplicationDocumentPage,
+  readApplicationDocumentFile,
+} from "./server/documents/documents.functions";
 import { saveRecommendation } from "./server/recommendations/recommendations.functions";
 import { useWorkspaceApplications } from "./workspace-applications";
 
@@ -89,6 +94,23 @@ export const useWorkspaceApplicationData = (workspaceSlug: string, publicId: str
         current.recommendationVersion,
         save,
       ),
+      documents: current.documents
+        ? {
+            value: current.documents,
+            session: {
+              attach: (input) =>
+                attachApplicationDocument({ data: { workspaceSlug, publicId, ...input } }),
+              cite: (input) =>
+                citeApplicationDocumentPage({ data: { workspaceSlug, publicId, ...input } }),
+              readFile: ({ role, version }) =>
+                readApplicationDocumentFile({ data: { workspaceSlug, publicId, role, version } }),
+              refresh: () =>
+                client.invalidateQueries({
+                  queryKey: applicationOptions(workspaceSlug, publicId).queryKey,
+                }),
+            },
+          }
+        : null,
     };
 
     return { status: "ok" as const, data, workspaceSlug: current.workspaceSlug };

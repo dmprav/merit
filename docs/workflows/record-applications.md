@@ -98,7 +98,12 @@ when the revision is recorded.
 Managers enter the applicant’s material in sections with headings or original
 questions and response text. Sections can be completed in any order; one section
 can contain the complete submission. Budget details can be included in the text.
-File attachments, extraction, and a structured budget editor are not available.
+A program manager can also attach one proposal PDF and one budget PDF from
+**Documents** in the application reference. Each later file of that role is a new
+version; earlier bytes, names, page counts, and attribution stay. A page reference
+names one page of one version and remains when a newer file is attached. These
+files do not change the submission, staff summary, intake history, or the basis of
+review. Extraction and a structured budget editor are not available.
 An optional staff summary stays separate from submitted material and identifies
 its author. It can be added or edited while the application is incomplete and does
 not affect readiness. Contact and summary edits retain history without changing

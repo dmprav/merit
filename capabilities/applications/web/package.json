@@ -6,6 +6,7 @@
   "type": "module",
   "exports": {
     "./intake": "./src/intake.ts",
+    "./documents": "./src/documents.ts",
     "./messages": "./src/messages.tsx",
     "./contracts": "./src/contracts/intake.ts",
     "./work": "./src/work.ts",

@@ -54,6 +54,68 @@ type DispatchCase = {
 
 const dispatchCases: DispatchCase[] = [
   {
+    name: "list_application_documents",
+    args: address,
+    fn: (o) => o.applications.listApplicationDocuments,
+    input: { workspaceSlug: "alder", publicId: applicationId },
+    result: {
+      status: "ok",
+      documents: {
+        proposal: { currentVersion: null, versions: [], citations: [] },
+        budget: { currentVersion: null, versions: [], citations: [] },
+      },
+    },
+  },
+  {
+    name: "attach_application_document",
+    args: {
+      ...address,
+      role: "budget",
+      filename: "budget.pdf",
+      contentBase64: "JVBERg==",
+      expectedVersion: 0,
+    },
+    fn: (o) => o.applications.attachApplicationDocument,
+    input: {
+      workspaceSlug: "alder",
+      publicId: applicationId,
+      role: "budget",
+      filename: "budget.pdf",
+      contentBase64: "JVBERg==",
+      expectedVersion: 0,
+    },
+    result: { status: "ok", version: 1, documents: { proposal: {}, budget: {} } },
+  },
+  {
+    name: "cite_application_document_page",
+    args: { ...address, role: "budget", version: 1, page: 2, note: "See the total" },
+    fn: (o) => o.applications.citeApplicationDocumentPage,
+    input: {
+      workspaceSlug: "alder",
+      publicId: applicationId,
+      role: "budget",
+      version: 1,
+      page: 2,
+      note: "See the total",
+    },
+    result: { status: "ok", citationId: "b8q3w5j7c2df" },
+  },
+  {
+    name: "read_application_document_file",
+    args: { ...address, role: "proposal", version: 1 },
+    fn: (o) => o.applications.readApplicationDocumentFile,
+    input: { workspaceSlug: "alder", publicId: applicationId, role: "proposal", version: 1 },
+    result: {
+      status: "ok",
+      role: "proposal",
+      version: 1,
+      filename: "proposal.pdf",
+      pageCount: 2,
+      byteSize: 8,
+      contentBase64: "JVBERg==",
+    },
+  },
+  {
     name: "list_my_reviews",
     args: {},
     fn: (o) => o.reviewer.list,
@@ -65,6 +127,32 @@ const dispatchCases: DispatchCase[] = [
     args: { assignmentId },
     fn: (o) => o.reviewer.read,
     result: { status: "not_found" },
+  },
+  {
+    name: "list_reviewer_documents",
+    args: { assignmentId },
+    fn: (o) => o.reviewer.listDocuments,
+    result: {
+      status: "ok",
+      documents: {
+        proposal: { currentVersion: null, versions: [], citations: [] },
+        budget: { currentVersion: null, versions: [], citations: [] },
+      },
+    },
+  },
+  {
+    name: "read_reviewer_document_file",
+    args: { assignmentId, role: "proposal", version: 1 },
+    fn: (o) => o.reviewer.readDocumentFile,
+    result: {
+      status: "ok",
+      role: "proposal",
+      version: 1,
+      filename: "proposal.pdf",
+      pageCount: 2,
+      byteSize: 8,
+      contentBase64: "JVBERg==",
+    },
   },
   {
     name: "list_application_reviewers",
@@ -345,6 +433,7 @@ it("returns the reviewer's complete validated page and strips uncontracted field
   const page = {
     assignment: summary,
     material: null,
+    documents: null,
     criteria: null,
     draft: { revision: 7, content: draft },
     assessment: null,

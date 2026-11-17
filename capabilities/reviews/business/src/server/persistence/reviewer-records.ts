@@ -2,8 +2,13 @@ import { and, asc, desc, eq, inArray, or, sql } from "drizzle-orm";
 
 import { accessScope } from "@merit/access/scope";
 import { decodeApplicationMaterial } from "@merit/applications/domain";
+import type { SourceDocumentRole } from "@merit/applications/domain";
 import { applicationCases, materialVersions } from "@merit/applications/schema";
-import { readMaterialVersionRecord } from "@merit/applications/scope";
+import {
+  readApplicationDocuments,
+  readMaterialVersionRecord,
+  readSourceDocumentFile,
+} from "@merit/applications/scope";
 import { appUsers } from "@merit/auth/schema";
 import type { Database } from "@merit/db";
 import { memberships, organizations } from "@merit/organizations/schema";
@@ -308,8 +313,19 @@ export const readReviewerEvidence = async (db: Database, record: ReviewerRecord)
   return {
     material: decodeApplicationMaterial(materialRecord?.content),
     criteria: criteria ? reviewCriteriaSchema.parse(criteria) : null,
+    documents: await readApplicationDocuments(db, record.assignment.caseId),
   };
 };
+
+export const readAssignedDocuments = (db: Database, record: ReviewerRecord) =>
+  readApplicationDocuments(db, record.assignment.caseId);
+
+export const readAssignedDocumentFile = (
+  db: Database,
+  caseId: string,
+  role: SourceDocumentRole,
+  version: number,
+) => readSourceDocumentFile(db, caseId, role, version);
 
 export const readReviewerAssessment = async (db: Database, record: ReviewerRecord) => {
   if (!record.assignment.assessmentId) {

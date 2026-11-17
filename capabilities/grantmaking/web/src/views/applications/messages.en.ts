@@ -2,6 +2,8 @@ export const applicationsMessages = {
   workspace: {
     title: "Application workspace",
     submission: "Applicant submission",
+    documents: "Documents",
+    sourceDocuments: "Source documents",
     assessments: "Reviewer assessments",
     history: "Version history",
     details: "Application details",

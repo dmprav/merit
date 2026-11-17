@@ -12,6 +12,12 @@ export const testOperations = (): McpOperations => ({
     createApplication: vi.fn<McpOperations["applications"]["createApplication"]>(),
     editApplication: vi.fn<McpOperations["applications"]["editApplication"]>(),
     selectContact: vi.fn<McpOperations["applications"]["selectContact"]>(),
+    listApplicationDocuments: vi.fn<McpOperations["applications"]["listApplicationDocuments"]>(),
+    attachApplicationDocument: vi.fn<McpOperations["applications"]["attachApplicationDocument"]>(),
+    citeApplicationDocumentPage:
+      vi.fn<McpOperations["applications"]["citeApplicationDocumentPage"]>(),
+    readApplicationDocumentFile:
+      vi.fn<McpOperations["applications"]["readApplicationDocumentFile"]>(),
   },
   reviews: {
     saveReview: vi.fn<McpOperations["reviews"]["saveReview"]>(),
@@ -26,6 +32,8 @@ export const testOperations = (): McpOperations => ({
     respond: vi.fn<McpOperations["reviewer"]["respond"]>(),
     saveDraft: vi.fn<McpOperations["reviewer"]["saveDraft"]>(),
     submit: vi.fn<McpOperations["reviewer"]["submit"]>(),
+    listDocuments: vi.fn<McpOperations["reviewer"]["listDocuments"]>(),
+    readDocumentFile: vi.fn<McpOperations["reviewer"]["readDocumentFile"]>(),
   },
   recommendations: {
     saveRecommendation: vi.fn<McpOperations["recommendations"]["saveRecommendation"]>(),

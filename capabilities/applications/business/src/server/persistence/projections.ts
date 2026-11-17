@@ -4,6 +4,7 @@ import { contacts } from "@merit/contacts/schema";
 import type { Database } from "@merit/db";
 import { containsEveryWord, matchRank, titleOrder, type SearchTerms } from "@merit/db/search";
 
+import { assembleApplicationDocuments, type SourceDocumentRole } from "../../domain/documents";
 import {
   applicationCases,
   materialVersions,
@@ -11,6 +12,9 @@ import {
   materialVersionEvidence,
   materialDrafts,
   materialDraftAnswers,
+  sourceDocumentCitations,
+  sourceDocumentVersions,
+  sourceDocuments,
 } from "./schema";
 
 type AnswerRecord = { questionId: string; question: string; response: string };
@@ -398,3 +402,85 @@ export const applicationSearchMatch = (terms: SearchTerms) =>
 /** 0 when the title or applicant equals the whole query, 1 when one starts with it, 2 otherwise. */
 export const applicationSearchRank = (terms: SearchTerms) =>
   matchRank([applicationSearchTitle, searchApplicant], terms);
+
+const recorded = (value: Date) => value.toISOString();
+
+/** Metadata for both slots. Callers authorize the case; this read does not. */
+export const readApplicationDocuments = async (db: Database, caseId: string) => {
+  const [slots, versions, citations] = await Promise.all([
+    db
+      .select({
+        role: sourceDocuments.role,
+        currentVersion: sourceDocuments.currentVersion,
+      })
+      .from(sourceDocuments)
+      .where(eq(sourceDocuments.caseId, caseId)),
+    db
+      .select({
+        role: sourceDocumentVersions.role,
+        version: sourceDocumentVersions.version,
+        filename: sourceDocumentVersions.filename,
+        pageCount: sourceDocumentVersions.pageCount,
+        byteSize: sourceDocumentVersions.byteSize,
+        recorderUserId: sourceDocumentVersions.recorderUserId,
+        recorderName: sourceDocumentVersions.recorderName,
+        recordedAt: sourceDocumentVersions.recordedAt,
+      })
+      .from(sourceDocumentVersions)
+      .where(eq(sourceDocumentVersions.caseId, caseId)),
+    db
+      .select({
+        id: sourceDocumentCitations.id,
+        role: sourceDocumentCitations.role,
+        version: sourceDocumentCitations.version,
+        page: sourceDocumentCitations.page,
+        note: sourceDocumentCitations.note,
+        recorderUserId: sourceDocumentCitations.recorderUserId,
+        recorderName: sourceDocumentCitations.recorderName,
+        recordedAt: sourceDocumentCitations.recordedAt,
+      })
+      .from(sourceDocumentCitations)
+      .where(eq(sourceDocumentCitations.caseId, caseId)),
+  ]);
+  return assembleApplicationDocuments(
+    slots.map((slot) => ({
+      role: slot.role as SourceDocumentRole,
+      currentVersion: slot.currentVersion,
+    })),
+    versions.map((version) => ({
+      ...version,
+      role: version.role as SourceDocumentRole,
+      recordedAt: recorded(version.recordedAt),
+    })),
+    citations.map((citation) => ({
+      ...citation,
+      role: citation.role as SourceDocumentRole,
+      recordedAt: recorded(citation.recordedAt),
+    })),
+  );
+};
+
+/** Bytes of one version, or null when that version is not stored. */
+export const readSourceDocumentFile = async (
+  db: Database,
+  caseId: string,
+  role: SourceDocumentRole,
+  version: number,
+) => {
+  const [row] = await db
+    .select({
+      filename: sourceDocumentVersions.filename,
+      pageCount: sourceDocumentVersions.pageCount,
+      byteSize: sourceDocumentVersions.byteSize,
+      content: sourceDocumentVersions.content,
+    })
+    .from(sourceDocumentVersions)
+    .where(
+      and(
+        eq(sourceDocumentVersions.caseId, caseId),
+        eq(sourceDocumentVersions.role, role),
+        eq(sourceDocumentVersions.version, version),
+      ),
+    );
+  return row ?? null;
+};

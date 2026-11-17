@@ -23,7 +23,7 @@ const ReviewerPreview = ({
   initial: ReviewerPage;
   scenario: SaveScenario;
   session?: ReviewerSession;
-  reference?: "material" | "criteria";
+  reference?: "material" | "documents" | "criteria";
 }) => {
   const [data] = useState(() => reviewerTransport(initial, scenario));
   return (

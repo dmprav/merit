@@ -307,6 +307,29 @@ describe("reading workspace activity", () => {
     });
   });
 
+  test("carries the document role only for the actions the caller names", async ({ db }) => {
+    await db.transaction((tx) =>
+      record(tx, {
+        action: "application.document.attach",
+        target: { type: "application_document", id: "appdocument1", revision: 1 },
+        details: { role: "budget", filename: "budget.pdf" },
+      }),
+    );
+    const named = await readWorkspaceActivity(db, {
+      ...scope,
+      targetTypes: ["application_document"],
+      roleActions: ["application.document.attach"],
+    });
+    assert(named.status === "ok");
+    expect(named.events[0]).toMatchObject({ documentRole: "budget", reason: null });
+    const hidden = await readWorkspaceActivity(db, {
+      ...scope,
+      targetTypes: ["application_document"],
+    });
+    assert(hidden.status === "ok");
+    expect(hidden.events[0]?.documentRole).toBeNull();
+  });
+
   test("lists the people with recorded activity only on the first page", async ({ db }) => {
     await db.transaction(async (tx) => {
       await record(tx, { target: { ...event.target, revision: 1 } });

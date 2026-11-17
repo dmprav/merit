@@ -78,6 +78,7 @@ const entry = (index: number, overrides: Partial<WorkspaceActivity["entries"][nu
     applicationId: "b8q3w5j7c2df",
   },
   reason: null,
+  documentRole: null,
   record: { kind: "application" as const, id: "b8q3w5j7c2df", title: "Workshop Saturdays" },
   ...overrides,
 });

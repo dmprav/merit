@@ -5,8 +5,12 @@ import { expect, waitFor, mocked, within } from "storybook/test";
 
 import type { IntakeState } from "@merit/applications-web/contracts";
 import type { IntakeSession } from "@merit/applications-web/intake";
-import { materialVersionSchema } from "@merit/applications/domain";
-import { intakeContent, prepareIntakeChange } from "@merit/applications/domain";
+import {
+  emptyApplicationDocuments,
+  intakeContent,
+  materialVersionSchema,
+  prepareIntakeChange,
+} from "@merit/applications/domain";
 import { ApplicationView } from "@merit/grantmaking-web/applications";
 import { GrantmakingDrafts } from "@merit/grantmaking-web/drafts";
 import { ApplicationContainedPreview } from "@merit/grantmaking-web/testing";
@@ -125,6 +129,7 @@ const fixture = (
   return {
     status: "ok",
     ...encodeApplicationDetail({ application, round }),
+    documents: emptyApplicationDocuments(),
     workspaceSlug: "alder",
     recommendationVersion: 0,
     intake: {

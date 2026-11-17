@@ -49,7 +49,7 @@ visitor's isolated workspace.
   authorization, scopes, and attribution.
 
 Demo submissions, evidence, and AI examples are hand-authored fiction.
-Applicant-facing submission, attachments, live AI processing, reviewer discussions,
+Applicant-facing submission, live AI processing, reviewer discussions,
 committee briefs, publication, and funding decision recording are not implemented.
 [Future committee design](docs/workflows/committee-decisions.md) records the intended
 behavior; GitHub issues and milestones track delivery.

@@ -2,8 +2,10 @@ import { sql } from "drizzle-orm";
 import {
   boolean,
   check,
+  customType,
   date,
   foreignKey,
+  index,
   integer,
   numeric,
   pgTable,
@@ -206,4 +208,106 @@ export const applicationCreationReceipts = pgTable(
     publicId: text("case_id").notNull(),
   },
   (t) => [primaryKey({ columns: [t.organizationId, t.requestId] })],
+);
+
+const bytea = customType<{ data: Uint8Array; driverData: Uint8Array }>({
+  dataType: () => "bytea",
+  toDriver: (value) => Buffer.from(value),
+  fromDriver: (value) => Uint8Array.from(value),
+});
+
+/** One proposal or budget slot. An empty slot has no row and is not a version. */
+export const sourceDocuments = pgTable(
+  "source_documents",
+  {
+    caseId: text("case_id")
+      .notNull()
+      .references(() => applicationCases.id, { onDelete: "cascade" }),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id),
+    role: text("role").notNull(),
+    currentVersion: integer("current_version").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.caseId, t.role] }),
+    check("source_documents_role_check", sql`${t.role} in ('proposal', 'budget')`),
+    check("source_documents_current_version_check", sql`${t.currentVersion} > 0`),
+  ],
+);
+
+export const sourceDocumentVersions = pgTable(
+  "source_document_versions",
+  {
+    caseId: text("case_id").notNull(),
+    role: text("role").notNull(),
+    version: integer().notNull(),
+    filename: text().notNull(),
+    pageCount: integer("page_count").notNull(),
+    byteSize: integer("byte_size").notNull(),
+    content: bytea("content").notNull(),
+    recorderUserId: text("recorder_user_id")
+      .notNull()
+      .references(() => appUsers.id),
+    recorderName: text("recorder_name").notNull(),
+    recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.caseId, t.role, t.version] }),
+    foreignKey({
+      columns: [t.caseId, t.role],
+      foreignColumns: [sourceDocuments.caseId, sourceDocuments.role],
+    }).onDelete("cascade"),
+    check("source_document_versions_role_check", sql`${t.role} in ('proposal', 'budget')`),
+    check("source_document_versions_version_check", sql`${t.version} > 0`),
+    check("source_document_versions_pages_check", sql`${t.pageCount} > 0`),
+    check(
+      "source_document_versions_bytes_check",
+      sql`${t.byteSize} between 1 and 20971520 and octet_length(${t.content}) = ${t.byteSize}`,
+    ),
+    check(
+      "source_document_versions_filename_check",
+      sql`char_length(${t.filename}) between 1 and 200`,
+    ),
+  ],
+);
+
+export const sourceDocumentCitations = pgTable(
+  "source_document_citations",
+  {
+    id: text("id")
+      .primaryKey()
+      .default(sql`merit_public_id()`),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id),
+    caseId: text("case_id").notNull(),
+    role: text("role").notNull(),
+    version: integer().notNull(),
+    page: integer().notNull(),
+    note: text(),
+    recorderUserId: text("recorder_user_id")
+      .notNull()
+      .references(() => appUsers.id),
+    recorderName: text("recorder_name").notNull(),
+    recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    foreignKey({
+      columns: [t.caseId, t.role, t.version],
+      foreignColumns: [
+        sourceDocumentVersions.caseId,
+        sourceDocumentVersions.role,
+        sourceDocumentVersions.version,
+      ],
+    }).onDelete("cascade"),
+    index("source_document_citations_case_role_recorded_idx").on(t.caseId, t.role, t.recordedAt),
+    check("source_document_citations_role_check", sql`${t.role} in ('proposal', 'budget')`),
+    check("source_document_citations_version_check", sql`${t.version} > 0`),
+    check("source_document_citations_page_check", sql`${t.page} > 0`),
+    check(
+      "source_document_citations_note_check",
+      sql`${t.note} is null or char_length(${t.note}) between 1 and 2000`,
+    ),
+  ],
 );

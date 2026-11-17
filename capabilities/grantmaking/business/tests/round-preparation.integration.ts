@@ -151,7 +151,7 @@ describe("funding-round preparation", () => {
         await tx.execute(sql.raw(`RESET ROLE`));
         await tx.execute(
           sql.raw(
-            `GRANT SELECT ON application_cases, contacts, material_versions, material_version_answers, material_version_evidence, material_drafts, material_draft_answers, review_states, review_requests, assessments, assessment_versions, assessment_version_observations, recommendation_versions TO ${role}`,
+            `GRANT SELECT ON application_cases, contacts, material_versions, material_version_answers, material_version_evidence, material_drafts, material_draft_answers, source_documents, source_document_versions, source_document_citations, review_states, review_requests, assessments, assessment_versions, assessment_version_observations, recommendation_versions TO ${role}`,
           ),
         );
         await tx.execute(sql.raw(`SET LOCAL ROLE ${role}`));

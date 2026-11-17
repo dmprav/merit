@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { fn } from "storybook/test";
 
-import { materialVersionSchema } from "@merit/applications/domain";
+import { emptyApplicationDocuments, materialVersionSchema } from "@merit/applications/domain";
 import { getExampleRound } from "@merit/grantmaking/examples";
 import { encodeMoney } from "@merit/money";
 import type { ReviewerPage } from "@merit/reviews/api";
@@ -57,6 +57,7 @@ export const reviewerPage = (): ReviewerPage => ({
     submission: structuredClone(application.submission),
     evidence: structuredClone(application.evidence),
   },
+  documents: emptyApplicationDocuments(),
   criteria: structuredClone(round.criteria),
   assessment: null,
   draft: {
@@ -123,6 +124,7 @@ export const reviewerTransport = (initial: ReviewerPage, scenario: SaveScenario 
                 conflict: note,
               },
               material: null,
+              documents: null,
               criteria: null,
               draft: null,
             };
@@ -150,6 +152,7 @@ export const reviewerTransport = (initial: ReviewerPage, scenario: SaveScenario 
             ...page,
             assignment: { ...page.assignment, status: "cancelled" },
             material: null,
+            documents: null,
             criteria: null,
             draft: null,
           };
@@ -191,6 +194,7 @@ export const reviewerTransport = (initial: ReviewerPage, scenario: SaveScenario 
       page.draft!.content.note = "";
       return { status: "ok", value: { revision: page.assessment.versions.length } };
     }),
+    readDocument: fn<ReviewerData["readDocument"]>(async () => ({ status: "not_found" })),
   };
   return data;
 };

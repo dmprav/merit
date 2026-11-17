@@ -1,6 +1,11 @@
 import { z } from "zod";
 
-import type { encodeApplicationMaterial } from "@merit/applications/api";
+import {
+  sourceDocumentRoleSchema,
+  type ApplicationDocumentFile,
+  type ApplicationDocuments,
+  type encodeApplicationMaterial,
+} from "@merit/applications/api";
 import { auditPageInput } from "@merit/audit/api";
 import type { Actor } from "@merit/auth";
 import { calendarDateSchema } from "@merit/dates";
@@ -84,10 +89,17 @@ export type ReviewerSummary = {
 export type ReviewerPage = {
   assignment: ReviewerSummary;
   material: ReturnType<typeof encodeApplicationMaterial> | null;
+  /** Present exactly when assigned material is present, including when both slots are empty. */
+  documents: ApplicationDocuments | null;
   criteria: ReviewState["requests"][number]["criteria"] | null;
   draft: { revision: number; content: ReviewerDraft } | null;
   assessment: ReviewState["assessments"][number] | null;
 };
+
+export const reviewerDocumentFileInput = reviewerAddressSchema.extend({
+  role: sourceDocumentRoleSchema,
+  version: z.number().int().positive(),
+});
 
 export type ReviewerResult<T> =
   | { status: "ok"; value: T }
@@ -152,4 +164,16 @@ export interface ReviewerService {
     actor: Actor,
     input: z.infer<typeof submitReviewerSchema>,
   ) => Promise<ReviewerResult<{ revision: number }>>;
+  listDocuments: (
+    actor: Actor,
+    input: z.infer<typeof reviewerAddressSchema>,
+  ) => Promise<{ status: "ok"; documents: ApplicationDocuments } | { status: "not_found" }>;
+  readDocumentFile: (
+    actor: Actor,
+    input: z.infer<typeof reviewerDocumentFileInput>,
+  ) => Promise<
+    | ApplicationDocumentFile
+    | { status: "not_found" }
+    | { status: "invalid"; error: "version_not_found" }
+  >;
 }

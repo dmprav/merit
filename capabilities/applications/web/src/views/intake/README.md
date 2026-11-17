@@ -100,6 +100,13 @@ that choice or impersonate another workflow's controller.
 Keep this coordination out of controls so a background refresh cannot silently
 replace the revision against which someone started writing.
 
+**Documents** sits in that reference switcher after the submission and before
+assessments. It is a local reference, like history, and is not a URL tab. The
+[documents view](../documents/application-documents.tsx) shows the proposal and
+budget slots, earlier versions, page references, and the page reader. Grantmaking's
+application view only adds the reference and renders it. A reviewer who can read
+assigned material sees the same documents without attach or refer.
+
 The [application navigation hook](../../../../../grantmaking/web/src/views/applications/use-application-navigation.ts)
 owns reference-pane transitions, reading positions, and cross-pane focus for the
 [application view](../../../../../grantmaking/web/src/views/applications/application-view.tsx). Local choices and

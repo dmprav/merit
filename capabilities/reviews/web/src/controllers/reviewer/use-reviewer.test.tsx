@@ -38,6 +38,7 @@ const setup = (adjust?: (page: ReviewerPage) => void) => {
       expiresAt: "2099-01-01T00:00:00Z",
     },
     material: null,
+    documents: null,
     criteria: [],
     assessment: null,
     draft: {
@@ -57,6 +58,7 @@ const setup = (adjust?: (page: ReviewerPage) => void) => {
     save: vi.fn<ReviewerData["save"]>(),
     submit: vi.fn<ReviewerData["submit"]>(),
     respond: vi.fn<ReviewerData["respond"]>(),
+    readDocument: vi.fn<ReviewerData["readDocument"]>(),
   };
   data.save.mockResolvedValue({ status: "ok", value: { revision: 1 } });
   data.read.mockResolvedValue({ status: "ok", value: page });

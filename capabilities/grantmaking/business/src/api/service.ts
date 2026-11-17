@@ -1,6 +1,10 @@
 import type { z } from "zod";
 
-import type { ApplicationsService, IntakeState } from "@merit/applications/api";
+import type {
+  ApplicationDocuments,
+  ApplicationsService,
+  IntakeState,
+} from "@merit/applications/api";
 import type { Actor } from "@merit/auth";
 import type { RecommendationsService } from "@merit/recommendations/api";
 import type { ReviewService } from "@merit/reviews/api";
@@ -89,6 +93,7 @@ export interface GrantmakingQueries {
     round: ApplicationRoundContext;
     workspaceSlug: string;
     recommendationVersion: number;
+    documents: ApplicationDocuments;
   } | null>;
   readRoundPage: (
     actor: Actor,

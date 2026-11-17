@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { applicationMaterialDataSchema } from "@merit/applications/api";
+import { applicationDocumentsSchema, applicationMaterialDataSchema } from "@merit/applications/api";
 import { publicIdSchema } from "@merit/db/identifiers";
 import {
   reviewerDraftSchema,
@@ -71,6 +71,7 @@ export const reviewerPageSchema = z.object({
   status: z.literal("ok"),
   assignment: reviewerSummarySchema,
   material: applicationMaterialDataSchema.nullable(),
+  documents: applicationDocumentsSchema.nullable(),
   criteria: reviewCriteriaSchema.nullable(),
   draft: z
     .object({ revision: z.number().int().nonnegative(), content: reviewerDraftSchema })

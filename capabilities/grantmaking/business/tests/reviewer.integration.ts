@@ -2,8 +2,12 @@ import { randomUUID } from "node:crypto";
 
 import { assert, expect } from "vite-plus/test";
 
-import { materialVersionSchema } from "@merit/applications/domain";
-import { editFundingApplication } from "@merit/applications/server";
+import { encodeBase64, materialVersionSchema } from "@merit/applications/domain";
+import {
+  attachApplicationDocument,
+  editFundingApplication,
+  listApplicationDocuments,
+} from "@merit/applications/server";
 import { changeWorkspaceContact } from "@merit/contacts/server";
 import { createOrganizationService } from "@merit/organizations/server";
 import { actor } from "@merit/organizations/testing/workspace";
@@ -23,6 +27,7 @@ import {
 import { fundingRoundContactUsage } from "../src/server/integrations";
 import { applicationWork } from "../src/server/persistence/commands/application-work";
 import { withAuditFailure, recordedEvents } from "./audit-events";
+import { pdfBytes } from "./pdf-document";
 import { roundTest } from "./round-test";
 
 const sam = { userId: "sam" };
@@ -959,4 +964,47 @@ it("permanently ends assignments on role loss, preserves private work, and attri
   ).toEqual({ status: "not_found" });
   expect(await s.manage("reinstate")).toMatchObject({ status: "ok" });
   expect((await s.read()).draft).toEqual(original.draft);
+});
+
+it("shows proposal and budget files only to a reviewer who can read the assigned material", async ({
+  db,
+  reviewerScenario: s,
+}) => {
+  const attached = await attachApplicationDocument(db, actor, {
+    ...s.address,
+    role: "proposal",
+    filename: "proposal.pdf",
+    contentBase64: encodeBase64(pdfBytes(2)),
+    expectedVersion: 0,
+  });
+  assert(attached.status === "ok");
+  expect((await s.read()).documents).toBeNull();
+  expect(await s.service.listDocuments(sam, { assignmentId: s.assignmentId })).toEqual({
+    status: "not_found",
+  });
+  expect(await listApplicationDocuments(db, sam, s.address)).toEqual({ status: "not_found" });
+
+  expect(await s.respond("accept")).toMatchObject({ status: "ok" });
+  const page = await s.read();
+  expect(page.material).not.toBeNull();
+  expect(page.documents?.proposal.currentVersion).toBe(1);
+  expect(page.documents?.budget.currentVersion).toBeNull();
+  const file = await s.service.readDocumentFile(sam, {
+    assignmentId: s.assignmentId,
+    role: "proposal",
+    version: 1,
+  });
+  assert(file.status === "ok");
+  expect(file.contentBase64).toBe(encodeBase64(pdfBytes(2)));
+  expect(
+    await s.service.readDocumentFile(sam, {
+      assignmentId: s.assignmentId,
+      role: "proposal",
+      version: 4,
+    }),
+  ).toEqual({ status: "invalid", error: "version_not_found" });
+  expect(await s.service.listDocuments(sam, { assignmentId: s.assignmentId })).toMatchObject({
+    status: "ok",
+    documents: { proposal: { currentVersion: 1 } },
+  });
 });

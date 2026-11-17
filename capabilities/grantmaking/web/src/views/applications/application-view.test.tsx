@@ -618,7 +618,18 @@ describe("application workspace", () => {
     const editor = screen.getByRole("textbox", { name: "Recommendation draft" });
     await user.type(editor, "Keep this reasoning");
 
+    await user.click(screen.getByRole("button", { name: /^Reference material:/ }));
+    expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual([
+      "Applicant submission",
+      "Documents",
+      "Reviewer assessments",
+      "Version history",
+      "Application details",
+    ]);
+    await user.keyboard("{Escape}");
+
     for (const name of [
+      "Documents",
       "Reviewer assessments",
       "Application details",
       "Version history",

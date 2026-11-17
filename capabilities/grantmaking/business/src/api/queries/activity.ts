@@ -43,6 +43,8 @@ export const activityEntrySchema = z.object({
   }),
   /** The reason recorded with a withdrawal or reinstatement; null for other actions. */
   reason: z.string().nullable(),
+  /** The proposal or budget role recorded with a document action; null for other actions. */
+  documentRole: z.enum(["proposal", "budget"]).nullable(),
   /** The record's current identity, or null when it no longer exists. */
   record: activityRecordSchema.nullable(),
 });

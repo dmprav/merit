@@ -11,6 +11,7 @@ import {
   manageReviewerSchema,
   reviewerActionSchema,
   saveReviewerDraftSchema,
+  reviewerDocumentFileInput,
   submitReviewerSchema,
 } from "@merit/reviews/api";
 
@@ -63,6 +64,15 @@ export const submitReviewerAssessment = createServerFn({ method: "POST" })
   .handler(({ data, context }) => {
     setResponseHeader("Cache-Control", "private, no-store");
     return withActor(context.currentIdentity, (actor) => context.reviewer.submit(actor, data));
+  });
+
+export const readReviewerDocumentFile = createServerFn({ method: "POST" })
+  .validator(reviewerDocumentFileInput)
+  .handler(({ data, context }) => {
+    setResponseHeader("Cache-Control", "private, no-store");
+    return withActor(context.currentIdentity, (actor) =>
+      context.reviewer.readDocumentFile(actor, data),
+    );
   });
 
 export const readReviewerHistory = createServerFn({ method: "GET" })

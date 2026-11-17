@@ -99,6 +99,7 @@ catalog:
   "@secretlint/secretlint-rule-pattern": 13.1.0
   "@secretlint/types": 13.1.0
   posthog-js: 1.444.2
+  unpdf: 1.4.0
 overrides:
   vite@*: "catalog:"
   # Patch tooling dependencies until their parents adopt fixed versions.

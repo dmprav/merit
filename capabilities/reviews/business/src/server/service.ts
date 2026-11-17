@@ -3,6 +3,7 @@ import type { Database } from "@merit/db";
 
 import {
   reviewerAddressSchema,
+  reviewerDocumentFileInput,
   reviewerListInput,
   reviewerApplicationSchema,
   type ReviewerService,
@@ -20,7 +21,9 @@ import { deliverReviewerMessages } from "./commands/reviewer-delivery";
 import { saveApplicationReview } from "./commands/reviews";
 import {
   listReviewerAssignments,
+  listReviewerDocuments,
   readReviewerAssignment,
+  readReviewerDocumentFile,
   managerReviewerAssignments,
   managerReviewerHistory,
 } from "./queries/reviewer";
@@ -33,7 +36,12 @@ type ReviewerDependencies = Dependencies & {
   managerUrl: (slug: string, applicationId: string) => string;
 };
 
-const reviewerReads = ({ database }: Dependencies): Pick<ReviewerService, "read" | "list"> => ({
+const reviewerReads = ({
+  database,
+}: Dependencies): Pick<
+  ReviewerService,
+  "read" | "list" | "listDocuments" | "readDocumentFile"
+> => ({
   read: async (actor, input) => {
     const parsed = reviewerAddressSchema.safeParse(input);
     if (!parsed.success) {
@@ -50,11 +58,25 @@ const reviewerReads = ({ database }: Dependencies): Pick<ReviewerService, "read"
     }
     return database((db) => listReviewerAssignments(db, actor, parsed.data?.workspaceSlug));
   },
+  listDocuments: async (actor, input) => {
+    const parsed = reviewerAddressSchema.safeParse(input);
+    if (!parsed.success) {
+      return { status: "not_found" };
+    }
+    return database((db) => listReviewerDocuments(db, actor, parsed.data));
+  },
+  readDocumentFile: async (actor, input) => {
+    const parsed = reviewerDocumentFileInput.safeParse(input);
+    if (!parsed.success) {
+      return { status: "not_found" };
+    }
+    return database((db) => readReviewerDocumentFile(db, actor, parsed.data));
+  },
 });
 
 export const createReviewerService = (dependencies: ReviewerDependencies): ReviewerService => {
   const { database } = dependencies;
-  const { read, list } = reviewerReads(dependencies);
+  const { read, list, listDocuments, readDocumentFile } = reviewerReads(dependencies);
 
   const forApplication: ReviewerService["forApplication"] = (actor, input) => {
     const parsed = reviewerApplicationSchema.safeParse(input);
@@ -76,6 +98,8 @@ export const createReviewerService = (dependencies: ReviewerDependencies): Revie
   return {
     history: (actor, input) => database((db) => managerReviewerHistory(db, actor, input)),
     read,
+    listDocuments,
+    readDocumentFile,
     forApplication,
     list,
     invite: async (actor, input) => {

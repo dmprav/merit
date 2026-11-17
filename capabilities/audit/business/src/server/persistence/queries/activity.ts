@@ -13,6 +13,7 @@ export const readActivityEvents = (
     roundId?: string;
     targetTypes: string[];
     reasonActions: string[];
+    roleActions: string[];
     after?: string;
     limit: number;
   },
@@ -36,6 +37,11 @@ export const readActivityEvents = (
         ? sql<
             string | null
           >`case when ${inArray(auditEvents.action, filter.reasonActions)} then ${auditEvents.details}->>'reason' end`
+        : sql<string | null>`null`,
+      documentRole: filter.roleActions.length
+        ? sql<
+            string | null
+          >`case when ${inArray(auditEvents.action, filter.roleActions)} then ${auditEvents.details}->>'role' end`
         : sql<string | null>`null`,
     })
     .from(auditEvents)

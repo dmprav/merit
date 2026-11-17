@@ -37,6 +37,8 @@ export const ApplicationWork = ({
               ? { data: data.intake, onDeleted: () => navigate(returnLocation ?? roundLocation) }
               : undefined
           }
+          documents={data.documents?.value}
+          documentSession={data.documents?.session}
           reviewData={data.reviews}
           tab={tab}
           onTabChange={onTabChange}

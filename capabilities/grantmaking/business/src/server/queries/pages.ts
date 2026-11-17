@@ -132,6 +132,7 @@ export const getFundingApplicationPage = async (
       round,
       workspaceSlug: row.workspaceSlug,
       recommendationVersion: row.recommendationVersion,
+      documents: row.documents,
     };
   });
 };

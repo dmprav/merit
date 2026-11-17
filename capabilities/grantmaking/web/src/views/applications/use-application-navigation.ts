@@ -2,7 +2,7 @@ import { useEffectEvent, useLayoutEffect, useRef, useState } from "react";
 
 import { useReferenceViewport } from "@merit/ui/reference-workspace";
 
-export type ApplicationReference = "evidence" | "reviews" | "history" | "details";
+export type ApplicationReference = "evidence" | "documents" | "reviews" | "history" | "details";
 
 type Tab = "evidence" | "reviews";
 

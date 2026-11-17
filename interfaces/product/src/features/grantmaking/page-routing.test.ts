@@ -1,5 +1,6 @@
 import { assert, beforeEach, expect, it, vi } from "vite-plus/test";
 
+import { emptyApplicationDocuments } from "@merit/applications/domain";
 import { encodeApplicationDetail, encodeRoundPage, roundView } from "@merit/grantmaking/api";
 import { makeApplication, makeRound } from "@merit/grantmaking/testing/fixtures";
 import { createQueryClient } from "@merit/query";
@@ -34,6 +35,7 @@ const page = {
     application,
   }),
   recommendationVersion: 0,
+  documents: emptyApplicationDocuments(),
   intake: { revision: 0, workingRevision: null, history: [] },
   workspaceSlug: "alder",
 };

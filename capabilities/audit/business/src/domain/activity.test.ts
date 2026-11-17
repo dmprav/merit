@@ -37,7 +37,12 @@ describe("activity input", () => {
   const input = { targetTypes: ["round", "application"] };
 
   it("defaults to a full page of the whole workspace", () => {
-    expect(activityInputSchema.parse(input)).toEqual({ ...input, reasonActions: [], limit: 50 });
+    expect(activityInputSchema.parse(input)).toEqual({
+      ...input,
+      reasonActions: [],
+      roleActions: [],
+      limit: 50,
+    });
   });
 
   it("accepts a person, historical round and continuation", () => {
@@ -47,6 +52,7 @@ describe("activity input", () => {
       roundId: "round1",
       after: encodeActivityCursor(cursor),
       reasonActions: ["application.withdraw"],
+      roleActions: ["application.document.attach"],
       limit: 10,
     };
 
@@ -63,6 +69,8 @@ describe("activity input", () => {
     { targetTypes: [] },
     { targetTypes: Array.from({ length: 21 }, () => "round") },
     { reasonActions: [""] },
+    { roleActions: [""] },
+    { roleActions: Array.from({ length: 21 }, () => "application.document.attach") },
     { organizationId: "alder" },
     { workspaceSlug: "alder" },
   ])("rejects %j", (change) => {

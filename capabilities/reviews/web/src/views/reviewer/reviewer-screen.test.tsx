@@ -16,6 +16,7 @@ const invitation = () => {
   const page = reviewerPage();
   page.assignment = { ...page.assignment, status: "invited", dueDate: null };
   page.material = null;
+  page.documents = null;
   page.criteria = null;
   page.draft = null;
   return page;
@@ -327,6 +328,21 @@ it("keeps invalid restored money visible and blocks submission", async () => {
   expect(amount).toHaveValue("123.456");
   await waitFor(() => expect(amount).toHaveFocus());
   expect(screen.queryByText("Your assessment has been submitted.")).not.toBeInTheDocument();
+});
+
+it("opens source documents beside the assigned material without attach or refer", async () => {
+  const { user } = renderReviewer();
+  await user.click(screen.getByRole("button", { name: /^Reference material:/ }));
+  expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual([
+    "Application material",
+    "Documents",
+    "Assessment criteria",
+  ]);
+  await user.click(screen.getByRole("menuitem", { name: "Documents" }));
+  expect(screen.getByRole("heading", { name: "Source documents" })).toBeVisible();
+  expect(screen.getByText("No proposal or budget is attached.")).toBeVisible();
+  expect(screen.queryByRole("button", { name: "Attach proposal" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Refer to this page" })).not.toBeInTheDocument();
 });
 
 it("preserves a possible conflict explanation when the form is closed and reopened", async () => {

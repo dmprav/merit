@@ -8,6 +8,7 @@ import {
   readReviewerAssignment,
   respondToReview,
   saveReviewerDraft,
+  readReviewerDocumentFile,
   submitReviewerAssessment,
 } from "../server/reviews/reviewer.functions";
 
@@ -30,4 +31,6 @@ export const reviewerData = (assignmentId: string, workspaceSlug?: string): Revi
   respond: (data) => respondToReview({ data }),
   save: (data) => saveReviewerDraft({ data }),
   submit: (data) => submitReviewerAssessment({ data }),
+  readDocument: ({ role, version }) =>
+    readReviewerDocumentFile({ data: { assignmentId, workspaceSlug, role, version } }),
 });

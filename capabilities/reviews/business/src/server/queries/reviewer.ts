@@ -1,5 +1,9 @@
 import { encodeApplicationMaterial } from "@merit/applications/api";
-import { materialVersionSchema } from "@merit/applications/domain";
+import {
+  encodeBase64,
+  materialVersionSchema,
+  type SourceDocumentRole,
+} from "@merit/applications/domain";
 import { readAuditHistory } from "@merit/audit/server/read";
 import type { Actor } from "@merit/auth";
 import { readTransaction, type Database } from "@merit/db";
@@ -19,6 +23,8 @@ import {
   listManagerReviewerRecords,
   readPrivateReviewerDraft,
   readReviewerEvidence,
+  readAssignedDocumentFile,
+  readAssignedDocuments,
   readReviewerAssessment,
   type ReviewerRecord,
 } from "../persistence/reviewer-records";
@@ -108,6 +114,7 @@ export const readReviewerAssignment = (
         value: {
           assignment,
           material: null,
+          documents: null,
           criteria: null,
           draft: null,
           assessment: null,
@@ -121,6 +128,7 @@ export const readReviewerAssignment = (
       value: {
         assignment,
         material: encodeApplicationMaterial(evidence.material),
+        documents: evidence.documents,
         criteria: evidence.criteria,
         draft: draft ? { revision: draft.revision, content: draft.content } : null,
         assessment: await readReviewerAssessment(tx, record),
@@ -170,5 +178,73 @@ export const managerReviewerHistory = (
           note: typeof event.details.note === "string" ? event.details.note : "",
         })),
       },
+    };
+  });
+
+const assignedReviewer = async (
+  db: Database,
+  actor: Actor,
+  assignmentId: string,
+  workspaceSlug?: string,
+) => {
+  const record = await readReviewerRecord(db, assignmentId);
+  if (
+    !record ||
+    (workspaceSlug !== undefined && record.slug !== workspaceSlug) ||
+    !(await activeReviewer(db, actor.userId)) ||
+    !reviewerOwns(record, actor.userId) ||
+    !(await reviewerIdentityCurrent(db, assignmentId, actor.userId)) ||
+    !(await permittedReviewerWork(db, assignmentId, actor.userId))
+  ) {
+    return null;
+  }
+  return record;
+};
+
+export const listReviewerDocuments = (
+  db: Database,
+  actor: Actor,
+  input: { assignmentId: string; workspaceSlug?: string },
+): ReturnType<ReviewerService["listDocuments"]> =>
+  readTransaction(db, async (tx) => {
+    const record = await assignedReviewer(tx, actor, input.assignmentId, input.workspaceSlug);
+    if (!record) {
+      return { status: "not_found" };
+    }
+    return { status: "ok", documents: await readAssignedDocuments(tx, record) };
+  });
+
+export const readReviewerDocumentFile = (
+  db: Database,
+  actor: Actor,
+  input: {
+    assignmentId: string;
+    workspaceSlug?: string;
+    role: SourceDocumentRole;
+    version: number;
+  },
+): ReturnType<ReviewerService["readDocumentFile"]> =>
+  readTransaction(db, async (tx) => {
+    const record = await assignedReviewer(tx, actor, input.assignmentId, input.workspaceSlug);
+    if (!record) {
+      return { status: "not_found" };
+    }
+    const file = await readAssignedDocumentFile(
+      tx,
+      record.assignment.caseId,
+      input.role,
+      input.version,
+    );
+    if (!file) {
+      return { status: "invalid", error: "version_not_found" };
+    }
+    return {
+      status: "ok",
+      role: input.role,
+      version: input.version,
+      filename: file.filename,
+      pageCount: file.pageCount,
+      byteSize: file.byteSize,
+      contentBase64: encodeBase64(file.content),
     };
   });

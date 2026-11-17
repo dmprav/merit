@@ -41,6 +41,7 @@ const entry = (index: number, overrides: Partial<ActivityEntry> = {}): ActivityE
       applicationId: record.kind === "application" ? record.id : null,
     },
     reason: null,
+    documentRole: null,
     record,
     ...overrides,
   };

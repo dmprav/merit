@@ -1,5 +1,6 @@
 import { assert, afterEach, expect, it, vi } from "vite-plus/test";
 
+import { emptyApplicationDocuments } from "@merit/applications/domain";
 import { encodeApplicationDetail } from "@merit/grantmaking/api";
 import { roundView } from "@merit/grantmaking/api";
 import { makeApplication, makeRound } from "@merit/grantmaking/testing/fixtures";
@@ -44,6 +45,7 @@ assert.isDefined(application);
 const page = {
   status: "ok" as const,
   ...encodeApplicationDetail({ round, application }),
+  documents: emptyApplicationDocuments(),
   recommendationVersion: 3,
   intake: { revision: 7, workingRevision: null, history: [] },
   workspaceSlug: "alder",

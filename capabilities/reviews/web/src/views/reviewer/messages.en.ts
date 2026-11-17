@@ -14,6 +14,7 @@ export const en = {
   invitedBy: "{{name}} has invited you to review this application.",
   assessment: "Your assessment",
   evidence: "Application material",
+  documents: "Documents",
   criteria: "Assessment criteria",
   invitationTask: "Review the application against the criteria and submit your funding judgment.",
   empty:

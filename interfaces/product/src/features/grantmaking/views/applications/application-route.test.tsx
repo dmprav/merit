@@ -11,6 +11,7 @@ import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { assert, afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
+import { emptyApplicationDocuments } from "@merit/applications/domain";
 import { ApplicationListViews } from "@merit/grantmaking-web/rounds";
 import { applicationOverviewForPreview } from "@merit/grantmaking-web/testing";
 import { encodeRoundPage, encodeApplicationDetail } from "@merit/grantmaking/api";
@@ -130,6 +131,7 @@ const applicationData = () => {
   return {
     status: "ok" as const,
     ...encodeApplicationDetail({ round, application }),
+    documents: emptyApplicationDocuments(),
     recommendationVersion: 0,
     intake: { revision: 0, workingRevision: null, history: [] },
     workspaceSlug: "alder",

@@ -1,6 +1,7 @@
 import {
   type ReviewerService,
   reviewerAddressSchema,
+  reviewerDocumentFileInput,
   reviewerHistoryInput,
   reviewerApplicationSchema,
   inviteReviewerSchema,
@@ -14,6 +15,11 @@ import { pageInput, pageItems } from "../../components/pagination";
 import type { RegisterTool } from "../../components/register-tool";
 import { readAnnotations, writeAnnotations } from "../../components/tool-options";
 import type { McpActor } from "../../contracts";
+import {
+  applicationDocumentFileSchema,
+  applicationDocumentsResultSchema,
+  documentReadErrorSchema,
+} from "../applications/responses";
 import {
   reviewerErrorSchema,
   reviewerSavedSchema,
@@ -62,12 +68,37 @@ const registerSelfReviewReads = (
       inputSchema: reviewerAddressSchema,
       outputSchema: reviewerPageSchema,
       description:
-        "Read your assignment, assigned evidence, criteria, private draft, and submitted versions. Evidence is unavailable until acceptance. Preserve assignment.revision and draft.revision for writes. Amounts in drafts and assessments are decimal EUR strings.",
+        "Read your assignment, assigned evidence, proposal and budget documents when that evidence is available, criteria, private draft, and submitted versions. Evidence and documents are unavailable until acceptance. Preserve assignment.revision and draft.revision for writes. Amounts in drafts and assessments are decimal EUR strings.",
     },
     async (input) => {
       const result = await reviewer.read(actor, input);
       return result.status === "ok" ? { status: "ok" as const, ...result.value } : result;
     },
+  );
+  const documents = { errorSchema: documentReadErrorSchema, annotations: readAnnotations };
+  register(
+    "list_reviewer_documents",
+    {
+      ...documents,
+      scope: "reviews:read",
+      inputSchema: reviewerAddressSchema,
+      outputSchema: applicationDocumentsResultSchema,
+      description:
+        "Read proposal and budget metadata for an assignment you can read. Unavailable until the assignment lets you read its material. Does not include the file bytes.",
+    },
+    (input) => reviewer.listDocuments(actor, input),
+  );
+  register(
+    "read_reviewer_document_file",
+    {
+      ...documents,
+      scope: "reviews:read",
+      inputSchema: reviewerDocumentFileInput,
+      outputSchema: applicationDocumentFileSchema,
+      description:
+        "Read one proposal or budget version for an assignment you can read, as base64. Reviewers cannot attach or cite documents.",
+    },
+    (input) => reviewer.readDocumentFile(actor, input),
   );
 };
 

@@ -58,6 +58,10 @@ export const activityMessages = {
       assessmentRecorded: "Assessment recorded",
       assessmentSubmitted: "Assessment submitted",
       recommendationSaved: "Recommendation saved",
+      attachedProposal: "Attached proposal",
+      attachedBudget: "Attached budget",
+      citedProposal: "Cited a proposal page",
+      citedBudget: "Cited a budget page",
     },
   },
 } as const;

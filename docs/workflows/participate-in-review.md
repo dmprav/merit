@@ -41,6 +41,8 @@ is visible to managers. Sender acceptance does not prove delivery to the inbox.
 ## Read, draft, and submit
 
 The application material and criteria are pinned to the request's original versions.
+A reviewer who can read that material can also open the proposal and budget PDFs
+and a specific page of a version. Reviewers cannot attach a file or cite a page.
 Changed application versions and different criteria content are flagged using the
 shared [review freshness policy](review-applications.md#review-basis-and-freshness-policy),
 without replacing the assigned evidence. A later criteria version with matching
