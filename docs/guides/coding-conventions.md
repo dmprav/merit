@@ -69,7 +69,8 @@ focused hooks and helpers even where that file-based allowance applies.
 Blank lines and comment-only lines do not count;
 nested functions and JSX remain part of their enclosing function's length.
 Immediately invoked functions are checked too. Generated code, tests, stories,
-fixtures, mocks, and repository tooling (`tooling/`) are excluded from this size rule.
+fixtures, mocks, and repository tooling (`tooling/`) are excluded from this size
+rule.
 
 Run `vp run check:code` to enforce the limit. Extract meaningful responsibilities
 into local helpers, components, or hooks while preserving state lifetimes, failure
@@ -90,8 +91,8 @@ extract a meaningful responsibility, simplify repeated decisions, or flatten
 control flow while preserving the behavior and its verification.
 
 The [Fallow configuration](../../.fallowrc.jsonc) owns these limits. Generated
-code, tests, stories, fixtures, mocks, and repository tooling (`tooling/`) are excluded from
-this production check; their existing lint and test requirements still apply.
+code, tests, stories, fixtures, mocks, and repository tooling (`tooling/`) are
+excluded from this production check; their existing lint and test requirements still apply.
 Function length, file length, parameter count, and coverage-derived risk scores
 do not determine whether this check passes.
 

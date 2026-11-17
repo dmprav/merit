@@ -39,10 +39,11 @@ All existing suites and coverage thresholds remain part of full verification.
 For a full run, start PostgreSQL and Mailpit (`docker compose up -d --wait`).
 `vp run ready` checks documentation links and their regression
 tests, builds the application, and checks formatting, TypeScript and CSS lint,
-React Compiler diagnostics, independent capability types, dependency boundaries, unused code, and production
-function complexity. It also runs tests (including core coverage checks and all Storybook stories), checks migration
-metadata, scans for secrets and dependency advisories, and verifies representative
-browser flows. Install the browsers once with
+React Compiler diagnostics, independent capability types, dependency boundaries,
+unused code, and production function complexity. It also runs tests (including
+core coverage checks and all Storybook stories), checks migration metadata,
+scans for secrets and dependency advisories, and verifies representative browser
+flows. Install the browsers once with
 `pnpm --filter @merit/test-support exec playwright install chromium firefox webkit`.
 
 Every check in a full run is required, and any failed task makes `ready` fail.
