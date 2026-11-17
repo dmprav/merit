@@ -141,15 +141,15 @@ the save operation still checks their eligibility.
 
 ## Edit and recover
 
-| Work              | Tools                                                                                                                                                                   |
-| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Prepare rounds    | `create_funding_round`, `edit_funding_round`, `delete_funding_round`                                                                                                    |
+| Work              | Tools                                                                                                                                                                                                                                                                                                    |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Prepare rounds    | `create_funding_round`, `edit_funding_round`, `delete_funding_round`                                                                                                                                                                                                                                     |
 | Record intake     | `create_application`, `edit_application`, `select_application_contact`, `mark_application_ready`, `withdraw_application`, `reinstate_application`, `delete_application`, `list_application_documents`, `attach_application_document`, `cite_application_document_page`, `read_application_document_file` |
-| Revise intake     | `start_application_revision`, `save_application_revision`, `publish_application_revision`, `discard_application_revision`                                               |
-| Review            | `request_review`, `cancel_review_request`, `record_assessment`, `correct_assessment`                                                                                    |
-| Recommend         | `save_recommendation`                                                                                                                                                   |
-| Maintain contacts | `create_contact`, `update_contact`, `archive_contact`, `restore_contact`                                                                                                |
-| Manage a team     | `invite_member`, `resend_member_invitation`, `revoke_member_invitation`, `change_member`, `remove_member`                                                               |
+| Revise intake     | `start_application_revision`, `save_application_revision`, `publish_application_revision`, `discard_application_revision`                                                                                                                                                                                |
+| Review            | `request_review`, `cancel_review_request`, `record_assessment`, `correct_assessment`                                                                                                                                                                                                                     |
+| Recommend         | `save_recommendation`                                                                                                                                                                                                                                                                                    |
+| Maintain contacts | `create_contact`, `update_contact`, `archive_contact`, `restore_contact`                                                                                                                                                                                                                                 |
+| Manage a team     | `invite_member`, `resend_member_invitation`, `revoke_member_invitation`, `change_member`, `remove_member`                                                                                                                                                                                                |
 
 Read before editing. Preserve the original preconditions until the save succeeds:
 
@@ -157,7 +157,7 @@ Read before editing. Preserve the original preconditions until the save succeeds
 | --------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
 | Round edit or deletion                                    | `expectedPreparationRevision` from `round.preparationRevision`                            |
 | Intake, revisions, readiness, deletion, contact selection | `expectedIntakeRevision` from `application.intakeRevision`                                |
-| Attach a proposal or budget PDF                          | `expectedVersion`: 0 when that slot is empty, otherwise its current version               |
+| Attach a proposal or budget PDF                           | `expectedVersion`: 0 when that slot is empty, otherwise its current version               |
 | Recommendation                                            | `expectedRecommendationRevision` and `expectedApplicationVersion`                         |
 | Review request or assessment                              | `expectedReviewRevision`, `expectedApplicationVersion`, `expectedCriteriaVersion`         |
 | Contact edit, archive or restore                          | `expectedContactRevision` from the contact's `contactRevision`                            |
