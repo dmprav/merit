@@ -1,3 +1,5 @@
+import { isDeepStrictEqual } from "node:util";
+
 import { expect, it, vi } from "vite-plus/test";
 
 import { loadContactApplications } from "./contacts.server";
@@ -11,14 +13,15 @@ const input = {
 
 it("reads the selected contact page as the authenticated actor", async () => {
   const page = { status: "ok" as const, applications: [], nextCursor: null };
-  const listContactApplications = vi.fn(async () => page);
   expect(
     await loadContactApplications(input, {
       currentIdentity: async () => ({ status: "authenticated", actor: { userId: "manager" } }),
-      listContactApplications,
+      listContactApplications: async (actor, request) =>
+        actor.userId === "manager" && isDeepStrictEqual(request, input)
+          ? page
+          : { status: "not_found" },
     }),
   ).toEqual(page);
-  expect(listContactApplications).toHaveBeenCalledWith({ userId: "manager" }, input);
 });
 
 it.each(["signed_out", "unavailable"] as const)(

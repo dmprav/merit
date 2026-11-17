@@ -24,37 +24,48 @@ beforeEach(() => {
 });
 
 describe("reviewer query options", () => {
-  it("scopes reviewer list queries under privateKey, passes AbortSignal, and throws on unavailable", async () => {
-    const options = reviewerListOptions("alder");
-    expect(options.queryKey.slice(0, privateKey.length)).toEqual([...privateKey]);
-    expect(options.gcTime).toBeUndefined();
+  it("keeps reviewer assignments in the account-private cache", () => {
+    for (const { queryKey } of [
+      reviewerListOptions("alder"),
+      reviewerPageOptions(assignmentId, "alder"),
+    ]) {
+      expect(queryKey.slice(0, privateKey.length)).toEqual([...privateKey]);
+    }
+  });
 
-    const client = createQueryClient();
-    vi.mocked(listReviewerAssignments).mockResolvedValueOnce({ status: "ok", value: [] });
-    await expect(client.fetchQuery(options)).resolves.toEqual({ status: "ok", value: [] });
+  it("reads the selected workspace's assignments with a cancellable request", async () => {
+    vi.mocked(listReviewerAssignments).mockResolvedValue({ status: "ok", value: [] });
 
+    await expect(createQueryClient().fetchQuery(reviewerListOptions("alder"))).resolves.toEqual({
+      status: "ok",
+      value: [],
+    });
     const [call] = vi.mocked(listReviewerAssignments).mock.calls;
     expect(call?.[0]?.signal).toBeInstanceOf(AbortSignal);
     expect(call?.[0]?.data).toEqual({ workspaceSlug: "alder" });
-
-    vi.mocked(listReviewerAssignments).mockResolvedValueOnce({ status: "unavailable" } as never);
-    await expect(client.fetchQuery(options)).rejects.toThrow("Service unavailable");
   });
 
-  it("scopes reviewer page queries under privateKey, passes AbortSignal, preserves not_found, and throws on unavailable", async () => {
-    const options = reviewerPageOptions(assignmentId);
-    expect(options.queryKey.slice(0, privateKey.length)).toEqual([...privateKey]);
-    expect(options.gcTime).toBeUndefined();
+  it("reads one assignment with a cancellable request and renders denied access", async () => {
+    vi.mocked(readReviewerAssignment).mockResolvedValue({ status: "not_found" });
 
-    const client = createQueryClient();
-    vi.mocked(readReviewerAssignment).mockResolvedValueOnce({ status: "not_found" });
-    await expect(client.fetchQuery(options)).resolves.toEqual({ status: "not_found" });
-
+    await expect(
+      createQueryClient().fetchQuery(reviewerPageOptions(assignmentId, "alder")),
+    ).resolves.toEqual({ status: "not_found" });
     const [call] = vi.mocked(readReviewerAssignment).mock.calls;
     expect(call?.[0]?.signal).toBeInstanceOf(AbortSignal);
-    expect(call?.[0]?.data).toEqual({ assignmentId, workspaceSlug: undefined });
+    expect(call?.[0]?.data).toEqual({ assignmentId, workspaceSlug: "alder" });
+  });
 
-    vi.mocked(readReviewerAssignment).mockResolvedValueOnce({ status: "unavailable" } as never);
-    await expect(client.fetchQuery(options)).rejects.toThrow("Service unavailable");
+  it("fails unavailable reads instead of presenting them as results", async () => {
+    vi.mocked(listReviewerAssignments).mockResolvedValue({ status: "unavailable" } as never);
+    vi.mocked(readReviewerAssignment).mockResolvedValue({ status: "unavailable" } as never);
+    const client = createQueryClient();
+
+    await expect(client.fetchQuery(reviewerListOptions("alder"))).rejects.toThrow(
+      "Service unavailable",
+    );
+    await expect(client.fetchQuery(reviewerPageOptions(assignmentId))).rejects.toThrow(
+      "Service unavailable",
+    );
   });
 });

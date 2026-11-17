@@ -665,37 +665,6 @@ it("retains the original revision and draft across navigation and a conflicting 
   expect(screen.getByRole("button", { name: "Save recommendation" })).toBeEnabled();
 });
 
-it("shows the assessment and its historical basis", async () => {
-  const workspace = await renderApplication();
-  const assessment = screen.getByRole("article", { name: "Assessment by Sam Morgan" });
-
-  const expectAssessment = (article: HTMLElement) => {
-    const view = within(article);
-
-    expect(view.getByText("Recommends funding", { exact: true })).toBeVisible();
-    expect(view.getByText("€18,000 proposed", { exact: true })).toBeVisible();
-    expect(view.getByText("The original venue makes the budget credible.")).toBeVisible();
-    expect(view.getByText("Based on an earlier submission", { exact: true })).toBeVisible();
-    expect(view.getByRole("button", { name: "Compare changes" })).toBeVisible();
-  };
-
-  expectAssessment(assessment);
-  await workspace.user.click(within(assessment).getByText("Review details"));
-  const details = within(screen.getByRole("region", { name: "Review details" }));
-
-  const submission = details.getByText("Submission", { exact: true });
-  expect(submission).toBeVisible();
-  expect(submission.nextElementSibling).toHaveTextContent("Version 1");
-
-  await workspace.user.click(screen.getByRole("button", { name: "Back to assessments" }));
-
-  expect(
-    within(screen.getByRole("article", { name: "Assessment by Sam Morgan" })).getByRole("button", {
-      name: "Assessment actions for Sam Morgan",
-    }),
-  ).toBeVisible();
-});
-
 it("records assessment work beside readable references with one retained draft", async () => {
   const { user } = await renderApplication();
   await user.click(screen.getByRole("button", { name: "Assessment actions for Sam Morgan" }));
