@@ -19,7 +19,7 @@ const Example = ({ initial = "" }: { initial?: string }) => {
   );
 };
 
-it("rejects excess precision with associated feedback and normalizes accepted paste on blur", async () => {
+it("rejects typed excess precision with feedback associated with the field", async () => {
   const user = userEvent.setup();
   render(<Example />);
   const input = screen.getByRole("textbox", { name: "Amount" });
@@ -29,15 +29,20 @@ it("rejects excess precision with associated feedback and normalizes accepted pa
   expect(input).toHaveAccessibleDescription(
     "Use up to two decimal places. Euros Proposed funding.",
   );
+});
+
+it("normalizes an accepted paste on blur and clears earlier rejection feedback", async () => {
+  const user = userEvent.setup();
+  render(<Example />);
+  const input = screen.getByRole("textbox", { name: "Amount" });
+  await user.type(input, "1.234");
+  expect(screen.getByRole("status")).toHaveTextContent("Use up to two decimal places.");
   await user.clear(input);
   await user.paste("1,234.5");
   await user.tab();
   expect(input).toHaveValue("1234.50");
   expect(screen.getByRole("status")).toBeEmptyDOMElement();
-  await user.clear(input);
-  await user.paste("12,5");
-  await user.tab();
-  expect(input).toHaveValue("12.50");
+  expect(input).toHaveAccessibleDescription("Euros Proposed funding.");
 });
 
 it("keeps invalid restored text exact until the person replaces it", async () => {

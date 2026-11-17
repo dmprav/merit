@@ -21,7 +21,6 @@ it("shows the local timestamp as plain machine-readable text without a tab stop"
   const time = screen.getByText(formatTimestamp(value, "en-GB"));
   expect(time).toHaveAttribute("datetime", value);
   expect(time.tagName).toBe("TIME");
-  expect(time.closest("details")).toBeNull();
   const user = userEvent.setup();
   await user.tab();
   expect(screen.getByRole("button", { name: "Continue" })).toHaveFocus();

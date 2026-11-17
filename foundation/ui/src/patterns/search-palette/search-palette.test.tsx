@@ -1,11 +1,13 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
-import { describe, expect, expectTypeOf, it, vi } from "vite-plus/test";
+import { beforeEach, describe, expect, expectTypeOf, it, vi } from "vite-plus/test";
 
 import { SearchPalette, type SearchPaletteGroup } from "./search-palette";
 
 const open = vi.fn();
+
+beforeEach(() => open.mockClear());
 
 const item = (id: string, title: string, detail?: string, label?: string) => ({
   id,
@@ -112,7 +114,6 @@ describe("search palette", () => {
   });
 
   it("highlights the top match when settled results arrive, so Enter opens it", async () => {
-    open.mockClear();
     const user = userEvent.setup();
     const view = render(<Palette groups={[]} message="Search." />);
     const field = screen.getByRole("searchbox");
@@ -127,7 +128,6 @@ describe("search palette", () => {
   });
 
   it("highlights nothing, and Enter does nothing, while newer results load", async () => {
-    open.mockClear();
     const user = userEvent.setup();
     const view = render(<Palette groups={groups} resultsId={1} />);
     const field = screen.getByRole("searchbox");
@@ -141,7 +141,6 @@ describe("search palette", () => {
   });
 
   it("returns the highlight to the top match when a new result set arrives", async () => {
-    open.mockClear();
     const user = userEvent.setup();
     const view = render(<Palette groups={groups} resultsId={1} />);
     const field = screen.getByRole("searchbox");
@@ -177,7 +176,6 @@ describe("search palette", () => {
   });
 
   it("opens the highlighted row on Enter and a clicked row on click, passing modifiers through", async () => {
-    open.mockClear();
     const user = userEvent.setup();
     render(<Palette />);
     await user.click(screen.getByRole("searchbox"));

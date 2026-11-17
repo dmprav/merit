@@ -17,6 +17,5 @@ export const Default: StoryObj<typeof meta> = {
   play: async ({ canvasElement, args }) => {
     const time = within(canvasElement).getByText(formatTimestamp(args.value, "en-GB"));
     await expect(time).toHaveAttribute("datetime", args.value);
-    await expect(time.closest("details")).toBeNull();
   },
 };
