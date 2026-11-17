@@ -238,7 +238,9 @@ const referenceAttributes = (
   label: string,
   sourceDocumentsLabel: string,
 ): { role?: "region"; "aria-label"?: string } => {
-  if (key === "reviews" || key === "history") return {};
+  if (key === "reviews" || key === "history") {
+    return {};
+  }
   return {
     role: "region",
     "aria-label": key === "documents" ? sourceDocumentsLabel : label,
