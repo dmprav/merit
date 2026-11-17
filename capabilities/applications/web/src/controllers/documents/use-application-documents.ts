@@ -10,7 +10,7 @@ import { decodeBase64, encodeBase64 } from "@merit/applications/domain";
 
 import type { ApplicationDocumentSession } from "../../contracts/documents";
 
-export type DocumentReader = {
+type DocumentReader = {
   role: SourceDocumentRole;
   version: number;
   page: number;
