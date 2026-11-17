@@ -17,7 +17,6 @@ export type DocumentReader = {
   filename: string;
   pageCount: number;
   url: string;
-  openerId: string;
 };
 
 type InitialReader = {
@@ -101,9 +100,16 @@ const attachDocument = async ({
   }
   setNotice(null);
   setPendingRole(role);
-  let result: Awaited<ReturnType<NonNullable<ApplicationDocumentSession["attach"]>>> | undefined;
+  let bytes: Uint8Array;
   try {
-    const bytes = new Uint8Array(await file.arrayBuffer());
+    bytes = new Uint8Array(await file.arrayBuffer());
+  } catch {
+    setPendingRole(null);
+    setNotice(t("unreadable"));
+    return;
+  }
+  let result: Awaited<ReturnType<NonNullable<ApplicationDocumentSession["attach"]>>>;
+  try {
     result = await session.attach({
       role,
       filename: file.name,
@@ -111,14 +117,14 @@ const attachDocument = async ({
       expectedVersion: documents[role].currentVersion ?? 0,
     });
   } catch {
-    setNotice(t("unreadable"));
+    setPendingRole(null);
+    setNotice(t("attachFailed"));
+    return;
   }
   setPendingRole(null);
-  if (!result || result.status === "ok") {
-    if (result?.status === "ok") {
-      setDocuments(result.documents);
-      await refreshDocuments(session);
-    }
+  if (result.status === "ok") {
+    setDocuments(result.documents);
+    await refreshDocuments(session);
     return;
   }
   if (result.status === "conflict") {
@@ -131,7 +137,6 @@ const openDocument = async ({
   role,
   version,
   page,
-  openerId,
   session,
   t,
   setNotice,
@@ -140,7 +145,6 @@ const openDocument = async ({
   role: SourceDocumentRole;
   version: number;
   page: number;
-  openerId: string;
   session: ApplicationDocumentSession;
   t: Translate;
   setNotice: (notice: string | null) => void;
@@ -165,7 +169,6 @@ const openDocument = async ({
       filename: result.filename,
       pageCount: result.pageCount,
       url: blobUrl(bytes),
-      openerId,
     });
     return true;
   } catch {
@@ -211,7 +214,6 @@ const readerFrom = (initial: InitialReader): DocumentReader => ({
   filename: initial.filename,
   pageCount: initial.pageCount,
   url: blobUrl(initial.bytes),
-  openerId: `view-${initial.role}-${initial.version}`,
 });
 
 const changePage = (reader: DocumentReader | null, value: string) => {
@@ -276,8 +278,8 @@ export const useApplicationDocuments = ({
         setPendingRole,
       });
     },
-    openReader: (role: SourceDocumentRole, version: number, page: number, openerId: string) =>
-      openDocument({ role, version, page, openerId, session, t, setNotice, setReader }),
+    openReader: (role: SourceDocumentRole, version: number, page: number) =>
+      openDocument({ role, version, page, session, t, setNotice, setReader }),
     closeReader: () => setReader(null),
     setPage: (value: string) => setReader(changePage(reader, value)),
     cite: (note: string) => citeDocument({ note, reader, session, t, setDocuments }),

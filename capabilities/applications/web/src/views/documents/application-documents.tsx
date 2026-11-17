@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { z } from "zod";
 
@@ -99,7 +99,7 @@ const EarlierVersions = ({
     return null;
   }
   return (
-    <div>
+    <div className={styles.earlier}>
       <h4>{t("earlier")}</h4>
       <ul>
         {versions.map((version) => (
@@ -259,6 +259,56 @@ const ReferDialog = ({
   );
 };
 
+const PageField = ({
+  page,
+  pageCount,
+  onPage,
+}: {
+  page: number;
+  pageCount: number;
+  onPage: (value: string) => void;
+}) => {
+  const { t } = useTranslation("applicationDocuments");
+  const [draft, setDraft] = useState<string | null>(null);
+  useEffect(() => {
+    setDraft(null);
+  }, [page]);
+
+  const edit = (value: string) => {
+    if (!/^\d*$/.test(value)) {
+      return;
+    }
+    const parsed = Number(value);
+    if (value !== "" && Number.isInteger(parsed) && parsed >= 1 && parsed <= pageCount) {
+      setDraft(null);
+      onPage(value);
+      return;
+    }
+    setDraft(value);
+  };
+
+  return (
+    <TextField
+      className={styles.pageField}
+      label={t("page")}
+      value={draft ?? String(page)}
+      onChange={edit}
+      onBlur={() => {
+        const parsed = Number(draft);
+        const valid =
+          draft !== null &&
+          draft !== "" &&
+          Number.isInteger(parsed) &&
+          parsed >= 1 &&
+          parsed <= pageCount;
+        if (!valid) {
+          setDraft(null);
+        }
+      }}
+    />
+  );
+};
+
 const ReaderView = ({ model, canWrite }: { model: DocumentsModel; canWrite: boolean }) => {
   const { t } = useTranslation("applicationDocuments");
   const reader = model.reader!;
@@ -267,12 +317,7 @@ const ReaderView = ({ model, canWrite }: { model: DocumentsModel; canWrite: bool
   return (
     <>
       <div className={styles.pageControl}>
-        <TextField
-          className={styles.pageField}
-          label={t("page")}
-          value={String(reader.page)}
-          onChange={model.setPage}
-        />
+        <PageField page={reader.page} pageCount={reader.pageCount} onPage={model.setPage} />
         <Button
           variant="quiet"
           alignment="start"
@@ -306,14 +351,7 @@ const ReaderView = ({ model, canWrite }: { model: DocumentsModel; canWrite: bool
       <CitationList
         citations={model.documents[reader.role].citations}
         kind={kind}
-        onOpen={(citation) =>
-          void model.openReader(
-            citation.role,
-            citation.version,
-            citation.page,
-            `view-page-${citation.id}`,
-          )
-        }
+        onOpen={(citation) => void model.openReader(citation.role, citation.version, citation.page)}
       />
       {canWrite && (
         <ReferDialog
@@ -342,7 +380,7 @@ const openListedDocument = async (
   openerId: string,
 ) => {
   const fromList = model.reader === null;
-  const opened = await model.openReader(role, version, page, openerId);
+  const opened = await model.openReader(role, version, page);
   if (opened && fromList) {
     open(true, () => document.getElementById(openerId));
   }

@@ -185,6 +185,20 @@ const ApplicationSession = ({ initial }: { initial: Page }) => {
       round={context}
       intake={session}
       intakeState={page.intake}
+      documents={page.documents}
+      documentSession={{
+        attach: async () => ({ status: "ok", version: 1, documents: page.documents }),
+        cite: async () => ({
+          status: "ok",
+          citationId: "citation",
+          documents: page.documents,
+        }),
+        readFile: async () => ({ status: "not_found" }),
+        refresh: () =>
+          client.invalidateQueries({
+            queryKey: applicationOptions("alder", publicId).queryKey,
+          }),
+      }}
     />
   );
 };

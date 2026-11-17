@@ -175,6 +175,46 @@ it("revokes the previous blob address when the reader bytes change", async () =>
   expect(revoke).toHaveBeenCalledWith("blob:first");
 });
 
+it("keeps an empty or partial page while it is edited and restores it on blur", async () => {
+  const readFile = vi.fn(async () => ({
+    status: "ok" as const,
+    role: "proposal" as const,
+    version: 2,
+    filename: "Community-meals-proposal.pdf",
+    pageCount: 12,
+    byteSize: 5,
+    contentBase64: encodeBase64(new TextEncoder().encode("%PDF-")),
+  }));
+  const { user } = show(documents(), { session: session({ readFile }) });
+  await user.click(screen.getByRole("button", { name: "View Proposal version 2" }));
+  const page = await screen.findByRole("textbox", { name: "Page" });
+  await user.clear(page);
+  expect(page).toHaveValue("");
+  expect(screen.getByTitle("Proposal version 2, page 1")).toBeVisible();
+  await user.type(page, "6");
+  expect(page).toHaveValue("6");
+  expect(screen.getByTitle("Proposal version 2, page 6")).toBeVisible();
+  await user.type(page, "0");
+  expect(page).toHaveValue("60");
+  expect(screen.getByTitle("Proposal version 2, page 6")).toBeVisible();
+  await user.tab();
+  expect(screen.getByRole("textbox", { name: "Page" })).toHaveValue("6");
+});
+
+it("says the PDF could not be attached when saving throws", async () => {
+  const attach = vi.fn(async () => {
+    throw new Error("offline");
+  });
+  const { user } = show(undefined, { session: session({ attach }) });
+  await user.upload(
+    screen.getByLabelText("Proposal PDF"),
+    new File(["%PDF-"], "notes.pdf", { type: "application/pdf" }),
+  );
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "This PDF could not be attached. Try again.",
+  );
+});
+
 it("starts a citation view on that page and shows a saved reference without a toast", async () => {
   const value = documents();
   const saved = documents();

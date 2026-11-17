@@ -373,6 +373,25 @@ it("keeps page references inside the cited version and rolls back when the audit
       )
     ).rows,
   ).toEqual([{ current_version: 1 }]);
+
+  await expect(
+    withAuditFailure(database.client, () =>
+      citeApplicationDocumentPage(db, actor, {
+        ...address,
+        role: "budget",
+        version: 1,
+        page: 1,
+        note: "Another page",
+      }),
+    ),
+  ).rejects.toMatchObject({ cause: { message: "Audit recording failed" } });
+  expect(
+    (
+      await database.client.query<{ count: string }>(
+        "SELECT count(*) FROM source_document_citations",
+      )
+    ).rows[0]?.count,
+  ).toBe("1");
 });
 
 it("hides documents from another organization, keeps them readable after withdrawal, and deletes them with the case", async ({
