@@ -42,8 +42,9 @@ establish which records those sequences belong to.
 
 `/api` is browser-safe. `/server` exports the manager and reviewer service factories
 and authorized operations. Approved composition reads use `/schema`, `/scope`,
-`/participation-schema`, and `/readers`. `/server/demo` exposes review and assignment persistence only for
-trusted example seeding. Reviews reads application material and round criteria
+`/participation-schema`, and `/readers`. `/server/integrations` exposes the
+collaborators that end review work on membership revocation and application withdrawal;
+`/server/demo` exposes review and assignment persistence only for trusted example seeding. Reviews reads application material and round criteria
 through owner exports and has no dependency on recommendation implementation.
 
 The [web package](../web/package.json) owns manager review editing and reviewer

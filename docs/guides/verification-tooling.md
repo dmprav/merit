@@ -45,9 +45,10 @@ together. Tooling regression tests use disposable fixtures and run
 alongside them. Package tests run without dependency ordering, with at most two
 packages concurrently so worker pools do not saturate shared runners; they consume
 workspace source rather than each other's outputs. In CI, the
-[PR verification workflow](../../.github/workflows/verify.yml) fans out static checks,
-package tests, database integration, tooling self-tests, and sharded browser suites
-after a shared `build` job, while `test:ci` verifies that every `ready` stage and
+[PR verification workflow](../../.github/workflows/verify.yml) runs static checks,
+package tests, database integration, and sharded browser suites after a shared
+`build` job, with tooling self-tests, Storybook Vitest, and security checks alongside
+it, while `test:ci` verifies that every `ready` stage and
 workflow invariant remains covered. `ci:summary` ([`ci-summary.ts`](../../tooling/verification/ci-summary.ts))
 publishes structured Playwright and Vitest step summaries on CI without adding retries.
 Database and browser checks start after package tests locally to limit competing workers.

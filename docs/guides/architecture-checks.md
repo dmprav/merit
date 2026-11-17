@@ -94,8 +94,8 @@ Contacts, Rounds, and Applications have server-only `grant-work.ts` contracts su
 by application assembly. Handlers and service assembly can use these contracts;
 command persistence can pass its transaction to a collaborator. Contracts may depend
 on their own domain types, but cannot import persistence or handlers. Their callbacks
-check downstream usage under the caller’s held locks,
-without introducing reverse package dependencies.
+check downstream usage or apply downstream lifecycle effects under the caller’s
+held locks and transaction, without introducing reverse package dependencies.
 
 Organizations has narrow server support modules for injected dependencies, operator
 authorization, result handling, and token hashing. Commands, queries, and assembly
@@ -112,8 +112,8 @@ depend on these privileged entries or the server assembly.
 `serverImports` declares permitted server imports between capabilities and from
 application assembly by consumer role, public entry pattern, and resolved provider
 role (`business-assembly`, `business-demo`, `business-shared-persistence`,
-`business-command-persistence`, `business-grant-work`, `business-integrations`,
-and `business-reading`). All three must match, a leaf rule keeps `audit` isolated
+`business-command-persistence`, `business-query-persistence`, `business-grant-work`,
+`business-integrations`, and `business-reading`). All three must match, a leaf rule keeps `audit` isolated
 from all foreign business packages (current and newly added), and
 `upstreamDisallowedTargets` keeps upstream and sibling capabilities independent of
 downstream capabilities outside composition tests (`tests/` and `testing/`). The
@@ -123,14 +123,15 @@ structured packages. Browser-safe dependencies retain their existing rules.
 
 Current integrations have distinct responsibilities:
 
-| Consumer                            | Permitted integration                                                                                               |
-| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| Applications and Reviews commands   | Contact lookup through `@merit/contacts/scope`.                                                                     |
-| Capability commands                 | Organization locks through `@merit/organizations/locks` (and downstream grant-work locks).                          |
-| Approved persistence roles          | Shared schemas and scopes through `./schema` and `./scope`; shared policy bindings may use `@merit/access/scope`.   |
-| Grantmaking's contact-usage adapter | The type-only `@merit/contacts/server/grant-work` interface, implemented for injection by application assembly.     |
-| Grantmaking demo seeding            | Grant-work and contact demo seeding through `@merit/*/server/demo`, excluding `organizations/server/demo`.          |
-| Audit recording and history         | Write-owning commands record through `@merit/audit/server/record`; queries read through `@merit/audit/server/read`. |
+| Consumer                               | Permitted integration                                                                                               |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Applications and Reviews commands      | Contact lookup through `@merit/contacts/scope`.                                                                     |
+| Capability commands                    | Organization locks through `@merit/organizations/locks` (and downstream grant-work locks).                          |
+| Approved persistence roles             | Shared schemas and scopes through `./schema` and `./scope`; shared policy bindings may use `@merit/access/scope`.   |
+| Grantmaking's contact-usage adapter    | The type-only `@merit/contacts/server/grant-work` interface, implemented for injection by application assembly.     |
+| Grantmaking's application-work adapter | Withdrawal review closure through `@merit/reviews/server/integrations`, in the caller's transaction.                |
+| Grantmaking demo seeding               | Grant-work and contact demo seeding through `@merit/*/server/demo`, excluding `organizations/server/demo`.          |
+| Audit recording and history            | Write-owning commands record through `@merit/audit/server/record`; queries read through `@merit/audit/server/read`. |
 
 Organizations, Contacts, Applications, Rounds, Reviews, and Recommendations record
 audit events from their commands in the existing transaction. Grantmaking, Contacts,
@@ -144,7 +145,8 @@ Applications nor Rounds can import review or recommendation implementation. Revi
 and Recommendations remain independent of each other. Grantmaking composition reads
 all four through owned schema, scope, readers, history, and encoding exports. Its
 command persistence uses Applications’ type-only `@merit/applications/server/grant-work`
-contract, while application assembly wires `@merit/applications/server/integrations`
+contract and closes reviews on withdrawal through `@merit/reviews/server/integrations`,
+while application assembly wires `@merit/applications/server/integrations`
 and `@merit/grantmaking/server/integrations` to connect the grant-work lifecycle
 checks. The architecture fixtures check these allowed and rejected directions.
 
