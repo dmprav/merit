@@ -199,26 +199,11 @@ const ApplicationHeader = ({ application, content, navigation }: ApplicationLayo
 
 const ApplicationReferencePane = ({
   labels,
-  application,
-  content,
   state,
-  history,
-  intake,
-  review,
-  documents,
-  documentSession,
-  readOnly = false,
+  ...layout
 }: ApplicationLayoutProps & { labels: Record<ApplicationReference, string> }) => {
   const { t } = useTranslation(["fundingRounds", "reviews"]);
-  const {
-    reference,
-    referenceViewport,
-    referenceMenu,
-    changeReference,
-    historyHeading,
-    historyFrom,
-    historyVisit,
-  } = state;
+  const { reference, referenceViewport, referenceMenu, changeReference } = state;
   return (
     <ReferencePane
       label={t("workspace.reference")}
@@ -234,64 +219,128 @@ const ApplicationReferencePane = ({
         />
       }
     >
-      {Object.keys(labels).map((key) => (
-        <div
-          key={key}
-          role={key === "reviews" || key === "history" ? undefined : "region"}
-          aria-label={
-            key === "reviews" || key === "history"
-              ? undefined
-              : key === "documents"
-                ? t("workspace.sourceDocuments")
-                : labels[key as ApplicationReference]
-          }
-          hidden={reference !== key}
-        >
-          {key === "history" && (
-            <div className={styles.historyHeading}>
-              <h2 ref={historyHeading} tabIndex={-1}>
-                {labels.history}
-              </h2>
-            </div>
-          )}
-          {key === "evidence" ? (
-            content.evidence
-          ) : key === "documents" ? (
-            <ApplicationDocuments
-              mode="manage"
-              documents={documents}
-              canWrite={!readOnly && !isWithdrawn(application) && Boolean(documentSession?.attach)}
-              session={documentSession ?? { readFile: async () => ({ status: "not_found" }) }}
-            />
-          ) : key === "reviews" ? (
-            review.content(state.inspectHistory)
-          ) : key === "details" ? (
-            content.details
-          ) : (
-            <RemotePagedContent
-              source={intake?.data.historySource}
-              entries={history}
-              active={reference === "history"}
-            >
-              {(page) => (
-                <PagedContent {...page}>
-                  {(entries, hasMore) => (
-                    <ApplicationHistoryContent
-                      key={`${application.id}:${historyVisit}`}
-                      application={application}
-                      history={entries}
-                      hasMore={hasMore}
-                      initialFromVersion={historyFrom}
-                    />
-                  )}
-                </PagedContent>
-              )}
-            </RemotePagedContent>
-          )}
-        </div>
+      {(Object.keys(labels) as ApplicationReference[]).map((referenceKey) => (
+        <ApplicationReferenceSection
+          key={referenceKey}
+          {...layout}
+          state={state}
+          referenceKey={referenceKey}
+          labels={labels}
+          sourceDocumentsLabel={t("workspace.sourceDocuments")}
+        />
       ))}
     </ReferencePane>
   );
+};
+
+const referenceAttributes = (
+  key: ApplicationReference,
+  label: string,
+  sourceDocumentsLabel: string,
+): { role?: "region"; "aria-label"?: string } => {
+  if (key === "reviews" || key === "history") return {};
+  return {
+    role: "region",
+    "aria-label": key === "documents" ? sourceDocumentsLabel : label,
+  };
+};
+
+const ApplicationReferenceSection = ({
+  referenceKey,
+  labels,
+  sourceDocumentsLabel,
+  state,
+  ...layout
+}: ApplicationLayoutProps & {
+  referenceKey: ApplicationReference;
+  labels: Record<ApplicationReference, string>;
+  sourceDocumentsLabel: string;
+}) => {
+  const { reference, historyHeading, historyFrom, historyVisit, inspectHistory } = state;
+  return (
+    <div
+      {...referenceAttributes(referenceKey, labels[referenceKey], sourceDocumentsLabel)}
+      hidden={reference !== referenceKey}
+    >
+      {referenceKey === "history" && (
+        <div className={styles.historyHeading}>
+          <h2 ref={historyHeading} tabIndex={-1}>
+            {labels.history}
+          </h2>
+        </div>
+      )}
+      <ApplicationReferenceBody
+        {...layout}
+        referenceKey={referenceKey}
+        reference={reference}
+        historyFrom={historyFrom}
+        historyVisit={historyVisit}
+        inspectHistory={inspectHistory}
+      />
+    </div>
+  );
+};
+
+const ApplicationReferenceBody = ({
+  referenceKey,
+  application,
+  content,
+  history,
+  intake,
+  review,
+  documents,
+  documentSession,
+  readOnly = false,
+  reference,
+  historyFrom,
+  historyVisit,
+  inspectHistory,
+}: Omit<ApplicationLayoutProps, "state"> & {
+  referenceKey: ApplicationReference;
+  reference: ApplicationLayoutProps["state"]["reference"];
+  historyFrom: ApplicationLayoutProps["state"]["historyFrom"];
+  historyVisit: ApplicationLayoutProps["state"]["historyVisit"];
+  inspectHistory: ApplicationLayoutProps["state"]["inspectHistory"];
+}) => {
+  switch (referenceKey) {
+    case "evidence":
+      return content.evidence;
+    case "documents":
+      return (
+        <ApplicationDocuments
+          mode="manage"
+          documents={documents}
+          canWrite={!readOnly && !isWithdrawn(application) && Boolean(documentSession?.attach)}
+          session={documentSession ?? { readFile: async () => ({ status: "not_found" }) }}
+        />
+      );
+    case "reviews":
+      return review.content(inspectHistory);
+    case "details":
+      return content.details;
+    case "history":
+      return (
+        <RemotePagedContent
+          source={intake?.data.historySource}
+          entries={history}
+          active={reference === "history"}
+        >
+          {(page) => (
+            <PagedContent {...page}>
+              {(entries, hasMore) => (
+                <ApplicationHistoryContent
+                  key={`${application.id}:${historyVisit}`}
+                  application={application}
+                  history={entries}
+                  hasMore={hasMore}
+                  initialFromVersion={historyFrom}
+                />
+              )}
+            </PagedContent>
+          )}
+        </RemotePagedContent>
+      );
+  }
 };
 
 const ApplicationWorkPane = ({
