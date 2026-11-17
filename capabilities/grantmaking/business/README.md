@@ -130,7 +130,7 @@ appends existing assessment versions, completes the request, advances those revi
 and records its email intent in one transaction. Assessment authorship and assignment
 events are immutable. Delivery failure does not undo a saved assessment.
 
-Reviewers join through Organizations before accepting assignments. Each assignment
+Reviewers join through Organizations before a manager can invite them to an assignment. Each assignment
 captures its qualifying reviewer or program-manager membership. Removing membership
 or review responsibilities invalidates scoped access; rejoining or restoring a role
 requires a manager to explicitly reinstate the assignment. Commands use the shared organization,
