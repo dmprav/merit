@@ -200,8 +200,11 @@ The dependency audit includes production and development dependencies. High and
 critical advisories fail the check; registry failures also fail it. Run
 `pnpm audit` to review lower-severity findings. Prefer a supported dependency
 update or a targeted override, verify affected behavior, and document any
-accepted advisory exception with its scope and reason. The audit does not apply
-fixes automatically. These checks complement authorization and tenant-isolation
+accepted advisory exception with its scope and reason. Record that exception
+as its GHSA under `audit.ignore` in
+[pnpm-workspace.yaml](../../pnpm-workspace.yaml). The comment states the scope,
+why the advisory is acceptable, and what removes the exception. The audit does
+not apply fixes automatically. These checks complement authorization and tenant-isolation
 tests; they do not establish the correctness of access policy.
 
 ## Browser compatibility

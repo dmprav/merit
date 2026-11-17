@@ -116,6 +116,14 @@ peerDependencyRules:
     - vite
   allowedVersions:
     vite: "*"
+audit:
+  ignore:
+    # picomatch <=4.0.7 has no patched release. Build and test tooling
+    # (tinyglobby, vitest, rollup pluginutils, micromatch) compiles globs
+    # written in this repository. Remove this entry when a release above
+    # 4.0.7 ships.
+    # https://github.com/advisories/GHSA-fc5q-39xc-vjpf
+    - GHSA-fc5q-39xc-vjpf
 minimumReleaseAgeExclude:
   - "@fallow-cli/darwin-arm64@3.41.0"
   - "@fallow-cli/darwin-x64@3.41.0"
