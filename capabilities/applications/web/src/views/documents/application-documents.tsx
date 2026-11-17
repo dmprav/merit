@@ -214,15 +214,18 @@ const SlotView = ({
 };
 
 const ReferDialog = ({
+  page,
   isOpen,
   onOpenChange,
   cite,
 }: {
+  page: number;
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   cite: (note: string) => Promise<string | null>;
 }) => {
   const { t } = useTranslation("applicationDocuments");
+  const title = t("refer", { page });
   const { form, submission } = useForm({
     defaultValues: { note: "" },
     schema: z.object({ note: z.string() }),
@@ -231,7 +234,7 @@ const ReferDialog = ({
   });
   return (
     <FormDialog
-      title={t("refer")}
+      title={title}
       closeLabel={t("close")}
       trigger={null}
       isOpen={isOpen}
@@ -239,7 +242,7 @@ const ReferDialog = ({
       isDismissDisabled={submission.isSubmitting}
     >
       <Form
-        label={t("refer")}
+        label={title}
         submission={submission}
         actions={
           <FormActions
@@ -336,7 +339,7 @@ const ReaderView = ({ model, canWrite }: { model: DocumentsModel; canWrite: bool
         </Button>
         {canWrite && (
           <Button variant="secondary" onPress={() => setReferOpen(true)}>
-            {t("refer")}
+            {t("refer", { page: reader.page })}
           </Button>
         )}
       </div>
@@ -356,6 +359,7 @@ const ReaderView = ({ model, canWrite }: { model: DocumentsModel; canWrite: bool
       {canWrite && (
         <ReferDialog
           key={`${reader.role}-${reader.version}-${reader.page}-${referOpen}`}
+          page={reader.page}
           isOpen={referOpen}
           onOpenChange={setReferOpen}
           cite={async (note) => {

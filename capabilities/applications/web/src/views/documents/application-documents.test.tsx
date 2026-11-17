@@ -170,7 +170,7 @@ it("revokes the previous blob address when the reader bytes change", async () =>
   const { user } = show(documents());
   await user.click(screen.getByRole("button", { name: "View Proposal version 2" }));
   await screen.findByTitle("Proposal version 2, page 1");
-  await user.click(screen.getByRole("button", { name: "View Proposal version 1, page 2" }));
+  await user.click(screen.getByRole("button", { name: "View page, Proposal version 1, page 2" }));
   await screen.findByTitle("Proposal version 1, page 2");
   expect(revoke).toHaveBeenCalledWith("blob:first");
 });
@@ -239,18 +239,24 @@ it("starts a citation view on that page and shows a saved reference without a to
     })),
   });
   const { user } = show(value, { session: transport });
-  await user.click(screen.getByRole("button", { name: "View Proposal version 1, page 2" }));
+  await user.click(screen.getByRole("button", { name: "View page, Proposal version 1, page 2" }));
   expect(await screen.findByTitle("Proposal version 1, page 2")).toHaveAttribute(
     "src",
     "blob:proposal#page=2",
   );
-  await user.click(screen.getByRole("button", { name: "Refer to this page" }));
+  await user.click(screen.getByRole("button", { name: "Refer to page 2" }));
   await user.type(screen.getByRole("textbox", { name: "Note" }), "See the budget table");
   await user.click(screen.getByRole("button", { name: "Save" }));
   expect(await screen.findByText("See the budget table")).toBeVisible();
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   expect(screen.getByTitle("Proposal version 1, page 2")).toBeVisible();
   expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  expect(transport.cite).toHaveBeenCalledWith({
+    role: "proposal",
+    version: 1,
+    page: 2,
+    note: "See the budget table",
+  });
 });
 
 it.each([
@@ -339,7 +345,7 @@ it("hides attach, upload, and refer while the application is withdrawn", () => {
   expect(screen.getByRole("button", { name: "View Proposal version 2" })).toBeVisible();
   expect(screen.queryByRole("button", { name: "Upload new version" })).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Attach proposal" })).not.toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: "Refer to this page" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /Refer to page/ })).not.toBeInTheDocument();
 });
 
 it("shows one empty sentence to a reviewer and no write actions", () => {

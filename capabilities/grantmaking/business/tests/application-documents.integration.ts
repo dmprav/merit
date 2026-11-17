@@ -426,6 +426,15 @@ it("hides documents from another organization, keeps them readable after withdra
       expectedVersion: 0,
     }),
   ).toEqual({ status: "not_found" });
+  expect(
+    await attachApplicationDocument(db, outsider, {
+      ...address,
+      role: "budget",
+      filename: "budget.pdf",
+      contentBase64: "not-a-pdf",
+      expectedVersion: 0,
+    }),
+  ).toEqual({ status: "not_found" });
 
   expect(
     await editFundingApplication(

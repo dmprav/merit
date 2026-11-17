@@ -342,7 +342,7 @@ it("opens source documents beside the assigned material without attach or refer"
   expect(screen.getByRole("heading", { name: "Source documents" })).toBeVisible();
   expect(screen.getByText("No proposal or budget is attached.")).toBeVisible();
   expect(screen.queryByRole("button", { name: "Attach proposal" })).not.toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: "Refer to this page" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /Refer to page/ })).not.toBeInTheDocument();
 });
 
 it("preserves a possible conflict explanation when the form is closed and reopened", async () => {

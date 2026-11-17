@@ -82,6 +82,10 @@ export const attachApplicationDocument = async (
   input: AttachApplicationDocumentRequest,
 ) => {
   const request = attachApplicationDocumentInputSchema.parse(input);
+  const allowed = await readTransaction(db, (tx) => readDocumentManager(tx, actor.userId, request));
+  if (!allowed) {
+    return { status: "not_found" as const };
+  }
   const pdf = await acceptedPdf(request.contentBase64);
   if (!pdf.ok) {
     return { status: "invalid" as const, error: pdf.error };
