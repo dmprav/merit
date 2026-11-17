@@ -106,6 +106,10 @@ overrides:
   "glob@>=9.0.0 <=14.0.1": 14.0.4
   # https://github.com/advisories/GHSA-g3hv-75wg-m249
   "minimatch@>=7.0.0 <11.0.1": 11.0.5
+  # @react-email/ui pins next@16.4.3, and no release allows 16.4.5 yet.
+  # https://github.com/advisories/GHSA-mfr8-8qww-v76h
+  # https://github.com/advisories/GHSA-vc7v-qv4w-wrv8
+  "next@>=16.2.0 <=16.4.4": 16.4.6
   "@esbuild-kit/core-utils>esbuild": 0.28.2
 peerDependencyRules:
   allowAny:
