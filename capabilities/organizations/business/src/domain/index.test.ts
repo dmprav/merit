@@ -26,35 +26,53 @@ describe("membership decisions", () => {
     expect(evaluateMemberChange(manager, admin, grantAccess)).toEqual({ status: "forbidden" });
   });
 
-  it("revokes issued invitations on removal or demotion, but not appointments or grant-access changes", () => {
-    expect(evaluateMemberChange(owner, admin, grantAccess)).toEqual({
-      status: "ok",
-      value: { access: grantAccess, revokeIssuedInvitations: true },
-    });
-    expect(evaluateMemberChange(owner, admin, adminAccess)).toEqual({
-      status: "ok",
-      value: { access: adminAccess, revokeIssuedInvitations: false },
-    });
-    expect(evaluateMemberChange(owner, manager, adminAccess)).toEqual({
-      status: "ok",
-      value: { access: adminAccess, revokeIssuedInvitations: false },
-    });
+  it.each([
+    {
+      change: "demoting an administrator",
+      actor: owner,
+      target: admin,
+      access: grantAccess,
+      revoke: true,
+    },
+    { change: "removing a member", actor: admin, target: manager, access: null, revoke: true },
+    {
+      change: "appointing an administrator",
+      actor: owner,
+      target: manager,
+      access: adminAccess,
+      revoke: false,
+    },
+    {
+      change: "retaining administration",
+      actor: owner,
+      target: admin,
+      access: adminAccess,
+      revoke: false,
+    },
+    {
+      change: "changing only grant access",
+      actor: admin,
+      target: manager,
+      access: { administration: "none", role: "member" },
+      revoke: false,
+    },
+  ] as const)(
+    "revokes the target's issued invitations when $change: $revoke",
+    ({ actor, target, access, revoke }) => {
+      expect(evaluateMemberChange(actor, target, access)).toEqual({
+        status: "ok",
+        value: { access, revokeIssuedInvitations: revoke },
+      });
+    },
+  );
+
+  it("keeps the owner's ownership and issued invitations when their grant access changes", () => {
     expect(evaluateMemberChange(admin, owner, adminAccess)).toEqual({
       status: "ok",
       value: {
         access: { administration: "owner", role: "member" },
         revokeIssuedInvitations: false,
       },
-    });
-    expect(evaluateMemberChange(admin, manager, null)).toEqual({
-      status: "ok",
-      value: { access: null, revokeIssuedInvitations: true },
-    });
-    expect(
-      evaluateMemberChange(admin, manager, { administration: "none", role: "member" }),
-    ).toEqual({
-      status: "ok",
-      value: { access: { administration: "none", role: "member" }, revokeIssuedInvitations: false },
     });
   });
 });

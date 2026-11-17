@@ -21,66 +21,77 @@ const service = (connection: string, networkAddress: string | undefined = "192.0
   };
 };
 
-it("stores normalized public interest once and restricts reading and review to operators", async ({
-  database,
-}) => {
-  const { operations, sendInvitation } = service(database.connectionString);
+const operator = { userId: "dana" };
+const email = "interested@example.test";
+
+it("stores repeated public interest once under the normalized email", async ({ database }) => {
+  const { operations } = service(database.connectionString);
 
   expect(await operations.requestAccess({ email: " Interested@Example.test " })).toEqual({
     status: "ok",
   });
-  expect(await operations.requestAccess({ email: "interested@example.test" })).toEqual({
+  expect(await operations.requestAccess({ email })).toEqual({ status: "ok" });
+
+  expect(await operations.accessRequests(operator)).toMatchObject({
     status: "ok",
+    value: [{ email, reviewedAt: null, reviewedBy: null }],
   });
+});
+
+it("rejects an invalid email without storing a request", async ({ database }) => {
+  const { operations } = service(database.connectionString);
+
   expect(await operations.requestAccess({ email: "invalid" })).toEqual({ status: "invalid_input" });
+  expect(await operations.accessRequests(operator)).toEqual({ status: "ok", value: [] });
+});
 
-  const denied = { userId: "birch-manager" };
+it("restricts reading and reviewing access requests to operators", async ({ database }) => {
+  const { operations } = service(database.connectionString);
+  await operations.requestAccess({ email });
+  const workspaceOwner = { userId: "birch-manager" };
 
-  expect(await operations.accessRequests(denied)).toEqual({ status: "forbidden" });
-  expect(
-    await operations.reviewAccessRequest(denied, { email: "interested@example.test" }),
-  ).toEqual({ status: "forbidden" });
-
-  const actor = { userId: "dana" };
-  const list = await operations.accessRequests(actor);
-
-  if (list.status !== "ok") {
-    throw new Error("Read failed");
-  }
-  expect(list.value).toHaveLength(1);
-  expect(list.value[0]).toMatchObject({ email: "interested@example.test", reviewedAt: null });
-
-  const reviewed = await operations.reviewAccessRequest(actor, {
-    email: "interested@example.test",
+  expect(await operations.accessRequests(workspaceOwner)).toEqual({ status: "forbidden" });
+  expect(await operations.reviewAccessRequest(workspaceOwner, { email })).toEqual({
+    status: "forbidden",
   });
-
-  expect(reviewed).toMatchObject({
+  expect(await operations.accessRequests(operator)).toMatchObject({
     status: "ok",
-    value: { reviewedBy: "dana" },
+    value: [{ email, reviewedAt: null }],
   });
-  assert.equal(reviewed.status, "ok");
-  if (reviewed.status !== "ok") {
-    throw new Error("Review failed");
-  }
+});
+
+it("records an operator's review once and keeps it when the person asks again", async ({
+  database,
+}) => {
+  const { operations } = service(database.connectionString);
+  await operations.requestAccess({ email });
+
+  const reviewed = await operations.reviewAccessRequest(operator, { email });
+
+  assert(reviewed.status === "ok");
+  expect(reviewed.value).toMatchObject({ email, reviewedBy: operator.userId });
   expect(reviewed.value.reviewedAt).toBeInstanceOf(Date);
-  expect(await operations.reviewAccessRequest(actor, { email: "interested@example.test" })).toEqual(
-    reviewed,
-  );
-  expect(await operations.requestAccess({ email: "interested@example.test" })).toEqual({
+  expect(await operations.reviewAccessRequest(operator, { email })).toEqual(reviewed);
+  expect(await operations.requestAccess({ email })).toEqual({ status: "ok" });
+  expect(await operations.accessRequests(operator)).toEqual({
     status: "ok",
+    value: [reviewed.value],
   });
-  expect(await operations.accessRequests(actor)).toMatchObject({
-    status: "ok",
-    value: [expect.objectContaining({ reviewedBy: "dana" })],
-  });
+});
+
+it("neither invites nor admits a person who requests access", async ({ database }) => {
+  const { operations, sendInvitation } = service(database.connectionString);
+
+  const memberships = () =>
+    database.client.query<{ user_id: string }>("SELECT user_id FROM memberships ORDER BY user_id");
+
+  const before = (await memberships()).rows;
+
+  await operations.requestAccess({ email });
+  await operations.reviewAccessRequest(operator, { email });
+
   expect(sendInvitation).not.toHaveBeenCalled();
-  expect(
-    (
-      await database.client.query<{ count: number }>(
-        "SELECT count(*)::int AS count FROM memberships",
-      )
-    ).rows[0]?.count,
-  ).toBe(2);
+  expect((await memberships()).rows).toEqual(before);
 });
 
 it("shares request limits across concurrent connections and removes expired buckets", async ({
