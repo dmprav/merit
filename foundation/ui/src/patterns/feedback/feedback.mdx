@@ -33,12 +33,20 @@ shows all three contexts using the same controls.
 Place persistent feedback beside the work it affects. Choose a Notice tone that
 matches the meaning and include an explanation and useful next action. Use its
 `title` for the outcome and `actions` for recovery; the notice owns their alignment
-and wrapping. Keep simple failures to a short sentence. Within a task surface,
-use `appearance="inline"` for quiet icon-and-text feedback without another framed
-panel. Forms and confirmation dialogs place this in `DialogContent.feedback`,
-above the tinted action footer and outside the scrolling body. Feedback stays
-visible while the footer retains its single purpose: committing or leaving the
-task. Field validation stays beside its field.
+and wrapping. Keep simple failures to a short sentence.
+
+Choose the Notice appearance by the surface it sits in and how much it holds:
+
+| Context                                                                                        | Appearance                                                         |
+| ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| A short message inside a form or dialog: a failed save, a side effect of saving, a stale draft | `appearance="inline"`                                              |
+| Page or section state, or several blocks such as a title, saved details, and recovery actions  | Default tinted surface                                             |
+| Guidance on how to complete the task, with no outcome or concern to report                     | Muted description text beside the fields it explains, not a Notice |
+
+Forms and confirmation dialogs place failures in `DialogContent.feedback`, above
+the tinted action footer and outside the scrolling body. Feedback stays visible
+while the footer retains its single purpose: committing or leaving the task.
+Field validation stays beside its field.
 
 When field messages explain what needs correcting, focus the first invalid field
 instead of repeating a generic validation banner. Reserve form-level feedback for
