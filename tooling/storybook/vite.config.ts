@@ -10,7 +10,7 @@ export default defineConfig({
       test: "vp test --run --config vitest.config.ts",
       "test:watch": { command: "vp test --watch --config vitest.config.ts", cache: false },
       "test:browser": {
-        command: "playwright test --config playwright.config.ts --project desktop",
+        command: "playwright test --config playwright.config.ts --project=desktop",
         cache: false,
       },
       "test:browser:all": {

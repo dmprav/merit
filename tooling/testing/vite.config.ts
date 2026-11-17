@@ -7,7 +7,7 @@ export default defineConfig({
     tasks: {
       test: "vp test",
       "test:browser": {
-        command: "playwright test --config playwright.config.ts --project desktop",
+        command: "playwright test --config playwright.config.ts --project=desktop",
         cache: false,
       },
       "test:browser:all": {
