@@ -69,6 +69,41 @@ const filled = (): Documents => ({
   },
 });
 
+/** A small multi-page PDF the browser viewer can paint. Offsets are measured. */
+const storyPdf = (pageCount: number) => {
+  const fontId = 3 + pageCount * 2;
+
+  const pageId = (index: number) => 3 + index * 2;
+
+  const contentId = (index: number) => 4 + index * 2;
+
+  const objects = [
+    "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n",
+    `2 0 obj\n<< /Type /Pages /Kids [${Array.from({ length: pageCount }, (_, index) => `${pageId(index)} 0 R`).join(" ")}] /Count ${pageCount} >>\nendobj\n`,
+    ...Array.from({ length: pageCount }, (_, index) => {
+      const stream = `BT /F1 24 Tf 36 120 Td (Page ${index + 1}) Tj ET\n`;
+      return [
+        `${pageId(index)} 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Resources << /Font << /F1 ${fontId} 0 R >> >> /Contents ${contentId(index)} 0 R >>\nendobj\n`,
+        `${contentId(index)} 0 obj\n<< /Length ${stream.length} >>\nstream\n${stream}endstream\nendobj\n`,
+      ];
+    }).flat(),
+    `${fontId} 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n`,
+  ];
+  let body = "%PDF-1.4\n";
+  const offsets = [0];
+  for (const object of objects) {
+    offsets.push(body.length);
+    body += object;
+  }
+  const start = body.length;
+  let xref = `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  for (let index = 1; index <= objects.length; index += 1) {
+    xref += `${String(offsets[index]).padStart(10, "0")} 00000 n \n`;
+  }
+  body += `${xref}trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${start}\n%%EOF\n`;
+  return new TextEncoder().encode(body);
+};
+
 const idle: ApplicationDocumentSession = {
   readFile: async () => ({ status: "not_found" }),
 };
@@ -160,7 +195,7 @@ export const Reader: Story = {
       page: 6,
       filename: "Community-meals-proposal.pdf",
       pageCount: 12,
-      bytes: new TextEncoder().encode("%PDF-1.4\n"),
+      bytes: storyPdf(12),
     },
   },
 };

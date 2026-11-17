@@ -82,6 +82,10 @@ export const attachApplicationDocument = async (
   input: AttachApplicationDocumentRequest,
 ) => {
   const request = attachApplicationDocumentInputSchema.parse(input);
+  const pdf = await acceptedPdf(request.contentBase64);
+  if (!pdf.ok) {
+    return { status: "invalid" as const, error: pdf.error };
+  }
   return db.transaction(async (tx) => {
     const locked = await lockApplicationCase(tx, actor.userId, request);
     if (!locked) {
@@ -89,10 +93,6 @@ export const attachApplicationDocument = async (
     }
     if (locked.withdrawn) {
       return { status: "invalid" as const, error: "application_withdrawn" as const };
-    }
-    const pdf = await acceptedPdf(request.contentBase64);
-    if (!pdf.ok) {
-      return { status: "invalid" as const, error: pdf.error };
     }
     const attached = await attachSourceDocument(tx, {
       actor,

@@ -2,7 +2,7 @@ import type { TFunction } from "i18next";
 
 type Translate = TFunction<"applicationDocuments">;
 
-import { useEffect, useLayoutEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { ApplicationDocuments, SourceDocumentRole } from "@merit/applications/api";
@@ -151,12 +151,12 @@ const openDocument = async ({
     const result = await session.readFile({ role, version });
     if (result.status !== "ok") {
       setNotice(t("openFailed"));
-      return;
+      return false;
     }
     const bytes = decodeBase64(result.contentBase64);
     if (!bytes) {
       setNotice(t("openFailed"));
-      return;
+      return false;
     }
     setReader({
       role,
@@ -167,8 +167,10 @@ const openDocument = async ({
       url: blobUrl(bytes),
       openerId,
     });
+    return true;
   } catch {
     setNotice(t("openFailed"));
+    return false;
   }
 };
 
@@ -238,7 +240,6 @@ export const useApplicationDocuments = ({
   const [documents, setDocuments] = useState(incoming);
   const [notice, setNotice] = useState<string | null>(initialNotice);
   const [pendingRole, setPendingRole] = useState<SourceDocumentRole | null>(null);
-  const [pendingFocus, setPendingFocus] = useState<string | null>(null);
   const [reader, setReader] = useState<DocumentReader | null>(() =>
     initialReader ? readerFrom(initialReader) : null,
   );
@@ -254,14 +255,6 @@ export const useApplicationDocuments = ({
     }
     return () => URL.revokeObjectURL(readerUrl);
   }, [readerUrl]);
-
-  useLayoutEffect(() => {
-    if (!pendingFocus || reader) {
-      return;
-    }
-    document.getElementById(pendingFocus)?.focus();
-    setPendingFocus(null);
-  }, [pendingFocus, reader]);
 
   return {
     documents,
@@ -285,13 +278,7 @@ export const useApplicationDocuments = ({
     },
     openReader: (role: SourceDocumentRole, version: number, page: number, openerId: string) =>
       openDocument({ role, version, page, openerId, session, t, setNotice, setReader }),
-    closeReader: () => {
-      if (!reader) {
-        return;
-      }
-      setPendingFocus(reader.openerId);
-      setReader(null);
-    },
+    closeReader: () => setReader(null),
     setPage: (value: string) => setReader(changePage(reader, value)),
     cite: (note: string) => citeDocument({ note, reader, session, t, setDocuments }),
   };

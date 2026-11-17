@@ -11,7 +11,9 @@ import type {
 } from "@merit/applications/api";
 import { Form, FormActions, FormDialog, FormTextField, useForm } from "@merit/forms";
 import { Button } from "@merit/ui/button";
+import { Icon } from "@merit/ui/icon";
 import { Notice } from "@merit/ui/notice";
+import { useReadingNavigation } from "@merit/ui/reference-workspace";
 import { TextField } from "@merit/ui/text-field";
 import { Timestamp } from "@merit/ui/timestamp";
 
@@ -25,6 +27,9 @@ const emptyDocuments = (): DocumentSnapshot => ({
   proposal: { currentVersion: null, versions: [], citations: [] },
   budget: { currentVersion: null, versions: [], citations: [] },
 });
+
+// A stable default so a render does not look like a new documents prop.
+const noDocuments = emptyDocuments();
 
 type DocumentsModel = ReturnType<typeof useApplicationDocuments>;
 
@@ -122,6 +127,7 @@ const SlotView = ({
   slot,
   canWrite,
   pending,
+  active,
   onAttach,
   onOpen,
 }: {
@@ -129,6 +135,7 @@ const SlotView = ({
   slot: DocumentSlot;
   canWrite: boolean;
   pending: boolean;
+  active: boolean;
   onAttach: (file: File) => void;
   onOpen: (version: number, page: number, openerId: string) => void;
 }) => {
@@ -142,7 +149,7 @@ const SlotView = ({
       <h3 id={`document-slot-${role}`}>{kind}</h3>
       {current ? (
         <div className={styles.facts}>
-          <p>{current.filename}</p>
+          <p className={styles.filename}>{current.filename}</p>
           <p className={styles.version}>{t("version", { version: current.version })}</p>
           <p className={styles.meta}>{t("pageCount", { count: current.pageCount })}</p>
           <VersionMeta version={current} />
@@ -167,7 +174,7 @@ const SlotView = ({
             <Button
               variant="secondary"
               isDisabled={pending}
-              isPending={pending}
+              isPending={active}
               onPress={() => document.getElementById(`document-file-${role}`)?.click()}
             >
               {current
@@ -183,6 +190,7 @@ const SlotView = ({
               name={fileName}
               aria-label={fileName}
               accept="application/pdf"
+              tabIndex={-1}
               disabled={pending}
               onChange={(event) => {
                 const file = event.currentTarget.files?.[0];
@@ -257,14 +265,7 @@ const ReaderView = ({ model, canWrite }: { model: DocumentsModel; canWrite: bool
   const [referOpen, setReferOpen] = useState(false);
   const kind = t(reader.role);
   return (
-    <div className={styles.reader}>
-      <Button variant="quiet" alignment="start" onPress={model.closeReader}>
-        {t("back")}
-      </Button>
-      <div className={styles.readerHeading}>
-        <h2>{reader.filename}</h2>
-        <span className={styles.version}>{t("version", { version: reader.version })}</span>
-      </div>
+    <>
       <div className={styles.pageControl}>
         <TextField
           className={styles.pageField}
@@ -294,11 +295,11 @@ const ReaderView = ({ model, canWrite }: { model: DocumentsModel; canWrite: bool
           </Button>
         )}
       </div>
-      {/* A framed application response is blocked by frame-ancestors 'none'. */}
+      {/* A framed application response is blocked by frame-ancestors 'none'. The browser PDF viewer stays blank under sandbox. */}
+      {/* eslint-disable-next-line react/iframe-missing-sandbox -- sandbox blocks the PDF viewer */}
       <iframe
         key={reader.page}
         className={styles.frame}
-        sandbox="allow-scripts"
         title={t("readerTitle", { kind, version: reader.version, page: reader.page })}
         src={`${reader.url}#page=${reader.page}`}
       />
@@ -328,12 +329,27 @@ const ReaderView = ({ model, canWrite }: { model: DocumentsModel; canWrite: bool
           }}
         />
       )}
-    </div>
+    </>
   );
 };
 
+const openListedDocument = async (
+  model: DocumentsModel,
+  open: (destination: true, target: () => HTMLElement | null) => void,
+  role: SourceDocumentRole,
+  version: number,
+  page: number,
+  openerId: string,
+) => {
+  const fromList = model.reader === null;
+  const opened = await model.openReader(role, version, page, openerId);
+  if (opened && fromList) {
+    open(true, () => document.getElementById(openerId));
+  }
+};
+
 export const ApplicationDocuments = ({
-  documents = emptyDocuments(),
+  documents = noDocuments,
   mode,
   canWrite,
   session,
@@ -356,12 +372,14 @@ export const ApplicationDocuments = ({
 }) => {
   const { t } = useTranslation("applicationDocuments");
   const model = useApplicationDocuments({ documents, session, initialNotice, initialReader });
+  const { root, heading, open, back } = useReadingNavigation<true>(initialReader ? true : null);
   const writing = mode === "manage" && canWrite;
+  const uploading = model.pendingRole !== null;
   const nothingAttached =
     model.documents.proposal.currentVersion === null &&
     model.documents.budget.currentVersion === null;
   return (
-    <div className={styles.documents}>
+    <section ref={root} className={styles.documents}>
       <div className={styles.heading}>
         <h2>{t("heading")}</h2>
       </div>
@@ -371,7 +389,29 @@ export const ApplicationDocuments = ({
         </Notice>
       )}
       {model.reader ? (
-        <ReaderView model={model} canWrite={writing} />
+        <div className={styles.reader}>
+          <Button
+            size="small"
+            variant="quiet"
+            alignment="start"
+            onPress={() => {
+              model.closeReader();
+              back();
+            }}
+          >
+            <Icon name="left" />
+            {t("back")}
+          </Button>
+          <div className={styles.readerHeading}>
+            <h2 ref={heading} tabIndex={-1}>
+              {model.reader.filename}
+            </h2>
+            <span className={styles.version}>
+              {t("version", { version: model.reader.version })}
+            </span>
+          </div>
+          <ReaderView model={model} canWrite={writing} />
+        </div>
       ) : mode === "review" && nothingAttached ? (
         <p>{t("emptyReview")}</p>
       ) : (
@@ -381,14 +421,15 @@ export const ApplicationDocuments = ({
             role={role}
             slot={model.documents[role]}
             canWrite={writing}
-            pending={model.pendingRole === role}
+            pending={uploading}
+            active={model.pendingRole === role}
             onAttach={(file) => void model.attachFile(role, file)}
             onOpen={(version, page, openerId) =>
-              void model.openReader(role, version, page, openerId)
+              void openListedDocument(model, open, role, version, page, openerId)
             }
           />
         ))
       )}
-    </div>
+    </section>
   );
 };

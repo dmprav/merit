@@ -12,8 +12,6 @@
 .slot h3,
 .reader h2 {
   font-size: var(--text-section);
-  font-weight: 600;
-  letter-spacing: -0.01em;
 }
 
 .heading,
@@ -23,6 +21,15 @@
   align-items: baseline;
   justify-content: space-between;
   gap: var(--space-1) var(--space-4);
+}
+
+.filename,
+.readerHeading,
+.readerHeading h2,
+.version {
+  max-width: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .version,

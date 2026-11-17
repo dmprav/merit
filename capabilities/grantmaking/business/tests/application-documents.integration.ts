@@ -187,8 +187,12 @@ it("attaches versioned proposal and budget PDFs without changing intake or revie
       citationId?: string;
       role?: string;
       version?: number;
+      filename?: string;
+      pageCount?: number;
+      byteSize?: number;
       page?: number;
       note?: string | null;
+      contentBase64?: string;
     };
   }>(
     "SELECT action, details FROM audit_events WHERE target_type = 'application_document' AND target_id = $1 ORDER BY action, recorded_at",
@@ -203,6 +207,20 @@ it("attaches versioned proposal and budget PDFs without changing intake or revie
     "application.document.cite",
   ]);
   expect(JSON.stringify(details.rows)).not.toContain("contentBase64");
+  const attached = details.rows.find(
+    (row) =>
+      row.action === "application.document.attach" &&
+      row.details.role === "proposal" &&
+      row.details.version === 1,
+  );
+  expect(attached?.details).toEqual({
+    role: "proposal",
+    version: 1,
+    filename: "Community meals.pdf",
+    pageCount: 2,
+    byteSize: pdfBytes(2).byteLength,
+  });
+  expect(JSON.stringify(attached?.details)).not.toContain("%PDF");
   expect(
     details.rows.find((row) => row.action === "application.document.cite")?.details,
   ).toMatchObject({

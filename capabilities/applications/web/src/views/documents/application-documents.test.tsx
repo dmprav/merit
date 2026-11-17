@@ -107,9 +107,12 @@ const show = (
   return { user: userEvent.setup(), session: current };
 };
 
+const revokeObjectURL = vi.fn();
+
 beforeEach(() => {
   URL.createObjectURL = vi.fn(() => "blob:proposal");
-  URL.revokeObjectURL = vi.fn();
+  revokeObjectURL.mockClear();
+  URL.revokeObjectURL = revokeObjectURL;
 });
 
 it("offers an attach action for each empty slot", () => {
@@ -119,8 +122,8 @@ it("offers an attach action for each empty slot", () => {
   expect(screen.getByText("No budget attached")).toBeVisible();
   expect(screen.getByRole("button", { name: "Attach proposal" })).toBeVisible();
   expect(screen.getByRole("button", { name: "Attach budget" })).toBeVisible();
-  expect(screen.getByLabelText("Proposal PDF")).toBeInTheDocument();
-  expect(screen.getByLabelText("Budget PDF")).toBeInTheDocument();
+  expect(screen.getByLabelText("Proposal PDF")).toHaveAttribute("tabindex", "-1");
+  expect(screen.getByLabelText("Budget PDF")).toHaveAttribute("tabindex", "-1");
 });
 
 it("shows the current version, earlier versions, and a citation of an older version", () => {
@@ -156,6 +159,20 @@ it("opens a reader on the requested page and returns focus to the control that o
   await waitFor(() =>
     expect(screen.getByRole("button", { name: "View Proposal version 2" })).toHaveFocus(),
   );
+  expect(revokeObjectURL).toHaveBeenCalledWith("blob:proposal");
+});
+
+it("revokes the previous blob address when the reader bytes change", async () => {
+  const create = vi.fn().mockReturnValueOnce("blob:first").mockReturnValueOnce("blob:second");
+  URL.createObjectURL = create;
+  const revoke = vi.fn();
+  URL.revokeObjectURL = revoke;
+  const { user } = show(documents());
+  await user.click(screen.getByRole("button", { name: "View Proposal version 2" }));
+  await screen.findByTitle("Proposal version 2, page 1");
+  await user.click(screen.getByRole("button", { name: "View Proposal version 1, page 2" }));
+  await screen.findByTitle("Proposal version 1, page 2");
+  expect(revoke).toHaveBeenCalledWith("blob:first");
 });
 
 it("starts a citation view on that page and shows a saved reference without a toast", async () => {
@@ -232,10 +249,37 @@ it("disables the attach action while it is pending", async () => {
     new File(["%PDF-"], "proposal.pdf", { type: "application/pdf" }),
   );
   expect(screen.getByRole("button", { name: "Attach proposal" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Attach budget" })).toBeDisabled();
+  expect(screen.getByLabelText("Proposal PDF")).toBeDisabled();
+  expect(screen.getByLabelText("Budget PDF")).toBeDisabled();
   resolve({ status: "ok", version: 1, documents: documents() });
   await waitFor(() =>
     expect(screen.getAllByRole("button", { name: "Upload new version" })[0]).toBeEnabled(),
   );
+});
+
+it("refreshes after a conflict and replaces the list from a newer documents prop", async () => {
+  const refresh = vi.fn(async () => {});
+  const attach = vi.fn(async () => ({ status: "conflict" as const }));
+  const current = session({ attach, refresh });
+  const { rerender } = render(
+    <Documents documents={undefined} mode="manage" canWrite session={current} />,
+    { wrapper: Messages },
+  );
+  const user = userEvent.setup();
+  await user.upload(
+    screen.getByLabelText("Proposal PDF"),
+    new File(["%PDF-"], "notes.pdf", { type: "application/pdf" }),
+  );
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "Someone else attached a newer version. Review it, then attach again.",
+  );
+  expect(refresh).toHaveBeenCalled();
+  expect(screen.getByText("No proposal attached")).toBeVisible();
+  rerender(<Documents documents={documents()} mode="manage" canWrite session={current} />);
+  expect(await screen.findByText("Community-meals-proposal.pdf")).toBeVisible();
+  expect(screen.getByText("Version 2")).toBeVisible();
+  expect(screen.queryByText("No proposal attached")).not.toBeInTheDocument();
 });
 
 it("keeps the list when a version cannot be opened", async () => {
