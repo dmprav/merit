@@ -1,11 +1,14 @@
 .notice {
   --notice-accent: var(--muted);
+  --notice-surface: var(--surface-muted);
 
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
   min-width: 0;
-  background: var(--surface-muted);
+  padding: var(--space-2) var(--space-3);
+  background: var(--notice-surface);
   color: var(--foreground);
-  padding: var(--space-3) var(--space-4);
-  border: 1px solid color-mix(in srgb, var(--notice-accent) 20%, transparent);
   border-radius: var(--control-radius);
   font-size: var(--text-detail);
   line-height: 1.5;
@@ -14,49 +17,31 @@
 
 .notice[data-tone="success"] {
   --notice-accent: var(--success);
-
-  background: var(--success-subtle);
+  --notice-surface: var(--success-subtle);
 }
 
 .notice[data-tone="warning"] {
   --notice-accent: var(--warning);
-
-  background: var(--warning-subtle);
+  --notice-surface: var(--warning-subtle);
 }
 
 .notice[data-tone="danger"] {
   --notice-accent: var(--danger);
-
-  background: var(--danger-subtle);
+  --notice-surface: var(--danger-subtle);
 }
 
-.notice:where(div) > * + * {
-  margin-block-start: var(--space-2);
+.icon {
+  margin-top: 2px;
+  color: var(--notice-accent);
 }
 
-.notice:where(ul) {
-  padding-inline-start: var(--space-8);
-  list-style-type: disc;
-}
-
-.notice :where(ul, ol) {
-  padding-inline-start: var(--space-4);
-  list-style-type: disc;
-}
-
-.notice ol {
-  list-style-type: decimal;
-}
-
-.notice li + li {
-  margin-top: var(--space-1);
-}
-
-.layout {
+.body {
   display: flex;
+  flex: 1;
   align-items: center;
   flex-wrap: wrap;
-  gap: var(--space-3);
+  gap: var(--space-2) var(--space-3);
+  min-width: 0;
 }
 
 .message {
@@ -69,6 +54,24 @@
   font-weight: 600;
 }
 
+.content:where(div) > * + * {
+  margin-block-start: var(--space-2);
+}
+
+.content:where(ul),
+.content :where(ul, ol) {
+  padding-inline-start: var(--space-4);
+  list-style-type: disc;
+}
+
+.content ol {
+  list-style-type: decimal;
+}
+
+.content li + li {
+  margin-top: var(--space-1);
+}
+
 .actions {
   display: flex;
   flex-wrap: wrap;
@@ -77,7 +80,6 @@
 
 .notice[data-appearance="inline"] {
   padding: 0;
-  border: 0;
   border-radius: 0;
   background: transparent;
 }
@@ -86,10 +88,9 @@
   color: var(--danger);
 }
 
-.notice[data-appearance="inline"] .layout {
+.notice[data-appearance="inline"] .body {
   align-items: flex-start;
   flex-wrap: nowrap;
-  gap: var(--space-2);
 }
 
 .notice[data-appearance="inline"] .message {
@@ -100,13 +101,8 @@
   flex-shrink: 0;
 }
 
-.icon {
-  color: var(--notice-accent);
-  margin-top: 2px;
-}
-
 @media (forced-colors: active) {
-  .notice {
-    border-color: CanvasText;
+  .notice[data-appearance="default"] {
+    border: 1px solid CanvasText;
   }
 }

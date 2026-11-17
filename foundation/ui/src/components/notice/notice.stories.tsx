@@ -9,13 +9,16 @@ import { Notice } from "./notice";
 const meta = {
   title: "Components/Notice",
   component: Notice,
-  args: { children: "Confirm the revised budget before making a recommendation." },
+  args: {
+    tone: "warning",
+    children: "Confirm the revised budget before making a recommendation.",
+  },
   argTypes: { tone: { control: "select", options: ["neutral", "success", "warning", "danger"] } },
   parameters: {
     docs: {
       description: {
         component:
-          'Notice provides persistent feedback beside the work it concerns. Choose neutral for information, success for a completed action, warning for something needing attention, and danger for a failure. Warning is the default. State the meaning and next step in text; color is supplementary. Keep short messages to one sentence. Use appearance=inline for icon-and-text feedback inside a task surface, without another box. Use title and actions for structured recovery feedback, as="div" for paragraphs, or as="ul" for a list. Notice spaces direct blocks; use Inline for a wrapping action group. Tone controls appearance only: callers choose role and aria-live when an update needs announcing. Use StatusMessage for transient confirmations.',
+          'Notice provides persistent feedback beside the work it concerns. Choose neutral for information, success for a completed action, warning for something needing attention, and danger for a failure. Every notice states its tone. State the meaning and next step in text; color is supplementary. Keep short messages to one sentence. Every tone shows an icon. By default the message sits on a light tinted surface so it stands apart from nearby content; use appearance=inline for quiet icon-and-text feedback inside a task surface. Use title and actions for structured recovery feedback, as="div" for paragraphs, or as="ul" for a list. Notice spaces direct blocks; use Inline for a wrapping action group. Tone controls appearance only: callers choose role and aria-live when an update needs announcing. Use StatusMessage for transient confirmations.',
       },
     },
   },

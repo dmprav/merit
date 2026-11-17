@@ -173,7 +173,11 @@ export const EditForm = ({
         />
       }
     >
-      {conflict && <Notice tone="warning">{t("draftConflict")}</Notice>}
+      {conflict && (
+        <Notice appearance="inline" tone="warning">
+          {t("draftConflict")}
+        </Notice>
+      )}
       <Stack gap={5}>
         {allowed.canChangeAdministration ? (
           <form.Field name="administration">

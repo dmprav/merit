@@ -111,7 +111,9 @@ export const RoundEditor = ({
     <>
       {section === "criteria" &&
         (criteriaImpact.assessments > 0 || criteriaImpact.requests > 0) && (
-          <Notice tone="neutral">{t("preparation.criteriaImpact", criteriaImpact)}</Notice>
+          <Notice appearance="inline" tone="warning">
+            {t("preparation.criteriaImpact", criteriaImpact)}
+          </Notice>
         )}
       {draft && (
         <PreparationForm

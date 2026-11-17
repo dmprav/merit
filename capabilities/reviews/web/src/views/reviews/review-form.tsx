@@ -16,7 +16,6 @@ import {
 } from "@merit/forms";
 import { assessmentInputSchema, isEligibleReviewer } from "@merit/reviews/domain";
 import { Button } from "@merit/ui/button";
-import { Notice } from "@merit/ui/notice";
 
 import type { ReviewProblem } from "../../contracts/reviews";
 import type { ReviewDraft, ReviewFormValues } from "../../controllers/reviews/drafts";
@@ -81,7 +80,7 @@ export const ReviewForm = ({
       }
     >
       <div className={styles.form}>
-        {followUp && draft.mode === "record" && <Notice tone="neutral">{t("followUpHint")}</Notice>}
+        {followUp && draft.mode === "record" && <p className={styles.meta}>{t("followUpHint")}</p>}
         {draft.mode !== "edit" && (
           <form.Field name="contactId">
             {(field) => (
