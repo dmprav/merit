@@ -1,27 +1,26 @@
 # Deploy Merit
 
-The public site, product, operator admin interface, and MCP deploy together as one
-Cloudflare Worker assembled by `@merit/app`. The application configuration is in [`app/cloudflare.config.ts`](../../app/cloudflare.config.ts).
-Run commands from the repository root. For a first deployment, provision the
-database and identity service below. For later deployments, reuse those services,
-[apply pending migrations](#apply-migrations) and
-[check runtime privileges](#check-runtime-privileges), then publish and verify.
+Merit runs locally on Node.js with Vite. The public site, product, admin interface,
+and MCP share one origin. The production HTTP server and hosting provider are
+open decisions. The operating notes below describe what a future deployment
+will need.
 
 ## Build and preview
 
-Verify the application with local PostgreSQL and Mailpit before configuring the
-production services. Complete the [verification setup](verification.md#verification),
-including browser installation, then run:
+To exercise the built application locally, start PostgreSQL and Mailpit, apply
+the migrations, then start Vite preview:
 
 ```sh
 docker compose up -d --wait
-vp run ready
+vp run @merit/db#db:migrate
+vp run @merit/app#build
 vp run @merit/app#preview
 ```
 
-With the preview running, use `vp run @merit/app#smoke`. Set `MERIT_BASE_URL` if
-the preview uses another port. See [verification](verification.md#verification)
-for targeted checks.
+Open [localhost:3000](http://localhost:3000). With the preview running, use
+`vp run @merit/app#smoke` in a second terminal to check public pages and
+signed-out access. See [verification](verification.md#verification) for the
+full set of checks.
 
 ## Prepare the database
 
@@ -31,15 +30,13 @@ Create an empty database on a managed PostgreSQL host, with separate credentials
 for migrations and the running application. Apply the migrations and configure
 runtime privileges using the steps below.
 
-Create a [Hyperdrive configuration](https://developers.cloudflare.com/hyperdrive/get-started/)
-using the application credential and replace the placeholder `HYPERDRIVE` binding
-ID in the application configuration. Disable [query caching](https://developers.cloudflare.com/hyperdrive/concepts/query-caching/):
-writes do not invalidate cached reads, and access checks and reads after changes
-need current data. Connection pooling remains useful with caching disabled.
+Set the Node server's `DATABASE_URL` to the application credential. The server
+shares a PostgreSQL connection pool across requests. Keep the migration
+credential separate.
 
 After publishing, use the [organization administration app](organizations.md) to
 create workspaces and invite their first owners. Configure an operator
-and the Resend sender before onboarding. Publishing the Worker alone does not
+and the Resend sender before onboarding. Publishing the application alone does not
 create memberships; the example seed task remains limited to local databases.
 
 ### Apply migrations
@@ -105,8 +102,7 @@ demos and the cleanup operator requires `DELETE` on `audit_events`. The
 [audit capability guide](../../capabilities/audit/business/README.md) explains its
 recording and retention contract.
 Public access requests use the two `access_request` tables and their listed runtime
-grants. The application uses Cloudflare's
-trusted client-address header for rate limiting; local development uses a shared
+grants. The application uses the Node socket peer address for rate limiting; local development uses a shared
 local bucket. Missing production address information fails closed.
 
 Application intake updates the funder's case and appends material versions when
@@ -155,7 +151,7 @@ audit records. Acceptance stores the verified contact email and display name.
 
 ## Operate demo workspaces
 
-The demo uses the same Worker and database as normal workspaces. Apply all migrations
+The demo uses the same server and database as normal workspaces. Apply all migrations
 before publishing. The runtime additionally needs `SELECT`, `INSERT`, and `UPDATE`
 on `guest_sessions` and `demo_entry_limits`, and `UPDATE (demo_expires_at)` on
 `organizations`. Account mapping may create an `app_users` row before invitation
@@ -163,7 +159,7 @@ acceptance; disabled users remain disabled. Prepared fictional history has an in
 credential-free author. Ordinary grant/history privileges also cover demo seeding.
 
 Provisioning is limited to forty start/reset requests per network address per hour,
-using Cloudflare's trusted client-address header and short-lived hashed buckets.
+using the socket peer address and short-lived hashed buckets.
 Resume reads do not consume this allowance. Keep application responses private and
 uncached; cookie possession establishes identity, while membership and expiry checks
 continue to protect every operation.
@@ -177,8 +173,8 @@ users are never removed by this command.
 
 ## Configure identity and the public address
 
-Use a Clerk application configured for the deployed site. Set these values for
-the Worker in the application configuration:
+Use a Clerk application configured for the deployed site. Set these values in
+the Node process environment:
 
 | Setting                 | Value                                    |
 | ----------------------- | ---------------------------------------- |
@@ -186,7 +182,7 @@ the Worker in the application configuration:
 | `CLERK_PUBLISHABLE_KEY` | The Clerk application's publishable key. |
 | `CLERK_ISSUER`          | Its HTTPS Frontend API URL.              |
 
-Supply `CLERK_SECRET_KEY` through Cloudflare or a `cf deploy --secrets-file` input.
+Supply `CLERK_SECRET_KEY` and `RESEND_API_KEY` through the server environment.
 Use the same publishable key as `VITE_CLERK_PUBLISHABLE_KEY` when building the web
 application. Configure the deployed `/mcp/workspace` URL in Clerk using the
 [MCP authentication setup](mcp-operations.md#configure-workspace-authentication).
@@ -195,21 +191,11 @@ To enable optional PostHog analytics in the built web bundle, set `VITE_POSTHOG_
 and (when using EU or a custom ingest endpoint) `VITE_POSTHOG_HOST` during the build.
 Leaving `VITE_POSTHOG_KEY` empty keeps analytics disabled.
 
-## Publish and verify
+## Verify a future deployment
 
-Sign in with `cf auth login` or supply `CLOUDFLARE_API_TOKEN`. With the production
-configuration and build variables set, you can inspect the bundle before
-publishing: run `vp run @merit/app#build`, then:
-
-```sh
-vp exec --filter @merit/app cf deploy --prebuilt --mode production --dry-run
-```
-
-Publish with the deployment task, which builds and deploys the application:
-
-```sh
-vp run @merit/app#deploy
-```
+When choosing how to serve the built application, account for the client assets,
+server-side rendering, and the shared origin for web and MCP. Configure the trusted
+client address for rate limiting according to the host's proxy topology.
 
 Set `MERIT_BASE_URL` to the deployed origin and run `vp run @merit/app#smoke`.
 It checks the public pages, removal of anonymous MCP, and that signed-out requests expose
@@ -217,20 +203,19 @@ no workspace data. Check live Clerk sign-in and protected MCP separately with a
 provisioned user: the permitted workspace should load and other organizations
 should remain inaccessible. In a workspace with fictional data, save a manager
 recommendation and reload the page to verify that the change persists through
-the deployed Worker's runtime credentials.
+the deployed server's runtime credentials.
 
 ## Configure tracing and synthetic checks
 
 Trace export is disabled when `OTEL_EXPORTER_OTLP_ENDPOINT` is empty. To export
-OpenTelemetry spans from Cloudflare Workers to Checkly (or another OTLP/HTTP collector),
-set these Worker settings in [`app/cloudflare.config.ts`](../../app/cloudflare.config.ts)
-and secrets:
+OpenTelemetry spans from Node.js to Checkly (or another OTLP/HTTP collector),
+set these server environment variables:
 
 | Setting                       | Value                                                                                   |
 | ----------------------------- | --------------------------------------------------------------------------------------- |
 | `OTEL_SERVICE_NAME`           | Service identifier recorded on spans (defaults to `merit`).                             |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | Collector base URL (for example Checkly's regional OTLP ingestion URL).                 |
-| `OTEL_EXPORTER_OTLP_HEADERS`  | Worker secret with comma-separated `key=value` headers (for example API auth).          |
+| `OTEL_EXPORTER_OTLP_HEADERS`  | Server secret with comma-separated `key=value` headers (for example API auth).          |
 | `OTEL_TRACE_FILTER`           | `checkly` (default, exports only Checkly-traced runs) or `all` (exports every request). |
 
 Synthetic checks live in [`tooling/checkly`](../../tooling/checkly/README.md). Set

@@ -6,7 +6,7 @@ import { transform } from "oxc-transform-react";
 import { reactCompilerOptions } from "../react-compiler.ts";
 
 const roots = ["app/src", "interfaces", "capabilities", "foundation"];
-const skippedDirs = new Set(["node_modules", "dist", ".git", ".cloudflare"]);
+const skippedDirs = new Set(["node_modules", "dist", ".git"]);
 
 const isCheckedFile = (name: string) =>
   /\.(tsx|ts)$/.test(name) &&

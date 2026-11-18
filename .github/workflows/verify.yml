@@ -174,7 +174,6 @@ jobs:
           include-hidden-files: true
           path: |
             app/dist
-            app/.cloudflare
             app/src/routeTree.gen.ts
             tooling/storybook/dist
 

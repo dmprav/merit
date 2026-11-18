@@ -19,7 +19,7 @@ vp run dev
 ```
 
 Open [the local demo](http://localhost:3000/demo). No Clerk account or API keys are
-needed. It runs in Cloudflare's local Worker runtime, using PostgreSQL for each
+needed. It runs in Node.js, using PostgreSQL for each
 visitor's isolated workspace.
 
 ## Available today
@@ -64,7 +64,7 @@ For supported security scope and private reporting, see the
 
 ## Code organization
 
-`app/` assembles one Cloudflare deployment. `interfaces/` owns product, site, admin,
+`app/` assembles the Node.js application. `interfaces/` owns product, site, admin,
 MCP, and email integration. Substantial capabilities in `capabilities/` own their
 business operations and reusable web workflows; `foundation/` holds technical
 libraries and UI primitives, and `tooling/` holds development infrastructure.

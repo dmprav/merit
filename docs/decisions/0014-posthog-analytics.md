@@ -17,5 +17,4 @@ evaluation, PostHog runs with memory-only persistence, no person profiles, no
 autocapture, no session recording, and path sanitization that strips query
 strings, invitation tokens, assignment IDs, and workspace slugs before events
 leave the browser. Reassess this choice if product funnels need cross-visit
-attribution, server-side MCP telemetry, or a simpler traffic counter such as
-Cloudflare Web Analytics proves sufficient.
+attribution, server-side MCP telemetry, or a simpler traffic counter proves sufficient.

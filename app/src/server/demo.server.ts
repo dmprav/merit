@@ -23,7 +23,8 @@ export const createDemoServices = (
   identity: () => Promise<Identity>,
   guestToken: string | undefined,
   isGuest: () => Promise<boolean>,
-  networkAddress?: string,
+  // Development skips rate limiting. A missing production peer (null) denies provisioning.
+  networkAddress: string | null | undefined,
 ): DemoServices => {
   return {
     read: async () => {
@@ -46,6 +47,9 @@ export const createDemoServices = (
     },
     start: async (input) => {
       try {
+        if (networkAddress === null) {
+          return { state: { status: "unavailable" } };
+        }
         if (networkAddress && !(await database((db) => allowDemoEntry(db, networkAddress)))) {
           return { state: { status: "limited" } };
         }

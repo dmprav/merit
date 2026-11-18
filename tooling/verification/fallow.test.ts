@@ -149,10 +149,11 @@ test("detects a package cycle with a type-only edge even when no files form a cy
   expect(report.package_cycles).toHaveLength(1);
 });
 
-test("follows Cloudflare configuration imports while still detecting unused tooling", () => {
+test("follows Vite configuration imports while still detecting unused tooling", () => {
   const { exitCode, report } = checkFallow(
     {
-      "app/cloudflare.config.ts": 'export { config as default } from "./scripts/config";',
+      "app/package.json": JSON.stringify({ name: "@merit/app", devDependencies: { vite: "*" } }),
+      "app/vite.config.ts": 'export { config as default } from "./scripts/config";',
       "app/scripts/config.ts": "export const config = {};",
       "app/scripts/unused.ts": "export const unused = 1;",
     },
@@ -221,8 +222,9 @@ test.each([true, false])("checks the host's site dependency when imported: %s", 
         name: "@merit/app",
         type: "module",
         dependencies: { "@merit/site": "workspace:*" },
+        devDependencies: { vite: "*" },
       }),
-      "app/cloudflare.config.ts": 'import { routes } from "./routes"; export default { routes };',
+      "app/vite.config.ts": 'import { routes } from "./routes"; export default { routes };',
       "app/routes.ts": imported
         ? 'import { routesDirectory } from "@merit/site/routing"; export const routes = [routesDirectory];'
         : "export const routes = [];",

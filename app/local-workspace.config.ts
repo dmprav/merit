@@ -1,12 +1,23 @@
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
+
 import type { Plugin } from "vite-plus";
 
 export const assertLocalWorkspaceDatabase = (connectionString: string) => {
   const url = new URL(connectionString);
   if (
+    url.searchParams.has("host") ||
     !["postgres:", "postgresql:"].includes(url.protocol) ||
     !["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)
   ) {
     throw new Error("Local workspace requires a loopback PostgreSQL database.");
+  }
+};
+
+const loadLocalEnvironment = (root: string) => {
+  const file = resolve(root, ".env.local");
+  if (existsSync(file)) {
+    process.loadEnvFile(file);
   }
 };
 
@@ -34,12 +45,15 @@ export const localWorkspace = (): Plugin => {
       if (enabled && config.server.host !== "127.0.0.1") {
         throw new Error("Local workspace must listen on 127.0.0.1.");
       }
-      // Cloudflare has now loaded CLOUDFLARE_* values from process environment and .env files.
-      if (enabled && process.env.CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE) {
-        throw new Error(
-          "Local workspace does not accept a Hyperdrive connection override. Use DATABASE_URL.",
-        );
+    },
+    configureServer(server) {
+      loadLocalEnvironment(server.config.root);
+      if (enabled && process.env.DATABASE_URL !== undefined) {
+        assertLocalWorkspaceDatabase(process.env.DATABASE_URL);
       }
+    },
+    configurePreviewServer(server) {
+      loadLocalEnvironment(server.config.root);
     },
   };
 };

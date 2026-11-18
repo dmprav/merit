@@ -1,11 +1,12 @@
 import { afterEach, beforeEach, expect, it, vi } from "vite-plus/test";
 
+import type { DatabaseRunner } from "@merit/db";
+
 const { clients, connectGate, mockDrizzle, handlerFetch, handleMcpMock, mcpResourceMetadataMock } =
   vi.hoisted(() => {
     type ClientRecord = {
       connectionString: string;
-      connect: ReturnType<typeof vi.fn>;
-      end: ReturnType<typeof vi.fn>;
+      release: ReturnType<typeof vi.fn>;
     };
 
     const records: ClientRecord[] = [];
@@ -26,50 +27,32 @@ const { clients, connectGate, mockDrizzle, handlerFetch, handleMcpMock, mcpResou
     };
   });
 
-vi.mock("cloudflare:workers", () => ({
-  waitUntil: vi.fn(),
-  env: {
-    HYPERDRIVE: { connectionString: "postgres://merit:merit@hyperdrive.local/merit" },
-    CLERK_PUBLISHABLE_KEY: "pk_test",
-    CLERK_SECRET_KEY: "sk_test",
-    CLERK_ISSUER: "https://issuer.example",
-    APP_ORIGIN: "https://merit.example",
-    MERIT_OPERATOR_USER_IDS: "",
-    EMAIL_FROM: "no-reply@merit.example",
-    RESEND_API_KEY: "",
-    MAILPIT_URL: "",
-    OTEL_SERVICE_NAME: "merit",
-    OTEL_EXPORTER_OTLP_ENDPOINT: "",
-    OTEL_EXPORTER_OTLP_HEADERS: "",
-    OTEL_TRACE_FILTER: "checkly",
-  },
-}));
-
 vi.mock("@tanstack/react-start/server-entry", () => ({
   default: { fetch: handlerFetch },
   createServerEntry: <T>(entry: T) => entry,
 }));
 
 vi.mock("pg", () => {
-  class FakeClient {
-    connectionString: string;
-    connect = vi.fn(async () => {
-      await connectGate.current;
-    });
-    end = vi.fn(async () => undefined);
-    on = vi.fn(() => this);
-
+  class FakePool {
+    private connectionString: string;
     constructor(options: { connectionString: string }) {
       this.connectionString = options.connectionString;
-      clients.push({
-        connectionString: options.connectionString,
-        connect: this.connect,
-        end: this.end,
-      });
+    }
+    on = vi.fn();
+    async connect() {
+      const client = {
+        connectionString: this.connectionString,
+        release: vi.fn(),
+        on: vi.fn(),
+        off: vi.fn(),
+      };
+      clients.push(client);
+      await connectGate.current;
+      return client;
     }
   }
 
-  return { Client: FakeClient };
+  return { Pool: FakePool };
 });
 
 vi.mock("drizzle-orm/node-postgres", () => ({
@@ -130,7 +113,7 @@ afterEach(() => {
 
 const fetchRequest = async (url: string) => serverEntry.fetch(new Request(url), {} as never);
 
-it("checks out and closes a pg.Client per database call without holding connections across external I/O", async () => {
+it("checks out and releases a pooled client per database call without holding connections across external I/O", async () => {
   const seenDbs: unknown[] = [];
 
   handlerFetch.mockImplementation(
@@ -139,9 +122,9 @@ it("checks out and closes a pg.Client per database call without holding connecti
       expect(ctx).toBeDefined();
 
       seenDbs.push(await ctx!.workspace.readWorkspace({ userId: "u1" }, "alder"));
-      // Connection is closed immediately when the operation finishes, before external HTTP calls.
+      // The checkout is released immediately when the operation finishes, before external HTTP calls.
       expect(clients).toHaveLength(1);
-      expect(clients[0]!.end).toHaveBeenCalledOnce();
+      expect(clients[0]!.release).toHaveBeenCalledOnce();
 
       const [birchDb, demoRead] = await Promise.all([
         ctx!.workspace.readWorkspace({ userId: "u1" }, "birch"),
@@ -149,8 +132,8 @@ it("checks out and closes a pg.Client per database call without holding connecti
       ]);
       seenDbs.push(birchDb, demoRead.db);
       expect(clients).toHaveLength(3);
-      expect(clients[1]!.end).toHaveBeenCalledOnce();
-      expect(clients[2]!.end).toHaveBeenCalledOnce();
+      expect(clients[1]!.release).toHaveBeenCalledOnce();
+      expect(clients[2]!.release).toHaveBeenCalledOnce();
       return new Response("ok", { status: 200 });
     },
   );
@@ -160,8 +143,7 @@ it("checks out and closes a pg.Client per database call without holding connecti
   expect(response.status).toBe(200);
   expect(clients).toHaveLength(3);
   expect(new Set(seenDbs).size).toBe(3);
-  expect(clients.every((client) => client.connect.mock.calls.length === 1)).toBe(true);
-  expect(clients.every((client) => client.end.mock.calls.length === 1)).toBe(true);
+  expect(clients.every((client) => client.release.mock.calls.length === 1)).toBe(true);
 });
 
 it("prevents web responses from being framed", async () => {
@@ -172,7 +154,7 @@ it("prevents web responses from being framed", async () => {
   expect(response.headers.get("Content-Security-Policy")).toBe("frame-ancestors 'none'");
 });
 
-it("waits for in-flight database calls and closes their pg.Clients before reporting a web handler failure", async () => {
+it("waits for in-flight database calls and releases their pooled clients before reporting a web handler failure", async () => {
   let releaseConnection!: () => void;
   connectGate.current = new Promise<void>((resolve) => {
     releaseConnection = resolve;
@@ -196,7 +178,7 @@ it("waits for in-flight database calls and closes their pg.Clients before report
   releaseConnection();
 
   await expect(response).rejects.toThrow("handler boom");
-  expect(clients[0]!.end).toHaveBeenCalledOnce();
+  expect(clients[0]!.release).toHaveBeenCalledOnce();
 });
 
 it.each([
@@ -214,7 +196,7 @@ it.each([
     settle: (response: Promise<Response>) => expect(response).rejects.toThrow("mcp boom"),
   },
 ])(
-  "gives MCP the request database and closes its pg.Client when MCP $outcome",
+  "gives MCP the request database and releases its pooled client when MCP $outcome",
   async ({ respond, settle }) => {
     handleMcpMock.mockImplementationOnce(
       async (
@@ -231,10 +213,30 @@ it.each([
 
     expect(handleMcpMock).toHaveBeenCalledOnce();
     expect(clients).toHaveLength(1);
-    expect(clients[0]!.connectionString).toBe("postgres://merit:merit@hyperdrive.local/merit");
-    expect(clients[0]!.end).toHaveBeenCalledOnce();
+    expect(clients[0]!.connectionString).toBe(
+      process.env.DATABASE_URL ?? "postgres://merit:merit@127.0.0.1:55432/merit",
+    );
+    expect(clients[0]!.release).toHaveBeenCalledOnce();
   },
 );
+
+it("discards a checkout after an operation fails and serves the next operation", async () => {
+  handleMcpMock.mockImplementationOnce(
+    async (_request, _config, { database }: { database: DatabaseRunner }) => {
+      await expect(
+        database(async () => {
+          throw new Error("query failed");
+        }),
+      ).rejects.toThrow("query failed");
+      await database(async () => undefined);
+      return new Response("recovered");
+    },
+  );
+  await fetchRequest("https://merit.example/mcp/workspace");
+
+  expect(clients[0]!.release).toHaveBeenCalledExactlyOnceWith(true);
+  expect(clients[1]!.release).toHaveBeenCalledExactlyOnceWith(false);
+});
 
 it("does not open any pg.Client when early routes or non-database requests complete", async () => {
   const metadata = await fetchRequest(
@@ -281,7 +283,7 @@ it("isolates pg.Client instances across concurrent HTTP requests and does not ho
   expect(secondResponse.status).toBe(200);
   // Both initial operations released their clients immediately instead of holding one open during firstHold.
   expect(clients).toHaveLength(2);
-  expect(clients.filter((client) => client.end.mock.calls.length > 0)).toHaveLength(2);
+  expect(clients.filter((client) => client.release.mock.calls.length > 0)).toHaveLength(2);
 
   releaseFirst();
   const firstResponse = await firstPromise;
@@ -290,5 +292,5 @@ it("isolates pg.Client instances across concurrent HTTP requests and does not ho
   expect(clients).toHaveLength(3);
   expect(requestDbs.first).not.toBe(requestDbs.second);
   expect(requestDbs.firstAfterPause).not.toBe(requestDbs.first);
-  expect(clients.every((client) => client.end.mock.calls.length === 1)).toBe(true);
+  expect(clients.every((client) => client.release.mock.calls.length === 1)).toBe(true);
 });

@@ -277,7 +277,7 @@ export const formatSummaryMarkdown = (title: string, summaries: SuiteSummary[]) 
   return `${lines.join("\n")}\n`;
 };
 
-const skippedScanDirs = new Set(["node_modules", ".git", "dist", ".output", ".cloudflare"]);
+const skippedScanDirs = new Set(["node_modules", ".git", "dist", ".output"]);
 
 const findFilesByName = (rootDir: string, targetName: string): string[] => {
   if (!existsSync(rootDir)) {

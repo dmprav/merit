@@ -84,7 +84,7 @@ handover limitation; see [Manage a team](../workflows/manage-team.md).
 
 Follow [real sign-in setup](development.md#configure-real-sign-in). Run ordinary
 `vp run dev`; fixture identity controls are absent in this mode. Configure a real
-Clerk development operator ID in `app/.dev.vars` as described below, keeping
+Clerk development operator ID in `app/.env.local` as described below, keeping
 Mailpit as the invitation sender. Invite an email verified on a Clerk development
 recipient account and follow the captured invitation through real sign-in.
 
@@ -102,12 +102,12 @@ Use the same Clerk application as the deployed site, then configure:
 | `MERIT_OPERATOR_USER_IDS` | Comma-separated stable Clerk user IDs authorized to use the operator app. Empty means no operators. |
 | `APP_ORIGIN`              | Canonical HTTPS origin used in production invitation links.                                         |
 | `EMAIL_FROM`              | Bare sender email address on your verified Resend domain.                                           |
-| `RESEND_API_KEY`          | Resend sending credential, supplied as a Worker secret.                                             |
+| `RESEND_API_KEY`          | Resend sending credential, supplied through the server environment.                                 |
 | `MAILPIT_URL`             | Local HTTP inbox URL; only used by the development server. Ignored in production builds.            |
 
 Create/sign in to the intended Clerk account first and copy its ID from Clerk.
 Operator designation is deployment configuration, independent of organization
-membership. Removing its ID removes operator authority on subsequent requests.
+membership. Restart the server after changing operator IDs to apply the new permissions.
 Do not put operator settings or email secrets in `VITE_` variables.
 
 Resend receives the same plain-text and HTML invitation content as Mailpit, with

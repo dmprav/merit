@@ -1,30 +1,13 @@
 import { afterEach, beforeEach, expect, it, vi } from "vite-plus/test";
 
-const { pendingFlushes, mockEnv, handlerFetch } = vi.hoisted(() => ({
-  pendingFlushes: [] as Promise<unknown>[],
+const { mockEnv, handlerFetch } = vi.hoisted(() => ({
   mockEnv: {
-    HYPERDRIVE: { connectionString: "postgres://merit:merit@hyperdrive.local/merit" },
-    CLERK_PUBLISHABLE_KEY: "pk_test",
-    CLERK_SECRET_KEY: "sk_test",
-    CLERK_ISSUER: "https://issuer.example",
-    APP_ORIGIN: "https://merit.example",
-    MERIT_OPERATOR_USER_IDS: "",
-    EMAIL_FROM: "no-reply@merit.example",
-    RESEND_API_KEY: "",
-    MAILPIT_URL: "",
-    OTEL_SERVICE_NAME: "merit-worker",
+    OTEL_SERVICE_NAME: "merit-node",
     OTEL_EXPORTER_OTLP_ENDPOINT: "https://otlp.example",
     OTEL_EXPORTER_OTLP_HEADERS: "Authorization=Bearer test-secret",
     OTEL_TRACE_FILTER: "checkly",
   },
   handlerFetch: vi.fn(async () => new Response("ok", { status: 200 })),
-}));
-
-vi.mock("cloudflare:workers", () => ({
-  waitUntil: (promise: Promise<unknown>) => {
-    pendingFlushes.push(promise);
-  },
-  env: mockEnv,
 }));
 
 vi.mock("@tanstack/react-start/server-entry", () => ({
@@ -37,36 +20,47 @@ vi.mock("@merit/mcp", () => ({
   handleWorkspaceMcp: vi.fn(),
 }));
 
+import { ensureServerTelemetry } from "@merit/telemetry/server";
+
 import serverEntry from "../src/server";
 
 const fetchMock = vi.fn(async () => new Response(null, { status: 202 }));
 
 beforeEach(() => {
-  pendingFlushes.length = 0;
+  for (const [key, value] of Object.entries(mockEnv)) {
+    vi.stubEnv(key, value);
+  }
   handlerFetch.mockClear();
   fetchMock.mockClear();
   vi.stubGlobal("fetch", fetchMock);
 });
 
-afterEach(() => {
+afterEach(async () => {
+  await ensureServerTelemetry({});
+  vi.useRealTimers();
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
 });
 
-it("exports Checkly-sampled worker spans via OTLP/HTTP using Cloudflare waitUntil", async () => {
-  const response = await serverEntry.fetch(
-    new Request("https://merit.example/demo", {
-      headers: {
-        traceparent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
-        tracestate: "checkly=true",
-      },
-    }),
-    {} as never,
+it("batches sampled requests with independent trace IDs into one scheduled OTLP export", async () => {
+  vi.useFakeTimers();
+  const traceIds = ["4bf92f3577b34da6a3ce929d0e0e4736", "0af7651916cd43dd8448eb211c80319c"];
+  const responses = await Promise.all(
+    traceIds.map(async (traceId) =>
+      serverEntry.fetch(
+        new Request("https://merit.example/demo", {
+          headers: {
+            traceparent: `00-${traceId}-00f067aa0ba902b7-01`,
+            tracestate: "checkly=true",
+          },
+        }),
+        {} as never,
+      ),
+    ),
   );
-
-  expect(response.status).toBe(200);
-  expect(pendingFlushes).toHaveLength(1);
-  await Promise.all(pendingFlushes);
-
+  expect(responses.map((response) => response.status)).toEqual([200, 200]);
+  expect(fetchMock).not.toHaveBeenCalled();
+  await vi.advanceTimersToNextTimerAsync();
   expect(fetchMock).toHaveBeenCalledOnce();
   const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
   expect(url).toBe("https://otlp.example/v1/traces");
@@ -85,17 +79,22 @@ it("exports Checkly-sampled worker spans via OTLP/HTTP using Cloudflare waitUnti
   const serviceAttr = payload.resourceSpans[0]!.resource.attributes.find(
     (attr) => attr.key === "service.name",
   );
-  expect(serviceAttr?.value.stringValue).toBe("merit-worker");
-  expect(payload.resourceSpans[0]!.scopeSpans[0]!.spans[0]!.traceId).toBe(
-    "4bf92f3577b34da6a3ce929d0e0e4736",
-  );
-  expect(payload.resourceSpans[0]!.scopeSpans[0]!.spans[0]!.name).toBe("HTTP GET /demo");
+  expect(serviceAttr?.value.stringValue).toBe("merit-node");
+  const spans = payload.resourceSpans[0]!.scopeSpans[0]!.spans;
+  expect(spans.map((span) => span.traceId).sort()).toEqual([...traceIds].sort());
+  expect(spans.map((span) => span.name)).toEqual(["HTTP GET /demo", "HTTP GET /demo"]);
 });
 
 it("does not export spans when tracestate lacks the checkly marker under default filter", async () => {
   const response = await serverEntry.fetch(new Request("https://merit.example/demo"), {} as never);
 
   expect(response.status).toBe(200);
-  await Promise.all(pendingFlushes);
+  await (
+    await ensureServerTelemetry({
+      endpoint: mockEnv.OTEL_EXPORTER_OTLP_ENDPOINT,
+      headers: mockEnv.OTEL_EXPORTER_OTLP_HEADERS,
+      serviceName: mockEnv.OTEL_SERVICE_NAME,
+    })
+  )?.forceFlush();
   expect(fetchMock).not.toHaveBeenCalled();
 });

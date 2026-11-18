@@ -341,12 +341,7 @@ export default defineConfig({
         specifier: fileURLToPath(import.meta.resolve("eslint-plugin-boundaries")),
       },
     ],
-    ignorePatterns: [
-      "**/routeTree.gen.ts",
-      "**/worker-configuration.d.ts",
-      "**/dist/**",
-      "**/coverage/**",
-    ],
+    ignorePatterns: ["**/routeTree.gen.ts", "**/dist/**", "**/coverage/**"],
     settings: {
       "boundaries/root-path": process.cwd(),
       "boundaries/include": ["**/*.{ts,tsx,js,mjs}"],
@@ -362,7 +357,6 @@ export default defineConfig({
       "boundaries/flag-as-external": {
         // Broken aliases must fail instead of becoming unchecked external dependencies.
         unresolvableAlias: false,
-        customSourcePatterns: ["cloudflare:*"],
       },
       "boundaries/files": [
         ...Object.entries({

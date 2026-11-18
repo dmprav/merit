@@ -280,7 +280,7 @@ export const readApplicationContext = async (
   return row ? withRequestedMoney(row) : undefined;
 };
 
-// Slicing serialized sections by Unicode code points bounds payloads at the Worker boundary,
+// Slicing serialized sections by Unicode code points bounds payloads at the server boundary,
 // with a content fingerprint binding every subsequent chunk to the same snapshot.
 const sliceJsonValue = async (value: unknown, offset: number, length: number) => {
   const json = JSON.stringify(value);

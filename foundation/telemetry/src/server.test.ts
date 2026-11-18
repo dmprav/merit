@@ -8,11 +8,11 @@ import { currentTraceId, withSpan } from "./index";
 import { FetchOtlpTraceExporter, parseOtlpHeaders, resolveTracesUrl } from "./otlp-exporter";
 import { describeHttpRoute } from "./route-label";
 import { createTraceSampler, isChecklyTraceContext, resolveTraceFilter } from "./sampler";
-import { ensureWorkerTelemetry, traceWorkerRequest } from "./worker";
+import { ensureServerTelemetry, traceServerRequest } from "./server";
 
-describe("@merit/telemetry worker and Checkly integration", () => {
+describe("@merit/telemetry server and Checkly integration", () => {
   afterEach(async () => {
-    await ensureWorkerTelemetry({});
+    await ensureServerTelemetry({});
     vi.restoreAllMocks();
   });
 
@@ -131,58 +131,52 @@ describe("@merit/telemetry worker and Checkly integration", () => {
   });
 
   it("acts as a zero-overhead pass-through when endpoint is unset", async () => {
-    const waitUntil = vi.fn();
-    const response = await traceWorkerRequest(
+    const response = await traceServerRequest(
       new Request("https://merit.example/"),
       { endpoint: "" },
-      waitUntil,
       async () => new Response("ok", { status: 200 }),
     );
 
     expect(response.status).toBe(200);
-    expect(waitUntil).not.toHaveBeenCalled();
   });
 
-  it("samples Checkly requests using incoming traceparent and tracestate and flushes on waitUntil", async () => {
+  it("samples Checkly requests using incoming traceparent and tracestate and flushes ended spans", async () => {
     const fetchMock = vi.fn(async () => new Response("", { status: 200 }));
-    const handle = await ensureWorkerTelemetry(
+    const handle = await ensureServerTelemetry(
       {
         endpoint: "https://otel.eu-west-1.checklyhq.com",
         headers: "authorization=test-key",
-        serviceName: "merit-worker",
+        serviceName: "merit-node",
       },
       { fetchFn: fetchMock },
     );
     expect(handle).not.toBeNull();
 
     // Calling again with identical config reuses the active telemetry instance.
-    const sameHandle = await ensureWorkerTelemetry({
+    const sameHandle = await ensureServerTelemetry({
       endpoint: "https://otel.eu-west-1.checklyhq.com",
       headers: "authorization=test-key",
-      serviceName: "merit-worker",
+      serviceName: "merit-node",
     });
     expect(sameHandle).toBe(handle);
 
     const traceId = "4bf92f3577b34da6a3ce929d0e0e4736";
     const parentSpanId = "00f067aa0ba902b7";
 
-    const nonChecklyQueue: Array<Promise<unknown>> = [];
-    await traceWorkerRequest(
+    await traceServerRequest(
       new Request("https://merit.example/app/alder/rounds"),
       {
         endpoint: "https://otel.eu-west-1.checklyhq.com",
         headers: "authorization=test-key",
-        serviceName: "merit-worker",
+        serviceName: "merit-node",
       },
-      (promise) => nonChecklyQueue.push(promise),
       async () => new Response("ignored", { status: 200 }),
     );
-    await Promise.all(nonChecklyQueue);
+    await handle!.forceFlush();
     expect(fetchMock).not.toHaveBeenCalled();
 
-    const checklyQueue: Array<Promise<unknown>> = [];
     const seenTraceIds: Array<string | undefined> = [];
-    const response = await traceWorkerRequest(
+    const response = await traceServerRequest(
       new Request("https://merit.example/app/alder/rounds", {
         headers: {
           traceparent: `00-${traceId}-${parentSpanId}-01`,
@@ -192,9 +186,8 @@ describe("@merit/telemetry worker and Checkly integration", () => {
       {
         endpoint: "https://otel.eu-west-1.checklyhq.com",
         headers: "authorization=test-key",
-        serviceName: "merit-worker",
+        serviceName: "merit-node",
       },
-      (promise) => checklyQueue.push(promise),
       async () => {
         await withSpan("child.work", async () => {
           seenTraceIds.push(currentTraceId());
@@ -205,7 +198,7 @@ describe("@merit/telemetry worker and Checkly integration", () => {
 
     expect(response.status).toBe(503);
     expect(seenTraceIds).toEqual([traceId]);
-    await Promise.all(checklyQueue);
+    await handle!.forceFlush();
 
     expect(fetchMock).toHaveBeenCalledOnce();
     const calls = fetchMock.mock.calls as unknown as Array<[string, RequestInit]>;
@@ -230,8 +223,7 @@ describe("@merit/telemetry worker and Checkly integration", () => {
     expect(exportedSpans.every((span) => span.traceId === traceId)).toBe(true);
 
     fetchMock.mockResolvedValueOnce(new Response("collector error", { status: 500 }));
-    const failingQueue: Array<Promise<unknown>> = [];
-    const failedExportResponse = await traceWorkerRequest(
+    const failedExportResponse = await traceServerRequest(
       new Request("https://merit.example/app/alder/rounds", {
         headers: {
           traceparent: `00-${traceId}-${parentSpanId}-01`,
@@ -241,18 +233,19 @@ describe("@merit/telemetry worker and Checkly integration", () => {
       {
         endpoint: "https://otel.eu-west-1.checklyhq.com",
         headers: "authorization=test-key",
-        serviceName: "merit-worker",
+        serviceName: "merit-node",
       },
-      (promise) => failingQueue.push(promise),
       async () => new Response("ok", { status: 200 }),
     );
     expect(failedExportResponse.status).toBe(200);
-    await Promise.all(failingQueue);
+    await expect(handle!.forceFlush()).rejects.toEqual([
+      new Error("OTLP export returned HTTP 500."),
+    ]);
   });
 
   it("handles FetchOtlpTraceExporter shutdown, empty batches, HTTP failures, and serializer failures", async () => {
     const exporter = new InMemorySpanExporter();
-    await ensureWorkerTelemetry(
+    await ensureServerTelemetry(
       { endpoint: "https://otel.example.com", traceFilter: "all" },
       { spanProcessor: new SimpleSpanProcessor({ exporter }) },
     );
@@ -332,23 +325,25 @@ describe("@merit/telemetry worker and Checkly integration", () => {
     expect(results.at(-1)?.code).toBe(ExportResultCode.SUCCESS);
   });
 
-  it("switches global context cleanly even when global Fetch is used by default", async () => {
+  it("exports the previous batch on reconfiguration and installs the new provider", async () => {
     const fetchSpy = vi.fn(async () => new Response(null, { status: 200 }));
     vi.stubGlobal("fetch", fetchSpy);
 
-    const handle = await ensureWorkerTelemetry({
+    const handle = await ensureServerTelemetry({
       endpoint: "https://otel.example.com",
       traceFilter: "all",
     });
     expect(handle).not.toBeNull();
 
-    // Reconfigure with a different serviceName to exercise resetting previous telemetry.
-    const replaced = await ensureWorkerTelemetry({
+    await withSpan("before-reconfiguration", () => undefined);
+    expect(fetchSpy).not.toHaveBeenCalled();
+    const replaced = await ensureServerTelemetry({
       endpoint: "https://otel.example.com",
-      serviceName: "  ",
+      serviceName: "another-service",
       traceFilter: "all",
     });
-    expect(replaced).not.toBeNull();
+    expect(replaced).not.toBe(handle);
+    expect(fetchSpy).toHaveBeenCalledOnce();
 
     await context.with(
       trace.setSpan(ROOT_CONTEXT, trace.getTracer("t").startSpan("x")),
@@ -364,7 +359,7 @@ describe("@merit/telemetry worker and Checkly integration", () => {
       fetchFn: vi.fn(async () => ({ ok: false, status: 401 }) as Response),
     });
     const memory = new InMemorySpanExporter();
-    await ensureWorkerTelemetry(
+    await ensureServerTelemetry(
       { endpoint: "https://otel.example.com", traceFilter: "all" },
       { spanProcessor: new SimpleSpanProcessor({ exporter: memory }) },
     );

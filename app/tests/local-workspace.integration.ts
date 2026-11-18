@@ -1,9 +1,10 @@
+import { execFile } from "node:child_process";
 import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { promisify } from "node:util";
 
-import { cloudflare } from "@cloudflare/vite-plugin";
-import { resolveConfig } from "vite-plus";
+import { createServer, preview, resolveConfig } from "vite-plus";
 import { describe, expect, it, vi } from "vite-plus/test";
 
 import { assertLocalWorkspaceDatabase, localWorkspace } from "../local-workspace.config";
@@ -62,6 +63,9 @@ describe("local workspace isolation", () => {
 
   it("only uses a loopback PostgreSQL database", () => {
     expect(() => assertLocalWorkspaceDatabase(database)).not.toThrow();
+    expect(() => assertLocalWorkspaceDatabase(database + "?host=remote.example")).toThrow(
+      "loopback PostgreSQL",
+    );
 
     for (const host of ["example.com", "localhost.example.com", "192.168.1.1"]) {
       expect(() => assertLocalWorkspaceDatabase(`postgres://user:pass@${host}/merit`)).toThrow(
@@ -89,11 +93,11 @@ describe("local workspace isolation", () => {
   });
 
   it("excludes development tools, fixture identity and local adapter from the actual production output", async () => {
-    const output = new URL("../.cloudflare/output/v0/workers/default", import.meta.url);
+    const output = new URL("../dist", import.meta.url);
     const files = await readdir(output, { recursive: true });
     const scripts = files.filter((file) => /\.(m?js)$/.test(file));
 
-    expect(scripts).toContain("bundle/index.js");
+    expect(scripts).toContain("server/server.js");
     expect(scripts.length, "Build the host before running integration checks").toBeGreaterThan(0);
 
     for (const file of scripts) {
@@ -105,24 +109,35 @@ describe("local workspace isolation", () => {
     }
   });
 
-  it("requires real secrets in the production Worker configuration", async () => {
-    const config: unknown = JSON.parse(
-      await readFile(
-        new URL("../.cloudflare/output/v0/workers/default/worker.config.json", import.meta.url),
-        "utf8",
-      ),
-    );
-
-    expect(config).toMatchObject({
-      env: { CLERK_SECRET_KEY: { type: "secret" }, RESEND_API_KEY: { type: "secret" } },
-    });
+  it("serves the built app and protects workspace access in local preview without credentials", async () => {
+    for (const key of ["CLERK_SECRET_KEY", "CLERK_PUBLISHABLE_KEY", "RESEND_API_KEY"]) {
+      vi.stubEnv(key, "");
+    }
+    vi.stubEnv("APP_ORIGIN", "http://127.0.0.1");
+    try {
+      const server = await preview({ preview: { host: "127.0.0.1", port: 0 } });
+      try {
+        const url = server.resolvedUrls?.local[0];
+        if (!url) {
+          throw new Error("Expected a local preview address.");
+        }
+        await promisify(execFile)(process.execPath, ["tests/smoke.ts"], {
+          cwd: new URL("..", import.meta.url),
+          env: { ...process.env, MERIT_BASE_URL: url },
+        });
+      } finally {
+        await server.close();
+      }
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it.each(["process", "env-file"])(
-    "rejects a Hyperdrive override from %s before starting a server",
+    "rejects a non-loopback database from %s before starting a server",
     async (source) => {
       const envDir = await mkdtemp(join(tmpdir(), "merit-local-env-"));
-      const name = "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE";
+      const name = "DATABASE_URL";
       const previous = process.env[name];
 
       try {
@@ -131,23 +146,17 @@ describe("local workspace isolation", () => {
         if (source === "process") {
           vi.stubEnv(name, override);
         } else {
-          await writeFile(join(envDir, ".env.local-workspace"), `${name}=${override}\n`);
+          await writeFile(join(envDir, ".env.local"), `${name}=${override}\n`);
         }
 
         await expect(
-          resolveConfig(
-            {
-              configFile: false,
-              mode: "local-workspace",
-              envDir,
-              plugins: [
-                localWorkspace(),
-                cloudflare({ viteEnvironment: { name: "ssr" }, types: { generate: false } }),
-              ],
-            },
-            "serve",
-          ),
-        ).rejects.toThrow("Use DATABASE_URL");
+          createServer({
+            configFile: false,
+            mode: "local-workspace",
+            root: envDir,
+            plugins: [localWorkspace()],
+          }),
+        ).rejects.toThrow("loopback PostgreSQL");
       } finally {
         vi.stubEnv(name, previous);
         vi.unstubAllEnvs();

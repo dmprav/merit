@@ -52,7 +52,7 @@ Open [localhost:3000](http://localhost:3000). The public website needs no databa
 Clerk account or keys. Choosing **Explore the example** or **Browse the workspace**
 from the introduction provisions a personal fictional workspace;
 regular workspace routes and server operations carry out its work. Development
-runs in Cloudflare's local Worker runtime. MCP requires an authenticated account.
+runs on Node.js. MCP requires an authenticated account.
 
 The [README](../../README.md#available-today) describes the available workflows.
 For client connections, follow the [MCP guide](mcp.md).
@@ -122,8 +122,7 @@ Clerk keys, if present, are ignored for web identity in this mode. Protected MCP
 still requires real OAuth. Local mode is available only in the development server.
 Both development modes allow `CLERK_SECRET_KEY` and `RESEND_API_KEY` to be absent:
 the local server supplies empty defaults, and invitation emails use Mailpit.
-Configure Clerk credentials when testing real sign-in or protected MCP. Production
-builds retain both required secret declarations.
+Configure Clerk credentials when testing real sign-in or protected MCP.
 
 The [application configuration](../../app/local-workspace.config.ts) and
 [isolation tests](../../app/tests/local-workspace.integration.ts) define how
@@ -135,10 +134,11 @@ local mode selects the database and identity adapter and stays out of builds.
    and enable a sign-in method, such as email.
 2. Copy [`app/.env.example`](../../app/.env.example) to `app/.env.local` and set
    `VITE_CLERK_PUBLISHABLE_KEY` to the application's publishable key.
-3. Copy [`app/.dev.vars.example`](../../app/.dev.vars.example) to `app/.dev.vars`.
-   Set `CLERK_PUBLISHABLE_KEY` to the same key, `CLERK_SECRET_KEY` to the secret key,
-   and `CLERK_ISSUER` to the instance's HTTPS Frontend API URL. Keep secrets in
-   `.dev.vars`; only the publishable key belongs in a `VITE_` variable.
+3. In that same file, set `CLERK_PUBLISHABLE_KEY` to the matching key,
+   `CLERK_SECRET_KEY` to the secret key, and `CLERK_ISSUER` to the HTTPS Frontend
+   API URL. Only variables prefixed with `VITE_` are exposed to the browser.
+   If upgrading an existing checkout, move your server settings from `app/.dev.vars`
+   into `app/.env.local`. Restart the dev server after changing its environment.
 4. Run `vp run dev`, visit `/app/sign-in`, and create a development user. Copy its
    `user_…` ID from Clerk's user page, then link it to the local Alder manager:
 

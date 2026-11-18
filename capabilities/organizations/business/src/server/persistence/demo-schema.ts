@@ -1,6 +1,6 @@
 import { integer, pgTable, text, timestamp, index } from "drizzle-orm/pg-core";
 
-// Short-lived, hashed network buckets bound anonymous provisioning across Worker instances.
+// Short-lived, hashed network buckets bound anonymous provisioning across server instances.
 export const demoEntryLimits = pgTable(
   "demo_entry_limits",
   {

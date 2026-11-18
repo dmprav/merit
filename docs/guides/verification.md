@@ -73,7 +73,7 @@ Choose checks for the part you changed:
 
 | When you need to…                                                    | Run…                                                                  |
 | -------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| Check formatting, lint, and types                                    | `vp run check:code` (build first to generate route and Worker types)  |
+| Check formatting, lint, and types                                    | `vp run check:code` (build first to generate route types)             |
 | Check React Compiler diagnostics across UI code                      | `vp run check:react-compiler`                                         |
 | Check capability packages without application-generated types        | `vp run -r typecheck`                                                 |
 | Typecheck one extracted web capability                               | `vp run @merit/grantmaking-web#typecheck`                             |
@@ -94,7 +94,7 @@ Choose checks for the part you changed:
 | Check persisted workspace navigation without Clerk                   | `vp run @merit/app#test:workspace`                                    |
 
 The application owns the browser compilation: `app/tsconfig.json` includes
-product, site, and admin source and the generated router/Worker context. Their
+product, site, and admin source and the generated router context. Their
 adapters are checked by `vp run @merit/app#build`; do not restore reverse source
 includes or independent interface TypeScript projects. Each capability web package
 has its own `typecheck` task with no application source. `vp run ready` runs both

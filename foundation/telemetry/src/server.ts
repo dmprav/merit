@@ -11,40 +11,43 @@ import { W3CTraceContextPropagator } from "@opentelemetry/core";
 import { resourceFromAttributes } from "@opentelemetry/resources";
 import { BatchSpanProcessor, TracerProvider, type SpanProcessor } from "@opentelemetry/sdk-trace";
 
-import { withSpan } from "./index";
-import { FetchOtlpTraceExporter, parseOtlpHeaders, resolveTracesUrl } from "./otlp-exporter";
-import { describeHttpRoute } from "./route-label";
-import { createTraceSampler, resolveTraceFilter } from "./sampler";
+import { withSpan } from "./index.ts";
+import { FetchOtlpTraceExporter, parseOtlpHeaders, resolveTracesUrl } from "./otlp-exporter.ts";
+import { describeHttpRoute } from "./route-label.ts";
+import { createTraceSampler, resolveTraceFilter } from "./sampler.ts";
 
 export { describeHttpRoute };
 
-export type WorkerTelemetryConfig = {
+export type ServerTelemetryConfig = {
   endpoint?: string;
   headers?: string;
   serviceName?: string;
   traceFilter?: string;
 };
 
-export type WorkerTelemetryHandle = {
+export type ServerTelemetryHandle = {
   forceFlush: () => Promise<void>;
   shutdown: () => Promise<void>;
 };
 
-type ActiveWorkerTelemetry = WorkerTelemetryHandle & {
+type ActiveServerTelemetry = ServerTelemetryHandle & {
   configKey: string;
 };
 
-let activeTelemetry: ActiveWorkerTelemetry | undefined;
+// Vite loads the host config and the SSR application through separate module graphs.
+const providerKey = Symbol.for("merit.telemetry.provider");
+const registry = globalThis as typeof globalThis & { [providerKey]?: ActiveServerTelemetry };
 
-const resetGlobalRegistry = async (): Promise<void> => {
-  const previous = activeTelemetry;
-  activeTelemetry = undefined;
+export const shutdownServerTelemetry = async (): Promise<void> => {
+  const previous = registry[providerKey];
+  if (!previous) {
+    return;
+  }
+  delete registry[providerKey];
   trace.disable();
   context.disable();
   propagation.disable();
-  if (previous) {
-    await previous.shutdown();
-  }
+  await previous.shutdown();
 };
 
 const createConfigKey = (
@@ -54,15 +57,13 @@ const createConfigKey = (
   headersRaw?: string,
 ): string => `${url}|${serviceName}|${filter}|${headersRaw ?? ""}`;
 
-export const ensureWorkerTelemetry = async (
-  config: WorkerTelemetryConfig,
+export const ensureServerTelemetry = async (
+  config: ServerTelemetryConfig,
   options?: { spanProcessor?: SpanProcessor; fetchFn?: typeof fetch },
-): Promise<WorkerTelemetryHandle | null> => {
+): Promise<ServerTelemetryHandle | null> => {
   const tracesUrl = resolveTracesUrl(config.endpoint);
   if (!tracesUrl) {
-    if (activeTelemetry) {
-      await resetGlobalRegistry();
-    }
+    await shutdownServerTelemetry();
     return null;
   }
 
@@ -70,11 +71,13 @@ export const ensureWorkerTelemetry = async (
   const filter = resolveTraceFilter(config.traceFilter);
   const configKey = createConfigKey(tracesUrl, serviceName, filter, config.headers);
 
+  const activeTelemetry = registry[providerKey];
   if (activeTelemetry?.configKey === configKey && !options?.spanProcessor && !options?.fetchFn) {
     return activeTelemetry;
   }
 
-  await resetGlobalRegistry();
+  // Install the new provider before yielding so concurrent requests share its batch.
+  const draining = shutdownServerTelemetry();
 
   const processor =
     options?.spanProcessor ??
@@ -89,8 +92,7 @@ export const ensureWorkerTelemetry = async (
   const provider = new TracerProvider({
     resource: resourceFromAttributes({
       "service.name": serviceName,
-      "cloud.provider": "cloudflare",
-      "cloud.platform": "cloudflare.workers",
+      "process.runtime.name": "nodejs",
     }),
     sampler: createTraceSampler(filter),
     spanProcessors: [processor],
@@ -100,22 +102,23 @@ export const ensureWorkerTelemetry = async (
   propagation.setGlobalPropagator(new W3CTraceContextPropagator());
   trace.setGlobalTracerProvider(provider);
 
-  activeTelemetry = {
+  const handle = {
     configKey,
     forceFlush: () => provider.forceFlush(),
     shutdown: () => provider.shutdown(),
   };
 
-  return activeTelemetry;
+  registry[providerKey] = handle;
+  await draining;
+  return handle;
 };
 
-export const traceWorkerRequest = async (
+export const traceServerRequest = async (
   request: Request,
-  config: WorkerTelemetryConfig,
-  waitUntil: (promise: Promise<unknown>) => void,
+  config: ServerTelemetryConfig,
   handler: () => Promise<Response>,
 ): Promise<Response> => {
-  const handle = await ensureWorkerTelemetry(config);
+  const handle = await ensureServerTelemetry(config);
   if (!handle) {
     return handler();
   }
@@ -128,30 +131,26 @@ export const traceWorkerRequest = async (
     Object.fromEntries(request.headers.entries()),
   );
 
-  try {
-    return await context.with(parentContext, () =>
-      withSpan(
-        `HTTP ${method} ${route}`,
-        async (span) => {
-          const response = await handler();
-          span.setAttribute("http.response.status_code", response.status);
-          if (response.status >= 500) {
-            span.setStatus({ code: SpanStatusCode.ERROR, message: `HTTP ${response.status}` });
-          }
-          return response;
+  return context.with(parentContext, () =>
+    withSpan(
+      `HTTP ${method} ${route}`,
+      async (span) => {
+        const response = await handler();
+        span.setAttribute("http.response.status_code", response.status);
+        if (response.status >= 500) {
+          span.setStatus({ code: SpanStatusCode.ERROR, message: `HTTP ${response.status}` });
+        }
+        return response;
+      },
+      {
+        kind: SpanKind.SERVER,
+        attributes: {
+          "http.request.method": method,
+          "http.route": route,
+          "url.scheme": url.protocol.replace(":", ""),
+          "merit.surface": surface,
         },
-        {
-          kind: SpanKind.SERVER,
-          attributes: {
-            "http.request.method": method,
-            "http.route": route,
-            "url.scheme": url.protocol.replace(":", ""),
-            "merit.surface": surface,
-          },
-        },
-      ),
-    );
-  } finally {
-    waitUntil(handle.forceFlush().catch(() => undefined));
-  }
+      },
+    ),
+  );
 };

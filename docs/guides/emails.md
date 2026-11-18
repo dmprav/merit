@@ -78,12 +78,12 @@ vp check
 ```
 
 Renderer tests cover fixtures, independent responsibilities, escaping, links,
-catalog use, regional formatting, and plain-text content. The application build checks the Cloudflare Worker integration.
+catalog use, regional formatting, and plain-text content. The application build checks the Node.js server integration.
 For actual delivery and acceptance, follow the
 [local invitation workflow](organizations.md#try-the-complete-flow-locally) and
 inspect HTML and text in [Mailpit](http://127.0.0.1:8025).
 With PostgreSQL and Mailpit running, `vp run @merit/app#test:workspace` exercises
-the renderer inside the Worker through invitation delivery and acceptance.
+the renderer in Node.js through invitation delivery and acceptance.
 
 The preview is a browser rendering, not an inbox compatibility test. Before
 publishing substantial design changes, inspect a delivered message in the email

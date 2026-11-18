@@ -15,7 +15,6 @@
     "../interfaces/product/src",
     "../interfaces/admin/src",
     "../interfaces/site/src",
-    ".cloudflare/types",
     "../interfaces/product/tests",
     "../interfaces/product/*.ts",
     "../interfaces/admin/tests",

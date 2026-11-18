@@ -11,14 +11,7 @@ export default defineConfig({
     ignorePatterns: ["**/routeTree.gen.ts"],
     sortImports: {
       internalPattern: ["@merit/"],
-      customGroups: [{ groupName: "cloudflare", elementNamePattern: ["cloudflare:*"] }],
-      groups: [
-        ["builtin", "cloudflare"],
-        "external",
-        "internal",
-        ["parent", "sibling", "index"],
-        "unknown",
-      ],
+      groups: ["builtin", "external", "internal", ["parent", "sibling", "index"], "unknown"],
       newlinesBetween: true,
       // Keep TypeScript reference directives ahead of imports.
       partitionByComment: true,

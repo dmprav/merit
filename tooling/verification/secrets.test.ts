@@ -198,7 +198,7 @@ it.each([
 ])("detects a key with $rule", ({ rule, secret }) => {
   const repo = repository();
   const value = secret();
-  repo.write(".dev.vars.example", `KEY=${value}\n`);
+  repo.write("app/.env.example", `KEY=${value}\n`);
 
   const result = repo.scan();
   expect(result.status, result.output).toBe(1);
