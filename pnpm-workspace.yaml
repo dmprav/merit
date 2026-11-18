@@ -60,8 +60,8 @@ catalog:
   drizzle-orm: ^0.45.4
   jsdom: ^31.0.0
   pg: ^8.23.1
-  react-email: 6.11.8
-  "@react-email/ui": 6.11.8
+  react-email: 6.11.16
+  "@react-email/ui": 6.11.16
   react: ^19.3.1
   react-aria-components: ^1.22.1
   react-dom: ^19.3.1
@@ -106,24 +106,12 @@ overrides:
   "glob@>=9.0.0 <=14.0.1": 14.0.4
   # https://github.com/advisories/GHSA-g3hv-75wg-m249
   "minimatch@>=7.0.0 <11.0.1": 11.0.5
-  # @react-email/ui pins next@16.4.3, and no release allows 16.4.5 yet.
-  # https://github.com/advisories/GHSA-mfr8-8qww-v76h
-  # https://github.com/advisories/GHSA-vc7v-qv4w-wrv8
-  "next@>=16.2.0 <=16.4.4": 16.4.6
   "@esbuild-kit/core-utils>esbuild": 0.28.2
 peerDependencyRules:
   allowAny:
     - vite
   allowedVersions:
     vite: "*"
-audit:
-  ignore:
-    # picomatch <=4.0.7 has no patched release. Build and test tooling
-    # (tinyglobby, vitest, rollup pluginutils, micromatch) compiles globs
-    # written in this repository. Remove this entry when a release above
-    # 4.0.7 ships.
-    # https://github.com/advisories/GHSA-fc5q-39xc-vjpf
-    - GHSA-fc5q-39xc-vjpf
 minimumReleaseAgeExclude:
   - "@fallow-cli/darwin-arm64@3.41.0"
   - "@fallow-cli/darwin-x64@3.41.0"
