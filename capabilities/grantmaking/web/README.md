@@ -24,7 +24,6 @@ Preserve cache effects when changing a binding. Recommendation saves update the
 application cache and invalidate the workspace's round reads. Intake changes and
 contact changes use the product's shared grant-work scope. Query infrastructure
 owns the [account and fetched-data lifecycle](../../../foundation/query/README.md).
-Capability messages are exposed through `/messages` for interface composition.
 
 ## Compare applications
 
