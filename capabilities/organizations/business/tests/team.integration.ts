@@ -820,7 +820,7 @@ describe("organization team", () => {
     expect((await service().inviteMember({ userId: "owner" }, request)).status).toBe("ok");
   });
 
-  it("checks resource organization and current active authority on every mutation", async () => {
+  it("rejects team changes by a deactivated administrator", async () => {
     await join("admin", "administrator");
     await join("manager");
     const member = await memberRequest("manager");
@@ -829,6 +829,12 @@ describe("organization team", () => {
     expect(await service().removeMember({ userId: "admin" }, member)).toEqual({
       status: "forbidden",
     });
+    expect((await team()).members.map((m) => m.name)).toContain("manager");
+  });
+
+  it("rejects team changes by another workspace's owner", async () => {
+    await join("manager");
+    const member = await memberRequest("manager");
     expect(
       (
         await service().create(
@@ -843,7 +849,7 @@ describe("organization team", () => {
       ).status,
     ).toBe("ok");
 
-    await service().accept({ userId: "other" }, { token: token() });
+    expect((await service().accept({ userId: "other" }, { token: token() })).status).toBe("ok");
 
     expect(await service().removeMember({ userId: "other" }, member)).toEqual({
       status: "forbidden",
@@ -853,6 +859,7 @@ describe("organization team", () => {
     ).toEqual({
       status: "not_found",
     });
+    expect((await team()).members.map((m) => m.name)).toContain("manager");
   });
 });
 
