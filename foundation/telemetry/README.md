@@ -6,7 +6,7 @@ Centralized OpenTelemetry tracing helpers and Node.js OTLP/HTTP export for Merit
 
 - `@merit/telemetry` ([`src/index.ts`](src/index.ts)): server-side helpers (`withSpan`, `instrumentService`, `setSpanAttributes`, `recordSafeError`, `currentTraceId`) used by `foundation/db`, `interfaces/mcp`, and `app`.
 - `@merit/telemetry/errors` ([`src/errors.ts`](src/errors.ts)): browser- and server-safe error reporting (`reportError`, `setErrorReporter`) that normalizes errors, redacts sensitive fields, and logs structured `[merit:error]` payloads until an external reporter (such as Sentry) is registered.
-- `@merit/telemetry/server` ([`src/server.ts`](src/server.ts)): Server HTTP wrapper (`traceServerRequest`, `ensureServerTelemetry`) that extracts incoming W3C `traceparent`/`tracestate` headers, normalizes route labels to low-cardinality templates, and queues sampled spans in a shared OpenTelemetry batch processor. The processor exports across requests on its timer or when a batch fills. Shutting down the provider drains its remaining batch.
+- `@merit/telemetry/server` ([`src/server.ts`](src/server.ts)): Server HTTP wrapper (`traceServerRequest`, `ensureServerTelemetry`) that extracts incoming W3C `traceparent`/`tracestate` headers, normalizes route labels to low-cardinality templates, and queues sampled spans in a shared OpenTelemetry batch processor. The processor exports across requests on its timer or when a batch fills. Vite dev and preview await `shutdownServerTelemetry()` on graceful shutdown so the collector receives the final batch.
 
 ## Boundaries and privacy
 

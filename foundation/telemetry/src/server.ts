@@ -11,10 +11,10 @@ import { W3CTraceContextPropagator } from "@opentelemetry/core";
 import { resourceFromAttributes } from "@opentelemetry/resources";
 import { BatchSpanProcessor, TracerProvider, type SpanProcessor } from "@opentelemetry/sdk-trace";
 
-import { withSpan } from "./index";
-import { FetchOtlpTraceExporter, parseOtlpHeaders, resolveTracesUrl } from "./otlp-exporter";
-import { describeHttpRoute } from "./route-label";
-import { createTraceSampler, resolveTraceFilter } from "./sampler";
+import { withSpan } from "./index.ts";
+import { FetchOtlpTraceExporter, parseOtlpHeaders, resolveTracesUrl } from "./otlp-exporter.ts";
+import { describeHttpRoute } from "./route-label.ts";
+import { createTraceSampler, resolveTraceFilter } from "./sampler.ts";
 
 export { describeHttpRoute };
 
@@ -34,17 +34,20 @@ type ActiveServerTelemetry = ServerTelemetryHandle & {
   configKey: string;
 };
 
-let activeTelemetry: ActiveServerTelemetry | undefined;
+// Vite loads the host config and the SSR application through separate module graphs.
+const providerKey = Symbol.for("merit.telemetry.provider");
+const registry = globalThis as typeof globalThis & { [providerKey]?: ActiveServerTelemetry };
 
-const resetGlobalRegistry = async (): Promise<void> => {
-  const previous = activeTelemetry;
-  activeTelemetry = undefined;
+export const shutdownServerTelemetry = async (): Promise<void> => {
+  const previous = registry[providerKey];
+  if (!previous) {
+    return;
+  }
+  delete registry[providerKey];
   trace.disable();
   context.disable();
   propagation.disable();
-  if (previous) {
-    await previous.shutdown();
-  }
+  await previous.shutdown();
 };
 
 const createConfigKey = (
@@ -60,9 +63,7 @@ export const ensureServerTelemetry = async (
 ): Promise<ServerTelemetryHandle | null> => {
   const tracesUrl = resolveTracesUrl(config.endpoint);
   if (!tracesUrl) {
-    if (activeTelemetry) {
-      await resetGlobalRegistry();
-    }
+    await shutdownServerTelemetry();
     return null;
   }
 
@@ -70,12 +71,13 @@ export const ensureServerTelemetry = async (
   const filter = resolveTraceFilter(config.traceFilter);
   const configKey = createConfigKey(tracesUrl, serviceName, filter, config.headers);
 
+  const activeTelemetry = registry[providerKey];
   if (activeTelemetry?.configKey === configKey && !options?.spanProcessor && !options?.fetchFn) {
     return activeTelemetry;
   }
 
   // Install the new provider before yielding so concurrent requests share its batch.
-  const draining = resetGlobalRegistry();
+  const draining = shutdownServerTelemetry();
 
   const processor =
     options?.spanProcessor ??
@@ -106,7 +108,7 @@ export const ensureServerTelemetry = async (
     shutdown: () => provider.shutdown(),
   };
 
-  activeTelemetry = handle;
+  registry[providerKey] = handle;
   await draining;
   return handle;
 };

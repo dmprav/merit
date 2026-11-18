@@ -1,10 +1,28 @@
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import react from "@vitejs/plugin-react";
-import { defineConfig, lazyPlugins } from "vite-plus";
+import { defineConfig, lazyPlugins, type ViteDevServer } from "vite-plus";
 
 import { reactCompilerOptions } from "../tooling/react-compiler";
 import { localWorkspace } from "./local-workspace.config";
 import { routes } from "./routes";
+
+// Vite handles SIGTERM and the quit shortcut. Route Ctrl+C through the same close hooks.
+const closeOnInterrupt = (server: Pick<ViteDevServer, "httpServer" | "close" | "config">) => {
+  if (!server.httpServer) {
+    return;
+  }
+
+  const interrupt = () => {
+    process.exitCode = 130;
+    void server.close().catch((error: unknown) => server.config.logger.error(String(error)));
+  };
+
+  process.once("SIGINT", interrupt);
+  server.httpServer.once("close", () => process.off("SIGINT", interrupt));
+};
+
+const shutdownTelemetry = async () =>
+  (await import("@merit/telemetry/server")).shutdownServerTelemetry();
 
 const run = {
   tasks: {
@@ -70,6 +88,13 @@ export default defineConfig({
   // Task discovery must not run plugin hooks that clear the production output.
   plugins: lazyPlugins(() => [
     localWorkspace(),
+    {
+      name: "merit-telemetry-shutdown",
+      configureServer: closeOnInterrupt,
+      configurePreviewServer: closeOnInterrupt,
+      closeServer: shutdownTelemetry,
+      closePreviewServer: shutdownTelemetry,
+    },
     tanstackStart({
       srcDirectory: "./src",
       server: { entry: "./server.ts" },
