@@ -489,16 +489,15 @@ it.for(["a deferral", "an outstanding review request", "a cancelled review reque
   },
 );
 
-it("rejects concurrent edits, preserves the winner, and checks current tenant and grant access", async ({
-  db,
-  database,
-}) => {
-  const { address, read, request } = await setup(db);
-  const edit = {
-    ...address,
-    expectedRevision: 0,
-    change: { action: "save_content" as const, content },
-  };
+const firstEdit = (address: { workspaceSlug: string; publicId: string }) => ({
+  ...address,
+  expectedRevision: 0,
+  change: { action: "save_content" as const, content },
+});
+
+it("rejects a concurrent edit at a stale revision and preserves the winner", async ({ db }) => {
+  const { address, read } = await setup(db);
+  const edit = firstEdit(address);
 
   expect(await editFundingApplication(db, actor, edit, applicationWork)).toMatchObject({
     status: "ok",
@@ -508,33 +507,42 @@ it("rejects concurrent edits, preserves the winner, and checks current tenant an
     await editFundingApplication(
       db,
       actor,
-      {
-        ...edit,
-        change: { action: "save_content", content: { title: "Stale title" } },
-      },
+      { ...edit, change: { action: "save_content", content: { title: "Stale title" } } },
       applicationWork,
     ),
   ).toEqual({ status: "conflict" });
   expect(await read()).toEqual(winner);
+});
 
+it("hides an application from a manager of another workspace", async ({ db }) => {
+  const { address, read, request } = await setup(db);
+  const before = await read();
   const other = { userId: "birch-manager" };
 
-  expect(await editFundingApplication(db, other, edit, applicationWork)).toEqual({
+  expect(await editFundingApplication(db, other, firstEdit(address), applicationWork)).toEqual({
     status: "not_found",
   });
-  expect(await createFundingApplication(db, other, request)).toEqual({
-    status: "not_found",
-  });
+  expect(await createFundingApplication(db, other, request)).toEqual({ status: "not_found" });
   expect(await getFundingApplicationPage(db, other, address)).toBeNull();
+  expect(await read()).toEqual(before);
+});
 
+it("checks current grant access, so a member who lost it can neither edit nor read", async ({
+  db,
+  database,
+}) => {
+  const { address, read } = await setup(db);
+  const before = await read();
   await database.client.query("UPDATE memberships SET role = 'member' WHERE user_id = 'dana'");
 
-  expect(
-    await editFundingApplication(db, actor, { ...edit, expectedRevision: 1 }, applicationWork),
-  ).toEqual({
+  expect(await editFundingApplication(db, actor, firstEdit(address), applicationWork)).toEqual({
     status: "not_found",
   });
   expect(await getFundingApplicationPage(db, actor, address)).toBeNull();
+  await database.client.query(
+    "UPDATE memberships SET role = 'program_manager' WHERE user_id = 'dana'",
+  );
+  expect(await read()).toEqual(before);
 });
 
 it("keeps contact and staff summary attribution separate from the source version and working revision", async ({
@@ -589,52 +597,42 @@ it("keeps contact and staff summary attribution separate from the source version
   expect(page.application.summaryAuthor?.userId).toBe("dana");
 });
 
-it("deletes unused preparation only, keeps its receipt, and prevents deleting a nonempty round", async ({
+it("deletes unused preparation, keeps its audit receipt, and refuses to recreate it on retry", async ({
   db,
   database,
 }) => {
-  const { round, address, request, change } = await setup(db);
+  const { address, request, change } = await setup(db);
 
-  expect(
-    await deleteFundingRound(
-      db,
-      actor,
-      {
-        workspaceSlug,
-        publicId: round.publicId,
-        expectedRevision: 0,
-      },
-      roundHasApplications,
-    ),
-  ).toMatchObject({ status: "invalid", error: "round_not_empty" });
   expect(await change({ action: "delete" })).toMatchObject({ status: "ok" });
   expect(await getFundingApplicationPage(db, actor, address)).toBeNull();
   expect(await createFundingApplication(db, actor, request)).toMatchObject({
     status: "invalid",
     error: "application_deleted",
   });
-
   const audit = await database.client.query<{ action: string }>(
     "SELECT action FROM audit_events WHERE target_id = $1 ORDER BY target_revision",
     [address.publicId],
   );
-
   expect(audit.rows).toEqual([
     { action: "application.created" },
     { action: "application.deleted" },
   ]);
-  expect(
-    await deleteFundingRound(
+});
+
+it("prevents deleting a round until its applications have been deleted", async ({ db }) => {
+  const { round, change } = await setup(db);
+
+  const deleteRound = () =>
+    deleteFundingRound(
       db,
       actor,
-      {
-        workspaceSlug,
-        publicId: round.publicId,
-        expectedRevision: 0,
-      },
+      { workspaceSlug, publicId: round.publicId, expectedRevision: 0 },
       roundHasApplications,
-    ),
-  ).toEqual({ status: "ok" });
+    );
+
+  expect(await deleteRound()).toMatchObject({ status: "invalid", error: "round_not_empty" });
+  assert((await change({ action: "delete" })).status === "ok");
+  expect(await deleteRound()).toEqual({ status: "ok" });
 });
 
 it("rejects a requested total that cannot be represented without committing content or history", async ({
@@ -755,46 +753,44 @@ it("rejects creation that would overflow the round total without consuming its r
   expect(page.intake.history).toHaveLength(1);
 });
 
-it("saves contact and project dates atomically and rejects unavailable contacts", async ({
-  db,
-}) => {
-  const { read, change } = await setup(db);
-
-  const createContact = async (workspace = workspaceSlug, archived = false) => {
-    const id = randomUUID();
-    const saved = await changeWorkspaceContact(
+const unavailableContacts = {
+  unknown: async () => randomUUID(),
+  "in another workspace": async (db: NodePgDatabase) => {
+    const created = await changeWorkspaceContact(
       db,
-      workspace === workspaceSlug ? actor : { userId: "birch-manager" },
+      { userId: "birch-manager" },
       {
-        workspaceSlug: workspace,
-        contactId: id,
+        workspaceSlug: "birch",
+        contactId: randomUUID(),
         action: "create",
         details: { name: "Sam Morgan", email: "sam@example.test", affiliation: "" },
       },
       fundingRoundContactUsage,
     );
+    assert(created.status === "ok");
+    return created.contact.id;
+  },
+  archived: async (db: NodePgDatabase) => {
+    const contact = await setupContact(db);
+    const archived = await changeWorkspaceContact(
+      db,
+      actor,
+      {
+        workspaceSlug,
+        contactId: contact.id,
+        action: "archive",
+        expectedContactRevision: contact.revision,
+      },
+      fundingRoundContactUsage,
+    );
+    assert(archived.status === "ok");
+    return contact.id;
+  },
+};
 
-    expect(saved.status).toBe("ok");
-    if (archived) {
-      expect(
-        await changeWorkspaceContact(
-          db,
-          workspace === workspaceSlug ? actor : { userId: "birch-manager" },
-          {
-            workspaceSlug: workspace,
-            contactId: id,
-            action: "archive",
-            expectedContactRevision: 0,
-          },
-          fundingRoundContactUsage,
-        ),
-      ).toMatchObject({ status: "ok" });
-    }
-
-    return id;
-  };
-
-  const contactId = await createContact();
+it("saves the contact and project period with the applicant material", async ({ db }) => {
+  const { read, change } = await setup(db);
+  const contactId = (await setupContact(db)).id;
 
   expect(
     await change({
@@ -803,36 +799,66 @@ it("saves contact and project dates atomically and rejects unavailable contacts"
       contactId,
     }),
   ).toMatchObject({ status: "ok" });
-
-  const saved = await read();
-
-  expect(saved.application).toMatchObject({
+  expect((await read()).application).toMatchObject({
     contactId,
     submission: { contact: "Sam Morgan", projectPeriod: "March–August 2027" },
   });
+});
 
-  for (const unavailable of [
-    randomUUID(),
-    await createContact("birch"),
-    await createContact(workspaceSlug, true),
-  ]) {
+it.for(Object.entries(unavailableContacts))(
+  "rejects a contact that is %s without saving the accompanying content",
+  async ([, unavailable], { db }) => {
+    const { read, change } = await setup(db);
+    assert((await change({ action: "save_content", content })).status === "ok");
+    const before = await read();
+
     expect(
       await change({
         action: "save_content",
         content: { ...content, requested: "30000", projectPeriod: "Changed" },
-        contactId: unavailable,
+        contactId: await unavailable(db),
       }),
-    ).toMatchObject({ status: "invalid", error: "contact_unavailable" });
-    expect((await read()).application).toEqual(saved.application);
-    expect((await read()).intake.revision).toBe(saved.intake.revision);
-  }
+    ).toEqual({ status: "invalid", error: "contact_unavailable" });
+    expect(await read()).toEqual(before);
+  },
+);
+
+it("keeps the recorded project period when a save omits it", async ({ db }) => {
+  const { read, change } = await setup(db);
+  assert(
+    (
+      await change({
+        action: "save_content",
+        content: { ...content, projectPeriod: "March–August 2027" },
+      })
+    ).status === "ok",
+  );
+  const saved = await read();
 
   // Older callers omit projectPeriod; they must preserve the recorded dates.
-  expect(await change({ action: "save_content", content })).toMatchObject({ status: "ok" });
-  expect((await read()).intake.revision).toBe(saved.intake.revision);
+  expect(await change({ action: "save_content", content })).toEqual({
+    status: "ok",
+    revision: saved.intake.revision,
+  });
+  expect(await read()).toEqual(saved);
+});
 
-  await change({ action: "mark_ready" });
-  await change({ action: "start_revision", kind: "revision" });
+it("applies a contact change at once but stages a project period change until the revision is published", async ({
+  db,
+}) => {
+  const { read, change } = await setup(db);
+  const contactId = (await setupContact(db)).id;
+  for (const step of [
+    {
+      action: "save_content",
+      content: { ...content, projectPeriod: "March–August 2027" },
+      contactId,
+    },
+    { action: "mark_ready" },
+    { action: "start_revision", kind: "revision" },
+  ] satisfies IntakeChange[]) {
+    assert((await change(step)).status === "ok");
+  }
   const draft = (await read()).intake.workingRevision!;
 
   expect(

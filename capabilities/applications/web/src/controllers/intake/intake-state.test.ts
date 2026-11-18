@@ -209,6 +209,12 @@ it("rejects a submission save when its shared explanation has a stale baseline",
   expect(intakeDraftCommand(content, application, working, 4, reason, "Local reason")).toEqual({
     status: "conflict",
   });
+});
+
+it("requires a working revision to save submission content once the application is ready", () => {
+  const application = makeApplication({ intakeStatus: "ready" });
+  const content = newIntakeDraft("content", baseline, 4);
+
   expect(intakeDraftCommand(content, application, null, 4, undefined, "")).toEqual({
     status: "invalid",
     error: "revision_unavailable",
