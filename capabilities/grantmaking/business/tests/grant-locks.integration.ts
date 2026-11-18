@@ -482,39 +482,46 @@ const requestedReview = async (email: string) => {
   };
 };
 
-it("gives an invite and resend one remaining workspace slot while another round can be edited", async () => {
-  const original = await requestedReview("sam@example.test");
-  const next = await requestedReview("robin@example.test");
-  const independent = await fixture();
-  expect(await reviewerService(db).invite(actor, original)).toMatchObject({ status: "ok" });
-  // Nineteen prior invitations, outside the per-recipient cooldown.
-  await database.client.query(
-    "UPDATE reviewer_messages SET created_at = now() - interval '2 minutes'",
-  );
-  await database.client.query(
-    `INSERT INTO reviewer_messages (id, assignment_id, kind, recipient, created_at)
+it.each(["invite", "resend"] as const)(
+  "holds the last workspace invitation slot for a %s while an independent round edit commits",
+  async (firstAction) => {
+    const original = await requestedReview("sam@example.test");
+    const next = await requestedReview("robin@example.test");
+    const independent = await fixture();
+    expect(await reviewerService(db).invite(actor, original)).toMatchObject({ status: "ok" });
+    // Nineteen prior invitations, outside the per-recipient cooldown.
+    await database.client.query(
+      "UPDATE reviewer_messages SET created_at = now() - interval '2 minutes'",
+    );
+    await database.client.query(
+      `INSERT INTO reviewer_messages (id, assignment_id, kind, recipient, created_at)
      SELECT gen_random_uuid(), $1, 'invitation', 'sam@example.test', now() - interval '2 minutes'
      FROM generate_series(1,18)`,
-    [original.commandId],
-  );
-  const commit = await hold((tx) => reviewerService(tx).invite(actor, next));
-  expect(await roundEdit(drizzle(second), independent)).toMatchObject({ status: "ok" });
-  const resend = track(
-    reviewerService(drizzle(second)).manage(actor, {
-      workspaceSlug,
-      publicId: original.publicId,
-      assignmentId: original.commandId,
-      commandId: randomUUID(),
-      expectedRevision: 0,
-      action: "resend",
-      note: "",
-    }),
-  );
-  await expectBlocked();
-  await commit();
-  expect(await resend).toEqual({ status: "limited" });
-  expect(
-    (await database.client.query("SELECT id FROM reviewer_messages WHERE kind = 'invitation'"))
-      .rowCount,
-  ).toBe(20);
-});
+      [original.commandId],
+    );
+
+    const invite = (connection: Database) => reviewerService(connection).invite(actor, next);
+
+    const resend = (connection: Database) =>
+      reviewerService(connection).manage(actor, {
+        workspaceSlug,
+        publicId: original.publicId,
+        assignmentId: original.commandId,
+        commandId: randomUUID(),
+        expectedRevision: 0,
+        action: "resend",
+        note: "",
+      });
+
+    const commit = await hold(firstAction === "invite" ? invite : resend);
+    expect(await roundEdit(drizzle(second), independent)).toMatchObject({ status: "ok" });
+    const competing = track((firstAction === "invite" ? resend : invite)(drizzle(second)));
+    await expectBlocked();
+    await commit();
+    expect(await competing).toEqual({ status: "limited" });
+    expect(
+      (await database.client.query("SELECT id FROM reviewer_messages WHERE kind = 'invitation'"))
+        .rowCount,
+    ).toBe(20);
+  },
+);
