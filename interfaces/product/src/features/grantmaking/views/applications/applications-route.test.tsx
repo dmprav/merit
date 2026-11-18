@@ -369,10 +369,11 @@ it("keeps search text and work-state criteria out of the URL", async () => {
   const { user, router } = await renderApplications();
   await waitFor(() => expect(rowTitles()).toHaveLength(3));
 
-  await editFilters(user, async () => {
-    await chooseFilter(user, "Readiness Any", "In preparation");
-    await searchApplications(user, "meals");
-  });
+  await editFilters(user, () => chooseFilter(user, "Readiness Any", "In preparation"));
+  await waitFor(() => expect(rowTitles()).toEqual(["Zebra workshops", "Community meals"]));
+  expect(router.state.location.searchStr).toBe("");
+
+  await editFilters(user, () => searchApplications(user, "meals"));
 
   await waitFor(() => expect(rowTitles()).toEqual(["Community meals"]));
   expect(router.state.location.searchStr).toBe("");

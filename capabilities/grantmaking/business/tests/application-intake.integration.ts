@@ -809,8 +809,12 @@ it.for(Object.entries(unavailableContacts))(
   "rejects a contact that is %s without saving the accompanying content",
   async ([, unavailable], { db }) => {
     const { read, change } = await setup(db);
-    assert((await change({ action: "save_content", content })).status === "ok");
+    const contact = await setupContact(db);
+    assert(
+      (await change({ action: "save_content", content, contactId: contact.id })).status === "ok",
+    );
     const before = await read();
+    expect(before.application.contactId).toBe(contact.id);
 
     expect(
       await change({

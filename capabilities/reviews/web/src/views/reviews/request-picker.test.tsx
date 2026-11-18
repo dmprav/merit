@@ -14,9 +14,8 @@ import { criteriaVersionSchema } from "@merit/rounds/domain";
 import { Button } from "@merit/ui/button";
 
 import type { ReviewBaseline, ReviewData } from "../../contracts/reviews";
-import { useReview } from "../../controllers/reviews/use-review";
+import { RequestPicker, useReview } from "../../reviews";
 import { GrantmakingDrafts, GrantmakingMessagesProvider } from "../../testing/providers";
-import { RequestPicker } from "./request-picker";
 
 const Picker = ({ baseline, save }: { baseline: ReviewBaseline; save: ReviewData["save"] }) => {
   const { beginRequest } = useReview({

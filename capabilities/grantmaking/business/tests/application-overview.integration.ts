@@ -504,29 +504,26 @@ it("sorts requested and proposed amounts exactly beyond JavaScript's safe intege
   rounds,
 }) => {
   const larger = await rounds.createApplication("Larger", "90071992547409.93");
+  await addLightApplications(db, rounds.pageInput.publicId);
   const smaller = await rounds.createApplication("Smaller", "90071992547409.92");
   await rounds.createApplication("Modest", "80.00");
-  await rounds.createApplication("Unknown request", null);
   await rounds.recommendApplication(larger, "9007199254740993");
   await rounds.recommendApplication(smaller, "9007199254740992");
 
-  const titles = async (sort: "requested" | "proposed", direction: "ascending" | "descending") =>
-    (await listAlder(db, { sort, direction })).applications.map((row) => row.title);
-
-  expect(await titles("requested", "ascending")).toEqual([
-    "Modest",
-    "Smaller",
-    "Larger",
-    "Unknown request",
-  ]);
-  expect(await titles("requested", "descending")).toEqual([
-    "Larger",
-    "Smaller",
-    "Modest",
-    "Unknown request",
-  ]);
-  expect((await titles("proposed", "ascending")).slice(0, 2)).toEqual(["Smaller", "Larger"]);
-  expect((await titles("proposed", "descending")).slice(0, 2)).toEqual(["Larger", "Smaller"]);
+  for (const sort of ["requested", "proposed"] as const) {
+    const ascending =
+      sort === "requested" ? ["Modest", "Smaller", "Larger"] : ["Smaller", "Larger"];
+    for (const direction of ["ascending", "descending"] as const) {
+      const rows = await readAllPages(db, { roundId: rounds.pageInput.publicId, sort, direction });
+      const known = direction === "ascending" ? ascending : [...ascending].reverse();
+      expect(rows).toHaveLength(128);
+      expect(new Set(rows.map((row) => row.id)).size).toBe(128);
+      expect(rows.slice(0, known.length).map((row) => row.title)).toEqual(known);
+      for (const row of rows.slice(known.length)) {
+        expect(sort === "requested" ? row.requested : row.recommendation).toBeNull();
+      }
+    }
+  }
 });
 
 it("totals a round's requested and proposed amounts exactly beyond JavaScript's safe integers", async ({
@@ -534,23 +531,23 @@ it("totals a round's requested and proposed amounts exactly beyond JavaScript's 
   rounds,
 }) => {
   const larger = await rounds.createApplication("Larger", "90071992547409.93");
+  await addLightApplications(db, rounds.pageInput.publicId);
   const smaller = await rounds.createApplication("Smaller", "90071992547409.92");
   await rounds.createApplication("Modest", "80.00");
-  await rounds.createApplication("Unknown request", null);
   await rounds.recommendApplication(larger, "9007199254740993");
   await rounds.recommendApplication(smaller, "9007199254740992");
 
   const page = await getFundingRoundPage(db, actor, rounds.pageInput);
   assert.isNotNull(page);
 
-  expect(page.round.applicationCount).toBe(4);
+  expect(page.round.applicationCount).toBe(128);
   expect(encodeMoney(page.round.totals.requested).minorUnits).toBe(
     String(9007199254740993n + 9007199254740992n + 8000n),
   );
   expect(encodeMoney(page.round.totals.proposed).minorUnits).toBe(
     String(9007199254740993n + 9007199254740992n),
   );
-  expect(page.round.totals.unknownRequests).toBe(1);
+  expect(page.round.totals.unknownRequests).toBe(125);
 });
 
 it("compares criteria content rather than criteria IDs or versions for work filters", async ({

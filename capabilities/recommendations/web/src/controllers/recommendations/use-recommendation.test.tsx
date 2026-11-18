@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { expect, it, vi } from "vite-plus/test";
 
 import { applicationView } from "@merit/grantmaking/api";
-import { makeReviewedApplication } from "@merit/grantmaking/testing/fixtures";
+import { makeApplication, makeReviewedApplication } from "@merit/grantmaking/testing/fixtures";
 
 import type { RecommendationData, RecommendationFailure } from "../../contracts/recommendations";
 import { DraftContext, useRecommendationDraftStore } from "./recommendation-drafts";
@@ -87,7 +87,7 @@ it("saves a recommendation without a retained draft against the current revision
   });
 });
 
-it("saves an edited draft against the revision it was started on after the revision advances", async () => {
+it("saves an edited draft against its original recommendation revision and application version", async () => {
   const save = vi.fn<RecommendationData["save"]>().mockResolvedValue({ status: "ok" });
 
   const Store = ({ children }: { children: ReactNode }) => (
@@ -97,14 +97,18 @@ it("saves an edited draft against the revision it was started on after the revis
   );
 
   const { result, rerender } = renderHook(
-    ({ revision }) =>
-      useRecommendation("application", application, { revision, disabled: false, save }),
-    { initialProps: { revision: 5 }, wrapper: Store },
+    ({ revision, version }) =>
+      useRecommendation(
+        "application",
+        { ...application, version },
+        { revision, disabled: false, save },
+      ),
+    { initialProps: { revision: 5, version: application.version }, wrapper: Store },
   );
   await waitFor(() => expect(result.current.ready).toBe(true));
 
   act(() => result.current.updateDraft(draft));
-  rerender({ revision: 6 });
+  rerender({ revision: 6, version: makeApplication({ version: 2 }).version });
   act(() => result.current.updateDraft({ ...draft, reasoning: "Edited after the change" }));
   await act(async () => expect(await result.current.save(recommendation)).toBeNull());
 
