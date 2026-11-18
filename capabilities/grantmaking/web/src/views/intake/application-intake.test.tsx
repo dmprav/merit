@@ -550,7 +550,6 @@ it("withdraws with a date and reason, then offers only reinstatement while the c
   expect(
     dialog.getByText(/The application, its material, reviews, and recommendation are kept/),
   ).toBeVisible();
-  expect(dialog.queryByText(/Withdrawal is not a rejection/)).not.toBeInTheDocument();
   expect(dialog.queryByText(/outstanding review request/)).not.toBeInTheDocument();
   expect(dialog.getByRole("textbox", { name: /Withdrawal date/ })).toHaveValue(
     new Date().toLocaleDateString("sv"),

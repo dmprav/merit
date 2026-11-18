@@ -90,6 +90,42 @@ const createReadyApplication = async (db: NodePgDatabase, roundId: string) => {
   return address;
 };
 
+type SqlClient = { query: (text: string) => Promise<unknown> };
+
+const accessDenials: {
+  denial: string;
+  as: { userId: string };
+  workspaceSlug?: string;
+  deny: (client: SqlClient) => Promise<unknown>;
+}[] = [
+  {
+    denial: "another workspace's manager",
+    as: { userId: "birch-manager" },
+    deny: async () => {},
+  },
+  {
+    denial: "a workspace administrator without grant access",
+    as: actor,
+    deny: (client) =>
+      client.query(
+        "UPDATE memberships SET role = 'member', administration = 'administrator' WHERE user_id = 'dana'",
+      ),
+  },
+  {
+    denial: "a disabled account",
+    as: actor,
+    deny: (client) => client.query("UPDATE app_users SET active = false WHERE id = 'dana'"),
+  },
+  {
+    denial: "a manager of an expired demo workspace",
+    as: actor,
+    deny: (client) =>
+      client.query(
+        "UPDATE organizations SET kind = 'demo', demo_seed_version = 1, demo_expires_at = statement_timestamp() - interval '1 minute' WHERE id = 'alder'",
+      ),
+  },
+];
+
 describe("funding-round preparation", () => {
   it("supports preparation with the documented restricted runtime privileges", async ({
     db,
@@ -263,49 +299,56 @@ describe("funding-round preparation", () => {
     ).toEqual([{ action: "round.created" }, { action: "round.deleted" }]);
   });
 
-  it("enforces current workspace access, including owner without grant access", async ({
-    db,
-    database,
-  }) => {
-    const request = { workspaceSlug, requestId: randomUUID(), title: "New round" };
+  it.for(accessDenials)(
+    "rejects round creation by $denial without recording it",
+    async ({ as, deny }, { db, database }) => {
+      await deny(database.client);
 
-    expect(await createFundingRound(db, { userId: "birch-manager" }, request)).toEqual({
-      status: "not_found",
-    });
+      expect(
+        await createFundingRound(db, as, {
+          workspaceSlug,
+          requestId: randomUUID(),
+          title: "New round",
+        }),
+      ).toEqual({ status: "not_found" });
+      expect((await database.client.query("SELECT id FROM funding_rounds")).rows).toEqual([]);
+      expect((await database.client.query("SELECT action FROM audit_events")).rows).toEqual([]);
+    },
+  );
 
-    const address = await create(db);
+  it.for([
+    ...accessDenials,
+    {
+      denial: "another workspace's manager addressing it through their own workspace",
+      as: { userId: "birch-manager" },
+      workspaceSlug: "birch",
+      deny: async () => {},
+    },
+  ])(
+    "rejects round edits and deletion by $denial without changing the round",
+    async ({ as, deny, ...denial }, { db, database }) => {
+      const { publicId } = await create(db);
+      const address = { workspaceSlug: denial.workspaceSlug ?? workspaceSlug, publicId };
+      await deny(database.client);
 
-    expect(
-      await editFundingRound(
-        db,
-        { userId: "birch-manager" },
-        { ...address, expectedRevision: 0, change: { section: "budget", amount: "1", reason: "" } },
-      ),
-    ).toEqual({ status: "not_found" });
-    expect(
-      await deleteFundingRound(
-        db,
-        { userId: "birch-manager" },
-        { ...address, expectedRevision: 0 },
-        roundHasApplications,
-      ),
-    ).toEqual({ status: "not_found" });
-
-    await database.client.query(
-      "UPDATE memberships SET role = 'member', administration = 'administrator' WHERE user_id = 'dana'",
-    );
-
-    expect(await createFundingRound(db, actor, request)).toEqual({
-      status: "not_found",
-    });
-    expect(
-      await editFundingRound(db, actor, {
-        ...address,
-        expectedRevision: 0,
-        change: { section: "budget", amount: "1", reason: "" },
-      }),
-    ).toEqual({ status: "not_found" });
-  });
+      expect(
+        await editFundingRound(db, as, {
+          ...address,
+          expectedRevision: 0,
+          change: { section: "details", title: "Unauthorized title" },
+        }),
+      ).toEqual({ status: "not_found" });
+      expect(
+        await deleteFundingRound(db, as, { ...address, expectedRevision: 0 }, roundHasApplications),
+      ).toEqual({ status: "not_found" });
+      expect(
+        (await database.client.query("SELECT title, revision FROM funding_rounds")).rows,
+      ).toEqual([{ title: "Neighbourhood grants", revision: 0 }]);
+      expect((await database.client.query("SELECT action FROM audit_events")).rows).toEqual([
+        { action: "round.created" },
+      ]);
+    },
+  );
 
   it("rejects round edits and deletion made against a stale revision", async ({ db }) => {
     const address = await create(db);
@@ -373,61 +416,65 @@ describe("funding-round preparation", () => {
     });
   });
 
-  it("requires a reason after clearing budgets established during creation or later editing", async ({
-    db,
-  }) => {
-    for (const budget of [undefined, "0"]) {
-      const created = await createFundingRound(db, actor, {
-        workspaceSlug,
-        requestId: randomUUID(),
-        title: "Budget recovery",
-        budget,
+  it.for([
+    {
+      established: "during creation",
+      establish: async (db: NodePgDatabase) => {
+        const created = await createFundingRound(db, actor, {
+          workspaceSlug,
+          requestId: randomUUID(),
+          title: "Budget recovery",
+          budget: "0",
+        });
+        assert(created.status === "ok");
+        return { address: { workspaceSlug, publicId: created.publicId }, revision: 0 };
+      },
+    },
+    {
+      established: "by a later edit",
+      establish: async (db: NodePgDatabase) => {
+        const address = await create(db);
+        const edited = await editFundingRound(db, actor, {
+          ...address,
+          expectedRevision: 0,
+          change: { section: "budget", amount: "100", reason: "" },
+        });
+        assert(edited.status === "ok");
+        return { address, revision: edited.revision };
+      },
+    },
+  ])(
+    "requires a reason to replace a cleared budget established $established",
+    async ({ establish }, { db }) => {
+      const { address, revision } = await establish(db);
+      const cleared = await editFundingRound(db, actor, {
+        ...address,
+        expectedRevision: revision,
+        change: { section: "budget", amount: "", reason: "Awaiting allocation" },
       });
+      assert(cleared.status === "ok");
 
-      if (created.status !== "ok") {
-        throw new Error("Creation failed");
-      }
-
-      const address = { workspaceSlug, publicId: created.publicId };
-      let revision = 0;
-
-      if (budget === undefined) {
-        expect(
-          await editFundingRound(db, actor, {
-            ...address,
-            expectedRevision: revision++,
-            change: { section: "budget", amount: "100", reason: "" },
-          }),
-        ).toEqual({ status: "ok", revision });
-      }
       expect(
         await editFundingRound(db, actor, {
           ...address,
-          expectedRevision: revision++,
-          change: { section: "budget", amount: "", reason: "Awaiting allocation" },
-        }),
-      ).toEqual({ status: "ok", revision });
-      expect(
-        await editFundingRound(db, actor, {
-          ...address,
-          expectedRevision: revision,
+          expectedRevision: cleared.revision,
           change: { section: "budget", amount: "250", reason: "" },
         }),
       ).toEqual({ status: "invalid", error: "budget_reason_required" });
       expect(
         await editFundingRound(db, actor, {
           ...address,
-          expectedRevision: revision,
+          expectedRevision: cleared.revision,
           change: { section: "budget", amount: "", reason: "" },
         }),
-      ).toEqual({ status: "ok", revision });
+      ).toEqual({ status: "ok", revision: cleared.revision });
       expect(
         await editFundingRound(db, actor, {
           ...address,
-          expectedRevision: revision++,
+          expectedRevision: cleared.revision,
           change: { section: "budget", amount: "250", reason: "Replacement approved" },
         }),
-      ).toEqual({ status: "ok", revision });
+      ).toEqual({ status: "ok", revision: cleared.revision + 1 });
 
       const page = await getFundingRoundPage(db, actor, { ...address, kind: "round" });
 
@@ -436,8 +483,8 @@ describe("funding-round preparation", () => {
         before: null,
         after: { minorUnits: "25000" },
       });
-    }
-  });
+    },
+  );
 
   it("does not advance revisions or record history for unchanged saves", async ({
     db,

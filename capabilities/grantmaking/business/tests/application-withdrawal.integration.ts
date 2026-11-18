@@ -442,33 +442,45 @@ it("rolls back the withdrawal and its closures when any part cannot be recorded"
   expect((await s.reviewerPage()).assignment.status).toBe("accepted");
 });
 
-it("rejects a stale revision, a blank reason, a future date, and a repeated withdrawal", async ({
+it("rejects a withdrawal at a stale intake revision without recording it", async ({
   scenario: s,
 }) => {
   const before = await s.read();
+
   expect(await s.edit(withdrawal(), s.address, before.intake.revision - 1)).toEqual({
     status: "conflict",
   });
+  expect(await s.read()).toEqual(before);
+});
+
+it("rejects a blank withdrawal reason as an invalid request", async ({ scenario: s }) => {
+  const before = await s.read();
+
   expect(await s.edit(withdrawal("   "))).toEqual({
     status: "invalid",
     error: "invalid_application",
   });
-  expect(await s.edit(withdrawal("x".repeat(2001)))).toEqual({
-    status: "invalid",
-    error: "invalid_application",
-  });
-  const tomorrow = new Date(Date.now() + 60 * 3_600_000).toISOString().slice(0, 10);
-  expect(await s.edit(withdrawal("Too soon", tomorrow))).toEqual({
+  expect(await s.read()).toEqual(before);
+});
+
+it("rejects a withdrawal dated after today on the server's clock", async ({ scenario: s }) => {
+  const before = await s.read();
+  // Later than the current date in every time zone.
+  const future = new Date(Date.now() + 60 * 3_600_000).toISOString().slice(0, 10);
+
+  expect(await s.edit(withdrawal("Too soon", future))).toEqual({
     status: "invalid",
     error: "withdrawal_date_in_future",
   });
-  expect((await s.read()).intake.revision).toBe(before.intake.revision);
-  expect((await s.read()).application).not.toHaveProperty("withdrawal");
+  expect(await s.read()).toEqual(before);
+});
 
+it("rejects withdrawing an application that is already withdrawn", async ({ scenario: s }) => {
   expect(await s.edit(withdrawal())).toMatchObject({ status: "ok" });
   const withdrawn = await s.read();
+
   expect(await s.edit(withdrawal())).toEqual({ status: "invalid", error: "application_withdrawn" });
-  expect((await s.read()).intake.revision).toBe(withdrawn.intake.revision);
+  expect(await s.read()).toEqual(withdrawn);
 });
 
 it("rejects every write to a withdrawn case on every capability, while reads stay whole", async ({
@@ -592,6 +604,31 @@ it("rejects every write to a withdrawn case on every capability, while reads sta
   expect(after.intake.history.map((entry) => entry.action)).toContain("application.withdraw");
 });
 
+it.for([
+  {
+    name: "a blank reason",
+    reason: "   ",
+    staleBy: 0,
+    result: { status: "invalid", error: "invalid_application" },
+  },
+  { name: "a stale intake revision", reason: "Back", staleBy: 1, result: { status: "conflict" } },
+])(
+  "rejects reinstatement with $name and keeps the withdrawal",
+  async (rejected, { scenario: s }) => {
+    expect(await s.edit(withdrawal())).toMatchObject({ status: "ok" });
+    const withdrawn = await s.read();
+
+    expect(
+      await s.edit(
+        { action: "reinstate", reason: rejected.reason },
+        s.address,
+        withdrawn.intake.revision - rejected.staleBy,
+      ),
+    ).toEqual(rejected.result);
+    expect(await s.read()).toEqual(withdrawn);
+  },
+);
+
 it("reinstates with a reason, restoring active work but not the closed requests", async ({
   database,
   scenario: s,
@@ -599,13 +636,6 @@ it("reinstates with a reason, restoring active work but not the closed requests"
   expect(await s.edit(withdrawal())).toMatchObject({ status: "ok" });
   const withdrawn = await s.read();
 
-  expect(await s.edit({ action: "reinstate", reason: "   " })).toEqual({
-    status: "invalid",
-    error: "invalid_application",
-  });
-  expect(
-    await s.edit({ action: "reinstate", reason: "Back" }, s.address, withdrawn.intake.revision - 1),
-  ).toEqual({ status: "conflict" });
   expect(await s.edit({ action: "reinstate", reason: "  The applicant returned.  " })).toEqual({
     status: "ok",
     revision: withdrawn.intake.revision + 1,
@@ -641,8 +671,16 @@ it("reinstates with a reason, restoring active work but not the closed requests"
       `application.withdraw application/${s.address.publicId}@${withdrawn.intake.revision}`,
     ].sort(),
   );
+});
 
-  // Managers can restore access through the existing assignment action or by requesting again.
+it("lets a manager restore a closed reviewer assignment after reinstatement", async ({
+  scenario: s,
+}) => {
+  expect(await s.edit(withdrawal())).toMatchObject({ status: "ok" });
+  expect(await s.edit({ action: "reinstate", reason: "The applicant returned." })).toMatchObject({
+    status: "ok",
+  });
+
   expect(
     await s.service.manage(actor, {
       ...s.address,
@@ -653,16 +691,23 @@ it("reinstates with a reason, restoring active work but not the closed requests"
       note: "",
     }),
   ).toMatchObject({ status: "ok" });
-  expect(await s.edit({ action: "reinstate", reason: "Again" })).toEqual({
-    status: "invalid",
-    error: "application_not_withdrawn",
+  expect((await s.reviewerPage()).assignment.status).toBe("accepted");
+});
+
+it("records a later withdrawal as a new event instead of editing the earlier one", async ({
+  scenario: s,
+}) => {
+  expect(await s.edit(withdrawal("Withdrew the first time."))).toMatchObject({ status: "ok" });
+  expect(await s.edit({ action: "reinstate", reason: "The applicant returned." })).toMatchObject({
+    status: "ok",
   });
 
-  // Withdrawing again records a new event instead of editing the earlier one.
   expect(await s.edit(withdrawal("Withdrew a second time."))).toMatchObject({ status: "ok" });
   expect(
-    (await s.read()).intake.history.filter((entry) => entry.action === "application.withdraw"),
-  ).toHaveLength(2);
+    (await s.read()).intake.history
+      .filter((entry) => entry.action === "application.withdraw")
+      .map((entry) => entry.reason),
+  ).toEqual(["Withdrew a second time.", "Withdrew the first time."]);
 });
 
 it("excludes withdrawn applications from every total and discloses how many", async ({

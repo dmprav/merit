@@ -295,35 +295,48 @@ describe("round preparation", () => {
   });
 });
 
-it("keeps criterion identity through renaming, and records an identical-text replacement", () => {
-  const id = "20000000-0000-4000-8000-000000000001";
-  const criterion = { id, title: "Fit", description: "Connection to purpose" };
+describe("criterion identity", () => {
+  const criterion = {
+    id: "20000000-0000-4000-8000-000000000001",
+    title: "Fit",
+    description: "Connection to purpose",
+  };
   const round = makeRound({
     criteria: [criterion],
     criteriaHistory: [{ version: criteriaVersionSchema.parse(1), criteria: [criterion] }],
   });
-  const renamed = { ...criterion, title: "Purpose" };
-  const changed = prepareRoundChange(round, { section: "criteria", criteria: [renamed] });
-  expect(changed).toMatchObject({
-    changed: true,
-    round: {
-      criteria: [renamed],
-      criteriaHistory: [
-        { version: 1, criteria: [criterion] },
-        { version: 2, criteria: [renamed] },
-      ],
-    },
+
+  it("keeps a criterion's ID when it is renamed", () => {
+    const renamed = { ...criterion, title: "Purpose" };
+
+    expect(prepareRoundChange(round, { section: "criteria", criteria: [renamed] })).toMatchObject({
+      changed: true,
+      round: {
+        criteria: [renamed],
+        criteriaHistory: [
+          { version: 1, criteria: [criterion] },
+          { version: 2, criteria: [renamed] },
+        ],
+      },
+    });
   });
-  expect(
-    prepareRoundChange(round, {
-      section: "criteria",
-      criteria: [{ ...criterion, id: "20000000-0000-4000-8000-000000000002" }],
-    }),
-  ).toMatchObject({ changed: true });
-  expect(
-    roundChangeSchema.safeParse({ section: "criteria", criteria: [criterion, criterion] }).success,
-  ).toBe(false);
-  expect(roundChangeSchema.safeParse({ section: "criteria", criteria: [criterion] }).success).toBe(
-    true,
-  );
+
+  it("records a replacement criterion with identical text as a change", () => {
+    expect(
+      prepareRoundChange(round, {
+        section: "criteria",
+        criteria: [{ ...criterion, id: "20000000-0000-4000-8000-000000000002" }],
+      }),
+    ).toMatchObject({ changed: true, round: { criteriaVersion: 2 } });
+  });
+
+  it("requires unique criterion IDs in a criteria change", () => {
+    expect(
+      roundChangeSchema.safeParse({ section: "criteria", criteria: [criterion, criterion] })
+        .success,
+    ).toBe(false);
+    expect(
+      roundChangeSchema.safeParse({ section: "criteria", criteria: [criterion] }).success,
+    ).toBe(true);
+  });
 });

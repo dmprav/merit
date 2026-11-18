@@ -2,16 +2,17 @@ import { expect, it } from "vite-plus/test";
 
 import { applicationsSearch, workspaceApplicationsLocation } from "./applications-location";
 
-it("preserves a valid application list location while discarding unrelated search data", () => {
+it("keeps the round and sorting while dropping search text, criteria, and detail parameters", () => {
   const search = applicationsSearch({
     round: "k7m2p9x4n6rt",
-    filter: "awaiting",
     sort: "application",
     direction: "descending",
+    query: "private",
+    filter: "awaiting",
     from: "applications",
     tab: "reviews",
   });
-  expect(workspaceApplicationsLocation("alder", search)).toEqual({
+  expect(workspaceApplicationsLocation("alder", search)).toStrictEqual({
     to: "/app/$workspaceSlug/applications",
     params: { workspaceSlug: "alder" },
     search: {
@@ -22,18 +23,23 @@ it("preserves a valid application list location while discarding unrelated searc
   });
 });
 
-it("discards invalid or default round, filter, and sort parameters", () => {
-  expect(
-    applicationsSearch({
-      round: ["other"],
-      filter: "all",
-      sort: "budget",
-      direction: "sideways",
-    }),
-  ).toEqual({
+it.each([
+  { round: ["k7m2p9x4n6rt"] },
+  { round: "not-a-public-id" },
+  { sort: "budget" },
+  { direction: "sideways" },
+])("drops the invalid value in %j", (search) => {
+  expect(applicationsSearch(search)).toStrictEqual({
     round: undefined,
     sort: undefined,
     direction: undefined,
   });
-  expect(applicationsSearch({ filter: "awaiting", query: "private" })).not.toHaveProperty("filter");
+});
+
+it("omits the default ascending direction", () => {
+  expect(applicationsSearch({ sort: "applicant", direction: "ascending" })).toStrictEqual({
+    round: undefined,
+    sort: "applicant",
+    direction: undefined,
+  });
 });

@@ -28,6 +28,23 @@ it("configures PostHog for cookieless, non-autocapture analytics", () => {
     disable_surveys: true,
     disable_external_dependency_loading: true,
     property_denylist: ["$ip"],
+    before_send: sanitizePostHogCapture,
+  });
+});
+
+it("redacts relative URLs that cannot be parsed as absolute addresses", () => {
+  const sanitized = sanitizePostHogCapture({
+    uuid: "event-1",
+    event: "$pageview",
+    properties: {
+      $current_url: "/app/alder/rounds/round-1?guide=workshop",
+      $referrer: "/invitations/secret-token-123",
+    },
+  });
+
+  expect(sanitized.properties).toEqual({
+    $current_url: "/app/:workspace/rounds/:round",
+    $referrer: "/invitations/:token",
   });
 });
 

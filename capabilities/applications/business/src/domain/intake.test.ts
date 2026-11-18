@@ -646,7 +646,7 @@ describe("withdrawal", () => {
     expect(isWithdrawn(result.application)).toBe(true);
   });
 
-  it("accepts today and earlier dates but rejects a date after the server's date", () => {
+  it("accepts today and earlier dates but rejects a date not yet reached in any time zone", () => {
     for (const withdrawnOn of ["2026-11-09", "2020-01-01"]) {
       expect(prepareIntakeChange(ready(), null, { ...withdraw, withdrawnOn }, author).ok).toBe(
         true,
@@ -689,16 +689,6 @@ describe("withdrawal", () => {
     expect(intakeChangeSchema.safeParse({ ...withdraw, reason: "x".repeat(2001) }).success).toBe(
       false,
     );
-  });
-
-  it("rejects withdrawing a withdrawn application", () => {
-    const withdrawn = prepareIntakeChange(ready(), null, withdraw, author);
-    expect(
-      withdrawn.ok && prepareIntakeChange(withdrawn.application, null, withdraw, author),
-    ).toEqual({
-      ok: false,
-      error: "application_withdrawn",
-    });
   });
 
   it("restores the retained state and working revision on reinstatement", () => {

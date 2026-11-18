@@ -4,7 +4,18 @@ import { assert, describe, expect } from "vite-plus/test";
 import { removeDemoAudit } from "@merit/audit/server/demo";
 import { readWorkspaceActivity, readAuditHistory } from "@merit/audit/server/read";
 import { recordAuditEvent } from "@merit/audit/server/record";
-import { workspaceTest as test } from "@merit/organizations/testing/workspace";
+import { databaseTest } from "@merit/test-support/database";
+
+// Events reference existing workspaces and people. Seed them directly so the audit
+// store stays independent of the capabilities that own them.
+const test = databaseTest.extend("workspaces", { auto: true }, async ({ db }) => {
+  await db.execute(
+    sql`INSERT INTO organizations (id, slug, name) VALUES ('alder', 'alder', 'Alder Foundation'), ('birch', 'birch', 'Birch Foundation')`,
+  );
+  await db.execute(
+    sql`INSERT INTO app_users (id, name) VALUES ('dana', 'Dana Reed'), ('birch-manager', 'Birch manager')`,
+  );
+});
 
 const scope = {
   organizationId: "alder",
@@ -68,10 +79,7 @@ test("keeps events in the caller's transaction, including rollback", async ({ db
   expect((await database.client.query("SELECT id FROM audit_events")).rows).toEqual([]);
 });
 
-test("protects recorded events while allowing only expired demo cleanup", async ({
-  db,
-  database,
-}) => {
+test("rejects changing or deleting a recorded event", async ({ db, database }) => {
   await db.transaction((tx) => recordAuditEvent(tx, event));
   await expect(
     database.client.query("UPDATE audit_events SET actor_name='Changed'"),
@@ -79,6 +87,13 @@ test("protects recorded events while allowing only expired demo cleanup", async 
   await expect(database.client.query("DELETE FROM audit_events")).rejects.toMatchObject({
     code: "23514",
   });
+  expect((await database.client.query("SELECT actor_name FROM audit_events")).rows).toEqual([
+    { actor_name: "Dana Reed" },
+  ]);
+});
+
+test("removes events only for an expired demo workspace", async ({ db, database }) => {
+  await db.transaction((tx) => recordAuditEvent(tx, event));
   await db.transaction((tx) => removeDemoAudit(tx, "alder"));
   expect((await database.client.query("SELECT id FROM audit_events")).rows).toHaveLength(1);
   await database.client.query(
