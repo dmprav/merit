@@ -72,7 +72,7 @@ export const createTransport = (
     contacts,
     organizations: team,
     navigation,
-    demo: createAccountDemoServices(async (operation) => operation(db)),
+    demo: createAccountDemoServices(async (operation) => operation(db), "integration"),
   };
 
   const callMcp = async (

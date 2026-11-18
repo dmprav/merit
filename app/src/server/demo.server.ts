@@ -2,11 +2,11 @@ import type { Actor, Identity } from "@merit/auth";
 import { createGuestSession, renewGuestSession } from "@merit/auth/server";
 import type { DatabaseRunner } from "@merit/db";
 import { fundingExampleAuthor } from "@merit/grantmaking/server/demo";
-import { readDemoWorkspace, allowDemoEntry } from "@merit/organizations/server/demo";
+import { readDemoWorkspace } from "@merit/organizations/server/demo";
 import type { DemoServices } from "@merit/product/context";
 import { reportError } from "@merit/telemetry/errors";
 
-import { demoDestination, seedDemoWorkspace } from "./demo-workspace.server";
+import { checkDemoEntry, demoDestination, seedDemoWorkspace } from "./demo-workspace.server";
 
 const guestCookieName = "merit-demo-session";
 
@@ -23,8 +23,7 @@ export const createDemoServices = (
   identity: () => Promise<Identity>,
   guestToken: string | undefined,
   isGuest: () => Promise<boolean>,
-  // Development skips rate limiting. A missing production peer (null) denies provisioning.
-  networkAddress: string | null | undefined,
+  networkAddress: string | undefined | false,
 ): DemoServices => {
   return {
     read: async () => {
@@ -47,11 +46,9 @@ export const createDemoServices = (
     },
     start: async (input) => {
       try {
-        if (networkAddress === null) {
-          return { state: { status: "unavailable" } };
-        }
-        if (networkAddress && !(await database((db) => allowDemoEntry(db, networkAddress)))) {
-          return { state: { status: "limited" } };
+        const problem = await checkDemoEntry(database, networkAddress);
+        if (problem) {
+          return { state: problem };
         }
 
         const current = await identity();
