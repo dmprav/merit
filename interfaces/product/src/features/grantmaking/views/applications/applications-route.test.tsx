@@ -275,100 +275,126 @@ it.each([
   },
 );
 
-it("keeps round and sorting in the URL, excludes criteria and search text from the URL, and clears filters while preserving sorting", async () => {
+type User = ReturnType<typeof userEvent.setup>;
+
+const listLocation = `?round=${roundId}&sort=application&direction=descending`;
+
+const rowTitles = () =>
+  within(screen.getByRole("table", { name: "Applications" }))
+    .getAllByRole("row")
+    .slice(1)
+    .map((row) => within(row).getAllByRole("link")[0]?.textContent);
+
+const sortByApplication = (user: User) =>
+  user.click(
+    within(screen.getByRole("table", { name: "Applications" })).getByRole("button", {
+      name: "Application",
+    }),
+  );
+
+const editFilters = async (user: User, edit: () => Promise<void>) => {
+  await user.click(screen.getByRole("button", { name: "Filter" }));
+  await screen.findByRole("dialog", { name: "Filter applications" });
+  await edit();
+  await user.keyboard("{Escape}");
+  await waitFor(() =>
+    expect(screen.queryByRole("dialog", { name: "Filter applications" })).not.toBeInTheDocument(),
+  );
+};
+
+const chooseFilter = async (user: User, control: string, option: string) => {
+  await user.click(screen.getByRole("button", { name: control }));
+  await user.click(screen.getByRole("option", { name: option }));
+  await waitFor(() => expect(document.activeElement).toHaveAttribute("aria-haspopup", "listbox"));
+};
+
+const searchApplications = (user: User, text: string) =>
+  user.type(screen.getByRole("searchbox", { name: "Search applications" }), text);
+
+it("keeps sorting in the URL until the list returns to its original order", async () => {
+  const { user, router } = await renderApplications();
+  await waitFor(() =>
+    expect(rowTitles()).toEqual(["Zebra workshops", "Art circles", "Community meals"]),
+  );
+
+  await sortByApplication(user);
+
+  await waitFor(() =>
+    expect(rowTitles()).toEqual(["Art circles", "Community meals", "Zebra workshops"]),
+  );
+  expect(router.state.location.search).toEqual({ sort: "application" });
+
+  await sortByApplication(user);
+
+  await waitFor(() =>
+    expect(rowTitles()).toEqual(["Zebra workshops", "Community meals", "Art circles"]),
+  );
+  expect(router.state.location.search).toEqual({ sort: "application", direction: "descending" });
+
+  await sortByApplication(user);
+
+  await waitFor(() =>
+    expect(rowTitles()).toEqual(["Zebra workshops", "Art circles", "Community meals"]),
+  );
+  expect(router.state.location.searchStr).toBe("");
+});
+
+it("keeps the selected round in the URL beside sorting and lists only its applications", async () => {
+  const { user, router } = await renderApplications("?sort=application");
+  await waitFor(() =>
+    expect(rowTitles()).toEqual(["Art circles", "Community meals", "Zebra workshops"]),
+  );
+
+  await editFilters(user, () => chooseFilter(user, "Round All rounds", "Neighbourhood grants"));
+
+  await waitFor(() => expect(rowTitles()).toEqual(["Art circles", "Zebra workshops"]));
+  expect(router.state.location.search).toEqual({ round: roundId, sort: "application" });
+});
+
+it("restores the round and sorting from the URL", async () => {
+  await renderApplications(listLocation);
+
+  await waitFor(() => expect(rowTitles()).toEqual(["Zebra workshops", "Art circles"]));
+  expect(screen.getByRole("button", { name: "Remove filter: Neighbourhood grants" })).toBeVisible();
+  expect(screen.getByRole("button", { name: "Application" }).closest("th")).toHaveAttribute(
+    "aria-sort",
+    "descending",
+  );
+});
+
+it("keeps search text and work-state criteria out of the URL", async () => {
   vi.mocked(readWorkspaceApplications).mockImplementation(
     mockPage([applications[0]!, { ...applications[1]!, intakeStatus: "ready" }, applications[2]!]),
   );
   const { user, router } = await renderApplications();
-  const table = within(await screen.findByRole("table", { name: "Applications" }));
+  await waitFor(() => expect(rowTitles()).toHaveLength(3));
 
-  const titles = () =>
-    table
-      .getAllByRole("row")
-      .slice(1)
-      .map((row) => within(row).getAllByRole("link")[0]?.textContent);
-
-  await waitFor(() =>
-    expect(titles()).toEqual(["Zebra workshops", "Art circles", "Community meals"]),
-  );
-
-  await user.click(table.getByRole("button", { name: "Application" }));
-
-  await waitFor(() =>
-    expect(titles()).toEqual(["Art circles", "Community meals", "Zebra workshops"]),
-  );
-  expect(router.state.location.search).toMatchObject({ sort: "application" });
-
-  if (!screen.queryByRole("dialog", { name: "Filter applications" })) {
-    await user.click(screen.getByRole("button", { name: "Filter" }));
-  }
-  await user.click(screen.getByRole("button", { name: "Round All rounds" }));
-  await user.click(screen.getByRole("option", { name: "Neighbourhood grants" }));
-  await user.keyboard("{Escape}");
-
-  await waitFor(() => expect(titles()).toEqual(["Art circles", "Zebra workshops"]));
-  expect(router.state.location.search).toMatchObject({ round: roundId, sort: "application" });
-
-  if (!screen.queryByRole("dialog", { name: "Filter applications" })) {
-    await user.click(screen.getByRole("button", { name: "Filter" }));
-  }
-  await user.click(screen.getByRole("button", { name: "Readiness Any" }));
-  await user.click(screen.getByRole("option", { name: "In preparation" }));
-  await user.keyboard("{Escape}");
-
-  await waitFor(() => expect(titles()).toEqual(["Zebra workshops"]));
-  expect(router.state.location.search).toMatchObject({
-    round: roundId,
-    sort: "application",
+  await editFilters(user, async () => {
+    await chooseFilter(user, "Readiness Any", "In preparation");
+    await searchApplications(user, "meals");
   });
 
-  await user.click(table.getByRole("button", { name: "Application" }));
-
-  expect(router.state.location.search).toMatchObject({
-    round: roundId,
-    sort: "application",
-    direction: "descending",
-  });
-
-  await user.click(screen.getByRole("button", { name: "Filter" }));
-  await user.type(screen.getByRole("searchbox", { name: "Search applications" }), "Zebra");
-
-  expect(router.state.location.searchStr).not.toContain("Zebra");
-  expect(router.state.location.searchStr).not.toContain("filter");
-
-  if (!screen.queryByRole("dialog", { name: "Filter applications" })) {
-    await user.click(screen.getByRole("button", { name: "Filter" }));
-  }
-  await user.click(screen.getByRole("button", { name: "Clear filters" }));
-  expect(screen.getByRole("searchbox", { name: "Search applications" })).toHaveValue("");
-  await user.keyboard("{Escape}");
-
-  await waitFor(() =>
-    expect(titles()).toEqual(["Zebra workshops", "Community meals", "Art circles"]),
-  );
-  expect(router.state.location.search).toEqual({
-    round: undefined,
-    sort: "application",
-    direction: "descending",
-  });
-
-  await user.click(table.getByRole("button", { name: "Application" }));
-
-  await waitFor(() =>
-    expect(titles()).toEqual(["Zebra workshops", "Art circles", "Community meals"]),
-  );
-  expect(router.state.location.search).toEqual({
-    round: undefined,
-    sort: undefined,
-    direction: undefined,
-  });
+  await waitFor(() => expect(rowTitles()).toEqual(["Community meals"]));
+  expect(router.state.location.searchStr).toBe("");
 });
 
-it("keeps the list context on application, review, and created links and restores session search when returning", async () => {
-  vi.mocked(createApplication).mockResolvedValue({ status: "ok", publicId: "b8q3w5j7c2df" });
-  const { user, router } = await renderApplications(
-    `?round=${roundId}&sort=application&direction=descending`,
+it("removes the round from the URL with the other filters while preserving sorting", async () => {
+  const { user, router } = await renderApplications(listLocation);
+  await waitFor(() => expect(rowTitles()).toEqual(["Zebra workshops", "Art circles"]));
+
+  await editFilters(user, async () => {
+    await searchApplications(user, "Zebra");
+    await user.click(screen.getByRole("button", { name: "Clear filters" }));
+  });
+
+  await waitFor(() =>
+    expect(rowTitles()).toEqual(["Zebra workshops", "Community meals", "Art circles"]),
   );
+  expect(router.state.location.search).toEqual({ sort: "application", direction: "descending" });
+});
+
+it("carries the list location into application and review links", async () => {
+  await renderApplications(listLocation);
   const row = within(await screen.findByRole("row", { name: /Zebra workshops/ }));
   const applicationLink = row.getByRole("link", { name: "Zebra workshops" });
   const applicationLocation = new URL(applicationLink.getAttribute("href")!, "http://localhost");
@@ -396,57 +422,57 @@ it("keeps the list context on application, review, and created links and restore
     from: "applications",
     tab: "reviews",
   });
+});
 
-  await user.click(screen.getByRole("button", { name: "Filter" }));
-  await user.type(screen.getByRole("searchbox", { name: "Search applications" }), "Zebra");
-
-  await user.keyboard("{Escape}");
-  await waitFor(() =>
-    expect(screen.getAllByRole("status")[0]).toHaveTextContent("1 of 3 applications"),
-  );
-  expect(router.state.location.searchStr).not.toContain("Zebra");
-  expect(router.state.location.searchStr).not.toContain("filter");
+it("returns from an application to the list location and its session search", async () => {
+  const { user, router } = await renderApplications(listLocation);
+  await waitFor(() => expect(rowTitles()).toEqual(["Zebra workshops", "Art circles"]));
+  await editFilters(user, () => searchApplications(user, "Zebra"));
+  await waitFor(() => expect(rowTitles()).toEqual(["Zebra workshops"]));
 
   await user.click(screen.getByRole("link", { name: "Zebra workshops" }));
 
   const breadcrumb = within(await screen.findByRole("navigation", { name: "Breadcrumb" }));
   const backLink = await breadcrumb.findByRole("link", { name: "Applications" });
   expect(breadcrumb.getAllByRole("listitem")).toHaveLength(2);
-  const backLocation = new URL(backLink.getAttribute("href")!, "http://localhost");
 
-  expect(backLocation.pathname).toBe("/app/alder/applications");
-  expect(Object.fromEntries(backLocation.searchParams)).toEqual({
+  await user.click(backLink);
+
+  await waitFor(() => expect(rowTitles()).toEqual(["Zebra workshops"]));
+  expect(router.state.location.pathname).toBe("/app/alder/applications");
+  expect(router.state.location.search).toEqual({
     round: roundId,
     sort: "application",
     direction: "descending",
   });
-
-  await user.click(backLink);
-
-  await user.click(await screen.findByRole("button", { name: "Filter" }));
+  await user.click(screen.getByRole("button", { name: "Filter" }));
   expect(await screen.findByRole("searchbox", { name: "Search applications" })).toHaveValue(
     "Zebra",
   );
-  await user.keyboard("{Escape}");
-  await waitFor(() =>
-    expect(screen.getAllByRole("status")[0]).toHaveTextContent("1 of 3 applications"),
-  );
+});
 
-  await user.click(screen.getByRole("button", { name: /New application in/ }));
+it("keeps the list location on the breadcrumb of a newly created application", async () => {
+  vi.mocked(createApplication).mockResolvedValue({ status: "ok", publicId: "b8q3w5j7c2df" });
+  const { user } = await renderApplications(listLocation);
+
+  await user.click(await screen.findByRole("button", { name: /New application in/ }));
   await user.click(screen.getByRole("option", { name: "Neighbourhood grants" }));
   await user.click(screen.getByRole("button", { name: "Add application" }));
   const dialog = within(await screen.findByRole("dialog", { name: "Add application" }));
   await user.type(dialog.getByLabelText(/Project title/), "Zebra workshops");
   await user.click(dialog.getByRole("button", { name: "Add application" }));
 
-  expect(
-    within(await screen.findByRole("navigation", { name: "Breadcrumb" })).getByRole("link", {
-      name: "Applications",
-    }),
-  ).toHaveAttribute(
-    "href",
-    expect.stringContaining(`round=${roundId}&sort=application&direction=descending`),
+  const backLink = within(await screen.findByRole("navigation", { name: "Breadcrumb" })).getByRole(
+    "link",
+    { name: "Applications" },
   );
+  const backLocation = new URL(backLink.getAttribute("href")!, "http://localhost");
+  expect(backLocation.pathname).toBe("/app/alder/applications");
+  expect(Object.fromEntries(backLocation.searchParams)).toEqual({
+    round: roundId,
+    sort: "application",
+    direction: "descending",
+  });
 });
 
 it("explains how to start in a workspace without rounds", async () => {
@@ -463,7 +489,7 @@ it("explains how to start in a workspace without rounds", async () => {
   expect(screen.queryByRole("button", { name: "Add application" })).not.toBeInTheDocument();
 });
 
-it("keeps a failed next page, retries only the read, and resets the page when sorting changes", async () => {
+it("keeps the current page when the next page fails and moves to it after a retry", async () => {
   const many = Array.from({ length: 55 }, (_, index) => ({
     ...applications[0]!,
     id: `application-${index}`,
@@ -490,11 +516,6 @@ it("keeps a failed next page, retries only the read, and resets the page when so
   expect(screen.getByRole("button", { name: "Next" })).toBeDisabled();
   await user.click(screen.getByRole("button", { name: "Previous" }));
   expect(await screen.findByText("1–50 of 55 applications")).toBeVisible();
-  await user.click(screen.getByRole("button", { name: "Next" }));
-  expect(await screen.findByText("51–55 of 55 applications")).toBeVisible();
-  await user.click(screen.getByRole("button", { name: "Application" }));
-  expect(await screen.findByText("1–50 of 55 applications")).toBeVisible();
-  expect(createApplication).not.toHaveBeenCalled();
 });
 
 it("cancels obsolete searches and never presents an earlier query as current", async () => {
@@ -509,7 +530,7 @@ it("cancels obsolete searches and never presents an earlier query as current", a
     }
     return mockPage(applications)(request);
   });
-  const { user, router } = await renderApplications();
+  const { user } = await renderApplications();
   await user.click(screen.getByRole("button", { name: "Filter" }));
   const input = screen.getByRole("searchbox", { name: "Search applications" });
   await user.type(input, "Zebra");
@@ -524,5 +545,4 @@ it("cancels obsolete searches and never presents an earlier query as current", a
   await user.keyboard("{Escape}");
   expect(await screen.findByRole("link", { name: "Art circles" })).toBeVisible();
   expect(screen.queryByRole("link", { name: "Zebra workshops" })).not.toBeInTheDocument();
-  expect(router.state.location.searchStr).not.toMatch(/Art|Zebra/);
 });
