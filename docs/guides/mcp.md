@@ -153,14 +153,14 @@ the save operation still checks their eligibility.
 
 Read before editing. Preserve the original preconditions until the save succeeds:
 
-| Command                                                   | Preconditions                                                                             |
-| --------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| Round edit or deletion                                    | `expectedPreparationRevision` from `round.preparationRevision`                            |
-| Intake, revisions, readiness, deletion, contact selection | `expectedIntakeRevision` from `application.intakeRevision`                                |
-| Recommendation                                            | `expectedRecommendationRevision` and `expectedApplicationVersion`                         |
-| Review request or assessment                              | `expectedReviewRevision`, `expectedApplicationVersion`, `expectedCriteriaVersion`         |
-| Contact edit, archive or restore                          | `expectedContactRevision` from the contact's `contactRevision`                            |
-| Member change or removal                                  | `expectedMembershipId`, `expectedMembershipVersion`, and complete `expectedInvitationIds` |
+| Command                                                                              | Preconditions                                                                             |
+| ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
+| Round edit or deletion                                                               | `expectedPreparationRevision` from `round.preparationRevision`                            |
+| Intake, revisions, readiness, withdrawal, reinstatement, deletion, contact selection | `expectedIntakeRevision` from `application.intakeRevision`                                |
+| Recommendation                                                                       | `expectedRecommendationRevision` and `expectedApplicationVersion`                         |
+| Review request or assessment                                                         | `expectedReviewRevision`, `expectedApplicationVersion`, `expectedCriteriaVersion`         |
+| Contact edit, archive or restore                                                     | `expectedContactRevision` from the contact's `contactRevision`                            |
+| Member change or removal                                                             | `expectedMembershipId`, `expectedMembershipVersion`, and complete `expectedInvitationIds` |
 
 Application preconditions come from `get_application`. Member versions come from
 `list_team_members`; collect all pending invitations issued by that person with
