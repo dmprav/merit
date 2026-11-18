@@ -132,7 +132,7 @@ export const reviewerTransport = (initial: ReviewerPage, scenario: SaveScenario 
           page.draft = {
             revision: 2,
             content: {
-              ...draft,
+              ...page.draft!.content,
               reasoning:
                 "Saved on my other device: confirm the attendance evidence before recommending funding.",
             },

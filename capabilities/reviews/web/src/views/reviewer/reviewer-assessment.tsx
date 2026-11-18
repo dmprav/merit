@@ -537,11 +537,14 @@ const ReviewerSubmitActions = ({
       )}
       <Inline align="center">
         {amending && <DraftSaveStatus busy={work.busy} dirty={work.dirty} />}
-        {work.error && !work.conflict && !work.submissionPending && (
-          <Button variant="secondary" isDisabled={work.busy} onPress={() => void work.save()}>
-            {t("retry")}
-          </Button>
-        )}
+        {work.error &&
+          work.error !== "draftInvalid" &&
+          !work.conflict &&
+          !work.submissionPending && (
+            <Button variant="secondary" isDisabled={work.busy} onPress={() => void work.save()}>
+              {t("retry")}
+            </Button>
+          )}
         {amending && (
           <Button
             variant="secondary"

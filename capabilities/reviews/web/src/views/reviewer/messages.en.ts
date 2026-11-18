@@ -106,6 +106,7 @@ export const en = {
   keepMine: "Continue with my text",
   useSaved: "Use the saved version",
   submissionSaved: "Your assessment was saved. Refresh to load the submitted version.",
+  draftInvalid: "Check the draft fields. Your edits are still here.",
   submissionInvalid:
     "The assessment could not be submitted as written. Check each field and try again.",
   unavailable: "The request could not be confirmed. Your text is still here; try again.",

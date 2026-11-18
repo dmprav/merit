@@ -476,7 +476,7 @@ export const docs = {
         title: "Read, prepare, and save",
         body: "Workspace staff can read evidence and history, prepare grant work, maintain contacts, and save recommendations. Reviewers can respond to invitations, save private drafts, and submit or amend their own assessments. Account tools handle personal shortcuts, membership invitations, and your demo. Operator administration has separate permissions. Public publication and funding decisions are not available.",
         money:
-          "Grant summaries use minorUnits as an integer string and currency: EUR; 2200000 minor units means €22,000. Reviewer draft and assessment amounts use decimal euro strings. Follow each tool’s specified format; decimal amounts accept at most two decimal places.",
+          "Grant summaries and recorded assessments use an integer minorUnits string and a currency field. For example, 2200000 minor units in EUR means €22,000. Reviewer drafts accept decimal text such as 123.45. An unstated assessment amount is null.",
         saving:
           "Requested saves change the same records as the website, including private review drafts and submissions. Ask for a suggestion when you do not want to save yet. If someone changed the record, reread and reconcile it before saving again. History identifies the person and whether they acted through Merit web or a verified MCP client; it does not prove human review.",
       },

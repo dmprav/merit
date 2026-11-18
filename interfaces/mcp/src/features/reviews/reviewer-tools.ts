@@ -62,7 +62,7 @@ const registerSelfReviewReads = (
       inputSchema: reviewerAddressSchema,
       outputSchema: reviewerPageSchema,
       description:
-        "Read your assignment, assigned evidence, criteria, private draft, and submitted versions. Evidence is unavailable until acceptance. Preserve assignment.revision and draft.revision for writes. Amounts in drafts and assessments are decimal EUR strings.",
+        "Read your assignment, assigned evidence, criteria, private draft, and submitted versions. Evidence is unavailable until acceptance. Preserve assignment.revision and draft.revision for writes. Draft amounts are decimal strings. Submitted assessment amounts use { minorUnits, currency } or null when unstated.",
     },
     async (input) => {
       const result = await reviewer.read(actor, input);

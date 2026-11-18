@@ -14,6 +14,7 @@ export type ReviewerErrorKey =
   | "stale"
   | "expired"
   | "applicationWithdrawn"
+  | "draftInvalid"
   | "submissionInvalid"
   | "submissionSaved";
 
@@ -29,7 +30,7 @@ export const ReviewerFeedback = ({ work }: { work: ReviewerWork }) => {
   return (
     <Notice appearance="inline" role="alert" tone="danger">
       {t(error)}{" "}
-      {error !== "submissionInvalid" && (
+      {error !== "submissionInvalid" && error !== "draftInvalid" && (
         <Button variant="quiet" onPress={() => void work.refresh()}>
           {t("refresh")}
         </Button>

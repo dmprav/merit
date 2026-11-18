@@ -130,6 +130,8 @@ it("shows both drafts and holds submission until the reviewer chooses one", asyn
   page.draft!.content.amount = "123.456";
   const { user } = renderReviewer(page, "conflict");
 
+  await user.click(screen.getByRole("textbox", { name: "Proposed amount" }));
+  await user.keyboard("{End}{Backspace}");
   await user.type(
     screen.getByRole("textbox", { name: "Overall reasoning" }),
     " Keep my local interpretation.",
@@ -139,7 +141,7 @@ it("shows both drafts and holds submission until the reviewer chooses one", asyn
   expect(within(saved).getByText(/^Saved on my other device:/)).toBeVisible();
   expect(within(saved).getByText("123.456")).toBeVisible();
   expect(
-    within(screen.getByRole("region", { name: "Your text on this device" })).getByText("123.456"),
+    within(screen.getByRole("region", { name: "Your text on this device" })).getByText("123.45"),
   ).toBeVisible();
   expect(
     within(screen.getByRole("region", { name: "Your text on this device" })).getByText(
