@@ -103,7 +103,7 @@ organization foreign key without introducing a reverse Organizations dependency.
 ## Verify the contract
 
 Package tests cover the envelope and activity cursor at the shared coverage
-thresholds. [Database tests](../../organizations/business/tests/audit.integration.ts) cover attribution,
+thresholds. [Database tests](tests/events.integration.ts) cover attribution,
 transaction rollback, immutability, scopes, ordering, and paging. Capability tests
 cover authorization and domain payloads. Grantmaking's
 [recording tests](../../grantmaking/business/tests/audit-recording.integration.ts)
