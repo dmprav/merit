@@ -160,13 +160,12 @@ export const lockManagedReviewerAssignment = async (
   tx: ReviewerTransaction,
   userId: string,
   input: { workspaceSlug: string; publicId: string; assignmentId: string },
-  organizationMode: "share" | "update" = "share",
 ) => {
   const [workspace] = await tx
     .select({ id: organizations.id })
     .from(organizations)
     .where(eq(organizations.slug, input.workspaceSlug))
-    .for(organizationMode);
+    .for("share");
   if (!workspace || !(await lockManagedAssignmentRound(tx, workspace.id, input))) {
     return null;
   }
@@ -259,7 +258,7 @@ export const recordReviewerReceipt = (
     resultRevision: input.revision,
   });
 
-export const invitationLimited = async (
+const invitationLimited = async (
   tx: ReviewerTransaction,
   organizationId: string,
   email: string,
@@ -282,14 +281,35 @@ export const invitationLimited = async (
   return Boolean(counts && (counts.recent || counts.hourly >= 20 || counts.daily >= 100));
 };
 
-export const queueReviewerMessage = async (
+/** The quota covers initial invitations and resends across every case in the workspace. */
+export const queueReviewerInvitation = async (
+  tx: ReviewerTransaction,
+  message: { organizationId: string; assignmentId: string; commandId: string; email: string },
+  prepareAssignment: () => Promise<unknown>,
+) => {
+  await tx.execute(
+    sql`SELECT pg_advisory_xact_lock(hashtextextended(${`reviewer-invitations:${message.organizationId}`}, 0))`,
+  );
+  if (await invitationLimited(tx, message.organizationId, message.email)) {
+    return false;
+  }
+  await prepareAssignment();
+  await tx.insert(reviewerMessages).values({
+    id: message.commandId,
+    assignmentId: message.assignmentId,
+    kind: "invitation",
+    recipient: message.email,
+  });
+  return true;
+};
+
+export const queueSubmissionMessage = async (
   tx: ReviewerTransaction,
   assignmentId: string,
   id: string,
-  kind: "invitation" | "submission",
   recipient: string,
 ) => {
-  await tx.insert(reviewerMessages).values({ id, assignmentId, kind, recipient });
+  await tx.insert(reviewerMessages).values({ id, assignmentId, kind: "submission", recipient });
 };
 
 export const pendingReviewerMessages = (db: Database, assignmentId: string) =>

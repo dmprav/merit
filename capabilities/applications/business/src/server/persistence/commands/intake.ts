@@ -327,6 +327,14 @@ export const recordIntakeCreation = async (
   actor: Actor,
   requestId: string,
 ) => {
+  const [claim] = await tx
+    .insert(applicationCreationReceipts)
+    .values({ organizationId, publicId: application.id, requestId })
+    .onConflictDoNothing()
+    .returning({ publicId: applicationCreationReceipts.publicId });
+  if (!claim) {
+    return null;
+  }
   const snapshot = encodeIntakeApplication(application);
   const saved = await insertIntakeApplication(tx, {
     organizationId,
@@ -334,9 +342,6 @@ export const recordIntakeCreation = async (
     snapshot,
     recordedByUserId: actor.userId,
   });
-  await tx
-    .insert(applicationCreationReceipts)
-    .values({ organizationId, publicId: saved.id, requestId });
   await recordApplicationChange(tx, {
     organizationId,
     publicId: saved.id,

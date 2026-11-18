@@ -1,9 +1,8 @@
 import { type Actor } from "@merit/auth";
 import { readContact } from "@merit/contacts/scope";
 import type { Database } from "@merit/db";
-import { lockGrantWorkspace } from "@merit/organizations/locks";
 import { writeWorkspace } from "@merit/organizations/transactions";
-import { lockPreparationRound } from "@merit/rounds/locks";
+import { lockPreparationRoundAccess } from "@merit/rounds/locks";
 
 import {
   createApplicationRequestSchema,
@@ -67,19 +66,14 @@ export const createFundingApplication = async (
 
   const request = parsed.data;
   return writeWorkspace(db, actor.userId, request.workspaceSlug, async (tx) => {
-    const access = await lockGrantWorkspace(tx, actor.userId, request.workspaceSlug, "update");
-    if (!access) {
-      return { status: "not_found" } as const;
-    }
-
-    const round = await lockPreparationRound(tx, access.organization.id, request.publicId);
+    const round = await lockPreparationRoundAccess(tx, actor.userId, request);
     if (!round) {
       return { status: "not_found" } as const;
     }
 
-    const receipt = await intakeCreationReceipt(tx, access.organization.id, request.requestId);
+    const receipt = await intakeCreationReceipt(tx, round.organizationId, request.requestId);
     if (receipt) {
-      const row = await findIntakeApplication(tx, access.organization.id, receipt.publicId);
+      const row = await findIntakeApplication(tx, round.organizationId, receipt.publicId);
       return row && row.roundId === round.id
         ? ({ status: "ok", publicId: row.id } as const)
         : ({ status: "invalid", error: "application_deleted" } as const);
@@ -87,7 +81,7 @@ export const createFundingApplication = async (
 
     const application = newIntakeApplication(await allocatePublicId(tx), request);
     if (application.requested !== null) {
-      const amounts = await readRequestedAmounts(tx, access.organization.id, round.id);
+      const amounts = await readRequestedAmounts(tx, round.organizationId, round.id);
       const problem = requestedTotalProblem(amounts, application);
       if (problem) {
         return { status: "invalid", error: problem } as const;
@@ -96,13 +90,17 @@ export const createFundingApplication = async (
 
     const publicId = await recordIntakeCreation(
       tx,
-      access.organization.id,
+      round.organizationId,
       round.id,
       application,
       actor,
       request.requestId,
     );
-    return { status: "ok", publicId } as const;
+    // Same-round retries saw the receipt above while holding the round lock.
+    // A conflict here means a different round committed this request ID first.
+    return publicId
+      ? ({ status: "ok", publicId } as const)
+      : ({ status: "invalid", error: "application_deleted" } as const);
   });
 };
 
