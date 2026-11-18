@@ -136,6 +136,7 @@ export const reviewerMessages = pgTable(
   "reviewer_messages",
   {
     id: uuid().primaryKey(),
+    deliveryToken: uuid("delivery_token").defaultRandom().notNull(),
     assignmentId: uuid("assignment_id")
       .notNull()
       .references(() => reviewAssignments.id, { onDelete: "cascade" }),

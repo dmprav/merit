@@ -10,13 +10,14 @@ import { createOrganizationService } from "@merit/organizations/server";
 import { createTestDatabase } from "@merit/test-support/test-database";
 
 let database: Awaited<ReturnType<typeof createTestDatabase>>;
+let runtimeUrl: string;
 let messages: InvitationMessage[];
 let sendingFails = false;
 
 const service = (emails = ["recipient@example.test"], name?: string | null) =>
   createOrganizationService({
     revokeReviewAccess: async () => {},
-    database: (operation) => withDatabase(database.connectionString, operation),
+    database: (operation) => withDatabase(runtimeUrl, operation),
     isOperator: async (actor) => actor.userId === "operator",
     verifiedEmails: async () => emails,
     displayName: name === undefined ? undefined : async () => name,
@@ -51,6 +52,7 @@ const create = async (slug = "new-foundation") => {
 beforeAll(async () => {
   database = await createTestDatabase();
   await migrate(database.client);
+  runtimeUrl = await database.createRuntimeConnection();
 });
 afterAll(async () => {
   await database.dispose();
@@ -69,7 +71,7 @@ describe("organization provisioning", () => {
   it("delivers a working invitation at the host's configured address", async () => {
     const operations = createOrganizationService({
       revokeReviewAccess: async () => {},
-      database: (operation) => withDatabase(database.connectionString, operation),
+      database: (operation) => withDatabase(runtimeUrl, operation),
       isOperator: async () => true,
       verifiedEmails: async () => ["recipient@example.test"],
       sendInvitation: async (message) => {

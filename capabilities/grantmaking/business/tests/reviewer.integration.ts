@@ -1,10 +1,12 @@
 import { randomUUID } from "node:crypto";
 
+import { sql } from "drizzle-orm";
 import { assert, expect } from "vite-plus/test";
 
 import { materialVersionSchema } from "@merit/applications/domain";
 import { editFundingApplication } from "@merit/applications/server";
 import { changeWorkspaceContact } from "@merit/contacts/server";
+import { withDatabase } from "@merit/db";
 import { createOrganizationService } from "@merit/organizations/server";
 import { actor } from "@merit/organizations/testing/workspace";
 import type { ReviewerMessage } from "@merit/reviews/api";
@@ -529,6 +531,52 @@ it("preserves successful submission when delivery fails and retries only the not
   await s.manage("retry_notification");
   expect((await s.read()).assignment.notification).toBe("sent");
   expect((await s.read()).assessment?.versions).toHaveLength(1);
+});
+
+it("records an accepted reviewer message after the sender loses workspace access", async ({
+  database,
+  reviewerScenario: s,
+}) => {
+  const runtimeUrl = await database.createRuntimeConnection();
+  // Replay the committed invitation with its original message still awaiting acknowledgement.
+  await database.client.query("UPDATE reviewer_messages SET status = 'pending' WHERE id = $1", [
+    s.invitation.commandId,
+  ]);
+  const service = createReviewerService({
+    database: (operation) => withDatabase(runtimeUrl, operation),
+    send: async () => {
+      await database.client.query(
+        "DELETE FROM memberships WHERE user_id = $1 AND organization_id = 'alder'",
+        [actor.userId],
+      );
+    },
+    reviewerUrl: () => "https://merit.test/review",
+    managerUrl: () => "https://merit.test/manage",
+  });
+  expect(await service.invite(actor, s.invitation)).toEqual({ status: "not_found" });
+
+  const message = async () =>
+    (
+      await database.client.query<{ status: string; delivery_token: string }>(
+        "SELECT status, delivery_token FROM reviewer_messages WHERE id = $1",
+        [s.invitation.commandId],
+      )
+    ).rows[0]!;
+
+  const receipt = await message();
+  expect(receipt.status).toBe("sent");
+  await withDatabase(runtimeUrl, async (db) => {
+    const acknowledge = (token: string) =>
+      db.execute(
+        sql`select merit_finish_reviewer_message(${s.invitation.commandId}, ${token}, 'failed')`,
+      );
+
+    await expect(acknowledge(randomUUID())).rejects.toMatchObject({
+      cause: { message: "Reviewer delivery acknowledgement did not match a message" },
+    });
+    await acknowledge(receipt.delivery_token);
+  });
+  expect((await message()).status).toBe("sent");
 });
 
 it("enforces invitation expiry, recipient identity, and manager permissions", async ({

@@ -9,6 +9,7 @@
     "./domain": "./src/domain/index.ts",
     "./schema": "./src/server/persistence/membership-schema.ts",
     "./scope": "./src/server/persistence/scope.ts",
+    "./transactions": "./src/server/persistence/member-transactions.ts",
     "./locks": "./src/server/persistence/commands/locks.ts",
     "./testing": "./tests/seed-workspace.ts",
     "./testing/workspace": "./tests/workspace-test.ts",

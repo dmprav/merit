@@ -2,10 +2,10 @@ import { and, eq, sql } from "drizzle-orm";
 
 import { recordAuditEvent } from "@merit/audit/server/record";
 import { actorProvenance, type Actor } from "@merit/auth";
-import { appUsers } from "@merit/auth/schema";
 import type { Database } from "@merit/db";
-import { memberships, organizations } from "@merit/organizations/schema";
-import { membershipScope, organizationScope } from "@merit/organizations/scope";
+import { lockGrantActor } from "@merit/organizations/locks";
+import { organizations } from "@merit/organizations/schema";
+import { authorizedWorkspaces } from "@merit/organizations/scope";
 
 import { decodeRound, encodeRound, type FundingRoundData } from "../../../domain/encoding";
 import type { FundingRound } from "../../../domain/model";
@@ -82,34 +82,20 @@ export const lockPreparationRoundAccess = async (
     return null;
   }
 
+  const access = authorizedWorkspaces(tx, userId, "work_on_grants", input.workspaceSlug);
   const [lockedRound] = await tx
     .select({ id: fundingRounds.id })
     .from(fundingRounds)
-    .innerJoin(memberships, eq(memberships.organizationId, fundingRounds.organizationId))
-    .innerJoin(appUsers, eq(appUsers.id, memberships.userId))
+    .innerJoin(access, eq(access.id, fundingRounds.organizationId))
     .where(
-      and(
-        eq(fundingRounds.organizationId, workspace.id),
-        eq(fundingRounds.id, input.publicId),
-        organizationScope(userId, "work_on_grants", fundingRounds.organizationId),
-      ),
+      and(eq(fundingRounds.organizationId, workspace.id), eq(fundingRounds.id, input.publicId)),
     )
     .for("update", { of: fundingRounds });
   if (!lockedRound) {
     return null;
   }
 
-  const [actor] = await tx
-    .select({ userId: appUsers.id, name: appUsers.name, email: memberships.email })
-    .from(memberships)
-    .innerJoin(appUsers, eq(appUsers.id, memberships.userId))
-    .where(
-      and(
-        eq(memberships.organizationId, workspace.id),
-        organizationScope(userId, "work_on_grants", workspace.id),
-      ),
-    )
-    .for("share", { of: [memberships, appUsers] });
+  const actor = await lockGrantActor(tx, userId, workspace.id);
   if (!actor) {
     return null;
   }
@@ -347,18 +333,5 @@ export const lockManagerCandidate = async (
   organizationId: string,
   userId: string,
 ) => {
-  const [row] = await tx
-    .select({ userId: appUsers.id, name: appUsers.name, email: memberships.email })
-    .from(memberships)
-    .innerJoin(appUsers, eq(appUsers.id, memberships.userId))
-    .where(
-      and(
-        eq(memberships.organizationId, organizationId),
-        eq(appUsers.id, userId),
-        membershipScope("work_on_grants", organizationId),
-      ),
-    )
-    .for("share", { of: [memberships, appUsers] });
-
-  return row;
+  return lockGrantActor(tx, userId, organizationId);
 };

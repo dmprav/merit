@@ -3,6 +3,7 @@ import { and, eq, sql, type SQLWrapper } from "drizzle-orm";
 import type { AccessAction } from "@merit/access";
 import { accessScope } from "@merit/access/scope";
 import { appUsers } from "@merit/auth/schema";
+import type { Database } from "@merit/db";
 
 import { organizations, memberships } from "./membership-schema";
 
@@ -17,7 +18,7 @@ export const membershipScope = (action: AccessAction, organizationId: string | S
     "resource.organizationId": sql`${organizationId}`,
   });
 
-export const activeOrganization = sql`(${organizations.kind} = 'standard' OR ${organizations.demoExpiresAt} > statement_timestamp())`;
+export const activeOrganization = sql`merit_workspace_active(${organizations.kind}, ${organizations.demoExpiresAt})`;
 
 export const organizationScope = (
   userId: string,
@@ -30,7 +31,39 @@ export const organizationScope = (
     sql`EXISTS (
     SELECT 1 FROM ${organizations} AS accessible_organization
     WHERE accessible_organization.id = ${organizationId}
-      AND (accessible_organization.kind = 'standard'
-        OR accessible_organization.demo_expires_at > statement_timestamp())
+      AND merit_workspace_active(accessible_organization.kind, accessible_organization.demo_expires_at)
   )`,
   );
+
+/** A relation of workspaces where this actor may perform the requested action. */
+export const authorizedWorkspaces = (
+  db: Database,
+  userId: string,
+  action: AccessAction,
+  slug?: string,
+) =>
+  db
+    .select({
+      id: organizations.id,
+      name: organizations.name,
+      slug: organizations.slug,
+      kind: organizations.kind,
+      demoExpiresAt: organizations.demoExpiresAt,
+      membershipId: sql<string>`${memberships.id}`.as("actor_membership_id"),
+      role: memberships.role,
+      administration: memberships.administration,
+      canWorkOnGrants: membershipScope("work_on_grants", organizations.id).as("can_work_on_grants"),
+      canViewTeam: membershipScope("read_team", organizations.id).as("can_view_team"),
+    })
+    .from(organizations)
+    .innerJoin(memberships, eq(memberships.organizationId, organizations.id))
+    .innerJoin(appUsers, eq(appUsers.id, memberships.userId))
+    .where(
+      and(
+        eq(appUsers.id, userId),
+        activeOrganization,
+        membershipScope(action, organizations.id),
+        slug === undefined ? undefined : eq(organizations.slug, slug),
+      ),
+    )
+    .as("authorized_workspace");

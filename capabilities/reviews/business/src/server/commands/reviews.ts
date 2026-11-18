@@ -3,6 +3,7 @@ import { recordAuditEvent } from "@merit/audit/server/record";
 import { actorProvenance, type Actor } from "@merit/auth";
 import { readContact } from "@merit/contacts/scope";
 import type { Database } from "@merit/db";
+import { writeWorkspace } from "@merit/organizations/transactions";
 
 import { saveReviewRequestSchema, type SaveReviewRequest } from "../../api/commands/reviews";
 import { prepareReviewChange, type ReviewState } from "../../domain/reviews";
@@ -92,7 +93,7 @@ export const saveApplicationReview = async (
   }
 
   const request = parsed.data;
-  return db.transaction(async (tx) => {
+  return writeWorkspace(db, actor.userId, request.workspaceSlug, async (tx) => {
     const access = await lockApplicationCase(tx, actor.userId, request);
     if (!access) {
       return { status: "not_found" } as const;

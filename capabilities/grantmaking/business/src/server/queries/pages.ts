@@ -1,9 +1,10 @@
 import type { IntakeState } from "@merit/applications/api";
 import { workingRevisionSchema, materialVersionSchema } from "@merit/applications/domain";
 import type { Actor } from "@merit/auth";
-import { readTransaction, type Database } from "@merit/db";
+import type { Database } from "@merit/db";
 import { decodeMoney, subtract } from "@merit/money";
 import { workspaceSlugSchema } from "@merit/organizations/api";
+import { readWorkspace } from "@merit/organizations/transactions";
 import { reviewProgress } from "@merit/reviews/domain";
 import type { PreparationState } from "@merit/rounds/api";
 import { decodeRound } from "@merit/rounds/domain";
@@ -28,7 +29,7 @@ import {
 import { readApplicationHistory, readRoundHistory } from "./history-records";
 
 export const listFundingRounds = async (db: Database, actor: Actor, workspaceSlug: string) => {
-  return readTransaction(db, async (tx) => {
+  return readWorkspace(db, actor.userId, workspaceSlug, async (tx) => {
     const parsed = workspaceSlugSchema.safeParse(workspaceSlug);
     if (!parsed.success) {
       return { status: "not_found" } as const;
@@ -53,7 +54,7 @@ export const getFundingRoundPage = async (
   actor: Actor,
   input: PublicRoundRequest,
 ) => {
-  return readTransaction(db, async (tx) => {
+  return readWorkspace(db, actor.userId, input?.workspaceSlug, async (tx) => {
     const parsed = publicRoundRequestSchema.safeParse(input);
     if (!parsed.success) {
       return null;
@@ -101,7 +102,7 @@ export const getFundingApplicationPage = async (
   actor: Actor,
   input: ApplicationRequest,
 ) => {
-  return readTransaction(db, async (tx) => {
+  return readWorkspace(db, actor.userId, input?.workspaceSlug, async (tx) => {
     const parsed = applicationRequestSchema.safeParse(input);
     if (!parsed.success) {
       return null;

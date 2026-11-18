@@ -15,7 +15,7 @@ import { handleMcp } from "./server/mcp.server";
 import { createApplicationServices } from "./server/services.server";
 
 const database = createDatabasePool(
-  env.DATABASE_URL ?? "postgres://merit:merit@127.0.0.1:55432/merit",
+  env.DATABASE_URL ?? "postgres://merit_runtime:merit@127.0.0.1:55432/merit",
 );
 
 const origin = env.APP_ORIGIN ?? "http://localhost:3000";

@@ -1,6 +1,7 @@
 import type { Actor } from "@merit/auth";
 import { readContact } from "@merit/contacts/scope";
 import type { Database } from "@merit/db";
+import { writeWorkspace } from "@merit/organizations/transactions";
 
 import {
   selectContactRequestSchema,
@@ -17,7 +18,7 @@ export const selectApplicationContact = async (
 ) => {
   const request = selectContactRequestSchema.parse(input);
 
-  return db.transaction(async (tx) => {
+  return writeWorkspace(db, actor.userId, request.workspaceSlug, async (tx) => {
     const access = await lockApplicationCase(tx, actor.userId, request);
     if (!access) {
       return { status: "not_found" } as const;

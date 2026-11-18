@@ -1,4 +1,5 @@
 import type { Database } from "@merit/db";
+import { assignmentScope, readScoped } from "@merit/organizations/transactions";
 
 import type { ReviewerMessage } from "../../api/reviewer";
 import { pendingReviewerMessages, finishReviewerMessage } from "../persistence/commands/reviewer";
@@ -11,12 +12,16 @@ export const deliverReviewerMessages = async (
     reviewerUrl: (slug: string, id: string) => string;
     managerUrl: (slug: string, applicationId: string) => string;
   },
+  userId: string,
   id: string,
 ) => {
-  const data = await dependencies.database(async (db) => ({
-    record: await readReviewerRecord(db, id),
-    messages: await pendingReviewerMessages(db, id),
-  }));
+  const scope = assignmentScope(userId, id);
+  const data = await dependencies.database((db) =>
+    readScoped(db, scope, async (tx) => ({
+      record: await readReviewerRecord(tx, id),
+      messages: await pendingReviewerMessages(tx, id),
+    })),
+  );
   if (!data.record) {
     return;
   }
@@ -34,6 +39,7 @@ export const deliverReviewerMessages = async (
     ) {
       continue;
     }
+    let status: "sent" | "failed";
     try {
       await dependencies.send({
         id: message.id,
@@ -51,9 +57,12 @@ export const deliverReviewerMessages = async (
             ? dependencies.reviewerUrl(record.slug, id)
             : dependencies.managerUrl(record.slug, record.assignment.caseId),
       });
-      await dependencies.database((db) => finishReviewerMessage(db, message.id, "sent"));
+      status = "sent";
     } catch {
-      await dependencies.database((db) => finishReviewerMessage(db, message.id, "failed"));
+      status = "failed";
     }
+    await dependencies.database((db) =>
+      finishReviewerMessage(db, message.id, message.deliveryToken, status),
+    );
   }
 };

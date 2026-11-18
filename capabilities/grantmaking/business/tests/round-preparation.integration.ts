@@ -17,6 +17,7 @@ import {
 import { fundingRoundContactUsage } from "@merit/grantmaking/server/integrations";
 import { toDecimal } from "@merit/money";
 import { actor, workspaceTest as it, workspaceSlug } from "@merit/organizations/testing/workspace";
+import { readWorkspace } from "@merit/organizations/transactions";
 import { saveFundingRecommendation } from "@merit/recommendations/server";
 import { reviewRevisionSchema } from "@merit/reviews/domain";
 import { saveApplicationReview } from "@merit/reviews/server";
@@ -212,7 +213,11 @@ describe("funding-round preparation", () => {
           error: "round_deleted",
         });
         expect(
-          (await tx.execute(sql`SELECT action FROM audit_events ORDER BY target_revision`)).rows,
+          (
+            await readWorkspace(tx, actor.userId, workspaceSlug, (scoped) =>
+              scoped.execute(sql`SELECT action FROM audit_events ORDER BY target_revision`),
+            )
+          ).rows,
         ).toEqual([
           { action: "round.created" },
           { action: "round.budget_changed" },

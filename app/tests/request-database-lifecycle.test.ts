@@ -214,7 +214,7 @@ it.each([
     expect(handleMcpMock).toHaveBeenCalledOnce();
     expect(clients).toHaveLength(1);
     expect(clients[0]!.connectionString).toBe(
-      process.env.DATABASE_URL ?? "postgres://merit:merit@127.0.0.1:55432/merit",
+      process.env.DATABASE_URL ?? "postgres://merit_runtime:merit@127.0.0.1:55432/merit",
     );
     expect(clients[0]!.release).toHaveBeenCalledOnce();
   },

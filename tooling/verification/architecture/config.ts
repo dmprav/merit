@@ -108,6 +108,16 @@ const serverImports: DependenciesPolicy[] = [
   permitServer(anyBusiness("shared-persistence"), "@merit/access/scope", {
     file: { path: "capabilities/access/src/persistence/scope.ts" },
   }),
+  permitServer(
+    anyBusiness("{commands,queries}"),
+    "@merit/organizations/transactions",
+    business("organizations", "shared-persistence"),
+  ),
+  permitServer(
+    anyBusiness("command-persistence"),
+    "@merit/organizations/locks",
+    business("organizations", "command-persistence"),
+  ),
   permitServer(anyBusiness("commands"), "@merit/*/locks", anyBusiness("command-persistence")),
   permitServer(
     anyBusiness("{commands,queries,command-persistence,integrations}"),

@@ -40,13 +40,35 @@ access revocation cannot race a save.
 
 `@merit/access/scope` translates the same definitions into SQL. Persistence binds
 attributes to columns or expressions; these bindings describe storage and contain
-no permission rules. The [organization bindings](../organizations/business/src/server/persistence/scope.ts)
-join current membership and account facts, bind the resource's organization, and
-restrict the caller's identity. Use these bindings for workspace queries.
+no permission rules. Organizations supplies the
+[authorized workspace relation](../organizations/business/src/server/persistence/scope.ts).
+Join a resource's organization ID to this relation for the required action before
+counting, sorting, or pagination. Workspace discovery projects the same policy's
+navigation permissions. Locking commands retain the resource, membership and
+account locks through commit.
 
-Filter before counting, sorting, or pagination. A missing SQL binding or a null
-required value denies access. Workspace discovery also returns the policy-derived
-`canWorkOnGrants` decision for navigation; UI code need not compare role strings.
+## Isolate a workspace operation
+
+Open each workspace read or write with `readWorkspace` or `writeWorkspace` from
+`@merit/organizations/transactions`. Pass the authenticated actor's internal ID
+and the requested slug. PostgreSQL checks the selected workspace, current membership,
+account activity and demo lifetime for each statement's snapshot. Rows such as
+material versions inherit their case's workspace. The runtime sees no tenant rows
+with an empty transaction context. A workspace transaction retains its actor and
+workspace when calling another operation.
+
+Personal navigation and reviewer inboxes explicitly select the actor's active
+memberships across workspaces. An assignment address without a workspace slug
+resolves to the assignment's organization and still requires current membership.
+Organizations owns separate entry points for operator provisioning, invitation
+tokens and demo creation. These operations need access before an ordinary
+workspace membership exists.
+
+When adding a tenant-owned table, include its direct organization or parent-key
+policy in the migration and exercise it with the
+[restricted runtime login](../grantmaking/business/tests/workspace-isolation.integration.ts).
+Action and assignment checks still determine which data a member can use within
+the selected organization.
 
 ## Extend access with a capability
 

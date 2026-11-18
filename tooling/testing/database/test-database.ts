@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 
 import { Client } from "pg";
 
+import { grantRuntimePrivileges } from "@merit/db/runtime-grants";
+
 export const createTestDatabase = async () => {
   const url = new URL(
     process.env.TEST_DATABASE_URL ?? "postgres://merit:merit@127.0.0.1:55432/merit",
@@ -20,10 +22,27 @@ export const createTestDatabase = async () => {
   url.pathname = `/${name}`;
   const client = new Client({ connectionString: url.href, connectionTimeoutMillis: 5000 });
 
+  const role = name + "_runtime";
+  let runtimeCreated = false;
+
+  const createRuntimeConnection = async () => {
+    const password = randomUUID();
+    await client.query(`CREATE ROLE "${role}" LOGIN NOBYPASSRLS PASSWORD '${password}'`);
+    runtimeCreated = true;
+    await grantRuntimePrivileges(client, role);
+    const runtime = new URL(url);
+    runtime.username = role;
+    runtime.password = password;
+    return runtime.href;
+  };
+
   const dispose = async () => {
     try {
       await client.end();
       await admin.query(`DROP DATABASE "${name}" WITH (FORCE)`);
+      if (runtimeCreated) {
+        await admin.query(`DROP ROLE "${role}"`);
+      }
     } finally {
       await admin.end();
     }
@@ -31,7 +50,7 @@ export const createTestDatabase = async () => {
 
   try {
     await client.connect();
-    return { client, connectionString: url.href, dispose };
+    return { client, connectionString: url.href, createRuntimeConnection, dispose };
   } catch (error) {
     await dispose();
     throw error;

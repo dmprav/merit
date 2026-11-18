@@ -7,7 +7,7 @@ import { readMaterialVersionRecord } from "@merit/applications/scope";
 import { appUsers } from "@merit/auth/schema";
 import type { Database } from "@merit/db";
 import { memberships, organizations } from "@merit/organizations/schema";
-import { activeOrganization, organizationScope } from "@merit/organizations/scope";
+import { activeOrganization, authorizedWorkspaces } from "@merit/organizations/scope";
 import { reviewCriteriaSchema } from "@merit/rounds/domain";
 import { fundingRounds } from "@merit/rounds/schema";
 import {
@@ -209,34 +209,24 @@ export const memberEmail = async (db: Database, organizationId: string, userId: 
       .where(and(eq(memberships.organizationId, organizationId), eq(memberships.userId, userId)))
   )[0]?.email ?? null;
 
-export const reviewerWorkspace = async (db: Database, userId: string, slug: string) =>
-  (
-    await db
-      .select({ id: organizations.id })
-      .from(organizations)
-      .innerJoin(memberships, eq(memberships.organizationId, organizations.id))
-      .innerJoin(appUsers, eq(appUsers.id, memberships.userId))
-      .where(
-        and(
-          eq(organizations.slug, slug),
-          organizationScope(userId, "read_workspace", organizations.id),
-        ),
-      )
-  )[0];
+export const reviewerWorkspace = async (db: Database, userId: string, slug: string) => {
+  const workspace = authorizedWorkspaces(db, userId, "read_workspace", slug);
+  return (await db.select({ id: workspace.id }).from(workspace))[0];
+};
 
 export const listReviewerRecords = async (db: Database, userId: string, workspaceSlug?: string) => {
+  const workspace = authorizedWorkspaces(db, userId, "assess_grants", workspaceSlug);
   const rows = await selectReviewerRows(db)
     .innerJoin(
-      memberships,
-      and(eq(memberships.id, reviewAssignments.membershipId), eq(memberships.userId, userId)),
+      workspace,
+      and(
+        eq(workspace.id, reviewAssignments.organizationId),
+        eq(workspace.membershipId, reviewAssignments.membershipId),
+      ),
     )
-    .innerJoin(appUsers, eq(appUsers.id, memberships.userId))
     .where(
       and(
         currentMembership,
-        organizationScope(userId, "assess_grants", organizations.id),
-        workspaceSlug === undefined ? undefined : eq(organizations.slug, workspaceSlug),
-        activeOrganization,
         or(
           eq(reviewAssignments.reviewerUserId, userId),
           sql`${reviewAssignments.reviewerUserId} is null`,
@@ -252,15 +242,13 @@ export const listManagerReviewerRecords = async (
   userId: string,
   input: { workspaceSlug: string; publicId: string; assignmentId?: string },
 ) => {
+  const workspace = authorizedWorkspaces(db, userId, "work_on_grants", input.workspaceSlug);
   const rows = await selectReviewerRows(db)
-    .innerJoin(memberships, eq(memberships.organizationId, organizations.id))
-    .innerJoin(appUsers, eq(appUsers.id, memberships.userId))
+    .innerJoin(workspace, eq(workspace.id, reviewAssignments.organizationId))
     .where(
       and(
-        eq(organizations.slug, input.workspaceSlug),
         eq(reviewAssignments.caseId, input.publicId),
         input.assignmentId ? eq(reviewAssignments.id, input.assignmentId) : undefined,
-        organizationScope(userId, "work_on_grants", organizations.id),
       ),
     )
     .orderBy(reviewAssignments.createdAt);

@@ -2,7 +2,8 @@ import { encodeApplicationMaterial } from "@merit/applications/api";
 import { materialVersionSchema } from "@merit/applications/domain";
 import { readAuditHistory } from "@merit/audit/server/read";
 import type { Actor } from "@merit/auth";
-import { readTransaction, type Database } from "@merit/db";
+import type { Database } from "@merit/db";
+import { assignmentScope, readScoped, readWorkspace } from "@merit/organizations/transactions";
 import { criteriaVersionSchema } from "@merit/rounds/domain";
 
 import { reviewerHistoryInput } from "../../api/reviewer";
@@ -68,21 +69,27 @@ export const listReviewerAssignments = (
   actor: Actor,
   workspaceSlug?: string,
 ): ReturnType<ReviewerService["list"]> =>
-  readTransaction(db, async (tx) => {
-    if (!(await activeReviewer(tx, actor.userId))) {
-      return { status: "not_found" };
-    }
-    if (
-      workspaceSlug !== undefined &&
-      !(await reviewerWorkspace(tx, actor.userId, workspaceSlug))
-    ) {
-      return { status: "not_found" };
-    }
-    return {
-      status: "ok",
-      value: (await listReviewerRecords(tx, actor.userId, workspaceSlug)).map(reviewerSummary),
-    };
-  });
+  readScoped(
+    db,
+    workspaceSlug === undefined
+      ? { kind: "discovery", userId: actor.userId }
+      : { kind: "workspace", userId: actor.userId, slug: workspaceSlug },
+    async (tx) => {
+      if (!(await activeReviewer(tx, actor.userId))) {
+        return { status: "not_found" };
+      }
+      if (
+        workspaceSlug !== undefined &&
+        !(await reviewerWorkspace(tx, actor.userId, workspaceSlug))
+      ) {
+        return { status: "not_found" };
+      }
+      return {
+        status: "ok",
+        value: (await listReviewerRecords(tx, actor.userId, workspaceSlug)).map(reviewerSummary),
+      };
+    },
+  );
 
 export const readReviewerAssignment = (
   db: Database,
@@ -90,7 +97,7 @@ export const readReviewerAssignment = (
   id: string,
   workspaceSlug?: string,
 ): ReturnType<ReviewerService["read"]> =>
-  readTransaction(db, async (tx) => {
+  readScoped(db, assignmentScope(actor.userId, id, workspaceSlug), async (tx) => {
     const record = await readReviewerRecord(tx, id);
     if (
       !record ||
@@ -133,7 +140,7 @@ export const managerReviewerAssignments = (
   actor: Actor,
   input: Parameters<ReviewerService["forApplication"]>[1],
 ): ReturnType<ReviewerService["forApplication"]> =>
-  readTransaction(db, async (tx) => ({
+  readWorkspace(db, actor.userId, input.workspaceSlug, async (tx) => ({
     status: "ok",
     value: (await listManagerReviewerRecords(tx, actor.userId, input)).map(reviewerSummary),
   }));
@@ -143,7 +150,7 @@ export const managerReviewerHistory = (
   actor: Actor,
   input: Parameters<ReviewerService["history"]>[1],
 ): ReturnType<ReviewerService["history"]> =>
-  readTransaction(db, async (tx) => {
+  readWorkspace(db, actor.userId, input.workspaceSlug, async (tx) => {
     const parsed = reviewerHistoryInput.safeParse(input);
     if (!parsed.success) {
       return { status: "invalid", error: "invalid_input" };

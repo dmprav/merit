@@ -4,10 +4,10 @@ import { applicationCases } from "@merit/applications/schema";
 import { caseWithdrawn } from "@merit/applications/scope";
 import { recordAuditEvent } from "@merit/audit/server/record";
 import { actorProvenance, type Actor } from "@merit/auth";
-import { appUsers } from "@merit/auth/schema";
 import type { Database } from "@merit/db";
-import { memberships, organizations } from "@merit/organizations/schema";
-import { organizationScope } from "@merit/organizations/scope";
+import { lockGrantActor } from "@merit/organizations/locks";
+import { organizations } from "@merit/organizations/schema";
+import { authorizedWorkspaces } from "@merit/organizations/scope";
 import { fundingRounds } from "@merit/rounds/schema";
 
 import type { ReviewerDraft } from "../../../domain/reviewer";
@@ -119,16 +119,15 @@ const lockManagedCaseAndActor = async (
   workspaceId: string,
   input: { publicId: string; assignmentId: string },
 ) => {
+  const access = authorizedWorkspaces(tx, userId, "work_on_grants");
   const [lockedCase] = await tx
     .select({ id: applicationCases.id, withdrawn: caseWithdrawn })
     .from(applicationCases)
-    .innerJoin(memberships, eq(memberships.organizationId, applicationCases.organizationId))
-    .innerJoin(appUsers, eq(appUsers.id, memberships.userId))
+    .innerJoin(access, eq(access.id, applicationCases.organizationId))
     .where(
       and(
         eq(applicationCases.id, input.publicId),
         eq(applicationCases.organizationId, workspaceId),
-        organizationScope(userId, "work_on_grants", applicationCases.organizationId),
       ),
     )
     .for("update", { of: applicationCases });
@@ -149,17 +148,7 @@ const lockManagedCaseAndActor = async (
   if (!lockedAssignment) {
     return null;
   }
-  const [actor] = await tx
-    .select({ userId: appUsers.id, name: appUsers.name, email: memberships.email })
-    .from(memberships)
-    .innerJoin(appUsers, eq(appUsers.id, memberships.userId))
-    .where(
-      and(
-        eq(memberships.organizationId, workspaceId),
-        organizationScope(userId, "work_on_grants", workspaceId),
-      ),
-    )
-    .for("share", { of: [memberships, appUsers] });
+  const actor = await lockGrantActor(tx, userId, workspaceId);
   return actor ? { ...actor, withdrawn: lockedCase.withdrawn } : null;
 };
 
@@ -310,8 +299,13 @@ export const pendingReviewerMessages = (db: Database, assignmentId: string) =>
     .where(eq(reviewerMessages.assignmentId, assignmentId))
     .orderBy(desc(reviewerMessages.createdAt), desc(reviewerMessages.id));
 
-export const finishReviewerMessage = (db: Database, id: string, status: "sent" | "failed") =>
-  db.update(reviewerMessages).set({ status }).where(eq(reviewerMessages.id, id));
+export const finishReviewerMessage = (
+  db: Database,
+  id: string,
+  deliveryToken: string,
+  status: "sent" | "failed",
+) =>
+  db.execute(sql`select public.merit_finish_reviewer_message(${id}, ${deliveryToken}, ${status})`);
 
 export const updateReviewerAssignment = (
   tx: ReviewerTransaction,

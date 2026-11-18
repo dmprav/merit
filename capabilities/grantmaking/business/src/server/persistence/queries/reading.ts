@@ -19,10 +19,8 @@ import {
   roundWithdrawnCount,
 } from "@merit/applications/scope";
 import { auditEvents } from "@merit/audit/schema";
-import { appUsers } from "@merit/auth/schema";
 import type { Database } from "@merit/db";
-import { memberships, organizations } from "@merit/organizations/schema";
-import { organizationScope } from "@merit/organizations/scope";
+import { authorizedWorkspaces } from "@merit/organizations/scope";
 import { recommendationVersions } from "@merit/recommendations/schema";
 import {
   assembleRecommendationRecord,
@@ -75,9 +73,6 @@ const applicationFields = {
   hasWorkingRevision: sql<boolean>`exists(select 1 from ${materialDrafts} where ${materialDrafts.caseId} = ${applicationCases.id})`,
 };
 
-const access = (actor: string, slug: string) =>
-  and(eq(organizations.slug, slug), organizationScope(actor, "work_on_grants", organizations.id));
-
 const withRoundBudget = <T extends { budgetMinorUnits: string | null; currency: string }>({
   budgetMinorUnits,
   currency,
@@ -99,20 +94,10 @@ const withRequestedMoney = <
 });
 
 export const readGrantWorkspaceAccess = async (db: Database, actor: string, slug: string) => {
+  const workspace = authorizedWorkspaces(db, actor, "read_workspace", slug);
   const [row] = await db
-    .select({
-      organizationId: organizations.id,
-      allowed: sql<boolean>`${organizationScope(actor, "work_on_grants", organizations.id)}`,
-    })
-    .from(organizations)
-    .innerJoin(memberships, eq(memberships.organizationId, organizations.id))
-    .innerJoin(appUsers, eq(appUsers.id, memberships.userId))
-    .where(
-      and(
-        eq(organizations.slug, slug),
-        organizationScope(actor, "read_workspace", organizations.id),
-      ),
-    );
+    .select({ organizationId: workspace.id, allowed: workspace.canWorkOnGrants })
+    .from(workspace);
   return row;
 };
 
@@ -121,18 +106,12 @@ export const readRoundSummaries = async (
   actor: string,
   input: { workspaceSlug: string; after?: string; limit: number },
 ) => {
+  const workspace = authorizedWorkspaces(db, actor, "work_on_grants", input.workspaceSlug);
   const rows = await db
     .select(roundFields)
     .from(fundingRounds)
-    .innerJoin(organizations, eq(organizations.id, fundingRounds.organizationId))
-    .innerJoin(memberships, eq(memberships.organizationId, organizations.id))
-    .innerJoin(appUsers, eq(appUsers.id, memberships.userId))
-    .where(
-      and(
-        access(actor, input.workspaceSlug),
-        input.after ? gt(fundingRounds.id, input.after) : undefined,
-      ),
-    )
+    .innerJoin(workspace, eq(workspace.id, fundingRounds.organizationId))
+    .where(and(input.after ? gt(fundingRounds.id, input.after) : undefined))
     .orderBy(fundingRounds.id)
     .limit(input.limit + 1);
   return rows.map(withRoundBudget);
@@ -143,13 +122,12 @@ export const readRoundIdentity = async (
   actor: string,
   input: { workspaceSlug: string; roundId: string },
 ) => {
+  const workspace = authorizedWorkspaces(db, actor, "work_on_grants", input.workspaceSlug);
   const [row] = await db
-    .select({ roundId: fundingRounds.id, organizationId: organizations.id })
+    .select({ roundId: fundingRounds.id, organizationId: workspace.id })
     .from(fundingRounds)
-    .innerJoin(organizations, eq(organizations.id, fundingRounds.organizationId))
-    .innerJoin(memberships, eq(memberships.organizationId, organizations.id))
-    .innerJoin(appUsers, eq(appUsers.id, memberships.userId))
-    .where(and(access(actor, input.workspaceSlug), eq(fundingRounds.id, input.roundId)));
+    .innerJoin(workspace, eq(workspace.id, fundingRounds.organizationId))
+    .where(eq(fundingRounds.id, input.roundId));
   return row;
 };
 
@@ -158,13 +136,12 @@ export const readApplicationIdentity = async (
   actor: string,
   input: { workspaceSlug: string; applicationId: string },
 ) => {
+  const workspace = authorizedWorkspaces(db, actor, "work_on_grants", input.workspaceSlug);
   const [row] = await db
-    .select({ applicationId: applicationCases.id, organizationId: organizations.id })
+    .select({ applicationId: applicationCases.id, organizationId: workspace.id })
     .from(applicationCases)
-    .innerJoin(organizations, eq(organizations.id, applicationCases.organizationId))
-    .innerJoin(memberships, eq(memberships.organizationId, organizations.id))
-    .innerJoin(appUsers, eq(appUsers.id, memberships.userId))
-    .where(and(access(actor, input.workspaceSlug), eq(applicationCases.id, input.applicationId)));
+    .innerJoin(workspace, eq(workspace.id, applicationCases.organizationId))
+    .where(eq(applicationCases.id, input.applicationId));
   return row;
 };
 
@@ -173,6 +150,7 @@ export const readRoundOverview = async (
   actor: string,
   input: { workspaceSlug: string; roundId: string },
 ) => {
+  const workspace = authorizedWorkspaces(db, actor, "work_on_grants", input.workspaceSlug);
   const [row] = await db
     .select({
       ...roundFields,
@@ -184,10 +162,8 @@ export const readRoundOverview = async (
       proposed: sql<string>`(select coalesce(sum(r.allocation_minor_units), 0)::text from ${applicationCases} a join ${recommendationVersions} r on r.case_id = a.id and r.revision = (select max(v.revision) from ${recommendationVersions} v where v.case_id = a.id) where a.organization_id = ${fundingRounds.organizationId} and a.round_id = ${fundingRounds.id} and ${activeCase("a")})`,
     })
     .from(fundingRounds)
-    .innerJoin(organizations, eq(organizations.id, fundingRounds.organizationId))
-    .innerJoin(memberships, eq(memberships.organizationId, organizations.id))
-    .innerJoin(appUsers, eq(appUsers.id, memberships.userId))
-    .where(and(access(actor, input.workspaceSlug), eq(fundingRounds.id, input.roundId)));
+    .innerJoin(workspace, eq(workspace.id, fundingRounds.organizationId))
+    .where(eq(fundingRounds.id, input.roundId));
   return row ? withRoundBudget(row) : undefined;
 };
 
@@ -202,6 +178,7 @@ export const readApplicationSummaries = async (
     limit: number;
   },
 ) => {
+  const workspace = authorizedWorkspaces(db, actor, "work_on_grants", input.workspaceSlug);
   const relationships = input.contactId
     ? {
         applicantContact: sql<boolean>`coalesce(${applicationCases.contactId} = ${input.contactId}, false)`,
@@ -229,12 +206,9 @@ export const readApplicationSummaries = async (
         eq(fundingRounds.id, applicationCases.roundId),
       ),
     )
-    .innerJoin(organizations, eq(organizations.id, applicationCases.organizationId))
-    .innerJoin(memberships, eq(memberships.organizationId, organizations.id))
-    .innerJoin(appUsers, eq(appUsers.id, memberships.userId))
+    .innerJoin(workspace, eq(workspace.id, applicationCases.organizationId))
     .where(
       and(
-        access(actor, input.workspaceSlug),
         input.roundId ? eq(fundingRounds.id, input.roundId) : undefined,
         relationships ? or(...Object.values(relationships)) : undefined,
         input.after ? gt(applicationCases.id, input.after) : undefined,
@@ -250,6 +224,7 @@ export const readApplicationContext = async (
   actor: string,
   input: { workspaceSlug: string; applicationId: string },
 ) => {
+  const workspace = authorizedWorkspaces(db, actor, "work_on_grants", input.workspaceSlug);
   const [row] = await db
     .select({
       ...applicationFields,
@@ -273,10 +248,8 @@ export const readApplicationContext = async (
         eq(fundingRounds.id, applicationCases.roundId),
       ),
     )
-    .innerJoin(organizations, eq(organizations.id, applicationCases.organizationId))
-    .innerJoin(memberships, eq(memberships.organizationId, organizations.id))
-    .innerJoin(appUsers, eq(appUsers.id, memberships.userId))
-    .where(and(access(actor, input.workspaceSlug), eq(applicationCases.id, input.applicationId)));
+    .innerJoin(workspace, eq(workspace.id, applicationCases.organizationId))
+    .where(eq(applicationCases.id, input.applicationId));
   return row ? withRequestedMoney(row) : undefined;
 };
 
@@ -308,6 +281,7 @@ const readIntakeOrPreparationChange = async (
   },
   kind: "intake" | "preparation",
 ) => {
+  const workspace = authorizedWorkspaces(db, actor, "work_on_grants", input.workspaceSlug);
   const [row] = await db
     .select({
       revision: auditEvents.targetRevision,
@@ -320,12 +294,9 @@ const readIntakeOrPreparationChange = async (
       recordedAt: auditEvents.recordedAt,
     })
     .from(auditEvents)
-    .innerJoin(organizations, eq(organizations.id, auditEvents.organizationId))
-    .innerJoin(memberships, eq(memberships.organizationId, organizations.id))
-    .innerJoin(appUsers, eq(appUsers.id, memberships.userId))
+    .innerJoin(workspace, eq(workspace.id, auditEvents.organizationId))
     .where(
       and(
-        access(actor, input.workspaceSlug),
         eq(auditEvents.targetId, input.recordId),
         eq(auditEvents.targetType, kind === "intake" ? "application" : "round"),
         eq(auditEvents.targetRevision, input.revision),
@@ -365,6 +336,7 @@ export const readRoundContent = async (
     length: number;
   },
 ) => {
+  const workspace = authorizedWorkspaces(db, actor, "work_on_grants", input.workspaceSlug);
   if (input.section === "preparation_change") {
     return readIntakeOrPreparationChange(
       db,
@@ -374,12 +346,10 @@ export const readRoundContent = async (
     );
   }
   const [row] = await db
-    .select({ round: fundingRounds, foundation: organizations.name })
+    .select({ round: fundingRounds, foundation: workspace.name })
     .from(fundingRounds)
-    .innerJoin(organizations, eq(organizations.id, fundingRounds.organizationId))
-    .innerJoin(memberships, eq(memberships.organizationId, organizations.id))
-    .innerJoin(appUsers, eq(appUsers.id, memberships.userId))
-    .where(and(access(actor, input.workspaceSlug), eq(fundingRounds.id, input.roundId)));
+    .innerJoin(workspace, eq(workspace.id, fundingRounds.organizationId))
+    .where(eq(fundingRounds.id, input.roundId));
   if (!row) {
     return undefined;
   }
@@ -574,6 +544,7 @@ export const readApplicationContent = async (
   actor: string,
   input: ApplicationContentInput,
 ) => {
+  const workspace = authorizedWorkspaces(db, actor, "work_on_grants", input.workspaceSlug);
   if (input.section === "intake_change") {
     return readIntakeOrPreparationChange(
       db,
@@ -592,10 +563,8 @@ export const readApplicationContent = async (
         eq(fundingRounds.id, applicationCases.roundId),
       ),
     )
-    .innerJoin(organizations, eq(organizations.id, applicationCases.organizationId))
-    .innerJoin(memberships, eq(memberships.organizationId, organizations.id))
-    .innerJoin(appUsers, eq(appUsers.id, memberships.userId))
-    .where(and(access(actor, input.workspaceSlug), eq(applicationCases.id, input.applicationId)));
+    .innerJoin(workspace, eq(workspace.id, applicationCases.organizationId))
+    .where(eq(applicationCases.id, input.applicationId));
   if (!authorized) {
     return undefined;
   }
@@ -619,6 +588,7 @@ export const readGrantHistory = (
     limit: number;
   },
 ) => {
+  const workspace = authorizedWorkspaces(db, actor, "work_on_grants", input.workspaceSlug);
   // History remains available after an eligible record is deleted. Workspace
   // authorization is joined to the history owner's organization on every call.
   const history = auditEvents;
@@ -631,12 +601,9 @@ export const readGrantHistory = (
       })
       .from(recommendationVersions)
       .innerJoin(applicationCases, eq(applicationCases.id, recommendationVersions.caseId))
-      .innerJoin(organizations, eq(organizations.id, applicationCases.organizationId))
-      .innerJoin(memberships, eq(memberships.organizationId, organizations.id))
-      .innerJoin(appUsers, eq(appUsers.id, memberships.userId))
+      .innerJoin(workspace, eq(workspace.id, applicationCases.organizationId))
       .where(
         and(
-          access(actor, input.workspaceSlug),
           eq(applicationCases.id, input.applicationId!),
           input.afterRevision === undefined
             ? undefined
@@ -653,12 +620,9 @@ export const readGrantHistory = (
       recordedAt: history.recordedAt,
     })
     .from(history)
-    .innerJoin(organizations, eq(organizations.id, history.organizationId))
-    .innerJoin(memberships, eq(memberships.organizationId, organizations.id))
-    .innerJoin(appUsers, eq(appUsers.id, memberships.userId))
+    .innerJoin(workspace, eq(workspace.id, history.organizationId))
     .where(
       and(
-        access(actor, input.workspaceSlug),
         eq(history.targetId, (input.roundId ?? input.applicationId)!),
         eq(history.targetType, input.history === "preparation" ? "round" : "application"),
         input.afterRevision === undefined
@@ -683,6 +647,7 @@ const readSelectedReviewTarget = async (
   actor: string,
   input: { workspaceSlug: string; applicationId: string },
 ) => {
+  const workspace = authorizedWorkspaces(db, actor, "work_on_grants", input.workspaceSlug);
   const [selected] = await db
     .select({
       caseId: applicationCases.id,
@@ -699,10 +664,8 @@ const readSelectedReviewTarget = async (
         eq(fundingRounds.id, applicationCases.roundId),
       ),
     )
-    .innerJoin(organizations, eq(organizations.id, applicationCases.organizationId))
-    .innerJoin(memberships, eq(memberships.organizationId, organizations.id))
-    .innerJoin(appUsers, eq(appUsers.id, memberships.userId))
-    .where(and(access(actor, input.workspaceSlug), eq(applicationCases.id, input.applicationId)));
+    .innerJoin(workspace, eq(workspace.id, applicationCases.organizationId))
+    .where(eq(applicationCases.id, input.applicationId));
   return selected;
 };
 

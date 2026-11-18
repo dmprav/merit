@@ -1,3 +1,5 @@
+import { sql } from "drizzle-orm";
+
 import { removeDemoAudit } from "@merit/audit/server/demo";
 import { removeExpiredGuestBatch } from "@merit/auth/server";
 import { removeDemoContacts } from "@merit/contacts/server/demo";
@@ -7,6 +9,13 @@ import { canRemoveGuest, removeExpiredDemos } from "@merit/organizations/server/
 
 const connectionString = process.env.DATABASE_URL ?? "postgres://merit:merit@127.0.0.1:55432/merit";
 await withDatabase(connectionString, async (db) => {
+  const privileges = await db.execute<{ filtered: boolean }>(
+    sql`select bool_or(row_security_active(oid)) as filtered from pg_class
+        where relnamespace = 'public'::regnamespace and relrowsecurity`,
+  );
+  if (privileges.rows[0]?.filtered !== false) {
+    throw new Error("Demo cleanup requires the maintenance database credential.");
+  }
   let removed;
   do {
     removed = await removeExpiredDemos(db, async (tx, id) => {

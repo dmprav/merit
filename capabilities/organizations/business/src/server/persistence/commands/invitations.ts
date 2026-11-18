@@ -12,7 +12,10 @@ export const lockOrganization = async (tx: Transaction, id: string) => {
 export type Invitation = typeof invitations.$inferInsert;
 
 export const insertInvitation = (tx: Transaction, invitation: Invitation) =>
-  tx.insert(invitations).values({ ...invitation, createdAt: sql`statement_timestamp()` });
+  tx
+    .insert(invitations)
+    .values({ ...invitation, createdAt: sql`statement_timestamp()` })
+    .onConflictDoNothing({ target: invitations.id });
 
 export const readInvitationSendUsage = async (
   tx: Transaction,

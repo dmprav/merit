@@ -1,8 +1,9 @@
 import { type z } from "zod";
 
 import type { Actor } from "@merit/auth";
-import { readTransaction, type Database } from "@merit/db";
+import type { Database } from "@merit/db";
 import { decodeMoney, encodeMoney, fromMinorUnits, subtract } from "@merit/money";
+import { readWorkspace } from "@merit/organizations/transactions";
 import { compareReviewBasis, reviewCriteriaSchema, reviewFreshness } from "@merit/reviews/domain";
 
 import {
@@ -30,7 +31,7 @@ export const listFundingRoundSummaries = async (
   actor: Actor,
   input: z.input<typeof roundListInput>,
 ) => {
-  return readTransaction(db, async (tx) => {
+  return readWorkspace(db, actor.userId, input?.workspaceSlug, async (tx) => {
     const parsed = roundListInput.safeParse(input);
     if (!parsed.success) {
       return { status: "not_found" } as const;
@@ -58,7 +59,7 @@ export const getFundingRoundOverview = async (
   actor: Actor,
   input: z.input<typeof roundReadInput>,
 ) => {
-  return readTransaction(db, async (tx) => {
+  return readWorkspace(db, actor.userId, input?.workspaceSlug, async (tx) => {
     const parsed = roundReadInput.safeParse(input);
     if (!parsed.success) {
       return { status: "not_found" } as const;
@@ -90,7 +91,7 @@ export const listFundingApplications = async (
   actor: Actor,
   input: z.input<typeof applicationListInput>,
 ) => {
-  return readTransaction(db, async (tx) => {
+  return readWorkspace(db, actor.userId, input?.workspaceSlug, async (tx) => {
     const parsed = applicationListInput.safeParse(input);
     if (!parsed.success) {
       return { status: "not_found" } as const;
@@ -114,7 +115,7 @@ export const getFundingApplicationContext = async (
   actor: Actor,
   input: z.input<typeof applicationReadInput>,
 ) => {
-  return readTransaction(db, async (tx) => {
+  return readWorkspace(db, actor.userId, input?.workspaceSlug, async (tx) => {
     const parsed = applicationReadInput.safeParse(input);
     if (!parsed.success) {
       return { status: "not_found" } as const;
@@ -159,7 +160,7 @@ export const getFundingRoundContent = async (
   actor: Actor,
   input: z.input<typeof roundContentInput>,
 ) => {
-  return readTransaction(db, async (tx) => {
+  return readWorkspace(db, actor.userId, input?.workspaceSlug, async (tx) => {
     const parsed = roundContentInput.safeParse(input);
     if (!parsed.success) {
       const rangeIssue = parsed.error.issues.some((issue) =>
@@ -180,7 +181,7 @@ export const getFundingApplicationContent = async (
   actor: Actor,
   input: z.input<typeof applicationContentInput>,
 ) => {
-  return readTransaction(db, async (tx) => {
+  return readWorkspace(db, actor.userId, input?.workspaceSlug, async (tx) => {
     const parsed = applicationContentInput.safeParse(input);
     if (!parsed.success) {
       const rangeIssue = parsed.error.issues.some((issue) =>
@@ -215,7 +216,7 @@ export const listFundingRoundHistory = async (
   actor: Actor,
   input: z.input<typeof roundHistoryInput>,
 ) => {
-  return readTransaction(db, async (tx) => {
+  return readWorkspace(db, actor.userId, input?.workspaceSlug, async (tx) => {
     const parsed = roundHistoryInput.safeParse(input);
     if (!parsed.success) {
       return { status: "not_found" } as const;
@@ -245,7 +246,7 @@ export const listFundingApplicationHistory = async (
   actor: Actor,
   input: z.input<typeof applicationHistoryInput>,
 ) => {
-  return readTransaction(db, async (tx) => {
+  return readWorkspace(db, actor.userId, input?.workspaceSlug, async (tx) => {
     const parsed = applicationHistoryInput.safeParse(input);
     if (!parsed.success) {
       return { status: "not_found" } as const;
@@ -272,7 +273,7 @@ export const listContactApplications = async (
   actor: Actor,
   input: z.input<typeof contactApplicationListInput>,
 ) => {
-  return readTransaction(db, async (tx) => {
+  return readWorkspace(db, actor.userId, input?.workspaceSlug, async (tx) => {
     const parsed = contactApplicationListInput.safeParse(input);
     if (!parsed.success) {
       return { status: "not_found" } as const;
@@ -306,7 +307,7 @@ export const listApplicationReviewSummaries = async (
   actor: Actor,
   input: z.input<typeof reviewListInput>,
 ) => {
-  return readTransaction(db, async (tx) => {
+  return readWorkspace(db, actor.userId, input?.workspaceSlug, async (tx) => {
     const parsed = reviewListInput.safeParse(input);
     if (!parsed.success) {
       return { status: "not_found" } as const;

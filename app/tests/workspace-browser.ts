@@ -30,7 +30,7 @@ try {
       stdio: "inherit",
       env: {
         ...process.env,
-        DATABASE_URL: database.connectionString,
+        DATABASE_URL: await database.createRuntimeConnection(),
         MERIT_WORKSPACE_TEST_DATABASE_URL: database.connectionString,
       },
     },

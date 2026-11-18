@@ -1,9 +1,7 @@
 import { and, eq, gt } from "drizzle-orm";
 
-import { appUsers } from "@merit/auth/schema";
 import type { Database } from "@merit/db";
-import { memberships, organizations } from "@merit/organizations/schema";
-import { organizationScope } from "@merit/organizations/scope";
+import { authorizedWorkspaces } from "@merit/organizations/scope";
 
 import { contacts } from "../schema";
 
@@ -16,51 +14,42 @@ const fields = {
   contactRevision: contacts.revision,
 };
 
-const scope = (actor: string, slug: string) =>
-  and(eq(organizations.slug, slug), organizationScope(actor, "work_on_grants", organizations.id));
-
-export const readContactWorkspace = async (db: Database, actor: string, slug: string) =>
-  (
-    await db
-      .select({ id: organizations.id })
-      .from(organizations)
-      .innerJoin(memberships, eq(memberships.organizationId, organizations.id))
-      .innerJoin(appUsers, eq(appUsers.id, memberships.userId))
-      .where(scope(actor, slug))
-  )[0];
+export const readContactWorkspace = async (db: Database, actor: string, slug: string) => {
+  const workspace = authorizedWorkspaces(db, actor, "work_on_grants", slug);
+  return (await db.select({ id: workspace.id }).from(workspace))[0];
+};
 
 export const readContactSummaries = (
   db: Database,
   actor: string,
   input: { workspaceSlug: string; after?: string; limit: number; archived?: boolean },
-) =>
-  db
+) => {
+  const workspace = authorizedWorkspaces(db, actor, "work_on_grants", input.workspaceSlug);
+  return db
     .select(fields)
     .from(contacts)
-    .innerJoin(organizations, eq(organizations.id, contacts.organizationId))
-    .innerJoin(memberships, eq(memberships.organizationId, organizations.id))
-    .innerJoin(appUsers, eq(appUsers.id, memberships.userId))
+    .innerJoin(workspace, eq(workspace.id, contacts.organizationId))
     .where(
       and(
-        scope(actor, input.workspaceSlug),
         input.after ? gt(contacts.id, input.after) : undefined,
         input.archived === undefined ? undefined : eq(contacts.archived, input.archived),
       ),
     )
     .orderBy(contacts.id)
     .limit(input.limit + 1);
+};
 
 export const readContactDetails = async (
   db: Database,
   actor: string,
   input: { workspaceSlug: string; contactId: string },
-) =>
-  (
+) => {
+  const workspace = authorizedWorkspaces(db, actor, "work_on_grants", input.workspaceSlug);
+  return (
     await db
       .select(fields)
       .from(contacts)
-      .innerJoin(organizations, eq(organizations.id, contacts.organizationId))
-      .innerJoin(memberships, eq(memberships.organizationId, organizations.id))
-      .innerJoin(appUsers, eq(appUsers.id, memberships.userId))
-      .where(and(scope(actor, input.workspaceSlug), eq(contacts.id, input.contactId)))
+      .innerJoin(workspace, eq(workspace.id, contacts.organizationId))
+      .where(eq(contacts.id, input.contactId))
   )[0];
+};

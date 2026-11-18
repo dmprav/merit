@@ -9,11 +9,9 @@ import {
   applicationSearchTitleOrder,
   caseWithdrawn,
 } from "@merit/applications/scope";
-import { appUsers } from "@merit/auth/schema";
 import type { Database } from "@merit/db";
 import type { SearchTerms } from "@merit/db/search";
-import { memberships, organizations } from "@merit/organizations/schema";
-import { organizationScope } from "@merit/organizations/scope";
+import { authorizedWorkspaces } from "@merit/organizations/scope";
 import { fundingRounds } from "@merit/rounds/schema";
 import { roundSearchMatch, roundSearchRank, roundSearchTitleOrder } from "@merit/rounds/scope";
 
@@ -31,10 +29,7 @@ export const readWorkspaceSearch = async (
   terms: SearchTerms,
   limits: { rounds: number; applications: number },
 ) => {
-  const access = and(
-    eq(organizations.slug, workspaceSlug),
-    organizationScope(userId, "work_on_grants", organizations.id),
-  );
+  const workspace = authorizedWorkspaces(db, userId, "work_on_grants", workspaceSlug);
 
   const rounds = await db
     .select({
@@ -45,10 +40,8 @@ export const readWorkspaceSearch = async (
       total,
     })
     .from(fundingRounds)
-    .innerJoin(organizations, eq(organizations.id, fundingRounds.organizationId))
-    .innerJoin(memberships, eq(memberships.organizationId, organizations.id))
-    .innerJoin(appUsers, eq(appUsers.id, memberships.userId))
-    .where(and(access, roundSearchMatch(terms)))
+    .innerJoin(workspace, eq(workspace.id, fundingRounds.organizationId))
+    .where(roundSearchMatch(terms))
     .orderBy(sql`${roundSearchRank(terms)}`, roundSearchTitleOrder, fundingRounds.id)
     .limit(limits.rounds);
 
@@ -72,10 +65,8 @@ export const readWorkspaceSearch = async (
         eq(fundingRounds.id, applicationCases.roundId),
       ),
     )
-    .innerJoin(organizations, eq(organizations.id, applicationCases.organizationId))
-    .innerJoin(memberships, eq(memberships.organizationId, organizations.id))
-    .innerJoin(appUsers, eq(appUsers.id, memberships.userId))
-    .where(and(access, applicationSearchMatch(terms)))
+    .innerJoin(workspace, eq(workspace.id, applicationCases.organizationId))
+    .where(applicationSearchMatch(terms))
     .orderBy(
       sql`${applicationSearchRank(terms)}`,
       caseWithdrawn,
