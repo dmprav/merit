@@ -20,7 +20,7 @@ export const endpoint = new URL("http://localhost:3000/mcp/workspace");
 export const createTransport = (
   db: Database,
   identity: Parameters<typeof createApplicationServices>[0]["identity"] = {
-    isOperator: () => false,
+    isOperator: async () => false,
     verifiedEmails: async () => [],
     displayName: async () => null,
   },

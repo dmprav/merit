@@ -16,7 +16,7 @@ const service = (emails?: string[]) =>
   createOrganizationService({
     revokeReviewAccess: async () => {},
     database: (operation) => withDatabase(database.connectionString, operation),
-    isOperator: (actor) => actor.userId === "operator",
+    isOperator: async (actor) => actor.userId === "operator",
     verifiedEmails: async (actor) => emails ?? [`${actor.userId}@example.test`],
     displayName: async (actor) => actor.userId,
     sendInvitation: async (message) => {
@@ -396,7 +396,7 @@ describe("organization team", () => {
     const invitations = createOrganizationService({
       revokeReviewAccess: async () => {},
       database: (operation) => withDatabase(database.connectionString, operation),
-      isOperator: () => false,
+      isOperator: async () => false,
       verifiedEmails: async () => [],
       invitationUrl: (value) => `https://merit.example.test/invitations/${value}`,
       sendInvitation: async (message) => {

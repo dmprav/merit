@@ -12,7 +12,7 @@ export const readWorkspaces = createServerFn({ method: "GET" }).handler(({ conte
     return {
       ...result,
       draftScope: actor.userId,
-      canAdminister: context.organizations.canAdminister(actor),
+      canAdminister: await context.organizations.canAdminister(actor),
     };
   });
 });

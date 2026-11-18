@@ -51,12 +51,12 @@ it("resolves lazily once per request and binds profile and operator access to th
   expect(identity).toEqual({ status: "authenticated", actor });
   expect(emails).toEqual(["account-a@example.test"]);
   expect(name).toBe("account-a");
-  expect(session.organizationIdentity.isOperator(actor)).toBe(true);
+  expect(await session.organizationIdentity.isOperator(actor)).toBe(true);
   expect(await session.isGuest()).toBe(false);
   expect(currentAccount).toHaveBeenCalledOnce();
   expect(resolveGuestSession).not.toHaveBeenCalled();
   expect(await session.organizationIdentity.verifiedEmails({ userId: "other" })).toEqual([]);
-  expect(session.organizationIdentity.isOperator({ userId: "other" })).toBe(false);
+  expect(await session.organizationIdentity.isOperator({ userId: "other" })).toBe(false);
 
   vi.mocked(currentAccount).mockResolvedValue({
     status: "authenticated",
@@ -69,7 +69,7 @@ it("resolves lazily once per request and binds profile and operator access to th
     actor: { userId: "user-b" },
   });
   expect(await session.currentIdentity()).toEqual(identity);
-  expect(next.organizationIdentity.isOperator({ userId: "user-b" })).toBe(false);
+  expect(await next.organizationIdentity.isOperator({ userId: "user-b" })).toBe(false);
 });
 
 it.each([
@@ -90,7 +90,7 @@ it("keeps provider failures and disabled accounts unavailable even with a valid 
   vi.mocked(resolveAccountUser).mockResolvedValueOnce({ status: "disabled" });
   const disabled = createWebIdentity(options);
   expect(await disabled.currentIdentity()).toEqual({ status: "unavailable" });
-  expect(disabled.organizationIdentity.isOperator(actor)).toBe(false);
+  expect(await disabled.organizationIdentity.isOperator(actor)).toBe(false);
   expect(await disabled.organizationIdentity.verifiedEmails(actor)).toEqual([]);
   expect(resolveGuestSession).not.toHaveBeenCalled();
 });
@@ -104,7 +104,7 @@ it("resolves guest sessions when signed out, including when Clerk is unconfigure
   });
   expect(await session.isGuest()).toBe(true);
   expect(await session.organizationIdentity.verifiedEmails({ userId: "guest" })).toEqual([]);
-  expect(session.organizationIdentity.isOperator({ userId: "guest" })).toBe(false);
+  expect(await session.organizationIdentity.isOperator({ userId: "guest" })).toBe(false);
 
   const anonymous = createWebIdentity({ ...options, clerk: { secretKey: "", publishableKey: "" } });
   expect(await anonymous.isGuest()).toBe(true);
@@ -125,7 +125,7 @@ it("uses explicit local identity and profile inputs without consulting Clerk", a
   expect(await manager.organizationIdentity.verifiedEmails(actor)).toEqual(
     localProfile.verifiedEmails,
   );
-  expect(manager.organizationIdentity.isOperator(actor)).toBe(false);
+  expect(await manager.organizationIdentity.isOperator(actor)).toBe(false);
 
   const operator = createWebIdentity({
     ...options,
@@ -133,7 +133,7 @@ it("uses explicit local identity and profile inputs without consulting Clerk", a
     localProfile,
   });
   await operator.currentIdentity();
-  expect(operator.organizationIdentity.isOperator(actor)).toBe(true);
+  expect(await operator.organizationIdentity.isOperator(actor)).toBe(true);
   expect(await operator.organizationIdentity.displayName(actor)).toBe("Fixture");
   expect(currentAccount).not.toHaveBeenCalled();
 });

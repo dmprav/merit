@@ -17,7 +17,7 @@ const service = (emails = ["recipient@example.test"], name?: string | null) =>
   createOrganizationService({
     revokeReviewAccess: async () => {},
     database: (operation) => withDatabase(database.connectionString, operation),
-    isOperator: (actor) => actor.userId === "operator",
+    isOperator: async (actor) => actor.userId === "operator",
     verifiedEmails: async () => emails,
     displayName: name === undefined ? undefined : async () => name,
     sendInvitation: async (message) => {
@@ -70,7 +70,7 @@ describe("organization provisioning", () => {
     const operations = createOrganizationService({
       revokeReviewAccess: async () => {},
       database: (operation) => withDatabase(database.connectionString, operation),
-      isOperator: () => true,
+      isOperator: async () => true,
       verifiedEmails: async () => ["recipient@example.test"],
       sendInvitation: async (message) => {
         messages.push(message);
@@ -729,7 +729,7 @@ describe("organization provisioning", () => {
           const operations = createOrganizationService({
             revokeReviewAccess: async () => {},
             database: (operation) => operation(tx),
-            isOperator: (identity) => identity.userId === "operator",
+            isOperator: async (identity) => identity.userId === "operator",
             verifiedEmails: async () => [`${actor}@example.test`],
             sendInvitation: async (message) => {
               messages.push(message);

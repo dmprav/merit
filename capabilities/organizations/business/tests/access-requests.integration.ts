@@ -12,7 +12,7 @@ const service = (connection: string, networkAddress: string | undefined = "192.0
     operations: createOrganizationService({
       revokeReviewAccess: async () => {},
       database: (operation) => withDatabase(connection, operation),
-      isOperator: (actor) => actor.userId === "dana",
+      isOperator: async (actor) => actor.userId === "dana",
       verifiedEmails: async () => [],
       sendInvitation,
       invitationUrl: (token) => new URL(`/invitations/${token}`, "https://merit.example.test").href,

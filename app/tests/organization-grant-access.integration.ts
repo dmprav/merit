@@ -13,7 +13,7 @@ const service = (emails = ["recipient@example.test"]) =>
   createOrganizationService({
     revokeReviewAccess: revokeMembershipReviews,
     database: (operation) => withDatabase(database.connectionString, operation),
-    isOperator: (actor) => actor.userId === "operator",
+    isOperator: async (actor) => actor.userId === "operator",
     verifiedEmails: async () => emails,
     sendInvitation: async () => {},
     invitationUrl: (token) => new URL(`/invitations/${token}`, "https://merit.example.test").href,

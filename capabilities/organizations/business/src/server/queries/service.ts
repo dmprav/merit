@@ -35,7 +35,7 @@ export const createQueries = (
       ),
 
     list: async (actor: Actor) => {
-      if (!canAdminister(actor)) {
+      if (!(await canAdminister(actor))) {
         return { status: "forbidden" } as const;
       }
       return {

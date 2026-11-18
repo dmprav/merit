@@ -6,8 +6,8 @@ import type { Dependencies } from "./dependencies";
 import { OrganizationError } from "./result";
 
 export const createExecution = (dependencies: Pick<Dependencies, "isOperator">) => {
-  const canAdminister = (actor: Actor) =>
-    permits({ operator: dependencies.isOperator(actor) }, "administer_organizations");
+  const canAdminister = async (actor: Actor) =>
+    permits({ operator: await dependencies.isOperator(actor) }, "administer_organizations");
 
   const run = async <T>(
     actor: Actor,
@@ -15,7 +15,7 @@ export const createExecution = (dependencies: Pick<Dependencies, "isOperator">) 
     operation: () => Promise<T>,
   ): Promise<Result<T>> => {
     try {
-      if (operator && !canAdminister(actor)) {
+      if (operator && !(await canAdminister(actor))) {
         return { status: "forbidden" };
       }
       return { status: "ok", value: await operation() };

@@ -12,7 +12,7 @@ const serviceFor = (db: Database) =>
   createOrganizationService({
     revokeReviewAccess: async () => {},
     database: async (operation) => operation(db),
-    isOperator: () => false,
+    isOperator: async () => false,
     verifiedEmails: async () => [],
     invitationUrl: (token) => new URL(`/invitations/${token}`, "https://merit.test").href,
     sendInvitation: async () => {},

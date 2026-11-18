@@ -300,7 +300,7 @@ const revoke = async (connection: Database) => {
   const service = createOrganizationService({
     revokeReviewAccess: revokeMembershipReviews,
     database: async (operation) => operation(connection),
-    isOperator: () => false,
+    isOperator: async () => false,
     verifiedEmails: async () => [],
     sendInvitation: async () => {
       throw new Error("No email expected");
