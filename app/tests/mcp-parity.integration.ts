@@ -158,6 +158,7 @@ it(
       authorUserId: "sam",
       versions: [
         {
+          content: { amount: { minorUnits: "4050", currency: "EUR" } },
           recorder: {
             userId: "sam",
             provenance: { interface: "mcp", clientId: "integration-client" },

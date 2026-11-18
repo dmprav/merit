@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { assessmentInputSchema } from "./reviews";
+import { assessmentEntrySchema } from "./reviews";
 
 export const reviewerStatuses = [
   "invited",
@@ -48,7 +48,7 @@ const submissionContent = (
   draft: ReviewerDraft,
   basis: { applicationVersion: number | null; criteriaVersion: number | null },
 ) =>
-  assessmentInputSchema.safeParse({
+  assessmentEntrySchema.safeParse({
     applicationVersion: basis.applicationVersion,
     criteriaVersion: basis.criteriaVersion,
     date: null,

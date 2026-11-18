@@ -1,4 +1,4 @@
-import { fromMinorUnits } from "@merit/money";
+import { fromMinorUnits, encodeMoney } from "@merit/money";
 
 import { fundingRoundOverviewSchema } from "../domain/model";
 
@@ -145,7 +145,7 @@ export const exampleRound = fundingRoundOverviewSchema.parse({
                   criteriaVersion: 1,
                   date: "2027-01-14",
                   position: "Fund",
-                  amount: "24000.00",
+                  amount: encodeMoney(fromMinorUnits(2400000n)),
                   reasoning:
                     "The pilot and delivery arrangements support the proposal. Distinguish the reach estimate from the pilot's attendance count.",
                   observations: [],
@@ -169,7 +169,7 @@ export const exampleRound = fundingRoundOverviewSchema.parse({
                   criteriaVersion: 1,
                   date: "2027-01-15",
                   position: "Fund",
-                  amount: "24000.00",
+                  amount: encodeMoney(fromMinorUnits(2400000n)),
                   reasoning:
                     "Costs are explained and the plan is practical. Track unique participants and repeat attendance.",
                   observations: [],
@@ -286,7 +286,7 @@ export const exampleRound = fundingRoundOverviewSchema.parse({
                   criteriaVersion: 1,
                   date: "2027-01-15",
                   position: "Fund with a condition",
-                  amount: "28000.00",
+                  amount: encodeMoney(fromMinorUnits(2800000n)),
                   reasoning:
                     "Obtain written vehicle availability for the planned trips before the award proceeds.",
                   observations: [],
@@ -310,7 +310,7 @@ export const exampleRound = fundingRoundOverviewSchema.parse({
                   criteriaVersion: 1,
                   date: "2027-01-16",
                   position: "Defer",
-                  amount: "0.00",
+                  amount: encodeMoney(fromMinorUnits(0n)),
                   reasoning:
                     "Demand is supported, but delivery depends on an unconfirmed provider. Confirm the arrangement before making a funding commitment.",
                   observations: [],
@@ -433,7 +433,7 @@ export const exampleRound = fundingRoundOverviewSchema.parse({
                   criteriaVersion: 1,
                   date: "2027-01-14",
                   position: "Fund",
-                  amount: "18000.00",
+                  amount: encodeMoney(fromMinorUnits(1800000n)),
                   reasoning:
                     "The activities fit the round and there is initial interest. The free venue makes the budget credible.",
                   observations: [],

@@ -1,4 +1,4 @@
-import { assessmentInputSchema, type ReviewChange, type ReviewState } from "@merit/reviews/domain";
+import { assessmentEntrySchema, type ReviewChange, type ReviewState } from "@merit/reviews/domain";
 
 import type { ReviewBaseline } from "../../contracts/reviews";
 import type { ReviewDraft, ReviewFormValues } from "./drafts";
@@ -15,7 +15,7 @@ export const reviewCommand = (
       change = {
         action: "edit",
         id: draft.id,
-        content: assessmentInputSchema.parse(contentFromValues(values)),
+        content: assessmentEntrySchema.parse(contentFromValues(values)),
         note: values.note,
       };
       break;
@@ -32,7 +32,7 @@ export const reviewCommand = (
         contactId: values.contactId,
         requestId: request?.id ?? null,
         previousId: previous?.id ?? null,
-        content: assessmentInputSchema.parse(contentFromValues(values)),
+        content: assessmentEntrySchema.parse(contentFromValues(values)),
       };
       break;
     }

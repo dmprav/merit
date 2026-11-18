@@ -20,7 +20,7 @@ import { fundingRoundContactUsage } from "@merit/grantmaking/server/integrations
 import { encodeMoney, fromMinorUnits } from "@merit/money";
 import { actor, workspaceTest as it, workspaceSlug } from "@merit/organizations/testing/workspace";
 import { saveFundingRecommendation } from "@merit/recommendations/server";
-import { reviewRevisionSchema } from "@merit/reviews/domain";
+import { assessmentEntrySchema, reviewRevisionSchema } from "@merit/reviews/domain";
 import type { ReviewChange } from "@merit/reviews/domain";
 import { saveApplicationReview } from "@merit/reviews/server";
 import { criteriaVersionSchema } from "@merit/rounds/domain";
@@ -98,10 +98,45 @@ const content = {
   criteriaVersion: criteriaVersionSchema.parse(1),
   date: null,
   position: "Fund" as const,
-  amount: "18000",
+  amount: encodeMoney(fromMinorUnits(1800000n)),
   reasoning: "Practical plan with a confirmed free venue.",
   observations: [],
 };
+
+it("round-trips unstated, zero, and fractional-euro amounts through assessment history", async ({
+  db,
+}) => {
+  const { read, review } = await setup(db);
+  const sam = await contact(db);
+  const id = randomUUID();
+
+  const entered = (amount: string | null) =>
+    assessmentEntrySchema.parse({ ...content, position: null, amount });
+
+  expect(
+    await review({
+      action: "record",
+      id,
+      contactId: sam.id,
+      requestId: null,
+      previousId: null,
+      content: entered(null),
+    }),
+  ).toMatchObject({ status: "ok" });
+  for (const amount of ["0", "12.30", "9999999999999999999999999999.99"]) {
+    expect(await review({ action: "edit", id, note: "", content: entered(amount) })).toMatchObject({
+      status: "ok",
+    });
+  }
+
+  const { versions } = (await read()).application.reviews.assessments[0]!;
+  expect(versions.map(({ content }) => content.amount)).toEqual([
+    null,
+    { minorUnits: "0", currency: "EUR" },
+    { minorUnits: "1230", currency: "EUR" },
+    { minorUnits: "9".repeat(30), currency: "EUR" },
+  ]);
+});
 
 it("writes only a new correction version and leaves unrelated reviews untouched", async ({
   db,

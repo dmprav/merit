@@ -28,12 +28,12 @@ export const registerManagerReviewTools = (
     ],
     [
       "record_assessment",
-      "Record an assessment received outside Merit, including its actual evidence bases. Unknown bases stay unknown. Attach observations with criterionId from the round criteria history when known; otherwise use null. Retain received labels and notes for removed criteria. Reuse id on retry.",
+      "Record an assessment received outside Merit, including its actual evidence bases. Use EUR minor units for a stated amount and null for an unstated amount. Unknown bases stay unknown. Attach observations with criterionId from the round criteria history when known; otherwise use null. Retain received labels and notes for removed criteria. Reuse id on retry.",
       reviewChanges.record,
     ],
     [
       "correct_assessment",
-      "Correct a recorded assessment with an explanation, preserving its previous version and attribution.",
+      "Correct a recorded assessment with an explanation, preserving its previous version and attribution. Supply the amount in EUR minor units or null.",
       reviewChanges.edit,
     ],
   ] as const;

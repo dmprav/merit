@@ -247,6 +247,13 @@ it("completes an independently authored review with reviewer membership and no s
       reasoning: "PRIVATE DRAFT: independent evidence",
     },
   };
+  expect(
+    await s.service.saveDraft(sam, {
+      ...input,
+      draft: { ...input.draft, amount: "40.005" },
+    }),
+  ).toEqual({ status: "invalid", error: "invalid_input" });
+  expect((await s.read()).draft).toEqual(page.draft);
   expect(await s.service.saveDraft(sam, input)).toEqual({ status: "ok", value: { revision: 1 } });
   expect(await s.service.saveDraft(sam, input)).toEqual({ status: "ok", value: { revision: 1 } });
   expect(

@@ -1,4 +1,12 @@
+import { z } from "zod";
+
 import { parseMoney, toDecimal, type Money } from "./index";
+
+/** Decimal text emitted by the editor, including unfinished entries such as "." and "12.". */
+export const moneyInputTextSchema = z
+  .string()
+  .max(31)
+  .regex(/^\d*(?:\.\d{0,2})?$/);
 
 // Commas are decimal separators during editing. Grouped paste is accepted only with a decimal point.
 export const moneyInput = (value: string): string | null => {
@@ -6,11 +14,8 @@ export const moneyInput = (value: string): string | null => {
   if (/^\d{1,3}(?:,\d{3})+\.\d{0,2}$/.test(input)) {
     input = input.replaceAll(",", "");
   }
-  if (input.length > 31 || !/^\d*(?:[.,]\d{0,2})?$/.test(input)) {
-    return null;
-  }
-
-  return input.replace(",", ".");
+  const parsed = moneyInputTextSchema.safeParse(input.replace(",", "."));
+  return parsed.success ? parsed.data : null;
 };
 
 export const parseMoneyInput = (value: string): Money | null => {

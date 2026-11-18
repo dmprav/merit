@@ -226,7 +226,7 @@ events, newest first, following `nextCursor` as `after`. Both reads check curren
 access and exclude private drafts.
 
 `save_reviewer_draft` saves against `draft.revision` as `expectedDraftRevision`.
-Amounts are decimal EUR strings. `submit_reviewer_assessment` submits that saved
+Draft amounts are decimal EUR strings. `submit_reviewer_assessment` submits that saved
 revision and notifies the manager. To amend, save a new draft with an explanation
 in `draft.note`, then submit it. Retain the same command ID and original revision
 on retries. Read the assignment to check notification status after submission.
@@ -281,12 +281,12 @@ whether an AI generated the content or whether a human reviewed each action.
 
 ## Monetary values
 
-Round and application amounts, and recommendation allocations, use exact values such as
-`{ "minorUnits": "12345", "currency": "EUR" }` for €123.45. Parse minor units
-as integers, never floating point. Round budget, application intake, and received
-assessment inputs use decimal EUR strings such as `"123.45"`. Reviewer drafts and
-assessment content also use decimal EUR strings, including in reads. Tool descriptions
-and schemas identify the required format. Precision beyond two decimal places is rejected.
+Round and application reads, recommendation allocations, and recorded assessments
+use exact values such as `{ "minorUnits": "12345", "currency": "EUR" }` for €123.45.
+Use that object when recording or correcting an assessment, or `null` for an unstated
+amount. The assignment read returns the same format for submitted versions.
+Round budget and application intake inputs, and reviewer drafts on both reads and
+writes, use decimal EUR strings such as `"123.45"`.
 
 Missing budgets, requested amounts, and budget-dependent remaining amounts are
 `null`, not zero. Totals disclose unknown requests. An outdated recommendation

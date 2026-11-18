@@ -167,6 +167,49 @@ const recordReviewRequests = async (
   }
 };
 
+const appendAssessmentVersion = async (
+  db: Transaction,
+  owner: ReviewOwner,
+  assessmentId: string,
+  versionNumber: number,
+  entry: ReviewState["assessments"][number]["versions"][number],
+) => {
+  const recorder = recorderValues(entry.recorder);
+  await db.insert(assessmentVersions).values({
+    organizationId: owner.organizationId,
+    caseId: owner.publicId,
+    assessmentId,
+    version: versionNumber,
+    applicationVersion: entry.content.applicationVersion,
+    criteriaRoundPublicId: entry.content.criteriaVersion === null ? null : owner.roundId,
+    criteriaVersion: entry.content.criteriaVersion,
+    assessedOn: entry.content.date,
+    position: entry.content.position,
+    amountMinorUnits: entry.content.amount?.minorUnits ?? null,
+    amountCurrency: entry.content.amount?.currency ?? null,
+    reasoning: entry.content.reasoning,
+    recorderUserId: recorder.userId,
+    recorderName: recorder.name,
+    recorderRecordedAt: recorder.recordedAt,
+    recorderProvenanceInterface: recorder.provenanceInterface,
+    recorderProvenanceClientId: recorder.provenanceClientId,
+    note: entry.note,
+  });
+  if (entry.content.observations.length > 0) {
+    await db.insert(assessmentVersionObservations).values(
+      entry.content.observations.map((observation, obsIndex) => ({
+        caseId: owner.publicId,
+        assessmentId,
+        version: versionNumber,
+        position: obsIndex,
+        criterionId: observation.criterionId,
+        criterion: observation.criterion,
+        text: observation.text,
+      })),
+    );
+  }
+};
+
 const recordAssessments = async (
   db: Transaction,
   owner: ReviewOwner,
@@ -193,39 +236,7 @@ const recordAssessments = async (
     const recordedVersions = previous?.versions.length ?? 0;
     for (const [index, entry] of assessment.versions.slice(recordedVersions).entries()) {
       const versionNumber = recordedVersions + index + 1;
-      const recorder = recorderValues(entry.recorder);
-      await db.insert(assessmentVersions).values({
-        organizationId: owner.organizationId,
-        caseId: owner.publicId,
-        assessmentId: assessment.id,
-        version: versionNumber,
-        applicationVersion: entry.content.applicationVersion,
-        criteriaRoundPublicId: entry.content.criteriaVersion === null ? null : owner.roundId,
-        criteriaVersion: entry.content.criteriaVersion,
-        assessedOn: entry.content.date,
-        position: entry.content.position,
-        amount: entry.content.amount,
-        reasoning: entry.content.reasoning,
-        recorderUserId: recorder.userId,
-        recorderName: recorder.name,
-        recorderRecordedAt: recorder.recordedAt,
-        recorderProvenanceInterface: recorder.provenanceInterface,
-        recorderProvenanceClientId: recorder.provenanceClientId,
-        note: entry.note,
-      });
-      if (entry.content.observations.length > 0) {
-        await db.insert(assessmentVersionObservations).values(
-          entry.content.observations.map((observation, obsIndex) => ({
-            caseId: owner.publicId,
-            assessmentId: assessment.id,
-            version: versionNumber,
-            position: obsIndex,
-            criterionId: observation.criterionId,
-            criterion: observation.criterion,
-            text: observation.text,
-          })),
-        );
-      }
+      await appendAssessmentVersion(db, owner, assessment.id, versionNumber, entry);
     }
   }
 };

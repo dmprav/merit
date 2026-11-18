@@ -1,12 +1,14 @@
 import { assert, describe, expect, it } from "vite-plus/test";
 
 import { materialVersionSchema } from "@merit/applications/domain";
+import { encodeMoney, fromMinorUnits } from "@merit/money";
 import { criteriaVersionSchema } from "@merit/rounds/domain";
 
 import {
   emptyReviews,
   prepareReviewChange,
   assessmentInputSchema,
+  assessmentEntrySchema,
   type ReviewChange,
   type ReviewState,
 } from "./index";
@@ -342,9 +344,19 @@ describe("recording reviews", () => {
   it.each(["1.001", "-1", "-0", "-0.0", "-0.00"])(
     "rejects an unsupported assessment amount: %s",
     (amount) => {
-      expect(assessmentInputSchema.safeParse({ ...content, amount }).success).toBe(false);
+      expect(assessmentEntrySchema.safeParse({ ...content, amount }).success).toBe(false);
     },
   );
+
+  it.each([
+    "12.30",
+    { minorUnits: "-1", currency: "EUR" },
+    { minorUnits: "12.30", currency: "EUR" },
+    { minorUnits: "1".repeat(31), currency: "EUR" },
+    { minorUnits: "0", currency: "USD" },
+  ])("rejects a recorded amount outside the EUR minor-unit contract: %j", (amount) => {
+    expect(assessmentInputSchema.safeParse({ ...content, amount }).success).toBe(false);
+  });
 
   it("accepts a received assessment without a stated amount or position", () => {
     expect(assessmentInputSchema.safeParse(content).success).toBe(true);
@@ -487,10 +499,14 @@ describe("recording reviews", () => {
   });
 });
 
-it.each(["0", "1"])("allows only zero allocation on a deferred assessment: %s", (amount) => {
-  expect(assessmentInputSchema.safeParse({ ...content, position: "Defer", amount }).success).toBe(
-    amount === "0",
-  );
+it.each([0n, 1n])("allows only zero allocation on a deferred assessment: %s", (amount) => {
+  expect(
+    assessmentInputSchema.safeParse({
+      ...content,
+      position: "Defer",
+      amount: encodeMoney(fromMinorUnits(amount)),
+    }).success,
+  ).toBe(amount === 0n);
 });
 
 it("retains identified notes from earlier criteria and rejects IDs outside the round", () => {

@@ -20,7 +20,7 @@ import {
 import { fundingExampleIds } from "@merit/grantmaking/server/demo";
 import { fundingRoundContactUsage } from "@merit/grantmaking/server/integrations";
 import { seedExampleRounds } from "@merit/grantmaking/testing";
-import { encodeMoney } from "@merit/money";
+import { encodeMoney, fromMinorUnits } from "@merit/money";
 import { actor } from "@merit/organizations/testing/workspace";
 import { reviewRevisionSchema } from "@merit/reviews/domain";
 import { saveApplicationReview } from "@merit/reviews/server";
@@ -158,7 +158,7 @@ it("uses the latest assessment version and counts a replacement only once", asyn
     criteriaVersion: criteriaVersionSchema.parse(1),
     date: null,
     position: "Fund" as const,
-    amount: "80.00",
+    amount: encodeMoney(fromMinorUnits(8000n)),
     reasoning: "Clear plan for weekly activities.",
     observations: [],
   };

@@ -134,8 +134,7 @@ export const en = {
     "An assessment already exists for this reviewer. Use Record follow-up assessment.",
   versionUnavailable:
     "The selected review basis is no longer available. Check the application and criteria versions.",
-  invalidReview:
-    "Check the assessment text and amount. Amounts must be nonnegative and have at most two decimal places.",
+  invalidReview: "Check the assessment text and amount.",
   useSaved: "Use saved assessment",
   keepDraft: "Keep my draft",
   reviewLatest:

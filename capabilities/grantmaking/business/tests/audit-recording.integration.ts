@@ -10,6 +10,7 @@ import type { Actor } from "@merit/auth";
 import { changeWorkspaceContact } from "@merit/contacts/server";
 import { getFundingApplicationPage, getFundingRoundPage } from "@merit/grantmaking/server";
 import { fundingRoundContactUsage } from "@merit/grantmaking/server/integrations";
+import { encodeMoney, fromMinorUnits } from "@merit/money";
 import { actor, workspaceTest as it, workspaceSlug } from "@merit/organizations/testing/workspace";
 import {
   reviewRevisionSchema,
@@ -481,7 +482,7 @@ const assessmentScenario = async (db: NodePgDatabase) => {
     criteriaVersion: criteriaVersionSchema.parse(1),
     date: null,
     position: "Fund" as const,
-    amount: "18000",
+    amount: encodeMoney(fromMinorUnits(1800000n)),
     reasoning: "Practical plan with a confirmed free venue.",
     observations: [],
   };

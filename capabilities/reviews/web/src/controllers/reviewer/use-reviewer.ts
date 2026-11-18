@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 
-import type { ReviewerPage, ReviewerService } from "@merit/reviews/api";
-import { reviewerSubmissionProblems } from "@merit/reviews/domain";
+import { decodeMoney, toDecimal, type MoneyData } from "@merit/money";
+import {
+  saveReviewerDraftSchema,
+  type ReviewerPage,
+  type ReviewerService,
+} from "@merit/reviews/api";
+import { assessmentAmountEntrySchema, reviewerSubmissionProblems } from "@merit/reviews/domain";
 
 import type { ReviewerData } from "../../contracts/reviewer";
 
@@ -9,6 +14,11 @@ type Draft = NonNullable<ReviewerPage["draft"]>["content"];
 
 const same = (a: Draft | undefined, b: Draft | undefined) =>
   JSON.stringify(a) === JSON.stringify(b);
+
+const matchesSubmittedAmount = (text: string | null, amount: MoneyData | null) => {
+  const parsed = assessmentAmountEntrySchema.safeParse(text);
+  return parsed.success && parsed.data?.minorUnits === amount?.minorUnits;
+};
 
 /** Whether the working draft departs from the latest submitted assessment. */
 const differsFromSubmitted = (page: ReviewerPage, content: Draft | undefined) => {
@@ -19,7 +29,7 @@ const differsFromSubmitted = (page: ReviewerPage, content: Draft | undefined) =>
     (content.note ||
       content.reasoning !== submitted.reasoning ||
       content.position !== submitted.position ||
-      content.amount !== submitted.amount ||
+      !matchesSubmittedAmount(content.amount, submitted.amount) ||
       JSON.stringify(content.observations) !== JSON.stringify(submitted.observations)),
   );
 };
@@ -30,7 +40,7 @@ const submittedDraft = (page: ReviewerPage): Draft | undefined => {
   return (
     submitted && {
       position: submitted.position,
-      amount: submitted.amount,
+      amount: submitted.amount && toDecimal(decodeMoney(submitted.amount)),
       reasoning: submitted.reasoning,
       observations: submitted.observations,
       note: "",
@@ -124,6 +134,7 @@ export const useReviewer = (
   const latestDraft = useRef(start.draft);
 
   const update = (value: Draft | undefined) => {
+    setError((current) => (current === "draftInvalid" ? null : current));
     latestDraft.current = value;
     setDraft(value);
   };
@@ -131,7 +142,7 @@ export const useReviewer = (
   const [saved, setSaved] = useState(start.saved);
   const [revision, setRevision] = useState(start.revision);
   const [conflict, setConflict] = useState<ReviewerPage | null>(start.conflict);
-  const pendingSave = useRef<Parameters<ReviewerService["saveDraft"]>[1] | null>(null);
+  const pendingSave = useRef<SaveCommand | null>(null);
   const dirty = !same(draft, saved);
   const loadConflict = useCallback(async () => {
     const current = await data.read();
@@ -158,19 +169,17 @@ export const useReviewer = (
       expectedDraftRevision: revision,
       draft,
     };
-    pendingSave.current = input;
     let savedResult: { revision: number; content: Draft } | null = null;
     try {
-      const result = await data.save(input);
+      const result = await persistDraft(data, input, pendingSave);
       if (result.status === "ok") {
-        pendingSave.current = null;
         setRevision(result.value.revision);
         setSaved(input.draft);
         savedResult = { revision: result.value.revision, content: input.draft };
       } else if (result.status === "conflict") {
         await loadConflict();
       } else {
-        setError(saveError(result.status));
+        setError(saveError(result, input.draft, latestDraft.current));
       }
     } catch {
       setError("unavailable");
@@ -481,8 +490,35 @@ const canAutosave = (state: {
   !state.conflict &&
   !state.submissionPending;
 
-const saveError = (status: string) =>
-  status === "not_found" || status === "signed_out" ? "accessLost" : "unavailable";
+type SaveCommand = Parameters<ReviewerService["saveDraft"]>[1];
+
+const persistDraft = async (
+  data: ReviewerData,
+  input: SaveCommand,
+  pending: RefObject<SaveCommand | null>,
+) => {
+  if (!saveReviewerDraftSchema.safeParse(input).success) {
+    return { status: "invalid", error: "invalid_input" } as const;
+  }
+  pending.current = input;
+  const result = await data.save(input);
+  if (result.status !== "unavailable") {
+    pending.current = null;
+  }
+  return result;
+};
+
+const saveError = (result: Failure, attempted: Draft, latest: Draft | undefined) => {
+  if (result.error === "invalid_input") {
+    return same(attempted, latest) ? "draftInvalid" : null;
+  }
+  if (result.error === "application_withdrawn") {
+    return "applicationWithdrawn";
+  }
+  return result.status === "not_found" || result.status === "signed_out"
+    ? "accessLost"
+    : "unavailable";
+};
 
 const canRetryResponse = (
   pending: Parameters<ReviewerService["respond"]>[1] | null,

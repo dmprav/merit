@@ -14,7 +14,7 @@ import {
   useForm,
   useTranslatedSchema,
 } from "@merit/forms";
-import { assessmentInputSchema, isEligibleReviewer } from "@merit/reviews/domain";
+import { assessmentEntrySchema, isEligibleReviewer } from "@merit/reviews/domain";
 import { Button } from "@merit/ui/button";
 
 import type { ReviewProblem } from "../../contracts/reviews";
@@ -27,7 +27,7 @@ import { contentFromValues } from "../../controllers/reviews/values";
 import { reviewError } from "./messages";
 import styles from "./review-work.module.css";
 
-const assessmentFormSchema = assessmentInputSchema.safeExtend({
+const assessmentFormSchema = assessmentEntrySchema.safeExtend({
   date: calendarDateInputSchema.nullable(),
 });
 

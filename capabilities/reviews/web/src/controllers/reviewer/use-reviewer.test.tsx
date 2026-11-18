@@ -1,6 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { expect, it, vi } from "vite-plus/test";
 
+import { encodeMoney, fromMinorUnits } from "@merit/money";
 import type { ReviewerPage } from "@merit/reviews/api";
 
 import type { ReviewerData } from "../../contracts/reviewer";
@@ -84,6 +85,54 @@ it("autosaves and retains newer typing while an earlier save completes", async (
     draft: { reasoning: "Newer typing" },
   });
   expect(result.current.dirty).toBe(false);
+});
+
+it("autosaves a corrected legacy amount and submits the saved revision", async () => {
+  const { result, data } = setup((page) => {
+    page.draft!.content.amount = "123.456";
+  });
+  act(() => result.current.update({ ...result.current.draft!, reasoning: "Keep my edits" }));
+  await act(() => result.current.save());
+  expect(result.current.error).toBe("draftInvalid");
+  expect(data.save).not.toHaveBeenCalled();
+
+  act(() => result.current.update({ ...result.current.draft!, amount: "123.45" }));
+  await waitFor(() => expect(result.current.dirty).toBe(false));
+  expect(data.save.mock.lastCall?.[0]).toMatchObject({
+    expectedDraftRevision: 0,
+    draft: { amount: "123.45", reasoning: "Keep my edits" },
+  });
+  data.submit.mockResolvedValueOnce({ status: "ok", value: { revision: 2 } });
+  await act(() => result.current.submit());
+  expect(data.submit.mock.lastCall?.[0]).toMatchObject({ expectedDraftRevision: 1 });
+});
+
+it("saves newer edits when the server rejects an in-flight draft", async () => {
+  const { result, data } = setup();
+  let finish!: (value: Awaited<ReturnType<ReviewerData["save"]>>) => void;
+  data.save.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  act(() => result.current.update({ ...result.current.draft!, amount: "42" }));
+  let saving!: ReturnType<typeof result.current.save>;
+  act(() => {
+    saving = result.current.save();
+  });
+  const rejected = data.save.mock.calls[0]![0];
+  act(() => result.current.update({ ...result.current.draft!, amount: "43" }));
+  await act(async () => {
+    finish({ status: "invalid", error: "invalid_input" });
+    await saving;
+  });
+  await waitFor(() => expect(result.current.dirty).toBe(false));
+  expect(data.save.mock.lastCall?.[0]).toMatchObject({
+    expectedDraftRevision: 0,
+    draft: { amount: "43" },
+  });
+  expect(data.save.mock.lastCall?.[0].commandId).not.toBe(rejected.commandId);
 });
 
 it("keeps local and remote drafts until the reviewer explicitly reconciles", async () => {
@@ -196,7 +245,13 @@ it("opens submitted work for reading, then closes, resumes, or discards an amend
       authorUserId: "sam",
       versions: [
         {
-          content: { ...submitted, date: null, applicationVersion: 1, criteriaVersion: 1 },
+          content: {
+            ...submitted,
+            amount: encodeMoney(fromMinorUnits(4000n)),
+            date: null,
+            applicationVersion: 1,
+            criteriaVersion: 1,
+          },
           criteria: [],
           recorder: null,
           note: "",
@@ -219,7 +274,7 @@ it("opens submitted work for reading, then closes, resumes, or discards an amend
   expect(result.current.amending).toBe(false);
   expect(result.current.draft).toEqual({
     position: "Fund",
-    amount: "40",
+    amount: "40.00",
     reasoning: "Original",
     observations: [],
     note: "",

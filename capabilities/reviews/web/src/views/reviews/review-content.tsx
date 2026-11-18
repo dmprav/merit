@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { useLocaleSettings } from "@merit/i18n";
 import { useFormat } from "@merit/i18n/format";
-import { parseMoney } from "@merit/money";
+import { decodeMoney } from "@merit/money";
 import type { ReviewBasis } from "@merit/reviews/domain";
 import {
   compareCriteriaContent,
@@ -45,11 +45,11 @@ const RecordedAssessment = ({
 }) => {
   const { t } = useTranslation("reviews");
   const { content } = version;
-  const amount = content.amount === null ? null : parseMoney(content.amount);
+  const amount = content.amount === null ? null : decodeMoney(content.amount);
 
   return (
     <>
-      <AssessmentOutcome position={content.position} amount={amount?.ok ? amount.value : null} />
+      <AssessmentOutcome position={content.position} amount={amount} />
       <AssessmentBasisNotice
         version={version}
         applicationVersion={applicationVersion}

@@ -8,6 +8,7 @@ import { editFundingApplication, selectApplicationContact } from "@merit/applica
 import { changeWorkspaceContact } from "@merit/contacts/server";
 import { getFundingApplicationPage } from "@merit/grantmaking/server";
 import { fundingRoundContactUsage } from "@merit/grantmaking/server/integrations";
+import { encodeMoney, fromMinorUnits } from "@merit/money";
 import { actor } from "@merit/organizations/testing/workspace";
 import { reviewRevisionSchema } from "@merit/reviews/domain";
 import { saveApplicationReview } from "@merit/reviews/server";
@@ -94,7 +95,7 @@ const it = roundTest.extend("scenario", async ({ db, rounds }) => {
         criteriaVersion: basis.expectedCriteriaVersion,
         date: null,
         position: "Fund",
-        amount: "80.00",
+        amount: encodeMoney(fromMinorUnits(8000n)),
         reasoning: "Clear plan for weekly activities.",
         observations: [{ criterionId, criterion: "Community fit", text: "Matches round goals." }],
       },

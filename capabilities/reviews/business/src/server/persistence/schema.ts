@@ -4,6 +4,7 @@ import {
   date,
   foreignKey,
   integer,
+  numeric,
   pgTable,
   primaryKey,
   text,
@@ -138,7 +139,8 @@ export const assessmentVersions = pgTable(
     criteriaVersion: integer("criteria_version"),
     assessedOn: date("assessed_on"),
     position: text(),
-    amount: text(),
+    amountMinorUnits: numeric("amount_minor_units", { precision: 30, scale: 0 }),
+    amountCurrency: text("amount_currency").$type<"EUR">(),
     reasoning: text().notNull(),
     recorderUserId: text("recorder_user_id"),
     recorderName: text("recorder_name"),
@@ -181,11 +183,11 @@ export const assessmentVersions = pgTable(
     ),
     check(
       "assessment_versions_amount_check",
-      sql`${t.amount} is null or (length(${t.amount}) <= 32 and ${t.amount} ~ '^\\d+(?:\\.\\d{1,2})?$')`,
+      sql`(${t.amountMinorUnits} is null) = (${t.amountCurrency} is null) and (${t.amountMinorUnits} is null or (${t.amountMinorUnits} >= 0 and ${t.amountMinorUnits} <> 'NaN' and ${t.amountCurrency} = 'EUR'))`,
     ),
     check(
       "assessment_versions_position_amount_check",
-      sql`${t.position} is null or ${t.amount} is null or (${t.position} in ('Decline', 'Defer') and ${t.amount} ~ '^0+(?:\\.0{1,2})?$') or (${t.position} in ('Fund', 'Fund with a condition') and ${t.amount} !~ '^0+(?:\\.0{1,2})?$')`,
+      sql`${t.position} is null or ${t.amountMinorUnits} is null or (${t.position} in ('Decline', 'Defer')) = (${t.amountMinorUnits} = 0)`,
     ),
     check(
       "assessment_versions_reasoning_check",
