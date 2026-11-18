@@ -158,10 +158,11 @@ on `guest_sessions` and `demo_entry_limits`, and `UPDATE (demo_expires_at)` on
 acceptance; disabled users remain disabled. Prepared fictional history has an inactive
 credential-free author. Ordinary grant/history privileges also cover demo seeding.
 
-Provisioning is limited to forty start/reset requests per network address per hour,
-using the socket peer address and short-lived hashed buckets.
-Resume reads do not consume this allowance. Keep application responses private and
-uncached; cookie possession establishes identity, while membership and expiry checks
+Web and MCP share an allowance of forty demo starts or resets per network address
+per hour, stored in short-lived hashed buckets. Both return `unavailable` when the
+production adapter supplies no address. Resume reads do not consume this allowance.
+Keep application responses private and uncached. Cookie possession establishes
+identity, while membership and expiry checks
 continue to protect every operation.
 
 Run `vp run @merit/app#demo:cleanup` regularly with an operator `DATABASE_URL`.
@@ -194,8 +195,13 @@ Leaving `VITE_POSTHOG_KEY` empty keeps analytics disabled.
 ## Verify a future deployment
 
 When choosing how to serve the built application, account for the client assets,
-server-side rendering, and the shared origin for web and MCP. Configure the trusted
-client address for rate limiting according to the host's proxy topology.
+server-side rendering, and the shared origin for web and MCP. The current HTTP
+adapter uses the socket peer address. If a proxy terminates the
+client connection, configure the adapter to accept client addresses only from
+the trusted ingress, which must sanitize incoming forwarding headers. Before
+launch, verify through that ingress that two distinct client addresses receive
+separate allowances and that changing a client-supplied forwarding header leaves
+the allowance unchanged.
 
 Set `MERIT_BASE_URL` to the deployed origin and run `vp run @merit/app#smoke`.
 It checks the public pages, removal of anonymous MCP, and that signed-out requests expose

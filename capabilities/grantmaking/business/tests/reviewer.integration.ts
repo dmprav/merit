@@ -840,7 +840,7 @@ it("keeps an unaccepted assignment ended after removal and rejoining until expli
   const organizations = createOrganizationService({
     database: (operation) => operation(db),
     revokeReviewAccess: revokeMembershipReviews,
-    isOperator: () => false,
+    isOperator: async () => false,
     verifiedEmails: async () => [],
     sendInvitation: async () => {},
     invitationUrl: (token) => token,
@@ -901,7 +901,7 @@ it("permanently ends assignments on role loss, preserves private work, and attri
   const organizations = createOrganizationService({
     database: (operation) => operation(db),
     revokeReviewAccess: revokeMembershipReviews,
-    isOperator: () => false,
+    isOperator: async () => false,
     verifiedEmails: async () => [],
     sendInvitation: async () => {},
     invitationUrl: (token) => token,

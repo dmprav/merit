@@ -17,7 +17,7 @@ const it = roundTest.extend("parity", async ({ db, database }) => {
   const transport = createTransport(
     db,
     {
-      isOperator: (actor) => actor.userId === "dana",
+      isOperator: async (actor) => actor.userId === "dana",
       verifiedEmails: async (actor) => [`${actor.userId}@example.test`],
       displayName: async (actor) => actor.userId,
     },

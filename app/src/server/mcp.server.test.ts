@@ -55,7 +55,7 @@ it("binds identity, profile and authority to the bearer account independently fo
   expect(await first.organizationIdentity.verifiedEmails(actor)).toEqual([
     "account-a@example.test",
   ]);
-  expect(first.organizationIdentity.isOperator(actor)).toBe(true);
+  expect(await first.organizationIdentity.isOperator(actor)).toBe(true);
 
   vi.mocked(verifyClerkOAuth).mockResolvedValue({
     clerkUserId: "account-b",
@@ -68,7 +68,7 @@ it("binds identity, profile and authority to the bearer account independently fo
   expect(await second.organizationIdentity.displayName(other)).toBe("account-b");
   expect(await first.organizationIdentity.displayName(actor)).toBe("account-a");
   expect(await first.organizationIdentity.verifiedEmails(other)).toEqual([]);
-  expect(second.organizationIdentity.isOperator(other)).toBe(false);
+  expect(await second.organizationIdentity.isOperator(other)).toBe(false);
   expect(currentAccount).not.toHaveBeenCalled();
   expect(resolveGuestSession).not.toHaveBeenCalled();
 });
@@ -90,6 +90,6 @@ it("rejects a disabled bearer account before making its profile or authority ava
   vi.mocked(resolveAccountUser).mockResolvedValue({ status: "disabled" });
   const identity = createMcpIdentity(request, config, database);
   await expect(identity.authenticate()).rejects.toMatchObject({ reason: "disabled" });
-  expect(identity.organizationIdentity.isOperator({ userId: "user-a" })).toBe(false);
+  expect(await identity.organizationIdentity.isOperator({ userId: "user-a" })).toBe(false);
   expect(await identity.organizationIdentity.verifiedEmails({ userId: "user-a" })).toEqual([]);
 });

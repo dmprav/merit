@@ -30,7 +30,6 @@ export const createMcpIdentity = (
     config.secretKey,
     config.operatorUserIds,
   );
-  let resolvedSession: ResolvedMcpSession | undefined;
   let sessionPromise: Promise<ResolvedMcpSession> | undefined;
 
   const resolveSession = () =>
@@ -55,27 +54,24 @@ export const createMcpIdentity = (
         "merit.auth.status": "authenticated",
         "merit.auth.operator": session.operator,
       });
-      resolvedSession = session;
       return session;
     }));
 
-  const readVerifiedProfile = async (actor: Actor) => {
-    let session: ResolvedMcpSession;
-    try {
-      session = await resolveSession();
-    } catch {
-      return { verifiedEmails: [], displayName: null };
-    }
+  const sessionForActor = async (actor: Actor) => {
+    const session = await resolveSession().catch(() => undefined);
+    return session?.actor.userId === actor.userId ? session : undefined;
+  };
 
-    if (session.actor.userId !== actor.userId) {
+  const readVerifiedProfile = async (actor: Actor) => {
+    const session = await sessionForActor(actor);
+    if (!session) {
       return { verifiedEmails: [], displayName: null };
     }
     return readProfile(session.clerkUserId);
   };
 
   const organizationIdentity: OrganizationIdentity = {
-    isOperator: (actor) =>
-      resolvedSession?.actor.userId === actor.userId && resolvedSession.operator,
+    isOperator: async (actor) => (await sessionForActor(actor))?.operator ?? false,
     verifiedEmails: async (actor) => (await readVerifiedProfile(actor)).verifiedEmails,
     displayName: async (actor) => (await readVerifiedProfile(actor)).displayName,
   };

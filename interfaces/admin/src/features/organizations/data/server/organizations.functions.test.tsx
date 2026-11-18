@@ -32,7 +32,7 @@ const context = () => ({
     list: vi.fn(),
     read: vi.fn(),
     workspaces: vi.fn(),
-    canAdminister: vi.fn(() => false),
+    canAdminister: vi.fn(async () => false),
   },
 });
 

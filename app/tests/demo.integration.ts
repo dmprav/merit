@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { assert, expect } from "vite-plus/test";
+import { assert, expect, vi } from "vite-plus/test";
 
 import { createFundingApplication } from "@merit/applications/server";
 import { removeDemoAudit } from "@merit/audit/server/demo";
@@ -11,7 +11,7 @@ import {
 } from "@merit/auth/server";
 import { listWorkspaceContacts } from "@merit/contacts/server";
 import { removeDemoContacts } from "@merit/contacts/server/demo";
-import { withDatabase, type Database } from "@merit/db";
+import { withDatabase, type Database, type DatabaseRunner } from "@merit/db";
 import {
   getFundingRoundPage,
   getFundingApplicationPage,
@@ -37,6 +37,9 @@ import {
 import { seedWorkspace } from "@merit/organizations/testing";
 import { saveFundingRecommendation } from "@merit/recommendations/server";
 import { databaseTest } from "@merit/test-support/database";
+
+import { createAccountDemoServices } from "../src/server/demo-workspace.server";
+import { createDemoServices } from "../src/server/demo.server";
 
 const test = databaseTest;
 test("requires demo lifetime and seed metadata at the database boundary", async ({ db }) => {
@@ -237,13 +240,60 @@ test("failed seeding rolls back workspace and memberships", async ({ db }) => {
   expect(await db.select().from(organizations)).toHaveLength(0);
 });
 
-test("bounds provisioning across requests without storing network addresses", async ({ db }) => {
-  for (let index = 0; index < 40; index++) {
-    expect(await allowDemoEntry(db, "192.0.2.1")).toBe(true);
+test("web and MCP share the hourly demo allowance across starts and resets", async ({ db }) => {
+  await users(db);
+
+  const database: DatabaseRunner = (operation) => operation(db);
+
+  const actor = { userId: "alice" };
+  const address = "192.0.2.1";
+  const web = createDemoServices(
+    database,
+    async () => ({ status: "authenticated", actor }),
+    undefined,
+    async () => false,
+    address,
+  );
+  const mcp = createAccountDemoServices(database, address);
+  using clock = vi.spyOn(Date, "now");
+  clock.mockReturnValue(Date.now());
+  for (let index = 0; index < 39; index++) {
+    expect(await allowDemoEntry(db, address)).toBe(true);
   }
 
-  expect(await allowDemoEntry(db, "192.0.2.1")).toBe(false);
-  expect(await allowDemoEntry(db, "192.0.2.2")).toBe(true);
+  const { state } = await web.start({ fresh: false });
+  assert(state.status === "ready");
+  const current = await mcp.read(actor);
+  assert(current.status === "ready");
+  expect(current.workspaceSlug).toBe(state.workspaceSlug);
+  const reset = { fresh: true, resetWorkspaceId: current.workspaceId };
+  expect(await mcp.start(actor, reset)).toEqual({ status: "limited" });
+  expect((await web.start(reset)).state).toEqual({ status: "limited" });
+  expect(await mcp.read(actor)).toEqual(current);
+  expect(await web.read()).toEqual(state);
+  expect(
+    await createAccountDemoServices(database, "192.0.2.2").start(actor, { fresh: false }),
+  ).toEqual(current);
+});
+
+test("a missing address denies both demo entry points before provisioning", async ({ db }) => {
+  await users(db);
+
+  const database: DatabaseRunner = (operation) => operation(db);
+
+  const web = createDemoServices(
+    database,
+    async () => ({ status: "signed_out" }),
+    undefined,
+    async () => false,
+    undefined,
+  );
+  const mcp = createAccountDemoServices(database, undefined);
+
+  expect(await web.start({ fresh: false })).toEqual({ state: { status: "unavailable" } });
+  expect(await mcp.start({ userId: "alice" }, { fresh: false })).toEqual({ status: "unavailable" });
+  expect(await db.select().from(organizations)).toHaveLength(0);
+  expect(await db.select().from(guestSessions)).toHaveLength(0);
 });
 
 test("cleanup removes expired guest data while preserving account and sample authors", async ({
