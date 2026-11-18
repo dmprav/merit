@@ -53,7 +53,10 @@ for (const [path, recovery] of [
   );
   assert.ok(page.includes("Sign in to your workspace") || page.includes(recovery));
   if (page.includes("Sign in to your workspace")) {
-    assert.ok(page.includes('href="/app/sign-in"'), "Sign-in links must use the app namespace");
+    assert.ok(
+      page.includes(`href="/app/sign-in?returnTo=${encodeURIComponent(path)}"`),
+      "Sign-in links must return to the requested workspace page",
+    );
   }
   assert.ok(!page.includes("Neighbour Table"), "Signed-out requests must not receive tenant data");
 }

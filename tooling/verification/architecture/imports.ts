@@ -28,10 +28,6 @@ const clerkImports = {
   message:
     "Use Merit identity interfaces. Clerk belongs in the auth package and web auth adapters.",
 };
-const workerImports = {
-  regex: "^cloudflare:",
-  message: "Cloudflare bindings belong in host wiring. Pass configuration to the owning module.",
-};
 const processImports = {
   regex: "^(node:)?process$",
   message: "Read server environment in host wiring and pass configuration explicitly.",
@@ -68,7 +64,6 @@ const restrictedImports = [
   formImports,
   tableImports,
   clerkImports,
-  workerImports,
   processImports,
   translationImports,
   translationSetupImports,
@@ -101,8 +96,7 @@ const forbidImports = (
     },
   ]);
 
-const frameworks =
-  "@tanstack/|@clerk/|@cloudflare/|@modelcontextprotocol/|react($|/|-)|i18next($|/)|cloudflare:";
+const frameworks = "@tanstack/|@clerk/|@modelcontextprotocol/|react($|/|-)|i18next($|/)";
 const serverLibraries = "drizzle-orm(/|$)|pg$|node:";
 
 export const imports = {
@@ -135,10 +129,6 @@ export const imports = {
     {
       files: ["**/foundation/i18n/**"],
       rules: importRules(allowImports(translationImports, translationSetupImports, processImports)),
-    },
-    {
-      files: ["**/app/src/**"],
-      rules: importRules(allowImports(workerImports, processImports)),
     },
     {
       files: [
@@ -179,7 +169,7 @@ export const imports = {
                 message: "Routing and application setup belong outside shared forms.",
               },
               {
-                regex: `^(@clerk/|@cloudflare/|@modelcontextprotocol/|cloudflare:|${serverLibraries})`,
+                regex: `^(@clerk/|@modelcontextprotocol/|${serverLibraries})`,
                 message: "Server infrastructure belongs outside shared forms.",
               },
             ],
@@ -206,7 +196,7 @@ export const imports = {
                 message: "Routing and application setup belong outside shared tables.",
               },
               {
-                regex: `^(@clerk/|@cloudflare/|@modelcontextprotocol/|cloudflare:|${serverLibraries})`,
+                regex: `^(@clerk/|@modelcontextprotocol/|${serverLibraries})`,
                 message: "Server infrastructure belongs outside shared tables.",
               },
             ],
@@ -226,13 +216,13 @@ export const imports = {
     {
       files: ["**/foundation/query/src/**"],
       rules: forbidImports(
-        `^(@clerk/|@cloudflare/|@modelcontextprotocol/|@tanstack/(react-router|react-start)|cloudflare:|${serverLibraries})`,
+        `^(@clerk/|@modelcontextprotocol/|@tanstack/(react-router|react-start)|${serverLibraries})`,
       ),
     },
     {
       files: ["**/foundation/auth/src/**"],
       rules: forbidImports(
-        "^(@tanstack/|@cloudflare/|@modelcontextprotocol/|react($|/|-)|i18next($|/)|cloudflare:|drizzle-orm(/|$)|pg$)",
+        "^(@tanstack/|@modelcontextprotocol/|react($|/|-)|i18next($|/)|drizzle-orm(/|$)|pg$)",
         allowImports(clerkImports),
       ),
     },
@@ -252,37 +242,32 @@ export const imports = {
     {
       files: ["**/foundation/ui/src/**"],
       rules: forbidImports(
-        `^(@tanstack/|@clerk/|@cloudflare/|@modelcontextprotocol/|cloudflare:|${serverLibraries})`,
+        `^(@tanstack/|@clerk/|@modelcontextprotocol/|${serverLibraries})`,
         allowImports(reactAriaImports),
       ),
     },
     {
       files: ["**/foundation/i18n/src/**"],
       rules: forbidImports(
-        `^(@tanstack/|@clerk/|@cloudflare/|@modelcontextprotocol/|cloudflare:|${serverLibraries})`,
+        `^(@tanstack/|@clerk/|@modelcontextprotocol/|${serverLibraries})`,
         allowImports(translationImports, translationSetupImports),
       ),
     },
     {
       files: ["**/foundation/i18n/src/index.tsx"],
-      rules: forbidImports(
-        `^(@tanstack/|@clerk/|@cloudflare/|@modelcontextprotocol/|cloudflare:|${serverLibraries})`,
-        [
-          ...allowImports(reactAriaImports, translationImports, translationSetupImports),
-          reactAriaLocaleImports,
-        ],
-      ),
+      rules: forbidImports(`^(@tanstack/|@clerk/|@modelcontextprotocol/|${serverLibraries})`, [
+        ...allowImports(reactAriaImports, translationImports, translationSetupImports),
+        reactAriaLocaleImports,
+      ]),
     },
     {
       files: ["**/interfaces/mcp/src/**"],
-      rules: forbidImports(
-        "^(drizzle-orm(/|$)|pg$|@tanstack/|react($|/|-)|i18next($|/)|cloudflare:)",
-      ),
+      rules: forbidImports("^(drizzle-orm(/|$)|pg$|@tanstack/|react($|/|-)|i18next($|/))"),
     },
     {
       files: ["**/interfaces/site/src/**"],
       rules: forbidImports(
-        "^(@clerk/|@tanstack/react-start|@cloudflare/|@modelcontextprotocol/|cloudflare:|drizzle-orm(/|$)|pg$|node:)",
+        "^(@clerk/|@tanstack/react-start|@modelcontextprotocol/|drizzle-orm(/|$)|pg$|node:)",
       ),
     },
     {

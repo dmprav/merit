@@ -134,11 +134,11 @@ describe("reportError and setErrorReporter", () => {
 
     reportError(new TypeError("BigInt failure"), {
       surface: "server",
-      operation: "worker.fetch",
+      operation: "server.fetch",
       extra: { amount: 10n },
     });
 
-    expect(log).toHaveBeenCalledWith("[merit:error]", "server", "worker.fetch", "TypeError");
+    expect(log).toHaveBeenCalledWith("[merit:error]", "server", "server.fetch", "TypeError");
   });
 
   it("routes reports to a custom reporter and resets to default on null", () => {
@@ -159,7 +159,7 @@ describe("reportError and setErrorReporter", () => {
 
     setErrorReporter(null);
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
-    reportError("fallback", { surface: "server", operation: "worker.fetch" });
+    reportError("fallback", { surface: "server", operation: "server.fetch" });
     expect(log).toHaveBeenCalledOnce();
   });
 
@@ -172,7 +172,7 @@ describe("reportError and setErrorReporter", () => {
     expect(() =>
       reportError(new Error("Original failure"), {
         surface: "server",
-        operation: "worker.fetch",
+        operation: "server.fetch",
       }),
     ).not.toThrow();
     expect(log).toHaveBeenCalledOnce();

@@ -1,11 +1,11 @@
-import { env, waitUntil } from "cloudflare:workers";
+import { env } from "node:process";
 
 import handler, { createServerEntry } from "@tanstack/react-start/server-entry";
 
-import { createRequestDatabase } from "@merit/db";
+import { createDatabasePool, createRequestDatabase } from "@merit/db";
 import { mcpResourceMetadata } from "@merit/mcp";
 import { reportError } from "@merit/telemetry/errors";
-import { describeHttpRoute, traceWorkerRequest } from "@merit/telemetry/worker";
+import { describeHttpRoute, traceServerRequest } from "@merit/telemetry/server";
 
 import type { ApplicationRequestContext } from "./request-context";
 import { createDemoServices, demoCookie } from "./server/demo.server";
@@ -14,9 +14,32 @@ import { createWebIdentity } from "./server/identity.server";
 import { handleMcp } from "./server/mcp.server";
 import { createApplicationServices } from "./server/services.server";
 
+const database = createDatabasePool(
+  env.DATABASE_URL ?? "postgres://merit:merit@127.0.0.1:55432/merit",
+);
+
+const origin = env.APP_ORIGIN ?? "http://localhost:3000";
+const clerkConfig = {
+  publishableKey: env.CLERK_PUBLISHABLE_KEY ?? "",
+  secretKey: env.CLERK_SECRET_KEY ?? "",
+  issuer: env.CLERK_ISSUER ?? "",
+  resource: new URL("/mcp/workspace", origin).href,
+  operatorUserIds: env.MERIT_OPERATOR_USER_IDS ?? "",
+};
+
+const sendEmail = createEmailSender({
+  from: env.EMAIL_FROM ?? (import.meta.env.DEV ? "invitations@merit.local" : ""),
+  resendKey: env.RESEND_API_KEY ?? "",
+  mailpitUrl: import.meta.env.DEV ? (env.MAILPIT_URL ?? "http://127.0.0.1:8025") : undefined,
+});
+
+// TanStack's Vite adapter supplies the socket peer on the request.
+const peerAddress = (request: Request) =>
+  "ip" in request && typeof request.ip === "string" && request.ip ? request.ip : undefined;
+
 export default createServerEntry({
   fetch(request, options) {
-    return traceWorkerRequest(
+    return traceServerRequest(
       request,
       {
         endpoint: env.OTEL_EXPORTER_OTLP_ENDPOINT,
@@ -24,50 +47,36 @@ export default createServerEntry({
         serviceName: env.OTEL_SERVICE_NAME,
         traceFilter: env.OTEL_TRACE_FILTER,
       },
-      waitUntil,
       async () => {
         const url = new URL(request.url);
         try {
-          const config = {
-            publishableKey: env.CLERK_PUBLISHABLE_KEY,
-            secretKey: env.CLERK_SECRET_KEY,
-            issuer: env.CLERK_ISSUER,
-            resource: new URL("/mcp/workspace", env.APP_ORIGIN).href,
-            operatorUserIds: env.MERIT_OPERATOR_USER_IDS,
-          };
           if (url.pathname === "/.well-known/oauth-protected-resource/mcp/workspace") {
-            return mcpResourceMetadata(config);
+            return mcpResourceMetadata(clerkConfig);
           }
           if (url.pathname === "/mcp") {
             return new Response("Not found", { status: 404 });
           }
 
-          const requestDatabase = createRequestDatabase(env.HYPERDRIVE.connectionString);
+          const requestDatabase = createRequestDatabase(database);
           try {
             const dependencies = {
               database: requestDatabase.run,
-              invitationOrigin: import.meta.env.DEV ? url.origin : env.APP_ORIGIN,
-              networkAddress: import.meta.env.DEV
-                ? "local"
-                : (request.headers.get("CF-Connecting-IP") ?? undefined),
-              sendEmail: createEmailSender({
-                from: env.EMAIL_FROM,
-                resendKey: env.RESEND_API_KEY,
-                mailpitUrl: import.meta.env.DEV ? env.MAILPIT_URL : undefined,
-              }),
+              invitationOrigin: import.meta.env.DEV ? url.origin : origin,
+              networkAddress: import.meta.env.DEV ? "local" : peerAddress(request),
+              sendEmail,
             };
             if (url.pathname === "/mcp/workspace") {
-              return await handleMcp(request, config, dependencies);
+              return await handleMcp(request, clerkConfig, dependencies);
             }
 
-            return await handleWebRequest(request, options, config, dependencies);
+            return await handleWebRequest(request, options, dependencies);
           } finally {
             await requestDatabase.close();
           }
         } catch (error) {
           reportError(error, {
             surface: "server",
-            operation: "worker.fetch",
+            operation: "server.fetch",
             tags: { route: describeHttpRoute(url.pathname).route, method: request.method },
           });
           throw error;
@@ -80,7 +89,6 @@ export default createServerEntry({
 const handleWebRequest = async (
   request: Request,
   options: Parameters<typeof handler.fetch>[1],
-  config: { publishableKey: string; secretKey: string },
   dependencies: Omit<Parameters<typeof createApplicationServices>[0], "identity">,
 ) => {
   const localIdentity = await resolveLocalIdentity(request);
@@ -94,11 +102,11 @@ const handleWebRequest = async (
     database: dependencies.database,
     guestToken,
     clerk: {
-      ...config,
+      ...clerkConfig,
       browserPublishableKey:
         typeof browserPublishableKey === "string" ? browserPublishableKey : undefined,
     },
-    operatorUserIds: env.MERIT_OPERATOR_USER_IDS,
+    operatorUserIds: clerkConfig.operatorUserIds,
     ...localIdentity,
   });
   const services = createApplicationServices({
@@ -114,7 +122,7 @@ const handleWebRequest = async (
       identity.currentIdentity,
       guestToken,
       identity.isGuest,
-      import.meta.env.DEV ? undefined : dependencies.networkAddress,
+      import.meta.env.DEV ? undefined : (dependencies.networkAddress ?? null),
     ),
     organizations: services.organizations,
     workspace: {

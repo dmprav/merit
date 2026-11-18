@@ -176,15 +176,15 @@ shared business capabilities.
 
 ### Responsibilities and dependencies
 
-| Location                        | Responsibility                                                                                                               |
-| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `app/`                          | Worker assembly, root document and router, account lifecycle, request context, external adapters, and runtime configuration. |
-| `interfaces/`                   | Product, site, admin, MCP, and email presentation and protocol integration.                                                  |
-| `capabilities/<name>/business/` | Domain rules, browser-safe contracts, authorized operations, transactions, and persistence.                                  |
-| `capabilities/<name>/web/`      | Reusable views, editing controllers, drafts, query/cache behavior, translations, and public examples.                        |
-| `capabilities/access/`          | Shared authorization policy.                                                                                                 |
-| `foundation/`                   | Technical libraries and UI primitives, independent of business capabilities.                                                 |
-| `tooling/`                      | Development, build, and verification infrastructure.                                                                         |
+| Location                        | Responsibility                                                                                                                       |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `app/`                          | Node.js server assembly, root document and router, account lifecycle, request context, external adapters, and runtime configuration. |
+| `interfaces/`                   | Product, site, admin, MCP, and email presentation and protocol integration.                                                          |
+| `capabilities/<name>/business/` | Domain rules, browser-safe contracts, authorized operations, transactions, and persistence.                                          |
+| `capabilities/<name>/web/`      | Reusable views, editing controllers, drafts, query/cache behavior, translations, and public examples.                                |
+| `capabilities/access/`          | Shared authorization policy.                                                                                                         |
+| `foundation/`                   | Technical libraries and UI primitives, independent of business capabilities.                                                         |
+| `tooling/`                      | Development, build, and verification infrastructure.                                                                                 |
 
 Dependencies flow from application to interfaces to capabilities to foundation.
 Capability web packages use browser-safe business entries and deliberate public
@@ -264,7 +264,7 @@ same prohibition on importing application or interface source.
 
 ### Application structure
 
-The application keeps its Worker, Start, and router entry points in `app/src/`.
+The application keeps its server, Start, and router entry points in `app/src/`.
 `shell/` owns the root document, account-session lifecycle, styles, and messages.
 `server/` owns request identity, capability assembly, MCP authentication wiring,
 demo orchestration, and external adapters. `development/` contains the local
@@ -326,7 +326,7 @@ policy above defines the browsers Merit supports. The
 ### Runtime and request flow
 
 The public website, product, operator administration, and MCP share one origin
-and one Cloudflare Worker. [Application assembly](../../app/src/server.ts)
+and one Node.js process. [Application assembly](../../app/src/server.ts)
 creates services per request and supplies identity and external-service adapters.
 Browser and MCP transports call the same business operations.
 
@@ -334,13 +334,13 @@ Browser and MCP transports call the same business operations.
 flowchart LR
     browser[Browser] --> web[Web adapter]
     client[MCP client] --> mcp[MCP adapter]
-    subgraph worker[Cloudflare Worker]
+    subgraph server[Node.js server]
         web --> operations[Authorized business operations]
         mcp --> operations
         operations --> domain[Domain rules]
         operations --> persistence[Capability persistence]
     end
-    persistence --> database[PostgreSQL through Hyperdrive]
+    persistence --> database[PostgreSQL]
 ```
 
 TanStack Query owns fetched data and mutation state. Server caches are isolated
@@ -351,8 +351,9 @@ failed refresh; forms retain their original revision baselines separately from
 fetched data. The [query guide](../../foundation/query/README.md) owns this lifecycle.
 
 PostgreSQL holds capability-owned schemas in one database and migration history.
-Hyperdrive pools connections with query caching disabled, so authorization and
-reads after changes use current database state. [Deployment](../guides/deployment.md)
+The shared PostgreSQL pool limits simultaneous checkouts across requests. Each
+operation holds its client until it finishes. Closing a request waits for its
+accepted operations, including those waiting for a checkout. [Deployment](../guides/deployment.md)
 covers configuration; [development](../guides/development.md#schema-changes)
 covers migrations. Shared [money](../../foundation/money/README.md) and
 [calendar-date](../../foundation/dates/README.md) contracts preserve meaning across

@@ -1,10 +1,12 @@
-# Centralize Worker tracing in telemetry foundation and Checkly config
+# Centralize server tracing and Checkly configuration
 
-Accepted 14 November 2026.
+Accepted 14 November 2026. Updated for the [Node.js runtime](0003-node-runtime.md) on 18 November 2026.
 
-Instrument Merit server boundaries through a dedicated foundation package ([`@merit/telemetry`](../../foundation/telemetry/README.md)), export OpenTelemetry spans over `fetch` OTLP/HTTP JSON using Cloudflare `waitUntil`, and store Checkly synthetic checks as code under [`tooling/checkly`](../../tooling/checkly/README.md).
-
-An alternative would emit structured logs only or use Node-oriented OpenTelemetry SDK transports with `AlwaysOn` sampling. Structured logs alone lack parent-child span correlation across HTTP, authentication, MCP tools, capability services, email delivery, and PostgreSQL calls. Node transports pull in `node:http` and `zlib`, whereas a minimal `fetch` exporter works natively in Cloudflare Workers without adding third-party vendor SDKs inside application code.
+The [telemetry foundation](../../foundation/telemetry/README.md) correlates HTTP
+requests with authentication, MCP tools, capability operations, email delivery,
+and PostgreSQL calls. One OpenTelemetry batch processor exports sampled spans
+across requests over OTLP/HTTP. The [Checkly checks](../../tooling/checkly/README.md)
+exercise the application from outside the server.
 
 The cost is owning the small OTLP HTTP exporter and keeping span attributes strictly sanitized so grant materials, tokens, emails, and raw provider errors never leave the boundary. When `OTEL_EXPORTER_OTLP_ENDPOINT` is configured, tracing defaults to sampling requests carrying Checkly's `tracestate` marker (`checkly=true`) so ordinary traffic is not exported unless `OTEL_TRACE_FILTER` is explicitly set to `all`.
 

@@ -1,7 +1,5 @@
-import { cloudflare } from "@cloudflare/vite-plugin";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import react from "@vitejs/plugin-react";
-import { bindings } from "cf/config";
 import { defineConfig, lazyPlugins } from "vite-plus";
 
 import { reactCompilerOptions } from "../tooling/react-compiler";
@@ -10,17 +8,11 @@ import { routes } from "./routes";
 
 const run = {
   tasks: {
-    dev: { command: "cf dev", cache: false },
+    dev: { command: "vp dev", cache: false },
     "dev:workspace": { command: "vp dev --mode local-workspace", cache: false },
-    build: ["cf build", "tsc --noEmit"],
-    preview: { command: "vp preview", cache: false },
-    "cf-types": "cf workers types",
+    build: ["vp build", "tsc --noEmit"],
     test: "vp test --config vitest.config.ts",
-    deploy: {
-      command: "cf deploy --prebuilt --mode production",
-      dependsOn: ["build"],
-      cache: false,
-    },
+    preview: { command: "vp preview --port 3000", cache: false },
     "demo:cleanup": { command: "vpx scripts/clean-demos.ts", cache: false },
     "db:seed": { command: "vpx scripts/seed.ts", cache: false },
     smoke: { command: "vpx tests/smoke.ts", cache: false },
@@ -44,59 +36,40 @@ const run = {
 // Pre-bundle lazily reached client libraries on dev startup so browser journeys never
 // trigger mid-test reloads or stale module imports.
 const clientDependencies = [
-  "@internationalized/date",
+  "@merit/ui > @merit/dates > @internationalized/date",
   "@tanstack/react-devtools",
-  "@tanstack/react-form",
+  "@merit/forms > @tanstack/react-form",
   "@tanstack/react-query",
   "@tanstack/react-query-devtools",
   "@tanstack/react-router",
   "@tanstack/react-router-devtools",
   "@tanstack/react-router-ssr-query",
-  "@tanstack/react-table",
-  "dexie",
+  "@merit/product > @merit/tables > @tanstack/react-table",
+  "@merit/drafts > dexie",
   "i18next",
   "react-i18next",
-  "react-aria-components/Button",
-  "react-aria-components/Calendar",
-  "react-aria-components/Dialog",
-  "react-aria-components/Heading",
-  "react-aria-components/I18nProvider",
-  "react-aria-components/ListBox",
-  "react-aria-components/Menu",
-  "react-aria-components/Modal",
-  "react-aria-components/Popover",
-  "react-aria-components/Select",
-  "react-aria-components/Tabs",
-  "react-aria-components/TextField",
-  "react-aria-components/Tooltip",
-  "react-aria-components/composeRenderProps",
+  "@merit/ui > react-aria-components/Button",
+  "@merit/ui > react-aria-components/Calendar",
+  "@merit/ui > react-aria-components/Dialog",
+  "@merit/ui > react-aria-components/Heading",
+  "@merit/ui > react-aria-components/I18nProvider",
+  "@merit/ui > react-aria-components/ListBox",
+  "@merit/ui > react-aria-components/Menu",
+  "@merit/ui > react-aria-components/Modal",
+  "@merit/ui > react-aria-components/Popover",
+  "@merit/ui > react-aria-components/Select",
+  "@merit/ui > react-aria-components/Tabs",
+  "@merit/ui > react-aria-components/TextField",
+  "@merit/ui > react-aria-components/Tooltip",
+  "@merit/ui > react-aria-components/composeRenderProps",
   "zod",
 ];
 
-export default defineConfig(({ command }) => ({
+export default defineConfig({
   publicDir: "./public",
   // Task discovery must not run plugin hooks that clear the production output.
   plugins: lazyPlugins(() => [
     localWorkspace(),
-    cloudflare({
-      viteEnvironment: { name: "ssr" },
-      // Empty defaults are local only; builds retain the required secret declarations.
-      config:
-        command === "serve"
-          ? (config) => ({
-              ...config,
-              worker: {
-                ...config.worker,
-                env: {
-                  ...config.worker.env,
-                  CLERK_SECRET_KEY: bindings.text(""),
-                  RESEND_API_KEY: bindings.text(""),
-                  OTEL_EXPORTER_OTLP_HEADERS: bindings.text(""),
-                },
-              },
-            })
-          : undefined,
-    }),
     tanstackStart({
       srcDirectory: "./src",
       server: { entry: "./server.ts" },
@@ -128,20 +101,10 @@ export default defineConfig(({ command }) => ({
     }),
     react({ compiler: reactCompilerOptions }),
   ]),
+  ssr: { noExternal: ["zod"] },
   server: { port: 3000, strictPort: true },
   environments: {
     client: { optimizeDeps: { include: clientDependencies } },
-    ssr: {
-      build: {
-        rolldownOptions: {
-          // pg uses CommonJS Node built-ins inside the Worker's ESM bundle.
-          output: {
-            banner:
-              "import { createRequire } from 'node:module'; const require = createRequire('file:///worker.js');",
-          },
-        },
-      },
-    },
   },
   run,
-}));
+});

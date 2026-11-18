@@ -18,23 +18,23 @@ import { createTraceSampler, resolveTraceFilter } from "./sampler";
 
 export { describeHttpRoute };
 
-export type WorkerTelemetryConfig = {
+export type ServerTelemetryConfig = {
   endpoint?: string;
   headers?: string;
   serviceName?: string;
   traceFilter?: string;
 };
 
-export type WorkerTelemetryHandle = {
+export type ServerTelemetryHandle = {
   forceFlush: () => Promise<void>;
   shutdown: () => Promise<void>;
 };
 
-type ActiveWorkerTelemetry = WorkerTelemetryHandle & {
+type ActiveServerTelemetry = ServerTelemetryHandle & {
   configKey: string;
 };
 
-let activeTelemetry: ActiveWorkerTelemetry | undefined;
+let activeTelemetry: ActiveServerTelemetry | undefined;
 
 const resetGlobalRegistry = async (): Promise<void> => {
   const previous = activeTelemetry;
@@ -54,10 +54,10 @@ const createConfigKey = (
   headersRaw?: string,
 ): string => `${url}|${serviceName}|${filter}|${headersRaw ?? ""}`;
 
-export const ensureWorkerTelemetry = async (
-  config: WorkerTelemetryConfig,
+export const ensureServerTelemetry = async (
+  config: ServerTelemetryConfig,
   options?: { spanProcessor?: SpanProcessor; fetchFn?: typeof fetch },
-): Promise<WorkerTelemetryHandle | null> => {
+): Promise<ServerTelemetryHandle | null> => {
   const tracesUrl = resolveTracesUrl(config.endpoint);
   if (!tracesUrl) {
     if (activeTelemetry) {
@@ -74,7 +74,8 @@ export const ensureWorkerTelemetry = async (
     return activeTelemetry;
   }
 
-  await resetGlobalRegistry();
+  // Install the new provider before yielding so concurrent requests share its batch.
+  const draining = resetGlobalRegistry();
 
   const processor =
     options?.spanProcessor ??
@@ -89,8 +90,7 @@ export const ensureWorkerTelemetry = async (
   const provider = new TracerProvider({
     resource: resourceFromAttributes({
       "service.name": serviceName,
-      "cloud.provider": "cloudflare",
-      "cloud.platform": "cloudflare.workers",
+      "process.runtime.name": "nodejs",
     }),
     sampler: createTraceSampler(filter),
     spanProcessors: [processor],
@@ -100,22 +100,23 @@ export const ensureWorkerTelemetry = async (
   propagation.setGlobalPropagator(new W3CTraceContextPropagator());
   trace.setGlobalTracerProvider(provider);
 
-  activeTelemetry = {
+  const handle = {
     configKey,
     forceFlush: () => provider.forceFlush(),
     shutdown: () => provider.shutdown(),
   };
 
-  return activeTelemetry;
+  activeTelemetry = handle;
+  await draining;
+  return handle;
 };
 
-export const traceWorkerRequest = async (
+export const traceServerRequest = async (
   request: Request,
-  config: WorkerTelemetryConfig,
-  waitUntil: (promise: Promise<unknown>) => void,
+  config: ServerTelemetryConfig,
   handler: () => Promise<Response>,
 ): Promise<Response> => {
-  const handle = await ensureWorkerTelemetry(config);
+  const handle = await ensureServerTelemetry(config);
   if (!handle) {
     return handler();
   }
@@ -128,30 +129,26 @@ export const traceWorkerRequest = async (
     Object.fromEntries(request.headers.entries()),
   );
 
-  try {
-    return await context.with(parentContext, () =>
-      withSpan(
-        `HTTP ${method} ${route}`,
-        async (span) => {
-          const response = await handler();
-          span.setAttribute("http.response.status_code", response.status);
-          if (response.status >= 500) {
-            span.setStatus({ code: SpanStatusCode.ERROR, message: `HTTP ${response.status}` });
-          }
-          return response;
+  return context.with(parentContext, () =>
+    withSpan(
+      `HTTP ${method} ${route}`,
+      async (span) => {
+        const response = await handler();
+        span.setAttribute("http.response.status_code", response.status);
+        if (response.status >= 500) {
+          span.setStatus({ code: SpanStatusCode.ERROR, message: `HTTP ${response.status}` });
+        }
+        return response;
+      },
+      {
+        kind: SpanKind.SERVER,
+        attributes: {
+          "http.request.method": method,
+          "http.route": route,
+          "url.scheme": url.protocol.replace(":", ""),
+          "merit.surface": surface,
         },
-        {
-          kind: SpanKind.SERVER,
-          attributes: {
-            "http.request.method": method,
-            "http.route": route,
-            "url.scheme": url.protocol.replace(":", ""),
-            "merit.surface": surface,
-          },
-        },
-      ),
-    );
-  } finally {
-    waitUntil(handle.forceFlush().catch(() => undefined));
-  }
+      },
+    ),
+  );
 };

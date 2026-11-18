@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, expect, it, vi, type Mock } from "vite-plus/test";
 
-import { createRequestDatabase, withDatabase } from "./connection";
+import { createRequestDatabase, withDatabase, type DatabaseRunner } from "./connection";
+
+const openTestRequest = (connectionString: string) =>
+  createRequestDatabase((operation) => withDatabase(connectionString, operation));
 
 const { clients, mockDrizzle, nextConnectError } = vi.hoisted(() => {
   type FakeClientRecord = {
@@ -75,7 +78,7 @@ afterEach(() => {
 });
 
 it("does not open or close a pg.Client when a request performs no database operations", async () => {
-  const requestDb = createRequestDatabase("postgres://merit:merit@localhost/merit");
+  const requestDb = openTestRequest("postgres://merit:merit@localhost/merit");
 
   await requestDb.close();
   await requestDb.close();
@@ -85,7 +88,7 @@ it("does not open or close a pg.Client when a request performs no database opera
 });
 
 it("checks out and closes a fresh pg.Client per sequential operation without holding it open", async () => {
-  const requestDb = createRequestDatabase("postgres://merit:merit@localhost/request-a");
+  const requestDb = openTestRequest("postgres://merit:merit@localhost/request-a");
 
   expect(clients).toHaveLength(0);
 
@@ -108,7 +111,7 @@ it("checks out and closes a fresh pg.Client per sequential operation without hol
 });
 
 it("runs concurrent operations in parallel without serializing them", async () => {
-  const requestDb = createRequestDatabase("postgres://merit:merit@localhost/parallel");
+  const requestDb = openTestRequest("postgres://merit:merit@localhost/parallel");
   const events: string[] = [];
 
   let markFirstStarted!: () => void;
@@ -152,164 +155,47 @@ it("runs concurrent operations in parallel without serializing them", async () =
   await requestDb.close();
 });
 
-it("bounds concurrent operations to maxConcurrency and drains queued overflow", async () => {
-  const requestDb = createRequestDatabase("postgres://merit:merit@localhost/bounded", {
-    maxConcurrency: 2,
+it("submits more than four checkouts to the pool and drains pending checkouts on close", async () => {
+  let release!: () => void;
+  const waitingForPool = new Promise<void>((resolve) => {
+    release = resolve;
   });
-  const events: string[] = [];
+  let checkouts = 0;
 
-  let markOp1Started!: () => void;
-  const op1Started = new Promise<void>((resolve) => {
-    markOp1Started = resolve;
-  });
-  let markOp2Started!: () => void;
-  const op2Started = new Promise<void>((resolve) => {
-    markOp2Started = resolve;
-  });
-  let releaseOp1!: () => void;
-  const op1Gate = new Promise<void>((resolve) => {
-    releaseOp1 = resolve;
-  });
-  let releaseOp2!: () => void;
-  const op2Gate = new Promise<void>((resolve) => {
-    releaseOp2 = resolve;
-  });
+  const execute: DatabaseRunner = async (operation) => {
+    checkouts += 1;
+    await waitingForPool;
+    return withDatabase("postgres://merit:merit@localhost/pool", operation);
+  };
 
-  const op1 = requestDb.run(async () => {
-    events.push("op1:start");
-    markOp1Started();
-    await op1Gate;
-    events.push("op1:end");
-    return 1;
-  });
-  const op2 = requestDb.run(async () => {
-    events.push("op2:start");
-    markOp2Started();
-    await op2Gate;
-    events.push("op2:end");
-    return 2;
-  });
-  const op3 = requestDb.run(async () => {
-    events.push("op3:start");
-    events.push("op3:end");
-    return 3;
-  });
+  const request = createRequestDatabase(execute);
+  const operations = Array.from({ length: 8 }, (_, index) => request.run(async () => index));
 
-  await Promise.all([op1Started, op2Started]);
-  await Promise.resolve();
-  expect(clients).toHaveLength(2);
-  expect(events).toEqual(["op1:start", "op2:start"]);
+  expect(checkouts).toBe(8);
+  const closing = request.close();
+  await expect(request.run(async () => "late")).rejects.toThrow("Request database is closed.");
+  expect(checkouts).toBe(8);
+  release();
 
-  releaseOp1();
-  expect(await op1).toBe(1);
-  expect(await op3).toBe(3);
-  expect(clients).toHaveLength(3);
-
-  releaseOp2();
-  expect(await op2).toBe(2);
-  expect(clients.every((client) => client.end.mock.calls.length === 1)).toBe(true);
-
-  await requestDb.close();
-});
-
-it("rejects queued waiters on close and waits for active operations to close their clients", async () => {
-  const requestDb = createRequestDatabase("postgres://merit:merit@localhost/concurrent", {
-    maxConcurrency: 1,
-  });
-  const events: string[] = [];
-
-  let markStarted!: () => void;
-  const op1Started = new Promise<void>((resolve) => {
-    markStarted = resolve;
-  });
-
-  let releaseFirst!: () => void;
-  const firstGate = new Promise<void>((resolve) => {
-    releaseFirst = resolve;
-  });
-
-  const op1 = requestDb.run(async () => {
-    events.push("op1:start");
-    markStarted();
-    await firstGate;
-    events.push("op1:end");
-    return "first";
-  });
-
-  const op2 = requestDb.run(async () => {
-    events.push("op2:start");
-    return "second";
-  });
-
-  await op1Started;
-  expect(events).toEqual(["op1:start"]);
-
-  let closeResolved = false;
-  const closing = requestDb.close().then(() => {
-    closeResolved = true;
-  });
-
-  await expect(op2).rejects.toThrow("Request database is closed.");
-  expect(closeResolved).toBe(false);
-  expect(clients[0]!.end).not.toHaveBeenCalled();
-
-  releaseFirst();
-  expect(await op1).toBe("first");
   await closing;
-
-  expect(closeResolved).toBe(true);
-  expect(events).toEqual(["op1:start", "op1:end"]);
-  expect(clients).toHaveLength(1);
-  expect(clients[0]!.end).toHaveBeenCalledOnce();
+  expect(clients).toHaveLength(8);
+  expect(clients.every((client) => client.end.mock.calls.length === 1)).toBe(true);
+  await expect(Promise.all(operations)).resolves.toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
 });
 
-it("does not open a client when close happens during a slot handoff", async () => {
-  const requestDb = createRequestDatabase("postgres://merit:merit@localhost/handoff", {
-    maxConcurrency: 1,
+it("drains failing work without replacing the operation error or rejecting close", async () => {
+  const request = openTestRequest("postgres://merit:merit@localhost/closing");
+  const operation = request.run(async () => {
+    throw new Error("query failed");
   });
-
-  let markStarted!: () => void;
-  const started = new Promise<void>((resolve) => {
-    markStarted = resolve;
-  });
-
-  let releaseEnd!: () => void;
-  const endGate = new Promise<void>((resolve) => {
-    releaseEnd = resolve;
-  });
-
-  let markEnding!: () => void;
-  const ending = new Promise<void>((resolve) => {
-    markEnding = resolve;
-  });
-
-  const first = requestDb.run(async () => {
-    clients[0]!.end.mockImplementationOnce(() => {
-      markEnding();
-      return endGate;
-    });
-    markStarted();
-    return "first";
-  });
-
-  await started;
-  const second = requestDb.run(async () => "second");
-
-  await ending;
-  // Attach close() to endGate after executeWithClient's await so it runs right after release() wakes second.
-  const closeAfterHandoff = endGate.then(() => requestDb.close());
-  releaseEnd();
-
-  await expect(first).resolves.toBe("first");
-  await expect(second).rejects.toThrow("Request database is closed.");
-  await closeAfterHandoff;
-
-  expect(clients).toHaveLength(1);
+  const closing = Promise.all([request.close(), request.close()]);
+  await expect(operation).rejects.toThrow("query failed");
+  await closing;
   expect(clients[0]!.end).toHaveBeenCalledOnce();
 });
 
 it("keeps subsequent operations working and preserves operation errors when cleanup fails", async () => {
-  const requestDb = createRequestDatabase("postgres://merit:merit@localhost/errors");
+  const requestDb = openTestRequest("postgres://merit:merit@localhost/errors");
 
   await expect(
     requestDb.run(async () => {
@@ -327,7 +213,7 @@ it("keeps subsequent operations working and preserves operation errors when clea
 });
 
 it("cleans up a failed connection attempt and connects again for the next operation", async () => {
-  const requestDb = createRequestDatabase("postgres://merit:merit@localhost/connect-fail");
+  const requestDb = openTestRequest("postgres://merit:merit@localhost/connect-fail");
   nextConnectError.current = new Error("connection refused");
 
   await expect(requestDb.run(async () => "unreachable")).rejects.toThrow("connection refused");
@@ -342,7 +228,7 @@ it("cleans up a failed connection attempt and connects again for the next operat
 });
 
 it("rejects operations after close without opening a client", async () => {
-  const requestDb = createRequestDatabase("postgres://merit:merit@localhost/closed");
+  const requestDb = openTestRequest("postgres://merit:merit@localhost/closed");
   const operation = vi.fn(async () => "after-close");
   await requestDb.close();
 
@@ -351,18 +237,9 @@ it("rejects operations after close without opening a client", async () => {
   expect(clients).toHaveLength(0);
 });
 
-it("rejects non-positive or non-integer maxConcurrency", () => {
-  expect(() =>
-    createRequestDatabase("postgres://merit:merit@localhost/invalid", { maxConcurrency: 0 }),
-  ).toThrow(RangeError);
-  expect(() =>
-    createRequestDatabase("postgres://merit:merit@localhost/invalid", { maxConcurrency: 1.5 }),
-  ).toThrow(RangeError);
-});
-
 it("keeps another request's database open when one request closes its own", async () => {
-  const reqA = createRequestDatabase("postgres://merit:merit@localhost/db");
-  const reqB = createRequestDatabase("postgres://merit:merit@localhost/db");
+  const reqA = openTestRequest("postgres://merit:merit@localhost/db");
+  const reqB = openTestRequest("postgres://merit:merit@localhost/db");
 
   expect(await reqA.run(async () => "a")).toBe("a");
   await reqA.close();
