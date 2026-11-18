@@ -1,9 +1,9 @@
 import { and, eq } from "drizzle-orm";
 
-import { appUsers } from "@merit/auth/schema";
 import type { Database } from "@merit/db";
-import { memberships, organizations } from "@merit/organizations/schema";
-import { organizationScope } from "@merit/organizations/scope";
+import { lockGrantActor } from "@merit/organizations/locks";
+import { organizations } from "@merit/organizations/schema";
+import { authorizedWorkspaces } from "@merit/organizations/scope";
 import { fundingRounds } from "@merit/rounds/schema";
 
 import { caseWithdrawn } from "../projections";
@@ -51,16 +51,15 @@ export const lockApplicationCase = async (
     )
     .for(roundMode);
 
+  const access = authorizedWorkspaces(db, userId, "work_on_grants", input.workspaceSlug);
   const [lockedCase] = await db
     .select({ id: applicationCases.id, withdrawn: caseWithdrawn })
     .from(applicationCases)
-    .innerJoin(memberships, eq(memberships.organizationId, applicationCases.organizationId))
-    .innerJoin(appUsers, eq(appUsers.id, memberships.userId))
+    .innerJoin(access, eq(access.id, applicationCases.organizationId))
     .where(
       and(
         eq(applicationCases.id, input.publicId),
         eq(applicationCases.organizationId, workspace.id),
-        organizationScope(userId, "work_on_grants", applicationCases.organizationId),
       ),
     )
     .for("update", { of: applicationCases });
@@ -68,17 +67,7 @@ export const lockApplicationCase = async (
   if (!lockedCase) {
     return null;
   }
-  const [actor] = await db
-    .select({ userId: appUsers.id, name: appUsers.name, email: memberships.email })
-    .from(memberships)
-    .innerJoin(appUsers, eq(appUsers.id, memberships.userId))
-    .where(
-      and(
-        eq(memberships.organizationId, workspace.id),
-        organizationScope(userId, "work_on_grants", workspace.id),
-      ),
-    )
-    .for("share", { of: [memberships, appUsers] });
+  const actor = await lockGrantActor(db, userId, workspace.id);
   return actor
     ? {
         organizationId: workspace.id,

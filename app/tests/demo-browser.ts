@@ -18,7 +18,10 @@ try {
       join(tmpdir(), `merit-demo-browser-${new URL(database.connectionString).pathname.slice(1)}`),
       ...process.argv.slice(2),
     ],
-    { stdio: "inherit", env: { ...process.env, DATABASE_URL: database.connectionString } },
+    {
+      stdio: "inherit",
+      env: { ...process.env, DATABASE_URL: await database.createRuntimeConnection() },
+    },
   );
   if (result.error) {
     throw result.error;

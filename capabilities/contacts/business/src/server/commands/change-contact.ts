@@ -1,6 +1,7 @@
 import type { Actor } from "@merit/auth";
 import type { Database } from "@merit/db";
 import { lockGrantWorkspace } from "@merit/organizations/locks";
+import { writeWorkspace } from "@merit/organizations/transactions";
 
 import {
   contactCommandSchema,
@@ -70,5 +71,5 @@ export const changeWorkspaceContact = async (
     return { status: "ok", contact } as const;
   };
 
-  return db.transaction(changeContactTransaction);
+  return writeWorkspace(db, actor.userId, request.workspaceSlug, changeContactTransaction);
 };

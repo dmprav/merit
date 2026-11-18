@@ -2,7 +2,8 @@ import type { z } from "zod";
 
 import { readWorkspaceActivity } from "@merit/audit/server/read";
 import type { Actor } from "@merit/auth";
-import { readTransaction, type Database } from "@merit/db";
+import type { Database } from "@merit/db";
+import { readWorkspace } from "@merit/organizations/transactions";
 
 import {
   workspaceActivityInput,
@@ -19,7 +20,7 @@ export const listWorkspaceActivity = (
   actor: Actor,
   input: z.input<typeof workspaceActivityInput>,
 ) =>
-  readTransaction(db, async (tx) => {
+  readWorkspace(db, actor.userId, input?.workspaceSlug, async (tx) => {
     const request = workspaceActivityInput.parse(input);
     const access = await readGrantWorkspaceAccess(tx, actor.userId, request.workspaceSlug);
     if (!access) {

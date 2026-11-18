@@ -27,6 +27,7 @@ export const config: SecretLintCoreConfig = {
             allows: [
               // Public credentials for the loopback-only Compose database.
               exact("postgres://merit:merit@127.0.0.1:55432/merit"),
+              exact("postgres://merit_runtime:merit@127.0.0.1:55432/merit"),
               // Remote-target fixture for the reset-db guard tests; the host cannot resolve.
               exact("postgres://example:example@remote.invalid/production"),
             ],

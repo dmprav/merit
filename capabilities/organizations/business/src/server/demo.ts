@@ -11,13 +11,16 @@ import {
   removeOldDemoEntryLimits,
 } from "./persistence/commands/demo";
 import { currentDemo, expiredDemos, hasMembership, type Demo } from "./persistence/demo";
+import { readScoped, writeScoped, writeWorkspace } from "./persistence/tenant";
 
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
 const lifetime = 7 * 24 * 60 * 60 * 1000;
 
 export const readDemoWorkspace = async (db: Database, actor: Actor) => {
-  const workspace = await currentDemo(db, actor.userId);
+  const workspace = await readScoped(db, { kind: "demo", userId: actor.userId }, (tx) =>
+    currentDemo(tx, actor.userId),
+  );
   return !workspace
     ? ({ status: "empty" } as const)
     : workspace.demoExpiresAt! <= new Date()
@@ -33,8 +36,9 @@ export const startDemoWorkspace = async (
   input: { fresh: boolean; resetWorkspaceId?: string },
   seedVersion: number,
   seed: (tx: Transaction, workspace: Demo, userId: string) => Promise<void>,
-) =>
-  db.transaction(async (tx) => {
+) => {
+  const newId = crypto.randomUUID();
+  return writeScoped(db, { kind: "demo", userId: actor.userId, newId }, async (tx) => {
     const user = await lockDemoUser(tx, actor.userId);
     if (!user?.active) {
       return { status: "unavailable" } as const;
@@ -57,10 +61,17 @@ export const startDemoWorkspace = async (
     if (current) {
       await expireDemo(tx, current.id);
     }
-    const workspace = await insertDemo(tx, user.id, seedVersion, new Date(Date.now() + lifetime));
-    await seed(tx, workspace!, user.id);
+    const workspace = await insertDemo(
+      tx,
+      newId,
+      user.id,
+      seedVersion,
+      new Date(Date.now() + lifetime),
+    );
+    await writeWorkspace(tx, user.id, workspace.slug, (scoped) => seed(scoped, workspace, user.id));
     return { status: "ready", workspace: workspace! } as const;
   });
+};
 
 /** Operator cleanup only. The runtime does not receive blanket audit DELETE privileges. */
 export const removeExpiredDemos = async (

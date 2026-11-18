@@ -2,15 +2,18 @@ import { z } from "zod";
 
 import { permits } from "@merit/access";
 import { readAuditHistory } from "@merit/audit/server/read";
-import { readTransaction, type Database } from "@merit/db";
+import type { Database } from "@merit/db";
 
 import type { Team } from "../../api/queries";
 import * as persistence from "../persistence/queries/team";
+import { missingTeamWorkspace } from "../persistence/team";
+import { readWorkspace } from "../persistence/tenant";
 import type { Transaction } from "../persistence/transaction";
 import { fail } from "../result";
 
 const workspace = async (tx: Transaction, slug: string, actor: string) => {
-  const organization = (await persistence.readWorkspace(tx, slug)) ?? fail("not_found");
+  const organization =
+    (await persistence.readWorkspace(tx, slug)) ?? fail(await missingTeamWorkspace(tx));
   const member = (await persistence.readSubject(tx, organization.id, actor)) ?? fail("forbidden");
   if (!permits(member, "read_team", member)) {
     fail("forbidden");
@@ -19,7 +22,7 @@ const workspace = async (tx: Transaction, slug: string, actor: string) => {
 };
 
 export const readTeam = (db: Database, slug: string, actor: string): Promise<Team> =>
-  readTransaction(db, async (tx) => {
+  readWorkspace(db, actor, slug, async (tx) => {
     const { organization, member } = await workspace(tx, slug, actor);
     const people = await persistence.readMembers(tx, organization.id);
     const invites = permits(member, "manage_members", member)
@@ -35,7 +38,7 @@ export const readTeam = (db: Database, slug: string, actor: string): Promise<Tea
   });
 
 export const readTeamOverview = (db: Database, slug: string, actor: string) =>
-  readTransaction(db, async (tx) => {
+  readWorkspace(db, actor, slug, async (tx) => {
     const { organization, member } = await workspace(tx, slug, actor);
     return {
       organization: { name: organization.name, slug: organization.slug, kind: organization.kind },
@@ -49,7 +52,7 @@ export const readMemberPage = (
   actor: string,
   input: { workspaceSlug: string; after?: string; limit: number },
 ) =>
-  readTransaction(db, async (tx) => {
+  readWorkspace(db, actor, input.workspaceSlug, async (tx) => {
     const { organization } = await workspace(tx, input.workspaceSlug, actor);
     const rows = await persistence.readMembers(tx, organization.id, input);
     const members = rows.slice(0, input.limit);
@@ -61,7 +64,7 @@ export const readInvitationPage = (
   actor: string,
   input: { workspaceSlug: string; after?: string; limit: number; issuedBy?: string },
 ) =>
-  readTransaction(db, async (tx) => {
+  readWorkspace(db, actor, input.workspaceSlug, async (tx) => {
     const { organization, member } = await workspace(tx, input.workspaceSlug, actor);
     if (!permits(member, "manage_members", member)) {
       fail("forbidden");
@@ -78,7 +81,7 @@ export const readHistoryPage = (
   actor: string,
   input: { workspaceSlug: string; after?: string; limit: number },
 ) =>
-  readTransaction(db, async (tx) => {
+  readWorkspace(db, actor, input.workspaceSlug, async (tx) => {
     const { organization, member } = await workspace(tx, input.workspaceSlug, actor);
     if (!permits(member, "manage_members", member)) {
       fail("forbidden");
@@ -91,7 +94,7 @@ export const readEventContent = (
   actor: string,
   input: { workspaceSlug: string; eventId: string; offset: number; length: number },
 ) =>
-  readTransaction(db, async (tx) => {
+  readWorkspace(db, actor, input.workspaceSlug, async (tx) => {
     const { organization, member } = await workspace(tx, input.workspaceSlug, actor);
     if (!permits(member, "manage_members", member)) {
       fail("forbidden");

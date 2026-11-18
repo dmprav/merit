@@ -10,12 +10,15 @@ import type { Dependencies } from "../dependencies";
 import { recordOrganizationEvent } from "../persistence/commands/events";
 import type { Invitation } from "../persistence/commands/invitations";
 import * as persistence from "../persistence/commands/team";
+import { missingTeamWorkspace } from "../persistence/team";
+import { writeWorkspace } from "../persistence/tenant";
 import type { Transaction } from "../persistence/transaction";
 import { fail } from "../result";
 import { issueInvitation } from "./issue-invitation";
 
 const workspace = async (tx: Transaction, slug: string, actor: string) => {
-  const organization = (await persistence.lockWorkspace(tx, slug)) ?? fail("not_found");
+  const organization =
+    (await persistence.lockWorkspace(tx, slug)) ?? fail(await missingTeamWorkspace(tx));
   const member = (await persistence.readSubject(tx, organization.id, actor)) ?? fail("forbidden");
   return { organization, member };
 };
@@ -34,7 +37,7 @@ export const inviteMember = (
   actor: Actor,
   input: z.infer<typeof inviteMemberInput>,
 ) =>
-  db.transaction(async (tx) => {
+  writeWorkspace(db, actor.userId, input.workspaceSlug, async (tx) => {
     const { organization, member } = await workspace(tx, input.workspaceSlug, actor.userId);
     if (
       !permits(member, "manage_invitation", {
@@ -123,7 +126,7 @@ export const resendTeamInvitation = (
   actor: Actor,
   invitationId: string,
 ) =>
-  db.transaction(async (tx) => {
+  writeWorkspace(db, actor.userId, slug, async (tx) => {
     const { organization, invitation: previous } = await lockPendingInvitation(
       tx,
       slug,
@@ -163,7 +166,7 @@ export const revokeTeamInvitation = (
   actor: Actor,
   invitationId: string,
 ) =>
-  db.transaction(async (tx) => {
+  writeWorkspace(db, actor.userId, slug, async (tx) => {
     const { organization, invitation } = await lockPendingInvitation(tx, slug, actor, invitationId);
     await persistence.revokeInvitation(tx, invitation.id);
     await recordOrganizationEvent(tx, {
@@ -184,7 +187,7 @@ export const changeMember = (
   input: z.infer<typeof memberInput> | z.infer<typeof changeMemberInput>,
   revokeReviewAccess: Dependencies["revokeReviewAccess"],
 ) =>
-  db.transaction(async (tx) => {
+  writeWorkspace(db, actor.userId, input.workspaceSlug, async (tx) => {
     const { organization, member } = await workspace(tx, input.workspaceSlug, actor.userId);
     if (!permits(member, "manage_members", member)) {
       fail("forbidden");

@@ -2,7 +2,8 @@ import { z } from "zod";
 
 import { readAuditHistory } from "@merit/audit/server/read";
 import type { Actor } from "@merit/auth";
-import { readTransaction, type Database } from "@merit/db";
+import type { Database } from "@merit/db";
+import { readWorkspace } from "@merit/organizations/transactions";
 
 import { contactListInput, contactReadInput, contactHistoryInput } from "../../api/queries";
 import { contactDetailsSchema } from "../../domain/index";
@@ -13,7 +14,7 @@ export const listContactSummaries = async (
   actor: Actor,
   input: z.input<typeof contactListInput>,
 ) => {
-  return readTransaction(db, async (tx) => {
+  return readWorkspace(db, actor.userId, input?.workspaceSlug, async (tx) => {
     const request = contactListInput.parse(input);
     if (!(await reads.readContactWorkspace(tx, actor.userId, request.workspaceSlug))) {
       return { status: "not_found" } as const;
@@ -33,7 +34,7 @@ export const getContactDetails = async (
   actor: Actor,
   input: z.input<typeof contactReadInput>,
 ) => {
-  return readTransaction(db, async (tx) => {
+  return readWorkspace(db, actor.userId, input?.workspaceSlug, async (tx) => {
     const contact = await reads.readContactDetails(tx, actor.userId, contactReadInput.parse(input));
     return contact ? ({ status: "ok", contact } as const) : ({ status: "not_found" } as const);
   });
@@ -44,7 +45,7 @@ export const listContactChanges = async (
   actor: Actor,
   input: z.input<typeof contactHistoryInput>,
 ) => {
-  return readTransaction(db, async (tx) => {
+  return readWorkspace(db, actor.userId, input?.workspaceSlug, async (tx) => {
     const request = contactHistoryInput.parse(input);
     if (!(await reads.readContactDetails(tx, actor.userId, request))) {
       return { status: "not_found" } as const;

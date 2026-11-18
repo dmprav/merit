@@ -1,5 +1,6 @@
 import type { Actor } from "@merit/auth";
-import { readTransaction, type Database } from "@merit/db";
+import type { Database } from "@merit/db";
+import { readWorkspace } from "@merit/organizations/transactions";
 
 import { contactsRequestSchema, type ContactDirectory } from "../../api/queries";
 import type { ContactGrantWork } from "../grant-work";
@@ -11,7 +12,7 @@ export const listWorkspaceContacts = async (
   input: { workspaceSlug: string },
   grantWork: ContactGrantWork,
 ): Promise<ContactDirectory | { status: "not_found" }> => {
-  return readTransaction(db, async (tx) => {
+  return readWorkspace(db, actor.userId, input?.workspaceSlug, async (tx) => {
     const request = contactsRequestSchema.parse(input);
     const rows = await readContacts(tx, actor.userId, request.workspaceSlug);
     if (!rows[0]) {

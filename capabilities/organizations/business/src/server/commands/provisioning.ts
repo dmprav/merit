@@ -7,6 +7,7 @@ import { recordOrganizationEvent } from "../persistence/commands/events";
 import { lockOrganization } from "../persistence/commands/invitations";
 import * as persistence from "../persistence/commands/provisioning";
 import { findInvitation } from "../persistence/invitations";
+import { writeScoped } from "../persistence/tenant";
 import type { Transaction } from "../persistence/transaction";
 import { fail } from "../result";
 import { issueInvitation } from "./issue-invitation";
@@ -25,7 +26,7 @@ export const createOrganization = (
   input: { requestId: string; name: string; slug: string; email: string },
   actor: Actor,
 ) =>
-  db.transaction(async (tx) => {
+  writeScoped(db, { kind: "provision", organizationId: input.requestId }, async (tx) => {
     // Serialize an identical retried request without resending or rotating its invitation.
     const inserted = await persistence.insertOrganization(tx, input);
     if (!inserted) {
@@ -72,7 +73,7 @@ export const createOrganization = (
   });
 
 export const renameOrganization = (db: Database, id: string, name: string, actor: Actor) =>
-  db.transaction(async (tx) => {
+  writeScoped(db, { kind: "provision", organizationId: id }, async (tx) => {
     const before = (await lockOrganization(tx, id)) ?? fail("not_found");
     if (before.name === name) {
       return;
@@ -88,7 +89,7 @@ export const renameOrganization = (db: Database, id: string, name: string, actor
   });
 
 export const replaceInvitation = (db: Database, id: string, actor: Actor, email: string) =>
-  db.transaction(async (tx) => {
+  writeScoped(db, { kind: "provision", organizationId: id }, async (tx) => {
     const organization = (await lockOrganization(tx, id)) ?? fail("not_found");
     const previous = await notJoined(tx, id);
     await persistence.revokeProvisioningInvitations(tx, id);
@@ -115,7 +116,7 @@ export const replaceInvitation = (db: Database, id: string, actor: Actor, email:
   });
 
 export const revokeInvitation = (db: Database, id: string, actor: Actor) =>
-  db.transaction(async (tx) => {
+  writeScoped(db, { kind: "provision", organizationId: id }, async (tx) => {
     if (!(await lockOrganization(tx, id))) {
       fail("not_found");
     }
@@ -187,5 +188,5 @@ export const acceptInvitation = (
     return { ...organization, canWorkOnGrants, canViewTeam };
   };
 
-  return db.transaction(acceptInvitationTransaction);
+  return writeScoped(db, { kind: "invitation", tokenHash: hash }, acceptInvitationTransaction);
 };

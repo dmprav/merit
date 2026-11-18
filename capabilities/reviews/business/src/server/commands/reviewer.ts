@@ -3,6 +3,7 @@ import { recordAuditEvent } from "@merit/audit/server/record";
 import { actorProvenance, type Actor } from "@merit/auth";
 import { readContact } from "@merit/contacts/scope";
 import type { Database } from "@merit/db";
+import { assignmentScope, writeScoped, writeWorkspace } from "@merit/organizations/transactions";
 
 import {
   inviteReviewerSchema,
@@ -69,7 +70,7 @@ export const inviteReviewer = async (
     return { status: "invalid", error: "invalid_input" } as const;
   }
   const request = parsed.data;
-  return db.transaction(async (tx) => {
+  return writeWorkspace(db, actor.userId, request.workspaceSlug, async (tx) => {
     const access = await lockApplicationCase(tx, actor.userId, request, "share", "update");
     if (!access || access.organizationKind !== "standard") {
       return { status: "not_found" } as const;
@@ -139,7 +140,7 @@ export const manageReviewer = async (
     return { status: "invalid", error: "invalid_input" } as const;
   }
   const request = parsed.data;
-  return db.transaction(async (tx) => {
+  return writeWorkspace(db, actor.userId, request.workspaceSlug, async (tx) => {
     const locked = await lockManagedReviewerAssignment(
       tx,
       actor.userId,
@@ -191,7 +192,8 @@ export const respondToReview = async (
     return { status: "invalid", error: "invalid_input" } as const;
   }
   const request = parsed.data;
-  return db.transaction(async (tx) => {
+  const scope = assignmentScope(actor.userId, request.assignmentId, request.workspaceSlug);
+  return writeScoped(db, scope, async (tx) => {
     const record = await lockReviewerAssignment(tx, request.assignmentId);
     const user = await lockActiveReviewer(tx, actor.userId);
     if (
@@ -255,7 +257,8 @@ export const saveReviewerDraft = async (
     return { status: "invalid", error: "invalid_input" };
   }
   const request = parsed.data;
-  return db.transaction(async (tx) => {
+  const scope = assignmentScope(actor.userId, request.assignmentId, request.workspaceSlug);
+  return writeScoped(db, scope, async (tx) => {
     const record = await lockReviewerAssignment(tx, request.assignmentId);
     if (
       !record ||
@@ -298,7 +301,8 @@ export const submitReviewerAssessment = async (
     return { status: "invalid", error: "invalid_input" };
   }
   const request = parsed.data;
-  return db.transaction(async (tx) => {
+  const scope = assignmentScope(actor.userId, request.assignmentId, request.workspaceSlug);
+  return writeScoped(db, scope, async (tx) => {
     const record = await lockReviewerAssignment(tx, request.assignmentId);
     const user = await lockActiveReviewer(tx, actor.userId);
     if (

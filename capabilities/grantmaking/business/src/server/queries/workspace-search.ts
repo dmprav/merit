@@ -1,9 +1,10 @@
 import type { z } from "zod";
 
 import type { Actor } from "@merit/auth";
-import { readTransaction, type Database } from "@merit/db";
+import type { Database } from "@merit/db";
 import { parseSearchTerms } from "@merit/db/search";
 import { workspaceSlugSchema } from "@merit/organizations/api";
+import { readWorkspace } from "@merit/organizations/transactions";
 
 import {
   workspaceSearchInput,
@@ -23,7 +24,7 @@ export const searchWorkspace = (
   actor: Actor,
   input: z.input<typeof workspaceSearchInput>,
 ) =>
-  readTransaction(db, async (tx) => {
+  readWorkspace(db, actor.userId, input?.workspaceSlug, async (tx) => {
     const slug = workspaceSlugSchema.safeParse(input.workspaceSlug);
     if (!slug.success) {
       return { status: "not_found" } as const;

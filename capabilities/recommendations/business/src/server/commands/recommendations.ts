@@ -3,6 +3,7 @@ import { recordAuditEvent } from "@merit/audit/server/record";
 import { actorProvenance, type Actor } from "@merit/auth";
 import type { Database } from "@merit/db";
 import { compare } from "@merit/money";
+import { writeWorkspace } from "@merit/organizations/transactions";
 
 import {
   saveRecommendationRequestSchema,
@@ -35,7 +36,7 @@ export const saveFundingRecommendation = async (
 
   const request = parsed.data;
 
-  return db.transaction(async (tx) => {
+  return writeWorkspace(db, actor.userId, request.workspaceSlug, async (tx) => {
     const identity = await lockApplicationCase(tx, actor.userId, request, "update");
     if (!identity) {
       return { status: "not_found" } as const;

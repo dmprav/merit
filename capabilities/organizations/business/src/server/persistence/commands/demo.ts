@@ -18,11 +18,11 @@ export const expireDemo = (db: Transaction, id: string) =>
 
 export const insertDemo = async (
   db: Transaction,
+  id: string,
   userId: string,
   seedVersion: number,
   expiresAt: Date,
 ) => {
-  const id = crypto.randomUUID();
   const [workspace] = await db
     .insert(organizations)
     .values({

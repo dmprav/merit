@@ -1,7 +1,8 @@
 import type { z } from "zod";
 
 import type { Actor } from "@merit/auth";
-import { readTransaction, type Database } from "@merit/db";
+import type { Database } from "@merit/db";
+import { readWorkspace } from "@merit/organizations/transactions";
 
 import { applicationAuditInput, roundBudgetHistoryInput } from "../../api/queries/reading";
 import { readApplicationIdentity, readRoundIdentity } from "../persistence/queries/reading";
@@ -12,7 +13,7 @@ export const applicationAuditHistory = (
   actor: Actor,
   input: z.input<typeof applicationAuditInput>,
 ) =>
-  readTransaction(db, async (tx) => {
+  readWorkspace(db, actor.userId, input?.workspaceSlug, async (tx) => {
     const parsed = applicationAuditInput.safeParse(input);
     if (!parsed.success) {
       return { status: "not_found" } as const;
@@ -38,7 +39,7 @@ export const roundBudgetHistory = (
   actor: Actor,
   input: z.input<typeof roundBudgetHistoryInput>,
 ) =>
-  readTransaction(db, async (tx) => {
+  readWorkspace(db, actor.userId, input?.workspaceSlug, async (tx) => {
     const parsed = roundBudgetHistoryInput.safeParse(input);
     if (!parsed.success) {
       return { status: "not_found" } as const;

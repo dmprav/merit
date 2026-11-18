@@ -9,13 +9,14 @@ import { createOrganizationService } from "@merit/organizations/server";
 import { createTestDatabase } from "@merit/test-support/test-database";
 
 let database: Awaited<ReturnType<typeof createTestDatabase>>;
+let runtimeUrl: string;
 let messages: InvitationMessage[];
 let sendingFails: boolean;
 
 const service = (emails?: string[]) =>
   createOrganizationService({
     revokeReviewAccess: async () => {},
-    database: (operation) => withDatabase(database.connectionString, operation),
+    database: (operation) => withDatabase(runtimeUrl, operation),
     isOperator: (actor) => actor.userId === "operator",
     verifiedEmails: async (actor) => emails ?? [`${actor.userId}@example.test`],
     displayName: async (actor) => actor.userId,
@@ -102,6 +103,7 @@ const join = async (
 beforeAll(async () => {
   database = await createTestDatabase();
   await migrate(database.client);
+  runtimeUrl = await database.createRuntimeConnection();
 });
 afterAll(async () => database.dispose());
 beforeEach(async () => {
@@ -146,6 +148,30 @@ beforeEach(async () => {
 });
 
 describe("organization team", () => {
+  it("rejects an invitation request ID used in another workspace", async () => {
+    await service().create(
+      { userId: "operator" },
+      { requestId: randomUUID(), name: "Other", slug: "other", email: "other@example.test" },
+    );
+    expect((await service().accept({ userId: "other" }, { token: token() })).status).toBe("ok");
+    const request = {
+      requestId: randomUUID(),
+      email: "waiting@example.test",
+      role: "reviewer",
+      administration: "none",
+    } as const;
+    expect(
+      (await service().inviteMember({ userId: "other" }, { ...request, workspaceSlug: "other" }))
+        .status,
+    ).toBe("ok");
+    const sent = messages.length;
+    expect(await service().inviteMember({ userId: "owner" }, { ...input, ...request })).toEqual({
+      status: "invalid_input",
+    });
+    expect(messages).toHaveLength(sent);
+    expect((await team()).invitations).toEqual([]);
+  });
+
   it("keeps organization responsibility separate from grant access", async () => {
     await join("admin", "administrator", "member");
 
@@ -395,7 +421,7 @@ describe("organization team", () => {
     const delivered: InvitationMessage[] = [];
     const invitations = createOrganizationService({
       revokeReviewAccess: async () => {},
-      database: (operation) => withDatabase(database.connectionString, operation),
+      database: (operation) => withDatabase(runtimeUrl, operation),
       isOperator: () => false,
       verifiedEmails: async () => [],
       invitationUrl: (value) => `https://merit.example.test/invitations/${value}`,

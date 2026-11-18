@@ -114,8 +114,10 @@ Use only fictional local data; do not expose this server through a tunnel or pro
 Starting it does not reseed data or restore revoked permissions. To return to
 ordinary development, stop the server and run `vp run dev`.
 
-Use `DATABASE_URL` to select another local PostgreSQL database for migration,
-seeding, and development. The [reset command](#local-database-recovery) always uses
+The default Compose setup uses an owner connection for migration and seeding and
+a restricted login for the running server. For another local database, set
+`DATABASE_URL` separately for those commands using the corresponding credentials
+in the [deployment guide](deployment.md#check-runtime-privileges). The [reset command](#local-database-recovery) always uses
 the repository's Compose database.
 
 Clerk keys, if present, are ignored for web identity in this mode. Protected MCP

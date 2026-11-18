@@ -2,6 +2,7 @@ import { type Actor } from "@merit/auth";
 import { readContact } from "@merit/contacts/scope";
 import type { Database } from "@merit/db";
 import { lockGrantWorkspace } from "@merit/organizations/locks";
+import { writeWorkspace } from "@merit/organizations/transactions";
 import { lockPreparationRound } from "@merit/rounds/locks";
 
 import {
@@ -65,7 +66,7 @@ export const createFundingApplication = async (
   }
 
   const request = parsed.data;
-  return db.transaction(async (tx) => {
+  return writeWorkspace(db, actor.userId, request.workspaceSlug, async (tx) => {
     const access = await lockGrantWorkspace(tx, actor.userId, request.workspaceSlug, "update");
     if (!access) {
       return { status: "not_found" } as const;
@@ -188,7 +189,7 @@ export const editFundingApplication = async (
     return { status: "ok", revision } as const;
   };
 
-  return db.transaction(editIntakeTransaction);
+  return writeWorkspace(db, actor.userId, request.workspaceSlug, editIntakeTransaction);
 };
 
 const intakeAuthor = (person: { userId: string; name: string | null; email: string | null }) => ({

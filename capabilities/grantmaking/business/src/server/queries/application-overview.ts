@@ -1,5 +1,6 @@
 import type { Actor } from "@merit/auth";
-import { readTransaction, type Database } from "@merit/db";
+import type { Database } from "@merit/db";
+import { readWorkspace } from "@merit/organizations/transactions";
 
 import {
   workspaceApplicationsInput,
@@ -8,24 +9,16 @@ import {
   type WorkspaceApplicationsInput,
 } from "../../api/queries/application-overview";
 import { readApplicationOverviews } from "../persistence/queries/application-overview";
-import { readGrantWorkspaceAccess } from "../persistence/queries/reading";
 
 export const listWorkspaceApplications = (
   db: Database,
   actor: Actor,
   input: WorkspaceApplicationsInput,
 ) =>
-  readTransaction(db, async (tx) => {
+  readWorkspace(db, actor.userId, input?.workspaceSlug, async (tx) => {
     const parsed = workspaceApplicationsInput.safeParse(input);
     if (!parsed.success) {
       return { status: "not_found" } as const;
-    }
-    const access = await readGrantWorkspaceAccess(tx, actor.userId, parsed.data.workspaceSlug);
-    if (!access) {
-      return { status: "not_found" } as const;
-    }
-    if (!access.allowed) {
-      return { status: "forbidden" } as const;
     }
     const page = await readApplicationOverviews(
       tx,
@@ -33,9 +26,17 @@ export const listWorkspaceApplications = (
       parsed.data,
       workspaceApplicationsPageSize,
     );
+    if (!page) {
+      return { status: "not_found" } as const;
+    }
+    if (!page.allowed) {
+      return { status: "forbidden" } as const;
+    }
     return {
       status: "ok",
-      ...page,
+      total: page.total,
+      matching: page.matching,
+      offset: page.offset,
       applications: page.applications.map((row) =>
         applicationOverviewSchema.parse({ ...row, criteriaChanged: row.reviews.criteriaChanged }),
       ),

@@ -6,10 +6,8 @@ import {
   readWorkingRevisionsMap,
   roundWithdrawnCount,
 } from "@merit/applications/scope";
-import { appUsers } from "@merit/auth/schema";
 import type { Database } from "@merit/db";
-import { memberships, organizations } from "@merit/organizations/schema";
-import { organizationScope } from "@merit/organizations/scope";
+import { authorizedWorkspaces } from "@merit/organizations/scope";
 import { readCurrentRecommendationsMap, readRoundAllocations } from "@merit/recommendations/scope";
 import { readReviewsByCasesMap } from "@merit/reviews/scope";
 import { fundingRounds } from "@merit/rounds/schema";
@@ -28,26 +26,19 @@ export const readPublicRound = async (
   userId: string,
   input: { workspaceSlug: string; publicId: string },
 ) => {
+  const workspace = authorizedWorkspaces(db, userId, "work_on_grants", input.workspaceSlug);
   const [row] = await db
     .select({
       round: fundingRounds,
-      foundation: organizations.name,
+      foundation: workspace.name,
       organizationId: fundingRounds.organizationId,
       revision: fundingRounds.revision,
       managerNeedsReassignment,
-      workspaceSlug: organizations.slug,
+      workspaceSlug: workspace.slug,
     })
     .from(fundingRounds)
-    .innerJoin(organizations, eq(organizations.id, fundingRounds.organizationId))
-    .innerJoin(memberships, eq(memberships.organizationId, fundingRounds.organizationId))
-    .innerJoin(appUsers, eq(appUsers.id, memberships.userId))
-    .where(
-      and(
-        eq(organizations.slug, input.workspaceSlug),
-        eq(fundingRounds.id, input.publicId),
-        organizationScope(userId, "work_on_grants", organizations.id),
-      ),
-    );
+    .innerJoin(workspace, eq(workspace.id, fundingRounds.organizationId))
+    .where(eq(fundingRounds.id, input.publicId));
   if (!row) {
     return null;
   }
@@ -72,13 +63,14 @@ export const readApplicationDetail = async (
   userId: string,
   input: { workspaceSlug: string; publicId: string },
 ) => {
+  const workspace = authorizedWorkspaces(db, userId, "work_on_grants", input.workspaceSlug);
   const [row] = await db
     .select({
       caseRow: applicationCases,
       roundRow: fundingRounds,
-      foundation: organizations.name,
+      foundation: workspace.name,
       withdrawnApplications: roundWithdrawnCount(fundingRounds),
-      workspaceSlug: organizations.slug,
+      workspaceSlug: workspace.slug,
     })
     .from(applicationCases)
     .innerJoin(
@@ -88,16 +80,8 @@ export const readApplicationDetail = async (
         eq(fundingRounds.id, applicationCases.roundId),
       ),
     )
-    .innerJoin(organizations, eq(organizations.id, applicationCases.organizationId))
-    .innerJoin(memberships, eq(memberships.organizationId, organizations.id))
-    .innerJoin(appUsers, eq(appUsers.id, memberships.userId))
-    .where(
-      and(
-        eq(organizations.slug, input.workspaceSlug),
-        eq(applicationCases.id, input.publicId),
-        organizationScope(userId, "work_on_grants", organizations.id),
-      ),
-    );
+    .innerJoin(workspace, eq(workspace.id, applicationCases.organizationId))
+    .where(eq(applicationCases.id, input.publicId));
   if (!row) {
     return null;
   }
@@ -146,14 +130,14 @@ export const readApplicationDetail = async (
 };
 
 export const listRoundSummaries = async (db: Database, userId: string, workspaceSlug: string) => {
-  const grantAccess = organizationScope(userId, "work_on_grants", organizations.id);
+  const workspace = authorizedWorkspaces(db, userId, "read_workspace", workspaceSlug);
 
   const rows = await db
     .select({
-      canWorkOnGrants: sql<boolean>`${grantAccess}`,
-      organizationId: organizations.id,
-      organizationName: organizations.name,
-      workspaceSlug: organizations.slug,
+      canWorkOnGrants: workspace.canWorkOnGrants,
+      organizationId: workspace.id,
+      organizationName: workspace.name,
+      workspaceSlug: workspace.slug,
       publicId: fundingRounds.id,
       title: fundingRounds.title,
       decisionStatus: fundingRounds.decisionStatus,
@@ -164,17 +148,12 @@ export const listRoundSummaries = async (db: Database, userId: string, workspace
       currency: fundingRounds.currency,
       applicationCount: sql<number>`(select count(*)::integer from ${applicationCases} where ${applicationCases.organizationId} = ${fundingRounds.organizationId} and ${applicationCases.roundId} = ${fundingRounds.id})`,
     })
-    .from(organizations)
-    .innerJoin(memberships, eq(memberships.organizationId, organizations.id))
-    .innerJoin(appUsers, eq(appUsers.id, memberships.userId))
-    .leftJoin(fundingRounds, and(eq(fundingRounds.organizationId, organizations.id), grantAccess))
-    .where(
-      and(
-        eq(organizations.slug, workspaceSlug),
-        organizationScope(userId, "read_workspace", organizations.id),
-      ),
+    .from(workspace)
+    .leftJoin(
+      fundingRounds,
+      and(eq(fundingRounds.organizationId, workspace.id), workspace.canWorkOnGrants),
     )
-    .orderBy(organizations.name, fundingRounds.title, fundingRounds.id);
+    .orderBy(workspace.name, fundingRounds.title, fundingRounds.id);
 
   return rows.map(({ budgetMinorUnits, currency, ...rest }) => ({
     ...rest,

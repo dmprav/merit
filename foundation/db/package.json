@@ -7,6 +7,7 @@
   "exports": {
     ".": "./src/connection.ts",
     "./search": "./src/search.ts",
+    "./runtime-grants": "./database/runtime-grants.ts",
     "./migrate": "./database/migrate.ts",
     "./identifiers": "./src/identifiers.ts"
   },

@@ -1,6 +1,7 @@
 import { type Actor } from "@merit/auth";
 import type { Database } from "@merit/db";
 import { lockGrantWorkspace } from "@merit/organizations/locks";
+import { writeWorkspace } from "@merit/organizations/transactions";
 
 import {
   createRoundRequestSchema,
@@ -30,7 +31,7 @@ export const createFundingRound = async (db: Database, actor: Actor, input: Crea
   }
 
   const request = parsed.data;
-  return db.transaction(async (tx) => {
+  return writeWorkspace(db, actor.userId, request.workspaceSlug, async (tx) => {
     const access = await lockGrantWorkspace(tx, actor.userId, request.workspaceSlug, "update");
     if (!access) {
       return { status: "not_found" } as const;
@@ -68,7 +69,7 @@ export const editFundingRound = async (db: Database, actor: Actor, input: EditRo
   }
 
   const request = parsed.data;
-  return db.transaction(async (tx) => {
+  return writeWorkspace(db, actor.userId, request.workspaceSlug, async (tx) => {
     const row = await lockPreparationRoundAccess(tx, actor.userId, request);
     if (!row) {
       return { status: "not_found" } as const;
@@ -110,7 +111,7 @@ export const deleteFundingRound = async (
   }
 
   const request = parsed.data;
-  return db.transaction(async (tx) => {
+  return writeWorkspace(db, actor.userId, request.workspaceSlug, async (tx) => {
     const row = await lockPreparationRoundAccess(tx, actor.userId, request);
     if (!row) {
       return { status: "not_found" } as const;

@@ -29,17 +29,23 @@ export const lockGrantWorkspace = async (
     return null;
   }
 
+  const actor = await lockGrantActor(tx, userId, organization.id);
+
+  return actor ? { organization, actor } : null;
+};
+
+/** Acquired after resource locks, holding the actor's authority through commit. */
+export const lockGrantActor = async (tx: Transaction, userId: string, organizationId: string) => {
   const [actor] = await tx
     .select({ userId: appUsers.id, name: appUsers.name, email: memberships.email })
     .from(memberships)
     .innerJoin(appUsers, eq(appUsers.id, memberships.userId))
     .where(
       and(
-        eq(memberships.organizationId, organization.id),
-        organizationScope(userId, "work_on_grants", organization.id),
+        eq(memberships.organizationId, organizationId),
+        organizationScope(userId, "work_on_grants", organizationId),
       ),
     )
     .for("share", { of: [memberships, appUsers] });
-
-  return actor ? { organization, actor } : null;
+  return actor;
 };

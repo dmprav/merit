@@ -1,12 +1,10 @@
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql, type SQLWrapper } from "drizzle-orm";
 
 import { applicationCases, materialVersions } from "@merit/applications/schema";
 import { caseWithdrawn } from "@merit/applications/scope";
-import { appUsers } from "@merit/auth/schema";
 import type { Database } from "@merit/db";
 import { titleOrder } from "@merit/db/search";
-import { memberships, organizations } from "@merit/organizations/schema";
-import { organizationScope } from "@merit/organizations/scope";
+import { authorizedWorkspaces } from "@merit/organizations/scope";
 import { recommendationVersions } from "@merit/recommendations/schema";
 import { reviewOverview } from "@merit/reviews/scope";
 import { fundingRounds } from "@merit/rounds/schema";
@@ -14,7 +12,7 @@ import { fundingRounds } from "@merit/rounds/schema";
 import type { ApplicationFilter } from "../../../domain/application-filter";
 import type { WorkspaceApplicationsQuery } from "../../../domain/application-list";
 
-const overviewRows = (db: Database, userId: string, workspaceSlug: string) =>
+const overviewRows = (db: Database, workspaceIds: SQLWrapper) =>
   db
     .select({
       id: applicationCases.id,
@@ -49,15 +47,7 @@ const overviewRows = (db: Database, userId: string, workspaceSlug: string) =>
         eq(fundingRounds.id, applicationCases.roundId),
       ),
     )
-    .innerJoin(organizations, eq(organizations.id, applicationCases.organizationId))
-    .innerJoin(memberships, eq(memberships.organizationId, organizations.id))
-    .innerJoin(appUsers, eq(appUsers.id, memberships.userId))
-    .where(
-      and(
-        eq(organizations.slug, workspaceSlug),
-        organizationScope(userId, "work_on_grants", organizations.id),
-      ),
-    );
+    .where(inArray(applicationCases.organizationId, workspaceIds));
 
 const reviewsFor = (alias: "b" | "p") => {
   const row = sql.identifier(alias);
@@ -115,6 +105,8 @@ export const readApplicationOverviews = async (
   input: WorkspaceApplicationsQuery,
   pageSize: number,
 ) => {
+  const access = authorizedWorkspaces(db, userId, "read_workspace", input.workspaceSlug);
+  const visible = db.select({ id: access.id, allowed: access.canWorkOnGrants }).from(access);
   const needsReviews = Boolean(input.filter.reviews || input.filter.evidence);
   const needsRecommendation = Boolean(
     input.filter.recommendation || input.filter.evidence === "changed" || input.sort === "proposed",
@@ -129,12 +121,14 @@ export const readApplicationOverviews = async (
   const offset = sql`least(${input.offset}, greatest(0, (matching - 1) / ${pageSize}) * ${pageSize})`;
   // Materialized facts are shared by count and page; page selection precedes display projections.
   const result = await db.execute<{
+    allowed: boolean;
     applications: (Record<string, unknown> & { reviews: { criteriaChanged: boolean } })[];
     total: number;
     matching: number;
     offset: number;
   }>(sql`
-    with workspace as materialized (${overviewRows(db, userId, input.workspaceSlug)}),
+    with workspace_access(id, allowed) as materialized (${visible}),
+    workspace as materialized (${overviewRows(db, sql`(select id from workspace_access where allowed)`)}),
     facts as materialized (
       select b.*, ${needsReviews ? reviewsFor("b") : sql`null::jsonb`} as review_summary,
         ${needsRecommendation ? recommendationFor("b") : sql`null::jsonb`} as recommendation
@@ -152,11 +146,11 @@ export const readApplicationOverviews = async (
         ${needsReviews ? sql`p.review_summary` : reviewsFor("p")} as reviews
       from page p
     )
-    select total, matching, ${offset} as offset,
+    select allowed, total, matching, ${offset} as offset,
       (select coalesce(jsonb_agg(to_jsonb(d) order by ${order(input)}), '[]'::jsonb) from display d) as applications
-    from counts
+    from counts cross join workspace_access
   `);
-  return result.rows[0]!;
+  return result.rows[0];
 };
 
 /** Whole-round aggregates use the same authorized summary facts, independent of list filters. */
@@ -166,6 +160,7 @@ export const readRoundTotals = async (
   workspaceSlug: string,
   roundId: string,
 ) => {
+  const access = authorizedWorkspaces(db, userId, "work_on_grants", workspaceSlug);
   const result = await db.execute<{
     applicationCount: number;
     requested: string;
@@ -177,7 +172,7 @@ export const readRoundTotals = async (
   }>(sql`
     with applications as materialized (
       select b.*, ${reviewsFor("b")} as reviews, ${recommendationFor("b")} as recommendation
-      from (${overviewRows(db, userId, workspaceSlug)}) b where b."roundId" = ${roundId}
+      from (${overviewRows(db, db.select({ id: access.id }).from(access))}) b where b."roundId" = ${roundId}
     )
     select count(*)::integer as "applicationCount",
       coalesce(sum((requested->>'minorUnits')::numeric) filter (where not withdrawn), 0)::text as requested,

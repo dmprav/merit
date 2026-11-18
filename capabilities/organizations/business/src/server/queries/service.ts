@@ -20,6 +20,7 @@ import { findInvitation } from "../persistence/invitations";
 import { listAccessRequests } from "../persistence/queries/access-requests";
 import * as persistence from "../persistence/queries/provisioning";
 import { listWorkspaces } from "../persistence/queries/workspaces";
+import { readScoped } from "../persistence/tenant";
 import { fail } from "../result";
 import * as team from "./team";
 
@@ -41,7 +42,9 @@ export const createQueries = (
       return {
         status: "ok",
         value: await dependencies.database((db) =>
-          readTransaction(db, (tx) => persistence.listOrganizations(tx)),
+          readScoped(db, { kind: "organization_directory" }, (tx) =>
+            persistence.listOrganizations(tx),
+          ),
         ),
       } as const;
     },
@@ -54,8 +57,9 @@ export const createQueries = (
         }
 
         return dependencies.database((db) =>
-          readTransaction(
+          readScoped(
             db,
+            { kind: "provision", organizationId: parsed.data.organizationId },
             async (tx) =>
               (await persistence.readOrganization(tx, parsed.data.organizationId)) ??
               fail("not_found"),
@@ -71,7 +75,9 @@ export const createQueries = (
     workspacesPage: async (actor: Actor, input: z.input<typeof workspacePageInput>) => {
       const page = workspacePageInput.parse(input);
       const rows = await dependencies.database((db) =>
-        readTransaction(db, (tx) => listWorkspaces(tx, actor.userId, undefined, page)),
+        readScoped(db, { kind: "discovery", userId: actor.userId }, (tx) =>
+          listWorkspaces(tx, actor.userId, undefined, page),
+        ),
       );
       const workspaces = rows.slice(0, page.limit);
       return {
@@ -86,7 +92,9 @@ export const createQueries = (
     workspaces: async (actor: Actor) => ({
       status: "ok" as const,
       value: await dependencies.database((db) =>
-        readTransaction(db, (tx) => listWorkspaces(tx, actor.userId)),
+        readScoped(db, { kind: "discovery", userId: actor.userId }, (tx) =>
+          listWorkspaces(tx, actor.userId),
+        ),
       ),
     }),
   };
@@ -97,7 +105,13 @@ export const getWorkspace = (
   actor: Actor,
   slug?: string,
 ): Promise<Workspace | null> =>
-  readTransaction(db, async (tx) => (await listWorkspaces(tx, actor.userId, slug))[0] ?? null);
+  readScoped(
+    db,
+    slug === undefined
+      ? { kind: "discovery", userId: actor.userId }
+      : { kind: "workspace", userId: actor.userId, slug },
+    async (tx) => (await listWorkspaces(tx, actor.userId, slug))[0] ?? null,
+  );
 
 const readInvitation = async (
   dependencies: Pick<Dependencies, "database" | "verifiedEmails">,
@@ -112,7 +126,11 @@ const readInvitation = async (
   const hash = await hashToken(parsed.data.token);
   const [record, emails] = await Promise.all([
     dependencies.database((db) =>
-      readTransaction(db, async (tx) => (await findInvitation(tx, hash)) ?? fail("not_found")),
+      readScoped(
+        db,
+        { kind: "invitation", tokenHash: hash },
+        async (tx) => (await findInvitation(tx, hash)) ?? fail("not_found"),
+      ),
     ),
     dependencies.verifiedEmails(actor),
   ]);

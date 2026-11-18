@@ -48,7 +48,10 @@ export const issueInvitation = async (
   }
 
   const invitation = await prepareInvitation(request, actor);
-  await insertInvitation(tx, invitation.record);
+  const inserted = await insertInvitation(tx, invitation.record);
+  if (inserted.rowCount !== 1) {
+    fail("invalid_input");
+  }
   return invitation;
 };
 

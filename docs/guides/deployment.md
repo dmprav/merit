@@ -64,28 +64,21 @@ every role.
 
 ### Check runtime privileges
 
-After applying migrations, check the runtime role's grants on both new and
-existing deployments. With an administrative credential, grant database `CONNECT`,
-schema `public` `USAGE`, and any missing table privileges:
+Use a dedicated login with `NOSUPERUSER` and `NOBYPASSRLS`. The migration
+credential owns the tables and policy functions. Keep the runtime outside the
+owner role and grant it database `CONNECT`. Apply the
+[runtime grants](../../foundation/db/database/runtime-grants.sql) after migration
+using the actual runtime role name, for example:
 
-| Tables                                                                                                    | Privileges                                                          |
-| --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| `app_users`, `memberships`, `organizations`                                                               | `SELECT`                                                            |
-| `funding_rounds`, `application_cases`, `material_drafts`                                                  | `SELECT`, `INSERT`, `UPDATE`, `DELETE`                              |
-| `material_versions`, `criteria_versions`, `assessment_versions`, `recommendation_versions`, `assessments` | `INSERT`                                                            |
-| `review_assignments`, `reviewer_drafts`, `reviewer_messages`                                              | `SELECT`, `INSERT`, `UPDATE`                                        |
-| `grant_navigation_pins`                                                                                   | `SELECT`, `INSERT`, `UPDATE`, `DELETE`                              |
-| `review_states`, `review_requests`                                                                        | `SELECT`, `INSERT`, `UPDATE`                                        |
-| `memberships`                                                                                             | `UPDATE (user_id, role, administration, version)`, `DELETE`         |
-| `app_users`                                                                                               | `UPDATE (id, name)`                                                 |
-| `organizations`, `app_users`, `memberships`, `organization_invitations`                                   | `INSERT`                                                            |
-| `organization_invitations`                                                                                | `SELECT`, `UPDATE (revoked_at, accepted_at, accepted_by, delivery)` |
-| `organizations`                                                                                           | `UPDATE (name)`                                                     |
-| `contacts`                                                                                                | `SELECT`, `INSERT`, `UPDATE`                                        |
-| `application_creation_receipts`, `round_creation_receipts`, `reviewer_command_receipts`                   | `SELECT`, `INSERT`                                                  |
-| `audit_events`                                                                                            | `SELECT`, `INSERT`                                                  |
-| `access_requests`                                                                                         | `SELECT`, `INSERT`, `UPDATE (reviewed_at, reviewed_by)`             |
-| `access_request_limits`                                                                                   | `SELECT`, `INSERT`, `UPDATE`, `DELETE`                              |
+```sh
+psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -v runtime_role=merit_runtime -f foundation/db/database/runtime-grants.sql
+```
+
+New application pool connections verify that row security applies to every public
+table except the global identity, access-request and rate-limit tables. The local
+Compose migration provisions the separate `merit_runtime` login automatically.
+The [access contract](../../capabilities/access/README.md#isolate-a-workspace-operation)
+explains transaction scope, action checks and the isolation tests.
 
 Personal navigation pins require reads, insertion, reordering, and removal. The
 [navigation integration tests](../../capabilities/grantmaking/business/tests/navigation.integration.ts)
@@ -166,8 +159,8 @@ continue to protect every operation.
 
 Run `vp run @merit/app#demo:cleanup` regularly with an operator `DATABASE_URL`.
 It removes expired demo content in bounded transactions and then expired guest
-identities with no remaining membership. Give that operator the required deletes on
-demo content and history; do not grant blanket audit deletion to the web runtime.
+identities with no remaining membership. Use a dedicated maintenance credential with row-security bypass and the required
+table privileges for cleanup of expired workspaces and guest identities; do not grant blanket audit deletion to the web runtime.
 Expiry denies access independently of cleanup. Standard workspaces and account
 users are never removed by this command.
 

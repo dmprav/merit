@@ -1,5 +1,6 @@
 import type { Actor } from "@merit/auth";
 import type { Database } from "@merit/db";
+import { writeScoped } from "@merit/organizations/transactions";
 
 import {
   changeNavigationPinSchema,
@@ -25,7 +26,7 @@ export const changeNavigationPin = (
   actor: Actor,
   input: NavigationPinChange,
 ): Promise<NavigationPinsResult> =>
-  db.transaction(async (tx) => {
+  writeScoped(db, { kind: "discovery", userId: actor.userId }, async (tx) => {
     const change = changeNavigationPinSchema.parse(input);
     // Serialize personal ordering without taking an exclusive account lock ahead of grant work.
     await lockNavigationPins(tx, actor.userId);

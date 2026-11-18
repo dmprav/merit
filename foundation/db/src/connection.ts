@@ -79,6 +79,25 @@ export const createDatabasePool = (connectionString: string): DatabaseRunner => 
     connectionTimeoutMillis: 5000,
     statement_timeout: 10000,
     allowExitOnIdle: true,
+    verify(client, done) {
+      client.query<{ active: boolean }>(
+        `select row_security_active('public.application_cases')
+           and bool_and(row_security_active(oid)) as active
+         from pg_class
+         where relnamespace = 'public'::regnamespace and relkind in ('r', 'p')
+           and relname not in ('app_users', 'guest_sessions', 'access_requests',
+                               'access_request_limits', 'demo_entry_limits')`,
+        (error, result) => {
+          if (error) {
+            done(error);
+          } else if (result.rows[0]?.active) {
+            done();
+          } else {
+            done(new Error("The application database role must enforce workspace row security."));
+          }
+        },
+      );
+    },
   });
 
   const onError = (error: Error) => reportError(error, { surface: "server", operation: "db.pool" });

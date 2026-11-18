@@ -1,5 +1,6 @@
 import type { Dependencies } from "../dependencies";
 import { recordDelivery } from "../persistence/commands/provisioning";
+import { writeScoped } from "../persistence/tenant";
 import type { IssuedInvitation } from "./issue-invitation";
 
 export const createDelivery = (
@@ -24,7 +25,9 @@ export const createDelivery = (
 
     try {
       await dependencies.database((db) =>
-        db.transaction((tx) => recordDelivery(tx, invitation.record.id, delivery)),
+        writeScoped(db, { kind: "invitation", tokenHash: invitation.record.tokenHash }, (tx) =>
+          recordDelivery(tx, invitation.record.id, delivery),
+        ),
       );
     } catch {
       console.error("Invitation delivery outcome could not be recorded.");

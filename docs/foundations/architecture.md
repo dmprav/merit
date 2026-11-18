@@ -399,8 +399,9 @@ while retaining ownership of transactions and validation. The access package
 imports no capability schemas; its SQL evaluator stays server-only.
 
 `foundation/auth` owns users and verified identity. Organizations owns tenants,
-memberships, invitations, and their writes. Its narrow server-only schema and
-scope exports let other capabilities check membership and coordinate grant work.
+memberships, invitations, and their writes. Its server-only workspace transactions bind the verified actor and selected
+workspace for PostgreSQL row security. Its authorized workspace relation applies
+the shared action policy before other capabilities read or count grant records.
 Contacts similarly exposes scoped profiles while retaining private history and
 writes. The [grantmaking model](../../capabilities/grantmaking/business/README.md)
 explains application records and coordination with contacts and organizations.
