@@ -56,13 +56,13 @@ export const Route = createFileRoute("/_product/app/$workspaceSlug/rounds/$round
   validateSearch: (search: Record<string, unknown>): { section?: "applications" } => ({
     section: search.section === "applications" ? "applications" : undefined,
   }),
-  loaderDeps: ({ search }) => search,
-  loader: async ({ params, deps, context }) => {
+  beforeLoad: ({ search }) => ({ canonicalSearch: search }),
+  loader: async ({ params, context }) => {
     const page = await loadPublicPage(
       context.queryClient,
       params.workspaceSlug,
       params.roundRef,
-      deps,
+      context.canonicalSearch,
     );
 
     return { title: page.status === "ok" ? page.round.title : undefined };
