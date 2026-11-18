@@ -6,7 +6,7 @@ import type { DatabaseRunner } from "@merit/db";
 import { setSpanAttributes, withSpan, type Span } from "@merit/telemetry";
 
 export type OrganizationIdentity = {
-  isOperator: (actor: Actor) => boolean;
+  isOperator: (actor: Actor) => Promise<boolean>;
   verifiedEmails: (actor: Actor) => Promise<string[]>;
   displayName: (actor: Actor) => Promise<string | null>;
 };
@@ -176,7 +176,6 @@ export const createWebIdentity = ({
     clerk.secretKey,
     operatorUserIds,
   );
-  let resolvedSession: ResolvedWebSession | undefined;
   let sessionPromise: Promise<ResolvedWebSession> | undefined;
 
   const resolveSession = () =>
@@ -187,19 +186,21 @@ export const createWebIdentity = ({
       isOperatorAccount,
       localActor,
       localIdentity,
-    }).then((session) => {
-      resolvedSession = session;
-      return session;
     }));
 
   const currentIdentity = async () => (await resolveSession()).identity;
 
-  const profile = async (actor: Actor) => {
+  const sessionForActor = async (actor: Actor) => {
     const session = await resolveSession();
-    if (
-      session.identity.status !== "authenticated" ||
-      session.identity.actor.userId !== actor.userId
-    ) {
+    return session.identity.status === "authenticated" &&
+      session.identity.actor.userId === actor.userId
+      ? session
+      : undefined;
+  };
+
+  const profile = async (actor: Actor) => {
+    const session = await sessionForActor(actor);
+    if (!session) {
       return { verifiedEmails: [], displayName: null };
     }
     if (localProfile) {
@@ -212,10 +213,7 @@ export const createWebIdentity = ({
   };
 
   const organizationIdentity: OrganizationIdentity = {
-    isOperator: (actor) =>
-      resolvedSession?.identity.status === "authenticated" &&
-      resolvedSession.identity.actor.userId === actor.userId &&
-      resolvedSession.operator,
+    isOperator: async (actor) => (await sessionForActor(actor))?.operator ?? false,
     verifiedEmails: async (actor) => (await profile(actor)).verifiedEmails,
     displayName: async (actor) => (await profile(actor)).displayName,
   };

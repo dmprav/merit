@@ -220,6 +220,8 @@ afterEach(() => vi.restoreAllMocks());
 
 const applicationPath = "/app/alder/applications/workshop-saturdays-b8q3w5j7c2df";
 
+const roundPath = "/app/alder/rounds/neighbourhood-grants-k7m2p9x4n6rt";
+
 const renderApplication = async (search = "?tab=reviews", path = applicationPath) => {
   vi.spyOn(window, "scrollTo").mockImplementation(() => {});
   const root = createRootRoute({
@@ -341,6 +343,24 @@ it("replaces authorized content after an access denial even when discovery is un
   ).not.toBeInTheDocument();
 });
 
+it.each([
+  [applicationPath, readFundingApplicationPage, "Application not available"],
+  [roundPath, readFundingRoundPage, "Round not available"],
+] as const)("rechecks access when Back reopens %s", async (path, readDetail, denial) => {
+  const { router } = await renderApplication("", path);
+  expect(readDetail).toHaveBeenCalled();
+  await act(() =>
+    router.navigate({ to: "/app/$workspaceSlug/rounds", params: { workspaceSlug: "alder" } }),
+  );
+  expect(await screen.findByText("Rounds stub")).toBeVisible();
+
+  vi.mocked(readDetail).mockClear().mockResolvedValue({ status: "not_found" });
+  await act(async () => router.history.back());
+
+  expect(await screen.findByRole("heading", { name: denial })).toBeVisible();
+  expect(readDetail).toHaveBeenCalledTimes(1);
+});
+
 it("resets the editor when discovery confirms a different account scope", async () => {
   const { user, router } = await renderApplication();
   await user.click(
@@ -397,10 +417,7 @@ it("keeps usable application content quiet after a failed background refresh", a
 
 describe("workspace application sections", () => {
   it("preserves application sorting when returning through the round breadcrumb", async () => {
-    const { user } = await renderApplication(
-      "?section=applications",
-      "/app/alder/rounds/neighbourhood-grants-k7m2p9x4n6rt",
-    );
+    const { user } = await renderApplication("?section=applications", roundPath);
 
     const sortHeader = () => screen.getByRole("button", { name: "Application" }).closest("th");
 
@@ -453,16 +470,15 @@ describe("workspace application sections", () => {
   });
 
   it("opens the round on Overview and returns application breadcrumbs to Applications", async () => {
-    const { user, router } = await renderApplication(
-      "",
-      "/app/alder/rounds/neighbourhood-grants-k7m2p9x4n6rt",
-    );
+    const { user, router } = await renderApplication("", roundPath);
 
     expect(screen.getByRole("tab", { name: "Overview", selected: true })).toBeVisible();
+    vi.mocked(readFundingRoundPage).mockClear();
 
     await user.click(screen.getByRole("tab", { name: /Applications/ }));
 
     expect(router.state.location.search.section).toBe("applications");
+    expect(readFundingRoundPage).not.toHaveBeenCalled();
 
     await user.click(screen.getByRole("link", { name: "Workshop Saturdays" }));
     await user.click(
@@ -481,9 +497,7 @@ describe("workspace application sections", () => {
       "/app/alder/rounds/previous-title-k7m2p9x4n6rt",
     );
 
-    expect(router.state.location.pathname).toBe(
-      "/app/alder/rounds/neighbourhood-grants-k7m2p9x4n6rt",
-    );
+    expect(router.state.location.pathname).toBe(roundPath);
     expect(router.state.location.search.section).toBe("applications");
     expect(screen.getByRole("tab", { name: /Applications/, selected: true })).toBeVisible();
 
@@ -498,6 +512,7 @@ describe("workspace application sections", () => {
 
     expect(screen.getByRole("region", { name: "Reviewer assessments" })).toBeVisible();
 
+    vi.mocked(readFundingApplicationPage).mockClear();
     vi.mocked(window.scrollTo).mockClear();
     await user.click(screen.getByRole("button", { name: /^Reference material:/ }));
     await user.click(screen.getByRole("menuitem", { name: "Applicant submission" }));
@@ -510,6 +525,8 @@ describe("workspace application sections", () => {
     expect(router.state.location.search).toEqual({ tab: "reviews" });
     expect(router.history.length).toBe(2);
     expect(window.scrollTo).not.toHaveBeenCalled();
+
+    expect(readFundingApplicationPage).not.toHaveBeenCalled();
 
     const savedSearch = router.state.location.searchStr;
     await act(async () => router.history.back());

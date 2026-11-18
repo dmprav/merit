@@ -11,17 +11,17 @@ it("discovers operator navigation using the same current policy as administratio
   const service = createOrganizationService({
     revokeReviewAccess: async () => {},
     database,
-    isOperator: () => authorized,
+    isOperator: async () => authorized,
     verifiedEmails: async () => [],
     sendInvitation: async () => {},
     invitationUrl: (token) => new URL(`/invitations/${token}`, "https://merit.example").href,
   });
 
-  expect(service.canAdminister(actor)).toBe(true);
+  expect(await service.canAdminister(actor)).toBe(true);
 
   authorized = false;
 
-  expect(service.canAdminister(actor)).toBe(false);
+  expect(await service.canAdminister(actor)).toBe(false);
   expect(await service.list(actor)).toEqual({ status: "forbidden" });
   expect(database).not.toHaveBeenCalled();
 });

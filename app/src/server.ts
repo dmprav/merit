@@ -122,7 +122,7 @@ const handleWebRequest = async (
       identity.currentIdentity,
       guestToken,
       identity.isGuest,
-      import.meta.env.DEV ? undefined : (dependencies.networkAddress ?? null),
+      import.meta.env.DEV ? false : dependencies.networkAddress,
     ),
     organizations: services.organizations,
     workspace: {

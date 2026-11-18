@@ -20,7 +20,7 @@ export const endpoint = new URL("http://localhost:3000/mcp/workspace");
 export const createTransport = (
   db: Database,
   identity: Parameters<typeof createApplicationServices>[0]["identity"] = {
-    isOperator: () => false,
+    isOperator: async () => false,
     verifiedEmails: async () => [],
     displayName: async () => null,
   },
@@ -72,7 +72,7 @@ export const createTransport = (
     contacts,
     organizations: team,
     navigation,
-    demo: createAccountDemoServices(async (operation) => operation(db)),
+    demo: createAccountDemoServices(async (operation) => operation(db), "integration"),
   };
 
   const callMcp = async (

@@ -1,6 +1,6 @@
 import type { Actor } from "@merit/auth";
 import { ensureInactiveUser } from "@merit/auth/server";
-import type { Database } from "@merit/db";
+import type { Database, DatabaseRunner } from "@merit/db";
 import { getFundingRoundPage, getFundingApplicationContext } from "@merit/grantmaking/server";
 import {
   exampleSeedVersion,
@@ -14,7 +14,20 @@ import {
   allowDemoEntry,
 } from "@merit/organizations/server/demo";
 
-type DatabaseRunner = <T>(operation: (db: Database) => Promise<T>) => Promise<T>;
+// Only the local web demo explicitly disables the limit. A missing address denies entry.
+export const checkDemoEntry = async (
+  database: DatabaseRunner,
+  networkAddress: string | undefined | false,
+) => {
+  if (networkAddress === false) {
+    return null;
+  }
+  if (!networkAddress) {
+    return { status: "unavailable" } as const;
+  }
+  const allowed = await database((db) => allowDemoEntry(db, networkAddress));
+  return allowed ? null : ({ status: "limited" } as const);
+};
 
 export const demoDestination = async (
   database: DatabaseRunner,
@@ -59,14 +72,18 @@ export const seedDemoWorkspace = (
     ),
   );
 
-export const createAccountDemoServices = (database: DatabaseRunner, networkAddress?: string) => ({
+export const createAccountDemoServices = (
+  database: DatabaseRunner,
+  networkAddress: string | undefined,
+) => ({
   read: async (actor: Actor) => {
     const result = await database((db) => readDemoWorkspace(db, actor));
     return result.status === "ready" ? demoDestination(database, result.workspace, actor) : result;
   },
   start: async (actor: Actor, input: { fresh: boolean; resetWorkspaceId?: string }) => {
-    if (networkAddress && !(await database((db) => allowDemoEntry(db, networkAddress)))) {
-      return { status: "limited" } as const;
+    const problem = await checkDemoEntry(database, networkAddress);
+    if (problem) {
+      return problem;
     }
     const result = await database((db) => seedDemoWorkspace(db, actor, input));
     return result.status === "ready" ? demoDestination(database, result.workspace, actor) : result;

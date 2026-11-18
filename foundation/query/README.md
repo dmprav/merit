@@ -22,7 +22,10 @@ the application-owned account adapter cancels and clears it on identity changes,
 then reloads the document to discard route data and drafts too. Local fixture
 switching also reloads the document. Do not persist private caches in browser storage.
 
-Reads are stale immediately, so route loaders check current access on navigation.
+Reads are stale immediately, so entering or returning to a resource checks current
+access. Include search fields in loader dependencies when they change the required
+read. Switching views of an open record can reuse its data while keeping the
+selected view in the URL, including through a canonical redirect.
 Mounting their observers does not repeat the read, and focus alone does not refresh
 an editor. Reads attempt immediately even while offline, so a failed initial load
 reaches its recovery view instead of waiting for connectivity. Reconnection can

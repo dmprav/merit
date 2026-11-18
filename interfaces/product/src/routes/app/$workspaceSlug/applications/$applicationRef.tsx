@@ -64,13 +64,13 @@ export const Route = createFileRoute("/_product/app/$workspaceSlug/applications/
     tab: search.tab === "reviews" ? "reviews" : undefined,
     guide: search.guide === "workshop" ? "workshop" : undefined,
   }),
-  loaderDeps: ({ search }) => search,
-  loader: async ({ params, deps, context }) => {
+  beforeLoad: ({ search }) => ({ canonicalSearch: search }),
+  loader: async ({ params, context }) => {
     const page = await loadApplicationPage(
       context.queryClient,
       params.workspaceSlug,
       params.applicationRef,
-      deps,
+      context.canonicalSearch,
     );
 
     return { title: page.status === "ok" ? page.application.title : undefined };

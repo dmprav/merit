@@ -19,7 +19,7 @@ const context = () => ({
   currentIdentity: vi.fn(async (): Promise<Identity> => ({ status: "authenticated", actor })),
   organizations: {
     workspaces: vi.fn(),
-    canAdminister: vi.fn(() => false),
+    canAdminister: vi.fn(async () => false),
   },
 });
 
@@ -30,7 +30,7 @@ describe("administration context", () => {
     "discovers workspaces and operator navigation (%s) for the signed-in person",
     async (canAdminister) => {
       const services = context();
-      services.organizations.canAdminister.mockReturnValue(canAdminister);
+      services.organizations.canAdminister.mockResolvedValue(canAdminister);
       services.organizations.workspaces.mockResolvedValue({ status: "ok", value: [] });
 
       expect(await read({ context: services as unknown as AdminRequestContext })).toEqual({
@@ -55,7 +55,7 @@ describe("administration context", () => {
     "retains verified operator status when workspace discovery fails (%s)",
     async (canAdminister) => {
       const services = context();
-      services.organizations.canAdminister.mockReturnValue(canAdminister);
+      services.organizations.canAdminister.mockResolvedValue(canAdminister);
       services.organizations.workspaces.mockRejectedValue(
         new Error("private database information"),
       );

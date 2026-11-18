@@ -55,14 +55,14 @@ afterEach(() => {
   vi.resetAllMocks();
 });
 
-it("resolves web identity and operator state order-independently when profile methods run before currentIdentity", async () => {
+it("resolves operator authority on the first web check and shares the session with profile reads", async () => {
   const session = createWebIdentity(webOptions);
   const actor = { userId: "user-1" };
 
-  expect(session.organizationIdentity.isOperator(actor)).toBe(false);
+  expect(await session.organizationIdentity.isOperator(actor)).toBe(true);
 
   expect(await session.organizationIdentity.verifiedEmails(actor)).toEqual(["op-1@example.test"]);
-  expect(session.organizationIdentity.isOperator(actor)).toBe(true);
+  expect(await session.organizationIdentity.isOperator({ userId: "other" })).toBe(false);
   expect(await session.organizationIdentity.displayName(actor)).toBe("Name:op-1");
   expect(await session.currentIdentity()).toEqual({ status: "authenticated", actor });
   expect(resolveAccountUser).toHaveBeenCalledOnce();
@@ -82,7 +82,7 @@ it("returns null displayName instead of a hardcoded fallback for guest or profil
   expect(await guestSession.isGuest()).toBe(true);
   expect(await guestSession.organizationIdentity.verifiedEmails(guestActor)).toEqual([]);
   expect(await guestSession.organizationIdentity.displayName(guestActor)).toBeNull();
-  expect(guestSession.organizationIdentity.isOperator(guestActor)).toBe(false);
+  expect(await guestSession.organizationIdentity.isOperator(guestActor)).toBe(false);
 
   const localSession = createWebIdentity({
     ...webOptions,
@@ -90,20 +90,20 @@ it("returns null displayName instead of a hardcoded fallback for guest or profil
   });
   expect(await localSession.organizationIdentity.displayName({ userId: "local-1" })).toBeNull();
   expect(await localSession.organizationIdentity.verifiedEmails({ userId: "local-1" })).toEqual([]);
-  expect(localSession.organizationIdentity.isOperator({ userId: "local-1" })).toBe(false);
+  expect(await localSession.organizationIdentity.isOperator({ userId: "local-1" })).toBe(false);
 });
 
-it("resolves MCP profile and operator state order-independently and memoizes authentication", async () => {
+it("resolves operator authority on the first MCP check and memoizes authentication", async () => {
   const request = new Request(mcpConfig.resource, {
     headers: { Authorization: "Bearer token" },
   });
   const mcpIdentity = createMcpIdentity(request, mcpConfig, database);
   const actor = { userId: "user-1" };
 
-  expect(mcpIdentity.organizationIdentity.isOperator(actor)).toBe(false);
+  expect(await mcpIdentity.organizationIdentity.isOperator(actor)).toBe(true);
 
   expect(await mcpIdentity.organizationIdentity.displayName(actor)).toBe("Name:op-1");
-  expect(mcpIdentity.organizationIdentity.isOperator(actor)).toBe(true);
+  expect(await mcpIdentity.organizationIdentity.isOperator({ userId: "other" })).toBe(false);
   expect(await mcpIdentity.organizationIdentity.verifiedEmails(actor)).toEqual([
     "op-1@example.test",
   ]);
@@ -130,7 +130,7 @@ it("ignores blank operator entries so empty operatorUserIds never grants operato
     database,
   );
   const actor = await mcpIdentity.authenticate();
-  expect(mcpIdentity.organizationIdentity.isOperator(actor)).toBe(false);
+  expect(await mcpIdentity.organizationIdentity.isOperator(actor)).toBe(false);
 });
 
 it("falls back to unavailable without rejecting when account resolution throws", async () => {
@@ -139,5 +139,5 @@ it("falls back to unavailable without rejecting when account resolution throws",
 
   await expect(session.currentIdentity()).resolves.toEqual({ status: "unavailable" });
   expect(await session.isGuest()).toBe(false);
-  expect(session.organizationIdentity.isOperator({ userId: "user-1" })).toBe(false);
+  expect(await session.organizationIdentity.isOperator({ userId: "user-1" })).toBe(false);
 });

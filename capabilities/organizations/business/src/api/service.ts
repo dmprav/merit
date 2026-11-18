@@ -36,7 +36,7 @@ import type { Organization, AccessRequest } from "./records";
 import type { Result } from "./result";
 
 export interface OrganizationService {
-  canAdminister: (actor: Actor) => boolean;
+  canAdminister: (actor: Actor) => Promise<boolean>;
   requestAccess: (input: z.input<typeof accessRequestInput>) => Promise<RequestAccessResult>;
   accessRequests: (actor: Actor) => Promise<Result<AccessRequest[]>>;
   reviewAccessRequest: (
