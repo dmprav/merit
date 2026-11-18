@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { useLocaleSettings } from "@merit/i18n";
 import { useFormat } from "@merit/i18n/format";
-import { parseMoney } from "@merit/money";
+import { decodeMoney } from "@merit/money";
 import type { ReviewerPage } from "@merit/reviews/api";
 import type { ReviewerSubmissionProblem } from "@merit/reviews/domain";
 import shellStyles from "@merit/ui/application-shell.module.css";
@@ -286,10 +286,10 @@ const JudgmentSummary = ({
   note?: string;
 }) => {
   const { t } = useTranslation("reviewer");
-  const amount = content.amount === null ? null : parseMoney(content.amount);
+  const amount = content.amount === null ? null : decodeMoney(content.amount);
   return (
     <Stack gap={3}>
-      <AssessmentOutcome position={content.position} amount={amount?.ok ? amount.value : null} />
+      <AssessmentOutcome position={content.position} amount={amount} />
       <p className={styles.writing}>{content.reasoning}</p>
       {content.observations
         .filter((observation) => observation.text.trim())

@@ -66,7 +66,7 @@ it("submits the judgment against the assigned basis without a recorded date", ()
     ...basis,
     date: null,
     position: "Fund",
-    amount: "20",
+    amount: { minorUnits: "2000", currency: "EUR" },
     reasoning: funded.reasoning,
     observations: [],
   });

@@ -1,9 +1,10 @@
 import { expect, it } from "vite-plus/test";
 
 import { materialVersionSchema } from "@merit/applications/domain";
+import { encodeMoney, fromMinorUnits } from "@merit/money";
 import { reviewRevisionSchema } from "@merit/reviews/domain";
 import {
-  assessmentInputSchema,
+  assessmentEntrySchema,
   type AssessmentInput,
   type ReviewState,
 } from "@merit/reviews/domain";
@@ -30,7 +31,7 @@ const content: AssessmentInput = {
   criteriaVersion: criteriaVersionSchema.parse(1),
   date: "2026-11-10",
   position: "Fund",
-  amount: "100.00",
+  amount: encodeMoney(fromMinorUnits(10000n)),
   reasoning: values.reasoning,
   observations: values.observations,
 };
@@ -88,7 +89,12 @@ it("compares a correction with its own record and a new assessment with the late
       item.id === "latest-assessment"
         ? {
             ...item,
-            versions: [{ ...item.versions[0]!, content: { ...content, amount: "250.00" } }],
+            versions: [
+              {
+                ...item.versions[0]!,
+                content: { ...content, amount: encodeMoney(fromMinorUnits(25000n)) },
+              },
+            ],
           }
         : item,
     ),
@@ -200,7 +206,7 @@ it.each(["0", "", "invalid", "1.5"])(
       applicationVersion: version,
       criteriaVersion: version,
     });
-    const result = assessmentInputSchema.safeParse(input);
+    const result = assessmentEntrySchema.safeParse(input);
     expect(result.success).toBe(false);
     if (!result.success) {
       expect(result.error.issues.map((issue) => issue.path[0])).toEqual([

@@ -12,7 +12,7 @@ import {
   makeReviewedApplication,
   makeRound,
 } from "@merit/grantmaking/testing/fixtures";
-import { fromMinorUnits } from "@merit/money";
+import { fromMinorUnits, encodeMoney } from "@merit/money";
 import { createQueryClient } from "@merit/query";
 import { reviewRevisionSchema } from "@merit/reviews/domain";
 
@@ -68,7 +68,7 @@ const application = applicationView(
                 criteriaVersion: 1,
                 date: "2027-01-14",
                 position: "Fund",
-                amount: "18000",
+                amount: encodeMoney(fromMinorUnits(1800000n)),
                 reasoning: "Local benefit.",
                 observations: [],
               },
@@ -336,7 +336,7 @@ describe("application workspace", () => {
                     criteriaVersion: 1,
                     date: null,
                     position: "Fund with a condition",
-                    amount: "28000",
+                    amount: encodeMoney(fromMinorUnits(2800000n)),
                     reasoning: "Confirm delivery.",
                     observations: [],
                   },
@@ -357,7 +357,7 @@ describe("application workspace", () => {
                     criteriaVersion: 1,
                     date: null,
                     position: "Defer",
-                    amount: "0",
+                    amount: encodeMoney(fromMinorUnits(0n)),
                     reasoning: "Await confirmation.",
                     observations: [],
                   },

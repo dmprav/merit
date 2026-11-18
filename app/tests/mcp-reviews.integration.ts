@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { assert, expect } from "vite-plus/test";
 
 import { materialVersionSchema } from "@merit/applications/domain";
+import { encodeMoney, fromMinorUnits } from "@merit/money";
 import { actor } from "@merit/organizations/testing/workspace";
 import { saveApplicationReview } from "@merit/reviews/server";
 import { criteriaVersionSchema } from "@merit/rounds/domain";
@@ -59,7 +60,7 @@ const it = commandTest.extend(
         criteriaVersion: criteriaVersionSchema.parse(2),
         date: "2026-11-09",
         position: "Fund" as const,
-        amount: "200.50",
+        amount: encodeMoney(fromMinorUnits(20050n)),
         reasoning: "Clear local benefit",
         observations: [{ criterionId: null, criterion: "Local benefit", text: "Shared meals" }],
       };
@@ -194,7 +195,10 @@ it("corrects an assessment while retaining its previous content", async ({
     content: scenario.content,
   });
   const args = await scenario.args();
-  const content = { ...scenario.content, amount: "210.50" };
+  const content = {
+    ...scenario.content,
+    amount: encodeMoney(fromMinorUnits(21050n)),
+  };
 
   expect(
     await invoke("correct_assessment", {

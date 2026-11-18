@@ -68,6 +68,15 @@ it("accepts incomplete drafts but bounds content and never accepts authorship fr
     draft: { position: null, amount: null, reasoning: "", observations: [], note: "" },
   };
   expect(saveReviewerDraftSchema.safeParse(input).success).toBe(true);
+  for (const amount of ["", ".", "12.", ".5", "12.30"]) {
+    expect(
+      saveReviewerDraftSchema.parse({ ...input, draft: { ...input.draft, amount } }).draft.amount,
+    ).toBe(amount);
+  }
+  expect(
+    saveReviewerDraftSchema.safeParse({ ...input, draft: { ...input.draft, amount: "12.345" } })
+      .success,
+  ).toBe(false);
   expect(
     saveReviewerDraftSchema.safeParse({
       ...input,

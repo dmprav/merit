@@ -5,6 +5,7 @@ import { auditPageInput } from "@merit/audit/api";
 import type { Actor } from "@merit/auth";
 import { calendarDateSchema } from "@merit/dates";
 import { publicIdSchema } from "@merit/db/identifiers";
+import { moneyInputTextSchema } from "@merit/money/input";
 
 import type { ReviewBasisComparison } from "../domain/basis";
 import {
@@ -48,7 +49,7 @@ export const reviewerActionSchema = reviewerAddressSchema.extend({
 export const saveReviewerDraftSchema = reviewerAddressSchema.extend({
   commandId: z.uuid(),
   expectedDraftRevision: z.number().int().nonnegative(),
-  draft: reviewerDraftSchema,
+  draft: reviewerDraftSchema.extend({ amount: moneyInputTextSchema.nullable() }),
 });
 export const submitReviewerSchema = reviewerAddressSchema.extend({
   commandId: z.uuid(),

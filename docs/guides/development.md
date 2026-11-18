@@ -205,7 +205,7 @@ unchanged and add a new migration for subsequent changes.
 The current pre-deployment baseline is
 [`0000_initial.sql`](../../foundation/db/database/migrations/0000_initial.sql).
 It creates the complete current schema, including reviewer participation, navigation
-pins, capability-owned revisions and retry receipts, and one shared audit event store,
+pins, capability-owned revisions and retry receipts, one shared audit event store, and recorded assessment amounts in EUR minor units,
 in one migration.
 Recreate all databases initialized before this baseline, including those whose
 first migration was also named `0000_initial.sql`. The baseline has no upgrade

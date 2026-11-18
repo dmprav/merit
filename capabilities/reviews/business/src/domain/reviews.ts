@@ -13,57 +13,57 @@ export { reviewCriteriaSchema } from "@merit/rounds/domain";
 
 import { provenanceSchema } from "@merit/auth";
 import { calendarDateSchema } from "@merit/dates";
-import { isNegative, isZero, parseMoney } from "@merit/money";
+import { encodeMoney, moneyDataSchema, parseMoney } from "@merit/money";
 
-export const assessmentInputSchema = z
-  .strictObject({
-    applicationVersion: materialVersionSchema.nullable(),
-    criteriaVersion: criteriaVersionSchema.nullable(),
-    date: calendarDateSchema.nullable(),
-    position: z.enum(["Fund", "Fund with a condition", "Defer", "Decline"]).nullable(),
-    amount: z
-      .string()
-      .max(32)
-      .nullable()
-      .refine((value) => {
-        if (value === null) {
-          return true;
-        }
-        if (value.startsWith("-")) {
-          return false;
-        }
-        const parsed = parseMoney(value);
-        return parsed.ok && !isNegative(parsed.value);
-      }, "Enter a nonnegative amount with at most two decimal places."),
-    reasoning: z.string().trim().min(1).max(20000),
-    observations: z
-      .array(
-        z.object({
-          criterionId: z.uuid().nullable(),
-          criterion: z.string().max(200),
-          text: z.string().max(5000),
-        }),
-      )
-      .max(100),
+const assessmentFields = z.strictObject({
+  applicationVersion: materialVersionSchema.nullable(),
+  criteriaVersion: criteriaVersionSchema.nullable(),
+  date: calendarDateSchema.nullable(),
+  position: z.enum(["Fund", "Fund with a condition", "Defer", "Decline"]).nullable(),
+  amount: moneyDataSchema.refine((value) => !value.minorUnits.startsWith("-")).nullable(),
+  reasoning: z.string().trim().min(1).max(20000),
+  observations: z
+    .array(
+      z.object({
+        criterionId: z.uuid().nullable(),
+        criterion: z.string().max(200),
+        text: z.string().max(5000),
+      }),
+    )
+    .max(100),
+});
+
+const matchesFundingPosition = ({ position, amount }: z.infer<typeof assessmentFields>) =>
+  position === null ||
+  amount === null ||
+  (position === "Defer" || position === "Decline") === (amount.minorUnits === "0");
+
+const positionError = {
+  message: "Check the stated funding position and amount.",
+  path: ["amount"],
+};
+
+export const assessmentInputSchema = assessmentFields.refine(matchesFundingPosition, positionError);
+
+export const assessmentAmountEntrySchema = z
+  .string()
+  .transform((text, ctx) => {
+    const parsed = parseMoney(text);
+    if (!parsed.ok || text.startsWith("-")) {
+      ctx.addIssue({ code: "custom" });
+      return z.NEVER;
+    }
+    return encodeMoney(parsed.value);
   })
-  .refine(
-    (value) => {
-      if (value.position === null || value.amount === null) {
-        return true;
-      }
+  .nullable();
 
-      const parsed = parseMoney(value.amount);
-      return (
-        parsed.ok &&
-        (value.position === "Decline"
-          ? isZero(parsed.value)
-          : value.position === "Defer"
-            ? isZero(parsed.value)
-            : !isZero(parsed.value))
-      );
-    },
-    { message: "Check the stated funding position and amount.", path: ["amount"] },
-  );
+/** Convert editable decimal text when it becomes a recorded assessment. */
+export const assessmentEntrySchema = assessmentFields
+  .extend({
+    amount: assessmentAmountEntrySchema,
+  })
+  .refine(matchesFundingPosition, positionError);
+
 const recorderSchema = z.object({
   userId: z.string(),
   name: z.string(),

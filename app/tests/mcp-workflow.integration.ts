@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { assert, expect } from "vite-plus/test";
 
 import { getFundingApplicationPage, getFundingRoundPage } from "@merit/grantmaking/server";
-import { encodeMoney } from "@merit/money";
+import { encodeMoney, fromMinorUnits } from "@merit/money";
 import { actor } from "@merit/organizations/testing/workspace";
 
 import { transportTest as it } from "./fixtures/transport-test";
@@ -142,7 +142,7 @@ it("completes grant work through MCP with shared web state, safe retries, and ve
       criteriaVersion: page.round.criteriaVersion,
       date: "2026-11-09",
       position: "Fund",
-      amount: "400",
+      amount: encodeMoney(fromMinorUnits(40000n)),
       reasoning: "Clear local benefit",
       observations: [],
     },

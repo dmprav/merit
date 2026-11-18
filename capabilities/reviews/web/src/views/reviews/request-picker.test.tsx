@@ -248,8 +248,7 @@ it.each<{ name: string; rejection: Exclude<SaveResult, { status: "ok" }>; messag
   {
     name: "invalid_review",
     rejection: { status: "invalid", error: "invalid_review" },
-    message:
-      "Check the assessment text and amount. Amounts must be nonnegative and have at most two decimal places.",
+    message: "Check the assessment text and amount.",
   },
   {
     name: "reviewer_authored",

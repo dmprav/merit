@@ -2578,8 +2578,14 @@
           "primaryKey": false,
           "notNull": false
         },
-        "amount": {
-          "name": "amount",
+        "amount_minor_units": {
+          "name": "amount_minor_units",
+          "type": "numeric(30, 0)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "amount_currency": {
+          "name": "amount_currency",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -2705,11 +2711,11 @@
         },
         "assessment_versions_amount_check": {
           "name": "assessment_versions_amount_check",
-          "value": "\"assessment_versions\".\"amount\" is null or (length(\"assessment_versions\".\"amount\") <= 32 and \"assessment_versions\".\"amount\" ~ '^\\d+(?:\\.\\d{1,2})?$')"
+          "value": "(\"assessment_versions\".\"amount_minor_units\" is null) = (\"assessment_versions\".\"amount_currency\" is null) and (\"assessment_versions\".\"amount_minor_units\" is null or (\"assessment_versions\".\"amount_minor_units\" >= 0 and \"assessment_versions\".\"amount_minor_units\" <> 'NaN' and \"assessment_versions\".\"amount_currency\" = 'EUR'))"
         },
         "assessment_versions_position_amount_check": {
           "name": "assessment_versions_position_amount_check",
-          "value": "\"assessment_versions\".\"position\" is null or \"assessment_versions\".\"amount\" is null or (\"assessment_versions\".\"position\" in ('Decline', 'Defer') and \"assessment_versions\".\"amount\" ~ '^0+(?:\\.0{1,2})?$') or (\"assessment_versions\".\"position\" in ('Fund', 'Fund with a condition') and \"assessment_versions\".\"amount\" !~ '^0+(?:\\.0{1,2})?$')"
+          "value": "\"assessment_versions\".\"position\" is null or \"assessment_versions\".\"amount_minor_units\" is null or (\"assessment_versions\".\"position\" in ('Decline', 'Defer')) = (\"assessment_versions\".\"amount_minor_units\" = 0)"
         },
         "assessment_versions_reasoning_check": {
           "name": "assessment_versions_reasoning_check",

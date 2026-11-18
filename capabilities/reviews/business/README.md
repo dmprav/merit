@@ -25,6 +25,12 @@ participation transitions, and assessments are recorded atomically through
 [Audit](../../audit/business/README.md); private drafts and email delivery attempts
 are not audited, and delivery failures do not undo a committed submission.
 
+Recorded assessment commands and reads use the [money contract](../../../foundation/money/README.md).
+An unstated amount is `null`. An explicit zero is `{ "minorUnits": "0", "currency": "EUR" }`.
+Draft saves accept the editor's decimal text, including an unfinished entry such as
+`12.`. All clients use the same two-decimal limit when saving. Previously saved
+draft text remains available for correction.
+
 `review_states` owns the review concurrency revision. Requests, assessments and
 reviewer submission advance this revision under the case lock; assignment and
 private-draft revisions retain their independent meanings.

@@ -1,4 +1,4 @@
-import { parseMoney } from "@merit/money";
+import { decodeMoney } from "@merit/money";
 import { compareReviewBasis } from "@merit/reviews/domain";
 import type { FundingRound, CriteriaVersion } from "@merit/rounds/domain";
 
@@ -24,7 +24,7 @@ export const reviewAssessments = (
       .filter((value) => !superseded.has(value.id))
       .map((value) => {
         const version = value.versions.at(-1)!;
-        const amount = version.content.amount === null ? null : parseMoney(version.content.amount);
+        const amount = version.content.amount === null ? null : decodeMoney(version.content.amount);
 
         const basisComparison = compareReviewBasis(
           { ...version.content, criteria: version.criteria },
@@ -43,7 +43,7 @@ export const reviewAssessments = (
             reasoning: version.content.reasoning,
             recommendation: {
               position: version.content.position,
-              allocation: amount?.ok ? amount.value : null,
+              allocation: amount,
             },
           },
         };

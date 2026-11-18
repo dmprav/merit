@@ -5,8 +5,7 @@ import { materialVersionSchema } from "@merit/applications/domain";
 import { getExampleRound } from "@merit/grantmaking/examples";
 import { encodeMoney } from "@merit/money";
 import type { ReviewerPage } from "@merit/reviews/api";
-import { reviewRevisionSchema } from "@merit/reviews/domain";
-import { assessmentInputSchema, type ReviewState } from "@merit/reviews/domain";
+import { reviewerSubmission, reviewRevisionSchema, type ReviewState } from "@merit/reviews/domain";
 import { criteriaVersionSchema } from "@merit/rounds/domain";
 import { ApplicationPage } from "@merit/ui/application-shell";
 import shellStyles from "@merit/ui/application-shell.module.css";
@@ -85,12 +84,7 @@ export const submittedPage = (): ReviewerPage => {
     authorUserId: "sam",
     versions: [
       {
-        content: {
-          ...page.draft!.content,
-          date: "2027-01-16",
-          applicationVersion: materialVersionSchema.parse(1),
-          criteriaVersion: criteriaVersionSchema.parse(1),
-        },
+        content: reviewerSubmission(page.draft!.content, page.assignment, false)!,
         criteria: page.criteria,
         recorder,
         note: "",
@@ -161,17 +155,10 @@ export const reviewerTransport = (initial: ReviewerPage, scenario: SaveScenario 
       return { status: "ok", value: { revision: page.draft.revision } };
     }),
     submit: fn<ReviewerData["submit"]>(async () => {
-      const content = assessmentInputSchema.safeParse({
-        ...page.draft?.content,
-        date: "2027-01-16",
-        applicationVersion: 1,
-        criteriaVersion: 1,
-      });
-      if (
-        !content.success ||
-        !content.data.position ||
-        (page.assessment && !page.draft?.content.note.trim())
-      ) {
+      const content =
+        page.draft &&
+        reviewerSubmission(page.draft.content, page.assignment, Boolean(page.assessment));
+      if (!content) {
         return { status: "invalid", error: "submission_incomplete" };
       }
       const assessment = page.assessment ?? submittedPage().assessment!;
@@ -180,7 +167,7 @@ export const reviewerTransport = (initial: ReviewerPage, scenario: SaveScenario 
         versions: [
           ...(page.assessment?.versions ?? []),
           {
-            content: content.data,
+            content,
             criteria: page.criteria,
             recorder,
             note: page.draft?.content.note ?? "",

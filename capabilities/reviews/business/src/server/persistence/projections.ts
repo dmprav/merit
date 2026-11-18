@@ -122,7 +122,10 @@ const assembleAssessmentVersion = (
     criteriaVersion: row.criteriaVersion as AssessmentVersionItem["content"]["criteriaVersion"],
     date: row.assessedOn,
     position: row.position as AssessmentPosition | null,
-    amount: row.amount,
+    amount:
+      row.amountMinorUnits === null || row.amountCurrency === null
+        ? null
+        : { minorUnits: row.amountMinorUnits, currency: row.amountCurrency },
     reasoning: row.reasoning,
     observations,
   },

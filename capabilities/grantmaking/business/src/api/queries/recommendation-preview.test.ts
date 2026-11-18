@@ -42,7 +42,7 @@ const recommendationRound = () => {
           criteriaVersion: criteriaVersionSchema.parse(1),
           date: null,
           position: "Fund",
-          amount: "20.00",
+          amount: encodeMoney(fromMinorUnits(2000n)),
           reasoning: "Original assessment.",
           observations: [],
         },

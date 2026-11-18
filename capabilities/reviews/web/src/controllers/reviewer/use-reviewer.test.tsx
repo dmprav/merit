@@ -1,6 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { expect, it, vi } from "vite-plus/test";
 
+import { encodeMoney, fromMinorUnits } from "@merit/money";
 import type { ReviewerPage } from "@merit/reviews/api";
 
 import type { ReviewerData } from "../../contracts/reviewer";
@@ -196,7 +197,13 @@ it("opens submitted work for reading, then closes, resumes, or discards an amend
       authorUserId: "sam",
       versions: [
         {
-          content: { ...submitted, date: null, applicationVersion: 1, criteriaVersion: 1 },
+          content: {
+            ...submitted,
+            amount: encodeMoney(fromMinorUnits(4000n)),
+            date: null,
+            applicationVersion: 1,
+            criteriaVersion: 1,
+          },
           criteria: [],
           recorder: null,
           note: "",
@@ -219,7 +226,7 @@ it("opens submitted work for reading, then closes, resumes, or discards an amend
   expect(result.current.amending).toBe(false);
   expect(result.current.draft).toEqual({
     position: "Fund",
-    amount: "40",
+    amount: "40.00",
     reasoning: "Original",
     observations: [],
     note: "",

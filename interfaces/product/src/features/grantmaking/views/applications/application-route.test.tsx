@@ -17,7 +17,7 @@ import { encodeRoundPage, encodeApplicationDetail } from "@merit/grantmaking/api
 import { roundView } from "@merit/grantmaking/api";
 import { makeApplication, makeRound } from "@merit/grantmaking/testing/fixtures";
 import { defaultLocale } from "@merit/i18n";
-import { fromMinorUnits } from "@merit/money";
+import { fromMinorUnits, encodeMoney } from "@merit/money";
 import { createQueryClient } from "@merit/query";
 import { encodeRecommendation } from "@merit/recommendations/api";
 
@@ -87,7 +87,7 @@ const selectedApplication = () =>
                 criteriaVersion: 1,
                 date: "2027-01-16",
                 position: "Fund",
-                amount: "18000.00",
+                amount: encodeMoney(fromMinorUnits(1800000n)),
                 reasoning: "The original venue makes the budget credible.",
                 observations: [],
               },

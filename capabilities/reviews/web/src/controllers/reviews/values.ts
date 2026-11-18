@@ -1,12 +1,13 @@
 import type { z } from "zod";
 
-import type { assessmentInputSchema, AssessmentInput } from "@merit/reviews/domain";
+import { decodeMoney, toDecimal } from "@merit/money";
+import type { assessmentEntrySchema, AssessmentInput } from "@merit/reviews/domain";
 
 import type { ReviewFormValues } from "./drafts";
 
 export const contentFromValues = (
   value: ReviewFormValues,
-): z.input<typeof assessmentInputSchema> => ({
+): z.input<typeof assessmentEntrySchema> => ({
   applicationVersion:
     value.applicationVersion === "unknown" ? null : Number(value.applicationVersion),
   criteriaVersion: value.criteriaVersion === "unknown" ? null : Number(value.criteriaVersion),
@@ -23,7 +24,7 @@ export const valuesFromContent = (value: AssessmentInput, contactId: string): Re
   criteriaVersion: value.criteriaVersion?.toString() ?? "unknown",
   date: value.date ?? "",
   position: value.position ?? "unknown",
-  amount: value.amount ?? "",
+  amount: value.amount === null ? "" : toDecimal(decodeMoney(value.amount)),
   reasoning: value.reasoning,
   observations: value.observations,
   note: "",

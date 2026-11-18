@@ -1,12 +1,18 @@
 import { assert, expect, it } from "vite-plus/test";
 
+import { encodeMoney, fromMinorUnits } from "@merit/money";
+
 import { makeApplication, makeAssessment, makeRound } from "../../tests/fixtures";
 import { fundingRoundOverviewSchema } from "./model";
 
 it.each([
-  { position: "Defer", amount: "1.00", valid: false },
-  { position: "Fund", amount: "0.00", valid: false },
-  { position: "Fund with a condition", amount: "10000.00", valid: true },
+  { position: "Defer", amount: encodeMoney(fromMinorUnits(100n)), valid: false },
+  { position: "Fund", amount: encodeMoney(fromMinorUnits(0n)), valid: false },
+  {
+    position: "Fund with a condition",
+    amount: encodeMoney(fromMinorUnits(1000000n)),
+    valid: true,
+  },
   { position: "Fund €24,000", amount: null, valid: false },
 ])(
   "validates a recorded reviewer outcome: $position with $amount is valid=$valid",

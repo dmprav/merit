@@ -7,6 +7,7 @@ import { materialVersionSchema } from "@merit/applications/domain";
 import { editFundingApplication } from "@merit/applications/server";
 import { roundHasApplications } from "@merit/applications/server/integrations";
 import { changeWorkspaceContact } from "@merit/contacts/server";
+import { encodeMoney, fromMinorUnits } from "@merit/money";
 import { actor } from "@merit/organizations/testing/workspace";
 import { reviewRevisionSchema } from "@merit/reviews/domain";
 import { saveApplicationReview } from "@merit/reviews/server";
@@ -84,7 +85,7 @@ const it = roundTest.extend("activity", async ({ db, database, rounds }) => {
         criteriaVersion: criteriaVersionSchema.parse(1),
         date: null,
         position: "Fund",
-        amount: "18000",
+        amount: encodeMoney(fromMinorUnits(1800000n)),
         reasoning: "Practical plan.",
         observations: [],
       },

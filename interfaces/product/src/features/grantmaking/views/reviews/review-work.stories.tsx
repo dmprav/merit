@@ -9,6 +9,7 @@ import { GrantmakingDrafts } from "@merit/grantmaking-web/drafts";
 import { ApplicationContainedPreview } from "@merit/grantmaking-web/testing";
 import { roundView } from "@merit/grantmaking/api";
 import { getExampleRound } from "@merit/grantmaking/examples";
+import { encodeMoney, fromMinorUnits } from "@merit/money";
 import { reviewRevisionSchema } from "@merit/reviews/domain";
 import { type ReviewState } from "@merit/reviews/domain";
 import { criteriaVersionSchema } from "@merit/rounds/domain";
@@ -39,7 +40,7 @@ const reviews: ReviewState = {
             criteriaVersion: criteriaVersionSchema.parse(1),
             date: "2027-01-16",
             position: "Fund",
-            amount: "18000",
+            amount: encodeMoney(fromMinorUnits(1800000n)),
             reasoning:
               "The activities fit the round and there is initial interest. The free venue makes the budget credible.",
             observations: [],

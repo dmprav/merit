@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 
+import { decodeMoney, toDecimal, type MoneyData } from "@merit/money";
 import type { ReviewerPage, ReviewerService } from "@merit/reviews/api";
-import { reviewerSubmissionProblems } from "@merit/reviews/domain";
+import { assessmentAmountEntrySchema, reviewerSubmissionProblems } from "@merit/reviews/domain";
 
 import type { ReviewerData } from "../../contracts/reviewer";
 
@@ -9,6 +10,11 @@ type Draft = NonNullable<ReviewerPage["draft"]>["content"];
 
 const same = (a: Draft | undefined, b: Draft | undefined) =>
   JSON.stringify(a) === JSON.stringify(b);
+
+const matchesSubmittedAmount = (text: string | null, amount: MoneyData | null) => {
+  const parsed = assessmentAmountEntrySchema.safeParse(text);
+  return parsed.success && parsed.data?.minorUnits === amount?.minorUnits;
+};
 
 /** Whether the working draft departs from the latest submitted assessment. */
 const differsFromSubmitted = (page: ReviewerPage, content: Draft | undefined) => {
@@ -19,7 +25,7 @@ const differsFromSubmitted = (page: ReviewerPage, content: Draft | undefined) =>
     (content.note ||
       content.reasoning !== submitted.reasoning ||
       content.position !== submitted.position ||
-      content.amount !== submitted.amount ||
+      !matchesSubmittedAmount(content.amount, submitted.amount) ||
       JSON.stringify(content.observations) !== JSON.stringify(submitted.observations)),
   );
 };
@@ -30,7 +36,7 @@ const submittedDraft = (page: ReviewerPage): Draft | undefined => {
   return (
     submitted && {
       position: submitted.position,
-      amount: submitted.amount,
+      amount: submitted.amount && toDecimal(decodeMoney(submitted.amount)),
       reasoning: submitted.reasoning,
       observations: submitted.observations,
       note: "",
