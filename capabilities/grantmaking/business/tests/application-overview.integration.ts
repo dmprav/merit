@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 
+import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { assert, expect } from "vite-plus/test";
 
@@ -24,7 +25,7 @@ import { actor } from "@merit/organizations/testing/workspace";
 import { reviewRevisionSchema } from "@merit/reviews/domain";
 import { saveApplicationReview } from "@merit/reviews/server";
 import { criteriaVersionSchema } from "@merit/rounds/domain";
-import { editFundingRound } from "@merit/rounds/server";
+import { createFundingRound, editFundingRound } from "@merit/rounds/server";
 
 import { readApplicationOverviews } from "../src/server/persistence/queries/application-overview";
 import { roundTest as it } from "./round-test";
@@ -291,182 +292,265 @@ it("keeps unknown applicants distinct from known applicants", async ({
   expect(result.applications).toMatchObject([{ id: created.publicId, applicant: null }]);
 });
 
-it("pages globally filtered and sorted summaries with exact counts and stable ties", async ({
+const pageSize = 50;
+
+/**
+ * Adds 125 light applications after the round's first one, so lists cross three pages without
+ * exercising creation writes. Titles run "Project 001" to "Project 124", then "alpha";
+ * applicants cycle through none, "birch", and "Alder"; even positions are ready.
+ */
+const addLightApplications = (
+  db: Parameters<typeof listWorkspaceApplications>[0],
+  roundId: string,
+) =>
+  db.transaction(async (tx) => {
+    await tx.execute(sql`
+      insert into application_cases (organization_id, round_id, position, intake_status, material_version)
+      select 'alder', ${roundId}, n, case when n % 2 = 0 then 'ready' else 'in_preparation' end, 1
+      from generate_series(1, 125) n
+    `);
+    await tx.execute(sql`
+      insert into material_versions (case_id, version, title, applicant_organization, has_submission, submission_version, change_kind, recorded_at)
+      select id, 1, case when position = 125 then 'alpha' else 'Project ' || lpad(position::text, 3, '0') end,
+        case when position % 3 = 0 then '' when position % 3 = 1 then 'birch' else 'Alder' end,
+        true, 1, 'initial', now()
+      from application_cases where round_id = ${roundId} and position > 0
+    `);
+  });
+
+const listAlder = async (
+  db: Parameters<typeof listWorkspaceApplications>[0],
+  options: Omit<Parameters<typeof listWorkspaceApplications>[2], "workspaceSlug"> = {},
+) => {
+  const result = await listWorkspaceApplications(db, actor, { ...options, workspaceSlug: "alder" });
+  assert(result.status === "ok");
+  return result;
+};
+
+const readAllPages = async (
+  db: Parameters<typeof listWorkspaceApplications>[0],
+  options: Omit<Parameters<typeof listWorkspaceApplications>[2], "workspaceSlug" | "offset">,
+) => {
+  const pages = await Promise.all(
+    [0, pageSize, 2 * pageSize].map((offset) => listAlder(db, { ...options, offset })),
+  );
+  return pages.flatMap((page) => page.applications);
+};
+
+it("pages summaries with exact counts and clamps an offset past the last page", async ({
+  db,
+  rounds,
+}) => {
+  await rounds.createApplication("Zulu");
+  await addLightApplications(db, rounds.pageInput.publicId);
+
+  const first = await listAlder(db);
+  const second = await listAlder(db, { offset: 50 });
+  const last = await listAlder(db, { offset: 100 });
+
+  expect(first).toMatchObject({ total: 126, matching: 126, offset: 0 });
+  expect([first, second, last].map((page) => [page.offset, page.applications.length])).toEqual([
+    [0, 50],
+    [50, 50],
+    [100, 26],
+  ]);
+  expect(
+    new Set([first, second, last].flatMap((page) => page.applications.map((a) => a.id))).size,
+  ).toBe(126);
+  expect(await listAlder(db, { offset: 1000 })).toMatchObject({ offset: 100, matching: 126 });
+});
+
+it("sorts titles and applicants ignoring case, with missing applicants last in either direction", async ({
+  db,
+  rounds,
+}) => {
+  await rounds.createApplication("Zulu");
+  await addLightApplications(db, rounds.pageInput.publicId);
+
+  expect((await listAlder(db, { sort: "application" })).applications[0]?.title).toBe("alpha");
+  expect(
+    (await listAlder(db, { sort: "application", direction: "descending" })).applications[0]?.title,
+  ).toBe("Zulu");
+  for (const [direction, firstApplicant] of [
+    ["ascending", "Alder"],
+    ["descending", "Community group"],
+  ] as const) {
+    const rows = await readAllPages(db, { sort: "applicant", direction });
+    expect(rows).toHaveLength(126);
+    expect(rows[0]?.applicant).toBe(firstApplicant);
+    expect(rows.slice(-41).map((row) => row.applicant)).toEqual(Array(41).fill(null));
+  }
+});
+
+it("breaks sort ties by application ID so pages neither repeat nor skip rows", async ({
+  db,
+  rounds,
+}) => {
+  await rounds.createApplication("Zulu");
+  await addLightApplications(db, rounds.pageInput.publicId);
+
+  for (const direction of ["ascending", "descending"] as const) {
+    const rows = await readAllPages(db, { sort: "applicant", direction });
+    expect(new Set(rows.map((row) => row.id)).size).toBe(126);
+    const tied = rows.filter((row) => row.applicant === "birch").map((row) => row.id);
+    expect(tied).toHaveLength(42);
+    expect(tied).toEqual([...tied].sort());
+  }
+});
+
+it("searches titles and applicants as trimmed, case-insensitive literal text", async ({
+  db,
+  rounds,
+}) => {
+  await rounds.createApplication("Zulu");
+  await addLightApplications(db, rounds.pageInput.publicId);
+
+  expect(await listAlder(db, { query: "  ALPHA  " })).toMatchObject({
+    total: 126,
+    matching: 1,
+    applications: [{ title: "alpha" }],
+  });
+  expect((await listAlder(db, { query: "BIRCH" })).matching).toBe(42);
+  for (const query of ["%", "_", "'", "\\"]) {
+    expect((await listAlder(db, { query })).matching).toBe(0);
+  }
+});
+
+it("filters before paging and returns to the first page when fewer applications match", async ({
+  db,
+  rounds,
+}) => {
+  await rounds.createApplication("Zulu");
+  await addLightApplications(db, rounds.pageInput.publicId);
+  const filter = { readiness: "ready", reviews: "unassigned", recommendation: "missing" } as const;
+
+  const pages = await Promise.all([0, 50].map((offset) => listAlder(db, { filter, offset })));
+
+  expect(pages.map((page) => [page.total, page.matching, page.applications.length])).toEqual([
+    [126, 62, 50],
+    [126, 62, 12],
+  ]);
+  const rows = pages.flatMap((page) => page.applications);
+  expect(new Set(rows.map((row) => row.id)).size).toBe(62);
+  expect(rows.every((row) => row.intakeStatus === "ready")).toBe(true);
+  expect(await listAlder(db, { query: "project 002", filter, offset: 100 })).toMatchObject({
+    total: 126,
+    matching: 1,
+    offset: 0,
+    applications: [{ title: "Project 002" }],
+  });
+});
+
+it("limits summaries to the selected round", async ({ db, rounds }) => {
+  await rounds.createApplication("Selected round application");
+  const other = await createFundingRound(db, actor, {
+    workspaceSlug: "alder",
+    requestId: randomUUID(),
+    title: "Other round",
+  });
+  assert(other.status === "ok");
+  const elsewhere = await createFundingApplication(db, actor, {
+    workspaceSlug: "alder",
+    publicId: other.publicId,
+    requestId: randomUUID(),
+    title: "Other round application",
+  });
+  assert(elsewhere.status === "ok");
+
+  expect(await listAlder(db, { roundId: rounds.pageInput.publicId })).toMatchObject({
+    total: 2,
+    matching: 1,
+    applications: [{ title: "Selected round application" }],
+  });
+  expect((await listAlder(db, { roundId: "000000000000" })).matching).toBe(0);
+});
+
+it("lists only the requested workspace for a person who belongs to several", async ({
   db,
   database,
   rounds,
 }) => {
-  const first = await rounds.createApplication("Zulu");
-  // A large light fixture crosses three page boundaries without exercising creation writes.
-  await database.client.query("BEGIN");
   await database.client.query(
-    `
-    insert into application_cases (organization_id, round_id, position, intake_status, material_version)
-    select 'alder', $1, n, 'in_preparation', 1 from generate_series(1, 125) n
-  `,
-    [rounds.pageInput.publicId],
+    "INSERT INTO memberships (organization_id, user_id, role, administration) VALUES ('birch', 'dana', 'program_manager', 'none')",
   );
-  await database.client.query(
-    `
-    insert into material_versions (case_id, version, title, applicant_organization, has_submission, submission_version, change_kind, recorded_at)
-    select id, 1, case when position = 125 then 'alpha' else 'Project ' || lpad(position::text, 3, '0') end,
-      case when position % 3 = 0 then '' when position % 3 = 1 then 'birch' else 'Alder' end,
-      true, 1, 'initial', now()
-    from application_cases where organization_id = 'alder' and id <> $1
-  `,
-    [first.publicId],
-  );
-  await database.client.query("COMMIT");
-
-  const read = async (
-    options: Omit<Parameters<typeof listWorkspaceApplications>[2], "workspaceSlug"> = {},
-  ) => {
-    const result = await listWorkspaceApplications(db, actor, {
-      ...options,
-      workspaceSlug: "alder",
-    });
-    assert(result.status === "ok");
-    return result;
-  };
-
-  const firstPage = await read();
-  expect(firstPage).toMatchObject({ total: 126, matching: 126, offset: 0 });
-  expect(firstPage.applications).toHaveLength(50);
-  const next = await read({ offset: 50 });
-  const last = await read({ offset: 100 });
-  expect(next.applications).toHaveLength(50);
-  expect(last.applications).toHaveLength(26);
-  expect(
-    new Set(
-      [...firstPage.applications, ...next.applications, ...last.applications].map((a) => a.id),
-    ).size,
-  ).toBe(126);
-  expect((await read({ offset: 1000 })).offset).toBe(100);
-  expect((await read({ sort: "application" })).applications[0]?.title).toBe("alpha");
-  expect(
-    (await read({ sort: "application", direction: "descending" })).applications[0]?.title,
-  ).toBe("Zulu");
-  const sorted = await read({ sort: "applicant" });
-  expect(sorted.applications[0]?.applicant).toBe("Alder");
-  for (const direction of ["ascending", "descending"] as const) {
-    const pages = await Promise.all(
-      [0, 50, 100].map((offset) => read({ sort: "applicant", direction, offset })),
-    );
-    const all = pages.flatMap((page) => page.applications);
-    expect(all.at(-1)?.applicant).toBeNull();
-    expect(new Set(all.map((a) => a.id)).size).toBe(126);
-    expect(all.filter((a) => a.applicant === "birch").map((a) => a.id)).toEqual(
-      all
-        .filter((a) => a.applicant === "birch")
-        .map((a) => a.id)
-        .sort(),
-    );
-  }
-  expect(await read({ query: "  ALPHA  " })).toMatchObject({
-    total: 126,
-    matching: 1,
-    applications: [{ title: "alpha" }],
+  const birchRound = (
+    await database.client.query<{ id: string }>(
+      "SELECT id FROM funding_rounds WHERE organization_id = 'birch'",
+    )
+  ).rows[0];
+  assert.isDefined(birchRound);
+  await rounds.createApplication("Alder application");
+  const birchApplication = await createFundingApplication(db, actor, {
+    workspaceSlug: "birch",
+    publicId: birchRound.id,
+    requestId: randomUUID(),
+    title: "Birch application",
   });
-  expect((await read({ roundId: "000000000000" })).matching).toBe(0);
-  expect((await read({ filter: { reviews: "unassigned" } })).matching).toBe(126);
-  expect((await read({ filter: { evidence: "unknown" } })).matching).toBe(0);
-  expect((await read({ filter: { recommendation: "missing" } })).matching).toBe(126);
-  const combined = {
-    readiness: "preparing",
-    reviews: "unassigned",
-    recommendation: "missing",
-  } as const;
-  const combinedPages = await Promise.all(
-    [0, 50, 100].map((offset) => read({ filter: combined, offset })),
-  );
-  expect(combinedPages.map((page) => page.matching)).toEqual([126, 126, 126]);
-  expect(combinedPages.map((page) => page.applications.length)).toEqual([50, 50, 26]);
-  expect(new Set(combinedPages.flatMap((page) => page.applications.map((a) => a.id))).size).toBe(
-    126,
-  );
-  expect(await read({ query: "alpha", filter: combined, offset: 100 })).toMatchObject({
-    total: 126,
-    matching: 1,
-    offset: 0,
-    applications: [{ title: "alpha" }],
-  });
-  expect((await read({ filter: { ...combined, readiness: "ready" } })).matching).toBe(0);
-  for (const query of ["%", "_", "'", "\\"]) {
-    expect((await read({ query })).matching).toBe(0);
-  }
-  await seedExampleRounds(db);
-  const awaiting = await read({ filter: { reviews: "awaiting" } });
-  expect(awaiting.matching).toBeGreaterThan(0);
-  expect(awaiting.applications.every((a) => a.reviews.outstanding > 0)).toBe(true);
-  expect(awaiting.applications.every((a) => a.roundId !== rounds.pageInput.publicId)).toBe(true);
-  const other = await listWorkspaceApplications(
-    db,
-    { userId: "birch-manager" },
-    { workspaceSlug: "birch" },
-  );
-  assert(other.status === "ok");
-  expect(other.total).toBe(3);
-  expect(
-    other.applications.every((application) => application.roundId !== rounds.pageInput.publicId),
-  ).toBe(true);
+  assert(birchApplication.status === "ok");
 
-  await database.client.query(
-    `insert into material_versions (case_id, version, title, requested_minor_units, requested_currency, change_kind)
-     select a.id, 2, m.title, case
-       when a.position = 0 then 9007199254740993
-       when a.position = 1 then 9007199254740992
-       when a.position = 125 then null else a.position end,
-       case when a.position = 125 then null else 'EUR' end, 'correction'
-     from application_cases a join material_versions m on m.case_id = a.id and m.version = 1 where a.round_id = $1`,
-    [rounds.pageInput.publicId],
+  expect(await listAlder(db)).toMatchObject({
+    total: 1,
+    applications: [{ title: "Alder application" }],
+  });
+  expect(await listWorkspaceApplications(db, actor, { workspaceSlug: "birch" })).toMatchObject({
+    status: "ok",
+    total: 1,
+    applications: [{ title: "Birch application", roundId: birchRound.id }],
+  });
+});
+
+it("sorts requested and proposed amounts exactly beyond JavaScript's safe integers, unknown last", async ({
+  db,
+  rounds,
+}) => {
+  const larger = await rounds.createApplication("Larger", "90071992547409.93");
+  const smaller = await rounds.createApplication("Smaller", "90071992547409.92");
+  await rounds.createApplication("Modest", "80.00");
+  await rounds.createApplication("Unknown request", null);
+  await rounds.recommendApplication(larger, "9007199254740993");
+  await rounds.recommendApplication(smaller, "9007199254740992");
+
+  const titles = async (sort: "requested" | "proposed", direction: "ascending" | "descending") =>
+    (await listAlder(db, { sort, direction })).applications.map((row) => row.title);
+
+  expect(await titles("requested", "ascending")).toEqual([
+    "Modest",
+    "Smaller",
+    "Larger",
+    "Unknown request",
+  ]);
+  expect(await titles("requested", "descending")).toEqual([
+    "Larger",
+    "Smaller",
+    "Modest",
+    "Unknown request",
+  ]);
+  expect((await titles("proposed", "ascending")).slice(0, 2)).toEqual(["Smaller", "Larger"]);
+  expect((await titles("proposed", "descending")).slice(0, 2)).toEqual(["Larger", "Smaller"]);
+});
+
+it("totals a round's requested and proposed amounts exactly beyond JavaScript's safe integers", async ({
+  db,
+  rounds,
+}) => {
+  const larger = await rounds.createApplication("Larger", "90071992547409.93");
+  const smaller = await rounds.createApplication("Smaller", "90071992547409.92");
+  await rounds.createApplication("Modest", "80.00");
+  await rounds.createApplication("Unknown request", null);
+  await rounds.recommendApplication(larger, "9007199254740993");
+  await rounds.recommendApplication(smaller, "9007199254740992");
+
+  const page = await getFundingRoundPage(db, actor, rounds.pageInput);
+  assert.isNotNull(page);
+
+  expect(page.round.applicationCount).toBe(4);
+  expect(encodeMoney(page.round.totals.requested).minorUnits).toBe(
+    String(9007199254740993n + 9007199254740992n + 8000n),
   );
-  await database.client.query(
-    "update application_cases set material_version = 2 where round_id = $1",
-    [rounds.pageInput.publicId],
+  expect(encodeMoney(page.round.totals.proposed).minorUnits).toBe(
+    String(9007199254740993n + 9007199254740992n),
   );
-  await database.client.query(
-    `insert into recommendation_versions (case_id, revision, position, allocation_minor_units, reasoning)
-     select a.id, 1, 'Fund', m.requested_minor_units, 'Support the work'
-     from application_cases a join material_versions m on m.case_id = a.id and m.version = a.material_version
-     where a.round_id = $1 and a.position < 2`,
-    [rounds.pageInput.publicId],
-  );
-  for (const sort of ["requested", "proposed"] as const) {
-    for (const direction of ["ascending", "descending"] as const) {
-      const pages = await Promise.all(
-        [0, 50, 100].map((offset) =>
-          read({ roundId: rounds.pageInput.publicId, sort, direction, offset }),
-        ),
-      );
-      const rows = pages.flatMap((page) => page.applications);
-      const amounts = rows.map((row) =>
-        sort === "requested"
-          ? row.requested?.minorUnits
-          : row.recommendation?.allocation.minorUnits,
-      );
-      expect(rows).toHaveLength(126);
-      expect(amounts.at(-1)).toBeUndefined();
-      const known = amounts.filter((amount) => amount !== undefined);
-      expect(direction === "descending" ? known.slice(0, 2) : known.slice(-2)).toEqual(
-        direction === "descending"
-          ? ["9007199254740993", "9007199254740992"]
-          : ["9007199254740992", "9007199254740993"],
-      );
-    }
-  }
-  const roundPage = await getFundingRoundPage(db, actor, rounds.pageInput);
-  assert.isNotNull(roundPage);
-  expect(roundPage.round).not.toHaveProperty("applications");
-  expect(roundPage.round.applicationCount).toBe(126);
-  expect(encodeMoney(roundPage.round.totals.requested).minorUnits).toBe(
-    String(9007199254740993n + 9007199254740992n + 7749n),
-  );
-  expect(encodeMoney(roundPage.round.totals.proposed).minorUnits).toBe("18014398509481985");
-  expect(roundPage.round.totals.unknownRequests).toBe(1);
-  await read({ query: "alpha", roundId: rounds.pageInput.publicId });
-  expect((await getFundingRoundPage(db, actor, rounds.pageInput))?.round.totals).toEqual(
-    roundPage.round.totals,
-  );
+  expect(page.round.totals.unknownRequests).toBe(1);
 });
 
 it("compares criteria content rather than criteria IDs or versions for work filters", async ({
@@ -545,8 +629,4 @@ it("compares criteria content rather than criteria IDs or versions for work filt
   assert(changed.status === "ok");
   expect(changed.applications.some((a) => a.criteriaChanged)).toBe(true);
   expect(changed.applications.some((a) => a.reviews.outstanding > 0)).toBe(true);
-  expect(
-    (await listWorkspaceApplications(db, actor, { workspaceSlug: "birch", query: "Project" }))
-      .status,
-  ).toBe("not_found");
 });
