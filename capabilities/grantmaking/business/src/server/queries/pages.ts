@@ -2,7 +2,7 @@ import type { IntakeState } from "@merit/applications/api";
 import { workingRevisionSchema, materialVersionSchema } from "@merit/applications/domain";
 import type { Actor } from "@merit/auth";
 import type { Database } from "@merit/db";
-import { decodeMoney, subtract } from "@merit/money";
+import { fromMinorUnits, subtract } from "@merit/money";
 import { workspaceSlugSchema } from "@merit/organizations/api";
 import { readWorkspace } from "@merit/organizations/transactions";
 import { reviewProgress } from "@merit/reviews/domain";
@@ -20,12 +20,12 @@ import {
 import { decodeApplicationContext } from "../../api/queries/application-detail";
 import { applicationView } from "../../api/queries/round-view";
 import { decodeApplication } from "../../domain/encoding";
-import { readRoundTotals } from "../persistence/queries/application-overview";
 import {
   readApplicationDetail,
   readPublicRound,
   listRoundSummaries,
 } from "../persistence/queries/pages";
+import { readRoundPageTotals } from "../persistence/queries/round-totals";
 import { readApplicationHistory, readRoundHistory } from "./history-records";
 
 export const listFundingRounds = async (db: Database, actor: Actor, workspaceSlug: string) => {
@@ -65,14 +65,14 @@ export const getFundingRoundPage = async (
     }
 
     const properties = decodeRound(row.snapshot);
-    const totals = await readRoundTotals(tx, actor.userId, row.workspaceSlug, properties.id);
-    const proposed = decodeMoney({ minorUnits: totals.proposed, currency: "EUR" });
+    const totals = await readRoundPageTotals(tx, row.organizationId, properties);
+    const proposed = fromMinorUnits(BigInt(totals.proposed));
     const round = {
       ...properties,
       applicationCount: totals.applicationCount,
       criteriaImpact: totals.criteriaImpact,
       totals: {
-        requested: decodeMoney({ minorUnits: totals.requested, currency: "EUR" }),
+        requested: fromMinorUnits(BigInt(totals.requested)),
         proposed,
         remaining: properties.budget === null ? null : subtract(properties.budget, proposed),
         unknownRequests: totals.unknownRequests,

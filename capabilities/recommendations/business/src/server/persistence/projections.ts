@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, ne, sql, type SQLWrapper } from "drizzle-orm";
 
 import { applicationCases } from "@merit/applications/schema";
 import { activeCase } from "@merit/applications/scope";
@@ -99,3 +99,25 @@ export const readRoundAllocations = async (
 };
 
 export const recommendationRevision = sql<number>`coalesce((select max(r.revision) from ${recommendationVersions} r where r.case_id = ${applicationCases.id}), 0)`;
+
+// A missing recorded basis cannot establish a change in the material.
+export const recommendationOverview = (
+  db: Database,
+  caseId: SQLWrapper,
+  materialVersion: SQLWrapper,
+) =>
+  db
+    .select({
+      position: recommendationVersions.position,
+      allocationMinorUnits: recommendationVersions.allocationMinorUnits,
+      allocationCurrency: recommendationVersions.allocationCurrency,
+      outdated:
+        sql<boolean>`coalesce(${ne(recommendationVersions.applicationVersion, materialVersion)}, false)`.as(
+          "recommendation_outdated",
+        ),
+    })
+    .from(recommendationVersions)
+    .where(eq(recommendationVersions.caseId, caseId))
+    .orderBy(desc(recommendationVersions.revision))
+    .limit(1)
+    .as("recommendation_overview");

@@ -55,6 +55,12 @@ Inside an existing transaction, they preserve its mode and rollback behavior.
 Shared schema, SQL projections, locks, and stored encoding remain independent of
 command and query handlers.
 
+For application overviews, join the named facts from Recommendations and Reviews
+through their `/scope` exports. Grantmaking combines these facts into work filters.
+Fetch display facts after pagination unless a filter or sort needs them earlier.
+The round page and bounded overview share the [round totals projection](src/server/persistence/queries/round-totals.ts).
+The page also counts active review work and the criteria used by historical reviews.
+
 Each owner keeps public encoding separate from stored history encoding. Public fields are
 selected deliberately; future API additions must not silently rewrite old history.
 The combined [record encoding](src/domain/encoding.ts) remains here for composed records.

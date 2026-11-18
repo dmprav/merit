@@ -8,7 +8,6 @@ import {
   materialVersions,
 } from "@merit/applications/schema";
 import {
-  activeCase,
   assembleApplicationDetails,
   assembleCurrentSubmission,
   caseWithdrawn,
@@ -16,7 +15,6 @@ import {
   readMaterialVersionRecord,
   readWorkingRevisionsMap,
   requestedMoneyData,
-  roundWithdrawnCount,
 } from "@merit/applications/scope";
 import { auditEvents } from "@merit/audit/schema";
 import type { Database } from "@merit/db";
@@ -46,6 +44,8 @@ import {
   readRoundCriteria,
   toMoneyData,
 } from "@merit/rounds/scope";
+
+import { roundFinancialTotals } from "./round-totals";
 
 const roundFields = {
   roundId: fundingRounds.id,
@@ -151,18 +151,21 @@ export const readRoundOverview = async (
   input: { workspaceSlug: string; roundId: string },
 ) => {
   const workspace = authorizedWorkspaces(db, actor, "work_on_grants", input.workspaceSlug);
+  const totals = roundFinancialTotals(db);
   const [row] = await db
     .select({
       ...roundFields,
       managerUserId: fundingRounds.managerUserId,
       managerNeedsReassignment,
-      requested: sql<string>`(select coalesce(sum(m.requested_minor_units), 0)::text from ${applicationCases} a join ${materialVersions} m on m.case_id = a.id and m.version = a.material_version where a.organization_id = ${fundingRounds.organizationId} and a.round_id = ${fundingRounds.id} and ${activeCase("a")})`,
-      unknownRequests: sql<number>`(select count(*)::integer from ${applicationCases} a join ${materialVersions} m on m.case_id = a.id and m.version = a.material_version where a.organization_id = ${fundingRounds.organizationId} and a.round_id = ${fundingRounds.id} and ${activeCase("a")} and m.requested_minor_units is null)`,
-      withdrawnApplications: roundWithdrawnCount(fundingRounds),
-      proposed: sql<string>`(select coalesce(sum(r.allocation_minor_units), 0)::text from ${applicationCases} a join ${recommendationVersions} r on r.case_id = a.id and r.revision = (select max(v.revision) from ${recommendationVersions} v where v.case_id = a.id) where a.organization_id = ${fundingRounds.organizationId} and a.round_id = ${fundingRounds.id} and ${activeCase("a")})`,
+      applicationCount: totals.applicationCount,
+      requested: totals.requested,
+      unknownRequests: totals.unknownRequests,
+      withdrawnApplications: totals.withdrawnApplications,
+      proposed: totals.proposed,
     })
     .from(fundingRounds)
     .innerJoin(workspace, eq(workspace.id, fundingRounds.organizationId))
+    .crossJoinLateral(totals)
     .where(eq(fundingRounds.id, input.roundId));
   return row ? withRoundBudget(row) : undefined;
 };
