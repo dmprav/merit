@@ -113,7 +113,9 @@ it.each(["directory", "picker"] as const)(
     const user = userEvent.setup();
     const { recover } = show(entry);
     await user.click(screen.getByRole("button", { name: "Add contact" }));
-    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Close" }));
+    await user.click(
+      within(screen.getByRole("dialog")).getByRole("button", { name: "Close dialog" }),
+    );
     recover();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(update).not.toHaveBeenCalled();

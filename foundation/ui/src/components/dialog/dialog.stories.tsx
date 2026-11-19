@@ -3,11 +3,19 @@ import { useState, type ComponentProps } from "react";
 import { expect, waitFor, within } from "storybook/test";
 
 import { Button } from "../button/button";
+import { Icon } from "../icon/icon";
 import { Inline } from "../layout/layout";
-import { DialogContent, ModalDialog, PopoverDialog } from "./dialog";
+import {
+  DialogContent,
+  DialogSection,
+  ModalDialog,
+  PickerPopover,
+  PopoverDialog,
+  SidePanel as SidePanelFrame,
+} from "./dialog";
 import localStyles from "./dialog.stories.module.css";
 
-const DialogExample = (args: ComponentProps<typeof ModalDialog>) => {
+const PopoverExample = (args: ComponentProps<typeof ModalDialog>) => {
   const [open, setOpen] = useState(false);
   return (
     <PopoverDialog
@@ -22,17 +30,31 @@ const DialogExample = (args: ComponentProps<typeof ModalDialog>) => {
   );
 };
 
+const guidanceWithActions = ({ close }: { close: () => void }) => (
+  <DialogContent
+    footer={
+      <Inline justify="end">
+        <Button onPress={close}>Done</Button>
+      </Inline>
+    }
+  >
+    <p className={localStyles.description}>
+      Compare the application with its supporting evidence. Keep applicant statements separate from
+      reviewer judgments, and record questions that need clarification.
+    </p>
+  </DialogContent>
+);
+
 const meta = {
   title: "Components/Dialog",
   component: ModalDialog,
   tags: ["!autodocs"],
   args: {
-    title: "An example dialog",
+    title: "Review guidance",
     closeLabel: "Close dialog",
-    isDismissable: true,
     trigger: <Button variant="secondary">Open dialog</Button>,
     children: (
-      <DialogContent label="Dialog information">
+      <DialogContent>
         <p className={localStyles.description}>
           Nothing will be published or changed in the funding round. Escape closes this dialog and
           returns focus to its trigger.
@@ -46,142 +68,24 @@ export default meta;
 
 type Story = StoryObj<typeof meta>;
 
-export const Closed: Story = {};
-export const Popover: Story = {
-  args: {
-    children: (
-      <p className={localStyles.description}>
-        Nothing will be published or changed in the funding round. Escape closes this dialog and
-        returns focus to its trigger.
-      </p>
-    ),
-  },
-  render: (args) => <DialogExample {...args} />,
-  play: async ({ canvas, userEvent, canvasElement }) => {
-    const trigger = canvas.getByRole("button", { name: "Open dialog" });
-    await userEvent.click(trigger);
-    const dialog = within(canvasElement.ownerDocument.body).getByRole("dialog", {
-      name: "An example dialog",
-    });
+const opensDialog: Story["play"] = async ({ canvas, userEvent, canvasElement, args }) => {
+  await userEvent.click(canvas.getByRole("button", { name: "Open dialog" }));
 
-    await waitFor(() => expect(dialog).toBeVisible());
-
-    await userEvent.keyboard("{Escape}");
-
-    await waitFor(() => expect(trigger).toHaveFocus());
-
-    await userEvent.click(trigger);
-  },
-};
-export const TriggerFocused: Story = {
-  play: async ({ canvas, userEvent }) => {
-    await userEvent.tab();
-    const trigger = canvas.getByRole("button", { name: "Open dialog" });
-
-    await expect(trigger).toHaveFocus();
-    await expect(trigger).toHaveAttribute("data-focus-visible", "true");
-  },
-};
-export const CloseButtonFocused: Story = {
-  play: async ({ canvas, userEvent, canvasElement }) => {
-    await userEvent.tab();
-
-    await expect(canvas.getByRole("button", { name: "Open dialog" })).toHaveFocus();
-
-    await userEvent.keyboard("{Enter}");
-    const dialog = within(canvasElement.ownerDocument.body).getByRole("dialog", {
-      name: "An example dialog",
-    });
-    const close = within(dialog).getByRole("button", { name: "Close dialog" });
-
-    await waitFor(() => expect(dialog).toHaveFocus());
-
-    await userEvent.tab();
-
-    await waitFor(() => expect(close).toHaveFocus());
-    await expect(close).toHaveAttribute("data-focus-visible", "true");
-  },
-};
-export const Open: Story = {
-  play: async ({ canvas, userEvent, canvasElement }) => {
-    await userEvent.click(canvas.getByRole("button", { name: "Open dialog" }));
-
-    await waitFor(() =>
-      expect(
-        within(canvasElement.ownerDocument.body).getByRole("dialog", { name: "An example dialog" }),
-      ).toBeVisible(),
-    );
-  },
+  await waitFor(() =>
+    expect(
+      within(canvasElement.ownerDocument.body).getByRole("dialog", { name: args.title }),
+    ).toBeVisible(),
+  );
 };
 
-const searchQueryLabel = "Search by name";
-
-export const Search: Story = {
-  args: {
-    appearance: "search",
-    title: "Search the workspace",
-    closeLabel: "Close search",
-    trigger: <Button variant="secondary">Open search</Button>,
-    children: (
-      <label className={localStyles.searchField}>
-        <span className={localStyles.searchLabel}>{searchQueryLabel}</span>
-        {/* The dialog's initial focus is the field, as in a search box. */}
-        {/* oxlint-disable-next-line jsx-a11y/no-autofocus */}
-        <input autoFocus className={localStyles.searchInput} placeholder={searchQueryLabel} />
-      </label>
-    ),
-  },
-  play: async ({ canvas, userEvent, canvasElement }) => {
-    const trigger = canvas.getByRole("button", { name: "Open search" });
-    await userEvent.click(trigger);
-    const dialog = within(canvasElement.ownerDocument.body).getByRole("dialog", {
-      name: "Search the workspace",
-    });
-
-    await waitFor(() => expect(dialog).toBeVisible());
-    await waitFor(() => expect(within(dialog).getByRole("textbox")).toHaveFocus());
-    await expect(within(dialog).queryByRole("heading")).not.toBeInTheDocument();
-
-    await userEvent.keyboard("{Escape}");
-
-    await waitFor(() => expect(trigger).toHaveFocus());
-
-    await userEvent.click(trigger);
-  },
-};
-
-export const WithActions: Story = {
-  args: {
-    title: "Review guidance",
-    children: ({ close }) => (
-      <DialogContent
-        label="Review guidance"
-        footer={
-          <Inline justify="end">
-            <Button onPress={close}>Done</Button>
-          </Inline>
-        }
-      >
-        <p className={localStyles.description}>
-          Compare the application with its supporting evidence. Keep applicant statements separate
-          from reviewer judgments, and record questions that need clarification.
-        </p>
-      </DialogContent>
-    ),
-  },
-  play: async ({ canvas, userEvent, canvasElement }) => {
-    await userEvent.click(canvas.getByRole("button", { name: "Open dialog" }));
-
-    await waitFor(() =>
-      expect(
-        within(canvasElement.ownerDocument.body).getByRole("dialog", { name: "Review guidance" }),
-      ).toBeVisible(),
-    );
-  },
+/** A bounded task with persistent actions: the representative centered dialog. */
+export const CenteredWithActions: Story = {
+  args: { children: guidanceWithActions },
+  play: opensDialog,
 };
 
 const EvidenceSections = () => (
-  <div className={localStyles.sections}>
+  <div>
     {[
       [
         "Understand the request",
@@ -208,17 +112,16 @@ const EvidenceSections = () => (
         "Write down missing information and questions deliberately left for discussion. Keep these separate from completed checks so people can see what is ready and what still needs attention.",
       ],
     ].map(([title, description]) => (
-      <section key={title}>
-        <h3 className={localStyles.sectionTitle}>{title}</h3>
+      <DialogSection key={title} title={title}>
         <p>{description}</p>
-      </section>
+      </DialogSection>
     ))}
   </div>
 );
 
-export const LongContent: Story = {
+/** Sustained reading: `reading` content with sections, a persistent title, and actions. */
+export const CenteredReading: Story = {
   args: {
-    size: "wide",
     title:
       "Read the supporting evidence before preparing your recommendation for the funding round",
     children: ({ close }) => (
@@ -235,46 +138,113 @@ export const LongContent: Story = {
       </DialogContent>
     ),
   },
-  play: async ({ canvas, userEvent, canvasElement, args }) => {
-    await userEvent.click(canvas.getByRole("button", { name: "Open dialog" }));
+  play: opensDialog,
+};
 
+/** Records related to a row, in a full-height panel at the end edge. */
+export const SidePanel: Story = {
+  ...CenteredReading,
+  render: (args) => <SidePanelFrame {...args} />,
+};
+
+/** Reference material beside a value, dismissed with Escape or the close control. */
+export const Popover: Story = {
+  args: {
+    title: "An example dialog",
+    children: (
+      <p className={localStyles.description}>
+        Nothing will be published or changed in the funding round. Escape closes this dialog and
+        returns focus to its trigger.
+      </p>
+    ),
+  },
+  render: (args) => <PopoverExample {...args} />,
+  play: async ({ canvas, userEvent, canvasElement }) => {
+    const trigger = canvas.getByRole("button", { name: "Open dialog" });
+    await userEvent.click(trigger);
+    const dialog = within(canvasElement.ownerDocument.body).getByRole("dialog", {
+      name: "An example dialog",
+    });
+
+    await waitFor(() => expect(dialog).toBeVisible());
+
+    await userEvent.keyboard("{Escape}");
+
+    await waitFor(() => expect(trigger).toHaveFocus());
+
+    await userEvent.click(trigger);
+  },
+};
+
+/** The popover keeps its heading and close control visible while long content scrolls. */
+export const PopoverLongContent: Story = {
+  args: {
+    title: CenteredReading.args!.title,
+    children: <EvidenceSections />,
+  },
+  render: (args) => <PopoverExample {...args} />,
+  play: opensDialog,
+};
+
+const statuses = ["Draft", "Ready for review", "Approved"];
+
+const PickerExample = () => {
+  const [open, setOpen] = useState(true);
+  const [status, setStatus] = useState(statuses[0]);
+  return (
+    <PickerPopover
+      title="Choose a status"
+      closeLabel="Close dialog"
+      placement="bottom start"
+      isOpen={open}
+      onOpenChange={setOpen}
+      trigger={<Button variant="secondary">Status: {status}</Button>}
+    >
+      {({ close, closeButton }) => (
+        <div className={localStyles.picker}>
+          <div className={localStyles.pickerHeader}>
+            <span className={localStyles.pickerLabel}>Status</span>
+            {closeButton}
+          </div>
+          {statuses.map((option) => (
+            <Button
+              key={option}
+              variant="quiet"
+              size="small"
+              aria-pressed={option === status}
+              onPress={() => {
+                setStatus(option);
+                close();
+              }}
+            >
+              {option}
+              {option === status && <Icon name="check" />}
+            </Button>
+          ))}
+        </div>
+      )}
+    </PickerPopover>
+  );
+};
+
+/** A picker places the supplied close control beside its own first row, without a header. */
+export const Picker: Story = {
+  render: () => <PickerExample />,
+  play: async ({ canvasElement }) => {
+    const dialog = await within(canvasElement.ownerDocument.body).findByRole("dialog", {
+      name: "Choose a status",
+    });
+
+    await expect(within(dialog).queryByRole("heading")).not.toBeInTheDocument();
     await waitFor(() =>
-      expect(
-        within(canvasElement.ownerDocument.body).getByRole("dialog", { name: args.title }),
-      ).toBeVisible(),
+      expect(within(dialog).getByRole("button", { name: "Close dialog" })).toBeVisible(),
     );
   },
 };
 
-export const EndDrawer: Story = {
-  ...LongContent,
-  args: {
-    ...LongContent.args,
-    appearance: "default",
-    placement: "end",
-    size: "default",
-  },
-};
-
-export const FloatingLongContent: Story = {
-  ...LongContent,
-  args: {
-    title: LongContent.args!.title,
-    children: <EvidenceSections />,
-  },
-  render: (args) => <DialogExample {...args} />,
-  parameters: {
-    docs: {
-      description: {
-        story:
-          "Floating reference panels keep their heading and close control visible while scrolling. Long titles wrap beside the actions, and the body uses the shared keyboard-scrollable region. Pass content directly; the floating dialog supplies its own DialogContent.",
-      },
-    },
-  },
-};
-
+/** Tab moves through the close control, the scrollable body, and actions without leaving. */
 export const KeyboardFocusContained: Story = {
-  ...WithActions,
+  args: { children: guidanceWithActions },
   play: async ({ canvas, userEvent, canvasElement }) => {
     await userEvent.tab();
 
@@ -292,6 +262,7 @@ export const KeyboardFocusContained: Story = {
     await userEvent.tab();
 
     await expect(close).toHaveFocus();
+    await expect(close).toHaveAttribute("data-focus-visible", "true");
 
     await userEvent.tab();
 
@@ -311,52 +282,13 @@ export const KeyboardFocusContained: Story = {
   },
 };
 
-export const KeyboardDismissal: Story = {
-  args: {
-    children: (
-      <DialogContent label="Dialog information">
-        <p className={localStyles.description}>
-          Press Escape to close this dialog and return focus to the Open dialog button.
-        </p>
-      </DialogContent>
-    ),
-  },
-  play: async ({ canvas, userEvent, canvasElement }) => {
-    const trigger = canvas.getByRole("button", { name: "Open dialog" });
-    await userEvent.tab();
-
-    await expect(trigger).toHaveFocus();
-
-    await userEvent.keyboard("{Enter}");
-    const body = within(canvasElement.ownerDocument.body);
-
-    await waitFor(() =>
-      expect(body.getByRole("dialog", { name: "An example dialog" })).toBeVisible(),
-    );
-  },
-};
-
-export const BackdropDismissal: Story = {
-  ...Open,
-  args: {
-    isDismissable: true,
-    children: (
-      <DialogContent label="Dialog information">
-        <p className={localStyles.description}>
-          Click the shaded backdrop outside this dialog to close it. You can also press Escape or
-          use the close button. Focus returns to the Open dialog button.
-        </p>
-      </DialogContent>
-    ),
-  },
-};
-
+/** Backdrop presses leave the dialog open; Escape and the close control still dismiss it. */
 export const BackdropDismissalDisabled: Story = {
-  ...BackdropDismissal,
   args: {
     isDismissable: false,
+    title: "An example dialog",
     children: (
-      <DialogContent label="Dialog information">
+      <DialogContent>
         <p className={localStyles.description}>
           Clicking the shaded backdrop leaves this dialog open. Press Escape or use the close button
           to close it. Focus returns to the Open dialog button.
@@ -364,41 +296,5 @@ export const BackdropDismissalDisabled: Story = {
       </DialogContent>
     ),
   },
-};
-
-const ControlledDialog = () => {
-  const [isOpen, setIsOpen] = useState(false);
-
-  return (
-    <>
-      <p className={localStyles.status}>Dialog is {isOpen ? "open" : "closed"}.</p>
-      <ModalDialog
-        title="Controlled dialog"
-        closeLabel="Close dialog"
-        trigger={<Button>Open dialog</Button>}
-        isOpen={isOpen}
-        onOpenChange={setIsOpen}
-      >
-        <DialogContent label="Dialog information">
-          <p className={localStyles.description}>
-            Close this dialog to update its controlled state.
-          </p>
-        </DialogContent>
-      </ModalDialog>
-    </>
-  );
-};
-
-export const Controlled: Story = {
-  render: () => <ControlledDialog />,
-  play: async ({ canvas, userEvent, canvasElement }) => {
-    await userEvent.click(canvas.getByRole("button", { name: "Open dialog" }));
-
-    await expect(canvas.getByText("Dialog is open.")).toBeInTheDocument();
-    await waitFor(() =>
-      expect(
-        within(canvasElement.ownerDocument.body).getByRole("dialog", { name: "Controlled dialog" }),
-      ).toBeVisible(),
-    );
-  },
+  play: opensDialog,
 };

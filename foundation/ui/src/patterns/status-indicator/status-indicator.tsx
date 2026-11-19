@@ -1,7 +1,7 @@
 import { useState } from "react";
 
 import { Button } from "../../components/button/button";
-import { PopoverDialog } from "../../components/dialog/dialog";
+import { PickerPopover } from "../../components/dialog/dialog";
 import { Icon } from "../../components/icon/icon";
 import { Tooltip } from "../../components/tooltip/tooltip";
 import styles from "./status-indicator.module.css";
@@ -21,10 +21,9 @@ export const StatusIndicator = ({
   const [isOpen, setIsOpen] = useState(false);
 
   return (
-    <PopoverDialog
+    <PickerPopover
       title={label}
       closeLabel={closeLabel}
-      appearance="compact"
       placement="bottom start"
       isOpen={isOpen}
       onOpenChange={setIsOpen}
@@ -49,6 +48,6 @@ export const StatusIndicator = ({
           {closeButton}
         </div>
       )}
-    </PopoverDialog>
+    </PickerPopover>
   );
 };

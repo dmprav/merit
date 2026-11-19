@@ -6,7 +6,7 @@ import { ActionProvenance } from "@merit/ui/action-provenance";
 import { Button } from "@merit/ui/button";
 import { CollectionFilter, CollectionToolbar } from "@merit/ui/collection-toolbar";
 import { DescriptionList, DescriptionListItem } from "@merit/ui/description-list";
-import { DialogContent, ModalDialog } from "@merit/ui/dialog";
+import { DialogContent, SidePanel } from "@merit/ui/dialog";
 import { Icon } from "@merit/ui/icon";
 import { Reading, Stack } from "@merit/ui/layout";
 import { CollectionRecovery, useCollectionRecovery } from "@merit/ui/paged-content";
@@ -311,10 +311,8 @@ const ActivityEvent = ({
     <li className={styles.event}>
       <div className={styles.content}>
         <div className={styles.action}>
-          <ModalDialog
-            placement="end"
+          <SidePanel
             title={action}
-            closeLabel={t("activity.closeDetails")}
             trigger={
               <Button
                 variant="quiet"
@@ -327,10 +325,10 @@ const ActivityEvent = ({
               </Button>
             }
           >
-            <DialogContent label={action}>
+            <DialogContent>
               <ActivityDetails entry={entry} renderRecordLink={renderRecordLink} />
             </DialogContent>
-          </ModalDialog>
+          </SidePanel>
           <span className={styles.record}>
             {entry.record ? (
               renderRecordLink(entry.record, recordTitle)

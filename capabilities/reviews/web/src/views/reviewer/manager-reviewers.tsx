@@ -171,7 +171,6 @@ export const ManagerReviewers = ({ reviews, work }: ManagerReviewersProps) => {
       <ConfirmationDialog
         title={t("revokeTitle", { name: revoking.target?.reviewer ?? "" })}
         description={t("revokeHelp")}
-        closeLabel={t("close")}
         cancelLabel={t("cancel")}
         confirmLabel={t("revoke")}
         intent="destructive"
@@ -494,7 +493,6 @@ const InviteReviewerDialog = ({
     <FormDialog
       title={t("invite")}
       context={request?.reviewer}
-      closeLabel={t("close")}
       trigger={null}
       isOpen={isOpen}
       onOpenChange={(open) => {
@@ -553,7 +551,6 @@ const ClearConflictDialog = ({
     <FormDialog
       title={t("clearConflict")}
       context={assignment?.reviewer}
-      closeLabel={t("close")}
       trigger={null}
       isOpen={isOpen}
       onOpenChange={(open) => {

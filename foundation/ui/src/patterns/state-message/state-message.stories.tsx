@@ -1,8 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
 import { Button } from "../../components/button/button";
+import { Icon } from "../../components/icon/icon";
 import linkStyles from "../../components/link/link.module.css";
 import { StateMessage } from "./state-message";
+import styles from "./state-message.stories.module.css";
 
 const meta = {
   title: "Patterns/State message",
@@ -11,7 +13,7 @@ const meta = {
     docs: {
       description: {
         component:
-          'A centered page-level message with an h1, optional explanation, illustration, and actions. Callers supply translated content and recovery behavior; page wrappers own placement and navigation. Mark decorative illustrations aria-hidden. Pass role="status" for loading announcements; static recovery messages have no live role.',
+          'A centered message with an optional explanation, illustration, and actions. The page size has an h1; the compact size sits inside a dialog or search box with a small icon. Callers supply translated content and recovery behavior; page wrappers own placement and navigation. Mark decorative illustrations aria-hidden. Pass role="status" for loading announcements; static recovery messages have no live role.',
       },
     },
   },
@@ -72,4 +74,36 @@ export const LongContent: Story = {
       </a>
     ),
   },
+};
+
+/** The compact size inside a dialog or search box, in its neutral and failure tones. */
+export const Compact: Story = {
+  render: () => (
+    <div className={styles.comparison}>
+      <StateMessage
+        size="compact"
+        title="No results match “harbr”."
+        description="Search by funding round, application title, or applicant."
+        illustration={<Icon name="search" />}
+        actions={
+          <Button size="small" variant="secondary">
+            Clear search
+          </Button>
+        }
+      />
+      <StateMessage
+        size="compact"
+        tone="danger"
+        title="Search isn’t available right now."
+        description="Your search is kept. Try again in a moment."
+        illustration={<Icon name="warning" />}
+        actions={
+          <Button size="small" variant="secondary">
+            <Icon name="reset" />
+            Try again
+          </Button>
+        }
+      />
+    </div>
+  ),
 };

@@ -153,7 +153,7 @@ it.each([false, true])(
     if (reopen) {
       await user.click(
         within(screen.getByRole("dialog", { name: "Change contact" })).getByRole("button", {
-          name: "Close",
+          name: "Close dialog",
         }),
       );
       await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
@@ -193,7 +193,7 @@ it.each([
     const failure = await picker.findByRole("alert");
     expect(failure).toHaveAttribute("data-tone", "danger");
     expect(failure).toHaveTextContent(message);
-    expect(picker.getByRole("button", { name: "Close" })).toBeEnabled();
+    expect(picker.getByRole("button", { name: "Close dialog" })).toBeEnabled();
     expect(data.refresh).not.toHaveBeenCalled();
     expect(data.refreshCurrent).not.toHaveBeenCalled();
     expect(screen.queryByRole("button", { name: "Undo" })).not.toBeInTheDocument();
@@ -241,7 +241,7 @@ it("keeps a conflicting assignment distinct from a failed read and disables acti
   const retry = picker.getByRole("button", { name: "Retry" });
   await user.click(retry);
   expect(retry).toBeDisabled();
-  expect(picker.getByRole("button", { name: "Close" })).toBeDisabled();
+  expect(picker.getByRole("button", { name: "Close dialog" })).toBeDisabled();
   await user.keyboard("{Escape}");
   expect(picker.getByText(conflictMessage)).toBeVisible();
 
@@ -251,7 +251,7 @@ it("keeps a conflicting assignment distinct from a failed read and disables acti
     expect(picker.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument(),
   );
   expect(picker.getByRole("alert")).toHaveTextContent(conflictMessage);
-  expect(picker.getByRole("button", { name: "Close" })).toBeEnabled();
+  expect(picker.getByRole("button", { name: "Close dialog" })).toBeEnabled();
   expect(data.refreshCurrent).toHaveBeenCalledTimes(2);
   expect(data.refresh).not.toHaveBeenCalled();
   expect(data.selectContact).toHaveBeenCalledExactlyOnceWith("sam", 3);

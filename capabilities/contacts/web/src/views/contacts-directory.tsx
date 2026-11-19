@@ -8,7 +8,7 @@ import { ActionMenu } from "@merit/ui/action-menu";
 import shellStyles from "@merit/ui/application-shell.module.css";
 import { Button } from "@merit/ui/button";
 import { CollectionFilter, CollectionToolbar } from "@merit/ui/collection-toolbar";
-import { DialogContent, ModalDialog } from "@merit/ui/dialog";
+import { DialogContent, SidePanel } from "@merit/ui/dialog";
 import { Icon } from "@merit/ui/icon";
 import { Stack } from "@merit/ui/layout";
 import { Notice } from "@merit/ui/notice";
@@ -59,19 +59,17 @@ const ContactApplicationsCell = ({
   }
 
   return (
-    <ModalDialog
-      placement="end"
+    <SidePanel
       isOpen={open}
       onOpenChange={setOpen}
       title={t("applicationsFor", { person: contact.name || contact.email })}
-      closeLabel={t("close")}
       trigger={
         <Button variant="quiet" size="small">
           {t("applicationCount", { count: titles.length })}
         </Button>
       }
     >
-      <DialogContent label={t("applicationsFor", { person: contact.name || contact.email })}>
+      <DialogContent>
         <RemotePagedContent source={contact.applicationsSource} entries={[]} active={open}>
           {(page) => (
             <PagedContent
@@ -113,7 +111,7 @@ const ContactApplicationsCell = ({
           )}
         </RemotePagedContent>
       </DialogContent>
-    </ModalDialog>
+    </SidePanel>
   );
 };
 
@@ -309,7 +307,6 @@ export const ContactsDirectory = ({
         isDismissDisabled={pending}
         title={t(editing === "new" ? "addContact" : "editContact")}
         trigger={null}
-        closeLabel={t("close")}
         isOpen={editing !== null}
         onOpenChange={(open) => {
           if (!open) {

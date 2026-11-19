@@ -13,7 +13,7 @@ import { Button } from "@merit/ui/button";
 import { ChoiceList } from "@merit/ui/choice-list";
 import { ConfirmationDialog } from "@merit/ui/confirmation-dialog";
 import { DateChoice } from "@merit/ui/date-choice";
-import { DialogContent, PopoverDialog } from "@merit/ui/dialog";
+import { DialogContent, PickerPopover } from "@merit/ui/dialog";
 import { EditorLoading, EditorClose } from "@merit/ui/editor-loading";
 import { Icon } from "@merit/ui/icon";
 import { InlineName } from "@merit/ui/inline-name";
@@ -179,7 +179,6 @@ export const RoundBudget = ({ preparation }: Props) => {
   return (
     <FormDialog
       title={t("preparation.edit.budget")}
-      closeLabel={t("preparation.close")}
       trigger={
         <RoundEditButton
           preparation={preparation}
@@ -286,11 +285,9 @@ const QuickEditor = ({
   const { t } = useTranslation("roundPreparation");
 
   return (
-    <PopoverDialog
+    <PickerPopover
       title={t(`preparation.edit.${section}`)}
-      closeLabel={t("preparation.close")}
       placement="left top"
-      appearance="compact"
       trigger={
         <RoundEditButton
           preparation={preparation}
@@ -327,7 +324,7 @@ const QuickEditor = ({
           )}
         </>
       )}
-    </PopoverDialog>
+    </PickerPopover>
   );
 };
 
@@ -373,7 +370,6 @@ export const RoundDeleteConfirmation = ({ preparation }: Props) => {
     <ConfirmationDialog
       title={t("preparation.deleteTitle")}
       description={t("preparation.deleteDescription", { title: preparation.round.title })}
-      closeLabel={t("preparation.close")}
       cancelLabel={t("common:cancel")}
       confirmLabel={t("preparation.delete")}
       pendingLabel={t("preparation.deleting")}

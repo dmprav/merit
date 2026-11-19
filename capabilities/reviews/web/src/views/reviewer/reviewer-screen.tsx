@@ -91,7 +91,6 @@ export const ReviewerScreen = ({
       <ConfirmationDialog
         title={t("withdrawTitle")}
         description={t("withdrawHelp")}
-        closeLabel={t("close")}
         cancelLabel={t("cancel")}
         confirmLabel={t("withdraw")}
         isOpen={withdrawOpen}
@@ -369,7 +368,6 @@ const ConflictDialog = ({
   return (
     <FormDialog
       title={t("conflict")}
-      closeLabel={t("close")}
       context={work.page.assignment.applicationTitle}
       trigger={null}
       isOpen={isOpen}

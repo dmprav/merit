@@ -94,7 +94,7 @@ it("keeps the budget dialog title and close control while recovery is pending", 
   const dialog = screen.getByRole("dialog", { name: "Edit budget" });
   expect(within(dialog).getByText("Preparing editor…")).toBeVisible();
   expect(within(dialog).queryByRole("textbox")).not.toBeInTheDocument();
-  await user.click(within(dialog).getByRole("button", { name: "Close" }));
+  await user.click(within(dialog).getByRole("button", { name: "Close dialog" }));
   recover();
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   expect(setEdit).not.toHaveBeenCalled();

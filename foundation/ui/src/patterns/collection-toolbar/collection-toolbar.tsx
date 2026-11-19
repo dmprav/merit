@@ -1,7 +1,7 @@
 import { useRef, type ReactNode } from "react";
 
 import { Button } from "../../components/button/button";
-import { PopoverDialog } from "../../components/dialog/dialog";
+import { PickerPopover } from "../../components/dialog/dialog";
 import { SearchField } from "../../components/fields/search-field/search-field";
 import { Select, type SelectProps } from "../../components/fields/select/select";
 import { Icon } from "../../components/icon/icon";
@@ -49,11 +49,10 @@ export const CollectionToolbar = ({
 
   return (
     <div className={styles.toolbar}>
-      <PopoverDialog
+      <PickerPopover
         title={filterTitle}
         closeLabel={closeLabel}
         placement="bottom start"
-        appearance="compact"
         trigger={
           <Button ref={filterTrigger} variant="quiet" size="small">
             <Icon name="filter" />
@@ -62,7 +61,7 @@ export const CollectionToolbar = ({
         }
       >
         <FilterPanel filters={filters} search={search} reset={reset} />
-      </PopoverDialog>
+      </PickerPopover>
       {chips.map((chip) => (
         <Button
           key={chip.id}

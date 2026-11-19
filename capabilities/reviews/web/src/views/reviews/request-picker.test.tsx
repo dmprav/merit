@@ -154,7 +154,7 @@ it("blocks closing and further choices while the request saves", async () => {
 
   await user.click(picker.getByRole("option", { name: /Sam Morgan/ }));
 
-  expect(picker.getByRole("button", { name: "Close" })).toBeDisabled();
+  expect(picker.getByRole("button", { name: "Close dialog" })).toBeDisabled();
   expect(picker.getByRole("option", { name: /Sam Morgan/ })).toHaveAttribute(
     "aria-disabled",
     "true",

@@ -180,7 +180,7 @@ export const AssignManager: Story = {
 
     await expect(dialog.getByRole("textbox", { name: "Search people" })).toHaveFocus();
     await expect(dialog.queryByRole("heading", { name: "Assign manager" })).not.toBeInTheDocument();
-    await waitFor(() => expect(dialog.getByRole("button", { name: "Close" })).toBeVisible());
+    await waitFor(() => expect(dialog.getByRole("button", { name: "Close dialog" })).toBeVisible());
   },
 };
 export const ResumePurpose: Story = {
@@ -283,6 +283,6 @@ export const CommitteeDate: Story = {
       dialog.queryByRole("heading", { name: "Edit committee date" }),
     ).not.toBeInTheDocument();
     await waitFor(() => expect(dialog.getByRole("button", { name: "Cancel" })).toBeVisible());
-    await expect(dialog.queryByRole("button", { name: "Close" })).not.toBeInTheDocument();
+    await expect(dialog.queryByRole("button", { name: "Close dialog" })).not.toBeInTheDocument();
   },
 };

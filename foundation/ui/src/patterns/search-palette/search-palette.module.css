@@ -1,9 +1,69 @@
+.overlay {
+  --search-top: min(12vh, 7rem);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: var(--search-top) var(--space-4) var(--space-4);
+}
+
+.modal {
+  width: 100%;
+  max-width: 44rem;
+  max-height: calc(100dvh - var(--search-top) - 2rem);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--panel-radius);
+  background: var(--surface);
+  box-shadow: var(--popover-shadow);
+}
+
+.dialog {
+  --search-field-height: calc(var(--target-touch) + var(--space-5));
+  --search-close-reserve: calc(var(--control-height-small) + var(--space-3));
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  max-height: calc(100dvh - var(--search-top) - 2rem - 2px);
+}
+
+/* The small close control sits over the field's end; the field reserves its width. */
+.close {
+  position: absolute;
+  z-index: 1;
+  top: calc(var(--search-field-height) / 2);
+  transform: translateY(-50%);
+  inset-inline-end: var(--space-2);
+}
+
+@media (max-width: 600px) {
+  .overlay {
+    padding: 0;
+  }
+
+  .modal {
+    max-width: none;
+    height: 100dvh;
+    max-height: 100dvh;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .dialog {
+    height: 100%;
+    max-height: 100dvh;
+  }
+}
+
 .palette {
   position: relative;
   display: flex;
   flex-direction: column;
   min-height: 0;
   flex: 1;
+  /* The footer divider follows how far the results have scrolled. */
+  timeline-scope: --search-results;
+  --edge-timeline: --search-results;
 }
 
 .field {
@@ -44,10 +104,6 @@
   appearance: none;
 }
 
-.field:focus-within {
-  box-shadow: inset 0 -1px var(--focus);
-}
-
 /* A hairline sweeps under the field while results are replaced; they stay readable. */
 .progress {
   position: relative;
@@ -71,6 +127,7 @@
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
+  scroll-timeline: --search-results block;
   padding: var(--space-3);
   outline: none;
 }
@@ -162,10 +219,15 @@
   cursor: default;
 }
 
+/* A steady minimum keeps the box from jumping between results and a message. */
 .message {
-  padding: var(--space-5) var(--space-4);
+  display: grid;
+  place-items: center;
+  min-height: 12rem;
+  padding: var(--space-6) var(--space-4);
   color: var(--muted);
-  font-size: var(--text-detail);
+  font-size: var(--text-body);
+  text-align: center;
   overflow-wrap: anywhere;
 }
 
@@ -205,25 +267,29 @@
   color: var(--muted);
 }
 
-.feedback {
-  padding: var(--space-2) var(--space-4);
+.footer {
+  display: grid;
+  flex-shrink: 0;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface-muted);
   color: var(--muted);
   font-size: var(--text-caption);
 }
 
-.footer {
+.feedback {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.hints {
   display: flex;
-  flex-shrink: 0;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3) var(--space-5);
-  border-top: 1px solid var(--border);
-  padding: var(--space-3) var(--space-4);
-  color: var(--muted);
-  font-size: var(--text-caption);
 }
 
-.footer > span {
+.hints > span {
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
@@ -238,17 +304,19 @@
   padding-inline: var(--space-1);
   border: 1px solid var(--border);
   border-radius: var(--space-1);
-  background: var(--surface-muted);
+  background: var(--surface);
   font: inherit;
 }
 
 @media (pointer: coarse) {
-  .footer {
+  .hints,
+  .footer:not(:has(.feedback)) {
     display: none;
   }
 }
 
 @media (forced-colors: active) {
+  /* The field is the box's only text control; forced colors restore an explicit indicator. */
   .field:focus-within {
     border-bottom-color: Highlight;
   }

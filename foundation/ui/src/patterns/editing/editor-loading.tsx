@@ -4,11 +4,15 @@ import { Button } from "../../components/button/button";
 import { Icon } from "../../components/icon/icon";
 import styles from "./editor-loading.module.css";
 
-/** Compact recovery feedback inside the editor's existing padded body. Keep its title and Close available. */
+/**
+ * Compact recovery feedback inside the editor's existing padded body. Keep its title and Close
+ * available. Alone in a dialog body it is centered in a stable space; it fades in after a short
+ * delay so quick recoveries do not flash.
+ */
 export const EditorLoading = () => {
   const { t } = useTranslation("common");
   return (
-    <span className={styles.loading} role="status">
+    <span className={styles.loading} role="status" data-body-state>
       <Icon name="loading" className={styles.spinner} />
       <span className={styles.copy}>
         <span className={styles.title}>{t("editorPreparing")}</span>

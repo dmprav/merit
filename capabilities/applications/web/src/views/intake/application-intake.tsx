@@ -11,7 +11,7 @@ import { Badge } from "@merit/ui/badge";
 import { Button } from "@merit/ui/button";
 import { ConfirmationDialog } from "@merit/ui/confirmation-dialog";
 import { DateField } from "@merit/ui/date-field";
-import { DialogContent, ModalDialog } from "@merit/ui/dialog";
+import { DialogContent, DialogSection, ModalDialog } from "@merit/ui/dialog";
 import { Icon } from "@merit/ui/icon";
 import { InlineName } from "@merit/ui/inline-name";
 import { Inline, Reading } from "@merit/ui/layout";
@@ -366,44 +366,36 @@ const RevisionPreview = ({
       </p>
       <ModalDialog
         title={t(editingContent ? "intake.currentSubmission" : "intake.previewRevision")}
-        closeLabel={t("preparation.close")}
-        size="wide"
         trigger={
           <Button size="small" variant="quiet">
             {t(editingContent ? "intake.viewCurrentSubmission" : "intake.previewRevision")}
           </Button>
         }
       >
-        <DialogContent
-          label={t(editingContent ? "intake.currentSubmission" : "intake.previewRevision")}
-          reading
-        >
+        <DialogContent reading>
           <Reading className={styles.preview}>
-            <div>
-              <h3>{preview.title}</h3>
+            <DialogSection title={preview.title}>
               <p>{preview.applicant}</p>
               <p>
                 {previewAmount?.ok
                   ? t("applications.requestAmount", { amount: money(previewAmount.value) })
                   : t("intake.unknownAmount")}
               </p>
-            </div>
-            {preview.projectPeriod && (
-              <p>
-                {t("evidence.projectPeriod")}: {preview.projectPeriod}
-              </p>
-            )}
+              {preview.projectPeriod && (
+                <p>
+                  {t("evidence.projectPeriod")}: {preview.projectPeriod}
+                </p>
+              )}
+            </DialogSection>
             {preview.answers.map((answer, index) => (
-              <section key={index}>
-                <h3>{answer.question}</h3>
+              <DialogSection key={index} title={answer.question}>
                 <p>{answer.response}</p>
-              </section>
+              </DialogSection>
             ))}
             {!editingContent && (
-              <section>
-                <h3>{t("intake.reason")}</h3>
+              <DialogSection title={t("intake.reason")}>
                 <p>{working.reason || t("intake.reasonHint")}</p>
-              </section>
+              </DialogSection>
             )}
           </Reading>
         </DialogContent>
@@ -539,7 +531,6 @@ const IntakeConfirmations = ({
           confirmation === "delete" ? "intake.deleteDescription" : "intake.discardDescription",
           { title: application.title },
         )}
-        closeLabel={t("preparation.close")}
         cancelLabel={t("common:cancel")}
         confirmLabel={t(confirmation === "delete" ? "intake.delete" : "intake.discardRevision")}
         intent="destructive"
@@ -657,7 +648,6 @@ const WithdrawDialog = ({
     <ConfirmationDialog
       title={t("intake.withdrawFor", { title: application.title })}
       description={description}
-      closeLabel={t("preparation.close")}
       cancelLabel={t("common:cancel")}
       confirmLabel={t("intake.withdraw")}
       intent="destructive"
@@ -705,7 +695,6 @@ const ReinstateDialog = ({
     <ConfirmationDialog
       title={t("intake.reinstateFor", { title: application.title })}
       description={t("intake.reinstateDescription")}
-      closeLabel={t("preparation.close")}
       cancelLabel={t("common:cancel")}
       confirmLabel={t("intake.reinstate")}
       isOpen={isOpen}

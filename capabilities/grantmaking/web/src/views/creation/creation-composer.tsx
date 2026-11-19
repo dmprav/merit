@@ -70,9 +70,7 @@ const CreationComposer = ({
       {!open && feedback && <div className={styles.confirmation}>{feedback}</div>}
       {renderTrigger?.(creation.openEditor)}
       <FormDialog
-        size="wide"
         title={label}
-        closeLabel={t("preparation.close")}
         context={isApplication ? target.roundTitle : undefined}
         contextLabel={isApplication ? t("rounds.round") : undefined}
         isOpen={open}

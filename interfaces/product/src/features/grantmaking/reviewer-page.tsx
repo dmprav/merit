@@ -178,7 +178,6 @@ export const ReviewerAssignmentPage = ({
       <ConfirmationDialog
         title={t("leaveTitle")}
         description={t("leaveHelp")}
-        closeLabel={t("close")}
         cancelLabel={t("stay")}
         confirmLabel={t("leave")}
         isOpen={blocker.status === "blocked"}

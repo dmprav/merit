@@ -6,6 +6,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { createFundingApplication } from "@merit/applications/server";
 import { createNavigationService } from "@merit/grantmaking/server";
 import { createFundingRound } from "@merit/rounds/server";
+import { settleAnimations } from "@merit/test-support/browser";
 import { openNavigation, closeNavigation } from "@merit/test-support/browser/navigation";
 
 import { test, expect } from "./workspace-test.ts";
@@ -167,14 +168,7 @@ test(
     await expect(page.getByRole("link", { name: "Administration", exact: true })).toHaveCount(0);
 
     // Finish the drawer's opening animation before measuring its text contrast.
-    await page.evaluate(async () => {
-      await Promise.allSettled(
-        document
-          .getAnimations()
-          .filter((animation) => animation.effect?.getTiming().iterations !== Infinity)
-          .map((animation) => animation.finished),
-      );
-    });
+    await settleAnimations(page);
     await page.screenshot({ path: testInfo.outputPath("navigation.png") });
 
     expect(
@@ -494,9 +488,7 @@ test("personal pins stay under their object type and survive reloads @cross-brow
   const originalUrl = page.url();
   await pinActions.focus();
   if (testInfo.project.use.isMobile) {
-    await page.evaluate(async () => {
-      await Promise.allSettled(document.getAnimations().map((animation) => animation.finished));
-    });
+    await settleAnimations(page);
     const bounds = (await pinActions.boundingBox())!;
     const point = {
       clientX: bounds.x + 20,
@@ -646,14 +638,7 @@ test("personal pins stay under their object type and survive reloads @cross-brow
     navigation.getByRole("region", { name: "Funding rounds", exact: true }).getByRole("link"),
   ).toHaveText(["Funding rounds", "Community grants 2028", "Local Connections 2027"]);
   // Measure the drawer after its entrance animation has reached its final contrast.
-  await page.evaluate(async () => {
-    await Promise.allSettled(
-      document
-        .getAnimations()
-        .filter((animation) => animation.effect?.getTiming().iterations !== Infinity)
-        .map((animation) => animation.finished),
-    );
-  });
+  await settleAnimations(page);
   await page.screenshot({ path: testInfo.outputPath("personal-pins.png"), animations: "disabled" });
   expect(
     (await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze())

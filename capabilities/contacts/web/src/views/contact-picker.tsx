@@ -107,7 +107,6 @@ export const ContactPicker = ({
         isDismissDisabled={pending}
         title={t("addContact")}
         trigger={null}
-        closeLabel={t("close")}
         isOpen={editorOpen}
         onOpenChange={(open) => {
           if (!open) {

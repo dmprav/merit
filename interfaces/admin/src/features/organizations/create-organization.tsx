@@ -40,7 +40,6 @@ export const CreateOrganization = () => {
   return (
     <FormDialog
       title={t("create")}
-      closeLabel={t("closeEditor")}
       isOpen={open}
       onOpenChange={(open) => {
         setOpen(open);

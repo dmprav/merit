@@ -1,7 +1,8 @@
 import { useId, type ReactNode } from "react";
 
 import { Button } from "../../components/button/button";
-import { DialogContent, ModalDialog } from "../../components/dialog/dialog";
+import { DialogContent } from "../../components/dialog/dialog";
+import { FramedDialog } from "../../components/dialog/framed-dialog";
 import { Inline } from "../../components/layout/layout";
 import { Notice } from "../../components/notice/notice";
 import styles from "./confirmation-dialog.module.css";
@@ -11,7 +12,8 @@ type ConfirmationDialogProps = {
   description: string;
   /** Supporting consequences shown between the summary and confirmation actions. */
   children?: ReactNode;
-  closeLabel: string;
+  /** Defaults to the shared “Close dialog” message. */
+  closeLabel?: string;
   cancelLabel: string;
   confirmLabel: string;
   pendingLabel?: string;
@@ -49,8 +51,9 @@ export const ConfirmationDialog = ({
   const descriptionId = useId();
 
   return (
-    <ModalDialog
-      appearance="form"
+    <FramedDialog
+      frame="center"
+      width="narrow"
       title={title}
       closeLabel={closeLabel}
       trigger={trigger}
@@ -60,7 +63,6 @@ export const ConfirmationDialog = ({
       aria-describedby={descriptionId}
     >
       <DialogContent
-        label={title}
         feedback={
           error && (
             <Notice appearance="inline" tone="danger" role="alert">
@@ -69,27 +71,25 @@ export const ConfirmationDialog = ({
           )
         }
         footer={
-          <div className={styles.content}>
-            <Inline justify="end" gap={3}>
-              <Button
-                size="small"
-                variant="secondary"
-                autoFocus
-                isDisabled={isPending}
-                onPress={() => onOpenChange(false)}
-              >
-                {cancelLabel}
-              </Button>
-              <Button
-                size="small"
-                variant={intent === "destructive" ? "destructive" : "primary"}
-                isPending={isPending}
-                onPress={onConfirm}
-              >
-                {isPending ? (pendingLabel ?? confirmLabel) : confirmLabel}
-              </Button>
-            </Inline>
-          </div>
+          <Inline justify="end" gap={3}>
+            <Button
+              size="small"
+              variant="secondary"
+              autoFocus
+              isDisabled={isPending}
+              onPress={() => onOpenChange(false)}
+            >
+              {cancelLabel}
+            </Button>
+            <Button
+              size="small"
+              variant={intent === "destructive" ? "destructive" : "primary"}
+              isPending={isPending}
+              onPress={onConfirm}
+            >
+              {isPending ? (pendingLabel ?? confirmLabel) : confirmLabel}
+            </Button>
+          </Inline>
         }
       >
         <div className={styles.content}>
@@ -99,6 +99,6 @@ export const ConfirmationDialog = ({
           {children}
         </div>
       </DialogContent>
-    </ModalDialog>
+    </FramedDialog>
   );
 };

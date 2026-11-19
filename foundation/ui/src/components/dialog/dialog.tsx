@@ -1,56 +1,24 @@
-import { useState, useSyncExternalStore, type ReactNode } from "react";
-import { Dialog, DialogTrigger, Heading, type DialogProps } from "react-aria-components/Dialog";
-import { Modal, ModalOverlay, type ModalOverlayProps } from "react-aria-components/Modal";
+import { useSyncExternalStore, type ReactNode } from "react";
+import { Dialog, DialogTrigger, Heading } from "react-aria-components/Dialog";
 import { Popover, type PopoverProps } from "react-aria-components/Popover";
+import { useTranslation } from "react-i18next";
 
+import motion from "../../foundations/motion.module.css";
+import scrollStyles from "../../foundations/scroll-area.module.css";
 import { Button } from "../button/button";
 import { Icon } from "../icon/icon";
-import { DialogContent, DialogLayoutContext } from "./dialog-content";
+import { DialogContent, DialogFrameContext } from "./dialog-content";
 import styles from "./dialog.module.css";
+import { FramedDialog, type FramedDialogProps } from "./framed-dialog";
+import { RetainedDialogContent } from "./modal-frame";
 
-export { DialogContent } from "./dialog-content";
+export { DialogContent, DialogSection } from "./dialog-content";
 
-type ModalDialogProps = Omit<ModalOverlayProps, "children" | "className"> & {
-  title: string;
-  /** Fixed parent context that orients the task. */
-  context?: string;
-  /** Localized relationship label, such as “Round”. */
-  contextLabel?: string;
-  closeLabel: string;
-  trigger: ReactNode;
-  children: DialogProps["children"];
-  "aria-describedby"?: string;
-  isDismissDisabled?: boolean;
-  size?: "default" | "wide";
-} & (
-    | {
-        appearance?: "default";
-        placement?: "center" | "start" | "end";
-      }
-    | {
-        /** Shared form frame with a stable desktop position and tinted footer. */
-        appearance: "form";
-        placement?: never;
-      }
-    | {
-        /**
-         * A search box near the top of the page with no visible title bar and a small close
-         * control; the title names the dialog for assistive technology and fills the screen
-         * on compact viewports. Dismisses on outside press unless `isDismissable` is false.
-         */
-        appearance: "search";
-        placement?: never;
-      }
-  );
+/** A centered dialog for a bounded task: a short form, a decision, or reference reading. */
+export const ModalDialog = (props: FramedDialogProps) => <FramedDialog {...props} frame="center" />;
 
-// Keep the last open content while callers clear their state during dismissal.
-const RetainedDialogContent = ({ isOpen, children }: { isOpen: boolean; children: ReactNode }) => {
-  const [content, setContent] = useState(children);
-  if (isOpen && content !== children) {
-    setContent(children);
-  }
-  return isOpen ? children : content;
-};
+/** Records related to a row, in a full-height panel at the end edge. */
+export const SidePanel = (props: FramedDialogProps) => <FramedDialog {...props} frame="end" />;
 
 const compactQuery = "(max-width: 600px)";
 
@@ -70,8 +38,18 @@ const pixelAlignedTriggerRect = (target: Element) => {
   return new DOMRect(rect.x, top, rect.width, Math.ceil(rect.bottom) - top);
 };
 
-/** Supplies a persistent heading and a keyboard-scrollable body around the content. */
-export const PopoverDialog = ({
+type FloatingDialogProps = {
+  title: string;
+  /** Defaults to the shared “Close dialog” message. */
+  closeLabel?: string;
+  trigger: ReactNode;
+  isOpen?: boolean;
+  onOpenChange?: (isOpen: boolean) => void;
+  isDismissDisabled?: boolean;
+  placement?: PopoverProps["placement"];
+};
+
+const FloatingDialog = ({
   title,
   closeLabel,
   trigger,
@@ -81,21 +59,17 @@ export const PopoverDialog = ({
   onOpenChange,
   headerActions,
   placement,
-  appearance = "default",
+  appearance,
   isDismissDisabled = false,
-}: Pick<
-  ModalDialogProps,
-  "title" | "closeLabel" | "trigger" | "isOpen" | "onOpenChange" | "isDismissDisabled"
-> & {
+}: FloatingDialogProps & {
   headerActions?: ReactNode;
-  /** Utility content below the standard appearance's body. */
   footer?: ReactNode;
-  placement?: PopoverProps["placement"];
-  /** Compact pickers render the supplied closeButton alongside their own heading. */
-  appearance?: "default" | "compact";
+  appearance: "reference" | "picker";
   children: ReactNode | ((props: { close: () => void; closeButton: ReactNode }) => ReactNode);
 }) => {
+  const { t } = useTranslation("common");
   const compact = useSyncExternalStore(subscribeViewport, isCompactViewport, () => false);
+  const picker = appearance === "picker";
 
   return (
     <DialogTrigger
@@ -108,25 +82,23 @@ export const PopoverDialog = ({
     >
       {trigger}
       <Popover
-        className={styles.popover}
+        // Pickers can open nested overlays before their entrance finishes, so they only fade.
+        className={`${styles.popover} ${scrollStyles.scrollArea} ${motion.fadeOut} ${picker ? motion.fadeIn : ""}`}
         data-appearance={appearance}
         data-has-footer={footer ? true : undefined}
         placement={compact ? "bottom end" : (placement ?? "right bottom")}
         offset={8}
         containerPadding={16}
         maxHeight={560}
-        getTargetRect={appearance === "compact" ? pixelAlignedTriggerRect : undefined}
-        // Compact pickers lock background scrolling so nested forms do not dismiss their parent.
-        isNonModal={!compact && appearance !== "compact"}
+        getTargetRect={picker ? pixelAlignedTriggerRect : undefined}
+        // Pickers lock background scrolling so nested forms do not dismiss their parent.
+        isNonModal={!compact && !picker}
         isKeyboardDismissDisabled={isDismissDisabled}
         shouldCloseOnInteractOutside={() => !isDismissDisabled}
       >
         {({ isExiting }) => (
           <RetainedDialogContent isOpen={!isExiting}>
-            <Dialog
-              className={styles.dialog}
-              aria-label={appearance === "compact" ? title : undefined}
-            >
+            <Dialog className={styles.dialog} aria-label={picker ? title : undefined}>
               {({ close }) => {
                 const closeButton = (
                   <Button
@@ -134,7 +106,7 @@ export const PopoverDialog = ({
                     variant="quiet"
                     size="small"
                     iconOnly
-                    aria-label={closeLabel}
+                    aria-label={closeLabel ?? t("closeDialog")}
                     onPress={close}
                     isDisabled={isDismissDisabled}
                   >
@@ -145,27 +117,27 @@ export const PopoverDialog = ({
                   typeof children === "function" ? children({ close, closeButton }) : children;
 
                 return (
-                  <DialogLayoutContext value="default">
-                    {appearance === "default" && (
-                      <div className={styles.popoverHeader}>
-                        <Heading slot="title" className={styles.popoverTitle}>
-                          {title}
-                        </Heading>
-                        <div className={styles.headerActions}>
-                          {headerActions}
-                          {closeButton}
-                        </div>
-                      </div>
-                    )}
-                    {appearance === "default" ? (
-                      <>
-                        <DialogContent label={title}>{content}</DialogContent>
-                        {footer && <div className={styles.popoverFooter}>{footer}</div>}
-                      </>
-                    ) : (
+                  <DialogFrameContext value={{ framed: !picker, title }}>
+                    {picker ? (
                       content
+                    ) : (
+                      <>
+                        <div
+                          className={`${styles.header} ${footer ? "" : scrollStyles.dividerAfterStart}`}
+                        >
+                          <Heading slot="title" className={styles.title}>
+                            {title}
+                          </Heading>
+                          <div className={styles.headerActions}>
+                            {headerActions}
+                            {closeButton}
+                          </div>
+                        </div>
+                        <DialogContent>{content}</DialogContent>
+                        {footer && <div className={styles.footer}>{footer}</div>}
+                      </>
                     )}
-                  </DialogLayoutContext>
+                  </DialogFrameContext>
                 );
               }}
             </Dialog>
@@ -176,134 +148,25 @@ export const PopoverDialog = ({
   );
 };
 
-const ModalDialogHeader = ({
-  title,
-  context,
-  contextLabel,
-  closeLabel,
-  isDismissDisabled,
-  close,
-}: Pick<
-  ModalDialogProps,
-  "title" | "context" | "contextLabel" | "closeLabel" | "isDismissDisabled"
-> & { close: () => void }) => (
-  <div className={styles.header} data-dialog-header>
-    <div className={styles.heading}>
-      <Heading slot="title" className={styles.title}>
-        {title}
-      </Heading>
-      {context && (
-        <span className={styles.context} data-dialog-context>
-          {contextLabel && <>{contextLabel}: </>}
-          {context}
-        </span>
-      )}
-    </div>
-    <Button
-      variant="quiet"
-      iconOnly
-      aria-label={closeLabel}
-      isDisabled={isDismissDisabled}
-      onPress={close}
-      className={styles.close}
-    >
-      <Icon name="close" />
-    </Button>
-  </div>
-);
+/**
+ * Reference material beside a value: a persistent heading and close control above a
+ * keyboard-scrollable body, with optional utilities in a tinted footer.
+ */
+export const PopoverDialog = (
+  props: FloatingDialogProps & {
+    headerActions?: ReactNode;
+    /** Utility content below the body. */
+    footer?: ReactNode;
+    children: ReactNode | ((props: { close: () => void }) => ReactNode);
+  },
+) => <FloatingDialog {...props} appearance="reference" />;
 
-const ModalDialogOverlay = ({
-  title,
-  appearance = "default",
-  context,
-  contextLabel,
-  closeLabel,
-  children,
-  isDismissDisabled,
-  placement = "center",
-  size = "default",
-  isDismissable,
-  isKeyboardDismissDisabled,
-  "aria-describedby": descriptionId,
-  ...props
-}: Omit<ModalDialogProps, "trigger">) => (
-  <ModalOverlay
-    {...props}
-    isDismissable={!isDismissDisabled && (isDismissable ?? appearance === "search")}
-    isKeyboardDismissDisabled={isDismissDisabled || isKeyboardDismissDisabled}
-    className={styles.overlay}
-    data-placement={placement}
-    data-appearance={appearance}
-  >
-    {({ state }) => (
-      <RetainedDialogContent isOpen={state.isOpen}>
-        <Modal className={styles.modal} data-size={size} data-appearance={appearance}>
-          <Dialog
-            className={styles.dialog}
-            aria-label={appearance === "search" ? title : undefined}
-            aria-describedby={descriptionId}
-            data-modal-dialog={placement}
-          >
-            {({ close }) => (
-              <DialogLayoutContext value={appearance === "form" ? "form" : "default"}>
-                {appearance === "search" ? (
-                  <Button
-                    variant="quiet"
-                    size="small"
-                    iconOnly
-                    aria-label={closeLabel}
-                    isDisabled={isDismissDisabled}
-                    onPress={close}
-                    className={styles.searchClose}
-                  >
-                    <Icon name="close" />
-                  </Button>
-                ) : (
-                  <ModalDialogHeader
-                    title={title}
-                    context={context}
-                    contextLabel={contextLabel}
-                    closeLabel={closeLabel}
-                    isDismissDisabled={isDismissDisabled}
-                    close={close}
-                  />
-                )}
-                {typeof children === "function" ? children({ close }) : children}
-              </DialogLayoutContext>
-            )}
-          </Dialog>
-        </Modal>
-      </RetainedDialogContent>
-    )}
-  </ModalOverlay>
-);
-
-export const ModalDialog = ({
-  trigger,
-  isOpen,
-  defaultOpen,
-  onOpenChange,
-  isDismissDisabled = false,
-  ...props
-}: ModalDialogProps) => {
-  const handleOpenChange = (open: boolean) => {
-    if (open || !isDismissDisabled) {
-      onOpenChange?.(open);
-    }
-  };
-
-  const overlayState =
-    trigger == null ? { isOpen, defaultOpen, onOpenChange: handleOpenChange } : {};
-  const overlay = (
-    <ModalDialogOverlay {...props} {...overlayState} isDismissDisabled={isDismissDisabled} />
-  );
-
-  return trigger == null ? (
-    overlay
-  ) : (
-    <DialogTrigger isOpen={isOpen} defaultOpen={defaultOpen} onOpenChange={handleOpenChange}>
-      {trigger}
-      {overlay}
-    </DialogTrigger>
-  );
-};
+/**
+ * A picker or small filter panel that places the supplied `closeButton` beside its own
+ * first row. The title names the dialog without a decorative header.
+ */
+export const PickerPopover = (
+  props: FloatingDialogProps & {
+    children: ReactNode | ((props: { close: () => void; closeButton: ReactNode }) => ReactNode);
+  },
+) => <FloatingDialog {...props} appearance="picker" />;

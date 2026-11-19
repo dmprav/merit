@@ -10,7 +10,7 @@ import { calendarDateSchema } from "@merit/dates";
 
 import { Button } from "../../button/button";
 import { Calendar } from "../../calendar/calendar";
-import { PopoverDialog } from "../../dialog/dialog";
+import { PickerPopover } from "../../dialog/dialog";
 import { Icon } from "../../icon/icon";
 import { Tooltip } from "../../tooltip/tooltip";
 import { FieldLabel, FieldFeedback, type FieldPresentationProps } from "../field-parts";
@@ -82,11 +82,9 @@ export const DateField = ({
             />
             {actions}
             {showCalendar && (
-              <PopoverDialog
+              <PickerPopover
                 title={label}
-                closeLabel={t("closeDialog")}
                 placement="bottom end"
-                appearance="compact"
                 isOpen={open}
                 onOpenChange={setOpen}
                 trigger={
@@ -117,7 +115,7 @@ export const DateField = ({
                     }}
                   />
                 )}
-              </PopoverDialog>
+              </PickerPopover>
             )}
           </div>
           <FieldFeedback

@@ -161,7 +161,7 @@ describe("opening", () => {
     [
       "the close button",
       async (user: ReturnType<typeof userEvent.setup>) =>
-        user.click(screen.getByRole("button", { name: "Close search" })),
+        user.click(screen.getByRole("button", { name: "Close dialog" })),
     ],
   ])(
     "closes on %s even with text typed, returns focus, and reopens empty",
@@ -188,7 +188,7 @@ describe("opening", () => {
     const read = vi.fn();
     const { user, update } = show(read, { focusRequest: 0 });
     typeText(await screen.findByRole("searchbox"), "harbour");
-    await user.click(screen.getByRole("button", { name: "Close search" }));
+    await user.click(screen.getByRole("button", { name: "Close dialog" }));
     await user.click(screen.getByRole("button", { name: "Open search" }));
     await screen.findByRole("searchbox");
     await user.click(screen.getByRole("dialog"));

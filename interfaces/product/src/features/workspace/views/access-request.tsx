@@ -24,7 +24,6 @@ export const AccessRequestDialog = ({
   return (
     <FormDialog
       title={t("request.title")}
-      closeLabel={t("request.close")}
       trigger={
         <Button variant="quiet" className={styles.trigger} isDisabled={!hydrated}>
           {t(hasDraft ? "request.resume" : "request.title")}

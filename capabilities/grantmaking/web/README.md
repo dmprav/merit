@@ -93,14 +93,14 @@ as paged applications and related-record lists. Place it at the list end where a
 older-page request starts, retaining its retry control during the request.
 
 Activity rows keep the event, target, actor and local time visible. The event action
-opens the shared end drawer with full record and actor details, the recorded time,
+opens the shared side panel with full record and actor details, the recorded time,
 source provenance and any recorded reason. Closing restores the action's focus
-and the list position. Native record links remain separate from the drawer trigger
+and the list position. Native record links remain separate from the panel trigger
 and retain normal navigation and open-in-new-tab behavior.
 
 Chronological browsing loads continuously; application worklists use bounded pages
 for comparison and returning to work. Activity retains ordinary loaded rows so
-opening and closing a drawer preserves their measured height and reading position
+opening and closing a side panel preserves their measured height and reading position
 across browsers. Loaded data and DOM remain retained; this is not virtualization.
 
 ## Search the workspace

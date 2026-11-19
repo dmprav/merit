@@ -1,10 +1,10 @@
 .guide {
-  font-size: var(--text-body);
   line-height: 1.55;
 }
 
-.title {
-  font-weight: 600;
+.tasks {
+  justify-items: start;
+  margin-top: var(--space-3);
 }
 
 .workspaceActions {
@@ -12,6 +12,7 @@
 }
 
 .expiry {
+  margin-bottom: var(--space-2);
   font-size: var(--text-caption);
   color: var(--muted);
 }

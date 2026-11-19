@@ -4,7 +4,7 @@ import { useState } from "react";
 import { describe, expect, it } from "vite-plus/test";
 
 import { Button } from "../button/button";
-import { DialogContent, ModalDialog } from "./dialog";
+import { DialogContent, ModalDialog, SidePanel } from "./dialog";
 
 it.each([
   { context: "Neighbourhood grants", contextLabel: "Round", contextCount: 1, labelCount: 1 },
@@ -89,11 +89,10 @@ it("ignores backdrop clicks when disabled while allowing Escape and the close bu
   await waitFor(() => expect(trigger).toHaveFocus());
 });
 
-it("contains keyboard focus in an end drawer and returns it to the opener", async () => {
+it("contains keyboard focus in a side panel and returns it to the opener", async () => {
   const user = userEvent.setup();
   render(
-    <ModalDialog
-      placement="end"
+    <SidePanel
       title="Related applications"
       closeLabel="Close applications"
       trigger={<Button>2 applications</Button>}
@@ -102,7 +101,7 @@ it("contains keyboard focus in an end drawer and returns it to the opener", asyn
         <a href="/first">First application</a>
         <a href="/last">Last application</a>
       </DialogContent>
-    </ModalDialog>,
+    </SidePanel>,
   );
   const trigger = screen.getByRole("button", { name: "2 applications" });
   await user.click(trigger);
@@ -169,67 +168,6 @@ describe.each([true, false])("controlled dialog with trigger %s", (withTrigger) 
 
       expect(screen.getByRole("dialog", { name: "Controlled dialog" })).toBeVisible();
       expect(screen.getByText("Dialog is open.")).toBeInTheDocument();
-    },
-  );
-});
-
-describe("search appearance", () => {
-  const SearchDialog = ({ onField }: { onField?: boolean }) => {
-    const [isOpen, setIsOpen] = useState(false);
-    return (
-      <>
-        <button type="button" onClick={() => setIsOpen(true)}>
-          Open search
-        </button>
-        <ModalDialog
-          appearance="search"
-          title="Search the workspace"
-          closeLabel="Close search"
-          trigger={null}
-          isOpen={isOpen}
-          onOpenChange={setIsOpen}
-          data-testid="search-overlay"
-        >
-          {/* oxlint-disable-next-line jsx-a11y/no-autofocus */}
-          <input aria-label="Query" autoFocus={onField} />
-        </ModalDialog>
-      </>
-    );
-  };
-
-  it("names the dialog without a visible title bar and offers a small close control", async () => {
-    const user = userEvent.setup();
-    render(<SearchDialog onField />);
-    await user.click(screen.getByRole("button", { name: "Open search" }));
-    const dialog = screen.getByRole("dialog", { name: "Search the workspace" });
-
-    expect(within(dialog).queryByRole("heading")).not.toBeInTheDocument();
-    expect(within(dialog).queryByText("Search the workspace")).not.toBeInTheDocument();
-    expect(within(dialog).getByRole("button", { name: "Close search" })).toBeVisible();
-    await waitFor(() =>
-      expect(within(dialog).getByRole("textbox", { name: "Query" })).toHaveFocus(),
-    );
-  });
-
-  it.each(["Escape", "close button", "outside press"])(
-    "closes on %s and returns focus to where it was",
-    async (how) => {
-      const user = userEvent.setup();
-      render(<SearchDialog onField />);
-      const opener = screen.getByRole("button", { name: "Open search" });
-      await user.click(opener);
-      await screen.findByRole("dialog", { name: "Search the workspace" });
-
-      if (how === "Escape") {
-        await user.keyboard("{Escape}");
-      } else if (how === "close button") {
-        await user.click(screen.getByRole("button", { name: "Close search" }));
-      } else {
-        await user.click(screen.getByTestId("search-overlay"));
-      }
-
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-      await waitFor(() => expect(opener).toHaveFocus());
     },
   );
 });

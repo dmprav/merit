@@ -109,48 +109,6 @@
   position: relative;
 }
 
-/* The footer shares the scrollbar styling so its reserved gutter matches the content. */
-.content,
-.footer {
-  scrollbar-width: thin;
-  scrollbar-color: color-mix(in srgb, var(--border-control) 55%, transparent) transparent;
-}
-
-@supports selector(::-webkit-scrollbar) {
-  @media (forced-colors: none) {
-    .content,
-    .footer {
-      scrollbar-width: auto;
-      scrollbar-color: auto;
-    }
-
-    .content::-webkit-scrollbar,
-    .footer::-webkit-scrollbar {
-      width: 10px;
-      height: 10px;
-    }
-
-    .content::-webkit-scrollbar-track {
-      background: transparent;
-    }
-
-    .content::-webkit-scrollbar-thumb {
-      background: color-mix(in srgb, var(--border-control) 55%, transparent);
-      border: 2px solid transparent;
-      border-radius: 10px;
-      background-clip: padding-box;
-    }
-
-    .content::-webkit-scrollbar-thumb:hover {
-      background-color: var(--border-control);
-    }
-
-    .content::-webkit-scrollbar-thumb:active {
-      background-color: var(--muted);
-    }
-  }
-}
-
 @media (min-width: 901px) and (min-height: 600px) {
   .view {
     display: flex;
@@ -261,11 +219,6 @@
 }
 
 @media (forced-colors: active) {
-  .content,
-  .footer {
-    scrollbar-color: auto;
-  }
-
   .toolbar[data-title] h2:focus {
     outline: 2px solid Highlight;
   }

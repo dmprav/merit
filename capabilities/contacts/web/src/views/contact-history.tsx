@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import type { ContactHistoryEntry } from "@merit/contacts/api";
 import { RemotePagedContent } from "@merit/query/pages";
 import { ActionProvenance } from "@merit/ui/action-provenance";
-import { DialogContent, ModalDialog } from "@merit/ui/dialog";
+import { DialogContent, SidePanel } from "@merit/ui/dialog";
 import { Inline, Stack } from "@merit/ui/layout";
 import { PagedContent } from "@merit/ui/paged-content";
 import { Timestamp } from "@merit/ui/timestamp";
@@ -24,15 +24,14 @@ export const ContactHistory = ({
   const { t } = useTranslation(["contacts", "common"]);
 
   return (
-    <ModalDialog
+    <SidePanel
       isOpen={isOpen}
       onOpenChange={onOpenChange}
       title={t("history")}
       context={contact.name || contact.email}
-      closeLabel={t("close")}
       trigger={null}
     >
-      <DialogContent label={t("history")}>
+      <DialogContent>
         <RemotePagedContent
           source={contact.historySource}
           entries={contact.history ?? []}
@@ -66,7 +65,7 @@ export const ContactHistory = ({
           )}
         </RemotePagedContent>
       </DialogContent>
-    </ModalDialog>
+    </SidePanel>
   );
 };
 

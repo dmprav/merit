@@ -1,7 +1,6 @@
 export const searchMessages = {
   search: {
     title: "Search",
-    close: "Close search",
     field: "Search workspace",
     results: "Search results",
     placeholder: "Search and go to…",
@@ -11,7 +10,10 @@ export const searchMessages = {
     round: "Funding round",
     application: "Application",
     noMatches: "No results match “{{query}}”.",
+    noMatchesHint: "Search by funding round, application title, or applicant.",
+    clear: "Clear search",
     unavailable: "Search isn’t available right now.",
+    unavailableHint: "Your search is kept. Try again in a moment.",
     retry: "Try again",
     rounds: "Funding rounds",
     applications: "Applications",

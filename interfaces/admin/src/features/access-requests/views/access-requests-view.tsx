@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import type { AccessRequest } from "@merit/organizations/api";
 import { DataTable, type TableColumn } from "@merit/tables";
 import { Button } from "@merit/ui/button";
-import { PopoverDialog } from "@merit/ui/dialog";
+import { PickerPopover } from "@merit/ui/dialog";
 import { Icon } from "@merit/ui/icon";
 import { Notice } from "@merit/ui/notice";
 import { PageHeader } from "@merit/ui/page-header";
@@ -93,10 +93,8 @@ export const AccessRequestsView = ({
 const RequestHelp = () => {
   const { t } = useTranslation(["administration", "common"]);
   return (
-    <PopoverDialog
+    <PickerPopover
       title={t("requests.about")}
-      closeLabel={t("common:closeDialog")}
-      appearance="compact"
       placement="bottom end"
       trigger={
         <Button variant="quiet" size="small">
@@ -115,6 +113,6 @@ const RequestHelp = () => {
           <p>{t("requests.reviewExplanation")}</p>
         </div>
       )}
-    </PopoverDialog>
+    </PickerPopover>
   );
 };

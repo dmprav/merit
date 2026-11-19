@@ -7,17 +7,21 @@ import {
   type ReactNode,
 } from "react";
 
+import scrollStyles from "../../foundations/scroll-area.module.css";
 import styles from "./dialog-content.module.css";
 
-export const DialogLayoutContext = createContext<"default" | "form">("default");
+const unframed = { framed: false };
+/** Framed dialogs give their content gutters and a tinted footer; nested content starts unframed. */
+export const DialogFrameContext = createContext<{ framed: boolean; title?: string }>(unframed);
 
 /**
  * A named, keyboard-scrollable body with optional persistent feedback and actions.
- * Works directly inside ModalDialog or inside a bounded form; PopoverDialog supplies
- * its own body. Nested content starts with the default layout.
+ * Works directly inside ModalDialog or SidePanel, or inside a bounded form; PopoverDialog
+ * supplies its own body.
  */
 type DialogContentProps = {
-  label: string;
+  /** Names the scrolling region; defaults to the enclosing dialog's title. */
+  label?: string;
   children: ReactNode;
   footer?: ReactNode;
   /** Persistent outcome feedback above the action footer, outside the scrolling body. */
@@ -52,9 +56,7 @@ const useDialogOverflow = ({
 
   useLayoutEffect(() => {
     const content = contentRef.current;
-    const dialog = content?.closest<HTMLElement>(
-      '[data-modal-dialog="center"], [data-modal-dialog="end"]',
-    );
+    const dialog = content?.closest<HTMLElement>("[data-modal-dialog]");
     const header = dialog?.querySelector<HTMLElement>(":scope > [data-dialog-header]");
     const body = content?.querySelector<HTMLElement>(":scope > [data-dialog-body]");
     if (
@@ -130,25 +132,25 @@ export const DialogContent = ({
   reading = false,
   role = "region",
 }: DialogContentProps) => {
-  const appearance = useContext(DialogLayoutContext);
+  const frame = useContext(DialogFrameContext);
   const contentRef = useDialogOverflow({ children, feedback, footer });
 
   return (
     <div
       ref={contentRef}
       className={styles.content}
-      data-appearance={appearance}
+      data-framed={frame.framed || undefined}
       data-dialog-content
       onFocus={revealFocusedControl}
     >
-      <DialogLayoutContext value="default">
+      <DialogFrameContext value={unframed}>
         <div
-          className={styles.body}
+          className={`${styles.body} ${scrollStyles.scrollArea}`}
           data-dialog-body
           data-reading={reading || undefined}
           tabIndex={0}
           role={role}
-          aria-label={label}
+          aria-label={label ?? frame.title}
         >
           {children}
         </div>
@@ -158,11 +160,26 @@ export const DialogContent = ({
           </div>
         )}
         {footer && (
-          <div className={styles.footer} data-dialog-footer>
+          <div
+            className={`${styles.footer} ${frame.framed ? scrollStyles.dividerUntilEnd : ""}`}
+            data-dialog-footer
+          >
             {footer}
           </div>
         )}
-      </DialogLayoutContext>
+      </DialogFrameContext>
     </div>
   );
 };
+
+/**
+ * A titled group inside dialog content. Its heading matches the size of the text it
+ * introduces and is set apart by weight and space; consecutive sections share one rhythm.
+ * The section stays unnamed so headings give structure without a landmark per group.
+ */
+export const DialogSection = ({ title, children }: { title: ReactNode; children: ReactNode }) => (
+  <section className={styles.section}>
+    <h3 className={styles.sectionTitle}>{title}</h3>
+    {children}
+  </section>
+);

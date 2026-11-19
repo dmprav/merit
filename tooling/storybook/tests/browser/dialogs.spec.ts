@@ -52,7 +52,7 @@ test("future award amendment keeps evidence and consequences visible through con
   await expect(page.getByRole("button", { name: "Review example again" })).toBeFocused();
 });
 
-for (const story of ["compact", "wide", "long-context", "long-content", "failure"]) {
+for (const story of ["default", "long-context", "long-content", "failure"]) {
   test(
     `form dialog composition: ${story}`,
     { tag: "@cross-browser" },
@@ -61,7 +61,7 @@ for (const story of ["compact", "wide", "long-context", "long-content", "failure
       await expect(page.locator("#storybook-root")).toHaveAttribute("data-story-ready", "true");
       const dialog = page.getByRole("dialog", { name: "Write a note" });
       const body = dialog.getByRole("group", { name: "Note" });
-      const close = dialog.getByRole("button", { name: "Close editor" });
+      const close = dialog.getByRole("button", { name: "Close dialog" });
       const save = dialog.getByRole("button", { name: "Save note" });
       await expect(dialog.getByRole("form")).toHaveCount(1);
 
@@ -159,7 +159,7 @@ for (const theme of ["product", "site"]) {
     { tag: "@cross-browser" },
     async ({ page }, testInfo) => {
       await page.goto(
-        `/iframe.html?id=components-dialog--floating-long-content&viewMode=story&globals=theme:${theme}`,
+        `/iframe.html?id=components-dialog--popover-long-content&viewMode=story&globals=theme:${theme}`,
       );
       await expect(page.locator("#storybook-root")).toHaveAttribute("data-story-ready", "true");
       const dialog = page.getByRole("dialog");
@@ -200,7 +200,7 @@ for (const theme of ["product", "site"]) {
     async ({ page }, testInfo) => {
       await page.setViewportSize({ ...page.viewportSize()!, height: 720 });
       await page.goto(
-        `/iframe.html?id=components-dialog--long-content&viewMode=story&globals=theme:${theme}`,
+        `/iframe.html?id=components-dialog--centered-reading&viewMode=story&globals=theme:${theme}`,
       );
       await expect(page.locator("#storybook-root")).toHaveAttribute("data-story-ready", "true");
 
@@ -241,11 +241,11 @@ for (const theme of ["product", "site"]) {
 }
 
 test(
-  "end drawers keep long headings, content and actions reachable with enlarged text",
+  "side panels keep long headings, content and actions reachable with enlarged text",
   { tag: "@cross-browser" },
   async ({ page }, testInfo) => {
     await page.setViewportSize({ width: 390, height: 360 });
-    await page.goto("/iframe.html?id=components-dialog--end-drawer&viewMode=story");
+    await page.goto("/iframe.html?id=components-dialog--side-panel&viewMode=story");
     await expect(page.locator("#storybook-root")).toHaveAttribute("data-story-ready", "true");
     const dialog = page.getByRole("dialog");
     const body = dialog.getByRole("region", { name: "Supporting evidence guidance" });
@@ -263,7 +263,7 @@ test(
     await done.focus();
     await expect(done).toBeInViewport({ ratio: 1 });
     await checkPage(page);
-    await page.screenshot({ path: testInfo.outputPath("end-drawer-enlarged-text.png") });
+    await page.screenshot({ path: testInfo.outputPath("side-panel-enlarged-text.png") });
     await close.focus();
     await expect(close).toBeInViewport({ ratio: 1 });
     await page.evaluate(() => {

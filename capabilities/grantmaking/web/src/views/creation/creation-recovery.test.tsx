@@ -87,7 +87,7 @@ it("keeps saved content visible and opens only recovered writing with its retry 
 it("cancels a pending opening without clearing the recovered draft", async () => {
   const { user, finish, update } = setup();
   await user.click(screen.getByRole("button", { name: "Create funding round" }));
-  await user.click(screen.getByRole("button", { name: "Close" }));
+  await user.click(screen.getByRole("button", { name: "Close dialog" }));
   finish(recovered);
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   expect(update).not.toHaveBeenCalled();

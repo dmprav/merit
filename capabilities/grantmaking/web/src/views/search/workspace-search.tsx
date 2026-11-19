@@ -11,12 +11,15 @@ import {
 import { useFormat } from "@merit/i18n/format";
 import { Badge } from "@merit/ui/badge";
 import { Button } from "@merit/ui/button";
-import { ModalDialog } from "@merit/ui/dialog";
+import { Icon } from "@merit/ui/icon";
+import { Notice } from "@merit/ui/notice";
 import {
   SearchPalette,
+  SearchPaletteDialog,
   type SearchPaletteItem,
   type SearchPaletteLinkProps,
 } from "@merit/ui/search-palette";
+import { StateMessage } from "@merit/ui/state-message";
 
 import type { WorkspaceSearchData } from "../../contracts/search";
 import { useWorkspaceSearch } from "../../controllers/search/use-workspace-search";
@@ -63,10 +66,8 @@ export const WorkspaceSearchDialog = ({
   const { t } = useTranslation("fundingRounds");
 
   return (
-    <ModalDialog
-      appearance="search"
+    <SearchPaletteDialog
       title={t("search.title")}
-      closeLabel={t("search.close")}
       trigger={null}
       isOpen={isOpen}
       onOpenChange={onOpenChange}
@@ -80,7 +81,7 @@ export const WorkspaceSearchDialog = ({
           focusRequest={focusRequest}
         />
       )}
-    </ModalDialog>
+    </SearchPaletteDialog>
   );
 };
 
@@ -121,14 +122,41 @@ const SearchSession = ({
           search.retry();
         }}
       >
+        <Icon name="reset" />
         {t("search.retry")}
       </Button>
     ) : undefined;
-  const feedback = searchFeedback(search, t, retry);
-  const message =
-    !items.length && search.status === "results"
-      ? t("search.noMatches", { query: search.query })
-      : undefined;
+  const failedAlone = search.status === "failed" && !items.length;
+  const feedback = failedAlone ? undefined : searchFeedback(search, t, retry);
+  const message = failedAlone ? (
+    <StateMessage
+      size="compact"
+      tone="danger"
+      illustration={<Icon name="warning" />}
+      title={t("search.unavailable")}
+      description={t("search.unavailableHint")}
+      actions={retry}
+    />
+  ) : !items.length && search.status === "results" ? (
+    <StateMessage
+      size="compact"
+      illustration={<Icon name="search" />}
+      title={t("search.noMatches", { query: search.query })}
+      description={t("search.noMatchesHint")}
+      actions={
+        <Button
+          variant="secondary"
+          size="small"
+          onPress={() => {
+            search.onChange("");
+            input.current?.focus();
+          }}
+        >
+          {t("search.clear")}
+        </Button>
+      }
+    />
+  ) : undefined;
   const announcement = searchAnnouncement(search, local.length, t);
 
   return (
@@ -166,9 +194,9 @@ const searchFeedback = (
 ) => {
   if (search.status === "failed") {
     return (
-      <>
-        <span>{t("search.unavailable")}</span> {retry}
-      </>
+      <Notice appearance="inline" tone="danger" actions={retry}>
+        {t("search.unavailable")}
+      </Notice>
     );
   }
   if (search.status !== "results") {

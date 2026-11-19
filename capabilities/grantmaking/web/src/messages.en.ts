@@ -33,7 +33,6 @@ export const en = {
     readGuide: "Read guide (opens in a new tab)",
     guide: "Demo guide",
     identity: "You’re exploring as {{name}}, a fictional program manager at {{foundation}}.",
-    closeGuide: "Close demo guide",
     options: "Demo options",
     exit: "Exit demo",
     exploreTitle: "Try a funding decision",

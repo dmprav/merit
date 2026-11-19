@@ -296,7 +296,7 @@ it("cancels a typed date through its single dismissal control and restores focus
   await user.clear(dialog.getByRole("textbox", { name: "Committee date" }));
   await user.type(dialog.getByRole("textbox", { name: "Committee date" }), "2027-05-20");
 
-  expect(dialog.queryByRole("button", { name: "Close" })).not.toBeInTheDocument();
+  expect(dialog.queryByRole("button", { name: "Close dialog" })).not.toBeInTheDocument();
   await user.click(dialog.getByRole("button", { name: "Cancel" }));
 
   await waitFor(() => expect(trigger).toHaveFocus());
@@ -336,7 +336,7 @@ it("keeps the picker open and blocks dismissal while saving", async () => {
   await user.keyboard("{Escape}");
 
   expect(screen.getByRole("dialog", { name: "Assign manager" })).toBeVisible();
-  expect(screen.getByRole("button", { name: "Close" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Close dialog" })).toBeDisabled();
 
   finish({ status: "unavailable" });
 
