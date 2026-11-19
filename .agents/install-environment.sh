@@ -25,8 +25,12 @@ if [ "$(node --version 2>/dev/null || echo missing)" != "$expected_node" ]; then
     curl -fsSL -o "$download/$archive" "https://nodejs.org/dist/$expected_node/$archive"
     curl -fsSL -o "$download/SHASUMS256.txt" "https://nodejs.org/dist/$expected_node/SHASUMS256.txt"
     (cd "$download" && grep " $archive\$" SHASUMS256.txt | sha256sum -c -)
-    mkdir -p "$node_dir"
-    tar -xJf "$download/$archive" --strip-components=1 -C "$node_dir"
+    # Extract beside the archive and move into place only once complete, so an
+    # interrupted run never leaves a partial install that later runs reuse.
+    mkdir -p "$download/node" "$(dirname "$node_dir")"
+    tar -xJf "$download/$archive" --strip-components=1 -C "$download/node"
+    rm -rf "$node_dir"
+    mv "$download/node" "$node_dir"
     rm -rf "$download"
   fi
   export PATH="$node_dir/bin:$PATH"
