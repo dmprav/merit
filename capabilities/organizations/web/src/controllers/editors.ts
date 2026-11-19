@@ -142,6 +142,12 @@ export const useTeamEditors = ({
   };
 };
 
+const sameIdSet = (left: string[], right: string[]) => {
+  const rightIds = new Set(right);
+  const leftIds = new Set(left);
+  return leftIds.size === rightIds.size && [...leftIds].every((id) => rightIds.has(id));
+};
+
 const hasMemberAccessConflict = (
   team: UseTeamEditorsOptions["team"],
   member: Member,
@@ -151,15 +157,11 @@ const hasMemberAccessConflict = (
     return false;
   }
   const baseline = memberBaseline(team, member);
-
-  const byId = (left: string, right: string) => left.localeCompare(right);
-
   return (
     saved.expectedMembershipId !== member.membershipId ||
     saved.expectedVersion !== member.version ||
     (revokesIssuedInvitations(member.administration, saved.value.administration) &&
-      JSON.stringify([...saved.expectedInvitationIds].sort(byId)) !==
-        JSON.stringify([...baseline.expectedInvitationIds].sort(byId)))
+      !sameIdSet(saved.expectedInvitationIds, baseline.expectedInvitationIds))
   );
 };
 

@@ -69,11 +69,6 @@ describe("RetainedDraftNotice", () => {
         <RetainedDraftNotice
           title="Unsaved draft"
           message="Access ended before this draft could save."
-          copyLabel="Copy draft"
-          copyingLabel="Copying…"
-          copiedLabel="Draft copied"
-          copyFailedLabel="Could not copy draft."
-          discardLabel="Discard draft"
           textToCopy="My unsaved reasoning"
           onDiscard={onDiscard}
         >

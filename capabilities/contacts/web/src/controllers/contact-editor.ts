@@ -49,7 +49,7 @@ export const useContactEditor = ({
           workspaceSlug,
           contactId: id,
           details: contactDetailsSchema.parse(details),
-          action: editing.baseline === null ? "create" : "update",
+          action: contact ? "update" : "create",
         });
         if (result.status !== "ok") {
           failure = t(
@@ -82,7 +82,6 @@ const useContactDraft = ({
   const savedDraft = draftStore.get(workspaceSlug, contact?.id);
   const [id] = useState(() => savedDraft?.id ?? contact?.id ?? crypto.randomUUID());
   const current = data.contacts.find((item) => item.id === id);
-  const baseline = savedDraft?.baseline ?? contact?.revision ?? null;
   const missing = Boolean(contact && !current);
 
   const [value, setValue] = useState<ContactDetails>(
@@ -96,7 +95,6 @@ const useContactDraft = ({
   const clear = () => draftStore.set(workspaceSlug, contact?.id, undefined);
 
   return {
-    baseline,
     missing,
     value,
     change: (next: ContactDetails) => {
@@ -105,11 +103,7 @@ const useContactDraft = ({
         next.name === (contact?.name ?? "") &&
         next.email === (contact?.email ?? "") &&
         next.affiliation === (contact?.affiliation ?? "");
-      draftStore.set(
-        workspaceSlug,
-        contact?.id,
-        unchanged ? undefined : { id, baseline, value: next },
-      );
+      draftStore.set(workspaceSlug, contact?.id, unchanged ? undefined : { id, value: next });
     },
     id,
     clear,

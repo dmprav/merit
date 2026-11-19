@@ -25,7 +25,9 @@ export const changeWorkspaceContact = async (
 
   const request = parsed.data;
   const expectedRevision =
-    request.action === "create" ? null : (request.expectedContactRevision ?? null);
+    request.action === "archive" || request.action === "restore"
+      ? request.expectedContactRevision
+      : null;
 
   const changeContactTransaction = async (tx: Transaction): Promise<SaveContactResult> => {
     const workspaceMode = request.action === "update" ? "share" : "update";

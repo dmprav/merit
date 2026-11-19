@@ -14,7 +14,6 @@ vi.mock("@merit/drafts", () => ({ useDrafts: vi.fn() }));
 
 const restoredDraft = {
   id: "original-retry-id",
-  baseline: null,
   value: { name: "Unfinished contact", email: "unfinished@example.test", affiliation: "" },
 };
 const update = vi.fn();

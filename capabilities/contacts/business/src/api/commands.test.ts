@@ -11,7 +11,7 @@ const details = { name: "", email: "office@example.test", affiliation: "" };
 describe("contact commands", () => {
   it("accepts email-only contacts for creation and updates", () => {
     const create = { ...address, action: "create", details };
-    const update = { ...address, action: "update", details, expectedContactRevision: 0 };
+    const update = { ...address, action: "update", details };
 
     expect(contactCommandSchema.parse(create)).toEqual(create);
     expect(contactCommandSchema.parse(update)).toEqual(update);
@@ -79,7 +79,7 @@ describe("contact commands", () => {
     }
   });
 
-  it("allows omitting expectedContactRevision for Tier 1 profile updates", () => {
+  it("omits expectedContactRevision on Tier 1 profile updates and rejects unexpected revision keys", () => {
     expect(contactCommandSchema.parse({ ...address, action: "update", details })).toEqual({
       ...address,
       action: "update",
@@ -90,13 +90,13 @@ describe("contact commands", () => {
         ...address,
         action: "update",
         details,
-        expectedContactRevision: -1,
+        expectedContactRevision: 0,
       }).success,
     ).toBe(false);
   });
 
   it("keeps lifecycle and ownership changes out of profile updates", () => {
-    const command = { ...address, action: "update", details, expectedContactRevision: 0 };
+    const command = { ...address, action: "update", details };
 
     expect(contactCommandSchema.safeParse({ ...command, archived: true }).success).toBe(false);
     expect(

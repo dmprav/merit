@@ -128,11 +128,6 @@ const RetainedIntakeNotice = ({
     <RetainedDraftNotice
       title={t("intake.retainedTitle")}
       message={t("intake.revisionUnavailable")}
-      copyLabel={t("intake.retainedCopy")}
-      copyingLabel={t("intake.retainedCopying")}
-      copiedLabel={t("intake.retainedCopied")}
-      copyFailedLabel={t("intake.retainedCopyFailed")}
-      discardLabel={t("intake.retainedDiscard")}
       textToCopy={retainedDraftText(editor.draft, editor.reason)}
       isDisabled={editor.pending}
       onDiscard={() => {

@@ -54,11 +54,6 @@ export const RetainedDraft: StoryObj = {
     <RetainedDraftNotice
       title="Unsaved assessment"
       message="Your access ended before this draft could save. Copy your text to keep it."
-      copyLabel="Copy draft"
-      copyingLabel="Copying…"
-      copiedLabel="Draft copied"
-      copyFailedLabel="Could not copy draft."
-      discardLabel="Discard draft"
       textToCopy="Strong community leadership and a practical local delivery plan."
       onDiscard={fn()}
     >

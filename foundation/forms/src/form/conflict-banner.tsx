@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 
 import shellStyles from "@merit/ui/application-shell.module.css";
 import { Button } from "@merit/ui/button";
@@ -112,7 +113,7 @@ const RetainedDraftActions = ({
 }: {
   copyLabel: string;
   copyingLabel: string;
-  discardLabel?: string;
+  discardLabel: string;
   copying: boolean;
   isDisabled: boolean;
   onCopy: () => void;
@@ -122,7 +123,7 @@ const RetainedDraftActions = ({
     <Button size="small" variant="secondary" isDisabled={isDisabled || copying} onPress={onCopy}>
       {copying ? copyingLabel : copyLabel}
     </Button>
-    {discardLabel && onDiscard && (
+    {onDiscard && (
       <Button size="small" variant="quiet" isDisabled={isDisabled} onPress={onDiscard}>
         {discardLabel}
       </Button>
@@ -158,6 +159,26 @@ const CopyStatusFeedback = ({
   </>
 );
 
+const useRetainedDraftLabels = (labels: {
+  copyLabel?: string;
+  copyingLabel?: string;
+  copiedLabel?: string;
+  copyFailedLabel?: string;
+  discardLabel?: string;
+}) => {
+  const { t } = useTranslation("common");
+  return {
+    copyLabel: labels.copyLabel ?? t("retainedDraft.copy", { defaultValue: "Copy draft" }),
+    copyingLabel: labels.copyingLabel ?? t("retainedDraft.copying", { defaultValue: "Copying…" }),
+    copiedLabel: labels.copiedLabel ?? t("retainedDraft.copied", { defaultValue: "Draft copied" }),
+    copyFailedLabel:
+      labels.copyFailedLabel ??
+      t("retainedDraft.copyFailed", { defaultValue: "Could not copy draft." }),
+    discardLabel:
+      labels.discardLabel ?? t("retainedDraft.discard", { defaultValue: "Discard draft" }),
+  };
+};
+
 /**
  * Preserves unsaved writing when an editor can no longer save (access lost,
  * record deleted, or withdrawn) so the author can copy it out or discard it.
@@ -177,16 +198,23 @@ export const RetainedDraftNotice = ({
 }: {
   title: string;
   message: ReactNode;
-  copyLabel: string;
-  copyingLabel: string;
-  copiedLabel: string;
-  copyFailedLabel: string;
+  copyLabel?: string;
+  copyingLabel?: string;
+  copiedLabel?: string;
+  copyFailedLabel?: string;
   discardLabel?: string;
   textToCopy: string;
   onDiscard?: () => void;
   isDisabled?: boolean;
   children?: ReactNode;
 }) => {
+  const labels = useRetainedDraftLabels({
+    copyLabel,
+    copyingLabel,
+    copiedLabel,
+    copyFailedLabel,
+    discardLabel,
+  });
   const [copying, setCopying] = useState(false);
   const [copyFailed, setCopyFailed] = useState(false);
   const [copied, setCopied] = useState(0);
@@ -212,9 +240,9 @@ export const RetainedDraftNotice = ({
         title={title}
         actions={
           <RetainedDraftActions
-            copyLabel={copyLabel}
-            copyingLabel={copyingLabel}
-            discardLabel={discardLabel}
+            copyLabel={labels.copyLabel}
+            copyingLabel={labels.copyingLabel}
+            discardLabel={labels.discardLabel}
             copying={copying}
             isDisabled={isDisabled}
             onCopy={() => void copy()}
@@ -228,8 +256,8 @@ export const RetainedDraftNotice = ({
         copying={copying}
         copyFailed={copyFailed}
         copied={copied}
-        copiedLabel={copiedLabel}
-        copyFailedLabel={copyFailedLabel}
+        copiedLabel={labels.copiedLabel}
+        copyFailedLabel={labels.copyFailedLabel}
       />
       {children && <div className={styles.retainedContent}>{children}</div>}
     </section>

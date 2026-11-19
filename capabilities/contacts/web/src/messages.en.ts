@@ -81,10 +81,6 @@ export const en = {
   accessLost: "This workspace is no longer available to you.",
   missingContact: "This contact is no longer available. Copy your draft if needed before closing.",
   retainedTitle: "Unsaved contact details",
-  retainedCopy: "Copy draft",
-  retainedCopying: "Copying…",
-  retainedCopied: "Draft copied",
-  retainedCopyFailed: "Could not copy draft.",
   error: "Could not save. Your changes are preserved; please try again.",
   outstandingContacts: "Resolve these outstanding review requests before archiving this contact:",
 } as const;

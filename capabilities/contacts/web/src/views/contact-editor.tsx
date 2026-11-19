@@ -110,11 +110,6 @@ const ReadyContactEditor = (props: ContactEditorProps) => {
         <RetainedDraftNotice
           title={t("retainedTitle")}
           message={t("missingContact")}
-          copyLabel={t("retainedCopy")}
-          copyingLabel={t("retainedCopying")}
-          copiedLabel={t("retainedCopied")}
-          copyFailedLabel={t("retainedCopyFailed")}
-          discardLabel={t("discard")}
           textToCopy={[value.name, value.email, value.affiliation].filter(Boolean).join("\n")}
           onDiscard={editor.discard}
         />

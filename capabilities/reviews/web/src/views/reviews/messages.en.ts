@@ -138,8 +138,4 @@ export const en = {
   useSaved: "Discard & load latest",
   keepDraft: "Keep my draft",
   retainedTitle: "Assessment no longer available",
-  retainedCopy: "Copy draft",
-  retainedCopying: "Copying…",
-  retainedCopied: "Draft copied",
-  retainedCopyFailed: "Could not copy draft.",
 } as const;

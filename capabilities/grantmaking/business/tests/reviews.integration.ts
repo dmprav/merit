@@ -895,7 +895,6 @@ it("supports contacts and reviews with the documented runtime grants and immutab
           {
             ...input,
             action: "update",
-            expectedContactRevision: 0,
             details: { ...input.details, name: "Updated reviewer" },
           },
           fundingRoundContactUsage,

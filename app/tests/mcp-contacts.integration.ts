@@ -102,7 +102,6 @@ it("rejects a stale contact update without changing the current profile", async 
       workspaceSlug: "alder",
       contactId,
       action: "update",
-      expectedContactRevision: 0,
       details,
     },
     fundingRoundContactUsage,

@@ -135,7 +135,6 @@ it("shows RetainedDraftNotice with copy/discard when the contact disappears befo
       draftStore={{
         get: () => ({
           id: "sam",
-          baseline: 2,
           value: { name: "Sam Updated", email: "sam@example.test", affiliation: "Alder" },
         }),
         has: () => true,

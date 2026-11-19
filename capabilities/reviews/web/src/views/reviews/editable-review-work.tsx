@@ -501,11 +501,6 @@ const ReviewEditor = ({
         <RetainedDraftNotice
           title={t("retainedTitle")}
           message={t("assessmentUnavailable")}
-          copyLabel={t("retainedCopy")}
-          copyingLabel={t("retainedCopying")}
-          copiedLabel={t("retainedCopied")}
-          copyFailedLabel={t("retainedCopyFailed")}
-          discardLabel={t("discard")}
           textToCopy={retainedReviewText(draft.values)}
           isDisabled={saving}
           onDiscard={discard}
