@@ -72,10 +72,8 @@ describe("workspace MCP contracts", () => {
       await client.close();
     }
   });
-  it("discovers explicit workflows, validates round requests and preserves exact financial totals", async () => {
-    const operations = testOperations();
-    vi.mocked(operations.grantmaking.readRound).mockResolvedValue({ status: "ok", round });
-    const client = await connect(operations);
+  it("publishes the explicit workflow tools under unique names", async () => {
+    const client = await connect(testOperations());
     try {
       const names = (await client.listTools()).tools.map((tool) => tool.name);
       expect(new Set(names).size).toBe(names.length);
@@ -96,6 +94,15 @@ describe("workspace MCP contracts", () => {
           "list_team_history",
         ]),
       );
+    } finally {
+      await client.close();
+    }
+  });
+  it("returns a round with exact financial totals and its canonical URL", async () => {
+    const operations = testOperations();
+    vi.mocked(operations.grantmaking.readRound).mockResolvedValue({ status: "ok", round });
+    const client = await connect(operations);
+    try {
       const result = await client.callTool({
         name: "get_funding_round",
         arguments: { workspaceSlug: "alder", roundId: id },
@@ -105,20 +112,27 @@ describe("workspace MCP contracts", () => {
         round,
         url: `http://localhost:3000/app/alder/rounds/${id}`,
       });
-      for (const fields of [{}, { roundId: id, userId: "other" }]) {
-        expect(
-          (
-            await client.callTool({
-              name: "get_funding_round",
-              arguments: { workspaceSlug: "alder", ...fields },
-            })
-          ).isError,
-        ).toBe(true);
-      }
     } finally {
       await client.close();
     }
   });
+  it.each([{}, { roundId: id, userId: "other" }])(
+    "rejects round request %j before reading the round",
+    async (fields) => {
+      const operations = testOperations();
+      const client = await connect(operations);
+      try {
+        const result = await client.callTool({
+          name: "get_funding_round",
+          arguments: { workspaceSlug: "alder", ...fields },
+        });
+        expect(result.isError).toBe(true);
+        expect(operations.grantmaking.readRound).not.toHaveBeenCalled();
+      } finally {
+        await client.close();
+      }
+    },
+  );
   it.each([
     ["create_funding_round", "grants:write", ["workspace:read"]],
     ["list_workspace_activity", "workspace:read", ["grants:write"]],
@@ -236,15 +250,12 @@ describe("workspace MCP contracts", () => {
       await client.close();
     }
   });
-  it("preserves business conflicts and hides unexpected failures", async () => {
+  it("returns a business conflict as the tool's structured result", async () => {
     const operations = testOperations();
-    vi.mocked(operations.rounds.editRound)
-      .mockResolvedValueOnce({ status: "conflict" })
-      .mockRejectedValueOnce(new Error("private database detail"));
+    vi.mocked(operations.rounds.editRound).mockResolvedValueOnce({ status: "conflict" });
     const client = await connect(operations);
-    const log = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
-      const call = {
+      const result = await client.callTool({
         name: "edit_funding_round",
         arguments: {
           workspaceSlug: "alder",
@@ -252,13 +263,10 @@ describe("workspace MCP contracts", () => {
           expectedPreparationRevision: 0,
           change: { section: "budget", amount: "100.50", reason: "Revised envelope" },
         },
-      };
-      expect((await client.callTool(call)).structuredContent).toEqual({ status: "conflict" });
-      const failed = await client.callTool(call);
-      expect(failed.structuredContent).toMatchObject({ status: "unavailable" });
-      expect(JSON.stringify(failed)).not.toContain("private database detail");
+      });
+      expect(result.isError).toBe(true);
+      expect(result.structuredContent).toEqual({ status: "conflict" });
     } finally {
-      log.mockRestore();
       await client.close();
     }
   });

@@ -156,13 +156,11 @@ it("rechecks membership after revocation despite an unchanged identity", async (
 
   expect(await loadFundingRoundPage(pageInput, services)).toEqual({ status: "not_found" });
   expect(
-    (
-      await callMcp(actor.userId, {
-        workspaceSlug: pageInput.workspaceSlug,
-        roundId: pageInput.publicId,
-      })
-    ).isError,
-  ).toBe(true);
+    await callMcp(actor.userId, {
+      workspaceSlug: pageInput.workspaceSlug,
+      roundId: pageInput.publicId,
+    }),
+  ).toMatchObject({ isError: true, structuredContent: { status: "not_found" } });
   expect(await listFundingRounds(db, actor, "alder")).toEqual({ status: "not_found" });
 });
 
@@ -170,15 +168,15 @@ it("rejects client-supplied identities before a scoped MCP read", async ({
   rounds: { pageInput },
   transport: { callMcp },
 }) => {
-  expect(
-    (
-      await callMcp(actor.userId, {
-        workspaceSlug: "alder",
-        roundId: pageInput.publicId,
-        clerkUserId: "seed_birch",
-      })
-    ).isError,
-  ).toBe(true);
+  const result = await callMcp(actor.userId, {
+    workspaceSlug: "alder",
+    roundId: pageInput.publicId,
+    clerkUserId: "seed_birch",
+  });
+
+  expect(result.isError).toBe(true);
+  expect(result).not.toHaveProperty("structuredContent");
+  expect(JSON.stringify(result.content)).toContain('Unrecognized key: \\"clerkUserId\\"');
 });
 
 it("blocks disabled users through both transports", async ({
@@ -190,13 +188,11 @@ it("blocks disabled users through both transports", async ({
 
   expect(await loadFundingRoundPage(pageInput, services)).toEqual({ status: "unavailable" });
   expect(
-    (
-      await callMcp(actor.userId, {
-        workspaceSlug: pageInput.workspaceSlug,
-        roundId: pageInput.publicId,
-      })
-    ).isError,
-  ).toBe(true);
+    await callMcp(actor.userId, {
+      workspaceSlug: pageInput.workspaceSlug,
+      roundId: pageInput.publicId,
+    }),
+  ).toMatchObject({ isError: true, structuredContent: { status: "not_found" } });
 });
 
 it("denies unauthenticated web and MCP reads", async ({

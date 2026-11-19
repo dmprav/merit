@@ -57,12 +57,15 @@ describe("MCP authentication responses", () => {
     },
   );
 
-  it("serves resource discovery and fails closed when configuration is missing", async () => {
+  it("serves protected resource metadata with the issuer and supported scopes", async () => {
     expect(await mcpResourceMetadata(config).json()).toMatchObject({
       resource: config.resource,
       authorization_servers: [config.issuer],
       scopes_supported: mcpScopes,
     });
+  });
+
+  it("fails closed when the authorization issuer is not configured", () => {
     expect(mcpResourceMetadata({ ...config, issuer: "" }).status).toBe(503);
   });
 });

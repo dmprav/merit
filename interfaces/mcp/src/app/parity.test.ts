@@ -395,48 +395,43 @@ it("paginates visible assignments in stable ID order", async () => {
   }
 });
 
-it("unwraps domain fields in reviewer, organization, and demo responses", async () => {
-  const operations = testOperations();
-  vi.mocked(operations.reviewer.saveDraft).mockResolvedValue({
-    status: "ok",
-    value: { revision: 8 },
-  });
-  vi.mocked(operations.organizations.create).mockResolvedValue({
-    status: "ok",
-    value: { organizationId: "org" },
-  });
-  vi.mocked(operations.demo.read).mockResolvedValue({ status: "empty" });
-  const client = await connect(operations);
-  try {
-    expect(
-      (
-        await client.callTool({
-          name: "save_reviewer_draft",
-          arguments: { assignmentId, commandId, expectedDraftRevision: 7, draft },
-        })
-      ).structuredContent,
-    ).toEqual({ status: "ok", draftRevision: 8 });
-    expect(
-      (
-        await client.callTool({
-          name: "create_organization",
-          arguments: {
-            requestId: commandId,
-            name: "Alder",
-            slug: "alder",
-            email: "sam@example.test",
-          },
-        })
-      ).structuredContent,
-    ).toEqual({ status: "ok", organizationId: "org" });
-    expect((await client.callTool({ name: "get_demo", arguments: {} })).structuredContent).toEqual({
-      status: "ok",
-      demo: { status: "empty" },
-    });
-  } finally {
-    await client.close();
-  }
-});
+it.each([
+  {
+    name: "save_reviewer_draft",
+    args: { assignmentId, commandId, expectedDraftRevision: 7, draft },
+    fn: (o: ReturnType<typeof testOperations>) => o.reviewer.saveDraft,
+    result: { status: "ok", value: { revision: 8 } },
+    expected: { status: "ok", draftRevision: 8 },
+  },
+  {
+    name: "create_organization",
+    args: { requestId: commandId, name: "Alder", slug: "alder", email: "sam@example.test" },
+    fn: (o: ReturnType<typeof testOperations>) => o.organizations.create,
+    result: { status: "ok", value: { organizationId: "org" } },
+    expected: { status: "ok", organizationId: "org" },
+  },
+  {
+    name: "get_demo",
+    args: {},
+    fn: (o: ReturnType<typeof testOperations>) => o.demo.read,
+    result: { status: "empty" },
+    expected: { status: "ok", demo: { status: "empty" } },
+  },
+])(
+  "unwraps the domain result in the $name response",
+  async ({ name, args, fn, result, expected }) => {
+    const operations = testOperations();
+    vi.mocked(fn(operations) as (...args: never[]) => Promise<unknown>).mockResolvedValue(result);
+    const client = await connect(operations);
+    try {
+      expect((await client.callTool({ name, arguments: args })).structuredContent).toEqual(
+        expected,
+      );
+    } finally {
+      await client.close();
+    }
+  },
+);
 
 it("rejects an empty review list page before listing assignments", async () => {
   const operations = testOperations();
