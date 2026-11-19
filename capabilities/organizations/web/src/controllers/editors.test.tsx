@@ -18,7 +18,9 @@ beforeEach(() => {
     ready,
     status: ready ? "unavailable" : "restoring",
     storageUnavailable: ready,
+    conflicts: new Set(),
     update,
+    resolveConflict: vi.fn(),
   }));
 });
 
@@ -67,4 +69,63 @@ it("does not initialize a pending invitation for a different account", () => {
   ready = true;
   rerender({ scope: "different-account" });
   expect(update).not.toHaveBeenCalled();
+});
+
+it("gates invitation conflict checks on revoking issued invitations and supports keepDraft and loadLatest", () => {
+  const member = teamFixture.members[1]!;
+  let drafts: Record<string, unknown> = {
+    [`${teamFixture.organization.slug}/${member.userId}`]: {
+      value: { administration: member.administration, role: "reviewer" },
+      expectedMembershipId: member.membershipId,
+      expectedVersion: member.version,
+      expectedInvitationIds: ["old-invitation"],
+    },
+  };
+  ready = true;
+  vi.mocked(useDrafts).mockImplementation(() => ({
+    drafts,
+    ready: true,
+    status: "saved",
+    storageUnavailable: false,
+    conflicts: new Set(),
+    update: (updater) => {
+      drafts = updater(drafts);
+      update(updater);
+    },
+    resolveConflict: vi.fn(),
+  }));
+
+  const { result, rerender } = show();
+  expect(result.current.memberEditor(member).conflict).toBe(false);
+
+  drafts = {
+    [`${teamFixture.organization.slug}/${member.userId}`]: {
+      value: { administration: "none", role: "reviewer" },
+      expectedMembershipId: member.membershipId,
+      expectedVersion: member.version,
+      expectedInvitationIds: ["old-invitation"],
+    },
+  };
+  rerender({ scope: "account" });
+  expect(result.current.memberEditor(member).conflict).toBe(true);
+
+  act(() => result.current.memberEditor(member).onKeepDraft());
+  rerender({ scope: "account" });
+  expect(result.current.memberEditor(member).conflict).toBe(false);
+
+  drafts = {
+    [`${teamFixture.organization.slug}/${member.userId}`]: {
+      value: { administration: "none", role: "reviewer" },
+      expectedMembershipId: member.membershipId,
+      expectedVersion: member.version - 1,
+      expectedInvitationIds: [],
+    },
+  };
+  rerender({ scope: "account" });
+  expect(result.current.memberEditor(member).conflict).toBe(true);
+
+  act(() => result.current.memberEditor(member).onLoadLatest());
+  rerender({ scope: "account" });
+  expect(result.current.memberEditor(member).conflict).toBe(false);
+  expect(result.current.memberEditor(member).draftReset).toBe(1);
 });

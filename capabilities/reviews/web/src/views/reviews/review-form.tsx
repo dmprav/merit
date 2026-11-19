@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { z } from "zod";
 
@@ -40,6 +40,8 @@ type ReviewFormProps = {
     version: number;
     criteria: { id: string; title: string; description?: string }[];
   }[];
+  beforeFields?: ReactNode;
+  isConflict?: boolean;
   onChange: (value: ReviewFormValues) => void;
   onSave: (value: ReviewFormValues) => Promise<ReviewProblem | null>;
   onDiscard: () => void;
@@ -51,6 +53,8 @@ export const ReviewForm = ({
   workspaceSlug,
   versions,
   criteriaHistory,
+  beforeFields,
+  isConflict = false,
   onChange,
   onSave,
   onDiscard,
@@ -76,10 +80,12 @@ export const ReviewForm = ({
           cancelLabel={t("close")}
           submitLabel={submitLabel}
           submittingLabel={submitLabel}
+          isSubmitDisabled={isConflict}
         />
       }
     >
       <div className={styles.form}>
+        {beforeFields}
         {followUp && draft.mode === "record" && <p className={styles.meta}>{t("followUpHint")}</p>}
         {draft.mode !== "edit" && (
           <form.Field name="contactId">

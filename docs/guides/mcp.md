@@ -153,21 +153,23 @@ the save operation still checks their eligibility.
 | Maintain contacts | `create_contact`, `update_contact`, `archive_contact`, `restore_contact`                                                                                                |
 | Manage a team     | `invite_member`, `resend_member_invitation`, `revoke_member_invitation`, `change_member`, `remove_member`                                                               |
 
-Read before editing. Preserve the original preconditions until the save succeeds:
+Read before editing. Preserve the original preconditions for strict checks until the save succeeds:
 
-| Command                                                                              | Preconditions                                                                             |
-| ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
-| Round edit or deletion                                                               | `expectedPreparationRevision` from `round.preparationRevision`                            |
-| Intake, revisions, readiness, withdrawal, reinstatement, deletion, contact selection | `expectedIntakeRevision` from `application.intakeRevision`                                |
-| Recommendation                                                                       | `expectedRecommendationRevision` and `expectedApplicationVersion`                         |
-| Review request or assessment                                                         | `expectedReviewRevision`, `expectedApplicationVersion`, `expectedCriteriaVersion`         |
-| Contact edit, archive or restore                                                     | `expectedContactRevision` from the contact's `contactRevision`                            |
-| Member change or removal                                                             | `expectedMembershipId`, `expectedMembershipVersion`, and complete `expectedInvitationIds` |
+| Command                                                                            | Preconditions                                                                                           |
+| ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| Round purpose, criteria, budget edit or deletion                                   | `expectedPreparationRevision` from `round.preparationRevision` (optional LWW for title, date, manager)  |
+| Intake submission edits, revisions, readiness, withdrawal, reinstatement, deletion | `expectedIntakeRevision` from `application.intakeRevision` (optional LWW for staff summary and contact) |
+| Recommendation                                                                     | `expectedRecommendationRevision` and `expectedApplicationVersion`                                       |
+| Review request, cancellation, assessment recording, or correction                  | Target-scoped check using `expectedAssessmentVersion` or review/application/criteria preconditions      |
+| Contact profile update vs archive/restore                                          | `expectedContactRevision` required for archive/restore (optional LWW for profile update)                |
+| Member change or removal                                                           | `expectedMembershipId`, `expectedMembershipVersion` (and `expectedInvitationIds` when revoking access)  |
 
 Application preconditions come from `get_application`. Member versions come from
-`list_team_members`; collect all pending invitations issued by that person with
-`list_team_invitations`, filtering `issuedBy` and following continuation. If these
-facts change before the write, the operation rejects the stale request. Contact
+`list_team_members`; when demoting an administrator or removing a member, collect pending invitations issued by that person with
+`list_team_invitations`, filtering `issuedBy` and following continuation. If strict
+preconditions change before the write, the operation rejects the stale request with `conflict`.
+Independent metadata updates (round name, committee date, responsible manager, staff summary,
+applicant contact link, and contact profile details) apply last-write-wins without rejecting stale revisions. Contact
 archive and restore preserve its current details inside the same transaction;
 clients do not resubmit the entire contact to change its lifecycle.
 

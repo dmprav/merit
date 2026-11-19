@@ -120,27 +120,17 @@ export const ResumedDraft: Story = {
 export const ConcurrentChanges: Story = {
   beforeEach: ({ args }) => {
     mocked(saveContact).mockImplementationOnce(async () => {
-      configureContacts(
-        args.contacts.map((contact, index) =>
-          index === 0
-            ? {
-                ...contact,
-                affiliation: "Neighbourhood Food Network",
-                revision: contact.revision + 1,
-              }
-            : contact,
-        ),
-      );
-      return { status: "conflict" };
+      const target = {
+        ...args.contacts[0]!,
+        affiliation: "Community Kitchen",
+        revision: args.contacts[0]!.revision + 2,
+      };
+      configureContacts(args.contacts.map((contact, index) => (index === 0 ? target : contact)));
+      return { status: "ok", contact: { ...target, organizationId: "alder" } };
     });
   },
   play: async (context) => {
     const dialog = await submit(context);
-    await waitFor(() => expect(dialog.getByText("Current saved details")).toBeVisible());
-    await expect(dialog.getByText("Neighbourhood Food Network")).toBeVisible();
-    await expect(dialog.getByRole("textbox", { name: "Affiliation" })).toHaveValue(
-      "Community Kitchen",
-    );
-    await expect(dialog.getByRole("button", { name: "Save contact" })).toBeDisabled();
+    await waitFor(() => expect(dialog.queryByRole("dialog")).not.toBeInTheDocument());
   },
 };

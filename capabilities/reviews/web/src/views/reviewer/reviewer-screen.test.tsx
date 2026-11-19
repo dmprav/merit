@@ -137,18 +137,17 @@ it("shows both drafts and holds submission until the reviewer chooses one", asyn
     " Keep my local interpretation.",
   );
 
-  const saved = await screen.findByRole("region", { name: "Saved on the other device" });
+  expect(await screen.findByRole("alert")).toHaveTextContent("Draft changed on another device");
+  expect(screen.getByRole("textbox", { name: "Proposed amount" })).toHaveValue("123.45");
+  expect(screen.getByRole("textbox", { name: "Overall reasoning" })).toHaveValue(
+    `${reviewerPage().draft!.content.reasoning} Keep my local interpretation.`,
+  );
+  expect(screen.getByRole("button", { name: "Submit assessment" })).toBeDisabled();
+
+  await user.click(screen.getByRole("button", { name: "View saved" }));
+  const saved = screen.getByRole("region", { name: "Saved on the other device" });
   expect(within(saved).getByText(/^Saved on my other device:/)).toBeVisible();
   expect(within(saved).getByText("123.456")).toBeVisible();
-  expect(
-    within(screen.getByRole("region", { name: "Your text on this device" })).getByText("123.45"),
-  ).toBeVisible();
-  expect(
-    within(screen.getByRole("region", { name: "Your text on this device" })).getByText(
-      /Keep my local interpretation\.$/,
-    ),
-  ).toBeVisible();
-  expect(screen.getByRole("button", { name: "Submit assessment" })).toBeDisabled();
 });
 
 it("switches to the assessment criteria without changing the draft", async () => {

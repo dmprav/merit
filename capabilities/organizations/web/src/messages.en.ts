@@ -76,8 +76,14 @@ export const en = {
   discard: "Discard changes",
   resumeInvite: "Resume invitation",
   resumeAccess: "Resume editing access",
+  draftConflictTitle: "Access changed while you were editing",
   draftConflict:
-    "Access or issued invitations changed since this draft began. Discard these changes and review the current access before editing again.",
+    "Access or issued invitations changed since this draft began. Review the current access or keep your changes.",
+  keepDraft: "Keep my changes",
+  loadLatest: "Discard & load latest",
+  viewLatest: "View latest",
+  hideLatest: "Hide latest",
+  latestSavedAccess: "Current saved access",
   draftStorageUnavailable:
     "Draft recovery is unavailable in this browser. Keep this page open to preserve your changes.",
   resend: "Resend",

@@ -91,21 +91,20 @@ reference panes and calls its open or show-all actions; it does not remount revi
 content to reset navigation. The shared reading-navigation hook restores focus and
 the physical pane's reading position even when its owner lives above the pane.
 
-Conflicting edits keep the right task pane and compare only the matching saved
-assessment or request with the preserved draft. Application, criteria and review
-revision changes identify their previous and current versions separately. Keep
-comparison content neutral, explain the conflict in short inline feedback, and
-put the explicit discard or keep-draft decisions in the footer. Keeping a draft
-acknowledges the current revisions; it does not save. Ordinary save failures retain
-the form and its entries. Successful writes use the shell confirmation placement.
-Render the feedback slot outside switchable references so a saved-but-not-refreshed
-warning and Retry remain available after the editor closes, regardless of which
-material the person is reading. Retry refreshes the saved state without repeating
-the write.
-The review controller supplies [comparison facts](../../controllers/reviews/review-comparison.ts):
-the matching recorded assessment, outstanding request, or missing record, plus
-changed revision baselines. Views format these facts without selecting records or
-reconstructing draft baselines.
+Conflicting edits keep the editor mounted and surface an inline conflict banner
+above the form, comparing only target-scoped conflicts on the matching assessment
+or underlying criteria. Application, criteria, assessment, and request revision
+changes update the draft basis only when keeping the draft; keeping a draft
+reaffirms it against the current versions without saving yet, while discarding
+loads the latest server values. If the target record is removed, a retained
+draft notice offers copying the draft or discarding it. Ordinary save failures
+retain the form and its entries. Successful writes use the shell confirmation
+placement. Render the feedback slot outside switchable references so a
+saved-but-not-refreshed warning and Retry remain available after the editor
+closes, regardless of which material the person is reading. Retry refreshes the
+saved state without repeating the write. The [review controller](../../controllers/reviews/use-review.ts)
+supplies target-scoped conflict state, current assessment values, and keep/load
+actions to the view.
 
 Use the [manager-review stories](../../../../../../interfaces/product/src/features/grantmaking/views/reviews/review-work.stories.tsx)
 for the connected flow and the [review tests](review-work.test.tsx) for focused

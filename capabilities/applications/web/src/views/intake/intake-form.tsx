@@ -1,21 +1,21 @@
-import {
-  useLayoutEffect,
-  useRef,
-  useState,
-  type ReactNode,
-  type Ref,
-  type ComponentProps,
-} from "react";
+import { useEffect, useRef, useState, type ReactNode, type ComponentProps } from "react";
 import { useTranslation } from "react-i18next";
 import { z } from "zod";
 
-import { intakeContentSchema, intakeDetailsSchema, intakeLimits } from "@merit/applications/domain";
+import {
+  canEditIntakeContent,
+  intakeContentSchema,
+  intakeDetailsSchema,
+  intakeLimits,
+} from "@merit/applications/domain";
 import { ContactLabel, ContactPicker } from "@merit/contacts-web/contacts";
 import {
+  ConflictBanner,
   Form,
   FormActions,
   FormMoneyField,
   FormTextField,
+  RetainedDraftNotice,
   useForm,
   useTranslatedSchema,
 } from "@merit/forms";
@@ -26,7 +26,6 @@ import { Button } from "@merit/ui/button";
 import { DescriptionList, DescriptionListItem } from "@merit/ui/description-list";
 import { EditorLoading, EditorClose } from "@merit/ui/editor-loading";
 import { Icon } from "@merit/ui/icon";
-import { Notice } from "@merit/ui/notice";
 import { TextField } from "@merit/ui/text-field";
 
 import type {
@@ -82,6 +81,87 @@ const useEditorForm = <S extends IntakeSection>(
   });
 };
 
+const retainedDraftText = (draft: IntakeDraft, reason: string) => {
+  const parts: string[] = [];
+  switch (draft.section) {
+    case "title":
+      parts.push(draft.value.title);
+      break;
+    case "metadata":
+      parts.push(
+        [draft.value.applicant, draft.value.requested, draft.value.projectPeriod]
+          .filter(Boolean)
+          .join("\n"),
+      );
+      break;
+    case "content":
+      parts.push(
+        draft.value.answers
+          .map((answer) => [answer.question, answer.response].filter(Boolean).join("\n"))
+          .join("\n\n"),
+      );
+      break;
+    case "details":
+      parts.push(draft.value.summary);
+      break;
+    case "reason":
+      break;
+  }
+  if (reason.trim()) {
+    parts.push(reason.trim());
+  }
+  return parts.filter(Boolean).join("\n\n");
+};
+
+const RetainedIntakeNotice = ({
+  editor,
+  onClose,
+}: {
+  editor: EditorProps["editor"];
+  onClose: () => void;
+}) => {
+  const { t } = useTranslation("applicationIntake");
+  if (!editor.draft) {
+    return null;
+  }
+  return (
+    <RetainedDraftNotice
+      title={t("intake.retainedTitle")}
+      message={t("intake.revisionUnavailable")}
+      copyLabel={t("intake.retainedCopy")}
+      copyingLabel={t("intake.retainedCopying")}
+      copiedLabel={t("intake.retainedCopied")}
+      copyFailedLabel={t("intake.retainedCopyFailed")}
+      discardLabel={t("intake.retainedDiscard")}
+      textToCopy={retainedDraftText(editor.draft, editor.reason)}
+      isDisabled={editor.pending}
+      onDiscard={() => {
+        editor.discard();
+        onClose();
+      }}
+    />
+  );
+};
+
+const IntakeConflictNotice = ({ editor }: { editor: EditorProps["editor"] }) => {
+  const { t } = useTranslation("applicationIntake");
+  return (
+    <ConflictBanner
+      title={t("intake.conflictTitle")}
+      message={t("intake.conflict")}
+      keepMine={{ label: t("intake.keepChanges"), onPress: editor.keepMyChanges }}
+      useSaved={{ label: t("intake.useLatest"), onPress: editor.useLatestSavedValues }}
+      isDisabled={editor.pending}
+      latest={{
+        toggleLabel: t("intake.viewLatest"),
+        hideLabel: t("intake.hideLatest"),
+        heading: t("intake.latest"),
+        children: <LatestValues editor={editor} />,
+      }}
+    />
+  );
+};
+
 const EditorFrame = ({
   editor,
   onClose,
@@ -94,146 +174,98 @@ const EditorFrame = ({
   disabled?: boolean;
 }) => {
   const { t } = useTranslation("applicationIntake");
-  const { section, conflict } = editor;
+  const { section, conflict, draft } = editor;
   const isRevision = Boolean(editor.workingRevision) && section !== "details";
+  const frameRef = useRef<HTMLDivElement>(null);
 
-  const focusWithin = useRef(true);
-  const conflictHeading = useRef<HTMLHeadingElement>(null);
-  useLayoutEffect(() => {
-    if (conflict && focusWithin.current) {
-      conflictHeading.current?.focus();
+  useEffect(() => {
+    const element = frameRef.current;
+    if (!element || !conflict) {
+      return;
     }
-  }, [conflict]);
 
-  const form = (
-    <Form
-      label={t(sectionLabels[section ?? "details"])}
-      submission={submission}
-      scrollFields={false}
-      submitOnModEnter
-      className={`${styles.form} ${section === "content" ? styles.longEditor : ""}`}
-      actions={
-        <FormActions
-          submission={submission}
-          discard={{
-            label: t("preparation.discard"),
-            onPress: () => {
-              editor.discard();
-              onClose();
-            },
-          }}
-          onCancel={onClose}
-          cancelLabel={t("preparation.close")}
-          cancelVariant="quiet"
-          submitLabel={t(isRevision ? "intake.saveWorkingRevision" : "intake.save")}
-          submittingLabel={t("editor.saving")}
-          isSubmitDisabled={conflict || disabled || editor.pending}
-        />
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !event.defaultPrevented && !editor.pending) {
+        event.preventDefault();
+        onClose();
       }
-    >
-      <div className={styles.fields}>
-        {isRevision && (
-          <p className={styles.hint}>
-            {t(section === "metadata" ? "intake.workingDetailsHint" : "intake.workingDraftHint")}
-          </p>
-        )}
-        {children}
-        {isRevision && (
-          <TextField
-            name="reason"
-            value={editor.reason}
-            onChange={editor.changeReason}
-            label={t("intake.reason")}
-            multiline
-            rows={3}
-            maxLength={intakeLimits.reasonLength}
-          />
-        )}
-      </div>
-    </Form>
-  );
+    };
+
+    element.addEventListener("keydown", handleKeyDown);
+    return () => element.removeEventListener("keydown", handleKeyDown);
+  }, [conflict, editor.pending, onClose]);
+
+  if (
+    draft &&
+    section &&
+    section !== "details" &&
+    !canEditIntakeContent(editor.application, editor.workingRevision)
+  ) {
+    return <RetainedIntakeNotice editor={editor} onClose={onClose} />;
+  }
+
   return (
-    <div
-      onFocusCapture={() => {
-        focusWithin.current = true;
-      }}
-      onBlurCapture={(event) => {
-        focusWithin.current = event.currentTarget.contains(event.relatedTarget);
-      }}
-    >
-      {conflict ? (
-        <IntakeConflict editor={editor} onClose={onClose} headingRef={conflictHeading} />
-      ) : (
-        form
-      )}
+    <div ref={frameRef}>
+      <Form
+        label={t(sectionLabels[section ?? "details"])}
+        submission={submission}
+        scrollFields={false}
+        submitOnModEnter
+        className={`${styles.form} ${section === "content" ? styles.longEditor : ""}`}
+        actions={
+          <FormActions
+            submission={submission}
+            discard={{
+              label: t("preparation.discard"),
+              onPress: () => {
+                editor.discard();
+                onClose();
+              },
+            }}
+            onCancel={onClose}
+            cancelLabel={t("preparation.close")}
+            cancelVariant="quiet"
+            submitLabel={t(isRevision ? "intake.saveWorkingRevision" : "intake.save")}
+            submittingLabel={t("editor.saving")}
+            isSubmitDisabled={conflict || disabled || editor.pending}
+          />
+        }
+      >
+        <div className={styles.fields}>
+          {conflict && <IntakeConflictNotice editor={editor} />}
+          {isRevision && (
+            <p className={styles.hint}>
+              {t(section === "metadata" ? "intake.workingDetailsHint" : "intake.workingDraftHint")}
+            </p>
+          )}
+          {children}
+          {isRevision && (
+            <TextField
+              name="reason"
+              value={editor.reason}
+              onChange={editor.changeReason}
+              label={t("intake.reason")}
+              multiline
+              rows={3}
+              maxLength={intakeLimits.reasonLength}
+            />
+          )}
+        </div>
+      </Form>
     </div>
   );
 };
 
-const IntakeConflict = ({
-  editor,
-  onClose,
-  headingRef,
-}: EditorProps & { headingRef: Ref<HTMLHeadingElement> }) => {
-  const { t } = useTranslation("applicationIntake");
-
-  return (
-    <section
-      className={styles.conflict}
-      aria-label={t("intake.reconcile")}
-      onKeyDown={(event) => {
-        if (event.key === "Escape" && !event.defaultPrevented && !editor.pending) {
-          event.preventDefault();
-          onClose();
-        }
-      }}
-    >
-      <h3 ref={headingRef} tabIndex={-1}>
-        {t("intake.reconcile")}
-      </h3>
-      <Notice appearance="inline" tone="warning">
-        {t("intake.conflict")}
-      </Notice>
-      <div className={styles.comparison}>
-        <ConflictValues editor={editor} saved />
-        <ConflictValues editor={editor} />
-      </div>
-      <p className={styles.hint}>{t("intake.keepChangesHelp")}</p>
-      <div className={styles.actions}>
-        <Button size="small" onPress={editor.keepMyChanges}>
-          {t("intake.keepChanges")}
-        </Button>
-        <Button size="small" variant="secondary" onPress={editor.useLatestSavedValues}>
-          {t("intake.useLatest")}
-        </Button>
-      </div>
-      <EditorClose
-        autoFocus={false}
-        isDisabled={editor.pending}
-        label={t("preparation.close")}
-        onClose={onClose}
-      />
-    </section>
-  );
-};
-
-const ConflictValues = ({
-  editor,
-  saved = false,
-}: Pick<EditorProps, "editor"> & { saved?: boolean }) => {
+const LatestValues = ({ editor }: Pick<EditorProps, "editor">) => {
   const { t } = useTranslation(["applicationIntake", "contacts"]);
-  const { comparison } = editor;
-  if (!comparison) {
+  const { section, latest } = editor;
+  if (!section) {
     return null;
   }
-  const label = t(saved ? "intake.latest" : "intake.yourDraft");
-  const { section } = comparison;
-  const value = saved ? comparison.saved : comparison.unsaved;
-  const { content, contactId } = value;
+  const { content, contactId } = latest;
 
   return (
-    <section aria-label={label} className={styles.comparisonValues}>
-      <h4>{label}</h4>
+    <div className={styles.latestPreview}>
       <DescriptionList>
         {section === "title" && (
           <DescriptionListItem label={t("intake.projectTitle")}>
@@ -245,15 +277,15 @@ const ConflictValues = ({
         )}
         {section === "details" && (
           <DescriptionListItem label={t("intake.staffSummary")}>
-            {value.summary}
+            {latest.summary}
           </DescriptionListItem>
         )}
         {section !== "details" && editor.workingRevision && (
-          <DescriptionListItem label={t("intake.reason")}>{value.reason}</DescriptionListItem>
+          <DescriptionListItem label={t("intake.reason")}>{latest.reason}</DescriptionListItem>
         )}
       </DescriptionList>
       {section === "content" && <SubmissionAnswers answers={content.answers} headingLevel={5} />}
-    </section>
+    </div>
   );
 };
 

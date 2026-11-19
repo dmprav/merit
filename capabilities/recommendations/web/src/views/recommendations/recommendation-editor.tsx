@@ -2,6 +2,7 @@ import { useEffect, useRef, type ReactNode, type Ref } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
+  ConflictBanner,
   Form,
   FormActions,
   FormMoneyField,
@@ -30,6 +31,7 @@ import { SectionHeader } from "@merit/ui/section-header";
 import { Tooltip } from "@merit/ui/tooltip";
 
 import type { RecommendationDraft, SaveRecommendation } from "../../contracts/recommendations";
+import type { RecommendationConflict } from "../../controllers/recommendations/use-recommendation";
 import { useRecommendationEditor } from "../../controllers/recommendations/use-recommendation-editor";
 import { recommendationFormSchema } from "./form-schema";
 import { recommendationPositionKeys, recommendationSaveError } from "./messages";
@@ -59,26 +61,35 @@ type RecommendationEditorProps = {
     closeAction: ReactNode;
   }) => ReactNode;
   draft?: RecommendationDraft;
+  conflict?: RecommendationConflict | null;
+  draftReset?: number;
   onDraftChange: (draft: RecommendationDraft | undefined) => void;
+  onKeepDraft?: () => void;
+  onLoadLatest?: () => void;
   onSave: SaveRecommendation;
 };
 
-export const RecommendationEditor = ({
-  application,
-  round,
-  disabled,
-  ready = true,
-  showActionLabel = false,
-  draft,
-  onDraftChange,
-  onSave,
-  onClose,
-  children,
-}: RecommendationEditorProps) => {
+export const RecommendationEditor = (props: RecommendationEditorProps) => {
+  const {
+    application,
+    round,
+    disabled,
+    ready = true,
+    showActionLabel = false,
+    draft,
+    conflict = null,
+    draftReset = 0,
+    onDraftChange,
+    onKeepDraft,
+    onLoadLatest,
+    onSave,
+    onClose,
+    children,
+  } = props;
   const { t } = useTranslation("fundingRecommendations");
   const withdrawn = !canChangeRecommendation(application);
   const { editButton, markRestoreFocus } = useRecommendationFocus();
-  const { isSaving, isOpen, canResume, open, close, save } = useRecommendationEditor({
+  const editor = useRecommendationEditor({
     application,
     ready,
     draft,
@@ -95,10 +106,10 @@ export const RecommendationEditor = ({
       application={application}
       disabled={disabled || withdrawn}
       showActionLabel={showActionLabel}
-      canResume={canResume}
-      isOpen={isOpen}
+      canResume={editor.canResume}
+      isOpen={editor.isOpen}
       ref={editButton}
-      onOpen={open}
+      onOpen={editor.open}
     />
   );
   const summary = (
@@ -110,22 +121,26 @@ export const RecommendationEditor = ({
   const closeAction = (
     <EditorClose
       label={t("editor.close")}
-      onClose={() => void close()}
+      onClose={() => void editor.close()}
       autoFocus={!ready || !draft}
-      isDisabled={isSaving}
+      isDisabled={editor.isSaving}
       iconOnly
     />
   );
   const writingProps = {
-    isOpen,
+    isOpen: editor.isOpen,
     withdrawn,
     ready,
     draft,
+    conflict,
+    draftReset,
     application,
     round,
     onDraftChange,
-    onSave: save,
-    close,
+    onKeepDraft,
+    onLoadLatest,
+    onSave: editor.save,
+    close: editor.close,
   };
 
   if (children) {
@@ -216,11 +231,13 @@ const useRecommendationFocus = () => {
 const RecommendationWriting = ({
   ready,
   draft,
+  draftReset = 0,
   closeAction,
   ...props
 }: Omit<RecommendationFormProps, "initialDraft"> & {
   ready: boolean;
   draft?: RecommendationDraft;
+  draftReset?: number;
   closeAction: ReactNode;
 }) => {
   const { t } = useTranslation("fundingRecommendations");
@@ -232,7 +249,7 @@ const RecommendationWriting = ({
       </DialogContent>
     );
   }
-  return <RecommendationForm {...props} initialDraft={draft} />;
+  return <RecommendationForm key={draftReset} {...props} initialDraft={draft} />;
 };
 
 const RecommendationAction = ({
@@ -289,16 +306,73 @@ type RecommendationFormProps = {
   application: Application;
   round: ApplicationRoundContext;
   initialDraft: RecommendationDraft;
+  conflict?: RecommendationConflict | null;
   onDraftChange: (draft: RecommendationDraft) => void;
+  onKeepDraft?: () => void;
+  onLoadLatest?: () => void;
   onSave: SaveRecommendation;
   close: (discard?: boolean) => Promise<void>;
+};
+
+const RecommendationConflictNotice = ({
+  conflict,
+  application,
+  round,
+  isDisabled,
+  onKeepDraft,
+  onLoadLatest,
+}: {
+  conflict: "basis_changed" | "record_changed";
+  application: RecommendationEditorProps["application"];
+  round: RecommendationEditorProps["round"];
+  isDisabled: boolean;
+  onKeepDraft?: () => void;
+  onLoadLatest?: () => void;
+}) => {
+  const { t } = useTranslation(["fundingRecommendations"]);
+  const saved = application.managerRecommendation;
+  const keepLabel =
+    conflict === "basis_changed"
+      ? t("editor.reaffirmDraft", { version: application.version })
+      : t("editor.keepDraft");
+
+  return (
+    <ConflictBanner
+      title={
+        conflict === "basis_changed"
+          ? t("editor.basisConflictTitle", { version: application.version })
+          : t("editor.recordConflictTitle")
+      }
+      message={
+        conflict === "basis_changed"
+          ? t("editor.basisConflictMessage")
+          : t("editor.recordConflictMessage")
+      }
+      keepMine={onKeepDraft ? { label: keepLabel, onPress: onKeepDraft } : undefined}
+      useSaved={onLoadLatest ? { label: t("editor.loadSaved"), onPress: onLoadLatest } : undefined}
+      isDisabled={isDisabled}
+      latest={
+        saved
+          ? {
+              toggleLabel: t("editor.viewLatest"),
+              hideLabel: t("editor.hideLatest"),
+              heading: t("editor.latestSaved"),
+              children: <RecommendationSummary recommendation={saved} manager={round.manager} />,
+            }
+          : undefined
+      }
+    />
+  );
 };
 
 const RecommendationForm = ({
   application,
   round,
   initialDraft,
+  conflict = null,
   onDraftChange,
+  onKeepDraft,
+  onLoadLatest,
   onSave,
   close,
 }: RecommendationFormProps) => {
@@ -336,10 +410,21 @@ const RecommendationForm = ({
           discard={{ label: t("preparation.discard"), onPress: () => void close(true) }}
           submitLabel={t("editor.save")}
           submittingLabel={t("editor.saving")}
+          isSubmitDisabled={Boolean(conflict)}
         />
       }
     >
       <Stack gap={5}>
+        {conflict && (
+          <RecommendationConflictNotice
+            conflict={conflict}
+            application={application}
+            round={round}
+            isDisabled={submission.isSubmitting}
+            onKeepDraft={onKeepDraft}
+            onLoadLatest={onLoadLatest}
+          />
+        )}
         {application.intakeStatus === "in_preparation" && <p>{t("intake.fundingNotReady")}</p>}
         <AllocationFields form={form} />
         <form.Field name="reasoning">

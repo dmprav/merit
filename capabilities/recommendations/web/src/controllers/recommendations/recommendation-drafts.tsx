@@ -14,6 +14,7 @@ export const DraftContext = createContext<{
     key: string,
     value: RecommendationDraft | undefined,
     baseline: RecommendationBaseline,
+    replaceBaseline?: boolean,
   ) => void;
   clearDrafts: () => void;
 } | null>(null);
@@ -39,10 +40,16 @@ export const useRecommendationDraftStore = (storageScope?: string) => {
           key: string,
           value: RecommendationDraft | undefined,
           baseline: RecommendationBaseline,
+          replaceBaseline = false,
         ) =>
           setDrafts((current) => ({
             ...current,
-            [key]: value ? { value, baseline: current[key]?.baseline ?? baseline } : undefined,
+            [key]: value
+              ? {
+                  value,
+                  baseline: replaceBaseline ? baseline : (current[key]?.baseline ?? baseline),
+                }
+              : undefined,
           })),
         clearDrafts: () => setDrafts(() => ({})),
       }),

@@ -13,6 +13,9 @@ export const reviewDraftSchema = z.object({
   revision: baseline.expectedRevision,
   applicationVersion: baseline.expectedApplicationVersion,
   criteriaVersion: baseline.expectedCriteriaVersion,
+  assessmentVersion: z.number().int().positive().optional(),
+  requestId: reviewIdSchema.nullable().optional(),
+  previousId: reviewIdSchema.nullable().optional(),
   values: z.object({
     contactId: text,
     applicationVersion: text,

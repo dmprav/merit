@@ -82,7 +82,7 @@ it("keeps saved round content readable and restores an early-open purpose editor
   expect(setEdit).not.toHaveBeenCalled();
   recover();
   expect(await screen.findByRole("textbox", { name: "Purpose" })).toHaveValue("Unfinished purpose");
-  expect(screen.getByRole("button", { name: "Save changes" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Save changes" })).toBeEnabled();
   expect(setEdit).not.toHaveBeenCalled();
   expect(data.save).not.toHaveBeenCalled();
 });

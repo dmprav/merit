@@ -10,9 +10,13 @@ import { roundView, type RoundView } from "@merit/grantmaking/api";
 import { getExampleRound } from "@merit/grantmaking/examples";
 import { encodeMoney, fromMinorUnits } from "@merit/money";
 import type { PreparationState } from "@merit/rounds-web/contracts";
-import { preparationDraft, type PreparationDraft } from "@merit/rounds-web/preparation";
-import type { PreparationSession } from "@merit/rounds-web/preparation";
-import { LatestPreparation, PreparationForm } from "@merit/rounds-web/preparation";
+import {
+  PreparationForm,
+  RoundConflictBanner,
+  preparationDraft,
+  type PreparationDraft,
+  type PreparationSession,
+} from "@merit/rounds-web/preparation";
 import { ApplicationPage } from "@merit/ui/application-shell";
 import { PageHeader } from "@merit/ui/page-header";
 
@@ -42,7 +46,7 @@ const preparation: PreparationState = {
   ],
 };
 
-const ConflictEditor = ({ safe = false }: { safe?: boolean }) => {
+const ConflictEditor = () => {
   const [draft, setDraft] = useState<PreparationDraft>(() => ({
     ...preparationDraft("purpose", example, 1),
     value: { purpose: "Community partnerships" },
@@ -51,8 +55,9 @@ const ConflictEditor = ({ safe = false }: { safe?: boolean }) => {
   const latest = {
     ...example,
     title: "Neighbourhood grants",
-    purpose: safe ? example.purpose : "Support accessible activities led by residents.",
+    purpose: "Support accessible activities led by residents.",
   };
+  const isConflict = draft.revision !== 2;
 
   return (
     <>
@@ -61,18 +66,23 @@ const ConflictEditor = ({ safe = false }: { safe?: boolean }) => {
         key={draft.revision}
         draft={draft}
         round={latest}
-        isConflict={draft.revision !== 2}
+        isConflict={isConflict}
         onChange={setDraft}
         onCancel={() => setDraft(preparationDraft("purpose", latest, 2))}
         onSave={async () => null}
         beforeFields={
-          draft.revision !== 2 && (
-            <LatestPreparation
-              draft={draft}
+          isConflict && (
+            <RoundConflictBanner
+              section="purpose"
               round={latest}
-              revision={2}
-              managers={preparation.managers}
-              onReconcile={(merged) => setDraft(merged)}
+              onKeepMine={() =>
+                setDraft({
+                  ...draft,
+                  revision: 2,
+                  baseline: preparationDraft("purpose", latest, 2).baseline,
+                })
+              }
+              onUseSaved={() => setDraft(preparationDraft("purpose", latest, 2))}
             />
           )
         }
@@ -97,13 +107,11 @@ const RoundManagementPreview = ({
   reassign = false,
   longManager = false,
   conflict = false,
-  safe = false,
 }: {
   empty?: boolean;
   reassign?: boolean;
   longManager?: boolean;
   conflict?: boolean;
-  safe?: boolean;
 }) => {
   const round: RoundView = roundView({
     ...example,
@@ -123,7 +131,7 @@ const RoundManagementPreview = ({
           breadcrumbLabel="Breadcrumb"
           width="full"
         >
-          {conflict ? <ConflictEditor safe={safe} /> : <RoundSession round={round} />}
+          {conflict ? <ConflictEditor /> : <RoundSession round={round} />}
         </ApplicationPage>
       </GrantmakingDrafts>
     </StoryEnvironment>
@@ -226,15 +234,10 @@ export const BudgetReasonRequired: Story = {
   },
 };
 export const ConcurrentEdits: Story = { args: { conflict: true } };
-export const SafeMerge: Story = { args: { conflict: true, safe: true } };
 export const ResolvedConflict: Story = {
   args: { conflict: true },
-  play: async ({ canvas, canvasElement, userEvent }) => {
-    await userEvent.click(await canvas.findByRole("button", { name: /Value to keep for Purpose/ }));
-    await userEvent.click(
-      within(canvasElement.ownerDocument.body).getByRole("option", { name: "Keep my value" }),
-    );
-    await userEvent.click(canvas.getByRole("button", { name: "Apply choices to draft" }));
+  play: async ({ canvas, userEvent }) => {
+    await userEvent.click(await canvas.findByRole("button", { name: "Keep my changes" }));
 
     await expect(canvas.getByRole("textbox", { name: "Purpose" })).toHaveValue(
       "Community partnerships",

@@ -14,6 +14,8 @@ import {
   preparationDraft,
   hasPreparationDraft,
   hasPreparationChanges,
+  hasPreparationSectionConflict,
+  rebasePreparationDraft,
   type PreparationDraft,
   type PreparationSection,
 } from "./preparation-state";
@@ -120,6 +122,61 @@ export const useRoundPreparation = ({
     }));
   };
 
+  const keepDraft = (section: PreparationSection) => {
+    const draft = draftFor(section);
+    if (!draft) {
+      return;
+    }
+    updateDraft(rebasePreparationDraft(draft, round, data.state.revision));
+    setError(null);
+  };
+
+  const loadLatest = (section: PreparationSection) => {
+    updateDraft(preparationDraft(section, round, data.state.revision) as PreparationDraft);
+    setError(null);
+  };
+
+  const prepareFormDraft = (draft: PreparationDraft) => {
+    if (draft.revision === data.state.revision) {
+      return hasPreparationChanges(draft) ? { current: draft, problem: null } : null;
+    }
+    if (hasPreparationSectionConflict(draft, round)) {
+      return { current: draft, problem: { status: "conflict" } as PreparationProblem };
+    }
+    const rebased = rebasePreparationDraft(draft, round, data.state.revision);
+    updateDraft(rebased);
+    if (!hasPreparationChanges(rebased)) {
+      recordSaved(rebased, "form", data.state.revision);
+      onRestoreFocus(rebased.section);
+      return null;
+    }
+    return { current: rebased, problem: null };
+  };
+
+  const commitPreparationDraft = async (
+    current: PreparationDraft,
+    mode: "form" | "quick" | "undo",
+  ): Promise<PreparationProblem | null> => {
+    try {
+      const result = await editMutation.mutateAsync(current);
+      if (result.status !== "ok") {
+        setError(result);
+        if (result.status === "conflict" || result.status === "invalid") {
+          await refresh("read");
+        }
+        return result;
+      }
+      recordSaved(current, mode, result.revision);
+      // A committed save stays successful even when the subsequent read fails.
+      await refresh("saved");
+      return null;
+    } catch {
+      const unavailable: PreparationProblem = { status: "unavailable" };
+      setError(unavailable);
+      return unavailable;
+    }
+  };
+
   const save = async (
     draft: PreparationDraft,
     mode: "form" | "quick" | "undo" = "form",
@@ -127,43 +184,27 @@ export const useRoundPreparation = ({
     if (busyRef.current || !ready) {
       return { status: "busy" };
     }
-    if (mode === "form" && draft.revision !== data.state.revision) {
-      return { status: "conflict" };
-    }
-    if (mode === "form" && !hasPreparationChanges(draft)) {
-      return null;
+    let current = draft;
+    if (mode === "form") {
+      const prepared = prepareFormDraft(draft);
+      if (!prepared) {
+        return null;
+      }
+      if (prepared.problem) {
+        return prepared.problem;
+      }
+      current = prepared.current;
     }
 
     busyRef.current = true;
     setPending(true);
     setError(null);
-
-    let saveError: PreparationProblem | null = null;
-    try {
-      const result = await editMutation.mutateAsync(draft);
-      if (result.status !== "ok") {
-        saveError = result;
-        setError(saveError);
-        if (result.status === "conflict" || result.status === "invalid") {
-          await refresh("read");
-        }
-      } else {
-        recordSaved(draft, mode, result.revision);
-
-        // A committed save stays successful even when the subsequent read fails.
-        await refresh("saved");
-      }
-    } catch {
-      saveError = { status: "unavailable" };
-      setError(saveError);
-    }
-
+    const saveError = await commitPreparationDraft(current, mode);
     busyRef.current = false;
     setPending(false);
     if (!saveError) {
-      onRestoreFocus(draft.section);
+      onRestoreFocus(current.section);
     }
-
     return saveError;
   };
 
@@ -262,6 +303,8 @@ export const useRoundPreparation = ({
     open,
     close,
     discard,
+    keepDraft,
+    loadLatest,
     saveDraft: (draft: PreparationDraft) => save(draft),
     renameRound: (title: string) =>
       save({ ...preparationDraft("title", round, data.state.revision), value: { title } }, "quick"),

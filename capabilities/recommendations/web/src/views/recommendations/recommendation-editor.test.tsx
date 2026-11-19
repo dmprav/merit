@@ -54,7 +54,15 @@ const EditableRecommendation = ({
   Partial<
     Pick<
       ComponentProps<typeof RecommendationEditor>,
-      "application" | "round" | "draft" | "disabled" | "showActionLabel" | "children"
+      | "application"
+      | "round"
+      | "draft"
+      | "conflict"
+      | "onKeepDraft"
+      | "onLoadLatest"
+      | "disabled"
+      | "showActionLabel"
+      | "children"
     >
   >) => {
   const [draft, setDraft] = useState<RecommendationDraft | undefined>(initialDraft);
@@ -580,4 +588,55 @@ it("passes null rather than false for editor when closed so fallback actions ren
   );
 
   expect(screen.getByRole("button", { name: /Edit recommendation for/ })).toBeVisible();
+});
+
+it("keeps the recommendation form mounted with ConflictBanner for basis shift and record collision", async () => {
+  const user = userEvent.setup();
+  const onKeepDraft = vi.fn();
+  const onLoadLatest = vi.fn();
+  const updatedApp = { ...application, version: makeApplication({ version: 2 }).version };
+
+  const view = render(
+    <GrantmakingMessagesProvider>
+      <EditableRecommendation
+        application={updatedApp}
+        draft={{ position: "Fund", amount: "19000", reasoning: "My draft reasoning" }}
+        conflict="basis_changed"
+        onKeepDraft={onKeepDraft}
+        onLoadLatest={onLoadLatest}
+        onSave={vi.fn()}
+      />
+    </GrantmakingMessagesProvider>,
+  );
+
+  await user.click(screen.getByRole("button", { name: /^Resume editing/ }));
+  expect(screen.getByRole("alert")).toHaveTextContent("Submission updated to version 2");
+  expect(screen.getByRole("textbox", { name: "Reasoning" })).toHaveValue("My draft reasoning");
+  expect(screen.getByRole("button", { name: "Save recommendation" })).toBeDisabled();
+
+  await user.click(screen.getByRole("button", { name: "View latest" }));
+  expect(screen.getByRole("region", { name: "Latest saved recommendation" })).toHaveTextContent(
+    application.managerRecommendation!.reasoning,
+  );
+
+  await user.click(screen.getByRole("button", { name: "Reaffirm draft for v2" }));
+  expect(onKeepDraft).toHaveBeenCalledOnce();
+
+  view.rerender(
+    <GrantmakingMessagesProvider>
+      <EditableRecommendation
+        application={updatedApp}
+        draft={{ position: "Fund", amount: "19000", reasoning: "My draft reasoning" }}
+        conflict="record_changed"
+        onKeepDraft={onKeepDraft}
+        onLoadLatest={onLoadLatest}
+        onSave={vi.fn()}
+      />
+    </GrantmakingMessagesProvider>,
+  );
+  expect(screen.getByRole("alert")).toHaveTextContent(
+    "Recommendation changed while you were editing",
+  );
+  await user.click(screen.getByRole("button", { name: "Discard & load latest" }));
+  expect(onLoadLatest).toHaveBeenCalledOnce();
 });

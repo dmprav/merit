@@ -657,7 +657,8 @@ it("retains the contact revision on resume and blocks dismissal during a save", 
   expect(screen.getByRole("dialog")).toBeVisible();
   expect(vi.mocked(saveContact).mock.lastCall?.[0].data).toMatchObject({
     action: "update",
-    expectedContactRevision: 4,
+    contactId: "contact-test",
+    details: { name: "Sam Taylor", email: "", affiliation: "" },
   });
 
   resolve({ status: "unavailable" });

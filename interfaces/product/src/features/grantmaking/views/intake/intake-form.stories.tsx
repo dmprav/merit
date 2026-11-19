@@ -204,14 +204,18 @@ export const StaffSummary: Story = { args: { section: "details" } };
 export const ConcurrentChanges: Story = {
   args: { conflict: true },
   play: async ({ canvas }) => {
-    const conflict = within(canvas.getByRole("region", { name: "Review conflicting changes" }));
-    const saved = within(conflict.getByRole("region", { name: "Latest saved values" }));
-    const draft = within(conflict.getByRole("region", { name: "Your unsaved changes" }));
+    const form = within(canvas.getByRole("form"));
+    const alert = form.getByRole("alert");
+    await expect(alert).toHaveTextContent("This application changed while you were editing");
+    await expect(form.getByRole("textbox", { name: "Applicant" })).toHaveValue(
+      "Neighbourhood Kitchen — local edit",
+    );
+    await expect(form.getByRole("button", { name: "Save" })).toBeDisabled();
+    await userEvent.click(form.getByRole("button", { name: "View latest" }));
+    const saved = within(form.getByRole("region", { name: "Latest saved values" }));
     await expect(saved.getByText("€28,000")).toBeVisible();
-    await expect(draft.getByText("Neighbourhood Kitchen — local edit")).toBeVisible();
-    await expect(canvas.queryByRole("form")).not.toBeInTheDocument();
-    await expect(conflict.getByRole("button", { name: "Keep my changes" })).toBeEnabled();
-    await expect(conflict.getByRole("button", { name: "Use saved values" })).toBeEnabled();
+    await expect(form.getByRole("button", { name: "Keep my changes" })).toBeEnabled();
+    await expect(form.getByRole("button", { name: "Discard & load latest" })).toBeEnabled();
   },
 };
 
@@ -245,29 +249,35 @@ export const KeepLocalChanges: Story = {
   args: { conflict: true },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const conflict = within(canvas.getByRole("region", { name: "Review conflicting changes" }));
-    await userEvent.click(conflict.getByRole("button", { name: "Keep my changes" }));
-    const form = within(canvas.getByRole("form"));
+    await userEvent.click(
+      within(canvas.getByRole("form")).getByRole("button", { name: "Keep my changes" }),
+    );
+    const updated = within(canvas.getByRole("form"));
 
-    await expect(form.getByRole("textbox", { name: "Applicant" })).toHaveValue(
+    await expect(updated.getByRole("textbox", { name: "Applicant" })).toHaveValue(
       "Neighbourhood Kitchen — local edit",
     );
-    await expect(form.getByRole("textbox", { name: /Requested amount/ })).toHaveValue("28000.00");
-    await expect(form.getByRole("button", { name: "Save" })).toBeEnabled();
+    await expect(updated.getByRole("textbox", { name: /Requested amount/ })).toHaveValue(
+      "28000.00",
+    );
+    await expect(updated.getByRole("button", { name: "Save" })).toBeEnabled();
   },
 };
 export const UseLatestValues: Story = {
   args: { conflict: true },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const conflict = within(canvas.getByRole("region", { name: "Review conflicting changes" }));
-    await userEvent.click(conflict.getByRole("button", { name: "Use saved values" }));
-    const form = within(canvas.getByRole("form"));
+    await userEvent.click(
+      within(canvas.getByRole("form")).getByRole("button", { name: "Discard & load latest" }),
+    );
+    const updated = within(canvas.getByRole("form"));
 
-    await expect(form.getByRole("textbox", { name: "Applicant" })).toHaveValue(
+    await expect(updated.getByRole("textbox", { name: "Applicant" })).toHaveValue(
       "Neighbourhood Kitchen",
     );
-    await expect(form.getByRole("textbox", { name: /Requested amount/ })).toHaveValue("28000.00");
+    await expect(updated.getByRole("textbox", { name: /Requested amount/ })).toHaveValue(
+      "28000.00",
+    );
   },
 };
 

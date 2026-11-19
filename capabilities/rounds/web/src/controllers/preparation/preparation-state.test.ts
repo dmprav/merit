@@ -8,8 +8,9 @@ import {
   draftChange,
   hasPreparationChanges,
   hasPreparationDraft,
+  hasPreparationSectionConflict,
   preparationDraft,
-  reconcilePreparation,
+  rebasePreparationDraft,
 } from "./preparation-state";
 import { preparationStorage } from "./storage";
 
@@ -97,38 +98,30 @@ describe("unsaved changes", () => {
   });
 });
 
-describe("reconciling with a newer saved round", () => {
-  it("merges untouched details while preserving the author's edits", () => {
+describe("detecting collisions against a newer saved round", () => {
+  it("ignores edits in unrelated sections and preserves the author's draft", () => {
     const round = roundView(makeRound({ purpose: "Support community projects" }));
     const draft = {
       ...preparationDraft("purpose", round, 0),
       value: { purpose: "My new purpose" },
     };
-    const result = reconcilePreparation(
-      draft,
-      { ...round, title: "Colleague's title", meetingDate: "2027-04-01" },
-      1,
-    );
+    const latest = { ...round, title: "Colleague's title", meetingDate: "2027-04-01" };
 
-    expect(result.resolved).toBe(true);
-    expect(result.conflicts).toEqual([]);
-    expect(result.merged).toMatchObject({
+    expect(hasPreparationSectionConflict(draft, latest)).toBe(false);
+    expect(rebasePreparationDraft(draft, latest, 1)).toMatchObject({
       value: { purpose: "My new purpose" },
       baseline: { title: "Colleague's title", meetingDate: "2027-04-01" },
       revision: 1,
     });
-    expect(result.merged.baseline.purpose).toBe(round.purpose);
   });
 
-  it("does not ask for a choice when a colleague saved the same value", () => {
+  it("does not flag a collision when a colleague saved the same value", () => {
     const round = roundView(makeRound({ purpose: "Original purpose" }));
     const draft = { ...preparationDraft("purpose", round, 0), value: { purpose: "Agreed" } };
 
-    expect(reconcilePreparation(draft, { ...round, purpose: "Agreed" }, 1)).toMatchObject({
-      conflicts: [],
-      resolved: true,
-      merged: { value: { purpose: "Agreed" }, baseline: { purpose: "Agreed" }, revision: 1 },
-    });
+    expect(hasPreparationSectionConflict(draft, { ...round, purpose: "Agreed" })).toBe(false);
+    const rebased = rebasePreparationDraft(draft, { ...round, purpose: "Agreed" }, 1);
+    expect(hasPreparationChanges(rebased)).toBe(false);
   });
 
   describe("when both authors changed the same field", () => {
@@ -136,26 +129,23 @@ describe("reconciling with a newer saved round", () => {
     const draft = { ...preparationDraft("purpose", round, 0), value: { purpose: "Mine" } };
     const latest = { ...round, title: "Shared title", purpose: "Theirs" };
 
-    it("requires an explicit choice", () => {
-      expect(reconcilePreparation(draft, latest, 1)).toMatchObject({
-        conflicts: ["purpose"],
-        resolved: false,
+    it("detects the collision", () => {
+      expect(hasPreparationSectionConflict(draft, latest)).toBe(true);
+    });
+
+    it("rebases the author's draft onto the latest revision when kept", () => {
+      expect(rebasePreparationDraft(draft, latest, 1)).toMatchObject({
+        revision: 1,
+        value: { purpose: "Mine" },
+        baseline: { purpose: "Theirs" },
       });
     });
 
-    it("keeps the author's value when they choose their own", () => {
-      expect(reconcilePreparation(draft, latest, 1, { purpose: "mine" })).toMatchObject({
-        resolved: true,
-        merged: { value: { purpose: "Mine" }, baseline: { purpose: "Theirs" } },
-      });
-    });
+    it("leaves no unsaved change when replacing with a fresh latest draft", () => {
+      const saved = preparationDraft("purpose", latest, 1);
 
-    it("leaves no unsaved change when they choose the saved value", () => {
-      const saved = reconcilePreparation(draft, latest, 1, { purpose: "saved" });
-
-      expect(saved.resolved).toBe(true);
-      expect(saved.merged.value.purpose).toBe("Theirs");
-      expect(hasPreparationChanges(saved.merged)).toBe(false);
+      expect(saved.value.purpose).toBe("Theirs");
+      expect(hasPreparationChanges(saved)).toBe(false);
     });
   });
 
@@ -170,14 +160,14 @@ describe("reconciling with a newer saved round", () => {
     };
     const latest = { ...round, criteria: [replacement] };
 
-    it("treats the ordered list as one conflict", () => {
-      expect(reconcilePreparation(edited, latest, 1).conflicts).toEqual(["criteria"]);
+    it("treats the ordered list as one collision", () => {
+      expect(hasPreparationSectionConflict(edited, latest)).toBe(true);
     });
 
-    it("adopts the whole saved list when the author chooses it", () => {
-      expect(
-        reconcilePreparation(edited, latest, 1, { criteria: "saved" }).merged.value.criteria,
-      ).toEqual([{ key: replacement.id, ...replacement }]);
+    it("adopts the whole saved list when replacing with latest", () => {
+      expect(preparationDraft("criteria", latest, 1).value.criteria).toEqual([
+        { key: replacement.id, ...replacement },
+      ]);
     });
   });
 
@@ -189,21 +179,16 @@ describe("reconciling with a newer saved round", () => {
     };
 
     it("keeps the reason across unrelated edits", () => {
-      expect(
-        reconcilePreparation(draft, { ...round, title: "New title" }, 1).merged.value.reason,
-      ).toBe(draft.value.reason);
+      expect(rebasePreparationDraft(draft, { ...round, title: "New title" }, 1).value.reason).toBe(
+        draft.value.reason,
+      );
     });
 
-    it("clears the reason when adopting a changed saved budget", () => {
-      const adopted = reconcilePreparation(
-        { ...draft, value: { ...draft.value, amount: "300" } },
-        { ...round, budget: fromMinorUnits(20000n) },
-        1,
-        { amount: "saved" },
-      );
+    it("clears the reason when resetting to the latest saved budget", () => {
+      const adopted = preparationDraft("budget", { ...round, budget: fromMinorUnits(20000n) }, 1);
 
-      expect(adopted.merged.value).toEqual({ amount: "200.00", reason: "" });
-      expect(hasPreparationDraft(adopted.merged)).toBe(false);
+      expect(adopted.value).toEqual({ amount: "200.00", reason: "" });
+      expect(hasPreparationDraft(adopted)).toBe(false);
     });
   });
 });
@@ -219,14 +204,14 @@ describe("save commands", () => {
     expect(draftChange(title)).toEqual({ section: "details", title: "Local title" });
   });
 
-  it("sends only the edited purpose after merging a colleague's title", () => {
+  it("sends only the edited purpose after rebasing past a colleague's title", () => {
     const purpose = {
       ...preparationDraft("purpose", round, 3),
       value: { purpose: "Local purpose" },
     };
-    const reconciled = reconcilePreparation(purpose, { ...round, title: "Saved title" }, 4);
+    const rebased = rebasePreparationDraft(purpose, { ...round, title: "Saved title" }, 4);
 
-    expect(draftChange(reconciled.merged)).toEqual({
+    expect(draftChange(rebased)).toEqual({
       section: "details",
       purpose: "Local purpose",
     });

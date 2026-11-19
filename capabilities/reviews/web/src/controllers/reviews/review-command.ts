@@ -15,6 +15,9 @@ export const reviewCommand = (
       change = {
         action: "edit",
         id: draft.id,
+        ...(draft.assessmentVersion !== undefined
+          ? { expectedAssessmentVersion: draft.assessmentVersion }
+          : {}),
         content: assessmentEntrySchema.parse(contentFromValues(values)),
         note: values.note,
       };

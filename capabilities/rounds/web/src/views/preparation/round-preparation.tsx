@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
-import { FormDialog } from "@merit/forms";
+import { ConflictBanner, FormDialog } from "@merit/forms";
 import { useLocaleSettings } from "@merit/i18n";
 import { useFormat } from "@merit/i18n/format";
 import { decodeMoney } from "@merit/money";
@@ -25,11 +25,12 @@ import { PropertyButton } from "@merit/ui/property-button";
 import { StatusMessage } from "@merit/ui/status-message";
 import { Tooltip } from "@merit/ui/tooltip";
 
+import type { PreparationRound } from "../../contracts/preparation";
 import {
   hasPreparationDraft,
+  hasPreparationSectionConflict,
   type PreparationSection,
 } from "../../controllers/preparation/preparation-state";
-import { LatestPreparation } from "./latest-preparation";
 import { preparationError } from "./messages";
 import { PreparationForm } from "./preparation-form";
 import styles from "./preparation.module.css";
@@ -85,6 +86,69 @@ export const RoundEditButton = ({
   );
 };
 
+const LatestSectionValue = ({
+  section,
+  round,
+}: {
+  section: "purpose" | "criteria" | "budget";
+  round: Pick<PreparationRound, "purpose" | "criteria" | "budget">;
+}) => {
+  const { t } = useTranslation("roundPreparation");
+  const { money } = useFormat();
+
+  switch (section) {
+    case "purpose":
+      return <p>{round.purpose || t("preparation.purposeUnset")}</p>;
+    case "criteria":
+      return round.criteria.length ? (
+        <ol>
+          {round.criteria.map((criterion) => (
+            <li key={criterion.id}>
+              <strong>{criterion.title}</strong>
+              {criterion.description && <p>{criterion.description}</p>}
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <p>{t("round.noCriteria")}</p>
+      );
+    case "budget":
+      return <p>{round.budget === null ? t("preparation.notSet") : money(round.budget)}</p>;
+  }
+};
+
+export const RoundConflictBanner = ({
+  section,
+  round,
+  onKeepMine,
+  onUseSaved,
+  isDisabled = false,
+}: {
+  section: "purpose" | "criteria" | "budget";
+  round: Pick<PreparationRound, "purpose" | "criteria" | "budget">;
+  onKeepMine: () => void;
+  onUseSaved: () => void;
+  isDisabled?: boolean;
+}) => {
+  const { t } = useTranslation("roundPreparation");
+
+  return (
+    <ConflictBanner
+      title={t("preparation.conflictTitle")}
+      message={t("preparation.conflictMessage")}
+      keepMine={{ label: t("preparation.keepMine"), onPress: onKeepMine }}
+      useSaved={{ label: t("preparation.useSaved"), onPress: onUseSaved }}
+      isDisabled={isDisabled}
+      latest={{
+        toggleLabel: t("preparation.viewLatest"),
+        hideLabel: t("preparation.hideLatest"),
+        heading: t("preparation.latestSaved"),
+        children: <LatestSectionValue section={section} round={round} />,
+      }}
+    />
+  );
+};
+
 export const RoundEditor = ({
   preparation,
   section,
@@ -107,6 +171,9 @@ export const RoundEditor = ({
     );
   }
 
+  const isConflict =
+    draft.revision !== preparation.revision && hasPreparationSectionConflict(draft, round);
+
   return (
     <>
       {section === "criteria" &&
@@ -121,16 +188,15 @@ export const RoundEditor = ({
           draft={draft}
           round={round}
           budgetPreviouslySet={preparation.budgetHistory.length > 0}
-          isConflict={draft.revision !== preparation.revision}
+          isConflict={isConflict}
           beforeFields={
-            draft.revision !== preparation.revision && (
-              <LatestPreparation
-                key={preparation.revision}
-                draft={draft}
+            isConflict && (
+              <RoundConflictBanner
+                section={section}
                 round={round}
-                revision={preparation.revision}
-                managers={preparation.managers}
-                onReconcile={(merged) => preparation.updateDraft(merged)}
+                isDisabled={preparation.pending}
+                onKeepMine={() => preparation.keepDraft(section)}
+                onUseSaved={() => preparation.loadLatest(section)}
               />
             )
           }

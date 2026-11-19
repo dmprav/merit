@@ -79,21 +79,32 @@ const show = (revision = 2, draft: IntakeDraft = recovered) => {
   return { data, setApplicationEdit, recover: () => view.rerender(page(true)) };
 };
 
+const recoveredContent = {
+  ...newIntakeDraft("metadata", intakeSnapshot(application, null), 1),
+  value: {
+    ...newIntakeDraft("metadata", intakeSnapshot(application, null), 1).value,
+    applicant: "Unfinished applicant",
+  },
+};
+
 it("keeps the application readable while restoring and preserves an early-open editor's recovered conflict baseline", async () => {
   const user = userEvent.setup();
-  const { data, setApplicationEdit, recover } = show();
+  const { data, setApplicationEdit, recover } = show(2, recoveredContent);
   expect(screen.getByRole("heading", { name: "Saved application" })).toBeVisible();
-  expect(screen.getByText("Saved staff summary")).toBeVisible();
-  await user.click(screen.getByRole("button", { name: "Edit summary" }));
-  expect(screen.getByRole("heading", { name: "Edit staff summary" })).toBeVisible();
+  await user.click(screen.getByRole("button", { name: "Edit application details" }));
+  expect(screen.getByRole("heading", { name: "Edit application details" })).toBeVisible();
   expect(screen.getByText("Preparing editor…")).toBeVisible();
   expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Close" })).toBeEnabled();
   expect(setApplicationEdit).not.toHaveBeenCalled();
   recover();
-  expect(await screen.findByText("Unfinished staff summary")).toBeVisible();
-  expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
-  expect(screen.getByText("Latest saved values", { exact: true })).toBeVisible();
+  expect(await screen.findByRole("textbox", { name: "Applicant" })).toHaveValue(
+    "Unfinished applicant",
+  );
+  expect(screen.getByRole("alert")).toHaveTextContent(
+    "This application changed while you were editing",
+  );
+  expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
   expect(setApplicationEdit).not.toHaveBeenCalled();
   expect(data.save).not.toHaveBeenCalled();
 });
@@ -109,8 +120,10 @@ it("closes an intake editor during restoration without losing or reopening recov
   expect(screen.getByText("Saved staff summary")).toBeVisible();
   expect(setApplicationEdit).not.toHaveBeenCalled();
   await user.click(screen.getByRole("button", { name: "Continue editing summary" }));
-  expect(screen.getByText("Unfinished staff summary")).toBeVisible();
-  expect(screen.getByRole("region", { name: "Your unsaved changes" })).toBeVisible();
+  expect(screen.getByRole("textbox", { name: "Staff summary" })).toHaveValue(
+    "Unfinished staff summary",
+  );
+  expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
 });
 
 it("saves recovered intake writing against its original revision once recovery is ready", async () => {

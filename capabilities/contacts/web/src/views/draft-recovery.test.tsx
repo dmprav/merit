@@ -28,7 +28,9 @@ const snapshot = (ready: boolean, unavailable = false) => ({
       ? ("saved" as const)
       : ("restoring" as const),
   storageUnavailable: unavailable,
+  conflicts: new Set<string>(),
   update,
+  resolveConflict: vi.fn(),
 });
 
 beforeEach(() => {

@@ -17,15 +17,12 @@ export const preparationMessages = {
     criterionMoved: "{{title}} moved to position {{number}}.",
     criterionRemoved: "{{title}} removed.",
     untitledCriterion: "Untitled criterion",
-    resolveConflicts:
-      "You and a colleague changed the same fields. Choose which values to keep. Untouched fields will use the latest saved values.",
-    mergeSafe:
-      "This round changed while you were editing. Your edits will be kept, and untouched fields will use the latest saved values.",
-    yourDraft: "Your draft",
-    chooseVersion: "Value to keep for {{field}}",
-    chooseVersionPlaceholder: "Choose a value",
-    keepMine: "Keep my value",
-    useSaved: "Use latest saved value",
+    conflictTitle: "This round changed while you were editing",
+    conflictMessage: "Review the latest saved version or save your changes over it.",
+    keepMine: "Keep my changes",
+    useSaved: "Discard & load latest",
+    viewLatest: "View latest",
+    hideLatest: "Hide latest",
     refreshReadError: "The latest round could not be loaded. Refresh before continuing.",
     create: "Create funding round",
     creating: "Creating…",
@@ -90,10 +87,8 @@ export const preparationMessages = {
       "That person no longer has program-manager access. Choose a current manager.",
     saveError: "We couldn’t save this round. Your draft is still here. Try again.",
     accessLost: "You no longer have access to change this round. Your draft is still here.",
-    conflict:
-      "This round has changed. Compare the latest saved values with your draft before saving again.",
+    conflict: "This round has changed. Review the latest saved values before saving again.",
     latestSaved: "Latest saved values",
-    reconcile: "Apply choices to draft",
     refreshError:
       "Your changes were saved, but the latest round could not be loaded. Refresh before continuing.",
     refresh: "Refresh round",

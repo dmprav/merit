@@ -117,3 +117,50 @@ it("saves an edited draft against its original recommendation revision and appli
     expectedApplicationVersion: application.version,
   });
 });
+
+it("classifies basis_changed vs record_changed conflicts and supports keepDraft and loadLatest", async () => {
+  const save = vi.fn<RecommendationData["save"]>().mockResolvedValue({ status: "ok" });
+
+  const Store = ({ children }: { children: ReactNode }) => (
+    <DraftContext value={useRecommendationDraftStore("use-recommendation-conflict-test").value}>
+      {children}
+    </DraftContext>
+  );
+
+  const { result, rerender } = renderHook(
+    ({ revision, version }) =>
+      useRecommendation(
+        "application",
+        { ...application, version },
+        { revision, disabled: false, save },
+      ),
+    { initialProps: { revision: 5, version: application.version }, wrapper: Store },
+  );
+  await waitFor(() => expect(result.current.ready).toBe(true));
+
+  act(() => result.current.updateDraft(draft));
+  expect(result.current.conflict).toBeNull();
+
+  rerender({ revision: 6, version: application.version });
+  expect(result.current.conflict).toBe("record_changed");
+
+  rerender({ revision: 6, version: makeApplication({ version: 2 }).version });
+  expect(result.current.conflict).toBe("basis_changed");
+
+  act(() => result.current.keepDraft());
+  expect(result.current.conflict).toBeNull();
+  expect(result.current.draft).toEqual(draft);
+
+  await act(async () => expect(await result.current.save(recommendation)).toBeNull());
+  expect(save).toHaveBeenLastCalledWith(recommendation, {
+    expectedRevision: 6,
+    expectedApplicationVersion: 2,
+  });
+
+  rerender({ revision: 7, version: makeApplication({ version: 2 }).version });
+  expect(result.current.conflict).toBe("record_changed");
+  act(() => result.current.loadLatest());
+  expect(result.current.conflict).toBeNull();
+  expect(result.current.draft).toBeUndefined();
+  expect(result.current.draftReset).toBe(1);
+});
