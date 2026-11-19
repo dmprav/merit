@@ -82,9 +82,13 @@ it.each([false, true])(
       await user.click(screen.getByRole("option", { name: "Archived" }));
       await waitFor(() => expect(screen.getByRole("button", { name: /Status/ })).toHaveFocus());
       await user.keyboard("{Escape}");
+      // The closing filter popover blocks the page until its exit motion ends.
+      await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     }
     await user.click(screen.getByRole("button", { name: "Actions for Sam Morgan" }));
-    await user.click(screen.getByRole("menuitem", { name: archived ? "Restore" : "Archive" }));
+    await user.click(
+      await screen.findByRole("menuitem", { name: archived ? "Restore" : "Archive" }),
+    );
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Could not save.");
     await waitFor(() =>
@@ -96,7 +100,9 @@ it.each([false, true])(
     vi.mocked(readContacts).mockResolvedValue({ ...response, contacts: [saved] });
     vi.mocked(saveContact).mockResolvedValueOnce({ status: "ok", contact: saved });
     await user.click(screen.getByRole("button", { name: "Actions for Sam Morgan" }));
-    await user.click(screen.getByRole("menuitem", { name: archived ? "Restore" : "Archive" }));
+    await user.click(
+      await screen.findByRole("menuitem", { name: archived ? "Restore" : "Archive" }),
+    );
 
     expect(
       await screen.findByText(archived ? "No archived contacts." : "No active contacts."),
