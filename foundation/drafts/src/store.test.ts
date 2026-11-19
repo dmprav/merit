@@ -211,7 +211,7 @@ it("invalidates the store instead of adopting a new epoch during conflict resolu
     ...recovered(),
     epoch: "next-account-session",
   });
-  store.resolveConflict("record", "keep");
+  await store.resolveConflict("record", "keep");
   await store.whenIdle();
 
   expect(store.getSnapshot()).toMatchObject({ status: "cleared", drafts: {} });
@@ -236,7 +236,7 @@ it("keeps an incompatible stored draft unavailable when resolving with use_store
     ...recovered(),
     incompatible: new Set(["record"]),
   });
-  store.resolveConflict("record", "use_stored");
+  await store.resolveConflict("record", "use_stored");
   await store.whenIdle();
 
   expect(store.getSnapshot()).toMatchObject({
@@ -267,7 +267,7 @@ it("preserves newer local edits entered while loading the stored draft", async (
     return restore.promise;
   });
 
-  store.resolveConflict("record", "use_stored");
+  void store.resolveConflict("record", "use_stored");
   await restoring.promise;
   store.update(() => ({ record: "Typed during reload" }));
 
@@ -279,10 +279,104 @@ it("preserves newer local edits entered while loading the stored draft", async (
   await store.whenIdle();
 
   expect(storage.write).toHaveBeenLastCalledWith("account-session", [
-    { key: "record", value: "Typed during reload", token: "latest-token" },
+    { key: "record", value: "Typed during reload", token: undefined },
   ]);
   expect(store.getSnapshot()).toMatchObject({
     status: "saved",
     drafts: { record: "Typed during reload" },
+  });
+});
+
+it("does not cancel a pending resolution for an unchanged conflicted key when editing another key", async () => {
+  const storage = persistence();
+  storage.write.mockResolvedValueOnce({
+    status: "saved",
+    tokens: new Map(),
+    conflicts: new Set(["first"]),
+  });
+  storage.write.mockResolvedValueOnce({
+    status: "saved",
+    tokens: new Map([["second", "second-token"]]),
+    conflicts: new Set(),
+  });
+  const store = new DraftStore(storage);
+  store.start();
+  await store.whenIdle();
+
+  store.update(() => ({ first: "Conflicted first" }));
+  await store.whenIdle();
+  expect(store.getSnapshot().conflicts).toEqual(new Set(["first"]));
+
+  const restoring = deferred<void>();
+  const restore = deferred<DraftRecovery<string>>();
+  storage.restore.mockImplementationOnce(() => {
+    restoring.resolve();
+    return restore.promise;
+  });
+
+  const resolved = store.resolveConflict("first", "use_stored");
+  await restoring.promise;
+  store.update((current) => ({ ...current, second: "Unrelated second edit" }));
+
+  restore.resolve({
+    ...recovered(),
+    drafts: { first: "Stored first" },
+    tokens: new Map([["first", "first-token"]]),
+  });
+  await resolved;
+  await store.whenIdle();
+
+  expect(storage.write).toHaveBeenLastCalledWith("account-session", [
+    { key: "second", value: "Unrelated second edit", token: undefined },
+  ]);
+  expect(store.getSnapshot()).toMatchObject({
+    status: "saved",
+    conflicts: new Set(),
+    drafts: { first: "Stored first", second: "Unrelated second edit" },
+  });
+});
+
+it("keeps an incompatible draft protected when a newer edit supersedes use_stored", async () => {
+  const storage = persistence();
+  storage.restore.mockResolvedValueOnce({
+    ...recovered(),
+    incompatible: new Set(["record"]),
+  });
+  storage.write.mockResolvedValueOnce({
+    status: "saved",
+    tokens: new Map(),
+    conflicts: new Set(["record"]),
+  });
+  const store = new DraftStore(storage);
+  store.start();
+  await store.whenIdle();
+
+  store.update(() => ({ record: "Conflicting local edit" }));
+  await store.whenIdle();
+  expect(store.getSnapshot().conflicts.has("record")).toBe(true);
+
+  const restoring = deferred<void>();
+  const restore = deferred<DraftRecovery<string>>();
+  storage.restore.mockImplementationOnce(() => {
+    restoring.resolve();
+    return restore.promise;
+  });
+
+  void store.resolveConflict("record", "use_stored");
+  await restoring.promise;
+  store.update(() => ({ record: "Newer edit during reload" }));
+
+  restore.resolve({
+    ...recovered(),
+    incompatible: new Set(["record"]),
+    tokens: new Map([["record", "stored-token"]]),
+  });
+  await store.whenIdle();
+
+  expect(storage.write).toHaveBeenLastCalledWith("account-session", []);
+  expect(store.getSnapshot()).toMatchObject({
+    status: "conflict",
+    storageUnavailable: true,
+    drafts: { record: "Newer edit during reload" },
   });
 });

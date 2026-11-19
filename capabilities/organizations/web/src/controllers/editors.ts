@@ -201,15 +201,17 @@ const memberConflictActions = ({
       }));
     }
     if (storeConflict) {
-      resolveConflict(draftScopeKey, "keep");
+      void resolveConflict(draftScopeKey, "keep");
     }
   },
   onLoadLatest: () => {
     if (storeConflict) {
-      resolveConflict(draftScopeKey, "use_stored");
-    } else {
-      clear();
+      void Promise.resolve(resolveConflict(draftScopeKey, "use_stored")).then(() =>
+        setDraftReset((count) => count + 1),
+      );
+      return;
     }
+    clear();
     setDraftReset((count) => count + 1);
   },
 });

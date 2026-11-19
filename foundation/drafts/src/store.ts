@@ -26,6 +26,7 @@ export class DraftStore<T> {
   private pending = Promise.resolve();
   private listeners = new Set<() => void>();
   private keyRevisions = new Map<string, number>();
+  private pendingResolutions = new Map<string, number>();
 
   constructor(persistence?: DraftPersistence<T>) {
     this.persistence = persistence;
@@ -144,13 +145,19 @@ export class DraftStore<T> {
       return;
     }
     const keys = new Set([...Object.keys(previous), ...Object.keys(next)]);
-    const changes = [...keys]
-      .filter(
-        (key) =>
-          JSON.stringify(previous[key]) !== JSON.stringify(next[key]) ||
-          this.recovery.failures.has(key),
-      )
-      .map((key) => ({ key, value: next[key] }));
+
+    const isModified = (key: string) => JSON.stringify(previous[key]) !== JSON.stringify(next[key]);
+
+    const modified = [...keys].filter(isModified);
+
+    const canRetryUnchanged = (key: string) =>
+      !this.pendingResolutions.has(key) &&
+      (modified.length === 0
+        ? this.recovery.failures.has(key)
+        : this.recovery.failures.get(key) === "unavailable");
+
+    const retried = [...keys].filter((key) => !isModified(key) && canRetryUnchanged(key));
+    const changes = [...modified, ...retried].map((key) => ({ key, value: next[key] }));
     if (!changes.length) {
       return;
     }
@@ -227,17 +234,17 @@ export class DraftStore<T> {
     }
   }
 
-  resolveConflict = (key: string, choice: "keep" | "use_stored") => {
-    if (this.isCleared() || this.lifecycle.phase !== "ready") {
-      return;
-    }
-    if (!this.persistence) {
-      return;
+  resolveConflict = (key: string, choice: "keep" | "use_stored"): Promise<void> => {
+    if (this.isCleared() || this.lifecycle.phase !== "ready" || !this.persistence) {
+      return Promise.resolve();
     }
     const revision = this.keyRevisions.get(key) ?? 0;
+    this.pendingResolutions.set(key, (this.pendingResolutions.get(key) ?? 0) + 1);
     this.lifecycle.pendingWrites += 1;
-    this.pending = this.pending.then(() => this.applyConflictResolution(key, choice, revision));
+    const resolution = this.pending.then(() => this.applyConflictResolution(key, choice, revision));
+    this.pending = resolution;
     this.publish();
+    return resolution;
   };
 
   private async commitConflictChoice(
@@ -245,14 +252,19 @@ export class DraftStore<T> {
     key: string,
     choice: "keep" | "use_stored",
     latest: DraftRecovery<T>,
-    latestToken: string | undefined,
     revision: number,
   ) {
-    this.recovery.failures.delete(key);
-    this.recovery.incompatible.delete(key);
     if ((this.keyRevisions.get(key) ?? 0) !== revision) {
       return;
     }
+    const latestToken = latest.tokens.get(key);
+    if (latestToken === undefined) {
+      this.recovery.tokens.delete(key);
+    } else {
+      this.recovery.tokens.set(key, latestToken);
+    }
+    this.recovery.failures.delete(key);
+    this.recovery.incompatible.delete(key);
     if (choice === "use_stored") {
       if (latest.incompatible.has(key)) {
         this.recovery.incompatible.add(key);
@@ -289,16 +301,17 @@ export class DraftStore<T> {
         return;
       }
       this.recovery.epoch ??= latest.epoch;
-      const latestToken = latest.tokens.get(key);
-      if (latestToken === undefined) {
-        this.recovery.tokens.delete(key);
-      } else {
-        this.recovery.tokens.set(key, latestToken);
-      }
-      await this.commitConflictChoice(this.persistence, key, choice, latest, latestToken, revision);
+      await this.commitConflictChoice(this.persistence, key, choice, latest, revision);
     } catch {
       if (!this.isCleared()) {
         this.recovery.failures.set(key, "unavailable");
+      }
+    } finally {
+      const remaining = (this.pendingResolutions.get(key) ?? 1) - 1;
+      if (remaining > 0) {
+        this.pendingResolutions.set(key, remaining);
+      } else {
+        this.pendingResolutions.delete(key);
       }
     }
     if (this.lifecycle.phase === "ready") {

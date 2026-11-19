@@ -167,27 +167,55 @@ it("classifies basis_changed vs record_changed conflicts and supports keepDraft 
   expect(result.current.draftReset).toBe(1);
 });
 
-it("surfaces draft-store key conflicts and calls resolveConflict for resolution actions", () => {
-  const resolveConflict = vi.fn();
-  const setDraft = vi.fn();
+it("surfaces draft-store key conflicts and resolves stored draft values before resetting", async () => {
   const save = vi.fn<RecommendationData["save"]>();
+  const storedDraft = {
+    value: { position: recommendation.position, amount: "200", reasoning: "Stored tab draft" },
+    baseline: { expectedRevision: 5, expectedApplicationVersion: application.version },
+  };
+  const storeState: {
+    drafts: Record<
+      string,
+      {
+        value: typeof draft;
+        baseline: { expectedRevision: number; expectedApplicationVersion: number };
+      }
+    >;
+    conflicts: Set<string>;
+  } = {
+    drafts: {
+      application: {
+        value: draft,
+        baseline: { expectedRevision: 5, expectedApplicationVersion: application.version },
+      },
+    },
+    conflicts: new Set(["application"]),
+  };
+  let finishUseStored: (() => void) | undefined;
 
-  const { result } = renderHook(
+  const { result, rerender } = renderHook(
     () => useRecommendation("application", application, { revision: 5, disabled: false, save }),
     {
       wrapper: ({ children }: { children: ReactNode }) => (
         <DraftContext
           value={{
             ready: true,
-            drafts: {
-              application: {
-                value: draft,
-                baseline: { expectedRevision: 5, expectedApplicationVersion: application.version },
-              },
+            drafts: storeState.drafts,
+            conflicts: storeState.conflicts,
+            resolveConflict: (_key, choice) => {
+              if (choice === "keep") {
+                storeState.conflicts = new Set();
+                return Promise.resolve();
+              }
+              return new Promise<void>((resolve) => {
+                finishUseStored = () => {
+                  storeState.drafts = { application: storedDraft };
+                  storeState.conflicts = new Set();
+                  resolve();
+                };
+              });
             },
-            conflicts: new Set(["application"]),
-            resolveConflict,
-            setDraft,
+            setDraft: vi.fn(),
             clearDrafts: vi.fn(),
           }}
         >
@@ -198,11 +226,26 @@ it("surfaces draft-store key conflicts and calls resolveConflict for resolution 
   );
 
   expect(result.current.conflict).toBe("record_changed");
+  expect(result.current.draft).toEqual(draft);
 
   act(() => result.current.keepDraft());
-  expect(resolveConflict).toHaveBeenCalledWith("application", "keep");
+  rerender();
+  expect(result.current.conflict).toBeNull();
+  expect(result.current.draft).toEqual(draft);
+
+  storeState.conflicts = new Set(["application"]);
+  rerender();
+  expect(result.current.conflict).toBe("record_changed");
 
   act(() => result.current.loadLatest());
-  expect(resolveConflict).toHaveBeenCalledWith("application", "use_stored");
+  expect(result.current.draftReset).toBe(0);
+
+  await act(async () => {
+    finishUseStored?.();
+  });
+  rerender();
+
+  expect(result.current.conflict).toBeNull();
+  expect(result.current.draft).toEqual(storedDraft.value);
   expect(result.current.draftReset).toBe(1);
 });

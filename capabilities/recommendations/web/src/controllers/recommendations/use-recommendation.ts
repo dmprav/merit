@@ -66,15 +66,17 @@ export const useRecommendation = (
         setDraft(applicationKey, draft.value, baseline, true);
       }
       if (storeConflict) {
-        resolveConflict(applicationKey, "keep");
+        void resolveConflict(applicationKey, "keep");
       }
     },
     loadLatest: () => {
       if (storeConflict) {
-        resolveConflict(applicationKey, "use_stored");
-      } else {
-        setDraft(applicationKey, undefined, baseline, true);
+        void Promise.resolve(resolveConflict(applicationKey, "use_stored")).then(() =>
+          setDraftReset((count) => count + 1),
+        );
+        return;
       }
+      setDraft(applicationKey, undefined, baseline, true);
       setDraftReset((count) => count + 1);
     },
   };

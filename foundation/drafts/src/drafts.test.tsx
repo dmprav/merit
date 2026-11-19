@@ -342,12 +342,16 @@ it("tracks per-key conflicts and lets a tab either adopt the stored draft or ove
   await waitFor(() => expect(second.result.current.status).toBe("conflict"));
   expect([...second.result.current.conflicts].sort()).toEqual(["a", "b"]);
 
-  act(() => second.result.current.resolveConflict("a", "use_stored"));
+  act(() => {
+    void second.result.current.resolveConflict("a", "use_stored");
+  });
   await waitFor(() => expect(second.result.current.drafts.a).toEqual(draft));
   expect(second.result.current.conflicts.has("a")).toBe(false);
   expect(second.result.current.conflicts.has("b")).toBe(true);
 
-  act(() => second.result.current.resolveConflict("b", "keep"));
+  act(() => {
+    void second.result.current.resolveConflict("b", "keep");
+  });
   await saved(second);
   expect(second.result.current.conflicts.size).toBe(0);
 

@@ -11,7 +11,7 @@ export const DraftContext = createContext<{
   ready: boolean;
   drafts: Record<string, Draft | undefined>;
   conflicts: ReadonlySet<string>;
-  resolveConflict: (key: string, choice: "keep" | "use_stored") => void;
+  resolveConflict: (key: string, choice: "keep" | "use_stored") => Promise<void> | void;
   setDraft: (
     key: string,
     value: RecommendationDraft | undefined,

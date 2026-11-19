@@ -1,5 +1,5 @@
 import { QueryClientProvider } from "@tanstack/react-query";
-import { act, render, renderHook, screen, within } from "@testing-library/react";
+import { act, render, renderHook, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, it, vi } from "vite-plus/test";
 
@@ -175,5 +175,105 @@ it("defers deletion until the round store is ready, then deletes at the current 
 
   expect(data.delete).toHaveBeenCalledOnce();
   expect(vi.mocked(data.delete).mock.calls[0]?.[0]).toBe(2);
+  expect(setEdit).toHaveBeenCalledWith("round/purpose", undefined);
+});
+
+it("blocks saving or rebasing an untouched stale purpose draft over a newer saved value", async () => {
+  const staleDraft = preparationDraft("purpose", round, 1);
+  const updatedRound = { ...round, purpose: "Updated elsewhere" };
+  const data = dataFixture();
+  const client = createQueryClient();
+  let edits: Record<string, PreparationDraft | undefined> = { "round/purpose": staleDraft };
+  const setEdit = vi.fn((draftKey: string, next: PreparationDraft | undefined) => {
+    edits = { ...edits, [draftKey]: next };
+  });
+
+  const { result } = renderHook(
+    () =>
+      useRoundPreparation({
+        round: updatedRound,
+        data,
+        onDeleted: vi.fn(),
+        onRestoreFocus: vi.fn(),
+      }),
+    {
+      wrapper: ({ children }) => (
+        <QueryClientProvider client={client}>
+          <DraftContext
+            value={{
+              ready: true,
+              edits,
+              conflicts: new Set(),
+              resolveConflict: vi.fn(),
+              setEdit,
+            }}
+          >
+            {children}
+          </DraftContext>
+        </QueryClientProvider>
+      ),
+    },
+  );
+
+  await act(async () => {
+    expect(await result.current.saveDraft(staleDraft)).toBeNull();
+  });
+
+  expect(data.save).not.toHaveBeenCalled();
+  expect(setEdit).not.toHaveBeenCalled();
+});
+
+it("ignores discard while a round save is pending", async () => {
+  const editedDraft = recovered;
+  let resolveSave: ((value: { status: "ok"; revision: number }) => void) | undefined;
+  const data: PreparationData = {
+    ...dataFixture(),
+    save: vi.fn(
+      () =>
+        new Promise<{ status: "ok"; revision: number }>((resolve) => {
+          resolveSave = resolve;
+        }),
+    ),
+  };
+  const client = createQueryClient();
+  const edits: Record<string, PreparationDraft | undefined> = { "round/purpose": editedDraft };
+  const setEdit = vi.fn();
+
+  const { result } = renderHook(
+    () => useRoundPreparation({ round, data, onDeleted: vi.fn(), onRestoreFocus: vi.fn() }),
+    {
+      wrapper: ({ children }) => (
+        <QueryClientProvider client={client}>
+          <DraftContext
+            value={{
+              ready: true,
+              edits,
+              conflicts: new Set(),
+              resolveConflict: vi.fn(),
+              setEdit,
+            }}
+          >
+            {children}
+          </DraftContext>
+        </QueryClientProvider>
+      ),
+    },
+  );
+
+  let savePromise: Promise<unknown> | undefined;
+  act(() => {
+    savePromise = result.current.saveDraft(editedDraft);
+  });
+  await waitFor(() => expect(data.save).toHaveBeenCalledOnce());
+  expect(result.current.pending).toBe(true);
+  setEdit.mockClear();
+
+  act(() => result.current.discard("purpose"));
+  expect(setEdit).not.toHaveBeenCalled();
+
+  await act(async () => {
+    resolveSave?.({ status: "ok", revision: 3 });
+    await savePromise;
+  });
   expect(setEdit).toHaveBeenCalledWith("round/purpose", undefined);
 });

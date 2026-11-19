@@ -73,6 +73,7 @@ it("returns the current contact for creation retries and unchanged saves without
   ).toEqual({
     status: "ok",
     contact: {
+      ...created.contact,
       ...updatedDetails,
       affiliation: "Updated affiliation",
       archived: false,

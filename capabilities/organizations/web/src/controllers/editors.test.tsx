@@ -130,11 +130,21 @@ it("gates invitation conflict checks on revoking issued invitations and supports
   expect(result.current.memberEditor(member).draftReset).toBe(1);
 });
 
-it("surfaces and resolves draft-store key conflicts in memberEditor", () => {
+it("surfaces and resolves draft-store key conflicts in memberEditor", async () => {
   const member = teamFixture.members[1]!;
   const key = `${teamFixture.organization.slug}/${member.userId}`;
-  const resolveConflict = vi.fn();
-  const drafts = {
+  const storedDraft: {
+    value: { administration: typeof member.administration; role: "program_manager" | "reviewer" };
+    expectedMembershipId: string;
+    expectedVersion: number;
+    expectedInvitationIds: string[];
+  } = {
+    value: { administration: member.administration, role: "program_manager" },
+    expectedMembershipId: member.membershipId,
+    expectedVersion: member.version,
+    expectedInvitationIds: [],
+  };
+  let drafts: Record<string, typeof storedDraft> = {
     [key]: {
       value: { administration: member.administration, role: "reviewer" as const },
       expectedMembershipId: member.membershipId,
@@ -142,24 +152,53 @@ it("surfaces and resolves draft-store key conflicts in memberEditor", () => {
       expectedInvitationIds: [],
     },
   };
+  let conflicts = new Set([key]);
+  let finishUseStored: (() => void) | undefined;
+
   ready = true;
   vi.mocked(useDrafts).mockImplementation(() => ({
     drafts,
     ready: true,
-    status: "conflict",
-    storageUnavailable: true,
-    conflicts: new Set([key]),
+    status: conflicts.size ? "conflict" : "saved",
+    storageUnavailable: conflicts.size > 0,
+    conflicts,
     update,
-    resolveConflict,
+    resolveConflict: (_conflictKey, choice) => {
+      if (choice === "keep") {
+        conflicts = new Set();
+        return Promise.resolve();
+      }
+      return new Promise<void>((resolve) => {
+        finishUseStored = () => {
+          drafts = { [key]: storedDraft };
+          conflicts = new Set();
+          resolve();
+        };
+      });
+    },
   }));
 
-  const { result } = show();
+  const { result, rerender } = show();
   expect(result.current.memberEditor(member).conflict).toBe(true);
+  expect(result.current.memberEditor(member).draft?.role).toBe("reviewer");
 
   act(() => result.current.memberEditor(member).onKeepDraft());
-  expect(resolveConflict).toHaveBeenCalledWith(key, "keep");
+  rerender({ scope: "account" });
+  expect(result.current.memberEditor(member).conflict).toBe(false);
+  expect(result.current.memberEditor(member).draft?.role).toBe("reviewer");
+
+  conflicts = new Set([key]);
+  rerender({ scope: "account" });
+  expect(result.current.memberEditor(member).conflict).toBe(true);
 
   act(() => result.current.memberEditor(member).onLoadLatest());
-  expect(resolveConflict).toHaveBeenCalledWith(key, "use_stored");
+  expect(result.current.memberEditor(member).draftReset).toBe(0);
+
+  await act(async () => {
+    finishUseStored?.();
+  });
+  rerender({ scope: "account" });
+  expect(result.current.memberEditor(member).conflict).toBe(false);
+  expect(result.current.memberEditor(member).draft?.role).toBe("program_manager");
   expect(result.current.memberEditor(member).draftReset).toBe(1);
 });

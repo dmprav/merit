@@ -77,17 +77,18 @@ const PreparationFrame = ({
 }) => {
   const { t } = useTranslation("roundPreparation");
   const changed = hasPreparationDraft(draft);
+  const effectiveSubmission = isPending ? { ...submission, isSubmitting: true } : submission;
 
   return (
     <Form
-      submission={submission}
+      submission={effectiveSubmission}
       label={t(`preparation.edit.${draft.section}`)}
       className={styles.form}
       scrollFields={!inline}
       submitOnModEnter
       actions={
         <FormActions
-          submission={submission}
+          submission={effectiveSubmission}
           discard={
             changed && onDiscard
               ? { label: t("preparation.discard"), onPress: onDiscard }

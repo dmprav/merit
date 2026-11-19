@@ -44,7 +44,7 @@ const keepPreparationDraft = ({
   hasConflict: boolean;
   draftKey: string;
   updateDraft: (draft: PreparationDraft) => void;
-  resolveConflict: (key: string, choice: "keep" | "use_stored") => void;
+  resolveConflict: (key: string, choice: "keep" | "use_stored") => Promise<void> | void;
 }) => {
   if (!draft) {
     return;
@@ -53,7 +53,7 @@ const keepPreparationDraft = ({
     updateDraft(rebasePreparationDraft(draft, round, revision));
   }
   if (hasConflict) {
-    resolveConflict(draftKey, "keep");
+    void resolveConflict(draftKey, "keep");
   }
 };
 
@@ -65,6 +65,7 @@ const loadLatestPreparationDraft = ({
   draftKey,
   updateDraft,
   resolveConflict,
+  onResolved,
 }: {
   section: PreparationSection;
   round: PreparationRound;
@@ -72,13 +73,15 @@ const loadLatestPreparationDraft = ({
   hasConflict: boolean;
   draftKey: string;
   updateDraft: (draft: PreparationDraft) => void;
-  resolveConflict: (key: string, choice: "keep" | "use_stored") => void;
+  resolveConflict: (key: string, choice: "keep" | "use_stored") => Promise<void> | void;
+  onResolved: () => void;
 }) => {
   if (hasConflict) {
-    resolveConflict(draftKey, "use_stored");
+    void Promise.resolve(resolveConflict(draftKey, "use_stored")).then(onResolved);
     return;
   }
   updateDraft(preparationDraft(section, round, revision) as PreparationDraft);
+  onResolved();
 };
 
 const preparePreparationFormDraft = ({
@@ -99,8 +102,11 @@ const preparePreparationFormDraft = ({
   if (hasConflict) {
     return { current: draft, problem: { status: "conflict" as const } };
   }
+  if (!hasPreparationChanges(draft)) {
+    return null;
+  }
   if (draft.revision === revision) {
-    return hasPreparationChanges(draft) ? { current: draft, problem: null } : null;
+    return { current: draft, problem: null };
   }
   if (hasPreparationSectionConflict(draft, round)) {
     return { current: draft, problem: { status: "conflict" as const } };
@@ -274,6 +280,10 @@ export const useRoundPreparation = ({
   };
 
   const discard = (section: PreparationSection) => {
+    if (busyRef.current) {
+      return;
+    }
+
     setEdit(key(section), undefined);
     close();
   };
@@ -327,8 +337,8 @@ export const useRoundPreparation = ({
       draftKey: key(section),
       updateDraft,
       resolveConflict,
+      onResolved: () => setDraftReset((count) => count + 1),
     });
-    setDraftReset((count) => count + 1);
     setError(null);
   };
 

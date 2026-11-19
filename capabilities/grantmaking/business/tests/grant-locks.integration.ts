@@ -191,8 +191,21 @@ const updateProfile = (connection: Database, data: Fixture) =>
     fundingRoundContactUsage,
   );
 
+const archiveContact = (connection: Database, data: Fixture) =>
+  changeWorkspaceContact(
+    connection,
+    actor,
+    {
+      workspaceSlug,
+      contactId: data.contact.id,
+      action: "archive",
+      expectedContactRevision: 0,
+    },
+    fundingRoundContactUsage,
+  );
+
 const edits = {
-  contactProfile: updateProfile,
+  contactArchive: archiveContact,
   round: roundEdit,
   application: (connection: Database, data: Fixture) =>
     editFundingApplication(
@@ -273,6 +286,31 @@ it.each(Object.entries(edits))(
     expect(await competing).toEqual({ status: "conflict" });
   },
 );
+
+it("serializes competing Tier 1 contact updates and applies the later details", async () => {
+  const data = await fixture();
+  const commit = await hold((tx) => updateProfile(tx, data));
+  const competing = track(
+    changeWorkspaceContact(
+      drizzle(second),
+      actor,
+      {
+        workspaceSlug,
+        contactId: data.contact.id,
+        action: "update",
+        details: { name: "Later contact", email: "sam@example.test", affiliation: "" },
+      },
+      fundingRoundContactUsage,
+    ),
+  );
+  await expectBlocked();
+  await commit();
+
+  expect(await competing).toMatchObject({
+    status: "ok",
+    contact: { name: "Later contact", revision: 2 },
+  });
+});
 
 it("serializes competing Tier 1 contact selections and applies the later choice", async () => {
   const data = await fixture();

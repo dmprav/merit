@@ -64,8 +64,7 @@ it.for(["update", "archive", "restore"] as const)(
     const args = {
       workspaceSlug: "alder",
       contactId,
-      expectedContactRevision,
-      ...(action === "update" ? { details } : {}),
+      ...(action === "update" ? { details } : { expectedContactRevision }),
     };
 
     expect(await invoke(`${action}_contact`, args)).toEqual({
@@ -85,7 +84,7 @@ it.for(["update", "archive", "restore"] as const)(
   },
 );
 
-it("rejects a stale contact update without changing the current profile", async ({
+it("updates a contact with last-write-wins while archive still rejects a stale revision", async ({
   db,
   commands: { invoke, createContact },
 }) => {
@@ -113,7 +112,7 @@ it("rejects a stale contact update without changing the current profile", async 
       contactId,
       details: { ...details, name: "Latest name" },
     }),
-  ).toMatchObject({ status: "ok", contact: { name: "Latest name", revision: 2 } });
+  ).toMatchObject({ status: "ok", contact: { name: "Latest name", contactRevision: 2 } });
 
   const latest = await getContactDetails(db, actor, { workspaceSlug: "alder", contactId });
   expect(latest).toMatchObject({ status: "ok", contact: { name: "Latest name", revision: 2 } });

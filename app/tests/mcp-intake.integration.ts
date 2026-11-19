@@ -274,7 +274,7 @@ it.for([
   },
 );
 
-it("applies stale-revision staff summary details and rejects stale content edits", async ({
+it("rejects stale content edits without modifying saved intake work", async ({
   commands: { invoke, applicationScenario },
 }) => {
   const scenario = await applicationScenario();
@@ -297,6 +297,14 @@ it("applies stale-revision staff summary details and rejects stale content edits
     }),
   ).toEqual({ status: "conflict" });
   expect(await scenario.read()).toEqual(beforeContent);
+});
+
+it("applies stale-revision staff summary details with last-write-wins", async ({
+  commands: { invoke, applicationScenario },
+}) => {
+  const scenario = await applicationScenario();
+  const stale = await scenario.args();
+  await scenario.change({ action: "details", summary: "A colleague's summary" });
 
   expect(
     await invoke("edit_application", {
