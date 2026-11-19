@@ -1,6 +1,5 @@
 import { sql } from "drizzle-orm";
 import {
-  boolean,
   check,
   date,
   foreignKey,
@@ -86,7 +85,6 @@ export const materialVersions = pgTable(
     title: text().notNull(),
     requestedMinorUnits: numeric("requested_minor_units", { precision: 30, scale: 0 }),
     requestedCurrency: text("requested_currency"),
-    hasSubmission: boolean("has_submission").notNull().default(false),
     submissionVersion: integer("submission_version"),
     applicantOrganization: text("applicant_organization"),
     submittedOn: date("submitted_on"),
@@ -108,7 +106,7 @@ export const materialVersions = pgTable(
     ),
     check(
       "material_submission_check",
-      sql`(NOT ${t.hasSubmission} AND ${t.submissionVersion} IS NULL AND ${t.applicantOrganization} IS NULL AND ${t.submittedOn} IS NULL AND ${t.projectPeriod} IS NULL) OR (${t.hasSubmission} AND ${t.submissionVersion} IS NOT NULL AND ${t.submissionVersion} > 0)`,
+      sql`(${t.submissionVersion} IS NULL AND ${t.applicantOrganization} IS NULL AND ${t.submittedOn} IS NULL AND ${t.projectPeriod} IS NULL) OR (${t.submissionVersion} IS NOT NULL AND ${t.submissionVersion} > 0)`,
     ),
     check(
       "material_source_kind_check",

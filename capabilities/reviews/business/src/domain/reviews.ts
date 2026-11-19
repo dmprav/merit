@@ -80,11 +80,14 @@ const assessmentVersionSchema = z.object({
   recorder: recorderSchema.nullable(),
   note: z.string().max(2000),
 });
+// PostgreSQL returns UUIDs in lowercase. Commands and retries compare these IDs in memory.
+export const reviewIdSchema = z.uuid().toLowerCase();
+
 export const reviewStateSchema = z.object({
   revision: reviewRevisionSchema,
   requests: z.array(
     z.object({
-      id: z.string(),
+      id: reviewIdSchema,
       contactId: z.string(),
       reviewer: z.string(),
       applicationVersion: materialVersionSchema,
@@ -97,11 +100,11 @@ export const reviewStateSchema = z.object({
   ),
   assessments: z.array(
     z.object({
-      id: z.string(),
+      id: reviewIdSchema,
       contactId: z.string(),
       reviewer: z.string(),
-      requestId: z.string().nullable(),
-      previousId: z.string().nullable(),
+      requestId: reviewIdSchema.nullable(),
+      previousId: reviewIdSchema.nullable(),
       authorUserId: z.string().nullable().optional(),
       versions: z.array(assessmentVersionSchema).min(1),
     }),
@@ -121,22 +124,22 @@ export const emptyReviews = (): ReviewState => ({
 export const reviewChanges = {
   request: z.strictObject({
     action: z.literal("request"),
-    id: z.uuid(),
+    id: reviewIdSchema,
     contactId: z.uuid(),
-    replacesId: z.string().nullable(),
+    replacesId: reviewIdSchema.nullable(),
   }),
-  cancel: z.strictObject({ action: z.literal("cancel"), id: z.string() }),
+  cancel: z.strictObject({ action: z.literal("cancel"), id: reviewIdSchema }),
   record: z.strictObject({
     action: z.literal("record"),
-    id: z.uuid(),
+    id: reviewIdSchema,
     contactId: z.uuid(),
-    requestId: z.string().nullable(),
-    previousId: z.string().nullable(),
+    requestId: reviewIdSchema.nullable(),
+    previousId: reviewIdSchema.nullable(),
     content: assessmentInputSchema,
   }),
   edit: z.strictObject({
     action: z.literal("edit"),
-    id: z.string(),
+    id: reviewIdSchema,
     content: assessmentInputSchema,
     note: z.string().trim().max(2000),
   }),

@@ -24,12 +24,13 @@ export const reviewAssignmentMatch = (caseId: SQLWrapper, filter: "awaiting" | "
     where a.case_id = ${caseId} and ${unreplaced} and ${hasVersion})`;
 };
 
-/** Continue legacy and current IDs in their stable kind:id order. */
-const afterReview = (kind: "assessment" | "request", id: SQLWrapper, after: string) => {
-  const prefix = `${kind}:`;
-  return after.startsWith(prefix)
-    ? sql`${id} collate "C" > ${after.slice(prefix.length)}`
-    : sql`${prefix > after}`;
+const afterReview = (kind: "assessment" | "request", id: SQLWrapper, after?: string) => {
+  if (!after) {
+    return sql`true`;
+  }
+
+  const [cursorKind, cursorId] = after.split(":");
+  return kind === cursorKind ? sql`${id} > ${cursorId}` : sql`${kind === "request"}`;
 };
 
 type ReviewPage = { after?: string; limit: number };
@@ -42,8 +43,8 @@ export const currentReviewEntries = (caseId: SQLWrapper, page?: ReviewPage) => s
     where a.case_id = ${caseId} and ${unreplaced}
     ${
       page
-        ? sql`and ${hasVersion} and ${afterReview("assessment", sql`a.id`, page.after ?? "")}
-      order by a.id collate "C" limit ${page.limit + 1}`
+        ? sql`and ${hasVersion} and ${afterReview("assessment", sql`a.id`, page.after)}
+      order by a.id limit ${page.limit + 1}`
         : sql.empty()
     }
   ) a
@@ -58,8 +59,8 @@ export const currentReviewEntries = (caseId: SQLWrapper, page?: ReviewPage) => s
    from ${reviewRequests} r where r.case_id = ${caseId} and r.status = 'outstanding'
    ${
      page
-       ? sql`and ${afterReview("request", sql`r.id`, page.after ?? "")}
-     order by r.id collate "C" limit ${page.limit + 1}`
+       ? sql`and ${afterReview("request", sql`r.id`, page.after)}
+     order by r.id limit ${page.limit + 1}`
        : sql.empty()
    })
 ) basis`;
@@ -78,7 +79,6 @@ export const readReviewSummaryPage = async (
   target: ReviewTarget,
   page: ReviewPage,
 ) => {
-  const cursor = sql`(case when basis.outstanding then 'request:' else 'assessment:' end || basis.id) collate "C"`;
   const entries = await db.execute<{
     id: string;
     outstanding: boolean;
@@ -93,9 +93,9 @@ export const readReviewSummaryPage = async (
   }>(sql`
     select page.*, participation.status, participation.conflict
     from (
-      select basis.*, ${cursor} as cursor
+      select basis.*
       from ${currentReviewEntries(sql`${target.caseId}`, page)}
-      order by cursor
+      order by basis.outstanding, basis.id
       limit ${page.limit + 1}
     ) page
     left join lateral (
@@ -105,7 +105,7 @@ export const readReviewSummaryPage = async (
         case when page.outstanding then request_id else assessment_id end = page.id
       order by id limit 1
     ) participation on true
-    order by page.cursor
+    order by page.outstanding, page.id
   `);
   if (entries.rows.length === 0) {
     return [];

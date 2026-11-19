@@ -11,7 +11,6 @@ GRANT SELECT, INSERT ON app_users, guest_sessions, organizations, memberships, o
 GRANT UPDATE ON guest_sessions, access_request_limits, demo_entry_limits, grant_navigation_pins,
   contacts, funding_rounds, application_cases, material_drafts, review_assignments,
   review_requests, review_states, reviewer_drafts TO :"runtime_role";
-REVOKE UPDATE ON reviewer_messages FROM :"runtime_role";
 GRANT EXECUTE ON FUNCTION public.merit_finish_reviewer_message(uuid, uuid, text) TO :"runtime_role";
 GRANT UPDATE (id, name) ON app_users TO :"runtime_role";
 GRANT UPDATE (name, demo_expires_at) ON organizations TO :"runtime_role";

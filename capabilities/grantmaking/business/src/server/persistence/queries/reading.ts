@@ -416,7 +416,7 @@ const readCurrentSubmissionPayload = async (
   materialRow: typeof materialVersions.$inferSelect,
 ) => {
   const [answerRows, contactsMap] = await Promise.all([
-    materialRow.hasSubmission
+    materialRow.submissionVersion !== null
       ? db
           .select()
           .from(materialVersionAnswers)
@@ -501,9 +501,9 @@ const sectionReaders: Partial<Record<ApplicationContentInput["section"], Section
     value: (await readReviewsByCasesMap(db, [caseRow.id])).get(caseRow.id),
   }),
   assessment: async (db, caseRow, input) =>
-    optionalResult(await readAssessmentRecord(db, caseRow.id, input.entryId ?? "")),
+    optionalResult(await readAssessmentRecord(db, caseRow.id, input.entryId!)),
   review_request: async (db, caseRow, input) =>
-    optionalResult(await readReviewRequestRecord(db, caseRow.id, input.entryId ?? "")),
+    optionalResult(await readReviewRequestRecord(db, caseRow.id, input.entryId!)),
   working_revision: async (db, caseRow) => ({
     found: true,
     value: (await readWorkingRevisionsMap(db, [caseRow.id])).get(caseRow.id) ?? null,

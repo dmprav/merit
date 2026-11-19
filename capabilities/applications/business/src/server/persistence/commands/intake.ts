@@ -111,7 +111,6 @@ const insertMaterialVersionRows = async (
     title: material.title,
     requestedMinorUnits: material.requested?.minorUnits ?? null,
     requestedCurrency: material.requested?.currency ?? null,
-    hasSubmission: material.submission !== undefined,
     submissionVersion: material.submission?.version ?? null,
     applicantOrganization: material.submission?.organization ?? null,
     submittedOn: material.submission?.submittedOn ?? null,

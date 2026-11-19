@@ -577,6 +577,12 @@ it("records an accepted reviewer message after the sender loses workspace access
   const receipt = await message();
   expect(receipt.status).toBe("sent");
   await withDatabase(runtimeUrl, async (db) => {
+    await expect(
+      db.execute(
+        sql`UPDATE reviewer_messages SET status = 'failed' WHERE id = ${s.invitation.commandId}`,
+      ),
+    ).rejects.toMatchObject({ cause: { code: "42501" } });
+
     const acknowledge = (token: string) =>
       db.execute(
         sql`select merit_finish_reviewer_message(${s.invitation.commandId}, ${token}, 'failed')`,

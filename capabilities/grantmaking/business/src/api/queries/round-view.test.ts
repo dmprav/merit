@@ -45,7 +45,7 @@ it("recomputes exact totals from JSON records instead of accepting supplied tota
 });
 
 it("rebuilds assessment displays from review records even when JSON supplies an empty display list", () => {
-  const assessment = makeAssessment({ id: "sam-assessment", reviewer: "Sam" });
+  const assessment = makeAssessment({ reviewer: "Sam" });
   const application = makeApplication({
     reviews: { revision: 1, requests: [], assessments: [assessment] },
   });
@@ -60,7 +60,7 @@ it("rebuilds assessment displays from review records even when JSON supplies an 
 
   expect(restored.applications[0]?.assessments).toMatchObject([
     {
-      id: "sam-assessment",
+      id: assessment.id,
       reviewer: "Sam",
       status: "current",
       submission: { reasoning: "The proposal addresses a local need.", applicationVersion: 1 },
@@ -94,13 +94,13 @@ it("shows an outstanding follow-up beside a judgment on an earlier material vers
     reviews: {
       revision: 2,
       assessments: [makeAssessment()],
-      requests: [makeReviewRequest({ id: "follow-up", applicationVersion: 2 })],
+      requests: [makeReviewRequest({ applicationVersion: 2 })],
     },
   });
 
   expect(applicationView(application, []).assessments).toMatchObject([
-    { id: "assessment", status: "outdated" },
-    { id: "follow-up", status: "outstanding" },
+    { id: application.reviews.assessments[0]!.id, status: "outdated" },
+    { id: application.reviews.requests[0]!.id, status: "outstanding" },
   ]);
 });
 
@@ -109,7 +109,7 @@ it("shows the latest follow-up judgment in place of the superseded assessment", 
   const version = earlier.versions[0];
   assert.isDefined(version);
   const later = makeAssessment({
-    id: "later",
+    id: crypto.randomUUID(),
     previousId: earlier.id,
     versions: [{ ...version, content: { ...version.content, applicationVersion: 2 } }],
   });
@@ -119,7 +119,7 @@ it("shows the latest follow-up judgment in place of the superseded assessment", 
   });
 
   expect(applicationView(application, []).assessments).toMatchObject([
-    { id: "later", status: "current" },
+    { id: later.id, status: "current" },
   ]);
 });
 

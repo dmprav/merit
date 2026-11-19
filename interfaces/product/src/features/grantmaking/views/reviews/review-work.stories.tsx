@@ -28,7 +28,7 @@ const reviews: ReviewState = {
   revision: reviewRevisionSchema.parse(2),
   assessments: [
     {
-      id: "sam-assessment",
+      id: "9e1d976a-d388-54dc-9be1-a5f56aaf137c",
       contactId: sam,
       reviewer: "Sam Morgan",
       requestId: null,
@@ -54,7 +54,7 @@ const reviews: ReviewState = {
   ],
   requests: [
     {
-      id: "jules-request",
+      id: "5ea76169-e813-551f-b684-ea008fc5f03a",
       contactId: jules,
       reviewer: "Jules Patel",
       applicationVersion: materialVersionSchema.parse(1),

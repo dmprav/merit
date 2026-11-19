@@ -9,7 +9,7 @@ import { reviewDraftSchema } from "./drafts";
 
 const stored = {
   mode: "edit",
-  id: "assessment",
+  id: "2c92018b-fcad-5d1e-b25c-1fa6430a57af",
   revision: 0,
   applicationVersion: 2,
   criteriaVersion: 3,

@@ -1,15 +1,20 @@
 import { randomUUID } from "node:crypto";
 
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
-import { assert, expect } from "vite-plus/test";
+import { assert, expect, vi } from "vite-plus/test";
 
-import { materialVersionSchema, type IntakeChange } from "@merit/applications/domain";
+import {
+  intakeApplicationSchema,
+  materialVersionSchema,
+  type IntakeChange,
+} from "@merit/applications/domain";
 import { createFundingApplication, editFundingApplication } from "@merit/applications/server";
 import { roundHasApplications } from "@merit/applications/server/integrations";
 import storedHistory from "@merit/applications/testing/history";
 import { changeWorkspaceContact } from "@merit/contacts/server";
 import { encodeApplicationDetail } from "@merit/grantmaking/api";
 import {
+  applicationAuditHistory,
   getFundingApplicationPage,
   getFundingRoundPage,
   listWorkspaceApplications,
@@ -104,6 +109,18 @@ it("reads initial-format intake history without rewriting stored snapshots", asy
      FROM audit_events WHERE target_id = $1 AND target_revision = 0`,
     [created.publicId, JSON.stringify(snapshot)],
   );
+  const liveParser = vi.spyOn(intakeApplicationSchema, "parse");
+  try {
+    const history = await applicationAuditHistory(db, actor, {
+      workspaceSlug,
+      applicationId: created.publicId,
+    });
+    assert(history.status === "ok");
+    expect(history.entries[0]?.after).toEqual(snapshot.application);
+    expect(liveParser).not.toHaveBeenCalled();
+  } finally {
+    liveParser.mockRestore();
+  }
   const page = await read();
   expect(page.intake.history).toHaveLength(2);
   expect(page.intake.history[0]).toMatchObject({

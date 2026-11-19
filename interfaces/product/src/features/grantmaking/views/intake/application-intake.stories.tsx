@@ -81,7 +81,7 @@ const fixture = (
             requests: [
               ...original.reviews.requests,
               ...["Jules Patel", "Maya Thompson"].map((reviewer, index) => ({
-                id: `awaiting-${index}`,
+                id: `70000000-0000-4000-8000-00000000010${index}`,
                 contactId: `60000000-0000-4000-8000-00000000010${index}`,
                 reviewer,
                 applicationVersion: original.version,
