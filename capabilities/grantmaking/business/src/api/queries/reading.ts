@@ -34,6 +34,7 @@ const contentRange = {
 };
 export const roundContentInput = roundReadInput.extend({
   section: z.enum(["details", "criteria", "criteria_history", "preparation_change"]),
+  criteriaVersion: criteriaVersionSchema.optional(),
   revision: z.number().int().nonnegative().optional(),
   ...contentRange,
 });

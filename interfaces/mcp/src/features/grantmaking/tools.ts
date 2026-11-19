@@ -125,7 +125,9 @@ const registerContentTools = (
     "get_funding_round_content",
     {
       ...read,
-      description: contentDescription,
+      description:
+        contentDescription +
+        " For the criteria section, supply criteriaVersion to read one historical version.",
       inputSchema: roundContentInput,
       outputSchema: contentChunkSchema,
     },

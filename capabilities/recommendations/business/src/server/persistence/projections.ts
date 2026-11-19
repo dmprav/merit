@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, ne, sql, type SQLWrapper } from "drizzle-orm";
+import { and, desc, eq, inArray, ne, sql, type SQL, type SQLWrapper } from "drizzle-orm";
 
 import { applicationCases } from "@merit/applications/schema";
 import { activeCase } from "@merit/applications/scope";
@@ -101,23 +101,42 @@ export const readRoundAllocations = async (
 export const recommendationRevision = sql<number>`coalesce((select max(r.revision) from ${recommendationVersions} r where r.case_id = ${applicationCases.id}), 0)`;
 
 // A missing recorded basis cannot establish a change in the material.
+const overviewFields = (materialVersion: SQLWrapper) => ({
+  position: recommendationVersions.position,
+  allocationMinorUnits: recommendationVersions.allocationMinorUnits,
+  allocationCurrency: recommendationVersions.allocationCurrency,
+  outdated:
+    sql<boolean>`coalesce(${ne(recommendationVersions.applicationVersion, materialVersion)}, false)`.as(
+      "recommendation_outdated",
+    ),
+});
+
 export const recommendationOverview = (
   db: Database,
   caseId: SQLWrapper,
   materialVersion: SQLWrapper,
 ) =>
   db
-    .select({
-      position: recommendationVersions.position,
-      allocationMinorUnits: recommendationVersions.allocationMinorUnits,
-      allocationCurrency: recommendationVersions.allocationCurrency,
-      outdated:
-        sql<boolean>`coalesce(${ne(recommendationVersions.applicationVersion, materialVersion)}, false)`.as(
-          "recommendation_outdated",
-        ),
-    })
+    .select(overviewFields(materialVersion))
     .from(recommendationVersions)
     .where(eq(recommendationVersions.caseId, caseId))
     .orderBy(desc(recommendationVersions.revision))
     .limit(1)
+    .as("recommendation_overview");
+
+/** Latest recommendations among the candidate cases for filtering and sorting. */
+export const candidateRecommendationOverviews = (
+  db: Database,
+  candidates: SQL,
+  caseId: SQLWrapper,
+  materialVersion: SQLWrapper,
+) =>
+  db
+    .selectDistinctOn([recommendationVersions.caseId], {
+      caseId: recommendationVersions.caseId,
+      ...overviewFields(materialVersion),
+    })
+    .from(recommendationVersions)
+    .innerJoin(candidates, eq(recommendationVersions.caseId, caseId))
+    .orderBy(recommendationVersions.caseId, desc(recommendationVersions.revision))
     .as("recommendation_overview");

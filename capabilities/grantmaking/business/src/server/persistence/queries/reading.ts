@@ -26,11 +26,11 @@ import {
   readCurrentRecommendationsMap,
   recommendationRevision,
 } from "@merit/recommendations/scope";
-import { reviewAssignments } from "@merit/reviews/participation-schema";
-import { assessments, assessmentVersions, reviewRequests } from "@merit/reviews/schema";
+import { assessments, reviewRequests } from "@merit/reviews/schema";
 import {
   readAssessmentRecord,
   readReviewRequestRecord,
+  readReviewSummaryPage,
   readReviewsByCasesMap,
   reviewRevision,
 } from "@merit/reviews/scope";
@@ -41,7 +41,6 @@ import {
   managerNeedsReassignment,
   readCriteriaByVersionsMap,
   readCriteriaVersionsMap,
-  readRoundCriteria,
   toMoneyData,
 } from "@merit/rounds/scope";
 
@@ -264,12 +263,22 @@ const sliceJsonValue = async (value: unknown, offset: number, length: number) =>
   const fingerprint = Array.from(new Uint8Array(digest).subarray(0, 16), (byte) =>
     byte.toString(16).padStart(2, "0"),
   ).join("");
-  const chars = Array.from(json);
-  return {
-    content: chars.slice(offset, offset + length).join(""),
-    fingerprint,
-    totalCharacters: chars.length,
-  };
+  // JSON.stringify escapes lone surrogates. Each low surrogate left in the text is
+  // the second UTF-16 unit of one code point, including when a chunk ends on it.
+  let start = offset;
+  let end = offset + length;
+  let pairs = 0;
+  for (const match of json.matchAll(/[\uDC00-\uDFFF]/g)) {
+    const character = match.index - 1 - pairs;
+    if (character < offset) {
+      start++;
+    }
+    if (character < offset + length) {
+      end++;
+    }
+    pairs++;
+  }
+  return { content: json.slice(start, end), fingerprint, totalCharacters: json.length - pairs };
 };
 
 const readIntakeOrPreparationChange = async (
@@ -334,6 +343,7 @@ export const readRoundContent = async (
     workspaceSlug: string;
     roundId: string;
     section: "details" | "criteria" | "criteria_history" | "preparation_change";
+    criteriaVersion?: number;
     revision?: number;
     offset: number;
     length: number;
@@ -367,8 +377,13 @@ export const readRoundContent = async (
     return sliceJsonValue(details, input.offset, input.length);
   }
   if (input.section === "criteria") {
-    const roundCriteria = await readRoundCriteria(db, row.round.organizationId, row.round.id);
-    return sliceJsonValue(roundCriteria?.criteria ?? [], input.offset, input.length);
+    const version = input.criteriaVersion ?? row.round.criteriaVersion;
+    const versions = await readCriteriaByVersionsMap(db, [{ roundId: row.round.id, version }]);
+    const criteria = versions.get(criteriaVersionKey(row.round.id, version));
+    if (!criteria && input.criteriaVersion !== undefined) {
+      return undefined;
+    }
+    return sliceJsonValue(criteria ?? [], input.offset, input.length);
   }
   const historyMap = await readCriteriaVersionsMap(db, [row.round.id]);
   return sliceJsonValue(historyMap.get(row.round.id) ?? [], input.offset, input.length);
@@ -637,14 +652,6 @@ export const readGrantHistory = (
     .limit(input.limit + 1);
 };
 
-type SelectedReviewTarget = {
-  caseId: string;
-  roundId: string;
-  applicationVersion: number;
-  reviewRevision: number;
-  criteriaVersion: number;
-};
-
 const readSelectedReviewTarget = async (
   db: Database,
   actor: string,
@@ -672,132 +679,6 @@ const readSelectedReviewTarget = async (
   return selected;
 };
 
-const readReviewSummaryInputs = async (db: Database, selected: SelectedReviewTarget) => {
-  const [assessmentRows, versionRows, requestRows, assignmentRows] = await Promise.all([
-    db.select().from(assessments).where(eq(assessments.caseId, selected.caseId)),
-    db
-      .select({
-        assessmentId: assessmentVersions.assessmentId,
-        applicationVersion: assessmentVersions.applicationVersion,
-        criteriaRoundPublicId: assessmentVersions.criteriaRoundPublicId,
-        criteriaVersion: assessmentVersions.criteriaVersion,
-      })
-      .from(assessmentVersions)
-      .where(eq(assessmentVersions.caseId, selected.caseId))
-      .orderBy(desc(assessmentVersions.version)),
-    db
-      .select()
-      .from(reviewRequests)
-      .where(
-        and(eq(reviewRequests.caseId, selected.caseId), eq(reviewRequests.status, "outstanding")),
-      ),
-    db
-      .select({
-        requestId: reviewAssignments.requestId,
-        assessmentId: reviewAssignments.assessmentId,
-        status: reviewAssignments.status,
-        conflict: reviewAssignments.conflict,
-      })
-      .from(reviewAssignments)
-      .where(eq(reviewAssignments.caseId, selected.caseId)),
-  ]);
-
-  const supersededIds = new Set(
-    assessmentRows.flatMap((row) => (row.previousId ? [row.previousId] : [])),
-  );
-  const latestVersionByAssessment = new Map<string, (typeof versionRows)[number]>();
-  for (const version of versionRows) {
-    if (!latestVersionByAssessment.has(version.assessmentId)) {
-      latestVersionByAssessment.set(version.assessmentId, version);
-    }
-  }
-  const activeAssessments = assessmentRows.filter((row) => !supersededIds.has(row.id));
-  const criteriaPairs: { roundId: string; version: number }[] = [
-    { roundId: selected.roundId, version: selected.criteriaVersion },
-    ...activeAssessments.flatMap((row) => {
-      const v = latestVersionByAssessment.get(row.id);
-      return v && v.criteriaRoundPublicId !== null && v.criteriaVersion !== null
-        ? [{ roundId: v.criteriaRoundPublicId, version: v.criteriaVersion }]
-        : [];
-    }),
-    ...requestRows.map((req) => ({
-      roundId: req.criteriaRoundPublicId,
-      version: req.criteriaVersion,
-    })),
-  ];
-  const criteriaMap = await readCriteriaByVersionsMap(db, criteriaPairs);
-  return { activeAssessments, latestVersionByAssessment, requestRows, assignmentRows, criteriaMap };
-};
-
-const formatParticipation = (assignment?: { status: string; conflict: string }) =>
-  assignment
-    ? {
-        participation: {
-          status: assignment.status,
-          conflict: assignment.conflict !== "",
-        },
-      }
-    : {};
-
-const buildReviewSummaryEntries = (
-  selected: SelectedReviewTarget,
-  data: Awaited<ReturnType<typeof readReviewSummaryInputs>>,
-) => {
-  const { activeAssessments, latestVersionByAssessment, requestRows, assignmentRows, criteriaMap } =
-    data;
-  const assignmentByAssessment = new Map(
-    assignmentRows.flatMap((a) => (a.assessmentId ? [[a.assessmentId, a] as const] : [])),
-  );
-  const assignmentByRequest = new Map(assignmentRows.map((a) => [a.requestId, a] as const));
-  const currentCriteria =
-    criteriaMap.get(criteriaVersionKey(selected.roundId, selected.criteriaVersion)) ?? null;
-
-  return [
-    ...activeAssessments.flatMap((row) => {
-      const v = latestVersionByAssessment.get(row.id);
-      if (!v) {
-        return [];
-      }
-      return [
-        {
-          id: row.id,
-          kind: "assessment" as const,
-          contactId: row.contactId,
-          reviewer: row.reviewer,
-          applicationVersion: selected.applicationVersion,
-          criteriaVersion: selected.criteriaVersion,
-          reviewRevision: selected.reviewRevision,
-          recordedApplicationVersion: v.applicationVersion,
-          recordedCriteriaVersion: v.criteriaVersion,
-          recordedCriteria:
-            v.criteriaRoundPublicId !== null && v.criteriaVersion !== null
-              ? (criteriaMap.get(criteriaVersionKey(v.criteriaRoundPublicId, v.criteriaVersion)) ??
-                null)
-              : null,
-          currentCriteria,
-          ...(row.authorUserId !== null ? { authorUserId: row.authorUserId } : {}),
-          ...formatParticipation(assignmentByAssessment.get(row.id)),
-        },
-      ];
-    }),
-    ...requestRows.map((req) => ({
-      id: req.id,
-      kind: "request" as const,
-      contactId: req.contactId,
-      reviewer: req.reviewer,
-      applicationVersion: selected.applicationVersion,
-      criteriaVersion: selected.criteriaVersion,
-      reviewRevision: selected.reviewRevision,
-      recordedApplicationVersion: req.applicationVersion,
-      recordedCriteriaVersion: req.criteriaVersion,
-      recordedCriteria:
-        criteriaMap.get(criteriaVersionKey(req.criteriaRoundPublicId, req.criteriaVersion)) ?? [],
-      currentCriteria,
-      ...formatParticipation(assignmentByRequest.get(req.id)),
-    })),
-  ];
-};
-
 export const readReviewSummaries = async (
   db: Database,
   actor: string,
@@ -807,14 +688,35 @@ export const readReviewSummaries = async (
   if (!selected) {
     return [];
   }
-  const entries = buildReviewSummaryEntries(selected, await readReviewSummaryInputs(db, selected));
-  const after = input.after ?? "";
-  return entries
-    .filter((entry) => `${entry.kind}:${entry.id}` > after)
-    .sort((left, right) => {
-      const leftKey = `${left.kind}:${left.id}`;
-      const rightKey = `${right.kind}:${right.id}`;
-      return leftKey < rightKey ? -1 : leftKey > rightKey ? 1 : 0;
-    })
-    .slice(0, input.limit + 1);
+  const rows = await readReviewSummaryPage(db, selected.caseId, input.after ?? "", input.limit + 1);
+  if (!rows.length) {
+    return [];
+  }
+  const criteria = await readCriteriaByVersionsMap(db, [
+    { roundId: selected.roundId, version: selected.criteriaVersion },
+    ...rows.flatMap((row) =>
+      row.criteriaRoundId !== null && row.recordedCriteriaVersion !== null
+        ? [{ roundId: row.criteriaRoundId, version: row.recordedCriteriaVersion }]
+        : [],
+    ),
+  ]);
+  const currentCriteria =
+    criteria.get(criteriaVersionKey(selected.roundId, selected.criteriaVersion)) ?? null;
+  return rows.map(
+    ({ criteriaRoundId, recordedCriteriaVersion, status, conflict, authorUserId, ...row }) => ({
+      ...row,
+      recordedCriteriaVersion,
+      recordedCriteria:
+        criteriaRoundId !== null && recordedCriteriaVersion !== null
+          ? (criteria.get(criteriaVersionKey(criteriaRoundId, recordedCriteriaVersion)) ??
+            (row.kind === "request" ? [] : null))
+          : null,
+      applicationVersion: selected.applicationVersion,
+      reviewRevision: selected.reviewRevision,
+      criteriaVersion: selected.criteriaVersion,
+      currentCriteria,
+      ...(authorUserId !== null ? { authorUserId } : {}),
+      ...(status !== null ? { participation: { status, conflict } } : {}),
+    }),
+  );
 };
