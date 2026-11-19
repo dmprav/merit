@@ -23,6 +23,9 @@
       "path": "capabilities/contacts/web"
     },
     {
+      "path": "foundation/storage"
+    },
+    {
       "path": "capabilities/grantmaking/business"
     },
     {

@@ -25,18 +25,21 @@
     "@merit/reviews": "workspace:*",
     "@merit/rounds": "workspace:*",
     "@merit/site": "workspace:*",
+    "@merit/storage": "workspace:*",
     "@merit/telemetry": "workspace:*",
     "@merit/ui": "workspace:*",
     "@tanstack/react-query": "catalog:",
     "@tanstack/react-router": "catalog:",
     "@tanstack/react-router-ssr-query": "catalog:",
     "@tanstack/react-start": "catalog:",
+    "aws4fetch": "catalog:",
     "drizzle-orm": "catalog:",
     "i18next": "catalog:",
     "pg": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
-    "react-i18next": "catalog:"
+    "react-i18next": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@axe-core/playwright": "catalog:",
