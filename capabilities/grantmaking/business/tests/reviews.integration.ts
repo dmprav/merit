@@ -634,29 +634,33 @@ const unknownBasisRecord = (contactId: string) => ({
   },
 });
 
-it("rejects review saves from other workspaces and from members without grant access", async ({
-  db,
-  database,
-}) => {
-  const { address } = await setup(db);
-  const sam = await contact(db);
-  const input = {
-    ...address,
-    expectedRevision: reviewRevisionSchema.parse(0),
-    expectedApplicationVersion: materialVersionSchema.parse(1),
-    expectedCriteriaVersion: criteriaVersionSchema.parse(1),
-    change: unknownBasisRecord(sam.id),
-  };
+it.for([
+  { denial: "another workspace's manager", as: { userId: "birch-manager" }, revoke: false },
+  { denial: "a member without grant access", as: actor, revoke: true },
+])(
+  "rejects a review save by $denial without recording it",
+  async ({ as, revoke }, { db, database }) => {
+    const { address } = await setup(db);
+    const sam = await contact(db);
+    if (revoke) {
+      await database.client.query(
+        "UPDATE memberships SET role = 'member' WHERE user_id = 'dana' AND organization_id = 'alder'",
+      );
+    }
 
-  expect(await saveApplicationReview(db, { userId: "birch-manager" }, input)).toEqual({
-    status: "not_found",
-  });
-  await database.client.query(
-    "UPDATE memberships SET role = 'member' WHERE user_id = 'dana' AND organization_id = 'alder'",
-  );
-  expect(await saveApplicationReview(db, actor, input)).toEqual({ status: "not_found" });
-  expect((await database.client.query("SELECT id FROM assessments")).rows).toEqual([]);
-});
+    expect(
+      await saveApplicationReview(db, as, {
+        ...address,
+        expectedRevision: reviewRevisionSchema.parse(0),
+        expectedApplicationVersion: materialVersionSchema.parse(1),
+        expectedCriteriaVersion: criteriaVersionSchema.parse(1),
+        change: unknownBasisRecord(sam.id),
+      }),
+    ).toEqual({ status: "not_found" });
+    expect((await database.client.query("SELECT id FROM assessments")).rows).toEqual([]);
+    expect((await database.client.query("SELECT 1 FROM assessment_versions")).rows).toEqual([]);
+  },
+);
 
 it("marks an assessment recorded without an application or criteria basis as unknown", async ({
   db,

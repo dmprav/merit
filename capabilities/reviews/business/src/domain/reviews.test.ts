@@ -254,53 +254,50 @@ describe("recording reviews", () => {
     expect(source).toEqual(before);
   });
 
-  it("receives an incomplete external judgment, then preserves it through a correction and follow-up", () => {
-    let state = apply(emptyReviews(), {
-      action: "request",
-      id: "request",
-      contactId,
-      replacesId: null,
-    });
-    state = apply(state, {
-      action: "record",
-      id: "assessment",
-      contactId,
-      requestId: "request",
-      previousId: null,
-      content,
-    });
+  it("marks the reviewer's outstanding request received when recording against it", () => {
+    const source = apply(emptyReviews(), request);
+    const before = structuredClone(source);
 
-    assert.isDefined(state.requests[0]);
-    expect(state.requests[0].status).toBe("received");
+    const state = apply(source, { ...record, requestId: request.id });
 
-    state = apply(state, {
-      action: "edit",
-      id: "assessment",
-      note: "",
-      content: { ...content, reasoning: "Corrected transcription." },
-    });
+    expect(state.requests).toEqual([
+      { ...source.requests[0], status: "received", closedBy: context.recorder },
+    ]);
+    expect(state.assessments[0]?.requestId).toBe(request.id);
+    expect(state.revision).toBe(source.revision + 1);
+    expect(source).toEqual(before);
+  });
 
-    assert.isDefined(state.assessments[0]);
-    assert.isDefined(state.assessments[0].versions[0]);
-    assert.isDefined(state.assessments[0].versions[1]);
-    expect(state.assessments[0].versions[0].content).toEqual(content);
-    expect(state.assessments[0].versions[1].recorder?.userId).toBe("dana");
+  it("records changed assessment content as a new version without requiring a note", () => {
+    const source = apply(emptyReviews(), record);
+    const corrected = { ...content, reasoning: "Corrected transcription." };
 
-    state = apply(state, { action: "request", id: "follow-up", contactId, replacesId: null });
-    state = apply(state, {
-      action: "record",
-      id: "later",
-      contactId,
-      requestId: "follow-up",
-      previousId: "assessment",
-      content: { ...content, applicationVersion: materialVersionSchema.parse(2) },
-    });
+    const state = apply(source, { action: "edit", id: record.id, content: corrected, note: "" });
 
-    expect(state.assessments).toHaveLength(2);
-    expect(state.assessments[1]).toMatchObject({
-      previousId: "assessment",
-      versions: [{ content: { applicationVersion: materialVersionSchema.parse(2) } }],
-    });
+    expect(state.assessments[0]?.versions).toEqual([
+      ...source.assessments[0]!.versions,
+      { content: corrected, criteria, recorder: context.recorder, note: "" },
+    ]);
+    expect(state.revision).toBe(source.revision + 1);
+  });
+
+  it("records a follow-up as a separate judgment linked to the reviewer's latest one", () => {
+    const source = apply(emptyReviews(), record);
+    const later = { ...content, applicationVersion: materialVersionSchema.parse(2) };
+
+    const state = apply(source, { ...record, id: "later", previousId: record.id, content: later });
+
+    expect(state.assessments).toEqual([
+      source.assessments[0],
+      {
+        id: "later",
+        contactId,
+        reviewer: "Sam",
+        requestId: null,
+        previousId: record.id,
+        versions: [{ content: later, criteria, recorder: context.recorder, note: "" }],
+      },
+    ]);
   });
 
   it("records an assessment with an unknown evidence basis without creating a request", () => {
@@ -497,54 +494,78 @@ describe("recording reviews", () => {
     expect(result.state.revision).toBe(source.revision + 1);
     expect(source).toEqual(before);
   });
-});
 
-it.each([0n, 1n])("allows only zero allocation on a deferred assessment: %s", (amount) => {
-  expect(
-    assessmentInputSchema.safeParse({
-      ...content,
-      position: "Defer",
-      amount: encodeMoney(fromMinorUnits(amount)),
-    }).success,
-  ).toBe(amount === 0n);
-});
-
-it("retains identified notes from earlier criteria and rejects IDs outside the round", () => {
-  const criterionId = "20000000-0000-4000-8000-000000000001";
-  const note = { criterionId, criterion: "Original wording", text: "Received judgment" };
-  const change = { ...record, content: { ...content, observations: [note] } } as ReviewChange;
-  const known = {
-    ...context,
-    criteriaHistory: [
-      ...context.criteriaHistory,
-      {
-        version: criteriaVersionSchema.parse(2),
-        criteria: [{ id: criterionId, title: "Renamed" }],
-      },
-    ],
-  };
-  expect(prepareReviewChange(emptyReviews(), change, known)).toMatchObject({
-    ok: true,
-    state: { assessments: [{ versions: [{ content: { observations: [note] } }] }] },
-  });
-  expect(prepareReviewChange(emptyReviews(), change, context)).toEqual({
-    ok: false,
-    error: "criteria_unavailable",
-  });
-  expect(
-    prepareReviewChange(
-      emptyReviews(),
-      {
-        ...record,
-        content: {
+  it.each([
+    { position: "Defer", minorUnits: 0, accepted: true },
+    { position: "Defer", minorUnits: 1, accepted: false },
+    { position: "Decline", minorUnits: 0, accepted: true },
+    { position: "Decline", minorUnits: 1, accepted: false },
+    { position: "Fund", minorUnits: 1, accepted: true },
+    { position: "Fund", minorUnits: 0, accepted: false },
+    { position: "Fund with a condition", minorUnits: 0, accepted: false },
+    { position: null, minorUnits: 0, accepted: true },
+  ] as const)(
+    "accepts a $position position with $minorUnits minor units: $accepted",
+    ({ position, minorUnits, accepted }) => {
+      expect(
+        assessmentInputSchema.safeParse({
           ...content,
-          observations: [{ criterionId: null, criterion: "Unidentified", text: "Keep" }],
-        },
-      },
-      context,
-    ).ok,
-  ).toBe(true);
-  expect(assessmentInputSchema.parse({ ...content, observations: [note] }).observations).toEqual([
-    note,
-  ]);
+          position,
+          amount: encodeMoney(fromMinorUnits(BigInt(minorUnits))),
+        }).success,
+      ).toBe(accepted);
+    },
+  );
+
+  describe("criterion observations", () => {
+    const criterionId = "20000000-0000-4000-8000-000000000001";
+    const note = { criterionId, criterion: "Original wording", text: "Received judgment" };
+    const noted = { ...record, content: { ...content, observations: [note] } };
+
+    it("retains a note identified by a criterion from an earlier criteria version", () => {
+      const known = {
+        ...context,
+        criteriaHistory: [
+          ...context.criteriaHistory,
+          {
+            version: criteriaVersionSchema.parse(2),
+            criteria: [{ id: criterionId, title: "Renamed" }],
+          },
+        ],
+      };
+
+      expect(prepareReviewChange(emptyReviews(), noted, known)).toMatchObject({
+        ok: true,
+        state: { assessments: [{ versions: [{ content: { observations: [note] } }] }] },
+      });
+    });
+
+    it("rejects a note identified by a criterion outside the round's criteria history", () => {
+      expect(prepareReviewChange(emptyReviews(), noted, context)).toEqual({
+        ok: false,
+        error: "criteria_unavailable",
+      });
+    });
+
+    it("accepts a note without a criterion identity", () => {
+      const unidentified = { criterionId: null, criterion: "Unidentified", text: "Keep" };
+
+      expect(
+        prepareReviewChange(
+          emptyReviews(),
+          { ...record, content: { ...content, observations: [unidentified] } },
+          context,
+        ),
+      ).toMatchObject({
+        ok: true,
+        state: { assessments: [{ versions: [{ content: { observations: [unidentified] } }] }] },
+      });
+    });
+
+    it("keeps a note's criterion identity when parsing a recorded assessment", () => {
+      expect(
+        assessmentInputSchema.parse({ ...content, observations: [note] }).observations,
+      ).toEqual([note]);
+    });
+  });
 });
