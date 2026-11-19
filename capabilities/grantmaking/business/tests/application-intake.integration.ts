@@ -24,6 +24,7 @@ import { saveApplicationReview } from "@merit/reviews/server";
 import { createFundingRound, deleteFundingRound } from "@merit/rounds/server";
 
 import { applicationWork } from "../src/server/persistence/commands/application-work";
+import { makeAssessment } from "./fixtures";
 
 const setup = async (db: NodePgDatabase) => {
   const round = await createFundingRound(db, actor, {
@@ -471,12 +472,28 @@ it("records a new recommendation against the published application version", asy
   expect(await changedEvidence()).toMatchObject({ status: "ok", applications: [] });
 });
 
-it.for(["a deferral", "an outstanding review request", "a cancelled review request"] as const)(
+it.for([
+  "a deferral",
+  "an assessment without a request",
+  "an outstanding review request",
+  "a cancelled review request",
+] as const)(
   "rejects deleting preparation whose only usage is %s without changing its content or history",
   async (usage, { db }) => {
     const scenario = await setup(db);
     if (usage === "a deferral") {
       assert((await recommend(db, scenario, "Defer")).status === "ok");
+    } else if (usage === "an assessment without a request") {
+      const contact = await setupContact(db);
+      const recorded = await review(db, scenario, {
+        action: "record",
+        id: randomUUID(),
+        contactId: contact.id,
+        requestId: null,
+        previousId: null,
+        content: makeAssessment().versions[0]!.content,
+      });
+      assert(recorded.status === "ok");
     } else {
       const contact = await setupContact(db);
       const id = randomUUID();
