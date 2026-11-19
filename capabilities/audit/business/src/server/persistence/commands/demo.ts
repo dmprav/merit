@@ -1,10 +1,8 @@
 import { eq, and, sql } from "drizzle-orm";
 
-import type { Database } from "@merit/db";
+import type { Transaction } from "@merit/db";
 
 import { auditEvents } from "../schema";
-
-type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
 /** Operator-only deletion; the database trigger independently enforces expiry. */
 export const removeDemoAudit = (tx: Transaction, organizationId: string) =>
