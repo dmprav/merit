@@ -230,7 +230,7 @@ it("keeps history open across directory updates and restores focus to the same r
     { ...sam, archived: false },
   ]);
   expect(screen.getByRole("dialog", { name: "Contact history" })).toHaveTextContent("Leah Martin");
-  await user.click(screen.getByRole("button", { name: "Close" }));
+  await user.click(screen.getByRole("button", { name: "Close dialog" }));
   await waitFor(() => expect(trigger).toHaveFocus());
   expect(screen.getByRole("button", { name: "Actions for Leah Martin" })).toBe(trigger);
   await user.click(screen.getByRole("button", { name: "Actions for Sam" }));

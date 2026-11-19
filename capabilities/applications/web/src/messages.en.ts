@@ -6,7 +6,6 @@ export const en = {
     changeContactValue: "Change contact: {{name}}",
     changeContact: "Change contact",
     contact: "Applicant contact",
-    close: "Close",
     saved: "Saved",
     retry: "Retry",
     refreshError: "Saved, but the latest information could not be loaded. Refresh to see it.",

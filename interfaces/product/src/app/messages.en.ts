@@ -11,7 +11,6 @@ export const en = {
     pinned_round: "Pinned funding rounds",
     pinned_application: "Pinned applications",
     pinned_review: "Pinned review assignments",
-    close: "Close pinned items",
     saveError: "Pins could not be saved. Please try again.",
     loadError: "Pins could not be loaded.",
     retry: "Try again",

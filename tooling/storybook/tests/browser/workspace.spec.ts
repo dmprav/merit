@@ -257,7 +257,7 @@ test(
       .toBeLessThanOrEqual(1);
     await checkPage(page);
     await page.screenshot({ path: testInfo.outputPath("contact-history.png") });
-    const close = dialog.getByRole("button", { name: "Close", exact: true });
+    const close = dialog.getByRole("button", { name: "Close dialog", exact: true });
     const closeTop = (await close.boundingBox())!.y;
 
     await history.focus();
@@ -345,7 +345,7 @@ test(
         exact: true,
       }),
     ).toHaveAttribute("href", /\/applications\//);
-    await dialog.getByRole("button", { name: "Close", exact: true }).click();
+    await dialog.getByRole("button", { name: "Close dialog", exact: true }).click();
     await expect(related).toBeFocused();
 
     await checkPage(page);
@@ -354,7 +354,7 @@ test(
 );
 
 test(
-  "contact application drawer bounds a long list and keeps the close action reachable",
+  "contact application side panel bounds a long list and keeps the close action reachable",
   { tag: "@cross-browser" },
   async ({ page }) => {
     await page.setViewportSize({ width: page.viewportSize()!.width, height: 360 });
@@ -381,8 +381,10 @@ test(
     await expect
       .poll(() => titles.evaluate((node) => node.scrollHeight - node.clientHeight))
       .toBeGreaterThan(0);
-    await expect(dialog.getByRole("button", { name: "Close", exact: true })).toBeInViewport();
-    const close = dialog.getByRole("button", { name: "Close", exact: true });
+    await expect(
+      dialog.getByRole("button", { name: "Close dialog", exact: true }),
+    ).toBeInViewport();
+    const close = dialog.getByRole("button", { name: "Close dialog", exact: true });
     const closeTop = (await close.boundingBox())!.y;
     const viewport = page.viewportSize()!;
     const frame = (await dialog.boundingBox())!;
@@ -400,7 +402,9 @@ test(
       .toBeLessThanOrEqual(1);
     await links.last().focus();
     await expect(links.last()).toBeInViewport();
-    await expect(dialog.getByRole("button", { name: "Close", exact: true })).toBeInViewport();
+    await expect(
+      dialog.getByRole("button", { name: "Close dialog", exact: true }),
+    ).toBeInViewport();
     await page.keyboard.press("Tab");
     await expect(close).toBeFocused();
     await checkPage(page);
@@ -555,7 +559,9 @@ for (const id of [
         .getByText("Include accessible transport to the venue.")
         .scrollIntoViewIfNeeded();
 
-      await expect(dialog.getByRole("button", { name: "Close", exact: true })).toBeInViewport();
+      await expect(
+        dialog.getByRole("button", { name: "Close dialog", exact: true }),
+      ).toBeInViewport();
       await expect(
         preview.getByText("Include accessible transport to the venue."),
       ).toBeInViewport();
@@ -567,7 +573,9 @@ for (const id of [
     await page.screenshot({ path: testInfo.outputPath(`${id}.png`), fullPage: true });
     if (quickPicker) {
       const isDate = id.endsWith("--committee-date");
-      await dialog.getByRole("button", { name: isDate ? "Cancel" : "Close", exact: true }).click();
+      await dialog
+        .getByRole("button", { name: isDate ? "Cancel" : "Close dialog", exact: true })
+        .click();
 
       await expect(dialog).not.toBeVisible();
       await expect(

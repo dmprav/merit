@@ -2,8 +2,10 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState, type ComponentProps } from "react";
 import { expect, fn, waitFor, within } from "storybook/test";
 
-import { ModalDialog } from "../../components/dialog/dialog";
-import { SearchPalette, type SearchPaletteGroup } from "./search-palette";
+import { Button } from "../../components/button/button";
+import { Icon } from "../../components/icon/icon";
+import { StateMessage } from "../state-message/state-message";
+import { SearchPalette, SearchPaletteDialog, type SearchPaletteGroup } from "./search-palette";
 
 const row = (id: string, title: string, detail: string, label?: string) => ({
   id,
@@ -41,8 +43,7 @@ const Example = ({
   const [value, setValue] = useState(initial);
   const [open, setOpen] = useState(true);
   return (
-    <ModalDialog
-      appearance="search"
+    <SearchPaletteDialog
       title="Search the workspace"
       closeLabel="Close search"
       trigger={null}
@@ -59,7 +60,7 @@ const Example = ({
         announcementId={0}
         {...props}
       />
-    </ModalDialog>
+    </SearchPaletteDialog>
   );
 };
 
@@ -126,6 +127,34 @@ export const Loading: Story = {
 export const NoMatches: Story = {
   args: {
     groups: [],
-    message: 'No funding rounds or applications match "harbr".',
+    message: (
+      <StateMessage
+        size="compact"
+        illustration={<Icon name="search" />}
+        title="No funding rounds or applications match “harbr”."
+        description="Search by funding round, application title, or applicant."
+      />
+    ),
+  },
+};
+
+export const Failure: Story = {
+  args: {
+    groups: [],
+    message: (
+      <StateMessage
+        size="compact"
+        tone="danger"
+        illustration={<Icon name="warning" />}
+        title="Search isn’t available right now."
+        description="Your search is kept. Try again in a moment."
+        actions={
+          <Button size="small" variant="secondary">
+            <Icon name="reset" />
+            Try again
+          </Button>
+        }
+      />
+    ),
   },
 };

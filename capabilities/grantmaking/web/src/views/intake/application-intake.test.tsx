@@ -337,7 +337,7 @@ it("edits the summary inline with the standard field and preserves contact detai
   await user.click(await screen.findByRole("button", { name: "Edit summary" }));
   const field = screen.getByRole("textbox", { name: "Staff summary" });
 
-  expect(field.closest("[data-appearance]")).toHaveAttribute("data-appearance", "default");
+  expect(field.closest('[role="dialog"]')).toBeNull();
   expect(screen.queryByRole("heading", { name: "Staff summary" })).not.toBeInTheDocument();
 
   fireEvent.change(field, { target: { value: "Updated staff interpretation." } });
@@ -392,7 +392,7 @@ it("keeps unsaved revision edits while consulting the current submission", async
   expect(preview).toHaveTextContent("€22,000");
   expect(preview).not.toHaveTextContent("€29,000");
 
-  await user.click(within(preview).getByRole("button", { name: /^Close$/ }));
+  await user.click(within(preview).getByRole("button", { name: "Close dialog" }));
 
   expect(screen.getByRole("textbox", { name: "Requested amount" })).toHaveValue("29000");
 

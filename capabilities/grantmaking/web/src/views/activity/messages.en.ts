@@ -2,7 +2,6 @@ export const activityMessages = {
   activity: {
     title: "Activity",
     openDetails: "{{action}}: {{record}} — view event details",
-    closeDetails: "Close event details",
     record: "Record",
     recordedAt: "Recorded at",
     source: "Source",

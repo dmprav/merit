@@ -1,0 +1,95 @@
+/* A slim, quiet scrollbar shared by every scrolling region inside a surface. */
+.scrollArea {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--border-control) 55%, transparent) transparent;
+}
+
+/* Native thumb states keep emphasis on the scrollbar, not the reading surface. */
+@supports selector(::-webkit-scrollbar) {
+  @media (forced-colors: none) {
+    .scrollArea {
+      scrollbar-width: auto;
+      scrollbar-color: auto;
+    }
+
+    .scrollArea::-webkit-scrollbar {
+      width: 10px;
+      height: 10px;
+    }
+
+    .scrollArea::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .scrollArea::-webkit-scrollbar-thumb {
+      background: color-mix(in srgb, var(--border-control) 55%, transparent);
+      border: 2px solid transparent;
+      border-radius: 10px;
+      background-clip: padding-box;
+    }
+
+    .scrollArea::-webkit-scrollbar-thumb:hover {
+      background-color: var(--border-control);
+    }
+
+    .scrollArea::-webkit-scrollbar-thumb:active {
+      background-color: var(--muted);
+    }
+  }
+}
+
+@media (forced-colors: active) {
+  .scrollArea {
+    scrollbar-color: auto;
+  }
+}
+
+/*
+ * Dividers that follow a named scroll timeline, set through `--edge-timeline` and shared
+ * with the scroller by `timeline-scope`. At rest neither shows: one appears once content
+ * scrolls under a header, the other marks content continuing below a footer. Browsers
+ * without scroll-driven animation keep static dividers.
+ */
+.dividerAfterStart {
+  border-bottom: 1px solid var(--border);
+}
+
+.dividerUntilEnd {
+  border-top: 1px solid var(--border);
+}
+
+@supports (animation-timeline: scroll()) and (timeline-scope: none) {
+  .dividerAfterStart {
+    border-bottom-color: transparent;
+    animation: divider-after-start linear both;
+    animation-timeline: var(--edge-timeline);
+    animation-range: 0 var(--space-4);
+  }
+
+  .dividerUntilEnd {
+    border-top-color: transparent;
+    animation: divider-until-end linear both;
+    animation-timeline: var(--edge-timeline);
+    animation-range: calc(100% - var(--space-4)) 100%;
+  }
+}
+
+@keyframes divider-after-start {
+  from {
+    border-bottom-color: transparent;
+  }
+
+  to {
+    border-bottom-color: var(--border);
+  }
+}
+
+@keyframes divider-until-end {
+  from {
+    border-top-color: var(--border);
+  }
+
+  to {
+    border-top-color: transparent;
+  }
+}

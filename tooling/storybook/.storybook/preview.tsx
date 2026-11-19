@@ -121,13 +121,13 @@ const preview: Preview = {
     }
 
     const finiteRunning = () =>
-      doc
-        .getAnimations()
-        .filter(
-          (animation) =>
-            animation.playState === "running" &&
-            animation.effect?.getTiming().iterations !== Infinity,
-        );
+      doc.getAnimations().filter(
+        (animation) =>
+          animation.playState === "running" &&
+          // Scroll-linked animations, such as dialog dividers, follow scrolling and never finish.
+          animation.timeline === doc.timeline &&
+          animation.effect?.getTiming().iterations !== Infinity,
+      );
 
     let waitCycles = 0;
 

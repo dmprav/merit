@@ -50,7 +50,6 @@ const Hero = ({ round }: { round: LandingPreview["round"] }) => {
           </h1>
           <PopoverDialog
             title={t("hero.projectLabel")}
-            closeLabel={t("common:closeDialog")}
             isOpen={projectNoteOpen}
             onOpenChange={setProjectNoteOpen}
             placement="bottom start"

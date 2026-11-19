@@ -19,9 +19,9 @@ const FormDialogContext = createContext(false);
 
 /**
  * Frames a bounded editing task. The contained Form inherits scrolling, persistent
- * actions, and Cmd/Ctrl+Enter submission. All sizes share the context header,
- * tinted footer, and desktop position. Features own drafts and the pending
- * dismissal guard; nested forms do not inherit these conventions.
+ * actions, and Cmd/Ctrl+Enter submission within the shared centered dialog. Features
+ * own drafts and the pending dismissal guard; nested forms do not inherit these
+ * conventions.
  */
 export const FormDialog = ({
   children,
@@ -37,11 +37,10 @@ export const FormDialog = ({
   | "defaultOpen"
   | "onOpenChange"
   | "isDismissDisabled"
-  | "size"
 > & {
   children: ReactNode;
 }) => (
-  <ModalDialog {...props} appearance="form">
+  <ModalDialog {...props}>
     <FormDialogContext value={true}>{children}</FormDialogContext>
   </ModalDialog>
 );
@@ -131,7 +130,6 @@ export const Form = ({
       <FormDialogContext value={false}>
         <form
           ref={formRef}
-          data-appearance={inDialog ? "form" : "default"}
           noValidate
           aria-label={label}
           aria-busy={submission.isSubmitting}

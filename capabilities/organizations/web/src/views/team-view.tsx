@@ -211,7 +211,6 @@ const TeamEditorDialog = ({
   return (
     <FormDialog
       title={title}
-      closeLabel={t("close")}
       trigger={null}
       isOpen={dialog?.kind === "invite" || dialog?.kind === "edit"}
       onOpenChange={(isOpen) => {
@@ -278,7 +277,6 @@ const TeamConfirmationDialog = ({
     <ConfirmationDialog
       title={title}
       description={description}
-      closeLabel={t("close")}
       cancelLabel={t("cancel")}
       confirmLabel={t(removing ? "remove" : "revoke")}
       pendingLabel={t(removing ? "removing" : "revoking")}

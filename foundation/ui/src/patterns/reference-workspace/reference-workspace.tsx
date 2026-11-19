@@ -15,6 +15,7 @@ import {
 import { ActionMenu } from "../../components/action-menu/action-menu";
 import { Button } from "../../components/button/button";
 import { Icon } from "../../components/icon/icon";
+import scrollStyles from "../../foundations/scroll-area.module.css";
 import styles from "./reference-workspace.module.css";
 
 /** Matches the stylesheet breakpoint where the panes stack and the document scrolls. */
@@ -94,7 +95,7 @@ export const ReferencePane = ({
       <div className={styles.reference} id={`${id}-reference`}>
         {toolbar && <div className={styles.toolbar}>{toolbar}</div>}
         <div
-          className={styles.content}
+          className={`${styles.content} ${scrollStyles.scrollArea}`}
           ref={viewport}
           data-reading-viewport
           tabIndex={0}
@@ -155,7 +156,7 @@ export const WorkPane = ({
         <div
           ref={viewport}
           data-reading-viewport
-          className={styles.content}
+          className={`${styles.content} ${scrollStyles.scrollArea}`}
           data-fill={fill || undefined}
           tabIndex={fill ? undefined : 0}
           role="group"
@@ -163,7 +164,7 @@ export const WorkPane = ({
         >
           {children}
         </div>
-        {footer && <div className={styles.footer}>{footer}</div>}
+        {footer && <div className={`${styles.footer} ${scrollStyles.scrollArea}`}>{footer}</div>}
       </Element>
     </ReadingViewportContext>
   );

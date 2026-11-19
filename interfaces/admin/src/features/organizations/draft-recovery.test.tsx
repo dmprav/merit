@@ -94,7 +94,7 @@ it("renders the list immediately and waits only for creation before restoring it
   await user.click(screen.getByRole("button", { name: "Create organization" }));
   const dialog = screen.getByRole("dialog", { name: "Create organization" });
   expect(within(dialog).getByText("Preparing editor…")).toBeVisible();
-  expect(within(dialog).getByRole("button", { name: "Close" })).toBeEnabled();
+  expect(within(dialog).getByRole("button", { name: "Close dialog" })).toBeEnabled();
   expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   expect(recovery.stores.get("admin-creation")!.update).not.toHaveBeenCalled();
 
@@ -109,7 +109,7 @@ it("does not reopen creation after closing its wait", async () => {
   const user = userEvent.setup();
   render(list, { wrapper: Wrapper });
   await user.click(screen.getByRole("button", { name: "Create organization" }));
-  await user.click(screen.getByRole("button", { name: "Close" }));
+  await user.click(screen.getByRole("button", { name: "Close dialog" }));
   await act(async () => finish("admin-creation", { new: creation }));
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   expect(recovery.stores.get("admin-creation")!.update).not.toHaveBeenCalled();

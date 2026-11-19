@@ -138,50 +138,6 @@
   box-shadow: inset 2px 0 var(--focus);
 }
 
-.scrollPanels > .panel {
-  scrollbar-width: thin;
-  scrollbar-color: color-mix(in srgb, var(--border-control) 55%, transparent) transparent;
-}
-/* Native thumb states keep emphasis on the scrollbar, not the reading surface. */
-@supports selector(::-webkit-scrollbar) {
-  @media (forced-colors: none) {
-    .scrollPanels > .panel {
-      scrollbar-width: auto;
-      scrollbar-color: auto;
-    }
-
-    .scrollPanels > .panel::-webkit-scrollbar {
-      width: 10px;
-      height: 10px;
-    }
-
-    .scrollPanels > .panel::-webkit-scrollbar-track {
-      background: transparent;
-    }
-
-    .scrollPanels > .panel::-webkit-scrollbar-thumb {
-      background: color-mix(in srgb, var(--border-control) 55%, transparent);
-      border: 2px solid transparent;
-      border-radius: 10px;
-      background-clip: padding-box;
-    }
-
-    .scrollPanels > .panel::-webkit-scrollbar-thumb:hover {
-      background-color: var(--border-control);
-    }
-
-    .scrollPanels > .panel::-webkit-scrollbar-thumb:active {
-      background-color: var(--muted);
-    }
-  }
-}
-
-@media (forced-colors: active) {
-  .scrollPanels > .panel {
-    scrollbar-color: auto;
-  }
-}
-
 @media (pointer: coarse) {
   .tab {
     min-height: var(--target-touch);

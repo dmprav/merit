@@ -7,18 +7,29 @@ import {
   type Page,
 } from "@playwright/test";
 
+/**
+ * Waits for running time-based animations, such as overlay entrances, to finish. Infinite
+ * and scroll-linked animations never finish, so they are skipped.
+ */
+export const settleAnimations = (page: Page) =>
+  page.evaluate(async () => {
+    await Promise.allSettled(
+      document
+        .getAnimations()
+        .filter(
+          (animation) =>
+            animation.timeline === document.timeline &&
+            animation.effect?.getTiming().iterations !== Infinity,
+        )
+        .map((animation) => animation.finished),
+    );
+  });
+
 export const checkPage = async (page: Page) => {
   await expect(page.locator("vite-error-overlay")).toHaveCount(0);
   await expect(page.locator("body")).toBeVisible();
   // Measure the settled surface, rather than intermediate overlay opacity.
-  await page.evaluate(async () => {
-    await Promise.allSettled(
-      document
-        .getAnimations()
-        .filter((animation) => animation.effect?.getTiming().iterations !== Infinity)
-        .map((animation) => animation.finished),
-    );
-  });
+  await settleAnimations(page);
   await expect(page.locator("[data-entering], [data-exiting]")).toHaveCount(0);
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),

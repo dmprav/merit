@@ -5,7 +5,7 @@ import { formatCalendarDate } from "@merit/dates";
 import { useLocaleSettings } from "@merit/i18n";
 import { Button } from "@merit/ui/button";
 import { ConfirmationDialog } from "@merit/ui/confirmation-dialog";
-import { PopoverDialog } from "@merit/ui/dialog";
+import { DialogSection, PopoverDialog } from "@merit/ui/dialog";
 import { Icon } from "@merit/ui/icon";
 import { Inline, Stack } from "@merit/ui/layout";
 import linkStyles from "@merit/ui/link.module.css";
@@ -40,7 +40,6 @@ export const DemoToolsView = ({
     <>
       <PopoverDialog
         title={t("fundingRounds:demo.guide")}
-        closeLabel={t("fundingRounds:demo.closeGuide")}
         isOpen={open}
         onOpenChange={setOpen}
         footer={
@@ -81,7 +80,6 @@ export const DemoToolsView = ({
       <ConfirmationDialog
         title={t("fundingRounds:demo.resetTitle")}
         description={t("demoWorkspace.resetDescription")}
-        closeLabel={t("common:closeDialog")}
         cancelLabel={t("fundingRounds:demo.keepChanges")}
         confirmLabel={t("fundingRounds:demo.reset")}
         pendingLabel={t("fundingRounds:demo.resetting")}
@@ -108,74 +106,73 @@ const DemoGuide = ({
   const { t } = useTranslation(["web", "fundingRounds", "common"]);
   const { formatLocale } = useLocaleSettings();
   return (
-    <Stack className={styles.guide}>
-      <Stack gap={2}>
-        {workspace.demoExpiresAt && (
-          <p className={styles.expiry}>
-            {t("demoWorkspace.expires", {
-              date: formatCalendarDate(workspace.demoExpiresAt.slice(0, 10), formatLocale),
-            })}
-          </p>
-        )}
-        <p>{t("demoWorkspace.introduction.role")}</p>
-        <h3 className={styles.title}>{t("fundingRounds:journey.title")}</h3>
+    <div className={styles.guide}>
+      {workspace.demoExpiresAt && (
+        <p className={styles.expiry}>
+          {t("demoWorkspace.expires", {
+            date: formatCalendarDate(workspace.demoExpiresAt.slice(0, 10), formatLocale),
+          })}
+        </p>
+      )}
+      <p>{t("demoWorkspace.introduction.role")}</p>
+      <DialogSection title={t("fundingRounds:journey.title")}>
         <p>{t("demoWorkspace.introduction.scenario")}</p>
-      </Stack>
-      <Stack gap={2}>
-        {loading ? (
-          <p role="status">{t("demoWorkspace.loadingTasks")}</p>
-        ) : destinations ? (
-          <>
-            {destinations.applicationRef && (
-              <Link
-                to="/app/$workspaceSlug/applications/$applicationRef"
-                params={{
-                  workspaceSlug: workspace.slug,
-                  applicationRef: destinations.applicationRef,
-                }}
-                search={{ tab: "reviews" }}
-                onClick={close}
-                className={`${linkStyles.text} ${linkStyles.standalone}`}
-              >
-                {t("fundingRounds:journey.application")}
-              </Link>
-            )}
-            {destinations.roundRef && (
-              <Link
-                to="/app/$workspaceSlug/rounds/$roundRef"
-                params={{ workspaceSlug: workspace.slug, roundRef: destinations.roundRef }}
-                search={{ section: "applications" }}
-                onClick={close}
-                className={`${linkStyles.text} ${linkStyles.standalone}`}
-              >
-                {t("fundingRounds:journey.budget")}
-              </Link>
-            )}
-            {(!destinations.applicationRef || !destinations.roundRef) && (
-              <>
-                <p>{t("demoWorkspace.missingTasks")}</p>
+        <Stack gap={1} className={styles.tasks}>
+          {loading ? (
+            <p role="status">{t("demoWorkspace.loadingTasks")}</p>
+          ) : destinations ? (
+            <>
+              {destinations.applicationRef && (
                 <Link
-                  to="/app/$workspaceSlug/rounds"
-                  params={{ workspaceSlug: workspace.slug }}
+                  to="/app/$workspaceSlug/applications/$applicationRef"
+                  params={{
+                    workspaceSlug: workspace.slug,
+                    applicationRef: destinations.applicationRef,
+                  }}
+                  search={{ tab: "reviews" }}
                   onClick={close}
                   className={`${linkStyles.text} ${linkStyles.standalone}`}
                 >
-                  {t("demoWorkspace.exploreRounds")}
+                  {t("fundingRounds:journey.application")}
                 </Link>
-              </>
-            )}
-          </>
-        ) : (
-          <>
-            <p role="status">{t("demoWorkspace.tasksError")}</p>
-            <Inline>
-              <Button variant="secondary" onPress={retry}>
-                {t("common:tryAgain")}
-              </Button>
-            </Inline>
-          </>
-        )}
-      </Stack>
-    </Stack>
+              )}
+              {destinations.roundRef && (
+                <Link
+                  to="/app/$workspaceSlug/rounds/$roundRef"
+                  params={{ workspaceSlug: workspace.slug, roundRef: destinations.roundRef }}
+                  search={{ section: "applications" }}
+                  onClick={close}
+                  className={`${linkStyles.text} ${linkStyles.standalone}`}
+                >
+                  {t("fundingRounds:journey.budget")}
+                </Link>
+              )}
+              {(!destinations.applicationRef || !destinations.roundRef) && (
+                <>
+                  <p>{t("demoWorkspace.missingTasks")}</p>
+                  <Link
+                    to="/app/$workspaceSlug/rounds"
+                    params={{ workspaceSlug: workspace.slug }}
+                    onClick={close}
+                    className={`${linkStyles.text} ${linkStyles.standalone}`}
+                  >
+                    {t("demoWorkspace.exploreRounds")}
+                  </Link>
+                </>
+              )}
+            </>
+          ) : (
+            <>
+              <p role="status">{t("demoWorkspace.tasksError")}</p>
+              <Inline>
+                <Button variant="secondary" onPress={retry}>
+                  {t("common:tryAgain")}
+                </Button>
+              </Inline>
+            </>
+          )}
+        </Stack>
+      </DialogSection>
+    </div>
   );
 };

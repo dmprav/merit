@@ -20,7 +20,7 @@
   --danger-hover: #852b2b;
   --on-danger: #ffffff;
   --danger-subtle: #fcecec;
-  --overlay: #20283959;
+  --overlay: color-mix(in srgb, var(--foreground) 30%, transparent);
 
   /* Shape and focus */
   --control-radius: 0.375rem;
@@ -65,6 +65,7 @@
 
   /* Motion and elevation */
   --motion-fast: 120ms;
+  --motion-medium: 160ms;
   --dialog-shadow: 0 16px 64px #20283926;
   --popover-shadow: 0 4px 12px #20283914, 0 1px 3px #20283914;
 }

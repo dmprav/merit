@@ -1,6 +1,7 @@
 import { useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Tab, TabList, TabPanel, Tabs as AriaTabs } from "react-aria-components/Tabs";
 
+import scrollStyles from "../../foundations/scroll-area.module.css";
 import { Button } from "../button/button";
 import { Icon } from "../icon/icon";
 import styles from "./tabs.module.css";
@@ -229,7 +230,7 @@ export const Tabs = <Id extends string>({
         <TabPanel
           key={item.id}
           id={item.id}
-          className={styles.panel}
+          className={`${styles.panel} ${scrollPanels ? scrollStyles.scrollArea : ""}`}
           ref={(node) => {
             if (node && scrollPanels) {
               node.scrollTop = panelScroll.current.get(item.id) ?? 0;

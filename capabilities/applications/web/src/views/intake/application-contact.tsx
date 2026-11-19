@@ -5,7 +5,7 @@ import { ContactPicker } from "@merit/contacts-web/contacts";
 import type { ApplicationView as Application } from "@merit/grantmaking/api";
 import shell from "@merit/ui/application-shell.module.css";
 import { Button } from "@merit/ui/button";
-import { PopoverDialog } from "@merit/ui/dialog";
+import { PickerPopover } from "@merit/ui/dialog";
 import { Inline } from "@merit/ui/layout";
 import { Notice } from "@merit/ui/notice";
 import { PersonIdentity } from "@merit/ui/person-identity";
@@ -171,11 +171,9 @@ const ContactChoice = ({
     : t("contactSelection.changeContact");
 
   return (
-    <PopoverDialog
+    <PickerPopover
       title={t("contactSelection.changeContact")}
-      closeLabel={t("contactSelection.close")}
       placement="bottom start"
-      appearance="compact"
       isOpen={contact.open}
       onOpenChange={contact.changeOpen}
       isDismissDisabled={contact.pending || editingContact}
@@ -206,7 +204,7 @@ const ContactChoice = ({
           <ContactFeedback {...contact} />
         </div>
       )}
-    </PopoverDialog>
+    </PickerPopover>
   );
 };
 

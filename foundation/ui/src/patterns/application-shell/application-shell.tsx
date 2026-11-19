@@ -8,13 +8,13 @@ import {
   type ReactNode,
   type MouseEvent,
 } from "react";
-import { Dialog, DialogTrigger } from "react-aria-components/Dialog";
+import { Dialog, DialogTrigger, Heading } from "react-aria-components/Dialog";
 import { Popover } from "react-aria-components/Popover";
 
 import { ActionMenu } from "../../components/action-menu/action-menu";
 import { Breadcrumbs } from "../../components/breadcrumbs/breadcrumbs";
 import { Button } from "../../components/button/button";
-import { ModalDialog } from "../../components/dialog/dialog";
+import { ModalFrame } from "../../components/dialog/modal-frame";
 import { Icon } from "../../components/icon/icon";
 import { Notice } from "../../components/notice/notice";
 import { PersonIdentity } from "../person-identity/person-identity";
@@ -53,6 +53,52 @@ const CloseNavigationContext = createContext<() => void>(() => {});
  * click the drawer would otherwise hear.
  */
 export const useCloseNavigation = () => useContext(CloseNavigationContext);
+
+const NavigationDrawer = ({
+  label,
+  openLabel,
+  closeLabel,
+  isOpen,
+  onOpenChange,
+  children,
+}: {
+  label: string;
+  openLabel: string;
+  closeLabel: string;
+  isOpen: boolean;
+  onOpenChange: (isOpen: boolean) => void;
+  children: ReactNode;
+}) => (
+  <ModalFrame
+    classNames={{
+      overlay: styles.drawerOverlay,
+      modal: styles.drawer,
+      dialog: styles.drawerDialog,
+    }}
+    isDismissable
+    isOpen={isOpen}
+    onOpenChange={onOpenChange}
+    trigger={
+      <Button variant="quiet" iconOnly aria-label={openLabel}>
+        <Icon name="menu" />
+      </Button>
+    }
+  >
+    {(close) => (
+      <>
+        <div className={styles.drawerHeader}>
+          <Heading slot="title" className={styles.drawerTitle}>
+            {label}
+          </Heading>
+          <Button variant="quiet" iconOnly aria-label={closeLabel} onPress={close}>
+            <Icon name="close" />
+          </Button>
+        </div>
+        {children}
+      </>
+    )}
+  </ModalFrame>
+);
 
 /** Apps supply destinations and identity; the shell owns desktop and mobile navigation. */
 export const ApplicationShell = ({
@@ -120,18 +166,12 @@ export const ApplicationShell = ({
       </a>
       <header className={styles.mobileHeader}>
         {compact && (
-          <ModalDialog
-            title={navigationLabel}
+          <NavigationDrawer
+            label={navigationLabel}
+            openLabel={openNavigationLabel}
             closeLabel={closeNavigationLabel}
-            placement="start"
-            isDismissable
             isOpen={open}
             onOpenChange={setOpen}
-            trigger={
-              <Button variant="quiet" iconOnly aria-label={openNavigationLabel}>
-                <Icon name="menu" />
-              </Button>
-            }
           >
             {/* Clicks bubble from real links, including keyboard activation; this wrapper is not a control. */}
             {/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
@@ -140,7 +180,7 @@ export const ApplicationShell = ({
                 {navigationContent}
               </CloseNavigationContext>
             </div>
-          </ModalDialog>
+          </NavigationDrawer>
         )}
         <span className={styles.mobileContext}>{contextLabel}</span>
         {compact && utility}

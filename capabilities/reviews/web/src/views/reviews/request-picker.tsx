@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { ContactPicker } from "@merit/contacts-web/contacts";
 import { isEligibleReviewer } from "@merit/reviews/domain";
 import { Button } from "@merit/ui/button";
-import { PopoverDialog } from "@merit/ui/dialog";
+import { PickerPopover } from "@merit/ui/dialog";
 import { Notice } from "@merit/ui/notice";
 
 import type { ReviewRequest } from "../../contracts/reviews";
@@ -38,11 +38,9 @@ export const RequestPicker = ({
   });
 
   return (
-    <PopoverDialog
+    <PickerPopover
       title={t(replacing ? "replace" : "request")}
-      closeLabel={t("close")}
       placement="bottom end"
-      appearance="compact"
       trigger={trigger}
       isOpen={open}
       isDismissDisabled={pending || editingContact}
@@ -84,6 +82,6 @@ export const RequestPicker = ({
           )}
         </div>
       )}
-    </PopoverDialog>
+    </PickerPopover>
   );
 };

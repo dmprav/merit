@@ -110,7 +110,7 @@ export const History: Story = {
     await expect(dialog.getByText("leah@example.test")).toBeVisible();
     await expect(dialog.getByText("Removed")).toBeVisible();
     await expect(dialog.getByText("Name")).not.toBeVisible();
-    await userEvent.click(dialog.getByRole("button", { name: "Close" }));
+    await userEvent.click(dialog.getByRole("button", { name: "Close dialog" }));
     await waitFor(() => expect(trigger).toHaveFocus());
     await userEvent.click(trigger);
     await userEvent.click(body.getByRole("menuitem", { name: "Contact history" }));
@@ -250,7 +250,7 @@ export const ManyApplications: Story = {
     );
     await userEvent.click(dialog.getByRole("button", { name: "Load more applications" }));
     await waitFor(() => expect(dialog.getAllByRole("link")).toHaveLength(30));
-    await userEvent.click(dialog.getByRole("button", { name: "Close" }));
+    await userEvent.click(dialog.getByRole("button", { name: "Close dialog" }));
     const trigger = canvas.getByRole("button", { name: "30 applications" });
     await waitFor(() => expect(trigger).toHaveFocus());
     await userEvent.click(trigger);

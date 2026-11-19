@@ -315,7 +315,6 @@ const InvitationConfirmations = ({ work }: { work: OrganizationController["invit
       <ConfirmationDialog
         title={t("revoke")}
         description={t("confirmRevoke", { email: work.record?.email ?? "" })}
-        closeLabel={t("cancel")}
         cancelLabel={t("cancel")}
         confirmLabel={t("revokeConfirm")}
         pendingLabel={t("revoking")}
@@ -332,7 +331,6 @@ const InvitationConfirmations = ({ work }: { work: OrganizationController["invit
           previous: work.record?.email ?? "",
           next: work.replacement ?? "",
         })}
-        closeLabel={t("cancel")}
         cancelLabel={t("cancel")}
         confirmLabel={t("replaceConfirm")}
         pendingLabel={t("sending")}

@@ -21,7 +21,7 @@ for (const story of [
   { id: "patterns-state-message--long-content", ready: "h1" },
   { id: "patterns-person-identity--reviewer", ready: "h3" },
   { id: "components-select--open", ready: '[role="listbox"]' },
-  { id: "components-dialog--close-button-focused", ready: '[role="dialog"]' },
+  { id: "components-dialog--centered-with-actions", ready: '[role="dialog"]' },
   {
     id: "features-applications-recommendation--budget-preview",
     ready: '[aria-label="Budget preview"]',

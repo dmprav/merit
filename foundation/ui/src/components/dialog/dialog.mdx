@@ -6,96 +6,119 @@ import * as Dialog from "./dialog.stories";
 # Frame a focused task
 
 Use a dialog for a bounded task or reference material that should preserve the
-surrounding work. Choose the composition by what the person needs to do:
+surrounding work. Each frame is designed for one kind of task and has no visual
+options: choose the frame by what the person needs to do.
 
-| Task                                          | Composition                                                                                    |
+| Task                                          | Frame                                                                                          |
 | --------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| Read short information                        | `ModalDialog` with `DialogContent`.                                                            |
-| Read substantial evidence during another task | The reference pane in a [reference workspace](?path=/docs/patterns-reference-workspace--docs). |
-| Browse records related to a row               | `ModalDialog` with `placement="end"` and `DialogContent`.                                      |
-| Complete a short form                         | [Form dialog](?path=/docs/patterns-form-dialog--docs), sized for the task.                     |
-| Write while consulting evidence               | A `Form` in the reference workspace's work pane.                                               |
+| Read short information or a submitted record  | `ModalDialog` with `DialogContent`.                                                            |
+| Complete a short form                         | [Form dialog](?path=/docs/patterns-form-dialog--docs).                                         |
 | Authorize a consequential action              | [Confirmation dialog](?path=/docs/patterns-confirmation-dialog--docs).                         |
-| Jump to a record by name                      | `ModalDialog` with `appearance="search"`.                                                      |
-| Work beside an individual value               | `PopoverDialog`, with content and actions appropriate to that small task.                      |
+| Browse records related to a row               | `SidePanel` with `DialogContent`.                                                              |
+| Work beside an individual value               | `PopoverDialog`.                                                                               |
+| Choose a value or filter a list               | `PickerPopover`.                                                                               |
+| Jump to a record by name                      | `SearchPaletteDialog` from the [search palette](?path=/docs/patterns-search-palette--docs).    |
+| Read substantial evidence during another task | The reference pane in a [reference workspace](?path=/docs/patterns-reference-workspace--docs). |
+| Write while consulting evidence               | A `Form` in the reference workspace's work pane.                                               |
 
-The shared frame owns the backdrop, focus containment, accessible title, close
-control, and motion. Centered dialogs and standard popovers have a compact tinted
-header. Navigation drawers retain their edge placement and navigation layout.
+## Keep one look for each kind of task
 
-For a collection opened from a row, use `placement="end"`. The drawer fills the
-viewport height at the right edge, keeping its heading and close control above
-the independently scrolling `DialogContent`. At widths up to 600px it fills the
-screen. Keep related records as native links inside the body so each destination
-can also open in another tab.
+**A frame's appearance follows from its task, not from caller options.** People
+learn what a centered dialog, a side panel, or a picker means once and recognize
+it everywhere. A new need first looks for the frame whose task it shares; a
+genuinely new task gets a new frame rather than an option on an existing one.
 
-<Canvas of={Dialog.EndDrawer} />
+Modal frames share their behavior: the backdrop, focus containment, accessible
+title, close control, dismissal, and motion. Each frame owns its surface and layout.
+The application shell's navigation drawer and the search palette build on the same
+behavior and keep their layouts with those patterns.
+
+## Center a bounded task
+
+`ModalDialog` sits near the top of the page at one width, with a tinted header and
+the shared `DialogContent` layout. Forms, confirmations, and reference reading all use
+this frame, so the dialog does not shift position or size between tasks. Confirmations
+use a narrower version of the frame suited to a short decision. On viewports up to
+600px wide the dialog centers within small margins.
+
+<Canvas of={Dialog.CenteredWithActions} />
+
+For sustained reading, set `reading` on the content. Reading typography and line
+length belong to that content; compact metadata and comparisons can retain their
+own typography.
+
+<Canvas of={Dialog.CenteredReading} />
+
+## Browse related records beside a row
+
+`SidePanel` fills the viewport height at the end edge, keeping its heading and close
+control above the independently scrolling `DialogContent`. At widths up to 600px it
+fills the screen. Keep related records as native links inside the body so each
+destination can also open in another tab.
+
+<Canvas of={Dialog.SidePanel} />
 
 ## Work beside a value
 
 `PopoverDialog` keeps a compact heading and close control visible above a
-keyboard-scrollable body. Pass content directly: the standard appearance supplies
-its own `DialogContent`. Group related information with spacing. Pass utility
-content through `footer` to group it in a tinted area below the body. When a
-footer is present, it scrolls with the content so utilities cannot squeeze out
-the reading area. The heading stays visible. Long titles wrap beside the close
-control.
+keyboard-scrollable body. Pass content directly: it supplies its own `DialogContent`.
+Group related information with spacing. Pass utility content through `footer` to
+group it in a tinted area below the body. When a footer is present, it scrolls with
+the content so utilities cannot squeeze out the reading area. The heading stays
+visible. Long titles wrap beside the close control.
 
-The compact appearance lets pickers and small filter panels place the supplied
-`closeButton` beside their own first row. Its title remains an accessible name
-without a decorative header or footer. Compact panels contain focus and dismiss
-on outside press at every width.
+`PickerPopover` lets pickers and small filter panels place the supplied `closeButton`
+beside their own first row. Its title remains an accessible name without a decorative
+header or footer. Pickers contain focus and dismiss on outside press at every width.
 
 <Canvas of={Dialog.Popover} />
 
-<Canvas of={Dialog.FloatingLongContent} />
+<Canvas of={Dialog.PopoverLongContent} />
 
-## Search and jump
-
-`appearance="search"` frames a search box. It sits near the top of the page with no
-visible title bar: `title` names the dialog for assistive technology, and a small
-close control floats over the end of the first row. Content owns the field and the
-results. Give the first row a minimum height of `--search-field-height`, which also
-centers the close control, and reserve `--search-close-reserve` at its end so the
-control never covers typed text. Outside presses dismiss it unless `isDismissable`
-is false. Opened without a trigger, focus returns to where it was when the box
-closes. On viewports up to 600px wide the box fills the screen.
-
-The [search palette](?path=/docs/patterns-search-palette--docs) is the content for
-searching and navigating: a field above mixed link and action rows, with optional
-grouping, loading feedback, and keyboard help.
-
-<Canvas of={Dialog.Search} />
+<Canvas of={Dialog.Picker} />
 
 ## Keep content and actions reachable
 
-`DialogContent` owns the scrollable body and optional persistent footer. Use its
-`label` to name the keyboard-focusable region, put reference material in its
-children, pass outcome feedback through `feedback`, and actions through `footer`.
-The feedback area remains visible above the footer and shares the body's gutters;
-its height participates in the whole-dialog scrolling fallback. It supplies padding,
-scrollbar and focus treatment, and the footer separator. The content can grow to
-the available height while the header and actions stay visible.
-When enlarged text or long translations leave too little space for the body,
-the centered dialog or end drawer scrolls as one surface instead. The heading, fields, feedback,
-and actions remain reachable without squeezing the work into a single line.
-Focusing a field or action inside the content reveals the whole control with
-space around it in every engine, so its border never sits under a scrolling edge.
+`DialogContent` owns the scrollable body and optional persistent footer. Put
+reference material in its children, pass outcome feedback through `feedback`, and
+actions through `footer`. Its keyboard-focusable region takes the dialog's title as
+its name; pass `label` only when the body needs a different one. The feedback area
+remains visible above the footer and shares the body's gutters; its height
+participates in the whole-dialog scrolling fallback. Inside `ModalDialog` and
+`SidePanel` it supplies the gutters, scrollbar and focus treatment, and a tinted
+footer. The content can grow to the available height while the header and actions
+stay visible.
 
-<Canvas of={Dialog.WithActions} />
+Scrolling stays quiet at rest. The header gains its divider once content passes
+under it, and the footer's divider shows only while more content continues below.
+Browsers without scroll-driven animation keep both dividers. Every scrolling region
+inside a surface uses the same slim scrollbar at the frame's edge.
 
-For sustained reading, use `size="wide"` on the frame and `reading` on its content.
-Reading typography and line length belong to that content; compact metadata and
-comparisons can retain their own typography. Features arrange their information
-inside the body without implementing another scroll container or footer.
-
-<Canvas of={Dialog.LongContent} />
+When enlarged text or long translations leave too little space for the body, the
+centered dialog or side panel scrolls as one surface instead. The heading, fields,
+feedback, and actions remain reachable without squeezing the work into a single line.
+Focusing a field or action inside the content reveals the whole control with space
+around it in every engine, so its border never sits under a scrolling edge.
 
 The same layout also works inside a form. `Form` in `@merit/forms` consumes it
 inside `FormDialog`, preserving one native form around its fields and submit
 controls. The form pattern owns validation and submission; the dialog layout
-owns presentation. Form dialogs share their desktop position, responsive gutters,
-and tinted footer through this layout, with width chosen for the task.
+owns presentation. Features arrange their information inside the body without
+implementing another scroll container or footer.
+
+## Organize the content
+
+**Let the frame set the type and give each part one role.** Dialogs render outside
+the application shell, so every frame sets the body text size; content inherits it
+rather than choosing its own. The title in the header is the only heading at the
+frame's level. Group content with `DialogSection`: its heading matches the size of the
+text it introduces, takes the shared heading weight, and sections share one spacing.
+Use `reading` on `DialogContent` for sustained prose, muted text for supporting
+detail, and the caption size only for metadata such as context or timestamps.
+
+A state that replaces the whole body, such as `EditorLoading` while an editor recovers
+its draft, sits centered in a stable space and appears after a short delay, so quick
+recoveries do not flash.
 
 ## Preserve context and dismissal meaning
 
@@ -105,18 +128,20 @@ and context share a compact row where space permits. Long context wraps in readi
 order on every screen, while the close control stays reachable.
 Omit context when it adds no useful orientation.
 
-Supply `closeLabel` from the message catalog. The close control and Escape use
-the same dismissal path. Enable backdrop dismissal only when it fits the task.
-Use `isDismissDisabled` while an operation must remain visible; it guards the
+The close control is labelled “Close dialog” from the shared message catalog; pass
+`closeLabel` only when a frame needs a more specific name. The close control and
+Escape use the same dismissal path. Enable backdrop dismissal only when it fits the
+task. Use `isDismissDisabled` while an operation must remain visible; it guards the
 header close control, Escape, and outside dismissal together.
 
 Features own what closing means for their draft and what success commits. Follow
 the [editing pattern](?path=/docs/patterns-editing--docs) for Close, Discard, and
-Resume behavior. Centered modal dialogs fade in place;
-drawers slide from their edge, and popover dialogs use a smaller,
-quicker entrance. Closing starts gently and accelerates out. Focus and input remain
-available during entrance, and reduced-motion preferences skip the transitions.
+Resume behavior. Centered dialogs fade in place; side panels slide from their edge,
+and popovers use a smaller, quicker entrance. Closing starts gently and accelerates
+out. Focus and input remain available during entrance, and reduced-motion
+preferences skip the transitions.
 
 The dialog retains its last open content until the exit finishes, so callers can
 clear their drafts on dismissal without collapsing the visible form. Focus returns
-to the trigger when it remains available.
+to the trigger when it remains available. Omit `trigger` for a dialog the feature
+opens itself; focus then returns to where it was when the dialog opened.

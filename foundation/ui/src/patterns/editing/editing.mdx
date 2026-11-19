@@ -57,9 +57,8 @@ commitment. The feature owns saving, conflicts, and revision-checked undo.
 <Canvas of={Editing.DateChoiceEditor} />
 
 Use `ChoiceList` for a searchable property picker. Its selection commits through
-the owning workflow. Present these small pickers in `PopoverDialog` with
-`appearance="compact"`; the dialog retains an accessible name without repeating
-the field label in a separate heading. `DateChoice` supplies its own Cancel
+the owning workflow. Present these small pickers in `PickerPopover`; the dialog
+retains an accessible name without repeating the field label in a separate heading. `DateChoice` supplies its own Cancel
 control. Pass the dialog's `closeButton` to `ChoiceList.headerActions` to keep
 search and dismissal together.
 
@@ -77,14 +76,13 @@ For a bounded editing task, wrap the feature's `Form` in `FormDialog` from `@mer
 It supplies a context header, scrollable fields, a tinted footer with persistent
 actions, and Cmd/Ctrl+Enter submission together. The form can remain inside a
 feature component; it inherits these conventions without repeating presentation
-props. The [form dialog examples](?path=/docs/patterns-form-dialog--docs) show compact
-and wide forms, context wrapping, validation, and pending and failed saves.
+props. The [form dialog examples](?path=/docs/patterns-form-dialog--docs) show context
+wrapping, long content, validation, and pending and failed saves.
 `Form` uses the shared `DialogContent` layout for its bounded body and footer;
 feature styles arrange fields within that body. Nested editors retain their own
 form presentation and submit independently.
-The default width fits short forms, such as requesting a review. Choose
-`size="wide"` for a bounded form whose fields need more room. Sustained writing,
-such as recording an assessment, belongs beside its reference material in the
+Every form dialog shares one width, which leaves room for longer fields and
+side-by-side values. Sustained writing, such as recording an assessment, belongs beside its reference material in the
 workspace. Short property forms replace the values they edit in place; do not
 repeat saved values beside them except when resolving conflicting changes.
 The container does not change Close semantics.

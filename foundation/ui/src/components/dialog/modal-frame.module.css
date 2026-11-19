@@ -1,0 +1,14 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  /* Navigation drawers sit below menus they open; other frames stay above both. */
+  z-index: var(--modal-layer, 50);
+  overflow-y: auto;
+  background: var(--overlay);
+}
+
+/* Frames render outside the application shell, so they set the body text size themselves. */
+.dialog {
+  font-size: var(--text-body);
+  outline: none;
+}

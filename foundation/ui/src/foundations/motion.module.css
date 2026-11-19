@@ -1,0 +1,34 @@
+/*
+ * Shared overlay entrances and exits, driven by React Aria's `data-entering` and
+ * `data-exiting`. Set `--motion-duration` for a quicker surface; reduced-motion
+ * preferences skip both.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .fadeIn[data-entering]:not([data-exiting]) {
+    animation: fade-in var(--motion-duration, var(--motion-medium)) ease-out;
+  }
+
+  .fadeOut[data-exiting] {
+    animation: fade-out var(--motion-duration, var(--motion-medium)) ease-in forwards;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fade-out {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
+}

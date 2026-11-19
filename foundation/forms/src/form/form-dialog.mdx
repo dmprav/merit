@@ -12,16 +12,14 @@ submission follows the same validation as the visible button.
 
 ## Choose the space for the task
 
-All form dialogs share a stable desktop position, context header, backdrop,
-responsive spacing, and tinted footer. The default width fits shorter forms,
-such as inviting a member or entering contact details. Use `size="wide"` when
-a bounded form needs more room. Sustained assessment or recommendation writing
-belongs in the [reference workspace](?path=/docs/patterns-reference-workspace--docs)
-work pane, keeping its source material available. Size changes the available width within the same
-[content layout](?path=/docs/components-dialog--docs).
+Every form dialog uses the centered [dialog](?path=/docs/components-dialog--docs):
+one width, a stable position near the top of the page, a context header, and a
+tinted footer. Callers do not choose a size, so short and long forms look like the
+same kind of task. Sustained assessment or recommendation writing belongs in the
+[reference workspace](?path=/docs/patterns-reference-workspace--docs) work pane,
+keeping its source material available.
 
-<Canvas of={FormDialogs.Compact} />
-<Canvas of={FormDialogs.Wide} />
+<Canvas of={FormDialogs.Default} />
 
 Supply the parent context when it helps someone identify the record they are
 working within. Long names wrap without hiding the close control.

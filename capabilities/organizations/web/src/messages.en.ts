@@ -17,7 +17,6 @@ export const en = {
   originalOrder: "Original order",
   ascending: "Ascending",
   descending: "Descending",
-  close: "Close dialog",
   removing: "Removing member…",
   removalFailed: "Removal couldn’t be completed. Review the details and try again.",
   revocationFailed: "Revocation couldn’t be completed. Review the invitation and try again.",

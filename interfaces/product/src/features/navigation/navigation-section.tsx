@@ -494,7 +494,6 @@ export const NavigationSection = (props: NavigationSectionProps) => {
       {pins.length > PIN_PREVIEW_LIMIT && (
         <PopoverDialog
           title={t(`pins.pinned_${kind}`)}
-          closeLabel={t("pins.close")}
           placement="right top"
           isOpen={open}
           onOpenChange={setOpen}

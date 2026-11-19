@@ -345,11 +345,71 @@ button.accountTrigger,
   display: none;
 }
 
+.drawerOverlay {
+  /* Menus opened from the drawer sit above it; confirmation dialogs stay above both. */
+  --modal-layer: 35;
+  display: flex;
+  align-items: stretch;
+  justify-content: flex-start;
+}
+
+.drawer {
+  width: min(20rem, calc(100vw - 3rem));
+  max-height: 100dvh;
+  overflow-y: auto;
+  border-inline-end: 1px solid var(--border);
+  background: var(--surface-muted);
+  box-shadow: var(--dialog-shadow);
+}
+
+.drawerDialog {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  padding: var(--space-4);
+}
+
+.drawerHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.drawerTitle {
+  min-width: 0;
+  font-size: var(--text-detail);
+  line-height: 1.4;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+}
+
 .drawerContent {
   display: flex;
   flex: 1;
   flex-direction: column;
   gap: var(--space-6);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .drawer[data-entering]:not([data-exiting]) {
+    animation: drawer-in var(--motion-medium) ease-out;
+  }
+
+  .drawer[data-exiting] {
+    animation: drawer-in var(--motion-medium) ease-out reverse forwards;
+  }
+}
+
+@keyframes drawer-in {
+  from {
+    transform: translateX(-100%);
+  }
+
+  to {
+    transform: translateX(0);
+  }
 }
 
 .stage {

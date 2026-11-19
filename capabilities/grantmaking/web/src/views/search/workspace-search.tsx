@@ -11,12 +11,15 @@ import {
 import { useFormat } from "@merit/i18n/format";
 import { Badge } from "@merit/ui/badge";
 import { Button } from "@merit/ui/button";
-import { ModalDialog } from "@merit/ui/dialog";
+import { Icon } from "@merit/ui/icon";
+import { Notice } from "@merit/ui/notice";
 import {
   SearchPalette,
+  SearchPaletteDialog,
   type SearchPaletteItem,
   type SearchPaletteLinkProps,
 } from "@merit/ui/search-palette";
+import { StateMessage } from "@merit/ui/state-message";
 
 import type { WorkspaceSearchData } from "../../contracts/search";
 import { useWorkspaceSearch } from "../../controllers/search/use-workspace-search";
@@ -63,10 +66,8 @@ export const WorkspaceSearchDialog = ({
   const { t } = useTranslation("fundingRounds");
 
   return (
-    <ModalDialog
-      appearance="search"
+    <SearchPaletteDialog
       title={t("search.title")}
-      closeLabel={t("search.close")}
       trigger={null}
       isOpen={isOpen}
       onOpenChange={onOpenChange}
@@ -80,7 +81,7 @@ export const WorkspaceSearchDialog = ({
           focusRequest={focusRequest}
         />
       )}
-    </ModalDialog>
+    </SearchPaletteDialog>
   );
 };
 
@@ -121,14 +122,22 @@ const SearchSession = ({
           search.retry();
         }}
       >
+        <Icon name="reset" />
         {t("search.retry")}
       </Button>
     ) : undefined;
-  const feedback = searchFeedback(search, t, retry);
-  const message =
-    !items.length && search.status === "results"
-      ? t("search.noMatches", { query: search.query })
-      : undefined;
+  const outcome = items.length ? undefined : emptyOutcome(search);
+  const feedback = outcome?.status === "failed" ? undefined : searchFeedback(search, t, retry);
+  const message = outcome && (
+    <SearchMessage
+      search={outcome}
+      retry={retry}
+      onClear={() => {
+        search.onChange("");
+        input.current?.focus();
+      }}
+    />
+  );
   const announcement = searchAnnouncement(search, local.length, t);
 
   return (
@@ -159,6 +168,51 @@ const SearchSession = ({
   );
 };
 
+type SearchOutcome = Extract<
+  ReturnType<typeof useWorkspaceSearch>,
+  { status: "failed" | "results" }
+>;
+
+/** A finished search that left the result list empty needs a message in its place. */
+const emptyOutcome = (search: ReturnType<typeof useWorkspaceSearch>): SearchOutcome | undefined =>
+  search.status === "failed" || search.status === "results" ? search : undefined;
+
+/** The message that replaces an empty result list after a search fails or finds nothing. */
+const SearchMessage = ({
+  search,
+  retry,
+  onClear,
+}: {
+  search: SearchOutcome;
+  retry: ReactNode;
+  onClear: () => void;
+}) => {
+  const { t } = useTranslation("fundingRounds");
+
+  return search.status === "failed" ? (
+    <StateMessage
+      size="compact"
+      tone="danger"
+      illustration={<Icon name="warning" />}
+      title={t("search.unavailable")}
+      description={t("search.unavailableHint")}
+      actions={retry}
+    />
+  ) : (
+    <StateMessage
+      size="compact"
+      illustration={<Icon name="search" />}
+      title={t("search.noMatches", { query: search.query })}
+      description={t("search.noMatchesHint")}
+      actions={
+        <Button variant="secondary" size="small" onPress={onClear}>
+          {t("search.clear")}
+        </Button>
+      }
+    />
+  );
+};
+
 const searchFeedback = (
   search: ReturnType<typeof useWorkspaceSearch>,
   t: Translate,
@@ -166,9 +220,9 @@ const searchFeedback = (
 ) => {
   if (search.status === "failed") {
     return (
-      <>
-        <span>{t("search.unavailable")}</span> {retry}
-      </>
+      <Notice appearance="inline" tone="danger" actions={retry}>
+        {t("search.unavailable")}
+      </Notice>
     );
   }
   if (search.status !== "results") {

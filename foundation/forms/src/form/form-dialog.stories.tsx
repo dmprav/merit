@@ -15,14 +15,12 @@ import { Form, FormActions, FormDialog } from "./form";
 import { useForm } from "./use-form";
 
 const FormDialogExample = ({
-  size = "wide",
   context,
   long = false,
   withPopups = false,
   outcome = "success",
   preparing = false,
 }: {
-  size?: "default" | "wide";
   context?: string;
   long?: boolean;
   withPopups?: boolean;
@@ -58,10 +56,8 @@ const FormDialogExample = ({
       {saved && <p role="status">Saved.</p>}
       <FormDialog
         title="Write a note"
-        closeLabel="Close editor"
         context={context}
         contextLabel={context ? "Round" : undefined}
-        size={size}
         isOpen={open}
         onOpenChange={setOpen}
         isDismissDisabled={submission.isSubmitting}
@@ -137,9 +133,7 @@ export default meta;
 
 type Story = StoryObj<typeof meta>;
 
-export const Wide: Story = {};
-export const Compact: Story = { args: { size: "default" } };
-export const PreparingEditor: Story = { args: { context: "Community grants", preparing: true } };
+export const Default: Story = {};
 export const WithContext: Story = { args: { context: "Community grants" } };
 export const LongContext: Story = {
   args: {
@@ -158,6 +152,7 @@ export const RequiredTitle: Story = {
     );
   },
 };
+export const PreparingEditor: Story = { args: { context: "Community grants", preparing: true } };
 export const Pending: Story = {
   args: { outcome: "pending" },
   play: async ({ canvasElement, userEvent }) => {
@@ -166,7 +161,7 @@ export const Pending: Story = {
     await userEvent.click(dialog.getByRole("button", { name: "Save note" }));
     await userEvent.keyboard("{Escape}");
     await expect(dialog.getByRole("button", { name: "Saving…" })).toBeDisabled();
-    await expect(dialog.getByRole("button", { name: "Close editor" })).toBeDisabled();
+    await expect(dialog.getByRole("button", { name: "Close dialog" })).toBeDisabled();
     await expect(dialog.getByRole("button", { name: /^Close$/ })).toBeDisabled();
   },
 };

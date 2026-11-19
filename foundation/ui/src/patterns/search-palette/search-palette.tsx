@@ -2,8 +2,12 @@ import type { ComponentProps, ReactElement, ReactNode, Ref, KeyboardEvent } from
 import { Autocomplete } from "react-aria-components/Autocomplete";
 import { Header, ListBox, ListBoxItem, ListBoxSection } from "react-aria-components/ListBox";
 import { Input, SearchField } from "react-aria-components/SearchField";
+import { useTranslation } from "react-i18next";
 
+import { Button } from "../../components/button/button";
+import { ModalFrame, type ModalFrameProps } from "../../components/dialog/modal-frame";
 import { Icon } from "../../components/icon/icon";
+import scrollStyles from "../../foundations/scroll-area.module.css";
 import { StatusMessage } from "../status-message/status-message";
 import styles from "./search-palette.module.css";
 
@@ -52,7 +56,7 @@ type SearchPaletteProps = {
   groups: readonly SearchPaletteGroup[];
   /** Results are being replaced; previous rows stay visible but disabled unless current. */
   busy?: boolean;
-  /** Guidance, an empty result, or a failure; shown instead of the results. */
+  /** Guidance, an empty result, or a failure shown instead of the results, such as a compact `StateMessage`. */
   message?: ReactNode;
   /** Recovery or truncation feedback alongside usable results. */
   feedback?: ReactNode;
@@ -151,7 +155,7 @@ const SearchResults = ({
       }
       aria-label={label}
       selectionMode="none"
-      className={styles.list}
+      className={`${styles.list} ${scrollStyles.scrollArea}`}
     >
       {groups.flatMap((group) =>
         group.heading !== undefined
@@ -236,22 +240,72 @@ export const SearchPalette = ({
 const PaletteFooter = ({
   feedback,
   keyboardHelp,
-}: Pick<SearchPaletteProps, "feedback" | "keyboardHelp">) => (
-  <>
-    {feedback && <div className={styles.feedback}>{feedback}</div>}
-    {keyboardHelp && (
-      <div className={styles.footer}>
-        <span>
-          <kbd>↑</kbd>
-          <kbd>↓</kbd> {keyboardHelp.navigate}
-        </span>
-        <span>
-          <kbd>Enter</kbd> {keyboardHelp.open}
-        </span>
-        <span>
-          <kbd>Esc</kbd> {keyboardHelp.close}
-        </span>
-      </div>
-    )}
-  </>
-);
+}: Pick<SearchPaletteProps, "feedback" | "keyboardHelp">) =>
+  (feedback || keyboardHelp) && (
+    <div className={`${styles.footer} ${scrollStyles.dividerUntilEnd}`}>
+      {feedback && <div className={styles.feedback}>{feedback}</div>}
+      {keyboardHelp && (
+        <div className={styles.hints}>
+          <span>
+            <kbd>↑</kbd>
+            <kbd>↓</kbd> {keyboardHelp.navigate}
+          </span>
+          <span>
+            <kbd>Enter</kbd> {keyboardHelp.open}
+          </span>
+          <span>
+            <kbd>Esc</kbd> {keyboardHelp.close}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+
+/**
+ * A search box near the top of the page with no visible title bar. `title` names the
+ * dialog for assistive technology, and a small close control floats over the end of the
+ * first row. Outside presses dismiss it unless `isDismissable` is false. On viewports up
+ * to 600px wide the box fills the screen.
+ */
+export const SearchPaletteDialog = ({
+  title,
+  closeLabel,
+  isDismissable = true,
+  isDismissDisabled,
+  children,
+  ...props
+}: ModalFrameProps & {
+  title: string;
+  /** Defaults to the shared “Close dialog” message. */
+  closeLabel?: string;
+  children: ReactNode | ((props: { close: () => void }) => ReactNode);
+}) => {
+  const { t } = useTranslation("common");
+
+  return (
+    <ModalFrame
+      {...props}
+      isDismissable={isDismissable}
+      isDismissDisabled={isDismissDisabled}
+      aria-label={title}
+      classNames={{ overlay: styles.overlay, modal: styles.modal, dialog: styles.dialog }}
+    >
+      {(close) => (
+        <>
+          <Button
+            variant="quiet"
+            size="small"
+            iconOnly
+            aria-label={closeLabel ?? t("closeDialog")}
+            isDisabled={isDismissDisabled}
+            onPress={close}
+            className={styles.close}
+          >
+            <Icon name="close" />
+          </Button>
+          {typeof children === "function" ? children({ close }) : children}
+        </>
+      )}
+    </ModalFrame>
+  );
+};

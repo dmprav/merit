@@ -11,11 +11,9 @@ import { ModalDialog } from "@merit/ui/dialog";
 import { Form, FormActions, FormDialog, FormSelect, FormTextField, useForm } from "../index";
 
 const Example = ({
-  size = "wide",
   save,
   children,
 }: {
-  size?: "default" | "wide";
   save: (values: { title: string }) => Promise<string | null>;
   children?: ReactNode;
 }) => {
@@ -29,7 +27,6 @@ const Example = ({
     <FormDialog
       title="Write a review"
       closeLabel="Close editor"
-      size={size}
       trigger={<Button>Write</Button>}
       isDismissDisabled={submission.isSubmitting}
     >
@@ -55,28 +52,25 @@ const Example = ({
   );
 };
 
-it.each(["default", "wide"] as const)(
-  "validates and submits a %s dialog from the keyboard without form layout configuration",
-  async (size) => {
-    const user = userEvent.setup();
-    const save = vi.fn(async () => null);
-    render(<Example size={size} save={save} />);
-    await user.click(screen.getByRole("button", { name: "Write" }));
-    const title = screen.getByRole("textbox", { name: "Title" });
-    await user.click(title);
-    await user.keyboard("{Control>}{Enter}{/Control}");
+it("validates and submits from the keyboard without form layout configuration", async () => {
+  const user = userEvent.setup();
+  const save = vi.fn(async () => null);
+  render(<Example save={save} />);
+  await user.click(screen.getByRole("button", { name: "Write" }));
+  const title = screen.getByRole("textbox", { name: "Title" });
+  await user.click(title);
+  await user.keyboard("{Control>}{Enter}{/Control}");
 
-    await waitFor(() => expect(title).toHaveFocus());
-    expect(title).toHaveAccessibleDescription("Enter a title.");
-    expect(save).not.toHaveBeenCalled();
-    expect(screen.getByRole("group", { name: "Review" })).toHaveAttribute("tabindex", "0");
+  await waitFor(() => expect(title).toHaveFocus());
+  expect(title).toHaveAccessibleDescription("Enter a title.");
+  expect(save).not.toHaveBeenCalled();
+  expect(screen.getByRole("group", { name: "Review" })).toHaveAttribute("tabindex", "0");
 
-    await user.type(title, "Useful evidence");
-    await user.keyboard("{Meta>}{Enter}{/Meta}");
+  await user.type(title, "Useful evidence");
+  await user.keyboard("{Meta>}{Enter}{/Meta}");
 
-    await waitFor(() => expect(save).toHaveBeenCalledExactlyOnceWith({ title: "Useful evidence" }));
-  },
-);
+  await waitFor(() => expect(save).toHaveBeenCalledExactlyOnceWith({ title: "Useful evidence" }));
+});
 
 it("keeps a pending dialog open and preserves the draft and recovery after failure", async () => {
   const user = userEvent.setup();
@@ -139,10 +133,8 @@ it("keeps a portaled child form's layout and submission separate from its parent
   await user.type(screen.getByRole("textbox", { name: "Title" }), "Ready to save");
   await user.click(screen.getByRole("button", { name: "Edit contact" }));
 
-  expect(screen.getByRole("form", { name: "Contact" })).toHaveAttribute(
-    "data-appearance",
-    "default",
-  );
+  // The nested form keeps its own layout rather than the parent dialog's scrolling group.
+  expect(screen.getByRole("form", { name: "Contact" })).toBeVisible();
   expect(screen.queryByRole("group", { name: "Contact" })).not.toBeInTheDocument();
 
   await user.click(screen.getByRole("textbox", { name: "Name" }));

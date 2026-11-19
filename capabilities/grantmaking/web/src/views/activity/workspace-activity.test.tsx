@@ -148,7 +148,7 @@ it("discloses the full recorded reason and restores focus on close", async () =>
   expect(details.getByText(/The applicant found other funding/).textContent).toBe(reason);
   expect(details.getByText(actor)).toBeVisible();
   expect(details.getByText("via Merit web")).toBeVisible();
-  await user.click(details.getByRole("button", { name: "Close event details" }));
+  await user.click(details.getByRole("button", { name: "Close dialog" }));
   await waitFor(() => expect(trigger).toHaveFocus());
   await user.click(screen.getByRole("button", { name: /Application reinstated:/ }));
   details = within(screen.getByRole("dialog", { name: "Application reinstated" }));
