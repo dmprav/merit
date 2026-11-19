@@ -175,6 +175,34 @@ describe("search palette", () => {
     );
   });
 
+  it("completes a press on the same action when pending results settle", async () => {
+    const onAction = vi.fn();
+    const user = userEvent.setup();
+    const actions = [
+      {
+        id: "commands",
+        items: [
+          {
+            id: "create",
+            textValue: "Create round",
+            title: "Create round",
+            availableWhileBusy: true,
+            onAction,
+          },
+        ],
+      },
+    ];
+    const view = render(<Palette busy groups={actions} resultsId={1} />);
+
+    const action = () => screen.getByRole("option", { name: "Create round" });
+
+    await user.pointer({ target: action(), keys: "[MouseLeft>]" });
+    view.rerender(<Palette groups={actions} resultsId={2} />);
+    await user.pointer({ target: action(), keys: "[/MouseLeft]" });
+
+    expect(onAction).toHaveBeenCalledOnce();
+  });
+
   it("opens the highlighted row on Enter and a clicked row on click, passing modifiers through", async () => {
     const user = userEvent.setup();
     render(<Palette />);
