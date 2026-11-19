@@ -2,11 +2,11 @@ import { and, eq, sql } from "drizzle-orm";
 
 import type { OrganizationSubject } from "@merit/access";
 import { appUsers } from "@merit/auth/schema";
+import type { Transaction } from "@merit/db";
 
 import { memberships, organizations } from "../membership-schema";
 import { invitations } from "../schema";
 import { subjectQuery, pending } from "../team";
-import type { Transaction } from "../transaction";
 
 export const readSubject = async (tx: Transaction, organizationId: string, actor: string) =>
   (await subjectQuery(tx, organizationId, actor).for("share", { of: [memberships, appUsers] }))[0];

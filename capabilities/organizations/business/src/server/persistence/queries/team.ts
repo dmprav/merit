@@ -3,11 +3,11 @@ import { and, eq, sql, gt } from "drizzle-orm";
 
 import { auditEvents } from "@merit/audit/schema";
 import { appUsers } from "@merit/auth/schema";
+import type { Transaction } from "@merit/db";
 
 import { memberships, organizations } from "../membership-schema";
 import { invitations } from "../schema";
 import { subjectQuery, pending } from "../team";
-import type { Transaction } from "../transaction";
 
 export const readSubject = async (tx: Transaction, organizationId: string, actor: string) =>
   (await subjectQuery(tx, organizationId, actor))[0];

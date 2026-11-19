@@ -6,9 +6,10 @@ import { useFormat } from "@merit/i18n/format";
 import { summarizeAssessments } from "@merit/reviews/domain";
 import { Button } from "@merit/ui/button";
 import { Icon } from "@merit/ui/icon";
+import judgment from "@merit/ui/judgment.module.css";
 import { PersonIdentity } from "@merit/ui/person-identity";
 
-import styles from "../judgment.module.css";
+import styles from "../review-overview.module.css";
 import { reviewPositionKeys } from "./assessment-outcome";
 import { reviewStatusText } from "./status-text";
 
@@ -44,7 +45,7 @@ export const ReviewOverview = ({
           {t("reviews:allAssessments")}
         </Button>
       </div>
-      <p className={styles.meta}>{status}</p>
+      <p className={judgment.meta}>{status}</p>
       {actions}
       <div className={styles.reviewList}>
         {application.assessments.map((assessment) => {
@@ -58,12 +59,12 @@ export const ReviewOverview = ({
               ref={(element) => triggerRef(assessment.id, element)}
               onPress={() => onSelect(assessment.id)}
             >
-              <span className={styles.judgmentHeader}>
-                <PersonIdentity name={assessment.reviewer} className={styles.judgmentIdentity} />
+              <span className={judgment.judgmentHeader}>
+                <PersonIdentity name={assessment.reviewer} className={judgment.judgmentIdentity} />
                 <Icon name="right" />
               </span>
-              <span className={styles.judgmentBody}>
-                <span className={styles.judgmentSummary}>
+              <span className={judgment.judgmentBody}>
+                <span className={judgment.judgmentSummary}>
                   <strong>
                     {reviewed
                       ? reviewed.recommendation.position
@@ -99,7 +100,7 @@ const ReviewChoiceBasis = ({
   const reviewed = assessment.submission;
   const version = reviewed?.applicationVersion ?? request?.applicationVersion;
   return (
-    <span className={styles.judgmentBasis}>
+    <span className={judgment.judgmentBasis}>
       <span>
         {version == null
           ? t("reviews:applicationBasisUnknown")

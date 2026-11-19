@@ -4,14 +4,12 @@ import {
   insertDemoMaterialVersion,
   deleteDemoApplications,
 } from "@merit/applications/server/demo";
-import type { Database } from "@merit/db";
+import type { Transaction } from "@merit/db";
 import { insertDemoRecommendation } from "@merit/recommendations/server/demo";
 import { recordReviewChange } from "@merit/reviews/server/demo";
 import { deleteDemoRounds } from "@merit/rounds/server/demo";
 
 import { type encodeApplication, decodeApplication } from "../../../domain/encoding";
-
-type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
 export const insertExampleApplication = async (
   db: Transaction,

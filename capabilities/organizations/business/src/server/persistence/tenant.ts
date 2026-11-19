@@ -1,9 +1,7 @@
 import { sql } from "drizzle-orm";
 import { PgTransaction } from "drizzle-orm/pg-core";
 
-import { readTransaction, type Database } from "@merit/db";
-
-import type { Transaction } from "./transaction";
+import { readTransaction, type Database, type Transaction } from "@merit/db";
 
 export type MemberScope =
   | { kind: "workspace"; userId: string; slug: string }

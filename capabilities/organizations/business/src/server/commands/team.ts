@@ -2,7 +2,7 @@ import type { z } from "zod";
 
 import { permits } from "@merit/access";
 import { type Actor } from "@merit/auth";
-import type { Database } from "@merit/db";
+import type { Database, Transaction } from "@merit/db";
 
 import type { memberInput, changeMemberInput, inviteMemberInput } from "../../api/commands";
 import { evaluateMemberChange, revokesReviewAccess } from "../../domain/index";
@@ -12,7 +12,6 @@ import type { Invitation } from "../persistence/commands/invitations";
 import * as persistence from "../persistence/commands/team";
 import { missingTeamWorkspace } from "../persistence/team";
 import { writeWorkspace } from "../persistence/tenant";
-import type { Transaction } from "../persistence/transaction";
 import { fail } from "../result";
 import { issueInvitation } from "./issue-invitation";
 

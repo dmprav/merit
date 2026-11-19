@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 
-import type { Database } from "@merit/db";
+import type { Transaction } from "@merit/db";
 import { lockGrantActor } from "@merit/organizations/locks";
 import { organizations } from "@merit/organizations/schema";
 import { authorizedWorkspaces } from "@merit/organizations/scope";
@@ -8,8 +8,6 @@ import { fundingRounds } from "@merit/rounds/schema";
 
 import { caseWithdrawn } from "../projections";
 import { applicationCases } from "../schema";
-
-type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
 /**
  * Canonical grant-work lock hierarchy:

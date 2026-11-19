@@ -1,11 +1,11 @@
 import { and, eq, isNull, sql } from "drizzle-orm";
 
 import { appUsers } from "@merit/auth/schema";
+import type { Transaction } from "@merit/db";
 
 import { memberships } from "./membership-schema";
 import { invitations } from "./schema";
 import { organizationScope } from "./scope";
-import type { Transaction } from "./transaction";
 
 export const subjectQuery = (tx: Transaction, organizationId: string, actor: string) => {
   return tx

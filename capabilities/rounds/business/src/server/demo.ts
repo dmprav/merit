@@ -1,12 +1,10 @@
 import { eq } from "drizzle-orm";
 
-import type { Database } from "@merit/db";
+import type { Transaction } from "@merit/db";
 
 import { fundingRounds, roundCreationReceipts } from "./persistence/schema";
 
 export { insertPreparedRound } from "./persistence/commands/preparation";
-
-type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
 export const deleteDemoRounds = async (db: Transaction, organizationId: string) => {
   await db

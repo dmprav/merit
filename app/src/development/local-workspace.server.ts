@@ -1,4 +1,9 @@
 import type { Identity } from "@merit/auth";
+import {
+  defaultLocalPersona,
+  localPersona,
+  readLocalPersonCookie,
+} from "@merit/auth/local-personas";
 
 const isLoopback = (hostname: string) => ["localhost", "127.0.0.1", "[::1]"].includes(hostname);
 
@@ -19,42 +24,20 @@ export const localWorkspaceIdentity = async (): Promise<Identity> => ({
 });
 
 export const localWorkspaceProfile = {
-  verifiedEmails: ["dana@example.test"],
-  displayName: "Dana Reed",
+  verifiedEmails: [defaultLocalPersona.email],
+  displayName: defaultLocalPersona.name,
 };
 
 // These fictional identities are only selected inside the loopback-only development mode.
 export const localProvisioningIdentity = (request: Request) => {
-  const fixture = request.headers
-    .get("cookie")
-    ?.split(";")
-    .map((part) => part.trim())
-    .find((part) => part.startsWith("merit-local-person="))
-    ?.split("=")[1];
-  if (fixture === "operator") {
-    return {
-      actor: { clerkUserId: "local_operator" },
-      operator: true,
-      emails: ["operator@example.test"],
-      displayName: "Merit operator",
-    };
+  const person = localPersona(readLocalPersonCookie(request.headers.get("cookie")));
+  if (person.id === "manager") {
+    return undefined;
   }
-  if (fixture === "reviewer") {
-    return {
-      actor: { clerkUserId: "local_reviewer" },
-      operator: false,
-      emails: ["reviewer@example.test"],
-      displayName: "Robin Ellis",
-    };
-  }
-  if (fixture === "recipient") {
-    return {
-      actor: { clerkUserId: "local_recipient" },
-      operator: false,
-      emails: ["recipient@example.test"],
-      displayName: "Invitation recipient",
-    };
-  }
-
-  return undefined;
+  return {
+    actor: { clerkUserId: `local_${person.id}` },
+    operator: person.id === "operator",
+    emails: [person.email],
+    displayName: person.name,
+  };
 };

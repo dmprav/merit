@@ -1,0 +1,17 @@
+.prose {
+  font-size: var(--text-detail);
+  line-height: 1.6;
+  max-width: var(--measure-reading);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.recommendationSummary {
+  display: grid;
+  gap: var(--space-1);
+  padding-block: var(--space-4);
+}
+
+.recommendationSummary > h2 {
+  margin-bottom: var(--space-3);
+}

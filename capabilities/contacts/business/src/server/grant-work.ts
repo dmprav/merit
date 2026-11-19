@@ -1,6 +1,4 @@
-import type { Database } from "@merit/db";
-
-type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
+import type { Database, Transaction } from "@merit/db";
 
 /** Grant usage supplied by the host; archival checks run under the organization lock. */
 export interface ContactGrantWork {

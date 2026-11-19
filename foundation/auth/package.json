@@ -6,6 +6,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./local-personas": "./src/local-personas.ts",
     "./request": "./src/request.ts",
     "./session": "./src/session.ts",
     "./schema": "./src/persistence/schema.ts",

@@ -2,7 +2,7 @@ import { and, eq, sql } from "drizzle-orm";
 
 import { recordAuditEvent } from "@merit/audit/server/record";
 import { actorProvenance, type Actor } from "@merit/auth";
-import type { Database } from "@merit/db";
+import type { Transaction } from "@merit/db";
 import { lockGrantActor } from "@merit/organizations/locks";
 import { organizations } from "@merit/organizations/schema";
 import { authorizedWorkspaces } from "@merit/organizations/scope";
@@ -17,8 +17,6 @@ import {
   criteriaVersions,
   criteriaVersionItems,
 } from "../schema";
-
-type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
 const readPreparationRound = async (tx: Transaction, organizationId: string, publicId: string) => {
   const [row] = await tx

@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 
 import { materialVersionSchema } from "@merit/applications/domain";
 import { applicationCases, materialVersions } from "@merit/applications/schema";
-import type { Database } from "@merit/db";
+import type { Transaction } from "@merit/db";
 import { fundingRoundSchema } from "@merit/rounds/domain";
 import { readRoundCriteria } from "@merit/rounds/scope";
 
@@ -15,8 +15,6 @@ import {
   reviewRequests,
   reviewStates,
 } from "../schema";
-
-type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
 type ReviewRecorder = ReviewState["requests"][number]["recorder"];
 

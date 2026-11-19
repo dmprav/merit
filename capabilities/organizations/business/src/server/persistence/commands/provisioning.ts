@@ -2,10 +2,10 @@ import { and, eq, isNull } from "drizzle-orm";
 
 import { type Actor } from "@merit/auth";
 import { appUsers } from "@merit/auth/schema";
+import type { Transaction } from "@merit/db";
 
 import { memberships, organizations } from "../membership-schema";
 import { invitations } from "../schema";
-import type { Transaction } from "../transaction";
 import { recordOrganizationEvent } from "./events";
 
 export const insertOrganization = async (

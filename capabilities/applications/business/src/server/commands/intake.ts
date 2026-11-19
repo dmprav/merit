@@ -1,6 +1,6 @@
 import { type Actor } from "@merit/auth";
 import { lockContactProfile } from "@merit/contacts/locks";
-import type { Database } from "@merit/db";
+import { allocatePublicId, type Database, type Transaction } from "@merit/db";
 import { writeWorkspace } from "@merit/organizations/transactions";
 import { lockPreparationRoundAccess } from "@merit/rounds/locks";
 
@@ -26,9 +26,6 @@ import {
 } from "../persistence/commands/intake";
 import { intakeCreationReceipt } from "../persistence/commands/intake-history";
 import { lockApplicationCase } from "../persistence/commands/locks";
-import { allocatePublicId } from "../persistence/identifiers";
-
-type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
 const resolveIntakeContactChange = async (
   tx: Transaction,

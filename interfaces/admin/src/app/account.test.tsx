@@ -10,12 +10,15 @@ afterEach(() => {
 });
 
 describe("AdminAccount", () => {
-  it("reads the dev-only local persona cookie when MERIT_LOCAL_WORKSPACE is enabled", () => {
+  it.each([
+    ["operator", "Merit operator"],
+    ["reviewer", "Robin Ellis"],
+  ])("displays the selected %s in a local workspace", (person, name) => {
     vi.stubEnv("MERIT_LOCAL_WORKSPACE", "true");
-    document.cookie = "merit-local-person=operator; Path=/";
+    document.cookie = `merit-local-person=${person}; Path=/`;
 
     render(<AdminAccount />, { wrapper: AdminMessages });
-    expect(screen.getByText("Merit operator")).toBeVisible();
+    expect(screen.getByText(name)).toBeVisible();
   });
 
   it.each(["constructor", "toString", "__proto__"])(
