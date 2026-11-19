@@ -154,3 +154,24 @@ it("withholds bytes that differ from their authoritative metadata", async ({ fil
     files.service.readFile(actor, { workspaceSlug, fileId: saved.file.id }),
   ).rejects.toThrow("Stored file content does not match its metadata.");
 });
+
+it("releases the database connection before retrieving file contents", async ({
+  files,
+  runtime,
+}) => {
+  const input = upload();
+  const saved = await files.service.writeFile(actor, input);
+  assert(saved.status === "ok");
+  let connectionReleased = false;
+  const service = createFileService(async (run) => {
+    const result = await withDatabase(runtime, run);
+    connectionReleased = true;
+    return result;
+  }, files.objects);
+  files.objects.get.mockImplementationOnce(async () => {
+    expect(connectionReleased).toBe(true);
+    return input.bytes;
+  });
+  const result = await service.readFile(actor, { workspaceSlug, fileId: saved.file.id });
+  expect(result.status).toBe("ok");
+});

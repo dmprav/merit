@@ -7,7 +7,7 @@ import { readFile } from "./queries/read-file";
 
 export const createFileService = (database: DatabaseRunner, objects: FileObjects) => ({
   writeFile: (actor: Actor, input: Parameters<typeof writeFile>[3]) =>
-    database((db) => writeFile(db, objects, actor, input)),
+    writeFile(database, objects, actor, input),
   readFile: (actor: Actor, input: Parameters<typeof readFile>[3]) =>
-    database((db) => readFile(db, objects, actor, input)),
+    readFile(database, objects, actor, input),
 });

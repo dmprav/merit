@@ -1,7 +1,7 @@
 import type { z } from "zod";
 
 import type { Actor } from "@merit/auth";
-import type { Database } from "@merit/db";
+import type { DatabaseRunner } from "@merit/db";
 import { readWorkspace } from "@merit/organizations/transactions";
 
 import { readFileInput, type FileObjects } from "../../api/files";
@@ -9,14 +9,14 @@ import { hashFileBytes } from "../persistence/content";
 import { findFile } from "../persistence/queries/files";
 
 export const readFile = async (
-  db: Database,
+  database: DatabaseRunner,
   objects: FileObjects,
-  actor: Actor,
+  { userId }: Actor,
   input: z.input<typeof readFileInput>,
 ) => {
   const { workspaceSlug, fileId } = readFileInput.parse(input);
-  const file = await readWorkspace(db, actor.userId, workspaceSlug, (tx) =>
-    findFile(tx, actor.userId, workspaceSlug, fileId),
+  const file = await database((db) =>
+    readWorkspace(db, userId, workspaceSlug, (tx) => findFile(tx, userId, workspaceSlug, fileId)),
   );
   if (!file) {
     return { status: "not_found" } as const;

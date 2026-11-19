@@ -57,7 +57,11 @@ or export them in the server shell.
 
 An operator can reclaim objects left after an interrupted write or removal of a
 workspace. List candidate keys under `files/` in the configured bucket first.
-Connect to the matching authoritative PostgreSQL primary as the table owner,
+Preserve a recoverable copy of immutable objects for the full retention period
+of every database backup that can reference them. After a restore, verify that
+each restored row resolves to bytes matching its saved digest before enabling
+writes or cleanup. For a live reconciliation, connect to the matching
+authoritative PostgreSQL primary as the table owner,
 with visibility across all workspaces. Use a short batch during a quiet period.
 
 1. Begin a transaction at `READ COMMITTED` and run

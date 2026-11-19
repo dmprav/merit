@@ -38,7 +38,8 @@
     "pg": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
-    "react-i18next": "catalog:"
+    "react-i18next": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@axe-core/playwright": "catalog:",
