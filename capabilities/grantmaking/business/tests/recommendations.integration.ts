@@ -845,6 +845,70 @@ describe("persisted recommendations", () => {
     }
   });
 
+  it("attributes a recommendation to its authenticated recorder despite a supplied author", async ({
+    db,
+    scenario,
+  }) => {
+    const request = recommendationRequest(scenario.selected.publicId);
+    const saved = await saveFundingRecommendation(db, actor, {
+      ...request,
+      recommendation: {
+        ...request.recommendation,
+        author: { userId: "birch-manager", name: "Forged author" },
+      },
+    });
+    assert(saved.status === "ok");
+    const author = { userId: "dana", name: "Dana Reed", provenance: { interface: "web" } };
+
+    expect(saved.recommendation.author).toEqual(author);
+    expect(
+      (await getFundingApplicationPage(db, actor, scenario.selected))?.application
+        .managerRecommendation?.author,
+    ).toEqual(author);
+  });
+
+  it("records a new revision when another manager saves an unchanged recommendation", async ({
+    db,
+    database,
+    scenario,
+  }) => {
+    const request = recommendationRequest(scenario.selected.publicId);
+    const saved = await saveFundingRecommendation(db, actor, request);
+    assert(saved.status === "ok");
+    await database.client.query("INSERT INTO app_users (id, name) VALUES ('pat', 'Pat Taylor')");
+    await database.client.query(
+      "INSERT INTO memberships (organization_id, user_id, role) VALUES ('alder', 'pat', 'program_manager')",
+    );
+
+    const resaved = await saveFundingRecommendation(
+      db,
+      { userId: "pat" },
+      { ...request, expectedRevision: saved.recommendationVersion },
+    );
+
+    assert(resaved.status === "ok");
+    expect(resaved.recommendationVersion).toBe(saved.recommendationVersion + 1);
+    expect(resaved.recommendation.author).toEqual({
+      userId: "pat",
+      name: "Pat Taylor",
+      provenance: { interface: "web" },
+    });
+    expect(await readRecommendationVersions(database.client, saved.recommendationVersion)).toEqual([
+      expect.objectContaining({
+        revision: resaved.recommendationVersion,
+        actor_user_id: "pat",
+      }),
+    ]);
+    expect(
+      (
+        await database.client.query(
+          "SELECT actor_user_id, action FROM audit_events WHERE target_type = 'recommendation' AND target_revision > $1",
+          [saved.recommendationVersion],
+        )
+      ).rows,
+    ).toEqual([{ actor_user_id: "pat", action: "recommendation.recorded" }]);
+  });
+
   it("keeps an unchanged recommendation revision and audit history", async ({
     db,
     database,

@@ -13,6 +13,16 @@ import {
 
 afterEach(() => vi.restoreAllMocks());
 
+const makeApplication = (
+  overrides: Partial<Parameters<typeof prepareRecommendation>[1]> = {},
+): Parameters<typeof prepareRecommendation>[1] => ({
+  version: materialVersionSchema.parse(1),
+  intakeStatus: "in_preparation",
+  requested: null,
+  managerRecommendation: null,
+  ...overrides,
+});
+
 const recommendationContext = () => ({
   budget: fromMinorUnits(10000n),
   totals: { proposed: fromMinorUnits(5000n) },
@@ -278,7 +288,6 @@ it("replaces an allocation at the money limit without double-counting it", () =>
       requested: maximum,
     },
     recommendation,
-    "2027-01-19",
   );
 
   expect(result.ok).toBe(true);
@@ -287,6 +296,22 @@ it("replaces an allocation at the money limit without double-counting it", () =>
   }
   expect(encodeMoney(result.totals.proposed)).toEqual(encodeMoney(maximum));
   expect(encodeMoney(result.totals.remaining!).minorUnits).toBe("0");
+});
+
+it("records a recommendation against the current application version instead of a supplied basis", () => {
+  const result = prepareRecommendation(
+    recommendationContext(),
+    application(),
+    {
+      position: "Fund",
+      allocation: fromMinorUnits(4000n),
+      reasoning: "Supported.",
+      recorded: { date: "2027-01-14", applicationVersion: 1 },
+    },
+    "2027-01-19",
+  );
+
+  assert.isTrue(result.ok);
   expect(result.recommendation.recorded).toEqual({ date: "2027-01-19", applicationVersion: 2 });
 });
 
@@ -318,16 +343,6 @@ it("allows an explained deferral while an application is still in preparation", 
     recommendation,
     totals: { proposed: fromMinorUnits(0n), remaining: null },
   });
-});
-
-const makeApplication = (
-  overrides: Partial<Parameters<typeof prepareRecommendation>[1]> = {},
-): Parameters<typeof prepareRecommendation>[1] => ({
-  version: materialVersionSchema.parse(1),
-  intakeStatus: "in_preparation",
-  requested: null,
-  managerRecommendation: null,
-  ...overrides,
 });
 
 it("rejects a proposal that would overflow total allocations", () => {

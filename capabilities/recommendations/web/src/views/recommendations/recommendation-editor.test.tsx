@@ -449,6 +449,7 @@ it("keeps a withdrawn application's recommendation readable but not editable", (
     { wrapper: GrantmakingMessagesProvider },
   );
 
+  expect(screen.getByText(application.managerRecommendation!.reasoning)).toBeVisible();
   expect(screen.getByRole("button", { name: /Resume editing recommendation for/ })).toBeDisabled();
   expect(screen.queryByRole("form")).not.toBeInTheDocument();
 });
