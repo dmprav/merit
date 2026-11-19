@@ -37,3 +37,9 @@ it("rejects control characters in file metadata", () => {
   );
   expect(writeFileInput.safeParse({ ...input, mimeType: "text/plain; x=\n" }).success).toBe(false);
 });
+
+it("rejects metadata that cannot round-trip through PostgreSQL UTF-8", () => {
+  expect(writeFileInput.safeParse({ ...input, originalFilename: "report\ud800.pdf" }).success).toBe(
+    false,
+  );
+});

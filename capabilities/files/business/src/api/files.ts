@@ -6,7 +6,7 @@ const metadataText = z
   .string()
   .min(1)
   .max(255)
-  .regex(/^[^\p{Cc}]+$/u);
+  .regex(/^[^\p{Cc}\p{Cs}]+$/u);
 const maxFileBytes = 25 * 1024 * 1024;
 
 export const writeFileInput = z.strictObject({
