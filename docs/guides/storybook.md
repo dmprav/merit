@@ -77,7 +77,7 @@ Administration, or Demo as the area. For example,
 `Features/Funding rounds/Manage round` contains **Concurrent edits**, while
 `Features/Funding rounds/Preparation form` holds focused form examples. Keep
 creation and detail screens in separate suites, even when they share a component.
-The [preview configuration](../../tooling/storybook/.storybook/preview.tsx) orders
+The [Storybook configuration](../../tooling/storybook/.storybook/main.ts) orders
 the groups and feature tasks, with shared suites ordered alphabetically. Keep the
 task order aligned when adding a screen. Within each suite, export a representative
 usable example first, followed by relevant variations and recovery states.
