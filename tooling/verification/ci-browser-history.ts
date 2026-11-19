@@ -27,7 +27,7 @@ const testResults = (job: Job, readLog: (id: number) => string, mark: string) =>
     .map(([, , project, file, title]) => `${suite} ${project} ${file} › ${title}`);
 };
 
-export const browserFailures = (jobs: Job[], readLog: (id: number) => string) => {
+const collectBrowserFailures = (jobs: Job[], readLog: (id: number) => string) => {
   const failures = new Map<string, boolean>();
   const failedJobs = jobs.filter(
     (job) =>
@@ -56,6 +56,21 @@ export const browserFailures = (jobs: Job[], readLog: (id: number) => string) =>
     }
   }
   return failures;
+};
+
+// gh api prints the HTTP status on stderr when downloading an expired or deleted log.
+const unavailableLogError = z.object({ stderr: z.string().regex(/^gh: .*\(HTTP (?:404|410)\)$/m) });
+
+export const browserFailures = (runId: number, jobs: Job[], readLog: (id: number) => string) => {
+  try {
+    return collectBrowserFailures(jobs, readLog);
+  } catch (error) {
+    if (!unavailableLogError.safeParse(error).success) {
+      throw error;
+    }
+    console.warn(`Skipping Verify run ${runId} because a job log is unavailable.`);
+    return new Map<string, boolean>();
+  }
 };
 
 const gh = (...args: string[]) =>
@@ -94,7 +109,7 @@ const reportHistory = () => {
       `${actions}/runs/${run.databaseId}/jobs?filter=all&per_page=100`,
     );
     const jobs = pagesSchema.parse(JSON.parse(raw)).flatMap((page) => page.jobs);
-    for (const [test, recovered] of browserFailures(jobs, (id) =>
+    for (const [test, recovered] of browserFailures(run.databaseId, jobs, (id) =>
       gh("api", `${actions}/jobs/${id}/logs`),
     )) {
       const count = totals.get(test) ?? { failures: 0, recovered: 0 };

@@ -1,4 +1,4 @@
-import { expect, test } from "vite-plus/test";
+import { expect, test, vi } from "vite-plus/test";
 
 import { browserFailures } from "./ci-browser-history";
 
@@ -20,6 +20,7 @@ test("counts first failures and explicit passes of the same browser test on late
     [3, [result("✓", "webkit", "focus"), result("✘", "mobile", "scroll")].join("\n")],
   ]);
   const results = browserFailures(
+    100,
     [
       job,
       { ...job, id: 2, conclusion: "cancelled" },
@@ -40,3 +41,36 @@ test("counts first failures and explicit passes of the same browser test on late
     "browser-storybook [mobile] tests/navigation.spec.ts › scroll": false,
   });
 });
+
+const failedJob = { id: 1, name: "browser-storybook (5/5)", run_attempt: 1, conclusion: "failure" };
+
+test.each([404, 410])("skips the whole run when a rerun log is unavailable (HTTP %i)", (status) => {
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+  try {
+    const jobs = [failedJob, { ...failedJob, id: 2, run_attempt: 2, conclusion: "success" }];
+    const result = browserFailures(100, jobs, (id) => {
+      if (id === 1) {
+        return "2026-11-18T22:52:37Z  ✘  1 [webkit] › test.spec.ts:1:1 › focus (1.2s)";
+      }
+      throw Object.assign(new Error("Command failed"), {
+        stderr: `gh: Log unavailable (HTTP ${status})`,
+      });
+    });
+    expect(result.size).toBe(0);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("Skipping Verify run 100"));
+  } finally {
+    warn.mockRestore();
+  }
+});
+
+test.each(["gh: Bad credentials (HTTP 401)", "gh: Forbidden (HTTP 403)", "connection timed out"])(
+  "propagates other log request failures (%s)",
+  (stderr) => {
+    const error = Object.assign(new Error("Command failed"), { stderr });
+    expect(() =>
+      browserFailures(100, [failedJob], () => {
+        throw error;
+      }),
+    ).toThrow(error);
+  },
+);
