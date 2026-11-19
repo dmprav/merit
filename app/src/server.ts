@@ -125,11 +125,12 @@ const handleWebRequest = async (
       import.meta.env.DEV ? false : dependencies.networkAddress,
     ),
     organizations: services.organizations,
-    workspace: {
-      ...services.grantmaking,
-      ...services.contacts,
-      readWorkspace: services.readWorkspace,
-    },
+    grantmaking: services.grantmaking,
+    rounds: services.rounds,
+    applications: services.applications,
+    reviews: services.reviews,
+    recommendations: services.recommendations,
+    contacts: services.contacts,
   };
 
   const response = await handler.fetch(request, {

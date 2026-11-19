@@ -333,4 +333,5 @@ export const readAssessmentRecord = async (
   };
 };
 
-export { reviewAssignmentMatch, reviewOverview, readReviewSummaryPage } from "./overview";
+export { reviewOverview } from "./overview";
+export { readReviewSummaryPage, reviewAssignmentMatch } from "./summary-entries";

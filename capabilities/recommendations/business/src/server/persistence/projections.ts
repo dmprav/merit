@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, ne, sql, type SQL, type SQLWrapper } from "drizzle-orm";
+import { and, desc, eq, inArray, lte, ne, sql, type SQL, type SQLWrapper } from "drizzle-orm";
 
 import { applicationCases } from "@merit/applications/schema";
 import { activeCase } from "@merit/applications/scope";
@@ -9,7 +9,7 @@ import { recommendationVersions } from "./schema";
 
 type RecommendationRow = typeof recommendationVersions.$inferSelect;
 
-export const decodeProvenanceColumns = (
+const decodeProvenanceColumns = (
   interfaceValue: string | null,
   clientId: string | null,
 ): Provenance | undefined => {
@@ -22,7 +22,7 @@ export const decodeProvenanceColumns = (
   return undefined;
 };
 
-export const assembleRecommendationRecord = (row: RecommendationRow) => {
+const assembleRecommendationRecord = (row: RecommendationRow) => {
   const provenance = decodeProvenanceColumns(
     row.authorProvenanceInterface,
     row.authorProvenanceClientId,
@@ -46,6 +46,32 @@ export const assembleRecommendationRecord = (row: RecommendationRow) => {
     ...(row.recordedDate !== null && row.applicationVersion !== null
       ? { recorded: { date: row.recordedDate, applicationVersion: row.applicationVersion } }
       : {}),
+  };
+};
+
+export const readRecommendationChange = async (db: Database, caseId: string, revision: number) => {
+  const [current, previous] = await db
+    .select()
+    .from(recommendationVersions)
+    .where(
+      and(
+        eq(recommendationVersions.caseId, caseId),
+        lte(recommendationVersions.revision, revision),
+      ),
+    )
+    .orderBy(desc(recommendationVersions.revision))
+    .limit(2);
+  if (current?.revision !== revision) {
+    return undefined;
+  }
+  return {
+    revision: current.revision,
+    actorUserId: current.actorUserId,
+    provenance:
+      decodeProvenanceColumns(current.provenanceInterface, current.provenanceClientId) ?? null,
+    recordedAt: current.recordedAt.toISOString(),
+    before: previous ? assembleRecommendationRecord(previous) : null,
+    after: assembleRecommendationRecord(current),
   };
 };
 

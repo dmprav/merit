@@ -9,7 +9,7 @@ export const readApplicationHistory = createServerFn({ method: "GET" })
   .handler(({ context, data }) => {
     setResponseHeader("Cache-Control", "private, no-store");
     return withActor(context.currentIdentity, (actor) =>
-      context.workspace.applicationAuditHistory(actor, data),
+      context.grantmaking.applicationAuditHistory(actor, data),
     );
   });
 export const readBudgetHistory = createServerFn({ method: "GET" })
@@ -17,6 +17,6 @@ export const readBudgetHistory = createServerFn({ method: "GET" })
   .handler(({ context, data }) => {
     setResponseHeader("Cache-Control", "private, no-store");
     return withActor(context.currentIdentity, (actor) =>
-      context.workspace.roundBudgetHistory(actor, data),
+      context.grantmaking.roundBudgetHistory(actor, data),
     );
   });

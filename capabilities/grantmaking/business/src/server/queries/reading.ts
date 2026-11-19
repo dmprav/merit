@@ -318,10 +318,10 @@ export const listApplicationReviewSummaries = async (
       return { status: "not_found" } as const;
     }
     const request = parsed.data;
-    if (!(await reads.readApplicationIdentity(tx, actor.userId, request))) {
+    const rows = await reads.readReviewSummaries(tx, actor.userId, request);
+    if (!rows) {
       return { status: "not_found" } as const;
     }
-    const rows = await reads.readReviewSummaries(tx, actor.userId, request);
     const facts = reviewSummarySchema.omit({ freshness: true, basisComparison: true }).extend({
       recordedCriteria: reviewCriteriaSchema.nullable(),
       currentCriteria: reviewCriteriaSchema.nullable(),

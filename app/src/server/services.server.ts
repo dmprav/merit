@@ -6,56 +6,18 @@ import { renderReviewerEmail } from "@merit/emails/reviewer";
 import { createGrantmakingService, createNavigationService } from "@merit/grantmaking/server";
 import { applicationWork } from "@merit/grantmaking/server/integrations";
 import { fundingRoundContactUsage } from "@merit/grantmaking/server/integrations";
-import { createOrganizationService, getWorkspace } from "@merit/organizations/server";
-import type { WorkspaceServices } from "@merit/product/context";
+import { createOrganizationService } from "@merit/organizations/server";
 import { productLinks } from "@merit/product/links";
 import { createRecommendationsService } from "@merit/recommendations/server";
 import { createReviewService } from "@merit/reviews/server";
 import { createReviewerService } from "@merit/reviews/server";
 import { revokeMembershipReviews } from "@merit/reviews/server/integrations";
 import { createRoundsService } from "@merit/rounds/server";
-import { instrumentService, withSpan } from "@merit/telemetry";
+import { instrumentService } from "@merit/telemetry";
 
 import type { EmailSender } from "./email-delivery.server";
 import type { OrganizationIdentity } from "./identity.server";
 import { sendInvitationEmail } from "./invitation-email.server";
-
-const createGrantmakingServices = (
-  database: <T>(operation: (db: Database) => Promise<T>) => Promise<T>,
-) => {
-  const grantmakingQueries = instrumentService(
-    "grantmaking",
-    createGrantmakingService({ database }),
-  );
-  const rounds = instrumentService(
-    "rounds",
-    createRoundsService({ database, roundHasApplications }),
-  );
-  const applications = instrumentService(
-    "applications",
-    createApplicationsService({ database, work: applicationWork }),
-  );
-  const recommendations = instrumentService(
-    "recommendations",
-    createRecommendationsService({ database }),
-  );
-  const reviews = instrumentService("reviews", createReviewService({ database }));
-
-  return {
-    grantmaking: {
-      ...grantmakingQueries,
-      ...rounds,
-      ...applications,
-      ...recommendations,
-      ...reviews,
-    },
-    grantmakingQueries,
-    rounds,
-    applications,
-    recommendations,
-    reviews,
-  };
-};
 
 export const createApplicationServices = ({
   database,
@@ -70,8 +32,21 @@ export const createApplicationServices = ({
   networkAddress?: string;
   sendEmail: EmailSender;
 }) => {
-  const { grantmaking, grantmakingQueries, rounds, applications, recommendations, reviews } =
-    createGrantmakingServices(database);
+  const grantmaking = instrumentService("grantmaking", createGrantmakingService({ database }));
+  const rounds = instrumentService(
+    "rounds",
+    createRoundsService({ database, roundHasApplications }),
+  );
+  const applications = instrumentService(
+    "applications",
+    createApplicationsService({ database, work: applicationWork }),
+  );
+  const recommendations = instrumentService(
+    "recommendations",
+    createRecommendationsService({ database }),
+  );
+  const reviews = instrumentService("reviews", createReviewService({ database }));
+
   const navigation = instrumentService("navigation", createNavigationService({ database }));
   const reviewer = instrumentService(
     "reviewer",
@@ -100,14 +75,8 @@ export const createApplicationServices = ({
     }),
   );
 
-  const readWorkspace: WorkspaceServices["readWorkspace"] = (actor, slug) =>
-    withSpan("service.organizations.readWorkspace", () =>
-      database((db) => getWorkspace(db, actor, slug)),
-    );
-
   return {
     grantmaking,
-    grantmakingQueries,
     rounds,
     applications,
     recommendations,
@@ -116,6 +85,5 @@ export const createApplicationServices = ({
     navigation,
     contacts,
     organizations,
-    readWorkspace,
   };
 };

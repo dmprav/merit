@@ -3,6 +3,7 @@ import type { z } from "zod";
 import type { Identity } from "@merit/auth";
 import { withActor } from "@merit/auth/request";
 import type {
+  GrantmakingQueries,
   ApplicationRequest,
   PublicRoundRequest,
   workspaceActivityInput,
@@ -10,13 +11,11 @@ import type {
   WorkspaceApplicationsInput,
 } from "@merit/grantmaking/api";
 
-import type { WorkspaceServices } from "../../../../shared/request-context";
-
 type WithIdentity<T> = T & { currentIdentity: () => Promise<Identity> };
 
 export const loadFundingRounds = (
   workspaceSlug: string,
-  services: WithIdentity<Pick<WorkspaceServices, "listRounds">>,
+  services: WithIdentity<Pick<GrantmakingQueries, "listRounds">>,
 ) =>
   withActor(services.currentIdentity, async (actor) => {
     const result = await services.listRounds(actor, workspaceSlug);
@@ -31,7 +30,7 @@ export const loadFundingRounds = (
 
 export const loadFundingRoundPage = (
   input: PublicRoundRequest,
-  services: WithIdentity<Pick<WorkspaceServices, "readRoundPage">>,
+  services: WithIdentity<Pick<GrantmakingQueries, "readRoundPage">>,
 ) =>
   withActor(services.currentIdentity, async (actor) => {
     const page = await services.readRoundPage(actor, input);
@@ -40,7 +39,7 @@ export const loadFundingRoundPage = (
 
 export const loadFundingApplicationPage = (
   input: ApplicationRequest,
-  services: WithIdentity<Pick<WorkspaceServices, "readApplicationPage">>,
+  services: WithIdentity<Pick<GrantmakingQueries, "readApplicationPage">>,
 ) =>
   withActor(services.currentIdentity, async (actor) => {
     const page = await services.readApplicationPage(actor, input);
@@ -49,7 +48,7 @@ export const loadFundingApplicationPage = (
 
 export const loadWorkspaceApplications = (
   input: WorkspaceApplicationsInput,
-  services: WithIdentity<Pick<WorkspaceServices, "listWorkspaceApplications">>,
+  services: WithIdentity<Pick<GrantmakingQueries, "listWorkspaceApplications">>,
 ) =>
   withActor(services.currentIdentity, async (actor) => {
     const result = await services.listWorkspaceApplications(actor, input);
@@ -64,7 +63,7 @@ export const loadWorkspaceApplications = (
 
 export const loadWorkspaceActivity = (
   input: z.input<typeof workspaceActivityInput>,
-  services: WithIdentity<Pick<WorkspaceServices, "listWorkspaceActivity">>,
+  services: WithIdentity<Pick<GrantmakingQueries, "listWorkspaceActivity">>,
 ) =>
   withActor(services.currentIdentity, async (actor) => {
     const result = await services.listWorkspaceActivity(actor, input);
@@ -82,7 +81,7 @@ export const loadWorkspaceActivity = (
 
 export const loadWorkspaceSearch = (
   input: z.input<typeof workspaceSearchInput>,
-  services: WithIdentity<Pick<WorkspaceServices, "searchWorkspace">>,
+  services: WithIdentity<Pick<GrantmakingQueries, "searchWorkspace">>,
 ) =>
   withActor(services.currentIdentity, async (actor) => {
     const result = await services.searchWorkspace(actor, input);

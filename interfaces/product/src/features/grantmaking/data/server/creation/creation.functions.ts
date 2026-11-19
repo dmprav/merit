@@ -9,15 +9,13 @@ export const createRound = createServerFn({ method: "POST" })
   .validator(createRoundRequestSchema)
   .handler(async ({ data, context }) => {
     setResponseHeader("Cache-Control", "private, no-store");
-    return withActor(context.currentIdentity, (actor) =>
-      context.workspace.createRound(actor, data),
-    );
+    return withActor(context.currentIdentity, (actor) => context.rounds.createRound(actor, data));
   });
 export const createApplication = createServerFn({ method: "POST" })
   .validator(createApplicationRequestSchema)
   .handler(async ({ data, context }) => {
     setResponseHeader("Cache-Control", "private, no-store");
     return withActor(context.currentIdentity, (actor) =>
-      context.workspace.createApplication(actor, data),
+      context.applications.createApplication(actor, data),
     );
   });

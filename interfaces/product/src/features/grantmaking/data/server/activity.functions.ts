@@ -11,7 +11,7 @@ export const readWorkspaceActivity = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     setResponseHeader("Cache-Control", "private, no-store");
     return loadWorkspaceActivity(data, {
-      ...context.workspace,
+      listWorkspaceActivity: context.grantmaking.listWorkspaceActivity,
       currentIdentity: context.currentIdentity,
     });
   });

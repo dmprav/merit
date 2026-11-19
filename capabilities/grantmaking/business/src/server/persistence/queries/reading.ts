@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, lt, or, sql } from "drizzle-orm";
+import { and, asc, eq, gt, or, sql } from "drizzle-orm";
 
 import {
   applicationCases,
@@ -21,8 +21,7 @@ import type { Database } from "@merit/db";
 import { authorizedWorkspaces } from "@merit/organizations/scope";
 import { recommendationVersions } from "@merit/recommendations/schema";
 import {
-  assembleRecommendationRecord,
-  decodeProvenanceColumns,
+  readRecommendationChange,
   readCurrentRecommendationsMap,
   recommendationRevision,
 } from "@merit/recommendations/scope";
@@ -30,16 +29,16 @@ import { assessments, reviewRequests } from "@merit/reviews/schema";
 import {
   readAssessmentRecord,
   readReviewRequestRecord,
-  readReviewSummaryPage,
   readReviewsByCasesMap,
+  readReviewSummaryPage,
   reviewRevision,
 } from "@merit/reviews/scope";
 import { fundingRounds } from "@merit/rounds/schema";
 import {
   assembleRoundRecord,
   criteriaVersionKey,
-  managerNeedsReassignment,
   readCriteriaByVersionsMap,
+  managerNeedsReassignment,
   readCriteriaVersionsMap,
   toMoneyData,
 } from "@merit/rounds/scope";
@@ -440,35 +439,6 @@ const readCurrentSubmissionPayload = async (
   return assembleCurrentSubmission(materialRow, answers, contact) ?? null;
 };
 
-const readRecommendationChangePayload = async (db: Database, caseId: string, revision: number) => {
-  const [current] = await db
-    .select()
-    .from(recommendationVersions)
-    .where(
-      and(eq(recommendationVersions.caseId, caseId), eq(recommendationVersions.revision, revision)),
-    );
-  if (!current) {
-    return undefined;
-  }
-  const [previous] = await db
-    .select()
-    .from(recommendationVersions)
-    .where(
-      and(eq(recommendationVersions.caseId, caseId), lt(recommendationVersions.revision, revision)),
-    )
-    .orderBy(desc(recommendationVersions.revision))
-    .limit(1);
-  return {
-    revision: current.revision,
-    actorUserId: current.actorUserId,
-    provenance:
-      decodeProvenanceColumns(current.provenanceInterface, current.provenanceClientId) ?? null,
-    recordedAt: current.recordedAt.toISOString(),
-    before: previous ? assembleRecommendationRecord(previous) : null,
-    after: assembleRecommendationRecord(current),
-  };
-};
-
 const readCurrentDetailsOrSubmission = async (
   db: Database,
   caseRow: typeof applicationCases.$inferSelect,
@@ -545,7 +515,7 @@ const sectionReaders: Partial<Record<ApplicationContentInput["section"], Section
       null,
   }),
   recommendation_change: async (db, caseRow, input) =>
-    optionalResult(await readRecommendationChangePayload(db, caseRow.id, input.revision ?? -1)),
+    optionalResult(await readRecommendationChange(db, caseRow.id, input.revision ?? -1)),
 };
 
 const resolveApplicationSection = async (
@@ -652,10 +622,10 @@ export const readGrantHistory = (
     .limit(input.limit + 1);
 };
 
-const readSelectedReviewTarget = async (
+export const readReviewSummaries = async (
   db: Database,
   actor: string,
-  input: { workspaceSlug: string; applicationId: string },
+  input: { workspaceSlug: string; applicationId: string; after?: string; limit: number },
 ) => {
   const workspace = authorizedWorkspaces(db, actor, "work_on_grants", input.workspaceSlug);
   const [selected] = await db
@@ -676,47 +646,5 @@ const readSelectedReviewTarget = async (
     )
     .innerJoin(workspace, eq(workspace.id, applicationCases.organizationId))
     .where(eq(applicationCases.id, input.applicationId));
-  return selected;
-};
-
-export const readReviewSummaries = async (
-  db: Database,
-  actor: string,
-  input: { workspaceSlug: string; applicationId: string; after?: string; limit: number },
-) => {
-  const selected = await readSelectedReviewTarget(db, actor, input);
-  if (!selected) {
-    return [];
-  }
-  const rows = await readReviewSummaryPage(db, selected.caseId, input.after ?? "", input.limit + 1);
-  if (!rows.length) {
-    return [];
-  }
-  const criteria = await readCriteriaByVersionsMap(db, [
-    { roundId: selected.roundId, version: selected.criteriaVersion },
-    ...rows.flatMap((row) =>
-      row.criteriaRoundId !== null && row.recordedCriteriaVersion !== null
-        ? [{ roundId: row.criteriaRoundId, version: row.recordedCriteriaVersion }]
-        : [],
-    ),
-  ]);
-  const currentCriteria =
-    criteria.get(criteriaVersionKey(selected.roundId, selected.criteriaVersion)) ?? null;
-  return rows.map(
-    ({ criteriaRoundId, recordedCriteriaVersion, status, conflict, authorUserId, ...row }) => ({
-      ...row,
-      recordedCriteriaVersion,
-      recordedCriteria:
-        criteriaRoundId !== null && recordedCriteriaVersion !== null
-          ? (criteria.get(criteriaVersionKey(criteriaRoundId, recordedCriteriaVersion)) ??
-            (row.kind === "request" ? [] : null))
-          : null,
-      applicationVersion: selected.applicationVersion,
-      reviewRevision: selected.reviewRevision,
-      criteriaVersion: selected.criteriaVersion,
-      currentCriteria,
-      ...(authorUserId !== null ? { authorUserId } : {}),
-      ...(status !== null ? { participation: { status, conflict } } : {}),
-    }),
-  );
+  return selected ? readReviewSummaryPage(db, selected, input) : undefined;
 };

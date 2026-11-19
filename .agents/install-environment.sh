@@ -1,21 +1,47 @@
 #!/usr/bin/env bash
-# Prepares a cloud agent VM. The image provides Node.js and pnpm, so the global
-# Vite+ CLI, which only adds runtime management, is not installed. The workspace's
-# vite-plus dependency supplies `vp` for every other command.
+# Prepares a cloud agent VM. When the image's Node.js or pnpm differs from the
+# versions the repository pins, the pinned ones are installed under the home
+# directory. The global Vite+ CLI, which only adds runtime management, is not
+# installed; the workspace's vite-plus dependency supplies `vp`.
 set -eo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo"
 
 expected_node="v$(tr -d '[:space:]' < .node-version)"
-actual_node="$(node --version 2>/dev/null || echo missing)"
-if [ "$actual_node" != "$expected_node" ]; then
-  echo "Node.js $expected_node is required by .node-version; found $actual_node." >&2
-  echo "Update the environment image or install the pinned version first." >&2
-  exit 1
+node_dir="$HOME/.local/node-$expected_node"
+if [ "$(node --version 2>/dev/null || echo missing)" != "$expected_node" ]; then
+  case "$(uname -m)" in
+    x86_64) node_arch=x64 ;;
+    aarch64 | arm64) node_arch=arm64 ;;
+    *)
+      echo "No Node.js $expected_node download for $(uname -m)." >&2
+      exit 1
+      ;;
+  esac
+  if [ ! -x "$node_dir/bin/node" ]; then
+    archive="node-$expected_node-linux-$node_arch.tar.xz"
+    download="$(mktemp -d)"
+    curl -fsSL -o "$download/$archive" "https://nodejs.org/dist/$expected_node/$archive"
+    curl -fsSL -o "$download/SHASUMS256.txt" "https://nodejs.org/dist/$expected_node/SHASUMS256.txt"
+    (cd "$download" && grep " $archive\$" SHASUMS256.txt | sha256sum -c -)
+    # Extract beside the archive and move into place only once complete, so an
+    # interrupted run never leaves a partial install that later runs reuse.
+    mkdir -p "$download/node" "$(dirname "$node_dir")"
+    tar -xJf "$download/$archive" --strip-components=1 -C "$download/node"
+    rm -rf "$node_dir"
+    mv "$download/node" "$node_dir"
+    rm -rf "$download"
+  fi
+  export PATH="$node_dir/bin:$PATH"
 fi
 
-# pnpm switches to the version pinned in package.json devEngines.
+expected_pnpm="$(node -p 'require("./package.json").devEngines.packageManager.version')"
+if [ "$(pnpm --version 2>/dev/null || echo missing)" != "$expected_pnpm" ]; then
+  npm install --global "pnpm@$expected_pnpm"
+  hash -r
+fi
+
 pnpm install --frozen-lockfile
 pnpm --filter @merit/test-support exec playwright install chromium
 
@@ -24,6 +50,9 @@ if [ -f "$HOME/.bashrc" ]; then
   sed -i '/case \$- in/,/esac/d' "$HOME/.bashrc"
 fi
 path_line="export PATH=\"$repo/node_modules/.bin:\$PATH\""
+if [ -x "$node_dir/bin/node" ]; then
+  path_line="export PATH=\"$repo/node_modules/.bin:$node_dir/bin:\$PATH\""
+fi
 if ! grep -qxF "$path_line" "$HOME/.bashrc" 2>/dev/null; then
   printf '\n%s\n' "$path_line" >> "$HOME/.bashrc"
 fi

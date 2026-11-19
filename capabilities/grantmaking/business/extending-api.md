@@ -17,7 +17,9 @@ in [application assembly](../../../app/src/server/services.server.ts).
 | Combined reads, history presentation, personal navigation, fictional examples  | This package                                                |
 
 Define inputs and typed outcomes in the owner's API. Its service factory binds
-infrastructure and receives the current actor on every call. Transports resolve
+infrastructure and receives the current actor on every call. Web and MCP handlers
+call the named owner, such as `recommendations.saveRecommendation` for a proposal
+or `grantmaking.readApplicationPage` for a combined view. Transports resolve
 identity, parse input, and present outcomes. They do not coordinate database writes.
 
 ## Preserve transaction and version guarantees
@@ -57,7 +59,11 @@ command and query handlers.
 
 For application overviews, join the named facts from Recommendations and Reviews
 through their `/scope` exports. Grantmaking combines these facts into work filters.
-Fetch display facts after pagination unless a filter or sort needs them earlier.
+After Grantmaking authorizes the case, Reviews selects the same current entries
+for overview counts and paginated review summaries. Recommendations resolves an
+exact revision and its predecessor for the application history view. Both readers
+use the caller's transaction. Fetch display facts after pagination unless a filter
+or sort needs them earlier.
 The round page and bounded overview share the [round totals projection](src/server/persistence/queries/round-totals.ts).
 The page also counts active review work and the criteria used by historical reviews.
 

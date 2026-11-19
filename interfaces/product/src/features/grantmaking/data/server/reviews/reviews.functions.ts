@@ -8,5 +8,5 @@ export const saveReview = createServerFn({ method: "POST" })
   .validator(saveReviewRequestSchema)
   .handler(({ data, context }) => {
     setResponseHeader("Cache-Control", "private, no-store");
-    return withActor(context.currentIdentity, (actor) => context.workspace.saveReview(actor, data));
+    return withActor(context.currentIdentity, (actor) => context.reviews.saveReview(actor, data));
   });

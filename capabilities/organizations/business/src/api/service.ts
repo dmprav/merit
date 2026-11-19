@@ -79,6 +79,7 @@ export interface OrganizationService {
     actor: Actor,
     input: z.input<typeof teamEventInput>,
   ) => Promise<Result<TeamEventContent>>;
+  readWorkspace: (actor: Actor, slug?: string) => Promise<Workspace | null>;
   workspacesPage: (
     actor: Actor,
     input: z.input<typeof workspacePageInput>,
