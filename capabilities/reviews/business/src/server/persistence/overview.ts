@@ -1,5 +1,6 @@
 import { sql, type SQLWrapper } from "drizzle-orm";
 
+import type { Database } from "@merit/db";
 import { criteriaVersions, criteriaVersionItems } from "@merit/rounds/schema";
 
 import { assessments, assessmentVersions, reviewRequests } from "./schema";
@@ -17,6 +18,7 @@ const knownCriteria = (round: SQLWrapper, version: SQLWrapper) => sql`exists (
 /** Bounded summary projection; latest, non-superseded assessments plus outstanding requests.
  * A known difference wins over unknown facts, as in reviewFreshness/assessmentStatus. */
 export const reviewOverview = (
+  db: Database,
   caseId: SQLWrapper,
   materialVersion: SQLWrapper,
   roundId: SQLWrapper,
@@ -25,24 +27,33 @@ export const reviewOverview = (
   const current = criteriaContent(roundId, criteriaVersion);
   const recorded = criteriaContent(sql`basis.criteria_round_id`, sql`basis.criteria_version`);
   const known = knownCriteria(sql`basis.criteria_round_id`, sql`basis.criteria_version`);
-  return sql<{
-    current: number;
-    outdated: number;
-    outstanding: number;
-    unknown: number;
-    criteriaChanged: boolean;
-    criteriaAssessments: number;
-    criteriaRequests: number;
-  }>`(
-    select jsonb_build_object(
-      'current', count(*) filter (where status = 'current'),
-      'outdated', count(*) filter (where status = 'outdated'),
-      'outstanding', count(*) filter (where status = 'outstanding'),
-      'unknown', count(*) filter (where status = 'unknown'),
-      'criteriaChanged', coalesce(bool_or(criteria_changed), false),
-      'criteriaAssessments', count(*) filter (where known_criteria and not outstanding),
-      'criteriaRequests', count(*) filter (where known_criteria and outstanding)
-    ) from (
+  return db
+    .select({
+      current: sql<number>`count(*) filter (where status = 'current')::integer`.as(
+        "review_current",
+      ),
+      outdated: sql<number>`count(*) filter (where status = 'outdated')::integer`.as(
+        "review_outdated",
+      ),
+      outstanding: sql<number>`count(*) filter (where status = 'outstanding')::integer`.as(
+        "review_outstanding",
+      ),
+      unknown: sql<number>`count(*) filter (where status = 'unknown')::integer`.as(
+        "review_unknown",
+      ),
+      criteriaChanged: sql<boolean>`coalesce(bool_or(criteria_changed), false)`.as(
+        "criteria_changed",
+      ),
+      criteriaAssessments:
+        sql<number>`count(*) filter (where known_criteria and not outstanding)::integer`.as(
+          "criteria_assessments",
+        ),
+      criteriaRequests:
+        sql<number>`count(*) filter (where known_criteria and outstanding)::integer`.as(
+          "criteria_requests",
+        ),
+    })
+    .from(sql`(
       select case
         when basis.outstanding then 'outstanding'
         when basis.material_version <> ${materialVersion} or (${known} and ${recorded} <> ${current}) then 'outdated'
@@ -67,6 +78,6 @@ export const reviewOverview = (
         select r.material_version, r.criteria_round_id, r.criteria_version, true
         from ${reviewRequests} r where r.case_id = ${caseId} and r.status = 'outstanding'
       ) basis
-    ) statuses
-  )`;
+    ) statuses`)
+    .as("review_overview");
 };

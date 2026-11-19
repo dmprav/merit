@@ -9,7 +9,11 @@ import { roundHasApplications } from "@merit/applications/server/integrations";
 import storedHistory from "@merit/applications/testing/history";
 import { changeWorkspaceContact } from "@merit/contacts/server";
 import { encodeApplicationDetail } from "@merit/grantmaking/api";
-import { getFundingApplicationPage, getFundingRoundPage } from "@merit/grantmaking/server";
+import {
+  getFundingApplicationPage,
+  getFundingRoundPage,
+  listWorkspaceApplications,
+} from "@merit/grantmaking/server";
 import { fundingRoundContactUsage } from "@merit/grantmaking/server/integrations";
 import { fromMinorUnits, toDecimal } from "@merit/money";
 import { actor, workspaceTest as it, workspaceSlug } from "@merit/organizations/testing/workspace";
@@ -449,6 +453,14 @@ it("records a new recommendation against the published application version", asy
   assert((await scenario.change({ action: "publish_revision" })).status === "ok");
   const revised = await scenario.read();
 
+  const changedEvidence = () =>
+    listWorkspaceApplications(db, actor, { workspaceSlug, filter: { evidence: "changed" } });
+
+  expect(await changedEvidence()).toMatchObject({
+    status: "ok",
+    applications: [{ id: revised.application.id, recommendation: { outdated: true } }],
+  });
+
   expect(await recommend(db, scenario)).toMatchObject({
     status: "ok",
     recommendation: { recorded: { applicationVersion: revised.application.version } },
@@ -456,6 +468,7 @@ it("records a new recommendation against the published application version", asy
   expect(
     (await scenario.read()).application.managerRecommendation?.recorded?.applicationVersion,
   ).toBe(revised.application.version);
+  expect(await changedEvidence()).toMatchObject({ status: "ok", applications: [] });
 });
 
 it.for(["a deferral", "an outstanding review request", "a cancelled review request"] as const)(

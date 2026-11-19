@@ -37,8 +37,6 @@ export const listWorkspaceApplications = (
       total: page.total,
       matching: page.matching,
       offset: page.offset,
-      applications: page.applications.map((row) =>
-        applicationOverviewSchema.parse({ ...row, criteriaChanged: row.reviews.criteriaChanged }),
-      ),
+      applications: page.applications.map((row) => applicationOverviewSchema.parse(row)),
     } as const;
   });

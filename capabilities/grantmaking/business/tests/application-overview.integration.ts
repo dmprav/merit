@@ -13,6 +13,7 @@ import {
   type ApplicationFilter,
 } from "@merit/grantmaking/api";
 import {
+  getFundingRoundOverview,
   getFundingRoundPage,
   getFundingApplicationPage,
   listWorkspaceApplications,
@@ -22,6 +23,7 @@ import { fundingRoundContactUsage } from "@merit/grantmaking/server/integrations
 import { seedExampleRounds } from "@merit/grantmaking/testing";
 import { encodeMoney, fromMinorUnits } from "@merit/money";
 import { actor } from "@merit/organizations/testing/workspace";
+import { recommendationVersions } from "@merit/recommendations/schema";
 import { reviewRevisionSchema } from "@merit/reviews/domain";
 import { saveApplicationReview } from "@merit/reviews/server";
 import { criteriaVersionSchema } from "@merit/rounds/domain";
@@ -124,9 +126,10 @@ it("lists applications across rounds with the same review facts as their round p
       recommendation: application.managerRecommendation
         ? {
             position: application.managerRecommendation.position,
-            outdated:
-              application.managerRecommendation.recorded?.applicationVersion !==
-              application.version,
+            outdated: Boolean(
+              application.managerRecommendation.recorded &&
+              application.managerRecommendation.recorded.applicationVersion !== application.version,
+            ),
           }
         : null,
     });
@@ -134,6 +137,45 @@ it("lists applications across rounds with the same review facts as their round p
     expect(overview).not.toHaveProperty("reviewBases");
     expect(overview).not.toHaveProperty("criteria");
   }
+});
+
+it("uses the latest allocation and only reports changed evidence for a known material mismatch", async ({
+  db,
+  rounds,
+}) => {
+  const { pageInput } = rounds;
+
+  const expectProposed = async (minorUnits: string) => {
+    const overview = await getFundingRoundOverview(db, actor, {
+      workspaceSlug: pageInput.workspaceSlug,
+      roundId: pageInput.publicId,
+    });
+    const page = await getFundingRoundPage(db, actor, pageInput);
+    assert(overview.status === "ok" && page);
+    expect(overview.round.totals.proposed.minorUnits).toBe(minorUnits);
+    expect(encodeMoney(page.round.totals.proposed)).toEqual(overview.round.totals.proposed);
+  };
+
+  await expectProposed("0");
+  const application = await rounds.createApplication("Community studio");
+  await rounds.recommendApplication(application, "5000");
+  await db.insert(recommendationVersions).values({
+    caseId: application.publicId,
+    revision: 2,
+    position: "Fund",
+    allocationMinorUnits: "3200",
+    reasoning: "Revised proposal with no recorded material basis.",
+  });
+
+  expect((await listAlder(db)).applications).toMatchObject([
+    {
+      id: application.publicId,
+      recommendation: { outdated: false, allocation: { minorUnits: "3200" } },
+    },
+  ]);
+  expect((await listAlder(db, { filter: { evidence: "changed" } })).matching).toBe(0);
+  expect((await listAlder(db, { filter: { recommendation: "missing" } })).matching).toBe(0);
+  await expectProposed("3200");
 });
 
 it("uses the latest assessment version and counts a replacement only once", async ({

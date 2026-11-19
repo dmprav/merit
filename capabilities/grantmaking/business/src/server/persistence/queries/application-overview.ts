@@ -5,7 +5,7 @@ import { caseWithdrawn } from "@merit/applications/scope";
 import type { Database } from "@merit/db";
 import { titleOrder } from "@merit/db/search";
 import { authorizedWorkspaces } from "@merit/organizations/scope";
-import { recommendationVersions } from "@merit/recommendations/schema";
+import { recommendationOverview } from "@merit/recommendations/scope";
 import { reviewOverview } from "@merit/reviews/scope";
 import { fundingRounds } from "@merit/rounds/schema";
 
@@ -20,17 +20,15 @@ const overviewRows = (db: Database, workspaceIds: SQLWrapper) =>
       applicant: sql<string | null>`nullif(${materialVersions.applicantOrganization}, '')`.as(
         "applicant",
       ),
-      roundId: sql<string>`${fundingRounds.id}`.as("roundId"),
+      roundId: applicationCases.roundId,
       roundTitle: sql<string>`${fundingRounds.title}`.as("roundTitle"),
       position: applicationCases.position,
-      requested: sql`case when ${materialVersions.requestedMinorUnits} is null then null else
-        jsonb_build_object('minorUnits', ${materialVersions.requestedMinorUnits}::text, 'currency', 'EUR') end`.as(
-        "requested",
-      ),
-      intakeStatus: sql<string>`${applicationCases.intakeStatus}`.as("intakeStatus"),
+      requestedMinorUnits: materialVersions.requestedMinorUnits,
+      requestedCurrency: materialVersions.requestedCurrency,
+      intakeStatus: applicationCases.intakeStatus,
       withdrawn: caseWithdrawn.as("withdrawn"),
-      version: sql<number>`${applicationCases.materialVersion}`.as("version"),
-      criteriaVersion: sql<number>`${fundingRounds.criteriaVersion}`.as("criteriaVersion"),
+      version: applicationCases.materialVersion,
+      criteriaVersion: fundingRounds.criteriaVersion,
     })
     .from(applicationCases)
     .innerJoin(
@@ -47,56 +45,57 @@ const overviewRows = (db: Database, workspaceIds: SQLWrapper) =>
         eq(fundingRounds.id, applicationCases.roundId),
       ),
     )
-    .where(inArray(applicationCases.organizationId, workspaceIds));
+    .where(inArray(applicationCases.organizationId, workspaceIds))
+    .as("b");
 
-const reviewsFor = (alias: "b" | "p") => {
-  const row = sql.identifier(alias);
-  return reviewOverview(
-    sql`${row}.id`,
-    sql`${row}.version`,
-    sql`${row}."roundId"`,
-    sql`${row}."criteriaVersion"`,
-  );
-};
+type OverviewRow = ReturnType<typeof overviewRows>;
 
-const recommendationFor = (alias: "b" | "p") => {
-  const row = sql.identifier(alias);
-  return sql`(select jsonb_build_object('position', r.position, 'outdated',
-    r.recorded_date is not null and r.material_version is not null and r.material_version <> ${row}.version,
-    'allocation', jsonb_build_object('minorUnits', r.allocation_minor_units::text, 'currency', r.allocation_currency))
-    from ${recommendationVersions} r where r.case_id = ${row}.id order by r.revision desc limit 1)`;
-};
+const reviewCounts = (r: ReturnType<typeof reviewOverview>) => sql`jsonb_build_object(
+  'current', ${r.current}, 'outdated', ${r.outdated}, 'outstanding', ${r.outstanding}, 'unknown', ${r.unknown})`;
 
-const workFilter = (filter: ApplicationFilter) =>
+const recommendationRecord = (
+  r: ReturnType<typeof recommendationOverview>,
+) => sql`case when ${r.position} is not null then jsonb_build_object(
+  'position', ${r.position}, 'outdated', ${r.outdated}, 'allocation', jsonb_build_object(
+    'minorUnits', ${r.allocationMinorUnits}::text, 'currency', ${r.allocationCurrency})) end`;
+
+const workFilter = (
+  filter: ApplicationFilter,
+  row: OverviewRow,
+  reviews: ReturnType<typeof reviewOverview>,
+  recommendation: ReturnType<typeof recommendationOverview>,
+) =>
   and(
-    filter.participation ? sql`withdrawn = ${filter.participation === "withdrawn"}` : undefined,
-    filter.readiness
-      ? sql`"intakeStatus" = ${filter.readiness === "ready" ? "ready" : "in_preparation"}`
+    filter.participation
+      ? sql`${row.withdrawn} = ${filter.participation === "withdrawn"}`
       : undefined,
-    filter.reviews === "awaiting" ? sql`(review_summary->>'outstanding')::integer > 0` : undefined,
+    filter.readiness
+      ? sql`${row.intakeStatus} = ${filter.readiness === "ready" ? "ready" : "in_preparation"}`
+      : undefined,
+    filter.reviews === "awaiting" ? sql`${reviews.outstanding} > 0` : undefined,
     filter.reviews === "unassigned"
-      ? sql`(review_summary->>'current')::integer + (review_summary->>'outdated')::integer + (review_summary->>'outstanding')::integer + (review_summary->>'unknown')::integer = 0`
+      ? sql`${reviews.current} + ${reviews.outdated} + ${reviews.outstanding} + ${reviews.unknown} = 0`
       : undefined,
     filter.evidence === "changed"
-      ? sql`((review_summary->>'outdated')::integer > 0 or (review_summary->>'criteriaChanged')::boolean or coalesce((recommendation->>'outdated')::boolean, false))`
+      ? sql`(${reviews.outdated} > 0 or ${reviews.criteriaChanged} or ${recommendation.outdated})`
       : undefined,
-    filter.evidence === "unknown" ? sql`(review_summary->>'unknown')::integer > 0` : undefined,
-    filter.recommendation === "missing" ? sql`recommendation is null` : undefined,
-  ) ?? sql`true`;
+    filter.evidence === "unknown" ? sql`${reviews.unknown} > 0` : undefined,
+    filter.recommendation === "missing" ? sql`${recommendation.position} is null` : undefined,
+  );
 
-const order = (input: WorkspaceApplicationsQuery) => {
+const order = (input: WorkspaceApplicationsQuery, row: OverviewRow) => {
   const direction = input.direction === "descending" ? desc : asc;
   const columns = {
-    application: titleOrder(sql`title`),
-    applicant: titleOrder(sql`applicant`),
-    round: titleOrder(sql`"roundTitle"`),
-    requested: sql`(requested->>'minorUnits')::numeric`,
-    proposed: sql`(recommendation->'allocation'->>'minorUnits')::numeric`,
-    intake: sql`case when withdrawn then 'Withdrawn' when "intakeStatus" = 'ready' then 'Ready' else 'In preparation' end`,
+    application: titleOrder(sql`${row.title}`),
+    applicant: titleOrder(sql`${row.applicant}`),
+    round: titleOrder(sql`${row.roundTitle}`),
+    requested: row.requestedMinorUnits,
+    proposed: sql`b.proposed`,
+    intake: sql`case when ${row.withdrawn} then 'Withdrawn' when ${row.intakeStatus} = 'ready' then 'Ready' else 'In preparation' end`,
   };
   return input.sort
-    ? sql`${direction(columns[input.sort])} nulls last, id asc`
-    : sql`"roundTitle" asc, "roundId" asc, position asc, id asc`;
+    ? sql`${direction(columns[input.sort])} nulls last, ${row.id} asc`
+    : sql`${row.roundTitle} asc, ${row.roundId} asc, ${row.position} asc, ${row.id} asc`;
 };
 
 export const readApplicationOverviews = async (
@@ -111,85 +110,57 @@ export const readApplicationOverviews = async (
   const needsRecommendation = Boolean(
     input.filter.recommendation || input.filter.evidence === "changed" || input.sort === "proposed",
   );
+  const row = overviewRows(db, sql`(select id from workspace_access where allowed)`);
+  const reviews = reviewOverview(db, row.id, row.version, row.roundId, row.criteriaVersion);
+  const recommendation = recommendationOverview(db, row.id, row.version);
+  const joinReviews = sql`cross join lateral ${reviews}`;
+  const joinRecommendation = sql`left join lateral ${recommendation} on true`;
   const selected = and(
-    input.roundId ? sql`b."roundId" = ${input.roundId}` : sql`true`,
+    input.roundId ? sql`${row.roundId} = ${input.roundId}` : sql`true`,
+    workFilter(input.filter, row, reviews, recommendation),
     // strpos treats %, _, quotes, and backslashes literally.
     input.query
-      ? sql`strpos(lower(b.title || ' ' || coalesce(b.applicant, '')), lower(${input.query})) > 0`
+      ? sql`strpos(lower(${row.title} || ' ' || coalesce(${row.applicant}, '')), lower(${input.query})) > 0`
       : undefined,
   );
   const offset = sql`least(${input.offset}, greatest(0, (matching - 1) / ${pageSize}) * ${pageSize})`;
-  // Materialized facts are shared by count and page; page selection precedes display projections.
+  // Only filters and sorting need facts before pagination. Reuse those facts for display.
   const result = await db.execute<{
     allowed: boolean;
-    applications: (Record<string, unknown> & { reviews: { criteriaChanged: boolean } })[];
+    applications: unknown[];
     total: number;
     matching: number;
     offset: number;
   }>(sql`
     with workspace_access(id, allowed) as materialized (${visible}),
-    workspace as materialized (${overviewRows(db, sql`(select id from workspace_access where allowed)`)}),
-    facts as materialized (
-      select b.*, ${needsReviews ? reviewsFor("b") : sql`null::jsonb`} as review_summary,
-        ${needsRecommendation ? recommendationFor("b") : sql`null::jsonb`} as recommendation
-      from workspace b where ${selected}
+    workspace as materialized (select * from ${row}),
+    matched as materialized (
+      select b.*
+        ${needsReviews ? sql`, ${reviewCounts(reviews)} as reviews, ${reviews.criteriaChanged} as "criteriaChanged"` : sql.empty()}
+        ${needsRecommendation ? sql`, ${recommendationRecord(recommendation)} as recommendation, ${recommendation.allocationMinorUnits} as proposed` : sql.empty()}
+      from workspace b
+      ${needsReviews ? joinReviews : sql.empty()}
+      ${needsRecommendation ? joinRecommendation : sql.empty()}
+      where ${selected}
     ),
-    matched as materialized (select * from facts where ${workFilter(input.filter)}),
     counts as (select (select count(*)::integer from workspace) as total, count(*)::integer as matching from matched),
     page as materialized (
-      select * from matched order by ${order(input)} limit ${pageSize}
+      select * from matched b order by ${order(input, row)} limit ${pageSize}
       offset (select ${offset} from counts)
-    ),
-    display as materialized (
-      select p.id, p.title, p.applicant, p."roundId", p."roundTitle", p.position, p."intakeStatus", p.withdrawn,
-        p.requested, ${needsRecommendation ? sql`p.recommendation` : recommendationFor("p")} as recommendation,
-        ${needsReviews ? sql`p.review_summary` : reviewsFor("p")} as reviews
-      from page p
     )
     select allowed, total, matching, ${offset} as offset,
-      (select coalesce(jsonb_agg(to_jsonb(d) order by ${order(input)}), '[]'::jsonb) from display d) as applications
+      (select coalesce(jsonb_agg(jsonb_build_object(
+        'id', ${row.id}, 'title', ${row.title}, 'applicant', ${row.applicant}, 'roundId', ${row.roundId}, 'roundTitle', ${row.roundTitle},
+        'intakeStatus', ${row.intakeStatus}, 'withdrawn', ${row.withdrawn},
+        'requested', case when ${row.requestedMinorUnits} is not null then jsonb_build_object(
+          'minorUnits', ${row.requestedMinorUnits}::text, 'currency', ${row.requestedCurrency}) end,
+        'recommendation', ${needsRecommendation ? sql`b.recommendation` : recommendationRecord(recommendation)},
+        'reviews', ${needsReviews ? sql`b.reviews` : reviewCounts(reviews)},
+        'criteriaChanged', ${needsReviews ? sql`b."criteriaChanged"` : reviews.criteriaChanged}
+      ) order by ${order(input, row)}), '[]'::jsonb) from page b
+      ${needsReviews ? sql.empty() : joinReviews}
+      ${needsRecommendation ? sql.empty() : joinRecommendation}) as applications
     from counts cross join workspace_access
   `);
   return result.rows[0];
-};
-
-/** Whole-round aggregates use the same authorized summary facts, independent of list filters. */
-export const readRoundTotals = async (
-  db: Database,
-  userId: string,
-  workspaceSlug: string,
-  roundId: string,
-) => {
-  const access = authorizedWorkspaces(db, userId, "work_on_grants", workspaceSlug);
-  const result = await db.execute<{
-    applicationCount: number;
-    requested: string;
-    proposed: string;
-    unknownRequests: number;
-    withdrawnApplications: number;
-    criteriaImpact: { assessments: number; requests: number };
-    reviews: { current: number; outdated: number; outstanding: number; unknown: number };
-  }>(sql`
-    with applications as materialized (
-      select b.*, ${reviewsFor("b")} as reviews, ${recommendationFor("b")} as recommendation
-      from (${overviewRows(db, db.select({ id: access.id }).from(access))}) b where b."roundId" = ${roundId}
-    )
-    select count(*)::integer as "applicationCount",
-      coalesce(sum((requested->>'minorUnits')::numeric) filter (where not withdrawn), 0)::text as requested,
-      coalesce(sum((recommendation->'allocation'->>'minorUnits')::numeric) filter (where not withdrawn), 0)::text as proposed,
-      count(*) filter (where not withdrawn and requested is null)::integer as "unknownRequests",
-      count(*) filter (where withdrawn)::integer as "withdrawnApplications",
-      jsonb_build_object(
-        'current', coalesce(sum((reviews->>'current')::integer) filter (where not withdrawn), 0),
-        'outdated', coalesce(sum((reviews->>'outdated')::integer) filter (where not withdrawn), 0),
-        'outstanding', coalesce(sum((reviews->>'outstanding')::integer) filter (where not withdrawn), 0),
-        'unknown', coalesce(sum((reviews->>'unknown')::integer) filter (where not withdrawn), 0)
-      ) as reviews,
-      jsonb_build_object(
-        'assessments', coalesce(sum((reviews->>'criteriaAssessments')::integer), 0),
-        'requests', coalesce(sum((reviews->>'criteriaRequests')::integer), 0)
-      ) as "criteriaImpact"
-    from applications
-  `);
-  return result.rows[0]!;
 };
