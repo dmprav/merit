@@ -2,8 +2,9 @@
 
 Run `vp run architecture` after moving code or changing dependencies. It checks
 package and runtime boundaries with JS Boundaries, library and I/O ownership
-with native lint rules, dependency cycles with Fallow, and capability TypeScript
-program isolation. The pre-commit hook and `vp run ready` run the same command.
+with native lint rules, dependency cycles with Fallow, capability TypeScript
+program isolation, and the [cross-cutting mechanisms map](#inspect-cross-cutting-mechanisms).
+The pre-commit hook and `vp run ready` run the same command.
 
 Package `exports` define the public API. Importing another capability's server
 code also requires an approved consumer and entry. A new server export does not
@@ -205,6 +206,24 @@ transactions protect query execution; stronger command write ownership would nee
 a separate database-permission or data-access design. Verify authorization,
 transaction atomicity, retry handling, and lock ordering with database restrictions
 and integration tests.
+
+## Inspect cross-cutting mechanisms
+
+Shared concerns that cut across capabilities and surfaces (authorization, audit
+trails, locks and transactions, drafts and recovery, exact money, delegated MCP,
+demo lifecycles, telemetry and analytics, and shared UI patterns) live in the
+[cross-cutting mechanisms registry](../../tooling/verification/architecture/mechanisms.ts).
+Each entry binds a mechanism's owner paths and trigger imports to its owning
+documentation, active decision records, vetoes, and scoped escape checks.
+
+- Run `vpx tooling/verification/architecture/mechanisms.ts --paths <paths...>`
+  before planning or editing to surface the decisions, vetoes, and escapes that
+  apply to candidate files.
+- Run `vpx tooling/verification/architecture/mechanisms.ts --base <ref>` on a
+  branch to classify touched mechanisms as `extends` (changes to an owner's
+  contract or core path) or `composes` (consumer imports and usage).
+- `vp run architecture` validates all registry paths, heading anchors, summary
+  limits, and active decision statuses with `--check`.
 
 ## Change a guarantee deliberately
 

@@ -15,7 +15,10 @@ need before judging against them.
    similar records or actions; if one is better built than the named precedent,
    report it.
 2. Read every file changed in `git diff <base>...HEAD` in full, not only the
-   hunks, so you see how the change fits its surroundings.
+   hunks, so you see how the change fits its surroundings. Run
+   `vpx tooling/verification/architecture/mechanisms.ts --base <base>` to see
+   which cross-cutting mechanisms the diff extends or composes, along with their
+   vetoes, decision records, and scoped escape checks.
 3. For UI changes, take your own screenshots following
    [UI verification](../../../docs/guides/ui-verification.md#verification) and the
    screenshot step in [build.md](build.md#compare-the-ui): the new UI and its
