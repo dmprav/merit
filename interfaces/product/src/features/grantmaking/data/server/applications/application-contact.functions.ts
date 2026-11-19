@@ -9,6 +9,6 @@ export const selectContact = createServerFn({ method: "POST" })
   .handler(({ data, context }) => {
     setResponseHeader("Cache-Control", "private, no-store");
     return withActor(context.currentIdentity, (actor) =>
-      context.workspace.selectContact(actor, data),
+      context.applications.selectContact(actor, data),
     );
   });

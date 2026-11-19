@@ -11,7 +11,7 @@ export const saveRecommendation = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     setResponseHeader("Cache-Control", "private, no-store");
     const result = await withActor(context.currentIdentity, (actor) =>
-      context.workspace.saveRecommendation(actor, data),
+      context.recommendations.saveRecommendation(actor, data),
     );
 
     return result.status === "ok"

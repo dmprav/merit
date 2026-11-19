@@ -23,7 +23,7 @@ export const readFundingRounds = createServerFn({ method: "GET" })
   .handler(async ({ data, context }) => {
     setResponseHeader("Cache-Control", "private, no-store");
     const result = await loadFundingRounds(data, {
-      ...context.workspace,
+      listRounds: context.grantmaking.listRounds,
       currentIdentity: context.currentIdentity,
     });
     return result.status === "ok"
@@ -36,7 +36,7 @@ export const readFundingRoundPage = createServerFn({ method: "GET" })
   .handler(async ({ data, context }) => {
     setResponseHeader("Cache-Control", "private, no-store");
     const result = await loadFundingRoundPage(data, {
-      ...context.workspace,
+      readRoundPage: context.grantmaking.readRoundPage,
       currentIdentity: context.currentIdentity,
     });
     return result.status === "ok" ? { ...result, round: encodeRoundPage(result.round) } : result;
@@ -47,7 +47,7 @@ export const readFundingApplicationPage = createServerFn({ method: "GET" })
   .handler(async ({ data, context }) => {
     setResponseHeader("Cache-Control", "private, no-store");
     const result = await loadFundingApplicationPage(data, {
-      ...context.workspace,
+      readApplicationPage: context.grantmaking.readApplicationPage,
       currentIdentity: context.currentIdentity,
     });
     return result.status === "ok" ? { ...result, ...encodeApplicationDetail(result) } : result;
@@ -58,7 +58,7 @@ export const readWorkspaceApplications = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     setResponseHeader("Cache-Control", "private, no-store");
     return loadWorkspaceApplications(data, {
-      ...context.workspace,
+      listWorkspaceApplications: context.grantmaking.listWorkspaceApplications,
       currentIdentity: context.currentIdentity,
     });
   });

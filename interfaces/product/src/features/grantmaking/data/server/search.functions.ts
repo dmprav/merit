@@ -11,7 +11,7 @@ export const searchWorkspace = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     setResponseHeader("Cache-Control", "private, no-store");
     return loadWorkspaceSearch(data, {
-      ...context.workspace,
+      searchWorkspace: context.grantmaking.searchWorkspace,
       currentIdentity: context.currentIdentity,
     });
   });

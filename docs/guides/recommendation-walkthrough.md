@@ -61,7 +61,7 @@ and `expectedApplicationVersion` is 2 even if a background read has found newer 
 
 The [Start server function](../../interfaces/product/src/features/grantmaking/data/server/recommendations/recommendations.functions.ts)
 validates the request, resolves the browser actor through `withActor`, and calls
-`context.workspace.saveRecommendation`. It marks responses private and uncached
+`context.recommendations.saveRecommendation`. It marks responses private and uncached
 and encodes the result for transport. It does not decide grant eligibility or
 construct audit records.
 

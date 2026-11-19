@@ -13,7 +13,7 @@ export const readContacts = createServerFn({ method: "GET" })
   .handler(({ data, context }) => {
     setResponseHeader("Cache-Control", "private, no-store");
     return withActor(context.currentIdentity, (actor) =>
-      context.workspace.listContacts(actor, data),
+      context.contacts.listContacts(actor, data),
     );
   });
 export const saveContact = createServerFn({ method: "POST" })
@@ -21,7 +21,7 @@ export const saveContact = createServerFn({ method: "POST" })
   .handler(({ data, context }) => {
     setResponseHeader("Cache-Control", "private, no-store");
     return withActor(context.currentIdentity, (actor) =>
-      context.workspace.changeContact(actor, data),
+      context.contacts.changeContact(actor, data),
     );
   });
 
@@ -30,7 +30,7 @@ export const readContactHistory = createServerFn({ method: "GET" })
   .handler(({ context, data }) => {
     setResponseHeader("Cache-Control", "private, no-store");
     return withActor(context.currentIdentity, (actor) =>
-      context.workspace.contactHistory(actor, data),
+      context.contacts.contactHistory(actor, data),
     );
   });
 
@@ -39,7 +39,7 @@ export const readContactApplications = createServerFn({ method: "GET" })
   .handler(({ context, data }) => {
     setResponseHeader("Cache-Control", "private, no-store");
     return loadContactApplications(data, {
-      ...context.workspace,
+      listContactApplications: context.grantmaking.listContactApplications,
       currentIdentity: context.currentIdentity,
     });
   });

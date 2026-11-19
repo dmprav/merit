@@ -8,13 +8,11 @@ export const editRound = createServerFn({ method: "POST" })
   .validator(editRoundRequestSchema)
   .handler(async ({ data, context }) => {
     setResponseHeader("Cache-Control", "private, no-store");
-    return withActor(context.currentIdentity, (actor) => context.workspace.editRound(actor, data));
+    return withActor(context.currentIdentity, (actor) => context.rounds.editRound(actor, data));
   });
 export const deleteRound = createServerFn({ method: "POST" })
   .validator(deleteRoundRequestSchema)
   .handler(async ({ data, context }) => {
     setResponseHeader("Cache-Control", "private, no-store");
-    return withActor(context.currentIdentity, (actor) =>
-      context.workspace.deleteRound(actor, data),
-    );
+    return withActor(context.currentIdentity, (actor) => context.rounds.deleteRound(actor, data));
   });

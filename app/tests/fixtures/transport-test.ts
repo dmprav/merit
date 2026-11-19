@@ -28,14 +28,12 @@ export const createTransport = (
 ) => {
   const {
     grantmaking,
-    grantmakingQueries,
     rounds,
     applications,
     recommendations,
     reviews,
     contacts,
     organizations: team,
-    readWorkspace,
     reviewer,
     navigation,
   } = createApplicationServices({
@@ -47,7 +45,7 @@ export const createTransport = (
   });
   const services = {
     ...grantmaking,
-    ...contacts,
+    readWorkspace: team.readWorkspace,
     currentIdentity: async () => {
       const account = await currentAccount();
       if (account.status !== "authenticated") {
@@ -59,7 +57,6 @@ export const createTransport = (
         ? { status: "authenticated" as const, actor: { userId: user.userId } }
         : { status: "unavailable" as const };
     },
-    readWorkspace,
   };
 
   const mcpOperations = {
@@ -68,7 +65,7 @@ export const createTransport = (
     reviews,
     reviewer,
     recommendations,
-    grantmaking: grantmakingQueries,
+    grantmaking,
     contacts,
     organizations: team,
     navigation,
