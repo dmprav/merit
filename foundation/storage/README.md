@@ -1,24 +1,32 @@
 # Store and read private files
 
-Server-side grant workflows can use the `files` service from
-[application service assembly](../../../app/src/server/services.server.ts). Pass the
-authenticated actor and the workspace slug to each call. Both reads and writes
-require current `work_on_grants` authority. PostgreSQL limits metadata to the
-selected workspace. Only the server holds object-store credentials.
+The capability that owns an attachment decides who may create or read it.
+Use `createFileStorage` from `@merit/storage` with the
+[server's S3 adapter](../../app/src/server/file-objects.server.ts).
 
-`writeFile(actor, { workspaceSlug, requestId, originalFilename, mimeType, bytes })`
-accepts a `Uint8Array` of up to 25 MiB, including empty files. This limit bounds
-each buffered upload while the server holds its workspace and membership locks.
-Use a fresh UUID for each logical upload and reuse it for retries. A successful
-write returns `status: "ok"` and the stored file. PostgreSQL assigns its ID,
-opaque object key and creation time. The server records the actor, supplied name
-and MIME type, actual byte count and SHA-256 digest. Treat the supplied name and
-type as descriptive input when presenting a file.
+For a write, open the owning capability's transaction, authorize the action on
+the specific resource, then call `storage.writeFile(tx, { organizationId, uploadedBy }, upload)`.
+Derive those IDs from the authorized resource and authenticated actor.
+The upload carries a request UUID, original filename, MIME type and up to 25 MiB
+of bytes. On success, save the returned file ID on the owner's attachment in the
+same transaction. Reference `workspace_files(organization_id, id)` together so a
+resource can only link a file in its own workspace. A rolled-back attachment
+also rolls back the file metadata.
 
-`readFile(actor, { workspaceSlug, fileId })` returns the saved metadata and
-verified bytes. An inaccessible workspace, insufficient authority, or unknown
-file returns `not_found` before contacting object storage. Malformed input and
-storage failures throw. No browser or MCP route exposes these operations.
+For multiple attachments in one transaction, await each write before starting
+the next. Each write uses a savepoint so a failed upload releases its receipt
+even when the owner handles the failure and commits other work.
+
+For a read, select the attachment through the owner's authorized resource query
+and join its file row using `workspaceFiles` from `@merit/storage/schema`.
+After releasing the database connection, pass that persisted row to
+`storage.readFile(file)` to retrieve bytes verified against its length and SHA-256.
+Always resolve this row on the server. A client-supplied file ID or metadata
+cannot establish the right to download it.
+
+PostgreSQL enforces tenant isolation in workspace and assignment transactions.
+Within that boundary, the owner's rule can distinguish, for example, a program
+manager's application materials from a reviewer's assigned evidence.
 
 ## Retry a write
 
@@ -26,7 +34,7 @@ The workspace and request ID uniquely identify the write. Concurrent attempts
 wait on the same PostgreSQL uniqueness constraint. A committed retry by the
 same actor with identical bytes, name and MIME type returns the original file.
 Reusing the request with different content, metadata or actor returns
-`conflict` after the caller passes the workspace permission check.
+`conflict` after the caller passes the owning capability's permission check.
 
 The transaction reserves a new file ID and issues a conditional S3 PUT while
 the metadata is uncommitted. Storage must support `If-None-Match: *`. Readers
@@ -47,8 +55,8 @@ operator. Production provider and bucket provisioning are deployment choices.
 Set `FILE_STORAGE_ENDPOINT`, `FILE_STORAGE_REGION`, `FILE_STORAGE_BUCKET`,
 `FILE_STORAGE_ACCESS_KEY_ID` and `FILE_STORAGE_SECRET_ACCESS_KEY` in the Node
 server environment. Use HTTPS outside loopback. The
-[local environment example](../../../app/.env.example) matches the private
-SeaweedFS service in [Compose](../../../compose.yaml). Running
+[local environment example](../../app/.env.example) matches the private
+SeaweedFS service in [Compose](../../compose.yaml). Running
 `docker compose up -d --wait` provisions the local bucket and preserves it in
 a named volume across restarts. Copy the five settings to `app/.env.local` for Vite development and preview,
 or export them in the server shell.
@@ -76,5 +84,5 @@ with visibility across all workspaces. Use a short batch during a quiet period.
 
 Age and filename alone cannot establish that a file is unreferenced. Never use
 a tenant-scoped runtime connection for this comparison. The
-[database and storage integration tests](../../../app/tests/file-storage.integration.ts)
+[database and storage integration tests](../../app/tests/file-storage.integration.ts)
 exercise private access and byte preservation against the Compose service.

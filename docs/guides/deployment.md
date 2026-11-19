@@ -25,7 +25,7 @@ full set of checks.
 ## Prepare private file storage
 
 Set up a dedicated private S3-compatible bucket and server credentials before
-using file operations. The [storage guide](../../capabilities/files/business/README.md#configure-a-bucket)
+using file operations. The [storage guide](../../foundation/storage/README.md#configure-a-bucket)
 defines the provider requirements, environment settings and orphan cleanup procedure.
 
 ## Prepare the database

@@ -77,7 +77,7 @@ Use `docker compose stop` to stop it without deleting data.
 
 Compose also starts [Mailpit](organizations.md#try-the-complete-flow-locally) for
 local invitation emails and SeaweedFS for
-[private file storage](../../capabilities/files/business/README.md#configure-a-bucket).
+[private file storage](../../foundation/storage/README.md#configure-a-bucket).
 The seed creates example workspaces for Alder and Birch. Repeating it preserves
 existing content, review work, memberships, and revoked permissions. If you have a database from before the current
 schema baseline, see [local database recovery](#local-database-recovery).
@@ -199,7 +199,7 @@ reproduce the same database structure. Before the first deployment, migrations
 may be consolidated into a fresh baseline; existing local databases then need
 [recreation](#local-database-recovery). When regenerating the baseline, carry forward
 the handwritten SQL for public IDs, deferred foreign keys, content checks, the
-outstanding-review index, the audit organization foreign key, and immutability
+outstanding-review index, the audit and file organization foreign keys, and immutability
 triggers. Keep the search extensions and indexes, workspace row-security policies
 and helpers, and reviewer delivery function with its restricted privileges.
 Once deployed, keep applied migrations unchanged and add a migration for each change.

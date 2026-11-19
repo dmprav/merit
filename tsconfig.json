@@ -23,7 +23,7 @@
       "path": "capabilities/contacts/web"
     },
     {
-      "path": "capabilities/files/business"
+      "path": "foundation/storage"
     },
     {
       "path": "capabilities/grantmaking/business"

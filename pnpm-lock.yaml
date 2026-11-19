@@ -517,9 +517,6 @@ importers:
       '@merit/emails':
         specifier: workspace:*
         version: link:../interfaces/emails
-      '@merit/files':
-        specifier: workspace:*
-        version: link:../capabilities/files/business
       '@merit/forms':
         specifier: workspace:*
         version: link:../foundation/forms
@@ -553,6 +550,9 @@ importers:
       '@merit/site':
         specifier: workspace:*
         version: link:../interfaces/site
+      '@merit/storage':
+        specifier: workspace:*
+        version: link:../foundation/storage
       '@merit/telemetry':
         specifier: workspace:*
         version: link:../foundation/telemetry
@@ -959,34 +959,6 @@ importers:
       vite:
         specifier: 'catalog:'
         version: '@voidzero-dev/vite-plus-core@1.5.0(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1)'
-      vite-plus:
-        specifier: 'catalog:'
-        version: 1.5.0(@opentelemetry/api@1.10.0)(@types/node@24.19.2)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(esbuild@0.28.2)(jiti@2.7.0)(jsdom@31.0.0)(playwright@1.64.1)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1)
-
-  capabilities/files/business:
-    dependencies:
-      '@merit/auth':
-        specifier: workspace:*
-        version: link:../../../foundation/auth
-      '@merit/db':
-        specifier: workspace:*
-        version: link:../../../foundation/db
-      '@merit/organizations':
-        specifier: workspace:*
-        version: link:../../organizations/business
-      drizzle-orm:
-        specifier: 'catalog:'
-        version: 0.45.4(@opentelemetry/api@1.10.0)(@types/pg@8.23.1)(pg@8.23.1)
-      zod:
-        specifier: 'catalog:'
-        version: 4.6.7
-    devDependencies:
-      '@types/node':
-        specifier: 'catalog:'
-        version: 24.19.2
-      typescript:
-        specifier: 'catalog:'
-        version: 7.0.2
       vite-plus:
         specifier: 'catalog:'
         version: 1.5.0(@opentelemetry/api@1.10.0)(@types/node@24.19.2)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(esbuild@0.28.2)(jiti@2.7.0)(jsdom@31.0.0)(playwright@1.64.1)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1)
@@ -1981,6 +1953,31 @@ importers:
       react-dom:
         specifier: 'catalog:'
         version: 19.3.1(react@19.3.1)
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vite-plus:
+        specifier: 'catalog:'
+        version: 1.5.0(@opentelemetry/api@1.10.0)(@types/node@24.19.2)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(esbuild@0.28.2)(jiti@2.7.0)(jsdom@31.0.0)(playwright@1.64.1)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1)
+
+  foundation/storage:
+    dependencies:
+      '@merit/auth':
+        specifier: workspace:*
+        version: link:../auth
+      '@merit/db':
+        specifier: workspace:*
+        version: link:../db
+      drizzle-orm:
+        specifier: 'catalog:'
+        version: 0.45.4(@opentelemetry/api@1.10.0)(@types/pg@8.23.1)(pg@8.23.1)
+      zod:
+        specifier: 'catalog:'
+        version: 4.6.7
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.19.2
       typescript:
         specifier: 'catalog:'
         version: 7.0.2

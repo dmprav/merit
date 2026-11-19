@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 
 import type { Transaction } from "@merit/db";
 
-import { workspaceFiles } from "../schema";
+import { workspaceFiles } from "./schema";
 
 export const claimFile = async (tx: Transaction, input: typeof workspaceFiles.$inferInsert) => {
   const [created] = await tx

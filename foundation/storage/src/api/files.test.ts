@@ -1,9 +1,8 @@
 import { expect, it } from "vite-plus/test";
 
-import { readFileInput, writeFileInput } from "./files";
+import { writeFileInput } from "./files";
 
 const input = {
-  workspaceSlug: "alder",
   requestId: crypto.randomUUID(),
   originalFilename: "Research 🗂.bin",
   mimeType: "application/octet-stream",
@@ -18,9 +17,6 @@ it("rejects caller-supplied storage keys and attributed metadata", () => {
   for (const field of ["objectKey", "uploadedBy", "byteLength", "createdAt", "id"]) {
     expect(writeFileInput.safeParse({ ...input, [field]: "forged" }).success).toBe(false);
   }
-  expect(readFileInput.safeParse({ workspaceSlug: "alder", fileId: "../bucket/key" }).success).toBe(
-    false,
-  );
 });
 
 it("accepts up to 25 MiB of bytes", () => {

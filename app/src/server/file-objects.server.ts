@@ -1,6 +1,8 @@
 import { AwsClient } from "aws4fetch";
 import { z } from "zod";
 
+import type { FileObjects } from "@merit/storage";
+
 const settings = z.object({
   FILE_STORAGE_ENDPOINT: z.url({ protocol: /^https?$/u }),
   FILE_STORAGE_REGION: z.string().min(1),
@@ -9,7 +11,7 @@ const settings = z.object({
   FILE_STORAGE_SECRET_ACCESS_KEY: z.string().min(1),
 });
 
-export const createFileObjects = (env: NodeJS.ProcessEnv) => {
+export const createFileObjects = (env: NodeJS.ProcessEnv): FileObjects => {
   const request = async (key: string, init: RequestInit) => {
     const config = settings.safeParse(env);
     if (!config.success) {
@@ -50,14 +52,14 @@ export const createFileObjects = (env: NodeJS.ProcessEnv) => {
   };
 
   return {
-    async put(key: string, bytes: Uint8Array<ArrayBuffer>, sha256: string) {
+    async put(key, bytes, sha256) {
       await request(key, {
         method: "PUT",
         headers: { "If-None-Match": "*", "x-amz-content-sha256": sha256 },
         body: bytes,
       });
     },
-    async get(key: string, byteLength: number) {
+    async get(key, byteLength) {
       const response = await request(key, { method: "GET" });
       if (response.headers.get("content-length") !== String(byteLength)) {
         await response.body?.cancel();
