@@ -126,14 +126,18 @@ const SearchSession = ({
         {t("search.retry")}
       </Button>
     ) : undefined;
-  const failedAlone = search.status === "failed" && !items.length;
-  const feedback = failedAlone ? undefined : searchFeedback(search, t, retry);
-  const message = items.length
-    ? undefined
-    : searchMessage(search, t, retry, () => {
+  const outcome = items.length ? undefined : emptyOutcome(search);
+  const feedback = outcome?.status === "failed" ? undefined : searchFeedback(search, t, retry);
+  const message = outcome && (
+    <SearchMessage
+      search={outcome}
+      retry={retry}
+      onClear={() => {
         search.onChange("");
         input.current?.focus();
-      });
+      }}
+    />
+  );
   const announcement = searchAnnouncement(search, local.length, t);
 
   return (
@@ -164,41 +168,49 @@ const SearchSession = ({
   );
 };
 
+type SearchOutcome = Extract<
+  ReturnType<typeof useWorkspaceSearch>,
+  { status: "failed" | "results" }
+>;
+
+/** A finished search that left the result list empty needs a message in its place. */
+const emptyOutcome = (search: ReturnType<typeof useWorkspaceSearch>): SearchOutcome | undefined =>
+  search.status === "failed" || search.status === "results" ? search : undefined;
+
 /** The message that replaces an empty result list after a search fails or finds nothing. */
-const searchMessage = (
-  search: ReturnType<typeof useWorkspaceSearch>,
-  t: Translate,
-  retry: ReactNode,
-  clear: () => void,
-) => {
-  if (search.status === "failed") {
-    return (
-      <StateMessage
-        size="compact"
-        tone="danger"
-        illustration={<Icon name="warning" />}
-        title={t("search.unavailable")}
-        description={t("search.unavailableHint")}
-        actions={retry}
-      />
-    );
-  }
-  if (search.status === "results") {
-    return (
-      <StateMessage
-        size="compact"
-        illustration={<Icon name="search" />}
-        title={t("search.noMatches", { query: search.query })}
-        description={t("search.noMatchesHint")}
-        actions={
-          <Button variant="secondary" size="small" onPress={clear}>
-            {t("search.clear")}
-          </Button>
-        }
-      />
-    );
-  }
-  return undefined;
+const SearchMessage = ({
+  search,
+  retry,
+  onClear,
+}: {
+  search: SearchOutcome;
+  retry: ReactNode;
+  onClear: () => void;
+}) => {
+  const { t } = useTranslation("fundingRounds");
+
+  return search.status === "failed" ? (
+    <StateMessage
+      size="compact"
+      tone="danger"
+      illustration={<Icon name="warning" />}
+      title={t("search.unavailable")}
+      description={t("search.unavailableHint")}
+      actions={retry}
+    />
+  ) : (
+    <StateMessage
+      size="compact"
+      illustration={<Icon name="search" />}
+      title={t("search.noMatches", { query: search.query })}
+      description={t("search.noMatchesHint")}
+      actions={
+        <Button variant="secondary" size="small" onPress={onClear}>
+          {t("search.clear")}
+        </Button>
+      }
+    />
+  );
 };
 
 const searchFeedback = (
