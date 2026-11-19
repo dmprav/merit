@@ -75,8 +75,10 @@ export const ReturnFailed: Story = {
     const body = within(canvasElement.ownerDocument.body);
     await userEvent.click(body.getByRole("menuitem", { name: "Delete round" }));
     await userEvent.click(body.getByRole("button", { name: "Delete round" }));
-    await expect(canvas.getByRole("status")).toHaveTextContent("Round deleted.");
-    await expect(canvas.getByRole("alert")).toHaveTextContent("We couldn’t open the rounds list");
+    await expect(await canvas.findByRole("status")).toHaveTextContent("Round deleted.");
+    await expect(await canvas.findByRole("alert")).toHaveTextContent(
+      "We couldn’t open the rounds list",
+    );
     await waitFor(() =>
       expect(canvas.getByRole("button", { name: "Return to funding rounds" })).toHaveFocus(),
     );

@@ -62,7 +62,8 @@ catalog:
   react: ^19.3.1
   react-aria-components: ^1.22.1
   react-dom: ^19.3.1
-  typescript: 7.1.0-beta
+  # shortcut: 7.1.0-beta stopped `vp dev` in app from serving routes; allow 7.1 once a stable release serves `/` again.
+  typescript: ~7.0.2
   vite: npm:@voidzero-dev/vite-plus-core@1.5.0
   vite-plus: 1.5.0
   zod: ^4.6.7

@@ -121,7 +121,11 @@ export default defineConfig({
       "test:commits": { command: "vp test tooling/verification/commits.test.ts", cache: false },
       "test:ci": {
         command:
-          "vp test tooling/verification/ci.test.ts tooling/verification/ci-changes.test.ts tooling/verification/ci-summary.test.ts tooling/verification/verification-record.test.ts",
+          "vp test tooling/verification/ci.test.ts tooling/verification/ci-changes.test.ts tooling/verification/ci-summary.test.ts tooling/verification/ci-browser-history.test.ts tooling/verification/verification-record.test.ts",
+        cache: false,
+      },
+      "ci:browser-history": {
+        command: "vpx tooling/verification/ci-browser-history.ts",
         cache: false,
       },
       "ci:summary": { command: "vpx tooling/verification/ci-summary.ts", cache: false },
@@ -145,6 +149,7 @@ export default defineConfig({
           "vp lint --config tooling/verification/architecture/config.ts .",
           "fallow architecture --no-cache",
           "vp test tooling/verification/architecture/typescript.test.ts",
+          "vpx tooling/verification/architecture/mechanisms.ts --check",
         ],
         cache: { output: [] },
       },
@@ -155,7 +160,8 @@ export default defineConfig({
       },
       "test:fallow": { command: "vp test tooling/verification/fallow.test.ts", cache: false },
       "test:architecture": {
-        command: "vp test tooling/verification/architecture/architecture.test.ts",
+        command:
+          "vp test tooling/verification/architecture/architecture.test.ts tooling/verification/architecture/mechanisms.test.ts",
         cache: false,
       },
       "test:checks": {
