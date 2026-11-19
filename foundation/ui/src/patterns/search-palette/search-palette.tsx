@@ -1,6 +1,20 @@
-import type { ComponentProps, ReactElement, ReactNode, Ref, KeyboardEvent } from "react";
+import {
+  useEffectEvent,
+  useEffect,
+  type ComponentProps,
+  type ReactElement,
+  type ReactNode,
+  type Ref,
+  type KeyboardEvent,
+} from "react";
 import { Autocomplete } from "react-aria-components/Autocomplete";
-import { Header, ListBox, ListBoxItem, ListBoxSection } from "react-aria-components/ListBox";
+import {
+  Header,
+  ListBox,
+  ListBoxItem,
+  ListBoxSection,
+  type ListBoxRenderProps,
+} from "react-aria-components/ListBox";
 import { Input, SearchField } from "react-aria-components/SearchField";
 import { useTranslation } from "react-i18next";
 
@@ -132,6 +146,30 @@ const SearchGroup = ({
   </ListBoxSection>
 );
 
+/** Reset virtual focus without replacing the DOM nodes that own an in-progress press. */
+const ResultsList = ({
+  state,
+  firstId,
+  resultsId,
+  ...props
+}: ComponentProps<"div"> &
+  Pick<ListBoxRenderProps, "state"> &
+  Pick<SearchPaletteProps, "resultsId"> & { firstId?: string }) => {
+  // React Aria builds its collection after the initial render.
+  const firstAvailable =
+    firstId !== undefined && state.collection.getItem(firstId) ? firstId : null;
+  const highlight = useEffectEvent((key: string | null) => {
+    state.selectionManager.setFocused(key !== null);
+    state.selectionManager.setFocusedKey(key);
+  });
+  useEffect(() => {
+    if (resultsId !== undefined) {
+      highlight(firstAvailable);
+    }
+  }, [resultsId, firstAvailable]);
+  return <div {...props} />;
+};
+
 const SearchResults = ({
   label,
   groups,
@@ -144,15 +182,17 @@ const SearchResults = ({
 }) =>
   groups.some((group) => group.items.length > 0) && (
     <ListBox
-      // Each settled result set mounts afresh, so React Aria highlights its top row; while
-      // newer results load only choices already answering the current input remain available.
-      key={resultsId}
-      autoFocus={
-        resultsId !== undefined &&
-        (!busy || groups.some((group) => group.items.some((item) => item.availableWhileBusy)))
-          ? "first"
-          : false
-      }
+      render={(props, { state }) => (
+        <ResultsList
+          {...props}
+          state={state}
+          firstId={
+            groups.flatMap((group) => group.items).find((item) => !busy || item.availableWhileBusy)
+              ?.id
+          }
+          resultsId={resultsId}
+        />
+      )}
       aria-label={label}
       selectionMode="none"
       className={`${styles.list} ${scrollStyles.scrollArea}`}
