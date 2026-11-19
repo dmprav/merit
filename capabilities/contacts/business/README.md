@@ -36,7 +36,9 @@ Application assembly supplies the [grant-work interface](src/server/grant-work.t
 Contacts owns the profile change; grantmaking owns application titles and
 outstanding review requests. Archival checks run in the contact command's
 transaction under the organization-owned grant-work lock imported from
-`@merit/organizations/locks`. Profile changes and
+`@merit/organizations/locks`. Profile edits take a shared workspace lock and lock
+the contact row before checking its revision. Grant commands that copy a name or email
+hold a shared lock on that contact through commit. Profile changes and
 history commit together, and unchanged edits preserve the revision.
 
 Every independent query uses a read-only, repeatable-read transaction. Directory

@@ -767,7 +767,10 @@ it("records reviews using version references without decoding application conten
         sql.raw(`GRANT SELECT (case_id, version, title) ON material_versions TO ${role}`),
       );
       await tx.execute(sql.raw(`GRANT UPDATE (name) ON organizations TO ${role}`));
-      await tx.execute(sql.raw(`GRANT UPDATE (id) ON funding_rounds, app_users TO ${role}`));
+      // PostgreSQL requires a column UPDATE grant to take a row lock for a snapshot.
+      await tx.execute(
+        sql.raw(`GRANT UPDATE (id) ON funding_rounds, app_users, contacts TO ${role}`),
+      );
       await tx.execute(sql.raw(`GRANT UPDATE (user_id) ON memberships TO ${role}`));
       await tx.execute(sql.raw(`GRANT UPDATE (id) ON application_cases TO ${role}`));
       await tx.execute(

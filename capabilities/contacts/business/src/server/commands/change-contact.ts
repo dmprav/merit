@@ -10,7 +10,7 @@ import {
 } from "../../api/commands";
 import type { ContactGrantWork } from "../grant-work";
 import { recordContactChange } from "../persistence/commands/contacts";
-import { readContact } from "../persistence/scope";
+import { lockContactProfile } from "../persistence/commands/locks";
 
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
@@ -29,12 +29,18 @@ export const changeWorkspaceContact = async (
   const expectedRevision = request.action === "create" ? null : request.expectedContactRevision;
 
   const changeContactTransaction = async (tx: Transaction): Promise<SaveContactResult> => {
-    const access = await lockGrantWorkspace(tx, actor.userId, request.workspaceSlug, "update");
+    const workspaceMode = request.action === "update" ? "share" : "update";
+    const access = await lockGrantWorkspace(tx, actor.userId, request.workspaceSlug, workspaceMode);
     if (!access) {
       return { status: "not_found" } as const;
     }
 
-    const before = await readContact(tx, access.organization.id, request.contactId);
+    const before = await lockContactProfile(
+      tx,
+      access.organization.id,
+      request.contactId,
+      "no key update",
+    );
     if (expectedRevision === null && before) {
       return { status: "ok", contact: before } as const;
     }

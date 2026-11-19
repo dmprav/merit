@@ -1,5 +1,5 @@
 import { type Actor } from "@merit/auth";
-import { readContact } from "@merit/contacts/scope";
+import { lockContactProfile } from "@merit/contacts/locks";
 import type { Database } from "@merit/db";
 import { writeWorkspace } from "@merit/organizations/transactions";
 import { lockPreparationRoundAccess } from "@merit/rounds/locks";
@@ -47,7 +47,7 @@ const resolveIntakeContactChange = async (
     return { status: "changed", contactId, contact: null } as const;
   }
 
-  const contact = await readContact(tx, organizationId, contactId);
+  const contact = await lockContactProfile(tx, organizationId, contactId, "share");
   if (!contact || contact.archived) {
     return { status: "invalid", error: "contact_unavailable" } as const;
   }

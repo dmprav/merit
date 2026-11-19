@@ -1,7 +1,7 @@
 import { lockApplicationCase } from "@merit/applications/locks";
 import { recordAuditEvent } from "@merit/audit/server/record";
 import { actorProvenance, type Actor } from "@merit/auth";
-import { readContact } from "@merit/contacts/scope";
+import { lockContactProfile } from "@merit/contacts/locks";
 import type { Database } from "@merit/db";
 import { writeWorkspace } from "@merit/organizations/transactions";
 
@@ -130,7 +130,7 @@ export const saveApplicationReview = async (
 
     const contact =
       change.action === "record" || change.action === "request"
-        ? await readContact(tx, row.organizationId, change.contactId)
+        ? await lockContactProfile(tx, row.organizationId, change.contactId, "share")
         : undefined;
     const availableVersions = await readMaterialVersions(tx, row.publicId);
     if (await hasAuthoredRequest(tx, row.publicId, change)) {

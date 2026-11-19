@@ -49,7 +49,7 @@ export const findIntakeApplication = async (
     return undefined;
   }
   const [applications, drafts] = await Promise.all([
-    readIntakeApplicationsMap(db, organizationId, [row]),
+    readIntakeApplicationsMap(db, organizationId, [row], "share"),
     readWorkingRevisionsMap(db, [row.id]),
   ]);
   const snapshot = applications.get(row.id);

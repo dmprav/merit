@@ -178,7 +178,22 @@ const roundEdit = (connection: Database, data: Fixture) =>
     change: { section: "details", title: "Updated round", purpose: "", meetingDate: null },
   });
 
+const updateProfile = (connection: Database, data: Fixture) =>
+  changeWorkspaceContact(
+    connection,
+    actor,
+    {
+      workspaceSlug,
+      contactId: data.contact.id,
+      action: "update",
+      expectedContactRevision: data.contact.revision,
+      details: { name: "Updated contact", email: data.contact.email, affiliation: "Review panel" },
+    },
+    fundingRoundContactUsage,
+  );
+
 const edits = {
+  contactProfile: updateProfile,
   round: roundEdit,
   application: (connection: Database, data: Fixture) =>
     editFundingApplication(
@@ -525,3 +540,56 @@ it.each(["invite", "resend"] as const)(
     ).toBe(20);
   },
 );
+
+it("commits an unrelated reviewer draft while a contact profile edit is open", async () => {
+  const email = "robin@example.test";
+  const review = await requestedReview(email);
+  const service = reviewerService(db);
+  const invited = await service.invite(actor, review);
+  assert(invited.status === "ok");
+  const assignmentId = invited.value.id;
+  const reviewer = { userId: email };
+  expect(
+    await service.respond(reviewer, {
+      assignmentId,
+      commandId: randomUUID(),
+      expectedRevision: 0,
+      action: "accept",
+      note: "",
+    }),
+  ).toMatchObject({ status: "ok" });
+  const independent = await fixture();
+
+  const commit = await hold((tx) => updateProfile(tx, independent));
+  expect(
+    await reviewerService(drizzle(second)).saveDraft(reviewer, {
+      assignmentId,
+      commandId: randomUUID(),
+      expectedDraftRevision: 0,
+      draft: {
+        position: "Fund",
+        amount: "40.00",
+        reasoning: "Reviewed",
+        observations: [],
+        note: "",
+      },
+    }),
+  ).toEqual({ status: "ok", value: { revision: 1 } });
+  await commit();
+});
+
+it("records the updated reviewer name after waiting for a contact profile edit", async () => {
+  const data = await fixture();
+  const commit = await hold((tx) => updateProfile(tx, data));
+  const request = track(edits.review(drizzle(second), data));
+  await expectBlocked();
+  await commit();
+  expect(await request).toMatchObject({ status: "ok" });
+  expect(
+    (
+      await database.client.query("SELECT reviewer FROM review_requests WHERE case_id = $1", [
+        data.applicationId,
+      ])
+    ).rows,
+  ).toEqual([{ reviewer: "Updated contact" }]);
+});

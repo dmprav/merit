@@ -1,5 +1,5 @@
 import type { Actor } from "@merit/auth";
-import { readContact } from "@merit/contacts/scope";
+import { lockContactProfile } from "@merit/contacts/locks";
 import type { Database } from "@merit/db";
 import { writeWorkspace } from "@merit/organizations/transactions";
 
@@ -37,7 +37,7 @@ export const selectApplicationContact = async (
     }
 
     const contact = request.contactId
-      ? await readContact(tx, access.organizationId, request.contactId)
+      ? await lockContactProfile(tx, access.organizationId, request.contactId, "share")
       : null;
     if (request.contactId && (!contact || contact.archived)) {
       return { status: "invalid", error: "contact_unavailable" } as const;

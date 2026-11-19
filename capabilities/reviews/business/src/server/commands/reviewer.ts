@@ -1,6 +1,7 @@
 import { lockApplicationCase, readCaseWithdrawn } from "@merit/applications/locks";
 import { recordAuditEvent } from "@merit/audit/server/record";
 import { actorProvenance, type Actor } from "@merit/auth";
+import { lockContactProfile } from "@merit/contacts/locks";
 import { readContact } from "@merit/contacts/scope";
 import type { Database } from "@merit/db";
 import { assignmentScope, writeScoped, writeWorkspace } from "@merit/organizations/transactions";
@@ -86,7 +87,8 @@ export const inviteReviewer = async (
     const invitation = decideInvitation({
       withdrawn: access.withdrawn,
       request: review,
-      contact: review && (await readContact(tx, access.organizationId, review.contactId)),
+      contact:
+        review && (await lockContactProfile(tx, access.organizationId, review.contactId, "share")),
       managerEmail: await memberEmail(tx, access.organizationId, actor.userId),
     });
     if (!invitation.ok) {

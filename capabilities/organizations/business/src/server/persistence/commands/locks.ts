@@ -12,7 +12,7 @@ import type { Transaction } from "../transaction";
  *
  * Lock the organization before grant resources and hold current access through commit.
  * Shared locks allow independent round edits; exclusive locks coordinate round creation
- * receipts and contact changes across rounds. Team changes also lock exclusively.
+ * receipts, contact creation and archival or restoration across rounds. Team changes also lock exclusively.
  */
 export const lockGrantWorkspace = async (
   tx: Transaction,
