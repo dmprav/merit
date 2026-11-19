@@ -75,19 +75,30 @@ describe("initial round preparation", () => {
     { name: "Pat", email: "pat@example.org", expected: "Pat" },
     { name: null, email: "pat@example.org", expected: "pat@example.org" },
     { name: null, email: null, expected: "" },
-  ])("captures manager details using $expected", ({ name, email, expected }) => {
-    const manager = { userId: "pat", name, email };
-    const round = newPreparedRound({ title: "Neighbourhood grants" }, context);
-    const before = structuredClone(round);
-
-    expect(withRoundManager(round, manager)).toEqual({
-      ...round,
-      managerUserId: "pat",
-      manager: expected,
-    });
-    expect(round).toEqual(before);
-    expect(newPreparedRound({ title: "Round" }, { ...context, manager }).manager).toBe(expected);
+  ])("names the creating manager using $expected", ({ name, email, expected }) => {
+    expect(
+      newPreparedRound({ title: "Round" }, { ...context, manager: { name, email } }).manager,
+    ).toBe(expected);
   });
+
+  it.each([
+    { name: "Pat", email: "pat@example.org", expected: "Pat" },
+    { name: null, email: "pat@example.org", expected: "pat@example.org" },
+    { name: null, email: null, expected: "" },
+  ])(
+    "assigns a manager named $expected without changing the original round",
+    ({ name, email, expected }) => {
+      const round = newPreparedRound({ title: "Neighbourhood grants" }, context);
+      const before = structuredClone(round);
+
+      expect(withRoundManager(round, { userId: "pat", name, email })).toEqual({
+        ...round,
+        managerUserId: "pat",
+        manager: expected,
+      });
+      expect(round).toEqual(before);
+    },
+  );
 });
 
 describe("round preparation", () => {
@@ -133,17 +144,18 @@ describe("round preparation", () => {
     });
   });
 
-  it("clears purpose and meeting date when the edit explicitly clears them", () => {
+  it.each([
+    { field: "purpose", cleared: { purpose: "" } },
+    { field: "meeting date", cleared: { meetingDate: null } },
+  ])("clears only the $field when the edit explicitly clears it", ({ cleared }) => {
     const round = makeRound({ purpose: "Support community projects", meetingDate: "2027-06-15" });
 
-    expect(
-      prepareRoundChange(round, { section: "details", purpose: "", meetingDate: null }),
-    ).toEqual({
+    expect(prepareRoundChange(round, { section: "details", ...cleared })).toEqual({
       ok: true,
       action: "details",
       reason: null,
       changed: true,
-      round: { ...round, purpose: "", meetingDate: null },
+      round: { ...round, ...cleared },
     });
   });
 
@@ -338,5 +350,87 @@ describe("criterion identity", () => {
     expect(
       roundChangeSchema.safeParse({ section: "criteria", criteria: [criterion] }).success,
     ).toBe(true);
+  });
+});
+
+describe("round change limits", () => {
+  const criterion = (overrides = {}) => ({
+    id: "20000000-0000-4000-8000-000000000001",
+    title: "Fit",
+    description: "",
+    ...overrides,
+  });
+
+  const criteria = (count: number) =>
+    Array.from({ length: count }, (_, index) =>
+      criterion({ id: `20000000-0000-4000-8000-${String(index).padStart(12, "0")}` }),
+    );
+
+  it.each([
+    {
+      limit: "title",
+      change: (length: number) => ({ section: "details", title: "a".repeat(length) }),
+      at: 200,
+    },
+    {
+      limit: "purpose",
+      change: (length: number) => ({ section: "details", purpose: "a".repeat(length) }),
+      at: 10000,
+    },
+    {
+      limit: "criterion title",
+      change: (length: number) => ({
+        section: "criteria",
+        criteria: [criterion({ title: "a".repeat(length) })],
+      }),
+      at: 200,
+    },
+    {
+      limit: "criterion description",
+      change: (length: number) => ({
+        section: "criteria",
+        criteria: [criterion({ description: "a".repeat(length) })],
+      }),
+      at: 5000,
+    },
+    {
+      limit: "criteria count",
+      change: (count: number) => ({ section: "criteria", criteria: criteria(count) }),
+      at: 100,
+    },
+    {
+      limit: "budget amount",
+      change: (length: number) => ({ section: "budget", amount: "1".repeat(length), reason: "" }),
+      at: 32,
+    },
+    {
+      limit: "budget reason",
+      change: (length: number) => ({ section: "budget", amount: "", reason: "a".repeat(length) }),
+      at: 2000,
+    },
+    {
+      limit: "manager ID",
+      change: (length: number) => ({ section: "manager", userId: "a".repeat(length) }),
+      at: 100,
+    },
+  ])("accepts a $limit up to $at and rejects one beyond it", ({ change, at }) => {
+    expect(roundChangeSchema.safeParse(change(at)).success).toBe(true);
+    expect(roundChangeSchema.safeParse(change(at + 1)).success).toBe(false);
+  });
+
+  it.each([
+    { section: "a details", change: { section: "details", title: "Round", budget: "100" } },
+    {
+      section: "a criteria",
+      change: { section: "criteria", criteria: [criterion()], reason: "Unrecorded" },
+    },
+    {
+      section: "a criterion",
+      change: { section: "criteria", criteria: [{ ...criterion(), weight: 2 }] },
+    },
+    { section: "a budget", change: { section: "budget", amount: "", reason: "", title: "Round" } },
+    { section: "a manager", change: { section: "manager", userId: "pat", name: "Pat" } },
+  ])("rejects fields that do not belong to $section change", ({ change }) => {
+    expect(roundChangeSchema.safeParse(change).success).toBe(false);
   });
 });

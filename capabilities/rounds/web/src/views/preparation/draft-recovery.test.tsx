@@ -114,35 +114,57 @@ it("cancels an inline opening without initializing or discarding the recovered d
   expect(screen.getByRole("textbox", { name: "Purpose" })).toHaveValue("Unfinished purpose");
 });
 
-it("guards quick writes and deletion until the round store is ready", async () => {
+const renderController = () => {
   const data = dataFixture();
   const setEdit = vi.fn();
   const client = createQueryClient();
-  let ready = false;
-  const edits: Record<string, PreparationDraft | undefined> = {};
-  const { result, rerender } = renderHook(
+  const store = {
+    ready: false,
+    edits: {} as Record<string, PreparationDraft | undefined>,
+    setEdit,
+  };
+  const hook = renderHook(
     () => useRoundPreparation({ round, data, onDeleted: vi.fn(), onRestoreFocus: vi.fn() }),
     {
       wrapper: ({ children }) => (
         <QueryClientProvider client={client}>
-          <DraftContext value={{ ready, edits, setEdit }}>{children}</DraftContext>
+          <DraftContext value={{ ...store }}>{children}</DraftContext>
         </QueryClientProvider>
       ),
     },
   );
+
+  const ready = () => {
+    store.ready = true;
+    hook.rerender();
+  };
+
+  return { ...hook, data, setEdit, ready };
+};
+
+it("reports quick writes as busy until the round store is ready", async () => {
+  const { result, data, setEdit } = renderController();
+
   await act(async () => {
     expect(await result.current.renameRound("Changed title")).toEqual({ status: "busy" });
     expect(await result.current.changeMeetingDate("2027-03-02")).toEqual({ status: "busy" });
     expect(await result.current.assignManager("manager")).toEqual({ status: "busy" });
   });
+  expect(data.save).not.toHaveBeenCalled();
+  expect(setEdit).not.toHaveBeenCalled();
+});
+
+it("defers deletion until the round store is ready, then deletes at the current revision", async () => {
+  const { result, data, setEdit, ready } = renderController();
   act(() => result.current.setDeleting(true));
   await act(() => result.current.confirmDelete());
-  expect(data.save).not.toHaveBeenCalled();
+
   expect(data.delete).not.toHaveBeenCalled();
   expect(setEdit).not.toHaveBeenCalled();
-  ready = true;
-  rerender();
+
+  ready();
   await act(() => result.current.confirmDelete());
+
   expect(data.delete).toHaveBeenCalledOnce();
   expect(vi.mocked(data.delete).mock.calls[0]?.[0]).toBe(2);
   expect(setEdit).toHaveBeenCalledWith("round/purpose", undefined);
