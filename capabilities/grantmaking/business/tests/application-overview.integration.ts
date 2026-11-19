@@ -347,14 +347,15 @@ const addLightApplications = (
 ) =>
   db.transaction(async (tx) => {
     await tx.execute(sql`
-      insert into application_cases (organization_id, round_id, position, intake_status, material_version)
-      select 'alder', ${roundId}, n, case when n % 2 = 0 then 'ready' else 'in_preparation' end, 1
+      insert into application_cases (organization_id, round_id, position, intake_status, material_version, search_title, search_applicant)
+      select 'alder', ${roundId}, n, case when n % 2 = 0 then 'ready' else 'in_preparation' end, 1,
+        case when n = 125 then 'alpha' else 'Project ' || lpad(n::text, 3, '0') end,
+        case when n % 3 = 0 then '' when n % 3 = 1 then 'birch' else 'Alder' end
       from generate_series(1, 125) n
     `);
     await tx.execute(sql`
       insert into material_versions (case_id, version, title, applicant_organization, has_submission, submission_version, change_kind, recorded_at)
-      select id, 1, case when position = 125 then 'alpha' else 'Project ' || lpad(position::text, 3, '0') end,
-        case when position % 3 = 0 then '' when position % 3 = 1 then 'birch' else 'Alder' end,
+      select id, 1, search_title, search_applicant,
         true, 1, 'initial', now()
       from application_cases where round_id = ${roundId} and position > 0
     `);
@@ -453,9 +454,22 @@ it("searches titles and applicants as trimmed, case-insensitive literal text", a
     applications: [{ title: "alpha" }],
   });
   expect((await listAlder(db, { query: "BIRCH" })).matching).toBe(42);
+  expect((await listAlder(db, { query: "001 birch" })).matching).toBe(1);
+  expect((await listAlder(db, { query: "birch Project" })).matching).toBe(0);
   for (const query of ["%", "_", "'", "\\"]) {
     expect((await listAlder(db, { query })).matching).toBe(0);
   }
+});
+
+it("keeps accents and literal wildcards in contiguous phrases", async ({ db, rounds }) => {
+  await rounds.createApplication("Café 50%_match");
+  await rounds.createApplication("Cafe 50xxmatch");
+  for (const query of ["CAFÉ 50%", "50%_MATCH Community"]) {
+    expect((await listAlder(db, { query })).applications.map((row) => row.title)).toEqual([
+      "Café 50%_match",
+    ]);
+  }
+  expect((await listAlder(db, { query: "CAFE 50%" })).matching).toBe(0);
 });
 
 it("filters before paging and returns to the first page when fewer applications match", async ({

@@ -6,24 +6,62 @@ import { criteriaVersionKey, readCriteriaByVersionsMap } from "@merit/rounds/sco
 import { reviewAssignments } from "./reviewer-schema";
 import { assessments, assessmentVersions, reviewRequests } from "./schema";
 
-export const currentReviewEntries = (caseId: SQLWrapper) => sql`(
+// A replacement excludes the old assessment even when it falls outside the requested page.
+const unreplaced = sql`not exists (select 1 from ${assessments} replacement
+  where replacement.case_id = a.case_id and replacement.previous_id = a.id)`;
+
+const hasVersion = sql`exists (select 1 from ${assessmentVersions} v
+  where v.case_id = a.case_id and v.assessment_id = a.id)`;
+
+/** Check membership without computing freshness or comparing historical criteria. */
+export const reviewAssignmentMatch = (caseId: SQLWrapper, filter: "awaiting" | "unassigned") => {
+  const outstanding = sql`exists (select 1 from ${reviewRequests} r
+    where r.case_id = ${caseId} and r.status = 'outstanding')`;
+  if (filter === "awaiting") {
+    return outstanding;
+  }
+  return sql`not ${outstanding} and not exists (select 1 from ${assessments} a
+    where a.case_id = ${caseId} and ${unreplaced} and ${hasVersion})`;
+};
+
+/** Continue legacy and current IDs in their stable kind:id order. */
+const afterReview = (kind: "assessment" | "request", id: SQLWrapper, after: string) => {
+  const prefix = `${kind}:`;
+  return after.startsWith(prefix)
+    ? sql`${id} collate "C" > ${after.slice(prefix.length)}`
+    : sql`${prefix > after}`;
+};
+
+type ReviewPage = { after?: string; limit: number };
+
+export const currentReviewEntries = (caseId: SQLWrapper, page?: ReviewPage) => sql`(
   select a.id, a.contact_id, a.reviewer, a.author_user_id,
     v.material_version, v.criteria_round_id, v.criteria_version, false as outstanding
-  from ${assessments} a
+  from (
+    select id, contact_id, reviewer, author_user_id, case_id from ${assessments} a
+    where a.case_id = ${caseId} and ${unreplaced}
+    ${
+      page
+        ? sql`and ${hasVersion} and ${afterReview("assessment", sql`a.id`, page.after ?? "")}
+      order by a.id collate "C" limit ${page.limit + 1}`
+        : sql.empty()
+    }
+  ) a
   join lateral (
-    select v.material_version, v.criteria_round_id, v.criteria_version
-    from ${assessmentVersions} v
-    where v.case_id = a.case_id and v.assessment_id = a.id
-    order by v.version desc limit 1
+    select material_version, criteria_round_id, criteria_version from ${assessmentVersions}
+    where case_id = a.case_id and assessment_id = a.id
+    order by version desc limit 1
   ) v on true
-  where a.case_id = ${caseId} and not exists (
-    select 1 from ${assessments} replacement
-    where replacement.case_id = a.case_id and replacement.previous_id = a.id
-  )
   union all
-  select r.id, r.contact_id, r.reviewer, null,
+  (select r.id, r.contact_id, r.reviewer, null,
     r.material_version, r.criteria_round_id, r.criteria_version, true
-  from ${reviewRequests} r where r.case_id = ${caseId} and r.status = 'outstanding'
+   from ${reviewRequests} r where r.case_id = ${caseId} and r.status = 'outstanding'
+   ${
+     page
+       ? sql`and ${afterReview("request", sql`r.id`, page.after ?? "")}
+     order by r.id collate "C" limit ${page.limit + 1}`
+       : sql.empty()
+   })
 ) basis`;
 
 type ReviewTarget = {
@@ -38,7 +76,7 @@ type ReviewTarget = {
 export const readReviewSummaryPage = async (
   db: Database,
   target: ReviewTarget,
-  page: { after?: string; limit: number },
+  page: ReviewPage,
 ) => {
   const cursor = sql`(case when basis.outstanding then 'request:' else 'assessment:' end || basis.id) collate "C"`;
   const entries = await db.execute<{
@@ -56,8 +94,7 @@ export const readReviewSummaryPage = async (
     select page.*, participation.status, participation.conflict
     from (
       select basis.*, ${cursor} as cursor
-      from ${currentReviewEntries(sql`${target.caseId}`)}
-      where ${cursor} > ${page.after ?? ""}
+      from ${currentReviewEntries(sql`${target.caseId}`, page)}
       order by cursor
       limit ${page.limit + 1}
     ) page
@@ -70,6 +107,9 @@ export const readReviewSummaryPage = async (
     ) participation on true
     order by page.cursor
   `);
+  if (entries.rows.length === 0) {
+    return [];
+  }
   const criteria = await readCriteriaByVersionsMap(db, [
     { roundId: target.roundId, version: target.criteriaVersion },
     ...entries.rows.flatMap((row) =>

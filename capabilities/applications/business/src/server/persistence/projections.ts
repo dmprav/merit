@@ -392,12 +392,20 @@ export const applicationSearchApplicant = sql<
 /** Orders applications by title the way people read it: case-insensitive, English. */
 export const applicationSearchTitleOrder = titleOrder(applicationSearchTitle);
 
+const searchText = sql`${applicationCases.searchTitle} || ' ' || ${applicationCases.searchApplicant}`;
+
 /** Whether every word appears in the application's title and applicant together. */
-export const applicationSearchMatch = (terms: SearchTerms) =>
-  containsEveryWord(
-    sql`${applicationCases.searchTitle} || ' ' || ${applicationCases.searchApplicant}`,
-    terms,
+export const applicationSearchMatch = (terms: SearchTerms) => containsEveryWord(searchText, terms);
+
+/** The overview matches a contiguous phrase, preserving accents, spaces and punctuation. */
+export const applicationPhraseMatch = (phrase: string) => {
+  // ASCII trigrams narrow candidates through the folded index without changing literal matching.
+  const words = phrase.match(/[a-z0-9]{3,}/gi);
+  return and(
+    words ? containsEveryWord(searchText, { words, whole: phrase }) : undefined,
+    sql`strpos(lower(${searchText}), lower(${phrase})) > 0`,
   );
+};
 
 /** 0 when the title or applicant equals the whole query, 1 when one starts with it, 2 otherwise. */
 export const applicationSearchRank = (terms: SearchTerms) =>

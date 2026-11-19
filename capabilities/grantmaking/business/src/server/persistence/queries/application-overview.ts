@@ -1,18 +1,21 @@
 import { and, asc, desc, eq, inArray, sql, type SQLWrapper } from "drizzle-orm";
 
 import { applicationCases, materialVersions } from "@merit/applications/schema";
-import { caseWithdrawn } from "@merit/applications/scope";
+import { applicationPhraseMatch, caseWithdrawn } from "@merit/applications/scope";
 import type { Database } from "@merit/db";
 import { titleOrder } from "@merit/db/search";
 import { authorizedWorkspaces } from "@merit/organizations/scope";
-import { recommendationOverview } from "@merit/recommendations/scope";
-import { reviewOverview } from "@merit/reviews/scope";
+import {
+  candidateRecommendationOverviews,
+  recommendationOverview,
+} from "@merit/recommendations/scope";
+import { reviewAssignmentMatch, reviewOverview } from "@merit/reviews/scope";
 import { fundingRounds } from "@merit/rounds/schema";
 
 import type { ApplicationFilter } from "../../../domain/application-filter";
 import type { WorkspaceApplicationsQuery } from "../../../domain/application-list";
 
-const overviewRows = (db: Database, workspaceIds: SQLWrapper) =>
+const overviewRows = (db: Database, workspaceIds: SQLWrapper, input: WorkspaceApplicationsQuery) =>
   db
     .select({
       id: applicationCases.id,
@@ -45,7 +48,25 @@ const overviewRows = (db: Database, workspaceIds: SQLWrapper) =>
         eq(fundingRounds.id, applicationCases.roundId),
       ),
     )
-    .where(inArray(applicationCases.organizationId, workspaceIds))
+    .where(
+      and(
+        inArray(applicationCases.organizationId, workspaceIds),
+        input.roundId ? eq(applicationCases.roundId, input.roundId) : undefined,
+        input.query ? applicationPhraseMatch(input.query) : undefined,
+        input.filter.participation
+          ? sql`${caseWithdrawn} = ${input.filter.participation === "withdrawn"}`
+          : undefined,
+        input.filter.readiness
+          ? eq(
+              applicationCases.intakeStatus,
+              input.filter.readiness === "ready" ? "ready" : "in_preparation",
+            )
+          : undefined,
+        input.filter.reviews
+          ? reviewAssignmentMatch(applicationCases.id, input.filter.reviews)
+          : undefined,
+      ),
+    )
     .as("b");
 
 type OverviewRow = ReturnType<typeof overviewRows>;
@@ -61,21 +82,10 @@ const recommendationRecord = (
 
 const workFilter = (
   filter: ApplicationFilter,
-  row: OverviewRow,
   reviews: ReturnType<typeof reviewOverview>,
   recommendation: ReturnType<typeof recommendationOverview>,
 ) =>
   and(
-    filter.participation
-      ? sql`${row.withdrawn} = ${filter.participation === "withdrawn"}`
-      : undefined,
-    filter.readiness
-      ? sql`${row.intakeStatus} = ${filter.readiness === "ready" ? "ready" : "in_preparation"}`
-      : undefined,
-    filter.reviews === "awaiting" ? sql`${reviews.outstanding} > 0` : undefined,
-    filter.reviews === "unassigned"
-      ? sql`${reviews.current} + ${reviews.outdated} + ${reviews.outstanding} + ${reviews.unknown} = 0`
-      : undefined,
     filter.evidence === "changed"
       ? sql`(${reviews.outdated} > 0 or ${reviews.criteriaChanged} or ${recommendation.outdated})`
       : undefined,
@@ -106,23 +116,27 @@ export const readApplicationOverviews = async (
 ) => {
   const access = authorizedWorkspaces(db, userId, "read_workspace", input.workspaceSlug);
   const visible = db.select({ id: access.id, allowed: access.canWorkOnGrants }).from(access);
-  const needsReviews = Boolean(input.filter.reviews || input.filter.evidence);
+  const needsReviews = Boolean(input.filter.evidence);
   const needsRecommendation = Boolean(
     input.filter.recommendation || input.filter.evidence === "changed" || input.sort === "proposed",
   );
-  const row = overviewRows(db, sql`(select id from workspace_access where allowed)`);
+  const workspaceIds = sql`(select id from workspace_access where allowed)`;
+  const row = overviewRows(db, workspaceIds, input);
+  const total = db
+    .select({ count: sql`count(*)::integer` })
+    .from(applicationCases)
+    .where(inArray(applicationCases.organizationId, workspaceIds));
+  const candidates = sql`candidates b`;
+  const candidateRecommendations = candidateRecommendationOverviews(
+    db,
+    candidates,
+    row.id,
+    row.version,
+  );
   const reviews = reviewOverview(db, row.id, row.version, row.roundId, row.criteriaVersion);
   const recommendation = recommendationOverview(db, row.id, row.version);
   const joinReviews = sql`cross join lateral ${reviews}`;
   const joinRecommendation = sql`left join lateral ${recommendation} on true`;
-  const selected = and(
-    input.roundId ? sql`${row.roundId} = ${input.roundId}` : sql`true`,
-    workFilter(input.filter, row, reviews, recommendation),
-    // strpos treats %, _, quotes, and backslashes literally.
-    input.query
-      ? sql`strpos(lower(${row.title} || ' ' || coalesce(${row.applicant}, '')), lower(${input.query})) > 0`
-      : undefined,
-  );
   const offset = sql`least(${input.offset}, greatest(0, (matching - 1) / ${pageSize}) * ${pageSize})`;
   // Only filters and sorting need facts before pagination. Reuse those facts for display.
   const result = await db.execute<{
@@ -133,17 +147,17 @@ export const readApplicationOverviews = async (
     offset: number;
   }>(sql`
     with workspace_access(id, allowed) as materialized (${visible}),
-    workspace as materialized (select * from ${row}),
+    candidates as (select * from ${row}),
     matched as materialized (
       select b.*
         ${needsReviews ? sql`, ${reviewCounts(reviews)} as reviews, ${reviews.criteriaChanged} as "criteriaChanged"` : sql.empty()}
         ${needsRecommendation ? sql`, ${recommendationRecord(recommendation)} as recommendation, ${recommendation.allocationMinorUnits} as proposed` : sql.empty()}
-      from workspace b
+      from ${candidates}
       ${needsReviews ? joinReviews : sql.empty()}
-      ${needsRecommendation ? joinRecommendation : sql.empty()}
-      where ${selected}
+      ${needsRecommendation ? sql`left join ${candidateRecommendations} on ${candidateRecommendations.caseId} = ${row.id}` : sql.empty()}
+      where ${workFilter(input.filter, reviews, recommendation) ?? sql`true`}
     ),
-    counts as (select (select count(*)::integer from workspace) as total, count(*)::integer as matching from matched),
+    counts as (select (${total}) as total, count(*)::integer as matching from matched),
     page as materialized (
       select * from matched b order by ${order(input, row)} limit ${pageSize}
       offset (select ${offset} from counts)

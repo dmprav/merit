@@ -164,11 +164,16 @@ export const getFundingRoundContent = async (
     const parsed = roundContentInput.safeParse(input);
     if (!parsed.success) {
       const rangeIssue = parsed.error.issues.some((issue) =>
-        ["offset", "length", "fingerprint", "revision"].includes(String(issue.path[0])),
+        ["offset", "length", "fingerprint", "revision", "criteriaVersion"].includes(
+          String(issue.path[0]),
+        ),
       );
       return { status: rangeIssue ? "invalid_range" : "not_found" } as const;
     }
     const request = parsed.data;
+    if (request.criteriaVersion !== undefined && request.section !== "criteria") {
+      return { status: "invalid_range" } as const;
+    }
     if (request.section === "preparation_change" && request.revision === undefined) {
       return { status: "invalid_range" } as const;
     }

@@ -114,6 +114,8 @@ is recorded.
 
 Fetch longer material through `get_application_content` or
 `get_funding_round_content`. Choose a named section from the tool's input schema.
+For criteria, read the `criteria` section with the `criteriaVersion` from a review
+or round to retrieve just that version. Omitting it retrieves the current criteria.
 For a specific assessment or review request, supply `entryId`. Use the history
 listings to find revisions, then fetch an `intake_change`, `recommendation_change`,
 or `preparation_change` with that `revision`. Intake and preparation history remain

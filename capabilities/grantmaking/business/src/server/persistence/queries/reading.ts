@@ -36,9 +36,10 @@ import {
 import { fundingRounds } from "@merit/rounds/schema";
 import {
   assembleRoundRecord,
+  criteriaVersionKey,
+  readCriteriaByVersionsMap,
   managerNeedsReassignment,
   readCriteriaVersionsMap,
-  readRoundCriteria,
   toMoneyData,
 } from "@merit/rounds/scope";
 
@@ -261,12 +262,22 @@ const sliceJsonValue = async (value: unknown, offset: number, length: number) =>
   const fingerprint = Array.from(new Uint8Array(digest).subarray(0, 16), (byte) =>
     byte.toString(16).padStart(2, "0"),
   ).join("");
-  const chars = Array.from(json);
-  return {
-    content: chars.slice(offset, offset + length).join(""),
-    fingerprint,
-    totalCharacters: chars.length,
-  };
+  // JSON.stringify escapes lone surrogates. Each low surrogate left in the text is
+  // the second UTF-16 unit of one code point, including when a chunk ends on it.
+  let start = offset;
+  let end = offset + length;
+  let pairs = 0;
+  for (const match of json.matchAll(/[\uDC00-\uDFFF]/g)) {
+    const character = match.index - 1 - pairs;
+    if (character < offset) {
+      start++;
+    }
+    if (character < offset + length) {
+      end++;
+    }
+    pairs++;
+  }
+  return { content: json.slice(start, end), fingerprint, totalCharacters: json.length - pairs };
 };
 
 const readIntakeOrPreparationChange = async (
@@ -331,6 +342,7 @@ export const readRoundContent = async (
     workspaceSlug: string;
     roundId: string;
     section: "details" | "criteria" | "criteria_history" | "preparation_change";
+    criteriaVersion?: number;
     revision?: number;
     offset: number;
     length: number;
@@ -364,8 +376,13 @@ export const readRoundContent = async (
     return sliceJsonValue(details, input.offset, input.length);
   }
   if (input.section === "criteria") {
-    const roundCriteria = await readRoundCriteria(db, row.round.organizationId, row.round.id);
-    return sliceJsonValue(roundCriteria?.criteria ?? [], input.offset, input.length);
+    const version = input.criteriaVersion ?? row.round.criteriaVersion;
+    const versions = await readCriteriaByVersionsMap(db, [{ roundId: row.round.id, version }]);
+    const criteria = versions.get(criteriaVersionKey(row.round.id, version));
+    if (!criteria && input.criteriaVersion !== undefined) {
+      return undefined;
+    }
+    return sliceJsonValue(criteria ?? [], input.offset, input.length);
   }
   const historyMap = await readCriteriaVersionsMap(db, [row.round.id]);
   return sliceJsonValue(historyMap.get(row.round.id) ?? [], input.offset, input.length);

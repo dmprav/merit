@@ -34,7 +34,7 @@ import { reviewRevisionSchema } from "@merit/reviews/domain";
 import type { ReviewChange } from "@merit/reviews/domain";
 import { saveApplicationReview } from "@merit/reviews/server";
 import { criteriaVersionSchema } from "@merit/rounds/domain";
-import { createFundingRound, deleteFundingRound } from "@merit/rounds/server";
+import { createFundingRound, deleteFundingRound, editFundingRound } from "@merit/rounds/server";
 
 import { applicationWork } from "../src/server/persistence/commands/application-work";
 
@@ -103,6 +103,36 @@ it("paginates independently of exact whole-round totals and enforces current acc
   expect(await listFundingRoundSummaries(db, actor, { workspaceSlug })).toEqual({
     status: "not_found",
   });
+});
+
+it("reads one criteria version independently of later edits", async ({ db }) => {
+  const round = await createFundingRound(db, actor, {
+    workspaceSlug,
+    requestId: randomUUID(),
+    title: "Criteria history",
+  });
+  assert(round.status === "ok");
+  const criteria = [{ id: randomUUID(), title: "Local impact", description: "Community outcomes" }];
+  const updated = await editFundingRound(db, actor, {
+    workspaceSlug,
+    publicId: round.publicId,
+    expectedRevision: 0,
+    change: { section: "criteria", criteria },
+  });
+  assert(updated.status === "ok");
+  const address = { workspaceSlug, roundId: round.publicId, section: "criteria" as const };
+  const current = await getFundingRoundContent(db, actor, address);
+  assert(current.status === "ok");
+  expect(JSON.parse(current.content)).toEqual(criteria);
+  expect(await getFundingRoundContent(db, actor, { ...address, criteriaVersion: 1 })).toMatchObject(
+    { status: "ok", content: "[]" },
+  );
+  expect(await getFundingRoundContent(db, actor, { ...address, criteriaVersion: 3 })).toEqual({
+    status: "not_found",
+  });
+  expect(
+    await getFundingRoundContent(db, actor, { ...address, section: "details", criteriaVersion: 1 }),
+  ).toEqual({ status: "invalid_range" });
 });
 
 it("bounds Unicode content at the database boundary, preserves all evidence and rejects mixed revisions", async ({
