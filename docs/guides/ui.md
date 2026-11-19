@@ -100,8 +100,8 @@ presentation rather than make each caller maintain it.
 
 Use colocated CSS Modules and semantic variables from
 [the shared design tokens](../../foundation/ui/src/foundations/tokens.css) so feature styles follow the
-product and site palettes. `check:css` rejects literal colors outside the token file;
-derive a shade from tokens with `color-mix()`. Storybook's
+product and site palettes. `check:css` rejects literal color values outside the token file,
+apart from documented exceptions; derive a shade from tokens with `color-mix()`. Storybook's
 [foundations](../../foundation/ui/src/foundations/foundations.mdx),
 [buttons](../../foundation/ui/src/components/button/button.stories.tsx), and
 [icons](../../foundation/ui/src/components/icon/icon.stories.tsx) explain the visual conventions.

@@ -323,7 +323,7 @@ it("adds CSS rule and media spacing and catches invalid CSS without rejecting CS
 it("requires colors from tokens outside the token file", async () => {
   const configFile = join(root, "stylelint.config.mjs");
   const code =
-    ".one { color: #fff; background: rgb(0 0 0); border-color: white; }\n\n.two { outline-color: color-mix(in srgb, var(--foreground) 10%, transparent); }\n";
+    ".one { color: #fff; background: rgb(0 0 0); border-color: white; }\n\n.two { outline-color: color-mix(in srgb, var(--foreground) 10%, transparent); }\n\n.three { caret-color: color(srgb 1 0 0); }\n";
 
   const rules = async (codeFilename: string) =>
     (await stylelint.lint({ code, codeFilename, configFile })).results.flatMap(({ warnings }) =>
@@ -333,6 +333,7 @@ it("requires colors from tokens outside the token file", async () => {
   expect((await rules("probe.module.css")).toSorted()).toEqual([
     "color-named",
     "color-no-hex",
+    "function-disallowed-list",
     "function-disallowed-list",
   ]);
   expect(await rules(join(root, "foundation/ui/src/foundations/tokens.css"))).toEqual([]);

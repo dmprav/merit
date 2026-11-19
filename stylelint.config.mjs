@@ -38,6 +38,7 @@ export default {
     "color-no-hex": true,
     "color-named": "never",
     "function-disallowed-list": [
+      "color",
       "rgb",
       "rgba",
       "hsl",
