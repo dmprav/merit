@@ -361,11 +361,9 @@ owner's access. Keep the merge restriction separate from **Protect main** so its
 exception cannot bypass the shared protections. GitHub applies
 [both rulesets together](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/about-rulesets).
 
-The [PR verification workflow](../../.github/workflows/verify.yml) runs full
-workspace verification for pull requests targeting `main` (or a fast docs and
-secrets check for documentation-only pull requests). **Protect main** requires its
-`verify` check from GitHub Actions (integration ID `15368`); a pending or failed check blocks
-merging, including for administrators.
+**Protect main** requires the [PR verification workflow](../../.github/workflows/verify.yml)
+to report a passing `verify` check from GitHub Actions (integration ID `15368`).
+A pending or failed check blocks merging into `main`, including for administrators.
 
 These JSON files record the ruleset configurations; committing changes to them
 does not update GitHub. Update the existing rulesets through the repository's
@@ -435,7 +433,7 @@ intended updates.
 ### Pull-request verification
 
 The [Verify workflow](../../.github/workflows/verify.yml) runs on pull requests
-targeting `main`, `merge_group`, pushes to `main`, and manual dispatch. It starts
+targeting any branch, merge groups and pushes for `main`, and manual dispatch. It starts
 with a `changes` job ([`ci-changes.ts`](../../tooling/verification/ci-changes.ts))
 that diffs against the PR base commit:
 
