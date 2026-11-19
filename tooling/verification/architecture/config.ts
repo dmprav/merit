@@ -384,7 +384,7 @@ export default defineConfig({
             "capabilities/*/business/src/{api,examples}/**",
             "**/src/**/contracts{.ts,/**}",
             "foundation/{money,dates}/src/**",
-            "foundation/auth/src/index.ts",
+            "foundation/auth/src/{index,local-personas}.ts",
             "foundation/db/src/identifiers.ts",
             "foundation/telemetry/src/errors.ts",
             // Shared translation setup is safe for emails; the browser entry adds UI integration.
