@@ -52,7 +52,7 @@ const application = applicationView(
       revision: 2,
       requests: [
         makeReviewRequest({
-          id: "pending",
+          id: "d3ab8fdf-929e-5c8f-87df-4d6a2b5e79f7",
           contactId: "jules",
           reviewer: "Jules Patel",
           applicationVersion: 2,
@@ -347,7 +347,7 @@ describe("application workspace", () => {
               ],
             }),
             makeAssessment({
-              id: "second",
+              id: "25b59b4e-1d9d-5105-84ea-3bd33a4ff1bf",
               contactId: "jules",
               reviewer: "Jules Patel",
               versions: [

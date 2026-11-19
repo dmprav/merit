@@ -823,7 +823,7 @@ describe("organization provisioning", () => {
             workspaceSlug: "restricted",
             userId: member.userId,
             expectedMembershipId: member.membershipId,
-            expectedVersion: member.version,
+            expectedMembershipVersion: member.version,
             expectedInvitationIds: [],
           };
 
@@ -846,7 +846,7 @@ describe("organization provisioning", () => {
                 {
                   ...request,
                   expectedMembershipId: member.membershipId,
-                  expectedVersion: member.version + 1,
+                  expectedMembershipVersion: member.version + 1,
                 },
               )
             ).status,

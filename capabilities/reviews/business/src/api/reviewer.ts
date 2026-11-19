@@ -14,7 +14,7 @@ import {
   type ReviewerProblem,
   type ReviewerStatus,
 } from "../domain/reviewer";
-import type { ReviewState } from "../domain/reviews";
+import { reviewIdSchema, type ReviewState } from "../domain/reviews";
 
 export const reviewerListInput = z
   .strictObject({ workspaceSlug: z.string().min(1).max(80) })
@@ -30,7 +30,7 @@ export const reviewerApplicationSchema = z.strictObject({
 });
 export const inviteReviewerSchema = reviewerApplicationSchema.extend({
   commandId: z.uuid(),
-  requestId: z.uuid(),
+  requestId: reviewIdSchema,
   dueDate: calendarDateSchema.nullable(),
 });
 export const manageReviewerSchema = reviewerApplicationSchema.extend({

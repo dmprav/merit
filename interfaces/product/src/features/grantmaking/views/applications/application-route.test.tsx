@@ -62,7 +62,7 @@ const selectedApplication = () =>
       revision: 2,
       requests: [
         {
-          id: "pending-request",
+          id: "c0c0979c-33f6-591a-b26b-495748f4d457",
           contactId: "jules",
           reviewer: "Jules",
           applicationVersion: 2,
@@ -75,7 +75,7 @@ const selectedApplication = () =>
       ],
       assessments: [
         {
-          id: "earlier-assessment",
+          id: "80dd79dd-79a1-571e-b995-bb6d5cd102a0",
           contactId: "sam",
           reviewer: "Sam Morgan",
           requestId: null,

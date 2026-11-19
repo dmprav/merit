@@ -5,7 +5,7 @@ import { auditPageInput } from "@merit/audit/api";
 import { publicIdSchema } from "@merit/db/identifiers";
 import { moneyDataSchema } from "@merit/money";
 import { workspaceSlugSchema } from "@merit/organizations/api";
-import { reviewRevisionSchema } from "@merit/reviews/domain";
+import { reviewIdSchema, reviewRevisionSchema } from "@merit/reviews/domain";
 import { reviewBasisComparisonSchema } from "@merit/reviews/domain";
 import { reviewerStatuses } from "@merit/reviews/domain";
 import { criteriaVersionSchema } from "@merit/rounds/domain";
@@ -52,7 +52,7 @@ export const applicationContentInput = applicationReadInput.extend({
     "intake_change",
     "recommendation_change",
   ]),
-  entryId: z.string().min(1).max(100).optional(),
+  entryId: reviewIdSchema.optional(),
   materialVersion: materialVersionSchema.optional(),
   revision: z.number().int().nonnegative().optional(),
   ...contentRange,
@@ -132,16 +132,19 @@ export const readingErrorSchema = z.object({
 
 export const contactApplicationListInput = roundListInput.extend({ contactId: z.uuid() });
 
+const reviewKind = z.enum(["assessment", "request"]);
+const reviewCursor: z.ZodType<string, string> = z.templateLiteral([reviewKind, ":", z.uuid()]);
+
 export const reviewListInput = applicationReadInput.extend({
-  after: z.string().min(1).max(100).optional(),
+  after: reviewCursor.optional(),
   limit: z.number().int().min(1).max(50).default(20),
 });
 export const reviewSummarySchema = z.object({
   basisComparison: reviewBasisComparisonSchema,
   authorUserId: z.string().optional(),
   participation: z.object({ status: z.enum(reviewerStatuses), conflict: z.boolean() }).optional(),
-  id: z.string(),
-  kind: z.enum(["assessment", "request"]),
+  id: reviewIdSchema,
+  kind: reviewKind,
   contactId: z.string(),
   reviewer: z.string(),
   applicationVersion: materialVersionSchema,

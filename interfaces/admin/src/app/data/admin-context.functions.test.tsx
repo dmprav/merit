@@ -8,7 +8,6 @@ import { readAdminContext } from "./admin-context.functions";
 vi.mock("@tanstack/react-start", () => ({
   createServerFn: () => ({ handler: (handler: unknown) => handler }),
 }));
-vi.mock("@tanstack/react-start/server", () => ({ setResponseHeader: vi.fn() }));
 
 const read = readAdminContext as unknown as (request: {
   context: AdminRequestContext;

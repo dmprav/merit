@@ -4,7 +4,7 @@ import { materialVersionSchema } from "@merit/applications/domain";
 import { applicationCases, materialVersions } from "@merit/applications/schema";
 import { requestedMoneyData, roundWithdrawnCount } from "@merit/applications/scope";
 import type { Provenance } from "@merit/auth";
-import type { Database } from "@merit/db";
+import type { Transaction } from "@merit/db";
 import { decodeMoney } from "@merit/money";
 import { fundingRounds } from "@merit/rounds/schema";
 import { toMoneyData } from "@merit/rounds/scope";
@@ -18,8 +18,6 @@ import {
 import type { Recommendation } from "../../../domain/recommendation";
 import { readCurrentRecommendationsMap, readRoundAllocations } from "../projections";
 import { recommendationVersions } from "../schema";
-
-type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
 export const readRecommendationState = async (
   db: Transaction,

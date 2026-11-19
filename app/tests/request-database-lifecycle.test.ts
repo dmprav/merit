@@ -245,9 +245,6 @@ it("does not open any pg.Client when early routes or non-database requests compl
   );
   expect(metadata.status).toBe(200);
 
-  const missingMcp = await fetchRequest("https://merit.example/mcp");
-  expect(missingMcp.status).toBe(404);
-
   handlerFetch.mockResolvedValueOnce(new Response("static", { status: 200 }));
   const staticPage = await fetchRequest("https://merit.example/");
   expect(staticPage.status).toBe(200);

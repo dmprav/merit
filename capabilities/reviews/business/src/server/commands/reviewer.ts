@@ -3,7 +3,7 @@ import { recordAuditEvent } from "@merit/audit/server/record";
 import { actorProvenance, type Actor } from "@merit/auth";
 import { lockContactProfile } from "@merit/contacts/locks";
 import { readContact } from "@merit/contacts/scope";
-import type { Database } from "@merit/db";
+import type { Database, Transaction } from "@merit/db";
 import { assignmentScope, writeScoped, writeWorkspace } from "@merit/organizations/transactions";
 
 import {
@@ -39,7 +39,6 @@ import {
   updateParticipatingRequest,
   createReviewerAssignment,
   assignmentForRequest,
-  type ReviewerTransaction,
 } from "../persistence/commands/reviewer";
 import {
   readReviewState,
@@ -385,7 +384,7 @@ const participation = (assignment: ReviewerRecord["assignment"]) => ({
 });
 
 const resumption = async (
-  tx: ReviewerTransaction,
+  tx: Transaction,
   assignment: ReviewerRecord["assignment"],
   status: ReviewerStatus,
 ) => {
@@ -410,7 +409,7 @@ const resumption = async (
 };
 
 const changeReviewerParticipation = async (
-  tx: ReviewerTransaction,
+  tx: Transaction,
   assignment: ReviewerRecord["assignment"],
   actor: Actor,
   name: string,
@@ -453,7 +452,7 @@ const changeReviewerParticipation = async (
 };
 
 const recordOwnAssessment = async (
-  tx: ReviewerTransaction,
+  tx: Transaction,
   record: ReviewerRecord,
   row: NonNullable<Awaited<ReturnType<typeof readReviewState>>>,
   round: NonNullable<Awaited<ReturnType<typeof readReviewCriteria>>>,
@@ -521,7 +520,7 @@ const recordOwnAssessment = async (
 };
 
 const applyManagerAction = async (
-  tx: ReviewerTransaction,
+  tx: Transaction,
   assignment: ReviewerRecord["assignment"],
   actor: Actor,
   name: string,
@@ -566,7 +565,7 @@ const applyManagerAction = async (
 };
 
 const completeReviewerSubmission = async (
-  tx: ReviewerTransaction,
+  tx: Transaction,
   {
     assignment,
     draft,
@@ -597,7 +596,7 @@ const completeReviewerSubmission = async (
 };
 
 const recordSubmissionEvent = async (
-  tx: ReviewerTransaction,
+  tx: Transaction,
   {
     record,
     recorded,

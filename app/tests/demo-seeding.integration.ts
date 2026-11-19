@@ -189,8 +189,7 @@ it("creates independent applications with exact amounts and permanent public IDs
     await database.client.query<{
       title: string;
       source_kind: string;
-      has_submission: boolean;
-    }>("SELECT title, source_kind, has_submission FROM material_versions ORDER BY case_id, version")
+    }>("SELECT title, source_kind FROM material_versions ORDER BY case_id, version")
   ).rows;
   expect(material).toHaveLength(8);
   for (const row of material) {

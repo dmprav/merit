@@ -42,9 +42,8 @@ withdrawal closed.
 `application_cases` stores the current recorded title and applicant organization
 (`search_title`, `search_applicant`) beside `material_version`. Every write that
 advances `material_version` updates them in the same statement, so working
-revisions, unrecorded drafts, and superseded versions never match a search. The
-migration backfilled existing rows from their current version, and demo seeding
-goes through the same write. `applicationSearchMatch` and `applicationSearchRank`
+revisions, unrecorded drafts, and superseded versions never match a search. Demo seeding
+uses the same write. `applicationSearchMatch` and `applicationSearchRank`
 in the [scope projections](src/server/persistence/projections.ts) build the match and
 quality SQL over those columns with the shared helpers in
 [`@merit/db/search`](../../../foundation/db/src/search.ts); Grantmaking composes
@@ -62,9 +61,10 @@ side. The format version is independent of material and concurrency revisions.
 
 The [frozen schema](src/server/persistence/history-format.ts) validates stored
 fields independently of live models. Question IDs are required and unique within
-each collection. Renaming or reordering questions retains their identity. Reads
-adapt the recorded facts without rewriting history; unsupported versions and
-malformed payloads fail. The [JSON fixture](tests/fixtures/application-history.json)
+each collection. Renaming or reordering questions retains their identity. History
+views read the validated snapshot directly, preserving the recorded minor-unit
+strings. Unsupported versions and malformed payloads fail. The
+[JSON fixture](tests/fixtures/application-history.json)
 checks the initial contract independently of live models, including exact amounts.
 Actor and interface provenance remain on the enclosing change record.
 
@@ -78,7 +78,7 @@ and chunk offsets describe the same record.
 
 `/api` is browser-safe; `/server` exposes authorized operations and the service
 factory. Approved downstream commands share `/locks`; readers use `/schema`,
-`/scope` and the frozen `/history` decoder. `/server/integrations` provides the round-usage check,
+`/scope` and the frozen `/history` schema. `/server/integrations` provides the round-usage check,
 and `/server/demo` exposes trusted intake and authored-history insertion and demo cleanup.
 
 The [web package](../web/package.json) owns intake and contact-selection editing,

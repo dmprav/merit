@@ -26,7 +26,7 @@ const ReviewContent = ({
 const round = makeRound();
 const assessment = makeAssessment({ reviewer: "Sam Morgan" });
 const request = makeReviewRequest({
-  id: "pending",
+  id: "d3ab8fdf-929e-5c8f-87df-4d6a2b5e79f7",
   contactId: "jules",
   reviewer: "Jules Patel",
   applicationVersion: 2,
@@ -286,7 +286,7 @@ describe("selected review", () => {
   it("retains assessment history and record actions without showing global management actions", async () => {
     const previous = {
       ...assessment,
-      id: "previous",
+      id: "2640ee52-dba8-5810-8a0a-34767949fc39",
       versions: [
         {
           ...assessment.versions[0]!,
@@ -431,7 +431,7 @@ it("separates a request closed by the application's withdrawal from a manager's 
           requests: [
             {
               ...closed,
-              id: "withdrawn",
+              id: "7ed5232e-64f2-5744-aefa-66d785234340",
               closedBy: {
                 userId: "leah",
                 name: "Leah Morris",
@@ -441,7 +441,7 @@ it("separates a request closed by the application's withdrawal from a manager's 
             },
             {
               ...closed,
-              id: "cancelled",
+              id: "51844835-e5b5-59b1-b53a-5d3c3d22ff1a",
               contactId: "sam",
               reviewer: "Sam Reed",
               closedBy: { userId: "leah", name: "Leah Morris", recordedAt: "2027-01-17T09:00:00Z" },

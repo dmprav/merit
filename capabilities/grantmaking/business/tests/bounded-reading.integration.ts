@@ -363,11 +363,11 @@ it("returns the same review freshness as shared web reads without loading histor
   const sam = await reviewer("Sam");
   // Place the superseded ID between the two visible assessments in cursor order.
   const ids = {
-    current: "00000000-0000-4000-8000-000000000001",
-    unknown: "00000000-0000-4000-8000-000000000003",
+    current: "00000000-0000-4000-8000-00000000000a",
+    unknown: "00000000-0000-4000-8000-00000000000c",
     outstanding: randomUUID(),
   };
-  const previousId = "00000000-0000-4000-8000-000000000002";
+  const previousId = "00000000-0000-4000-8000-00000000000b";
   const changes: ReviewChange[] = [
     {
       action: "record",
@@ -463,7 +463,7 @@ it("returns the same review freshness as shared web reads without loading histor
   const assessment = await getFundingApplicationContent(db, actor, {
     ...input,
     section: "assessment",
-    entryId: ids.current,
+    entryId: ids.current.toUpperCase(),
   });
   assert(assessment.status === "ok");
   expect(JSON.parse(assessment.content)).toMatchObject({

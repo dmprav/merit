@@ -1,5 +1,5 @@
 import { type Actor } from "@merit/auth";
-import type { Database } from "@merit/db";
+import { allocatePublicId, type Database } from "@merit/db";
 import { lockGrantWorkspace } from "@merit/organizations/locks";
 import { writeWorkspace } from "@merit/organizations/transactions";
 
@@ -22,7 +22,6 @@ import {
   recordPreparationDeletion,
   lockManagerCandidate,
 } from "../persistence/commands/preparation";
-import { allocatePublicId } from "../persistence/identifiers";
 
 export const createFundingRound = async (db: Database, actor: Actor, input: CreateRoundRequest) => {
   const parsed = createRoundRequestSchema.safeParse(input);

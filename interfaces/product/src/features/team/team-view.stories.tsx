@@ -77,7 +77,7 @@ const meta = {
         value: {
           userId: data.userId,
           membershipId: data.expectedMembershipId,
-          membershipVersion: data.expectedVersion + 1,
+          membershipVersion: data.expectedMembershipVersion + 1,
           removed: false,
         },
       };

@@ -1,10 +1,8 @@
-import type { Database } from "@merit/db";
+import type { Transaction } from "@merit/db";
 
 import { recommendationDataSchema } from "../domain/encoding";
 import { recommendationColumns } from "./persistence/commands/recommendations";
 import { recommendationVersions } from "./persistence/schema";
-
-type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
 export const insertDemoRecommendation = async (
   db: Transaction,

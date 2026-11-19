@@ -70,51 +70,49 @@ const assembleSummaryAuthor = (caseRow: CaseRow) =>
         recordedAt: caseRow.summaryRecordedAt.toISOString(),
       };
 
+const assembleRecordedSubmission = (row: MaterialRow, answers: AnswerRecord[]) => {
+  if (row.submissionVersion === null) {
+    return undefined;
+  }
+
+  return {
+    version: row.submissionVersion,
+    ...(row.applicantOrganization !== null ? { organization: row.applicantOrganization } : {}),
+    ...(row.submittedOn !== null ? { submittedOn: row.submittedOn } : {}),
+    ...(row.projectPeriod !== null ? { projectPeriod: row.projectPeriod } : {}),
+    answers,
+  };
+};
+
 const assembleMaterialContent = (
   row: MaterialRow,
   answers: AnswerRecord[],
   evidence: EvidenceRecord[],
-): ApplicationMaterialData => ({
-  title: row.title,
-  version: row.version,
-  requested: requestedMoneyData(row.requestedMinorUnits, row.requestedCurrency),
-  ...(row.hasSubmission
-    ? {
-        submission: {
-          version: row.submissionVersion ?? row.version,
-          ...(row.applicantOrganization !== null
-            ? { organization: row.applicantOrganization }
-            : {}),
-          ...(row.submittedOn !== null ? { submittedOn: row.submittedOn } : {}),
-          ...(row.projectPeriod !== null ? { projectPeriod: row.projectPeriod } : {}),
-          answers,
-        },
-      }
-    : {}),
-  evidence,
-});
+): ApplicationMaterialData => {
+  const submission = assembleRecordedSubmission(row, answers);
+  return {
+    title: row.title,
+    version: row.version,
+    requested: requestedMoneyData(row.requestedMinorUnits, row.requestedCurrency),
+    ...(submission ? { submission } : {}),
+    evidence,
+  };
+};
 
 export const assembleCurrentSubmission = (
   row: MaterialRow,
   answers: AnswerRecord[],
   contact?: ContactProfile,
 ) => {
-  if (!row.hasSubmission && !contact) {
-    return undefined;
+  const recorded = assembleRecordedSubmission(row, answers);
+  if (!contact) {
+    return recorded;
   }
-  const base = row.hasSubmission
-    ? {
-        version: row.submissionVersion ?? row.version,
-        ...(row.applicantOrganization !== null ? { organization: row.applicantOrganization } : {}),
-        ...(row.submittedOn !== null ? { submittedOn: row.submittedOn } : {}),
-        ...(row.projectPeriod !== null ? { projectPeriod: row.projectPeriod } : {}),
-        answers,
-      }
-    : {
-        version: row.version,
-        answers: [] as AnswerRecord[],
-      };
-  return contact ? { ...base, contact: contact.name, contactEmail: contact.email } : base;
+  return {
+    ...(recorded ?? { version: row.version, answers: [] }),
+    contact: contact.name,
+    contactEmail: contact.email,
+  };
 };
 
 export const assembleApplicationDetails = (caseRow: CaseRow, materialRow: MaterialRow) => {

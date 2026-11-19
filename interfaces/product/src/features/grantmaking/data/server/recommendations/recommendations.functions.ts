@@ -1,5 +1,4 @@
 import { createServerFn } from "@tanstack/react-start";
-import { setResponseHeader } from "@tanstack/react-start/server";
 
 import { withActor } from "@merit/auth/request";
 import { encodeBudgetTotals } from "@merit/grantmaking/api";
@@ -9,7 +8,6 @@ import { saveRecommendationRequestSchema, encodeRecommendation } from "@merit/re
 export const saveRecommendation = createServerFn({ method: "POST" })
   .validator(saveRecommendationRequestSchema)
   .handler(async ({ data, context }) => {
-    setResponseHeader("Cache-Control", "private, no-store");
     const result = await withActor(context.currentIdentity, (actor) =>
       context.recommendations.saveRecommendation(actor, data),
     );

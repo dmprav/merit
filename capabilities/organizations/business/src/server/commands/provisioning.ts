@@ -1,6 +1,6 @@
 import { permits } from "@merit/access";
 import { type Actor } from "@merit/auth";
-import type { Database } from "@merit/db";
+import type { Database, Transaction } from "@merit/db";
 
 import { invitationProblem } from "../../domain/index";
 import { recordOrganizationEvent } from "../persistence/commands/events";
@@ -8,7 +8,6 @@ import { lockOrganization } from "../persistence/commands/invitations";
 import * as persistence from "../persistence/commands/provisioning";
 import { findInvitation } from "../persistence/invitations";
 import { writeScoped } from "../persistence/tenant";
-import type { Transaction } from "../persistence/transaction";
 import { fail } from "../result";
 import { issueInvitation } from "./issue-invitation";
 import { checkTeamIssuer } from "./team";

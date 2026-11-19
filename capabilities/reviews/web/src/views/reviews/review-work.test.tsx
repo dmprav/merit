@@ -53,7 +53,7 @@ const application = makeApplication({
 });
 const round = makeRound({ criteria, criteriaHistory: [{ version: 1, criteria }] });
 const request = {
-  id: "pending-request",
+  id: "c0c0979c-33f6-591a-b26b-495748f4d457",
   contactId: "another-reviewer",
   reviewer: "Pat Reviewer",
   applicationVersion: application.version,
@@ -540,7 +540,7 @@ it.each(["cancel", "follow_up"] as const)(
                       request,
                       {
                         ...request,
-                        id: "follow-up-request",
+                        id: "eb1f1f75-08ef-5c3e-b184-70a054766f39",
                         contactId: assessment.contactId,
                         reviewer: assessment.reviewer,
                       },
@@ -669,7 +669,7 @@ const seedConflictingReview = (mode: "record" | "edit", contactId: string, date 
   seedDraftStorage("dana", "reviews", {
     [draftKey]: {
       mode,
-      id: mode === "edit" ? assessment.id : "retained-review",
+      id: mode === "edit" ? assessment.id : crypto.randomUUID(),
       revision: application.reviews.revision - 1,
       applicationVersion: application.version,
       criteriaVersion: round.criteriaVersion,

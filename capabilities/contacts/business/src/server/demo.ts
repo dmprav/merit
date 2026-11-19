@@ -1,6 +1,7 @@
+import type { Transaction } from "@merit/db";
+
 import { insertContact } from "./persistence/commands/contacts";
 import { deleteDemoContacts } from "./persistence/commands/demo";
-import type { Transaction } from "./persistence/transaction";
 
 /** Trusted fictional-workspace provisioning only; all writes use the caller's transaction. */
 export const seedExampleContacts = async (

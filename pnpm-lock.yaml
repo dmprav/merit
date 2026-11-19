@@ -648,7 +648,7 @@ importers:
         specifier: 'catalog:'
         version: 0.156.0
       typescript:
-        specifier: ^7.0.2
+        specifier: 'catalog:'
         version: 7.0.2
       vite:
         specifier: 'catalog:'

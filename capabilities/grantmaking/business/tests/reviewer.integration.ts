@@ -577,6 +577,12 @@ it("records an accepted reviewer message after the sender loses workspace access
   const receipt = await message();
   expect(receipt.status).toBe("sent");
   await withDatabase(runtimeUrl, async (db) => {
+    await expect(
+      db.execute(
+        sql`UPDATE reviewer_messages SET status = 'failed' WHERE id = ${s.invitation.commandId}`,
+      ),
+    ).rejects.toMatchObject({ cause: { code: "42501" } });
+
     const acknowledge = (token: string) =>
       db.execute(
         sql`select merit_finish_reviewer_message(${s.invitation.commandId}, ${token}, 'failed')`,
@@ -915,7 +921,7 @@ it("keeps an unaccepted assignment ended after removal and rejoining until expli
       workspaceSlug: "alder",
       userId: "sam",
       expectedMembershipId: member.membershipId,
-      expectedVersion: member.version,
+      expectedMembershipVersion: member.version,
       expectedInvitationIds: [],
     }),
   ).toMatchObject({ status: "ok" });
@@ -983,7 +989,7 @@ it("permanently ends assignments on role loss, preserves private work, and attri
       workspaceSlug: "alder",
       userId: "sam",
       expectedMembershipId: member.membershipId,
-      expectedVersion: member.version,
+      expectedMembershipVersion: member.version,
       expectedInvitationIds: [],
       administration: "none",
       role,

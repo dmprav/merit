@@ -40,10 +40,18 @@ test("deleting preparation returns to the workspace applications list", async ({
   await expect(page.getByRole("main")).toBeFocused();
   await page.getByRole("button", { name: "Application actions" }).click();
   await page.getByRole("menuitem", { name: "Delete application", exact: true }).click();
-  await page
-    .getByRole("dialog", { name: "Delete application" })
-    .getByRole("button", { name: "Delete application", exact: true })
-    .click();
+  const [deletion] = await Promise.all([
+    page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        response.request().headers()["x-tsr-serverfn"] === "true",
+    ),
+    page
+      .getByRole("dialog", { name: "Delete application" })
+      .getByRole("button", { name: "Delete application", exact: true })
+      .click(),
+  ]);
+  expect(await deletion.headerValue("cache-control")).toBe("private, no-store");
   await expect(page).toHaveURL(
     `/app/alder/applications?round=${round.publicId}&sort=application&direction=descending`,
   );

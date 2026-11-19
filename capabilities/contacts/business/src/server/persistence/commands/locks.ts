@@ -1,5 +1,6 @@
+import type { Transaction } from "@merit/db";
+
 import { selectContact } from "../scope";
-import type { Transaction } from "../transaction";
 
 /** Hold the authorized contact's profile stable while recording its details or checking its revision. */
 export const lockContactProfile = async (

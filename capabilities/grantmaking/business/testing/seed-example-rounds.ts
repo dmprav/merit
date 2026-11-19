@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 
 import { appUsers } from "@merit/auth/schema";
 import { ensureInactiveUser } from "@merit/auth/server";
-import type { Database } from "@merit/db";
+import type { Database, Transaction } from "@merit/db";
 import { memberships, organizations } from "@merit/organizations/schema";
 import { fundingRounds } from "@merit/rounds/schema";
 
@@ -47,8 +47,6 @@ export const seedExampleRounds = async (db: Database, clerkUserId = "seed_alder"
     }
   });
 };
-
-type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
 const seedWorkspaceAccess = async (tx: Transaction, clerkUserId: string) => {
   await tx

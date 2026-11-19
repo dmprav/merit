@@ -1,7 +1,7 @@
 import { and, eq, sql } from "drizzle-orm";
 
 import { type Actor } from "@merit/auth";
-import type { Database } from "@merit/db";
+import type { Transaction } from "@merit/db";
 import { decodeMoney } from "@merit/money";
 
 import {
@@ -27,8 +27,6 @@ import {
   materialDraftAnswers,
 } from "../schema";
 import { recordApplicationChange } from "./intake-history";
-
-type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
 type ApplicationData = ReturnType<typeof encodeIntakeApplication>;
 
@@ -111,7 +109,6 @@ const insertMaterialVersionRows = async (
     title: material.title,
     requestedMinorUnits: material.requested?.minorUnits ?? null,
     requestedCurrency: material.requested?.currency ?? null,
-    hasSubmission: material.submission !== undefined,
     submissionVersion: material.submission?.version ?? null,
     applicantOrganization: material.submission?.organization ?? null,
     submittedOn: material.submission?.submittedOn ?? null,

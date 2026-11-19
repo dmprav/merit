@@ -1,7 +1,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 
 import type { Actor } from "@merit/auth";
-import type { Database } from "@merit/db";
+import type { Transaction } from "@merit/db";
 
 import { reviewAssignments } from "../reviewer-schema";
 import {
@@ -9,8 +9,6 @@ import {
   updateParticipatingRequest,
   updateReviewerAssignment,
 } from "./reviewer";
-
-type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
 /** Organizations holds the exclusive workspace lock before ending membership authority. */
 export const revokeMembershipReviews = async (

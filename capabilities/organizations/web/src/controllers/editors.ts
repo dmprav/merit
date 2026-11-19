@@ -32,14 +32,24 @@ const hasInvitation = (draft: InviteDraft | null) =>
     draft && (draft.email || draft.administration !== "none" || draft.role !== "program_manager"),
   );
 
-export const memberRequest = (team: Team, member: Member) => ({
-  workspaceSlug: team.organization.slug,
-  userId: member.userId,
+const memberBaseline = (team: Team, member: Member) => ({
   expectedMembershipId: member.membershipId,
   expectedVersion: member.version,
   expectedInvitationIds: team.invitations
     .filter((i) => i.invitedBy === member.userId)
     .map((i) => i.id),
+});
+
+export const memberRequest = (
+  team: Team,
+  member: Member,
+  baseline = memberBaseline(team, member),
+) => ({
+  workspaceSlug: team.organization.slug,
+  userId: member.userId,
+  expectedMembershipId: baseline.expectedMembershipId,
+  expectedMembershipVersion: baseline.expectedVersion,
+  expectedInvitationIds: baseline.expectedInvitationIds,
 });
 
 type UseTeamEditorsOptions = {
@@ -169,7 +179,7 @@ const useMemberEditors = ({
         (accessDrafts[accessKey(member)]!.expectedMembershipId !== member.membershipId ||
           accessDrafts[accessKey(member)]!.expectedVersion !== member.version ||
           JSON.stringify([...accessDrafts[accessKey(member)]!.expectedInvitationIds].sort()) !==
-            JSON.stringify([...memberRequest(team, member).expectedInvitationIds].sort())),
+            JSON.stringify([...memberBaseline(team, member).expectedInvitationIds].sort())),
       ),
       onChange: (value: Access) =>
         updateAccess((current) => {
@@ -183,20 +193,13 @@ const useMemberEditors = ({
             ...current,
             [accessKey(member)]: unchanged
               ? undefined
-              : { ...(previous ?? memberRequest(team, member)), value },
+              : { ...(previous ?? memberBaseline(team, member)), value },
           };
         }),
       onSave: async (values: Access) => {
         const draft = accessDrafts[accessKey(member)];
         const problem = await onChangeMember({
-          ...memberRequest(team, member),
-          ...(draft
-            ? {
-                expectedMembershipId: draft.expectedMembershipId,
-                expectedVersion: draft.expectedVersion,
-                expectedInvitationIds: draft.expectedInvitationIds,
-              }
-            : {}),
+          ...memberRequest(team, member, draft),
           ...values,
         });
         if (!problem) {

@@ -25,7 +25,7 @@ export const reviewRequests = pgTable(
   {
     organizationId: text("organization_id").notNull(),
     caseId: text("case_id").notNull(),
-    id: text().notNull(),
+    id: uuid().notNull(),
     contactId: uuid("contact_id").notNull(),
     reviewer: text().notNull(),
     applicationVersion: integer("material_version").notNull(),
@@ -100,11 +100,11 @@ export const assessments = pgTable(
   {
     organizationId: text("organization_id").notNull(),
     caseId: text("case_id").notNull(),
-    id: text().notNull(),
+    id: uuid().notNull(),
     contactId: uuid("contact_id").notNull(),
     reviewer: text().notNull(),
-    requestId: text("request_id"),
-    previousId: text("previous_id"),
+    requestId: uuid("request_id"),
+    previousId: uuid("previous_id"),
     authorUserId: text("author_user_id").references(() => appUsers.id),
     position: integer().notNull(),
   },
@@ -132,7 +132,7 @@ export const assessmentVersions = pgTable(
   {
     organizationId: text("organization_id").notNull(),
     caseId: text("case_id").notNull(),
-    assessmentId: text("assessment_id").notNull(),
+    assessmentId: uuid("assessment_id").notNull(),
     version: integer().notNull(),
     applicationVersion: integer("material_version"),
     criteriaRoundPublicId: text("criteria_round_id"),
@@ -209,7 +209,7 @@ export const assessmentVersionObservations = pgTable(
   "assessment_version_observations",
   {
     caseId: text("case_id").notNull(),
-    assessmentId: text("assessment_id").notNull(),
+    assessmentId: uuid("assessment_id").notNull(),
     version: integer().notNull(),
     position: integer().notNull(),
     criterionId: uuid("criterion_id"),

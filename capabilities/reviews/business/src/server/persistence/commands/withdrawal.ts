@@ -2,13 +2,11 @@ import { and, eq } from "drizzle-orm";
 
 import { applicationCases, materialVersions } from "@merit/applications/schema";
 import type { Actor } from "@merit/auth";
-import type { Database } from "@merit/db";
+import type { Transaction } from "@merit/db";
 
 import { reviewRequests, reviewStates } from "../schema";
 import { recordReviewRequestEvent } from "./review-request-events";
 import { cancelParticipatingRequest, updateParticipatingRequest } from "./reviewer";
-
-type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
 /**
  * Closes every outstanding request because the application was withdrawn, records the same

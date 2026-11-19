@@ -1,12 +1,10 @@
 import { eq } from "drizzle-orm";
 
 import { appUsers } from "@merit/auth/schema";
-import type { Database } from "@merit/db";
+import type { Transaction } from "@merit/db";
 
 import { auditRecordSchema, type AuditRecord } from "../../../domain/event";
 import { auditEvents } from "../schema";
-
-type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
 /** Trusted capability integration. The caller authorizes the action, supplies
  * current identity facts, and holds its locks until this transaction commits. */

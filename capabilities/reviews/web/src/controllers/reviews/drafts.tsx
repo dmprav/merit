@@ -3,12 +3,13 @@ import { z } from "zod";
 
 import { useDrafts } from "@merit/drafts";
 import { saveReviewRequestSchema } from "@merit/reviews/api";
+import { reviewIdSchema } from "@merit/reviews/domain";
 
 const text = z.string();
 const baseline = saveReviewRequestSchema.shape;
 export const reviewDraftSchema = z.object({
   mode: z.enum(["record", "edit"]),
-  id: text,
+  id: reviewIdSchema,
   revision: baseline.expectedRevision,
   applicationVersion: baseline.expectedApplicationVersion,
   criteriaVersion: baseline.expectedCriteriaVersion,

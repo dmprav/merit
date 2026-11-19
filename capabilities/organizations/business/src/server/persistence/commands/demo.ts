@@ -1,11 +1,11 @@
 import { and, eq, lte, sql, lt } from "drizzle-orm";
 
 import { appUsers } from "@merit/auth/schema";
+import type { Transaction } from "@merit/db";
 
 import { demoEntryLimits } from "../demo-schema";
 import { memberships, organizations } from "../membership-schema";
 import { invitations } from "../schema";
-import type { Transaction } from "../transaction";
 
 export const lockDemoUser = async (db: Transaction, userId: string) => {
   await db.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`demo:${userId}`}, 0))`);

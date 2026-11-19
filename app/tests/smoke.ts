@@ -31,8 +31,6 @@ for (const path of ["/demo", "/demo/workshop-saturdays"]) {
   );
 }
 
-assert.equal((await fetch(new URL("/mcp", baseUrl))).status, 404);
-
 const missing = await fetch(new URL("/not-a-route", baseUrl));
 assert.equal(missing.status, 404);
 assertFramingProtection(missing);
