@@ -2,7 +2,7 @@
 GRANT USAGE ON SCHEMA public TO :"runtime_role";
 GRANT SELECT, INSERT ON app_users, guest_sessions, organizations, memberships, organization_invitations,
   access_requests, access_request_limits, demo_entry_limits, grant_navigation_pins, contacts,
-  workspace_files, funding_rounds, round_creation_receipts, criteria_versions, criteria_version_items,
+  funding_rounds, round_creation_receipts, criteria_versions, criteria_version_items,
   application_cases, application_creation_receipts, material_versions, material_version_answers,
   material_version_evidence, material_drafts, material_draft_answers, review_assignments,
   review_requests, review_states, reviewer_command_receipts, reviewer_drafts, reviewer_draft_observations,

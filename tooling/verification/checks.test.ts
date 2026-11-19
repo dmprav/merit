@@ -212,7 +212,7 @@ it.each([
   ["reviews", "capabilities/reviews/business", ["src/domain", "src/api"]],
   ["organizations", "capabilities/organizations/business", ["src/domain", "src/api"]],
   ["contacts", "capabilities/contacts/business", ["src/domain", "src/api"]],
-  ["storage", "foundation/storage", ["src/api"]],
+  ["storage", "foundation/storage", ["src"]],
   ["money", "foundation/money", ["src"]],
   ["dates", "foundation/dates", ["src"]],
 ] as const)(

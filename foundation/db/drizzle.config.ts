@@ -6,7 +6,6 @@ export default defineConfig({
     "../../capabilities/*/business/src/persistence/*schema.ts",
     "../../capabilities/*/business/src/server/persistence/*schema.ts",
     "../auth/src/persistence/schema.ts",
-    "../storage/src/schema.ts",
   ],
   out: "./database/migrations",
   dbCredentials: {

@@ -26,7 +26,7 @@ full set of checks.
 
 Set up a dedicated private S3-compatible bucket and server credentials before
 using file operations. The [storage guide](../../foundation/storage/README.md#configure-a-bucket)
-defines the provider requirements, environment settings and orphan cleanup procedure.
+covers provider requirements, environment settings, and coordination with attachment owners during cleanup.
 
 ## Prepare the database
 

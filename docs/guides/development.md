@@ -199,7 +199,7 @@ reproduce the same database structure. Before the first deployment, migrations
 may be consolidated into a fresh baseline; existing local databases then need
 [recreation](#local-database-recovery). When regenerating the baseline, carry forward
 the handwritten SQL for public IDs, deferred foreign keys, content checks, the
-outstanding-review index, the audit and file organization foreign keys, and immutability
+outstanding-review index, the audit organization foreign key, and immutability
 triggers. Keep the search extensions and indexes, workspace row-security policies
 and helpers, and reviewer delivery function with its restricted privileges.
 Once deployed, keep applied migrations unchanged and add a migration for each change.
