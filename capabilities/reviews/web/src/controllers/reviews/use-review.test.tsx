@@ -43,10 +43,10 @@ const setup = (
   return { ...hook, data, props };
 };
 
-const assessmentWithVersions = (id: string, applicationVersions: (number | null)[]) => {
+const assessmentWithVersions = (applicationVersions: (number | null)[]) => {
   const original = makeAssessment().versions[0]!;
   return makeAssessment({
-    id,
+    id: crypto.randomUUID(),
     versions: applicationVersions.map((applicationVersion) => ({
       ...original,
       content: { ...original.content, applicationVersion },
@@ -68,10 +68,7 @@ it("includes earlier assessment bases and deduplicates versions across all sourc
         reviews: {
           revision: 3,
           requests: [],
-          assessments: [
-            assessmentWithVersions("first", [2, 4, 3]),
-            assessmentWithVersions("second", [null, 1, 2, 7]),
-          ],
+          assessments: [assessmentWithVersions([2, 4, 3]), assessmentWithVersions([null, 1, 2, 7])],
         },
       }),
     ),
@@ -91,7 +88,7 @@ it("does not invent application versions for assessments with unknown bases", ()
         reviews: {
           revision: 3,
           requests: [],
-          assessments: [assessmentWithVersions("unknown", [null, null])],
+          assessments: [assessmentWithVersions([null, null])],
         },
       }),
     ),
@@ -120,7 +117,7 @@ it("updates selectable versions when history and application assessments arrive"
         reviews: {
           revision: 4,
           requests: [],
-          assessments: [assessmentWithVersions("received", [3, 2])],
+          assessments: [assessmentWithVersions([3, 2])],
         },
       }),
     ),
@@ -134,11 +131,13 @@ it("retains invalid-review details and authentication outcomes without translati
   const { result, data } = setup();
   const invalid = { status: "invalid", error: "contact_unavailable" } as const;
   data.save.mockResolvedValueOnce(invalid).mockResolvedValueOnce({ status: "signed_out" });
-  const request = result.current.beginRequest("original-request");
+  const originalId = crypto.randomUUID();
+  const replacementId = crypto.randomUUID();
+  const request = result.current.beginRequest(originalId);
 
-  await act(async () => expect(await request("sam", "replacement")).toEqual(invalid));
+  await act(async () => expect(await request("sam", replacementId)).toEqual(invalid));
   expect(data.save).toHaveBeenLastCalledWith(
-    { action: "request", id: "replacement", contactId: "sam", replacesId: "original-request" },
+    { action: "request", id: replacementId, contactId: "sam", replacesId: originalId },
     {
       revision: 3,
       applicationVersion: 2,
@@ -146,7 +145,7 @@ it("retains invalid-review details and authentication outcomes without translati
     },
   );
   await act(async () =>
-    expect(await request("sam", "replacement")).toEqual({ status: "signed_out" }),
+    expect(await request("sam", replacementId)).toEqual({ status: "signed_out" }),
   );
   expect(data.refresh).not.toHaveBeenCalled();
   expect(result.current.saved).toBe(0);
@@ -157,13 +156,14 @@ it("keeps request and assessment conflicts distinct when loading current work al
   data.save.mockResolvedValue({ status: "conflict" });
   data.refresh.mockRejectedValue(new Error("Offline"));
 
+  const requestId = crypto.randomUUID();
   await act(async () =>
-    expect(await result.current.beginRequest()("sam", "request")).toEqual({
+    expect(await result.current.beginRequest()("sam", requestId)).toEqual({
       status: "request_conflict",
     }),
   );
   expect(result.current.refreshError).toBe("read");
-  await act(() => result.current.cancelRequest("request"));
+  await act(() => result.current.cancelRequest(requestId));
   expect(result.current.error).toEqual({ status: "conflict" });
   expect(result.current.saved).toBe(0);
 });
@@ -180,7 +180,7 @@ it("preserves a committed request through a failed refresh and retries only the 
   );
   let save!: Promise<unknown>;
   act(() => {
-    save = result.current.beginRequest()("sam", "request");
+    save = result.current.beginRequest()("sam", crypto.randomUUID());
   });
   await waitFor(() => expect(result.current.saved).toBe(1));
   expect(result.current.saving).toBe(true);

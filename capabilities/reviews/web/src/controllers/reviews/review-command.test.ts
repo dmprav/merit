@@ -36,7 +36,7 @@ const content: AssessmentInput = {
   observations: values.observations,
 };
 const request: ReviewState["requests"][number] = {
-  id: "pending-request",
+  id: crypto.randomUUID(),
   contactId: "sam",
   reviewer: "Sam",
   applicationVersion: materialVersionSchema.parse(2),
@@ -47,30 +47,31 @@ const request: ReviewState["requests"][number] = {
   closedBy: null,
 };
 const assessment: ReviewState["assessments"][number] = {
-  id: "first-assessment",
+  id: crypto.randomUUID(),
   contactId: "sam",
   reviewer: "Sam",
   requestId: null,
   previousId: null,
   versions: [{ content, criteria: [], recorder: null, note: "" }],
 };
+const latestAssessmentId = crypto.randomUUID();
 const state: ReviewState = {
   revision: reviewRevisionSchema.parse(9),
   requests: [
-    { ...request, id: "cancelled-request", status: "cancelled" },
-    { ...request, id: "received-request", status: "received" },
-    { ...request, id: "other-request", contactId: "jules" },
+    { ...request, id: crypto.randomUUID(), status: "cancelled" },
+    { ...request, id: crypto.randomUUID(), status: "received" },
+    { ...request, id: crypto.randomUUID(), contactId: "jules" },
     request,
   ],
   assessments: [
     assessment,
-    { ...assessment, id: "latest-assessment", previousId: assessment.id },
-    { ...assessment, id: "other-assessment", contactId: "jules" },
+    { ...assessment, id: latestAssessmentId, previousId: assessment.id },
+    { ...assessment, id: crypto.randomUUID(), contactId: "jules" },
   ],
 };
 const draft: ReviewDraft = {
   mode: "record",
-  id: "command-id",
+  id: crypto.randomUUID(),
   revision: reviewRevisionSchema.parse(4),
   applicationVersion: materialVersionSchema.parse(3),
   criteriaVersion: criteriaVersionSchema.parse(2),
@@ -86,7 +87,7 @@ it("compares a correction with its own record and a new assessment with the late
   const reviews = {
     ...state,
     assessments: state.assessments.map((item) =>
-      item.id === "latest-assessment"
+      item.id === latestAssessmentId
         ? {
             ...item,
             versions: [
@@ -137,7 +138,12 @@ it("distinguishes an outstanding request from a missing saved comparison", () =>
   });
   expect(
     reviewConflictComparison(
-      { ...draft, mode: "edit", id: "removed", values: { ...values, contactId: "removed" } },
+      {
+        ...draft,
+        mode: "edit",
+        id: crypto.randomUUID(),
+        values: { ...values, contactId: "removed" },
+      },
       state,
       current,
     ).saved,
@@ -147,16 +153,16 @@ it("distinguishes an outstanding request from a missing saved comparison", () =>
 it.each([
   {
     mode: "edit" as const,
-    change: { action: "edit", id: "command-id", content, note: values.note },
+    change: { action: "edit", id: draft.id, content, note: values.note },
   },
   {
     mode: "record" as const,
     change: {
       action: "record",
-      id: "command-id",
+      id: draft.id,
       contactId: "sam",
-      requestId: "pending-request",
-      previousId: "latest-assessment",
+      requestId: request.id,
+      previousId: latestAssessmentId,
       content,
     },
   },
@@ -183,7 +189,7 @@ it("records an unsolicited assessment with unknown bases without inventing links
 
   expect(command.change).toEqual({
     action: "record",
-    id: "command-id",
+    id: draft.id,
     contactId: "sam",
     requestId: null,
     previousId: null,

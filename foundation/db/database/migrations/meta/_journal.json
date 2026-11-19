@@ -5,22 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1794773465402,
+      "when": 1795076730741,
       "tag": "0000_initial",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1795041788184,
-      "tag": "0001_workspace_isolation",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1795043837281,
-      "tag": "0002_reviewer_delivery",
       "breakpoints": true
     }
   ]

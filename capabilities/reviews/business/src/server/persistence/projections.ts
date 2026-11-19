@@ -334,7 +334,7 @@ export const readAssessmentRecord = async (
     requestId: assessment.requestId,
     previousId: assessment.previousId,
     authorUserId: assessment.authorUserId,
-    versions: versionsByAssessment.get(assessmentKey(caseId, assessmentId)) ?? [],
+    versions: versionsByAssessment.get(assessmentKey(caseId, assessment.id)) ?? [],
   };
 };
 
