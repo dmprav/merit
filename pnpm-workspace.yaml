@@ -80,7 +80,7 @@ catalog:
   "@stylistic/eslint-plugin": 5.10.0
   stylelint: ^18.0.0
   "@vitest/coverage-v8": 5.1.0
-  eslint-plugin-boundaries: 7.4.2
+  eslint-plugin-boundaries: 7.4.4
   unrs-resolver: 1.13.0
   remark-cli: ^12.0.1
   remark-gfm: ^4.0.1
