@@ -15,7 +15,8 @@ export const contactCommands = {
     details: contactDetailsSchema,
   }),
   update: z.strictObject({
-    ...existingContact,
+    ...contactAddress,
+    expectedContactRevision: z.number().int().nonnegative().optional(),
     action: z.literal("update"),
     details: contactDetailsSchema,
   }),

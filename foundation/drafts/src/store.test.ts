@@ -128,6 +128,7 @@ it("keeps clearing terminal when the initial restoration finishes late", async (
     status: "cleared",
     ready: true,
     storageUnavailable: false,
+    conflicts: new Set(),
   });
   expect(storage.restore).toHaveBeenCalledTimes(1);
   expect(storage.write).not.toHaveBeenCalled();

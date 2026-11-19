@@ -35,13 +35,30 @@ export const createRoundRequestSchema = z.strictObject({
     }, "Enter a nonnegative amount with at most two decimal places.")
     .optional(),
 });
-export const editRoundRequestSchema = z.strictObject({
+export const editRoundInputSchema = z.strictObject({
+  workspaceSlug: workspaceSlugSchema,
+  publicId: publicIdSchema,
+  expectedRevision: z.number().int().nonnegative().optional(),
+  change: roundChangeSchema,
+});
+export const editRoundRequestSchema = editRoundInputSchema.superRefine((request, ctx) => {
+  const needsRevision =
+    request.change.section === "criteria" ||
+    request.change.section === "budget" ||
+    (request.change.section === "details" && request.change.purpose !== undefined);
+  if (needsRevision && request.expectedRevision === undefined) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["expectedRevision"],
+      message: "expectedRevision is required for this change.",
+    });
+  }
+});
+export const deleteRoundRequestSchema = z.strictObject({
   workspaceSlug: workspaceSlugSchema,
   publicId: publicIdSchema,
   expectedRevision: z.number().int().nonnegative(),
-  change: roundChangeSchema,
 });
-export const deleteRoundRequestSchema = editRoundRequestSchema.omit({ change: true });
 
 export type CreateRoundRequest = z.infer<typeof createRoundRequestSchema>;
 

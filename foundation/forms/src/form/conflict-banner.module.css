@@ -1,0 +1,35 @@
+.banner {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.attribution {
+  color: var(--muted);
+  font-size: var(--text-caption);
+}
+
+.latest {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--panel-radius);
+  background: var(--surface);
+  font-size: var(--text-detail);
+  line-height: var(--leading-reading);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.latestHeading {
+  font-size: var(--text-caption);
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.retainedContent {
+  display: grid;
+  gap: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+}

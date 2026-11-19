@@ -34,6 +34,7 @@ export class DraftStore<T> {
       status: persistence ? "restoring" : "memory",
       ready: !persistence,
       storageUnavailable: false,
+      conflicts: new Set(),
     };
     this.snapshot = this.initial;
   }
@@ -71,6 +72,11 @@ export class DraftStore<T> {
 
   private publish(drafts = this.snapshot.drafts) {
     const status = this.status();
+    const conflicts = new Set(
+      [...this.recovery.failures.entries()]
+        .filter(([, failure]) => failure === "conflict")
+        .map(([key]) => key),
+    );
     this.snapshot = {
       drafts,
       status,
@@ -78,6 +84,7 @@ export class DraftStore<T> {
       storageUnavailable:
         status !== "cleared" &&
         (this.recovery.failures.size > 0 || status === "unavailable" || status === "conflict"),
+      conflicts,
     };
     for (const listener of this.listeners) {
       listener();
@@ -208,6 +215,57 @@ export class DraftStore<T> {
         for (const { key } of changes) {
           this.recovery.failures.set(key, "unavailable");
         }
+      }
+    }
+    if (this.lifecycle.phase === "ready") {
+      this.lifecycle.pendingWrites -= 1;
+      this.publish();
+    }
+  }
+
+  resolveConflict = (key: string, choice: "keep" | "use_stored") => {
+    if (this.isCleared() || this.lifecycle.phase !== "ready") {
+      return;
+    }
+    if (!this.persistence) {
+      return;
+    }
+    this.lifecycle.pendingWrites += 1;
+    this.pending = this.pending.then(() => this.applyConflictResolution(key, choice));
+    this.publish();
+  };
+
+  private async applyConflictResolution(key: string, choice: "keep" | "use_stored") {
+    if (this.isCleared() || !this.persistence) {
+      return;
+    }
+    try {
+      const latest = await this.persistence.restore();
+      if (this.isCleared()) {
+        return;
+      }
+      this.recovery.epoch = latest.epoch;
+      const latestToken = latest.tokens.get(key);
+      if (latestToken === undefined) {
+        this.recovery.tokens.delete(key);
+      } else {
+        this.recovery.tokens.set(key, latestToken);
+      }
+      this.recovery.failures.delete(key);
+      if (choice === "use_stored") {
+        this.publish({ ...this.snapshot.drafts, [key]: latest.drafts[key] });
+      } else {
+        const currentValue = this.snapshot.drafts[key];
+        const result = await this.persistence.write(this.recovery.epoch, [
+          { key, value: currentValue, token: latestToken },
+        ]);
+        if (!this.isCleared()) {
+          this.acceptWrite([{ key, value: currentValue }], result);
+        }
+      }
+    } catch {
+      if (!this.isCleared()) {
+        this.recovery.failures.set(key, "unavailable");
       }
     }
     if (this.lifecycle.phase === "ready") {

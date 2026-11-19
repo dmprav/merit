@@ -73,7 +73,11 @@ export const editFundingRound = async (db: Database, actor: Actor, input: EditRo
     if (!row) {
       return { status: "not_found" } as const;
     }
-    if (row.revision !== request.expectedRevision) {
+    const requiresRevisionCheck =
+      request.change.section === "criteria" ||
+      request.change.section === "budget" ||
+      (request.change.section === "details" && request.change.purpose !== undefined);
+    if (requiresRevisionCheck && row.revision !== request.expectedRevision) {
       return { status: "conflict" } as const;
     }
 

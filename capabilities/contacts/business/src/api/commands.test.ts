@@ -63,8 +63,8 @@ describe("contact commands", () => {
     }
   });
 
-  it.each(["update", "archive", "restore"])("requires an integer revision for %s", (action) => {
-    const command = { ...address, action, ...(action === "update" ? { details } : {}) };
+  it.each(["archive", "restore"])("requires an integer revision for %s", (action) => {
+    const command = { ...address, action };
 
     for (const expectedContactRevision of [undefined, null, -1, 0.5, "0"]) {
       expect(contactCommandSchema.safeParse({ ...command, expectedContactRevision }).success).toBe(
@@ -77,6 +77,22 @@ describe("contact commands", () => {
         expectedContactRevision,
       });
     }
+  });
+
+  it("allows omitting expectedContactRevision for Tier 1 profile updates", () => {
+    expect(contactCommandSchema.parse({ ...address, action: "update", details })).toEqual({
+      ...address,
+      action: "update",
+      details,
+    });
+    expect(
+      contactCommandSchema.safeParse({
+        ...address,
+        action: "update",
+        details,
+        expectedContactRevision: -1,
+      }).success,
+    ).toBe(false);
   });
 
   it("keeps lifecycle and ownership changes out of profile updates", () => {

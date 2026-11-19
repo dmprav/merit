@@ -140,6 +140,7 @@ export const reviewChanges = {
   edit: z.strictObject({
     action: z.literal("edit"),
     id: reviewIdSchema,
+    expectedAssessmentVersion: z.number().int().positive().optional(),
     content: assessmentInputSchema,
     note: z.string().trim().max(2000),
   }),
@@ -370,4 +371,85 @@ export const prepareReviewChange = (
 
   state.revision = reviewRevisionSchema.parse(state.revision + 1);
   return { ok: true, state } as const;
+};
+
+const hasRequestConflict = (
+  state: ReviewState,
+  change: Extract<ReviewChange, { action: "request" }>,
+  staleRevision: boolean,
+) => {
+  if (!staleRevision) {
+    return false;
+  }
+  const replaced = change.replacesId
+    ? state.requests.find((value) => value.id === change.replacesId)
+    : undefined;
+  if (replaced && replaced.status !== "outstanding") {
+    return true;
+  }
+  return state.requests.some(
+    (value) =>
+      value.contactId === change.contactId &&
+      value.status === "outstanding" &&
+      value.id !== change.replacesId,
+  );
+};
+
+const hasRecordConflict = (
+  state: ReviewState,
+  change: Extract<ReviewChange, { action: "record" }>,
+) => {
+  if (change.requestId) {
+    const request = state.requests.find((value) => value.id === change.requestId);
+    if (request && request.status !== "outstanding") {
+      return true;
+    }
+  }
+  const latest = state.assessments.filter((value) => value.contactId === change.contactId).at(-1);
+  return (latest?.id ?? null) !== change.previousId;
+};
+
+/** Target-scoped concurrency check: avoids false conflicts across independent reviewers. */
+export const hasReviewConflict = (
+  state: ReviewState,
+  request: {
+    expectedRevision: ReviewState["revision"];
+    expectedApplicationVersion: MaterialVersion;
+    expectedCriteriaVersion: CriteriaVersion;
+    change: ReviewChange;
+  },
+  current: {
+    applicationVersion: MaterialVersion;
+    criteriaVersion: CriteriaVersion;
+  },
+) => {
+  if (request.expectedRevision > state.revision) {
+    return true;
+  }
+  const staleRevision = request.expectedRevision < state.revision;
+  const { change } = request;
+  switch (change.action) {
+    case "request":
+      return (
+        current.applicationVersion !== request.expectedApplicationVersion ||
+        current.criteriaVersion !== request.expectedCriteriaVersion ||
+        hasRequestConflict(state, change, staleRevision)
+      );
+    case "cancel": {
+      if (!staleRevision) {
+        return false;
+      }
+      const target = state.requests.find((value) => value.id === change.id);
+      return Boolean(target && target.status !== "outstanding");
+    }
+    case "record":
+      return staleRevision && hasRecordConflict(state, change);
+    case "edit": {
+      if (change.expectedAssessmentVersion === undefined) {
+        return staleRevision;
+      }
+      const target = state.assessments.find((value) => value.id === change.id);
+      return Boolean(target && target.versions.length !== change.expectedAssessmentVersion);
+    }
+  }
 };

@@ -22,4 +22,5 @@ export type DraftSnapshot<T> = {
   status: DraftStatus;
   ready: boolean;
   storageUnavailable: boolean;
+  conflicts: ReadonlySet<string>;
 };

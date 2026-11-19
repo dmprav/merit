@@ -130,7 +130,7 @@ export const editFundingApplication = async (
     if (!row) {
       return { status: "not_found" } as const;
     }
-    if (row.revision !== request.expectedRevision) {
+    if (request.change.action !== "details" && row.revision !== request.expectedRevision) {
       return { status: "conflict" } as const;
     }
 

@@ -32,9 +32,6 @@ export const selectApplicationContact = async (
     if (!row) {
       return { status: "not_found" } as const;
     }
-    if (row.revision !== request.expectedRevision) {
-      return { status: "conflict" } as const;
-    }
 
     const contact = request.contactId
       ? await lockContactProfile(tx, access.organizationId, request.contactId, "share")

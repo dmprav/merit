@@ -73,10 +73,18 @@ it("returns the current contact for creation retries and unchanged saves without
       ...address,
       action: "update",
       expectedContactRevision: 0,
-      details: updatedDetails,
+      details: { ...updatedDetails, affiliation: "Updated affiliation" },
     }),
-  ).toEqual({ status: "conflict" });
-  expect(await read()).toEqual(saved);
+  ).toEqual({
+    status: "ok",
+    contact: {
+      ...updatedDetails,
+      affiliation: "Updated affiliation",
+      archived: false,
+      revision: 2,
+    },
+  });
+  expect(await read()).not.toEqual(saved);
 });
 
 it.for([

@@ -185,9 +185,8 @@ const updateProfile = (connection: Database, data: Fixture) =>
     {
       workspaceSlug,
       contactId: data.contact.id,
-      action: "update",
+      action: "archive",
       expectedContactRevision: data.contact.revision,
-      details: { name: "Updated contact", email: data.contact.email, affiliation: "Review panel" },
     },
     fundingRoundContactUsage,
   );
@@ -203,7 +202,7 @@ const edits = {
         workspaceSlug,
         publicId: data.applicationId,
         expectedRevision: 0,
-        change: { action: "details", summary: "Staff summary" },
+        change: { action: "save_content", content: { title: "Updated community meals" } },
       },
       applicationWork,
     ),
@@ -236,13 +235,6 @@ const edits = {
         contactId: data.contact.id,
         replacesId: null,
       },
-    }),
-  contact: (connection: Database, data: Fixture) =>
-    selectApplicationContact(connection, actor, {
-      workspaceSlug,
-      publicId: data.applicationId,
-      expectedRevision: 0,
-      contactId: data.contact.id,
     }),
 };
 
@@ -281,6 +273,28 @@ it.each(Object.entries(edits))(
     expect(await competing).toEqual({ status: "conflict" });
   },
 );
+
+it("serializes competing Tier 1 contact selections and applies the later choice", async () => {
+  const data = await fixture();
+  const commit = await hold((tx) =>
+    selectApplicationContact(tx, actor, {
+      workspaceSlug,
+      publicId: data.applicationId,
+      contactId: data.contact.id,
+    }),
+  );
+  const competing = track(
+    selectApplicationContact(drizzle(second), actor, {
+      workspaceSlug,
+      publicId: data.applicationId,
+      contactId: null,
+    }),
+  );
+  await expectBlocked();
+  await commit();
+
+  expect(await competing).toMatchObject({ status: "ok" });
+});
 
 it("deletes an empty round while another round has an uncommitted edit", async () => {
   const data = await fixture();
