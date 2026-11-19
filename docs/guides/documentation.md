@@ -37,20 +37,20 @@ Choose a home by who needs the information, where they will look, and what chang
 would make it outdated. Keep project-wide understanding and tasks that span
 packages in `docs/`. Keep local contracts and examples beside the code they explain.
 
-| Home                               | Owns                                                                                              |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `foundations/`                     | Direction and guidance across Merit: strategy, experience, and architecture.                      |
-| `workflows/`                       | Business behavior: people, actions, rules, and outcomes; future design is explicitly separated.   |
-| `domain/`                          | Grant-management concepts and practices, with supporting evidence.                                |
-| `guides/`                          | Instructions for development and operating tasks.                                                 |
-| `decisions/`                       | Reasons and trade-offs behind consequential project choices.                                      |
-| Public guides in `interfaces/site` | Concepts, supported workflows, and examples for people using Merit.                               |
-| Package or module README           | How to use or extend that part of the codebase, when it needs an explanation.                     |
-| Public API JSDoc                   | Caller obligations, callback semantics, lifecycle behavior, and constraints types cannot express. |
-| Colocated MDX                      | Component selection, composition guidance, trade-offs, and embedded live examples.                |
-| Colocated stories                  | Executable fixtures, component states, interaction setup, and assertions.                         |
-| Implementation comments            | Reasons for nonobvious implementation choices.                                                    |
-| GitHub issues and milestones       | Proposals, implementation work, sequencing, and progress.                                         |
+| Home                               | Owns                                                                                                 |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `foundations/`                     | Direction and guidance across Merit: strategy, experience, architecture, and engineering principles. |
+| `workflows/`                       | Business behavior: people, actions, rules, and outcomes; future design is explicitly separated.      |
+| `domain/`                          | Grant-management concepts and practices, with supporting evidence.                                   |
+| `guides/`                          | Instructions for development and operating tasks.                                                    |
+| `decisions/`                       | Reasons and trade-offs behind consequential project choices.                                         |
+| Public guides in `interfaces/site` | Concepts, supported workflows, and examples for people using Merit.                                  |
+| Package or module README           | How to use or extend that part of the codebase, when it needs an explanation.                        |
+| Public API JSDoc                   | Caller obligations, callback semantics, lifecycle behavior, and constraints types cannot express.    |
+| Colocated MDX                      | Component selection, composition guidance, trade-offs, and embedded live examples.                   |
+| Colocated stories                  | Executable fixtures, component states, interaction setup, and assertions.                            |
+| Implementation comments            | Reasons for nonobvious implementation choices.                                                       |
+| GitHub issues and milestones       | Proposals, implementation work, sequencing, and progress.                                            |
 
 The directory names above are relative to `docs/`; local documentation lives with
 its package or module. Add a local README when it answers a coherent reader task.
