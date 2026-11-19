@@ -155,26 +155,31 @@ its stories demonstrate each state.
 
 ## Build an interactive table
 
-Use `@merit/tables` for already-loaded collections that need shared responsive
-rendering and interaction; static evidence tables can use native markup. Features
+Use `@merit/tables` for collections that need shared responsive rendering and
+interaction; static evidence tables can use native markup. Features
 own content, data loading, and any sorting state. Supply the optional sorting
 configuration where ordering helps the task. It holds one column and direction,
 or `null` for source order, alongside the change callback and translated labels.
 
-Columns render records directly and declare their layout. Sortable columns supply
-both a value accessor and an ascending comparison of records; the table keeps
-missing values last. Compare domain values rather than formatted labels. The
-[applications view](../../capabilities/grantmaking/web/src/views/rounds/funding-round-view.tsx)
-shows comparisons using exact money values. Cell callbacks return content; return
-a React component when a cell needs hooks or local state.
+Columns render records directly and declare their layout. For an already-loaded
+collection, sortable columns supply both a value accessor and an ascending
+comparison of records; the table keeps missing values last. Compare domain values
+rather than formatted labels, as the
+[organizations table](../../interfaces/admin/src/features/organizations/views/organizations-table.tsx)
+does. When the server pages and orders the results, mark sortable columns with
+`sort: true` and set `manual` on the sorting configuration; the table then only
+reports sort changes. The
+[application collection](../../capabilities/grantmaking/web/src/views/rounds/application-collection.tsx)
+shows server ordering with pagination. Cell callbacks return content; return a
+React component when a cell needs hooks or local state.
 
 The shared table owns reusable interaction and rendering. Read its
 [API contract](../../foundation/tables/src/types.ts),
 [table behavior](../../foundation/tables/src/data-table.tsx), and
 [stories](../../foundation/tables/src/data-table.stories.tsx) for column definitions,
-sorting, and responsive layout. It sorts the complete collection in memory;
-server pagination and filtering need a data-loading contract that preserves
-correct ordering across the whole result.
+sorting, and responsive layout. Local sorting orders the collection in memory, so
+use it only when every record is loaded; paged results rely on the server for
+ordering across the whole result.
 
 Keep identity, comparable properties, status, and actions in separate columns.
 A person's supporting line identifies them; it should not accumulate workflow
