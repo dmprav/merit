@@ -9,7 +9,7 @@ packages:
   - tooling/storybook
   - tooling/testing
 
-catalogMode: prefer
+catalogMode: strict
 
 allowBuilds:
   core-js: false
