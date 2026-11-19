@@ -3,7 +3,7 @@ import { sql, type SQLWrapper } from "drizzle-orm";
 import type { Database } from "@merit/db";
 import { criteriaVersions, criteriaVersionItems } from "@merit/rounds/schema";
 
-import { assessments, assessmentVersions, reviewRequests } from "./schema";
+import { currentReviewEntries } from "./summary-entries";
 
 // Matches sameCriteria: ordered titles and descriptions, ignoring IDs and version numbers.
 const criteriaContent = (round: SQLWrapper, version: SQLWrapper) => sql`(
@@ -61,23 +61,7 @@ export const reviewOverview = (
         else 'current'
       end as status, (${known} and ${recorded} <> ${current}) as criteria_changed,
         ${known} as known_criteria, basis.outstanding
-      from (
-        select v.material_version, v.criteria_round_id, v.criteria_version, false as outstanding
-        from ${assessments} a
-        join lateral (
-          select v.material_version, v.criteria_round_id, v.criteria_version
-          from ${assessmentVersions} v
-          where v.case_id = a.case_id and v.assessment_id = a.id
-          order by v.version desc limit 1
-        ) v on true
-        where a.case_id = ${caseId} and not exists (
-          select 1 from ${assessments} replacement
-          where replacement.case_id = a.case_id and replacement.previous_id = a.id
-        )
-        union all
-        select r.material_version, r.criteria_round_id, r.criteria_version, true
-        from ${reviewRequests} r where r.case_id = ${caseId} and r.status = 'outstanding'
-      ) basis
+      from ${currentReviewEntries(caseId)}
     ) statuses`)
     .as("review_overview");
 };

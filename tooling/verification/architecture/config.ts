@@ -136,7 +136,7 @@ const serverImports: DependenciesPolicy[] = [
     business("rounds", "query-persistence"),
   ),
   permitServer(
-    business("grantmaking", "{query,shared}-persistence"),
+    business("grantmaking", "shared-persistence"),
     "@merit/reviews/{readers,participation-schema}",
     business("reviews", "shared-persistence"),
   ),

@@ -72,6 +72,9 @@ export const createQueries = (
         return readInvitation(dependencies, actor, input);
       }),
 
+    readWorkspace: (actor: Actor, slug?: string) =>
+      dependencies.database((db) => getWorkspace(db, actor, slug)),
+
     workspacesPage: async (actor: Actor, input: z.input<typeof workspacePageInput>) => {
       const page = workspacePageInput.parse(input);
       const rows = await dependencies.database((db) =>

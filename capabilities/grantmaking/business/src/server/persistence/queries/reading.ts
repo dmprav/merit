@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, lt, or, sql } from "drizzle-orm";
+import { and, asc, eq, gt, or, sql } from "drizzle-orm";
 
 import {
   applicationCases,
@@ -21,25 +21,22 @@ import type { Database } from "@merit/db";
 import { authorizedWorkspaces } from "@merit/organizations/scope";
 import { recommendationVersions } from "@merit/recommendations/schema";
 import {
-  assembleRecommendationRecord,
-  decodeProvenanceColumns,
+  readRecommendationChange,
   readCurrentRecommendationsMap,
   recommendationRevision,
 } from "@merit/recommendations/scope";
-import { reviewAssignments } from "@merit/reviews/participation-schema";
-import { assessments, assessmentVersions, reviewRequests } from "@merit/reviews/schema";
+import { assessments, reviewRequests } from "@merit/reviews/schema";
 import {
   readAssessmentRecord,
   readReviewRequestRecord,
   readReviewsByCasesMap,
+  readReviewSummaryPage,
   reviewRevision,
 } from "@merit/reviews/scope";
 import { fundingRounds } from "@merit/rounds/schema";
 import {
   assembleRoundRecord,
-  criteriaVersionKey,
   managerNeedsReassignment,
-  readCriteriaByVersionsMap,
   readCriteriaVersionsMap,
   readRoundCriteria,
   toMoneyData,
@@ -425,35 +422,6 @@ const readCurrentSubmissionPayload = async (
   return assembleCurrentSubmission(materialRow, answers, contact) ?? null;
 };
 
-const readRecommendationChangePayload = async (db: Database, caseId: string, revision: number) => {
-  const [current] = await db
-    .select()
-    .from(recommendationVersions)
-    .where(
-      and(eq(recommendationVersions.caseId, caseId), eq(recommendationVersions.revision, revision)),
-    );
-  if (!current) {
-    return undefined;
-  }
-  const [previous] = await db
-    .select()
-    .from(recommendationVersions)
-    .where(
-      and(eq(recommendationVersions.caseId, caseId), lt(recommendationVersions.revision, revision)),
-    )
-    .orderBy(desc(recommendationVersions.revision))
-    .limit(1);
-  return {
-    revision: current.revision,
-    actorUserId: current.actorUserId,
-    provenance:
-      decodeProvenanceColumns(current.provenanceInterface, current.provenanceClientId) ?? null,
-    recordedAt: current.recordedAt.toISOString(),
-    before: previous ? assembleRecommendationRecord(previous) : null,
-    after: assembleRecommendationRecord(current),
-  };
-};
-
 const readCurrentDetailsOrSubmission = async (
   db: Database,
   caseRow: typeof applicationCases.$inferSelect,
@@ -530,7 +498,7 @@ const sectionReaders: Partial<Record<ApplicationContentInput["section"], Section
       null,
   }),
   recommendation_change: async (db, caseRow, input) =>
-    optionalResult(await readRecommendationChangePayload(db, caseRow.id, input.revision ?? -1)),
+    optionalResult(await readRecommendationChange(db, caseRow.id, input.revision ?? -1)),
 };
 
 const resolveApplicationSection = async (
@@ -637,18 +605,10 @@ export const readGrantHistory = (
     .limit(input.limit + 1);
 };
 
-type SelectedReviewTarget = {
-  caseId: string;
-  roundId: string;
-  applicationVersion: number;
-  reviewRevision: number;
-  criteriaVersion: number;
-};
-
-const readSelectedReviewTarget = async (
+export const readReviewSummaries = async (
   db: Database,
   actor: string,
-  input: { workspaceSlug: string; applicationId: string },
+  input: { workspaceSlug: string; applicationId: string; after?: string; limit: number },
 ) => {
   const workspace = authorizedWorkspaces(db, actor, "work_on_grants", input.workspaceSlug);
   const [selected] = await db
@@ -669,152 +629,5 @@ const readSelectedReviewTarget = async (
     )
     .innerJoin(workspace, eq(workspace.id, applicationCases.organizationId))
     .where(eq(applicationCases.id, input.applicationId));
-  return selected;
-};
-
-const readReviewSummaryInputs = async (db: Database, selected: SelectedReviewTarget) => {
-  const [assessmentRows, versionRows, requestRows, assignmentRows] = await Promise.all([
-    db.select().from(assessments).where(eq(assessments.caseId, selected.caseId)),
-    db
-      .select({
-        assessmentId: assessmentVersions.assessmentId,
-        applicationVersion: assessmentVersions.applicationVersion,
-        criteriaRoundPublicId: assessmentVersions.criteriaRoundPublicId,
-        criteriaVersion: assessmentVersions.criteriaVersion,
-      })
-      .from(assessmentVersions)
-      .where(eq(assessmentVersions.caseId, selected.caseId))
-      .orderBy(desc(assessmentVersions.version)),
-    db
-      .select()
-      .from(reviewRequests)
-      .where(
-        and(eq(reviewRequests.caseId, selected.caseId), eq(reviewRequests.status, "outstanding")),
-      ),
-    db
-      .select({
-        requestId: reviewAssignments.requestId,
-        assessmentId: reviewAssignments.assessmentId,
-        status: reviewAssignments.status,
-        conflict: reviewAssignments.conflict,
-      })
-      .from(reviewAssignments)
-      .where(eq(reviewAssignments.caseId, selected.caseId)),
-  ]);
-
-  const supersededIds = new Set(
-    assessmentRows.flatMap((row) => (row.previousId ? [row.previousId] : [])),
-  );
-  const latestVersionByAssessment = new Map<string, (typeof versionRows)[number]>();
-  for (const version of versionRows) {
-    if (!latestVersionByAssessment.has(version.assessmentId)) {
-      latestVersionByAssessment.set(version.assessmentId, version);
-    }
-  }
-  const activeAssessments = assessmentRows.filter((row) => !supersededIds.has(row.id));
-  const criteriaPairs: { roundId: string; version: number }[] = [
-    { roundId: selected.roundId, version: selected.criteriaVersion },
-    ...activeAssessments.flatMap((row) => {
-      const v = latestVersionByAssessment.get(row.id);
-      return v && v.criteriaRoundPublicId !== null && v.criteriaVersion !== null
-        ? [{ roundId: v.criteriaRoundPublicId, version: v.criteriaVersion }]
-        : [];
-    }),
-    ...requestRows.map((req) => ({
-      roundId: req.criteriaRoundPublicId,
-      version: req.criteriaVersion,
-    })),
-  ];
-  const criteriaMap = await readCriteriaByVersionsMap(db, criteriaPairs);
-  return { activeAssessments, latestVersionByAssessment, requestRows, assignmentRows, criteriaMap };
-};
-
-const formatParticipation = (assignment?: { status: string; conflict: string }) =>
-  assignment
-    ? {
-        participation: {
-          status: assignment.status,
-          conflict: assignment.conflict !== "",
-        },
-      }
-    : {};
-
-const buildReviewSummaryEntries = (
-  selected: SelectedReviewTarget,
-  data: Awaited<ReturnType<typeof readReviewSummaryInputs>>,
-) => {
-  const { activeAssessments, latestVersionByAssessment, requestRows, assignmentRows, criteriaMap } =
-    data;
-  const assignmentByAssessment = new Map(
-    assignmentRows.flatMap((a) => (a.assessmentId ? [[a.assessmentId, a] as const] : [])),
-  );
-  const assignmentByRequest = new Map(assignmentRows.map((a) => [a.requestId, a] as const));
-  const currentCriteria =
-    criteriaMap.get(criteriaVersionKey(selected.roundId, selected.criteriaVersion)) ?? null;
-
-  return [
-    ...activeAssessments.flatMap((row) => {
-      const v = latestVersionByAssessment.get(row.id);
-      if (!v) {
-        return [];
-      }
-      return [
-        {
-          id: row.id,
-          kind: "assessment" as const,
-          contactId: row.contactId,
-          reviewer: row.reviewer,
-          applicationVersion: selected.applicationVersion,
-          criteriaVersion: selected.criteriaVersion,
-          reviewRevision: selected.reviewRevision,
-          recordedApplicationVersion: v.applicationVersion,
-          recordedCriteriaVersion: v.criteriaVersion,
-          recordedCriteria:
-            v.criteriaRoundPublicId !== null && v.criteriaVersion !== null
-              ? (criteriaMap.get(criteriaVersionKey(v.criteriaRoundPublicId, v.criteriaVersion)) ??
-                null)
-              : null,
-          currentCriteria,
-          ...(row.authorUserId !== null ? { authorUserId: row.authorUserId } : {}),
-          ...formatParticipation(assignmentByAssessment.get(row.id)),
-        },
-      ];
-    }),
-    ...requestRows.map((req) => ({
-      id: req.id,
-      kind: "request" as const,
-      contactId: req.contactId,
-      reviewer: req.reviewer,
-      applicationVersion: selected.applicationVersion,
-      criteriaVersion: selected.criteriaVersion,
-      reviewRevision: selected.reviewRevision,
-      recordedApplicationVersion: req.applicationVersion,
-      recordedCriteriaVersion: req.criteriaVersion,
-      recordedCriteria:
-        criteriaMap.get(criteriaVersionKey(req.criteriaRoundPublicId, req.criteriaVersion)) ?? [],
-      currentCriteria,
-      ...formatParticipation(assignmentByRequest.get(req.id)),
-    })),
-  ];
-};
-
-export const readReviewSummaries = async (
-  db: Database,
-  actor: string,
-  input: { workspaceSlug: string; applicationId: string; after?: string; limit: number },
-) => {
-  const selected = await readSelectedReviewTarget(db, actor, input);
-  if (!selected) {
-    return [];
-  }
-  const entries = buildReviewSummaryEntries(selected, await readReviewSummaryInputs(db, selected));
-  const after = input.after ?? "";
-  return entries
-    .filter((entry) => `${entry.kind}:${entry.id}` > after)
-    .sort((left, right) => {
-      const leftKey = `${left.kind}:${left.id}`;
-      const rightKey = `${right.kind}:${right.id}`;
-      return leftKey < rightKey ? -1 : leftKey > rightKey ? 1 : 0;
-    })
-    .slice(0, input.limit + 1);
+  return selected ? readReviewSummaryPage(db, selected, input) : undefined;
 };

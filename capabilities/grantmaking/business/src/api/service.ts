@@ -1,10 +1,8 @@
 import type { z } from "zod";
 
-import type { ApplicationsService, IntakeState } from "@merit/applications/api";
+import type { IntakeState } from "@merit/applications/api";
 import type { Actor } from "@merit/auth";
-import type { RecommendationsService } from "@merit/recommendations/api";
-import type { ReviewService } from "@merit/reviews/api";
-import type { PreparationState, RoundsService } from "@merit/rounds/api";
+import type { PreparationState } from "@merit/rounds/api";
 
 import type { ApplicationRequest, PublicRoundRequest } from "./queries";
 import type { workspaceActivityInput, WorkspaceActivity } from "./queries/activity";
@@ -163,11 +161,3 @@ export interface GrantmakingQueries {
     input: z.input<typeof applicationHistoryInput>,
   ) => Promise<HistoryResult>;
 }
-
-export interface GrantmakingService
-  extends
-    GrantmakingQueries,
-    RoundsService,
-    ApplicationsService,
-    ReviewService,
-    RecommendationsService {}

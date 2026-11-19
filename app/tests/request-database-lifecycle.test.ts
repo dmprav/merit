@@ -76,10 +76,11 @@ vi.mock("../src/server/services.server", () => ({
   }) => ({
     navigation: {},
     reviewer: {},
-    organizations: {},
+    organizations: {
+      readWorkspace: (_actor: unknown, _slug?: string) => database(async (db) => db),
+    },
     grantmaking: {},
     contacts: {},
-    readWorkspace: (_actor: unknown, _slug?: string) => database(async (db) => db),
   }),
 }));
 
@@ -121,13 +122,13 @@ it("checks out and releases a pooled client per database call without holding co
       const ctx = options?.context;
       expect(ctx).toBeDefined();
 
-      seenDbs.push(await ctx!.workspace.readWorkspace({ userId: "u1" }, "alder"));
+      seenDbs.push(await ctx!.organizations.readWorkspace({ userId: "u1" }, "alder"));
       // The checkout is released immediately when the operation finishes, before external HTTP calls.
       expect(clients).toHaveLength(1);
       expect(clients[0]!.release).toHaveBeenCalledOnce();
 
       const [birchDb, demoRead] = await Promise.all([
-        ctx!.workspace.readWorkspace({ userId: "u1" }, "birch"),
+        ctx!.organizations.readWorkspace({ userId: "u1" }, "birch"),
         ctx!.demo.read() as unknown as Promise<{ db: unknown }>,
       ]);
       seenDbs.push(birchDb, demoRead.db);
@@ -161,7 +162,7 @@ it("waits for in-flight database calls and releases their pooled clients before 
   });
   handlerFetch.mockImplementation(
     async (_request: Request, options?: { context?: ApplicationRequestContext }) => {
-      void options!.context!.workspace.readWorkspace({ userId: "u1" }, "alder");
+      void options!.context!.organizations.readWorkspace({ userId: "u1" }, "alder");
       throw new Error("handler boom");
     },
   );
@@ -264,10 +265,13 @@ it("isolates pg.Client instances across concurrent HTTP requests and does not ho
   handlerFetch.mockImplementation(
     async (request: Request, options?: { context?: ApplicationRequestContext }) => {
       const slug = new URL(request.url).pathname.slice(1);
-      requestDbs[slug] = await options!.context!.workspace.readWorkspace({ userId: "u1" }, slug);
+      requestDbs[slug] = await options!.context!.organizations.readWorkspace(
+        { userId: "u1" },
+        slug,
+      );
       if (slug === "first") {
         await firstHold;
-        requestDbs.firstAfterPause = await options!.context!.workspace.readWorkspace(
+        requestDbs.firstAfterPause = await options!.context!.organizations.readWorkspace(
           { userId: "u1" },
           slug,
         );

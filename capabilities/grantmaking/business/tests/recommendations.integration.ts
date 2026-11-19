@@ -8,6 +8,7 @@ import { assert, describe, expect } from "vite-plus/test";
 import { createFundingApplication, editFundingApplication } from "@merit/applications/server";
 import type { Database } from "@merit/db";
 import {
+  getFundingApplicationContent,
   getFundingApplicationPage,
   getFundingRoundPage,
   listFundingApplicationHistory,
@@ -201,6 +202,39 @@ const it = grantTest.extend("scenario", async ({ db, database }) => {
 });
 
 describe("persisted recommendations", () => {
+  it("reads the exact recommendation change and its predecessor for the selected case", async ({
+    db,
+    scenario,
+  }) => {
+    const request = recommendationRequest(scenario.selected.publicId);
+    expect(await saveFundingRecommendation(db, actor, request)).toMatchObject({ status: "ok" });
+
+    const readChange = (revision: number) =>
+      getFundingApplicationContent(db, actor, {
+        workspaceSlug,
+        applicationId: request.publicId,
+        section: "recommendation_change",
+        revision,
+      });
+
+    const first = await readChange(1);
+    const second = await readChange(2);
+    assert(first.status === "ok" && second.status === "ok");
+    const original = { reasoning: "Original allocation." };
+    expect(JSON.parse(first.content)).toMatchObject({
+      revision: 1,
+      before: null,
+      after: original,
+    });
+    expect(JSON.parse(second.content)).toMatchObject({
+      revision: 2,
+      actorUserId: actor.userId,
+      before: original,
+      after: { reasoning: request.recommendation.reasoning },
+    });
+    expect(await readChange(3)).toMatchObject({ status: "not_found" });
+  });
+
   const competingSave = async (
     database: { connectionString: string; client: PgClient },
     firstRequest: SaveRecommendationRequest,

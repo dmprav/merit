@@ -330,14 +330,29 @@ it("returns the same review freshness as shared web reads without loading histor
     reasoning: "Practical plan.",
     observations: [],
   };
-  const ids = { current: randomUUID(), unknown: randomUUID(), outstanding: randomUUID() };
+  const sam = await reviewer("Sam");
+  // Place the superseded ID between the two visible assessments in cursor order.
+  const ids = {
+    current: "00000000-0000-4000-8000-000000000001",
+    unknown: "00000000-0000-4000-8000-000000000003",
+    outstanding: randomUUID(),
+  };
+  const previousId = "00000000-0000-4000-8000-000000000002";
   const changes: ReviewChange[] = [
     {
       action: "record",
-      id: ids.current,
-      contactId: await reviewer("Sam"),
+      id: previousId,
+      contactId: sam,
       requestId: null,
       previousId: null,
+      content,
+    },
+    {
+      action: "record",
+      id: ids.current,
+      contactId: sam,
+      requestId: null,
+      previousId,
       content,
     },
     {
@@ -383,7 +398,16 @@ it("returns the same review freshness as shared web reads without loading histor
     items.map(({ id, freshness }) => ({ id, freshness })).sort((a, b) => a.id.localeCompare(b.id));
 
   const expected = byId(Object.entries(ids).map(([freshness, id]) => ({ id, freshness })));
+  expect(summaries.map((entry) => entry.id)).toEqual([ids.current, ids.unknown, ids.outstanding]);
   expect(byId(summaries)).toEqual(expected);
+  const overview = await listWorkspaceApplications(db, actor, { workspaceSlug });
+  assert(overview.status === "ok");
+  expect(overview.applications.find((row) => row.id === created.publicId)?.reviews).toEqual({
+    current: 1,
+    unknown: 1,
+    outdated: 0,
+    outstanding: 1,
+  });
   const page = await getFundingApplicationPage(db, actor, {
     workspaceSlug,
     publicId: created.publicId,
