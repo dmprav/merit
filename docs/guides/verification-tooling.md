@@ -66,6 +66,16 @@ an unchanged build and stays current when Playwright runs without `vp run`.
 [Verification](verification.md#verification) explains which checks reuse results,
 what invalidates them, and how to request a fresh run or inspect cache behavior.
 
+## Find recurring browser failures
+
+Run `vp run ci:browser-history` with an authenticated GitHub CLI to inspect the
+latest 100 Verify runs. Pass a run count to change the sample, for example
+`vp run ci:browser-history 30`. Each row counts runs where a named Playwright
+test failed on the first attempt, and how many subsequently logged a pass in
+the same shard on a rerun of that workflow run and commit. The report uses
+completed successful or failed runs with retained job logs. Cancellations,
+setup failures without a test result, and non-browser jobs are excluded.
+
 ## Check documentation validation
 
 Run `vp run test:docs` when changing the [Remark configuration](../../.remarkrc.mjs)

@@ -83,27 +83,27 @@ test("reviewer recovery and long content remain readable @cross-browser", async 
   }
 });
 
-test("reviewer dialogs fit the screen and return keyboard focus @cross-browser", async ({
-  page,
-}, testInfo) => {
-  // Occasional reviewer and manager commands reopen through their More actions menu.
-  for (const [id, title, trigger, menuItem] of [
-    [
-      `${reviewer}--report-conflict`,
-      "Report a possible conflict",
-      "More actions",
-      "Report a possible conflict",
-    ],
-    [`${reviewer}--withdraw`, "Withdraw from this review?", "More actions", "Withdraw from review"],
-    [`${manager}--invite`, "Invite reviewer", "Invite reviewer", null],
-    [`${manager}--conflict-resolution`, "Clear conflict", "Clear conflict", null],
-    [
-      `${manager}--end-access`,
-      "End Sam Morgan’s access?",
-      "More actions for Sam Morgan",
-      "End access",
-    ],
-  ] as const) {
+// Occasional reviewer and manager commands reopen through their More actions menu.
+for (const [id, title, trigger, menuItem] of [
+  [
+    `${reviewer}--report-conflict`,
+    "Report a possible conflict",
+    "More actions",
+    "Report a possible conflict",
+  ],
+  [`${reviewer}--withdraw`, "Withdraw from this review?", "More actions", "Withdraw from review"],
+  [`${manager}--invite`, "Invite reviewer", "Invite reviewer", null],
+  [`${manager}--conflict-resolution`, "Clear conflict", "Clear conflict", null],
+  [
+    `${manager}--end-access`,
+    "End Sam Morgan’s access?",
+    "More actions for Sam Morgan",
+    "End access",
+  ],
+] as const) {
+  test(`reviewer dialog fits the screen and returns keyboard focus: ${title} @cross-browser`, async ({
+    page,
+  }, testInfo) => {
     await page.goto(`/iframe.html?id=${id}&viewMode=story`);
     await expect(page.locator("#storybook-root")).toHaveAttribute("data-story-ready", "true");
     const dialog = page.getByRole("dialog", { name: title, exact: true });
@@ -126,8 +126,8 @@ test("reviewer dialogs fit the screen and return keyboard focus @cross-browser",
       await page.getByRole("menuitem", { name: menuItem, exact: true }).click();
     }
     await expect(dialog).toBeVisible();
-  }
-});
+  });
+}
 
 for (const useSaved of [false, true]) {
   test(`reviewer explicitly resolves conflicting drafts using ${useSaved ? "saved" : "local"} text @cross-browser`, async ({
