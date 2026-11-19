@@ -34,5 +34,26 @@ export default {
         ignore: ["after-comment", "blockless-after-same-name-blockless"],
       },
     ],
+    // Colors come from semantic tokens; color-mix() may derive shades from them.
+    "color-no-hex": true,
+    "color-named": "never",
+    "function-disallowed-list": [
+      "color",
+      "rgb",
+      "rgba",
+      "hsl",
+      "hsla",
+      "hwb",
+      "lab",
+      "lch",
+      "oklab",
+      "oklch",
+    ],
   },
+  overrides: [
+    {
+      files: ["foundation/ui/src/foundations/tokens.css"],
+      rules: { "color-no-hex": null, "color-named": null, "function-disallowed-list": null },
+    },
+  ],
 };

@@ -23,6 +23,50 @@ const config: StorybookConfig = {
   features: { developmentModeForBuild: true },
   // Keep authored CSS values, as in development, for browser assertions on design tokens.
   viteFinal: (viteConfig) => ({ ...viteConfig, build: { ...viteConfig.build, cssMinify: false } }),
+  storySorts: [
+    {
+      method: "alphabetical",
+      order: [
+        "Overview",
+        "Foundations",
+        ["Tokens", "Focus"],
+        "Components",
+        "Patterns",
+        "Features",
+        [
+          "Funding rounds",
+          ["List", "Create", "Overview", "Manage round", "Preparation form", "Workspace search"],
+          "Applications",
+          [
+            "Create",
+            "Overview",
+            "Manage intake",
+            "Intake form",
+            "Manage reviews",
+            "Reviewer participation",
+            "Participate in review",
+            "Recommendation",
+            "Version history",
+          ],
+          "Team",
+          ["Design guidance", "Manage team", "Members", "Invitations"],
+          "Contacts",
+          ["Directory", "Edit contact", "Contact picker"],
+          "Workspace",
+          ["Entry and recovery", "Request access", "Accept invitation"],
+          "Administration",
+          [
+            "Access requests",
+            "Organizations",
+            "Create organization",
+            "Organization details",
+            "Owner invitation",
+          ],
+          "Demo",
+        ],
+      ],
+    },
+  ],
 };
 
 export default config;

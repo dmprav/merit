@@ -24,8 +24,29 @@ const round = getExampleRound();
 const sam = "60000000-0000-4000-8000-000000000001";
 const jules = "60000000-0000-4000-8000-000000000002";
 const recorder = { userId: "dana", name: "Dana Reed", recordedAt: "2027-01-16T10:00:00Z" };
-const reviews: ReviewState = {
-  revision: reviewRevisionSchema.parse(2),
+const originalVersion: ReviewState["assessments"][number]["versions"][number] = {
+  content: {
+    applicationVersion: materialVersionSchema.parse(1),
+    criteriaVersion: criteriaVersionSchema.parse(1),
+    date: "2027-01-16",
+    position: "Fund",
+    amount: encodeMoney(fromMinorUnits(1800000n)),
+    reasoning:
+      "The activities fit the round and there is initial interest. The free venue makes the budget credible.",
+    observations: [],
+  },
+  criteria: round.criteria,
+  recorder,
+  note: "",
+};
+const correctedReasoning = "The revised venue costs are supported by a written quote.";
+const correctedVersion = {
+  ...originalVersion,
+  content: { ...originalVersion.content, reasoning: correctedReasoning },
+};
+
+const makeReviews = (withCorrection: boolean): ReviewState => ({
+  revision: reviewRevisionSchema.parse(withCorrection ? 3 : 2),
   assessments: [
     {
       id: "9e1d976a-d388-54dc-9be1-a5f56aaf137c",
@@ -33,23 +54,7 @@ const reviews: ReviewState = {
       reviewer: "Sam Morgan",
       requestId: null,
       previousId: null,
-      versions: [
-        {
-          content: {
-            applicationVersion: materialVersionSchema.parse(1),
-            criteriaVersion: criteriaVersionSchema.parse(1),
-            date: "2027-01-16",
-            position: "Fund",
-            amount: encodeMoney(fromMinorUnits(1800000n)),
-            reasoning:
-              "The activities fit the round and there is initial interest. The free venue makes the budget credible.",
-            observations: [],
-          },
-          criteria: round.criteria,
-          recorder,
-          note: "",
-        },
-      ],
+      versions: withCorrection ? [originalVersion, correctedVersion] : [originalVersion],
     },
   ],
   requests: [
@@ -65,17 +70,22 @@ const reviews: ReviewState = {
       closedBy: null,
     },
   ],
-};
+});
+
+const submittedReviews = makeReviews(false);
+const correctedReviews = makeReviews(true);
 
 const ReviewsPreview = ({
+  initialReviews = submittedReviews,
   refreshFailure = false,
   concurrentChange = false,
 }: {
+  initialReviews?: ReviewState;
   refreshFailure?: boolean;
   concurrentChange?: boolean;
 }) => {
   const client = useQueryClient();
-  const [state, setState] = useState(reviews);
+  const [state, setState] = useState(initialReviews);
   const transport = workspaceReviewData(client, "alder", "workshop-saturdays", false);
   const application = roundView({
     ...round,
@@ -165,7 +175,7 @@ const ReviewsPreview = ({
             }
             if (concurrentChange) {
               setState((current) => {
-                if (current.revision !== reviews.revision) {
+                if (current.revision !== initialReviews.revision) {
                   return current;
                 }
                 const target = current.assessments[0];
@@ -419,7 +429,7 @@ const correctAssessment = async ({ canvas, canvasElement, userEvent }: Context) 
   // Paste the replacement: per-key typing is covered by DraftRecovery and AssessmentSaved,
   // and typing every character here makes the conflict and refresh stories slow to settle.
   await userEvent.clear(dialog.getByRole("textbox", { name: "Assessment text" }));
-  await userEvent.paste("The revised venue costs are supported by a written quote.");
+  await userEvent.paste(correctedReasoning);
   return dialog;
 };
 
@@ -451,6 +461,8 @@ export const AssessmentSaved: Story = {
     ).toHaveTextContent("The revised budget makes the venue costs clear.");
   },
 };
+export const AssessmentHistory: Story = { args: { initialReviews: correctedReviews } };
+
 export const CorrectionSaved: Story = {
   play: async (context) => {
     await saveCorrection(context);

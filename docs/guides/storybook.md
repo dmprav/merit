@@ -77,7 +77,7 @@ Administration, or Demo as the area. For example,
 `Features/Funding rounds/Manage round` contains **Concurrent edits**, while
 `Features/Funding rounds/Preparation form` holds focused form examples. Keep
 creation and detail screens in separate suites, even when they share a component.
-The [preview configuration](../../tooling/storybook/.storybook/preview.tsx) orders
+The [Storybook configuration](../../tooling/storybook/.storybook/main.ts) orders
 the groups and feature tasks, with shared suites ordered alphabetically. Keep the
 task order aligned when adding a screen. Within each suite, export a representative
 usable example first, followed by relevant variations and recovery states.
@@ -125,6 +125,13 @@ from grantmaking's testing fixture: it applies the shell scrolling contract with
 `ApplicationPage contained` without navigation or breadcrumbs.
 Avoid copying shell CSS classes or setting a separate preview height. Examples own their landmarks, so
 shell stories must not acquire another `main`.
+
+Set a shared component suite's `component` to the exported component, with
+related exports as `subcomponents`, so its name, description, and props reach
+the docs. Keep a controlled value in the story's `render` with `useState` rather
+than in a separate wrapper, so examples show the component's actual usage.
+Suites that demonstrate a composition, such as `Patterns/Form dialog`, can keep
+a scenario harness as their component.
 
 Expose Controls only when changing an arg updates the example. Disable controls
 for initial fixture data and state owned by an interactive harness. Keep callbacks

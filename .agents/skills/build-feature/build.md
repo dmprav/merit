@@ -36,7 +36,9 @@ uncommitted but in place.
    [web features](../../../docs/guides/web-features.md#choose-the-owning-layer) and
    the [architecture](../../../docs/foundations/architecture.md#model-grant-work-explicitly).
 3. Search for an existing component, pattern, hook, helper, or fixture before
-   writing one. If one nearly fits, extend it rather than making a local copy.
+   writing one; for UI, list and read the
+   [Storybook documentation](../../../docs/guides/ui.md#compose-and-style-a-feature).
+   If one nearly fits, extend it rather than making a local copy.
 4. Write tests at the layer that owns each rule, following
    [testing](../../../docs/guides/testing.md#choose-the-owning-layer), shaped like
    the precedent's tests. Each rule under **Behavior** needs a test that would fail

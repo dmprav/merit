@@ -21,6 +21,11 @@ type TextFieldProps = Omit<AriaTextFieldProps, "children"> &
     rows?: number;
   };
 
+/**
+ * Enter free text in one line or several, with the shared label, description, and validation
+ * feedback. Use DateField, MoneyField, SearchField, or Select when the value has that shape, and
+ * `@merit/forms` to connect the field to a form's validation and submission.
+ */
 export const TextField = ({
   label,
   description,

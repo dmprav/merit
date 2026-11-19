@@ -11,12 +11,6 @@ const meta = {
   component: ActionProvenance,
   parameters: {
     controls: { disable: true },
-    docs: {
-      description: {
-        component:
-          "Identify the interface that recorded an action beside its actor and time. An MCP client identifier describes provenance; it does not establish individual human review. Keep unknown provenance explicit.",
-      },
-    },
   },
   decorators: [
     (Story) => (

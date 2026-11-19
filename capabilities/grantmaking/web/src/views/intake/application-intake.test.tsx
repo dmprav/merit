@@ -655,17 +655,29 @@ it("states how many outstanding review requests will close", async () => {
   );
 });
 
-it("rejects a future withdrawal date before sending", async () => {
+it("accepts a withdrawal date as soon as it is today in UTC+14", async ({ onTestFinished }) => {
+  vi.setSystemTime(new Date("2027-01-20T09:59:59Z"));
+  onTestFinished(() => {
+    vi.useRealTimers();
+  });
   const { user, calls } = renderIntake();
   const dialog = within(await openWithdrawal(user));
   const date = dialog.getByRole("textbox", { name: /Withdrawal date/ });
   await user.clear(date);
-  await user.type(date, "9999-12-31");
+  await user.type(date, "2027-01-21");
   await user.type(dialog.getByRole("textbox", { name: /Reason/ }), "Stepped back");
   await user.click(dialog.getByRole("button", { name: "Withdraw application" }));
 
   expect(dialog.getByText("The withdrawal date cannot be in the future.")).toBeVisible();
   expect(calls).not.toHaveBeenCalled();
+
+  vi.setSystemTime(new Date("2027-01-20T10:00:00Z"));
+  await user.click(dialog.getByRole("button", { name: "Withdraw application" }));
+
+  expect(calls).toHaveBeenCalledWith(
+    { action: "withdraw", withdrawnOn: "2027-01-21", reason: "Stepped back" },
+    0,
+  );
 });
 
 it("keeps the dialog open with the failure, and with the revision seen when it opened", async () => {

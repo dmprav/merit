@@ -57,6 +57,11 @@ const MenuFocusGuard = ({ menuRef }: { menuRef: RefObject<HTMLDivElement | null>
   return null;
 };
 
+/**
+ * Use ActionMenu for secondary commands; keep important actions in visibly labeled buttons. Items
+ * invoke callbacks. Use real links for destinations and Select for field values. See [control
+ * selection](?path=/docs/overview--docs#choose-controls-by-outcome) for the related patterns.
+ */
 export const ActionMenu = ({
   label,
   trigger,

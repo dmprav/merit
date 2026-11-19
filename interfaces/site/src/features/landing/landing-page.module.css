@@ -183,6 +183,8 @@
 }
 
 .invitation {
+  /* An inverted band remaps the site tokens; move it to tokens.css if another surface needs it. */
+  /* stylelint-disable color-no-hex */
   --background: #354563;
   --foreground: #ffffff;
   --muted: #dce3ef;
@@ -191,6 +193,7 @@
   --action-hover: #edf0f7;
   --surface-muted: #455779;
   --action-subtle: #455779;
+  /* stylelint-enable color-no-hex */
   display: grid;
   grid-template-columns: minmax(0, 1fr) 15rem;
   align-items: center;
