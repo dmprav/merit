@@ -2,7 +2,7 @@ import type { TFunction } from "i18next";
 import { useState, type ReactNode, type Ref } from "react";
 import { useTranslation } from "react-i18next";
 
-import { intakeContent, intakeLimits } from "@merit/applications/domain";
+import { intakeContent, intakeLimits, latestWithdrawalDate } from "@merit/applications/domain";
 import { calendarDateSchema, todayCalendarDate } from "@merit/dates";
 import { useFormat } from "@merit/i18n/format";
 import { parseMoney } from "@merit/money";
@@ -600,27 +600,27 @@ const ReasonField = ({
 
 const useWithdrawalDate = () => {
   const { t } = useTranslation("applicationIntake");
-  const [today] = useState(todayCalendarDate);
-  const [date, setDate] = useState(today);
-  const [checked, setChecked] = useState(false);
-  const problem = !calendarDateSchema.safeParse(date).success
-    ? t("intake.withdrawalDateInvalid")
-    : date > today
-      ? t("intake.withdrawalDateFuture")
-      : null;
+  const [date, setDate] = useState(todayCalendarDate);
+  const [problem, setProblem] = useState<
+    "intake.withdrawalDateInvalid" | "intake.withdrawalDateFuture" | null
+  >(null);
 
   return {
     date,
-    problem,
-    invalid: checked && problem !== null,
+    error: problem ? t(problem) : undefined,
     change: (value: string) => {
       setDate(value);
-      setChecked(false);
+      setProblem(null);
     },
     /** True when the date can be sent; otherwise shows its error. */
     check: () => {
-      setChecked(true);
-      return problem === null;
+      const error = !calendarDateSchema.safeParse(date).success
+        ? "intake.withdrawalDateInvalid"
+        : date > latestWithdrawalDate(new Date().toISOString())
+          ? "intake.withdrawalDateFuture"
+          : null;
+      setProblem(error);
+      return error === null;
     },
   };
 };
@@ -668,8 +668,8 @@ const WithdrawDialog = ({
         value={date.date}
         onChange={date.change}
         isRequired
-        isInvalid={date.invalid}
-        errorMessage={date.problem ?? undefined}
+        isInvalid={date.error !== undefined}
+        errorMessage={date.error}
       />
       <ReasonField
         label={t("intake.withdrawalReason")}
