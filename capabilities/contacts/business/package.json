@@ -9,6 +9,7 @@
     "./api": "./src/api/index.ts",
     "./server": "./src/server/index.ts",
     "./schema": "./src/server/persistence/schema.ts",
+    "./locks": "./src/server/persistence/commands/locks.ts",
     "./scope": "./src/server/persistence/scope.ts",
     "./server/grant-work": "./src/server/grant-work.ts",
     "./server/demo": "./src/server/demo.ts"

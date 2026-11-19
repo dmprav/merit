@@ -256,15 +256,17 @@ export const readContactsProfileMap = async (
   db: Database,
   organizationId: string,
   contactIds: (string | null)[],
+  lock?: "share",
 ) => {
   const uniqueIds = [...new Set(contactIds.filter((id): id is string => id !== null))];
   if (uniqueIds.length === 0) {
     return new Map<string, ContactProfile>();
   }
-  const rows = await db
+  const query = db
     .select({ id: contacts.id, name: contacts.name, email: contacts.email })
     .from(contacts)
     .where(and(eq(contacts.organizationId, organizationId), inArray(contacts.id, uniqueIds)));
+  const rows = await (lock ? query.for(lock) : query);
   return new Map(rows.map((row) => [row.id, { name: row.name, email: row.email }]));
 };
 
@@ -272,6 +274,7 @@ export const readIntakeApplicationsMap = async (
   db: Database,
   organizationId: string,
   cases: CaseRow[],
+  contactLock?: "share",
 ) => {
   if (cases.length === 0) {
     return new Map<string, ReturnType<typeof assembleIntakeApplication>>();
@@ -285,6 +288,7 @@ export const readIntakeApplicationsMap = async (
       db,
       organizationId,
       cases.map((row) => row.contactId),
+      contactLock,
     ),
   ]);
   const result = new Map<string, ReturnType<typeof assembleIntakeApplication>>();

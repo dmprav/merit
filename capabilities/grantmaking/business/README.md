@@ -157,8 +157,8 @@ assessment attribution retain the details recorded at the time.
 
 Application assembly supplies grantmaking's contact-usage operations to contacts.
 Contact writes acquire the organization-owned grant-work lock and check outstanding
-requests before archiving. Application changes capture resolved contact details
-under the same lock. These explicit interfaces avoid a package dependency cycle:
+requests before archiving. Application changes hold a shared lock on the contact when capturing
+its details in history. These explicit interfaces avoid a package dependency cycle:
 
 - [Contact integration contract](../../contacts/business/src/server/grant-work.ts).
 - [Grantmaking contact usage](src/server/integrations.ts).
