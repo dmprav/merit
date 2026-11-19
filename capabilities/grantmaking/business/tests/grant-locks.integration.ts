@@ -19,7 +19,7 @@ import { fundingRoundContactUsage } from "@merit/grantmaking/server/integrations
 import { seedExampleRounds } from "@merit/grantmaking/testing";
 import { createOrganizationService } from "@merit/organizations/server";
 import { reviewRevisionSchema } from "@merit/reviews/domain";
-import { saveApplicationReview } from "@merit/reviews/server";
+import { createReviewerService, saveApplicationReview } from "@merit/reviews/server";
 import { revokeMembershipReviews } from "@merit/reviews/server/integrations";
 import { criteriaVersionSchema } from "@merit/rounds/domain";
 import { createFundingRound, deleteFundingRound, editFundingRound } from "@merit/rounds/server";
@@ -136,7 +136,7 @@ const createRound = async () => {
   return result.publicId;
 };
 
-const fixture = async () => {
+const fixture = async (email = "sam@example.test") => {
   const roundId = await createRound();
   const application = await createFundingApplication(db, actor, {
     workspaceSlug,
@@ -156,7 +156,7 @@ const fixture = async () => {
       workspaceSlug,
       contactId: randomUUID(),
       action: "create" as const,
-      details: { name: "Sam", email: "sam@example.test", affiliation: "" },
+      details: { name: "Sam", email, affiliation: "" },
     },
     fundingRoundContactUsage,
   );
@@ -421,3 +421,107 @@ it.each(["round", "application"] as const)("keeps %s creation retries serialized
 
   expect(await retry).toEqual({ status: "ok", publicId });
 });
+
+it("allows independent application creates and rejects a competing cross-round receipt", async () => {
+  const a = await createRound();
+  const b = await createRound();
+
+  const create = (connection: Database, publicId: string, requestId: string) =>
+    createFundingApplication(connection, actor, {
+      workspaceSlug,
+      publicId,
+      requestId,
+      title: "Meals",
+    });
+
+  const sharedId = randomUUID();
+  const commit = await hold((tx) => create(tx, a, sharedId));
+  expect(await create(drizzle(second), b, randomUUID())).toMatchObject({ status: "ok" });
+  const competing = track(create(drizzle(second), b, sharedId));
+  await expectBlocked();
+  await commit();
+  expect(await competing).toEqual({ status: "invalid", error: "application_deleted" });
+  expect(
+    (await database.client.query("SELECT id FROM application_cases WHERE round_id = $1", [b]))
+      .rowCount,
+  ).toBe(1);
+});
+
+const reviewerService = (connection: Database) =>
+  createReviewerService({
+    database: async (operation) => operation(connection),
+    send: async () => {},
+    reviewerUrl: (_, id) => `https://merit.test/work/${id}`,
+    managerUrl: (_, id) => `https://merit.test/applications/${id}`,
+  });
+
+const requestedReview = async (email: string) => {
+  const data = await fixture(email);
+  await database.client.query("INSERT INTO app_users (id, name) VALUES ($1, 'Reviewer')", [email]);
+  await database.client.query(
+    "INSERT INTO memberships (organization_id, user_id, email, role) VALUES ('alder', $1, $1, 'reviewer')",
+    [email],
+  );
+  const requestId = randomUUID();
+  expect(
+    await saveApplicationReview(db, actor, {
+      workspaceSlug,
+      publicId: data.applicationId,
+      expectedRevision: reviewRevisionSchema.parse(0),
+      expectedApplicationVersion: materialVersionSchema.parse(1),
+      expectedCriteriaVersion: criteriaVersionSchema.parse(1),
+      change: { action: "request", id: requestId, contactId: data.contact.id, replacesId: null },
+    }),
+  ).toMatchObject({ status: "ok" });
+  return {
+    workspaceSlug,
+    publicId: data.applicationId,
+    requestId,
+    commandId: randomUUID(),
+    dueDate: null,
+  };
+};
+
+it.each(["invite", "resend"] as const)(
+  "holds the last workspace invitation slot for a %s while an independent round edit commits",
+  async (firstAction) => {
+    const original = await requestedReview("sam@example.test");
+    const next = await requestedReview("robin@example.test");
+    const independent = await fixture();
+    expect(await reviewerService(db).invite(actor, original)).toMatchObject({ status: "ok" });
+    // Nineteen prior invitations, outside the per-recipient cooldown.
+    await database.client.query(
+      "UPDATE reviewer_messages SET created_at = now() - interval '2 minutes'",
+    );
+    await database.client.query(
+      `INSERT INTO reviewer_messages (id, assignment_id, kind, recipient, created_at)
+     SELECT gen_random_uuid(), $1, 'invitation', 'sam@example.test', now() - interval '2 minutes'
+     FROM generate_series(1,18)`,
+      [original.commandId],
+    );
+
+    const invite = (connection: Database) => reviewerService(connection).invite(actor, next);
+
+    const resend = (connection: Database) =>
+      reviewerService(connection).manage(actor, {
+        workspaceSlug,
+        publicId: original.publicId,
+        assignmentId: original.commandId,
+        commandId: randomUUID(),
+        expectedRevision: 0,
+        action: "resend",
+        note: "",
+      });
+
+    const commit = await hold(firstAction === "invite" ? invite : resend);
+    expect(await roundEdit(drizzle(second), independent)).toMatchObject({ status: "ok" });
+    const competing = track((firstAction === "invite" ? resend : invite)(drizzle(second)));
+    await expectBlocked();
+    await commit();
+    expect(await competing).toEqual({ status: "limited" });
+    expect(
+      (await database.client.query("SELECT id FROM reviewer_messages WHERE kind = 'invitation'"))
+        .rowCount,
+    ).toBe(20);
+  },
+);

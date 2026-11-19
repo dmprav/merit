@@ -31,8 +31,8 @@ import {
   reviewerReceipt,
   recordReviewerEvent,
   recordReviewerReceipt,
-  invitationLimited,
-  queueReviewerMessage,
+  queueReviewerInvitation,
+  queueSubmissionMessage,
   updateReviewerAssignment,
   writeReviewerDraft,
   updateParticipatingRequest,
@@ -71,7 +71,7 @@ export const inviteReviewer = async (
   }
   const request = parsed.data;
   return writeWorkspace(db, actor.userId, request.workspaceSlug, async (tx) => {
-    const access = await lockApplicationCase(tx, actor.userId, request, "share", "update");
+    const access = await lockApplicationCase(tx, actor.userId, request);
     if (!access || access.organizationKind !== "standard") {
       return { status: "not_found" } as const;
     }
@@ -97,27 +97,37 @@ export const inviteReviewer = async (
     if (!membershipId) {
       return { status: "invalid", error: "workspace_membership_required" } as const;
     }
-    if (await invitationLimited(tx, access.organizationId, email)) {
-      return { status: "limited" } as const;
-    }
     const id = request.commandId;
-    await createReviewerAssignment(
+    const queued = await queueReviewerInvitation(
       tx,
       {
-        id,
-        caseId: request.publicId,
         organizationId: access.organizationId,
-        requestId: request.requestId,
+        assignmentId: id,
+        commandId: id,
         email,
-        membershipId,
-        managerUserId: actor.userId,
-        managerName: access.actor.name ?? managerEmail,
-        managerEmail,
-        dueDate: request.dueDate,
-        expiresAt: expires(),
       },
-      emptyReviewerDraft(),
+      () =>
+        createReviewerAssignment(
+          tx,
+          {
+            id,
+            caseId: request.publicId,
+            organizationId: access.organizationId,
+            requestId: request.requestId,
+            email,
+            membershipId,
+            managerUserId: actor.userId,
+            managerName: access.actor.name ?? managerEmail,
+            managerEmail,
+            dueDate: request.dueDate,
+            expiresAt: expires(),
+          },
+          emptyReviewerDraft(),
+        ),
     );
+    if (!queued) {
+      return { status: "limited" } as const;
+    }
     await recordReviewerReceipt(tx, { assignmentId: id, commandId: id, revision: 0 });
     await recordReviewerEvent(tx, {
       assignmentId: id,
@@ -125,7 +135,6 @@ export const inviteReviewer = async (
       name: access.actor.name ?? managerEmail,
       action: "invite",
     });
-    await queueReviewerMessage(tx, id, request.commandId, "invitation", email);
     return { status: "ok", id } as const;
   });
 };
@@ -141,12 +150,7 @@ export const manageReviewer = async (
   }
   const request = parsed.data;
   return writeWorkspace(db, actor.userId, request.workspaceSlug, async (tx) => {
-    const locked = await lockManagedReviewerAssignment(
-      tx,
-      actor.userId,
-      request,
-      request.action === "resend" ? "update" : "share",
-    );
+    const locked = await lockManagedReviewerAssignment(tx, actor.userId, request);
     if (!locked) {
       return { status: "not_found" } as const;
     }
@@ -526,18 +530,23 @@ const applyManagerAction = async (
     return { status: "invalid", error: decision.error } as const;
   }
   if (request.action === "resend") {
-    if (await invitationLimited(tx, assignment.organizationId, assignment.email)) {
+    const queued = await queueReviewerInvitation(
+      tx,
+      {
+        organizationId: assignment.organizationId,
+        assignmentId: assignment.id,
+        commandId: request.commandId,
+        email: assignment.email,
+      },
+      () =>
+        updateReviewerAssignment(tx, assignment.id, {
+          expiresAt: expires(),
+          revision: assignment.revision + 1,
+        }),
+    );
+    if (!queued) {
       return { status: "limited" } as const;
     }
-    const revision = assignment.revision + 1;
-    await updateReviewerAssignment(tx, assignment.id, { expiresAt: expires(), revision });
-    await queueReviewerMessage(
-      tx,
-      assignment.id,
-      request.commandId,
-      "invitation",
-      assignment.email,
-    );
   } else if (request.action !== "retry_notification") {
     const changed = await changeReviewerParticipation(
       tx,
@@ -581,7 +590,7 @@ const completeReviewerSubmission = async (
     revision: assignment.revision + 1,
   });
   await recordReviewerReceipt(tx, { assignmentId: assignment.id, commandId, revision });
-  await queueReviewerMessage(tx, assignment.id, commandId, "submission", assignment.managerEmail);
+  await queueSubmissionMessage(tx, assignment.id, commandId, assignment.managerEmail);
   return { status: "ok", value: { revision } };
 };
 

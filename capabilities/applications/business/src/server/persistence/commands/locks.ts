@@ -21,13 +21,12 @@ export const lockApplicationCase = async (
   userId: string,
   input: { workspaceSlug: string; publicId: string },
   roundMode: "share" | "update" = "share",
-  organizationMode: "share" | "update" = "share",
 ) => {
   const [workspace] = await db
     .select({ id: organizations.id, kind: organizations.kind })
     .from(organizations)
     .where(eq(organizations.slug, input.workspaceSlug))
-    .for(organizationMode);
+    .for("share");
   if (!workspace) {
     return null;
   }

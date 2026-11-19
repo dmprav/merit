@@ -11,7 +11,7 @@ import type { Transaction } from "../transaction";
  * organizations -> funding_rounds -> application_cases -> review_assignments -> memberships / app_users.
  *
  * Lock the organization before grant resources and hold current access through commit.
- * Shared locks allow independent round edits; exclusive locks coordinate creation
+ * Shared locks allow independent round edits; exclusive locks coordinate round creation
  * receipts and contact changes across rounds. Team changes also lock exclusively.
  */
 export const lockGrantWorkspace = async (

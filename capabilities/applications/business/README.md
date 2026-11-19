@@ -10,6 +10,8 @@ transaction. [Rules](src/domain/intake.ts) decide readiness and material transit
 [persistence](src/server/persistence/commands/intake.ts) records accepted changes.
 Unchanged saves keep their revision and create no history. Creation receipts survive
 eligible deletion, so retrying a creation cannot recreate a deleted application.
+Creation locks the round for totals and ordering, and claims the workspace-scoped
+request ID before writing a case. Independent rounds can accept applications concurrently.
 
 Applications owns creation-receipt lookup and the intake payload recorded atomically
 through [Audit](../../audit/business/README.md), including actor provenance. Assembly supplies a

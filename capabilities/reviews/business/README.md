@@ -19,7 +19,9 @@ The assignment binds its membership identity so removal and rejoining cannot res
 old access. Organizations supplies its exclusive workspace lock to the
 [review revocation collaborator](src/server/persistence/commands/membership.ts)
 when review responsibilities end. A manager must explicitly reinstate assignments
-after qualifying membership is restored. Manager reads never expose
+after qualifying membership is restored. Invites and resends share a transaction-scoped
+workspace invitation lock while checking message limits and queuing delivery.
+Other grant work can proceed in independent cases. Manager reads never expose
 private reviewer drafts. Accepted review requests, cancellations, reviewer
 participation transitions, and assessments are recorded atomically through
 [Audit](../../audit/business/README.md); private drafts and email delivery attempts
