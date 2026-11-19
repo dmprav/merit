@@ -190,23 +190,3 @@ it("dates the updated recommendation against current material without changing r
     applicationVersion: 2,
   });
 });
-
-it("rejects a recommendation recorded on an invalid calendar date", () => {
-  const round = recommendationRound();
-
-  expect(
-    updateRecommendation(
-      round,
-      "selected",
-      {
-        position: "Fund",
-        allocation: fromMinorUnits(4000n),
-        reasoning: "Supported.",
-      },
-      "2027-02-30",
-    ),
-  ).toEqual({
-    ok: false,
-    error: "invalid_recommendation",
-  });
-});

@@ -419,10 +419,7 @@ it("returns the same review freshness as shared web reads without loading histor
   });
 });
 
-it("returns typed error statuses on malformed query inputs and distinguishes forbidden from not_found", async ({
-  db,
-  database,
-}) => {
+it("returns typed error statuses on malformed query inputs", async ({ db }) => {
   await seedExampleRounds(db);
 
   expect(await listFundingRoundSummaries(db, actor, { workspaceSlug: "BAD SLUG" })).toEqual({
@@ -475,16 +472,6 @@ it("returns typed error statuses on malformed query inputs and distinguishes for
   ).toEqual({ status: "not_found" });
   expect(await roundBudgetHistory(db, actor, { workspaceSlug, roundId: "invalid-id" })).toEqual({
     status: "not_found",
-  });
-
-  await database.client.query(
-    "UPDATE memberships SET role = 'member' WHERE organization_id = 'alder' AND user_id = 'dana'",
-  );
-  expect(await listFundingRoundSummaries(db, actor, { workspaceSlug })).toEqual({
-    status: "forbidden",
-  });
-  expect(await listWorkspaceApplications(db, actor, { workspaceSlug: workspaceSlug })).toEqual({
-    status: "forbidden",
   });
 });
 

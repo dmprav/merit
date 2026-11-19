@@ -44,13 +44,30 @@ const unreviewed = {
   recommendation: null,
 };
 
-it("matches missing recommendations and reviewers independently of participation", () => {
+it("matches unassigned reviews and a missing recommendation for an application with neither", () => {
   expect(
     matchesApplicationCriteria(unreviewed, { reviews: "unassigned", recommendation: "missing" }),
   ).toBe(true);
+});
+
+it.each(["current", "outdated", "outstanding", "unknown"] as const)(
+  "treats an application with one %s review as assigned",
+  (status) => {
+    const reviewed = { ...unreviewed, reviews: { ...unreviewed.reviews, [status]: 1 } };
+
+    expect(matchesApplicationCriteria(reviewed, { reviews: "unassigned" })).toBe(false);
+  },
+);
+
+it("awaits reviews only while a request is outstanding", () => {
   expect(matchesApplicationCriteria(unreviewed, { reviews: "awaiting" })).toBe(false);
+});
+
+it("reports unknown evidence only for an application with an unknown review", () => {
   expect(matchesApplicationCriteria(unreviewed, { evidence: "unknown" })).toBe(false);
-  expect(matchesApplicationCriteria(unreviewed, { evidence: "changed" })).toBe(false);
+});
+
+it("matches preparing applications by their intake status", () => {
   expect(
     matchesApplicationCriteria(
       { ...unreviewed, intakeStatus: "in_preparation" },

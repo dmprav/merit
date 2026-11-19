@@ -5,6 +5,7 @@ import { assert, expect } from "vite-plus/test";
 import { getFundingApplicationPage, getFundingRoundPage } from "@merit/grantmaking/server";
 import { encodeMoney, fromMinorUnits } from "@merit/money";
 import { actor } from "@merit/organizations/testing/workspace";
+import { editFundingRound } from "@merit/rounds/server";
 
 import { transportTest as it } from "./fixtures/transport-test";
 
@@ -53,15 +54,6 @@ it("completes grant work through MCP with shared web state, safe retries, and ve
     actor: "Dana Reed",
     provenance: { interface: "mcp", clientId: "integration-client" },
   });
-  expect(
-    (
-      await invoke("edit_funding_round", {
-        ...address,
-        expectedPreparationRevision: 0,
-        change: { section: "budget", amount: "1", reason: "Stale" },
-      })
-    ).structuredContent,
-  ).toEqual({ status: "conflict" });
 
   const application = await saved("create_application", {
     ...address,
@@ -304,4 +296,37 @@ it("completes grant work through MCP with shared web state, safe retries, and ve
       })
     ).structuredContent,
   ).toEqual({ status: "not_found" });
+});
+
+it("rejects a round edit using a stale preparation revision without changing the round", async ({
+  db,
+  rounds: { pageInput },
+  transport: { callMcp },
+}) => {
+  const read = async () => (await getFundingRoundPage(db, actor, { ...pageInput, kind: "round" }))!;
+
+  const colleague = await editFundingRound(db, actor, {
+    workspaceSlug: "alder",
+    publicId: pageInput.publicId,
+    expectedRevision: (await read()).preparation.revision,
+    change: { section: "budget", amount: "1000", reason: "A colleague's envelope" },
+  });
+  assert(colleague.status === "ok", "Could not prepare the colleague's round edit");
+  const before = await read();
+
+  expect(
+    (
+      await callMcp(
+        actor.userId,
+        {
+          workspaceSlug: "alder",
+          roundId: pageInput.publicId,
+          expectedPreparationRevision: before.preparation.revision - 1,
+          change: { section: "budget", amount: "1", reason: "Stale" },
+        },
+        "edit_funding_round",
+      )
+    ).structuredContent,
+  ).toEqual({ status: "conflict" });
+  expect(await read()).toEqual(before);
 });

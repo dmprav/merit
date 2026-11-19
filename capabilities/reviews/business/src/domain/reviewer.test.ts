@@ -14,6 +14,7 @@ import {
   type ReviewerStatus,
   type ParticipationAction,
   type ReviewerProblem,
+  type ReviewerSubmissionProblem,
 } from "./index";
 
 const basis = { applicationVersion: 2, criteriaVersion: 3 };
@@ -175,60 +176,110 @@ it.each([
   expect(resumptionProblem({ submitted: false, ...facts })).toBe(expected);
 });
 
-it("reports each submission problem beside its field, in reading order", () => {
-  const draft = emptyReviewerDraft();
-  expect(reviewerSubmissionProblems(draft, false)).toEqual(["position", "reasoning"]);
-  expect(reviewerSubmissionProblems(draft, true)).toEqual(["position", "reasoning", "note"]);
-  expect(
-    reviewerSubmissionProblems({ ...draft, position: "Fund", reasoning: "Evidence" }, false),
-  ).toEqual(["amount"]);
-  expect(
-    reviewerSubmissionProblems(
-      { ...draft, position: "Fund with a condition", amount: "0", reasoning: "Evidence" },
-      false,
-    ),
-  ).toEqual(["amount"]);
-  expect(
-    reviewerSubmissionProblems(
-      { ...draft, position: "Fund", amount: "12.345", reasoning: " " },
-      false,
-    ),
-  ).toEqual(["amount", "reasoning"]);
-  expect(
-    reviewerSubmissionProblems({ ...draft, position: "Defer", reasoning: "Evidence" }, false),
-  ).toEqual([]);
-  expect(
-    reviewerSubmissionProblems(
-      {
-        ...draft,
-        position: "Defer",
-        reasoning: "Evidence",
-        observations: [{ criterionId: null, criterion: "Received note", text: "x".repeat(5001) }],
-      },
-      false,
-    ),
-  ).toEqual(["content"]);
-  for (const candidate of [
-    draft,
-    { ...draft, position: "Fund" as const, reasoning: "Evidence" },
-    { ...draft, position: "Fund" as const, amount: "20", reasoning: "Evidence" },
-    { ...draft, position: "Decline" as const, amount: "5", reasoning: "Evidence" },
-  ]) {
-    for (const amendment of [false, true]) {
-      expect(reviewerSubmission(candidate, basis, amendment) === null).toBe(
-        reviewerSubmissionProblems(candidate, amendment).length > 0,
-      );
-    }
+const evidence = { ...emptyReviewerDraft(), reasoning: "Evidence" };
+
+it.each([
+  {
+    name: "an empty draft",
+    draft: emptyReviewerDraft(),
+    amendment: false,
+    problems: ["position", "reasoning"],
+  },
+  {
+    name: "an empty amendment",
+    draft: emptyReviewerDraft(),
+    amendment: true,
+    problems: ["position", "reasoning", "note"],
+  },
+  {
+    name: "funding without an amount",
+    draft: { ...evidence, position: "Fund" },
+    amendment: false,
+    problems: ["amount"],
+  },
+  {
+    name: "conditional funding of zero",
+    draft: { ...evidence, position: "Fund with a condition", amount: "0" },
+    amendment: false,
+    problems: ["amount"],
+  },
+  {
+    name: "excess amount precision and blank reasoning",
+    draft: { ...evidence, position: "Fund", amount: "12.345", reasoning: " " },
+    amendment: false,
+    problems: ["amount", "reasoning"],
+  },
+  {
+    name: "a complete deferral",
+    draft: { ...evidence, position: "Defer" },
+    amendment: false,
+    problems: [],
+  },
+  {
+    name: "an observation beyond its length limit",
+    draft: {
+      ...evidence,
+      position: "Defer",
+      observations: [{ criterionId: null, criterion: "Received note", text: "x".repeat(5001) }],
+    },
+    amendment: false,
+    problems: ["content"],
+  },
+] satisfies {
+  name: string;
+  draft: ReviewerDraft;
+  amendment: boolean;
+  problems: ReviewerSubmissionProblem[];
+}[])(
+  "reports the problems in $name beside their fields, in reading order",
+  ({ draft, amendment, problems }) => {
+    expect(reviewerSubmissionProblems(draft, amendment)).toEqual(problems);
+  },
+);
+
+it.each([
+  emptyReviewerDraft(),
+  { ...evidence, position: "Fund" },
+  { ...evidence, position: "Fund", amount: "20" },
+  { ...evidence, position: "Decline", amount: "5" },
+] satisfies ReviewerDraft[])("blocks submission exactly when it reports a problem: %j", (draft) => {
+  for (const amendment of [false, true]) {
+    expect(reviewerSubmission(draft, basis, amendment) === null).toBe(
+      reviewerSubmissionProblems(draft, amendment).length > 0,
+    );
   }
 });
 
-it("expires only unanswered invitations once their expiry passes", () => {
-  const now = new Date("2027-01-15T10:00:00Z");
-  const invitation = { status: "invited" as const, expiresAt: "2027-01-15T10:00:00Z" };
-  expect(isInvitationExpired(invitation, now)).toBe(true);
-  expect(isInvitationExpired({ ...invitation, expiresAt: "2027-01-15T10:00:01Z" }, now)).toBe(
-    false,
-  );
-  expect(isInvitationExpired({ ...invitation, status: "accepted" }, now)).toBe(false);
-  expect(isInvitationExpired({ ...invitation, expiresAt: new Date("2027-01-01") }, now)).toBe(true);
-});
+const now = new Date("2027-01-15T10:00:00Z");
+
+it.each([
+  {
+    name: "an invitation at its expiry",
+    status: "invited",
+    expiresAt: "2027-01-15T10:00:00Z",
+    expired: true,
+  },
+  {
+    name: "an invitation before its expiry",
+    status: "invited",
+    expiresAt: "2027-01-15T10:00:01Z",
+    expired: false,
+  },
+  {
+    name: "an accepted invitation past its expiry",
+    status: "accepted",
+    expiresAt: "2027-01-15T10:00:00Z",
+    expired: false,
+  },
+  {
+    name: "an invitation with a stored expiry time",
+    status: "invited",
+    expiresAt: new Date("2027-01-01"),
+    expired: true,
+  },
+] satisfies { name: string; status: ReviewerStatus; expiresAt: Date | string; expired: boolean }[])(
+  "expires only unanswered invitations once their expiry passes: $name",
+  ({ status, expiresAt, expired }) => {
+    expect(isInvitationExpired({ status, expiresAt }, now)).toBe(expired);
+  },
+);

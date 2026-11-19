@@ -56,6 +56,16 @@ describe("createToolRegistrar", () => {
     }
   });
 
+  it("refuses a call without the tool's scope before validating input or running the operation", async () => {
+    const { handler, operation } = setup(["grants:write"]);
+
+    expect(await handler({ count: -5 })).toMatchObject({
+      isError: true,
+      structuredContent: { status: "insufficient_scope", requiredScope: "workspace:read" },
+    });
+    expect(operation).not.toHaveBeenCalled();
+  });
+
   it("logs operation error messages with diagnosticId without leaking them in the response", async () => {
     const { handler, operation } = setup();
     operation.mockRejectedValueOnce(new Error("database connection refused"));

@@ -249,13 +249,6 @@ it("completes an independently authored review with reviewer membership and no s
       reasoning: "PRIVATE DRAFT: independent evidence",
     },
   };
-  expect(
-    await s.service.saveDraft(sam, {
-      ...input,
-      draft: { ...input.draft, amount: "40.005" },
-    }),
-  ).toEqual({ status: "invalid", error: "invalid_input" });
-  expect((await s.read()).draft).toEqual(page.draft);
   expect(await s.service.saveDraft(sam, input)).toEqual({ status: "ok", value: { revision: 1 } });
   expect(await s.service.saveDraft(sam, input)).toEqual({ status: "ok", value: { revision: 1 } });
   expect(
@@ -342,6 +335,24 @@ it("completes an independently authored review with reviewer membership and no s
   expect(await recordedEvents(database.client, "action = 'assessment.recorded'")).toEqual([]);
   expect((await s.read()).assessment?.versions).toHaveLength(2);
   expect(s.messages.filter((message) => message.kind === "submission")).toHaveLength(2);
+});
+
+it("rejects a draft amount with more than two decimal places and leaves the draft unchanged", async ({
+  reviewerScenario: s,
+}) => {
+  expect(await s.respond("accept")).toMatchObject({ status: "ok", value: { status: "accepted" } });
+  const page = await s.read();
+  assert(page.draft);
+
+  expect(
+    await s.service.saveDraft(sam, {
+      assignmentId: s.assignmentId,
+      commandId: randomUUID(),
+      expectedDraftRevision: page.draft.revision,
+      draft: { ...page.draft.content, position: "Fund", amount: "40.005", reasoning: "Evidence" },
+    }),
+  ).toEqual({ status: "invalid", error: "invalid_input" });
+  expect((await s.read()).draft).toEqual(page.draft);
 });
 
 it("rolls back a reviewer's submission when its audit event cannot be recorded", async ({

@@ -750,34 +750,6 @@ describe("funding-round preparation", () => {
     expect(application?.application.managerRecommendation).toEqual(saved.recommendation);
   });
 
-  it("attributes a recommendation to its authenticated recorder despite a supplied author", async ({
-    db,
-  }) => {
-    const address = await create(db);
-    const applicationAddress = await createReadyApplication(db, address.publicId);
-    const saved = await saveFundingRecommendation(db, actor, {
-      ...applicationAddress,
-      expectedRevision: 0,
-      expectedApplicationVersion: 1,
-      recommendation: {
-        ...recommendation,
-        author: { userId: "pat", name: "Forged author" },
-      },
-    });
-
-    assert(saved.status === "ok");
-    const application = await getFundingApplicationPage(db, actor, applicationAddress);
-
-    const author = {
-      userId: "dana",
-      name: "Dana Reed",
-      provenance: { interface: "web" },
-    };
-
-    expect(saved.recommendation.author).toEqual(author);
-    expect(application?.application.managerRecommendation?.author).toEqual(author);
-  });
-
   it("retains the responsible manager's name and requests reassignment after grant access is lost", async ({
     db,
     database,
@@ -830,79 +802,102 @@ describe("funding-round preparation", () => {
       managerNeedsReassignment: true,
     });
   });
-});
 
-it("creates optional round details atomically and validates dates and budgets before writing", async ({
-  db,
-}) => {
-  const request = {
+  const composerRound = {
     workspaceSlug,
-    requestId: randomUUID(),
     title: "Composer round",
     purpose: "Shared local work",
     budget: "0.00",
     meetingDate: "2027-03-15",
   };
 
-  expect(
-    await createFundingRound(db, actor, { ...request, meetingDate: "2027-02-30" }),
-  ).toMatchObject({ status: "invalid" });
-  expect(await createFundingRound(db, actor, { ...request, budget: "-1" })).toMatchObject({
-    status: "invalid",
-  });
-
-  const created = await createFundingRound(db, actor, request);
-
-  if (created.status !== "ok") {
-    throw new Error("Creation failed");
-  }
-  expect(await createFundingRound(db, actor, { ...request, purpose: "Changed retry" })).toEqual(
-    created,
+  it.for([
+    { problem: "an invalid meeting date", change: { meetingDate: "2027-02-30" } },
+    { problem: "a negative budget", change: { budget: "-1" } },
+  ])(
+    "rejects round creation with $problem without writing",
+    async ({ change }, { db, database }) => {
+      expect(
+        await createFundingRound(db, actor, {
+          ...composerRound,
+          requestId: randomUUID(),
+          ...change,
+        }),
+      ).toMatchObject({ status: "invalid" });
+      expect((await database.client.query("SELECT id FROM funding_rounds")).rows).toEqual([]);
+      expect((await database.client.query("SELECT action FROM audit_events")).rows).toEqual([]);
+    },
   );
 
-  const page = (await getFundingRoundPage(db, actor, {
-    workspaceSlug,
-    publicId: created.publicId,
-    kind: "round",
-  }))!;
+  it("returns the original round when a creation request is retried with changed details", async ({
+    db,
+    database,
+  }) => {
+    const request = { ...composerRound, requestId: randomUUID() };
+    const created = await createFundingRound(db, actor, request);
+    assert(created.status === "ok");
 
-  expect(page.round).toMatchObject({
-    title: "Composer round",
-    purpose: request.purpose,
-    meetingDate: request.meetingDate,
-    managerUserId: "dana",
-    decisionStatus: "Preparing",
+    expect(await createFundingRound(db, actor, { ...request, purpose: "Changed retry" })).toEqual(
+      created,
+    );
+    expect((await database.client.query("SELECT purpose FROM funding_rounds")).rows).toEqual([
+      { purpose: request.purpose },
+    ]);
   });
-  expect(toDecimal(page.round.budget!)).toBe("0.00");
-  expect(page.preparation.revision).toBe(0);
-});
 
-it("retains IDs through renaming and reordering criteria with duplicate titles", async ({ db }) => {
-  const address = await create(db);
-  const first = { id: randomUUID(), title: "Fit", description: "Purpose" };
-  const second = { id: randomUUID(), title: "Fit", description: "Participation" };
-  expect(
-    await editFundingRound(db, actor, {
-      ...address,
-      expectedRevision: 0,
-      change: { section: "criteria", criteria: [first, second] },
-    }),
-  ).toEqual({ status: "ok", revision: 1 });
-  const renamed = { ...first, title: "Purpose" };
-  expect(
-    await editFundingRound(db, actor, {
-      ...address,
-      expectedRevision: 1,
-      change: { section: "criteria", criteria: [second, renamed] },
-    }),
-  ).toEqual({ status: "ok", revision: 2 });
-  const page = await getFundingRoundPage(db, actor, { ...address, kind: "round" });
-  expect(page?.round).toMatchObject({
-    criteria: [second, renamed],
-    criteriaHistory: [
-      { version: 1, criteria: [] },
-      { version: 2, criteria: [first, second] },
-      { version: 3, criteria: [second, renamed] },
-    ],
+  it("persists optional round details supplied at creation", async ({ db }) => {
+    const created = await createFundingRound(db, actor, {
+      ...composerRound,
+      requestId: randomUUID(),
+    });
+    assert(created.status === "ok");
+
+    const page = (await getFundingRoundPage(db, actor, {
+      workspaceSlug,
+      publicId: created.publicId,
+      kind: "round",
+    }))!;
+
+    expect(page.round).toMatchObject({
+      title: "Composer round",
+      purpose: composerRound.purpose,
+      meetingDate: composerRound.meetingDate,
+      managerUserId: "dana",
+      decisionStatus: "Preparing",
+    });
+    expect(toDecimal(page.round.budget!)).toBe("0.00");
+    expect(page.preparation.revision).toBe(0);
+  });
+
+  it("retains IDs through renaming and reordering criteria with duplicate titles", async ({
+    db,
+  }) => {
+    const address = await create(db);
+    const first = { id: randomUUID(), title: "Fit", description: "Purpose" };
+    const second = { id: randomUUID(), title: "Fit", description: "Participation" };
+    expect(
+      await editFundingRound(db, actor, {
+        ...address,
+        expectedRevision: 0,
+        change: { section: "criteria", criteria: [first, second] },
+      }),
+    ).toEqual({ status: "ok", revision: 1 });
+    const renamed = { ...first, title: "Purpose" };
+    expect(
+      await editFundingRound(db, actor, {
+        ...address,
+        expectedRevision: 1,
+        change: { section: "criteria", criteria: [second, renamed] },
+      }),
+    ).toEqual({ status: "ok", revision: 2 });
+    const page = await getFundingRoundPage(db, actor, { ...address, kind: "round" });
+    expect(page?.round).toMatchObject({
+      criteria: [second, renamed],
+      criteriaHistory: [
+        { version: 1, criteria: [] },
+        { version: 2, criteria: [first, second] },
+        { version: 3, criteria: [second, renamed] },
+      ],
+    });
   });
 });

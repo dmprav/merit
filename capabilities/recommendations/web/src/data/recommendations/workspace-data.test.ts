@@ -68,6 +68,35 @@ it("applies saved recommendations through the injected cache updater and invalid
   expect(client.getQueryState(roundScope)?.isInvalidated).toBe(true);
 });
 
+it("sends the caller's baseline rather than the current revision with the encoded recommendation", async () => {
+  const save = vi.fn().mockResolvedValue({ status: "conflict" });
+  const recommendation = {
+    position: "Fund" as const,
+    allocation: fromMinorUnits(150000n),
+    reasoning: "Strong fit.",
+  };
+  const data = createRecommendationData(
+    client,
+    { workspaceSlug: "alder", publicId: "app-1", revision: 4 },
+    {
+      application: { queryKey: ["alder", "application", "app-1"], queryFn: async () => null },
+      roundScope: ["alder", "rounds"],
+      save,
+      applySaved: (cached) => cached,
+    },
+  );
+
+  await data.save(recommendation, { expectedRevision: 2, expectedApplicationVersion: 3 });
+
+  expect(save).toHaveBeenCalledExactlyOnceWith({
+    workspaceSlug: "alder",
+    publicId: "app-1",
+    expectedRevision: 2,
+    expectedApplicationVersion: 3,
+    recommendation: encodeRecommendation(recommendation),
+  });
+});
+
 it("refreshes the application query on conflict without failing when reload errors", async () => {
   const queryKey = ["alder", "application", "app-1"] as const;
   const queryFn = vi.fn<() => Promise<CachedApplication>>().mockRejectedValue(new Error("Offline"));

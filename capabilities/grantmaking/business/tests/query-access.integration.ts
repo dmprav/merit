@@ -3,52 +3,90 @@ import { randomUUID } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { assert, expect } from "vite-plus/test";
 
+import { createFundingApplication, selectApplicationContact } from "@merit/applications/server";
+import { changeWorkspaceContact } from "@merit/contacts/server";
 import type { Database } from "@merit/db";
 import type { GrantmakingQueries } from "@merit/grantmaking/api";
 import { createGrantmakingService, getFundingRoundOverview } from "@merit/grantmaking/server";
+import { fundingRoundContactUsage } from "@merit/grantmaking/server/integrations";
 import { actor, workspaceTest as it, workspaceSlug } from "@merit/organizations/testing/workspace";
 import { createFundingRound } from "@merit/rounds/server";
 
-const publicId = "000000000001";
-const round = { workspaceSlug, roundId: publicId };
-const application = { workspaceSlug, applicationId: publicId };
-const queries: [string, (service: GrantmakingQueries) => Promise<unknown>][] = [
-  ["round list", (service) => service.listRounds(actor, workspaceSlug)],
+type Records = { roundId: string; applicationId: string; contactId: string };
+
+type Query = (service: GrantmakingQueries, records: Records) => Promise<unknown>;
+
+const placeholders: Records = {
+  roundId: "000000000001",
+  applicationId: "000000000001",
+  contactId: randomUUID(),
+};
+
+const round = ({ roundId }: Records) => ({ workspaceSlug, roundId });
+
+const application = ({ applicationId }: Records) => ({ workspaceSlug, applicationId });
+
+const notFound = { status: "not_found" };
+
+const forbidden = { status: "forbidden" };
+
+// Each read with the result it returns to a workspace member without grant access.
+const queries: [string, Query, unknown][] = [
+  ["round list", (service) => service.listRounds(actor, workspaceSlug), forbidden],
   [
     "workspace applications",
-    (service) => service.listWorkspaceApplications(actor, { workspaceSlug: workspaceSlug }),
+    (service) => service.listWorkspaceApplications(actor, { workspaceSlug }),
+    forbidden,
   ],
   [
     "workspace search",
     (service) => service.searchWorkspace(actor, { workspaceSlug, query: "community" }),
+    forbidden,
   ],
   [
     "round page",
-    (service) => service.readRoundPage(actor, { workspaceSlug, publicId, kind: "round" }),
+    (service, { roundId }) =>
+      service.readRoundPage(actor, { workspaceSlug, publicId: roundId, kind: "round" }),
+    null,
   ],
   [
     "application page",
-    (service) => service.readApplicationPage(actor, { workspaceSlug, publicId }),
+    (service, { applicationId }) =>
+      service.readApplicationPage(actor, { workspaceSlug, publicId: applicationId }),
+    null,
   ],
-  ["round summaries", (service) => service.listRoundSummaries(actor, { workspaceSlug })],
-  ["round overview", (service) => service.readRound(actor, round)],
-  ["applications", (service) => service.listApplications(actor, round)],
-  ["application context", (service) => service.readApplication(actor, application)],
-  ["round content", (service) => service.roundContent(actor, { ...round, section: "details" })],
+  ["round summaries", (service) => service.listRoundSummaries(actor, { workspaceSlug }), forbidden],
+  ["round overview", (service, ids) => service.readRound(actor, round(ids)), notFound],
+  ["applications", (service, ids) => service.listApplications(actor, round(ids)), notFound],
+  [
+    "application context",
+    (service, ids) => service.readApplication(actor, application(ids)),
+    notFound,
+  ],
+  [
+    "round content",
+    (service, ids) => service.roundContent(actor, { ...round(ids), section: "details" }),
+    notFound,
+  ],
   [
     "application content",
-    (service) => service.applicationContent(actor, { ...application, section: "details" }),
+    (service, ids) =>
+      service.applicationContent(actor, { ...application(ids), section: "details" }),
+    notFound,
   ],
-  ["round history", (service) => service.roundHistory(actor, round)],
+  ["round history", (service, ids) => service.roundHistory(actor, round(ids)), notFound],
   [
     "application history",
-    (service) => service.applicationHistory(actor, { ...application, history: "intake" }),
+    (service, ids) => service.applicationHistory(actor, { ...application(ids), history: "intake" }),
+    notFound,
   ],
   [
     "contact applications",
-    (service) => service.listContactApplications(actor, { workspaceSlug, contactId: randomUUID() }),
+    (service, { contactId }) =>
+      service.listContactApplications(actor, { workspaceSlug, contactId }),
+    notFound,
   ],
-  ["reviews", (service) => service.listReviews(actor, application)],
+  ["reviews", (service, ids) => service.listReviews(actor, application(ids)), notFound],
 ];
 
 for (const [name, query] of queries) {
@@ -69,7 +107,7 @@ for (const [name, query] of queries) {
       database: (operation) => operation(guarded),
     });
 
-    await expect(query(service)).rejects.toMatchObject({ cause: { code: "25006" } });
+    await expect(query(service, placeholders)).rejects.toMatchObject({ cause: { code: "25006" } });
   });
 }
 
@@ -99,3 +137,60 @@ it("queries share a caller-owned transaction without committing its pending chan
     status: "not_found",
   });
 });
+
+const createReadableRecords = async (db: Database): Promise<Records> => {
+  const round = await createFundingRound(db, actor, {
+    workspaceSlug,
+    requestId: randomUUID(),
+    title: "Community grants",
+  });
+  assert(round.status === "ok");
+  const application = await createFundingApplication(db, actor, {
+    workspaceSlug,
+    publicId: round.publicId,
+    requestId: randomUUID(),
+    title: "Community meals",
+  });
+  assert(application.status === "ok");
+  const contact = await changeWorkspaceContact(
+    db,
+    actor,
+    {
+      workspaceSlug,
+      contactId: randomUUID(),
+      action: "create",
+      details: { name: "Leah Martin", email: "leah@example.test", affiliation: "" },
+    },
+    fundingRoundContactUsage,
+  );
+  assert(contact.status === "ok");
+  const linked = await selectApplicationContact(db, actor, {
+    workspaceSlug,
+    publicId: application.publicId,
+    expectedRevision: 0,
+    contactId: contact.contact.id,
+  });
+  assert(linked.status === "ok");
+  return {
+    roundId: round.publicId,
+    applicationId: application.publicId,
+    contactId: contact.contact.id,
+  };
+};
+
+for (const [name, query, denied] of queries) {
+  it(`denies the ${name} query to a workspace member without grant access`, async ({
+    db,
+    database,
+  }) => {
+    const records = await createReadableRecords(db);
+    const service = createGrantmakingService({ database: (operation) => operation(db) });
+    expect(await query(service, records)).not.toEqual(denied);
+
+    await database.client.query(
+      "UPDATE memberships SET role = 'member' WHERE organization_id = 'alder' AND user_id = 'dana'",
+    );
+
+    expect(await query(service, records)).toEqual(denied);
+  });
+}
