@@ -96,7 +96,7 @@ test(
   { tag: "@cross-browser" },
   async ({ page }) => {
     await page.goto(
-      "/iframe.html?id=features-applications-manage-reviews--correction-saved&viewMode=story",
+      "/iframe.html?id=features-applications-manage-reviews--assessment-history&viewMode=story",
     );
     await expect(page.locator("#storybook-root")).toHaveAttribute("data-story-ready", "true");
     const assessment = page.getByRole("article", { name: "Assessment by Sam Morgan" });
@@ -279,12 +279,14 @@ test(
     await add.focus();
     await add.press("Enter");
     const picker = page.getByRole("dialog", { name: "Add review request", exact: true });
-    const surface = picker.locator("..");
+    const surface = page.locator('[data-appearance="picker"]').filter({ has: picker });
     const search = picker.getByRole("textbox", { name: "Find a contact" });
     await expect(search).toBeFocused();
     await expect(search).toBeInViewport({ ratio: 1 });
     await expect(picker.getByRole("option", { name: /Jules Patel/ })).toBeDisabled();
-    expect(await surface.evaluate((node) => node.scrollHeight > node.clientHeight)).toBe(true);
+    await expect
+      .poll(() => surface.evaluate((node) => node.scrollHeight - node.clientHeight))
+      .toBeGreaterThan(0);
 
     const create = picker.getByRole("button", { name: "Add contact", exact: true });
     await create.focus();
