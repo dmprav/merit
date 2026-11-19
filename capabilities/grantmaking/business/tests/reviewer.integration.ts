@@ -915,7 +915,7 @@ it("keeps an unaccepted assignment ended after removal and rejoining until expli
       workspaceSlug: "alder",
       userId: "sam",
       expectedMembershipId: member.membershipId,
-      expectedVersion: member.version,
+      expectedMembershipVersion: member.version,
       expectedInvitationIds: [],
     }),
   ).toMatchObject({ status: "ok" });
@@ -983,7 +983,7 @@ it("permanently ends assignments on role loss, preserves private work, and attri
       workspaceSlug: "alder",
       userId: "sam",
       expectedMembershipId: member.membershipId,
-      expectedVersion: member.version,
+      expectedMembershipVersion: member.version,
       expectedInvitationIds: [],
       administration: "none",
       role,

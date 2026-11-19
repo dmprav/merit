@@ -54,7 +54,7 @@ beforeEach(() => {
     value: {
       userId: data.userId,
       membershipId: data.expectedMembershipId,
-      membershipVersion: data.expectedVersion + 1,
+      membershipVersion: data.expectedMembershipVersion + 1,
       removed: false,
     },
   }));
@@ -130,7 +130,7 @@ it("reviews handover and invitation revocation before removing a member and rest
       workspaceSlug: "alder",
       userId: "admin",
       expectedMembershipId: "00000000-0000-4000-a000-000000000002",
-      expectedVersion: 3,
+      expectedMembershipVersion: 3,
       expectedInvitationIds: ["pending"],
     },
   });

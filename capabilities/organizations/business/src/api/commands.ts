@@ -49,7 +49,7 @@ export const teamInvitationInput = teamInput.extend({ invitationId: z.uuid() });
 export const memberInput = teamInput.extend({
   userId: z.string().min(1),
   expectedMembershipId: z.uuid(),
-  expectedVersion: z.number().int().min(0),
+  expectedMembershipVersion: z.number().int().min(0),
   expectedInvitationIds: z.array(z.string()),
 });
 

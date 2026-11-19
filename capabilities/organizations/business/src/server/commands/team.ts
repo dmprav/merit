@@ -202,7 +202,7 @@ export const changeMember = (
     const { access, revokeIssuedInvitations } = decision.value;
     if (
       target.membershipId !== input.expectedMembershipId ||
-      target.version !== input.expectedVersion
+      target.version !== input.expectedMembershipVersion
     ) {
       fail("conflict");
     }

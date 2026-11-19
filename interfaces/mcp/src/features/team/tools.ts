@@ -1,5 +1,3 @@
-import { z } from "zod";
-
 import {
   teamInput,
   teamPageInput,
@@ -181,10 +179,7 @@ const registerMembershipWrites = (
     {
       description:
         "Change a member's responsibilities using the current membership ID/version and expected IDs of invitations they issued. Reduced authority may revoke those invitations. Owner protections apply.",
-      inputSchema: changeMemberInput
-        .omit({ expectedVersion: true })
-        .extend({ expectedMembershipVersion: z.number().int().nonnegative() })
-        .strict(),
+      inputSchema: changeMemberInput.strict(),
       outputSchema: memberWriteSchema,
       errorSchema: teamErrorSchema,
       scope: "team:write",
@@ -195,10 +190,7 @@ const registerMembershipWrites = (
         openWorldHint: false,
       },
     },
-    async ({ expectedMembershipVersion, ...input }) =>
-      unwrap(
-        await team.changeMember(actor, { ...input, expectedVersion: expectedMembershipVersion }),
-      ),
+    async (input) => unwrap(await team.changeMember(actor, input)),
   );
 
   register(
@@ -206,10 +198,7 @@ const registerMembershipWrites = (
     {
       description:
         "Remove workspace membership using the current membership ID/version and expected IDs of invitations they issued. Owner and self-removal protections apply. Subsequent reads/writes lose access.",
-      inputSchema: memberInput
-        .omit({ expectedVersion: true })
-        .extend({ expectedMembershipVersion: z.number().int().nonnegative() })
-        .strict(),
+      inputSchema: memberInput.strict(),
       outputSchema: memberWriteSchema,
       errorSchema: teamErrorSchema,
       scope: "team:write",
@@ -220,9 +209,6 @@ const registerMembershipWrites = (
         openWorldHint: false,
       },
     },
-    async ({ expectedMembershipVersion, ...input }) =>
-      unwrap(
-        await team.removeMember(actor, { ...input, expectedVersion: expectedMembershipVersion }),
-      ),
+    async (input) => unwrap(await team.removeMember(actor, input)),
   );
 };
