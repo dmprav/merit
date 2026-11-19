@@ -301,7 +301,7 @@ after configuring Clerk; fixture checks do not verify Clerk sessions. Follow [MC
 for delegated access, and [UI checks](ui-verification.md#verification) for component behavior
 and browser review.
 
-With the app running in ordinary mode (`vp run dev`), `vp run @merit/app#smoke` checks public web access and removal of anonymous MCP
+With the app running in ordinary mode (`vp run dev`), `vp run @merit/app#smoke` checks public web access, 404 recovery, and workspace MCP authentication
 and verifies that unauthenticated workspace requests return no tenant data. Run
 it against the [production preview](deployment.md#build-and-preview) as well; set `MERIT_BASE_URL`
 when testing a different port or a deployed instance.

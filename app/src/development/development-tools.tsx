@@ -2,35 +2,29 @@ import { TanStackDevtools } from "@tanstack/react-devtools";
 import { ReactQueryDevtoolsPanel } from "@tanstack/react-query-devtools";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 
+import {
+  localPersona,
+  localPersonas,
+  localPersonCookie,
+  readLocalPersonCookie,
+} from "@merit/auth/local-personas";
 import { clearDrafts } from "@merit/drafts";
 import { Button } from "@merit/ui/button";
 
 import styles from "./development-tools.module.css";
-
-const people = [
-  { id: "manager", name: "Dana Reed", detail: "Seeded Alder program manager" },
-  { id: "reviewer", name: "Robin Ellis", detail: "reviewer@example.test" },
-  { id: "operator", name: "Merit operator", detail: "operator@example.test" },
-  { id: "recipient", name: "Invitation recipient", detail: "recipient@example.test" },
-];
 
 const selectPerson = async (person: string) => {
   if (!import.meta.env.MERIT_LOCAL_WORKSPACE) {
     return;
   }
   await clearDrafts();
-  document.cookie = `merit-local-person=${person}; Path=/; SameSite=Strict`;
+  document.cookie = `${localPersonCookie}=${person}; Path=/; SameSite=Strict`;
   window.location.assign("/app");
 };
 
 const MeritPanel = () => {
   const local = import.meta.env.MERIT_LOCAL_WORKSPACE === true;
-  const selected = document.cookie
-    .split(";")
-    .map((part) => part.trim())
-    .find((part) => part.startsWith("merit-local-person="))
-    ?.split("=")[1];
-  const current = people.find((person) => person.id === selected) ?? people[0]!;
+  const current = localPersona(readLocalPersonCookie(document.cookie));
 
   return (
     <section className={styles.panel} data-product-theme="" aria-label="Merit development tools">
@@ -41,10 +35,11 @@ const MeritPanel = () => {
       {local ? (
         <>
           <p aria-live="polite">
-            Current identity: <strong>{current.name}</strong> ({current.detail})
+            Current identity: <strong>{current.name}</strong> (
+            {current.id === "manager" ? "Seeded Alder program manager" : current.email})
           </p>
           <div className={styles.people} role="group" aria-label="Local identity">
-            {people.map((person) => (
+            {localPersonas.map((person) => (
               <Button
                 key={person.id}
                 variant={person.id === current.id ? "primary" : "secondary"}

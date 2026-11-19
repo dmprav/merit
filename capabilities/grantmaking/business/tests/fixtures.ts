@@ -54,7 +54,7 @@ export const makeAssessment = (
   overrides: Partial<z.input<typeof reviewStateSchema>["assessments"][number]> = {},
 ): ReviewState["assessments"][number] =>
   reviewStateSchema.shape.assessments.element.parse({
-    id: "assessment",
+    id: "2c92018b-fcad-5d1e-b25c-1fa6430a57af",
     contactId: "reviewer",
     reviewer: "Sam",
     requestId: null,
@@ -82,7 +82,7 @@ export const makeReviewRequest = (
   overrides: Partial<z.input<typeof reviewStateSchema>["requests"][number]> = {},
 ): ReviewState["requests"][number] =>
   reviewStateSchema.shape.requests.element.parse({
-    id: "request",
+    id: "2c343adf-a49f-50bd-8d8d-6c676aec4bdc",
     contactId: "reviewer",
     reviewer: "Sam",
     applicationVersion: 1,
@@ -115,7 +115,7 @@ export const makeReviewedApplication = (): ApplicationRecord =>
       assessments: [
         makeAssessment(),
         makeAssessment({
-          id: "second-assessment",
+          id: "5610ec59-1988-54b5-800b-3d45b6f9f3d2",
           contactId: "second-reviewer",
           reviewer: "Jules",
         }),

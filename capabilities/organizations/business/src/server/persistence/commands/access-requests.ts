@@ -1,7 +1,8 @@
 import { eq, lt, lte, sql } from "drizzle-orm";
 
+import type { Transaction } from "@merit/db";
+
 import { accessRequests, accessRequestLimits } from "../access-request-schema";
-import type { Transaction } from "../transaction";
 
 export const recordAccessRequest = async (tx: Transaction, email: string, bucket: string) => {
   await tx.delete(accessRequestLimits).where(lte(accessRequestLimits.expiresAt, new Date()));

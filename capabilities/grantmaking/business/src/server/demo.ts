@@ -1,7 +1,7 @@
 import { encodeApplicationMaterial } from "@merit/applications/domain";
 import { recordApplicationChange } from "@merit/applications/server/demo";
 import { seedExampleContacts } from "@merit/contacts/server/demo";
-import type { Database } from "@merit/db";
+import type { Transaction } from "@merit/db";
 import { fromMinorUnits } from "@merit/money";
 import { encodeRound } from "@merit/rounds/domain";
 import { insertPreparedRound } from "@merit/rounds/server/demo";
@@ -11,8 +11,6 @@ import { applicationRecordSchema } from "../domain/model";
 import { exampleRound } from "../examples/example-data";
 import { getExampleRound } from "../examples/get-example-round";
 import { insertExampleApplication, deleteDemoFunding } from "./persistence/commands/demo";
-
-type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
 export const exampleSeedVersion = 1;
 export const fundingExampleAuthor = { id: "merit-example-author", name: exampleRound.manager };

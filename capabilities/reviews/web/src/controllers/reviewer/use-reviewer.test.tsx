@@ -237,7 +237,7 @@ it("opens submitted work for reading, then closes, resumes, or discards an amend
     const submitted = { ...page.draft!.content };
     page.assignment.status = "submitted";
     page.assessment = {
-      id: "assessment",
+      id: "2c92018b-fcad-5d1e-b25c-1fa6430a57af",
       contactId: "sam",
       requestId: page.assignment.requestId,
       previousId: null,

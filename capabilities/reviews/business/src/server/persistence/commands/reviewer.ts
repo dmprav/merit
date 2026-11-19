@@ -4,7 +4,7 @@ import { applicationCases } from "@merit/applications/schema";
 import { caseWithdrawn } from "@merit/applications/scope";
 import { recordAuditEvent } from "@merit/audit/server/record";
 import { actorProvenance, type Actor } from "@merit/auth";
-import type { Database } from "@merit/db";
+import type { Database, Transaction } from "@merit/db";
 import { lockGrantActor } from "@merit/organizations/locks";
 import { organizations } from "@merit/organizations/schema";
 import { authorizedWorkspaces } from "@merit/organizations/scope";
@@ -22,14 +22,12 @@ import {
 } from "../reviewer-schema";
 import { reviewRequests, reviewStates } from "../schema";
 
-export type ReviewerTransaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
-
 /**
  * Canonical grant-work lock hierarchy:
  * organizations -> funding_rounds -> application_cases -> review_assignments -> memberships / app_users.
  * Match grant command lock order so cancellation, submissions, and material edits serialize.
  */
-export const lockReviewerAssignment = async (tx: ReviewerTransaction, id: string) => {
+export const lockReviewerAssignment = async (tx: Transaction, id: string) => {
   const [target] = await tx
     .select({
       organizationId: reviewAssignments.organizationId,
@@ -78,7 +76,7 @@ export const lockReviewerAssignment = async (tx: ReviewerTransaction, id: string
 };
 
 const lockManagedAssignmentRound = async (
-  tx: ReviewerTransaction,
+  tx: Transaction,
   workspaceId: string,
   input: { publicId: string; assignmentId: string },
 ) => {
@@ -114,7 +112,7 @@ const lockManagedAssignmentRound = async (
 };
 
 const lockManagedCaseAndActor = async (
-  tx: ReviewerTransaction,
+  tx: Transaction,
   userId: string,
   workspaceId: string,
   input: { publicId: string; assignmentId: string },
@@ -157,7 +155,7 @@ const lockManagedCaseAndActor = async (
  * in one pass for manager actions on a reviewer assignment.
  */
 export const lockManagedReviewerAssignment = async (
-  tx: ReviewerTransaction,
+  tx: Transaction,
   userId: string,
   input: { workspaceSlug: string; publicId: string; assignmentId: string },
 ) => {
@@ -177,11 +175,7 @@ export const lockManagedReviewerAssignment = async (
   return record ? { record, actor } : null;
 };
 
-export const reviewerReceipt = async (
-  tx: ReviewerTransaction,
-  assignmentId: string,
-  commandId: string,
-) =>
+export const reviewerReceipt = async (tx: Transaction, assignmentId: string, commandId: string) =>
   (
     await tx
       .select()
@@ -206,7 +200,7 @@ const reviewerActions = {
 } as const;
 
 export const recordReviewerEvent = async (
-  tx: ReviewerTransaction,
+  tx: Transaction,
   input: {
     assignmentId: string;
     actor: Actor;
@@ -249,7 +243,7 @@ export const recordReviewerEvent = async (
 };
 
 export const recordReviewerReceipt = (
-  tx: ReviewerTransaction,
+  tx: Transaction,
   input: { assignmentId: string; commandId: string; revision: number },
 ) =>
   tx.insert(reviewerCommandReceipts).values({
@@ -258,11 +252,7 @@ export const recordReviewerReceipt = (
     resultRevision: input.revision,
   });
 
-const invitationLimited = async (
-  tx: ReviewerTransaction,
-  organizationId: string,
-  email: string,
-) => {
+const invitationLimited = async (tx: Transaction, organizationId: string, email: string) => {
   const [counts] = await tx
     .select({
       recent: sql<number>`count(*) filter (where ${reviewerMessages.createdAt} > now() - interval '1 minute' and ${reviewerMessages.recipient} = ${email})::int`,
@@ -283,7 +273,7 @@ const invitationLimited = async (
 
 /** The quota covers initial invitations and resends across every case in the workspace. */
 export const queueReviewerInvitation = async (
-  tx: ReviewerTransaction,
+  tx: Transaction,
   message: { organizationId: string; assignmentId: string; commandId: string; email: string },
   prepareAssignment: () => Promise<unknown>,
 ) => {
@@ -304,7 +294,7 @@ export const queueReviewerInvitation = async (
 };
 
 export const queueSubmissionMessage = async (
-  tx: ReviewerTransaction,
+  tx: Transaction,
   assignmentId: string,
   id: string,
   recipient: string,
@@ -328,13 +318,13 @@ export const finishReviewerMessage = (
   db.execute(sql`select public.merit_finish_reviewer_message(${id}, ${deliveryToken}, ${status})`);
 
 export const updateReviewerAssignment = (
-  tx: ReviewerTransaction,
+  tx: Transaction,
   id: string,
   changes: Partial<typeof reviewAssignments.$inferInsert>,
 ) => tx.update(reviewAssignments).set(changes).where(eq(reviewAssignments.id, id));
 
 const writeDraftObservations = async (
-  tx: ReviewerTransaction,
+  tx: Transaction,
   assignmentId: string,
   observations: ReviewerDraft["observations"],
 ) => {
@@ -355,7 +345,7 @@ const writeDraftObservations = async (
 };
 
 export const writeReviewerDraft = async (
-  tx: ReviewerTransaction,
+  tx: Transaction,
   id: string,
   changes: {
     content: ReviewerDraft;
@@ -380,7 +370,7 @@ export const writeReviewerDraft = async (
 };
 
 export const updateParticipatingRequest = async (
-  tx: ReviewerTransaction,
+  tx: Transaction,
   caseId: string,
   requestId: string,
   status: "outstanding" | "received" | "cancelled",
@@ -412,7 +402,7 @@ export const updateParticipatingRequest = async (
 };
 
 export const createReviewerAssignment = async (
-  tx: ReviewerTransaction,
+  tx: Transaction,
   values: typeof reviewAssignments.$inferInsert,
   draft: ReviewerDraft,
 ) => {
@@ -437,11 +427,7 @@ export const createReviewerAssignment = async (
   }
 };
 
-export const assignmentForRequest = async (
-  tx: ReviewerTransaction,
-  caseId: string,
-  requestId: string,
-) =>
+export const assignmentForRequest = async (tx: Transaction, caseId: string, requestId: string) =>
   (
     await tx
       .select()
@@ -450,7 +436,7 @@ export const assignmentForRequest = async (
   )[0];
 
 export const cancelParticipatingRequest = async (
-  tx: ReviewerTransaction,
+  tx: Transaction,
   caseId: string,
   requestId: string,
   actor: Actor,

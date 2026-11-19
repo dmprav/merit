@@ -4,15 +4,16 @@ import { applicationCases } from "@merit/applications/schema";
 import { activeCase } from "@merit/applications/scope";
 import type { ApplicationWork } from "@merit/applications/server/grant-work";
 import { recommendationVersions } from "@merit/recommendations/schema";
-import { reviewRequests, assessments } from "@merit/reviews/schema";
+import { hasRecommendation } from "@merit/recommendations/scope";
+import { hasReviewActivity } from "@merit/reviews/scope";
 import { closeReviewsForWithdrawal } from "@merit/reviews/server/integrations";
 
 export const applicationWork: ApplicationWork = {
   usage: async (tx, organizationId, caseId) => {
     const [row] = await tx
       .select({
-        hasReviews: sql<boolean>`exists(select 1 from ${reviewRequests} where ${reviewRequests.caseId} = ${caseId}) or exists(select 1 from ${assessments} where ${assessments.caseId} = ${caseId})`,
-        hasRecommendation: sql<boolean>`exists(select 1 from ${recommendationVersions} where ${recommendationVersions.caseId} = ${caseId})`,
+        hasReviews: hasReviewActivity(caseId),
+        hasRecommendation: hasRecommendation(caseId),
       })
       .from(applicationCases)
       .where(

@@ -1,11 +1,3 @@
-.prose {
-  font-size: var(--text-reading);
-  line-height: var(--leading-reading);
-  max-width: var(--measure-reading);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
 .meta {
   color: var(--muted);
   font-size: var(--text-caption);
@@ -37,11 +29,6 @@
   font-size: var(--text-detail);
 }
 
-.judgmentBody .prose {
-  font-size: var(--text-detail);
-  line-height: 1.6;
-}
-
 .judgmentSummary {
   display: flex;
   flex-wrap: wrap;
@@ -57,14 +44,4 @@
   color: var(--muted);
   font-size: var(--text-caption);
   font-weight: 400;
-}
-
-.recommendationSummary {
-  display: grid;
-  gap: var(--space-1);
-  padding-block: var(--space-4);
-}
-
-.recommendationSummary > h2 {
-  margin-bottom: var(--space-3);
 }

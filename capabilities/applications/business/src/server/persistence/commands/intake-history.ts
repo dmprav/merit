@@ -2,12 +2,10 @@ import { and, eq } from "drizzle-orm";
 
 import { recordAuditEvent } from "@merit/audit/server/record";
 import { actorProvenance, type Actor, type Provenance } from "@merit/auth";
-import type { Database } from "@merit/db";
+import type { Transaction } from "@merit/db";
 
 import { encodeApplicationHistory, type IntakeSnapshot } from "../history-encoding";
 import { applicationCreationReceipts } from "../schema";
-
-type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
 export const intakeCreationReceipt = async (
   db: Transaction,

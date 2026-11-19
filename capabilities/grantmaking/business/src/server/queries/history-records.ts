@@ -1,5 +1,4 @@
-import { encodeIntakeApplication } from "@merit/applications/domain";
-import { decodeApplicationHistory } from "@merit/applications/history";
+import { applicationHistorySchema } from "@merit/applications/history";
 import { readAuditHistory } from "@merit/audit/server/read";
 import type { Database } from "@merit/db";
 import { moneyDataSchema } from "@merit/money";
@@ -30,7 +29,7 @@ export const readApplicationHistory = async (
   });
 
   const historical = (value: unknown) =>
-    value == null ? null : encodeIntakeApplication(decodeApplicationHistory(value).application);
+    value == null ? null : applicationHistorySchema.parse(value).application;
 
   return {
     ...result,

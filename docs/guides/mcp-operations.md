@@ -32,7 +32,6 @@ Resource metadata is served at
 `/.well-known/oauth-protected-resource/mcp/workspace`. It advertises the exact
 resource, configured issuer, and supported scopes. A signed-out request to
 `/mcp/workspace` receives an authentication challenge and no workspace data.
-The removed `/mcp` endpoint returns 404.
 
 With a provisioned user, discover a workspace, read an application, and save a
 recommendation with fictional data. Verify the result and client provenance in the

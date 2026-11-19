@@ -1,5 +1,4 @@
 import { createServerFn } from "@tanstack/react-start";
-import { setResponseHeader } from "@tanstack/react-start/server";
 
 import {
   applicationRequestSchema,
@@ -21,7 +20,6 @@ import {
 export const readFundingRounds = createServerFn({ method: "GET" })
   .validator(workspaceSlugSchema)
   .handler(async ({ data, context }) => {
-    setResponseHeader("Cache-Control", "private, no-store");
     const result = await loadFundingRounds(data, {
       listRounds: context.grantmaking.listRounds,
       currentIdentity: context.currentIdentity,
@@ -34,7 +32,6 @@ export const readFundingRounds = createServerFn({ method: "GET" })
 export const readFundingRoundPage = createServerFn({ method: "GET" })
   .validator(publicRoundRequestSchema)
   .handler(async ({ data, context }) => {
-    setResponseHeader("Cache-Control", "private, no-store");
     const result = await loadFundingRoundPage(data, {
       readRoundPage: context.grantmaking.readRoundPage,
       currentIdentity: context.currentIdentity,
@@ -45,7 +42,6 @@ export const readFundingRoundPage = createServerFn({ method: "GET" })
 export const readFundingApplicationPage = createServerFn({ method: "GET" })
   .validator(applicationRequestSchema)
   .handler(async ({ data, context }) => {
-    setResponseHeader("Cache-Control", "private, no-store");
     const result = await loadFundingApplicationPage(data, {
       readApplicationPage: context.grantmaking.readApplicationPage,
       currentIdentity: context.currentIdentity,
@@ -56,7 +52,6 @@ export const readFundingApplicationPage = createServerFn({ method: "GET" })
 export const readWorkspaceApplications = createServerFn({ method: "POST" })
   .validator(workspaceApplicationsInput)
   .handler(async ({ data, context }) => {
-    setResponseHeader("Cache-Control", "private, no-store");
     return loadWorkspaceApplications(data, {
       listWorkspaceApplications: context.grantmaking.listWorkspaceApplications,
       currentIdentity: context.currentIdentity,

@@ -197,8 +197,8 @@ separate allowances and that changing a client-supplied forwarding header leaves
 the allowance unchanged.
 
 Set `MERIT_BASE_URL` to the deployed origin and run `vp run @merit/app#smoke`.
-It checks the public pages, removal of anonymous MCP, and that signed-out requests expose
-no workspace data. Check live Clerk sign-in and protected MCP separately with a
+It checks public pages, 404 recovery, and workspace MCP authentication. It also verifies
+that signed-out requests expose no workspace data. Check live Clerk sign-in and protected MCP separately with a
 provisioned user: the permitted workspace should load and other organizations
 should remain inaccessible. In a workspace with fictional data, save a manager
 recommendation and reload the page to verify that the change persists through

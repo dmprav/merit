@@ -14,6 +14,11 @@ import {
 } from "./index";
 
 const contactId = "60000000-0000-4000-8000-000000000001";
+const requestId = "2c343adf-a49f-50bd-8d8d-6c676aec4bdc";
+const assessmentId = "2c92018b-fcad-5d1e-b25c-1fa6430a57af";
+const replacementId = "ed39f29d-ef84-57c4-94e1-ae1d14b81159";
+const laterId = "71dcd929-d373-5e94-baae-743ccd51f7f6";
+const originalId = "8d523318-2362-5ec6-b35e-9506e07da441";
 const criteria = [{ id: "fd95f96c-1270-51c5-a64f-5649f25186d9", title: "Fit" }];
 const context = {
   contact: { id: contactId, name: "Sam", archived: false },
@@ -32,10 +37,10 @@ const content = {
   reasoning: "Strong demand, venue remains uncertain.",
   observations: [],
 };
-const request: ReviewChange = { action: "request", id: "request", contactId, replacesId: null };
+const request: ReviewChange = { action: "request", id: requestId, contactId, replacesId: null };
 const record: ReviewChange = {
   action: "record",
-  id: "assessment",
+  id: assessmentId,
   contactId,
   requestId: null,
   previousId: null,
@@ -177,7 +182,7 @@ describe("recording reviews", () => {
       expect(
         prepareReviewChange(
           source,
-          { ...request, id: "replacement", replacesId: request.id },
+          { ...request, id: replacementId, replacesId: request.id },
           context,
         ),
       ).toEqual({ ok: false, error: "request_unavailable" });
@@ -191,7 +196,7 @@ describe("recording reviews", () => {
     expect(
       prepareReviewChange(
         source,
-        { action: "edit", id: "missing", content, note: "Correction" },
+        { action: "edit", id: crypto.randomUUID(), content, note: "Correction" },
         context,
       ),
     ).toEqual({ ok: false, error: "assessment_unavailable" });
@@ -285,12 +290,12 @@ describe("recording reviews", () => {
     const source = apply(emptyReviews(), record);
     const later = { ...content, applicationVersion: materialVersionSchema.parse(2) };
 
-    const state = apply(source, { ...record, id: "later", previousId: record.id, content: later });
+    const state = apply(source, { ...record, id: laterId, previousId: record.id, content: later });
 
     expect(state.assessments).toEqual([
       source.assessments[0],
       {
-        id: "later",
+        id: laterId,
         contactId,
         reviewer: "Sam",
         requestId: null,
@@ -318,7 +323,7 @@ describe("recording reviews", () => {
     { name: "", archived: false },
     { name: "   ", archived: false },
   ])("rejects an ineligible reviewer: %j", (contact) => {
-    const request: ReviewChange = { action: "request", id: "request", contactId, replacesId: null };
+    const request: ReviewChange = { action: "request", id: requestId, contactId, replacesId: null };
 
     expect(
       prepareReviewChange(emptyReviews(), request, {
@@ -329,10 +334,12 @@ describe("recording reviews", () => {
   });
 
   it("rejects a second outstanding request for the same reviewer", () => {
-    const request: ReviewChange = { action: "request", id: "request", contactId, replacesId: null };
+    const request: ReviewChange = { action: "request", id: requestId, contactId, replacesId: null };
     const state = apply(emptyReviews(), request);
 
-    expect(prepareReviewChange(state, { ...request, id: "duplicate" }, context)).toMatchObject({
+    expect(
+      prepareReviewChange(state, { ...request, id: crypto.randomUUID() }, context),
+    ).toMatchObject({
       ok: false,
       error: "already_requested",
     });
@@ -367,7 +374,7 @@ describe("recording reviews", () => {
     (field, error) => {
       const source = apply(emptyReviews(), {
         action: "record",
-        id: "assessment",
+        id: assessmentId,
         contactId,
         requestId: null,
         previousId: null,
@@ -380,7 +387,7 @@ describe("recording reviews", () => {
           source,
           {
             action: "edit",
-            id: "assessment",
+            id: assessmentId,
             content: { ...content, [field]: 99 },
             note: "Correction",
           },
@@ -394,7 +401,7 @@ describe("recording reviews", () => {
   it("does not fulfil another reviewer's request when recording an assessment", () => {
     const source = apply(emptyReviews(), {
       action: "request",
-      id: "request",
+      id: requestId,
       contactId,
       replacesId: null,
     });
@@ -406,9 +413,9 @@ describe("recording reviews", () => {
         source,
         {
           action: "record",
-          id: "assessment",
+          id: assessmentId,
           contactId: other.id,
-          requestId: "request",
+          requestId,
           previousId: null,
           content,
         },
@@ -421,7 +428,7 @@ describe("recording reviews", () => {
   it("requires a follow-up to refer to the reviewer's latest judgment", () => {
     const original = apply(emptyReviews(), {
       action: "record",
-      id: "original",
+      id: originalId,
       contactId,
       requestId: null,
       previousId: null,
@@ -429,10 +436,10 @@ describe("recording reviews", () => {
     });
     const source = apply(original, {
       action: "record",
-      id: "latest",
+      id: crypto.randomUUID(),
       contactId,
       requestId: null,
-      previousId: "original",
+      previousId: originalId,
       content: { ...content, reasoning: "Venue is now confirmed." },
     });
     const before = structuredClone(source);
@@ -442,10 +449,10 @@ describe("recording reviews", () => {
         source,
         {
           action: "record",
-          id: "follow-up",
+          id: crypto.randomUUID(),
           contactId,
           requestId: null,
-          previousId: "original",
+          previousId: originalId,
           content,
         },
         context,
@@ -457,7 +464,7 @@ describe("recording reviews", () => {
   it("replaces unfinished work without transferring an earlier assessment to the new reviewer", () => {
     const recorded = apply(emptyReviews(), {
       action: "record",
-      id: "assessment",
+      id: assessmentId,
       contactId,
       requestId: null,
       previousId: null,
@@ -465,7 +472,7 @@ describe("recording reviews", () => {
     });
     const source = apply(recorded, {
       action: "request",
-      id: "request",
+      id: requestId,
       contactId,
       replacesId: null,
     });
@@ -475,9 +482,9 @@ describe("recording reviews", () => {
       source,
       {
         action: "request",
-        id: "replacement",
+        id: replacementId,
         contactId: replacement.id,
-        replacesId: "request",
+        replacesId: requestId,
       },
       { ...context, contact: replacement },
     );
@@ -488,7 +495,7 @@ describe("recording reviews", () => {
     }
     expect(result.state.requests).toEqual([
       { ...source.requests[0], status: "cancelled", closedBy: context.recorder },
-      { ...source.requests[0], id: "replacement", contactId: replacement.id, reviewer: "Jules" },
+      { ...source.requests[0], id: replacementId, contactId: replacement.id, reviewer: "Jules" },
     ]);
     expect(result.state.assessments).toEqual(recorded.assessments);
     expect(result.state.revision).toBe(source.revision + 1);

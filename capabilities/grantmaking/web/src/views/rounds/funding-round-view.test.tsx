@@ -66,7 +66,7 @@ const makeRoundWithReviewStates = () =>
             assessments: [makeAssessment()],
             requests: [
               makeReviewRequest({
-                id: "pending",
+                id: "d3ab8fdf-929e-5c8f-87df-4d6a2b5e79f7",
                 contactId: "jules",
                 reviewer: "Jules",
                 applicationVersion: 2,
@@ -389,7 +389,13 @@ const makeRoundWithWithdrawal = () => {
         reviews: {
           revision: reviewRevisionSchema.parse(1),
           assessments: [],
-          requests: [makeReviewRequest({ id: "closed", contactId: "sam", reviewer: "Sam" })],
+          requests: [
+            makeReviewRequest({
+              id: "1498ff95-9a6a-516a-9b85-e197ccc2e409",
+              contactId: "sam",
+              reviewer: "Sam",
+            }),
+          ],
         },
       },
     ],

@@ -1,5 +1,5 @@
 import type { Actor } from "@merit/auth";
-import type { Database } from "@merit/db";
+import type { Database, Transaction } from "@merit/db";
 
 import {
   lockDemoUser,
@@ -12,8 +12,6 @@ import {
 } from "./persistence/commands/demo";
 import { currentDemo, expiredDemos, hasMembership, type Demo } from "./persistence/demo";
 import { readScoped, writeScoped, writeWorkspace } from "./persistence/tenant";
-
-type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
 const lifetime = 7 * 24 * 60 * 60 * 1000;
 

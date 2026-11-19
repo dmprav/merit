@@ -1,5 +1,4 @@
 import { createServerFn } from "@tanstack/react-start";
-import { setResponseHeader } from "@tanstack/react-start/server";
 
 import { workspaceActivityInput } from "@merit/grantmaking/api";
 
@@ -9,7 +8,6 @@ import { loadWorkspaceActivity } from "./funding-round.server";
 export const readWorkspaceActivity = createServerFn({ method: "POST" })
   .validator(workspaceActivityInput)
   .handler(async ({ data, context }) => {
-    setResponseHeader("Cache-Control", "private, no-store");
     return loadWorkspaceActivity(data, {
       listWorkspaceActivity: context.grantmaking.listWorkspaceActivity,
       currentIdentity: context.currentIdentity,

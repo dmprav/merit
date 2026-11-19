@@ -30,7 +30,7 @@ const application = (id: string, allocation: bigint): ApplicationRecord =>
 const recommendationRound = () => {
   const selected = application("selected", 2000n);
   selected.reviews.assessments.push({
-    id: "assessment",
+    id: "2c92018b-fcad-5d1e-b25c-1fa6430a57af",
     contactId: "reviewer",
     reviewer: "Sam",
     requestId: null,

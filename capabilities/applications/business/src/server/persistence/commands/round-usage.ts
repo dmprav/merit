@@ -1,10 +1,8 @@
 import { and, eq } from "drizzle-orm";
 
-import type { Database } from "@merit/db";
+import type { Transaction } from "@merit/db";
 
 import { applicationCases } from "../schema";
-
-type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
 export const roundHasApplications = async (
   tx: Transaction,

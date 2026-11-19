@@ -128,35 +128,12 @@ const SearchSession = ({
     ) : undefined;
   const failedAlone = search.status === "failed" && !items.length;
   const feedback = failedAlone ? undefined : searchFeedback(search, t, retry);
-  const message = failedAlone ? (
-    <StateMessage
-      size="compact"
-      tone="danger"
-      illustration={<Icon name="warning" />}
-      title={t("search.unavailable")}
-      description={t("search.unavailableHint")}
-      actions={retry}
-    />
-  ) : !items.length && search.status === "results" ? (
-    <StateMessage
-      size="compact"
-      illustration={<Icon name="search" />}
-      title={t("search.noMatches", { query: search.query })}
-      description={t("search.noMatchesHint")}
-      actions={
-        <Button
-          variant="secondary"
-          size="small"
-          onPress={() => {
-            search.onChange("");
-            input.current?.focus();
-          }}
-        >
-          {t("search.clear")}
-        </Button>
-      }
-    />
-  ) : undefined;
+  const message = items.length
+    ? undefined
+    : searchMessage(search, t, retry, () => {
+        search.onChange("");
+        input.current?.focus();
+      });
   const announcement = searchAnnouncement(search, local.length, t);
 
   return (
@@ -185,6 +162,43 @@ const SearchSession = ({
       onEscape={close}
     />
   );
+};
+
+/** The message that replaces an empty result list after a search fails or finds nothing. */
+const searchMessage = (
+  search: ReturnType<typeof useWorkspaceSearch>,
+  t: Translate,
+  retry: ReactNode,
+  clear: () => void,
+) => {
+  if (search.status === "failed") {
+    return (
+      <StateMessage
+        size="compact"
+        tone="danger"
+        illustration={<Icon name="warning" />}
+        title={t("search.unavailable")}
+        description={t("search.unavailableHint")}
+        actions={retry}
+      />
+    );
+  }
+  if (search.status === "results") {
+    return (
+      <StateMessage
+        size="compact"
+        illustration={<Icon name="search" />}
+        title={t("search.noMatches", { query: search.query })}
+        description={t("search.noMatchesHint")}
+        actions={
+          <Button variant="secondary" size="small" onPress={clear}>
+            {t("search.clear")}
+          </Button>
+        }
+      />
+    );
+  }
+  return undefined;
 };
 
 const searchFeedback = (

@@ -36,7 +36,7 @@ it.each(["dev", "preview"] as const)(
           : await (await createServer({ server: binding })).listen();
       const traceId = "4bf92f3577b34da6a3ce929d0e0e4736";
       try {
-        const response = await fetch(new URL("/mcp", server.resolvedUrls!.local[0]), {
+        const response = await fetch(new URL("/not-a-route", server.resolvedUrls!.local[0]), {
           headers: { traceparent: `00-${traceId}-00f067aa0ba902b7-01`, tracestate: "checkly=true" },
         });
         expect(response.status).toBe(404);

@@ -104,12 +104,12 @@ const registerApplicationReadingTools = (
     {
       ...read,
       description:
-        "List current assessments and outstanding review requests in stable ID order with server-derived freshness and basisComparison. Comparisons distinguish application version, criteria version, and criteria content as same, different, or unknown. Freshness uses application version and criteria content; an intervening criteria revision alone does not make an assessment outdated. Follow nextCursor. Read a selected assessment or review_request through get_application_content using entryId; its history and provenance remain accessible. Use list_application_reviewers for assignment revisions and email delivery status.",
+        "List current assessments and outstanding review requests in kind and UUID order with server-derived freshness and basisComparison. Comparisons distinguish application version, criteria version, and criteria content as same, different, or unknown. Freshness uses application version and criteria content; an intervening criteria revision alone does not make an assessment outdated. Follow nextCursor. Read a selected assessment or review_request through get_application_content using entryId; its history and provenance remain accessible. Use list_application_reviewers for assignment revisions and email delivery status.",
       inputSchema: reviewListInput,
       outputSchema: z.object({
         status: z.literal("ok"),
         reviews: z.array(reviewSummarySchema),
-        nextCursor: z.string().nullable(),
+        nextCursor: reviewListInput.shape.after.unwrap().nullable(),
       }),
     },
     (input) => grantmaking.listReviews(actor, input),

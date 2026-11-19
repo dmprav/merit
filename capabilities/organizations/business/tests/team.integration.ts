@@ -58,7 +58,7 @@ const memberRequest = async (name: string) => {
     ...input,
     userId: member.userId,
     expectedMembershipId: member.membershipId,
-    expectedVersion: member.version,
+    expectedMembershipVersion: member.version,
     expectedInvitationIds: data.invitations
       .filter((i) => i.invitedBy === member.userId)
       .map((i) => i.id),
@@ -400,7 +400,7 @@ describe("organization team", () => {
       value: {
         userId: "owner",
         membershipId: request.expectedMembershipId,
-        membershipVersion: request.expectedVersion + 1,
+        membershipVersion: request.expectedMembershipVersion + 1,
         removed: false,
       },
     });
@@ -634,7 +634,7 @@ describe("organization team", () => {
 
     expect(results.map((result) => result.status).sort()).toEqual(["conflict", "ok"]);
     const member = (await team()).members.find((m) => m.userId === "admin");
-    expect(member?.version).toBe(request.expectedVersion + 1);
+    expect(member?.version).toBe(request.expectedMembershipVersion + 1);
   });
 
   it("revokes invitations an administrator issued when they are demoted", async () => {
@@ -899,7 +899,10 @@ it("leaves membership and audit unchanged when access is saved unchanged", async
       { userId: "owner" },
       { ...request, role: "program_manager", administration: "none" },
     ),
-  ).toMatchObject({ status: "ok", value: { membershipVersion: request.expectedVersion } });
+  ).toMatchObject({
+    status: "ok",
+    value: { membershipVersion: request.expectedMembershipVersion },
+  });
   expect(await team()).toEqual(before);
   expect((await database.client.query("SELECT * FROM audit_events ORDER BY id")).rows).toEqual(
     events,
