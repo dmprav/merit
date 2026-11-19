@@ -66,6 +66,10 @@ component props, draft types, and reconciliation helpers stay with their owner.
 
 ## Bind data and reuse a feature
 
+The [Start host](../../app/src/start.ts) marks server-function responses private
+and disables caching. Each interface declares the HTTP method and input validator
+and resolves the actor for authenticated operations.
+
 The capability data layer owns normalization, query/cache behavior, cancellation,
 cache updates, and invalidation through an explicit transport contract. The product
 interface binds that contract to Start functions and supplies its actual query

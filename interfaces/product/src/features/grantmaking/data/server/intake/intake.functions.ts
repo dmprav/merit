@@ -1,14 +1,12 @@
 import { createServerFn } from "@tanstack/react-start";
-import { setResponseHeader } from "@tanstack/react-start/server";
 
 import { editApplicationRequestSchema } from "@merit/applications/api";
 import { withActor } from "@merit/auth/request";
 
 export const editApplication = createServerFn({ method: "POST" })
   .validator(editApplicationRequestSchema)
-  .handler(async ({ data, context }) => {
-    setResponseHeader("Cache-Control", "private, no-store");
-    return withActor(context.currentIdentity, (actor) =>
+  .handler(async ({ data, context }) =>
+    withActor(context.currentIdentity, (actor) =>
       context.applications.editApplication(actor, data),
-    );
-  });
+    ),
+  );

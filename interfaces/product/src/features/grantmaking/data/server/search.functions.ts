@@ -1,5 +1,4 @@
 import { createServerFn } from "@tanstack/react-start";
-import { setResponseHeader } from "@tanstack/react-start/server";
 
 import { workspaceSearchInput } from "@merit/grantmaking/api";
 
@@ -9,7 +8,6 @@ import { loadWorkspaceSearch } from "./funding-round.server";
 export const searchWorkspace = createServerFn({ method: "POST" })
   .validator(workspaceSearchInput)
   .handler(async ({ data, context }) => {
-    setResponseHeader("Cache-Control", "private, no-store");
     return loadWorkspaceSearch(data, {
       searchWorkspace: context.grantmaking.searchWorkspace,
       currentIdentity: context.currentIdentity,

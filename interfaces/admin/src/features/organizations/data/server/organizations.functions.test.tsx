@@ -14,7 +14,6 @@ vi.mock("@tanstack/react-start", () => ({
     return builder;
   },
 }));
-vi.mock("@tanstack/react-start/server", () => ({ setResponseHeader: vi.fn() }));
 
 // Invoke handlers directly while keeping the production server-function transport out of the test.
 const list = listOrganizations as unknown as (request: {
