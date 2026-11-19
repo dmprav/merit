@@ -14,14 +14,6 @@ const meta = {
     children: "Confirm the revised budget before making a recommendation.",
   },
   argTypes: { tone: { control: "select", options: ["neutral", "success", "warning", "danger"] } },
-  parameters: {
-    docs: {
-      description: {
-        component:
-          'Notice provides persistent feedback beside the work it concerns. Choose neutral for information, success for a completed action, warning for something needing attention, and danger for a failure. Every notice states its tone. State the meaning and next step in text; color is supplementary. Keep short messages to one sentence. Every tone shows an icon. By default the message sits on a light tinted surface so it stands apart from nearby content; use appearance=inline for quiet icon-and-text feedback inside a task surface. Use title and actions for structured recovery feedback, as="div" for paragraphs, or as="ul" for a list. Notice spaces direct blocks; use Inline for a wrapping action group. Tone controls appearance only: callers choose role and aria-live when an update needs announcing. Use StatusMessage for transient confirmations.',
-      },
-    },
-  },
 } satisfies Meta<typeof Notice>;
 
 export default meta;

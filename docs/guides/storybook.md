@@ -126,6 +126,13 @@ from grantmaking's testing fixture: it applies the shell scrolling contract with
 Avoid copying shell CSS classes or setting a separate preview height. Examples own their landmarks, so
 shell stories must not acquire another `main`.
 
+Set a shared component suite's `component` to the exported component, with
+related exports as `subcomponents`, so its name, description, and props reach
+the docs. Keep a controlled value in the story's `render` with `useState` rather
+than in a separate wrapper, so examples show the component's actual usage.
+Suites that demonstrate a composition, such as `Patterns/Form dialog`, can keep
+a scenario harness as their component.
+
 Expose Controls only when changing an arg updates the example. Disable controls
 for initial fixture data and state owned by an interactive harness. Keep callbacks
 observable with `fn()` where they are part of the demonstrated interaction.

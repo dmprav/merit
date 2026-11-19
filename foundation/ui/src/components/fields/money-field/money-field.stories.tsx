@@ -1,14 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useState, type ComponentProps } from "react";
+import { useState } from "react";
 import { fn } from "storybook/test";
 
 import styles from "../field.stories.module.css";
 import { MoneyField } from "./money-field";
-
-const EditableAmount = (props: ComponentProps<typeof MoneyField>) => {
-  const [value, setValue] = useState(props.value);
-  return <MoneyField {...props} value={value} onChange={setValue} />;
-};
 
 const meta = {
   title: "Components/Money field",
@@ -27,7 +22,21 @@ const meta = {
       </div>
     ),
   ],
-  render: (args) => <EditableAmount {...args} />,
+  // The story owns the draft; `value` only sets where it starts.
+  argTypes: { value: { control: false } },
+  render: function Render(args) {
+    const [value, setValue] = useState(args.value);
+    return (
+      <MoneyField
+        {...args}
+        value={value}
+        onChange={(next) => {
+          setValue(next);
+          args.onChange(next);
+        }}
+      />
+    );
+  },
 } satisfies Meta<typeof MoneyField>;
 
 export default meta;

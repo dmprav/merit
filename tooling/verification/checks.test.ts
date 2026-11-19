@@ -285,7 +285,7 @@ it.each([
 it("adds CSS rule and media spacing and catches invalid CSS without rejecting CSS Modules", async () => {
   const configFile = join(root, "stylelint.config.mjs");
   const code =
-    ".one { color: red; }\n.two { color: blue; }\n@media (width > 600px) {\n  :global(.control) { color: green; }\n}\n";
+    ".one { color: var(--foreground); }\n.two { color: var(--muted); }\n@media (width > 600px) {\n  :global(.control) { color: var(--action); }\n}\n";
   const fixed = await stylelint.lint({
     code,
     codeFilename: "probe.module.css",
@@ -318,6 +318,25 @@ it("adds CSS rule and media spacing and catches invalid CSS without rejecting CS
   expect(invalid.results.flatMap(({ warnings }) => warnings.map(({ rule }) => rule))).toEqual(
     expect.arrayContaining(["property-no-unknown", "color-no-invalid-hex"]),
   );
+});
+
+it("requires colors from tokens outside the token file", async () => {
+  const configFile = join(root, "stylelint.config.mjs");
+  const code =
+    ".one { color: #fff; background: rgb(0 0 0); border-color: white; }\n\n.two { outline-color: color-mix(in srgb, var(--foreground) 10%, transparent); }\n\n.three { caret-color: color(srgb 1 0 0); }\n";
+
+  const rules = async (codeFilename: string) =>
+    (await stylelint.lint({ code, codeFilename, configFile })).results.flatMap(({ warnings }) =>
+      warnings.map(({ rule }) => rule),
+    );
+
+  expect((await rules("probe.module.css")).toSorted()).toEqual([
+    "color-named",
+    "color-no-hex",
+    "function-disallowed-list",
+    "function-disallowed-list",
+  ]);
+  expect(await rules(join(root, "foundation/ui/src/foundations/tokens.css"))).toEqual([]);
 });
 
 it.each([

@@ -285,6 +285,8 @@ test(
     const add = page.getByRole("button", { name: "Add contact", exact: true });
     await search.fill("Leah");
     await page.keyboard.press("Escape");
+    // The filter popover blocks the page until its exit motion ends.
+    await expect(page.getByRole("dialog")).toHaveCount(0);
     await actions.click();
     await page.getByRole("menuitem", { name: "Archive", exact: true }).click();
 
@@ -298,7 +300,11 @@ test(
     await page.getByRole("button", { name: "Filter", exact: true }).click();
     await page.getByRole("button", { name: /Status/ }).click();
     await page.getByRole("option", { name: "Archived", exact: true }).click();
+    // Escape would close the still-closing list instead of the filter popover.
+    await expect(page.getByRole("listbox")).toHaveCount(0);
     await page.keyboard.press("Escape");
+    // The filter popover blocks the page until its exit motion ends.
+    await expect(page.getByRole("dialog")).toHaveCount(0);
     await actions.click();
     await page.getByRole("menuitem", { name: "Restore", exact: true }).click();
 

@@ -58,6 +58,11 @@ const TooltipOverlayGuard = () => {
   return null;
 };
 
+/**
+ * Answer a brief, optional question about a control that keeps its own clear label. The child must
+ * be a focusable React Aria control, or a link with `customTrigger`; `content` is plain text. Keep
+ * requirements, consequences, and recovery visible beside the task instead.
+ */
 export const Tooltip = ({
   children,
   content,

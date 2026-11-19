@@ -35,6 +35,15 @@ export type SelectProps<Id extends string> = Pick<
     actions?: readonly { id: string; label: string; onAction: () => void }[];
   };
 
+/**
+ * Use Select to choose a field value; the owning form or editing pattern determines when that value
+ * is saved. Give unfamiliar options a short description so people can compare meanings before
+ * selecting; the closed control retains just the label. The selected option keeps its tint and
+ * checkmark while keyboard focus uses the shared side marker. Long menus scroll with related
+ * actions in a separate footer. Use real links for destinations and ActionMenu for commands. See
+ * [control selection](?path=/docs/overview--docs#choose-controls-by-outcome) for the related
+ * patterns.
+ */
 export const Select = <Id extends string>({
   label,
   description,
