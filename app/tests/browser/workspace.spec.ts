@@ -256,9 +256,11 @@ test(
 
     await competing.getByRole("button", { name: "Save recommendation", exact: true }).click();
 
-    await expect(competing.getByRole("alert")).toContainText(
-      "This application or recommendation has changed.",
-    );
+    await expect(
+      competing
+        .getByRole("alert")
+        .filter({ hasText: "This application or recommendation has changed." }),
+    ).toBeVisible();
     await expect(competing.getByRole("textbox", { name: /Reasoning/ })).toHaveValue(
       "A competing draft must survive.",
     );

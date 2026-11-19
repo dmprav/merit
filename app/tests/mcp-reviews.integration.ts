@@ -225,23 +225,56 @@ it.for([
   "expectedApplicationVersion",
   "expectedCriteriaVersion",
 ] as const)(
-  "rejects a review with a mismatched %s without recording it",
+  "rejects request_review with a mismatched %s without recording it",
   async (version, { commands: { invoke }, reviewScenario }) => {
     const scenario = await reviewScenario();
     const args = await scenario.args();
     const before = await scenario.read();
 
     expect(
-      await invoke("record_assessment", {
+      await invoke("request_review", {
         ...args,
         [version]: args[version] + 1,
         id: randomUUID(),
         contactId: scenario.contactId,
-        requestId: null,
-        previousId: null,
-        content: scenario.content,
+        replacesId: null,
       }),
     ).toEqual({ status: "conflict" });
     expect(await scenario.read()).toEqual(before);
   },
 );
+
+it("records an assessment despite moved global versions and rejects stale target revisions", async ({
+  commands: { invoke },
+  reviewScenario,
+}) => {
+  const scenario = await reviewScenario();
+  const args = await scenario.args();
+  const firstId = randomUUID();
+
+  expect(
+    await invoke("record_assessment", {
+      ...args,
+      expectedApplicationVersion: args.expectedApplicationVersion + 1,
+      expectedCriteriaVersion: args.expectedCriteriaVersion + 1,
+      id: firstId,
+      contactId: scenario.contactId,
+      requestId: null,
+      previousId: null,
+      content: scenario.content,
+    }),
+  ).toEqual({ status: "ok", applicationId: args.applicationId, reviewRevision: 1 });
+
+  const afterFirst = await scenario.read();
+  expect(
+    await invoke("record_assessment", {
+      ...args,
+      id: randomUUID(),
+      contactId: scenario.contactId,
+      requestId: null,
+      previousId: null,
+      content: scenario.content,
+    }),
+  ).toEqual({ status: "conflict" });
+  expect(await scenario.read()).toEqual(afterFirst);
+});

@@ -142,17 +142,19 @@ test("record, complete, recommend, and revise an application without a budget", 
   await colleague.close();
   await dialog.getByRole("button", { name: "Save", exact: true }).click();
 
-  const conflict = page.getByRole("region", { name: "Review conflicting changes" });
+  const conflict = dialog
+    .getByRole("alert")
+    .filter({ hasText: "This application changed while you were editing" });
   await expect(conflict).toBeVisible();
-  await expect(dialog).not.toBeVisible();
-  await expect(conflict.getByRole("region", { name: "Latest saved values" })).toBeVisible();
-  await expect(
-    conflict
-      .getByRole("region", { name: "Your unsaved changes" })
-      .getByText("Weekly shared meals for local residents.", { exact: true }),
-  ).toBeVisible();
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Save", exact: true })).toBeDisabled();
+  await conflict.getByRole("button", { name: "View latest", exact: true }).click();
+  await expect(dialog.getByRole("region", { name: "Latest saved values" })).toBeVisible();
+  await expect(dialog.getByRole("textbox", { name: "Applicant’s response" })).toHaveValue(
+    "Weekly shared meals for local residents.",
+  );
 
-  await conflict.getByRole("button", { name: "Keep my changes" }).click();
+  await conflict.getByRole("button", { name: "Keep my changes", exact: true }).click();
 
   await expect(conflict).not.toBeVisible();
 

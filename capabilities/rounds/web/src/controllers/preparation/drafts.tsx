@@ -8,6 +8,8 @@ import { preparationStorage } from "./storage";
 export const DraftContext = createContext<{
   ready: boolean;
   edits: Record<string, PreparationDraft | undefined>;
+  conflicts: ReadonlySet<string>;
+  resolveConflict: (key: string, choice: "keep" | "use_stored") => void;
   setEdit: (key: string, draft: PreparationDraft | undefined) => void;
 } | null>(null);
 
@@ -18,6 +20,8 @@ export const usePreparationDraftStore = (storageScope?: string) => {
     storageUnavailable: unavailable,
     ready,
     status,
+    conflicts,
+    resolveConflict,
   } = useDrafts(storageScope, "rounds", {
     version: 1,
     schema: preparationStorage,
@@ -31,10 +35,12 @@ export const usePreparationDraftStore = (storageScope?: string) => {
       () => ({
         ready,
         edits: drafts,
+        conflicts,
+        resolveConflict,
         setEdit: (key: string, draft: PreparationDraft | undefined) =>
           setDrafts((current) => ({ ...current, [key]: draft })),
       }),
-      [drafts, setDrafts, ready],
+      [drafts, setDrafts, ready, conflicts, resolveConflict],
     ),
   };
 };

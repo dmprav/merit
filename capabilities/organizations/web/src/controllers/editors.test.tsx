@@ -129,3 +129,37 @@ it("gates invitation conflict checks on revoking issued invitations and supports
   expect(result.current.memberEditor(member).conflict).toBe(false);
   expect(result.current.memberEditor(member).draftReset).toBe(1);
 });
+
+it("surfaces and resolves draft-store key conflicts in memberEditor", () => {
+  const member = teamFixture.members[1]!;
+  const key = `${teamFixture.organization.slug}/${member.userId}`;
+  const resolveConflict = vi.fn();
+  const drafts = {
+    [key]: {
+      value: { administration: member.administration, role: "reviewer" as const },
+      expectedMembershipId: member.membershipId,
+      expectedVersion: member.version,
+      expectedInvitationIds: [],
+    },
+  };
+  ready = true;
+  vi.mocked(useDrafts).mockImplementation(() => ({
+    drafts,
+    ready: true,
+    status: "conflict",
+    storageUnavailable: true,
+    conflicts: new Set([key]),
+    update,
+    resolveConflict,
+  }));
+
+  const { result } = show();
+  expect(result.current.memberEditor(member).conflict).toBe(true);
+
+  act(() => result.current.memberEditor(member).onKeepDraft());
+  expect(resolveConflict).toHaveBeenCalledWith(key, "keep");
+
+  act(() => result.current.memberEditor(member).onLoadLatest());
+  expect(resolveConflict).toHaveBeenCalledWith(key, "use_stored");
+  expect(result.current.memberEditor(member).draftReset).toBe(1);
+});

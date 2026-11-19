@@ -29,6 +29,8 @@ const setup = (
           value={{
             ready: true,
             drafts,
+            conflicts: new Set(),
+            resolveConflict: vi.fn(),
             setDraft,
             clearDrafts: vi.fn(),
           }}
@@ -162,5 +164,45 @@ it("classifies basis_changed vs record_changed conflicts and supports keepDraft 
   act(() => result.current.loadLatest());
   expect(result.current.conflict).toBeNull();
   expect(result.current.draft).toBeUndefined();
+  expect(result.current.draftReset).toBe(1);
+});
+
+it("surfaces draft-store key conflicts and calls resolveConflict for resolution actions", () => {
+  const resolveConflict = vi.fn();
+  const setDraft = vi.fn();
+  const save = vi.fn<RecommendationData["save"]>();
+
+  const { result } = renderHook(
+    () => useRecommendation("application", application, { revision: 5, disabled: false, save }),
+    {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <DraftContext
+          value={{
+            ready: true,
+            drafts: {
+              application: {
+                value: draft,
+                baseline: { expectedRevision: 5, expectedApplicationVersion: application.version },
+              },
+            },
+            conflicts: new Set(["application"]),
+            resolveConflict,
+            setDraft,
+            clearDrafts: vi.fn(),
+          }}
+        >
+          {children}
+        </DraftContext>
+      ),
+    },
+  );
+
+  expect(result.current.conflict).toBe("record_changed");
+
+  act(() => result.current.keepDraft());
+  expect(resolveConflict).toHaveBeenCalledWith("application", "keep");
+
+  act(() => result.current.loadLatest());
+  expect(resolveConflict).toHaveBeenCalledWith("application", "use_stored");
   expect(result.current.draftReset).toBe(1);
 });

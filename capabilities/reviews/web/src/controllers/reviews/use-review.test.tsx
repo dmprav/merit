@@ -197,3 +197,103 @@ it("preserves a committed request through a failed refresh and retries only the 
   expect(result.current.saved).toBe(1);
   expect(data.save).toHaveBeenCalledOnce();
 });
+
+it("flags a conflict for a null-requestId draft when a matching request is created and skips reviewer-authored edit targets", () => {
+  const round = makeRound();
+  const baseApp = applicationView(
+    makeApplication({ version: 2, reviews: { revision: 1, requests: [], assessments: [] } }),
+  );
+  const client = createQueryClient();
+  let edits: Record<string, unknown> = {
+    application: {
+      mode: "record",
+      id: crypto.randomUUID(),
+      revision: 1,
+      applicationVersion: 2,
+      criteriaVersion: round.criteriaVersion,
+      requestId: null,
+      previousId: null,
+      values: {
+        contactId: "sam",
+        applicationVersion: 2,
+        criteriaVersion: round.criteriaVersion,
+        date: null,
+        position: "Fund",
+        amount: "100",
+        reasoning: "Local notes",
+        observations: [],
+        note: "",
+      },
+    },
+  };
+  const setReviewEdit = vi.fn((_key: string, next: unknown) => {
+    edits = { application: next };
+  });
+
+  const { result, rerender } = renderHook(
+    (app: ReturnType<typeof applicationView>) =>
+      useReview({
+        application: app,
+        round,
+        data: { draftKey: "application", workspaceSlug: "alder", save: vi.fn(), refresh: vi.fn() },
+      }),
+    {
+      initialProps: baseApp,
+      wrapper: ({ children }) => (
+        <QueryClientProvider client={client}>
+          <DraftContext
+            value={{
+              ready: true,
+              reviewEdits: edits as Record<string, never>,
+              setReviewEdit: setReviewEdit as never,
+            }}
+          >
+            {children}
+          </DraftContext>
+        </QueryClientProvider>
+      ),
+    },
+  );
+
+  expect(result.current.conflict).toBe(false);
+
+  const withRequest = applicationView(
+    makeApplication({
+      version: 2,
+      reviews: {
+        revision: 2,
+        requests: [
+          {
+            id: crypto.randomUUID(),
+            contactId: "sam",
+            reviewer: "Sam",
+            applicationVersion: materialVersionSchema.parse(2),
+            criteriaVersion: round.criteriaVersion,
+            criteria: round.criteria,
+            status: "outstanding",
+            recorder: null,
+            closedBy: null,
+          },
+        ],
+        assessments: [],
+      },
+    }),
+  );
+  rerender(withRequest);
+  expect(result.current.conflict).toBe(true);
+
+  const authoredAssessment = makeAssessment({
+    id: crypto.randomUUID(),
+    contactId: "sam",
+    authorUserId: "sam-user",
+  });
+  const withAuthored = applicationView(
+    makeApplication({
+      version: 2,
+      reviews: { revision: 3, requests: [], assessments: [authoredAssessment] },
+    }),
+  );
+  rerender(withAuthored);
+  act(() => result.current.loadLatest());
+  expect(setReviewEdit).toHaveBeenLastCalledWith("application", undefined);
+});

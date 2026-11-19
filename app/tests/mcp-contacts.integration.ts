@@ -107,15 +107,23 @@ it("rejects a stale contact update without changing the current profile", async 
     fundingRoundContactUsage,
   );
   assert(changed.status === "ok");
-  const before = await getContactDetails(db, actor, { workspaceSlug: "alder", contactId });
-
   expect(
     await invoke("update_contact", {
       workspaceSlug: "alder",
       contactId,
+      details: { ...details, name: "Latest name" },
+    }),
+  ).toMatchObject({ status: "ok", contact: { name: "Latest name", revision: 2 } });
+
+  const latest = await getContactDetails(db, actor, { workspaceSlug: "alder", contactId });
+  expect(latest).toMatchObject({ status: "ok", contact: { name: "Latest name", revision: 2 } });
+
+  expect(
+    await invoke("archive_contact", {
+      workspaceSlug: "alder",
+      contactId,
       expectedContactRevision: 0,
-      details: { ...details, name: "Stale name" },
     }),
   ).toEqual({ status: "conflict" });
-  expect(await getContactDetails(db, actor, { workspaceSlug: "alder", contactId })).toEqual(before);
+  expect(await getContactDetails(db, actor, { workspaceSlug: "alder", contactId })).toEqual(latest);
 });

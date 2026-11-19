@@ -185,8 +185,8 @@ const updateProfile = (connection: Database, data: Fixture) =>
     {
       workspaceSlug,
       contactId: data.contact.id,
-      action: "archive",
-      expectedContactRevision: data.contact.revision,
+      action: "update",
+      details: { name: "Updated contact", email: "sam@example.test", affiliation: "" },
     },
     fundingRoundContactUsage,
   );
@@ -294,6 +294,14 @@ it("serializes competing Tier 1 contact selections and applies the later choice"
   await commit();
 
   expect(await competing).toMatchObject({ status: "ok" });
+  expect(
+    (
+      await getFundingApplicationPage(db, actor, {
+        workspaceSlug,
+        publicId: data.applicationId,
+      })
+    )?.application.contactId,
+  ).toBeNull();
 });
 
 it("deletes an empty round while another round has an uncommitted edit", async () => {

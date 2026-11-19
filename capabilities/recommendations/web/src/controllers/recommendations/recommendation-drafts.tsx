@@ -10,6 +10,8 @@ type Draft = { value: RecommendationDraft; baseline: RecommendationBaseline };
 export const DraftContext = createContext<{
   ready: boolean;
   drafts: Record<string, Draft | undefined>;
+  conflicts: ReadonlySet<string>;
+  resolveConflict: (key: string, choice: "keep" | "use_stored") => void;
   setDraft: (
     key: string,
     value: RecommendationDraft | undefined,
@@ -26,6 +28,8 @@ export const useRecommendationDraftStore = (storageScope?: string) => {
     storageUnavailable: unavailable,
     ready,
     status,
+    conflicts,
+    resolveConflict,
   } = useDrafts(storageScope, "recommendations", { version: 1, schema: recommendationStorage });
 
   return {
@@ -36,6 +40,8 @@ export const useRecommendationDraftStore = (storageScope?: string) => {
       () => ({
         ready,
         drafts,
+        conflicts,
+        resolveConflict,
         setDraft: (
           key: string,
           value: RecommendationDraft | undefined,
@@ -53,7 +59,7 @@ export const useRecommendationDraftStore = (storageScope?: string) => {
           })),
         clearDrafts: () => setDrafts(() => ({})),
       }),
-      [drafts, setDrafts, ready],
+      [drafts, setDrafts, ready, conflicts, resolveConflict],
     ),
   };
 };

@@ -112,7 +112,7 @@ export const hasPreparationSectionConflict = (draft: PreparationDraft, round: Ed
     const before = comparable(draft.baseline, field);
     const saved = comparable(latest.baseline, field);
     const mine = comparable({ ...draft.baseline, ...draft.value }, field);
-    return saved !== before && mine !== saved;
+    return saved !== before && mine !== before && mine !== saved;
   });
 };
 

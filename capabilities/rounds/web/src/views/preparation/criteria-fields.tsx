@@ -36,7 +36,7 @@ export const CriteriaFields = ({ form, isSubmitting }: CriteriaFieldsProps) => {
               className={styles.criterion}
             >
               <legend>{t("preparation.criterion", { number: index + 1 })}</legend>
-              <CriterionInputs form={form} index={index} />
+              <CriterionInputs form={form} index={index} isReadOnly={isSubmitting} />
               <div className={styles.actions}>
                 <Button
                   size="small"
@@ -107,7 +107,8 @@ export const CriteriaFields = ({ form, isSubmitting }: CriteriaFieldsProps) => {
 const CriterionInputs = ({
   form,
   index,
-}: Pick<CriteriaFieldsProps, "form"> & { index: number }) => {
+  isReadOnly = false,
+}: Pick<CriteriaFieldsProps, "form"> & { index: number; isReadOnly?: boolean }) => {
   const { t } = useTranslation("roundPreparation");
   return (
     <>
@@ -118,6 +119,7 @@ const CriterionInputs = ({
             label={t("preparation.criterionTitle")}
             autoFocus={index === 0}
             isRequired
+            isReadOnly={isReadOnly}
             maxLength={roundPreparationLimits.criterionTitleLength}
           />
         )}
@@ -129,6 +131,7 @@ const CriterionInputs = ({
             label={t("preparation.guidance")}
             multiline
             rows={3}
+            isReadOnly={isReadOnly}
             maxLength={roundPreparationLimits.criterionDescriptionLength}
           />
         )}

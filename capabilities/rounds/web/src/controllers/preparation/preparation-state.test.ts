@@ -115,6 +115,15 @@ describe("detecting collisions against a newer saved round", () => {
     });
   });
 
+  it("does not flag a collision when the author has not changed their field yet", () => {
+    const round = roundView(makeRound({ purpose: "Original purpose" }));
+    const draft = preparationDraft("purpose", round, 0);
+
+    expect(hasPreparationSectionConflict(draft, { ...round, purpose: "Updated elsewhere" })).toBe(
+      false,
+    );
+  });
+
   it("does not flag a collision when a colleague saved the same value", () => {
     const round = roundView(makeRound({ purpose: "Original purpose" }));
     const draft = { ...preparationDraft("purpose", round, 0), value: { purpose: "Agreed" } };

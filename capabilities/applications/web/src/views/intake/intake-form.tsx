@@ -81,19 +81,26 @@ const useEditorForm = <S extends IntakeSection>(
   });
 };
 
-const retainedDraftText = (draft: IntakeDraft, reason: string) => {
+const retainedDraftText = (draft: IntakeDraft, reason: string, noContactLabel: string) => {
   const parts: string[] = [];
   switch (draft.section) {
     case "title":
       parts.push(draft.value.title);
       break;
-    case "metadata":
+    case "metadata": {
+      const contact =
+        draft.value.contactId === null
+          ? noContactLabel
+          : draft.value.contactId
+            ? draft.value.contactId
+            : undefined;
       parts.push(
-        [draft.value.applicant, draft.value.requested, draft.value.projectPeriod]
+        [draft.value.applicant, draft.value.requested, draft.value.projectPeriod, contact]
           .filter(Boolean)
           .join("\n"),
       );
       break;
+    }
     case "content":
       parts.push(
         draft.value.answers
@@ -120,7 +127,7 @@ const RetainedIntakeNotice = ({
   editor: EditorProps["editor"];
   onClose: () => void;
 }) => {
-  const { t } = useTranslation("applicationIntake");
+  const { t } = useTranslation(["applicationIntake", "contacts"]);
   if (!editor.draft) {
     return null;
   }
@@ -128,7 +135,7 @@ const RetainedIntakeNotice = ({
     <RetainedDraftNotice
       title={t("intake.retainedTitle")}
       message={t("intake.revisionUnavailable")}
-      textToCopy={retainedDraftText(editor.draft, editor.reason)}
+      textToCopy={retainedDraftText(editor.draft, editor.reason, t("contacts:noContact"))}
       isDisabled={editor.pending}
       onDiscard={() => {
         editor.discard();

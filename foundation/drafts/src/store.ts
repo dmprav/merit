@@ -1,4 +1,4 @@
-import type { DraftPersistence, DraftWrite, DraftWriteResult } from "./persistence";
+import type { DraftPersistence, DraftRecovery, DraftWrite, DraftWriteResult } from "./persistence";
 import type { DraftSnapshot, DraftStatus, DraftValues } from "./types";
 
 type Lifecycle =
@@ -25,6 +25,7 @@ export class DraftStore<T> {
   };
   private pending = Promise.resolve();
   private listeners = new Set<() => void>();
+  private keyRevisions = new Map<string, number>();
 
   constructor(persistence?: DraftPersistence<T>) {
     this.persistence = persistence;
@@ -153,6 +154,9 @@ export class DraftStore<T> {
     if (!changes.length) {
       return;
     }
+    for (const { key } of changes) {
+      this.keyRevisions.set(key, (this.keyRevisions.get(key) ?? 0) + 1);
+    }
     this.lifecycle.pendingWrites += 1;
     this.pending = this.pending.then(() => this.persist(changes));
     this.publish(next);
@@ -230,12 +234,48 @@ export class DraftStore<T> {
     if (!this.persistence) {
       return;
     }
+    const revision = this.keyRevisions.get(key) ?? 0;
     this.lifecycle.pendingWrites += 1;
-    this.pending = this.pending.then(() => this.applyConflictResolution(key, choice));
+    this.pending = this.pending.then(() => this.applyConflictResolution(key, choice, revision));
     this.publish();
   };
 
-  private async applyConflictResolution(key: string, choice: "keep" | "use_stored") {
+  private async commitConflictChoice(
+    persistence: DraftPersistence<T>,
+    key: string,
+    choice: "keep" | "use_stored",
+    latest: DraftRecovery<T>,
+    latestToken: string | undefined,
+    revision: number,
+  ) {
+    this.recovery.failures.delete(key);
+    this.recovery.incompatible.delete(key);
+    if ((this.keyRevisions.get(key) ?? 0) !== revision) {
+      return;
+    }
+    if (choice === "use_stored") {
+      if (latest.incompatible.has(key)) {
+        this.recovery.incompatible.add(key);
+        this.recovery.failures.set(key, "unavailable");
+      } else {
+        this.publish({ ...this.snapshot.drafts, [key]: latest.drafts[key] });
+      }
+      return;
+    }
+    const currentValue = this.snapshot.drafts[key];
+    const result = await persistence.write(this.recovery.epoch, [
+      { key, value: currentValue, token: latestToken },
+    ]);
+    if (!this.isCleared()) {
+      this.acceptWrite([{ key, value: currentValue }], result);
+    }
+  }
+
+  private async applyConflictResolution(
+    key: string,
+    choice: "keep" | "use_stored",
+    revision: number,
+  ) {
     if (this.isCleared() || !this.persistence) {
       return;
     }
@@ -244,25 +284,18 @@ export class DraftStore<T> {
       if (this.isCleared()) {
         return;
       }
-      this.recovery.epoch = latest.epoch;
+      if (this.recovery.epoch && latest.epoch !== this.recovery.epoch) {
+        this.invalidate();
+        return;
+      }
+      this.recovery.epoch ??= latest.epoch;
       const latestToken = latest.tokens.get(key);
       if (latestToken === undefined) {
         this.recovery.tokens.delete(key);
       } else {
         this.recovery.tokens.set(key, latestToken);
       }
-      this.recovery.failures.delete(key);
-      if (choice === "use_stored") {
-        this.publish({ ...this.snapshot.drafts, [key]: latest.drafts[key] });
-      } else {
-        const currentValue = this.snapshot.drafts[key];
-        const result = await this.persistence.write(this.recovery.epoch, [
-          { key, value: currentValue, token: latestToken },
-        ]);
-        if (!this.isCleared()) {
-          this.acceptWrite([{ key, value: currentValue }], result);
-        }
-      }
+      await this.commitConflictChoice(this.persistence, key, choice, latest, latestToken, revision);
     } catch {
       if (!this.isCleared()) {
         this.recovery.failures.set(key, "unavailable");

@@ -34,6 +34,7 @@ type FormProps = {
   beforeFields?: ReactNode;
   afterFields?: ReactNode;
   isConflict?: boolean;
+  isPending?: boolean;
   budgetPreviouslySet?: boolean;
 };
 
@@ -69,6 +70,7 @@ const PreparationFrame = ({
   beforeFields,
   afterFields,
   isConflict,
+  isPending = false,
 }: FormProps & {
   submission: ComponentProps<typeof Form>["submission"];
   children: ReactNode;
@@ -97,7 +99,7 @@ const PreparationFrame = ({
             draft.section === "budget" ? "preparation.updateBudget" : "preparation.save",
           )}
           submittingLabel={t("editor.saving")}
-          isSubmitDisabled={!hasPreparationChanges(draft) || isConflict}
+          isSubmitDisabled={!hasPreparationChanges(draft) || isConflict || isPending}
         />
       }
     >
@@ -135,6 +137,7 @@ const PurposeForm = (props: SectionProps<"purpose">) => {
             multiline
             rows={10}
             autoFocus
+            isReadOnly={submission.isSubmitting || props.isPending}
             maxLength={roundPreparationLimits.purposeLength}
           />
         )}
@@ -175,7 +178,10 @@ const CriteriaForm = (props: SectionProps<"criteria">) => {
 
   return (
     <PreparationFrame {...props} submission={submission}>
-      <CriteriaFields form={form} isSubmitting={submission.isSubmitting} />
+      <CriteriaFields
+        form={form}
+        isSubmitting={submission.isSubmitting || Boolean(props.isPending)}
+      />
     </PreparationFrame>
   );
 };
@@ -238,6 +244,7 @@ const BudgetForm = (props: SectionProps<"budget">) => {
               }}
               inputMode="decimal"
               autoFocus
+              isReadOnly={submission.isSubmitting || props.isPending}
               placeholder={t("preparation.notSet")}
             />
           )}
@@ -261,6 +268,7 @@ const BudgetForm = (props: SectionProps<"budget">) => {
                       multiline
                       rows={3}
                       isRequired={reasonRequired}
+                      isReadOnly={submission.isSubmitting || props.isPending}
                       maxLength={roundPreparationLimits.budgetReasonLength}
                     />
                   )}

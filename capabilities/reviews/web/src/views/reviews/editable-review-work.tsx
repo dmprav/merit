@@ -496,15 +496,24 @@ const ReviewEditor = ({
     );
   }
   if (missingTarget) {
+    const reviewer = state.assessments.find((item) => item.id === draft.id)?.reviewer;
+    const retainedText = retainedReviewText(draft.values, reviewer);
     return (
       <DialogContent label={t("retainedTitle")}>
         <RetainedDraftNotice
           title={t("retainedTitle")}
           message={t("assessmentUnavailable")}
-          textToCopy={retainedReviewText(draft.values)}
+          textToCopy={retainedText}
           isDisabled={saving}
           onDiscard={discard}
-        />
+        >
+          {retainedText
+            .split("\n\n")
+            .filter(Boolean)
+            .map((block, index) => (
+              <p key={index}>{block}</p>
+            ))}
+        </RetainedDraftNotice>
       </DialogContent>
     );
   }
@@ -541,15 +550,21 @@ const ReviewEditor = ({
   );
 };
 
-const retainedReviewText = (values: ReviewFormValues) =>
+const retainedReviewText = (values: ReviewFormValues, reviewer?: string) =>
   [
+    reviewer,
+    values.date,
+    values.position,
+    values.amount,
+    values.applicationVersion !== null ? `Application v${values.applicationVersion}` : null,
+    values.criteriaVersion !== null ? `Criteria v${values.criteriaVersion}` : null,
     values.reasoning,
     ...values.observations
       .filter((item) => item.text.trim())
       .map((item) => `${item.criterion}\n${item.text}`),
     values.note,
   ]
-    .filter((part) => part.trim())
+    .filter((part): part is string => Boolean(part?.trim()))
     .join("\n\n");
 
 const ReviewConflictBanner = ({

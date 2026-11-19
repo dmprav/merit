@@ -640,3 +640,28 @@ it("keeps the recommendation form mounted with ConflictBanner for basis shift an
   await user.click(screen.getByRole("button", { name: "Discard & load latest" }));
   expect(onLoadLatest).toHaveBeenCalledOnce();
 });
+
+it("blocks Mod+Enter form submission while a conflict is active", async () => {
+  const user = userEvent.setup();
+  const onSave = vi.fn().mockResolvedValue(null);
+  render(
+    <GrantmakingMessagesProvider>
+      <RecommendationEditor
+        application={application}
+        round={round}
+        disabled={false}
+        draft={{ position: "Defer", amount: "", reasoning: "Conflicted draft" }}
+        conflict="record_changed"
+        onDraftChange={vi.fn()}
+        onSave={onSave}
+      />
+    </GrantmakingMessagesProvider>,
+  );
+
+  await user.click(screen.getByRole("button", { name: /Resume editing recommendation for/ }));
+  const reasoning = screen.getByRole("textbox", { name: "Reasoning" });
+  await user.click(reasoning);
+  await user.keyboard("{Control>}{Enter}{/Control}");
+
+  expect(onSave).not.toHaveBeenCalled();
+});

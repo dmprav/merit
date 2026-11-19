@@ -1,4 +1,4 @@
-import { useLayoutEffect, useState } from "react";
+import { useLayoutEffect, useState, type Dispatch, type SetStateAction } from "react";
 import { z } from "zod";
 
 import { permits } from "@merit/access";
@@ -165,6 +165,135 @@ const hasMemberAccessConflict = (
   );
 };
 
+type AccessStore = ReturnType<typeof useDrafts<AccessDraft>>;
+
+const memberConflictActions = ({
+  team,
+  member,
+  draftScopeKey,
+  saved,
+  serverConflict,
+  storeConflict,
+  updateAccess,
+  resolveConflict,
+  setDraftReset,
+  clear,
+}: {
+  team: Team;
+  member: Member;
+  draftScopeKey: string;
+  saved: AccessDraft | undefined;
+  serverConflict: boolean;
+  storeConflict: boolean;
+  updateAccess: AccessStore["update"];
+  resolveConflict: AccessStore["resolveConflict"];
+  setDraftReset: Dispatch<SetStateAction<number>>;
+  clear: () => void;
+}) => ({
+  onKeepDraft: () => {
+    if (!saved) {
+      return;
+    }
+    if (serverConflict) {
+      updateAccess((current) => ({
+        ...current,
+        [draftScopeKey]: { ...memberBaseline(team, member), value: saved.value },
+      }));
+    }
+    if (storeConflict) {
+      resolveConflict(draftScopeKey, "keep");
+    }
+  },
+  onLoadLatest: () => {
+    if (storeConflict) {
+      resolveConflict(draftScopeKey, "use_stored");
+    } else {
+      clear();
+    }
+    setDraftReset((count) => count + 1);
+  },
+});
+
+const buildMemberEditor = ({
+  team,
+  member,
+  draftScopeKey,
+  saved,
+  conflicts,
+  updateAccess,
+  resolveConflict,
+  draftReset,
+  setDraftReset,
+  onChangeMember,
+  onClose,
+}: {
+  team: Team;
+  member: Member;
+  draftScopeKey: string;
+  saved: AccessDraft | undefined;
+  conflicts: ReadonlySet<string>;
+  updateAccess: AccessStore["update"];
+  resolveConflict: AccessStore["resolveConflict"];
+  draftReset: number;
+  setDraftReset: Dispatch<SetStateAction<number>>;
+  onChangeMember: UseTeamEditorsOptions["onChangeMember"];
+  onClose: () => void;
+}) => {
+  const serverConflict = hasMemberAccessConflict(team, member, saved);
+  const storeConflict = conflicts.has(draftScopeKey);
+
+  const clear = () => updateAccess((current) => ({ ...current, [draftScopeKey]: undefined }));
+
+  return {
+    member,
+    team,
+    draftReset,
+    onCancel: onClose,
+    onDiscard: () => {
+      clear();
+      onClose();
+    },
+    draft: saved?.value,
+    conflict: serverConflict || storeConflict,
+    ...memberConflictActions({
+      team,
+      member,
+      draftScopeKey,
+      saved,
+      serverConflict,
+      storeConflict,
+      updateAccess,
+      resolveConflict,
+      setDraftReset,
+      clear,
+    }),
+    onChange: (value: Access) =>
+      updateAccess((current) => {
+        const previous = current[draftScopeKey];
+        const unchanged =
+          (!previous || previous.expectedVersion === member.version) &&
+          value.administration === member.administration &&
+          value.role === member.role;
+        return {
+          ...current,
+          [draftScopeKey]: unchanged
+            ? undefined
+            : { ...(previous ?? memberBaseline(team, member)), value },
+        };
+      }),
+    onSave: async (values: Access) => {
+      const problem = await onChangeMember({
+        ...memberRequest(team, member, saved),
+        ...values,
+      });
+      if (!problem) {
+        clear();
+      }
+      return problem;
+    },
+  };
+};
+
 const useMemberEditors = ({
   team,
   draftScope,
@@ -177,16 +306,13 @@ const useMemberEditors = ({
     storageUnavailable: accessStorageError,
     ready: accessReady,
     status: accessStatus,
+    conflicts: accessConflicts,
+    resolveConflict: resolveAccessConflict,
   } = useDrafts(draftScope, "team-access", { version: 1, schema: accessDraftSchema });
-
+  const [draftReset, setDraftReset] = useState(0);
   const workspaceSlug = team.organization.slug;
 
   const accessKey = (member: Member) => `${workspaceSlug}/${member.userId}`;
-
-  const clearAccess = (member: Member) =>
-    updateAccess((current) => ({ ...current, [accessKey(member)]: undefined }));
-
-  const [draftReset, setDraftReset] = useState(0);
 
   return {
     ready: accessReady,
@@ -194,56 +320,20 @@ const useMemberEditors = ({
     storageError: accessStorageError,
     hasMemberDraft: (member: Member) => Boolean(accessDrafts[accessKey(member)]),
     memberEditor: (member: Member) => {
-      const saved = accessDrafts[accessKey(member)];
-      return {
-        member,
+      const draftScopeKey = accessKey(member);
+      return buildMemberEditor({
         team,
+        member,
+        draftScopeKey,
+        saved: accessDrafts[draftScopeKey],
+        conflicts: accessConflicts,
+        updateAccess,
+        resolveConflict: resolveAccessConflict,
         draftReset,
-        onCancel: onClose,
-        onDiscard: () => {
-          clearAccess(member);
-          onClose();
-        },
-        draft: saved?.value,
-        conflict: hasMemberAccessConflict(team, member, saved),
-        onKeepDraft: () => {
-          if (!saved) {
-            return;
-          }
-          updateAccess((current) => ({
-            ...current,
-            [accessKey(member)]: { ...memberBaseline(team, member), value: saved.value },
-          }));
-        },
-        onLoadLatest: () => {
-          clearAccess(member);
-          setDraftReset((count) => count + 1);
-        },
-        onChange: (value: Access) =>
-          updateAccess((current) => {
-            const previous = current[accessKey(member)];
-            const unchanged =
-              (!previous || previous.expectedVersion === member.version) &&
-              value.administration === member.administration &&
-              value.role === member.role;
-            return {
-              ...current,
-              [accessKey(member)]: unchanged
-                ? undefined
-                : { ...(previous ?? memberBaseline(team, member)), value },
-            };
-          }),
-        onSave: async (values: Access) => {
-          const problem = await onChangeMember({
-            ...memberRequest(team, member, accessDrafts[accessKey(member)]),
-            ...values,
-          });
-          if (!problem) {
-            clearAccess(member);
-          }
-          return problem;
-        },
-      };
+        setDraftReset,
+        onChangeMember,
+        onClose,
+      });
     },
   };
 };

@@ -54,6 +54,12 @@ const hasTargetReviewConflict = (
     if (request && request.status !== "outstanding") {
       return true;
     }
+  } else if (
+    state.requests.some(
+      (item) => item.contactId === draft.values.contactId && item.status === "outstanding",
+    )
+  ) {
+    return true;
   }
   if (draft.previousId === undefined) {
     return true;
@@ -384,7 +390,7 @@ const findLatestReviewDraft = (
     draft.mode === "edit"
       ? application.reviews.assessments.find((item) => item.id === draft.id)
       : application.reviews.assessments.filter((item) => item.contactId === contactId).at(-1);
-  if (!latestAssessment) {
+  if (!latestAssessment || latestAssessment.authorUserId) {
     return null;
   }
   return newReviewDraft(application, baseline.criteriaVersion, pending, {

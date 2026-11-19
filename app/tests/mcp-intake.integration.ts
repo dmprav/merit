@@ -274,19 +274,39 @@ it.for([
   },
 );
 
-it("rejects an edit using a stale intake revision without changing saved work", async ({
+it("applies stale-revision staff summary details and rejects stale content edits", async ({
   commands: { invoke, applicationScenario },
 }) => {
   const scenario = await applicationScenario();
   const stale = await scenario.args();
   await scenario.change({ action: "details", summary: "A colleague's summary" });
-  const before = await scenario.read();
+  const beforeContent = await scenario.read();
 
   expect(
     await invoke("edit_application", {
       ...stale,
-      change: { action: "details", summary: "Stale overwrite" },
+      change: {
+        action: "save_content",
+        content: {
+          title: "Stale overwrite",
+          applicant: "Neighbours",
+          requested: "250.50",
+          answers: beforeContent.application.submission?.answers ?? [],
+        },
+      },
     }),
   ).toEqual({ status: "conflict" });
-  expect(await scenario.read()).toEqual(before);
+  expect(await scenario.read()).toEqual(beforeContent);
+
+  expect(
+    await invoke("edit_application", {
+      ...stale,
+      change: { action: "details", summary: "Latest staff summary" },
+    }),
+  ).toEqual({
+    status: "ok",
+    applicationId: stale.applicationId,
+    intakeRevision: stale.expectedIntakeRevision + 2,
+  });
+  expect((await scenario.read()).application.summary).toBe("Latest staff summary");
 });

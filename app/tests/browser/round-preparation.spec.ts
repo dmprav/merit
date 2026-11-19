@@ -276,7 +276,12 @@ test("create, prepare, reconcile and delete an empty funding round", async ({ pa
 
   await competing.getByRole("button", { name: "Save changes", exact: true }).click();
 
-  await expect(competing.getByText("Latest saved values", { exact: true })).toBeVisible();
+  await expect(
+    competing.getByRole("alert").filter({ hasText: "This round changed while you were editing" }),
+  ).toBeVisible();
+  await expect(competing.getByRole("button", { name: "Save changes", exact: true })).toBeDisabled();
+  await competing.getByRole("button", { name: "View latest", exact: true }).click();
+  await expect(competing.getByRole("region", { name: "Latest saved values" })).toBeVisible();
   await expect(
     competing
       .getByRole("form")
@@ -285,11 +290,8 @@ test("create, prepare, reconcile and delete an empty funding round", async ({ pa
   await expect(competing.getByRole("textbox", { name: "Purpose" })).toHaveValue(
     "A competing purpose draft.",
   );
-  await expect(competing.getByRole("button", { name: "Apply choices to draft" })).toBeDisabled();
 
-  await competing.getByRole("button", { name: /Value to keep for Purpose/ }).click();
-  await competing.getByRole("option", { name: "Keep my value" }).click();
-  await competing.getByRole("button", { name: "Apply choices to draft" }).click();
+  await competing.getByRole("button", { name: "Keep my changes", exact: true }).click();
   await competing.getByRole("button", { name: "Save changes", exact: true }).click();
 
   await expect(competing.getByRole("form", { name: "Edit purpose" })).not.toBeVisible();

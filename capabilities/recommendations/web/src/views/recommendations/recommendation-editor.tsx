@@ -386,6 +386,9 @@ const RecommendationForm = ({
     onChange: onDraftChange,
     submitErrorMessage: t("editor.saveError"),
     onSubmit: async (value) => {
+      if (conflict) {
+        return recommendationSaveError(t, { status: "conflict" });
+      }
       // Form validation does not apply schema transformations to submitted values.
       const failure = await onSave(formSchema.parse(value));
       if (!failure) {

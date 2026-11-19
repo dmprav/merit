@@ -172,7 +172,8 @@ export const RoundEditor = ({
   }
 
   const isConflict =
-    draft.revision !== preparation.revision && hasPreparationSectionConflict(draft, round);
+    preparation.hasKeyConflict(section) ||
+    (draft.revision !== preparation.revision && hasPreparationSectionConflict(draft, round));
 
   return (
     <>
@@ -184,11 +185,12 @@ export const RoundEditor = ({
         )}
       {draft && (
         <PreparationForm
-          key={`${section}/${draft.revision}`}
+          key={`${section}/${draft.revision}/${preparation.draftReset}`}
           draft={draft}
           round={round}
           budgetPreviouslySet={preparation.budgetHistory.length > 0}
           isConflict={isConflict}
+          isPending={preparation.pending}
           beforeFields={
             isConflict && (
               <RoundConflictBanner

@@ -24,10 +24,6 @@ export const changeWorkspaceContact = async (
   }
 
   const request = parsed.data;
-  const expectedRevision =
-    request.action === "archive" || request.action === "restore"
-      ? request.expectedContactRevision
-      : null;
 
   const changeContactTransaction = async (tx: Transaction): Promise<SaveContactResult> => {
     const workspaceMode = request.action === "update" ? "share" : "update";
@@ -42,7 +38,7 @@ export const changeWorkspaceContact = async (
       request.contactId,
       "no key update",
     );
-    const target = resolveContactTarget(request, expectedRevision, before);
+    const target = resolveContactTarget(request, before);
     if ("earlyResult" in target) {
       return target.earlyResult;
     }
@@ -78,7 +74,6 @@ type LockedContact = Awaited<ReturnType<typeof lockContactProfile>>;
 
 const resolveContactTarget = (
   request: ContactCommand,
-  expectedRevision: number | null,
   before: LockedContact,
 ):
   | { earlyResult: SaveContactResult }
@@ -86,16 +81,15 @@ const resolveContactTarget = (
       details: { name: string; email: string; affiliation: string };
       archived: boolean;
     } => {
-  if (expectedRevision === null && before) {
+  if (request.action === "create" && before) {
     return { earlyResult: { status: "ok", contact: before } };
   }
   if (request.action === "update" && !before) {
     return { earlyResult: { status: "not_found" } };
   }
   if (
-    request.action !== "create" &&
-    request.action !== "update" &&
-    (before?.revision ?? null) !== expectedRevision
+    (request.action === "archive" || request.action === "restore") &&
+    (before?.revision ?? null) !== request.expectedContactRevision
   ) {
     return { earlyResult: { status: "conflict" } };
   }

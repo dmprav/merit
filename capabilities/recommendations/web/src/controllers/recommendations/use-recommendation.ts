@@ -17,7 +17,7 @@ export const useRecommendation = (
   application: Application,
   data: RecommendationData,
 ) => {
-  const { drafts, setDraft, ready } = useRecommendationDrafts();
+  const { drafts, conflicts, resolveConflict, setDraft, ready } = useRecommendationDrafts();
   const [saved, setSaved] = useState(0);
   const [draftReset, setDraftReset] = useState(0);
   const draft = drafts[applicationKey];
@@ -25,13 +25,16 @@ export const useRecommendation = (
     expectedRevision: data.revision,
     expectedApplicationVersion: application.version,
   };
-  const conflict: RecommendationConflict | null = draft
+  const storeConflict = conflicts.has(applicationKey);
+  const serverConflict: RecommendationConflict | null = draft
     ? draft.baseline.expectedApplicationVersion !== application.version
       ? "basis_changed"
       : draft.baseline.expectedRevision !== data.revision
         ? "record_changed"
         : null
     : null;
+  const conflict: RecommendationConflict | null =
+    serverConflict ?? (storeConflict ? "record_changed" : null);
 
   const save = async (value: Recommendation): Promise<RecommendationFailure | null> => {
     try {
@@ -56,12 +59,22 @@ export const useRecommendation = (
     updateDraft: (value: RecommendationDraft | undefined) =>
       setDraft(applicationKey, value, baseline),
     keepDraft: () => {
-      if (draft) {
+      if (!draft) {
+        return;
+      }
+      if (serverConflict) {
         setDraft(applicationKey, draft.value, baseline, true);
+      }
+      if (storeConflict) {
+        resolveConflict(applicationKey, "keep");
       }
     },
     loadLatest: () => {
-      setDraft(applicationKey, undefined, baseline, true);
+      if (storeConflict) {
+        resolveConflict(applicationKey, "use_stored");
+      } else {
+        setDraft(applicationKey, undefined, baseline, true);
+      }
       setDraftReset((count) => count + 1);
     },
   };

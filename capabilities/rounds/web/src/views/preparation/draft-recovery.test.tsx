@@ -46,7 +46,13 @@ const show = () => {
     <QueryClientProvider client={client}>
       <GrantmakingMessagesProvider>
         <DraftContext
-          value={{ ready, edits: ready ? { "round/purpose": recovered } : {}, setEdit }}
+          value={{
+            ready,
+            edits: ready ? { "round/purpose": recovered } : {},
+            conflicts: new Set(),
+            resolveConflict: vi.fn(),
+            setEdit,
+          }}
         >
           <RoundPreparation round={round} session={{ data, onDeleted: vi.fn() }}>
             {(content) => (
@@ -121,6 +127,8 @@ const renderController = () => {
   const store = {
     ready: false,
     edits: {} as Record<string, PreparationDraft | undefined>,
+    conflicts: new Set<string>(),
+    resolveConflict: vi.fn(),
     setEdit,
   };
   const hook = renderHook(
