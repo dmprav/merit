@@ -2,9 +2,9 @@ import { eq } from "drizzle-orm";
 
 import { recordAuditEvent } from "@merit/audit/server/record";
 import { actorProvenance, type Actor } from "@merit/auth";
+import type { Transaction } from "@merit/db";
 
 import { contacts } from "../schema";
-import type { Transaction } from "../transaction";
 
 type StoredContact = typeof contacts.$inferSelect;
 

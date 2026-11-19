@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import { Client, Pool } from "pg";
 
@@ -13,7 +14,12 @@ export type RequestDatabase = {
   close: () => Promise<void>;
 };
 
-type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
+export type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
+
+export const allocatePublicId = async (tx: Transaction) => {
+  const result = await tx.execute<{ id: string }>(sql`SELECT merit_public_id() AS id`);
+  return result.rows[0]!.id;
+};
 
 const createClient = (connectionString: string) => {
   const client = new Client({

@@ -1,8 +1,6 @@
 import { recordAuditEvent } from "@merit/audit/server/record";
 import { actorProvenance, type Actor } from "@merit/auth";
-import type { Database } from "@merit/db";
-
-type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
+import type { Transaction } from "@merit/db";
 
 /** One review-request fact: created or cancelled, with the case it belongs to. */
 export const recordReviewRequestEvent = (

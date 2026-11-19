@@ -50,7 +50,6 @@ describe("@merit/telemetry server and Checkly integration", () => {
       surface: "site",
     });
     expect(describeHttpRoute("/docs/mcp")).toEqual({ route: "/docs/mcp", surface: "site" });
-    expect(describeHttpRoute("/mcp")).toEqual({ route: "/mcp", surface: "mcp" });
     expect(describeHttpRoute("/mcp/workspace")).toEqual({
       route: "/mcp/workspace",
       surface: "mcp",

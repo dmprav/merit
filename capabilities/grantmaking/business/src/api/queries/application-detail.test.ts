@@ -85,7 +85,7 @@ it("round-trips selected evidence, review freshness and exact round-wide totals 
             assessments: [makeAssessment()],
             requests: [
               makeReviewRequest({
-                id: "pending",
+                id: "d3ab8fdf-929e-5c8f-87df-4d6a2b5e79f7",
                 contactId: "jules",
                 reviewer: "Jules",
                 applicationVersion: 2,

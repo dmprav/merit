@@ -124,6 +124,10 @@ export const readRoundAllocations = async (
   }));
 };
 
+export const hasRecommendation = (caseId: string) => sql<boolean>`exists (
+  select 1 from ${recommendationVersions} where ${recommendationVersions.caseId} = ${caseId}
+)`;
+
 export const recommendationRevision = sql<number>`coalesce((select max(r.revision) from ${recommendationVersions} r where r.case_id = ${applicationCases.id}), 0)`;
 
 // A missing recorded basis cannot establish a change in the material.

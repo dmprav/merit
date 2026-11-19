@@ -1,4 +1,5 @@
 import type { Actor } from "@merit/auth";
+import type { Transaction } from "@merit/db";
 
 import { hashToken } from "../invitation-token";
 import {
@@ -7,7 +8,6 @@ import {
   readInvitationSendUsage,
   type Invitation,
 } from "../persistence/commands/invitations";
-import type { Transaction } from "../persistence/transaction";
 import { fail } from "../result";
 
 type InvitationRequest = {

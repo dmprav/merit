@@ -44,7 +44,6 @@ export const describeHttpRoute = (pathname: string): RouteDescriptor => {
     return { route: "/docs/mcp", surface: "site" };
   }
   if (
-    pathname === "/mcp" ||
     pathname === "/mcp/workspace" ||
     pathname === "/.well-known/oauth-protected-resource/mcp/workspace"
   ) {

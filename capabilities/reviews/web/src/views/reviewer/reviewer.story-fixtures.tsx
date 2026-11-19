@@ -76,7 +76,7 @@ export const submittedPage = (): ReviewerPage => {
   page.assignment.status = "submitted";
   page.assignment.hasSubmitted = true;
   page.assessment = {
-    id: "assessment-sam",
+    id: "a303a3d5-e812-5530-95d7-3f7b6081d2c5",
     contactId: "sam",
     requestId: page.assignment.requestId,
     previousId: null,

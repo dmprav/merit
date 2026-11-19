@@ -473,7 +473,7 @@ it("resolves live contact details without rewriting applications or history, and
   const previousPage = await read();
   const storedBefore = (
     await database.client.query(
-      "SELECT m.title, m.applicant_organization, m.has_submission, m.requested_minor_units, c.revision FROM application_cases c JOIN material_versions m ON m.case_id=c.id AND m.version=c.material_version WHERE c.id = $1",
+      "SELECT m.title, m.applicant_organization, m.submission_version, m.requested_minor_units, c.revision FROM application_cases c JOIN material_versions m ON m.case_id=c.id AND m.version=c.material_version WHERE c.id = $1",
       [address.publicId],
     )
   ).rows;
@@ -505,7 +505,7 @@ it("resolves live contact details without rewriting applications or history, and
   expect(
     (
       await database.client.query(
-        "SELECT m.title, m.applicant_organization, m.has_submission, m.requested_minor_units, c.revision FROM application_cases c JOIN material_versions m ON m.case_id=c.id AND m.version=c.material_version WHERE c.id = $1",
+        "SELECT m.title, m.applicant_organization, m.submission_version, m.requested_minor_units, c.revision FROM application_cases c JOIN material_versions m ON m.case_id=c.id AND m.version=c.material_version WHERE c.id = $1",
         [address.publicId],
       )
     ).rows,

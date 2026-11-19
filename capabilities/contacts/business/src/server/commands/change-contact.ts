@@ -1,5 +1,5 @@
 import type { Actor } from "@merit/auth";
-import type { Database } from "@merit/db";
+import type { Database, Transaction } from "@merit/db";
 import { lockGrantWorkspace } from "@merit/organizations/locks";
 import { writeWorkspace } from "@merit/organizations/transactions";
 
@@ -11,8 +11,6 @@ import {
 import type { ContactGrantWork } from "../grant-work";
 import { recordContactChange } from "../persistence/commands/contacts";
 import { lockContactProfile } from "../persistence/commands/locks";
-
-type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
 export const changeWorkspaceContact = async (
   db: Database,

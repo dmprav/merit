@@ -9,12 +9,13 @@ import { useFormat } from "@merit/i18n/format";
 import { ActionProvenance } from "@merit/ui/action-provenance";
 import shellStyles from "@merit/ui/application-shell.module.css";
 import { Button } from "@merit/ui/button";
+import judgment from "@merit/ui/judgment.module.css";
 import { PersonIdentity } from "@merit/ui/person-identity";
 import { StatusMessage } from "@merit/ui/status-message";
 
 import type { RecommendationData } from "../../contracts/recommendations";
 import { useRecommendation } from "../../controllers/recommendations/use-recommendation";
-import styles from "../judgment.module.css";
+import styles from "../application-recommendation.module.css";
 import { recommendationPositionKeys } from "./messages";
 import { RecommendationEditor } from "./recommendation-editor";
 
@@ -88,16 +89,16 @@ export const ApplicationRecommendationSummary = ({
   return (
     <section className={styles.recommendationSummary} aria-label={t("applications.recommendation")}>
       <h2>{t("applications.recommendation")}</h2>
-      <div className={styles.judgmentHeader}>
+      <div className={judgment.judgmentHeader}>
         <PersonIdentity
           name={recommendation?.author?.name ?? manager}
-          className={styles.judgmentIdentity}
+          className={judgment.judgmentIdentity}
         />
         {action}
       </div>
       {recommendation ? (
-        <div className={styles.judgmentBody}>
-          <div className={styles.judgmentSummary}>
+        <div className={judgment.judgmentBody}>
+          <div className={judgment.judgmentSummary}>
             <strong>{t(recommendationPositionKeys[recommendation.position])}</strong>
             {recommendation.position !== "Defer" && (
               <span>
@@ -105,7 +106,7 @@ export const ApplicationRecommendationSummary = ({
               </span>
             )}
           </div>
-          <div className={styles.judgmentBasis}>
+          <div className={judgment.judgmentBasis}>
             <span>
               {basis == null
                 ? t("workspace.basisUnknown")
@@ -121,14 +122,14 @@ export const ApplicationRecommendationSummary = ({
           </div>
           <p className={styles.prose}>{recommendation.reasoning}</p>
           {recommendation.recorded && (
-            <span className={styles.meta}>{calendarDate(recommendation.recorded.date)}</span>
+            <span className={judgment.meta}>{calendarDate(recommendation.recorded.date)}</span>
           )}
           {recommendation.author?.provenance && (
             <ActionProvenance value={recommendation.author.provenance} />
           )}
         </div>
       ) : (
-        <p className={styles.meta}>{t("applications.notRecommended")}</p>
+        <p className={judgment.meta}>{t("applications.notRecommended")}</p>
       )}
     </section>
   );

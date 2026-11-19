@@ -1,5 +1,3 @@
-import { fromMinorUnits } from "@merit/money";
-
 import { encodeIntakeApplication } from "../../domain/encoding";
 import type { WorkingRevision } from "../../domain/intake";
 import type { IntakeApplication } from "../../domain/model";
@@ -16,17 +14,3 @@ export const encodeApplicationHistory = (value: IntakeSnapshot) =>
     application: encodeIntakeApplication(value.application),
     workingRevision: value.workingRevision,
   });
-
-export const decodeApplicationHistory = (input: unknown): IntakeSnapshot => {
-  const { application, workingRevision } = applicationHistorySchema.parse(input);
-  return {
-    application: {
-      ...application,
-      requested:
-        application.requested === null
-          ? null
-          : fromMinorUnits(BigInt(application.requested.minorUnits)),
-    },
-    workingRevision,
-  };
-};

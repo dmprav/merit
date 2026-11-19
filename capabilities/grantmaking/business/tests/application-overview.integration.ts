@@ -354,9 +354,9 @@ const addLightApplications = (
       from generate_series(1, 125) n
     `);
     await tx.execute(sql`
-      insert into material_versions (case_id, version, title, applicant_organization, has_submission, submission_version, change_kind, recorded_at)
+      insert into material_versions (case_id, version, title, applicant_organization, submission_version, change_kind, recorded_at)
       select id, 1, search_title, search_applicant,
-        true, 1, 'initial', now()
+        1, 'initial', now()
       from application_cases where round_id = ${roundId} and position > 0
     `);
   });

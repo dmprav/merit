@@ -52,6 +52,14 @@ type DispatchCase = {
   result: unknown;
 };
 
+const membership = {
+  workspaceSlug: "alder",
+  userId: "sam",
+  expectedMembershipId: "00000000-0000-4000-a000-000000000003",
+  expectedMembershipVersion: 3,
+  expectedInvitationIds: [commandId],
+};
+
 const dispatchCases: DispatchCase[] = [
   {
     name: "list_my_reviews",
@@ -181,6 +189,18 @@ const dispatchCases: DispatchCase[] = [
     fn: (o) => o.organizations.membersPage,
     input: { workspaceSlug: "alder", limit: 20 },
     result: { status: "ok", value: { members: [], nextCursor: null } },
+  },
+  {
+    name: "change_member",
+    args: { ...membership, administration: "none", role: "reviewer" },
+    fn: (o) => o.organizations.changeMember,
+    result: { status: "conflict" },
+  },
+  {
+    name: "remove_member",
+    args: membership,
+    fn: (o) => o.organizations.removeMember,
+    result: { status: "conflict" },
   },
   {
     name: "get_navigation_pins",

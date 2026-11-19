@@ -1,8 +1,8 @@
 import type { OrganizationSubject } from "@merit/access";
 import { recordAuditEvent } from "@merit/audit/server/record";
 import { actorProvenance, type Actor } from "@merit/auth";
+import type { Transaction } from "@merit/db";
 
-import type { Transaction } from "../transaction";
 import type { Invitation } from "./invitations";
 
 type Access = Pick<Invitation, "role" | "administration">;

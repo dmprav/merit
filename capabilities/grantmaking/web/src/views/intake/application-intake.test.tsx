@@ -533,7 +533,11 @@ it("preserves a title correction when the committed start cannot refresh", async
 });
 
 const outstandingRequest = (id: string) =>
-  makeReviewRequest({ id, contactId: `contact-${id}`, reviewer: `Reviewer ${id}` });
+  makeReviewRequest({
+    id: crypto.randomUUID(),
+    contactId: `contact-${id}`,
+    reviewer: `Reviewer ${id}`,
+  });
 
 const openWithdrawal = async (user: ReturnType<typeof userEvent.setup>) => {
   await user.click(await screen.findByRole("button", { name: "Application actions" }));

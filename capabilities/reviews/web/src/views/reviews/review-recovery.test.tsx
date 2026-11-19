@@ -16,7 +16,7 @@ const application = makeApplication();
 const round = makeRound();
 const recovered: ReviewDraft = {
   mode: "record",
-  id: "original-review",
+  id: "0c89e45b-4993-5915-97d9-ee3ff4bf5889",
   revision: application.reviews.revision,
   applicationVersion: application.version,
   criteriaVersion: round.criteriaVersion,

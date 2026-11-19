@@ -329,7 +329,7 @@ const revoke = async (connection: Database) => {
       workspaceSlug,
       userId: "dana",
       expectedMembershipId: member.id,
-      expectedVersion: member.version,
+      expectedMembershipVersion: member.version,
       expectedInvitationIds: [],
     },
   );

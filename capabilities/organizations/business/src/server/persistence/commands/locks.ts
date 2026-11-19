@@ -1,10 +1,10 @@
 import { and, eq } from "drizzle-orm";
 
 import { appUsers } from "@merit/auth/schema";
+import type { Transaction } from "@merit/db";
 
 import { organizations, memberships } from "../membership-schema";
 import { organizationScope } from "../scope";
-import type { Transaction } from "../transaction";
 
 /**
  * Canonical grant-work lock hierarchy:

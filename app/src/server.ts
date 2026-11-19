@@ -53,9 +53,6 @@ export default createServerEntry({
           if (url.pathname === "/.well-known/oauth-protected-resource/mcp/workspace") {
             return mcpResourceMetadata(clerkConfig);
           }
-          if (url.pathname === "/mcp") {
-            return new Response("Not found", { status: 404 });
-          }
 
           const requestDatabase = createRequestDatabase(database);
           try {

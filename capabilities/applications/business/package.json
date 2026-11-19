@@ -14,7 +14,7 @@
     "./server/grant-work": "./src/server/grant-work.ts",
     "./server/demo": "./src/server/demo.ts",
     "./server/integrations": "./src/server/integrations.ts",
-    "./history": "./src/server/persistence/history-encoding.ts",
+    "./history": "./src/server/persistence/history-format.ts",
     "./testing/history": "./tests/fixtures/application-history.json"
   },
   "dependencies": {

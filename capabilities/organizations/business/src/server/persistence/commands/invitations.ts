@@ -1,8 +1,9 @@
 import { and, eq, sql } from "drizzle-orm";
 
+import type { Transaction } from "@merit/db";
+
 import { organizations } from "../membership-schema";
 import { invitations } from "../schema";
-import type { Transaction } from "../transaction";
 
 export const lockOrganization = async (tx: Transaction, id: string) => {
   const [row] = await tx.select().from(organizations).where(eq(organizations.id, id)).for("update");

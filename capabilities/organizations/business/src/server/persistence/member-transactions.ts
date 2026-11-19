@@ -1,7 +1,6 @@
-import type { Database } from "@merit/db";
+import type { Database, Transaction } from "@merit/db";
 
 import { readScoped as readTenant, writeScoped as writeTenant, type MemberScope } from "./tenant";
-import type { Transaction } from "./transaction";
 
 export { readWorkspace, writeWorkspace } from "./tenant";
 

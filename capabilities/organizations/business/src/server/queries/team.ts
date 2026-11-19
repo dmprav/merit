@@ -2,13 +2,12 @@ import { z } from "zod";
 
 import { permits } from "@merit/access";
 import { readAuditHistory } from "@merit/audit/server/read";
-import type { Database } from "@merit/db";
+import type { Database, Transaction } from "@merit/db";
 
 import type { Team } from "../../api/queries";
 import * as persistence from "../persistence/queries/team";
 import { missingTeamWorkspace } from "../persistence/team";
 import { readWorkspace } from "../persistence/tenant";
-import type { Transaction } from "../persistence/transaction";
 import { fail } from "../result";
 
 const workspace = async (tx: Transaction, slug: string, actor: string) => {

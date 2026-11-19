@@ -5,7 +5,7 @@ import { decodeApplicationMaterial } from "@merit/applications/domain";
 import { applicationCases, materialVersions } from "@merit/applications/schema";
 import { readMaterialVersionRecord } from "@merit/applications/scope";
 import { appUsers } from "@merit/auth/schema";
-import type { Database } from "@merit/db";
+import type { Database, Transaction } from "@merit/db";
 import { memberships, organizations } from "@merit/organizations/schema";
 import { activeOrganization, authorizedWorkspaces } from "@merit/organizations/scope";
 import { reviewCriteriaSchema } from "@merit/rounds/domain";
@@ -21,8 +21,6 @@ import { reviewStateSchema } from "../../domain/reviews";
 import { readAssessmentRecord } from "./projections";
 import { reviewAssignments, reviewerDraftObservations, reviewerDrafts } from "./reviewer-schema";
 import { reviewRequests } from "./schema";
-
-type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
 const selectReviewerRows = (db: Database) =>
   db

@@ -4,6 +4,7 @@ import {
   applicationContentInput,
   contactApplicationSummarySchema,
   roundListInput,
+  reviewListInput,
 } from "./reading";
 
 const workspaceSlug = "alder";
@@ -47,6 +48,13 @@ describe("round list requests", () => {
     expect(roundListInput.safeParse({ workspaceSlug, limit }).success).toBe(false);
   });
 });
+
+it.each(["request:old-id", "assessment:", "other:00000000-0000-4000-8000-000000000001"])(
+  "rejects malformed review cursor %s",
+  (after) => {
+    expect(reviewListInput.safeParse({ workspaceSlug, applicationId, after }).success).toBe(false);
+  },
+);
 
 describe("application content requests", () => {
   const request = { workspaceSlug, applicationId, section: "submission" };

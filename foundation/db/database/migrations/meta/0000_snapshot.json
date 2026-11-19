@@ -1,5 +1,5 @@
 {
-  "id": "88a07273-6820-4a26-9982-b2b64855d79d",
+  "id": "acba367a-8c65-483d-986c-da97b2f88fe6",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -577,13 +577,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "has_submission": {
-          "name": "has_submission",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
         "submission_version": {
           "name": "submission_version",
           "type": "integer",
@@ -681,7 +674,7 @@
         },
         "material_submission_check": {
           "name": "material_submission_check",
-          "value": "(NOT \"material_versions\".\"has_submission\" AND \"material_versions\".\"submission_version\" IS NULL AND \"material_versions\".\"applicant_organization\" IS NULL AND \"material_versions\".\"submitted_on\" IS NULL AND \"material_versions\".\"project_period\" IS NULL) OR (\"material_versions\".\"has_submission\" AND \"material_versions\".\"submission_version\" IS NOT NULL AND \"material_versions\".\"submission_version\" > 0)"
+          "value": "(\"material_versions\".\"submission_version\" IS NULL AND \"material_versions\".\"applicant_organization\" IS NULL AND \"material_versions\".\"submitted_on\" IS NULL AND \"material_versions\".\"project_period\" IS NULL) OR (\"material_versions\".\"submission_version\" IS NOT NULL AND \"material_versions\".\"submission_version\" > 0)"
         },
         "material_source_kind_check": {
           "name": "material_source_kind_check",
@@ -1941,7 +1934,7 @@
         },
         "request_id": {
           "name": "request_id",
-          "type": "text",
+          "type": "uuid",
           "primaryKey": false,
           "notNull": true
         },
@@ -2009,7 +2002,7 @@
         },
         "assessment_id": {
           "name": "assessment_id",
-          "type": "text",
+          "type": "uuid",
           "primaryKey": false,
           "notNull": false
         },
@@ -2366,6 +2359,13 @@
           "primaryKey": true,
           "notNull": true
         },
+        "delivery_token": {
+          "name": "delivery_token",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
         "assignment_id": {
           "name": "assignment_id",
           "type": "uuid",
@@ -2445,7 +2445,7 @@
         },
         "assessment_id": {
           "name": "assessment_id",
-          "type": "text",
+          "type": "uuid",
           "primaryKey": false,
           "notNull": true
         },
@@ -2538,7 +2538,7 @@
         },
         "assessment_id": {
           "name": "assessment_id",
-          "type": "text",
+          "type": "uuid",
           "primaryKey": false,
           "notNull": true
         },
@@ -2754,7 +2754,7 @@
         },
         "id": {
           "name": "id",
-          "type": "text",
+          "type": "uuid",
           "primaryKey": false,
           "notNull": true
         },
@@ -2772,13 +2772,13 @@
         },
         "request_id": {
           "name": "request_id",
-          "type": "text",
+          "type": "uuid",
           "primaryKey": false,
           "notNull": false
         },
         "previous_id": {
           "name": "previous_id",
-          "type": "text",
+          "type": "uuid",
           "primaryKey": false,
           "notNull": false
         },
@@ -2874,7 +2874,7 @@
         },
         "id": {
           "name": "id",
-          "type": "text",
+          "type": "uuid",
           "primaryKey": false,
           "notNull": true
         },
