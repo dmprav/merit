@@ -26,14 +26,6 @@ const meta = {
   title: "Components/Tabs",
   component: Tabs,
   args: { label: "Application sections", items, ...scrollLabels, onSelectionChange: fn() },
-  parameters: {
-    docs: {
-      description: {
-        component:
-          "Tabs keep their supplied order. Supply an optional numeric count separately from the label; zero is shown, and counts are included in accessible names. Features decide what is counted. A countWarning gives the badge an amber treatment and supplies its hover explanation and the tab's accessible description; keep the underlying status visible in the panel too. When the row overflows, scroll controls reveal neighboring tabs without selecting them. Left/Right moves between tabs; Tab continues through the scroll controls to the panel. Labels may wrap within an individual tab at narrow widths, while each count stays together.",
-      },
-    },
-  },
 } satisfies Meta<typeof Tabs>;
 
 export default meta;

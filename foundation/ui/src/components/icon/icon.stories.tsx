@@ -7,21 +7,6 @@ import localStyles from "./icon.stories.module.css";
 const meta = {
   title: "Components/Icon",
   component: Icon,
-  parameters: {
-    docs: {
-      description: {
-        component: `Use Icon for interface symbols. Its Lucide glyphs share a 16 px size,
-1.75 stroke width, normal stroke scaling, and the surrounding text color. The filled
-pin uses a lighter 1.25 stroke and muted color to keep its saved state quiet. Extend
-the explicitly imported set as needed; use className for placement or motion to
-keep size and stroke consistent across controls.
-
-Icons reinforce labels and are hidden from assistive technology. Give icon-only
-controls an accessible name from the message catalogs and a target larger than the
-glyph. Express status meaning in text as well.`,
-      },
-    },
-  },
   args: { name: "home" },
 } satisfies Meta<typeof Icon>;
 

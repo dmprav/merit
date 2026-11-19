@@ -60,6 +60,20 @@ Explore existing components in Storybook (`vp run storybook`, then
 explains ownership, imports, and styling across foundations, components, and patterns.
 Keep guidance with the responsibility it explains; feature stories stay with their feature.
 
+The same documentation is available as text, without a running server. Before
+writing UI, list the shared components, patterns, and feature screens, then read
+each one the change will use, including its guidance and examples:
+
+```sh
+pnpm --filter @merit/storybook exec storybook tools docs list
+pnpm --filter @merit/storybook exec storybook tools docs show --id <id>
+pnpm --filter @merit/storybook exec storybook tools stories changed
+```
+
+`stories changed` lists the stories affected by uncommitted changes. Run their
+checks with `vp run test:stories`, as the [verification guide](verification.md)
+describes.
+
 Compose controls in the feature that owns the work. The recommendation editor
 belongs in `capabilities/recommendations/web` because it understands recommendation
 drafts and saving. Follow the [web feature guide](web-features.md) for its layers
@@ -86,7 +100,8 @@ presentation rather than make each caller maintain it.
 
 Use colocated CSS Modules and semantic variables from
 [the shared design tokens](../../foundation/ui/src/foundations/tokens.css) so feature styles follow the
-product and site palettes. Storybook's
+product and site palettes. `check:css` rejects literal colors outside the token file;
+derive a shade from tokens with `color-mix()`. Storybook's
 [foundations](../../foundation/ui/src/foundations/foundations.mdx),
 [buttons](../../foundation/ui/src/components/button/button.stories.tsx), and
 [icons](../../foundation/ui/src/components/icon/icon.stories.tsx) explain the visual conventions.

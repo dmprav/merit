@@ -1,27 +1,20 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { expect } from "storybook/test";
+import { expect, fn } from "storybook/test";
 
 import fieldStyles from "../field.stories.module.css";
 import { SearchField } from "./search-field";
 
-const Example = ({ initialValue = "", isDisabled = false }) => {
-  const [value, onChange] = useState(initialValue);
-  return (
-    <SearchField
-      label="Search applications"
-      clearLabel="Clear search"
-      placeholder="Application or applicant"
-      value={value}
-      onChange={onChange}
-      isDisabled={isDisabled}
-    />
-  );
-};
-
 const meta = {
   title: "Components/Search field",
-  component: Example,
+  component: SearchField,
+  args: {
+    label: "Search applications",
+    clearLabel: "Clear search",
+    placeholder: "Application or applicant",
+    value: "",
+    onChange: fn(),
+  },
   decorators: [
     (Story) => (
       <div className={fieldStyles.preview}>
@@ -29,14 +22,18 @@ const meta = {
       </div>
     ),
   ],
-} satisfies Meta<typeof Example>;
+  render: function Render(args) {
+    const [value, setValue] = useState(args.value);
+    return <SearchField {...args} value={value} onChange={setValue} />;
+  },
+} satisfies Meta<typeof SearchField>;
 
 export default meta;
 
 type Story = StoryObj<typeof meta>;
 
 export const Empty: Story = {};
-export const Populated: Story = { args: { initialValue: "Neighbourhood" } };
+export const Populated: Story = { args: { value: "Neighbourhood" } };
 export const Disabled: Story = { args: { ...Populated.args, isDisabled: true } };
 export const Clearing: Story = {
   play: async ({ canvas, userEvent }) => {

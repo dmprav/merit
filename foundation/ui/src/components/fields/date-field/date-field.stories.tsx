@@ -1,20 +1,22 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState, type ComponentProps } from "react";
-import { expect, waitFor, within } from "storybook/test";
+import { expect, fn, waitFor, within } from "storybook/test";
 
 import { MessagesProvider } from "@merit/i18n";
 
 import styles from "../field.stories.module.css";
 import { DateField } from "./date-field";
 
-const Example = (props: Partial<ComponentProps<typeof DateField>>) => {
-  const [value, setValue] = useState("2027-01-21");
-  return <DateField label="Committee date" value={value} onChange={setValue} {...props} />;
+// Each compared state keeps its own draft.
+const EditableDate = (props: ComponentProps<typeof DateField>) => {
+  const [value, setValue] = useState(props.value);
+  return <DateField {...props} value={value} onChange={setValue} />;
 };
 
 const meta = {
   title: "Components/Date field",
-  component: Example,
+  component: DateField,
+  args: { label: "Committee date", value: "2027-01-21", onChange: fn() },
   decorators: [
     (Story) => (
       <MessagesProvider messages={{}}>
@@ -24,8 +26,11 @@ const meta = {
       </MessagesProvider>
     ),
   ],
-  render: () => <Example />,
-} satisfies Meta<typeof Example>;
+  render: function Render(args) {
+    const [value, setValue] = useState(args.value);
+    return <DateField {...args} value={value} onChange={setValue} />;
+  },
+} satisfies Meta<typeof DateField>;
 
 export default meta;
 
@@ -40,7 +45,7 @@ export const CalendarOpen: Story = {
   },
 };
 export const States: Story = {
-  render: () => (
+  render: (args) => (
     <div className={styles.examples}>
       {[
         { title: "Empty", value: "" },
@@ -57,7 +62,7 @@ export const States: Story = {
       ].map(({ title, ...props }) => (
         <section key={title} aria-label={title}>
           <h2 className={styles.groupTitle}>{title}</h2>
-          <Example {...props} />
+          <EditableDate {...args} {...props} />
         </section>
       ))}
     </div>
