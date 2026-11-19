@@ -5,15 +5,24 @@ import { expect, it, vi } from "vite-plus/test";
 import { createFileStorage } from "./storage.server";
 
 const setup = () => {
+  const saved = new Map<string, { bytes: Uint8Array<ArrayBuffer>; sha256: string }>();
   const objects = {
-    put: vi.fn(async (_key: string, _bytes: Uint8Array, _sha256: string) => {}),
-    get: vi.fn(async () => new Uint8Array()),
+    put: vi.fn(async (key: string, bytes: Uint8Array<ArrayBuffer>, sha256: string) => {
+      saved.set(key, { bytes, sha256 });
+    }),
+    get: vi.fn(async (key: string) => {
+      const object = saved.get(key);
+      if (!object) {
+        throw new Error(`Missing object: ${key}`);
+      }
+      return object.bytes;
+    }),
   };
-  return { storage: createFileStorage(objects), objects };
+  return { storage: createFileStorage(objects), objects, saved };
 };
 
 it("returns the key, length and digest of the original bytes", async () => {
-  const { storage, objects } = setup();
+  const { storage, saved } = setup();
   const bytes = Uint8Array.of(0, 255);
   const writing = storage.writeFile(bytes);
   bytes.fill(42);
@@ -26,8 +35,7 @@ it("returns the key, length and digest of the original bytes", async () => {
     byteLength: 2,
     sha256,
   });
-  expect(objects.put).toHaveBeenCalledWith(reference.objectKey, original, sha256);
-  objects.get.mockResolvedValueOnce(original);
+  expect(saved.get(reference.objectKey)).toEqual({ bytes: original, sha256 });
   expect(await storage.readFile(reference)).toEqual(original);
 });
 
@@ -37,14 +45,16 @@ it("creates distinct objects for independent writes of the same empty file", asy
   const second = await storage.writeFile(new Uint8Array());
   expect(second.objectKey).not.toBe(first.objectKey);
   expect(await storage.readFile(first)).toEqual(new Uint8Array());
+  expect(await storage.readFile(second)).toEqual(new Uint8Array());
 });
 
 it("limits buffered writes to 25 MiB", async () => {
-  const { storage, objects } = setup();
+  const { storage, saved } = setup();
   const limit = 25 * 1024 * 1024;
-  expect((await storage.writeFile(new Uint8Array(limit))).byteLength).toBe(limit);
+  const reference = await storage.writeFile(new Uint8Array(limit));
+  expect(reference.byteLength).toBe(limit);
   await expect(storage.writeFile(new Uint8Array(limit + 1))).rejects.toThrow("25 MiB");
-  expect(objects.put).toHaveBeenCalledTimes(1);
+  expect([...saved.keys()]).toEqual([reference.objectKey]);
 });
 
 it("propagates an upload failure to the attachment owner", async () => {
