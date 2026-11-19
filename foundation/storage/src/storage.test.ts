@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 
 import { expect, it, vi } from "vite-plus/test";
 
-import { createFileStorage } from "./storage";
+import { createFileStorage } from "./storage.server";
 
 const setup = () => {
   const objects = {

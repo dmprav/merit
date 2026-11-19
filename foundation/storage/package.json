@@ -5,7 +5,7 @@
   "license": "UNLICENSED",
   "type": "module",
   "exports": {
-    ".": "./src/storage.ts"
+    ".": "./src/storage.server.ts"
   },
   "dependencies": {
     "zod": "catalog:"

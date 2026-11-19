@@ -1,7 +1,10 @@
 import { createHash } from "node:crypto";
+import { once } from "node:events";
+import { createServer } from "node:http";
+import { gzipSync } from "node:zlib";
 
 import { AwsClient } from "aws4fetch";
-import { expect, it, onTestFinished } from "vite-plus/test";
+import { assert, expect, it, onTestFinished } from "vite-plus/test";
 
 import { createFileStorage } from "@merit/storage";
 
@@ -38,4 +41,28 @@ it("creates a private object that can be read through its reference and rejects 
     objects.put(saved.objectKey, changed, createHash("sha256").update(changed).digest("hex")),
   ).rejects.toThrow("412");
   expect(await storage.readFile(saved)).toEqual(bytes);
+});
+
+it("downloads the original representation and rejects forced HTTP compression", async () => {
+  const bytes = Buffer.from("grant evidence ".repeat(120));
+  await using proxy = createServer((request, response) => {
+    const negotiateGzip = request.headers["accept-encoding"] !== "identity";
+    const body = negotiateGzip ? gzipSync(bytes) : bytes;
+    // The forced response labels raw bytes as gzip. Buffering it would trigger a decoding error.
+    if (negotiateGzip || request.url?.endsWith("/forced")) {
+      response.setHeader("Content-Encoding", "gzip");
+    }
+    response.setHeader("Content-Length", body.byteLength);
+    response.end(body);
+  });
+  proxy.listen(0, "127.0.0.1");
+  await once(proxy, "listening");
+  const address = proxy.address();
+  assert(address && typeof address !== "string");
+  const objects = createFileObjects({
+    ...local,
+    FILE_STORAGE_ENDPOINT: `http://127.0.0.1:${address.port}`,
+  });
+  expect(await objects.get("files/negotiated", bytes.byteLength)).toEqual(new Uint8Array(bytes));
+  await expect(objects.get("files/forced", bytes.byteLength)).rejects.toThrow("content encoding");
 });

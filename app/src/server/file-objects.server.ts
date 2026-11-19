@@ -60,7 +60,15 @@ export const createFileObjects = (env: NodeJS.ProcessEnv): FileObjects => {
       });
     },
     async get(key, byteLength) {
-      const response = await request(key, { method: "GET" });
+      const response = await request(key, {
+        method: "GET",
+        headers: { "Accept-Encoding": "identity" },
+      });
+      const encoding = response.headers.get("content-encoding");
+      if (encoding !== null && encoding.toLowerCase() !== "identity") {
+        await response.body?.cancel();
+        throw new Error("Unexpected content encoding for stored file.");
+      }
       if (response.headers.get("content-length") !== String(byteLength)) {
         await response.body?.cancel();
         throw new Error("Stored file length does not match its metadata.");

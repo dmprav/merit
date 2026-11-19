@@ -30,8 +30,9 @@ the bytes. Keep bucket credentials and reference resolution on the server.
 ## Configure a bucket
 
 Use a dedicated private bucket that accepts path-style S3 GET and conditional PUT
-with Signature Version 4, supports `If-None-Match: *`, returns content length on
-GET, and denies anonymous reads. Give the server credentials to create and read
+with Signature Version 4, supports `If-None-Match: *`, and denies anonymous reads.
+The bucket and any intervening proxy must honor `Accept-Encoding: identity` on
+GET and return the original object length. Give the server credentials to create and read
 objects under `files/`. Production provider selection and provisioning belong to
 deployment.
 
@@ -48,7 +49,16 @@ must stay readable. Retain recoverable object copies for the lifetime of databas
 backups that refer to them. After a restore, verify the referenced bytes before
 resuming cleanup.
 
-To reclaim orphaned objects, pause attachment writes and drain in-flight operations
-across all owners of the bucket. Compare candidate keys against every owner's
-committed attachment references, including historical versions. Delete only
-unreferenced objects covered by the backup retention policy, then resume writes.
+To reclaim orphaned objects:
+
+1. Pause attachment writes and drain in-flight operations across all owners of the bucket.
+2. Connect to the authoritative PostgreSQL primary for that bucket with a dedicated
+   maintenance role that can read every owner's attachment records across all workspaces.
+   The [application runtime role](../../docs/guides/deployment.md#check-runtime-privileges)
+   has tenant-scoped visibility.
+3. In a read-only transaction, run `SET LOCAL row_security = off` before scanning
+   every owner's current and historical attachment references. PostgreSQL then
+   raises an error if row security would filter a table. If any scan fails or
+   complete coverage cannot be verified, stop before deleting any objects.
+4. Keep writes paused while deleting verified unreferenced objects covered by the
+   backup retention policy, then resume writes.
