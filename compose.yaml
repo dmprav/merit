@@ -1,4 +1,19 @@
 services:
+  storage:
+    image: chrislusf/seaweedfs:4.54@sha256:4b42c212543a0acd4c0e675215ecdcaf62a186ef98def76c7e12701871222d15
+    ports:
+      - "127.0.0.1:8333:8333"
+    environment:
+      AWS_ACCESS_KEY_ID: merit-local
+      AWS_SECRET_ACCESS_KEY: merit-local-storage
+      S3_BUCKET: merit-files
+    volumes:
+      - merit-files:/data
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8333/readyz"]
+      interval: 2s
+      timeout: 5s
+      retries: 20
   mailpit:
     image: axllent/mailpit:v1.30.4@sha256:5a49a77c5bdbe7c5474450b4f46348d09949df3695257729c93a30369382d4f6
     ports:
@@ -20,3 +35,4 @@ services:
       retries: 10
 volumes:
   merit-postgres:
+  merit-files:

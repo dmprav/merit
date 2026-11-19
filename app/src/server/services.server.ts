@@ -3,6 +3,7 @@ import { roundHasApplications } from "@merit/applications/server/integrations";
 import { createContactService } from "@merit/contacts/server";
 import type { Database } from "@merit/db";
 import { renderReviewerEmail } from "@merit/emails/reviewer";
+import { createFileService } from "@merit/files/server";
 import { createGrantmakingService, createNavigationService } from "@merit/grantmaking/server";
 import { applicationWork } from "@merit/grantmaking/server/integrations";
 import { fundingRoundContactUsage } from "@merit/grantmaking/server/integrations";
@@ -16,6 +17,7 @@ import { createRoundsService } from "@merit/rounds/server";
 import { instrumentService } from "@merit/telemetry";
 
 import type { EmailSender } from "./email-delivery.server";
+import { createFileObjects } from "./file-objects.server";
 import type { OrganizationIdentity } from "./identity.server";
 import { sendInvitationEmail } from "./invitation-email.server";
 
@@ -76,6 +78,7 @@ export const createApplicationServices = ({
   );
 
   return {
+    files: createFileService(database, createFileObjects(process.env)),
     grantmaking,
     rounds,
     applications,

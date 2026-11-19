@@ -22,6 +22,12 @@ Open [localhost:3000](http://localhost:3000). With the preview running, use
 signed-out access. See [verification](verification.md#verification) for the
 full set of checks.
 
+## Prepare private file storage
+
+Set up a dedicated private S3-compatible bucket and server credentials before
+using file operations. The [storage guide](../../capabilities/files/business/README.md#configure-a-bucket)
+defines the provider requirements, environment settings and orphan cleanup procedure.
+
 ## Prepare the database
 
 ### First-time provisioning

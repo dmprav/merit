@@ -76,7 +76,9 @@ the database is `merit`. Docker stores data in a named volume across restarts.
 Use `docker compose stop` to stop it without deleting data.
 
 Compose also starts [Mailpit](organizations.md#try-the-complete-flow-locally) for
-local invitation emails. The seed creates example workspaces for Alder and Birch. Repeating it preserves
+local invitation emails and SeaweedFS for
+[private file storage](../../capabilities/files/business/README.md#configure-a-bucket).
+The seed creates example workspaces for Alder and Birch. Repeating it preserves
 existing content, review work, memberships, and revoked permissions. If you have a database from before the current
 schema baseline, see [local database recovery](#local-database-recovery).
 
@@ -463,7 +465,7 @@ under `.github/actions/`:
   so shared runners stay responsive.
 - `storybook-vitest` runs `@merit/storybook#test` inside the pinned Playwright container
   matching `@playwright/test` (`1.64.1`).
-- `integration` starts PostgreSQL and Mailpit via `compose.yaml` and runs
+- `integration` starts PostgreSQL, Mailpit and private file storage via `compose.yaml` and runs
   `@merit/app#test:integration`.
 - `tooling-self-tests` runs `ready:tooling` followed by `test:checks`.
 - `browser-tooling`, `browser-storybook` (5 shards reusing the prebuilt Storybook
