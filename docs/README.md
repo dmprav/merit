@@ -18,12 +18,12 @@ and examples maintained beside the code.
   [test review](../.agents/tasks/test-review.md), and
   [verification review](../.agents/tasks/verification-review.md).
 
-| Area                                 | What it covers                                                   |
-| ------------------------------------ | ---------------------------------------------------------------- |
-| [Foundations](foundations/README.md) | Product direction, experience principles, and architecture.      |
-| [Domain](domain/README.md)           | Grant-management concepts, people, and journeys.                 |
-| [Workflows](workflows/README.md)     | Current business behavior, with future design marked separately. |
-| [Guides](guides/README.md)           | Developing, verifying, operating, and documenting Merit.         |
-| [Decisions](decisions/README.md)     | Reasons and trade-offs behind consequential project choices.     |
+| Area                                 | What it covers                                                                      |
+| ------------------------------------ | ----------------------------------------------------------------------------------- |
+| [Foundations](foundations/README.md) | Product direction, experience principles, architecture, and engineering principles. |
+| [Domain](domain/README.md)           | Grant-management concepts, people, and journeys.                                    |
+| [Workflows](workflows/README.md)     | Current business behavior, with future design marked separately.                    |
+| [Guides](guides/README.md)           | Developing, verifying, operating, and documenting Merit.                            |
+| [Decisions](decisions/README.md)     | Reasons and trade-offs behind consequential project choices.                        |
 
 [Project overview and quick start](../README.md)
