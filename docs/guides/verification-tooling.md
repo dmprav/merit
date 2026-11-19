@@ -110,8 +110,9 @@ runs with `architecture`, enumerates each web capability’s program including
 project references, and rejects application or interface source inclusion. Its
 negative probes use disposable configurations outside the checkout. The
 [cross-cutting mechanism check](../../tooling/verification/architecture/mechanisms.ts)
-also runs with `architecture` to verify registry paths, Markdown anchors, and
-active decision references, and its
+also runs with `architecture` to verify the
+[mechanisms registry](../../tooling/verification/architecture/mechanisms.config.ts)
+(glob patterns, Markdown anchors, and active decision references), and its
 [unit suite](../../tooling/verification/architecture/mechanisms.test.ts) runs under
 `vp run test:architecture`.
 

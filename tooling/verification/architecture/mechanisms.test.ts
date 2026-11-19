@@ -6,14 +6,8 @@ import { fileURLToPath } from "node:url";
 
 import { expect, it } from "vite-plus/test";
 
-import {
-  classifyChangedPaths,
-  formatMechanismReport,
-  MAX_SUMMARY_LENGTH,
-  MECHANISMS,
-  type Mechanism,
-  validateMechanismMap,
-} from "./mechanisms";
+import { classifyChangedPaths, formatMechanismReport, validateMechanismMap } from "./mechanisms";
+import { MAX_SUMMARY_LENGTH, MECHANISMS, type Mechanism } from "./mechanisms.config";
 
 const repoRoot = fileURLToPath(new URL("../../..", import.meta.url));
 
@@ -34,13 +28,10 @@ const withTempRepo = (files: Record<string, string>, run: (dir: string) => void)
 const sampleMechanism = (overrides: Partial<Mechanism> = {}): Mechanism => ({
   id: "sample-mechanism",
   summary: "Short single-line summary of the shared mechanism.",
-  owners: ["foundation/sample/"],
-  contractPaths: ["foundation/sample/src/"],
-  triggerImports: ["@merit/sample"],
+  contracts: ["foundation/sample/src/**"],
+  adapters: ["interfaces/*/src/**/controllers/**"],
   docs: ["foundation/sample/README.md#overview"],
   decisions: ["docs/decisions/0001-sample.md"],
-  vetoes: ["Never reimplement sample locally."],
-  escapes: ["Verify sample recovery behavior."],
   ...overrides,
 });
 
@@ -59,7 +50,7 @@ it("passes the CLI --check command on the repository", () => {
   expect(result.stdout).toContain("mechanisms ok");
 });
 
-it("rejects missing paths, missing heading anchors, superseded decisions, and oversized summaries", () => {
+it("rejects empty wildcard patterns, missing anchors, superseded decisions, and oversized summaries", () => {
   withTempRepo(
     {
       "foundation/sample/src/index.ts": "export const value = 1;\n",
@@ -71,10 +62,11 @@ it("rejects missing paths, missing heading anchors, superseded decisions, and ov
         [
           sampleMechanism({
             summary: "x".repeat(MAX_SUMMARY_LENGTH + 1),
-            owners: ["foundation/missing/"],
+            contracts: ["foundation/*/src/missing.ts"],
+            adapters: ["interfaces/*/src/**/controllers/**"],
             docs: ["foundation/sample/README.md#missing-anchor"],
           }),
-          sampleMechanism({ id: "sample-mechanism" }),
+          sampleMechanism({ id: "sample-mechanism", adapters: [] }),
         ],
         dir,
       );
@@ -83,7 +75,10 @@ it("rejects missing paths, missing heading anchors, superseded decisions, and ov
         expect.arrayContaining([
           expect.stringContaining("duplicate mechanism id: sample-mechanism"),
           expect.stringContaining(`max ${MAX_SUMMARY_LENGTH}`),
-          expect.stringContaining("path does not exist on disk: foundation/missing/"),
+          expect.stringContaining("pattern matches no files on disk: foundation/*/src/missing.ts"),
+          expect.stringContaining(
+            "pattern matches no files on disk: interfaces/*/src/**/controllers/**",
+          ),
           expect.stringContaining("missing heading anchor #missing-anchor"),
           expect.stringContaining("is superseded"),
         ]),
@@ -92,53 +87,34 @@ it("rejects missing paths, missing heading anchors, superseded decisions, and ov
   );
 });
 
-it("classifies contract edits as extends and consumer imports as composes", () => {
-  const mechanisms: Mechanism[] = [
-    sampleMechanism(),
-    sampleMechanism({
-      id: "grant-hooks",
-      owners: ["capabilities/organizations/business/src/server/persistence/commands/locks.ts"],
-      contractPaths: ["capabilities/*/business/src/server/grant-work.ts"],
-      triggerImports: ["@merit/organizations/locks"],
-    }),
-  ];
+it("classifies contracts as extends, adapters (including zero-dir globstar) as composes, and unrelated paths as none", () => {
+  const mechanisms: Mechanism[] = [sampleMechanism()];
 
   const contractEdit = classifyChangedPaths({
-    paths: [
-      "foundation/sample/src/index.ts",
-      "capabilities/rounds/business/src/server/grant-work.ts",
-    ],
+    paths: ["foundation/sample/src/index.ts"],
     mechanisms,
   });
   expect(contractEdit.risk).toBe("extends");
-  expect(contractEdit.matched.map((m) => [m.mechanism.id, m.impact])).toEqual([
-    ["sample-mechanism", "extends"],
-    ["grant-hooks", "extends"],
-  ]);
+  expect(contractEdit.matched[0]?.impact).toBe("extends");
 
-  const consumerEdit = classifyChangedPaths({
-    paths: ["capabilities/rounds/business/src/server/commands/prepare.ts"],
+  const directControllerEdit = classifyChangedPaths({
+    paths: [
+      "interfaces/product/src/controllers/example.ts",
+      "interfaces/admin/src/features/orgs/controllers/example.ts",
+    ],
     mechanisms,
-    readSource: () => 'import { roundMoney } from "@merit/sample";\nexport const x = 1;\n',
   });
-  expect(consumerEdit.risk).toBe("composes");
-  expect(consumerEdit.matched[0]?.mechanism.id).toBe("sample-mechanism");
-  expect(consumerEdit.matched[0]?.impact).toBe("composes");
-  expect(consumerEdit.matched[0]?.matchedImports).toEqual([
-    "capabilities/rounds/business/src/server/commands/prepare.ts -> @merit/sample",
+  expect(directControllerEdit.risk).toBe("composes");
+  expect(directControllerEdit.matched[0]?.matchedPaths).toEqual([
+    "interfaces/admin/src/features/orgs/controllers/example.ts",
+    "interfaces/product/src/controllers/example.ts",
   ]);
+  expect(formatMechanismReport(directControllerEdit)).toContain("mechanisms: risk=composes");
 
-  const report = formatMechanismReport(consumerEdit);
-  expect(report).toContain("mechanisms: risk=composes");
-  expect(report).toContain("veto: Never reimplement sample locally.");
-  expect(report).toContain("escape: Verify sample recovery behavior.");
-});
-
-it("reports risk=none when no cross-cutting mechanism is matched", () => {
-  const result = classifyChangedPaths({
+  const unrelatedEdit = classifyChangedPaths({
     paths: ["README.md"],
-    mechanisms: [sampleMechanism()],
+    mechanisms,
   });
-  expect(result.risk).toBe("none");
-  expect(formatMechanismReport(result)).toContain("mechanisms: risk=none");
+  expect(unrelatedEdit.risk).toBe("none");
+  expect(formatMechanismReport(unrelatedEdit)).toContain("mechanisms: risk=none");
 });

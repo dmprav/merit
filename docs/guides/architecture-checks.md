@@ -212,18 +212,18 @@ and integration tests.
 Shared concerns that cut across capabilities and surfaces (authorization, audit
 trails, locks and transactions, drafts and recovery, exact money, delegated MCP,
 demo lifecycles, telemetry and analytics, and shared UI patterns) live in the
-[cross-cutting mechanisms registry](../../tooling/verification/architecture/mechanisms.ts).
-Each entry binds a mechanism's owner paths and trigger imports to its owning
-documentation, active decision records, vetoes, and scoped escape checks.
+[cross-cutting mechanisms registry](../../tooling/verification/architecture/mechanisms.config.ts).
+Each entry maps a mechanism's contract and adapter patterns to its owning
+documentation and active decision records without repeating those rules.
 
 - Run `vpx tooling/verification/architecture/mechanisms.ts --paths <paths...>`
-  before planning or editing to surface the decisions, vetoes, and escapes that
-  apply to candidate files.
+  before planning or editing to list the guides and decisions that govern
+  candidate files.
 - Run `vpx tooling/verification/architecture/mechanisms.ts --base <ref>` on a
-  branch to classify touched mechanisms as `extends` (changes to an owner's
-  contract or core path) or `composes` (consumer imports and usage).
-- `vp run architecture` validates all registry paths, heading anchors, summary
-  limits, and active decision statuses with `--check`.
+  branch to classify touched mechanisms as `extends` (changes to a mechanism's
+  contract) or `composes` (changes to an adapter or controller).
+- `vp run architecture` runs `--check` to verify pattern matches, documentation
+  paths, heading anchors, summary limits, and active decision statuses.
 
 ## Change a guarantee deliberately
 

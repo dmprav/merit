@@ -56,8 +56,8 @@ Before asking anything, learn what the codebase already answers.
    [UI development](../../../docs/guides/ui.md), controller and recovery behavior,
    test files, fixtures, and helpers.
 5. Run `vpx tooling/verification/architecture/mechanisms.ts --paths <candidate paths>`
-   for the packages you expect to touch so active decision records, shared vetoes,
-   and mechanism-specific escapes inform the brief.
+   for the packages you expect to touch so relevant guides and active decision
+   records inform the brief.
 
 ## 2. Grill until the brief is approved
 
