@@ -22,9 +22,20 @@ const meta = {
       </div>
     ),
   ],
+  // The story owns the draft; `value` only sets where it starts.
+  argTypes: { value: { control: false } },
   render: function Render(args) {
     const [value, setValue] = useState(args.value);
-    return <SearchField {...args} value={value} onChange={setValue} />;
+    return (
+      <SearchField
+        {...args}
+        value={value}
+        onChange={(next) => {
+          setValue(next);
+          args.onChange(next);
+        }}
+      />
+    );
   },
 } satisfies Meta<typeof SearchField>;
 

@@ -10,7 +10,16 @@ import { DateField } from "./date-field";
 // Each compared state keeps its own draft.
 const EditableDate = (props: ComponentProps<typeof DateField>) => {
   const [value, setValue] = useState(props.value);
-  return <DateField {...props} value={value} onChange={setValue} />;
+  return (
+    <DateField
+      {...props}
+      value={value}
+      onChange={(next) => {
+        setValue(next);
+        props.onChange(next);
+      }}
+    />
+  );
 };
 
 const meta = {
@@ -26,9 +35,20 @@ const meta = {
       </MessagesProvider>
     ),
   ],
+  // The story owns the draft; `value` only sets where it starts.
+  argTypes: { value: { control: false } },
   render: function Render(args) {
     const [value, setValue] = useState(args.value);
-    return <DateField {...args} value={value} onChange={setValue} />;
+    return (
+      <DateField
+        {...args}
+        value={value}
+        onChange={(next) => {
+          setValue(next);
+          args.onChange(next);
+        }}
+      />
+    );
   },
 } satisfies Meta<typeof DateField>;
 
