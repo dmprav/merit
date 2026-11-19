@@ -31,10 +31,10 @@ catalog:
   "@tanstack/react-devtools": 0.10.14
   "@tanstack/react-router-devtools": 1.167.3
   "@internationalized/date": 3.12.4
-  storybook: 10.6.6
-  "@storybook/react-vite": 10.6.6
-  "@storybook/addon-docs": 10.6.6
-  "@storybook/addon-a11y": 10.6.6
+  storybook: 11.0.0-beta.3
+  "@storybook/react-vite": 11.0.0-beta.3
+  "@storybook/addon-docs": 11.0.0-beta.3
+  "@storybook/addon-a11y": 11.0.0-beta.3
   "@clerk/backend": ^3.27.0
   "@clerk/tanstack-react-start": ^1.7.11
   "@modelcontextprotocol/client": ^2.4.0
@@ -62,7 +62,8 @@ catalog:
   react: ^19.3.1
   react-aria-components: ^1.22.1
   react-dom: ^19.3.1
-  typescript: ^7.0.2
+  # shortcut: 7.1.0-beta stopped `vp dev` in app from serving routes; allow 7.1 once a stable release serves `/` again.
+  typescript: ~7.0.2
   vite: npm:@voidzero-dev/vite-plus-core@1.5.0
   vite-plus: 1.5.0
   zod: ^4.6.7
@@ -74,7 +75,7 @@ catalog:
   # shortcut: 1.65.0 crashes Firefox accessibility checks; upgrade when https://github.com/microsoft/playwright/issues/43967 ships in a stable release.
   "@playwright/test": 1.64.1
   "@axe-core/playwright": ^4.14.0
-  "@storybook/addon-vitest": 10.6.6
+  "@storybook/addon-vitest": 11.0.0-beta.3
   "@vitest/browser-playwright": 5.1.0
   vitest: 5.1.0
   "@stylistic/eslint-plugin": 5.10.0
