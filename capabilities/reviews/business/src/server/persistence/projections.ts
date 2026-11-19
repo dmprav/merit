@@ -29,6 +29,11 @@ type AssessmentVersionItem = AssessmentItem["versions"][number];
 
 type ObservationItem = AssessmentInput["observations"][number];
 
+export const hasReviewActivity = (caseId: string) => sql<boolean>`(
+  exists (select 1 from ${reviewRequests} where ${reviewRequests.caseId} = ${caseId})
+  or exists (select 1 from ${assessments} where ${assessments.caseId} = ${caseId})
+)`;
+
 export const reviewRevision = sql<number>`coalesce((select ${reviewStates.revision} from ${reviewStates} where ${reviewStates.caseId} = ${applicationCases.id}), 0)`;
 
 const decodeProvenance = (
