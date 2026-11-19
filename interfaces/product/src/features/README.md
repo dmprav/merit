@@ -20,8 +20,8 @@ Only real authenticated sessions supply sign-out.
 Navigation belongs to the person, not the page. The product layout loads the
 workspaces they can enter and their operator access once, and layout routes render
 the shell around their pages: the workspace layout for one workspace, read through
-its own access check. My work and reviewer assignments use this same workspace
-layout. Legacy review URLs redirect only after an authorized assignment read. Pages supply only
+its own access check. My work uses this layout at `/app/$workspaceSlug/work`,
+and each assignment opens at `/app/$workspaceSlug/work/$assignmentId`. Pages supply only
 `AppPage`, so the sidebar, its pins, and its scroll position stay in place between
 them. `AppShell` takes the current context and derives its destinations: workspace
 sections from grant access, workspace-scoped My work and review pins, membership
