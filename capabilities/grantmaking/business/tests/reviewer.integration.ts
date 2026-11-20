@@ -707,7 +707,7 @@ it("ends staff review access when their membership is removed and requires expli
   expect((await s.read()).draft).toEqual(page.draft);
 });
 
-it("rejects changing a submitted assessment's author or deleting its audit history", async ({
+it("rejects changing a submitted assessment's author", async ({
   database,
   reviewerScenario: s,
 }) => {
@@ -720,6 +720,16 @@ it("rejects changing a submitted assessment's author or deleting its audit histo
       s.assignmentId,
     ]),
   ).rejects.toThrow("authorship is immutable");
+});
+
+it("rejects deleting a submitted assessment's audit history", async ({
+  database,
+  reviewerScenario: s,
+}) => {
+  await s.respond("accept");
+  await s.save();
+  expect(await s.submit()).toMatchObject({ status: "ok" });
+
   await expect(
     database.client.query("DELETE FROM audit_events WHERE assignment_id = $1", [s.assignmentId]),
   ).rejects.toThrow("Recorded audit events cannot be changed");

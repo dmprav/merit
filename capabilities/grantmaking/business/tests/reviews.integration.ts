@@ -595,10 +595,8 @@ it("blocks archiving a contact with an outstanding review request until it is ca
   expect(await archiveContact(db, sam.id)).toMatchObject({ status: "ok" });
 });
 
-it("keeps an archived contact on its application but rejects new review requests for it", async ({
-  db,
-}) => {
-  const { address, read, review } = await setup(db);
+it("keeps an archived contact on its application", async ({ db }) => {
+  const { address, read } = await setup(db);
   const sam = await contact(db);
   expect(
     await selectApplicationContact(db, actor, {
@@ -610,6 +608,13 @@ it("keeps an archived contact on its application but rejects new review requests
   expect(await archiveContact(db, sam.id)).toMatchObject({ status: "ok" });
 
   expect((await read()).application.contactId).toBe(sam.id);
+});
+
+it("rejects a new review request for an archived contact", async ({ db }) => {
+  const { review } = await setup(db);
+  const sam = await contact(db);
+  expect(await archiveContact(db, sam.id)).toMatchObject({ status: "ok" });
+
   expect(
     await review({ action: "request", id: randomUUID(), contactId: sam.id, replacesId: null }),
   ).toMatchObject({ status: "invalid", error: "contact_unavailable" });

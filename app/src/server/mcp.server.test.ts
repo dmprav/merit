@@ -101,7 +101,13 @@ it("verifies the bearer token once per MCP request whether authority or authenti
   const first = await identity.authenticate();
   const second = await identity.authenticate();
 
-  expect(first).toEqual(second);
+  const actor = {
+    userId: "user-a",
+    provenance: { interface: "mcp", clientId: "client-a" },
+    scopes: ["workspace:read"],
+  };
+  expect(first).toEqual(actor);
+  expect(second).toEqual(actor);
   expect(verifyClerkOAuth).toHaveBeenCalledOnce();
   expect(resolveAccountUser).toHaveBeenCalledOnce();
 });

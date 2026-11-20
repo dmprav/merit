@@ -38,8 +38,14 @@ describe("organization list", () => {
   it("links every organization to its details", () => {
     render(list, { wrapper: Wrapper });
 
-    expect(screen.getByRole("link", { name: "Birch Trust" })).toBeVisible();
-    expect(screen.getByRole("link", { name: "Alder Foundation" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "Birch Trust" })).toHaveAttribute(
+      "href",
+      "/admin/organizations/birch",
+    );
+    expect(screen.getByRole("link", { name: "Alder Foundation" })).toHaveAttribute(
+      "href",
+      "/admin/organizations/alder",
+    );
   });
 
   it("retains the chosen sort order after leaving and returning to the list", async () => {
