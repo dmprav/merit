@@ -204,8 +204,7 @@ const archiveContact = (connection: Database, data: Fixture) =>
     fundingRoundContactUsage,
   );
 
-const edits = {
-  contactArchive: archiveContact,
+const revisionProtectedEdits = {
   round: roundEdit,
   application: (connection: Database, data: Fixture) =>
     editFundingApplication(
@@ -251,7 +250,9 @@ const edits = {
     }),
 };
 
-it.each(Object.entries(edits))(
+const edits = revisionProtectedEdits;
+
+it.each(Object.entries({ contactProfile: updateProfile, ...revisionProtectedEdits }))(
   "allows editing %s while another round has an uncommitted edit",
   async (_, edit) => {
     const a = await fixture();
@@ -274,7 +275,7 @@ it.each(Object.entries(edits))(
   },
 );
 
-it.each(Object.entries(edits))(
+it.each(Object.entries({ contactArchive: archiveContact, ...revisionProtectedEdits }))(
   "serializes competing %s edits and rejects the stale revision",
   async (_, edit) => {
     const data = await fixture();

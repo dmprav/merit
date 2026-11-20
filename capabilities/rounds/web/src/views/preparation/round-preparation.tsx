@@ -185,7 +185,7 @@ export const RoundEditor = ({
         )}
       {draft && (
         <PreparationForm
-          key={`${section}/${draft.revision}/${preparation.draftReset}`}
+          key={`${section}/${preparation.draftReset}`}
           draft={draft}
           round={round}
           budgetPreviouslySet={preparation.budgetHistory.length > 0}

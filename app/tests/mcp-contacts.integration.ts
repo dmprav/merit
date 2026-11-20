@@ -84,7 +84,7 @@ it.for(["update", "archive", "restore"] as const)(
   },
 );
 
-it("updates a contact with last-write-wins while archive still rejects a stale revision", async ({
+it("updates a contact with last-write-wins over concurrent edits", async ({
   db,
   commands: { invoke, createContact },
 }) => {
@@ -114,8 +114,30 @@ it("updates a contact with last-write-wins while archive still rejects a stale r
     }),
   ).toMatchObject({ status: "ok", contact: { name: "Latest name", contactRevision: 2 } });
 
+  expect(await getContactDetails(db, actor, { workspaceSlug: "alder", contactId })).toMatchObject({
+    status: "ok",
+    contact: { name: "Latest name", contactRevision: 2 },
+  });
+});
+
+it("rejects archiving a contact with a stale revision without changing its state", async ({
+  db,
+  commands: { invoke, createContact },
+}) => {
+  const contactId = await createContact();
+  const updated = await changeWorkspaceContact(
+    db,
+    actor,
+    {
+      workspaceSlug: "alder",
+      contactId,
+      action: "update",
+      details: { name: "Current name", email: "sam@example.test", affiliation: "Review panel" },
+    },
+    fundingRoundContactUsage,
+  );
+  assert(updated.status === "ok");
   const latest = await getContactDetails(db, actor, { workspaceSlug: "alder", contactId });
-  expect(latest).toMatchObject({ status: "ok", contact: { name: "Latest name", revision: 2 } });
 
   expect(
     await invoke("archive_contact", {

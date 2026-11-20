@@ -41,19 +41,29 @@ export const editRoundInputSchema = z.strictObject({
   expectedRevision: z.number().int().nonnegative().optional(),
   change: roundChangeSchema,
 });
-export const editRoundRequestSchema = editRoundInputSchema.superRefine((request, ctx) => {
-  const needsRevision =
+
+export const roundEditRequiresRevision = (request: {
+  requireCurrentRevision?: boolean;
+  change: z.infer<typeof roundChangeSchema>;
+}) =>
+  Boolean(
+    request.requireCurrentRevision ||
     request.change.section === "criteria" ||
     request.change.section === "budget" ||
-    (request.change.section === "details" && request.change.purpose !== undefined);
-  if (needsRevision && request.expectedRevision === undefined) {
-    ctx.addIssue({
-      code: "custom",
-      path: ["expectedRevision"],
-      message: "expectedRevision is required for this change.",
-    });
-  }
-});
+    (request.change.section === "details" && request.change.purpose !== undefined),
+  );
+
+export const editRoundRequestSchema = editRoundInputSchema
+  .extend({ requireCurrentRevision: z.boolean().optional() })
+  .superRefine((request, ctx) => {
+    if (roundEditRequiresRevision(request) && request.expectedRevision === undefined) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["expectedRevision"],
+        message: "expectedRevision is required for this change.",
+      });
+    }
+  });
 export const deleteRoundRequestSchema = z.strictObject({
   workspaceSlug: workspaceSlugSchema,
   publicId: publicIdSchema,

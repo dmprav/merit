@@ -289,7 +289,18 @@ export const useRoundPreparation = ({
   };
 
   const editMutation = useMutation({
-    mutationFn: (draft: PreparationDraft) => data.save(draftChange(draft), draft.revision),
+    mutationFn: ({
+      draft,
+      requireCurrentRevision,
+    }: {
+      draft: PreparationDraft;
+      requireCurrentRevision?: boolean;
+    }) =>
+      data.save(
+        draftChange(draft),
+        draft.revision,
+        requireCurrentRevision ? { requireCurrentRevision: true } : undefined,
+      ),
   });
 
   const recordSaved = (
@@ -360,7 +371,10 @@ export const useRoundPreparation = ({
     mode: "form" | "quick" | "undo",
   ): Promise<PreparationProblem | null> => {
     try {
-      const result = await editMutation.mutateAsync(current);
+      const result = await editMutation.mutateAsync({
+        draft: current,
+        requireCurrentRevision: mode === "undo",
+      });
       if (result.status !== "ok") {
         setError(result);
         if (result.status === "conflict" || result.status === "invalid") {

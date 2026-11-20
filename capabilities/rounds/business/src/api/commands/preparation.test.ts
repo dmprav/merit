@@ -44,4 +44,28 @@ describe("round edit revision preconditions", () => {
         .success,
     ).toBe(true);
   });
+
+  it.each([
+    { section: "details" as const, title: "Undo title" },
+    { section: "details" as const, meetingDate: null },
+    { section: "manager" as const, userId: "dana" },
+  ])("requires expectedRevision for %j when requireCurrentRevision is set", (change) => {
+    expect(
+      editRoundRequestSchema.safeParse({
+        workspaceSlug,
+        publicId,
+        change,
+        requireCurrentRevision: true,
+      }).success,
+    ).toBe(false);
+    expect(
+      editRoundRequestSchema.safeParse({
+        workspaceSlug,
+        publicId,
+        expectedRevision: 1,
+        change,
+        requireCurrentRevision: true,
+      }).success,
+    ).toBe(true);
+  });
 });
