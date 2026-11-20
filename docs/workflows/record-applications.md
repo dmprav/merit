@@ -222,8 +222,8 @@ A withdrawn application stops counting as work or demand. Round totals leave out
 its requested amount, unknown-request count, recommended allocation, and the
 review progress of its requests, and a sibling's recommendation is checked against
 totals without it. Wherever totals appear, they name how many withdrawn
-applications were not counted. The round list marks withdrawn applications and has a
-**Withdrawn** filter; the work filters leave them out.
+applications were not counted. The round list marks withdrawn applications; its
+**Participation** filter alone decides whether they are included.
 
 **Reinstate application** requires a reason of the same kind. It returns the case to
 its retained status and working revision, and its recommendation counts again.

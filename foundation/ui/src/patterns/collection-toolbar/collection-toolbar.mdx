@@ -26,10 +26,9 @@ can discover and combine them without an extra Add action. Unselected criteria
 remain visible with an unrestricted value such as **Any**. Long values truncate in the row and wrap in the option
 list. Escape closes the option list before closing its parent panel.
 
-Optional search belongs above the criteria in the same panel. `SearchField`
-contains the leading search icon and a clear action within one field and focus
-boundary. Clear appears only for a nonempty query and returns focus to the input;
-it never dismisses the panel. A restored or
+Optional search belongs above the criteria in the same panel and uses the shared
+[search field](?path=/docs/components-fields--docs); clearing it never dismisses
+the panel. A restored or
 populated query remains visible as a removable chip until explicitly cleared.
 Escape and outside presses close the panel without changing values. Removing a
 chip returns focus to Filter. Provide localized labels that name the view being

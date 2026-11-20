@@ -38,9 +38,9 @@ included; other criteria can match withdrawn records. Changed evidence or criter
 includes outdated reviews, changed assessment criteria, and recommendations from
 an earlier application version.
 
-Review progress links directly to review work when a destination is available.
-A single adjacent status hint explains outdated reviews, unknown review bases or
-changed criteria with their full count breakdown. Recommendations from an earlier
+Review progress uses the review-owned
+[collection summary](../../reviews/web/src/views/reviews/README.md#compare-review-work-in-collections).
+Recommendations from an earlier
 application version carry their own status hint. The round's properties panel
 contains its whole-round financial summary and review progress only in the
 Applications tab, with qualifications following the affected financial values.
