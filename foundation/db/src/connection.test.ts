@@ -1,11 +1,16 @@
 import { afterEach, beforeEach, expect, it, vi, type Mock } from "vite-plus/test";
 
-import { createRequestDatabase, withDatabase, type DatabaseRunner } from "./connection";
+import {
+  createDatabasePool,
+  createRequestDatabase,
+  withDatabase,
+  type DatabaseRunner,
+} from "./connection";
 
 const openTestRequest = (connectionString: string) =>
   createRequestDatabase((operation) => withDatabase(connectionString, operation));
 
-const { clients, mockDrizzle, nextConnectError } = vi.hoisted(() => {
+const { clients, pooledClients, mockDrizzle, nextConnectError } = vi.hoisted(() => {
   type FakeClientRecord = {
     connectionString: string;
     connect: Mock<() => Promise<void>>;
@@ -15,11 +20,13 @@ const { clients, mockDrizzle, nextConnectError } = vi.hoisted(() => {
   };
 
   const records: FakeClientRecord[] = [];
+  const checkouts: Array<{ release: Mock<(destroy?: boolean) => void> }> = [];
   const drizzleFn = vi.fn((client: unknown) => ({ client }));
   const connectError: { current?: Error } = {};
 
   return {
     clients: records,
+    pooledClients: checkouts,
     mockDrizzle: drizzleFn,
     nextConnectError: connectError,
   };
@@ -60,7 +67,16 @@ vi.mock("pg", () => {
     }
   }
 
-  return { Client: FakeClient };
+  class FakePool {
+    on = vi.fn();
+    async connect() {
+      const client = { release: vi.fn<(destroy?: boolean) => void>(), on: vi.fn(), off: vi.fn() };
+      pooledClients.push(client);
+      return client;
+    }
+  }
+
+  return { Client: FakeClient, Pool: FakePool };
 });
 
 vi.mock("drizzle-orm/node-postgres", () => ({
@@ -69,6 +85,7 @@ vi.mock("drizzle-orm/node-postgres", () => ({
 
 beforeEach(() => {
   clients.length = 0;
+  pooledClients.length = 0;
   nextConnectError.current = undefined;
   mockDrizzle.mockClear();
 });
@@ -155,7 +172,7 @@ it("runs concurrent operations in parallel without serializing them", async () =
   await requestDb.close();
 });
 
-it("submits more than four checkouts to the pool and drains pending checkouts on close", async () => {
+it("submits every operation without queueing and drains pending checkouts on close", async () => {
   let release!: () => void;
   const waitingForPool = new Promise<void>((resolve) => {
     release = resolve;
@@ -259,4 +276,25 @@ it("keeps withDatabase creating and closing one client per standalone call", asy
   expect(clients).toHaveLength(1);
   expect(clients[0]!.connect).toHaveBeenCalledOnce();
   expect(clients[0]!.end).toHaveBeenCalledOnce();
+});
+
+it("returns a pooled client for reuse after its operation succeeds", async () => {
+  const database = createDatabasePool("postgres://merit:merit@localhost/pool");
+
+  expect(await database(async () => "done")).toBe("done");
+  expect(pooledClients[0]!.release).toHaveBeenCalledExactlyOnceWith(false);
+});
+
+it("discards a pooled client after its operation fails and checks out another for the next operation", async () => {
+  const database = createDatabasePool("postgres://merit:merit@localhost/pool");
+
+  await expect(
+    database(async () => {
+      throw new Error("query failed");
+    }),
+  ).rejects.toThrow("query failed");
+  expect(await database(async () => "recovered")).toBe("recovered");
+
+  expect(pooledClients).toHaveLength(2);
+  expect(pooledClients[0]!.release).toHaveBeenCalledExactlyOnceWith(true);
 });

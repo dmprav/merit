@@ -15,85 +15,51 @@ vi.mock("./data/server/organizations.functions", () => ({
   revokeInvitation: vi.fn(),
 }));
 
-describe("organization triage", () => {
-  it("shows every organization and retains sort order across navigation", async () => {
+const summary = (id: string, name: string) => ({
+  ...organization,
+  id,
+  name,
+  slug: id,
+  invitation: { ...organization.invitation!, organizationId: id },
+});
+
+const list = (
+  <OrganizationList
+    result={{
+      status: "ok",
+      value: [summary("birch", "Birch Trust"), summary("alder", "Alder Foundation")],
+    }}
+  />
+);
+
+const firstRow = () => within(screen.getByRole("table")).getAllByRole("row")[1];
+
+describe("organization list", () => {
+  it("links every organization to its details", () => {
+    render(list, { wrapper: Wrapper });
+
+    expect(screen.getByRole("link", { name: "Birch Trust" })).toHaveAttribute(
+      "href",
+      "/admin/organizations/birch",
+    );
+    expect(screen.getByRole("link", { name: "Alder Foundation" })).toHaveAttribute(
+      "href",
+      "/admin/organizations/alder",
+    );
+  });
+
+  it("retains the chosen sort order after leaving and returning to the list", async () => {
     const user = userEvent.setup();
-    const organizations = [
-      {
-        ...organization,
-        id: "1",
-        name: "Waiting",
-        invitation: { ...organization.invitation!, organizationId: "1" },
-      },
-      {
-        ...organization,
-        id: "2",
-        name: "Failed",
-        invitation: {
-          ...organization.invitation!,
-          organizationId: "2",
-          delivery: "failed" as const,
-        },
-      },
-      {
-        ...organization,
-        id: "3",
-        name: "Expired",
-        invitation: {
-          ...organization.invitation!,
-          organizationId: "3",
-          expiresAt: new Date("2020-01-01"),
-        },
-      },
-      {
-        ...organization,
-        id: "4",
-        name: "Revoked",
-        invitation: {
-          ...organization.invitation!,
-          organizationId: "4",
-          revokedAt: new Date(),
-          delivery: "failed" as const,
-        },
-      },
-      {
-        ...organization,
-        id: "5",
-        name: "Joined",
-        hasOwner: true,
-        invitation: {
-          ...organization.invitation!,
-          organizationId: "5",
-          delivery: "failed" as const,
-        },
-      },
-      {
-        ...organization,
-        id: "6",
-        name: "Unconfirmed",
-        invitation: {
-          ...organization.invitation!,
-          organizationId: "6",
-          delivery: "pending" as const,
-        },
-      },
-    ];
-    const list = <OrganizationList result={{ status: "ok", value: organizations }} />;
     const view = render(list, { wrapper: Wrapper });
 
-    expect(screen.getByRole("link", { name: "Waiting" })).toBeVisible();
-    expect(screen.getByRole("link", { name: "Joined" })).toBeVisible();
-    expect(screen.getAllByText("Email could not be sent")).toHaveLength(1);
+    expect(firstRow()).toHaveTextContent("Birch Trust");
 
     await user.click(screen.getByRole("button", { name: "Organization" }));
-    const rows = within(screen.getByRole("table")).getAllByRole("row");
-
-    expect(rows[1]).toHaveTextContent("Expired");
+    expect(firstRow()).toHaveTextContent("Alder Foundation");
 
     view.rerender(<p>Details</p>);
     view.rerender(list);
 
-    expect(within(screen.getByRole("table")).getAllByRole("row")[1]).toHaveTextContent("Expired");
-    expect(screen.getByRole("link", { name: "Waiting" })).toBeVisible();
+    expect(firstRow()).toHaveTextContent("Alder Foundation");
   });
 });

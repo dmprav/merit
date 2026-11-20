@@ -38,17 +38,21 @@ describe("administration context", () => {
         canAdminister,
         draftScope: "operator",
       });
-      expect(services.organizations.workspaces).toHaveBeenCalledExactlyOnceWith(actor);
-
-      services.currentIdentity.mockResolvedValue({ status: "signed_out" });
-
-      expect(await read({ context: services as unknown as AdminRequestContext })).toEqual({
-        status: "signed_out",
-      });
-      expect(services.organizations.workspaces).toHaveBeenCalledOnce();
       expect(services.organizations.canAdminister).toHaveBeenCalledExactlyOnceWith(actor);
+      expect(services.organizations.workspaces).toHaveBeenCalledExactlyOnceWith(actor);
     },
   );
+
+  it("does not consult operator access or workspaces for a signed-out request", async () => {
+    const services = context();
+    services.currentIdentity.mockResolvedValue({ status: "signed_out" });
+
+    expect(await read({ context: services as unknown as AdminRequestContext })).toEqual({
+      status: "signed_out",
+    });
+    expect(services.organizations.canAdminister).not.toHaveBeenCalled();
+    expect(services.organizations.workspaces).not.toHaveBeenCalled();
+  });
 
   it.each([false, true])(
     "retains verified operator status when workspace discovery fails (%s)",

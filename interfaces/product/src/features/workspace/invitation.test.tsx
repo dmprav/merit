@@ -123,3 +123,43 @@ it.each([
     await waitFor(() => expect(router.state.location.pathname).toBe(destination));
   },
 );
+
+it("keeps the invitation after a refused acceptance and opens the workspace on retry", async () => {
+  const organization = {
+    id: "alder",
+    name: "Alder Foundation",
+    slug: "alder",
+    kind: "standard" as const,
+    demoExpiresAt: null,
+    demoSeedVersion: null,
+  };
+  vi.mocked(readInvitation).mockResolvedValue({
+    status: "ok",
+    value: { organization, accepted: false, administration: "none", role: "program_manager" },
+  });
+  vi.mocked(acceptInvitation)
+    .mockResolvedValueOnce({ status: "forbidden" })
+    .mockResolvedValueOnce({
+      status: "ok",
+      value: { ...organization, canWorkOnGrants: true, canViewTeam: true },
+    });
+  const { user, router } = await renderWithRouter(
+    <QueryClientProvider client={createQueryClient()}>
+      <WorkspaceInvitation token="test-token" fingerprint="test" />
+    </QueryClientProvider>,
+    "/invitations/test-token",
+  );
+
+  await user.click(await screen.findByRole("button", { name: "Accept invitation" }));
+
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "Your account no longer has access through this invitation.",
+  );
+  expect(screen.getByRole("heading", { name: "Alder Foundation" })).toBeVisible();
+  expect(router.state.location.pathname).toBe("/invitations/test-token");
+
+  await user.click(screen.getByRole("button", { name: "Accept invitation" }));
+
+  await waitFor(() => expect(router.state.location.pathname).toBe("/app/alder/rounds"));
+  expect(acceptInvitation).toHaveBeenLastCalledWith({ data: { token: "test-token" } });
+});

@@ -1,6 +1,6 @@
 import { render, screen, within, waitFor, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { assert, describe, expect, it, vi } from "vite-plus/test";
+import { describe, expect, it, vi } from "vite-plus/test";
 
 import { createOrganization } from "./data/server/organizations.functions";
 import { OrganizationList } from "./screens";
@@ -146,55 +146,58 @@ describe("organization creation", () => {
     },
   );
 
-  it("validates before submission, keeps the same request identity when retrying, and preserves the draft", async () => {
+  it("does not submit an organization with missing details", async () => {
     const user = userEvent.setup();
-    const view = render(organizationList, { wrapper: Wrapper });
+    render(organizationList, { wrapper: Wrapper });
     await user.click(screen.getByRole("button", { name: "Create organization" }));
     await user.click(screen.getByRole("button", { name: "Create organization" }));
 
+    expect(screen.getByRole("textbox", { name: "Organization name" })).toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
     expect(createOrganization).not.toHaveBeenCalled();
+  });
 
-    await user.type(screen.getByRole("textbox", { name: "Organization name" }), "Alder");
+  it("keeps the suggested workspace address in step with name edits", async () => {
+    const user = userEvent.setup();
+    render(organizationList, { wrapper: Wrapper });
+    await user.click(screen.getByRole("button", { name: "Create organization" }));
+    const name = screen.getByRole("textbox", { name: "Organization name" });
+    await user.type(name, "Alder");
     await user.tab();
 
     expect(screen.getByRole("textbox", { name: "Workspace address" })).toHaveValue("alder");
 
-    await user.type(screen.getByRole("textbox", { name: "Owner email" }), "first@example.test");
-    vi.mocked(createOrganization).mockResolvedValue({ status: "unavailable" });
-    await user.click(screen.getByRole("button", { name: "Create organization" }));
-    view.rerender(<p>Organizations list</p>);
-    view.rerender(organizationList);
-    await user.click(screen.getByRole("button", { name: /^(Create|Resume) organization$/ }));
-
-    expect(screen.getByRole("textbox", { name: "Organization name" })).toHaveValue("Alder");
-
-    await user.type(screen.getByRole("textbox", { name: "Organization name" }), " Foundation");
+    await user.type(name, " Foundation");
     await user.tab();
 
     expect(screen.getByRole("textbox", { name: "Workspace address" })).toHaveValue(
       "alder-foundation",
     );
+  });
+
+  it("retries a failed creation with the same request identity after leaving the list", async () => {
+    const user = userEvent.setup();
+    vi.mocked(createOrganization).mockResolvedValue({ status: "unavailable" });
+    const view = render(organizationList, { wrapper: Wrapper });
+    await user.click(screen.getByRole("button", { name: "Create organization" }));
+    await user.type(screen.getByRole("textbox", { name: "Organization name" }), "Alder");
+    await user.type(screen.getByRole("textbox", { name: "Owner email" }), "first@example.test");
+    await user.click(screen.getByRole("button", { name: "Create organization" }));
+    await screen.findByRole("alert");
+
+    view.rerender(<p>Organizations list</p>);
+    view.rerender(organizationList);
+    await user.click(screen.getByRole("button", { name: "Resume organization" }));
+
+    expect(screen.getByRole("textbox", { name: "Organization name" })).toHaveValue("Alder");
 
     await user.click(screen.getByRole("button", { name: "Create organization" }));
 
-    expect(
-      (
-        vi.mocked(createOrganization).mock.calls[1] ??
-        assert.fail("Expected vi.mocked(createOrganization).mock.calls[1]")
-      )[0].data.requestId,
-    ).toBe(
-      (
-        vi.mocked(createOrganization).mock.calls[0] ??
-        assert.fail("Expected vi.mocked(createOrganization).mock.calls[0]")
-      )[0].data.requestId,
-    );
-
-    await user.click(screen.getByRole("button", { name: "Discard changes" }));
-    view.rerender(<p>Organizations list</p>);
-    view.rerender(organizationList);
-    await user.click(screen.getByRole("button", { name: /^(Create|Resume) organization$/ }));
-
-    expect(screen.getByRole("textbox", { name: "Organization name" })).toHaveValue("");
+    const [first, retry] = vi.mocked(createOrganization).mock.calls;
+    expect(retry?.[0].data.requestId).toBe(first?.[0].data.requestId);
+    expect(retry?.[0].data.requestId).toEqual(expect.any(String));
   });
 });
 

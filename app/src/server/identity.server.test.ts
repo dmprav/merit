@@ -5,7 +5,7 @@ import { resolveAccountUser, resolveGuestSession } from "@merit/auth/server";
 import { currentAccount } from "@merit/auth/session";
 import type { Database } from "@merit/db";
 
-import { createWebIdentity } from "./identity.server";
+import { createClerkIdentitySupport, createWebIdentity } from "./identity.server";
 
 vi.mock("@merit/auth/server", () => ({
   resolveAccountUser: vi.fn(),
@@ -95,6 +95,16 @@ it("keeps provider failures and disabled accounts unavailable even with a valid 
   expect(resolveGuestSession).not.toHaveBeenCalled();
 });
 
+it("reports identity unavailable without a guest fallback when the account lookup fails", async () => {
+  vi.mocked(resolveAccountUser).mockRejectedValueOnce(new Error("database unavailable"));
+  const session = createWebIdentity(options);
+
+  expect(await session.currentIdentity()).toEqual({ status: "unavailable" });
+  expect(await session.isGuest()).toBe(false);
+  expect(await session.organizationIdentity.isOperator(actor)).toBe(false);
+  expect(resolveGuestSession).not.toHaveBeenCalled();
+});
+
 it("resolves guest sessions when signed out, including when Clerk is unconfigured", async () => {
   vi.mocked(currentAccount).mockResolvedValue({ status: "signed_out" });
   const session = createWebIdentity(options);
@@ -104,6 +114,7 @@ it("resolves guest sessions when signed out, including when Clerk is unconfigure
   });
   expect(await session.isGuest()).toBe(true);
   expect(await session.organizationIdentity.verifiedEmails({ userId: "guest" })).toEqual([]);
+  expect(await session.organizationIdentity.displayName({ userId: "guest" })).toBeNull();
   expect(await session.organizationIdentity.isOperator({ userId: "guest" })).toBe(false);
 
   const anonymous = createWebIdentity({ ...options, clerk: { secretKey: "", publishableKey: "" } });
@@ -136,4 +147,21 @@ it("uses explicit local identity and profile inputs without consulting Clerk", a
   expect(await operator.organizationIdentity.isOperator(actor)).toBe(true);
   expect(await operator.organizationIdentity.displayName(actor)).toBe("Fixture");
   expect(currentAccount).not.toHaveBeenCalled();
+});
+
+it("gives a local identity without a profile no emails, display name, or operator authority", async () => {
+  const session = createWebIdentity({
+    ...options,
+    localIdentity: { status: "authenticated", actor },
+  });
+
+  expect(await session.organizationIdentity.verifiedEmails(actor)).toEqual([]);
+  expect(await session.organizationIdentity.displayName(actor)).toBeNull();
+  expect(await session.organizationIdentity.isOperator(actor)).toBe(false);
+});
+
+it("ignores blank operator entries so an empty account id never gains operator authority", () => {
+  const { isOperatorAccount } = createClerkIdentitySupport("secret", " , ");
+
+  expect(isOperatorAccount("")).toBe(false);
 });

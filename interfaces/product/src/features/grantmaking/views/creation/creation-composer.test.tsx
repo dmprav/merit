@@ -273,7 +273,7 @@ it("opens the saved application and clears the draft for the next creation", asy
   );
 });
 
-it("discards a creation explicitly and rejects malformed amounts before saving", async () => {
+it("rejects a negative requested amount before saving and focuses the amount", async () => {
   const user = setup(true);
   await user.click(screen.getByRole("button", { name: "Add application" }));
   await user.type(screen.getByRole("textbox", { name: "Project title" }), "Draft");
@@ -281,14 +281,24 @@ it("discards a creation explicitly and rejects malformed amounts before saving",
   await user.keyboard("{Control>}{Enter}{/Control}");
 
   expect(createApplication).not.toHaveBeenCalled();
-  expect(screen.getByRole("alert")).toBeVisible();
+  expect(screen.getByRole("alert")).toHaveTextContent(
+    "Enter an amount with no more than two decimal places, such as 24000.50.",
+  );
   expect(screen.getByRole("textbox", { name: "Requested amount" })).toHaveFocus();
+});
+
+it("discards an application draft explicitly so the next creation starts empty", async () => {
+  const user = setup(true);
+  await user.click(screen.getByRole("button", { name: "Add application" }));
+  await user.type(screen.getByRole("textbox", { name: "Project title" }), "Draft");
+  await user.type(screen.getByRole("textbox", { name: "Requested amount" }), "1200");
 
   await user.click(screen.getByRole("button", { name: "Discard draft" }));
   await user.click(screen.getByRole("button", { name: "Add application" }));
 
   expect(screen.getByRole("textbox", { name: "Project title" })).toHaveValue("");
   expect(screen.getByRole("textbox", { name: "Requested amount" })).toHaveValue("");
+  expect(createApplication).not.toHaveBeenCalled();
 });
 
 it.each([false, true])(

@@ -453,7 +453,7 @@ it("recreates the changed-budget scenario, keeps history, and distinguishes foll
   expect(page.application.reviews!.assessments).toHaveLength(2);
 });
 
-it("resolves live contact details without rewriting applications or history, and blocks archival with outstanding requests", async ({
+it("resolves live contact details without rewriting applications or history", async ({
   db,
   database,
 }) => {
@@ -496,7 +496,7 @@ it("resolves live contact details without rewriting applications or history, and
     status: "ok",
   });
 
-  let page = await read();
+  const page = await read();
 
   expect(page.application.submission?.contact).toBe("Sam Morgan");
   expect(page.intake.revision).toBe(previousPage.intake.revision);
@@ -566,29 +566,54 @@ it("resolves live contact details without rewriting applications or history, and
     (page.intake.history[0] ?? assert.fail("Expected page.intake.history[0]")).after?.submission
       ?.contact,
   ).toBe("Sam");
-  expect(
-    await changeWorkspaceContact(
-      db,
-      actor,
-      { workspaceSlug, contactId: sam.id, action: "archive", expectedContactRevision: 1 },
-      fundingRoundContactUsage,
-    ),
-  ).toMatchObject({ status: "invalid", error: "outstanding_requests" });
+});
+
+const archiveContact = (db: NodePgDatabase, contactId: string) =>
+  changeWorkspaceContact(
+    db,
+    actor,
+    { workspaceSlug, contactId, action: "archive", expectedContactRevision: 0 },
+    fundingRoundContactUsage,
+  );
+
+it("blocks archiving a contact with an outstanding review request until it is cancelled", async ({
+  db,
+}) => {
+  const { review } = await setup(db);
+  const sam = await contact(db);
+  const requestId = randomUUID();
+  await review({ action: "request", id: requestId, contactId: sam.id, replacesId: null });
+
+  expect(await archiveContact(db, sam.id)).toMatchObject({
+    status: "invalid",
+    error: "outstanding_requests",
+  });
 
   await review({ action: "cancel", id: requestId });
 
+  expect(await archiveContact(db, sam.id)).toMatchObject({ status: "ok" });
+});
+
+it("keeps an archived contact on its application", async ({ db }) => {
+  const { address, read } = await setup(db);
+  const sam = await contact(db);
   expect(
-    await changeWorkspaceContact(
-      db,
-      actor,
-      { workspaceSlug, contactId: sam.id, action: "archive", expectedContactRevision: 1 },
-      fundingRoundContactUsage,
-    ),
-  ).toMatchObject({ status: "ok" });
+    await selectApplicationContact(db, actor, {
+      ...address,
+      expectedRevision: 0,
+      contactId: sam.id,
+    }),
+  ).toEqual({ status: "ok", revision: 1 });
+  expect(await archiveContact(db, sam.id)).toMatchObject({ status: "ok" });
 
-  page = await read();
+  expect((await read()).application.contactId).toBe(sam.id);
+});
 
-  expect(page.application.contactId).toBe(sam.id);
+it("rejects a new review request for an archived contact", async ({ db }) => {
+  const { review } = await setup(db);
+  const sam = await contact(db);
+  expect(await archiveContact(db, sam.id)).toMatchObject({ status: "ok" });
+
   expect(
     await review({ action: "request", id: randomUUID(), contactId: sam.id, replacesId: null }),
   ).toMatchObject({ status: "invalid", error: "contact_unavailable" });

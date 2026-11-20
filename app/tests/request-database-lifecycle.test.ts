@@ -1,7 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from "vite-plus/test";
 
-import type { DatabaseRunner } from "@merit/db";
-
 const { clients, connectGate, mockDrizzle, handlerFetch, handleMcpMock, mcpResourceMetadataMock } =
   vi.hoisted(() => {
     type ClientRecord = {
@@ -220,24 +218,6 @@ it.each([
     expect(clients[0]!.release).toHaveBeenCalledOnce();
   },
 );
-
-it("discards a checkout after an operation fails and serves the next operation", async () => {
-  handleMcpMock.mockImplementationOnce(
-    async (_request, _config, { database }: { database: DatabaseRunner }) => {
-      await expect(
-        database(async () => {
-          throw new Error("query failed");
-        }),
-      ).rejects.toThrow("query failed");
-      await database(async () => undefined);
-      return new Response("recovered");
-    },
-  );
-  await fetchRequest("https://merit.example/mcp/workspace");
-
-  expect(clients[0]!.release).toHaveBeenCalledExactlyOnceWith(true);
-  expect(clients[1]!.release).toHaveBeenCalledExactlyOnceWith(false);
-});
 
 it("does not open any pg.Client when early routes or non-database requests complete", async () => {
   const metadata = await fetchRequest(

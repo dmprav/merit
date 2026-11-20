@@ -8,7 +8,6 @@ import {
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ComponentProps, ReactNode } from "react";
-import { useState } from "react";
 import { expect, it, vi } from "vite-plus/test";
 
 import { WebMessagesProvider } from "../../../app/messages";
@@ -132,32 +131,19 @@ it("ignores further clicks while acceptance is pending", async () => {
   expect(onAccept).not.toHaveBeenCalled();
 });
 
-it("keeps the invitation available after acceptance fails and accepts it on retry", async () => {
-  const Harness = () => {
-    const [error, setError] = useState("The invitation could not be accepted. Please try again.");
-    const [accepted, setAccepted] = useState(false);
-    return (
-      <InvitationView
-        result={{ status: "ok", value: { ...invitation.value, accepted } }}
-        token="preview-token"
-        error={error}
-        onAccept={() => {
-          setError("");
-          setAccepted(true);
-        }}
-      />
-    );
-  };
+it("reports a failed acceptance beside the invitation and keeps acceptance available", async () => {
+  const onAccept = vi.fn();
+  const { user } = await view({
+    error: "The invitation could not be accepted. Please try again.",
+    onAccept,
+  });
 
-  const { user } = await show(<Harness />);
-
-  expect(screen.getByRole("alert")).toHaveTextContent("Please try again");
+  expect(screen.getByRole("alert")).toHaveTextContent(
+    "The invitation could not be accepted. Please try again.",
+  );
   expect(screen.getByRole("heading", { name: "Alder Foundation" })).toBeVisible();
   await user.click(screen.getByRole("button", { name: "Accept invitation" }));
-
-  expect(screen.getByText("You have already accepted this invitation.")).toBeVisible();
-  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Open workspace" })).toBeEnabled();
+  expect(onAccept).toHaveBeenCalledOnce();
 });
 
 it.each([

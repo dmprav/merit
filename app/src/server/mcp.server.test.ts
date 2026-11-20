@@ -93,3 +93,21 @@ it("rejects a disabled bearer account before making its profile or authority ava
   expect(await identity.organizationIdentity.isOperator({ userId: "user-a" })).toBe(false);
   expect(await identity.organizationIdentity.verifiedEmails({ userId: "user-a" })).toEqual([]);
 });
+
+it("verifies the bearer token once per MCP request whether authority or authentication is checked first", async () => {
+  const identity = createMcpIdentity(request, config, database);
+
+  expect(await identity.organizationIdentity.isOperator({ userId: "user-a" })).toBe(true);
+  const first = await identity.authenticate();
+  const second = await identity.authenticate();
+
+  const actor = {
+    userId: "user-a",
+    provenance: { interface: "mcp", clientId: "client-a" },
+    scopes: ["workspace:read"],
+  };
+  expect(first).toEqual(actor);
+  expect(second).toEqual(actor);
+  expect(verifyClerkOAuth).toHaveBeenCalledOnce();
+  expect(resolveAccountUser).toHaveBeenCalledOnce();
+});
