@@ -69,6 +69,19 @@ describe("organization request adapters", () => {
     expect(services.organizations.workspaces).toHaveBeenCalledExactlyOnceWith(actor);
   });
 
+  it("does not offer the workspace to an operator who is not a member of it", async () => {
+    const services = context();
+    services.organizations.read.mockResolvedValue({ status: "ok", value: { id: "alder" } });
+    services.organizations.workspaces.mockResolvedValue({ status: "ok", value: [{ id: "birch" }] });
+
+    expect(
+      await read({
+        context: services as unknown as AdminRequestContext,
+        data: { organizationId: "alder" },
+      }),
+    ).toEqual({ status: "ok", value: { id: "alder", canOpenWorkspace: false } });
+  });
+
   it("keeps organization details available if workspace discovery fails", async () => {
     const services = context();
     services.organizations.read.mockResolvedValue({ status: "ok", value: { id: "alder" } });

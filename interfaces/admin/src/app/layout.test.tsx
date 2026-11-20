@@ -125,7 +125,7 @@ it.each([
   ["/admin/organizations/org-1", "Alder Foundation"],
   ["/admin/access-requests", "Access requests"],
   ["/admin/access-requests/", "Access requests"],
-])("labels %s as %s", async (path, expected) => {
+])("labels %s as %s for an operator without workspace memberships", async (path, expected) => {
   const breadcrumb = await renderPage(path);
 
   expect(within(breadcrumb).getAllByRole("listitem").at(-1)).toHaveTextContent(expected);
@@ -140,18 +140,6 @@ it.each(["/admin/organizations/org-1", "/admin/organizations/org-1/"])(
       "href",
       "/admin/organizations",
     );
-  },
-);
-
-it.each([
-  ["/admin/organizations", "Organizations"],
-  ["/admin/organizations/org-1", "Alder Foundation"],
-])(
-  "keeps the verified operator's trail without workspace memberships at %s",
-  async (path, label) => {
-    const breadcrumb = await renderPage(path);
-
-    expect(within(breadcrumb).getAllByRole("listitem").at(-1)).toHaveTextContent(label);
   },
 );
 
