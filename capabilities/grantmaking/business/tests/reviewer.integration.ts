@@ -364,7 +364,7 @@ it("rolls back a reviewer's submission when its audit event cannot be recorded",
   await expect(withAuditFailure(database.client, () => s.submit())).rejects.toMatchObject({
     cause: { message: "Audit recording failed" },
   });
-  expect((await s.read()).assessment).toBeNull();
+  expect(await s.read()).toMatchObject({ assignment: { status: "accepted" }, assessment: null });
   expect((await database.client.query("SELECT id FROM assessments")).rows).toEqual([]);
   expect(await recordedEvents(database.client, "target_type = 'assessment'")).toEqual([]);
   expect(await s.submit()).toMatchObject({ status: "ok" });
@@ -596,10 +596,7 @@ it("records an accepted reviewer message after the sender loses workspace access
   expect((await message()).status).toBe("sent");
 });
 
-it("enforces invitation expiry, recipient identity, and manager permissions", async ({
-  database,
-  reviewerScenario: s,
-}) => {
+it("hides an assignment from a manager in another workspace", async ({ reviewerScenario: s }) => {
   expect(
     await s.service.manage(
       { userId: "birch-manager" },
@@ -613,18 +610,48 @@ it("enforces invitation expiry, recipient identity, and manager permissions", as
       },
     ),
   ).toEqual({ status: "not_found" });
+  expect(await s.read()).toMatchObject({ assignment: { status: "invited" } });
+});
+
+it("limits invitation resends to one per recipient each minute", async ({
+  database,
+  reviewerScenario: s,
+}) => {
   expect(await s.manage("resend")).toEqual({ status: "limited" });
+
+  await database.client.query(
+    "UPDATE reviewer_messages SET created_at = now() - interval '2 minutes' WHERE assignment_id = $1",
+    [s.assignmentId],
+  );
+
+  expect(await s.manage("resend")).toMatchObject({ status: "ok" });
+});
+
+it("rejects a response to an expired invitation", async ({ database, reviewerScenario: s }) => {
   await database.client.query(
     "UPDATE review_assignments SET expires_at = now() - interval '1 hour' WHERE id = $1",
     [s.assignmentId],
   );
+
   expect(await s.respond("accept")).toEqual({ status: "expired" });
+  expect(await s.read()).toMatchObject({ assignment: { status: "invited" }, material: null });
+});
+
+it("lets the reviewer answer an expired invitation after the manager resends it", async ({
+  database,
+  reviewerScenario: s,
+}) => {
+  await database.client.query(
+    "UPDATE review_assignments SET expires_at = now() - interval '1 hour' WHERE id = $1",
+    [s.assignmentId],
+  );
   await database.client.query(
     "UPDATE reviewer_messages SET created_at = now() - interval '2 minutes' WHERE assignment_id = $1",
     [s.assignmentId],
   );
   expect(await s.manage("resend")).toMatchObject({ status: "ok" });
-  await s.respond("decline");
+
+  expect(await s.respond("decline")).toMatchObject({ status: "ok" });
   expect(await s.read()).toMatchObject({
     assignment: { status: "declined" },
     material: null,
@@ -680,23 +707,14 @@ it("ends staff review access when their membership is removed and requires expli
   expect((await s.read()).draft).toEqual(page.draft);
 });
 
-it("rolls back a submission if its history write fails and preserves immutable authorship", async ({
+it("rejects changing a submitted assessment's author or deleting its audit history", async ({
   database,
   reviewerScenario: s,
 }) => {
   await s.respond("accept");
   await s.save();
-  await database.client.query(
-    "CREATE FUNCTION fail_reviewer_submit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.action = 'assessment.submitted' THEN RAISE EXCEPTION 'forced failure'; END IF; RETURN NEW; END $$",
-  );
-  await database.client.query(
-    "CREATE TRIGGER fail_submit BEFORE INSERT ON audit_events FOR EACH ROW EXECUTE FUNCTION fail_reviewer_submit()",
-  );
-  await expect(s.submit()).rejects.toThrow();
-  expect((await s.read()).assignment.status).toBe("accepted");
-  expect((await s.read()).assessment).toBeNull();
-  await database.client.query("DROP TRIGGER fail_submit ON audit_events");
-  await s.submit();
+  expect(await s.submit()).toMatchObject({ status: "ok" });
+
   await expect(
     database.client.query("UPDATE assessments SET author_user_id = 'other' WHERE id = $1", [
       s.assignmentId,

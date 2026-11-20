@@ -92,43 +92,40 @@ it("keeps version identity unknown even when content can be compared", () => {
   expect(reviewFreshness(comparison)).toBe("current");
 });
 
-it("compares ordered titles and descriptions exactly, normalizing absent descriptions", () => {
-  const recorded = {
-    ...original,
-    criteria: [
-      { id: "fd95f96c-1270-51c5-a64f-5649f25186d9", title: "Fit" },
-      { id: "dc1f55ac-e713-51a8-8d91-f27f1c3d9959", title: "Feasibility", description: "Plan" },
-    ],
-  };
+const fit = { id: "fd95f96c-1270-51c5-a64f-5649f25186d9", title: "Fit" };
+const feasibility = {
+  id: "dc1f55ac-e713-51a8-8d91-f27f1c3d9959",
+  title: "Feasibility",
+  description: "Plan",
+};
+const ordered = { ...original, criteria: [fit, feasibility] };
+
+it("treats an absent criterion description as an empty one", () => {
   expect(
-    compareReviewBasis(recorded, {
-      ...recorded,
-      criteria: [
-        { id: "fd95f96c-1270-51c5-a64f-5649f25186d9", title: "Fit", description: "" },
-        { id: "dc1f55ac-e713-51a8-8d91-f27f1c3d9959", title: "Feasibility", description: "Plan" },
-      ],
+    compareReviewBasis(ordered, {
+      ...ordered,
+      criteria: [{ ...fit, description: "" }, feasibility],
     }).criteriaContent,
   ).toBe("same");
-  for (const criteria of [
-    [...recorded.criteria].reverse(),
-    [{ id: "fd95f96c-1270-51c5-a64f-5649f25186d9", title: "Fit" }],
-    [
-      { id: "3761c90d-bf5a-5cdc-a37c-47c838eb5222", title: "fit" },
-      { id: "dc1f55ac-e713-51a8-8d91-f27f1c3d9959", title: "Feasibility", description: "Plan" },
-    ],
-    [
-      { id: "fd95f96c-1270-51c5-a64f-5649f25186d9", title: "Fit" },
-      { id: "dc1f55ac-e713-51a8-8d91-f27f1c3d9959", title: "Feasibility", description: "Plan " },
-    ],
-    [
-      { id: "fd95f96c-1270-51c5-a64f-5649f25186d9", title: "Fit" },
-      { id: "dc1f55ac-e713-51a8-8d91-f27f1c3d9959", title: "Feasibility" },
-    ],
-  ]) {
-    expect(compareReviewBasis(recorded, { ...recorded, criteria }).criteriaContent).toBe(
-      "different",
-    );
-  }
+});
+
+it.each([
+  { name: "reordered criteria", criteria: [feasibility, fit] },
+  { name: "a removed criterion", criteria: [fit] },
+  {
+    name: "a title differing only in case",
+    criteria: [{ id: "3761c90d-bf5a-5cdc-a37c-47c838eb5222", title: "fit" }, feasibility],
+  },
+  {
+    name: "a description differing only in whitespace",
+    criteria: [fit, { ...feasibility, description: "Plan " }],
+  },
+  {
+    name: "a removed description",
+    criteria: [fit, { id: feasibility.id, title: feasibility.title }],
+  },
+])("treats $name as different criteria content", ({ criteria }) => {
+  expect(compareReviewBasis(ordered, { ...ordered, criteria }).criteriaContent).toBe("different");
 });
 
 it("does not treat technical criterion identity as a change in assessment content", () => {

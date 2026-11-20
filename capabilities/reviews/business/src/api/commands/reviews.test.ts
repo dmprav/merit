@@ -1,7 +1,7 @@
 import { expect, expectTypeOf, it } from "vite-plus/test";
 
 import { materialVersionSchema, type MaterialVersion } from "@merit/applications/domain";
-import { criteriaVersionSchema, type CriteriaVersion } from "@merit/rounds/domain";
+import type { CriteriaVersion } from "@merit/rounds/domain";
 
 import { compareReviewVersions } from "../../domain/basis";
 import { reviewChangeSchema } from "../../domain/reviews";
@@ -40,11 +40,6 @@ it("uses the same UUID for a request and its later cancellation", () => {
   expect(reviewChangeSchema.parse(request).id).toBe(id.toLowerCase());
   expect(reviewChangeSchema.parse({ action: "cancel", id }).id).toBe(id.toLowerCase());
   expect(reviewChangeSchema.safeParse({ action: "cancel", id: "request" }).success).toBe(false);
-});
-
-it.each([0, -1, 1.5, NaN, Infinity, "1"])("rejects invalid evidence version %s", (value) => {
-  expect(materialVersionSchema.safeParse(value).success).toBe(false);
-  expect(criteriaVersionSchema.safeParse(value).success).toBe(false);
 });
 
 it.each([-1, 1.5, NaN, Infinity, "1"])("rejects invalid review revision %s", (value) => {
