@@ -321,10 +321,16 @@ it.each(["unavailable", "transport"] as const)(
 
     expect(screen.getByLabelText(/Reasoning/)).toBe(reasoning);
     expect(reasoning).toHaveValue("Unfinished judgment kept while discovery is unavailable.");
+    expect(screen.getByRole("button", { name: "Save recommendation" })).toBeDisabled();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Recommendation changed while you were editing",
+    );
+
     vi.mocked(saveRecommendation).mockResolvedValue({ status: "conflict" });
+    await user.click(screen.getByRole("button", { name: "Keep my draft" }));
     await user.click(screen.getByRole("button", { name: "Save recommendation" }));
     expect(vi.mocked(saveRecommendation).mock.calls[0]?.[0].data).toMatchObject({
-      expectedRevision: 0,
+      expectedRevision: 1,
       expectedApplicationVersion: 2,
     });
   },
@@ -668,13 +674,20 @@ it("retains the original revision and draft across navigation and a conflicting 
   );
 
   expect(screen.getByLabelText(/Reasoning/)).toHaveValue("Unfinished judgment");
+  expect(screen.getByRole("button", { name: "Save recommendation" })).toBeDisabled();
+  expect(screen.getByRole("alert")).toHaveTextContent(
+    "Recommendation changed while you were editing",
+  );
+
+  await user.click(screen.getByRole("button", { name: "Keep my draft" }));
+  expect(screen.getByRole("button", { name: "Save recommendation" })).toBeEnabled();
 
   vi.mocked(saveRecommendation).mockResolvedValue({ status: "conflict" });
   await user.click(screen.getByRole("button", { name: "Save recommendation" }));
   const [saveCall] = vi.mocked(saveRecommendation).mock.calls;
 
   assert.isDefined(saveCall);
-  expect(saveCall[0].data).toMatchObject({ expectedRevision: 0 });
+  expect(saveCall[0].data).toMatchObject({ expectedRevision: 1 });
   expect(screen.getByRole("alert")).toHaveTextContent(
     "This application or recommendation has changed.",
   );

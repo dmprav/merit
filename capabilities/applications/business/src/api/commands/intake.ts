@@ -28,11 +28,21 @@ export const createApplicationRequestSchema = z.strictObject({
   requested: intakeContentSchema.shape.requested.optional(),
   answers: intakeContentSchema.shape.answers.optional(),
 });
-export const editApplicationRequestSchema = z.strictObject({
-  ...address,
-  expectedRevision: z.number().int().nonnegative(),
-  change: intakeChangeSchema,
-});
+export const editApplicationRequestSchema = z
+  .strictObject({
+    ...address,
+    expectedRevision: z.number().int().nonnegative().optional(),
+    change: intakeChangeSchema,
+  })
+  .superRefine((request, ctx) => {
+    if (request.change.action !== "details" && request.expectedRevision === undefined) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["expectedRevision"],
+        message: "expectedRevision is required for this change.",
+      });
+    }
+  });
 
 export type CreateApplicationRequest = z.infer<typeof createApplicationRequestSchema>;
 

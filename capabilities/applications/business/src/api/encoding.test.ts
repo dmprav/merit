@@ -118,13 +118,23 @@ describe("intake command requests", () => {
     },
   );
 
-  it("requires a non-negative expected revision for an intake edit", () => {
+  it("requires a non-negative expected revision for Tier 2 intake edits and allows omitting it for staff summary", () => {
     const edit = { ...address, expectedRevision: 0, change: { action: "mark_ready" } };
 
     expect(editApplicationRequestSchema.safeParse(edit).success).toBe(true);
     expect(editApplicationRequestSchema.safeParse({ ...edit, expectedRevision: -1 }).success).toBe(
       false,
     );
+    expect(
+      editApplicationRequestSchema.safeParse({ ...address, change: { action: "mark_ready" } })
+        .success,
+    ).toBe(false);
+    expect(
+      editApplicationRequestSchema.safeParse({
+        ...address,
+        change: { action: "details", summary: "Staff note" },
+      }).success,
+    ).toBe(true);
   });
 
   it("accepts clearing the application contact but rejects an empty contact identity", () => {

@@ -1,4 +1,4 @@
-import type { DraftPersistence, DraftWrite, DraftWriteResult } from "./persistence";
+import type { DraftPersistence, DraftRecovery, DraftWrite, DraftWriteResult } from "./persistence";
 import type { DraftSnapshot, DraftStatus, DraftValues } from "./types";
 
 type Lifecycle =
@@ -25,6 +25,8 @@ export class DraftStore<T> {
   };
   private pending = Promise.resolve();
   private listeners = new Set<() => void>();
+  private keyRevisions = new Map<string, number>();
+  private pendingResolutions = new Map<string, number>();
 
   constructor(persistence?: DraftPersistence<T>) {
     this.persistence = persistence;
@@ -34,6 +36,7 @@ export class DraftStore<T> {
       status: persistence ? "restoring" : "memory",
       ready: !persistence,
       storageUnavailable: false,
+      conflicts: new Set(),
     };
     this.snapshot = this.initial;
   }
@@ -71,6 +74,11 @@ export class DraftStore<T> {
 
   private publish(drafts = this.snapshot.drafts) {
     const status = this.status();
+    const conflicts = new Set(
+      [...this.recovery.failures.entries()]
+        .filter(([, failure]) => failure === "conflict")
+        .map(([key]) => key),
+    );
     this.snapshot = {
       drafts,
       status,
@@ -78,6 +86,7 @@ export class DraftStore<T> {
       storageUnavailable:
         status !== "cleared" &&
         (this.recovery.failures.size > 0 || status === "unavailable" || status === "conflict"),
+      conflicts,
     };
     for (const listener of this.listeners) {
       listener();
@@ -136,15 +145,24 @@ export class DraftStore<T> {
       return;
     }
     const keys = new Set([...Object.keys(previous), ...Object.keys(next)]);
-    const changes = [...keys]
-      .filter(
-        (key) =>
-          JSON.stringify(previous[key]) !== JSON.stringify(next[key]) ||
-          this.recovery.failures.has(key),
-      )
-      .map((key) => ({ key, value: next[key] }));
+
+    const isModified = (key: string) => JSON.stringify(previous[key]) !== JSON.stringify(next[key]);
+
+    const modified = [...keys].filter(isModified);
+
+    const canRetryUnchanged = (key: string) =>
+      !this.pendingResolutions.has(key) &&
+      (modified.length === 0
+        ? this.recovery.failures.has(key)
+        : this.recovery.failures.get(key) === "unavailable");
+
+    const retried = [...keys].filter((key) => !isModified(key) && canRetryUnchanged(key));
+    const changes = [...modified, ...retried].map((key) => ({ key, value: next[key] }));
     if (!changes.length) {
       return;
+    }
+    for (const { key } of changes) {
+      this.keyRevisions.set(key, (this.keyRevisions.get(key) ?? 0) + 1);
     }
     this.lifecycle.pendingWrites += 1;
     this.pending = this.pending.then(() => this.persist(changes));
@@ -208,6 +226,92 @@ export class DraftStore<T> {
         for (const { key } of changes) {
           this.recovery.failures.set(key, "unavailable");
         }
+      }
+    }
+    if (this.lifecycle.phase === "ready") {
+      this.lifecycle.pendingWrites -= 1;
+      this.publish();
+    }
+  }
+
+  resolveConflict = (key: string, choice: "keep" | "use_stored"): Promise<void> => {
+    if (this.isCleared() || this.lifecycle.phase !== "ready" || !this.persistence) {
+      return Promise.resolve();
+    }
+    const revision = this.keyRevisions.get(key) ?? 0;
+    this.pendingResolutions.set(key, (this.pendingResolutions.get(key) ?? 0) + 1);
+    this.lifecycle.pendingWrites += 1;
+    const resolution = this.pending.then(() => this.applyConflictResolution(key, choice, revision));
+    this.pending = resolution;
+    this.publish();
+    return resolution;
+  };
+
+  private async commitConflictChoice(
+    persistence: DraftPersistence<T>,
+    key: string,
+    choice: "keep" | "use_stored",
+    latest: DraftRecovery<T>,
+    revision: number,
+  ) {
+    if ((this.keyRevisions.get(key) ?? 0) !== revision) {
+      return;
+    }
+    const latestToken = latest.tokens.get(key);
+    if (latestToken === undefined) {
+      this.recovery.tokens.delete(key);
+    } else {
+      this.recovery.tokens.set(key, latestToken);
+    }
+    this.recovery.failures.delete(key);
+    this.recovery.incompatible.delete(key);
+    if (choice === "use_stored") {
+      if (latest.incompatible.has(key)) {
+        this.recovery.incompatible.add(key);
+        this.recovery.failures.set(key, "unavailable");
+      } else {
+        this.publish({ ...this.snapshot.drafts, [key]: latest.drafts[key] });
+      }
+      return;
+    }
+    const currentValue = this.snapshot.drafts[key];
+    const result = await persistence.write(this.recovery.epoch, [
+      { key, value: currentValue, token: latestToken },
+    ]);
+    if (!this.isCleared()) {
+      this.acceptWrite([{ key, value: currentValue }], result);
+    }
+  }
+
+  private async applyConflictResolution(
+    key: string,
+    choice: "keep" | "use_stored",
+    revision: number,
+  ) {
+    if (this.isCleared() || !this.persistence) {
+      return;
+    }
+    try {
+      const latest = await this.persistence.restore();
+      if (this.isCleared()) {
+        return;
+      }
+      if (this.recovery.epoch && latest.epoch !== this.recovery.epoch) {
+        this.invalidate();
+        return;
+      }
+      this.recovery.epoch ??= latest.epoch;
+      await this.commitConflictChoice(this.persistence, key, choice, latest, revision);
+    } catch {
+      if (!this.isCleared()) {
+        this.recovery.failures.set(key, "unavailable");
+      }
+    } finally {
+      const remaining = (this.pendingResolutions.get(key) ?? 1) - 1;
+      if (remaining > 0) {
+        this.pendingResolutions.set(key, remaining);
+      } else {
+        this.pendingResolutions.delete(key);
       }
     }
     if (this.lifecycle.phase === "ready") {

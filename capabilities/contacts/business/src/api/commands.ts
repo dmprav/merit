@@ -15,7 +15,7 @@ export const contactCommands = {
     details: contactDetailsSchema,
   }),
   update: z.strictObject({
-    ...existingContact,
+    ...contactAddress,
     action: z.literal("update"),
     details: contactDetailsSchema,
   }),

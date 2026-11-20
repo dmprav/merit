@@ -479,3 +479,137 @@ it("removes an earlier quick-edit Undo after a subsequent form save", async () =
     expect(screen.queryByRole("button", { name: "Undo" })).not.toBeInTheDocument(),
   );
 });
+
+it("rebases a recovered purpose draft past an unrelated round title change on save", async () => {
+  const scope = "round-rebase";
+  await seedDraftStorage(scope, "rounds", {
+    "alder/k7m2p9x4n6rt/purpose": {
+      ...preparationDraft("purpose", round, 0),
+      value: { purpose: "My revised purpose" },
+    },
+  });
+  vi.mocked(editRound).mockResolvedValue({ status: "ok", revision: 2 });
+  const client = createQueryClient();
+  const updatedRound = { ...round, title: "Renamed elsewhere" };
+  render(
+    <QueryClientProvider client={client}>
+      <WebMessagesProvider>
+        <GrantmakingDrafts storageScope={scope}>
+          {(() => {
+            const ControllerView = () => {
+              const controller = usePreparationEditing({
+                round: updatedRound,
+                data: workspacePreparationData(client, "alder", "k7m2p9x4n6rt", {
+                  ...preparation,
+                  revision: 1,
+                }),
+                onDeleted: () =>
+                  navigate({
+                    to: "/app/$workspaceSlug/rounds",
+                    params: { workspaceSlug: "alder" },
+                  }),
+              });
+              return (
+                <>
+                  {controller.editing === "purpose" ? (
+                    <RoundEditor preparation={controller} section="purpose" />
+                  ) : (
+                    <RoundEditButton preparation={controller} section="purpose" />
+                  )}
+                  <RoundFeedback preparation={controller} />
+                </>
+              );
+            };
+
+            return <ControllerView />;
+          })()}
+        </GrantmakingDrafts>
+      </WebMessagesProvider>
+    </QueryClientProvider>,
+  );
+
+  const user = userEvent.setup();
+  await user.click(await screen.findByRole("button", { name: "Continue editing purpose" }));
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+
+  await user.click(screen.getByRole("button", { name: "Save changes" }));
+
+  await waitFor(() => expect(editRound).toHaveBeenCalledOnce());
+  expect(vi.mocked(editRound).mock.calls[0]?.[0].data).toMatchObject({
+    expectedRevision: 1,
+    change: { section: "details", purpose: "My revised purpose" },
+  });
+});
+
+it("resolves a true section collision via ConflictBanner with latest preview", async () => {
+  const scope = "round-conflict-banner";
+  await seedDraftStorage(scope, "rounds", {
+    "alder/k7m2p9x4n6rt/purpose": {
+      ...preparationDraft("purpose", round, 0),
+      value: { purpose: "My conflicting purpose" },
+    },
+  });
+  vi.mocked(editRound).mockResolvedValue({ status: "ok", revision: 2 });
+  const client = createQueryClient();
+  const updatedRound = { ...round, purpose: "Colleague saved purpose" };
+  render(
+    <QueryClientProvider client={client}>
+      <WebMessagesProvider>
+        <GrantmakingDrafts storageScope={scope}>
+          {(() => {
+            const ControllerView = () => {
+              const controller = usePreparationEditing({
+                round: updatedRound,
+                data: workspacePreparationData(client, "alder", "k7m2p9x4n6rt", {
+                  ...preparation,
+                  revision: 1,
+                }),
+                onDeleted: () =>
+                  navigate({
+                    to: "/app/$workspaceSlug/rounds",
+                    params: { workspaceSlug: "alder" },
+                  }),
+              });
+              return (
+                <>
+                  {controller.editing === "purpose" ? (
+                    <RoundEditor preparation={controller} section="purpose" />
+                  ) : (
+                    <RoundEditButton preparation={controller} section="purpose" />
+                  )}
+                  <RoundFeedback preparation={controller} />
+                </>
+              );
+            };
+
+            return <ControllerView />;
+          })()}
+        </GrantmakingDrafts>
+      </WebMessagesProvider>
+    </QueryClientProvider>,
+  );
+
+  const user = userEvent.setup();
+  await user.click(await screen.findByRole("button", { name: "Continue editing purpose" }));
+
+  const alert = await screen.findByRole("alert");
+  expect(alert).toHaveTextContent("This round changed while you were editing");
+  expect(screen.getByRole("button", { name: "Save changes" })).toBeDisabled();
+  expect(screen.getByRole("textbox", { name: "Purpose" })).toHaveValue("My conflicting purpose");
+
+  await user.click(screen.getByRole("button", { name: "View latest" }));
+  expect(screen.getByRole("region", { name: "Latest saved values" })).toHaveTextContent(
+    "Colleague saved purpose",
+  );
+
+  await user.click(screen.getByRole("button", { name: "Keep my changes" }));
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Save changes" })).toBeEnabled();
+
+  await user.click(screen.getByRole("button", { name: "Save changes" }));
+  await waitFor(() => expect(editRound).toHaveBeenCalledOnce());
+  expect(vi.mocked(editRound).mock.calls[0]?.[0].data).toMatchObject({
+    expectedRevision: 1,
+    change: { section: "details", purpose: "My conflicting purpose" },
+  });
+});

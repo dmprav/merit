@@ -1,18 +1,21 @@
-import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import { contactDetailsSchema, type ContactDetails } from "@merit/contacts/domain";
-import { Form, FormActions, FormTextField, useForm, useTranslatedSchema } from "@merit/forms";
-import { Button } from "@merit/ui/button";
+import {
+  Form,
+  FormActions,
+  FormTextField,
+  RetainedDraftNotice,
+  useForm,
+  useTranslatedSchema,
+} from "@merit/forms";
 import { DialogContent } from "@merit/ui/dialog";
 import { EditorLoading } from "@merit/ui/editor-loading";
-import { Inline, Stack } from "@merit/ui/layout";
-import { Notice } from "@merit/ui/notice";
+import { Stack } from "@merit/ui/layout";
 
 import type { Contact, ContactsData } from "../contracts";
 import { useContactEditor } from "../controllers/contact-editor";
 import type { useContactDrafts } from "../controllers/drafts";
-import { ContactDetails as SavedContactDetails } from "./contact-details";
 import styles from "./contacts.module.css";
 
 const ContactForm = ({
@@ -21,11 +24,7 @@ const ContactForm = ({
   onSave,
   onClose,
   onDiscard,
-  conflict,
-  children,
 }: {
-  children?: ReactNode;
-  conflict: boolean;
   value: ContactDetails;
   onChange: (value: ContactDetails) => void;
   onSave: (value: ContactDetails) => Promise<string | null>;
@@ -57,12 +56,10 @@ const ContactForm = ({
           discard={{ label: t("discard"), onPress: onDiscard }}
           submitLabel={t("save")}
           submittingLabel={t("saving")}
-          isSubmitDisabled={conflict}
         />
       }
     >
       <Stack>
-        {children}
         <p>{t("sharedDetails")}</p>
         <form.Field name="name">
           {(field) => <FormTextField field={field} label={t("name")} autoFocus maxLength={200} />}
@@ -105,33 +102,28 @@ export const ContactEditor = (props: ContactEditorProps) => {
 const ReadyContactEditor = (props: ContactEditorProps) => {
   const { t } = useTranslation("contacts");
   const editor = useContactEditor(props);
-  const { current, conflict, baseline, value } = editor;
+  const { missing, value } = editor;
+
+  if (missing) {
+    return (
+      <DialogContent label={t("editContact")}>
+        <RetainedDraftNotice
+          title={t("retainedTitle")}
+          message={t("missingContact")}
+          textToCopy={[value.name, value.email, value.affiliation].filter(Boolean).join("\n")}
+          onDiscard={editor.discard}
+        />
+      </DialogContent>
+    );
+  }
 
   return (
     <ContactForm
-      key={baseline ?? "new"}
-      conflict={conflict}
       value={value}
       onChange={editor.change}
       onClose={props.onClose}
       onDiscard={editor.discard}
       onSave={editor.save}
-    >
-      {conflict && current && (
-        <Notice as="div" tone="warning">
-          <p>{t("conflict")}</p>
-          <p>{t("savedContactDetails")}</p>
-          <SavedContactDetails value={current} />
-          <Inline>
-            <Button variant="secondary" onPress={editor.useSaved}>
-              {t("useSaved")}
-            </Button>
-            <Button variant="secondary" onPress={editor.keepDraft}>
-              {t("keepDraft")}
-            </Button>
-          </Inline>
-        </Notice>
-      )}
-    </ContactForm>
+    />
   );
 };

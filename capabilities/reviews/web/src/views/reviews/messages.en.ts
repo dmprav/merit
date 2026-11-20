@@ -112,10 +112,10 @@ export const en = {
   backReviews: "Back to assessments",
   backHistory: "Back to assessment history",
   backAssessment: "Back to assessment",
-  savedWork: "Current saved work",
-  yourDraft: "Your draft",
-  conflictTitle: "Review changed",
-  comparison: "Saved assessment and your draft",
+  savedWork: "Latest saved work",
+  conflictTitle: "This review changed while you were editing",
+  viewLatest: "View latest",
+  hideLatest: "Hide latest",
   latestCriteria: "Current criteria",
   originalCriteria: "Criteria reviewed",
   editCount: "Recorded version {{version}}",
@@ -135,8 +135,7 @@ export const en = {
   versionUnavailable:
     "The selected review basis is no longer available. Check the application and criteria versions.",
   invalidReview: "Check the assessment text and amount.",
-  useSaved: "Use saved assessment",
+  useSaved: "Discard & load latest",
   keepDraft: "Keep my draft",
-  reviewLatest:
-    "Compare the current saved work with your draft. Keeping your draft applies it to the current application and review state.",
+  retainedTitle: "Assessment no longer available",
 } as const;

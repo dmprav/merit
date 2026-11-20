@@ -20,8 +20,14 @@ export const createPreparationData = <TData, TKey extends QueryKey>(
   return {
     draftKey: `${workspaceSlug}/${publicId}`,
     state,
-    save: (change, revision) =>
-      source.editRound({ workspaceSlug, publicId, change, expectedRevision: revision }),
+    save: (change, revision, options) =>
+      source.editRound({
+        workspaceSlug,
+        publicId,
+        change,
+        expectedRevision: revision,
+        ...(options?.requireCurrentRevision ? { requireCurrentRevision: true } : {}),
+      }),
     delete: async (revision) => {
       const result = await source.deleteRound({
         workspaceSlug,

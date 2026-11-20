@@ -149,7 +149,7 @@ test(
   },
 );
 
-for (const choice of ["Keep my changes", "Use saved values"]) {
+for (const choice of ["Keep my changes", "Discard & load latest"]) {
   test(
     `intake conflict recovery restores editing focus after "${choice}"`,
     { tag: "@cross-browser" },
@@ -158,19 +158,18 @@ for (const choice of ["Keep my changes", "Use saved values"]) {
         "/iframe.html?id=features-applications-intake-form--concurrent-changes&viewMode=story",
       );
       await expect(page.locator("#storybook-root")).toHaveAttribute("data-story-ready", "true");
-      const conflict = page.getByRole("region", {
-        name: "Review conflicting changes",
-        exact: true,
-      });
-      const saved = conflict.getByRole("region", { name: "Latest saved values", exact: true });
+      const dialog = page.getByRole("form", { name: "Edit application details", exact: true });
+      await expect(dialog.getByRole("button", { name: "Save", exact: true })).toBeDisabled();
+      await expect(dialog.getByRole("textbox", { name: "Applicant", exact: true })).toHaveValue(
+        "Neighbourhood Kitchen — local edit",
+      );
+      const saved = dialog.getByRole("region", { name: "Latest saved values", exact: true });
       await expect(saved.getByText("Neighbourhood Kitchen", { exact: true })).toBeVisible();
       await expect(saved.getByText("€28,000", { exact: true })).toBeVisible();
-      await expect(page.getByRole("textbox", { name: "Applicant", exact: true })).toHaveCount(0);
-      const recover = conflict.getByRole("button", { name: choice, exact: true });
+      const recover = dialog.getByRole("button", { name: choice, exact: true });
       await recover.focus();
       await recover.press("Enter");
 
-      const dialog = page.getByRole("form", { name: "Edit application details", exact: true });
       const applicant = dialog.getByRole("textbox", { name: "Applicant", exact: true });
       await expect(applicant).toBeFocused();
       await expect(applicant).toHaveValue(

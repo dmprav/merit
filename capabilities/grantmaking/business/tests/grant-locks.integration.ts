@@ -186,14 +186,25 @@ const updateProfile = (connection: Database, data: Fixture) =>
       workspaceSlug,
       contactId: data.contact.id,
       action: "update",
-      expectedContactRevision: data.contact.revision,
-      details: { name: "Updated contact", email: data.contact.email, affiliation: "Review panel" },
+      details: { name: "Updated contact", email: "sam@example.test", affiliation: "" },
     },
     fundingRoundContactUsage,
   );
 
-const edits = {
-  contactProfile: updateProfile,
+const archiveContact = (connection: Database, data: Fixture) =>
+  changeWorkspaceContact(
+    connection,
+    actor,
+    {
+      workspaceSlug,
+      contactId: data.contact.id,
+      action: "archive",
+      expectedContactRevision: 0,
+    },
+    fundingRoundContactUsage,
+  );
+
+const revisionProtectedEdits = {
   round: roundEdit,
   application: (connection: Database, data: Fixture) =>
     editFundingApplication(
@@ -203,7 +214,7 @@ const edits = {
         workspaceSlug,
         publicId: data.applicationId,
         expectedRevision: 0,
-        change: { action: "details", summary: "Staff summary" },
+        change: { action: "save_content", content: { title: "Updated community meals" } },
       },
       applicationWork,
     ),
@@ -237,16 +248,11 @@ const edits = {
         replacesId: null,
       },
     }),
-  contact: (connection: Database, data: Fixture) =>
-    selectApplicationContact(connection, actor, {
-      workspaceSlug,
-      publicId: data.applicationId,
-      expectedRevision: 0,
-      contactId: data.contact.id,
-    }),
 };
 
-it.each(Object.entries(edits))(
+const edits = revisionProtectedEdits;
+
+it.each(Object.entries({ contactProfile: updateProfile, ...revisionProtectedEdits }))(
   "allows editing %s while another round has an uncommitted edit",
   async (_, edit) => {
     const a = await fixture();
@@ -269,7 +275,7 @@ it.each(Object.entries(edits))(
   },
 );
 
-it.each(Object.entries(edits))(
+it.each(Object.entries({ contactArchive: archiveContact, ...revisionProtectedEdits }))(
   "serializes competing %s edits and rejects the stale revision",
   async (_, edit) => {
     const data = await fixture();
@@ -281,6 +287,61 @@ it.each(Object.entries(edits))(
     expect(await competing).toEqual({ status: "conflict" });
   },
 );
+
+it("serializes competing Tier 1 contact updates and applies the later details", async () => {
+  const data = await fixture();
+  const commit = await hold((tx) => updateProfile(tx, data));
+  const competing = track(
+    changeWorkspaceContact(
+      drizzle(second),
+      actor,
+      {
+        workspaceSlug,
+        contactId: data.contact.id,
+        action: "update",
+        details: { name: "Later contact", email: "sam@example.test", affiliation: "" },
+      },
+      fundingRoundContactUsage,
+    ),
+  );
+  await expectBlocked();
+  await commit();
+
+  expect(await competing).toMatchObject({
+    status: "ok",
+    contact: { name: "Later contact", revision: 2 },
+  });
+});
+
+it("serializes competing Tier 1 contact selections and applies the later choice", async () => {
+  const data = await fixture();
+  const commit = await hold((tx) =>
+    selectApplicationContact(tx, actor, {
+      workspaceSlug,
+      publicId: data.applicationId,
+      contactId: data.contact.id,
+    }),
+  );
+  const competing = track(
+    selectApplicationContact(drizzle(second), actor, {
+      workspaceSlug,
+      publicId: data.applicationId,
+      contactId: null,
+    }),
+  );
+  await expectBlocked();
+  await commit();
+
+  expect(await competing).toMatchObject({ status: "ok" });
+  expect(
+    (
+      await getFundingApplicationPage(db, actor, {
+        workspaceSlug,
+        publicId: data.applicationId,
+      })
+    )?.application.contactId,
+  ).toBeNull();
+});
 
 it("deletes an empty round while another round has an uncommitted edit", async () => {
   const data = await fixture();

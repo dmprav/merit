@@ -90,15 +90,14 @@
 
 .notice[data-appearance="inline"] .body {
   align-items: flex-start;
-  flex-wrap: nowrap;
 }
 
 .notice[data-appearance="inline"] .message {
-  flex-basis: auto;
+  flex: 1 1 12rem;
 }
 
 .notice[data-appearance="inline"] .actions {
-  flex-shrink: 0;
+  max-width: 100%;
 }
 
 @media (forced-colors: active) {

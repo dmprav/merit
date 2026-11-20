@@ -1,5 +1,6 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
+import { useState, type ReactNode } from "react";
 import { expect, it, vi } from "vite-plus/test";
 
 import { materialVersionSchema } from "@merit/applications/domain";
@@ -9,7 +10,7 @@ import { createQueryClient } from "@merit/query";
 import { reviewRevisionSchema } from "@merit/reviews/domain";
 
 import type { ReviewData, ReviewProps } from "../../contracts/reviews";
-import { DraftContext } from "./drafts";
+import { DraftContext, type ReviewDraft } from "./drafts";
 import { useReview } from "./use-review";
 
 const setup = (
@@ -196,4 +197,126 @@ it("preserves a committed request through a failed refresh and retries only the 
   expect(result.current.refreshError).toBeNull();
   expect(result.current.saved).toBe(1);
   expect(data.save).toHaveBeenCalledOnce();
+});
+
+const statefulWrapper =
+  (
+    client: ReturnType<typeof createQueryClient>,
+    initialEdits: Record<string, ReviewDraft | undefined>,
+  ) =>
+  ({ children }: { children: ReactNode }) => {
+    const [reviewEdits, setEdits] = useState(initialEdits);
+
+    const setReviewEdit = (key: string, next: ReviewDraft | undefined) => {
+      setEdits((current) => ({ ...current, [key]: next }));
+    };
+
+    return (
+      <QueryClientProvider client={client}>
+        <DraftContext value={{ ready: true, reviewEdits, setReviewEdit }}>{children}</DraftContext>
+      </QueryClientProvider>
+    );
+  };
+
+const makeRecordDraft = (
+  round: ReturnType<typeof makeRound>,
+  overrides: Partial<ReviewDraft> = {},
+): ReviewDraft => ({
+  mode: "record",
+  id: crypto.randomUUID(),
+  revision: reviewRevisionSchema.parse(1),
+  applicationVersion: materialVersionSchema.parse(2),
+  criteriaVersion: round.criteriaVersion,
+  requestId: null,
+  previousId: null,
+  values: {
+    contactId: "sam",
+    applicationVersion: "2",
+    criteriaVersion: String(round.criteriaVersion),
+    date: "",
+    position: "Fund",
+    amount: "100",
+    reasoning: "Local notes",
+    observations: [],
+    note: "",
+  },
+  ...overrides,
+});
+
+it("flags a conflict for a null-requestId draft when a matching request is created", () => {
+  const round = makeRound();
+  const baseApp = applicationView(
+    makeApplication({ version: 2, reviews: { revision: 1, requests: [], assessments: [] } }),
+  );
+  const { result, rerender } = renderHook(
+    (app: ReturnType<typeof applicationView>) =>
+      useReview({
+        application: app,
+        round,
+        data: { draftKey: "application", workspaceSlug: "alder", save: vi.fn(), refresh: vi.fn() },
+      }),
+    {
+      initialProps: baseApp,
+      wrapper: statefulWrapper(createQueryClient(), { application: makeRecordDraft(round) }),
+    },
+  );
+
+  expect(result.current.conflict).toBe(false);
+
+  const withRequest = applicationView(
+    makeApplication({
+      version: 2,
+      reviews: {
+        revision: 2,
+        requests: [
+          {
+            id: crypto.randomUUID(),
+            contactId: "sam",
+            reviewer: "Sam",
+            applicationVersion: materialVersionSchema.parse(2),
+            criteriaVersion: round.criteriaVersion,
+            criteria: round.criteria,
+            status: "outstanding",
+            recorder: null,
+            closedBy: null,
+          },
+        ],
+        assessments: [],
+      },
+    }),
+  );
+  rerender(withRequest);
+  expect(result.current.conflict).toBe(true);
+});
+
+it("clears an edit draft on loadLatest when its target was authored directly by a reviewer", () => {
+  const round = makeRound();
+  const authoredAssessment = makeAssessment({
+    id: crypto.randomUUID(),
+    contactId: "sam",
+    authorUserId: "sam-user",
+  });
+  const baseApp = applicationView(
+    makeApplication({
+      version: 2,
+      reviews: { revision: 3, requests: [], assessments: [authoredAssessment] },
+    }),
+  );
+  const { result } = renderHook(
+    () =>
+      useReview({
+        application: baseApp,
+        round,
+        data: { draftKey: "application", workspaceSlug: "alder", save: vi.fn(), refresh: vi.fn() },
+      }),
+    {
+      wrapper: statefulWrapper(createQueryClient(), {
+        application: makeRecordDraft(round, { mode: "edit", id: authoredAssessment.id }),
+      }),
+    },
+  );
+
+  expect(result.current.draft).toBeDefined();
+  act(() => result.current.loadLatest());
+  expect(result.current.draft).toBeUndefined();
 });

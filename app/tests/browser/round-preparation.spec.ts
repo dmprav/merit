@@ -61,7 +61,10 @@ for (const action of ["Close", "Discard draft"]) {
   });
 }
 
-test("create, prepare, reconcile and delete an empty funding round", async ({ page }, testInfo) => {
+test("create, prepare, reconcile and delete an empty funding round", async ({
+  page,
+  newContext,
+}, testInfo) => {
   const title = `Community grants ${testInfo.project.name}`;
   await page.goto("/app/alder/rounds");
 
@@ -253,51 +256,61 @@ test("create, prepare, reconcile and delete an empty funding round", async ({ pa
 
   await expect(dialog).not.toBeVisible();
 
-  const competing = await page.context().newPage();
-  await competing.goto(roundUrl);
+  const competingContext = await newContext({
+    ...testInfo.project.use,
+    storageState: await page.context().storageState(),
+  });
+  const competing = await competingContext.newPage();
+  try {
+    await competing.goto(roundUrl);
 
-  await expect(competing.getByRole("main")).toBeFocused();
+    await expect(competing.getByRole("main")).toBeFocused();
 
-  await competing.getByRole("button", { name: "Edit purpose", exact: true }).click();
-  await competing.getByRole("textbox", { name: "Purpose" }).fill("A competing purpose draft.");
-  await page.getByRole("button", { name: "Edit purpose", exact: true }).click();
-  await page
-    .getByRole("textbox", { name: "Purpose" })
-    .fill("Updated purpose from the first manager.");
-  await page.getByRole("button", { name: "Save changes", exact: true }).click();
+    await competing.getByRole("button", { name: "Edit purpose", exact: true }).click();
+    await competing.getByRole("textbox", { name: "Purpose" }).fill("A competing purpose draft.");
+    await page.getByRole("button", { name: "Edit purpose", exact: true }).click();
+    await page
+      .getByRole("textbox", { name: "Purpose" })
+      .fill("Updated purpose from the first manager.");
+    await page.getByRole("button", { name: "Save changes", exact: true }).click();
 
-  await expect(page.getByRole("form", { name: "Edit purpose" })).not.toBeVisible();
+    await expect(page.getByRole("form", { name: "Edit purpose" })).not.toBeVisible();
 
-  await page.getByRole("button", { name: /^Edit committee date:/ }).click();
-  await page.getByRole("textbox", { name: "Committee date", exact: true }).fill("2027-04-20");
-  await page.getByRole("textbox", { name: "Committee date", exact: true }).press("Enter");
+    await page.getByRole("button", { name: /^Edit committee date:/ }).click();
+    await page.getByRole("textbox", { name: "Committee date", exact: true }).fill("2027-04-20");
+    await page.getByRole("textbox", { name: "Committee date", exact: true }).press("Enter");
 
-  await expect(page.getByRole("dialog")).not.toBeVisible();
+    await expect(page.getByRole("dialog")).not.toBeVisible();
 
-  await competing.getByRole("button", { name: "Save changes", exact: true }).click();
+    await competing.getByRole("button", { name: "Save changes", exact: true }).click();
 
-  await expect(competing.getByText("Latest saved values", { exact: true })).toBeVisible();
-  await expect(
-    competing
-      .getByRole("form")
-      .getByText("Updated purpose from the first manager.", { exact: true }),
-  ).toBeVisible();
-  await expect(competing.getByRole("textbox", { name: "Purpose" })).toHaveValue(
-    "A competing purpose draft.",
-  );
-  await expect(competing.getByRole("button", { name: "Apply choices to draft" })).toBeDisabled();
+    await expect(
+      competing.getByRole("alert").filter({ hasText: "This round changed while you were editing" }),
+    ).toBeVisible();
+    await expect(
+      competing.getByRole("button", { name: "Save changes", exact: true }),
+    ).toBeDisabled();
+    await competing.getByRole("button", { name: "View latest", exact: true }).click();
+    await expect(competing.getByRole("region", { name: "Latest saved values" })).toBeVisible();
+    await expect(
+      competing
+        .getByRole("form")
+        .getByText("Updated purpose from the first manager.", { exact: true }),
+    ).toBeVisible();
+    await expect(competing.getByRole("textbox", { name: "Purpose" })).toHaveValue(
+      "A competing purpose draft.",
+    );
 
-  await competing.getByRole("button", { name: /Value to keep for Purpose/ }).click();
-  await competing.getByRole("option", { name: "Keep my value" }).click();
-  await competing.getByRole("button", { name: "Apply choices to draft" }).click();
-  await competing.getByRole("button", { name: "Save changes", exact: true }).click();
+    await competing.getByRole("button", { name: "Keep my changes", exact: true }).click();
+    await competing.getByRole("button", { name: "Save changes", exact: true }).click();
 
-  await expect(competing.getByRole("form", { name: "Edit purpose" })).not.toBeVisible();
-  await expect(
-    competing.getByRole("button", { name: "Edit committee date: 20 April 2027" }),
-  ).toBeVisible();
-
-  await competing.close();
+    await expect(competing.getByRole("form", { name: "Edit purpose" })).not.toBeVisible();
+    await expect(
+      competing.getByRole("button", { name: "Edit committee date: 20 April 2027" }),
+    ).toBeVisible();
+  } finally {
+    await competingContext.close();
+  }
   await page.reload();
 
   await expect(page.getByRole("main")).toBeFocused();

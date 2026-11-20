@@ -89,8 +89,9 @@ export const registerApplicationTools = (
     {
       ...grantWriteOptions,
       description:
-        "Save changed intake fields or staff summary with the original intakeRevision. Omitted content fields stay unchanged. Preserve questionId across edits and reordering; new sections need new UUIDs. Create shared contacts with contact tools and select their contactId. Suggestions remain unsaved until saving is requested.",
-      inputSchema: intakeBase.extend({
+        "Save changed intake fields or staff summary. Supply expectedIntakeRevision for intake content; staff summary applies directly. Omitted content fields stay unchanged. Preserve questionId across edits and reordering; new sections need new UUIDs. Create shared contacts with contact tools and select their contactId. Suggestions remain unsaved until saving is requested.",
+      inputSchema: applicationReadInput.extend({
+        expectedIntakeRevision: revision.optional(),
         change: z.discriminatedUnion("action", [intakeChanges.saveContent, intakeChanges.details]),
       }),
       outputSchema: applicationSavedSchema,
@@ -112,10 +113,10 @@ export const registerApplicationTools = (
     {
       ...grantWriteOptions,
       description:
-        "Associate or clear the shared applicant contact using the original intakeRevision. Contact details remain owned by the contact.",
+        "Associate or clear the shared applicant contact directly. Contact details remain owned by the contact.",
       inputSchema: selectContactRequestSchema
         .omit({ publicId: true, expectedRevision: true })
-        .extend({ applicationId: publicIdSchema, expectedIntakeRevision: revision }),
+        .extend({ applicationId: publicIdSchema, expectedIntakeRevision: revision.optional() }),
       outputSchema: applicationSavedSchema,
     },
     async ({ applicationId, expectedIntakeRevision, ...input }) => {

@@ -18,17 +18,18 @@ a link to the saved record and offer recovery without creating it again.
 
 ## Edit preparation
 
-Renaming a round or changing its committee date or responsible manager offers
-Undo, which checks the saved revision and refuses to overwrite newer work.
+Renaming a round or changing its committee date or responsible manager saves directly
+as a field-level update (with Undo checking the saved revision before reverting).
 Failed changes retain the input and explain the error.
 
 Purpose, criteria, and budget editors keep surrounding work available and use the
 shared draft recovery rules. Budget changes show their reason and history before
 an explicit save.
 
-A conflicting save keeps the draft and loads the current round. Untouched fields
-take the latest saved values; fields changed by both people require an explicit
-choice before saving. Criteria are compared as a complete ordered list. Saving
+Edits to unrelated round sections rebase transparently when saving. When a true
+collision affects the same section (purpose, criteria list, or budget), an inline
+banner keeps the editor open so the manager can view the latest saved values, keep their
+changes over the latest version, or discard and load the latest round. Saving
 unchanged values creates neither a new revision nor a history entry.
 
 ## Set the budget and criteria

@@ -1,5 +1,5 @@
 import { QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { expect, it, vi } from "vite-plus/test";
@@ -120,7 +120,6 @@ const sections = [
     field: "Applicant’s response",
     saved: ["Updated project plan", "Saved response", "Saved explanation"],
   },
-  { section: "details", field: "Staff summary", saved: ["Saved summary"] },
 ] as const;
 
 const conflictedForm = async (
@@ -134,11 +133,9 @@ const conflictedForm = async (
   fireEvent.change(screen.getByRole("textbox", { name: field }), {
     target: { value: "My unfinished changes" },
   });
-  if (section !== "details") {
-    fireEvent.change(screen.getByRole("textbox", { name: "What changed and why" }), {
-      target: { value: "My explanation" },
-    });
-  }
+  fireEvent.change(screen.getByRole("textbox", { name: "What changed and why" }), {
+    target: { value: "My explanation" },
+  });
   if (readingReference) {
     await user.click(screen.getByRole("button", { name: "Read application reference" }));
   }
@@ -157,36 +154,50 @@ const conflictedForm = async (
 };
 
 it.each(sections)(
-  "compares saved and unsaved $section values before editing resumes",
+  "keeps the $section editor mounted with ConflictBanner and View latest disclosure on conflict",
   async ({ section, field, saved }) => {
-    const { data } = await conflictedForm(section);
+    const { user, data } = await conflictedForm(section);
 
-    expect(screen.queryByRole("textbox", { name: field })).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", {
-        name: section === "details" ? "Save" : "Save working revision",
-      }),
-    ).not.toBeInTheDocument();
-    const draft = within(screen.getByRole("region", { name: "Your unsaved changes" }));
-    expect(draft.getByText("My unfinished changes")).toBeVisible();
-    expect(screen.getAllByRole("heading", { name: "Review conflicting changes" })).toHaveLength(1);
+    expect(screen.getByRole("textbox", { name: field })).toHaveValue("My unfinished changes");
+    expect(screen.getByRole("button", { name: "Save working revision" })).toBeDisabled();
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent("This application changed while you were editing");
     expect(data.save).not.toHaveBeenCalled();
 
-    const preview = within(screen.getByRole("region", { name: "Latest saved values" }));
-    expect(preview.getByRole("heading", { name: "Latest saved values" })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "View latest" }));
+    const preview = screen.getByRole("region", { name: "Latest saved values" });
+    expect(alert).not.toContainElement(preview);
     for (const value of saved) {
-      expect(preview.getByText(value, { exact: true })).toBeVisible();
-    }
-    if (section === "details") {
-      expect(preview.queryByText("Saved explanation")).not.toBeInTheDocument();
-      expect(
-        screen.queryByRole("textbox", { name: "What changed and why" }),
-      ).not.toBeInTheDocument();
+      expect(preview).toHaveTextContent(value);
     }
   },
 );
 
-it.each(["Keep my changes", "Use saved values"] as const)(
+it("saves staff summary (details) directly without conflict when application revision advances", async () => {
+  const rendered = renderForm("details");
+  const { user, data, rerender } = rendered;
+  await user.click(screen.getByRole("button", { name: "Edit" }));
+  fireEvent.change(screen.getByRole("textbox", { name: "Staff summary" }), {
+    target: { value: "Updated staff summary" },
+  });
+  rerender(
+    <Session
+      section="details"
+      data={{ ...data, state: { ...data.state, revision: 2, workingRevision: latest } }}
+      current={{ ...application, summary: "Summary updated elsewhere" }}
+    />,
+  );
+
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Save" }));
+  await waitFor(() => expect(data.save).toHaveBeenCalledOnce());
+  expect(vi.mocked(data.save).mock.calls[0]?.[0]).toEqual({
+    action: "details",
+    summary: "Updated staff summary",
+  });
+});
+
+it.each(["Keep my changes", "Discard & load latest"] as const)(
   "applies %s to conflicting application details and submits that result",
   async (choice) => {
     const { user, data, field } = await conflictedForm("metadata");
@@ -198,7 +209,7 @@ it.each(["Keep my changes", "Use saved values"] as const)(
     expect(screen.getByRole("textbox", { name: "What changed and why" })).toHaveValue(
       choice === "Keep my changes" ? "My explanation" : "Saved explanation",
     );
-    expect(screen.queryByText("Latest saved values")).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Save working revision" }));
 
@@ -244,7 +255,7 @@ it("limits entered money precision while retaining invalid recovered amounts for
   expect(data.save).not.toHaveBeenCalled();
 });
 
-it("keeps invalid recovered amounts exact in the conflict comparison", async () => {
+it("keeps invalid recovered amounts exact in the mounted form when conflicted", async () => {
   const { user, data, rerender } = renderForm("metadata", {
     ...working,
     content: { ...working.content, requested: "24.001" },
@@ -256,32 +267,53 @@ it("keeps invalid recovered amounts exact in the conflict comparison", async () 
       data={{ ...data, state: { ...data.state, revision: 2, workingRevision: latest } }}
     />,
   );
-  const draft = within(screen.getByRole("region", { name: "Your unsaved changes" }));
-  expect(draft.getByText("24.001")).toBeVisible();
-  expect(draft.queryByText("€24")).not.toBeInTheDocument();
+  expect(screen.getByRole("textbox", { name: "Requested amount" })).toHaveValue("24.001");
+  expect(screen.getByRole("alert")).toHaveTextContent(
+    "This application changed while you were editing",
+  );
   expect(data.save).not.toHaveBeenCalled();
 });
 
-it("moves focus from a replaced editor to its reconciliation heading", async () => {
-  await conflictedForm("metadata");
-  expect(screen.getByRole("heading", { name: "Review conflicting changes" })).toHaveFocus();
-});
-
-it("keeps reference focus when an editor becomes conflicted in the background", async () => {
+it("keeps focus unchanged when a conflict arrives while reading reference or editing", async () => {
   await conflictedForm("metadata", true);
-  expect(screen.getByRole("region", { name: "Review conflicting changes" })).toBeVisible();
+  expect(screen.getByRole("alert")).toBeVisible();
   expect(screen.getByRole("button", { name: "Read application reference" })).toHaveFocus();
 });
 
 it("closes an unresolved conflict with Escape and retains the draft for reopening", async () => {
   const { user, data } = await conflictedForm("metadata");
+  screen.getByRole("textbox", { name: "Applicant" }).focus();
   await user.keyboard("{Escape}");
-  expect(
-    screen.queryByRole("region", { name: "Review conflicting changes" }),
-  ).not.toBeInTheDocument();
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "Edit" }));
-  const draft = within(screen.getByRole("region", { name: "Your unsaved changes" }));
-  expect(draft.getByText("My unfinished changes")).toBeVisible();
-  expect(screen.getByRole("heading", { name: "Review conflicting changes" })).toHaveFocus();
+  expect(screen.getByRole("textbox", { name: "Applicant" })).toHaveValue("My unfinished changes");
+  expect(screen.getByRole("alert")).toBeVisible();
   expect(data.save).not.toHaveBeenCalled();
+});
+
+it("shows RetainedDraftNotice with copy/discard when the working revision disappears", async () => {
+  const { user, data, rerender } = renderForm("content");
+  const writeText = vi.fn<Clipboard["writeText"]>().mockResolvedValue(undefined);
+  Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+  await user.click(screen.getByRole("button", { name: "Edit" }));
+  fireEvent.change(screen.getByRole("textbox", { name: "Applicant’s response" }), {
+    target: { value: "Important unsaved paragraph" },
+  });
+
+  rerender(
+    <Session
+      section="content"
+      data={{ ...data, state: { ...data.state, revision: 2, workingRevision: null } }}
+    />,
+  );
+
+  expect(
+    screen.getByRole("region", { name: "Working revision no longer available" }),
+  ).toBeVisible();
+  await user.click(screen.getByRole("button", { name: "Copy draft" }));
+  expect(writeText).toHaveBeenCalledWith(expect.stringContaining("Important unsaved paragraph"));
+  await user.click(screen.getByRole("button", { name: "Discard draft" }));
+  expect(
+    screen.queryByRole("region", { name: "Working revision no longer available" }),
+  ).not.toBeInTheDocument();
 });

@@ -440,11 +440,16 @@ it("saves details independently and reconciles preserved submission writing befo
     await screen.findByRole("button", { name: "Continue editing applicant submission" }),
   );
 
-  const conflictDraft = within(screen.getByRole("region", { name: "Your unsaved changes" }));
-  expect(conflictDraft.getByText("Unfinished local writing")).toBeVisible();
-  expect(screen.queryByRole("button", { name: "Save working revision" })).not.toBeInTheDocument();
+  expect(screen.getAllByRole("textbox", { name: "Applicant’s response" })[0]).toHaveValue(
+    "Unfinished local writing",
+  );
+  expect(screen.getByRole("button", { name: "Save working revision" })).toBeDisabled();
+  expect(screen.getByRole("alert")).toHaveTextContent(
+    "This application changed while you were editing",
+  );
 
   await user.click(await screen.findByRole("button", { name: "Keep my changes" }));
+  expect(screen.getByRole("button", { name: "Save working revision" })).toBeEnabled();
 
   expect(screen.getByRole("textbox", { name: "What changed and why" })).toHaveValue(
     "Revised costs and plan",

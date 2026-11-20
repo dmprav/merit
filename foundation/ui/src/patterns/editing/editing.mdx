@@ -81,10 +81,12 @@ wrapping, long content, validation, and pending and failed saves.
 `Form` uses the shared `DialogContent` layout for its bounded body and footer;
 feature styles arrange fields within that body. Nested editors retain their own
 form presentation and submit independently.
-Every form dialog shares one width, which leaves room for longer fields and
-side-by-side values. Sustained writing, such as recording an assessment, belongs beside its reference material in the
+Every form dialog shares one width, which leaves room for longer fields.
+Sustained writing, such as recording an assessment, belongs beside its reference material in the
 workspace. Short property forms replace the values they edit in place; do not
-repeat saved values beside them except when resolving conflicting changes.
+repeat saved values beside them by default. When a true save or basis conflict occurs, keep
+the editor mounted and disclose the latest saved values through an optional **View latest**
+section beneath the inline conflict banner.
 The container does not change Close semantics.
 
 Beside headings, use a pencil icon to edit or resume, with an accessible action
@@ -132,7 +134,7 @@ discard before closing. Discarding this tab’s edits leaves the other tab’s c
 intact. Browser storage may be cleared by the browser or the person using it;
 local persistence does not establish server commitment.
 
-Conflicts preserve the draft and require explicit reconciliation or discard.
+Collisions preserve the draft inside the mounted editor with `ConflictBanner` (and offer `RetainedDraftNotice` with **Copy draft** / **Discard** when access or the record is gone).
 A committed write followed by a failed refresh remains a successful save: retain
 the known result and offer a refresh without repeating the write. The
 [web feature guide](../../../../../docs/guides/web-features.md#find-an-existing-workflow)

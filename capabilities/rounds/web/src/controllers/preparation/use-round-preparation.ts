@@ -1,5 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 
 import { useWorkflowRefresh } from "@merit/query/refresh";
 
@@ -14,6 +14,8 @@ import {
   preparationDraft,
   hasPreparationDraft,
   hasPreparationChanges,
+  hasPreparationSectionConflict,
+  rebasePreparationDraft,
   type PreparationDraft,
   type PreparationSection,
 } from "./preparation-state";
@@ -27,19 +29,206 @@ type UseRoundPreparationOptions = {
   onRestoreFocus: (section: PreparationSection | null) => void;
 };
 
-// oxlint-disable-next-line max-lines-per-function -- Editing, save, undo, and deletion coordinate the same busy guard and drafts.
+const keepPreparationDraft = ({
+  draft,
+  round,
+  revision,
+  hasConflict,
+  draftKey,
+  updateDraft,
+  resolveConflict,
+}: {
+  draft: PreparationDraft | undefined;
+  round: PreparationRound;
+  revision: number;
+  hasConflict: boolean;
+  draftKey: string;
+  updateDraft: (draft: PreparationDraft) => void;
+  resolveConflict: (key: string, choice: "keep" | "use_stored") => Promise<void> | void;
+}) => {
+  if (!draft) {
+    return;
+  }
+  if (draft.revision !== revision) {
+    updateDraft(rebasePreparationDraft(draft, round, revision));
+  }
+  if (hasConflict) {
+    void resolveConflict(draftKey, "keep");
+  }
+};
+
+const loadLatestPreparationDraft = ({
+  section,
+  round,
+  revision,
+  hasConflict,
+  draftKey,
+  updateDraft,
+  resolveConflict,
+  onResolved,
+}: {
+  section: PreparationSection;
+  round: PreparationRound;
+  revision: number;
+  hasConflict: boolean;
+  draftKey: string;
+  updateDraft: (draft: PreparationDraft) => void;
+  resolveConflict: (key: string, choice: "keep" | "use_stored") => Promise<void> | void;
+  onResolved: () => void;
+}) => {
+  if (hasConflict) {
+    void Promise.resolve(resolveConflict(draftKey, "use_stored")).then(onResolved);
+    return;
+  }
+  updateDraft(preparationDraft(section, round, revision) as PreparationDraft);
+  onResolved();
+};
+
+const preparePreparationFormDraft = ({
+  draft,
+  round,
+  revision,
+  hasConflict,
+  updateDraft,
+  onAlreadyApplied,
+}: {
+  draft: PreparationDraft;
+  round: PreparationRound;
+  revision: number;
+  hasConflict: boolean;
+  updateDraft: (draft: PreparationDraft) => void;
+  onAlreadyApplied: (draft: PreparationDraft) => void;
+}) => {
+  if (hasConflict) {
+    return { current: draft, problem: { status: "conflict" as const } };
+  }
+  if (!hasPreparationChanges(draft)) {
+    return null;
+  }
+  if (draft.revision === revision) {
+    return { current: draft, problem: null };
+  }
+  if (hasPreparationSectionConflict(draft, round)) {
+    return { current: draft, problem: { status: "conflict" as const } };
+  }
+  const rebased = rebasePreparationDraft(draft, round, revision);
+  updateDraft(rebased);
+  if (!hasPreparationChanges(rebased)) {
+    onAlreadyApplied(rebased);
+    return null;
+  }
+  return { current: rebased, problem: null };
+};
+
+type RoundDeletionOptions = {
+  ready: boolean;
+  revision: number;
+  busyRef: RefObject<boolean>;
+  setPending: (pending: boolean) => void;
+  refresh: (context: "read" | "saved") => Promise<void>;
+  onDelete: PreparationData["delete"];
+  onDeleted: () => Promise<void>;
+  onRestoreFocus: (section: PreparationSection | null) => void;
+  onCommitted: () => void;
+};
+
+const useRoundDeletion = ({
+  ready,
+  revision,
+  busyRef,
+  setPending,
+  refresh,
+  onDelete,
+  onDeleted,
+  onRestoreFocus,
+  onCommitted,
+}: RoundDeletionOptions) => {
+  const deleteMutation = useMutation({ mutationFn: onDelete });
+  const [deleteRevision, setDeleteRevision] = useState<number | null>(null);
+  const [deleteError, setDeleteError] = useState<PreparationProblem | null>(null);
+  const [deleted, setDeleted] = useState(false);
+  const [navigationFailed, setNavigationFailed] = useState(false);
+
+  const setDeleting = (open: boolean) => {
+    if (busyRef.current || deleted) {
+      return;
+    }
+    setDeleteRevision(open ? revision : null);
+    setDeleteError(null);
+    if (!open) {
+      onRestoreFocus(null);
+    }
+  };
+
+  const leaveDeletedRound = async () => {
+    setNavigationFailed(false);
+    try {
+      await onDeleted();
+    } catch {
+      setNavigationFailed(true);
+    }
+  };
+
+  const returnToRounds = async () => {
+    if (busyRef.current || !deleted) {
+      return;
+    }
+    busyRef.current = true;
+    setPending(true);
+    await leaveDeletedRound();
+    busyRef.current = false;
+    setPending(false);
+  };
+
+  const confirmDelete = async () => {
+    if (busyRef.current || !ready || deleted || deleteRevision === null) {
+      return;
+    }
+    busyRef.current = true;
+    setPending(true);
+    setDeleteError(null);
+    try {
+      const result = await deleteMutation.mutateAsync(deleteRevision);
+      if (result.status !== "ok") {
+        setDeleteError(result);
+        await refresh("read");
+      } else {
+        setDeleted(true);
+        setDeleteRevision(null);
+        onCommitted();
+        await leaveDeletedRound();
+      }
+    } catch {
+      setDeleteError({ status: "unavailable" });
+    }
+    busyRef.current = false;
+    setPending(false);
+  };
+
+  return {
+    deleting: deleteRevision !== null,
+    deleteError,
+    deleted,
+    navigationFailed,
+    returnToRounds,
+    setDeleting,
+    confirmDelete,
+  };
+};
+
+// oxlint-disable-next-line max-lines-per-function -- Editing, save, and undo coordinate the same busy guard and drafts.
 export const useRoundPreparation = ({
   round,
   data,
   onDeleted,
   onRestoreFocus,
 }: UseRoundPreparationOptions) => {
-  const { edits, setEdit, ready } = usePreparationDrafts();
+  const { edits, setEdit, ready, conflicts, resolveConflict } = usePreparationDrafts();
   const [editing, setEditing] = useState<PreparationSection | null>(null);
+  const [draftReset, setDraftReset] = useState(0);
   const [error, setError] = useState<PreparationProblem | null>(null);
   const [pending, setPending] = useState(false);
   const busyRef = useRef(false);
-
   const [undo, setUndo] = useState<{ revision: number; draft: PreparationDraft } | null>(null);
   const [feedback, setFeedback] = useState<{ event: number; outcome: "saved" | "undone" | null }>({
     event: 0,
@@ -91,12 +280,27 @@ export const useRoundPreparation = ({
   };
 
   const discard = (section: PreparationSection) => {
+    if (busyRef.current) {
+      return;
+    }
+
     setEdit(key(section), undefined);
     close();
   };
 
   const editMutation = useMutation({
-    mutationFn: (draft: PreparationDraft) => data.save(draftChange(draft), draft.revision),
+    mutationFn: ({
+      draft,
+      requireCurrentRevision,
+    }: {
+      draft: PreparationDraft;
+      requireCurrentRevision?: boolean;
+    }) =>
+      data.save(
+        draftChange(draft),
+        draft.revision,
+        requireCurrentRevision ? { requireCurrentRevision: true } : undefined,
+      ),
   });
 
   const recordSaved = (
@@ -120,6 +324,75 @@ export const useRoundPreparation = ({
     }));
   };
 
+  const hasKeyConflict = (section: PreparationSection) => conflicts.has(key(section));
+
+  const keepDraft = (section: PreparationSection) => {
+    keepPreparationDraft({
+      draft: draftFor(section),
+      round,
+      revision: data.state.revision,
+      hasConflict: hasKeyConflict(section),
+      draftKey: key(section),
+      updateDraft,
+      resolveConflict,
+    });
+    setError(null);
+  };
+
+  const loadLatest = (section: PreparationSection) => {
+    loadLatestPreparationDraft({
+      section,
+      round,
+      revision: data.state.revision,
+      hasConflict: hasKeyConflict(section),
+      draftKey: key(section),
+      updateDraft,
+      resolveConflict,
+      onResolved: () => setDraftReset((count) => count + 1),
+    });
+    setError(null);
+  };
+
+  const prepareFormDraft = (draft: PreparationDraft) =>
+    preparePreparationFormDraft({
+      draft,
+      round,
+      revision: data.state.revision,
+      hasConflict: hasKeyConflict(draft.section),
+      updateDraft,
+      onAlreadyApplied: (rebased) => {
+        recordSaved(rebased, "form", data.state.revision);
+        onRestoreFocus(rebased.section);
+      },
+    });
+
+  const commitPreparationDraft = async (
+    current: PreparationDraft,
+    mode: "form" | "quick" | "undo",
+  ): Promise<PreparationProblem | null> => {
+    try {
+      const result = await editMutation.mutateAsync({
+        draft: current,
+        requireCurrentRevision: mode === "undo",
+      });
+      if (result.status !== "ok") {
+        setError(result);
+        if (result.status === "conflict" || result.status === "invalid") {
+          await refresh("read");
+        }
+        return result;
+      }
+      recordSaved(current, mode, result.revision);
+      // A committed save stays successful even when the subsequent read fails.
+      await refresh("saved");
+      return null;
+    } catch {
+      const unavailable: PreparationProblem = { status: "unavailable" };
+      setError(unavailable);
+      return unavailable;
+    }
+  };
+
   const save = async (
     draft: PreparationDraft,
     mode: "form" | "quick" | "undo" = "form",
@@ -127,115 +400,45 @@ export const useRoundPreparation = ({
     if (busyRef.current || !ready) {
       return { status: "busy" };
     }
-    if (mode === "form" && draft.revision !== data.state.revision) {
-      return { status: "conflict" };
-    }
-    if (mode === "form" && !hasPreparationChanges(draft)) {
-      return null;
+    let current = draft;
+    if (mode === "form") {
+      const prepared = prepareFormDraft(draft);
+      if (!prepared) {
+        return null;
+      }
+      if (prepared.problem) {
+        return prepared.problem;
+      }
+      current = prepared.current;
     }
 
     busyRef.current = true;
     setPending(true);
     setError(null);
-
-    let saveError: PreparationProblem | null = null;
-    try {
-      const result = await editMutation.mutateAsync(draft);
-      if (result.status !== "ok") {
-        saveError = result;
-        setError(saveError);
-        if (result.status === "conflict" || result.status === "invalid") {
-          await refresh("read");
-        }
-      } else {
-        recordSaved(draft, mode, result.revision);
-
-        // A committed save stays successful even when the subsequent read fails.
-        await refresh("saved");
-      }
-    } catch {
-      saveError = { status: "unavailable" };
-      setError(saveError);
-    }
-
+    const saveError = await commitPreparationDraft(current, mode);
     busyRef.current = false;
     setPending(false);
     if (!saveError) {
-      onRestoreFocus(draft.section);
+      onRestoreFocus(current.section);
     }
-
     return saveError;
   };
 
-  const deleteMutation = useMutation({ mutationFn: data.delete });
-  const [deleteRevision, setDeleteRevision] = useState<number | null>(null);
-  const [deleteError, setDeleteError] = useState<PreparationProblem | null>(null);
-  const [deleted, setDeleted] = useState(false);
-  const [navigationFailed, setNavigationFailed] = useState(false);
-
-  const setDeleting = (open: boolean) => {
-    if (busyRef.current || deleted) {
-      return;
-    }
-
-    setDeleteRevision(open ? data.state.revision : null);
-    setDeleteError(null);
-    if (!open) {
-      onRestoreFocus(null);
-    }
-  };
-
-  const leaveDeletedRound = async () => {
-    setNavigationFailed(false);
-    try {
-      await onDeleted();
-    } catch {
-      setNavigationFailed(true);
-    }
-  };
-
-  const returnToRounds = async () => {
-    if (busyRef.current || !deleted) {
-      return;
-    }
-
-    busyRef.current = true;
-    setPending(true);
-    await leaveDeletedRound();
-    busyRef.current = false;
-    setPending(false);
-  };
-
-  const confirmDelete = async () => {
-    if (busyRef.current || !ready || deleted || deleteRevision === null) {
-      return;
-    }
-
-    busyRef.current = true;
-    setPending(true);
-    setDeleteError(null);
-
-    try {
-      const result = await deleteMutation.mutateAsync(deleteRevision);
-      if (result.status !== "ok") {
-        setDeleteError(result);
-        await refresh("read");
-      } else {
-        setDeleted(true);
-        setDeleteRevision(null);
-        setEditing(null);
-        setUndo(null);
-        clearPreparationDrafts(setEdit, key);
-
-        await leaveDeletedRound();
-      }
-    } catch {
-      setDeleteError({ status: "unavailable" });
-    }
-
-    busyRef.current = false;
-    setPending(false);
-  };
+  const deletion = useRoundDeletion({
+    ready,
+    revision: data.state.revision,
+    busyRef,
+    setPending,
+    refresh,
+    onDelete: data.delete,
+    onDeleted,
+    onRestoreFocus,
+    onCommitted: () => {
+      setEditing(null);
+      setUndo(null);
+      clearPreparationDrafts(setEdit, key);
+    },
+  });
 
   return {
     ready,
@@ -245,23 +448,21 @@ export const useRoundPreparation = ({
     historySource: data.historySource,
     managers: data.state.managers,
     editing,
+    draftReset,
     pending,
     error,
     undo,
     feedback,
     refreshError,
-    deleting: deleteRevision !== null,
-    deleteError,
-    deleted,
-    navigationFailed,
-    returnToRounds,
-    setDeleting,
-    confirmDelete,
+    ...deletion,
     draftFor,
+    hasKeyConflict,
     updateDraft,
     open,
     close,
     discard,
+    keepDraft,
+    loadLatest,
     saveDraft: (draft: PreparationDraft) => save(draft),
     renameRound: (title: string) =>
       save({ ...preparationDraft("title", round, data.state.revision), value: { title } }, "quick"),

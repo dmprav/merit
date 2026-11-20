@@ -80,3 +80,42 @@ it.each(["reviewer", "program_manager"] as const)(
     }
   },
 );
+
+it("renders ConflictBanner with View latest and recovery actions when member access conflicts", async () => {
+  const onKeepDraft = vi.fn();
+  const onLoadLatest = vi.fn();
+  render(
+    <MessagesProvider messages={{ team: en }}>
+      <EditForm
+        member={{
+          ...teamFixture.members[1]!,
+          administration: "administrator",
+          role: "program_manager",
+        }}
+        team={teamFixture}
+        onSave={vi.fn()}
+        onCancel={vi.fn()}
+        onDiscard={vi.fn()}
+        onChange={vi.fn()}
+        onKeepDraft={onKeepDraft}
+        onLoadLatest={onLoadLatest}
+        conflict
+      />
+    </MessagesProvider>,
+  );
+
+  const user = userEvent.setup();
+  expect(screen.getByRole("alert")).toHaveTextContent(en.draftConflictTitle);
+  expect(screen.getByRole("button", { name: en.save })).toBeDisabled();
+
+  await user.click(screen.getByRole("button", { name: en.viewLatest }));
+  const latest = screen.getByRole("region", { name: en.latestSavedAccess });
+  expect(latest).toHaveTextContent(en.administrator);
+  expect(latest).toHaveTextContent(en.program_manager);
+
+  await user.click(screen.getByRole("button", { name: en.keepDraft }));
+  expect(onKeepDraft).toHaveBeenCalledOnce();
+
+  await user.click(screen.getByRole("button", { name: en.loadLatest }));
+  expect(onLoadLatest).toHaveBeenCalledOnce();
+});

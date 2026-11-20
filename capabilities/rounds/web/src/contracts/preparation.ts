@@ -35,6 +35,7 @@ export type PreparationData = {
   save: (
     change: RoundChange,
     revision: number,
+    options?: { requireCurrentRevision?: boolean },
   ) => Promise<{ status: "ok"; revision: number } | PreparationFailure>;
   delete: (revision: number) => Promise<{ status: "ok" } | PreparationFailure>;
   refresh: () => Promise<void>;

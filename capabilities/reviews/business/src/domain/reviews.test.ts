@@ -6,9 +6,11 @@ import { criteriaVersionSchema } from "@merit/rounds/domain";
 
 import {
   emptyReviews,
+  hasReviewConflict,
   prepareReviewChange,
   assessmentInputSchema,
   assessmentEntrySchema,
+  reviewRevisionSchema,
   type ReviewChange,
   type ReviewState,
 } from "./index";
@@ -574,5 +576,324 @@ describe("recording reviews", () => {
         assessmentInputSchema.parse({ ...content, observations: [note] }).observations,
       ).toEqual([note]);
     });
+  });
+});
+
+describe("target-scoped review conflicts", () => {
+  const otherContactId = "60000000-0000-4000-8000-000000000002";
+  const otherContext = {
+    ...context,
+    contact: { id: otherContactId, name: "Jules", archived: false },
+  };
+  const current = {
+    applicationVersion: context.applicationVersion,
+    criteriaVersion: context.criteriaVersion,
+  };
+
+  it("allows requesting or recording for another reviewer even after state revision advances", () => {
+    const withRequest = apply(emptyReviews(), request);
+    const julesRequest: ReviewChange = {
+      action: "request",
+      id: replacementId,
+      contactId: otherContactId,
+      replacesId: null,
+    };
+
+    expect(
+      hasReviewConflict(
+        withRequest,
+        {
+          expectedRevision: reviewRevisionSchema.parse(0),
+          expectedApplicationVersion: current.applicationVersion,
+          expectedCriteriaVersion: current.criteriaVersion,
+          change: julesRequest,
+        },
+        current,
+      ),
+    ).toBe(false);
+
+    expect(
+      hasReviewConflict(
+        withRequest,
+        {
+          expectedRevision: reviewRevisionSchema.parse(0),
+          expectedApplicationVersion: current.applicationVersion,
+          expectedCriteriaVersion: current.criteriaVersion,
+          change: {
+            action: "record",
+            id: laterId,
+            contactId: otherContactId,
+            requestId: null,
+            previousId: null,
+            content,
+          },
+        },
+        current,
+      ),
+    ).toBe(false);
+  });
+
+  it("allows recording or editing external assessments after material or criteria versions advance", () => {
+    const withAssessment = apply(emptyReviews(), record);
+    const newer = {
+      applicationVersion: materialVersionSchema.parse(2),
+      criteriaVersion: criteriaVersionSchema.parse(2),
+    };
+
+    expect(
+      hasReviewConflict(
+        withAssessment,
+        {
+          expectedRevision: withAssessment.revision,
+          expectedApplicationVersion: current.applicationVersion,
+          expectedCriteriaVersion: current.criteriaVersion,
+          change: {
+            action: "edit",
+            id: assessmentId,
+            expectedAssessmentVersion: 1,
+            content,
+            note: "Typo fix",
+          },
+        },
+        newer,
+      ),
+    ).toBe(false);
+
+    expect(
+      hasReviewConflict(
+        withAssessment,
+        {
+          expectedRevision: withAssessment.revision,
+          expectedApplicationVersion: current.applicationVersion,
+          expectedCriteriaVersion: current.criteriaVersion,
+          change: request,
+        },
+        newer,
+      ),
+    ).toBe(true);
+  });
+
+  it("rejects concurrent requests or edits targeting the same reviewer or assessment", () => {
+    const withRequest = apply(emptyReviews(), request);
+    expect(
+      hasReviewConflict(
+        withRequest,
+        {
+          expectedRevision: reviewRevisionSchema.parse(0),
+          expectedApplicationVersion: current.applicationVersion,
+          expectedCriteriaVersion: current.criteriaVersion,
+          change: { action: "request", id: replacementId, contactId, replacesId: null },
+        },
+        current,
+      ),
+    ).toBe(true);
+
+    const edited = prepareReviewChange(
+      apply(emptyReviews(), record),
+      {
+        action: "edit",
+        id: assessmentId,
+        content: { ...content, reasoning: "Updated" },
+        note: "v2",
+      },
+      context,
+    );
+    assert(edited.ok);
+    const withTwoAssessments = apply(edited.state, {
+      action: "request",
+      id: replacementId,
+      contactId: otherContactId,
+      replacesId: null,
+    });
+    const fromOther = prepareReviewChange(
+      emptyReviews(),
+      { action: "request", id: replacementId, contactId: otherContactId, replacesId: null },
+      otherContext,
+    );
+    assert(fromOther.ok);
+
+    expect(
+      hasReviewConflict(
+        withTwoAssessments,
+        {
+          expectedRevision: reviewRevisionSchema.parse(1),
+          expectedApplicationVersion: current.applicationVersion,
+          expectedCriteriaVersion: current.criteriaVersion,
+          change: {
+            action: "edit",
+            id: assessmentId,
+            expectedAssessmentVersion: 1,
+            content,
+            note: "",
+          },
+        },
+        current,
+      ),
+    ).toBe(true);
+    expect(
+      hasReviewConflict(
+        withTwoAssessments,
+        {
+          expectedRevision: reviewRevisionSchema.parse(1),
+          expectedApplicationVersion: current.applicationVersion,
+          expectedCriteriaVersion: current.criteriaVersion,
+          change: {
+            action: "edit",
+            id: assessmentId,
+            expectedAssessmentVersion: 2,
+            content,
+            note: "",
+          },
+        },
+        current,
+      ),
+    ).toBe(false);
+    expect(
+      hasReviewConflict(
+        withTwoAssessments,
+        {
+          expectedRevision: reviewRevisionSchema.parse(1),
+          expectedApplicationVersion: current.applicationVersion,
+          expectedCriteriaVersion: current.criteriaVersion,
+          change: { action: "edit", id: assessmentId, content, note: "" },
+        },
+        current,
+      ),
+    ).toBe(true);
+  });
+
+  it("checks future revisions, cancellations, replacements, and record collisions cleanly", () => {
+    const requested = apply(emptyReviews(), request);
+    expect(
+      hasReviewConflict(
+        requested,
+        {
+          expectedRevision: requested.revision,
+          expectedApplicationVersion: current.applicationVersion,
+          expectedCriteriaVersion: current.criteriaVersion,
+          change: {
+            action: "request",
+            id: replacementId,
+            contactId: otherContactId,
+            replacesId: null,
+          },
+        },
+        current,
+      ),
+    ).toBe(false);
+    const cancelled = apply(requested, { action: "cancel", id: requestId });
+    const otherRequested = prepareReviewChange(
+      requested,
+      {
+        action: "request",
+        id: laterId,
+        contactId: otherContactId,
+        replacesId: null,
+      },
+      otherContext,
+    );
+    assert(otherRequested.ok);
+    const withOtherRequest = otherRequested.state;
+    const recordedOnRequest = apply(requested, {
+      ...record,
+      requestId,
+    });
+
+    expect(
+      hasReviewConflict(
+        requested,
+        {
+          expectedRevision: reviewRevisionSchema.parse(5),
+          expectedApplicationVersion: current.applicationVersion,
+          expectedCriteriaVersion: current.criteriaVersion,
+          change: { action: "cancel", id: requestId },
+        },
+        current,
+      ),
+    ).toBe(true);
+    expect(
+      hasReviewConflict(
+        requested,
+        {
+          expectedRevision: requested.revision,
+          expectedApplicationVersion: current.applicationVersion,
+          expectedCriteriaVersion: current.criteriaVersion,
+          change: { action: "cancel", id: requestId },
+        },
+        current,
+      ),
+    ).toBe(false);
+    expect(
+      hasReviewConflict(
+        cancelled,
+        {
+          expectedRevision: reviewRevisionSchema.parse(1),
+          expectedApplicationVersion: current.applicationVersion,
+          expectedCriteriaVersion: current.criteriaVersion,
+          change: { action: "cancel", id: requestId },
+        },
+        current,
+      ),
+    ).toBe(true);
+    expect(
+      hasReviewConflict(
+        withOtherRequest,
+        {
+          expectedRevision: reviewRevisionSchema.parse(1),
+          expectedApplicationVersion: current.applicationVersion,
+          expectedCriteriaVersion: current.criteriaVersion,
+          change: { action: "cancel", id: requestId },
+        },
+        current,
+      ),
+    ).toBe(false);
+    expect(
+      hasReviewConflict(
+        cancelled,
+        {
+          expectedRevision: reviewRevisionSchema.parse(1),
+          expectedApplicationVersion: current.applicationVersion,
+          expectedCriteriaVersion: current.criteriaVersion,
+          change: { action: "request", id: replacementId, contactId, replacesId: requestId },
+        },
+        current,
+      ),
+    ).toBe(true);
+    expect(
+      hasReviewConflict(
+        recordedOnRequest,
+        {
+          expectedRevision: reviewRevisionSchema.parse(1),
+          expectedApplicationVersion: current.applicationVersion,
+          expectedCriteriaVersion: current.criteriaVersion,
+          change: { ...record, id: laterId, requestId },
+        },
+        current,
+      ),
+    ).toBe(true);
+    expect(
+      hasReviewConflict(
+        recordedOnRequest,
+        {
+          expectedRevision: reviewRevisionSchema.parse(1),
+          expectedApplicationVersion: current.applicationVersion,
+          expectedCriteriaVersion: current.criteriaVersion,
+          change: { ...record, id: laterId, requestId: null, previousId: null },
+        },
+        current,
+      ),
+    ).toBe(true);
+    expect(
+      hasReviewConflict(
+        withOtherRequest,
+        {
+          expectedRevision: reviewRevisionSchema.parse(1),
+          expectedApplicationVersion: current.applicationVersion,
+          expectedCriteriaVersion: current.criteriaVersion,
+          change: { ...record, id: laterId, requestId, previousId: null },
+        },
+        current,
+      ),
+    ).toBe(false);
   });
 });

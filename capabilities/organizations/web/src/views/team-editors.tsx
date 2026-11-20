@@ -1,8 +1,10 @@
+import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { z } from "zod";
 
 import { memberActions } from "@merit/access";
 import {
+  ConflictBanner,
   Form,
   FormActions,
   FormSelect,
@@ -12,9 +14,9 @@ import {
 } from "@merit/forms";
 import { invitationEmail, teamAccess } from "@merit/organizations/api";
 import { revokesIssuedInvitations, revokesReviewAccess } from "@merit/organizations/domain";
+import { DescriptionList, DescriptionListItem } from "@merit/ui/description-list";
 import { Icon } from "@merit/ui/icon";
 import { Stack } from "@merit/ui/layout";
-import { Notice } from "@merit/ui/notice";
 import { TextField } from "@merit/ui/text-field";
 
 import type { Team, Member, Invitation } from "../contracts/team";
@@ -124,7 +126,92 @@ export const InviteForm = ({
   );
 };
 
-export const EditForm = ({
+type EditFormProps = {
+  member: Member;
+  team: Team;
+  onSave: (values: Access) => Promise<string | null>;
+  onCancel: () => void;
+  onDiscard: () => void;
+  draft?: Access;
+  draftReset?: number;
+  onChange: (value: Access) => void;
+  onKeepDraft?: () => void;
+  onLoadLatest?: () => void;
+  conflict: boolean;
+};
+
+export const EditForm = ({ draftReset = 0, ...props }: EditFormProps) => (
+  <EditFormFields key={draftReset} {...props} />
+);
+
+const EditAccessConflictBanner = ({
+  member,
+  onKeepDraft,
+  onLoadLatest,
+  isDisabled,
+}: {
+  member: EditFormProps["member"];
+  onKeepDraft?: () => void;
+  onLoadLatest?: () => void;
+  isDisabled: boolean;
+}) => {
+  const { t } = useTranslation("team");
+  return (
+    <ConflictBanner
+      title={t("draftConflictTitle")}
+      message={t("draftConflict")}
+      keepMine={onKeepDraft ? { label: t("keepDraft"), onPress: onKeepDraft } : undefined}
+      useSaved={onLoadLatest ? { label: t("loadLatest"), onPress: onLoadLatest } : undefined}
+      isDisabled={isDisabled}
+      latest={{
+        toggleLabel: t("viewLatest"),
+        hideLabel: t("hideLatest"),
+        heading: t("latestSavedAccess"),
+        children: (
+          <DescriptionList>
+            <DescriptionListItem label={t("administration")}>
+              {t(member.administration)}
+            </DescriptionListItem>
+            <DescriptionListItem label={t("grantAccess")}>{t(member.role)}</DescriptionListItem>
+          </DescriptionList>
+        ),
+      }}
+    />
+  );
+};
+
+const defaultAccessValues = (member: Member, draft?: Access): Access =>
+  draft ?? {
+    administration: member.administration === "none" ? "none" : "administrator",
+    role: member.role === "committee_reader" ? "member" : member.role,
+  };
+
+const AdministrationAccessField = ({
+  canChangeAdministration,
+  member,
+  administrationItems,
+  renderSelect,
+}: {
+  canChangeAdministration: boolean;
+  member: Member;
+  administrationItems: ReturnType<typeof useAccessChoices>["administrationItems"];
+  renderSelect: (items: ReturnType<typeof useAccessChoices>["administrationItems"]) => ReactNode;
+}) => {
+  const { t } = useTranslation("team");
+  if (canChangeAdministration) {
+    return renderSelect(administrationItems);
+  }
+  return (
+    <TextField
+      label={t("administration")}
+      value={t(member.administration)}
+      description={member.administration === "owner" ? t("ownerHelp") : undefined}
+      isReadOnly
+    />
+  );
+};
+
+const EditFormFields = ({
   member,
   team,
   onSave,
@@ -132,25 +219,15 @@ export const EditForm = ({
   onDiscard,
   draft,
   onChange,
+  onKeepDraft,
+  onLoadLatest,
   conflict,
-}: {
-  member: Member;
-  team: Team;
-  onSave: (values: Access) => Promise<string | null>;
-  onCancel: () => void;
-  onDiscard: () => void;
-  draft?: Access;
-  onChange: (value: Access) => void;
-  conflict: boolean;
-}) => {
+}: Omit<EditFormProps, "draftReset">) => {
   const { t, administrationItems, roleItems } = useAccessChoices();
   const allowed = memberActions(team.subject, member);
 
   const { form, submission } = useForm<Access>({
-    defaultValues: draft ?? {
-      administration: member.administration === "none" ? "none" : "administrator",
-      role: member.role === "committee_reader" ? "member" : member.role,
-    },
+    defaultValues: defaultAccessValues(member, draft),
     schema: useTranslatedSchema(teamAccess),
     onChange,
     onSubmit: onSave,
@@ -173,26 +250,25 @@ export const EditForm = ({
         />
       }
     >
-      {conflict && (
-        <Notice appearance="inline" tone="warning">
-          {t("draftConflict")}
-        </Notice>
-      )}
       <Stack gap={5}>
-        {allowed.canChangeAdministration ? (
-          <form.Field name="administration">
-            {(field) => (
-              <FormSelect field={field} label={t("administration")} items={administrationItems} />
-            )}
-          </form.Field>
-        ) : (
-          <TextField
-            label={t("administration")}
-            value={t(member.administration)}
-            description={member.administration === "owner" ? t("ownerHelp") : undefined}
-            isReadOnly
+        {conflict && (
+          <EditAccessConflictBanner
+            member={member}
+            onKeepDraft={onKeepDraft}
+            onLoadLatest={onLoadLatest}
+            isDisabled={submission.isSubmitting}
           />
         )}
+        <AdministrationAccessField
+          canChangeAdministration={allowed.canChangeAdministration}
+          member={member}
+          administrationItems={administrationItems}
+          renderSelect={(items) => (
+            <form.Field name="administration">
+              {(field) => <FormSelect field={field} label={t("administration")} items={items} />}
+            </form.Field>
+          )}
+        />
         <form.Field name="role">
           {(field) => <FormSelect field={field} label={t("grantAccess")} items={roleItems} />}
         </form.Field>

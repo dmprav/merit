@@ -29,6 +29,8 @@ const setup = (
           value={{
             ready: true,
             drafts,
+            conflicts: new Set(),
+            resolveConflict: vi.fn(),
             setDraft,
             clearDrafts: vi.fn(),
           }}
@@ -116,4 +118,134 @@ it("saves an edited draft against its original recommendation revision and appli
     expectedRevision: 5,
     expectedApplicationVersion: application.version,
   });
+});
+
+it("classifies basis_changed vs record_changed conflicts and supports keepDraft and loadLatest", async () => {
+  const save = vi.fn<RecommendationData["save"]>().mockResolvedValue({ status: "ok" });
+
+  const Store = ({ children }: { children: ReactNode }) => (
+    <DraftContext value={useRecommendationDraftStore("use-recommendation-conflict-test").value}>
+      {children}
+    </DraftContext>
+  );
+
+  const { result, rerender } = renderHook(
+    ({ revision, version }) =>
+      useRecommendation(
+        "application",
+        { ...application, version },
+        { revision, disabled: false, save },
+      ),
+    { initialProps: { revision: 5, version: application.version }, wrapper: Store },
+  );
+  await waitFor(() => expect(result.current.ready).toBe(true));
+
+  act(() => result.current.updateDraft(draft));
+  expect(result.current.conflict).toBeNull();
+
+  rerender({ revision: 6, version: application.version });
+  expect(result.current.conflict).toBe("record_changed");
+
+  rerender({ revision: 6, version: makeApplication({ version: 2 }).version });
+  expect(result.current.conflict).toBe("basis_changed");
+
+  act(() => result.current.keepDraft());
+  expect(result.current.conflict).toBeNull();
+  expect(result.current.draft).toEqual(draft);
+
+  await act(async () => expect(await result.current.save(recommendation)).toBeNull());
+  expect(save).toHaveBeenLastCalledWith(recommendation, {
+    expectedRevision: 6,
+    expectedApplicationVersion: 2,
+  });
+
+  rerender({ revision: 7, version: makeApplication({ version: 2 }).version });
+  expect(result.current.conflict).toBe("record_changed");
+  act(() => result.current.loadLatest());
+  expect(result.current.conflict).toBeNull();
+  expect(result.current.draft).toBeUndefined();
+  expect(result.current.draftReset).toBe(1);
+});
+
+it("surfaces draft-store key conflicts and resolves stored draft values before resetting", async () => {
+  const save = vi.fn<RecommendationData["save"]>();
+  const storedDraft = {
+    value: { position: recommendation.position, amount: "200", reasoning: "Stored tab draft" },
+    baseline: { expectedRevision: 5, expectedApplicationVersion: application.version },
+  };
+  const storeState: {
+    drafts: Record<
+      string,
+      {
+        value: typeof draft;
+        baseline: { expectedRevision: number; expectedApplicationVersion: number };
+      }
+    >;
+    conflicts: Set<string>;
+  } = {
+    drafts: {
+      application: {
+        value: draft,
+        baseline: { expectedRevision: 5, expectedApplicationVersion: application.version },
+      },
+    },
+    conflicts: new Set(["application"]),
+  };
+  let finishUseStored: (() => void) | undefined;
+
+  const { result, rerender } = renderHook(
+    () => useRecommendation("application", application, { revision: 5, disabled: false, save }),
+    {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <DraftContext
+          value={{
+            ready: true,
+            drafts: storeState.drafts,
+            conflicts: storeState.conflicts,
+            resolveConflict: (_key, choice) => {
+              if (choice === "keep") {
+                storeState.conflicts = new Set();
+                return Promise.resolve();
+              }
+              return new Promise<void>((resolve) => {
+                finishUseStored = () => {
+                  storeState.drafts = { application: storedDraft };
+                  storeState.conflicts = new Set();
+                  resolve();
+                };
+              });
+            },
+            setDraft: vi.fn(),
+            clearDrafts: vi.fn(),
+          }}
+        >
+          {children}
+        </DraftContext>
+      ),
+    },
+  );
+
+  expect(result.current.conflict).toBe("record_changed");
+  expect(result.current.draft).toEqual(draft);
+
+  act(() => result.current.keepDraft());
+  rerender();
+  expect(result.current.conflict).toBeNull();
+  expect(result.current.draft).toEqual(draft);
+
+  storeState.conflicts = new Set(["application"]);
+  rerender();
+  expect(result.current.conflict).toBe("record_changed");
+
+  act(() => result.current.loadLatest());
+  expect(result.current.draftReset).toBe(0);
+
+  await act(async () => {
+    finishUseStored?.();
+  });
+  rerender();
+
+  expect(result.current.conflict).toBeNull();
+  expect(result.current.draft).toEqual(storedDraft.value);
+  expect(result.current.draftReset).toBe(1);
 });

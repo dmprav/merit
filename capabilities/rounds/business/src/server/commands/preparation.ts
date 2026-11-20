@@ -7,6 +7,7 @@ import {
   createRoundRequestSchema,
   editRoundRequestSchema,
   deleteRoundRequestSchema,
+  roundEditRequiresRevision,
   type CreateRoundRequest,
   type EditRoundRequest,
   type DeleteRoundRequest,
@@ -73,7 +74,7 @@ export const editFundingRound = async (db: Database, actor: Actor, input: EditRo
     if (!row) {
       return { status: "not_found" } as const;
     }
-    if (row.revision !== request.expectedRevision) {
+    if (roundEditRequiresRevision(request) && row.revision !== request.expectedRevision) {
       return { status: "conflict" } as const;
     }
 

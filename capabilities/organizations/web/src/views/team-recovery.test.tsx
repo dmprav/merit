@@ -32,7 +32,9 @@ beforeEach(() => {
     ready: kind === "team-invitations" ? invitationReady : accessReady,
     status: "restoring",
     storageUnavailable: false,
+    conflicts: new Set(),
     update: kind === "team-invitations" ? updateInvitations : updateAccess,
+    resolveConflict: vi.fn(),
   }));
 });
 

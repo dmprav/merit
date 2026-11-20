@@ -12,7 +12,6 @@ import { criteriaVersionSchema } from "@merit/rounds/domain";
 
 import type { ReviewDraft, ReviewFormValues } from "./drafts";
 import { reviewCommand } from "./review-command";
-import { reviewConflictComparison } from "./review-comparison";
 import { contentFromValues } from "./values";
 
 const values: ReviewFormValues = {
@@ -78,85 +77,21 @@ const draft: ReviewDraft = {
   values,
 };
 
-it("compares a correction with its own record and a new assessment with the latest matching review", () => {
-  const current = {
-    revision: state.revision,
-    applicationVersion: draft.applicationVersion,
-    criteriaVersion: draft.criteriaVersion,
-  };
-  const reviews = {
-    ...state,
-    assessments: state.assessments.map((item) =>
-      item.id === latestAssessmentId
-        ? {
-            ...item,
-            versions: [
-              {
-                ...item.versions[0]!,
-                content: { ...content, amount: encodeMoney(fromMinorUnits(25000n)) },
-              },
-            ],
-          }
-        : item,
-    ),
-  };
-  const corrected = reviewConflictComparison(
-    { ...draft, mode: "edit", id: assessment.id },
-    reviews,
-    current,
-  );
-  const recorded = reviewConflictComparison(
-    { ...draft, values: { ...values, amount: "123.456" } },
-    reviews,
-    current,
-  );
-
-  expect(corrected.saved).toMatchObject({
-    kind: "assessment",
-    reviewer: "Sam",
-    values: { amount: "100.00" },
-  });
-  expect(recorded.saved).toMatchObject({
-    kind: "assessment",
-    reviewer: "Sam",
-    values: { amount: "250.00" },
-  });
-  expect(recorded.draft.amount).toBe("123.456");
-  expect(recorded.changes).toEqual([{ field: "revision", before: 4, after: 9 }]);
-  expect(corrected.changes).toEqual(recorded.changes);
-});
-
-it("distinguishes an outstanding request from a missing saved comparison", () => {
-  const current = {
-    revision: state.revision,
-    applicationVersion: draft.applicationVersion,
-    criteriaVersion: draft.criteriaVersion,
-  };
-  expect(reviewConflictComparison(draft, { ...state, assessments: [] }, current).saved).toEqual({
-    kind: "request",
-    reviewer: "Sam",
-  });
-  expect(
-    reviewConflictComparison(
-      {
-        ...draft,
-        mode: "edit",
-        id: crypto.randomUUID(),
-        values: { ...values, contactId: "removed" },
-      },
-      state,
-      current,
-    ).saved,
-  ).toEqual({ kind: "missing" });
-});
-
 it.each([
   {
     mode: "edit" as const,
-    change: { action: "edit", id: draft.id, content, note: values.note },
+    assessmentVersion: 1,
+    change: {
+      action: "edit",
+      id: draft.id,
+      expectedAssessmentVersion: 1,
+      content,
+      note: values.note,
+    },
   },
   {
     mode: "record" as const,
+    assessmentVersion: undefined,
     change: {
       action: "record",
       id: draft.id,
@@ -166,12 +101,15 @@ it.each([
       content,
     },
   },
-])("builds a $mode command using the draft's original baseline", ({ mode, change }) => {
-  expect(reviewCommand({ ...draft, mode }, values, state)).toEqual({
-    change,
-    baseline: { revision: 4, applicationVersion: 3, criteriaVersion: 2 },
-  });
-});
+])(
+  "builds a $mode command using the draft's original baseline",
+  ({ mode, assessmentVersion, change }) => {
+    expect(reviewCommand({ ...draft, mode, assessmentVersion }, values, state)).toEqual({
+      change,
+      baseline: { revision: 4, applicationVersion: 3, criteriaVersion: 2 },
+    });
+  },
+);
 
 it("records an unsolicited assessment with unknown bases without inventing links or values", () => {
   const command = reviewCommand(

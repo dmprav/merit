@@ -568,13 +568,14 @@ export const SeparateEditingScopes: Story = {
     await userEvent.click(
       canvas.getByRole("button", { name: "Continue editing application details" }),
     );
-    const conflict = within(canvas.getByRole("region", { name: "Review conflicting changes" }));
-    await expect(
-      within(conflict.getByRole("region", { name: "Your unsaved changes" })).getByText("€28,000"),
-    ).toBeVisible();
-    await expect(conflict.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
+    form = within(canvas.getByRole("form", { name: "Edit application details" }));
+    await expect(form.getByRole("textbox", { name: "Requested amount" })).toHaveValue("28000.00");
+    await expect(form.getByRole("alert")).toHaveTextContent(
+      "This application changed while you were editing",
+    );
+    await expect(form.getByRole("button", { name: "Save" })).toBeDisabled();
 
-    await userEvent.click(conflict.getByRole("button", { name: "Keep my changes" }));
+    await userEvent.click(form.getByRole("button", { name: "Keep my changes" }));
     form = within(canvas.getByRole("form", { name: "Edit application details" }));
     await userEvent.click(form.getByRole("button", { name: "Save" }));
 
@@ -682,16 +683,19 @@ export const ReconcileApplicationDetails: Story = {
     await userEvent.click(
       await canvas.findByRole("button", { name: "Continue editing application details" }),
     );
-    const conflict = within(canvas.getByRole("region", { name: "Review conflicting changes" }));
+    const conflictForm = within(canvas.getByRole("form", { name: "Edit application details" }));
+    await expect(conflictForm.getByRole("textbox", { name: "Requested amount" })).toHaveValue(
+      "28500.50",
+    );
+    await expect(conflictForm.getByRole("alert")).toHaveTextContent(
+      "This application changed while you were editing",
+    );
+    await userEvent.click(conflictForm.getByRole("button", { name: "View latest" }));
     await expect(
-      within(conflict.getByRole("region", { name: "Latest saved values" })).getByText("€24,000"),
-    ).toBeVisible();
-    await expect(
-      within(conflict.getByRole("region", { name: "Your unsaved changes" })).getByText(
-        "€28,500.50",
+      within(conflictForm.getByRole("region", { name: "Latest saved values" })).getByText(
+        "€24,000",
       ),
     ).toBeVisible();
-    await expect(conflict.queryByRole("textbox")).not.toBeInTheDocument();
   },
 };
 

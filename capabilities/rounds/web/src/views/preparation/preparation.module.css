@@ -36,12 +36,6 @@
   line-height: 1.5;
 }
 
-.latest {
-  margin-block: var(--space-3);
-  white-space: pre-line;
-  overflow-wrap: anywhere;
-}
-
 .history {
   margin-top: var(--space-5);
   font-size: var(--text-caption);

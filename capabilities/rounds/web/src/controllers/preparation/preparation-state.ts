@@ -15,9 +15,9 @@ export type PreparationDraft = z.infer<typeof preparationStorage>;
 
 export type PreparationSection = PreparationDraft["section"];
 
-export type PreparationSnapshot = PreparationDraft["baseline"];
+type PreparationSnapshot = PreparationDraft["baseline"];
 
-export type PreparationField = keyof PreparationSnapshot;
+type PreparationField = keyof PreparationSnapshot;
 
 export type PreparationValues = {
   [S in PreparationSection]: Extract<PreparationDraft, { section: S }>["value"];
@@ -106,48 +106,23 @@ export const hasPreparationDraft = (draft: PreparationDraft) =>
   hasPreparationChanges(draft) ||
   (draft.section === "budget" && Boolean(draft.value.reason.trim()));
 
-// Only actual collisions need a choice. Untouched fields always follow the latest
-// saved value; ordered criteria remain one deliberate conflict choice.
-export const reconcilePreparation = <D extends PreparationDraft>(
+export const hasPreparationSectionConflict = (draft: PreparationDraft, round: EditableRound) => {
+  const latest = preparationDraft(draft.section, round, draft.revision);
+  return sectionFields[draft.section].some((field) => {
+    const before = comparable(draft.baseline, field);
+    const saved = comparable(latest.baseline, field);
+    const mine = comparable({ ...draft.baseline, ...draft.value }, field);
+    return saved !== before && mine !== before && mine !== saved;
+  });
+};
+
+export const rebasePreparationDraft = <D extends PreparationDraft>(
   draft: D,
   round: EditableRound,
   revision: number,
-  choices: Partial<Record<PreparationField, "mine" | "saved">> = {},
-) => {
+): D => {
   const latest = preparationDraft(draft.section, round, revision);
-  const merged = { ...latest, value: { ...draft.value } } as PreparationDraft;
-  const conflicts: PreparationField[] = [];
-  for (const field of sectionFields[draft.section]) {
-    const mine = comparable({ ...draft.baseline, ...draft.value }, field);
-    const before = comparable(draft.baseline, field);
-    const saved = comparable(latest.baseline, field);
-    if (mine === before || mine === saved) {
-      Object.assign(merged.value, { [field]: latest.baseline[field] });
-    } else if (saved !== before) {
-      conflicts.push(field);
-      if (choices[field] === "saved") {
-        Object.assign(merged.value, { [field]: latest.baseline[field] });
-      }
-    }
-  }
-
-  if (
-    draft.section === "budget" &&
-    comparable(latest.baseline, "amount") !== comparable(draft.baseline, "amount") &&
-    comparable({ ...merged.baseline, ...merged.value }, "amount") ===
-      comparable(latest.baseline, "amount")
-  ) {
-    if (merged.section === "budget") {
-      merged.value.reason = "";
-    }
-  }
-
-  return {
-    latest: latest as Extract<PreparationDraft, { section: D["section"] }>,
-    merged: merged as Extract<PreparationDraft, { section: D["section"] }>,
-    conflicts,
-    resolved: conflicts.every((field) => choices[field] !== undefined),
-  };
+  return { ...draft, revision, baseline: latest.baseline };
 };
 
 export const draftChange = (draft: PreparationDraft): RoundChange => {

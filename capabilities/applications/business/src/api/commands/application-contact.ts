@@ -6,7 +6,7 @@ import { workspaceSlugSchema } from "@merit/organizations/api";
 const workspace = z.strictObject({ workspaceSlug: workspaceSlugSchema });
 export const selectContactRequestSchema = workspace.extend({
   publicId: publicIdSchema,
-  expectedRevision: z.number().int().nonnegative(),
+  expectedRevision: z.number().int().nonnegative().optional(),
   contactId: z.uuid().nullable(),
 });
 

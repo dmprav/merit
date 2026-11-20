@@ -4,7 +4,6 @@ import { makeApplication } from "@merit/grantmaking/testing/fixtures";
 
 import {
   intakeChange,
-  intakeConflictComparison,
   intakeConfirmationChange,
   intakeDraftCommand,
   intakeRenameCommand,
@@ -34,31 +33,6 @@ const baseline: IntakeSnapshot = {
 
   summary: "A local meal programme.",
 };
-
-it.each([undefined, null, "replacement"])(
-  "compares a recovered contact %j without replacing its baseline or invalid text",
-  (contactId) => {
-    const original = { ...baseline, contactId: "original" };
-    const draft = newIntakeDraft("metadata", original, 1);
-    draft.value = { ...draft.value, requested: "123.456", contactId };
-    const latest = {
-      ...baseline,
-      contactId: "saved",
-      content: { ...baseline.content, requested: "900" },
-    };
-
-    const comparison = intakeConflictComparison(draft, latest, "My revision explanation");
-
-    expect(comparison?.saved).toEqual(latest);
-    expect(comparison?.unsaved).toMatchObject({
-      contactId: contactId === undefined ? "original" : contactId,
-      content: { requested: "123.456" },
-      reason: "My revision explanation",
-    });
-    expect(draft.baseline).toEqual(original);
-    expect(draft.revision).toBe(1);
-  },
-);
 
 it("sends only the selected section and its contact selection", () => {
   const draft = {
@@ -221,15 +195,15 @@ it("requires a working revision to save submission content once the application 
   });
 });
 
-it("saves staff details independently of a stale submission explanation", () => {
+it("saves staff details independently of both stale section and explanation revisions", () => {
   const application = makeApplication({ intakeStatus: "ready" });
-  const draft = newIntakeDraft("details", baseline, 4);
+  const draft = newIntakeDraft("details", baseline, 2);
   draft.value.summary = "Updated staff summary";
   const reason = newIntakeDraft("reason", baseline, 3);
 
   expect(intakeDraftCommand(draft, application, null, 4, reason, "Local reason")).toEqual({
     status: "ok",
-    revision: 4,
+    revision: 2,
     change: {
       action: "details",
       summary: "Updated staff summary",

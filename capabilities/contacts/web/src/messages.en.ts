@@ -34,7 +34,6 @@ export const en = {
   contactCount_other: "{{count}} contacts",
   changed: "Changed",
   unknownPerson: "Unknown person",
-  savedContactDetails: "Current saved details",
   contacts: "Contacts",
   addContact: "Add contact",
   editContact: "Edit contact details",
@@ -80,8 +79,8 @@ export const en = {
   conflict:
     "This work changed while you were editing. Your draft is preserved. Review the latest saved work before continuing.",
   accessLost: "This workspace is no longer available to you.",
+  missingContact: "This contact is no longer available. Copy your draft if needed before closing.",
+  retainedTitle: "Unsaved contact details",
   error: "Could not save. Your changes are preserved; please try again.",
   outstandingContacts: "Resolve these outstanding review requests before archiving this contact:",
-  useSaved: "Discard draft and use saved work",
-  keepDraft: "Keep draft after reviewing current work",
 } as const;

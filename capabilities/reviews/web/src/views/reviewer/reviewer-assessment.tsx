@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { ConflictBanner } from "@merit/forms";
 import { useLocaleSettings } from "@merit/i18n";
 import { useFormat } from "@merit/i18n/format";
 import { decodeMoney } from "@merit/money";
@@ -401,7 +402,7 @@ const EarlierVersions = ({ page }: { page: ReviewerPage }) => {
   );
 };
 
-/** Both versions stay visible so the reviewer can choose with the difference in view. */
+/** Both versions stay recoverable without replacing the reviewer's form. */
 const ReviewerDraftConflict = ({ work }: { work: ReviewerWork }) => {
   const { t } = useTranslation("reviewer");
   const saved = work.conflict?.draft?.content;
@@ -409,29 +410,19 @@ const ReviewerDraftConflict = ({ work }: { work: ReviewerWork }) => {
     return null;
   }
   return (
-    <Stack gap={4}>
-      <Notice appearance="inline" tone="warning">
-        {t("saveConflict")}
-      </Notice>
-      <div className={styles.comparison}>
-        <section aria-label={t("serverDraft")}>
-          <h3 className={styles.noteTitle}>{t("serverDraft")}</h3>
-          <DraftSummary draft={saved} />
-        </section>
-        <section aria-label={t("yourText")}>
-          <h3 className={styles.noteTitle}>{t("yourText")}</h3>
-          <DraftSummary draft={work.draft} />
-        </section>
-      </div>
-      <Inline>
-        <Button variant="secondary" onPress={() => work.reconcile(true)}>
-          {t("useSaved")}
-        </Button>
-        <Button variant="secondary" onPress={() => work.reconcile(false)}>
-          {t("keepMine")}
-        </Button>
-      </Inline>
-    </Stack>
+    <ConflictBanner
+      title={t("conflictTitle")}
+      message={t("saveConflict")}
+      keepMine={{ label: t("keepMine"), onPress: () => work.reconcile(false) }}
+      useSaved={{ label: t("useSaved"), onPress: () => work.reconcile(true) }}
+      isDisabled={work.busy}
+      latest={{
+        toggleLabel: t("viewSaved"),
+        hideLabel: t("hideSaved"),
+        heading: t("serverDraft"),
+        children: <DraftSummary draft={saved} />,
+      }}
+    />
   );
 };
 

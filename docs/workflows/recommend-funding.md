@@ -59,9 +59,10 @@ Saved recommendations persist on the server. The
 define the lifetime and reset behavior of its isolated workspace.
 
 A workspace save checks current manager access and the recommendation revision and
-application version on which the draft was started. A conflicting save keeps the
-draft open and loads the latest reference data. Discard changes removes that draft so the
-manager can review the current recommendation and start again. A save that changes
+application version on which the draft was started. When the application version or saved
+recommendation changes before saving, the editor stays mounted with an inline conflict banner
+offering **Reaffirm draft for v…** (or **Keep my draft**) versus **Discard & load latest**, plus an
+optional **View latest** preview. A save that changes
 the recommendation's content, author, or application basis records the actor,
 timestamp, and before/after recommendation together, along with a compact workspace
 audit event referencing the saved recommendation revision. A save that changes none

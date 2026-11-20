@@ -40,7 +40,7 @@ describe("grantmaking command inputs", () => {
   });
 
   it.each([
-    { schema: editRoundRequestSchema, change: { section: "details", title: "Updated" } },
+    { schema: editRoundRequestSchema, change: { section: "details", purpose: "Updated" } },
     { schema: editApplicationRequestSchema, change: { action: "mark_ready" } },
   ])("requires a nonnegative integer edit revision: $change", ({ schema, change }) => {
     const request = { workspaceSlug, publicId, change };

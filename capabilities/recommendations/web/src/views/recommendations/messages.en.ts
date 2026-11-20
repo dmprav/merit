@@ -27,6 +27,17 @@ export const recommendationsMessages = {
     saved: "Recommendation saved",
     conflict:
       "This application or recommendation has changed. Your draft is still here. Discard changes to review the latest version before editing again.",
+    basisConflictTitle: "Submission updated to version {{version}}",
+    basisConflictMessage:
+      "The application material changed while you were drafting this recommendation.",
+    reaffirmDraft: "Reaffirm draft for v{{version}}",
+    recordConflictTitle: "Recommendation changed while you were editing",
+    recordConflictMessage: "Review the latest saved recommendation or keep your draft.",
+    keepDraft: "Keep my draft",
+    loadSaved: "Discard & load latest",
+    viewLatest: "View latest",
+    hideLatest: "Hide latest",
+    latestSaved: "Latest saved recommendation",
     accessLost: "You no longer have access to save this recommendation. Your draft is still here.",
     signedOut: "Sign in again to save this recommendation. Your draft is still here.",
     save: "Save recommendation",

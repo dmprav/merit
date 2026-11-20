@@ -6,7 +6,7 @@ import type { Database } from "@merit/db";
 import { writeWorkspace } from "@merit/organizations/transactions";
 
 import { saveReviewRequestSchema, type SaveReviewRequest } from "../../api/commands/reviews";
-import { prepareReviewChange, type ReviewState } from "../../domain/reviews";
+import { hasReviewConflict, prepareReviewChange, type ReviewState } from "../../domain/reviews";
 import { recordReviewRequestEvent } from "../persistence/commands/review-request-events";
 import { assignmentForRequest, cancelParticipatingRequest } from "../persistence/commands/reviewer";
 import {
@@ -121,9 +121,10 @@ export const saveApplicationReview = async (
     }
     const criteriaVersion = round.criteriaVersion;
     if (
-      state.revision !== request.expectedRevision ||
-      applicationVersion !== request.expectedApplicationVersion ||
-      criteriaVersion !== request.expectedCriteriaVersion
+      hasReviewConflict(state, request, {
+        applicationVersion,
+        criteriaVersion,
+      })
     ) {
       return { status: "conflict" } as const;
     }

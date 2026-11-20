@@ -8,9 +8,9 @@ it("shares drafts by workspace and contact while keeping creation drafts indepen
     wrapper: ({ children }) => <ContactDraftProvider>{children}</ContactDraftProvider>,
   });
   const value = { name: "Sam", email: "unfinished@", affiliation: "" };
-  const creation = { id: "new-contact", baseline: null, value };
-  const alder = { id: "sam", baseline: 3, value };
-  const birch = { id: "sam", baseline: 7, value: { ...value, name: "Samuel" } };
+  const creation = { id: "new-contact", value };
+  const alder = { id: "sam", value };
+  const birch = { id: "sam", value: { ...value, name: "Samuel" } };
 
   act(() => {
     result.current.first.set("alder", undefined, creation);

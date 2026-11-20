@@ -3,8 +3,8 @@ import { z } from "zod";
 import { publicIdSchema } from "@merit/db/identifiers";
 import {
   createRoundRequestSchema,
-  editRoundRequestSchema,
   deleteRoundRequestSchema,
+  editRoundInputSchema,
   type RoundsService,
 } from "@merit/rounds/api";
 
@@ -38,10 +38,10 @@ export const registerRoundTools = (
     {
       ...grantWriteOptions,
       description:
-        "Edit round preparation using the original preparationRevision. Preserve criterion IDs across edits and reordering; new criteria need new UUIDs. Send only changed details fields; omitted fields stay unchanged. Budget changes require a reason. Saves directly.",
-      inputSchema: editRoundRequestSchema
+        "Edit round preparation. Supply expectedPreparationRevision for purpose, criteria, and budget; title, meetingDate, and manager apply directly. Preserve criterion IDs across edits and reordering; new criteria need new UUIDs. Send only changed details fields; omitted fields stay unchanged. Budget changes require a reason. Saves directly.",
+      inputSchema: editRoundInputSchema
         .omit({ publicId: true, expectedRevision: true })
-        .extend({ roundId: publicIdSchema, expectedPreparationRevision: revision }),
+        .extend({ roundId: publicIdSchema, expectedPreparationRevision: revision.optional() }),
       outputSchema: roundSavedSchema,
     },
     async ({ roundId, expectedPreparationRevision, ...input }) => {

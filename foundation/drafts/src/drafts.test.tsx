@@ -327,3 +327,38 @@ it("does not restore or write drafts when cleanup interrupts a storage retry", a
   expect(view.result.current.drafts).toEqual({});
   expect(view.result.current.status).toBe("cleared");
 });
+
+it("tracks per-key conflicts and lets a tab either adopt the stored draft or overwrite it", async () => {
+  const first = mount();
+  const second = mount();
+  await ready(first);
+  await ready(second);
+
+  act(() => first.result.current.update(() => ({ a: draft, b: draft })));
+  await saved(first);
+
+  const tab2 = { ...draft, text: "Tab 2 edit" };
+  act(() => second.result.current.update(() => ({ a: tab2, b: { ...draft, text: "Tab 2 b" } })));
+  await waitFor(() => expect(second.result.current.status).toBe("conflict"));
+  expect([...second.result.current.conflicts].sort()).toEqual(["a", "b"]);
+
+  act(() => {
+    void second.result.current.resolveConflict("a", "use_stored");
+  });
+  await waitFor(() => expect(second.result.current.drafts.a).toEqual(draft));
+  expect(second.result.current.conflicts.has("a")).toBe(false);
+  expect(second.result.current.conflicts.has("b")).toBe(true);
+
+  act(() => {
+    void second.result.current.resolveConflict("b", "keep");
+  });
+  await saved(second);
+  expect(second.result.current.conflicts.size).toBe(0);
+
+  const reopened = mount();
+  await ready(reopened);
+  expect(reopened.result.current.drafts).toEqual({
+    a: draft,
+    b: { ...draft, text: "Tab 2 b" },
+  });
+});

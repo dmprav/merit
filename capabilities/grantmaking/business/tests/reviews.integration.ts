@@ -489,7 +489,6 @@ it("resolves live contact details without rewriting applications or history, and
     workspaceSlug,
     contactId: sam.id,
     action: "update" as const,
-    expectedContactRevision: 0,
     details: { name: "Sam Morgan", email: "sam@example.test", affiliation: "" },
   };
 
@@ -895,7 +894,6 @@ it("supports contacts and reviews with the documented runtime grants and immutab
           {
             ...input,
             action: "update",
-            expectedContactRevision: 0,
             details: { ...input.details, name: "Updated reviewer" },
           },
           fundingRoundContactUsage,

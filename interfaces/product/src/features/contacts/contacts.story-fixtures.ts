@@ -73,7 +73,14 @@ export const configureContacts = (initial: Contact[]) => {
   }));
   mocked(saveContact).mockImplementation(async ({ data }) => {
     const current = contacts.find((contact) => contact.id === data.contactId);
-    if (data.action !== "create" && current?.revision !== data.expectedContactRevision) {
+    if (data.action === "update" && !current) {
+      return { status: "not_found" };
+    }
+    if (
+      data.action !== "create" &&
+      data.action !== "update" &&
+      current?.revision !== data.expectedContactRevision
+    ) {
       return { status: "conflict" };
     }
     const contact = {

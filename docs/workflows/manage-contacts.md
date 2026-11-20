@@ -47,13 +47,14 @@ rename the existing contact or change who is associated with other applications.
 Editing a contact cannot rewrite the reviewer or recorder of an earlier assessment.
 
 Web and MCP use the same create, update, archive, and restore commands. Updating
-a profile preserves its archive state; archiving or restoring preserves its
-current details. Changes to existing contacts require the original contact revision.
+a profile preserves its archive state and applies last-write-wins without rejecting stale
+revisions; archiving or restoring preserves current details and still requires the current
+`expectedContactRevision`.
 
 Contact forms follow the shared [editing pattern](../../foundation/ui/src/patterns/editing/editing.mdx).
 **Save contact** commits the shared profile; **Resume contact** and **Resume editing**
-reopen unfinished work in the directory and pickers. A conflict requires reviewing
-the current profile against the draft's original contact revision.
+reopen unfinished work in the directory and pickers. If the contact disappears before
+saving, the retained draft notice lets the author copy or discard their unsaved details.
 
 ## Archive a contact
 

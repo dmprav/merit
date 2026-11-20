@@ -72,17 +72,17 @@ export const intakeMessages = {
     refreshError: "Your change was saved, but the latest view could not load. Refresh to see it.",
     refresh: "Refresh application",
     emailInvalid: "Enter a valid email address or leave it blank.",
+    conflictTitle: "This application changed while you were editing",
     conflict:
       "The application changed. Your edits are preserved. Review the saved values before continuing.",
     confirmationConflict:
       "This application has changed. Close this dialog, review the latest saved work, and start this action again.",
     latest: "Latest saved values",
-    yourDraft: "Your unsaved changes",
-    reconcile: "Review conflicting changes",
+    viewLatest: "View latest",
+    hideLatest: "Hide latest",
     keepChanges: "Keep my changes",
-    keepChangesHelp:
-      "Keeping your changes uses the latest saved values for fields you haven’t edited. Review the result before saving.",
-    useLatest: "Use saved values",
+    useLatest: "Discard & load latest",
+    retainedTitle: "Working revision no longer available",
     startRevision: "Start revised submission",
     correct: "Correct intake",
     editRevision: "Edit working revision",

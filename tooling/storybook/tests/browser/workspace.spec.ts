@@ -503,6 +503,7 @@ for (const id of [
   "features-applications-manage-intake--separate-editing-scopes",
   "features-applications-manage-intake--edit-contact-and-project-dates",
   "features-applications-manage-intake--history",
+  "features-contacts-edit-contact--resumed-draft",
   "features-contacts-edit-contact--concurrent-changes",
   "features-contacts-contact-picker--add-contact",
   "features-applications-manage-reviews--create-reviewer",
@@ -543,11 +544,14 @@ for (const id of [
       expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(viewport.height + 1);
     }
 
-    if (id === "features-contacts-edit-contact--concurrent-changes") {
+    if (id === "features-contacts-edit-contact--resumed-draft") {
       await expect(dialog.getByRole("heading", { name: "Edit contact details" })).toBeInViewport();
       await expect(
         dialog.getByRole("button", { name: "Save contact", exact: true }),
       ).toBeInViewport();
+    }
+    if (id === "features-contacts-edit-contact--concurrent-changes") {
+      await expect(page.getByText("Community Kitchen")).toBeVisible();
     }
     if (id === "features-funding-rounds-manage-round--committee-date") {
       const field = await dialog.getByRole("textbox", { name: "Committee date" }).boundingBox();

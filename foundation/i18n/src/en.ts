@@ -6,6 +6,13 @@ export const common = {
   pagedFailed: "History could not be loaded.",
   pagedRetry: "Try again",
   pagedUnavailable: "This history is no longer available.",
+  retainedDraft: {
+    copy: "Copy draft",
+    copying: "Copying…",
+    copied: "Draft copied",
+    copyFailed: "Could not copy draft.",
+    discard: "Discard draft",
+  },
 
   validation: {
     required: "Enter a value.",

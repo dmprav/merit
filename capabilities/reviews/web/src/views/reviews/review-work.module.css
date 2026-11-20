@@ -220,11 +220,6 @@
   font-size: var(--text-caption);
 }
 
-.recovery {
-  display: grid;
-  gap: var(--space-4);
-}
-
 .reviews {
   display: grid;
   gap: var(--space-5);
@@ -233,37 +228,6 @@
 .editorForm {
   min-height: 0;
   flex: 1;
-}
-
-.comparisonHeading {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-4);
-}
-
-.comparisonHeading h3 {
-  font-size: var(--text-detail);
-}
-
-.comparisonField {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-2) var(--space-4);
-  padding-block: var(--space-3);
-  border-bottom: 1px solid var(--border);
-  font-size: var(--text-detail);
-  line-height: var(--leading-reading);
-}
-
-.comparisonField dt {
-  grid-column: 1 / -1;
-  color: var(--muted);
-}
-
-.comparisonField dd {
-  margin: 0;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
 }
 
 .reviewDetails > button {

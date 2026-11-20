@@ -5,7 +5,6 @@ import { useDrafts, type DraftStatus } from "@merit/drafts";
 
 const contactDraft = z.object({
   id: z.string(),
-  baseline: z.number().int().nonnegative().nullable(),
   value: z.object({ name: z.string(), email: z.string(), affiliation: z.string() }),
 });
 

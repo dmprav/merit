@@ -13,7 +13,6 @@ import type {
 } from "../../contracts/reviews";
 import { useReviewDrafts, type ReviewDraft, type ReviewFormValues } from "./drafts";
 import { reviewCommand } from "./review-command";
-import { reviewConflictComparison } from "./review-comparison";
 import { valuesFromContent } from "./values";
 
 const applicationVersionsForReview = (
@@ -30,6 +29,45 @@ const applicationVersionsForReview = (
   }
 
   return versions;
+};
+
+const hasTargetReviewConflict = (
+  draft: ReviewDraft,
+  state: ReviewProps["application"]["reviews"],
+): boolean => {
+  if (draft.mode === "edit") {
+    const target = state.assessments.find((item) => item.id === draft.id);
+    if (!target) {
+      return true;
+    }
+    if (draft.assessmentVersion !== undefined) {
+      return target.versions.length !== draft.assessmentVersion;
+    }
+    return draft.revision !== state.revision;
+  }
+
+  if (draft.revision >= state.revision) {
+    return false;
+  }
+  if (draft.requestId) {
+    const request = state.requests.find((item) => item.id === draft.requestId);
+    if (request && request.status !== "outstanding") {
+      return true;
+    }
+  } else if (
+    state.requests.some(
+      (item) => item.contactId === draft.values.contactId && item.status === "outstanding",
+    )
+  ) {
+    return true;
+  }
+  if (draft.previousId === undefined) {
+    return true;
+  }
+  const latest = state.assessments
+    .filter((item) => item.contactId === draft.values.contactId)
+    .at(-1);
+  return (latest?.id ?? null) !== draft.previousId;
 };
 
 export const useReview = ({
@@ -62,11 +100,9 @@ export const useReview = ({
     pending,
     data.draftKey,
   );
-  const conflict = Boolean(
-    draft &&
-    (draft.revision !== state.revision ||
-      draft.applicationVersion !== application.version ||
-      draft.criteriaVersion !== criteriaVersion),
+  const conflict = Boolean(draft && hasTargetReviewConflict(draft, state));
+  const missingTarget = Boolean(
+    draft?.mode === "edit" && !state.assessments.some((item) => item.id === draft.id),
   );
 
   const saveDraft = async (values: ReviewFormValues): Promise<ReviewProblem | null> => {
@@ -74,8 +110,8 @@ export const useReview = ({
       return { status: "conflict" };
     }
 
-    const { change, baseline } = reviewCommand(draft, values, state);
-    const failure = await save(change, baseline);
+    const { change } = reviewCommand(draft, values, state);
+    const failure = await save(change, currentBaseline);
     if (!failure) {
       editor.discard();
     }
@@ -97,7 +133,7 @@ export const useReview = ({
     pending,
     versions,
     conflict,
-    comparison: draft ? reviewConflictComparison(draft, state, currentBaseline) : null,
+    missingTarget,
     saving,
     beginRequest: (replacesId: string | null = null): ReviewRequest => {
       return (contactId, id) =>
@@ -209,8 +245,35 @@ const newReviewDraft = (
     revision: application.reviews.revision,
     applicationVersion: application.version,
     criteriaVersion,
+    ...(mode === "edit" && assessment ? { assessmentVersion: assessment.versions.length } : {}),
+    ...(mode === "record" && contactId
+      ? {
+          requestId: request?.id ?? null,
+          previousId:
+            application.reviews.assessments.filter((item) => item.contactId === contactId).at(-1)
+              ?.id ?? null,
+        }
+      : {}),
     values: valuesFromContent(content, contactId),
   };
+};
+
+const useDeferredReviewOpening = (
+  ready: boolean,
+  editing: boolean,
+  hasDraft: boolean,
+  initialize: (request: ReviewOpening) => void,
+) => {
+  const [opening, setOpening] = useState<ReviewOpening | null>(null);
+  useEffect(() => {
+    if (ready && opening && editing) {
+      if (!hasDraft) {
+        initialize(opening);
+      }
+      setOpening(null);
+    }
+  }, [ready, opening, editing, hasDraft, initialize]);
+  return [opening, setOpening] as const;
 };
 
 const useReviewEditing = (
@@ -222,8 +285,8 @@ const useReviewEditing = (
   const { reviewEdits, setReviewEdit, ready } = useReviewDrafts();
   const draft = reviewEdits[key];
   const [editing, setEditing] = useState(false);
-  const [opening, setOpening] = useState<ReviewOpening | null>(null);
   const [error, setError] = useState<ReviewProblem | null>(null);
+  const [draftReset, setDraftReset] = useState(0);
   const initialValues = useRef<string | null>(null);
 
   const initialize = useCallback(
@@ -234,15 +297,12 @@ const useReviewEditing = (
     },
     [application, baseline.criteriaVersion, pending, key, setReviewEdit],
   );
-
-  useEffect(() => {
-    if (ready && opening && editing) {
-      if (!draft) {
-        initialize(opening);
-      }
-      setOpening(null);
-    }
-  }, [ready, opening, editing, draft, initialize]);
+  const [opening, setOpening] = useDeferredReviewOpening(
+    ready,
+    editing,
+    Boolean(draft),
+    initialize,
+  );
 
   const start = (mode: ReviewDraft["mode"], contactId = "", id: string = crypto.randomUUID()) => {
     setEditing(true);
@@ -268,6 +328,20 @@ const useReviewEditing = (
     setEditing(false);
   };
 
+  const loadLatest = () => {
+    if (!draft) {
+      return;
+    }
+    const next = findLatestReviewDraft(draft, application, baseline, pending);
+    if (!next) {
+      discard();
+      return;
+    }
+    initialValues.current = JSON.stringify(next.values);
+    setReviewEdit(key, next);
+    setDraftReset((count) => count + 1);
+  };
+
   return {
     draft,
     ready,
@@ -275,22 +349,80 @@ const useReviewEditing = (
     editing,
     error,
     setError,
+    draftReset,
     start,
     discard,
     close,
     resume: () => setEditing(true),
-    updateValues: (values: ReviewFormValues) => {
-      if (draft) {
-        setReviewEdit(key, { ...draft, values });
-      }
-    },
-    keepDraft: () => {
-      if (draft) {
-        setReviewEdit(key, {
-          ...draft,
-          ...baseline,
-        });
-      }
-    },
+    loadLatest,
+    ...buildReviewDraftMutators(draft, application, baseline, pending, key, setReviewEdit),
+  };
+};
+
+const buildReviewDraftMutators = (
+  draft: ReviewDraft | undefined,
+  application: ReviewProps["application"],
+  baseline: ReviewBaseline,
+  pending: ReviewProps["application"]["reviews"]["requests"],
+  key: string,
+  setReviewEdit: ReturnType<typeof useReviewDrafts>["setReviewEdit"],
+) => ({
+  updateValues: (values: ReviewFormValues) => {
+    if (draft) {
+      setReviewEdit(key, { ...draft, values });
+    }
+  },
+  keepDraft: () => {
+    if (draft) {
+      setReviewEdit(key, buildKeptReviewDraft(draft, application, baseline, pending));
+    }
+  },
+});
+
+const findLatestReviewDraft = (
+  draft: ReviewDraft,
+  application: ReviewProps["application"],
+  baseline: ReviewBaseline,
+  pending: ReviewProps["application"]["reviews"]["requests"],
+): ReviewDraft | null => {
+  const contactId = draft.values.contactId;
+  const latestAssessment =
+    draft.mode === "edit"
+      ? application.reviews.assessments.find((item) => item.id === draft.id)
+      : application.reviews.assessments.filter((item) => item.contactId === contactId).at(-1);
+  if (!latestAssessment || latestAssessment.authorUserId) {
+    return null;
+  }
+  return newReviewDraft(application, baseline.criteriaVersion, pending, {
+    mode: "edit",
+    contactId: latestAssessment.contactId,
+    id: latestAssessment.id,
+  });
+};
+
+const buildKeptReviewDraft = (
+  draft: ReviewDraft,
+  application: ReviewProps["application"],
+  baseline: ReviewBaseline,
+  pending: ReviewProps["application"]["reviews"]["requests"],
+): ReviewDraft => {
+  if (draft.mode === "edit") {
+    const assessment = application.reviews.assessments.find((item) => item.id === draft.id);
+    return {
+      ...draft,
+      ...baseline,
+      ...(assessment ? { assessmentVersion: assessment.versions.length } : {}),
+    };
+  }
+  const contactId = draft.values.contactId;
+  const request = pending.find((item) => item.contactId === contactId);
+  const previous = application.reviews.assessments
+    .filter((item) => item.contactId === contactId)
+    .at(-1);
+  return {
+    ...draft,
+    ...baseline,
+    requestId: request?.id ?? null,
+    previousId: previous?.id ?? null,
   };
 };

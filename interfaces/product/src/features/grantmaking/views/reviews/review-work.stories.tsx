@@ -174,11 +174,37 @@ const ReviewsPreview = ({
               throw new Error("Preview refresh failure");
             }
             if (concurrentChange) {
-              setState((current) =>
-                current.revision === initialReviews.revision
-                  ? { ...current, revision: reviewRevisionSchema.parse(current.revision + 1) }
-                  : current,
-              );
+              setState((current) => {
+                if (current.revision !== initialReviews.revision) {
+                  return current;
+                }
+                const target = current.assessments[0];
+                const latestVersion = target?.versions.at(-1);
+                return {
+                  ...current,
+                  revision: reviewRevisionSchema.parse(current.revision + 1),
+                  assessments:
+                    target && latestVersion
+                      ? [
+                          {
+                            ...target,
+                            versions: [
+                              ...target.versions,
+                              {
+                                ...latestVersion,
+                                content: {
+                                  ...latestVersion.content,
+                                  reasoning:
+                                    "Concurrent update recorded by another colleague while you were editing.",
+                                },
+                              },
+                            ],
+                          },
+                          ...current.assessments.slice(1),
+                        ]
+                      : current.assessments,
+                };
+              });
             }
             await transport.refresh();
           },
@@ -483,13 +509,12 @@ export const ConcurrentChanges: Story = {
     await waitFor(async () =>
       expect(await dialog.findByRole("button", { name: "Keep my draft" })).toBeVisible(),
     );
-    await expect(
-      dialog.getByRole("region", { name: "Saved assessment and your draft" }),
-    ).toHaveTextContent("The revised venue costs are supported by a written quote.");
-    await expect(
-      dialog.getByRole("region", { name: "Saved assessment and your draft" }),
-    ).toBeVisible();
-    await expect(dialog.queryByRole("button", { name: "Save assessment" })).not.toBeInTheDocument();
+    await expect(dialog.getByRole("textbox", { name: "Assessment text" })).toHaveValue(
+      "The revised venue costs are supported by a written quote.",
+    );
+    await expect(dialog.getByRole("button", { name: "Save assessment" })).toBeDisabled();
+    await context.userEvent.click(dialog.getByRole("button", { name: "View latest" }));
+    await expect(dialog.getByRole("region", { name: "Latest saved work" })).toBeVisible();
   },
 };
 export const SavedButRefreshFailed: Story = {

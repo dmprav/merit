@@ -1,9 +1,9 @@
 import type { TFunction } from "i18next";
-import { useEffect, useRef, useState, type ReactNode, type Ref } from "react";
+import { useEffect, useRef, useState, type Ref } from "react";
 import { useTranslation } from "react-i18next";
 
-import { ContactLabel } from "@merit/contacts-web/contacts";
 import { calendarDateSchema } from "@merit/dates";
+import { ConflictBanner, RetainedDraftNotice } from "@merit/forms";
 import { useFormat } from "@merit/i18n/format";
 import { parseMoneyInput } from "@merit/money/input";
 import type { ReviewState } from "@merit/reviews/domain";
@@ -22,9 +22,9 @@ import { StatusMessage } from "@merit/ui/status-message";
 
 import type { ReviewProps, ReviewData } from "../../contracts/reviews";
 import { useManagerReviewers } from "../../controllers/reviewer/use-manager-reviewers";
-import type { ReviewFormValues } from "../../controllers/reviews/drafts";
-import type { ReviewComparison } from "../../controllers/reviews/review-comparison";
+import type { ReviewDraft, ReviewFormValues } from "../../controllers/reviews/drafts";
 import { useReview } from "../../controllers/reviews/use-review";
+import { valuesFromContent } from "../../controllers/reviews/values";
 import { ManagerReviewers } from "../reviewer/manager-reviewers";
 import { reviewPositionKeys } from "./assessment-outcome";
 import { reviewError } from "./messages";
@@ -473,7 +473,21 @@ const ReviewEditor = ({
   data: ReviewData;
 }) => {
   const { t } = useTranslation("reviews");
-  const { draft, close, conflict, discard, state, versions, updateValues, saveDraft } = work;
+  const {
+    draft,
+    draftReset,
+    close,
+    conflict,
+    missingTarget,
+    discard,
+    keepDraft,
+    loadLatest,
+    saving,
+    state,
+    versions,
+    updateValues,
+    saveDraft,
+  } = work;
   if (!work.ready || !draft) {
     return (
       <DialogContent label={t(work.mode ?? "record")}>
@@ -481,12 +495,31 @@ const ReviewEditor = ({
       </DialogContent>
     );
   }
-  if (conflict) {
-    return <ReviewConflict work={work} workspaceSlug={data.workspaceSlug} />;
+  if (missingTarget) {
+    const reviewer = state.assessments.find((item) => item.id === draft.id)?.reviewer;
+    const retainedText = retainedReviewText(draft.values, reviewer);
+    return (
+      <DialogContent label={t("retainedTitle")}>
+        <RetainedDraftNotice
+          title={t("retainedTitle")}
+          message={t("assessmentUnavailable")}
+          textToCopy={retainedText}
+          isDisabled={saving}
+          onDiscard={discard}
+        >
+          {retainedText
+            .split("\n\n")
+            .filter(Boolean)
+            .map((block, index) => (
+              <p key={index}>{block}</p>
+            ))}
+        </RetainedDraftNotice>
+      </DialogContent>
+    );
   }
   return (
     <ReviewForm
-      key={draft.id}
+      key={`${draft.id}:${draftReset}`}
       draft={draft}
       followUp={state.assessments.some((item) => item.contactId === draft.values.contactId)}
       workspaceSlug={data.workspaceSlug}
@@ -497,6 +530,18 @@ const ReviewEditor = ({
           label: t(version === application.version ? "currentVersion" : "version", { version }),
         }))}
       criteriaHistory={round.criteriaHistory}
+      isConflict={conflict}
+      beforeFields={
+        conflict && (
+          <ReviewConflictBanner
+            draft={draft}
+            state={state}
+            onKeepDraft={keepDraft}
+            onLoadLatest={loadLatest}
+            isDisabled={saving}
+          />
+        )
+      }
       onChange={updateValues}
       onDiscard={discard}
       onClose={close}
@@ -505,203 +550,158 @@ const ReviewEditor = ({
   );
 };
 
-const ReviewConflict = ({
-  work,
-  workspaceSlug,
-}: {
-  workspaceSlug: string;
-  work: ReturnType<typeof useReview>;
-}) => {
-  const { t } = useTranslation("reviews");
-  const { close, discard, keepDraft } = work;
-  const heading = useRef<HTMLHeadingElement>(null);
-  useEffect(() => {
-    if (document.activeElement === document.body) {
-      heading.current?.focus();
-    }
-  }, []);
-  const comparison = work.comparison;
-  if (!comparison) {
-    return null;
-  }
-  const contextLabels = {
-    applicationVersion: "submission",
-    criteriaVersion: "criteriaVersion",
-    revision: "reviewState",
-  } as const;
-  return (
-    <DialogContent
-      label={t("conflictTitle")}
-      footer={
-        <Inline justify="end">
-          <Button size="small" variant="quiet" onPress={close}>
-            {t("close")}
-          </Button>
-          <Button size="small" variant="secondary" onPress={discard}>
-            {t("useSaved")}
-          </Button>
-          <Button size="small" onPress={keepDraft}>
-            {t("keepDraft")}
-          </Button>
-        </Inline>
-      }
-    >
-      <div className={styles.recovery}>
-        <h3 ref={heading} tabIndex={-1}>
-          {t("conflictTitle")}
-        </h3>
-        <Notice appearance="inline" tone="warning" role="alert">
-          {t("conflict")}
-        </Notice>
-        <DescriptionList>
-          {comparison.changes.map(({ field, before, after }) => (
-            <DescriptionListItem key={field} label={t(contextLabels[field])}>
-              {t("contextChanged", { before, after })}
-            </DescriptionListItem>
-          ))}
-        </DescriptionList>
-        <ReviewConflictComparison comparison={comparison} workspaceSlug={workspaceSlug} />
-      </div>
-    </DialogContent>
-  );
-};
+const retainedReviewText = (values: ReviewFormValues, reviewer?: string) =>
+  [
+    reviewer,
+    values.date,
+    values.position,
+    values.amount,
+    values.applicationVersion !== null ? `Application v${values.applicationVersion}` : null,
+    values.criteriaVersion !== null ? `Criteria v${values.criteriaVersion}` : null,
+    values.reasoning,
+    ...values.observations
+      .filter((item) => item.text.trim())
+      .map((item) => `${item.criterion}\n${item.text}`),
+    values.note,
+  ]
+    .filter((part): part is string => Boolean(part?.trim()))
+    .join("\n\n");
 
-const ReviewConflictComparison = ({
-  comparison,
-  workspaceSlug,
+const ReviewConflictBanner = ({
+  draft,
+  state,
+  onKeepDraft,
+  onLoadLatest,
+  isDisabled,
 }: {
-  comparison: ReviewComparison;
-  workspaceSlug: string;
+  draft: ReviewDraft;
+  state: ReviewState;
+  onKeepDraft: () => void;
+  onLoadLatest: () => void;
+  isDisabled: boolean;
 }) => {
   const { t } = useTranslation("reviews");
   const { timestamp } = useFormat();
-  const { saved, draft, reviewer } = comparison;
-  const recorder = saved.kind === "assessment" ? saved.recorder : null;
-  const identity = (
-    <ReviewIdentity contactId={draft.contactId} reviewer={reviewer} workspaceSlug={workspaceSlug} />
+  const assessment = state.assessments.findLast((item) =>
+    draft.mode === "edit" ? item.id === draft.id : item.contactId === draft.values.contactId,
   );
+  const request = state.requests.find(
+    (item) => item.contactId === draft.values.contactId && item.status === "outstanding",
+  );
+  const version = assessment?.versions.at(-1);
+  const recorder = version?.recorder ?? null;
+
   return (
-    <section aria-label={t("comparison")} className={styles.comparison}>
-      <div className={styles.comparisonHeading}>
-        <h3>{t("savedWork")}</h3>
-        <h3>{t("yourDraft")}</h3>
-      </div>
-      <dl>
-        <ComparisonField
-          label={t("reviewer")}
-          saved={saved.kind === "missing" ? t("noMatchingRecord") : saved.reviewer}
-          draft={identity}
-        />
-        <AssessmentComparisonFields
-          saved={saved.kind === "assessment" ? saved.values : null}
-          draft={draft}
-        />
-      </dl>
-      {recorder && (
-        <p className={styles.meta}>
-          {t("recordedBy", { name: recorder.name })} ·{" "}
-          <time dateTime={recorder.recordedAt}>
-            {timestamp(recorder.recordedAt, { timeZone: "UTC" })} UTC
-          </time>{" "}
-          · <ActionProvenance value={recorder.provenance} />
-        </p>
-      )}
-    </section>
+    <ConflictBanner
+      title={t("conflictTitle")}
+      message={t("conflict")}
+      attribution={
+        recorder ? (
+          <>
+            {t("recordedBy", { name: recorder.name })} ·{" "}
+            <time dateTime={recorder.recordedAt}>
+              {timestamp(recorder.recordedAt, { timeZone: "UTC" })} UTC
+            </time>{" "}
+            · <ActionProvenance value={recorder.provenance} />
+          </>
+        ) : undefined
+      }
+      keepMine={{ label: t("keepDraft"), onPress: onKeepDraft }}
+      useSaved={{ label: t("useSaved"), onPress: onLoadLatest }}
+      isDisabled={isDisabled}
+      latest={{
+        toggleLabel: t("viewLatest"),
+        hideLabel: t("hideLatest"),
+        heading: t("savedWork"),
+        children: <LatestAssessmentPreview assessment={assessment} request={request} />,
+      }}
+    />
   );
 };
 
-const ReviewIdentity = ({
-  contactId,
-  reviewer,
-  workspaceSlug,
+const LatestAssessmentPreview = ({
+  assessment,
+  request,
 }: {
-  contactId: string;
-  reviewer: string | null;
-  workspaceSlug: string;
+  assessment: ReviewState["assessments"][number] | undefined;
+  request: ReviewState["requests"][number] | undefined;
 }) => {
-  const { t } = useTranslation("reviews");
-  return (
-    reviewer ||
-    (contactId ? (
-      <ContactLabel
-        workspaceSlug={workspaceSlug}
-        contactId={contactId}
-        fallback={t("reviewerUnavailable")}
-      />
-    ) : (
-      t("reviewerNotSelected")
-    ))
-  );
+  const { t } = useTranslation(["reviews"]);
+  const version = assessment?.versions.at(-1);
+  if (!assessment || !version) {
+    return (
+      <DescriptionList>
+        <DescriptionListItem label={t("reviewer")}>
+          {request ? request.reviewer : t("noMatchingRecord")}
+        </DescriptionListItem>
+      </DescriptionList>
+    );
+  }
+
+  return <LatestAssessmentDetails assessment={assessment} version={version} />;
 };
 
-const ComparisonField = ({
-  label,
-  saved,
-  draft,
-}: {
-  label: string;
-  saved: ReactNode;
-  draft: ReactNode;
-}) => (
-  <div className={styles.comparisonField}>
-    <dt>{label}</dt>
-    <dd>{saved}</dd>
-    <dd>{draft}</dd>
-  </div>
-);
+const formatRecordedObservations = (observations: { criterion: string; text: string }[]) =>
+  observations
+    .filter((item) => item.text.trim())
+    .map((item) => `${item.criterion}\n${item.text}`)
+    .join("\n\n");
 
-const AssessmentComparisonFields = ({
-  saved,
-  draft,
+const resolveReviewPosition = (position: string) =>
+  Object.hasOwn(reviewPositionKeys, position)
+    ? (position as keyof typeof reviewPositionKeys)
+    : null;
+
+const formatLatestVersionLabel = (
+  t: (key: string, options?: { version: string }) => string,
+  value: string | undefined,
+) => (value && value !== "unknown" ? t("version", { version: value }) : t("unknown"));
+
+const LatestAssessmentDetails = ({
+  assessment,
+  version,
 }: {
-  saved: ReviewFormValues | null;
-  draft: ReviewFormValues;
+  assessment: ReviewState["assessments"][number];
+  version: ReviewState["assessments"][number]["versions"][number];
 }) => {
   const { t } = useTranslation(["reviews", "reviewGrant"]);
   const { money, calendarDate } = useFormat();
-
-  const format = (values: ReviewFormValues) => {
-    const amount = parseMoneyInput(values.amount);
-    const position = Object.hasOwn(reviewPositionKeys, values.position)
-      ? (values.position as keyof typeof reviewPositionKeys)
-      : null;
-    return {
-      reasoning: values.reasoning,
-      position: position ? t(reviewPositionKeys[position], { ns: "reviewGrant" }) : t("notStated"),
-      amount: amount ? money(amount) : values.amount || t("notStated"),
-      assessmentDate: calendarDateSchema.safeParse(values.date).success
-        ? calendarDate(values.date)
-        : values.date || t("unknown"),
-      applicationVersion:
-        values.applicationVersion && values.applicationVersion !== "unknown"
-          ? t("version", { version: values.applicationVersion })
-          : t("unknown"),
-      criteriaVersion:
-        values.criteriaVersion && values.criteriaVersion !== "unknown"
-          ? t("version", { version: values.criteriaVersion })
-          : t("unknown"),
-      observations: values.observations
-        .filter((item) => item.text.trim())
-        .map((item) => `${item.criterion}\n${item.text}`)
-        .join("\n\n"),
-      note: values.note,
-    };
+  const values = {
+    ...valuesFromContent(version.content, assessment.contactId),
+    note: version.note,
   };
+  const amount = parseMoneyInput(values.amount);
+  const position = resolveReviewPosition(values.position);
+  const observations = formatRecordedObservations(values.observations);
+  const formattedDate = calendarDateSchema.safeParse(values.date).success
+    ? calendarDate(values.date)
+    : values.date || t("unknown");
 
-  const savedFields = saved ? format(saved) : null;
-  const draftFields = format(draft);
-  return (Object.keys(draftFields) as (keyof typeof draftFields)[])
-    .filter(
-      (key) => (key !== "observations" && key !== "note") || draftFields[key] || savedFields?.[key],
-    )
-    .map((key) => (
-      <ComparisonField
-        key={key}
-        label={t(key)}
-        saved={savedFields ? savedFields[key] || t("notStated") : t("noSavedValue")}
-        draft={draftFields[key] || t("notStated")}
-      />
-    ));
+  return (
+    <DescriptionList>
+      <DescriptionListItem label={t("reviewer")}>{assessment.reviewer}</DescriptionListItem>
+      <DescriptionListItem label={t("position")}>
+        {position ? t(reviewPositionKeys[position], { ns: "reviewGrant" }) : t("notStated")}
+      </DescriptionListItem>
+      <DescriptionListItem label={t("amount")}>
+        {amount ? money(amount) : values.amount || t("notStated")}
+      </DescriptionListItem>
+      <DescriptionListItem label={t("assessmentDate")}>{formattedDate}</DescriptionListItem>
+      <DescriptionListItem label={t("applicationVersion")}>
+        {formatLatestVersionLabel(t, values.applicationVersion)}
+      </DescriptionListItem>
+      <DescriptionListItem label={t("criteriaVersion")}>
+        {formatLatestVersionLabel(t, values.criteriaVersion)}
+      </DescriptionListItem>
+      <DescriptionListItem label={t("reasoning")}>
+        {values.reasoning || t("notStated")}
+      </DescriptionListItem>
+      {observations && (
+        <DescriptionListItem label={t("observations")}>{observations}</DescriptionListItem>
+      )}
+      {values.note && <DescriptionListItem label={t("note")}>{values.note}</DescriptionListItem>}
+    </DescriptionList>
+  );
 };
 
 const ReviewFeedback = ({ work }: { work: ReturnType<typeof useReview> }) => {

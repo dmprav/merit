@@ -900,4 +900,32 @@ describe("funding-round preparation", () => {
       ],
     });
   });
+
+  it("rejects stale Tier 1 edits when requireCurrentRevision is set for Undo", async ({ db }) => {
+    const address = await create(db);
+    expect(
+      await editFundingRound(db, actor, {
+        ...address,
+        change: { section: "details", title: "Spring grants" },
+      }),
+    ).toEqual({ status: "ok", revision: 1 });
+    expect(
+      await editFundingRound(db, actor, {
+        ...address,
+        change: { section: "details", title: "Autumn grants" },
+      }),
+    ).toEqual({ status: "ok", revision: 2 });
+
+    expect(
+      await editFundingRound(db, actor, {
+        ...address,
+        expectedRevision: 1,
+        requireCurrentRevision: true,
+        change: { section: "details", title: "Composer round" },
+      }),
+    ).toEqual({ status: "conflict" });
+
+    const page = await getFundingRoundPage(db, actor, { ...address, kind: "round" });
+    expect(page?.round.title).toBe("Autumn grants");
+  });
 });

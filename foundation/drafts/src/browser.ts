@@ -46,5 +46,6 @@ export const createBrowserDraftSession = <T>(
     getSnapshot: store.getSnapshot,
     getServerSnapshot: store.getServerSnapshot,
     update: store.update,
+    resolveConflict: store.resolveConflict,
   };
 };

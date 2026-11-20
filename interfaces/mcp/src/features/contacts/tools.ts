@@ -109,7 +109,7 @@ const registerContactWrites = (
     ],
     [
       "update_contact",
-      "Update requested shared contact details using expectedContactRevision. Current application views resolve the updated profile; their revisions and historical evidence remain unchanged.",
+      "Update requested shared contact details directly. Current application views resolve the updated profile; their revisions and historical evidence remain unchanged.",
       contactCommands.update,
     ],
     [

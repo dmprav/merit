@@ -44,16 +44,13 @@ it("returns the current contact for creation retries and unchanged saves without
   const initial = await read();
 
   expect(await change({ ...address, action: "create", details })).toEqual(created);
-  expect(
-    await change({ ...address, action: "update", expectedContactRevision: 0, details }),
-  ).toEqual(created);
+  expect(await change({ ...address, action: "update", details })).toEqual(created);
   expect(await read()).toEqual(initial);
 
   const updatedDetails = { ...details, name: "Samuel" };
   const updated = await change({
     ...address,
     action: "update",
-    expectedContactRevision: 0,
     details: updatedDetails,
   });
   expect(updated).toMatchObject({ status: "ok", contact: { name: "Samuel", revision: 1 } });
@@ -64,7 +61,6 @@ it("returns the current contact for creation retries and unchanged saves without
     await change({
       ...address,
       action: "update",
-      expectedContactRevision: 1,
       details: updatedDetails,
     }),
   ).toEqual(updated);
@@ -72,11 +68,19 @@ it("returns the current contact for creation retries and unchanged saves without
     await change({
       ...address,
       action: "update",
-      expectedContactRevision: 0,
-      details: updatedDetails,
+      details: { ...updatedDetails, affiliation: "Updated affiliation" },
     }),
-  ).toEqual({ status: "conflict" });
-  expect(await read()).toEqual(saved);
+  ).toEqual({
+    status: "ok",
+    contact: {
+      ...created.contact,
+      ...updatedDetails,
+      affiliation: "Updated affiliation",
+      archived: false,
+      revision: 2,
+    },
+  });
+  expect(await read()).not.toEqual(saved);
 });
 
 it.for([
@@ -89,9 +93,7 @@ it.for([
     const { address, change, created } = await setup(db);
     const next = { ...details, [field]: value };
 
-    expect(
-      await change({ ...address, action: "update", expectedContactRevision: 0, details: next }),
-    ).toEqual({
+    expect(await change({ ...address, action: "update", details: next })).toEqual({
       status: "ok",
       contact: { ...created.contact, ...next, revision: 1 },
     });
@@ -157,9 +159,10 @@ it("preserves archive state and details across lifecycle changes and rejects a s
   expect(await read()).toEqual(archived);
 
   const renamed = { ...details, name: "Samuel" };
-  expect(
-    await change({ ...address, action: "update", expectedContactRevision: 1, details: renamed }),
-  ).toMatchObject({ status: "ok", contact: { ...renamed, archived: true, revision: 2 } });
+  expect(await change({ ...address, action: "update", details: renamed })).toMatchObject({
+    status: "ok",
+    contact: { ...renamed, archived: true, revision: 2 },
+  });
   expect(await change({ ...address, action: "restore", expectedContactRevision: 2 })).toMatchObject(
     { status: "ok", contact: { ...renamed, archived: false, revision: 3 } },
   );
@@ -279,7 +282,6 @@ it.for(["create", "update"] as const)(
         : {
             ...address,
             action,
-            expectedContactRevision: 0,
             details: { ...details, name: "Samuel" },
           };
 

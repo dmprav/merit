@@ -52,13 +52,13 @@ When field messages explain what needs correcting, focus the first invalid field
 instead of repeating a generic validation banner. Reserve form-level feedback for
 problems that cannot be assigned to one field, such as a failed save.
 
-A concurrent edit needs a short warning and an explicit reconciliation step.
-Keep the affected record's saved and local content in a neutral comparison beneath
-the warning, with matching labels and clearly named choices. Explain changed
-application or review context separately when it affects the draft; an entire
-collection of unrelated records is not a comparison of that draft. Long drafts
-are reading material, not part of the warning container. The feature owns which differences matter, whether editing can
-continue, and the revision checks required before a choice can be saved.
+A concurrent edit or basis change needs an inline `ConflictBanner` above the fields while
+keeping the author's own editor mounted and editable. Offer clear recovery actions (**Keep my changes**
+or **Reaffirm draft…** vs **Discard & load latest**) and place any optional **View latest** preview
+outside the warning `Notice` container so longer saved content does not crowd the alert.
+When access or the underlying record is gone before saving, show `RetainedDraftNotice` with
+**Copy draft** and **Discard** so unsaved writing is never trapped. The feature owns which differences matter, whether editing can
+continue, and which changes require strict revision checks versus last-write-wins metadata updates.
 
 Use accessible danger text for inline errors, consistent with field validation;
 color and icons supplement the explanation. Other inline Notice tones retain

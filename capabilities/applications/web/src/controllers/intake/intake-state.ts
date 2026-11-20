@@ -77,31 +77,6 @@ export const intakeDraftChanged = (draft: IntakeDraft | undefined) =>
     JSON.stringify(draft.value) !== JSON.stringify(sectionValues(draft.section, draft.baseline)),
   );
 
-/** The two section sources retain recovery text and the draft's original baseline. */
-export const intakeConflictComparison = (
-  draft: IntakeDraft | undefined,
-  latest: IntakeSnapshot,
-  reason: string,
-) => {
-  if (!draft) {
-    return null;
-  }
-  const metadata = draft.section === "metadata" ? draft.value : null;
-  const unsaved: IntakeSnapshot = {
-    ...draft.baseline,
-    content: {
-      ...draft.baseline.content,
-      ...(draft.section === "title" || draft.section === "metadata" || draft.section === "content"
-        ? draft.value
-        : {}),
-    },
-    contactId: metadata?.contactId === undefined ? draft.baseline.contactId : metadata.contactId,
-    summary: draft.section === "details" ? draft.value.summary : draft.baseline.summary,
-    reason,
-  };
-  return { section: draft.section, saved: latest, unsaved };
-};
-
 // Reconcile only this section. Ordered submission answers remain one indivisible field.
 export const reconcileIntake = <S extends keyof IntakeValues>(
   draft: SectionDraft<S>,
@@ -157,8 +132,8 @@ export const intakeDraftConflict = (
 ) =>
   Boolean(
     draft &&
-    (draft.revision !== revision ||
-      (draft.section !== "details" && reasonDraft && reasonDraft.revision !== revision)),
+    draft.section !== "details" &&
+    (draft.revision !== revision || (reasonDraft && reasonDraft.revision !== revision)),
   );
 
 export const intakeDraftCommand = (

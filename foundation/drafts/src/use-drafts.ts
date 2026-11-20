@@ -20,5 +20,5 @@ export const useDrafts = <T>(scope: string | undefined, kind: string, format: Dr
     session.getServerSnapshot,
   );
   useEffect(() => session.mount(), [session]);
-  return { ...snapshot, update: session.update };
+  return { ...snapshot, update: session.update, resolveConflict: session.resolveConflict };
 };

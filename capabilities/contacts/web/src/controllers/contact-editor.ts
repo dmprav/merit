@@ -49,22 +49,15 @@ export const useContactEditor = ({
           workspaceSlug,
           contactId: id,
           details: contactDetailsSchema.parse(details),
-          ...(editing.baseline === null
-            ? { action: "create" }
-            : { action: "update", expectedContactRevision: editing.baseline }),
+          action: contact ? "update" : "create",
         });
-        if (result.status === "conflict") {
-          try {
-            await data.refreshCurrent();
-          } catch {
-            /* Keep the known conflict when its refresh fails. */
-          }
-          failure = t("conflict");
-        } else if (result.status !== "ok") {
+        if (result.status !== "ok") {
           failure = t(
-            result.status === "not_found" || result.status === "signed_out"
-              ? "accessLost"
-              : "error",
+            result.status === "not_found"
+              ? "missingContact"
+              : result.status === "signed_out"
+                ? "accessLost"
+                : "error",
           );
         } else {
           clear();
@@ -89,8 +82,7 @@ const useContactDraft = ({
   const savedDraft = draftStore.get(workspaceSlug, contact?.id);
   const [id] = useState(() => savedDraft?.id ?? contact?.id ?? crypto.randomUUID());
   const current = data.contacts.find((item) => item.id === id);
-  const [baseline, setBaseline] = useState(savedDraft?.baseline ?? contact?.revision ?? null);
-  const conflict = Boolean(current && current.revision !== baseline);
+  const missing = Boolean(contact && !current);
 
   const [value, setValue] = useState<ContactDetails>(
     savedDraft?.value ?? {
@@ -103,36 +95,15 @@ const useContactDraft = ({
   const clear = () => draftStore.set(workspaceSlug, contact?.id, undefined);
 
   return {
-    current,
-    baseline,
-    conflict,
+    missing,
     value,
-    useSaved: () => {
-      if (!current) {
-        return;
-      }
-      setValue({ name: current.name, email: current.email, affiliation: current.affiliation });
-      setBaseline(current.revision);
-      clear();
-    },
-    keepDraft: () => {
-      if (!current) {
-        return;
-      }
-      setBaseline(current.revision);
-      draftStore.set(workspaceSlug, contact?.id, { id, baseline: current.revision, value });
-    },
     change: (next: ContactDetails) => {
       setValue(next);
       const unchanged =
         next.name === (contact?.name ?? "") &&
         next.email === (contact?.email ?? "") &&
         next.affiliation === (contact?.affiliation ?? "");
-      draftStore.set(
-        workspaceSlug,
-        contact?.id,
-        unchanged ? undefined : { id, baseline, value: next },
-      );
+      draftStore.set(workspaceSlug, contact?.id, unchanged ? undefined : { id, value: next });
     },
     id,
     clear,

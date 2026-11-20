@@ -34,6 +34,7 @@ type FormProps = {
   beforeFields?: ReactNode;
   afterFields?: ReactNode;
   isConflict?: boolean;
+  isPending?: boolean;
   budgetPreviouslySet?: boolean;
 };
 
@@ -69,23 +70,25 @@ const PreparationFrame = ({
   beforeFields,
   afterFields,
   isConflict,
+  isPending = false,
 }: FormProps & {
   submission: ComponentProps<typeof Form>["submission"];
   children: ReactNode;
 }) => {
   const { t } = useTranslation("roundPreparation");
   const changed = hasPreparationDraft(draft);
+  const effectiveSubmission = isPending ? { ...submission, isSubmitting: true } : submission;
 
   return (
     <Form
-      submission={submission}
+      submission={effectiveSubmission}
       label={t(`preparation.edit.${draft.section}`)}
       className={styles.form}
       scrollFields={!inline}
       submitOnModEnter
       actions={
         <FormActions
-          submission={submission}
+          submission={effectiveSubmission}
           discard={
             changed && onDiscard
               ? { label: t("preparation.discard"), onPress: onDiscard }
@@ -97,7 +100,7 @@ const PreparationFrame = ({
             draft.section === "budget" ? "preparation.updateBudget" : "preparation.save",
           )}
           submittingLabel={t("editor.saving")}
-          isSubmitDisabled={!hasPreparationChanges(draft) || isConflict}
+          isSubmitDisabled={!hasPreparationChanges(draft) || isConflict || isPending}
         />
       }
     >
@@ -135,6 +138,7 @@ const PurposeForm = (props: SectionProps<"purpose">) => {
             multiline
             rows={10}
             autoFocus
+            isReadOnly={submission.isSubmitting || props.isPending}
             maxLength={roundPreparationLimits.purposeLength}
           />
         )}
@@ -175,7 +179,10 @@ const CriteriaForm = (props: SectionProps<"criteria">) => {
 
   return (
     <PreparationFrame {...props} submission={submission}>
-      <CriteriaFields form={form} isSubmitting={submission.isSubmitting} />
+      <CriteriaFields
+        form={form}
+        isSubmitting={submission.isSubmitting || Boolean(props.isPending)}
+      />
     </PreparationFrame>
   );
 };
@@ -238,6 +245,7 @@ const BudgetForm = (props: SectionProps<"budget">) => {
               }}
               inputMode="decimal"
               autoFocus
+              isReadOnly={submission.isSubmitting || props.isPending}
               placeholder={t("preparation.notSet")}
             />
           )}
@@ -261,6 +269,7 @@ const BudgetForm = (props: SectionProps<"budget">) => {
                       multiline
                       rows={3}
                       isRequired={reasonRequired}
+                      isReadOnly={submission.isSubmitting || props.isPending}
                       maxLength={roundPreparationLimits.budgetReasonLength}
                     />
                   )}

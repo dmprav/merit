@@ -1,6 +1,7 @@
 import { QueryClientProvider } from "@tanstack/react-query";
-import { act, render, renderHook, screen, within } from "@testing-library/react";
+import { act, render, renderHook, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState, type ReactNode } from "react";
 import { expect, it, vi } from "vite-plus/test";
 
 import { roundView } from "@merit/grantmaking/api";
@@ -46,7 +47,13 @@ const show = () => {
     <QueryClientProvider client={client}>
       <GrantmakingMessagesProvider>
         <DraftContext
-          value={{ ready, edits: ready ? { "round/purpose": recovered } : {}, setEdit }}
+          value={{
+            ready,
+            edits: ready ? { "round/purpose": recovered } : {},
+            conflicts: new Set(),
+            resolveConflict: vi.fn(),
+            setEdit,
+          }}
         >
           <RoundPreparation round={round} session={{ data, onDeleted: vi.fn() }}>
             {(content) => (
@@ -82,7 +89,7 @@ it("keeps saved round content readable and restores an early-open purpose editor
   expect(setEdit).not.toHaveBeenCalled();
   recover();
   expect(await screen.findByRole("textbox", { name: "Purpose" })).toHaveValue("Unfinished purpose");
-  expect(screen.getByRole("button", { name: "Save changes" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Save changes" })).toBeEnabled();
   expect(setEdit).not.toHaveBeenCalled();
   expect(data.save).not.toHaveBeenCalled();
 });
@@ -121,6 +128,8 @@ const renderController = () => {
   const store = {
     ready: false,
     edits: {} as Record<string, PreparationDraft | undefined>,
+    conflicts: new Set<string>(),
+    resolveConflict: vi.fn(),
     setEdit,
   };
   const hook = renderHook(
@@ -168,4 +177,121 @@ it("defers deletion until the round store is ready, then deletes at the current 
   expect(data.delete).toHaveBeenCalledOnce();
   expect(vi.mocked(data.delete).mock.calls[0]?.[0]).toBe(2);
   expect(setEdit).toHaveBeenCalledWith("round/purpose", undefined);
+});
+
+const statefulDraftWrapper =
+  (
+    client: ReturnType<typeof createQueryClient>,
+    initialEdits: Record<string, PreparationDraft | undefined>,
+  ) =>
+  ({ children }: { children: ReactNode }) => {
+    const [edits, setEdits] = useState(initialEdits);
+
+    const setEdit = (draftKey: string, next: PreparationDraft | undefined) => {
+      setEdits((current) => ({ ...current, [draftKey]: next }));
+    };
+
+    return (
+      <QueryClientProvider client={client}>
+        <DraftContext
+          value={{
+            ready: true,
+            edits,
+            conflicts: new Set(),
+            resolveConflict: vi.fn(),
+            setEdit,
+          }}
+        >
+          {children}
+        </DraftContext>
+      </QueryClientProvider>
+    );
+  };
+
+it("blocks saving or rebasing an untouched stale purpose draft over a newer saved value", async () => {
+  const staleDraft = preparationDraft("purpose", round, 1);
+  const updatedRound = { ...round, purpose: "Updated elsewhere" };
+  const data = dataFixture();
+
+  const { result } = renderHook(
+    () =>
+      useRoundPreparation({
+        round: updatedRound,
+        data,
+        onDeleted: vi.fn(),
+        onRestoreFocus: vi.fn(),
+      }),
+    {
+      wrapper: statefulDraftWrapper(createQueryClient(), { "round/purpose": staleDraft }),
+    },
+  );
+
+  await act(async () => {
+    expect(await result.current.saveDraft(staleDraft)).toBeNull();
+  });
+
+  expect(data.save).not.toHaveBeenCalled();
+  expect(result.current.draftFor("purpose")).toEqual(staleDraft);
+});
+
+it("retains a draft when discard fires during a pending save and clears it after success", async () => {
+  const editedDraft = recovered;
+  let resolveSave: ((value: { status: "ok"; revision: number }) => void) | undefined;
+  const data: PreparationData = {
+    ...dataFixture(),
+    save: vi.fn(
+      () =>
+        new Promise<{ status: "ok"; revision: number }>((resolve) => {
+          resolveSave = resolve;
+        }),
+    ),
+  };
+
+  const { result } = renderHook(
+    () => useRoundPreparation({ round, data, onDeleted: vi.fn(), onRestoreFocus: vi.fn() }),
+    {
+      wrapper: statefulDraftWrapper(createQueryClient(), { "round/purpose": editedDraft }),
+    },
+  );
+
+  let savePromise: Promise<unknown> | undefined;
+  act(() => {
+    savePromise = result.current.saveDraft(editedDraft);
+  });
+  await waitFor(() => expect(data.save).toHaveBeenCalledOnce());
+  expect(result.current.pending).toBe(true);
+
+  act(() => result.current.discard("purpose"));
+  expect(result.current.draftFor("purpose")?.value).toEqual(editedDraft.value);
+
+  await act(async () => {
+    resolveSave?.({ status: "ok", revision: 3 });
+    await savePromise;
+  });
+  expect(result.current.draftFor("purpose")).toBeUndefined();
+});
+
+it("sends requireCurrentRevision on Undo while keeping ordinary quick saves last-write-wins", async () => {
+  const data = dataFixture();
+  const { result } = renderHook(
+    () => useRoundPreparation({ round, data, onDeleted: vi.fn(), onRestoreFocus: vi.fn() }),
+    { wrapper: statefulDraftWrapper(createQueryClient(), {}) },
+  );
+
+  await act(async () => {
+    expect(await result.current.renameRound("Updated title")).toBeNull();
+  });
+  expect(data.save).toHaveBeenLastCalledWith(
+    { section: "details", title: "Updated title" },
+    2,
+    undefined,
+  );
+  expect(result.current.undo?.revision).toBe(3);
+
+  await act(async () => {
+    expect(await result.current.undoSave()).toBeNull();
+  });
+  expect(data.save).toHaveBeenLastCalledWith({ section: "details", title: "Saved round" }, 3, {
+    requireCurrentRevision: true,
+  });
 });

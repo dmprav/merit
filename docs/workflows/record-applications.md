@@ -119,10 +119,12 @@ the entered name; the current title stays unchanged until the manager explains,
 saves, and records that correction. Local unsaved writing follows the shared
 [editing pattern](../../foundation/ui/src/patterns/editing/editing.mdx), while
 saved preparation and working revisions are shared.
-A conflicting save loads current values and requires reconciliation before saving
-again: managers can use saved values or retain their changes while incorporating
-untouched fields. Submitted sections are reconciled as a complete ordered list.
-No action silently overwrites a colleague’s newer edits.
+Staff summary and applicant contact changes save directly as field-level updates without
+blocking on unrelated edits. For shared application content and working revisions, a
+conflict keeps the editor mounted with an inline banner so managers can review the latest
+saved values, keep their edits (incorporating untouched fields), or discard and load latest.
+If a working revision is published or discarded elsewhere before saving, the retained draft
+notice lets the author copy or discard their unsaved text.
 
 **Mark ready for review** requires a title, applicant, confirmed requested amount,
 and at least one substantive section, with a heading and response for every section.
