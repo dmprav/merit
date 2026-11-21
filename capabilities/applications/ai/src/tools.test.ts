@@ -4,7 +4,7 @@ import type { ApplicationsService } from "@merit/applications/api";
 
 import { createApplicationTools } from "./tools";
 
-it("publishes a working revision using the signed-in actor and original intake revision", async () => {
+it("returns the application ID and new intake revision in the publish receipt", async () => {
   const actor = { userId: "manager" };
   const editApplication = vi
     .fn<ApplicationsService["editApplication"]>()
@@ -20,10 +20,4 @@ it("publishes a working revision using the signed-in actor and original intake r
   expect(
     await publish.execute({ workspaceSlug: "alder", applicationId, expectedIntakeRevision: 4 }),
   ).toEqual({ status: "ok", applicationId, intakeRevision: 5 });
-  expect(editApplication).toHaveBeenCalledWith(actor, {
-    workspaceSlug: "alder",
-    publicId: applicationId,
-    expectedRevision: 4,
-    change: { action: "publish_revision" },
-  });
 });

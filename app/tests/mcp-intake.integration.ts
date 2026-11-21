@@ -73,6 +73,12 @@ it.for(["publish", "discard"] as const)(
     const before = await scenario.read();
     const args = await scenario.args();
 
+    expect(
+      await invoke(`${action}_application_revision`, {
+        ...args,
+        expectedIntakeRevision: args.expectedIntakeRevision - 1,
+      }),
+    ).toEqual({ status: "conflict" });
     expect(await invoke(`${action}_application_revision`, args)).toEqual({
       status: "ok",
       applicationId: args.applicationId,
@@ -81,6 +87,11 @@ it.for(["publish", "discard"] as const)(
     const saved = await scenario.read();
     expect(saved.intake.workingRevision).toBeNull();
     if (action === "publish") {
+      expect(saved.intake.history[0]).toMatchObject({
+        action: "application.correction_recorded",
+        actor: "Dana Reed",
+        provenance: { interface: "mcp", clientId: "integration-client" },
+      });
       expect(saved.application).toMatchObject({
         title: draft.content.title,
         version: before.application.version + 1,

@@ -51,11 +51,12 @@ describe("defineActorTool", () => {
     operation.mockRejectedValueOnce(new Error("database connection refused"));
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
+      const response = await handler({ count: 1 });
       const result = z
         .object({ status: z.literal("unavailable"), diagnosticId: z.uuid() })
-        .parse(await handler({ count: 1 }));
+        .parse(response);
       expect(result.status).toBe("unavailable");
-      expect(JSON.stringify(result)).not.toContain("database connection refused");
+      expect(JSON.stringify(response)).not.toContain("database connection refused");
       expect(log).toHaveBeenCalledExactlyOnceWith("Workspace tool failed.", {
         tool: "sample_tool",
         stage: "operation",
