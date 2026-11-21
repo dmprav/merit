@@ -124,9 +124,9 @@ eligibility first. Case and round audit records remain after those deletions, an
 the runtime does not need to update or delete them. Operator cleanup separately
 owns deletion of disposable demo history.
 
-Contacts require profile reads and writes plus append-only history. Profile edits
-are resolved on linked application reads without rewriting material versions or
-case history. The [contact and review integration tests](../../capabilities/grantmaking/business/tests/reviews.integration.ts)
+Contacts require profile reads and writes. Linked applications resolve the
+current profile when read. Material versions and case history retain their
+recorded details. The [contact and review integration tests](../../capabilities/grantmaking/business/tests/reviews.integration.ts)
 exercise those operations with restricted runtime grants.
 
 PostgreSQL row locks also require `UPDATE` privileges on the locked round, case,

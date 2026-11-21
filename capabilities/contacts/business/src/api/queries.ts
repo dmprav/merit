@@ -1,10 +1,9 @@
 import { z } from "zod";
 
-import { auditPageInput } from "@merit/audit/api";
 import { workspaceSlugSchema } from "@merit/organizations/api";
 
 import { contactAddress } from "./identifiers";
-import type { ContactRecord, ContactHistoryEntry } from "./records";
+import type { ContactRecord } from "./records";
 
 export const contactsRequestSchema = z.strictObject({ workspaceSlug: workspaceSlugSchema });
 
@@ -25,7 +24,6 @@ export const contactListInput = z.strictObject({
   archived: z.boolean().optional(),
 });
 export const contactReadInput = z.strictObject(contactAddress);
-export const contactHistoryInput = contactReadInput.extend(auditPageInput.shape);
 
 export type ContactSummary = Omit<ContactRecord, "id" | "organizationId" | "revision"> & {
   contactId: string;
@@ -35,11 +33,5 @@ export type ContactSummary = Omit<ContactRecord, "id" | "organizationId" | "revi
 export type ContactSummaryPage = {
   status: "ok";
   contacts: ContactSummary[];
-  nextCursor: string | null;
-};
-
-export type ContactHistoryPage = {
-  status: "ok";
-  entries: (ContactHistoryEntry & { actorUserId: string | null })[];
   nextCursor: string | null;
 };

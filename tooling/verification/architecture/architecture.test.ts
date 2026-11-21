@@ -1117,7 +1117,7 @@ describe.concurrent("architecture rules", () => {
     });
   });
 
-  test.each(["grantmaking", "contacts", "organizations", "reviews"])(
+  test.each(["grantmaking", "organizations", "reviews"])(
     "%s queries read bounded history through audit's reading entry",
     async (name) => {
       await check({
@@ -1128,7 +1128,7 @@ describe.concurrent("architecture rules", () => {
     },
   );
 
-  test.each(["applications", "rounds", "reviews", "recommendations", "contacts", "organizations"])(
+  test.each(["applications", "rounds", "reviews", "recommendations", "organizations"])(
     "%s commands call the shared audit writer directly",
     async (name) => {
       await check({

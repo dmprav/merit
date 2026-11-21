@@ -399,8 +399,8 @@ describe("reading subject history", () => {
         context: { assignmentId: "assignment-a" },
       });
       await record(tx, {
-        action: "contact.updated",
-        target: { type: "contact", id: event.target.id, revision: 1 },
+        action: "round.renamed",
+        target: { type: "round", id: event.target.id, revision: 1 },
       });
       await record(tx, {
         organizationId: "birch",
@@ -424,9 +424,7 @@ describe("reading subject history", () => {
     expect(await events({ action: "recommendation.amended" })).toEqual([
       "alder:k7m2p9x4n6rt:recommendation.amended",
     ]);
-    expect(await events({ targetTypes: ["contact"] })).toEqual([
-      "alder:k7m2p9x4n6rt:contact.updated",
-    ]);
+    expect(await events({ targetTypes: ["round"] })).toEqual(["alder:k7m2p9x4n6rt:round.renamed"]);
     expect(await events({ organizationId: "birch" })).toEqual([
       "birch:k7m2p9x4n6rt:recommendation.recorded",
     ]);

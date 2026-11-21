@@ -2,12 +2,7 @@ import type { ContactsSource } from "@merit/contacts-web/contracts";
 import { available } from "@merit/query";
 
 import { grantWorkQueryKey } from "../../../shared/grant-work-query-key";
-import {
-  readContacts,
-  saveContact,
-  readContactHistory,
-  readContactApplications,
-} from "./server/contacts.functions";
+import { readContacts, saveContact, readContactApplications } from "./server/contacts.functions";
 
 export const contactsSource: ContactsSource = {
   scope: grantWorkQueryKey,
@@ -31,21 +26,6 @@ export const contactsSource: ContactsSource = {
             nextCursor: result.nextCursor,
           }
         : null;
-    },
-  }),
-  history: (workspaceSlug, contact) => ({
-    queryKey: [
-      ...grantWorkQueryKey(workspaceSlug),
-      "contacts",
-      contact.id,
-      "history",
-      contact.revision,
-    ],
-    read: async (after, signal) => {
-      const result = available(
-        await readContactHistory({ data: { workspaceSlug, contactId: contact.id, after }, signal }),
-      );
-      return result.status === "ok" ? result : null;
     },
   }),
   read: (workspaceSlug, signal) => readContacts({ data: { workspaceSlug }, signal }),

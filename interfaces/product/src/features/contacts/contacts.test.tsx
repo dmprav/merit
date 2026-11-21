@@ -64,7 +64,6 @@ it.each([false, true])(
       archived,
       revision: 0,
       applicationTitles: [],
-      history: [],
     };
     const saved = { ...contact, organizationId: "alder", archived: !archived, revision: 1 };
     const response = { status: "ok" as const, workspaceName: "Alder", contacts: [contact] };
@@ -131,7 +130,6 @@ it("keeps a contact available and links to the review work that prevents archivi
     archived: false,
     revision: 0,
     applicationTitles: ["Workshop Saturdays"],
-    history: [],
   };
   const client = createQueryClient();
   vi.mocked(readContacts).mockResolvedValue({
@@ -185,7 +183,6 @@ it.each([
       archived,
       revision: 0,
       applicationTitles: [],
-      history: [],
     };
     const client = createQueryClient();
     const user = userEvent.setup();
@@ -259,7 +256,6 @@ it("clears a committed contact draft, restores focus, and retries a failed refre
     archived: false,
     revision: 2,
     applicationTitles: [],
-    history: [],
   };
   const saved = { ...contact, organizationId: "alder", name: "Sam Taylor", revision: 3 };
   const response = { status: "ok" as const, workspaceName: "Alder", contacts: [contact] };
@@ -360,7 +356,6 @@ it("invalidates linked grant records after a contact save without refreshing wor
     email: "sam@example.test",
     affiliation: "Community group",
     applicationTitles: ["Workshop Saturdays"],
-    history: [],
     archived: false,
     revision: 0,
   };
@@ -450,7 +445,6 @@ it("finds same-name contacts by application, switches status, and returns focus 
     contacts: contacts.map((contact) => ({
       ...contact,
       applicationTitles: contact.applicationTitles ?? [],
-      history: contact.history ?? [],
     })),
   });
   const user = userEvent.setup();
@@ -615,7 +609,6 @@ it("retains the contact revision on resume and blocks dismissal during a save", 
     affiliation: "",
     revision: 4,
     archived: false,
-    history: [],
     applicationTitles: [],
   };
   const client = createQueryClient();
@@ -682,7 +675,6 @@ it("connects the contact count to an authenticated paged source and native overv
     archived: false,
     revision: 0,
     applicationTitles: ["Neighbour Table"],
-    history: [],
   };
   vi.mocked(readContacts).mockResolvedValue({
     status: "ok",

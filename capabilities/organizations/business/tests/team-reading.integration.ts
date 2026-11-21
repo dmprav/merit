@@ -109,8 +109,8 @@ it("pages team history newest first without other capabilities' or workspaces' e
     await recordAuditEvent(tx, {
       organizationId: "alder",
       actor: { userId: actor.userId, provenance: { interface: "web" } },
-      action: "contact.updated",
-      target: { type: "contact", id: randomUUID(), revision: 1 },
+      action: "round.renamed",
+      target: { type: "round", id: randomUUID(), revision: 1 },
     });
     await recordAuditEvent(tx, {
       organizationId: "birch",
@@ -169,9 +169,9 @@ it("reads a team event's content in bounded chunks and conceals events outside t
     await recordAuditEvent(tx, {
       organizationId: "alder",
       actor: { userId: actor.userId, provenance: { interface: "web" } },
-      action: "contact.updated",
-      target: { type: "contact", id: randomUUID(), revision: 1 },
-      details: { after: { name: "Private contact" } },
+      action: "round.renamed",
+      target: { type: "round", id: randomUUID(), revision: 1 },
+      details: { after: { name: "Private round" } },
     });
     await recordAuditEvent(tx, {
       organizationId: "birch",
@@ -181,7 +181,7 @@ it("reads a team event's content in bounded chunks and conceals events outside t
     });
   });
   const { rows } = await database.client.query<{ id: string }>(
-    "SELECT id FROM audit_events WHERE action IN ('contact.updated', 'organization.renamed')",
+    "SELECT id FROM audit_events WHERE action IN ('round.renamed', 'organization.renamed')",
   );
   expect(rows).toHaveLength(2);
   for (const { id } of rows) {

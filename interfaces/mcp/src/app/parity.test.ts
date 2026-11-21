@@ -497,42 +497,6 @@ const dispatchCases: DispatchCase[] = [
     result: { status: "ok", contact },
   },
   {
-    name: "list_contact_history",
-    args: { workspaceSlug: "alder", contactId },
-    fn: (o) => o.contacts.contactHistory,
-    input: { workspaceSlug: "alder", contactId, limit: 20 },
-    result: {
-      status: "ok",
-      entries: [
-        {
-          contactId,
-          revision: 0,
-          actor: "dana",
-          actorUserId: "dana",
-          provenance: { interface: "mcp", clientId: "verified-client" },
-          recordedAt: summary.expiresAt,
-          before: null,
-          after: { name: "Sam", email: "sam@example.test", affiliation: "", archived: false },
-        },
-      ],
-      nextCursor: null,
-    },
-    response: {
-      status: "ok",
-      entries: [
-        {
-          revision: 0,
-          actorUserId: "dana",
-          provenance: { interface: "mcp", clientId: "verified-client" },
-          recordedAt: summary.expiresAt,
-          before: null,
-          after: { name: "Sam", email: "sam@example.test", affiliation: "", archived: false },
-        },
-      ],
-      nextCursor: null,
-    },
-  },
-  {
     name: "list_application_reviews",
     args: address,
     fn: (o) => o.grantmaking.listReviews,

@@ -238,42 +238,6 @@ test(
 );
 
 test(
-  "contact history keeps changes readable and returns to the directory",
-  { tag: "@cross-browser" },
-  async ({ page }, testInfo) => {
-    await page.goto("/iframe.html?id=features-contacts-directory--long-history&viewMode=story");
-    await expect(page.locator("#storybook-root")).toHaveAttribute("data-story-ready", "true");
-
-    const dialog = page.getByRole("dialog", { name: "Contact history" });
-    const history = dialog.getByRole("region", { name: "Contact history" });
-    await expect(dialog.getByRole("heading", { name: "Contact created" })).toBeVisible();
-    const revision = dialog.getByRole("listitem").nth(1);
-    await expect(revision.getByText("Affiliation", { exact: true }).first()).toBeVisible();
-    await expect(revision.getByText("Name", { exact: true })).not.toBeVisible();
-    await revision.getByText("Saved contact details").click();
-    await expect(revision.getByText("Name", { exact: true })).toBeVisible();
-    await expect
-      .poll(() => dialog.evaluate((node) => node.scrollWidth - node.clientWidth))
-      .toBeLessThanOrEqual(1);
-    await checkPage(page);
-    await page.screenshot({ path: testInfo.outputPath("contact-history.png") });
-    const close = dialog.getByRole("button", { name: "Close dialog", exact: true });
-    const closeTop = (await close.boundingBox())!.y;
-
-    await history.focus();
-    await page.keyboard.press("End");
-
-    await expect.poll(() => history.evaluate((node) => node.scrollTop)).toBeGreaterThan(0);
-    expect((await close.boundingBox())!.y).toBeCloseTo(closeTop, 0);
-    await page.keyboard.press("Escape");
-
-    await expect(dialog).not.toBeVisible();
-    await expect(page.getByRole("button", { name: "Actions for Leah Martin" })).toBeFocused();
-    await expect(page.getByRole("table", { name: "Contacts" })).toBeVisible();
-  },
-);
-
-test(
   "contact archive and restore preserve the filter and focus after removing a row",
   { tag: "@cross-browser" },
   async ({ page }) => {

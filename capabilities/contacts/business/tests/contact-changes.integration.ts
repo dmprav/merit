@@ -10,7 +10,6 @@ import type { ContactGrantWork } from "../src/server/grant-work";
 import {
   changeWorkspaceContact,
   getContactDetails,
-  listContactChanges,
   listContactSummaries,
   listWorkspaceContacts,
 } from "../src/server/index";
@@ -29,17 +28,12 @@ const setup = async (db: Database) => {
   const created = await change({ ...address, action: "create", details });
   assert(created.status === "ok");
 
-  const read = async () => ({
-    profile: await getContactDetails(db, actor, address),
-    history: await listContactChanges(db, actor, address),
-  });
+  const read = () => getContactDetails(db, actor, address);
 
   return { address, change, created, read };
 };
 
-it("returns the current contact when a creation request is retried, without adding history", async ({
-  db,
-}) => {
+it("returns the current contact when a creation request is retried", async ({ db }) => {
   const { address, change, read } = await setup(db);
   const updated = await change({
     ...address,
@@ -53,7 +47,7 @@ it("returns the current contact when a creation request is retried, without addi
   expect(await read()).toEqual(saved);
 });
 
-it("returns the current contact for an unchanged update without advancing its revision or history", async ({
+it("returns the current contact for an unchanged update without advancing its revision", async ({
   db,
 }) => {
   const { address, change, created, read } = await setup(db);
@@ -68,7 +62,7 @@ it.for([
   { field: "email", value: "samuel@example.test" },
   { field: "affiliation", value: "Community group" },
 ] as const)(
-  "records a change to $field with its before and after profile and actor",
+  "saves the current $field and advances the contact revision",
   async ({ field, value }, { db }) => {
     const { address, change, created } = await setup(db);
     const next = { ...details, [field]: value };
@@ -77,25 +71,6 @@ it.for([
       status: "ok",
       contact: { ...created.contact, ...next, revision: 1 },
     });
-    const history = await listContactChanges(db, actor, address);
-    assert(history.status === "ok");
-
-    expect(history.entries.toReversed()).toMatchObject([
-      {
-        revision: 0,
-        actorUserId: actor.userId,
-        provenance: { interface: "web" },
-        before: null,
-        after: { ...details, archived: false },
-      },
-      {
-        revision: 1,
-        actorUserId: actor.userId,
-        provenance: { interface: "web" },
-        before: { ...details, archived: false },
-        after: { ...next, archived: false },
-      },
-    ]);
   },
 );
 
@@ -103,7 +78,7 @@ it.for([
   { action: "archive", revision: 1, archived: true },
   { action: "restore", revision: 2, archived: false },
 ] as const)(
-  "does not advance the revision or history when $action is repeated at the current revision",
+  "does not advance the revision when $action is repeated at the current revision",
   async ({ action, revision, archived }, { db }) => {
     const { address, change, read } = await setup(db);
     const archivedResult = await change({
@@ -153,26 +128,6 @@ it("keeps an archived contact archived through a profile update and restores the
   );
 });
 
-it("pages contact history newest first", async ({ db }) => {
-  const { address, change } = await setup(db);
-  await change({ ...address, action: "archive", expectedContactRevision: 0 });
-  await change({ ...address, action: "restore", expectedContactRevision: 1 });
-  await change({ ...address, action: "archive", expectedContactRevision: 2 });
-
-  const first = await listContactChanges(db, actor, { ...address, limit: 2 });
-  assert(first.status === "ok");
-  expect(first.entries.map((entry) => entry.revision)).toEqual([3, 2]);
-  assert(first.nextCursor);
-  const rest = await listContactChanges(db, actor, {
-    ...address,
-    limit: 2,
-    after: first.nextCursor,
-  });
-  assert(rest.status === "ok");
-  expect(rest.entries.map((entry) => entry.revision)).toEqual([1, 0]);
-  expect(rest.nextCursor).toBeNull();
-});
-
 it("lists contact summaries without history, by archive state and page", async ({ db }) => {
   const archived = await setup(db);
   await archived.change({ ...archived.address, action: "archive", expectedContactRevision: 0 });
@@ -209,7 +164,6 @@ it("conceals contacts from managers of other workspaces", async ({ db }) => {
 
   expect(await getContactDetails(db, birch, address)).toEqual({ status: "not_found" });
   expect(await getContactDetails(db, birch, guessed)).toEqual({ status: "not_found" });
-  expect(await listContactChanges(db, birch, guessed)).toEqual({ status: "not_found" });
   expect(await listWorkspaceContacts(db, birch, { workspaceSlug }, grantWork)).toEqual({
     status: "not_found",
   });
@@ -252,43 +206,21 @@ it("denies contact access to a workspace administrator without program managemen
   expect(await read()).toEqual(before);
 });
 
-it.for(["create", "update"] as const)(
-  "rolls back contact %s when its history cannot be recorded",
-  async (action, { db, database }) => {
-    const address = { workspaceSlug, contactId: randomUUID() };
-    if (action === "update") {
-      const created = await changeWorkspaceContact(
-        db,
-        actor,
-        { ...address, action: "create", details },
-        grantWork,
-      );
-      assert(created.status === "ok");
-    }
-    const before = await getContactDetails(db, actor, address);
-    const history = await listContactChanges(db, actor, address);
-    const request: ContactCommand =
-      action === "create"
-        ? { ...address, action, details }
-        : {
-            ...address,
-            action,
-            details: { ...details, name: "Samuel" },
-          };
-
-    await database.client.query(
-      "ALTER TABLE audit_events ADD CONSTRAINT reject_contact_history CHECK (false) NOT VALID",
-    );
-    try {
-      await expect(changeWorkspaceContact(db, actor, request, grantWork)).rejects.toMatchObject({
-        cause: { code: "23514" },
-      });
-      expect(await getContactDetails(db, actor, address)).toEqual(before);
-      expect(await listContactChanges(db, actor, address)).toEqual(history);
-    } finally {
-      await database.client.query(
-        "ALTER TABLE audit_events DROP CONSTRAINT reject_contact_history",
-      );
-    }
-  },
-);
+it("stores only the current profile across creation, edits, archive, and restore", async ({
+  db,
+  database,
+}) => {
+  const { address, change } = await setup(db);
+  for (const command of [
+    { action: "update", details: { ...details, name: "Samuel" } },
+    { action: "archive", expectedContactRevision: 1 },
+    { action: "restore", expectedContactRevision: 2 },
+  ] as const) {
+    expect(await change({ ...address, ...command })).toMatchObject({ status: "ok" });
+  }
+  const events = await database.client.query(
+    "SELECT id FROM audit_events WHERE target_type = 'contact' AND target_id = $1",
+    [address.contactId],
+  );
+  expect(events.rows).toEqual([]);
+});

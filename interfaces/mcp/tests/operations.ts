@@ -47,7 +47,6 @@ export const testOperations = (): McpOperations => ({
   contacts: {
     listContactSummaries: vi.fn<McpOperations["contacts"]["listContactSummaries"]>(),
     getContact: vi.fn<McpOperations["contacts"]["getContact"]>(),
-    contactHistory: vi.fn<McpOperations["contacts"]["contactHistory"]>(),
     changeContact: vi.fn<McpOperations["contacts"]["changeContact"]>(),
   },
   organizations: {

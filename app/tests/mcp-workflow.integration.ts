@@ -88,16 +88,6 @@ it("completes grant work through MCP with shared web state, safe retries, and ve
   expect(contacts.contacts).toEqual(
     expect.arrayContaining([expect.objectContaining({ contactId })]),
   );
-  expect(
-    (await saved("list_contact_history", { workspaceSlug: "alder", contactId })).entries,
-  ).toEqual(
-    expect.arrayContaining([
-      expect.objectContaining({
-        provenance: { interface: "mcp", clientId: "integration-client" },
-      }),
-    ]),
-  );
-
   await saved("select_application_contact", {
     ...applicationAddress,
     expectedIntakeRevision: 0,

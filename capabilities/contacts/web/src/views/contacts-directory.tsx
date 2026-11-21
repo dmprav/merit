@@ -21,7 +21,6 @@ import type { Contact, ContactApplication, ContactsData } from "../contracts";
 import { useContactsDirectory } from "../controllers/directory";
 import { useContactDrafts } from "../controllers/drafts";
 import { ContactEditor } from "./contact-editor";
-import { ContactHistory } from "./contact-history";
 import styles from "./contacts.module.css";
 
 type ContactRow = {
@@ -124,9 +123,6 @@ const ContactActionsCell = (
   const { t } = useTranslation("contacts");
   const { contact, directoryId, saving, hasDraft, onEdit, onArchive } = props;
   const draftDescription = useId();
-  const [historyOpen, setHistoryOpen] = useState(false);
-  const restoreFocus = useContactsFocusRestore({ directoryId, blocked: saving || historyOpen });
-  const hasHistory = !!contact.historySource || !!contact.history?.length;
 
   return (
     <>
@@ -153,31 +149,16 @@ const ContactActionsCell = (
         }
         items={[
           { id: "edit", label: t(hasDraft ? "resumeEdit" : "editContact") },
-          ...(hasHistory ? [{ id: "history", label: t("history") }] : []),
           { id: "archive", label: t(contact.archived ? "restore" : "archive") },
         ]}
         onAction={(action) => {
-          if (action === "history") {
-            setHistoryOpen(true);
-          } else if (action === "edit") {
+          if (action === "edit") {
             onEdit(contact);
           } else {
             onArchive(contact);
           }
         }}
       />
-      {hasHistory && (
-        <ContactHistory
-          contact={contact}
-          isOpen={historyOpen}
-          onOpenChange={(open) => {
-            setHistoryOpen(open);
-            if (!open) {
-              restoreFocus(contact.id);
-            }
-          }}
-        />
-      )}
     </>
   );
 };

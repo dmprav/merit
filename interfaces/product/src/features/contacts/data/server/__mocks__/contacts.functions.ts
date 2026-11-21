@@ -13,14 +13,6 @@ export const saveContact = fn<
   throw new Error("Configure saveContact in the story");
 });
 
-export const readContactHistory = fn<
-  (
-    ...args: Parameters<typeof actual.readContactHistory>
-  ) => ReturnType<typeof actual.readContactHistory>
->(async () => {
-  throw new Error("Configure readContactHistory in the story");
-});
-
 export const readContactApplications = fn<
   (
     ...args: Parameters<typeof actual.readContactApplications>

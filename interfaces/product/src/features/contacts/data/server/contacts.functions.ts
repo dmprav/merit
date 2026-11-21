@@ -1,7 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 
 import { withActor } from "@merit/auth/request";
-import { contactHistoryInput } from "@merit/contacts/api";
 import { contactsRequestSchema, contactCommandSchema } from "@merit/contacts/api";
 import { contactApplicationListInput } from "@merit/grantmaking/api";
 
@@ -16,12 +15,6 @@ export const saveContact = createServerFn({ method: "POST" })
   .validator(contactCommandSchema)
   .handler(({ data, context }) =>
     withActor(context.currentIdentity, (actor) => context.contacts.changeContact(actor, data)),
-  );
-
-export const readContactHistory = createServerFn({ method: "GET" })
-  .validator(contactHistoryInput)
-  .handler(({ context, data }) =>
-    withActor(context.currentIdentity, (actor) => context.contacts.contactHistory(actor, data)),
   );
 
 export const readContactApplications = createServerFn({ method: "GET" })

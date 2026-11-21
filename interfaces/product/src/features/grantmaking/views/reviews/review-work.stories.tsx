@@ -243,7 +243,6 @@ const meta = {
         archived: false,
         revision: 0,
         applicationTitles: [],
-        history: [],
       },
       {
         id: jules,
@@ -253,7 +252,6 @@ const meta = {
         archived: false,
         revision: 0,
         applicationTitles: [],
-        history: [],
       },
     ]);
   },

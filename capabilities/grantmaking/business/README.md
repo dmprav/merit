@@ -149,7 +149,7 @@ defines grouping and access behavior.
 
 ## Coordinate with contacts and organizations
 
-Contacts owns live workspace profiles and contact history. Applications owns
+Contacts owns live workspace profiles. Applications owns
 application-contact assignment; Reviews owns requests and assessment attribution.
 Current applications resolve linked profiles within the workspace. Editing a
 profile does not advance application intake revisions; historical snapshots and

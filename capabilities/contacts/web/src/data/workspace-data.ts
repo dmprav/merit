@@ -20,7 +20,6 @@ export const useWorkspaceContacts = (
         ? query.data.contacts.map((contact) => ({
             ...contact,
             applicationsSource: source.applications?.(workspaceSlug, contact),
-            historySource: source.history?.(workspaceSlug, contact),
           }))
         : initial,
     readFailed: query.isError,

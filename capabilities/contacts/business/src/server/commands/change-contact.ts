@@ -9,7 +9,7 @@ import {
   type SaveContactResult,
 } from "../../api/commands";
 import type { ContactGrantWork } from "../grant-work";
-import { recordContactChange } from "../persistence/commands/contacts";
+import { saveContactProfile } from "../persistence/commands/contacts";
 import { lockContactProfile } from "../persistence/commands/locks";
 
 export const changeWorkspaceContact = async (
@@ -63,7 +63,7 @@ export const changeWorkspaceContact = async (
       archived: target.archived,
       revision: before ? before.revision + 1 : 0,
     };
-    const contact = await recordContactChange(tx, before ?? null, after, actor);
+    const contact = await saveContactProfile(tx, before ?? null, after);
     return { status: "ok", contact };
   };
 

@@ -855,9 +855,6 @@ importers:
 
   capabilities/contacts/business:
     dependencies:
-      '@merit/audit':
-        specifier: workspace:*
-        version: link:../../audit/business
       '@merit/auth':
         specifier: workspace:*
         version: link:../../../foundation/auth

@@ -30,7 +30,7 @@ visitor's isolated workspace.
   for saved progress and limits.
 - **Grant work:** program managers prepare rounds, record and revise applications,
   maintain contacts, track review requests, record assessments received elsewhere,
-  and save funding recommendations. Changes preserve history and attribution.
+  and save funding recommendations. Application records and assessments preserve history and attribution.
   [Grantmaking workflows](docs/workflows/review-and-decide.md) explain each task.
 - **Reviewer participation:** invite reviewers into a workspace, where My work
   lists their assigned applications, with private autosaved drafts, attributable

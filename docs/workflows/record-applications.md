@@ -101,8 +101,8 @@ can contain the complete submission. Budget details can be included in the text.
 File attachments, extraction, and a structured budget editor are not available.
 An optional staff summary stays separate from submitted material and identifies
 its author. It can be added or edited while the application is incomplete and does
-not affect readiness. Contact and summary edits retain history without changing
-the basis of assessments.
+not affect readiness. Application history records contact assignments and staff-summary edits.
+Both preserve the basis of assessments.
 
 The requested amount may initially be **Not known**, distinct from a confirmed
 €0. Amounts use EUR and accept at most two decimal places. Round totals sum known

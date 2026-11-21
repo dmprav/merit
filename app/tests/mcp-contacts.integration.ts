@@ -2,20 +2,13 @@ import { randomUUID } from "node:crypto";
 
 import { assert, expect } from "vite-plus/test";
 
-import {
-  getContactDetails,
-  listContactChanges,
-  changeWorkspaceContact,
-} from "@merit/contacts/server";
+import { getContactDetails, changeWorkspaceContact } from "@merit/contacts/server";
 import { fundingRoundContactUsage } from "@merit/grantmaking/server/integrations";
 import { actor } from "@merit/organizations/testing/workspace";
 
 import { commandTest as it } from "./fixtures/mcp-command-test";
 
-it("creates a contact with the supplied details and verified provenance", async ({
-  db,
-  commands: { invoke },
-}) => {
+it("creates a contact with the supplied details", async ({ db, commands: { invoke } }) => {
   const contactId = randomUUID();
   const details = { name: "Sam", email: "sam@example.test", affiliation: "Review panel" };
 
@@ -26,14 +19,6 @@ it("creates a contact with the supplied details and verified provenance", async 
   expect(await getContactDetails(db, actor, { workspaceSlug: "alder", contactId })).toMatchObject({
     status: "ok",
     contact: { contactId, ...details },
-  });
-  expect(await listContactChanges(db, actor, { workspaceSlug: "alder", contactId })).toMatchObject({
-    status: "ok",
-    entries: [
-      expect.objectContaining({
-        provenance: { interface: "mcp", clientId: "integration-client" },
-      }),
-    ],
   });
 });
 
