@@ -3,8 +3,8 @@
 Bring Merit's tests in line with the [testing guide](../../docs/guides/testing.md)
 and propose the fixes as one pull request. This task runs every day on a
 schedule, and anyone can also run it by hand. Each run reviews the feature slices
-touched by recent merges plus one slice from a fixed rotation, so tests nobody
-edits are checked too.
+touched by recent merges plus one slice from a fixed rotation, which it sweeps for
+tests to remove, so tests nobody edits are checked and pruned too.
 
 Before starting, read the testing guide in full, along with
 [AGENTS.md](../../AGENTS.md) and the [verification guide](../../docs/guides/verification.md).
@@ -63,9 +63,9 @@ git ls-files 'capabilities/*' 'foundation/*' 'interfaces/*' | cut -d/ -f1-2 | so
 ```
 
 Count the days from 2026-11-13 to today in UTC, divide by the number of slices,
-and take the slice at the position of the remainder, counting from zero. While
-it is already selected, advance to the next slice, wrapping to the start of the
-list when needed. If every slice is already selected, add no rotation slice.
+and take the slice at the position of the remainder, counting from zero. This is
+today's cleanup slice. Sweep it as step 5 describes even when a commit already
+selected it.
 
 ## 5. Review each slice as a whole
 
@@ -91,6 +91,17 @@ check it against the testing guide:
 - **Cohesion:** does the suite read as one explanation of the package's
   behavior, with consistent names, grouping, and fixtures, and no near-duplicate
   tests that differ only in incidental input?
+
+For the cleanup slice, start by listing what can go, and expect its changes to
+shrink the slice:
+
+- tests that repeat a scenario another layer owns without a justification;
+- near-duplicates, which collapse into one test or one table of cases;
+- tests of framework behavior, restated constants, internal call shapes, or
+  code that no longer exists;
+- helpers, fixtures, mocks, and test utilities that nothing uses any more.
+
+Remove each one once step 6 confirms its guarantees stay covered.
 
 ## 6. Keep changes within the coverage policy
 
@@ -124,8 +135,9 @@ If there is something to fix:
 2. Open one pull request titled `test: review tests` against the default
    branch, using the [repository template](../../.github/pull_request_template.md)
    and keeping the description concise.
-3. In **Why**, briefly summarize the slices reviewed and any owner-feedback
-   themes, ending with this review's record.
+3. In **Why**, briefly summarize the slices reviewed, the cleanup slice with its
+   net lines removed, and any owner-feedback themes, ending with this review's
+   record.
 4. In **What changed**, give a concise slice-level summary (what was consolidated,
    moved, or added, plus non-CI checks and gaps) rather than cataloging every
    test and guide heading.
