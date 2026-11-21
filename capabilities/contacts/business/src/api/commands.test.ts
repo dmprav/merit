@@ -52,15 +52,16 @@ describe("contact commands", () => {
     },
   );
 
-  it("rejects missing identity and malformed email", () => {
-    for (const details of [
-      { name: "  ", email: "", affiliation: "A foundation" },
-      { name: "Sam", email: "not-an-email", affiliation: "" },
-    ]) {
-      expect(
-        contactCommandSchema.safeParse({ ...address, action: "create", details }).success,
-      ).toBe(false);
-    }
+  it.each([
+    { rule: "a name or email", details: { name: "  ", email: "", affiliation: "A foundation" } },
+    {
+      rule: "a well-formed email",
+      details: { name: "Sam", email: "not-an-email", affiliation: "" },
+    },
+  ])("requires $rule", ({ details }) => {
+    expect(contactCommandSchema.safeParse({ ...address, action: "create", details }).success).toBe(
+      false,
+    );
   });
 
   it.each(["archive", "restore"])("requires an integer revision for %s", (action) => {

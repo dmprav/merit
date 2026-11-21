@@ -69,32 +69,55 @@ const Example = ({
   );
 };
 
-it("keeps search inside the filter panel and retains a removable query on Escape", async () => {
+it("keeps search inside the filter panel and focuses it when the panel opens", async () => {
   const user = userEvent.setup();
   render(<Example />);
   expect(screen.queryByRole("searchbox")).not.toBeInTheDocument();
-  const filter = screen.getByRole("button", { name: "Filter" });
-  await user.click(filter);
+  await user.click(screen.getByRole("button", { name: "Filter" }));
   const dialog = screen.getByRole("dialog", { name: "Filter projects" });
   const input = screen.getByRole("searchbox", { name: "Search projects" });
+
   expect(dialog).toContainElement(input);
   expect(within(dialog).queryByRole("heading")).not.toBeInTheDocument();
   await waitFor(() => expect(input).toHaveFocus());
-  await user.type(input, "Community");
+});
+
+it("retains a typed query as a removable chip when Escape closes the panel", async () => {
+  const user = userEvent.setup();
+  render(<Example />);
+  const filter = screen.getByRole("button", { name: "Filter" });
+  await user.click(filter);
+  await user.type(screen.getByRole("searchbox"), "Community");
   await user.keyboard("{Escape}");
+
   await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   await waitFor(() => expect(filter).toHaveFocus());
   expect(screen.queryByRole("searchbox")).not.toBeInTheDocument();
   expect(
     screen.getByRole("button", { name: "Clear search: Search projects: Community" }),
   ).toBeVisible();
+
   await user.click(filter);
+
   expect(screen.getByRole("searchbox")).toHaveValue("Community");
+});
+
+it("clears the query inside the panel and keeps focus in the search field", async () => {
+  const user = userEvent.setup();
+  render(<Example initialQuery="Community" />);
+  const filter = screen.getByRole("button", { name: "Filter" });
+  await user.click(filter);
   await user.click(screen.getByRole("button", { name: "Clear search" }));
+
   expect(screen.getByRole("searchbox")).toHaveValue("");
   expect(screen.getByRole("searchbox")).toHaveFocus();
+
   await user.keyboard("{Escape}");
+
   expect(screen.queryByRole("searchbox")).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: /^Clear search: Search projects/ }),
+  ).not.toBeInTheDocument();
   await waitFor(() => expect(filter).toHaveFocus());
 });
 
@@ -107,21 +130,39 @@ it("shows a restored query as a chip and focuses the filter trigger when removin
   expect(screen.getByRole("button", { name: "Filter" })).toHaveFocus();
 });
 
-it("keeps filter controls and active reset inside the panel and exposes removable filters", async () => {
+it("offers reset inside the panel only while a criterion is active", async () => {
   const user = userEvent.setup();
   render(<Example />);
   expect(screen.queryByRole("button", { name: "Reset" })).not.toBeInTheDocument();
-  const filter = screen.getByRole("button", { name: "Filter" });
-  await user.click(filter);
+  await user.click(screen.getByRole("button", { name: "Filter" }));
+
   expect(screen.queryByRole("button", { name: "Reset" })).not.toBeInTheDocument();
+
   await user.click(screen.getByRole("button", { name: "Status All" }));
   await user.click(screen.getByRole("option", { name: "Ready" }));
-  expect(screen.getByRole("button", { name: "Reset" })).toBeVisible();
+
+  expect(
+    within(screen.getByRole("dialog", { name: "Filter projects" })).getByRole("button", {
+      name: "Reset",
+    }),
+  ).toBeVisible();
   await waitFor(() => expect(screen.getByRole("button", { name: "Status Ready" })).toHaveFocus());
+});
+
+it("removes an active filter from its chip and returns focus to the filter trigger", async () => {
+  const user = userEvent.setup();
+  render(<Example />);
+  const filter = screen.getByRole("button", { name: "Filter" });
+  await user.click(filter);
+  await user.click(screen.getByRole("button", { name: "Status All" }));
+  await user.click(screen.getByRole("option", { name: "Ready" }));
   await user.keyboard("{Escape}");
   await waitFor(() => expect(filter).toHaveFocus());
+
   expect(screen.getByRole("status")).toHaveTextContent("Ready projects");
+
   await user.click(screen.getByRole("button", { name: "Remove Ready filter" }));
+
   expect(screen.queryByRole("button", { name: "Remove Ready filter" })).not.toBeInTheDocument();
   await waitFor(() => expect(filter).toHaveFocus());
   expect(screen.getByRole("status")).toHaveTextContent("All projects");

@@ -590,310 +590,215 @@ describe("target-scoped review conflicts", () => {
     criteriaVersion: context.criteriaVersion,
   };
 
-  it("allows requesting or recording for another reviewer even after state revision advances", () => {
-    const withRequest = apply(emptyReviews(), request);
-    const julesRequest: ReviewChange = {
-      action: "request",
-      id: replacementId,
-      contactId: otherContactId,
-      replacesId: null,
-    };
+  // Revision 1: Sam has an outstanding request.
+  const requested = () => apply(emptyReviews(), request);
 
-    expect(
-      hasReviewConflict(
-        withRequest,
-        {
-          expectedRevision: reviewRevisionSchema.parse(0),
-          expectedApplicationVersion: current.applicationVersion,
-          expectedCriteriaVersion: current.criteriaVersion,
-          change: julesRequest,
-        },
-        current,
-      ),
-    ).toBe(false);
+  // Revision 2: Sam's request was cancelled.
+  const cancelled = () => apply(requested(), { action: "cancel", id: requestId });
 
-    expect(
-      hasReviewConflict(
-        withRequest,
-        {
-          expectedRevision: reviewRevisionSchema.parse(0),
-          expectedApplicationVersion: current.applicationVersion,
-          expectedCriteriaVersion: current.criteriaVersion,
-          change: {
-            action: "record",
-            id: laterId,
-            contactId: otherContactId,
-            requestId: null,
-            previousId: null,
-            content,
-          },
-        },
-        current,
-      ),
-    ).toBe(false);
-  });
-
-  it("allows recording or editing external assessments after material or criteria versions advance", () => {
-    const withAssessment = apply(emptyReviews(), record);
-    const newer = {
-      applicationVersion: materialVersionSchema.parse(2),
-      criteriaVersion: criteriaVersionSchema.parse(2),
-    };
-
-    expect(
-      hasReviewConflict(
-        withAssessment,
-        {
-          expectedRevision: withAssessment.revision,
-          expectedApplicationVersion: current.applicationVersion,
-          expectedCriteriaVersion: current.criteriaVersion,
-          change: {
-            action: "edit",
-            id: assessmentId,
-            expectedAssessmentVersion: 1,
-            content,
-            note: "Typo fix",
-          },
-        },
-        newer,
-      ),
-    ).toBe(false);
-
-    expect(
-      hasReviewConflict(
-        withAssessment,
-        {
-          expectedRevision: withAssessment.revision,
-          expectedApplicationVersion: current.applicationVersion,
-          expectedCriteriaVersion: current.criteriaVersion,
-          change: request,
-        },
-        newer,
-      ),
-    ).toBe(true);
-  });
-
-  it("rejects concurrent requests or edits targeting the same reviewer or assessment", () => {
-    const withRequest = apply(emptyReviews(), request);
-    expect(
-      hasReviewConflict(
-        withRequest,
-        {
-          expectedRevision: reviewRevisionSchema.parse(0),
-          expectedApplicationVersion: current.applicationVersion,
-          expectedCriteriaVersion: current.criteriaVersion,
-          change: { action: "request", id: replacementId, contactId, replacesId: null },
-        },
-        current,
-      ),
-    ).toBe(true);
-
-    const edited = prepareReviewChange(
-      apply(emptyReviews(), record),
-      {
-        action: "edit",
-        id: assessmentId,
-        content: { ...content, reasoning: "Updated" },
-        note: "v2",
-      },
-      context,
-    );
-    assert(edited.ok);
-    const withTwoAssessments = apply(edited.state, {
-      action: "request",
-      id: replacementId,
-      contactId: otherContactId,
-      replacesId: null,
-    });
-    const fromOther = prepareReviewChange(
-      emptyReviews(),
-      { action: "request", id: replacementId, contactId: otherContactId, replacesId: null },
+  // Revision 2: Sam's request is still outstanding beside a new request for Jules.
+  const withOtherRequest = () => {
+    const result = prepareReviewChange(
+      requested(),
+      { action: "request", id: laterId, contactId: otherContactId, replacesId: null },
       otherContext,
     );
-    assert(fromOther.ok);
+    assert(result.ok);
+    return result.state;
+  };
 
-    expect(
-      hasReviewConflict(
-        withTwoAssessments,
-        {
-          expectedRevision: reviewRevisionSchema.parse(1),
-          expectedApplicationVersion: current.applicationVersion,
-          expectedCriteriaVersion: current.criteriaVersion,
-          change: {
-            action: "edit",
-            id: assessmentId,
-            expectedAssessmentVersion: 1,
-            content,
-            note: "",
-          },
-        },
-        current,
-      ),
-    ).toBe(true);
-    expect(
-      hasReviewConflict(
-        withTwoAssessments,
-        {
-          expectedRevision: reviewRevisionSchema.parse(1),
-          expectedApplicationVersion: current.applicationVersion,
-          expectedCriteriaVersion: current.criteriaVersion,
-          change: {
-            action: "edit",
-            id: assessmentId,
-            expectedAssessmentVersion: 2,
-            content,
-            note: "",
-          },
-        },
-        current,
-      ),
-    ).toBe(false);
-    expect(
-      hasReviewConflict(
-        withTwoAssessments,
-        {
-          expectedRevision: reviewRevisionSchema.parse(1),
-          expectedApplicationVersion: current.applicationVersion,
-          expectedCriteriaVersion: current.criteriaVersion,
-          change: { action: "edit", id: assessmentId, content, note: "" },
-        },
-        current,
-      ),
-    ).toBe(true);
-  });
+  // Revision 2: Sam's request was received with an assessment.
+  const recordedOnRequest = () => apply(requested(), { ...record, requestId });
 
-  it("checks future revisions, cancellations, replacements, and record collisions cleanly", () => {
-    const requested = apply(emptyReviews(), request);
-    expect(
-      hasReviewConflict(
-        requested,
-        {
-          expectedRevision: requested.revision,
-          expectedApplicationVersion: current.applicationVersion,
-          expectedCriteriaVersion: current.criteriaVersion,
-          change: {
-            action: "request",
-            id: replacementId,
-            contactId: otherContactId,
-            replacesId: null,
-          },
-        },
-        current,
-      ),
-    ).toBe(false);
-    const cancelled = apply(requested, { action: "cancel", id: requestId });
-    const otherRequested = prepareReviewChange(
-      requested,
-      {
-        action: "request",
-        id: laterId,
-        contactId: otherContactId,
-        replacesId: null,
-      },
-      otherContext,
-    );
-    assert(otherRequested.ok);
-    const withOtherRequest = otherRequested.state;
-    const recordedOnRequest = apply(requested, {
-      ...record,
-      requestId,
+  // Revision 1: Sam's assessment has one version.
+  const assessed = () => apply(emptyReviews(), record);
+
+  // Revision 2: Sam's assessment has two versions.
+  const amended = () =>
+    apply(assessed(), {
+      action: "edit",
+      id: assessmentId,
+      content: { ...content, reasoning: "Updated" },
+      note: "v2",
     });
 
-    expect(
-      hasReviewConflict(
-        requested,
-        {
-          expectedRevision: reviewRevisionSchema.parse(5),
-          expectedApplicationVersion: current.applicationVersion,
-          expectedCriteriaVersion: current.criteriaVersion,
-          change: { action: "cancel", id: requestId },
-        },
-        current,
-      ),
-    ).toBe(true);
-    expect(
-      hasReviewConflict(
-        requested,
-        {
-          expectedRevision: requested.revision,
-          expectedApplicationVersion: current.applicationVersion,
-          expectedCriteriaVersion: current.criteriaVersion,
-          change: { action: "cancel", id: requestId },
-        },
-        current,
-      ),
-    ).toBe(false);
-    expect(
-      hasReviewConflict(
-        cancelled,
-        {
-          expectedRevision: reviewRevisionSchema.parse(1),
-          expectedApplicationVersion: current.applicationVersion,
-          expectedCriteriaVersion: current.criteriaVersion,
-          change: { action: "cancel", id: requestId },
-        },
-        current,
-      ),
-    ).toBe(true);
-    expect(
-      hasReviewConflict(
-        withOtherRequest,
-        {
-          expectedRevision: reviewRevisionSchema.parse(1),
-          expectedApplicationVersion: current.applicationVersion,
-          expectedCriteriaVersion: current.criteriaVersion,
-          change: { action: "cancel", id: requestId },
-        },
-        current,
-      ),
-    ).toBe(false);
-    expect(
-      hasReviewConflict(
-        cancelled,
-        {
-          expectedRevision: reviewRevisionSchema.parse(1),
-          expectedApplicationVersion: current.applicationVersion,
-          expectedCriteriaVersion: current.criteriaVersion,
-          change: { action: "request", id: replacementId, contactId, replacesId: requestId },
-        },
-        current,
-      ),
-    ).toBe(true);
-    expect(
-      hasReviewConflict(
-        recordedOnRequest,
-        {
-          expectedRevision: reviewRevisionSchema.parse(1),
-          expectedApplicationVersion: current.applicationVersion,
-          expectedCriteriaVersion: current.criteriaVersion,
-          change: { ...record, id: laterId, requestId },
-        },
-        current,
-      ),
-    ).toBe(true);
-    expect(
-      hasReviewConflict(
-        recordedOnRequest,
-        {
-          expectedRevision: reviewRevisionSchema.parse(1),
-          expectedApplicationVersion: current.applicationVersion,
-          expectedCriteriaVersion: current.criteriaVersion,
-          change: { ...record, id: laterId, requestId: null, previousId: null },
-        },
-        current,
-      ),
-    ).toBe(true);
-    expect(
-      hasReviewConflict(
-        withOtherRequest,
-        {
-          expectedRevision: reviewRevisionSchema.parse(1),
-          expectedApplicationVersion: current.applicationVersion,
-          expectedCriteriaVersion: current.criteriaVersion,
-          change: { ...record, id: laterId, requestId, previousId: null },
-        },
-        current,
-      ),
-    ).toBe(false);
+  const julesRequest: ReviewChange = {
+    action: "request",
+    id: replacementId,
+    contactId: otherContactId,
+    replacesId: null,
+  };
+
+  const edit = (expectedAssessmentVersion?: number): ReviewChange => ({
+    action: "edit",
+    id: assessmentId,
+    ...(expectedAssessmentVersion === undefined ? {} : { expectedAssessmentVersion }),
+    content,
+    note: "",
   });
+
+  it.each<{
+    scenario: string;
+    state: () => ReviewState;
+    expectedRevision: number;
+    change: ReviewChange;
+    versions?: Partial<typeof current>;
+    conflict: boolean;
+  }>([
+    {
+      scenario: "a baseline ahead of the saved revision",
+      state: requested,
+      expectedRevision: 5,
+      change: { action: "cancel", id: requestId },
+      conflict: true,
+    },
+    {
+      scenario: "a stale request for another reviewer",
+      state: requested,
+      expectedRevision: 0,
+      change: julesRequest,
+      conflict: false,
+    },
+    {
+      scenario: "a current request for a reviewer whose request is outstanding",
+      state: requested,
+      expectedRevision: 1,
+      change: { action: "request", id: replacementId, contactId, replacesId: null },
+      conflict: false,
+    },
+    {
+      scenario: "a stale request for a reviewer whose request is outstanding",
+      state: requested,
+      expectedRevision: 0,
+      change: { action: "request", id: replacementId, contactId, replacesId: null },
+      conflict: true,
+    },
+    {
+      scenario: "a stale replacement of a request that was cancelled",
+      state: cancelled,
+      expectedRevision: 1,
+      change: { action: "request", id: replacementId, contactId, replacesId: requestId },
+      conflict: true,
+    },
+    {
+      scenario: "a request after the application version advanced",
+      state: assessed,
+      expectedRevision: 1,
+      change: request,
+      versions: { applicationVersion: materialVersionSchema.parse(2) },
+      conflict: true,
+    },
+    {
+      scenario: "a request after the criteria version advanced",
+      state: assessed,
+      expectedRevision: 1,
+      change: request,
+      versions: { criteriaVersion: criteriaVersionSchema.parse(2) },
+      conflict: true,
+    },
+    {
+      scenario: "a current cancellation",
+      state: requested,
+      expectedRevision: 1,
+      change: { action: "cancel", id: requestId },
+      conflict: false,
+    },
+    {
+      scenario: "a stale cancellation of a request that is still outstanding",
+      state: withOtherRequest,
+      expectedRevision: 1,
+      change: { action: "cancel", id: requestId },
+      conflict: false,
+    },
+    {
+      scenario: "a stale cancellation of a request that was already cancelled",
+      state: cancelled,
+      expectedRevision: 1,
+      change: { action: "cancel", id: requestId },
+      conflict: true,
+    },
+    {
+      scenario: "a stale record for another reviewer",
+      state: requested,
+      expectedRevision: 0,
+      change: { ...record, id: laterId, contactId: otherContactId },
+      conflict: false,
+    },
+    {
+      scenario: "a stale record against a request that is still outstanding",
+      state: withOtherRequest,
+      expectedRevision: 1,
+      change: { ...record, id: laterId, requestId },
+      conflict: false,
+    },
+    {
+      scenario: "a stale record against a request that was already received",
+      state: recordedOnRequest,
+      expectedRevision: 1,
+      change: { ...record, id: laterId, requestId },
+      conflict: true,
+    },
+    {
+      scenario: "a stale record that does not follow the reviewer's latest assessment",
+      state: recordedOnRequest,
+      expectedRevision: 1,
+      change: { ...record, id: laterId },
+      conflict: true,
+    },
+    {
+      scenario: "an edit of the latest assessment version after the versions advanced",
+      state: assessed,
+      expectedRevision: 1,
+      change: edit(1),
+      versions: {
+        applicationVersion: materialVersionSchema.parse(2),
+        criteriaVersion: criteriaVersionSchema.parse(2),
+      },
+      conflict: false,
+    },
+    {
+      scenario: "a stale edit of the latest assessment version",
+      state: amended,
+      expectedRevision: 1,
+      change: edit(2),
+      conflict: false,
+    },
+    {
+      scenario: "an edit of an earlier assessment version",
+      state: amended,
+      expectedRevision: 1,
+      change: edit(1),
+      conflict: true,
+    },
+    {
+      scenario: "a current edit without an assessment version",
+      state: amended,
+      expectedRevision: 2,
+      change: edit(),
+      conflict: false,
+    },
+    {
+      scenario: "a stale edit without an assessment version",
+      state: amended,
+      expectedRevision: 1,
+      change: edit(),
+      conflict: true,
+    },
+  ])(
+    "reports $scenario as conflict: $conflict",
+    ({ state, expectedRevision, change, versions, conflict }) => {
+      expect(
+        hasReviewConflict(
+          state(),
+          {
+            expectedRevision: reviewRevisionSchema.parse(expectedRevision),
+            expectedApplicationVersion: current.applicationVersion,
+            expectedCriteriaVersion: current.criteriaVersion,
+            change,
+          },
+          { ...current, ...versions },
+        ),
+      ).toBe(conflict);
+    },
+  );
 });

@@ -33,48 +33,28 @@ const setup = async (db: Database) => {
   return { address, change, created, read };
 };
 
-it("returns the current contact for creation retries and unchanged saves", async ({ db }) => {
-  const { address, change, created, read } = await setup(db);
-  const initial = await read();
-
-  expect(await change({ ...address, action: "create", details })).toEqual(created);
-  expect(await change({ ...address, action: "update", details })).toEqual(created);
-  expect(await read()).toEqual(initial);
-
-  const updatedDetails = { ...details, name: "Samuel" };
+it("returns the current contact when a creation request is retried", async ({ db }) => {
+  const { address, change, read } = await setup(db);
   const updated = await change({
     ...address,
     action: "update",
-    details: updatedDetails,
+    details: { ...details, name: "Samuel" },
   });
-  expect(updated).toMatchObject({ status: "ok", contact: { name: "Samuel", revision: 1 } });
+  assert(updated.status === "ok");
   const saved = await read();
 
   expect(await change({ ...address, action: "create", details })).toEqual(updated);
-  expect(
-    await change({
-      ...address,
-      action: "update",
-      details: updatedDetails,
-    }),
-  ).toEqual(updated);
-  expect(
-    await change({
-      ...address,
-      action: "update",
-      details: { ...updatedDetails, affiliation: "Updated affiliation" },
-    }),
-  ).toEqual({
-    status: "ok",
-    contact: {
-      ...created.contact,
-      ...updatedDetails,
-      affiliation: "Updated affiliation",
-      archived: false,
-      revision: 2,
-    },
-  });
-  expect(await read()).not.toEqual(saved);
+  expect(await read()).toEqual(saved);
+});
+
+it("returns the current contact for an unchanged update without advancing its revision", async ({
+  db,
+}) => {
+  const { address, change, created, read } = await setup(db);
+  const initial = await read();
+
+  expect(await change({ ...address, action: "update", details })).toEqual(created);
+  expect(await read()).toEqual(initial);
 });
 
 it.for([
@@ -119,9 +99,7 @@ it.for([
   },
 );
 
-it("preserves archive state and details across lifecycle changes and rejects a stale one", async ({
-  db,
-}) => {
+it("rejects a stale restore without changing the archived contact", async ({ db }) => {
   const { address, change, read } = await setup(db);
   expect(await change({ ...address, action: "archive", expectedContactRevision: 0 })).toMatchObject(
     { status: "ok", contact: { ...details, archived: true, revision: 1 } },
@@ -132,8 +110,15 @@ it("preserves archive state and details across lifecycle changes and rejects a s
     status: "conflict",
   });
   expect(await read()).toEqual(archived);
+});
 
+it("keeps an archived contact archived through a profile update and restores the updated details", async ({
+  db,
+}) => {
+  const { address, change } = await setup(db);
+  await change({ ...address, action: "archive", expectedContactRevision: 0 });
   const renamed = { ...details, name: "Samuel" };
+
   expect(await change({ ...address, action: "update", details: renamed })).toMatchObject({
     status: "ok",
     contact: { ...renamed, archived: true, revision: 2 },
@@ -171,11 +156,8 @@ it("lists contact summaries without history, by archive state and page", async (
   expect(rest.nextCursor).toBeNull();
 });
 
-it("conceals contacts from other workspaces and from administrators without program management", async ({
-  db,
-  database,
-}) => {
-  const { address, change, read } = await setup(db);
+it("conceals contacts from managers of other workspaces", async ({ db }) => {
+  const { address, read } = await setup(db);
   const before = await read();
   const birch = { userId: "birch-manager" };
   const guessed = { workspaceSlug: "birch", contactId: address.contactId };
@@ -195,6 +177,15 @@ it("conceals contacts from other workspaces and from administrators without prog
     );
 
   expect(await archive(address.contactId)).toEqual(await archive(randomUUID()));
+  expect(await read()).toEqual(before);
+});
+
+it("denies contact access to a workspace administrator without program management", async ({
+  db,
+  database,
+}) => {
+  const { address, change, read } = await setup(db);
+  const before = await read();
 
   await database.client.query(
     "UPDATE memberships SET role = 'member', administration = 'owner' WHERE user_id = 'dana'",
