@@ -73,12 +73,6 @@ it.for(["publish", "discard"] as const)(
     const before = await scenario.read();
     const args = await scenario.args();
 
-    expect(
-      await invoke(`${action}_application_revision`, {
-        ...args,
-        expectedIntakeRevision: args.expectedIntakeRevision - 1,
-      }),
-    ).toEqual({ status: "conflict" });
     expect(await invoke(`${action}_application_revision`, args)).toEqual({
       status: "ok",
       applicationId: args.applicationId,
@@ -103,6 +97,19 @@ it.for(["publish", "discard"] as const)(
     } else {
       expect(saved.application).toEqual(before.application);
     }
+  },
+);
+
+it.for(["publish", "discard"] as const)(
+  "rejects a stale %s without changing the saved working revision",
+  async (action, { commands: { invoke, revisionScenario } }) => {
+    const scenario = await revisionScenario();
+    const stale = await scenario.args();
+    await scenario.change({ action: "save_revision", draft });
+    const before = await scenario.read();
+
+    expect(await invoke(`${action}_application_revision`, stale)).toEqual({ status: "conflict" });
+    expect(await scenario.read()).toEqual(before);
   },
 );
 
