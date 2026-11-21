@@ -29,9 +29,9 @@ uses the same picker; a follow-up request for a known reviewer acts directly.
 Keep contact creation available inside the picker. Requests commit from the picker;
 only recorded assessments and corrections have resumable drafts.
 
-A failed save keeps the choice available for retry. If the work changed, require
-reopening against current state. Keep this outcome distinct from a saved request
-whose surrounding view could not refresh.
+The [review workflow](../../../../../../docs/workflows/review-applications.md#request-reviews)
+owns retry and changed-work recovery. Keep a failed save distinct from a saved
+request whose surrounding view could not refresh.
 
 The [review controller](../../controllers/reviews/use-review.ts) starts a request
 session when the picker opens. The returned action retains that session's review,

@@ -78,10 +78,6 @@ actions, and Cmd/Ctrl+Enter submission together. The form can remain inside a
 feature component; it inherits these conventions without repeating presentation
 props. The [form dialog examples](?path=/docs/patterns-form-dialog--docs) show context
 wrapping, long content, validation, and pending and failed saves.
-`Form` uses the shared `DialogContent` layout for its bounded body and footer;
-feature styles arrange fields within that body. Nested editors retain their own
-form presentation and submit independently.
-Every form dialog shares one width, which leaves room for longer fields.
 Sustained writing, such as recording an assessment, belongs beside its reference material in the
 workspace. Short property forms replace the values they edit in place; do not
 repeat saved values beside them by default. When a true save or basis conflict occurs, keep
@@ -134,7 +130,9 @@ discard before closing. Discarding this tab’s edits leaves the other tab’s c
 intact. Browser storage may be cleared by the browser or the person using it;
 local persistence does not establish server commitment.
 
-Collisions preserve the draft inside the mounted editor with `ConflictBanner` (and offer `RetainedDraftNotice` with **Copy draft** / **Discard** when access or the record is gone).
+Collisions preserve the draft inside the mounted editor; the
+[feedback pattern](?path=/docs/patterns-feedback--docs) describes how `ConflictBanner`
+and `RetainedDraftNotice` present recovery.
 A committed write followed by a failed refresh remains a successful save: retain
 the known result and offer a refresh without repeating the write. The
 [web feature guide](../../../../../docs/guides/web-features.md#find-an-existing-workflow)
