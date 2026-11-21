@@ -25,12 +25,10 @@ export const roundsMessages = {
     unassigned: "Unassigned",
     reassignmentExplanation:
       "This person can no longer manage this round. Assign a current program manager.",
-    closeReassignment: "Close reassignment details",
   },
   budget: {
     scope: "Round totals scope",
     scopeExplanation: "Totals cover the whole round, regardless of the application filters.",
-    closeDetails: "Close total details",
     unknownRequestsDetails: "Unknown requested amounts",
     knownRequests: "Known requests",
     unknownRequests_one: "{{count}} requested amount is not known.",
@@ -64,10 +62,8 @@ export const roundsMessages = {
     recommendationWarning: "Recommendation uses an earlier version",
     earlierVersionExplanation:
       "This recommendation was recorded for an earlier application version. Check it against the current submission.",
-    closeRecommendationWarning: "Close recommendation details",
     filter: "Filter",
     filterTitle: "Filter applications",
-    closeFilters: "Close application filters",
     removeFilter: "Remove filter: {{name}}",
     clearSearch: "Clear application search",
     search: "Search applications",

@@ -18,8 +18,17 @@ export type ReviewerErrorKey =
   | "submissionInvalid"
   | "submissionSaved";
 
-/** Reports a failed request with a refresh where reloading the assignment can help. */
-export const ReviewerFeedback = ({ work }: { work: ReviewerWork }) => {
+/**
+ * Reports a failed request with a refresh where reloading the assignment can help. Pass
+ * offerRefresh=false where a retry beside it already offers the recovery.
+ */
+export const ReviewerFeedback = ({
+  work,
+  offerRefresh = true,
+}: {
+  work: ReviewerWork;
+  offerRefresh?: boolean;
+}) => {
   const { t } = useTranslation("reviewer");
   const error = work.error as ReviewerErrorKey | null;
   const status = work.page.assignment.status;
@@ -28,13 +37,21 @@ export const ReviewerFeedback = ({ work }: { work: ReviewerWork }) => {
     return null;
   }
   return (
-    <Notice appearance="inline" role="alert" tone="danger">
-      {t(error)}{" "}
-      {error !== "submissionInvalid" && error !== "draftInvalid" && (
-        <Button variant="quiet" onPress={() => void work.refresh()}>
-          {t("refresh")}
-        </Button>
-      )}
+    <Notice
+      appearance="inline"
+      role="alert"
+      tone="danger"
+      actions={
+        offerRefresh &&
+        error !== "submissionInvalid" &&
+        error !== "draftInvalid" && (
+          <Button variant="quiet" onPress={() => void work.refresh()}>
+            {t("refresh")}
+          </Button>
+        )
+      }
+    >
+      {t(error)}
     </Notice>
   );
 };

@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import type { ApplicationOverview } from "@merit/grantmaking/api";
 import { ReviewSummary } from "@merit/reviews-web/work";
 import type { TableColumn } from "@merit/tables";
+import { Text } from "@merit/ui/text";
 
 import type { ApplicationList } from "../../contracts/application-list";
 import { ApplicationCollection } from "./application-collection";
@@ -57,7 +58,7 @@ const useOverviewColumns = ({
       header: t("intake.applicant"),
       layout: { width: "16%" },
       sort: true,
-      cell: (row) => row.applicant || <span className={styles.muted}>{t("intake.notKnown")}</span>,
+      cell: (row) => row.applicant || <Text variant="missing">{t("intake.notKnown")}</Text>,
     },
     {
       id: "round",

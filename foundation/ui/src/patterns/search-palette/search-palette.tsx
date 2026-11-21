@@ -18,9 +18,9 @@ import {
 import { Input, SearchField } from "react-aria-components/SearchField";
 import { useTranslation } from "react-i18next";
 
-import { Button } from "../../components/button/button";
+import { ButtonBase } from "../../components/button/button-base";
 import { ModalFrame, type ModalFrameProps } from "../../components/dialog/modal-frame";
-import { Icon } from "../../components/icon/icon";
+import { IconBase } from "../../components/icon/icon-base";
 import scrollStyles from "../../foundations/scroll-area.module.css";
 import { StatusMessage } from "../status-message/status-message";
 import styles from "./search-palette.module.css";
@@ -34,7 +34,7 @@ export type SearchPaletteItem = {
   textValue: string;
   /** This item answers the current input even while other results are loading. */
   availableWhileBusy?: boolean;
-  icon?: ComponentProps<typeof Icon>["name"];
+  icon?: ComponentProps<typeof IconBase>["name"];
   title: ReactNode;
   /** A quieter second line. */
   detail?: ReactNode;
@@ -115,7 +115,7 @@ const SearchItem = ({
     }}
     className={styles.option}
   >
-    {item.icon && <Icon name={item.icon} className={styles.rowIcon} />}
+    {item.icon && <IconBase name={item.icon} className={styles.rowIcon} />}
     <span className={styles.content}>
       <span className={styles.primary}>
         <span className={styles.title}>{item.title}</span>
@@ -250,7 +250,7 @@ export const SearchPalette = ({
     >
       <Autocomplete inputValue={value} onInputChange={onValueChange} disableAutoFocusFirst>
         <SearchField aria-label={label} className={styles.field} autoFocus>
-          <Icon name="search" className={styles.icon} />
+          <IconBase name="search" className={styles.icon} />
           <Input
             ref={inputRef}
             className={styles.input}
@@ -314,7 +314,10 @@ export const SearchPaletteDialog = ({
   isDismissDisabled,
   children,
   ...props
-}: ModalFrameProps & {
+}: Pick<
+  ModalFrameProps,
+  "isOpen" | "defaultOpen" | "onOpenChange" | "isDismissable" | "isDismissDisabled" | "trigger"
+> & {
   title: string;
   /** Defaults to the shared “Close dialog” message. */
   closeLabel?: string;
@@ -332,7 +335,7 @@ export const SearchPaletteDialog = ({
     >
       {(close) => (
         <>
-          <Button
+          <ButtonBase
             variant="quiet"
             size="small"
             iconOnly
@@ -341,8 +344,8 @@ export const SearchPaletteDialog = ({
             onPress={close}
             className={styles.close}
           >
-            <Icon name="close" />
-          </Button>
+            <IconBase name="close" />
+          </ButtonBase>
           {typeof children === "function" ? children({ close }) : children}
         </>
       )}

@@ -96,6 +96,10 @@ next candidates for tooling.
 | Dead code, unused exports, package cycles    | `vp run code-health` & `vp run architecture` ([Fallow config](.fallowrc.jsonc))                                                                  |
 | Function length, complexity, unsafe `any`    | `vp run check:code` & `vp run check:complexity` ([lint rules](tooling/verification/lint.ts))                                                     |
 | Business core branch coverage                | `vp run <package>#test` ([probe tests](tooling/verification/checks.test.ts))                                                                     |
+| Shared components expose no escape hatches   | `vp run @merit/ui#test`, `@merit/forms#test`, `@merit/tables#test` ([public contract](foundation/ui/src/public-contract.test.tsx))               |
+| Notice controls sit in its `actions`         | `vp run test:stories` ([Storybook preview](tooling/storybook/.storybook/preview.tsx))                                                            |
+| One labelled action per page header          | `vp run test:stories` ([Storybook preview](tooling/storybook/.storybook/preview.tsx))                                                            |
+| Feature CSS leaves type and color to the UI  | `vp run check:css` ([stylelint config](stylelint.config.mjs), [probe tests](tooling/verification/checks.test.ts))                                |
 | Documentation links, headings, PR records    | `vp run check:docs`, `vp run test:docs`, `vp run test:ci` ([verification record](tooling/verification/verification-record.ts))                   |
 | Secret scanning and dependency advisories    | `vp run check:security` ([secrets config](tooling/verification/secrets.config.ts))                                                               |
 | No `!`, `as`, or unreasoned suppressions     | Prose/review ([coding conventions](docs/guides/coding-conventions.md#readability-and-safety)); candidate for `lint.ts`                           |

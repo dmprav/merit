@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vite-plus/test";
 
 import { MessagesProvider } from "@merit/i18n";
+import { Toasts } from "@merit/ui/toast";
 
 import { ConflictBanner, RetainedDraftNotice } from "./conflict-banner";
 
@@ -74,15 +75,16 @@ describe("RetainedDraftNotice", () => {
         >
           <p>My unsaved reasoning</p>
         </RetainedDraftNotice>
+        <Toasts />
       </MessagesProvider>,
     );
 
     await user.click(screen.getByRole("button", { name: "Copy draft" }));
     expect(writeText).toHaveBeenCalledWith("My unsaved reasoning");
-    expect(await screen.findByText("Draft copied")).toBeVisible();
+    expect(await screen.findByRole("alertdialog", { name: "Draft copied" })).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: "Copy draft" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Could not copy draft.");
+    expect(await screen.findByRole("alertdialog", { name: "Could not copy draft." })).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: "Discard draft" }));
     expect(onDiscard).toHaveBeenCalledOnce();

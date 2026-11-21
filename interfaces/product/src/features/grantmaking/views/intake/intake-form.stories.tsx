@@ -131,7 +131,9 @@ const IntakeSession = ({
       {intake.section ? (
         <IntakeForm editor={{ ...intake.editor, latest }} onClose={intake.close} />
       ) : (
-        <Button onPress={() => intake.open(section)}>Edit</Button>
+        <Button size="medium" onPress={() => intake.open(section)}>
+          Edit
+        </Button>
       )}
     </section>
   );
@@ -149,7 +151,7 @@ const IntakeSession = ({
           </>
         ) : (
           <WorkPane as="section" label={label}>
-            <Reading>{editor}</Reading>
+            <Reading prose={false}>{editor}</Reading>
           </WorkPane>
         )}
       </ReferenceWorkspace>
@@ -211,9 +213,7 @@ export const ConcurrentChanges: Story = {
       "Neighbourhood Kitchen — local edit",
     );
     await expect(form.getByRole("button", { name: "Save" })).toBeDisabled();
-    await userEvent.click(form.getByRole("button", { name: "View latest" }));
-    const saved = within(form.getByRole("region", { name: "Latest saved values" }));
-    await expect(saved.getByText("€28,000")).toBeVisible();
+    await expect(form.getByText("€28,000")).toBeVisible();
     await expect(form.getByRole("button", { name: "Keep my changes" })).toBeEnabled();
     await expect(form.getByRole("button", { name: "Discard & load latest" })).toBeEnabled();
   },

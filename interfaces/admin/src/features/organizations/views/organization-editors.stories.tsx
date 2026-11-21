@@ -1,6 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn } from "storybook/test";
 
+import { DescriptionList, DescriptionListItem } from "@merit/ui/description-list";
+
 import { AdminMessages } from "../../../app/messages";
 import { NameEditor } from "./organization-editors";
 import styles from "./organization.module.css";
@@ -8,18 +10,18 @@ import styles from "./organization.module.css";
 const meta = {
   title: "Features/Administration/Name editor",
   component: NameEditor,
+  tags: ["!autodocs"],
   decorators: [
     (Story) => (
       <AdminMessages>
         <div className={styles.details}>
-          <dl className={styles.record}>
-            <div className={styles.recordRow}>
-              <dt>Organization name</dt>
-              <dd>
+          <DescriptionList layout="rows" divided>
+            <DescriptionListItem label="Organization name">
+              <div className={styles.recordEditor}>
                 <Story />
-              </dd>
-            </div>
-          </dl>
+              </div>
+            </DescriptionListItem>
+          </DescriptionList>
         </div>
       </AdminMessages>
     ),

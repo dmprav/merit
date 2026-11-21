@@ -1,1 +1,9 @@
 @import "@merit/ui/styles.css";
+
+.sbdocs-content > table {
+  overflow-wrap: anywhere;
+}
+
+.sbdocs-content > table code {
+  white-space: normal;
+}

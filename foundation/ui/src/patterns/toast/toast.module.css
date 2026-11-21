@@ -1,0 +1,88 @@
+/* Centered over the page content, beside the application shell's sidebar when there is one. */
+.region {
+  position: fixed;
+  z-index: 60;
+  bottom: var(--space-4);
+  left: calc(50% + var(--sidebar-width, 0px) / 2);
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column-reverse;
+  /* Stacked toasts share the widest one's width so their edges align. */
+  align-items: stretch;
+  gap: var(--space-2);
+  width: max-content;
+  max-width: min(28rem, calc(100vw - var(--sidebar-width, 0px) - 2 * var(--space-4)));
+  outline: none;
+}
+
+.region[data-focus-visible] {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.toast {
+  --button-quiet-background: var(--surface-muted);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  max-width: 100%;
+  padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--control-radius);
+  background: var(--surface);
+  box-shadow: var(--popover-shadow);
+  color: var(--foreground);
+  font-size: var(--text-detail);
+  line-height: 1.5;
+  outline: none;
+}
+
+.toast[data-focus-visible] {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.icon {
+  flex-shrink: 0;
+  color: var(--muted);
+}
+
+.toast[data-tone="success"] .icon {
+  color: var(--success);
+}
+
+.toast[data-tone="warning"] .icon {
+  color: var(--warning);
+}
+
+.toast[data-tone="danger"] .icon {
+  color: var(--danger);
+}
+
+.content {
+  flex: 1;
+  min-width: 0;
+  /* Align the text with the controls' height so one-line toasts stay one control tall. */
+  padding-block: calc((var(--control-height-small) - 1lh) / 2);
+  padding-inline-end: var(--space-2);
+  overflow-wrap: anywhere;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .toast {
+    animation: toast-in var(--motion-medium) ease-out;
+  }
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--space-2));
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

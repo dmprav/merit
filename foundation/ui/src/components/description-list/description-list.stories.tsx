@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import type { ReactNode } from "react";
 import { expect } from "storybook/test";
 
 import { PersonIdentity } from "../../patterns/person-identity/person-identity";
@@ -6,12 +7,21 @@ import { Badge } from "../badge/badge";
 import { DescriptionList, DescriptionListItem } from "./description-list";
 import styles from "./description-list.stories.module.css";
 
+/** The containing panel sets the list's width, as a feature's panel would. */
+const within = (className: string | undefined) => [
+  (Story: () => ReactNode) => (
+    <div className={className}>
+      <Story />
+    </div>
+  ),
+];
+
 const meta = {
   title: "Components/Description list",
   component: DescriptionList,
   args: { children: null },
-  render: ({ layout, className }) => (
-    <DescriptionList layout={layout} className={className}>
+  render: ({ layout }) => (
+    <DescriptionList layout={layout}>
       <DescriptionListItem label="Status">
         <Badge>Open</Badge>
       </DescriptionListItem>
@@ -30,7 +40,8 @@ type Story = StoryObj<typeof meta>;
 
 export const Overview: Story = {};
 export const Rows: Story = {
-  args: { layout: "rows", className: styles.sidebar },
+  args: { layout: "rows" },
+  decorators: within(styles.sidebar),
   play: async ({ canvas }) => {
     const label = canvas.getByText("Status").getBoundingClientRect();
     const value = canvas.getByText("Open").getBoundingClientRect();
@@ -41,9 +52,9 @@ export const Rows: Story = {
 };
 
 export const LongContent: Story = {
-  args: { className: styles.narrow },
-  render: ({ layout, className }) => (
-    <DescriptionList className={className} layout={layout}>
+  decorators: within(styles.narrow),
+  render: ({ layout }) => (
+    <DescriptionList layout={layout}>
       <DescriptionListItem label="Application reference supplied by the funding organisation">
         application_01JABCDEFGHIJKLMN0123456789OPQRSTUVWXYZ
       </DescriptionListItem>
@@ -59,12 +70,13 @@ export const LongContent: Story = {
 
 export const RowsWithLongContent: Story = {
   ...LongContent,
-  args: { layout: "rows", className: styles.sidebar },
+  args: { layout: "rows" },
+  decorators: within(styles.sidebar),
 };
 
 export const NarrowRows: Story = {
   ...LongContent,
-  args: { layout: "rows", className: styles.narrow },
+  args: { layout: "rows" },
   play: async ({ canvas }) => {
     const label = canvas.getByText("Contact").getBoundingClientRect();
     const value = canvas.getByText("Alexandria Montgomery-Worthington").getBoundingClientRect();

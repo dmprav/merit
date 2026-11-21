@@ -20,7 +20,7 @@ const Example = ({ confirm }: { confirm: () => Promise<string | null> }) => {
       confirmLabel="Revoke invitation"
       pendingLabel="Revoking invitation…"
       intent="destructive"
-      trigger={<Button>Review revocation</Button>}
+      trigger={<Button size="medium">Review revocation</Button>}
       isOpen={open}
       onOpenChange={setOpen}
       isPending={pending}
@@ -103,6 +103,16 @@ it("blocks repeated confirmation and every dismissal while pending", async () =>
 
   expect(dialog).toBeVisible();
   expect(confirm).toHaveBeenCalledOnce();
+});
+
+it("removes its pending announcement when the confirmation closes", async () => {
+  const { finish } = await pendingConfirmation();
+  const announcement = screen.getByRole("status");
+  await waitFor(() => expect(announcement).toHaveTextContent("Revoking invitation…"));
+
+  await act(async () => finish(null));
+
+  expect(announcement).not.toBeInTheDocument();
 });
 
 it("shows a failed confirmation in the dialog and permits a retry", async () => {

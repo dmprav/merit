@@ -2,7 +2,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ComponentProps } from "react";
-import { describe, expect, it, vi } from "vite-plus/test";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { roundView, applicationView } from "@merit/grantmaking/api";
 import {
@@ -15,6 +15,7 @@ import {
 import { fromMinorUnits, encodeMoney } from "@merit/money";
 import { createQueryClient } from "@merit/query";
 import { reviewRevisionSchema } from "@merit/reviews/domain";
+import { Toasts } from "@merit/ui/toast";
 
 import { GrantmakingMessagesProvider } from "../../messages";
 import { GrantmakingDrafts } from "../drafts";
@@ -776,19 +777,29 @@ it("keeps one assessment form in the work pane while references change and resum
   expect(data.save).not.toHaveBeenCalled();
 });
 
+afterEach(() => vi.useRealTimers());
+
 it("keeps saved-review refresh recovery visible when another reference is selected", async () => {
-  const user = userEvent.setup();
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
   const data = {
     draftKey: "review-refresh-recovery",
     workspaceSlug: "alder",
     save: vi.fn().mockResolvedValue({ status: "ok", revision: reviewRevisionSchema.parse(3) }),
-    refresh: vi.fn().mockRejectedValueOnce(new Error("Offline")).mockResolvedValue(undefined),
+    // The first read and both quiet retries fail before the failure is reported.
+    refresh: vi
+      .fn()
+      .mockRejectedValueOnce(new Error("Offline"))
+      .mockRejectedValueOnce(new Error("Offline"))
+      .mockRejectedValueOnce(new Error("Offline"))
+      .mockResolvedValue(undefined),
   };
   render(
     <QueryClientProvider client={createQueryClient()}>
       <GrantmakingDrafts storageScope="review-refresh-recovery">
         <ApplicationView application={application} round={round} reviewData={data} tab="reviews" />
       </GrantmakingDrafts>
+      <Toasts />
     </QueryClientProvider>,
     { wrapper: GrantmakingMessagesProvider },
   );
@@ -800,16 +811,20 @@ it("keeps saved-review refresh recovery visible when another reference is select
   await user.click(screen.getByRole("menuitem", { name: "Applicant submission" }));
   await user.click(within(form).getByRole("button", { name: "Save assessment" }));
 
-  expect(await screen.findByRole("alert")).toHaveTextContent("Saved, but the latest information");
   await waitFor(() => expect(form).not.toBeInTheDocument());
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(4000);
+  });
+  const recovery = await screen.findByRole("alertdialog", {
+    name: "Saved, but the latest reviews could not be loaded.",
+  });
   expect(
     screen.getByRole("button", { name: "Reference material: Applicant submission" }),
   ).toBeVisible();
-  expect(screen.getByRole("button", { name: "Retry" })).toBeVisible();
-  await user.click(screen.getByRole("button", { name: "Retry" }));
+  await user.click(within(recovery).getByRole("button", { name: "Refresh" }));
 
-  await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
-  expect(data.refresh).toHaveBeenCalledTimes(2);
+  await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+  expect(data.refresh).toHaveBeenCalledTimes(4);
   expect(data.save).toHaveBeenCalledTimes(1);
 });
 
@@ -837,7 +852,7 @@ it("keeps assessment reading available and disables authoring while a recommenda
   expect(
     reference().getByRole("button", { name: "Assessment actions for Sam Morgan" }),
   ).toBeDisabled();
-  expect(reference().getByRole("button", { name: "Record assessment" })).toBeDisabled();
+  expect(reference().getByRole("button", { name: /^Request actions for / })).toBeDisabled();
   expect(reference().getByRole("button", { name: "Review details" })).toBeEnabled();
   expect(workspace().getByRole("textbox", { name: "Recommendation draft" })).toBeVisible();
 });

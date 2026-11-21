@@ -34,6 +34,8 @@ CREATE TABLE "application_cases" (
 	"attention" text[] DEFAULT '{}' NOT NULL,
 	CONSTRAINT "application_cases_owner_key" UNIQUE("organization_id","id"),
 	CONSTRAINT "application_cases_round_position_key" UNIQUE("organization_id","round_id","position"),
+	CONSTRAINT "application_cases_position_check" CHECK ("application_cases"."position" >= 0),
+	CONSTRAINT "application_cases_material_version_check" CHECK ("application_cases"."material_version" > 0),
 	CONSTRAINT "application_cases_revisions_check" CHECK ("application_cases"."revision" >= 0),
 	CONSTRAINT "application_cases_status_check" CHECK ("application_cases"."intake_status" IN ('in_preparation', 'ready')),
 	CONSTRAINT "application_cases_withdrawal_check" CHECK (("application_cases"."withdrawn_on" IS NULL AND "application_cases"."withdrawal_reason" IS NULL AND "application_cases"."withdrawal_recorder_user_id" IS NULL AND "application_cases"."withdrawal_recorder_name" IS NULL AND "application_cases"."withdrawal_recorded_at" IS NULL) OR ("application_cases"."withdrawn_on" IS NOT NULL AND "application_cases"."withdrawal_reason" IS NOT NULL AND "application_cases"."withdrawal_recorder_user_id" IS NOT NULL AND "application_cases"."withdrawal_recorder_name" IS NOT NULL AND "application_cases"."withdrawal_recorded_at" IS NOT NULL)),
@@ -67,7 +69,10 @@ CREATE TABLE "material_drafts" (
 	"project_period" text,
 	"requested" text NOT NULL,
 	"reason" text NOT NULL,
-	"revision" integer NOT NULL
+	"revision" integer NOT NULL,
+	CONSTRAINT "material_drafts_base_material_version_check" CHECK ("material_drafts"."base_material_version" > 0),
+	CONSTRAINT "material_drafts_kind_check" CHECK ("material_drafts"."kind" IN ('correction', 'revision')),
+	CONSTRAINT "material_drafts_revision_check" CHECK ("material_drafts"."revision" >= 0)
 );
 --> statement-breakpoint
 CREATE TABLE "material_version_answers" (
@@ -112,6 +117,7 @@ CREATE TABLE "material_versions" (
 	CONSTRAINT "material_version_positive" CHECK ("material_versions"."version" > 0),
 	CONSTRAINT "material_requested_check" CHECK (("material_versions"."requested_minor_units" IS NULL) = ("material_versions"."requested_currency" IS NULL) AND ("material_versions"."requested_minor_units" IS NULL OR ("material_versions"."requested_minor_units" >= 0 AND "material_versions"."requested_currency" = 'EUR'))),
 	CONSTRAINT "material_submission_check" CHECK (("material_versions"."submission_version" IS NULL AND "material_versions"."applicant_organization" IS NULL AND "material_versions"."submitted_on" IS NULL AND "material_versions"."project_period" IS NULL) OR ("material_versions"."submission_version" IS NOT NULL AND "material_versions"."submission_version" > 0)),
+	CONSTRAINT "material_versions_change_kind_check" CHECK ("material_versions"."change_kind" IN ('initial', 'recorded', 'save_content', 'correction', 'revision')),
 	CONSTRAINT "material_source_kind_check" CHECK ("material_versions"."source_kind" IN ('recorded_external', 'fictional_example'))
 );
 --> statement-breakpoint
@@ -127,11 +133,12 @@ CREATE TABLE "audit_events" (
 	"target_revision" integer,
 	"target_name" text,
 	"round_id" text,
-	"application_id" text,
+	"case_id" text,
 	"assignment_id" text,
 	"format_version" integer DEFAULT 1 NOT NULL,
 	"details" jsonb DEFAULT '{}'::jsonb NOT NULL,
-	"recorded_at" timestamp (3) with time zone DEFAULT now() NOT NULL
+	"recorded_at" timestamp (3) with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "audit_events_format_version_check" CHECK ("audit_events"."format_version" > 0)
 );
 --> statement-breakpoint
 CREATE TABLE "contacts" (
@@ -151,33 +158,37 @@ CREATE TABLE "grant_navigation_pins" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"user_id" text NOT NULL,
 	"round_id" text,
-	"application_id" text,
+	"case_id" text,
 	"assignment_id" uuid,
 	"position" integer NOT NULL,
 	CONSTRAINT "grant_navigation_pins_round" UNIQUE("user_id","round_id"),
-	CONSTRAINT "grant_navigation_pins_application" UNIQUE("user_id","application_id"),
+	CONSTRAINT "grant_navigation_pins_application" UNIQUE("user_id","case_id"),
 	CONSTRAINT "grant_navigation_pins_review" UNIQUE("user_id","assignment_id"),
-	CONSTRAINT "grant_navigation_pins_target" CHECK (num_nonnulls("grant_navigation_pins"."round_id", "grant_navigation_pins"."application_id", "grant_navigation_pins"."assignment_id") = 1),
+	CONSTRAINT "grant_navigation_pins_target" CHECK (num_nonnulls("grant_navigation_pins"."round_id", "grant_navigation_pins"."case_id", "grant_navigation_pins"."assignment_id") = 1),
 	CONSTRAINT "grant_navigation_pins_position" CHECK ("grant_navigation_pins"."position" >= 0)
 );
 --> statement-breakpoint
 CREATE TABLE "access_request_limits" (
 	"key" text PRIMARY KEY NOT NULL,
 	"attempts" integer DEFAULT 1 NOT NULL,
-	"expires_at" timestamp with time zone NOT NULL
+	"expires_at" timestamp with time zone NOT NULL,
+	CONSTRAINT "access_request_limits_attempts_check" CHECK ("access_request_limits"."attempts" > 0)
 );
 --> statement-breakpoint
 CREATE TABLE "access_requests" (
-	"email" text PRIMARY KEY NOT NULL,
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"email" text NOT NULL,
 	"requested_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"reviewed_at" timestamp with time zone,
-	"reviewed_by" text
+	"reviewed_by" text,
+	CONSTRAINT "access_requests_email_key" UNIQUE("email")
 );
 --> statement-breakpoint
 CREATE TABLE "demo_entry_limits" (
 	"key" text PRIMARY KEY NOT NULL,
 	"attempts" integer DEFAULT 1 NOT NULL,
-	"expires_at" timestamp with time zone NOT NULL
+	"expires_at" timestamp with time zone NOT NULL,
+	CONSTRAINT "demo_entry_limits_attempts_check" CHECK ("demo_entry_limits"."attempts" > 0)
 );
 --> statement-breakpoint
 CREATE TABLE "memberships" (
@@ -189,8 +200,10 @@ CREATE TABLE "memberships" (
 	"administration" text DEFAULT 'none' NOT NULL,
 	"version" integer DEFAULT 0 NOT NULL,
 	CONSTRAINT "memberships_pkey" PRIMARY KEY("organization_id","user_id"),
+	CONSTRAINT "memberships_id_key" UNIQUE("id"),
 	CONSTRAINT "memberships_administration_check" CHECK ("memberships"."administration" IN ('none', 'administrator', 'owner')),
-	CONSTRAINT "memberships_role_check" CHECK ("memberships"."role" IN ('member', 'program_manager', 'reviewer', 'committee_reader'))
+	CONSTRAINT "memberships_role_check" CHECK ("memberships"."role" IN ('member', 'program_manager', 'reviewer', 'committee_reader')),
+	CONSTRAINT "memberships_version_check" CHECK ("memberships"."version" >= 0)
 );
 --> statement-breakpoint
 CREATE TABLE "organizations" (
@@ -273,7 +286,7 @@ CREATE TABLE "review_assignments" (
 	"expires_at" timestamp with time zone NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "review_assignments_request_key" UNIQUE("case_id","request_id"),
-	CONSTRAINT "review_assignment_status" CHECK ("review_assignments"."status" IN ('invited','accepted','submitted','conflict','cancelled','declined')),
+	CONSTRAINT "review_assignment_status" CHECK ("review_assignments"."status" IN ('invited', 'accepted', 'submitted', 'conflict', 'cancelled', 'declined')),
 	CONSTRAINT "review_assignment_revision" CHECK ("review_assignments"."revision" >= 0),
 	CONSTRAINT "review_assignment_identity" CHECK ("review_assignments"."status" NOT IN ('accepted', 'submitted') OR ("review_assignments"."reviewer_user_id" IS NOT NULL AND "review_assignments"."accepted_at" IS NOT NULL)),
 	CONSTRAINT "review_assignment_submission" CHECK ("review_assignments"."status" <> 'submitted' OR "review_assignments"."assessment_id" IS NOT NULL)
@@ -283,7 +296,8 @@ CREATE TABLE "reviewer_command_receipts" (
 	"assignment_id" uuid NOT NULL,
 	"command_id" uuid NOT NULL,
 	"result_revision" integer NOT NULL,
-	CONSTRAINT "reviewer_receipts_command_key" UNIQUE("assignment_id","command_id")
+	CONSTRAINT "reviewer_command_receipts_assignment_id_command_id_pk" PRIMARY KEY("assignment_id","command_id"),
+	CONSTRAINT "reviewer_command_receipts_revision_check" CHECK ("reviewer_command_receipts"."result_revision" >= 0)
 );
 --> statement-breakpoint
 CREATE TABLE "reviewer_draft_observations" (
@@ -321,7 +335,9 @@ CREATE TABLE "reviewer_messages" (
 	"kind" text NOT NULL,
 	"recipient" text NOT NULL,
 	"status" text DEFAULT 'pending' NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "reviewer_messages_kind_check" CHECK ("reviewer_messages"."kind" IN ('invitation', 'submission')),
+	CONSTRAINT "reviewer_messages_status_check" CHECK ("reviewer_messages"."status" IN ('pending', 'sent', 'failed'))
 );
 --> statement-breakpoint
 CREATE TABLE "assessment_version_observations" (
@@ -333,7 +349,7 @@ CREATE TABLE "assessment_version_observations" (
 	"criterion" text NOT NULL,
 	"text" text NOT NULL,
 	CONSTRAINT "assessment_version_observations_case_id_assessment_id_version_position_pk" PRIMARY KEY("case_id","assessment_id","version","position"),
-	CONSTRAINT "assessment_version_observations_version_check" CHECK ("assessment_version_observations"."version" >= 1),
+	CONSTRAINT "assessment_version_observations_version_check" CHECK ("assessment_version_observations"."version" > 0),
 	CONSTRAINT "assessment_version_observations_position_check" CHECK ("assessment_version_observations"."position" >= 0),
 	CONSTRAINT "assessment_version_observations_criterion_check" CHECK (length("assessment_version_observations"."criterion") <= 200),
 	CONSTRAINT "assessment_version_observations_text_check" CHECK (length("assessment_version_observations"."text") <= 5000)
@@ -360,7 +376,7 @@ CREATE TABLE "assessment_versions" (
 	"note" text NOT NULL,
 	"recorded_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "assessment_versions_case_id_assessment_id_version_pk" PRIMARY KEY("case_id","assessment_id","version"),
-	CONSTRAINT "assessment_versions_version_check" CHECK ("assessment_versions"."version" >= 1),
+	CONSTRAINT "assessment_versions_version_check" CHECK ("assessment_versions"."version" > 0),
 	CONSTRAINT "assessment_versions_criteria_pair_check" CHECK (("assessment_versions"."criteria_round_id" is null) = ("assessment_versions"."criteria_version" is null)),
 	CONSTRAINT "assessment_versions_position_check" CHECK ("assessment_versions"."position" is null or "assessment_versions"."position" in ('Fund', 'Fund with a condition', 'Defer', 'Decline')),
 	CONSTRAINT "assessment_versions_amount_check" CHECK (("assessment_versions"."amount_minor_units" is null) = ("assessment_versions"."amount_currency" is null) and ("assessment_versions"."amount_minor_units" is null or ("assessment_versions"."amount_minor_units" >= 0 and "assessment_versions"."amount_minor_units" <> 'NaN' and "assessment_versions"."amount_currency" = 'EUR'))),
@@ -409,7 +425,7 @@ CREATE TABLE "review_requests" (
 	"closed_cause" text,
 	"position" integer NOT NULL,
 	CONSTRAINT "review_requests_case_id_id_pk" PRIMARY KEY("case_id","id"),
-	CONSTRAINT "review_requests_status_check" CHECK ("review_requests"."status" in ('outstanding', 'received', 'cancelled')),
+	CONSTRAINT "review_requests_status_check" CHECK ("review_requests"."status" IN ('outstanding', 'received', 'cancelled')),
 	CONSTRAINT "review_requests_position_check" CHECK ("review_requests"."position" >= 0),
 	CONSTRAINT "review_requests_recorder_check" CHECK ((("review_requests"."recorder_user_id" is null) = ("review_requests"."recorder_name" is null)) and (("review_requests"."recorder_user_id" is null) = ("review_requests"."recorder_recorded_at" is null))),
 	CONSTRAINT "review_requests_recorder_provenance_check" CHECK (("review_requests"."recorder_provenance_interface" is null and "review_requests"."recorder_provenance_client_id" is null) or ("review_requests"."recorder_user_id" is not null and (("review_requests"."recorder_provenance_interface" = 'web' and "review_requests"."recorder_provenance_client_id" is null) or ("review_requests"."recorder_provenance_interface" = 'mcp' and "review_requests"."recorder_provenance_client_id" is not null and length(btrim("review_requests"."recorder_provenance_client_id")) > 0)))),
@@ -455,14 +471,17 @@ CREATE TABLE "funding_rounds" (
 	"purpose" text NOT NULL,
 	"currency" text DEFAULT 'EUR' NOT NULL,
 	"budget_established" boolean DEFAULT false NOT NULL,
-	"budget" numeric(30, 0),
+	"budget_minor_units" numeric(30, 0),
 	"meeting_date" date,
 	"snapshot_date" date NOT NULL,
 	"decision_status" text NOT NULL,
 	"criteria_version" integer DEFAULT 1 NOT NULL,
 	CONSTRAINT "funding_rounds_owner_key" UNIQUE("organization_id","id"),
 	CONSTRAINT "funding_rounds_revision_check" CHECK ("funding_rounds"."revision" >= 0),
-	CONSTRAINT "funding_rounds_budget_check" CHECK ("funding_rounds"."budget" >= 0)
+	CONSTRAINT "funding_rounds_currency_check" CHECK ("funding_rounds"."currency" = 'EUR'),
+	CONSTRAINT "funding_rounds_budget_check" CHECK ("funding_rounds"."budget_minor_units" >= 0),
+	CONSTRAINT "funding_rounds_decision_status_check" CHECK (length(btrim("funding_rounds"."decision_status")) > 0),
+	CONSTRAINT "funding_rounds_criteria_version_check" CHECK ("funding_rounds"."criteria_version" > 0)
 );
 --> statement-breakpoint
 CREATE TABLE "round_creation_receipts" (
@@ -501,7 +520,7 @@ ALTER TABLE "audit_events" ADD CONSTRAINT "audit_events_actor_user_id_app_users_
 ALTER TABLE "contacts" ADD CONSTRAINT "contacts_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "grant_navigation_pins" ADD CONSTRAINT "grant_navigation_pins_user_id_app_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."app_users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "grant_navigation_pins" ADD CONSTRAINT "grant_navigation_pins_round_id_funding_rounds_id_fk" FOREIGN KEY ("round_id") REFERENCES "public"."funding_rounds"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "grant_navigation_pins" ADD CONSTRAINT "grant_navigation_pins_application_id_application_cases_id_fk" FOREIGN KEY ("application_id") REFERENCES "public"."application_cases"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "grant_navigation_pins" ADD CONSTRAINT "grant_navigation_pins_case_id_application_cases_id_fk" FOREIGN KEY ("case_id") REFERENCES "public"."application_cases"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "grant_navigation_pins" ADD CONSTRAINT "grant_navigation_pins_assignment_id_review_assignments_id_fk" FOREIGN KEY ("assignment_id") REFERENCES "public"."review_assignments"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "access_requests" ADD CONSTRAINT "access_requests_reviewed_by_app_users_id_fk" FOREIGN KEY ("reviewed_by") REFERENCES "public"."app_users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "memberships" ADD CONSTRAINT "memberships_organization_id_fkey" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -543,24 +562,55 @@ ALTER TABLE "funding_rounds" ADD CONSTRAINT "funding_rounds_organization_id_orga
 ALTER TABLE "funding_rounds" ADD CONSTRAINT "funding_rounds_manager_user_id_app_users_id_fk" FOREIGN KEY ("manager_user_id") REFERENCES "public"."app_users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "round_creation_receipts" ADD CONSTRAINT "round_creation_receipts_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "guest_sessions" ADD CONSTRAINT "guest_sessions_user_id_app_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."app_users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "application_cases_contact_idx" ON "application_cases" USING btree ("organization_id","contact_id");--> statement-breakpoint
+CREATE INDEX "application_cases_current_material_idx" ON "application_cases" USING btree ("id","material_version");--> statement-breakpoint
+CREATE INDEX "material_drafts_base_material_idx" ON "material_drafts" USING btree ("case_id","base_material_version");--> statement-breakpoint
+CREATE INDEX "material_versions_recorded_by_idx" ON "material_versions" USING btree ("recorded_by_user_id");--> statement-breakpoint
 CREATE INDEX "audit_events_workspace_time_idx" ON "audit_events" USING btree ("organization_id","recorded_at","id");--> statement-breakpoint
 CREATE INDEX "audit_events_subject_idx" ON "audit_events" USING btree ("organization_id","target_type","target_id","target_revision");--> statement-breakpoint
 CREATE INDEX "audit_events_subject_time_idx" ON "audit_events" USING btree ("organization_id","target_type","target_id","recorded_at","id");--> statement-breakpoint
 CREATE INDEX "audit_events_round_time_idx" ON "audit_events" USING btree ("organization_id","round_id","recorded_at","id");--> statement-breakpoint
+CREATE INDEX "audit_events_actor_user_idx" ON "audit_events" USING btree ("actor_user_id");--> statement-breakpoint
 CREATE INDEX "audit_events_actor_time_idx" ON "audit_events" USING btree ("organization_id","actor_user_id","recorded_at","id");--> statement-breakpoint
 CREATE INDEX "audit_events_assignment_idx" ON "audit_events" USING btree ("organization_id","assignment_id","recorded_at","id");--> statement-breakpoint
+CREATE INDEX "grant_navigation_pins_round_idx" ON "grant_navigation_pins" USING btree ("round_id");--> statement-breakpoint
+CREATE INDEX "grant_navigation_pins_case_idx" ON "grant_navigation_pins" USING btree ("case_id");--> statement-breakpoint
+CREATE INDEX "grant_navigation_pins_assignment_idx" ON "grant_navigation_pins" USING btree ("assignment_id");--> statement-breakpoint
 CREATE INDEX "access_request_limits_expiry_idx" ON "access_request_limits" USING btree ("expires_at");--> statement-breakpoint
+CREATE INDEX "access_requests_reviewed_by_idx" ON "access_requests" USING btree ("reviewed_by");--> statement-breakpoint
 CREATE INDEX "demo_entry_limits_expiry_idx" ON "demo_entry_limits" USING btree ("expires_at");--> statement-breakpoint
 CREATE UNIQUE INDEX "memberships_owner_key" ON "memberships" USING btree ("organization_id") WHERE "memberships"."administration" = 'owner';--> statement-breakpoint
 CREATE INDEX "memberships_user_id_idx" ON "memberships" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "organization_invitations_organization_idx" ON "organization_invitations" USING btree ("organization_id");--> statement-breakpoint
+CREATE INDEX "organization_invitations_invited_by_idx" ON "organization_invitations" USING btree ("invited_by");--> statement-breakpoint
+CREATE INDEX "organization_invitations_accepted_by_idx" ON "organization_invitations" USING btree ("accepted_by");--> statement-breakpoint
 CREATE UNIQUE INDEX "organization_invitations_pending_key" ON "organization_invitations" USING btree ("organization_id","email") WHERE "organization_invitations"."revoked_at" IS NULL AND "organization_invitations"."accepted_at" IS NULL;--> statement-breakpoint
 CREATE UNIQUE INDEX "organization_invitations_provisioning_key" ON "organization_invitations" USING btree ("organization_id") WHERE "organization_invitations"."purpose" = 'provisioning' AND "organization_invitations"."revoked_at" IS NULL;--> statement-breakpoint
+CREATE INDEX "recommendation_versions_material_idx" ON "recommendation_versions" USING btree ("case_id","material_version");--> statement-breakpoint
+CREATE INDEX "recommendation_versions_actor_user_idx" ON "recommendation_versions" USING btree ("actor_user_id");--> statement-breakpoint
+CREATE INDEX "review_assignments_case_idx" ON "review_assignments" USING btree ("organization_id","case_id");--> statement-breakpoint
+CREATE INDEX "review_assignments_manager_idx" ON "review_assignments" USING btree ("manager_user_id");--> statement-breakpoint
+CREATE INDEX "review_assignments_assessment_idx" ON "review_assignments" USING btree ("case_id","assessment_id");--> statement-breakpoint
 CREATE INDEX "review_assignments_reviewer" ON "review_assignments" USING btree ("reviewer_user_id");--> statement-breakpoint
 CREATE INDEX "review_assignments_email" ON "review_assignments" USING btree ("email");--> statement-breakpoint
 CREATE INDEX "reviewer_messages_assignment" ON "reviewer_messages" USING btree ("assignment_id");--> statement-breakpoint
-CREATE INDEX "guest_sessions_expiry_idx" ON "guest_sessions" USING btree ("expires_at");
---> statement-breakpoint
+CREATE INDEX "assessment_versions_case_idx" ON "assessment_versions" USING btree ("organization_id","case_id");--> statement-breakpoint
+CREATE INDEX "assessment_versions_round_idx" ON "assessment_versions" USING btree ("organization_id","criteria_round_id");--> statement-breakpoint
+CREATE INDEX "assessment_versions_material_idx" ON "assessment_versions" USING btree ("case_id","material_version");--> statement-breakpoint
+CREATE INDEX "assessment_versions_criteria_idx" ON "assessment_versions" USING btree ("criteria_round_id","criteria_version");--> statement-breakpoint
+CREATE INDEX "assessments_case_idx" ON "assessments" USING btree ("organization_id","case_id");--> statement-breakpoint
+CREATE INDEX "assessments_contact_idx" ON "assessments" USING btree ("organization_id","contact_id");--> statement-breakpoint
+CREATE INDEX "assessments_author_user_idx" ON "assessments" USING btree ("author_user_id");--> statement-breakpoint
+CREATE INDEX "assessments_previous_idx" ON "assessments" USING btree ("case_id","previous_id");--> statement-breakpoint
+CREATE INDEX "review_requests_round_idx" ON "review_requests" USING btree ("organization_id","criteria_round_id");--> statement-breakpoint
+CREATE INDEX "review_requests_case_idx" ON "review_requests" USING btree ("organization_id","case_id");--> statement-breakpoint
+CREATE INDEX "review_requests_contact_idx" ON "review_requests" USING btree ("organization_id","contact_id");--> statement-breakpoint
+CREATE INDEX "review_requests_material_idx" ON "review_requests" USING btree ("case_id","material_version");--> statement-breakpoint
+CREATE INDEX "review_requests_criteria_idx" ON "review_requests" USING btree ("criteria_round_id","criteria_version");--> statement-breakpoint
+CREATE INDEX "funding_rounds_manager_user_idx" ON "funding_rounds" USING btree ("manager_user_id");--> statement-breakpoint
+CREATE INDEX "funding_rounds_criteria_version_idx" ON "funding_rounds" USING btree ("id","criteria_version");--> statement-breakpoint
+CREATE INDEX "guest_sessions_expiry_idx" ON "guest_sessions" USING btree ("expires_at");--> statement-breakpoint
+CREATE INDEX "guest_sessions_user_idx" ON "guest_sessions" USING btree ("user_id");--> statement-breakpoint
 ALTER TABLE audit_events ADD CONSTRAINT audit_events_organization_fk FOREIGN KEY (organization_id) REFERENCES organizations(id);
 --> statement-breakpoint
 -- Current pointers are checked at commit so a root and its first version can be inserted together.

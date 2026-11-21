@@ -155,7 +155,7 @@ export const assembleRoundRecord = (
   manager: round.managerName,
   managerUserId: round.managerUserId,
   currency: round.currency,
-  budget: toMoneyData(round.budget, round.currency),
+  budget: toMoneyData(round.budgetMinorUnits, round.currency),
   meetingDate: round.meetingDate,
   snapshotDate: round.snapshotDate,
   decisionStatus: round.decisionStatus,

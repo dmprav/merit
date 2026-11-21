@@ -1,13 +1,14 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
+import { ActionMenu } from "../../components/action-menu/action-menu";
 import { Badge } from "../../components/badge/badge";
 import { Button } from "../../components/button/button";
+import { Icon } from "../../components/icon/icon";
 import { Reading, Stack } from "../../components/layout/layout";
 import { Notice } from "../../components/notice/notice";
 import { ApplicationPage } from "../application-shell/application-shell";
 import { PageHeader } from "../page-header/page-header";
 import { SectionHeader } from "../section-header/section-header";
-import styles from "./page-layout.stories.module.css";
 
 const meta = {
   title: "Patterns/Page composition",
@@ -42,15 +43,24 @@ const meta = {
         description="Prepare the evidence and recommendations for committee."
         actions={
           <>
-            <Button variant="secondary">Export summary</Button>
-            <Button>Review round</Button>
+            <Button size="medium">Review round</Button>
+            <ActionMenu
+              label="More actions"
+              trigger={
+                <Button size="medium" variant="quiet" iconOnly aria-label="More actions">
+                  <Icon name="more" />
+                </Button>
+              }
+              items={[{ id: "export", label: "Export summary", icon: "arrow" }]}
+              onAction={() => {}}
+            />
           </>
         }
       />
       <Stack gap={7}>
         <section aria-labelledby="purpose">
           <SectionHeader id="purpose" title="Purpose" />
-          <Reading as="p" className={styles.prose}>
+          <Reading as="p">
             Support local projects that bring neighbours together and make community spaces more
             accessible. Read each proposal alongside its supporting evidence before preparing a
             recommendation, keeping the applicant’s account distinct from reviewer judgments.

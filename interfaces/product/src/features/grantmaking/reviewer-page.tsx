@@ -10,19 +10,19 @@ import { DataTable, type TableColumn } from "@merit/tables";
 import { Badge } from "@merit/ui/badge";
 import { ConfirmationDialog } from "@merit/ui/confirmation-dialog";
 import { Stack } from "@merit/ui/layout";
-import linkStyles from "@merit/ui/link.module.css";
 import { PageHeader } from "@merit/ui/page-header";
 import { SectionHeader } from "@merit/ui/section-header";
+import { Text } from "@merit/ui/text";
 
 import { AppPage } from "../../app/app-shell";
 import { WorkspaceStatusPage } from "../../app/workspace-page";
+import { RoutedLink } from "../../shared/routed-link";
 import { PinButton } from "../navigation/pin-button";
 import {
   reviewerData,
   reviewerListOptions,
   reviewerPageOptions,
 } from "./data/reviews/reviewer-data";
-import styles from "./my-work.module.css";
 
 const ReviewerPage = ({
   children,
@@ -91,14 +91,13 @@ export const MyWorkPage = ({ workspaceSlug }: { workspaceSlug: string }) => {
       layout: { primary: true },
       cell: (assignment) => (
         <Stack gap={1}>
-          <Link
-            className={linkStyles.text}
+          <RoutedLink
             to="/app/$workspaceSlug/work/$assignmentId"
             params={{ workspaceSlug, assignmentId: assignment.id }}
           >
             {assignment.applicationTitle}
-          </Link>
-          <span className={styles.supporting}>{assignment.applicant}</span>
+          </RoutedLink>
+          <Text variant="supporting">{assignment.applicant}</Text>
         </Stack>
       ),
     },
@@ -128,7 +127,7 @@ export const MyWorkPage = ({ workspaceSlug }: { workspaceSlug: string }) => {
         assignment.dueDate ? (
           <time dateTime={assignment.dueDate}>{format.calendarDate(assignment.dueDate)}</time>
         ) : (
-          <span className={styles.supporting}>{t("noDue")}</span>
+          <Text variant="missing">{t("noDue")}</Text>
         ),
     },
   ];

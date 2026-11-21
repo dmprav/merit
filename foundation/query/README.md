@@ -46,8 +46,8 @@ After a confirmed write, cancel competing reads before applying the response to
 its cache entry. Invalidate affected details, summaries, and access information.
 Use Router invalidation only for route-owned context or navigation decisions;
 Query invalidation owns fetched data. Preserve a successful-save notice if a
-subsequent refresh fails, and offer a read-only retry when the missing information
-affects subsequent work. Retry a failed route load through Router invalidation;
+subsequent refresh fails. `useWorkflowRefresh` retries a failed read quietly before
+reporting it; the workflow then offers a read-only retry. Retry a failed route load through Router invalidation;
 keep the document and its draft providers mounted. Recovery actions show their own
 pending state and never repeat a committed write.
 

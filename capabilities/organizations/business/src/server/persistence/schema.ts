@@ -37,6 +37,8 @@ export const invitations = pgTable(
   },
   (table) => [
     index("organization_invitations_organization_idx").on(table.organizationId),
+    index("organization_invitations_invited_by_idx").on(table.invitedBy),
+    index("organization_invitations_accepted_by_idx").on(table.acceptedBy),
     uniqueIndex("organization_invitations_pending_key")
       .on(table.organizationId, table.email)
       .where(sql`${table.revokedAt} IS NULL AND ${table.acceptedAt} IS NULL`),

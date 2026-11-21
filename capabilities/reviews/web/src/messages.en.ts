@@ -2,7 +2,6 @@ import { reviewStatusMessages } from "./views/reviews/status.messages";
 
 export const en = {
   collection: {
-    close: "Close review details",
     inspect: "Review details for {{title}}",
     progress: "{{completed}} of {{total}} reviewed",
     round: "this round",

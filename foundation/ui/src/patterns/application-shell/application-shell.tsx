@@ -7,15 +7,16 @@ import {
   useSyncExternalStore,
   type ReactNode,
   type MouseEvent,
+  type Ref,
 } from "react";
 import { Dialog, DialogTrigger, Heading } from "react-aria-components/Dialog";
 import { Popover } from "react-aria-components/Popover";
 
 import { ActionMenu } from "../../components/action-menu/action-menu";
 import { Breadcrumbs } from "../../components/breadcrumbs/breadcrumbs";
-import { Button } from "../../components/button/button";
+import { ButtonBase } from "../../components/button/button-base";
 import { ModalFrame } from "../../components/dialog/modal-frame";
-import { Icon } from "../../components/icon/icon";
+import { IconBase, type IconName } from "../../components/icon/icon-base";
 import { Notice } from "../../components/notice/notice";
 import { PersonIdentity } from "../person-identity/person-identity";
 import styles from "./application-shell.module.css";
@@ -79,9 +80,9 @@ const NavigationDrawer = ({
     isOpen={isOpen}
     onOpenChange={onOpenChange}
     trigger={
-      <Button variant="quiet" iconOnly aria-label={openLabel}>
-        <Icon name="menu" />
-      </Button>
+      <ButtonBase variant="quiet" iconOnly aria-label={openLabel}>
+        <IconBase name="menu" />
+      </ButtonBase>
     }
   >
     {(close) => (
@@ -90,9 +91,9 @@ const NavigationDrawer = ({
           <Heading slot="title" className={styles.drawerTitle}>
             {label}
           </Heading>
-          <Button variant="quiet" iconOnly aria-label={closeLabel} onPress={close}>
-            <Icon name="close" />
-          </Button>
+          <ButtonBase variant="quiet" iconOnly aria-label={closeLabel} onPress={close}>
+            <IconBase name="close" />
+          </ButtonBase>
         </div>
         {children}
       </>
@@ -212,8 +213,13 @@ const ContextIdentity = ({ name }: { name: string }) => (
 export const ApplicationContextOption = ({ name }: { name: string }) => (
   <>
     <ContextIdentity name={name} />
-    <Icon name="check" className={styles.contextCheck} />
+    <IconBase name="check" className={styles.contextCheck} />
   </>
+);
+
+/** Context links outside the switcher, such as a page for choosing where to work; supply list items. */
+export const ApplicationContextLinks = ({ children }: { children: ReactNode }) => (
+  <ul className={styles.contextLinks}>{children}</ul>
 );
 
 /** Keep the current work context in the same position, with real links for switching. */
@@ -231,10 +237,14 @@ export const ApplicationContext = ({
 
   return children ? (
     <DialogTrigger isOpen={open} onOpenChange={setOpen}>
-      <Button variant="quiet" className={styles.contextTrigger} aria-label={`${name}: ${label}`}>
+      <ButtonBase
+        variant="quiet"
+        className={styles.contextTrigger}
+        aria-label={`${name}: ${label}`}
+      >
         <ContextIdentity name={name} />
-        <Icon name="down" />
-      </Button>
+        <IconBase name="down" />
+      </ButtonBase>
       <Popover
         className={styles.contextPopover}
         placement="bottom start"
@@ -274,6 +284,68 @@ export const ApplicationContext = ({
   );
 };
 
+/** A later group of destinations, separated from the primary ones, with an optional label. */
+export const ApplicationNavigationGroup = ({
+  label,
+  children,
+}: {
+  label?: string;
+  children: ReactNode;
+}) => (
+  <div className={styles.navigationGroup}>
+    {label && <div className={styles.navigationGroupLabel}>{label}</div>}
+    {children}
+  </div>
+);
+
+/** A navigation command beside the destinations, such as opening search, with an optional shortcut hint. */
+export const ApplicationNavigationButton = ({
+  icon,
+  label,
+  shortcut,
+  onPress,
+  ref,
+}: {
+  icon: IconName;
+  label: string;
+  /** Shown on hover and keyboard focus with a fine pointer; also set aria-keyshortcuts on the button. */
+  shortcut?: string;
+  onPress: () => void;
+  ref?: Ref<HTMLButtonElement>;
+}) => (
+  <ButtonBase variant="quiet" className={styles.navigationItem} onPress={onPress} ref={ref}>
+    <IconBase name={icon} />
+    <span className={styles.navigationLabel}>{label}</span>
+    {shortcut && (
+      <kbd className={styles.navigationShortcut} aria-hidden="true">
+        {shortcut}
+      </kbd>
+    )}
+  </ButtonBase>
+);
+
+/** The shell footer's link to documentation, which opens in a new tab. */
+export const ApplicationDocumentationLink = ({
+  href,
+  label,
+  newTabLabel,
+}: {
+  href: string;
+  label: string;
+  /** Accessible name announcing that the link opens a new tab. */
+  newTabLabel: string;
+}) => (
+  <a
+    href={href}
+    target="_blank"
+    rel="noopener noreferrer"
+    className={styles.documentationLink}
+    aria-label={newTabLabel}
+  >
+    {label}
+  </a>
+);
+
 /** Identity stays stable while loading; only real sessions supply a sign-out action. */
 export const ApplicationAccount = ({
   name,
@@ -306,15 +378,15 @@ export const ApplicationAccount = ({
         <ActionMenu
           label={menuLabel}
           trigger={
-            <Button
+            <ButtonBase
               variant="quiet"
               className={styles.accountTrigger}
               aria-label={`${name}: ${menuLabel}`}
               isPending={pending}
             >
               {pending ? signOut.pendingLabel : identity}
-              <Icon name="down" />
-            </Button>
+              <IconBase name="down" />
+            </ButtonBase>
           }
           items={[{ id: "sign-out", label: signOut.label }]}
           onAction={async () => {
@@ -436,3 +508,41 @@ export const ApplicationRecovery = ({
     </div>
   );
 };
+
+/**
+ * A page outside the workspace frame, such as sign-in, an invitation, or choosing where to work.
+ * brand is the home link; main content receives focus whenever locationKey changes.
+ */
+export const ApplicationStandalonePage = ({
+  locationKey,
+  brand,
+  children,
+}: {
+  locationKey: string;
+  brand: ReactNode;
+  children: ReactNode;
+}) => {
+  const main = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    main.current?.focus({ preventScroll: true });
+  }, [locationKey]);
+
+  return (
+    <div className={styles.standalone}>
+      <header className={styles.standaloneHeader}>
+        <span className={styles.standaloneBrand}>{brand}</span>
+      </header>
+      <main id="main" ref={main} tabIndex={-1} className={styles.standaloneContent}>
+        {children}
+      </main>
+    </div>
+  );
+};
+
+/** Page content in the shell's scrolling frame without navigation, for previews of feature pages. */
+export const ApplicationStage = ({ children }: { children: ReactNode }) => (
+  <div className={`${styles.shell} ${styles.stageOnly}`}>
+    <div className={styles.stage}>{children}</div>
+  </div>
+);

@@ -72,7 +72,7 @@ follows the [editing pattern](../../../../../../foundation/ui/src/patterns/editi
 **Close** keeps the autosaved amendment and the header then offers **Resume
 amendment** through the same pencil's label and tooltip with a draft marker, while **Discard amendment** returns the draft to
 the submitted assessment. Returning to the page opens the reading view first.
-Submission is confirmed with the shared status message.
+Submission is confirmed with a toast.
 
 When two devices saved different drafts, the shared conflict banner offers
 **View saved** for the other device's draft and explicit choices between the two

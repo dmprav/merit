@@ -108,8 +108,8 @@ it("creates independent applications with exact amounts and permanent public IDs
 }) => {
   const original = encodeRoundOverview(getExampleRound());
   const rounds = (
-    await database.client.query<{ public_id: string; title: string; budget: string }>(
-      "SELECT id AS public_id, title, budget FROM funding_rounds ORDER BY organization_id",
+    await database.client.query<{ public_id: string; title: string; budget_minor_units: string }>(
+      "SELECT id AS public_id, title, budget_minor_units FROM funding_rounds ORDER BY organization_id",
     )
   ).rows;
   const applications = (
@@ -184,7 +184,10 @@ it("creates independent applications with exact amounts and permanent public IDs
     })),
   });
 
-  expect(rounds[0]).toMatchObject({ title: original.title, budget: original.budget!.minorUnits });
+  expect(rounds[0]).toMatchObject({
+    title: original.title,
+    budget_minor_units: original.budget!.minorUnits,
+  });
   const material = (
     await database.client.query<{
       title: string;

@@ -12,6 +12,7 @@ import { makeApplication, makeAssessment, makeRound } from "@merit/grantmaking/t
 import { createQueryClient } from "@merit/query";
 import { reviewRevisionSchema } from "@merit/reviews/domain";
 import { criteriaVersionSchema } from "@merit/rounds/domain";
+import { Toasts } from "@merit/ui/toast";
 
 import type { ManagerReviewerData } from "../../contracts/reviewer";
 import type { ReviewData, ReviewProps } from "../../contracts/reviews";
@@ -64,7 +65,18 @@ const request = {
   closedBy: null,
 };
 const draftKey = "alder/b8q3w5j7c2df";
-afterEach(() => sessionStorage.clear());
+afterEach(() => {
+  sessionStorage.clear();
+  vi.useRealTimers();
+});
+
+/** Waits out the quiet retries a failed refresh makes before it is reported. */
+const afterQuietRetries = () =>
+  act(async () => {
+    await vi.advanceTimersByTimeAsync(4000);
+  });
+
+const savedRefreshFailure = "Saved, but the latest reviews could not be loaded.";
 
 const renderReview = (
   overrides: Partial<ReviewProps> = {},
@@ -92,6 +104,7 @@ const renderReview = (
               children
             )}
           </GrantmakingDrafts>
+          <Toasts />
         </GrantmakingMessagesProvider>
       </QueryClientProvider>
     ),
@@ -187,7 +200,6 @@ it("keeps request and assessment actions disabled until a retained draft is disc
 
   await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   expect(screen.queryByRole("button", { name: "Add review request" })).not.toBeInTheDocument();
-  expect(pending.getByRole("button", { name: "Record assessment" })).toBeDisabled();
   expect(
     pending.getByRole("button", { name: `Request actions for ${request.reviewer}` }),
   ).toBeDisabled();
@@ -207,7 +219,6 @@ it("keeps request and assessment actions disabled until a retained draft is disc
   await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   expect(screen.queryByRole("button", { name: "Resume editing" })).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Add review request" })).toBeEnabled();
-  expect(pending.getByRole("button", { name: "Record assessment" })).toBeEnabled();
   expect(
     pending.getByRole("button", { name: `Request actions for ${request.reviewer}` }),
   ).toBeEnabled();
@@ -503,15 +514,15 @@ it.each(["0001-01-01", "9999-12-31"])(
 );
 
 it("keeps a committed correction distinct from a failed refresh", async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
   const { user, data } = renderReview();
   vi.mocked(data.refresh).mockRejectedValue(new Error("Offline"));
   const form = await openCorrection(user);
   await user.click(form.getByRole("button", { name: "Save assessment" }));
 
   await waitFor(() => expect(screen.queryByRole("form")).not.toBeInTheDocument());
-  expect(screen.getByRole("alert")).toHaveTextContent(
-    "Saved, but the latest information could not be loaded.",
-  );
+  await afterQuietRetries();
+  expect(screen.getByRole("alertdialog", { name: savedRefreshFailure })).toBeVisible();
   await waitFor(async () =>
     expect(await readDraftStorage("dana", "reviews")).not.toHaveProperty(draftKey),
   );
@@ -521,6 +532,7 @@ it("keeps a committed correction distinct from a failed refresh", async () => {
 it.each(["cancel", "follow_up"] as const)(
   "retains the refresh warning after %s and retries only the read",
   async (action) => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     const { user, data, props, rerender } = renderReview({
       application: { ...application, reviews: { ...application.reviews, requests: [request] } },
     });
@@ -540,16 +552,14 @@ it.each(["cancel", "follow_up"] as const)(
       }),
     );
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Saved, but the latest information could not be loaded.",
-    );
-    expect(data.save).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(data.save).toHaveBeenCalledTimes(1));
+    await afterQuietRetries();
+    const failure = await screen.findByRole("alertdialog", { name: savedRefreshFailure });
 
-    await user.click(await screen.findByRole("button", { name: "Retry" }));
+    // An explicit retry reports its failure at once.
+    await user.click(within(failure).getByRole("button", { name: "Refresh" }));
 
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "Saved, but the latest information could not be loaded.",
-    );
+    const repeated = await screen.findByRole("alertdialog", { name: savedRefreshFailure });
     vi.mocked(data.refresh).mockImplementation(async () => {
       rerender(
         <ReviewWork
@@ -576,9 +586,9 @@ it.each(["cancel", "follow_up"] as const)(
         />,
       );
     });
-    await user.click(await screen.findByRole("button", { name: "Retry" }));
+    await user.click(within(repeated).getByRole("button", { name: "Refresh" }));
 
-    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
     if (action === "cancel") {
       expect(
         screen.queryByRole("button", { name: `Request actions for ${request.reviewer}` }),
@@ -593,6 +603,8 @@ it.each(["cancel", "follow_up"] as const)(
 );
 
 it("reports a failed conflict refresh without claiming the correction was saved", async () => {
+  // Draft storage settles through other timer queues, so only timeouts are faked.
+  vi.useFakeTimers({ shouldAdvanceTime: true, toFake: ["setTimeout", "clearTimeout"] });
   const { user, data } = renderReview();
   vi.mocked(data.save).mockResolvedValue({ status: "conflict" });
   vi.mocked(data.refresh).mockRejectedValue(new Error("Offline"));
@@ -602,11 +614,10 @@ it("reports a failed conflict refresh without claiming the correction was saved"
   await user.click(form.getByRole("button", { name: "Save assessment" }));
 
   expect(form.getByRole("alert")).toHaveTextContent("The saved work changed.");
+  await afterQuietRetries();
   expect(
-    screen.getByText(
-      "The latest information could not be loaded. Try again to review current work.",
-    ),
-  ).toBeInTheDocument();
+    screen.getByRole("alertdialog", { name: "The latest reviews could not be loaded." }),
+  ).toBeVisible();
   expect(screen.queryByText(/Saved, but/)).not.toBeInTheDocument();
   expect(await readDraftStorage("dana", "reviews")).toHaveProperty(draftKey);
 });
@@ -919,12 +930,20 @@ it("loads assignments independently of the management view before allowing manua
     data: { draftKey, workspaceSlug: "alder", participation, save: vi.fn(), refresh: vi.fn() },
   });
   const pending = within(screen.getByRole("article", { name: request.reviewer }));
-  expect(pending.getByRole("button", { name: "Record assessment" })).toBeDisabled();
+  const requestActions = pending.getByRole("button", {
+    name: `Request actions for ${request.reviewer}`,
+  });
+  expect(requestActions).toBeDisabled();
   expect(screen.queryByRole("region", { name: "Reviewer access" })).not.toBeInTheDocument();
   await act(async () =>
     finish({ status: "ok", value: [{ ...reviewerPage().assignment, requestId: request.id }] }),
   );
-  expect(pending.queryByRole("button", { name: "Record assessment" })).not.toBeInTheDocument();
+  // An invited reviewer records their own assessment, so the request offers no manual recording.
+  await waitFor(() => expect(requestActions).toBeEnabled());
+  await user.click(requestActions);
+  const menu = within(await screen.findByRole("menu"));
+  expect(menu.queryByRole("menuitem", { name: "Record assessment" })).not.toBeInTheDocument();
+  await user.keyboard("{Escape}");
   await user.click(screen.getByRole("button", { name: "Manage reviews" }));
   expect(await screen.findByText("sam@example.test")).toBeVisible();
   await user.click(screen.getByRole("button", { name: "Close review task" }));

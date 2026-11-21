@@ -1,21 +1,22 @@
 import { test, expect, checkPage } from "@merit/test-support/browser";
 
 test(
-  "team refresh recovery returns focus to the active directory",
+  "team refresh recovery leaves focus in the active directory",
   { tag: "@cross-browser" },
   async ({ page }) => {
     await page.goto(
       "/iframe.html?id=features-team-manage-team--saved-but-refresh-failed&viewMode=story",
     );
     await expect(page.locator("#storybook-root")).toHaveAttribute("data-story-ready", "true");
-    const refresh = page.getByRole("button", { name: "Refresh team" });
+    const toast = page.getByRole("alertdialog", {
+      name: "Saved, but the latest team could not be loaded.",
+    });
+    const invitations = page.getByRole("tab", { name: /Invitations/ });
 
-    await expect(refresh).toBeFocused();
-    await refresh.press("Enter");
+    await expect(invitations).toBeFocused();
+    await toast.getByRole("button", { name: "Refresh" }).click();
 
-    await expect(page.getByRole("alert")).toHaveCount(0);
-    await expect(refresh).toHaveCount(0);
-    await expect(page.getByRole("tab", { name: /Invitations/ })).toBeFocused();
+    await expect(toast).toHaveCount(0);
     await expect(page.getByRole("table", { name: "Invitations" })).toContainText(
       "leah@example.test",
     );
@@ -65,7 +66,7 @@ test(
     await page.setViewportSize({ width: 320, height: 640 });
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto(
-      "/iframe.html?id=features-workspace-request-access--expanded-copy&viewMode=story",
+      "/iframe.html?id=features-workspace-request-access--pseudo-localised&viewMode=story",
     );
     await expect(page.locator("#storybook-root")).toHaveAttribute("data-story-ready", "true");
     const dialog = page.getByRole("dialog");
@@ -311,7 +312,7 @@ test(
     const dialog = page.getByRole("dialog", { name: "Related applications: Leah Martin" });
     await expect(
       dialog.getByRole("link", {
-        name: "Neighbour Table Community grants 2026 Contact for the applicant",
+        name: "Neighbour Table Contact for the applicant in Community grants 2026",
         exact: true,
       }),
     ).toHaveAttribute("href", /\/applications\//);
@@ -339,13 +340,13 @@ test(
     const links = dialog.getByRole("link");
     await expect(links).toHaveCount(30);
     await expect(links.first()).toHaveAccessibleName(
-      "Neighbour Table Community grants 2026 Contact for the applicant",
+      "Neighbour Table Contact for the applicant in Community grants 2026",
     );
     await expect(links.nth(1)).toHaveAccessibleName(
-      "Saturday repair café Neighbourhood partnerships 2025 Asked to review",
+      "Saturday repair café Asked to review in Neighbourhood partnerships 2025",
     );
     await expect(links.nth(2)).toHaveAccessibleName(
-      "School holiday kitchens Stronger communities Provided an assessment",
+      "School holiday kitchens Provided an assessment in Stronger communities",
     );
     await expect(links.first()).toHaveAttribute("href", /\/applications\//);
     await expect
@@ -412,11 +413,7 @@ test(
     await expect(editor).not.toBeVisible();
     await expect(table.getByText("Community Kitchen")).toBeVisible();
     await expect(actions).not.toHaveAttribute("data-draft");
-    await expect(page.getByRole("status").filter({ hasText: "Saved" })).toHaveCount(1);
-    await expect(page.locator('[aria-hidden="true"]').filter({ hasText: /^Saved$/ })).toHaveCSS(
-      "position",
-      "fixed",
-    );
+    await expect(page.getByRole("alertdialog", { name: "Saved" })).toBeVisible();
     expect((await table.boundingBox())!.y).toBeCloseTo(tableTop, 0);
     await expect(actions).toBeFocused();
     await checkPage(page);
@@ -547,9 +544,12 @@ for (const id of [
     await page.screenshot({ path: testInfo.outputPath(`${id}.png`), fullPage: true });
     if (quickPicker) {
       const isDate = id.endsWith("--committee-date");
-      await dialog
-        .getByRole("button", { name: isDate ? "Cancel" : "Close dialog", exact: true })
-        .click();
+      if (isDate) {
+        await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+      } else {
+        // Pickers have no visible close control; Escape dismisses them.
+        await page.keyboard.press("Escape");
+      }
 
       await expect(dialog).not.toBeVisible();
       await expect(

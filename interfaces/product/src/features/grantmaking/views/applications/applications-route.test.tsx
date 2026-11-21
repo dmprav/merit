@@ -21,6 +21,7 @@ import { makeApplication, makeRound } from "@merit/grantmaking/testing/fixtures"
 import { defaultLocale } from "@merit/i18n";
 import type { Workspace } from "@merit/organizations/api";
 import { createQueryClient } from "@merit/query";
+import { Toasts } from "@merit/ui/toast";
 
 import { productRoute } from "../../../../../tests/product-route";
 import { WebMessagesProvider } from "../../../../app/messages";
@@ -186,6 +187,7 @@ const renderApplications = async (search = "") => {
         <ApplicationListViews>
           <Outlet />
         </ApplicationListViews>
+        <Toasts />
       </WebMessagesProvider>
     ),
   });
@@ -506,9 +508,12 @@ it("keeps the current page when the next page fails and moves to it after a retr
   const { user } = await renderApplications();
   expect(await screen.findByText("1–50 of 55 applications")).toBeVisible();
   await user.click(screen.getByRole("button", { name: "Next" }));
-  expect(await screen.findByRole("alert")).toHaveTextContent("Applications could not be loaded");
+  const failure = await screen.findByRole("alertdialog", {
+    name: /Applications could not be loaded/,
+  });
+  expect(screen.getByRole("link", { name: "Project 01" })).toBeVisible();
   failNext = false;
-  await user.click(screen.getByRole("button", { name: "Try again" }));
+  await user.click(within(failure).getByRole("button", { name: "Try again" }));
   expect(await screen.findByText("51–55 of 55 applications")).toBeVisible();
   expect(screen.getByRole("group", { name: "Applications" })).toHaveFocus();
   expect(screen.getByRole("button", { name: "Next" })).toBeDisabled();

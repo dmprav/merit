@@ -3,18 +3,16 @@ import {
   check,
   date,
   foreignKey,
+  index,
   integer,
-  numeric,
   pgTable,
   primaryKey,
   text,
-  timestamp,
 } from "drizzle-orm/pg-core";
 
 import { applicationCases, materialVersions } from "@merit/applications/schema";
 import { appUsers } from "@merit/auth/schema";
-
-const recordedAt = () => timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow();
+import { enumCheck, moneyMinorUnits, positiveCheck, recordedAt } from "@merit/db/schema";
 
 export const recommendationVersions = pgTable(
   "recommendation_versions",
@@ -26,7 +24,7 @@ export const recommendationVersions = pgTable(
     applicationVersion: integer("material_version"),
     recordedDate: date("recorded_date"),
     position: text({ enum: ["Fund", "Fund with a condition", "Defer"] }).notNull(),
-    allocationMinorUnits: numeric("allocation_minor_units", { precision: 30, scale: 0 }).notNull(),
+    allocationMinorUnits: moneyMinorUnits("allocation_minor_units").notNull(),
     allocationCurrency: text("allocation_currency").notNull().default("EUR"),
     reasoning: text().notNull(),
     authorUserId: text("author_user_id"),
@@ -44,11 +42,14 @@ export const recommendationVersions = pgTable(
       columns: [t.caseId, t.applicationVersion],
       foreignColumns: [materialVersions.caseId, materialVersions.version],
     }),
-    check("recommendation_version_positive", sql`${t.revision} > 0`),
-    check(
-      "recommendation_position_check",
-      sql`${t.position} IN ('Fund', 'Fund with a condition', 'Defer')`,
-    ),
+    index("recommendation_versions_material_idx").on(t.caseId, t.applicationVersion),
+    index("recommendation_versions_actor_user_idx").on(t.actorUserId),
+    positiveCheck("recommendation_version_positive", t.revision),
+    enumCheck("recommendation_position_check", t.position, [
+      "Fund",
+      "Fund with a condition",
+      "Defer",
+    ]),
     check(
       "recommendation_allocation_check",
       sql`${t.allocationMinorUnits} >= 0 AND ${t.allocationCurrency} = 'EUR' AND ((${t.position} = 'Defer' AND ${t.allocationMinorUnits} = 0) OR (${t.position} IN ('Fund', 'Fund with a condition') AND ${t.allocationMinorUnits} > 0))`,

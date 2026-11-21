@@ -1,7 +1,7 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { expect, it, vi } from "vite-plus/test";
+import { afterEach, expect, it, vi } from "vite-plus/test";
 
 import type { ApplicationContactData } from "@merit/applications-web/contracts";
 import { ApplicationIntake } from "@merit/applications-web/work";
@@ -10,6 +10,7 @@ import { GrantmakingDrafts } from "@merit/grantmaking-web/drafts";
 import { applicationView } from "@merit/grantmaking/api";
 import { makeApplication } from "@merit/grantmaking/testing/fixtures";
 import { createQueryClient } from "@merit/query";
+import { Toasts } from "@merit/ui/toast";
 
 import { WebMessagesProvider } from "../../../../app/messages";
 import { WorkspaceContacts } from "../../../contacts/contacts-provider";
@@ -92,14 +93,39 @@ const setup = (
                 <WorkspaceContacts>{children}</WorkspaceContacts>
               </ContactDrafts>
             </GrantmakingDrafts>
+            <Toasts />
           </WebMessagesProvider>
         </QueryClientProvider>
       ),
     },
   );
 
-  return { data, user: userEvent.setup() };
+  const user = userEvent.setup({
+    advanceTimers: (milliseconds) => {
+      if (vi.isFakeTimers()) {
+        vi.advanceTimersByTime(milliseconds);
+      }
+    },
+  });
+  return { data, user };
 };
+
+afterEach(() => vi.useRealTimers());
+
+// Retry delays use timeouts. Keep rendering intervals and focus restoration on the real clock.
+const useRetryTimers = () =>
+  vi.useFakeTimers({ shouldAdvanceTime: true, toFake: ["setTimeout", "clearTimeout"] });
+
+const offline = () => Promise.reject(new Error("Offline"));
+
+/** Lets a failed refresh exhaust its quiet retries so the failure is reported. */
+const exhaustQuietRetries = () =>
+  act(async () => {
+    await vi.advanceTimersByTimeAsync(4000);
+  });
+
+const savedWarning = "Saved, but the latest application could not be loaded.";
+const readWarning = "The latest application could not be loaded.";
 
 it("uses one section pencil, read-only recorded facts, and a contact choice only in edit mode", async () => {
   const { user } = setup("Leah Martin");
@@ -125,37 +151,35 @@ it("uses one section pencil, read-only recorded facts, and a contact choice only
 it.each([false, true])(
   "retries a committed refresh failure without assigning again (picker reopened: %s)",
   async (reopen) => {
+    useRetryTimers();
     const { data, user } = setup();
     await user.click(screen.getByRole("button", { name: "Edit application details" }));
-    data.refresh.mockRejectedValueOnce(new Error("Offline"));
+    data.refresh.mockImplementationOnce(offline);
+    data.refresh.mockImplementationOnce(offline);
+    data.refresh.mockImplementationOnce(offline);
     await user.click(screen.getByRole("button", { name: "Change contact" }));
     await user.click(await screen.findByRole("option", { name: /Sam Morgan/ }));
 
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-    let warning = screen.getByRole("alert");
-    expect(warning).toHaveAttribute("data-tone", "warning");
-    expect(warning).toHaveTextContent("Saved, but the latest information could not be loaded.");
+    await exhaustQuietRetries();
+    const warning = await screen.findByRole("alertdialog", { name: savedWarning });
     expect(screen.getByRole("button", { name: "Undo" })).toBeEnabled();
 
     if (reopen) {
       await user.click(screen.getByRole("button", { name: "Change contact" }));
-      warning = within(screen.getByRole("dialog", { name: "Change contact" })).getByRole("alert");
-      expect(warning).toHaveTextContent("Saved, but the latest information could not be loaded.");
+      expect(screen.getByRole("alertdialog", { name: savedWarning })).toBe(warning);
     }
 
-    await user.click(within(warning).getByRole("button", { name: "Retry" }));
+    await user.click(within(warning).getByRole("button", { name: "Refresh" }));
 
-    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
-    expect(data.refresh).toHaveBeenCalledTimes(2);
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+    expect(data.refresh).toHaveBeenCalledTimes(4);
     expect(data.refreshCurrent).not.toHaveBeenCalled();
     expect(data.selectContact).toHaveBeenCalledExactlyOnceWith("sam", 3);
 
     if (reopen) {
-      await user.click(
-        within(screen.getByRole("dialog", { name: "Change contact" })).getByRole("button", {
-          name: "Close dialog",
-        }),
-      );
+      await user.click(screen.getByRole("textbox", { name: "Find a contact" }));
+      await user.keyboard("{Escape}");
       await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     }
 
@@ -193,7 +217,8 @@ it.each([
     const failure = await picker.findByRole("alert");
     expect(failure).toHaveAttribute("data-tone", "danger");
     expect(failure).toHaveTextContent(message);
-    expect(picker.getByRole("button", { name: "Close dialog" })).toBeEnabled();
+    // Pickers have no visible close control; Escape dismisses them.
+    expect(picker.queryByRole("button", { name: "Close dialog" })).not.toBeInTheDocument();
     expect(data.refresh).not.toHaveBeenCalled();
     expect(data.refreshCurrent).not.toHaveBeenCalled();
     expect(screen.queryByRole("button", { name: "Undo" })).not.toBeInTheDocument();
@@ -210,25 +235,25 @@ it.each([
   },
 );
 
-it("keeps a conflicting assignment distinct from a failed read and disables actions during retry", async () => {
+it("keeps a conflicting assignment distinct from a failed read and disables actions during an explicit retry", async () => {
+  useRetryTimers();
   const { data, user } = setup();
   await user.click(screen.getByRole("button", { name: "Edit application details" }));
   data.selectContact.mockResolvedValueOnce({ status: "conflict" });
-  data.refreshCurrent.mockRejectedValueOnce(new Error("Offline"));
+  data.refreshCurrent.mockImplementationOnce(offline);
+  data.refreshCurrent.mockImplementationOnce(offline);
+  data.refreshCurrent.mockImplementationOnce(offline);
   await user.click(screen.getByRole("button", { name: "Change contact" }));
   await user.click(await screen.findByRole("option", { name: /Sam Morgan/ }));
   const picker = within(screen.getByRole("dialog", { name: "Change contact" }));
   const conflictMessage =
     "This application changed. Close and reopen the contact picker to review the latest information.";
   expect(await picker.findByText(conflictMessage)).toBeVisible();
-  expect(
-    await picker.findByText(
-      "The latest information could not be loaded. Try again to review current work.",
-    ),
-  ).toBeVisible();
-  expect(
-    picker.queryByText("Saved, but the latest information could not be loaded."),
-  ).not.toBeInTheDocument();
+  // The read failure is reported only after its quiet retries, and never as a save.
+  expect(screen.queryByRole("alertdialog", { name: readWarning })).not.toBeInTheDocument();
+  await exhaustQuietRetries();
+  const warning = await screen.findByRole("alertdialog", { name: readWarning });
+  expect(screen.queryByRole("alertdialog", { name: savedWarning })).not.toBeInTheDocument();
 
   let finishRefresh = () => {};
 
@@ -238,24 +263,22 @@ it("keeps a conflicting assignment distinct from a failed read and disables acti
         finishRefresh = resolve;
       }),
   );
-  const retry = picker.getByRole("button", { name: "Retry" });
-  await user.click(retry);
-  expect(retry).toBeDisabled();
-  expect(picker.getByRole("button", { name: "Close dialog" })).toBeDisabled();
+  await user.click(within(warning).getByRole("button", { name: "Refresh" }));
+  // Dismissal is blocked while the explicit retry runs.
   await user.keyboard("{Escape}");
   expect(picker.getByText(conflictMessage)).toBeVisible();
 
   await act(async () => finishRefresh());
 
-  await waitFor(() =>
-    expect(picker.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument(),
-  );
-  expect(picker.getByRole("alert")).toHaveTextContent(conflictMessage);
-  expect(picker.getByRole("button", { name: "Close dialog" })).toBeEnabled();
-  expect(data.refreshCurrent).toHaveBeenCalledTimes(2);
+  await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+  expect(picker.getByText(conflictMessage)).toBeVisible();
+  expect(data.refreshCurrent).toHaveBeenCalledTimes(4);
   expect(data.refresh).not.toHaveBeenCalled();
   expect(data.selectContact).toHaveBeenCalledExactlyOnceWith("sam", 3);
   expect(screen.queryByRole("button", { name: "Undo" })).not.toBeInTheDocument();
+
+  await user.keyboard("{Escape}");
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
 });
 
 it("returns keyboard focus to the contact control after a slow post-save refresh", async () => {
@@ -290,8 +313,11 @@ it("returns keyboard focus to the contact control after a slow post-save refresh
 });
 
 it("keeps Undo and refresh recovery after closing the section and returns focus to its pencil", async () => {
+  useRetryTimers();
   const { data, user } = setup();
-  data.refresh.mockRejectedValueOnce(new Error("Offline"));
+  data.refresh.mockImplementationOnce(offline);
+  data.refresh.mockImplementationOnce(offline);
+  data.refresh.mockImplementationOnce(offline);
   await user.click(screen.getByRole("button", { name: "Edit application details" }));
   await user.click(screen.getByRole("button", { name: "Change contact" }));
   await user.click(await screen.findByRole("option", { name: /Sam Morgan/ }));
@@ -301,10 +327,9 @@ it("keeps Undo and refresh recovery after closing the section and returns focus 
     expect(screen.getByRole("button", { name: "Edit application details" })).toHaveFocus(),
   );
   expect(screen.queryByRole("button", { name: /Change contact/ })).not.toBeInTheDocument();
-  expect(screen.getByRole("alert")).toHaveTextContent(
-    "Saved, but the latest information could not be loaded.",
-  );
-  await user.click(screen.getByRole("button", { name: "Retry" }));
+  await exhaustQuietRetries();
+  const warning = await screen.findByRole("alertdialog", { name: savedWarning });
+  await user.click(within(warning).getByRole("button", { name: "Refresh" }));
   expect(data.selectContact).toHaveBeenCalledExactlyOnceWith("sam", 3);
   await user.click(screen.getByRole("button", { name: "Undo" }));
   expect(data.selectContact).toHaveBeenLastCalledWith(null, 4);

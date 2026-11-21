@@ -1,7 +1,7 @@
 import { test, expect, checkPage } from "@merit/test-support/browser";
 
-const reviewer = "features-applications-participate-in-review";
-const manager = "features-applications-reviewer-participation";
+const reviewer = "features-applications-review-an-assigned-application";
+const manager = "features-applications-manage-reviewer-invitations";
 
 test("reviewer invitation and management reference comparisons", async ({ page }, testInfo) => {
   for (const id of [

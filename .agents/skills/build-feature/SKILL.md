@@ -72,6 +72,9 @@ that depend on it.
 - Cover, where relevant: who acts and with what authority; states and transitions;
   validation and business rules; what is saved and audited; empty, long, and
   missing content; failed saves, conflicts, and recovery; MCP and other interfaces.
+- When persistence changes, follow the [database schema guide](../../../docs/guides/database.md)
+  and settle entity cardinality, primary/foreign keys, SQL `CHECK` invariants,
+  deletion/cascade lifecycle, and query/index access paths before writing code.
 - Show the chosen UI precedent and the runner-up, and ask which the new screen
   should match. This question prevents most UI that looks worse than its neighbors.
 - Stop when no open question would change what gets built.
@@ -96,6 +99,10 @@ checkable bullets>
 - UI: <screen, story, and its stylesheet>
 - Behavior: <controller, data adapter, business operation>
 - Tests: <test files, fixtures, and helpers to mirror>
+
+**Data model:** <tables/columns added or altered, PK/FK strategy, SQL `CHECK`
+invariants, covering FK/query indexes, and cascade/retention behavior; "None" when
+persistence is unchanged>
 
 **Plan:** <owning capability and layer for each change, from the web features
 guide; the business operation; shared components to use or extend>

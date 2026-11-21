@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { beforeEach, vi } from "vite-plus/test";
 
 import { createQueryClient } from "@merit/query";
+import { Toasts } from "@merit/ui/toast";
 
 import { AdminMessages } from "../../../app/messages";
 import type { Organization } from "../contracts";
@@ -40,6 +41,7 @@ export const Wrapper = ({ children, scope }: { children: ReactNode; scope?: stri
     <QueryClientProvider client={client}>
       <AdminMessages>
         <AdminDrafts scope={scope}>{children}</AdminDrafts>
+        <Toasts />
       </AdminMessages>
     </QueryClientProvider>
   );

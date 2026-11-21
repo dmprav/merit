@@ -34,24 +34,27 @@ restores its filters, sorting, and position. Applications opened from a round or
 direct URL retain the round hierarchy; the round breadcrumb opens its Applications
 section. Pin controls sit beside the current breadcrumb name across applications,
 rounds, and review assignments. An outline pin becomes filled when saved, with a
-tooltip naming the action. Sidebar pins use a single truncated title; hover or
-keyboard focus reveals the full title and round or workspace context, which also
-remains in the link's accessible name. Each section shows the first five pins.
-A hidden-count overflow control opens all saved pins in a bounded popup with full
-context. The sidebar stays fixed. When the current pin is hidden, its collection
-remains marked as the current location; the popup marks the actual current pin.
+tooltip naming the action. The sidebar lists the workspace's pins together in a
+collapsible **Pinned** section near the top. Funding rounds, applications, and
+review assignments the person can open each keep their own saved order, as the
+[workflow](../../../../docs/workflows/review-and-decide.md) requires, so the
+section lists them by kind. Each pin repeats
+its collection's icon and shows a single truncated title; hover or keyboard focus
+reveals the full title and round or workspace context, which also remains in the
+link's accessible name. The list is not capped; the sidebar scrolls. The current
+pin is marked as the current location; its collection is marked only when the page
+is not pinned.
 
-Drag a pin within its list to reorder it. The insertion cue shows where it will
+Drag a pin within its kind's list to reorder it. The insertion cue shows where it will
 land. Right-click, the platform context-menu keyboard shortcut (Control+Enter on
-macOS, Shift+F10 on Windows/Linux), or touch long-press opens Move up and Move down;
-Escape cancels without changing the saved order. Popup titles show full context
-without an additional tooltip. Every pin has a direct unpin control. Sidebar X actions
-overlay the trailing edge on hover or keyboard focus, leaving the full label width
-available at rest without reflow. Touch keeps controls visible with larger targets.
-Failed changes keep the saved order and offer retry in the active surface.
-Sidebar removal returns focus to the collection link; popup removal keeps the
-collection open and focuses the adjacent pin until only five remain, then closes
-and focuses the collection link. Moving a pin outside the preview focuses overflow.
+macOS, Shift+F10 on Windows/Linux), or touch long-press opens Move up, Move down,
+and Unpin; Escape cancels without changing the saved order. Every pin has a direct
+unpin control. Sidebar X actions overlay the trailing edge on hover or keyboard
+focus, leaving the full label width available at rest without reflow. Touch keeps
+controls visible with larger targets. Failed changes keep the saved order and offer
+retry in the sidebar. Removing a pin focuses the next pin, or its collection link
+when none remain. A change that settles after navigation leaves the new page's
+focus and feedback alone.
 
 The workspace loader prepares pins alongside workspace access and discovery, so
 the initial page and hydrated sidebar share the same saved navigation. A failed

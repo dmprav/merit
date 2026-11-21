@@ -5,7 +5,7 @@ test(
   { tag: "@cross-browser" },
   async ({ page }) => {
     await page.goto(
-      "/iframe.html?id=features-applications-overview--changed-evidence&viewMode=story",
+      "/iframe.html?id=features-applications-application-detail--changed-evidence&viewMode=story",
     );
     await expect(page.locator("#storybook-root")).toHaveAttribute("data-story-ready", "true");
     const workspace = page.getByRole("complementary", { name: "Application workspace" });
@@ -163,9 +163,8 @@ for (const choice of ["Keep my changes", "Discard & load latest"]) {
       await expect(dialog.getByRole("textbox", { name: "Applicant", exact: true })).toHaveValue(
         "Neighbourhood Kitchen — local edit",
       );
-      const saved = dialog.getByRole("region", { name: "Latest saved values", exact: true });
-      await expect(saved.getByText("Neighbourhood Kitchen", { exact: true })).toBeVisible();
-      await expect(saved.getByText("€28,000", { exact: true })).toBeVisible();
+      // Each field that differs shows its saved value beneath it.
+      await expect(dialog.getByText(/^Now saved as Neighbourhood Kitchen$/)).toBeVisible();
       const recover = dialog.getByRole("button", { name: choice, exact: true });
       await recover.focus();
       await recover.press("Enter");
@@ -180,7 +179,7 @@ for (const choice of ["Keep my changes", "Discard & load latest"]) {
       await expect(
         dialog.getByRole("textbox", { name: "Requested amount", exact: true }),
       ).toHaveValue("28000.00");
-      await expect(dialog.getByText("Latest saved values", { exact: true })).toHaveCount(0);
+      await expect(dialog.getByText("Now saved as", { exact: true })).toHaveCount(0);
       await expect(dialog.getByRole("button", { name: "Save", exact: true })).toBeEnabled();
       await checkPage(page);
     },
@@ -192,7 +191,8 @@ test(
   { tag: "@cross-browser" },
   async ({ page }, testInfo) => {
     if (!testInfo.project.use.isMobile) {
-      await page.setViewportSize({ width: 1280, height: 640 });
+      // Short enough that the compact assessment list scrolls to reach the review.
+      await page.setViewportSize({ width: 1280, height: 480 });
     }
     await page.goto(
       "/iframe.html?id=features-applications-recommendation--resume-editing&viewMode=story",
@@ -204,10 +204,9 @@ test(
       .getByRole("button", { name: "Review details", exact: true });
     await detail.focus();
 
+    // The pane or the page scrolls, depending on the space available; either keeps the position.
     const readPosition = () =>
-      testInfo.project.use.isMobile
-        ? page.evaluate(() => window.scrollY)
-        : reference.evaluate((element) => element.scrollTop);
+      reference.evaluate((element) => Math.round(element.scrollTop + window.scrollY));
 
     const position = await readPosition();
     expect(position).toBeGreaterThan(0);
@@ -309,7 +308,7 @@ test(
       await page.setViewportSize({ width: 1440, height: 800 });
     }
     await page.goto(
-      "/iframe.html?id=features-applications-overview--external-reference-navigation&viewMode=story",
+      "/iframe.html?id=features-applications-application-detail--external-reference-navigation&viewMode=story",
     );
     await expect(page.locator("#storybook-root")).toHaveAttribute("data-story-ready", "true");
     const reference = page.getByRole("group", { name: "Reference", exact: true });
@@ -338,7 +337,7 @@ test(
   { tag: "@cross-browser" },
   async ({ page }, testInfo) => {
     await page.goto(
-      "/iframe.html?id=features-funding-rounds-deletion-recovery--return-failed&viewMode=story",
+      "/iframe.html?id=features-funding-rounds-manage-round--round-deleted-return-to-list-failed&viewMode=story",
     );
     await expect(page.locator("#storybook-root")).toHaveAttribute("data-story-ready", "true");
     const back = page.getByRole("button", { name: "Return to funding rounds" });

@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { FormDialog } from "@merit/forms";
@@ -16,13 +16,13 @@ type ContactSelectionProps = {
   value: string | null;
   onChange: (id: string | null) => void;
   label: string;
+  /** Keeps the select's label for assistive technology when surrounding content already names it. */
+  isLabelHidden?: boolean;
   error?: string;
   isDisabled?: boolean;
   autoFocus?: boolean;
   onBlur?: () => void;
   direct?: boolean;
-  /** Actions beside search when the picker is shown directly. */
-  headerActions?: ReactNode;
   emptySelectionLabel?: string;
   isRequired?: boolean;
 };
@@ -84,17 +84,22 @@ export const ContactPicker = ({
         </Notice>
       )}
       {data.readFailed && (
-        <Notice tone="danger">
-          {t("error")}{" "}
-          <Button variant="quiet" onPress={() => void data.refreshCurrent().catch(() => {})}>
-            {t("retry")}
-          </Button>
+        <Notice
+          appearance="inline"
+          tone="danger"
+          role="alert"
+          actions={
+            <Button variant="quiet" onPress={() => void data.refreshCurrent().catch(() => {})}>
+              {t("retry")}
+            </Button>
+          }
+        >
+          {t("loadError")}
         </Notice>
       )}
       {selection.direct && (
         <Inline>
           <Button
-            size="small"
             variant="quiet"
             isDisabled={selection.isDisabled}
             onPress={() => changeEditor(true)}
@@ -141,12 +146,12 @@ const ContactSelection = ({
   value,
   onChange,
   label,
+  isLabelHidden,
   error,
   isDisabled,
   autoFocus,
   onBlur,
   direct = false,
-  headerActions,
   emptySelectionLabel,
   isRequired = false,
   canSelect,
@@ -174,7 +179,6 @@ const ContactSelection = ({
   if (direct) {
     return (
       <ChoiceList
-        headerActions={headerActions}
         label={label}
         searchLabel={t("search")}
         emptyLabel={t("emptyContacts")}
@@ -189,6 +193,7 @@ const ContactSelection = ({
   return (
     <Select
       label={label}
+      isLabelHidden={isLabelHidden}
       isRequired={isRequired}
       placeholder={emptySelectionLabel}
       isDisabled={isDisabled}
@@ -199,7 +204,7 @@ const ContactSelection = ({
       errorMessage={<span role="alert">{error}</span>}
       selectedKey={selectedKey}
       onSelectionChange={choose}
-      actions={[{ id: "add", label: addContactLabel, onAction: onCreate }]}
+      actions={[{ id: "add", label: addContactLabel, icon: "add", onAction: onCreate }]}
       items={items}
     />
   );

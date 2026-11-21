@@ -13,6 +13,9 @@ import { useTranslation } from "react-i18next";
 
 import { createMessages, MessagesProvider, type LocaleSettings } from "@merit/i18n";
 import { reportError } from "@merit/telemetry/errors";
+import { Link } from "@merit/ui/link";
+import { StateMessage } from "@merit/ui/state-message";
+import { Toasts } from "@merit/ui/toast";
 
 import { AccountProvider } from "./account-provider";
 import { ShellAnalyticsProvider } from "./analytics";
@@ -29,10 +32,14 @@ const NotFound = () => {
 
   return (
     <main className={localStyles.fallback}>
-      <h1 className={localStyles.title}>{t("notFound")}</h1>
-      <a href="/" className={localStyles.returnLink}>
-        {t("back")}
-      </a>
+      <StateMessage
+        title={t("notFound")}
+        actions={
+          <Link href="/" variant="standalone">
+            {t("back")}
+          </Link>
+        }
+      />
     </main>
   );
 };
@@ -46,11 +53,15 @@ const PageError = ({ error }: ErrorComponentProps) => {
 
   return (
     <main className={localStyles.fallback}>
-      <h1 className={localStyles.title}>{t("error.title")}</h1>
-      <p>{t("error.description")}</p>
-      <a href="/" className={localStyles.returnLink}>
-        {t("back")}
-      </a>
+      <StateMessage
+        title={t("error.title")}
+        description={t("error.description")}
+        actions={
+          <Link href="/" variant="standalone">
+            {t("back")}
+          </Link>
+        }
+      />
     </main>
   );
 };
@@ -75,6 +86,7 @@ const Root = ({ children }: { children: ReactNode }) => {
           <ShellAnalyticsProvider>
             <AccountProvider>{children}</AccountProvider>
           </ShellAnalyticsProvider>
+          <Toasts />
           {DevelopmentTools && (
             <ClientOnly>
               <Suspense>

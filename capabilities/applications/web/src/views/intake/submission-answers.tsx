@@ -1,5 +1,6 @@
 import type { ApplicationView } from "@merit/grantmaking/api";
 import { Reading } from "@merit/ui/layout";
+import { SectionHeader } from "@merit/ui/section-header";
 
 import styles from "./intake-content.module.css";
 
@@ -11,15 +12,12 @@ export const SubmissionAnswers = ({
   answers: NonNullable<ApplicationView["submission"]>["answers"];
   headingLevel?: 3 | 4 | 5;
 }) => {
-  const Heading = `h${headingLevel}` as const;
   return (
     <>
       {answers.map((answer) => (
         <section key={answer.questionId} className={styles.evidenceSection}>
-          {answer.question && <Heading>{answer.question}</Heading>}
-          <Reading as="p" className={styles.prose}>
-            {answer.response}
-          </Reading>
+          {answer.question && <SectionHeader level={headingLevel} title={answer.question} />}
+          <Reading as="p">{answer.response}</Reading>
         </section>
       ))}
     </>

@@ -56,7 +56,6 @@ export const CreationForm = ({
     <Form
       label={label}
       submission={submission}
-      className={styles.form}
       actions={
         <FormActions
           submission={submission}

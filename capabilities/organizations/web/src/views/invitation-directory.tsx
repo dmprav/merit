@@ -34,14 +34,7 @@ const InvitationActions = ({
     <ActionMenu
       label={label}
       trigger={
-        <Button
-          ref={trigger}
-          variant="quiet"
-          size="small"
-          iconOnly
-          isDisabled={isDisabled}
-          aria-label={label}
-        >
+        <Button ref={trigger} variant="quiet" iconOnly isDisabled={isDisabled} aria-label={label}>
           <Icon name="more" />
         </Button>
       }

@@ -7,14 +7,12 @@
   font-weight: 600;
 }
 
-.reading {
-  font-size: var(--text-reading);
-  line-height: var(--leading-reading);
+.steps {
+  padding-inline-start: var(--space-6);
 }
 
-.steps {
+.steps li {
   list-style: decimal;
-  padding-inline-start: var(--space-6);
 }
 
 .narrow {
@@ -24,9 +22,4 @@
 .context {
   max-width: 20rem;
   font-size: var(--text-detail);
-}
-
-.caption {
-  font-size: var(--text-caption);
-  color: var(--muted);
 }

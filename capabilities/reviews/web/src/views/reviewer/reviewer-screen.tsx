@@ -12,16 +12,22 @@ import { ActionMenu } from "@merit/ui/action-menu";
 import { Badge } from "@merit/ui/badge";
 import { Button } from "@merit/ui/button";
 import { ConfirmationDialog } from "@merit/ui/confirmation-dialog";
+import { DescriptionList, DescriptionListItem } from "@merit/ui/description-list";
+import { Divider } from "@merit/ui/divider";
 import { Icon } from "@merit/ui/icon";
-import { Inline, Stack } from "@merit/ui/layout";
+import { Inline, Reading, Stack } from "@merit/ui/layout";
+import { Link } from "@merit/ui/link";
 import { Notice } from "@merit/ui/notice";
 import { PageHeader } from "@merit/ui/page-header";
+import { Panel } from "@merit/ui/panel";
 import {
   ReferencePane,
   ReferenceSwitcher,
   ReferenceWorkspace,
   useReferenceViewport,
 } from "@merit/ui/reference-workspace";
+import { SectionHeader } from "@merit/ui/section-header";
+import { Text } from "@merit/ui/text";
 
 import type { ReviewerData } from "../../contracts/reviewer";
 import { useReviewer, type ReviewerSession } from "../../controllers/reviewer/use-reviewer";
@@ -55,7 +61,7 @@ export const ReviewerScreen = ({
   const errorKey = work.error as ReviewerErrorKey | null;
 
   return (
-    <div className={styles.screen}>
+    <>
       {material ? (
         <ReferenceWorkspace
           header={
@@ -103,7 +109,7 @@ export const ReviewerScreen = ({
           }
         }}
       />
-    </div>
+    </>
   );
 };
 
@@ -146,8 +152,8 @@ const ReviewerReference = ({
         {assignment.materialChanged && <Notice tone="warning">{t("changed")}</Notice>}
         {material.submission && <SubmissionAnswers answers={material.submission.answers} />}
         {material.evidence.map((evidence, index) => (
-          <blockquote className={styles.writing} key={index}>
-            {evidence.passage}
+          <blockquote key={index}>
+            <Reading>{evidence.passage}</Reading>
           </blockquote>
         ))}
       </Stack>
@@ -169,10 +175,7 @@ const ReviewerReference = ({
 };
 
 const ReferenceHeading = ({ title, version }: { title: string; version: string }) => (
-  <div className={styles.referenceHeading}>
-    <h2>{title}</h2>
-    <span>{version}</span>
-  </div>
+  <SectionHeader title={title} aside={<Text variant="supporting">{version}</Text>} />
 );
 
 const ReviewerHeader = ({
@@ -218,14 +221,13 @@ const ReviewerHeader = ({
       actions={
         <>
           <span role="status" className={styles.working}>
-            {!editing && work.busy ? t("working") : ""}
+            {!editing && work.busy ? <Text variant="supporting">{t("working")}</Text> : null}
           </span>
           {actions.length > 0 && (
             <ActionMenu
               label={t("moreActions")}
               trigger={
                 <Button
-                  size="small"
                   variant="quiet"
                   iconOnly
                   isDisabled={work.busy}
@@ -265,23 +267,27 @@ const ReviewerParticipation = ({
       ? t("invitation")
       : t(`status.${assignment.status}`);
   return (
-    <section className={styles.participation} aria-label={title}>
+    <Panel as="section" padding={6} aria-label={title}>
+      <PageHeader density="compact" kicker={assignment.organization} title={title} />
       <Stack gap={5}>
-        <PageHeader density="compact" kicker={assignment.organization} title={title} />
         <Stack gap={3}>
           <div>
-            <p className={styles.applicationIdentity}>{assignment.applicationTitle}</p>
-            <p className={styles.hint}>{assignment.applicant}</p>
+            <Text as="p" variant="emphasis">
+              {assignment.applicationTitle}
+            </Text>
+            <Text as="p" variant="supporting">
+              {assignment.applicant}
+            </Text>
           </div>
-          <p className={styles.requester}>
+          <Text as="p" variant="supporting">
             {invited ? (
               t("invitedBy", { name: assignment.managerName })
             ) : (
-              <a href={`mailto:${assignment.managerEmail}`}>
+              <Link href={`mailto:${assignment.managerEmail}`}>
                 {t("contactManager", { name: assignment.managerName })}
-              </a>
+              </Link>
             )}
-          </p>
+          </Text>
           {invited && (
             <>
               <p className={styles.responseDate}>
@@ -300,40 +306,70 @@ const ReviewerParticipation = ({
             <>
               <p>{t("paused")}</p>
               {assignment.conflict && (
-                <div>
-                  <p className={styles.noteTitle}>{t("reportedConflict")}</p>
-                  <p className={styles.writing}>{assignment.conflict}</p>
-                </div>
+                <DescriptionList>
+                  <DescriptionListItem label={t("reportedConflict")}>
+                    <Reading as="p">{assignment.conflict}</Reading>
+                  </DescriptionListItem>
+                </DescriptionList>
               )}
             </>
           )}
         </Stack>
         {work.busy && (
-          <p role="status" className={styles.working}>
-            {t("working")}
-          </p>
+          <div role="status">
+            <Text as="p" variant="supporting">
+              {t("working")}
+            </Text>
+          </div>
         )}
         <ReviewerFeedback work={work} />
         <RetainedDraft work={work} />
         {invited && (
-          <>
-            <Inline className={styles.participationActions}>
-              <Button isDisabled={work.busy} onPress={() => void work.respond("accept", "")}>
-                {t("accept")}
-              </Button>
-              {!assignment.hasSubmitted && (
-                <Button variant="secondary" isDisabled={work.busy} onPress={onDecline}>
-                  {t("decline")}
-                </Button>
-              )}
-              <Button variant="quiet" isDisabled={work.busy} onPress={onConflict}>
-                {t("conflict")}
-              </Button>
-            </Inline>
-          </>
+          <ParticipationActions
+            work={work}
+            canDecline={!assignment.hasSubmitted}
+            onDecline={onDecline}
+            onConflict={onConflict}
+          />
         )}
       </Stack>
-    </section>
+    </Panel>
+  );
+};
+
+const ParticipationActions = ({
+  work,
+  canDecline,
+  onDecline,
+  onConflict,
+}: {
+  work: ReviewerWork;
+  canDecline: boolean;
+  onDecline: () => void;
+  onConflict: () => void;
+}) => {
+  const { t } = useTranslation("reviewer");
+  return (
+    <Stack gap={4}>
+      <Divider />
+      <Inline>
+        <Button
+          size="medium"
+          isDisabled={work.busy}
+          onPress={() => void work.respond("accept", "")}
+        >
+          {t("accept")}
+        </Button>
+        {canDecline && (
+          <Button size="medium" variant="secondary" isDisabled={work.busy} onPress={onDecline}>
+            {t("decline")}
+          </Button>
+        )}
+        <Button size="medium" variant="quiet" isDisabled={work.busy} onPress={onConflict}>
+          {t("conflict")}
+        </Button>
+      </Inline>
+    </Stack>
   );
 };
 

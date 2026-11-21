@@ -12,6 +12,7 @@
     "./browser/calendar": "./browser/calendar.ts",
     "./browser/navigation": "./browser/navigation.ts",
     "./ui": "./ui/setup.ts",
+    "./ui/public-contract": "./ui/public-contract.ts",
     "./ui/workspace": "./ui/setup-workspace.ts"
   },
   "devDependencies": {

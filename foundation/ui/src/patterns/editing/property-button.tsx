@@ -1,7 +1,7 @@
-import type { ComponentProps, ReactNode } from "react";
+import type { ReactNode } from "react";
 
-import { Button } from "../../components/button/button";
-import { Icon } from "../../components/icon/icon";
+import { ButtonBase, type ButtonBaseProps } from "../../components/button/button-base";
+import { IconBase } from "../../components/icon/icon-base";
 import styles from "./property-button.module.css";
 
 /** An editable value with a visible cue; the feature owns its editor and commitment. */
@@ -11,16 +11,16 @@ export const PropertyButton = ({
   draftLabel,
   children,
   ...props
-}: Omit<
-  ComponentProps<typeof Button>,
-  "variant" | "size" | "iconOnly" | "className" | "style" | "children" | "aria-label"
+}: Pick<
+  ButtonBaseProps,
+  "ref" | "id" | "onPress" | "isDisabled" | "autoFocus" | "aria-describedby" | "aria-expanded"
 > & {
   action: "edit" | "choose";
   label: string;
   draftLabel?: string;
   children: ReactNode;
 }) => (
-  <Button
+  <ButtonBase
     {...props}
     size="small"
     variant="quiet"
@@ -28,7 +28,7 @@ export const PropertyButton = ({
     aria-label={draftLabel ? `${label} ${draftLabel}` : label}
   >
     <span className={styles.value}>{children}</span>
-    <Icon name={action === "choose" ? "down" : "edit"} className={styles.cue} />
+    <IconBase name={action === "choose" ? "down" : "edit"} className={styles.cue} />
     {draftLabel && <span className={styles.draft}> {draftLabel}</span>}
-  </Button>
+  </ButtonBase>
 );

@@ -1,0 +1,12 @@
+/* Clerk renders this markup; its appearance API accepts these classes for the shared panel look. */
+.form,
+.card {
+  width: 100%;
+  min-width: 0;
+}
+
+.card {
+  border: 1px solid var(--border);
+  border-radius: var(--panel-radius);
+  box-shadow: none;
+}

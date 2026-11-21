@@ -1,16 +1,15 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { CreateAction } from "@merit/grantmaking-web/creation";
 import { Button } from "@merit/ui/button";
 import { Inline } from "@merit/ui/layout";
-import linkStyles from "@merit/ui/link.module.css";
 import { Select } from "@merit/ui/select";
 
+import { RoutedLink } from "../../shared/routed-link";
 import type { ApplicationsSearch } from "./contracts/applications-location";
-import { creationLocation } from "./contracts/creation-location";
 import { workspaceCreationData } from "./data/creation/workspace-data";
 
 export const WorkspaceApplicationCreate = ({
@@ -32,13 +31,9 @@ export const WorkspaceApplicationCreate = ({
     return (
       <div>
         <p>{t("overview.createRoundFirst")}</p>
-        <Link
-          className={linkStyles.text}
-          to="/app/$workspaceSlug/rounds"
-          params={{ workspaceSlug }}
-        >
+        <RoutedLink to="/app/$workspaceSlug/rounds" params={{ workspaceSlug }}>
           {t("overview.roundsLink")}
-        </Link>
+        </RoutedLink>
       </div>
     );
   }
@@ -56,7 +51,7 @@ export const WorkspaceApplicationCreate = ({
     : null;
 
   return (
-    <Inline style={{ alignItems: "end" }}>
+    <Inline align="end">
       <Select
         label={t("overview.createIn")}
         placeholder={t("overview.chooseRound")}
@@ -65,20 +60,9 @@ export const WorkspaceApplicationCreate = ({
         items={rounds.map((item) => ({ id: item.id, label: item.title }))}
       />
       {data ? (
-        <CreateAction
-          data={data}
-          renderCreatedLink={(record, label) => (
-            <Link
-              className={linkStyles.text}
-              {...creationLocation(data.target, record)}
-              search={returnSearch}
-            >
-              {label}
-            </Link>
-          )}
-        />
+        <CreateAction data={data} />
       ) : (
-        <Button variant="secondary" size="small" isDisabled>
+        <Button variant="secondary" isDisabled>
           {t("intake.add")}
         </Button>
       )}

@@ -12,23 +12,13 @@
   margin-top: var(--space-7);
 }
 
-.detailSection p,
-.detailSection li {
-  font-size: var(--text-reading);
-  line-height: var(--leading-reading);
+.criteria > li {
   max-width: var(--measure-reading);
-  white-space: pre-line;
 }
 
 .detailSection .criteria {
   list-style: none;
   padding: 0;
-}
-
-.criteria h3 {
-  font-size: var(--text-detail);
-  font-weight: 500;
-  margin-bottom: var(--space-1);
 }
 
 .criteria li + li {
@@ -41,10 +31,6 @@
   gap: var(--space-1);
   width: 100%;
   min-width: 0;
-}
-
-.muted {
-  color: var(--muted);
 }
 
 .properties {

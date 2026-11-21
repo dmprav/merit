@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState, type ComponentProps } from "react";
 import { assert, expect, it, vi } from "vite-plus/test";
@@ -45,6 +45,11 @@ const round: ApplicationRoundContext = {
   criteriaVersion: makeRound().criteriaVersion,
   criteriaHistory: makeRound().criteriaHistory,
 };
+
+const budgetFigure = (preview: HTMLElement) => ({
+  label: within(preview).getByRole("term").textContent,
+  amount: within(preview).getByRole("definition").textContent,
+});
 
 const EditableRecommendation = ({
   onSave,
@@ -313,12 +318,12 @@ it("previews replacement allocations, deferrals and invalid amounts without savi
   ).not.toBeInTheDocument();
   expect(amount).toHaveAccessibleDescription("Euros");
   expect(amount).toBeRequired();
-  expect(preview).toHaveTextContent("Remaining with draft €8,000");
+  expect(budgetFigure(preview)).toEqual({ label: "Remaining with draft", amount: "€8,000" });
 
   await user.clear(amount);
   await user.type(amount, "20000");
 
-  expect(preview).toHaveTextContent("Remaining with draft €12,000");
+  expect(budgetFigure(preview)).toEqual({ label: "Remaining with draft", amount: "€12,000" });
 
   await user.click(screen.getByRole("button", { name: /Recommendation$/ }));
   await user.click(screen.getByRole("option", { name: "Fund with a condition" }));
@@ -329,17 +334,17 @@ it("previews replacement allocations, deferrals and invalid amounts without savi
   await user.clear(amount);
   await user.type(amount, "40000");
 
-  expect(preview).toHaveTextContent("Over budget with draft €8,000");
+  expect(budgetFigure(preview)).toEqual({ label: "Over budget with draft", amount: "€8,000" });
 
   await user.clear(amount);
 
-  expect(preview).toHaveTextContent("Remaining with draft —");
+  expect(budgetFigure(preview)).toEqual({ label: "Remaining with draft", amount: "—" });
 
   await user.click(screen.getByRole("button", { name: /Recommendation$/ }));
   await user.click(screen.getByRole("option", { name: "Defer" }));
 
   expect(screen.queryByRole("textbox", { name: "Proposed allocation" })).not.toBeInTheDocument();
-  expect(preview).toHaveTextContent("Remaining with draft €32,000");
+  expect(budgetFigure(preview)).toEqual({ label: "Remaining with draft", amount: "€32,000" });
 
   await user.click(screen.getByRole("button", { name: "Close" }));
 
@@ -415,9 +420,10 @@ it("formats allocations on blur and saves the same cents shown in the budget pre
   await user.clear(amount);
   await user.type(amount, "20000.005");
 
-  expect(screen.getByRole("status", { name: "Budget preview" })).toHaveTextContent(
-    "Remaining with draft €12,000",
-  );
+  expect(budgetFigure(screen.getByRole("status", { name: "Budget preview" }))).toEqual({
+    label: "Remaining with draft",
+    amount: "€12,000",
+  });
   expect(amount).toHaveValue("20000.00");
 
   await user.tripleClick(amount);

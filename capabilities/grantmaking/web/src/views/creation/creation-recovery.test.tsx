@@ -51,7 +51,6 @@ const setup = () => {
                 refresh: vi.fn(),
                 open: vi.fn(),
               }}
-              renderCreatedLink={() => null}
             />
           </DraftContext>
         </GrantmakingMessagesProvider>

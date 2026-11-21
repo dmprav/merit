@@ -1,6 +1,6 @@
-import type { ComponentProps, ReactNode } from "react";
+import type { AriaRole, ReactNode } from "react";
 
-import { Icon } from "../icon/icon";
+import { IconBase } from "../icon/icon-base";
 import styles from "./notice.module.css";
 
 const icons = {
@@ -17,43 +17,47 @@ const icons = {
  * supplementary. Keep short messages to one sentence. Every tone shows an icon. By default the
  * message sits on a light tinted surface so it stands apart from nearby content; use
  * appearance=inline for quiet icon-and-text feedback inside a task surface. Use title and actions
- * for structured recovery feedback, as="div" for paragraphs, or as="ul" for a list. Notice spaces
- * direct blocks; use Inline for a wrapping action group. Tone controls appearance only: callers
- * choose role and aria-live when an update needs announcing. Use StatusMessage for transient
- * confirmations.
+ * for structured recovery feedback, as="div" for paragraphs, or as="ul" for a list. Put every
+ * button in actions, never in the message, so all notices place their controls the same way.
+ * Notice spaces direct blocks; use Inline for a wrapping action group. Tone controls appearance
+ * only: callers choose role and aria-live when an update needs announcing. Use showToast for an
+ * action's outcome.
  */
 export const Notice = ({
   as = "p",
   tone,
   appearance = "default",
-  className = "",
   title,
   actions,
   children,
+  role,
   "aria-label": label,
-  ...props
-}: ComponentProps<"div"> & {
+}: {
   /** Element for the message: a sentence, paragraphs, or a list. */
   as?: "p" | "div" | "ul";
   tone: "neutral" | "success" | "warning" | "danger";
-  /** Quiet icon-and-text feedback within an existing task surface. */
+  /** inline is quiet icon-and-text feedback within an existing task surface. */
   appearance?: "default" | "inline";
   title?: string;
   actions?: ReactNode;
+  children?: ReactNode;
+  role?: AriaRole;
+  "aria-label"?: string;
 }) => {
   const Content = as;
 
   return (
     <div
-      {...props}
+      role={role}
       aria-label={as === "ul" ? undefined : label}
       data-tone={tone}
       data-appearance={appearance}
-      className={`${styles.notice} ${className}`}
+      className={styles.notice}
     >
-      <Icon className={styles.icon} name={icons[tone]} />
+      <IconBase className={styles.icon} name={icons[tone]} />
       <div className={styles.body}>
-        <div className={styles.message}>
+        {/* Controls belong in actions; Storybook rejects any inside the message. */}
+        <div className={styles.message} data-notice-message>
           {title && <p className={styles.title}>{title}</p>}
           <Content className={styles.content} aria-label={as === "ul" ? label : undefined}>
             {children}

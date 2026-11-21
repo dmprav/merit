@@ -2,7 +2,6 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { createQueryClient } from "@merit/query";
-import { Button } from "@merit/ui/button";
 
 import type { CreatedRecord, CreationData } from "../contracts/creation";
 import { GrantmakingMessagesProvider } from "../messages";
@@ -42,14 +41,7 @@ export const ComposerPreview = ({
     <QueryClientProvider client={client}>
       <GrantmakingMessagesProvider>
         <GrantmakingDrafts>
-          <CreateAction
-            data={data}
-            renderCreatedLink={(record, label) => (
-              <Button variant="quiet" onPress={() => setOpened(record)}>
-                {label}
-              </Button>
-            )}
-          />
+          <CreateAction data={data} />
           {opened && (
             <section aria-label="Created record">
               <h2>{opened.title}</h2>

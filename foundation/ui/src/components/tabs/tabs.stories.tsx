@@ -344,11 +344,7 @@ export const OverflowInteractionsRightToLeft: Story = {
 export const WithAction: Story = {
   args: {
     items: [{ ...items[0], count: 12 }, { ...items[1], count: 3 }, items[2]],
-    actions: (
-      <Button size="small" variant="secondary">
-        Add application
-      </Button>
-    ),
+    actions: <Button variant="secondary">Add application</Button>,
   },
   play: async ({ canvas, userEvent }) => {
     await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));

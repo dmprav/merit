@@ -1,16 +1,20 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import { SubmissionAnswers } from "@merit/applications-web/intake";
 import { materialVersionSchema } from "@merit/applications/domain";
 import { useFormat } from "@merit/i18n/format";
-import { ActionProvenance } from "@merit/ui/action-provenance";
+import { Attribution } from "@merit/ui/attribution";
 import { DescriptionList, DescriptionListItem } from "@merit/ui/description-list";
-import { Inline, Stack } from "@merit/ui/layout";
+import { Divider } from "@merit/ui/divider";
+import { Stack, Reading } from "@merit/ui/layout";
 import { Notice } from "@merit/ui/notice";
+import { SectionHeader } from "@merit/ui/section-header";
 import { Select } from "@merit/ui/select";
 import { Tabs } from "@merit/ui/tabs";
-import { Timestamp } from "@merit/ui/timestamp";
+import { Text } from "@merit/ui/text";
+import { Timeline, TimelineEntry } from "@merit/ui/timeline";
+import { VisuallyHidden } from "@merit/ui/visually-hidden";
 
 import {
   applicationHistorySnapshots,
@@ -28,6 +32,16 @@ type ApplicationHistoryProps = {
   history: readonly ApplicationHistoryEntry[];
   initialFromVersion?: number;
 };
+
+/** The history region; its heading names the region for assistive technology. */
+const HistoryFrame = ({ label, children }: { label: string; children: ReactNode }) => (
+  <section className={styles.history} aria-label={label}>
+    <Stack gap={6}>
+      <VisuallyHidden as="h2">{label}</VisuallyHidden>
+      {children}
+    </Stack>
+  </section>
+);
 
 /** Key by application and requested basis when opening a different review's comparison. */
 export const ApplicationHistory = ({
@@ -61,11 +75,10 @@ export const ApplicationHistory = ({
     (initialFromVersion === undefined || initialFromVersion === application.version)
   ) {
     return (
-      <Stack as="section" gap={6} className={styles.history} aria-label={t("history.title")}>
-        <h2 className={styles.accessibleHeading}>{t("history.title")}</h2>
+      <HistoryFrame label={t("history.title")}>
         <Notice tone="neutral">{t(missing.empty)}</Notice>
         <HistoricalApplication value={application} label={versionLabel(application.version)} />
-      </Stack>
+      </HistoryFrame>
     );
   }
 
@@ -85,8 +98,7 @@ export const ApplicationHistory = ({
   const labels = { fromLabel: versionLabel(selection.from), toLabel: versionLabel(selection.to) };
 
   return (
-    <Stack as="section" gap={6} className={styles.history} aria-label={t("history.title")}>
-      <h2 className={styles.accessibleHeading}>{t("history.title")}</h2>
+    <HistoryFrame label={t("history.title")}>
       <div className={styles.controls}>
         <Select
           label={t("history.from")}
@@ -133,7 +145,7 @@ export const ApplicationHistory = ({
           <SnapshotComparison before={before} after={after} labels={labels} />
         </>
       )}
-    </Stack>
+    </HistoryFrame>
   );
 };
 
@@ -209,7 +221,9 @@ const SnapshotChanges = ({
   return (
     <div className={styles.changes}>
       {!hasChanges && before.submission && after.submission && (
-        <p className={styles.meta}>{t("history.noChanges")}</p>
+        <Text as="p" variant="missing">
+          {t("history.noChanges")}
+        </Text>
       )}
       {reordered && <Notice tone="neutral">{t("history.reordered")}</Notice>}
       {fields
@@ -331,10 +345,11 @@ const ComparisonSection = ({
 
   return (
     <section className={styles.section}>
-      <div className={styles.sectionHeading}>
-        <h3>{label}</h3>
-        <span className={styles.meta}>{t(statusLabel)}</span>
-      </div>
+      <SectionHeader
+        level={3}
+        title={label}
+        aside={<Text variant="caption">{t(statusLabel)}</Text>}
+      />
       <div className={styles.comparison}>
         <ComparedValue
           label={fromLabel}
@@ -347,6 +362,7 @@ const ComparisonSection = ({
           heading={afterHeading}
           showHeading={renamed}
           value={afterValue}
+          emphasis
         />
       </div>
     </section>
@@ -358,51 +374,56 @@ const ComparedValue = ({
   heading,
   showHeading,
   value,
+  emphasis = false,
 }: {
   label: string;
   heading?: string;
   showHeading: boolean;
   value: string;
+  /** Marks the recorded side of the comparison. */
+  emphasis?: boolean;
 }) => (
-  <div>
-    <span className={styles.meta}>{label}</span>
-    {showHeading && heading && (
-      <p className={styles.prose}>
-        <strong>{heading}</strong>
-      </p>
-    )}
-    <p className={styles.prose}>{value}</p>
-  </div>
+  <Stack gap={3}>
+    <Divider tone={emphasis ? "emphasis" : "default"} />
+    <div>
+      <Text variant="caption">{label}</Text>
+      {showHeading && heading && (
+        <Reading as="p">
+          <strong>{heading}</strong>
+        </Reading>
+      )}
+      <Reading as="p">{value}</Reading>
+    </div>
+  </Stack>
 );
 
 const RecordedUpdates = ({ entries }: { entries: readonly ApplicationHistoryEntry[] }) => {
-  const { t } = useTranslation(["fundingRounds", "common"]);
-  const { calendarDate } = useFormat();
+  const { t } = useTranslation("fundingRounds");
   return (
-    <Stack as="ol" className={styles.events} aria-label={t("history.recordedUpdates")}>
+    <Timeline label={t("history.recordedUpdates")}>
       {entries.map((entry) => (
-        <li key={entry.revision}>
-          <div className={styles.eventHeading}>
-            <h3>
-              {t("history.update", {
-                from: entry.before!.version,
-                to: entry.after!.version,
-              })}
-            </h3>
-            <Inline align="baseline" gap={3} className={styles.meta}>
-              <span>
-                {t("common:recordedBy", {
-                  name: entry.actor ?? t("preparation.unknownPerson"),
-                })}
-              </span>
-              <ActionProvenance value={entry.provenance} />
-              <time dateTime={entry.recordedAt}>{calendarDate(entry.recordedAt.slice(0, 10))}</time>
-            </Inline>
-          </div>
-          {entry.reason && <p className={styles.prose}>{entry.reason}</p>}
-        </li>
+        <TimelineEntry
+          key={entry.revision}
+          title={t("history.update", {
+            from: entry.before!.version,
+            to: entry.after!.version,
+          })}
+          attribution={
+            <Attribution
+              actor={entry.actor}
+              provenance={entry.provenance}
+              recordedAt={entry.recordedAt}
+            />
+          }
+        >
+          {entry.reason && (
+            <Reading as="p" prose={false}>
+              {entry.reason}
+            </Reading>
+          )}
+        </TimelineEntry>
       ))}
-    </Stack>
+    </Timeline>
   );
 };
 
@@ -431,8 +452,10 @@ export const HistoricalApplication = ({
 
   return (
     <section aria-label={label} className={styles.snapshot}>
-      <h3>{label}</h3>
-      <p className={styles.snapshotTitle}>{value.title}</p>
+      <SectionHeader level={3} title={label} />
+      <Text as="p" variant="emphasis">
+        {value.title}
+      </Text>
       <DescriptionList layout="rows">
         <DescriptionListItem label={t("history.intakeStatus")}>
           {value.intakeStatus
@@ -467,32 +490,33 @@ export const HistoricalApplication = ({
         )}
       </DescriptionList>
       <HistoricalSummary value={value} />
-      {value.submission ? (
-        <SubmissionAnswers answers={value.submission.answers} headingLevel={4} />
-      ) : (
-        <p>{t("history.noSubmission")}</p>
-      )}
+      <div className={styles.answers}>
+        {value.submission ? (
+          <SubmissionAnswers answers={value.submission.answers} headingLevel={4} />
+        ) : (
+          <p>{t("history.noSubmission")}</p>
+        )}
+      </div>
     </section>
   );
 };
 
 const HistoricalSummary = ({ value }: { value: HistorySnapshot }) => {
-  const { t } = useTranslation(["fundingRounds", "common"]);
+  const { t } = useTranslation("fundingRounds");
   return value.summaryAuthor || value.summary ? (
-    <section className={styles.snapshotSummary}>
-      <h4>{t("history.summary")}</h4>
-      <p className={styles.meta}>
-        {t("common:recordedBy", {
-          name: value.summaryAuthor?.name ?? t("preparation.unknownPerson"),
-        })}
-        {value.summaryAuthor && (
-          <>
-            {" "}
-            · <Timestamp value={value.summaryAuthor.recordedAt} />
-          </>
-        )}
-      </p>
-      <p className={styles.prose}>{value.summary}</p>
-    </section>
+    <Stack as="section" gap={4}>
+      <Divider />
+      <DescriptionList>
+        <DescriptionListItem label={t("history.summary")}>
+          <Stack gap={2}>
+            <Attribution
+              actor={value.summaryAuthor?.name ?? null}
+              recordedAt={value.summaryAuthor?.recordedAt}
+            />
+            <Reading as="p">{value.summary}</Reading>
+          </Stack>
+        </DescriptionListItem>
+      </DescriptionList>
+    </Stack>
   ) : null;
 };

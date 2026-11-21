@@ -11,7 +11,6 @@ export const searchMessages = {
     application: "Application",
     noMatches: "No results match “{{query}}”.",
     noMatchesHint: "Search by funding round, application title, or applicant.",
-    clear: "Clear search",
     unavailable: "Search isn’t available right now.",
     unavailableHint: "Your search is kept. Try again in a moment.",
     retry: "Try again",

@@ -12,7 +12,7 @@ import { useTranslation } from "react-i18next";
 
 import { calendarDateInputBounds, parseCalendarDate } from "@merit/dates";
 
-import { Button } from "../button/button";
+import { ButtonBase } from "../button/button-base";
 import { Icon } from "../icon/icon";
 import styles from "./calendar.module.css";
 
@@ -30,7 +30,7 @@ export const Calendar = ({
   label: string;
   isDisabled?: boolean;
   autoFocus?: boolean;
-  /** Actions displayed after month navigation, such as a containing picker's close button. */
+  /** Actions displayed after month navigation. */
   headerActions?: ReactNode;
 }) => {
   const { t } = useTranslation("common");
@@ -48,7 +48,7 @@ export const Calendar = ({
       <div className={styles.header}>
         <Heading className={styles.heading} />
         <div className={styles.navigation}>
-          <Button
+          <ButtonBase
             slot="previous"
             variant="quiet"
             size="small"
@@ -56,8 +56,8 @@ export const Calendar = ({
             aria-label={t("date.previousMonth")}
           >
             <Icon name="left" />
-          </Button>
-          <Button
+          </ButtonBase>
+          <ButtonBase
             slot="next"
             variant="quiet"
             size="small"
@@ -65,7 +65,7 @@ export const Calendar = ({
             aria-label={t("date.nextMonth")}
           >
             <Icon name="right" />
-          </Button>
+          </ButtonBase>
           {headerActions}
         </div>
       </div>

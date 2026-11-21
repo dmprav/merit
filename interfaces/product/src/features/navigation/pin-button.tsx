@@ -19,24 +19,25 @@ export const PinButton = ({ target, title }: { target: NavigationTarget; title: 
   }
   const pinned = state.pins.some((pin) => sameNavigationTarget(pin.target, target));
   return (
-    <Inline gap={2} className={styles.pinButton}>
-      <Tooltip content={t(pinned ? "pins.unpin" : "pins.pin")} placement="bottom">
-        <Button
-          variant="quiet"
-          size="small"
-          iconOnly
-          aria-label={t("pins.pinName", { title })}
-          aria-pressed={pinned}
-          isDisabled={state.loading || state.unavailable || state.busy}
-          onPress={async () => {
-            setError(false);
-            setError(!(await state.change({ action: pinned ? "unpin" : "pin", target })));
-          }}
-        >
-          <Icon name={pinned ? "pinned" : "pin"} />
-        </Button>
-      </Tooltip>
-      {error && <span role="alert">{t("pins.saveError")}</span>}
-    </Inline>
+    <div className={styles.pinButton}>
+      <Inline gap={2}>
+        <Tooltip content={t(pinned ? "pins.unpin" : "pins.pin")} placement="bottom">
+          <Button
+            variant="quiet"
+            iconOnly
+            aria-label={t("pins.pinName", { title })}
+            aria-pressed={pinned}
+            isDisabled={state.loading || state.unavailable || state.busy}
+            onPress={async () => {
+              setError(false);
+              setError(!(await state.change({ action: pinned ? "unpin" : "pin", target })));
+            }}
+          >
+            <Icon name={pinned ? "pinned" : "pin"} />
+          </Button>
+        </Tooltip>
+        {error && <span role="alert">{t("pins.saveError")}</span>}
+      </Inline>
+    </div>
   );
 };

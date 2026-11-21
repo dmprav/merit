@@ -173,7 +173,7 @@ export const BudgetPreview: Story = {
     await userEvent.type(amount, "22000");
 
     await expect(canvas.getByRole("status", { name: "Budget preview" })).toHaveTextContent(
-      "Over budget with draft €14,000",
+      /Over budget with draft\s*€14,000/,
     );
   },
 };

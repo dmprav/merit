@@ -31,14 +31,16 @@
 }
 
 .icon {
-  margin-top: 2px;
+  flex-shrink: 0;
+  /* Center the icon on the first line of the message. */
+  margin-top: calc((1lh - 16px) / 2);
   color: var(--notice-accent);
 }
 
 .body {
   display: flex;
   flex: 1;
-  align-items: center;
+  align-items: flex-start;
   flex-wrap: wrap;
   gap: var(--space-2) var(--space-3);
   min-width: 0;
@@ -78,6 +80,19 @@
   gap: var(--space-2);
 }
 
+/* With actions, the icon and first line center on the controls beside them. */
+.notice:has(.actions) .message {
+  padding-block: calc((var(--control-height-small) - 1lh) / 2);
+}
+
+.notice:has(.actions) .icon {
+  margin-top: calc((var(--control-height-small) - 16px) / 2);
+}
+
+.notice[data-appearance="default"]:has(.actions) {
+  padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3);
+}
+
 .notice[data-appearance="inline"] {
   padding: 0;
   border-radius: 0;
@@ -86,10 +101,6 @@
 
 .notice[data-appearance="inline"][data-tone="danger"] {
   color: var(--danger);
-}
-
-.notice[data-appearance="inline"] .body {
-  align-items: flex-start;
 }
 
 .notice[data-appearance="inline"] .message {

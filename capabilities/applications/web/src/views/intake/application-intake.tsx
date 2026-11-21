@@ -6,18 +6,21 @@ import { intakeContent, intakeLimits, latestWithdrawalDate } from "@merit/applic
 import { calendarDateSchema, todayCalendarDate } from "@merit/dates";
 import { useFormat } from "@merit/i18n/format";
 import { parseMoney } from "@merit/money";
-import shell from "@merit/ui/application-shell.module.css";
+import { Attribution } from "@merit/ui/attribution";
 import { Badge } from "@merit/ui/badge";
 import { Button } from "@merit/ui/button";
 import { ConfirmationDialog } from "@merit/ui/confirmation-dialog";
 import { DateField } from "@merit/ui/date-field";
 import { DialogContent, DialogSection, ModalDialog } from "@merit/ui/dialog";
+import { Divider } from "@merit/ui/divider";
 import { Icon } from "@merit/ui/icon";
 import { InlineName } from "@merit/ui/inline-name";
-import { Inline, Reading } from "@merit/ui/layout";
+import { Inline, Reading, Stack } from "@merit/ui/layout";
 import { Notice } from "@merit/ui/notice";
-import { StatusMessage } from "@merit/ui/status-message";
+import { SectionHeader } from "@merit/ui/section-header";
+import { Text } from "@merit/ui/text";
 import { TextField } from "@merit/ui/text-field";
+import { useEventToast, useToastWhile } from "@merit/ui/toast";
 import { Tooltip } from "@merit/ui/tooltip";
 
 import type { IntakeSection } from "../../controllers/intake/intake-state";
@@ -91,7 +94,6 @@ export const IntakeEditButton = ({
     <Tooltip content={label}>
       <Button
         ref={triggerRef}
-        size="small"
         variant="quiet"
         isDisabled={isDisabled}
         iconOnly={!add}
@@ -193,13 +195,12 @@ export const IntakeControls = ({ intake, headingActions }: IntakeControlsProps) 
   const { application, preparing, section, unsavedContent } = intake;
   if (intake.withdrawn) {
     return (
-      <div className={styles.intake}>
-        <Inline gap={3} justify="between">
-          <h2>{t("workspace.submission")}</h2>
-          {headingActions}
-        </Inline>
-        <ReinstateStatus intake={intake} />
-        <IntakeTaskFeedback intake={intake} />
+      <div>
+        <SectionHeader title={t("workspace.submission")} aside={headingActions} />
+        <Stack gap={3}>
+          <ReinstateStatus intake={intake} />
+          <IntakeTaskFeedback intake={intake} />
+        </Stack>
       </div>
     );
   }
@@ -214,56 +215,62 @@ export const IntakeControls = ({ intake, headingActions }: IntakeControlsProps) 
   } as const;
 
   return (
-    <section className={styles.intake} aria-label={t("intake.preparation")}>
-      <Inline gap={3} justify="between">
-        <Inline gap={3} align="baseline">
-          <h2>{t("workspace.submission")}</h2>
-          <IntakeStatus
-            preparing={preparing}
-            workingRevision={working}
-            unsavedContent={unsavedContent}
+    <section aria-label={t("intake.preparation")}>
+      <SectionHeader
+        title={t("workspace.submission")}
+        aside={
+          <div className={styles.heading}>
+            <IntakeStatus
+              preparing={preparing}
+              workingRevision={working}
+              unsavedContent={unsavedContent}
+            />
+            <div className={styles.actions}>
+              {headingActions}
+              {!editingContent &&
+                (preparing ? (
+                  <Button
+                    isDisabled={
+                      !intake.ready || intake.pending || missing.length > 0 || unsavedContent
+                    }
+                    onPress={() => void intake.markReady()}
+                  >
+                    {t("intake.markReady")}
+                  </Button>
+                ) : (
+                  working && (
+                    <Button
+                      isDisabled={!intake.ready || intake.pending || unsavedContent}
+                      onPress={() => void intake.publishRevision()}
+                    >
+                      {t("intake.recordRevision")}
+                    </Button>
+                  )
+                ))}
+            </div>
+          </div>
+        }
+      />
+      <Stack gap={3}>
+        <IntakeTaskFeedback intake={intake} />
+        {preparing && !editingContent && missing.length > 0 && (
+          <Text as="p" variant="caption">
+            {t("intake.missing", { fields: missing.map((field) => t(fields[field])).join(", ") })}
+          </Text>
+        )}
+        {working && (
+          <RevisionPreview
+            application={application}
+            working={working}
+            editingContent={editingContent}
           />
-        </Inline>
-        <div className={styles.actions}>
-          {headingActions}
-          {!editingContent &&
-            (preparing ? (
-              <Button
-                size="small"
-                isDisabled={!intake.ready || intake.pending || missing.length > 0 || unsavedContent}
-                onPress={() => void intake.markReady()}
-              >
-                {t("intake.markReady")}
-              </Button>
-            ) : (
-              working && (
-                <Button
-                  size="small"
-                  isDisabled={!intake.ready || intake.pending || unsavedContent}
-                  onPress={() => void intake.publishRevision()}
-                >
-                  {t("intake.recordRevision")}
-                </Button>
-              )
-            ))}
-        </div>
-      </Inline>
-      <IntakeTaskFeedback intake={intake} />
-      {preparing && !editingContent && missing.length > 0 && (
-        <p className={styles.hint}>
-          {t("intake.missing", { fields: missing.map((field) => t(fields[field])).join(", ") })}
-        </p>
-      )}
-      {working && (
-        <RevisionPreview
-          application={application}
-          working={working}
-          editingContent={editingContent}
-        />
-      )}
-      {unsavedContent && !editingContent && (
-        <p className={styles.hint}>{t("intake.unsavedContent")}</p>
-      )}
+        )}
+        {unsavedContent && !editingContent && (
+          <Text as="p" variant="caption">
+            {t("intake.unsavedContent")}
+          </Text>
+        )}
+      </Stack>
     </section>
   );
 };
@@ -280,7 +287,6 @@ const ReinstateStatus = ({
       application={intake.application}
       action={
         <Button
-          size="small"
           variant="secondary"
           isDisabled={intake.pending}
           onPress={() => intake.setConfirmation("reinstate")}
@@ -308,18 +314,21 @@ export const WithdrawalStatus = ({
   }
 
   return (
-    <section className={styles.withdrawal} aria-label={t("intake.withdrawn")}>
-      <Inline gap={3} justify="between">
-        <h3>{t("intake.withdrawnOn", { date: calendarDate(withdrawal.withdrawnOn) })}</h3>
-        {action}
-      </Inline>
-      <p className={styles.hint}>
-        {t("intake.withdrawalRecordedBy", { name: withdrawal.recorder.name })}
-      </p>
-      <Reading as="p" className={styles.reason}>
-        {withdrawal.reason}
-      </Reading>
-    </section>
+    <Stack as="section" gap={4} aria-label={t("intake.withdrawn")}>
+      <Divider />
+      <div>
+        <SectionHeader
+          level={3}
+          title={t("intake.withdrawnOn", { date: calendarDate(withdrawal.withdrawnOn) })}
+          aside={action}
+        />
+        <Stack gap={3}>
+          <Attribution actor={withdrawal.recorder.name} />
+          <Reading as="p">{withdrawal.reason}</Reading>
+        </Stack>
+      </div>
+      <Divider />
+    </Stack>
   );
 };
 
@@ -339,7 +348,7 @@ const IntakeStatus = ({ preparing, workingRevision, unsavedContent }: StatusStat
 
   return (
     <div className={styles.status}>
-      <span>{t(status)}</span>
+      <Badge appearance="plain">{t(status)}</Badge>
       {unsavedContent && <Badge>{t("intake.unsaved")}</Badge>}
     </div>
   );
@@ -361,19 +370,19 @@ const RevisionPreview = ({
 
   return (
     <Inline gap={3} justify="between">
-      <p className={styles.hint}>
+      <Text as="p" variant="caption">
         {t("intake.currentVersionUnchanged", { version: application.version })}
-      </p>
+      </Text>
       <ModalDialog
         title={t(editingContent ? "intake.currentSubmission" : "intake.previewRevision")}
         trigger={
-          <Button size="small" variant="quiet">
+          <Button variant="quiet">
             {t(editingContent ? "intake.viewCurrentSubmission" : "intake.previewRevision")}
           </Button>
         }
       >
         <DialogContent reading>
-          <Reading className={styles.preview}>
+          <Reading prose={false}>
             <DialogSection title={preview.title}>
               <p>{preview.applicant}</p>
               <p>
@@ -425,6 +434,7 @@ export const IntakeFeedback = ({
 }) => {
   const { t } = useTranslation(["applicationIntake", "common"]);
   const { confirmation, error: failure, saved } = intake;
+  useEventToast(saved, { tone: "success", message: t("intake.saved") });
   const error =
     confirmation && failure?.status === "conflict"
       ? t("intake.confirmationConflict")
@@ -432,12 +442,6 @@ export const IntakeFeedback = ({
 
   return (
     <>
-      <StatusMessage
-        className={shell.confirmation}
-        message={saved ? t("intake.saved") : null}
-        eventId={saved}
-        confirmation={Boolean(saved)}
-      />
       <IntakeConfirmations intake={intake} error={error} />
     </>
   );
@@ -458,32 +462,20 @@ const IntakeTaskFeedback = ({
   ) : null;
 };
 
-export const IntakeRefreshFeedback = ({
-  intake,
-}: {
-  intake: Pick<ApplicationIntakeController, "refreshError" | "refreshing" | "refresh">;
-}) => {
+export const useIntakeRefreshToast = (
+  intake: Pick<ApplicationIntakeController, "refreshError" | "refresh">,
+) => {
   const { t } = useTranslation("applicationIntake");
 
-  return intake.refreshError ? (
-    <Notice
-      appearance="inline"
-      tone="warning"
-      role="alert"
-      actions={
-        <Button
-          size="small"
-          variant="quiet"
-          isPending={intake.refreshing}
-          onPress={() => void intake.refresh()}
-        >
-          {t("intake.refresh")}
-        </Button>
-      }
-    >
-      {t("intake.refreshError")}
-    </Notice>
-  ) : null;
+  useToastWhile(
+    intake.refreshError
+      ? {
+          tone: "warning",
+          message: t("intake.refreshError"),
+          action: { label: t("intake.refresh"), onPress: () => void intake.refresh() },
+        }
+      : null,
+  );
 };
 
 const IntakeConfirmations = ({

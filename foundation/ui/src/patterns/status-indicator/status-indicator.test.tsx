@@ -16,9 +16,7 @@ beforeEach(() => {
   }));
 });
 
-const Example = () => (
-  <StatusIndicator label={label} explanation={explanation} closeLabel="Close explanation" />
-);
+const Example = () => <StatusIndicator label={label} explanation={explanation} />;
 
 it("explains a focused status and opens the same explanation without a duplicate tooltip", async () => {
   const user = userEvent.setup();
@@ -47,23 +45,20 @@ it("explains the status on hover", async () => {
   expect(await screen.findByRole("tooltip")).toHaveTextContent(explanation);
 });
 
-it.each(["outside press", "close button"])(
-  "dismisses a pressed explanation with %s",
-  async (how) => {
-    const user = userEvent.setup();
-    render(<Example />);
-    const trigger = screen.getByRole("button", { name: label });
-    await user.click(trigger);
-    expect(await screen.findByRole("dialog", { name: label })).toHaveTextContent(explanation);
-    await user.click(
-      how === "outside press"
-        ? document.body
-        : screen.getByRole("button", { name: "Close explanation" }),
-    );
-    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-    await waitFor(() => expect(trigger).toHaveFocus());
-  },
-);
+it.each(["outside press", "Escape"])("dismisses a pressed explanation with %s", async (how) => {
+  const user = userEvent.setup();
+  render(<Example />);
+  const trigger = screen.getByRole("button", { name: label });
+  await user.click(trigger);
+  expect(await screen.findByRole("dialog", { name: label })).toHaveTextContent(explanation);
+  if (how === "Escape") {
+    await user.keyboard("{Escape}");
+  } else {
+    await user.click(document.body);
+  }
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  await waitFor(() => expect(trigger).toHaveFocus());
+});
 
 it("opens the explanation with a touch press", async () => {
   const user = userEvent.setup();

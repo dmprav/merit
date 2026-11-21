@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vite-plus/test";
 
 import { createQueryClient } from "@merit/query";
+import { Toasts } from "@merit/ui/toast";
 
 import { AdminMessages } from "../../app/messages";
 import type { Organization } from "./contracts";
@@ -36,10 +37,12 @@ describe("operator invitation work", () => {
     await user.click(screen.getByRole("button", { name: "Copy address" }));
 
     expect(copy).toHaveBeenCalledExactlyOnceWith("http://localhost:3000/app/alder/rounds");
-    await waitFor(() =>
-      expect(screen.getByRole("status")).toHaveTextContent("Workspace address copied."),
-    );
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(
+      await screen.findByRole("alertdialog", { name: "Workspace address copied." }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("alertdialog", { name: /^The address could not be copied/ }),
+    ).not.toBeInTheDocument();
   });
 
   it("recovers from clipboard failure without losing an unfinished name edit", async () => {
@@ -55,17 +58,24 @@ describe("operator invitation work", () => {
     await user.type(name, "Unfinished name");
     await user.click(screen.getByRole("button", { name: "Copy address" }));
 
-    expect(screen.getByRole("alert")).toHaveTextContent("The address could not be copied.");
+    const failure = await screen.findByRole("alertdialog", {
+      name: /^The address could not be copied/,
+    });
     expect(screen.getByText("/app/alder/rounds")).toBeVisible();
-    expect(screen.getByRole("status")).not.toHaveTextContent("Workspace address copied.");
+    expect(
+      screen.queryByRole("alertdialog", { name: "Workspace address copied." }),
+    ).not.toBeInTheDocument();
     expect(name).toHaveValue("Unfinished name");
 
+    await user.click(within(failure).getByRole("button", { name: "Close" }));
     await user.click(screen.getByRole("button", { name: "Copy address" }));
 
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-    await waitFor(() =>
-      expect(screen.getByRole("status")).toHaveTextContent("Workspace address copied."),
-    );
+    expect(
+      screen.queryByRole("alertdialog", { name: /^The address could not be copied/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      await screen.findByRole("alertdialog", { name: "Workspace address copied." }),
+    ).toBeVisible();
     expect(copy).toHaveBeenCalledTimes(2);
     expect(name).toHaveValue("Unfinished name");
     expect(renameOrganization).not.toHaveBeenCalled();
@@ -184,7 +194,7 @@ describe("operator invitation work", () => {
       vi.mocked(readOrganization).mockRejectedValueOnce(new Error("connection lost"));
       await user.click(screen.getByRole("button", { name: "Resend invitation" }));
 
-      expect(await screen.findByRole("alert")).toHaveTextContent("Your change was saved");
+      expect(await screen.findByText(/Your change was saved/)).toBeVisible();
       expect(screen.getByRole("button", { name: "Resend invitation" })).toBeDisabled();
       expect(screen.getByRole("heading", { name: "Alder Foundation" })).toBeVisible();
       await waitFor(() =>
@@ -204,7 +214,9 @@ describe("operator invitation work", () => {
       });
       await user.click(screen.getByRole("button", { name: "Refresh status" }));
 
-      await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+      await waitFor(() =>
+        expect(screen.queryByText(/Your change was saved/)).not.toBeInTheDocument(),
+      );
       await waitFor(() => expect(screen.getByRole(focusRole, { name: focusName })).toHaveFocus());
       expect(inviteAdministrator).toHaveBeenCalledTimes(1);
       expect(readOrganization).toHaveBeenCalledTimes(2);
@@ -238,13 +250,12 @@ describe("operator invitation work", () => {
       <QueryClientProvider client={client}>
         <AdminMessages>
           <AdminDrafts>{details}</AdminDrafts>
+          <Toasts />
         </AdminMessages>
       </QueryClientProvider>,
     );
     await user.click(screen.getByRole("button", { name: "Resend invitation" }));
-    await waitFor(() =>
-      expect(screen.getByRole("status")).toHaveTextContent("Invitation created."),
-    );
+    expect(await screen.findByRole("alertdialog", { name: /^Invitation created\./ })).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Edit name" }));
     const name = screen.getByRole("textbox", { name: "Organization name" });
 
@@ -297,7 +308,8 @@ describe("operator invitation work", () => {
     await user.click(within(dialog).getByRole("button", { name: "Revoke invitation" }));
 
     expect(screen.getByRole("button", { name: "Revoking invitation…" })).toHaveAttribute(
-      "data-pending",
+      "aria-busy",
+      "true",
     );
     expect(screen.getByRole("dialog", { name: "Revoke invitation" })).toBeVisible();
 
@@ -472,7 +484,7 @@ describe("operator invitation work", () => {
     vi.spyOn(client, "cancelQueries").mockRejectedValueOnce(new Error("Cache unavailable"));
     await user.click(screen.getByRole("button", { name: "Save name" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("Your change was saved");
+    expect(await screen.findByText(/Your change was saved/)).toBeVisible();
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Edit name" })).toBeVisible();
     vi.mocked(readOrganization).mockResolvedValue({
@@ -482,7 +494,7 @@ describe("operator invitation work", () => {
     await user.click(screen.getByRole("button", { name: "Refresh status" }));
 
     expect(await screen.findByRole("heading", { name: "Renamed foundation" })).toBeVisible();
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Your change was saved/)).not.toBeInTheDocument();
     expect(renameOrganization).toHaveBeenCalledTimes(1);
     client.clear();
   });

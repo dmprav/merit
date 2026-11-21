@@ -5,36 +5,46 @@ import styles from "./description-list.module.css";
 /**
  * DescriptionList and DescriptionListItem present label/value pairs with native dl, dt, and dd
  * semantics. They own typography, item spacing, and wrapping. Values share a 32px minimum row, with
- * text, identities, and controls vertically centered; long content can grow. Use the default
- * stacked layout for descriptive facts and layout='rows' for compact property panels with labels
- * beside values. Rows return to stacked labels in containers narrower than 17rem. Features supply
- * labels, values, formatting, and conditional items. Use the list's className for placement and
- * responsive columns; keep surrounding panels and their accessible labels in the feature.
+ * text, identities, and controls vertically centered; long content can grow. Choose the layout by
+ * how people read the facts:
+ *
+ * - stacked: descriptive facts, labels above values.
+ * - rows: compact property panels, labels beside values; rows stack again in containers narrower
+ *   than 17rem.
+ * - columns: a short summary of separate facts, side by side where there is room.
+ * - figures: amounts to compare, with values aligned at the end in tabular figures.
+ *
+ * divided rules off each item, for a record people edit row by row. Features supply labels,
+ * values, formatting, and conditional items, and keep the list's width and surrounding panels.
  */
 export const DescriptionList = ({
   children,
-  className = "",
   layout = "stacked",
+  divided = false,
 }: {
   children: ReactNode;
-  className?: string;
-  /** Compact rows put labels beside values, stacking again when their container is too narrow. */
-  layout?: "stacked" | "rows";
+  layout?: "stacked" | "rows" | "columns" | "figures";
+  divided?: boolean;
 }) => (
-  <dl className={`${styles.list} ${className}`} data-layout={layout}>
+  <dl className={styles.list} data-layout={layout} data-divided={divided || undefined}>
     {children}
   </dl>
 );
 
 export const DescriptionListItem = ({
   label,
+  labelId,
   children,
 }: {
   label: ReactNode;
+  /** Names the label so a control in the value can refer to it. */
+  labelId?: string;
   children: ReactNode;
 }) => (
   <div className={styles.item}>
-    <dt className={styles.label}>{label}</dt>
+    <dt id={labelId} className={styles.label}>
+      {label}
+    </dt>
     <dd className={styles.value}>{children}</dd>
   </div>
 );

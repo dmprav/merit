@@ -58,7 +58,7 @@ const ManagerPreview = ({
 };
 
 const meta = {
-  title: "Features/Applications/Reviewer participation",
+  title: "Features/Applications/Manage reviewer invitations",
   component: ManagerPreview,
   tags: ["!autodocs"],
   parameters: { layout: "fullscreen" },

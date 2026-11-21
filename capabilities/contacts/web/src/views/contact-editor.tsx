@@ -16,15 +16,17 @@ import { Stack } from "@merit/ui/layout";
 import type { Contact, ContactsData } from "../contracts";
 import { useContactEditor } from "../controllers/contact-editor";
 import type { useContactDrafts } from "../controllers/drafts";
-import styles from "./contacts.module.css";
 
 const ContactForm = ({
+  isNew,
   value,
   onChange,
   onSave,
   onClose,
   onDiscard,
 }: {
+  /** Adding, not editing: also explain that a contact grants no account or access. */
+  isNew: boolean;
   value: ContactDetails;
   onChange: (value: ContactDetails) => void;
   onSave: (value: ContactDetails) => Promise<string | null>;
@@ -60,7 +62,10 @@ const ContactForm = ({
       }
     >
       <Stack>
-        <p>{t("sharedDetails")}</p>
+        <p>
+          {t("sharedDetails")}
+          {isNew && <> {t("noAccessGranted")}</>}
+        </p>
         <form.Field name="name">
           {(field) => <FormTextField field={field} label={t("name")} autoFocus maxLength={200} />}
         </form.Field>
@@ -72,7 +77,6 @@ const ContactForm = ({
         <form.Field name="affiliation">
           {(field) => <FormTextField field={field} label={t("affiliation")} maxLength={200} />}
         </form.Field>
-        <p className={styles.meta}>{t("noAccessGranted")}</p>
       </Stack>
     </Form>
   );
@@ -119,6 +123,7 @@ const ReadyContactEditor = (props: ContactEditorProps) => {
 
   return (
     <ContactForm
+      isNew={!props.contact}
       value={value}
       onChange={editor.change}
       onClose={props.onClose}

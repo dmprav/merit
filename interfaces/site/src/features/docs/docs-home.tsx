@@ -2,8 +2,8 @@ import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
 import { Icon } from "@merit/ui/icon";
-import linkStyles from "@merit/ui/link.module.css";
 
+import { RoutedLink } from "../../app/routed-link";
 import localStyles from "./docs-home.module.css";
 import { docsGroups, docsPages, type DocsPage } from "./docs-navigation";
 import styles from "./docs.module.css";
@@ -20,15 +20,10 @@ export const DocsHome = () => {
       <section className={localStyles.start}>
         <h2>{t("docs.pages.overview.start.title")}</h2>
         <p>{t("docs.pages.overview.start.description")}</p>
-        <Link
-          to="/docs/quickstart"
-          className={linkStyles.button}
-          data-variant="primary"
-          data-size="large"
-        >
+        <RoutedLink variant="primary" size="large" to="/docs/quickstart">
           {t("docs.pages.overview.start.action")}
           <Icon name="forward" />
-        </Link>
+        </RoutedLink>
       </section>
       <div className={localStyles.directory}>
         {docsGroups

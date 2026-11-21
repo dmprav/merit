@@ -156,7 +156,10 @@ Controllers own their draft, baseline, Undo, and saved outcome. For workflows
 that refresh after a command, [useWorkflowRefresh](../../../foundation/query/src/workflow-refresh.ts)
 tracks read progress and whether a failure followed a committed save. Supply the
 read operation and the `saved` or `read` context; a refresh failure is contained
-and must not enter the write's error handling. Retrying repeats only the read.
+and must not enter the write's error handling. A failed read retries quietly
+before it is reported, and only its first attempt counts as refreshing, so work
+stays available. Once a failure is reported, the person's retry repeats only the
+read and reports at once. Views present the failure as a toast with **Refresh**.
 Recommendation saves instead populate the application cache from their committed
 response, as the [walkthrough](../../../docs/guides/recommendation-walkthrough.md#present-the-result-without-losing-the-draft-or-repeating-a-write)
 explains.

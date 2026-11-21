@@ -1,3 +1,7 @@
+.form {
+  min-height: 0;
+}
+
 .fields {
   min-width: 0;
   font-size: var(--text-body);
@@ -40,4 +44,35 @@
 
 .discard {
   margin-right: auto;
+}
+
+.form[data-layout="inline"] {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-2);
+}
+
+.form[data-layout="inline"] > .footer {
+  grid-column: 2;
+  grid-row: 1;
+  margin-top: 0;
+}
+
+.form[data-layout="inline"] > .feedback {
+  grid-column: 1 / -1;
+}
+
+/* Panes that scroll publish their end padding so the actions can reach the pane's edge. */
+.form[data-sticky-actions] > .footer {
+  position: sticky;
+  bottom: calc(-1 * var(--pane-padding-block-end, 0px));
+  z-index: 2;
+  padding-block: var(--space-3);
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.form[data-sticky-actions] > .fields :is(input, textarea, button) {
+  scroll-margin-bottom: 5rem;
 }

@@ -2,12 +2,19 @@ import { Meta } from "@storybook/addon-docs/blocks";
 
 <Meta title="Overview" />
 
-# Choose an interface pattern
+# Explore Merit’s interface
 
-Start with the person's task. Foundations establish the visual language;
-components supply building blocks; patterns explain recurring interactions and
-presentation. Feature stories show these choices in real product work. Guidance
-lives with the responsibility it explains, whether or not it needs shared code.
+## Choose a pattern for the work
+
+Start with what the person needs to do. Follow the pattern for the design choice
+and the feature example to see how it works with grant records.
+
+| Task                                      | What guides the choice                                                                                                                                                                                                                                     | See it in Merit                                                                                                                                                                                                              |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Find and compare records                  | Use a [collection toolbar](?path=/docs/patterns-collection-toolbar--docs) with a [data table](?path=/docs/components-data-table--docs) when the same properties matter across records. A chronological list makes the sequence of events easier to follow. | [Compare applications across rounds](?path=/story/features-applications-all-applications--across-rounds) · [Read workspace activity](?path=/story/features-activity-workspace-activity--populated)                           |
+| Read evidence while writing               | A [reference workspace](?path=/docs/patterns-reference-workspace--docs) keeps sources within reach and preserves reading position as the author moves between them.                                                                                        | [Write a reviewer assessment](?path=/story/features-applications-review-an-assigned-application--writing) · [Read and edit a recommendation](?path=/docs/features-applications-recommendation--docs)                         |
+| Edit a property or several related values | Choose the [editing pattern](?path=/docs/patterns-editing--docs) by what commits together. Use a [form dialog](?path=/docs/patterns-form-dialog--docs) for a bounded task.                                                                                 | [Choose a recorded contact](?path=/story/features-applications-manage-intake--edit-recorded-contact) · [Edit application details together](?path=/story/features-applications-manage-intake--edit-contact-and-project-dates) |
+| Explain or authorize a consequence        | Use [confirmation](?path=/docs/patterns-confirmation-dialog--docs) when the person must decide whether to proceed. Choose [feedback](?path=/docs/patterns-feedback--docs) by what actually happened and what they can do next.                             | [Compare a side effect of changing access with explicit removal](?path=/docs/features-team-design-guidance--docs)                                                                                                            |
 
 ## Choose controls by outcome
 
@@ -32,7 +39,7 @@ shared pattern while keeping the related controls' appearance consistent.
 
 | To decide…                                            | Read…                                                                 |
 | ----------------------------------------------------- | --------------------------------------------------------------------- |
-| Color, typography, spacing, density, motion, or focus | [Foundations](?path=/docs/foundations-tokens--docs)                   |
+| Color, typography, spacing, density, motion, or focus | [Design language](?path=/docs/design-language--docs)                  |
 | Flow, wrapping, and reading width within a component  | [Layout primitives](?path=/docs/components-layout-primitives--docs)   |
 | Page hierarchy, width, and related information        | [Page composition](?path=/docs/patterns-page-composition--docs)       |
 | Sustained work beside reference material              | [Reference workspace](?path=/docs/patterns-reference-workspace--docs) |

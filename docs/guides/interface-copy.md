@@ -41,8 +41,10 @@ Use field descriptions for input guidance and status text for distinctions such
 as an earlier application version. Use the shared
 [Tooltip](../../foundation/ui/src/components/tooltip/tooltip.mdx) sparingly to name ambiguous icon actions.
 Clear text labels usually need no tooltip. Do not add question-mark controls to
-each page, section, or value. Use native `details` and `summary` when supporting
-material such as budget history belongs in the current task.
+each page, section, or value. Use the shared
+[Disclosure](../../foundation/ui/src/components/disclosure/disclosure.tsx) when
+occasional supporting material, such as earlier versions, belongs in the current
+task. History of a record's changes belongs in workspace Activity, not its editor.
 
 Provide a consistent route to [user documentation](../../interfaces/site/src/features/docs/README.md).
 Consulting it should preserve context and unfinished work; make links that open a
@@ -52,6 +54,23 @@ status or control and support keyboard and touch. Hover must never be the only
 way to get information needed to act.
 Public guides describe supported tasks. Future workflow design is explicitly
 marked and kept separate from current behavior.
+
+## Make relationships clear
+
+Use wording and layout to explain how information belongs together. Write
+“Committee on 12 November” and “Submission v2”; use complete sentences for draft
+lifetimes, warnings, and consequences. Separate a recommendation's position and
+proposed amount so each can be scanned. Give activity entries a clear action,
+with authorship, source, and time grouped beneath it. Use labeled values when
+people need to compare details or resolve a conflict, including missing values.
+
+Reserve middle dots (`·`) for short groups of equally secondary facts, such as a
+date and version, and for separating a page title from Merit in a browser tab.
+Avoid chains that flatten statuses, warnings, and evidence into one line. Choose
+commas for lists, parentheses for asides, and colons for label/value relationships
+when those express the meaning. Keep relationships understandable in the text
+and semantic markup as well as the visual arrangement, and let groups wrap at
+narrow widths.
 
 ## Own copy and locale settings
 
@@ -116,20 +135,3 @@ formatting in controls, and catalog or locale changes without remounting unfinis
 work. Unit tests establish behavior; use the [UI verification guide](ui-verification.md)
 to check wrapping and layout in the browser. The current checks do not establish
 translation completeness for an additional language.
-
-## Make relationships clear
-
-Use wording and layout to explain how information belongs together. Write
-“Committee on 12 November” and “Submission v2”; use complete sentences for draft
-lifetimes, warnings, and consequences. Separate a recommendation's position and
-proposed amount so each can be scanned. Give activity entries a clear action,
-with authorship, source, and time grouped beneath it. Use labeled values when
-people need to compare details or resolve a conflict, including missing values.
-
-Reserve middle dots (`·`) for short groups of equally secondary facts, such as a
-date and version, and for separating a page title from Merit in a browser tab.
-Avoid chains that flatten statuses, warnings, and evidence into one line. Choose
-commas for lists, parentheses for asides, and colons for label/value relationships
-when those express the meaning. Keep relationships understandable in the text
-and semantic markup as well as the visual arrangement, and let groups wrap at
-narrow widths.

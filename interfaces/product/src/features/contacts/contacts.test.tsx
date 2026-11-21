@@ -1,12 +1,13 @@
 import { QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ComponentProps } from "react";
-import { beforeEach, expect, it, vi } from "vite-plus/test";
+import { afterEach, beforeEach, expect, it, vi } from "vite-plus/test";
 
 import { materialVersionSchema } from "@merit/applications/domain";
 import { createQueryClient } from "@merit/query";
 import { reviewRevisionSchema } from "@merit/reviews/domain";
+import { Toasts } from "@merit/ui/toast";
 
 import { renderWithRouter } from "../../../tests/render-with-router";
 import { WebMessagesProvider } from "../../app/messages";
@@ -167,6 +168,19 @@ it("keeps a contact available and links to the review work that prevents archivi
   client.clear();
 });
 
+afterEach(() => vi.useRealTimers());
+
+/** Fake timers that keep running, so a failed refresh can exhaust its quiet retries on demand. */
+const useRetryTimers = () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  return userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+};
+
+const exhaustQuietRetries = () =>
+  act(async () => {
+    await vi.advanceTimersByTimeAsync(4000);
+  });
+
 it.each([
   ["conflict", false],
   ["ok", false],
@@ -185,7 +199,7 @@ it.each([
       applicationTitles: [],
     };
     const client = createQueryClient();
-    const user = userEvent.setup();
+    const user = useRetryTimers();
     const response = { status: "ok" as const, workspaceName: "Alder", contacts: [contact] };
     vi.mocked(readContacts).mockResolvedValue(response);
     vi.mocked(saveContact).mockImplementation(async () => {
@@ -201,6 +215,7 @@ it.each([
       <QueryClientProvider client={client}>
         <WebMessagesProvider>
           <ContactsDirectory workspaceSlug="alder" contacts={[contact]} />
+          <Toasts />
         </WebMessagesProvider>
       </QueryClientProvider>,
     );
@@ -217,20 +232,21 @@ it.each([
       await screen.findByRole("menuitem", { name: archived ? "Restore" : "Archive" }),
     );
 
-    await screen.findByText(/latest information could not be loaded/);
+    await exhaustQuietRetries();
+    const warning = await screen.findByRole("alertdialog", {
+      name:
+        status === "conflict"
+          ? "The latest contacts could not be loaded."
+          : "Saved, but the latest contacts could not be loaded.",
+    });
     if (status === "conflict") {
       expect(screen.getByText(/This work changed while you were editing/)).toBeVisible();
-      expect(screen.queryByText(/Saved, but/)).not.toBeInTheDocument();
-    } else {
-      expect(screen.getByText(/Saved, but/)).toBeVisible();
     }
 
     vi.mocked(readContacts).mockResolvedValue(response);
-    await user.click(await screen.findByRole("button", { name: "Retry" }));
+    await user.click(within(warning).getByRole("button", { name: "Refresh" }));
 
-    await waitFor(() =>
-      expect(screen.queryByText(/latest information could not be loaded/)).not.toBeInTheDocument(),
-    );
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
     expect(saveContact).toHaveBeenCalledTimes(1);
     expect(vi.mocked(saveContact).mock.lastCall?.[0]).toEqual({
       data: {
@@ -265,21 +281,25 @@ it("clears a committed contact draft, restores focus, and retries a failed refre
     vi.mocked(readContacts).mockRejectedValue(new Error("Offline"));
     return { status: "ok", contact: saved };
   });
+  const user = useRetryTimers();
   render(
     <QueryClientProvider client={client}>
       <WebMessagesProvider>
         <ContactsDirectory workspaceSlug="alder" contacts={[contact]} />
+        <Toasts />
       </WebMessagesProvider>
     </QueryClientProvider>,
   );
-  const user = userEvent.setup();
   await user.click(await screen.findByRole("button", { name: "Actions for Sam Morgan" }));
   await user.click(await screen.findByRole("menuitem", { name: "Edit contact details" }));
   await user.clear(screen.getByRole("textbox", { name: "Name" }));
   await user.type(screen.getByRole("textbox", { name: "Name" }), "Sam Taylor");
   await user.click(await screen.findByRole("button", { name: "Save contact" }));
 
-  expect(await screen.findByText(/Saved, but/)).toBeVisible();
+  await exhaustQuietRetries();
+  const warning = await screen.findByRole("alertdialog", {
+    name: "Saved, but the latest contacts could not be loaded.",
+  });
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Resume editing" })).not.toBeInTheDocument();
   await waitFor(() =>
@@ -290,8 +310,14 @@ it("clears a committed contact draft, restores focus, and retries a failed refre
   });
 
   vi.mocked(readContacts).mockResolvedValue({ ...response, contacts: [saved] });
-  await user.click(await screen.findByRole("button", { name: "Retry" }));
-  await waitFor(() => expect(screen.queryByText(/Saved, but/)).not.toBeInTheDocument());
+  await user.click(within(warning).getByRole("button", { name: "Refresh" }));
+  await waitFor(() =>
+    expect(
+      screen.queryByRole("alertdialog", {
+        name: "Saved, but the latest contacts could not be loaded.",
+      }),
+    ).not.toBeInTheDocument(),
+  );
   expect(saveContact).toHaveBeenCalledOnce();
 
   await user.click(await screen.findByRole("button", { name: "Actions for Sam Taylor" }));
@@ -714,7 +740,7 @@ it("connects the contact count to an authenticated paged source and native overv
   await user.click(trigger);
   expect(
     await screen.findByRole("link", {
-      name: "Neighbour Table Community grants 2026 Contact for the applicant · Provided an assessment",
+      name: "Neighbour Table Contact for the applicant, Provided an assessment in Community grants 2026",
     }),
   ).toHaveAttribute("href", "/app/alder/applications/k7m2p9x4n6rt");
   expect(readContactApplications).toHaveBeenCalledWith({

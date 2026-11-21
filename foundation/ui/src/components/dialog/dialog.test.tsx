@@ -40,7 +40,7 @@ const openDialog = async (isDismissable: boolean) => {
     <ModalDialog
       title="Review guidance"
       closeLabel="Close dialog"
-      trigger={<Button>Open dialog</Button>}
+      trigger={<Button size="medium">Open dialog</Button>}
       isDismissable={isDismissable}
       data-testid="dialog-overlay"
     >
@@ -95,7 +95,7 @@ it("contains keyboard focus in a side panel and returns it to the opener", async
     <SidePanel
       title="Related applications"
       closeLabel="Close applications"
-      trigger={<Button>2 applications</Button>}
+      trigger={<Button size="medium">2 applications</Button>}
     >
       <DialogContent label="Related applications">
         <a href="/first">First application</a>
@@ -123,15 +123,23 @@ const ControlledDialog = ({ withTrigger }: { withTrigger: boolean }) => {
   return (
     <>
       <p>Dialog is {isOpen ? "open" : "closed"}.</p>
-      {!withTrigger && <Button onPress={() => setIsOpen(true)}>Open dialog</Button>}
+      {!withTrigger && (
+        <Button size="medium" onPress={() => setIsOpen(true)}>
+          Open dialog
+        </Button>
+      )}
       <ModalDialog
         title="Controlled dialog"
         closeLabel="Close dialog"
-        trigger={withTrigger ? <Button>Open dialog</Button> : null}
+        trigger={withTrigger ? <Button size="medium">Open dialog</Button> : null}
         isOpen={isOpen}
         onOpenChange={setIsOpen}
       >
-        {({ close }) => <Button onPress={close}>Done</Button>}
+        {({ close }) => (
+          <Button size="medium" onPress={close}>
+            Done
+          </Button>
+        )}
       </ModalDialog>
     </>
   );

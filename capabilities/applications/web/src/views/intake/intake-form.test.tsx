@@ -17,7 +17,8 @@ import { IntakeForm } from "./intake-form";
 
 vi.mock("@merit/contacts-web/contacts", () => ({
   ContactPicker: () => null,
-  ContactLabel: ({ fallback }: { fallback: ReactNode }) => fallback,
+  ContactLabel: ({ contactId, fallback }: { contactId: string; fallback: ReactNode }) =>
+    contactId === "leah" ? "Leah" : fallback,
 }));
 
 const application = applicationView(
@@ -146,6 +147,7 @@ const conflictedForm = async (
       current={{
         ...application,
         summary: "Saved summary",
+        contactId: "leah",
         submission: { version: 1, contact: "Leah", answers: [] },
       }}
     />,
@@ -154,7 +156,7 @@ const conflictedForm = async (
 };
 
 it.each(sections)(
-  "keeps the $section editor mounted with ConflictBanner and View latest disclosure on conflict",
+  "keeps the $section editor mounted with ConflictBanner and the saved values on conflict",
   async ({ section, field, saved }) => {
     const { user, data } = await conflictedForm(section);
 
@@ -164,6 +166,19 @@ it.each(sections)(
     expect(alert).toHaveTextContent("This application changed while you were editing");
     expect(data.save).not.toHaveBeenCalled();
 
+    if (section === "metadata") {
+      // Details compare in place: each differing field shows its saved value beneath it.
+      expect(screen.queryByRole("button", { name: "View latest" })).not.toBeInTheDocument();
+      const field = screen.getByRole("textbox", { name: "Applicant" }).closest("div");
+      expect(field?.parentElement).toHaveTextContent(`Now saved as ${saved[0]}`);
+      for (const value of saved.slice(1, 4)) {
+        expect(screen.getByText(value, { exact: true }).parentElement).toHaveTextContent(
+          `Now saved as ${value}`,
+        );
+      }
+      expect(screen.getByText("Saved explanation")).toBeVisible();
+      return;
+    }
     await user.click(screen.getByRole("button", { name: "View latest" }));
     const preview = screen.getByRole("region", { name: "Latest saved values" });
     expect(alert).not.toContainElement(preview);

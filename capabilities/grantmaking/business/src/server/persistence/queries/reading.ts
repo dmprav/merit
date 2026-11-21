@@ -50,7 +50,7 @@ const roundFields = {
   title: fundingRounds.title,
   preparationRevision: fundingRounds.revision,
   criteriaVersion: fundingRounds.criteriaVersion,
-  budgetMinorUnits: fundingRounds.budget,
+  budgetMinorUnits: fundingRounds.budgetMinorUnits,
   currency: fundingRounds.currency,
   applicationCount: sql<number>`(select count(*)::integer from ${applicationCases} a where a.organization_id = ${fundingRounds.organizationId} and a.round_id = ${fundingRounds.id})`,
 };

@@ -26,12 +26,14 @@ export const Overview: Story = {
         <Badge tone="warning">Outdated</Badge>
         <Badge tone="danger">Failed</Badge>
       </Inline>
-      <Inline className={styles.mutedSurface}>
-        <Badge>Draft</Badge>
-        <Badge tone="success">Current</Badge>
-        <Badge tone="warning">Outdated</Badge>
-        <Badge tone="danger">Failed</Badge>
-      </Inline>
+      <div className={styles.mutedSurface}>
+        <Inline>
+          <Badge>Draft</Badge>
+          <Badge tone="success">Current</Badge>
+          <Badge tone="warning">Outdated</Badge>
+          <Badge tone="danger">Failed</Badge>
+        </Inline>
+      </div>
     </Stack>
   ),
 };
@@ -48,12 +50,14 @@ export const LongLabels: Story = {
     },
   },
   render: () => (
-    <Stack gap={2} className={styles.narrow}>
-      <Badge>Read only</Badge>
-      <Badge tone="warning">Application changed since this review</Badge>
-      <Badge>Review basis unavailable</Badge>
-      <Badge lang="de">Finanzierungsentscheidung ausstehend</Badge>
-    </Stack>
+    <div className={styles.narrow}>
+      <Stack gap={2}>
+        <Badge>Read only</Badge>
+        <Badge tone="warning">Application changed since this review</Badge>
+        <Badge>Review basis unavailable</Badge>
+        <Badge lang="de">Finanzierungsentscheidung ausstehend</Badge>
+      </Stack>
+    </div>
   ),
 };
 

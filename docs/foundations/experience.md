@@ -65,8 +65,8 @@ recovery. Consistency should make behavior predictable across different layouts.
 Let density follow the activity. Use hierarchy, alignment, spacing, and emphasis
 to make relationships apparent. Present the same concepts consistently across
 views, with visible distinctions where their meaning differs. Pair color with
-text or other cues. The [design foundations](../../foundation/ui/src/foundations/foundations.mdx)
-own palette, typography, focus, and control conventions.
+text or other cues. The [design language guide](../../foundation/ui/src/foundations/foundations.mdx)
+shows how color, typography, spacing, and focus express these distinctions.
 
 Prioritize desktop for sustained review, comparison, and editing. Smaller screens
 support reading, checking status, and straightforward actions, with usable content
@@ -80,23 +80,18 @@ patterns against finding, reading, comparing, editing, and authorizing work.
 
 **Choose visual emphasis by what the person needs to notice in this task.**
 
-Use wording, grouping, and spacing to make relationships clear before adding
-color, icons, badges, or containers. Ordinary names and values need no emphasis
-merely because they identify a record. A badge with a clear label and distinct
-surface may already communicate enough without an additional icon.
+Use wording, grouping, and spacing to show how facts belong together. Reserve
+stronger emphasis for a distinction that affects the person's decision. A reviewer
+scanning funding positions needs to see when a judgment concerns an earlier
+submission, even before opening its reasoning.
 
-The same fact can need different treatments in different contexts. An unexpected
-side effect of an edit needs a visible warning before Save. In a removal
-confirmation, expected access loss belongs in cohesive, neutral prose; the title
-and destructive action already establish the decision. An unsuccessful action
-needs distinct error feedback and a useful next step. Consistency means preserving
-these meanings, rather than giving every consequence the same appearance.
-
-Apply this distinction through the shared
-[confirmation](../../foundation/ui/src/patterns/confirmation-dialog/confirmation-dialog.mdx)
-and [feedback](../../foundation/ui/src/patterns/feedback/feedback.mdx) patterns.
-The [Team design examples](../../interfaces/product/src/features/team/team-design.mdx)
-show accepted applications of these choices.
+The same consequence can deserve different emphasis. Revoking invitations may
+surprise someone editing a colleague's access. Someone explicitly removing that
+colleague already expects to consider access loss. The
+[Team examples](../../interfaces/product/src/features/team/team-design.mdx) show
+how the [confirmation](../../foundation/ui/src/patterns/confirmation-dialog/confirmation-dialog.mdx)
+and [feedback](../../foundation/ui/src/patterns/feedback/feedback.mdx) patterns
+apply that distinction.
 
 ## Explain at the point of need
 

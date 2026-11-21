@@ -5,6 +5,7 @@ import { expect, it, vi } from "vite-plus/test";
 
 import { createQueryClient } from "@merit/query";
 import type { PageSource } from "@merit/query/contracts";
+import { Toasts } from "@merit/ui/toast";
 
 import type { Contact, ContactApplication, ContactsData } from "../contracts";
 import { ContactsMessagesProvider } from "../messages";
@@ -50,6 +51,7 @@ const show = (contacts: Contact[] = [leah, sam]) => {
             <a href={`/applications/${item.publicId}`}>{children}</a>
           )}
         />
+        <Toasts />
       </ContactsMessagesProvider>
     </QueryClientProvider>,
   );
@@ -104,12 +106,14 @@ it("loads real application links only after opening and retries more without los
     "/applications/k7m2p9x4n6rt",
   );
   expect(dialog.getByRole("link")).toHaveAccessibleName(
-    "Community programme Community grants 2025 Contact for the applicant · Asked to review · Provided an assessment",
+    "Community programme Contact for the applicant, Asked to review, Provided an assessment in Community grants 2025",
   );
   await user.click(dialog.getByRole("button", { name: "Load more applications" }));
-  expect(await dialog.findByRole("alert")).toHaveTextContent("Applications could not be loaded.");
+  const failure = await screen.findByRole("alertdialog", {
+    name: "Applications could not be loaded.",
+  });
   expect(dialog.getByRole("link")).toBeVisible();
-  await user.click(dialog.getByRole("button", { name: "Try again" }));
+  await user.click(within(failure).getByRole("button", { name: "Try again" }));
   await waitFor(() =>
     expect(dialog.getAllByRole("link", { name: /Community programme/ })).toHaveLength(2),
   );

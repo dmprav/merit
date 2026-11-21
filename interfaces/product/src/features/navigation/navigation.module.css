@@ -6,10 +6,18 @@
   margin-top: var(--space-2);
 }
 
-.pins {
-  list-style: none;
-  padding: 0;
-  margin: var(--space-1) 0 var(--space-2) var(--space-6);
+/* The toggle's chevron lines up with the destination icons; the pins keep the row gutter. */
+.pinned {
+  min-width: 0;
+  margin-bottom: var(--space-3);
+  padding-inline-start: var(--space-2);
+}
+
+.pinList {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+  margin-inline-start: calc(-1 * var(--space-2));
 }
 
 .pinLabel {
@@ -17,12 +25,6 @@
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  line-height: 1.5;
-}
-
-.overflow {
-  --button-quiet-foreground: var(--muted);
-  margin-inline-start: var(--space-6);
 }
 
 .pinButton {
@@ -31,62 +33,4 @@
 
 .error {
   padding: var(--space-2);
-  color: var(--danger);
-  font-size: var(--text-caption);
-}
-
-.secondary {
-  display: grid;
-  gap: var(--space-1);
-  margin-top: var(--space-6);
-  padding-top: var(--space-3);
-  border-top: 1px solid var(--border);
-}
-
-.groupLabel {
-  color: var(--muted);
-  padding: var(--space-1) var(--space-2);
-  font-size: var(--text-meta);
-}
-
-.searchLabel {
-  min-width: 0;
-}
-
-.shortcut {
-  visibility: hidden;
-  margin-inline-start: auto;
-  padding-inline-start: var(--space-3);
-  color: var(--muted);
-  font: inherit;
-  font-size: var(--text-meta);
-  white-space: nowrap;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .searchButton:hover .shortcut {
-    visibility: visible;
-  }
-}
-
-.searchButton:focus-visible .shortcut {
-  visibility: visible;
-}
-
-@media (pointer: coarse) {
-  .shortcut {
-    display: none;
-  }
-}
-
-.popupLabel {
-  display: grid;
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.popupLabel small {
-  color: var(--muted);
-  font-size: var(--text-caption);
-  font-weight: 400;
 }

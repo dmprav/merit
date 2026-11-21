@@ -1,4 +1,4 @@
-import type { Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 
 import { test, expect, checkPage } from "@merit/test-support/browser";
 import { openNavigation, closeNavigation } from "@merit/test-support/browser/navigation";
@@ -10,6 +10,11 @@ import {
   continueDemoEntry,
   openGuidedDemo,
 } from "./demo-navigation.ts";
+
+const expectBudgetPreview = async (preview: Locator, label: string, amount: string) => {
+  await expect(preview.getByRole("term")).toHaveText(label);
+  await expect(preview.getByRole("definition")).toHaveText(amount);
+};
 
 test("demo exposes the workspace applications overview", async ({ page }) => {
   const workspace = await openDemo(page);
@@ -112,8 +117,10 @@ test(
     await page.getByRole("option", { name: "Defer", exact: true }).click();
 
     await expect(page.getByLabel("Proposed allocation")).toHaveCount(0);
-    await expect(page.getByRole("status", { name: "Budget preview" })).toHaveText(
-      "Remaining with draft €32,000",
+    await expectBudgetPreview(
+      page.getByRole("status", { name: "Budget preview" }),
+      "Remaining with draft",
+      "€32,000",
     );
 
     await checkPage(page);
@@ -611,16 +618,9 @@ test("saving announces success with a compact, centred confirmation and restores
   await page.getByRole("button", { name: "Save recommendation", exact: true }).click();
 
   await expect(edit).toBeFocused();
-  const status = page.getByRole("status").filter({ hasText: "Recommendation saved" });
-
-  await expect(status).toHaveCount(1);
-
-  const toast = page
-    .locator('span[aria-hidden="true"]')
-    .filter({ hasText: "Recommendation saved" });
+  const toast = page.getByRole("alertdialog", { name: "Recommendation saved" });
 
   await expect(toast).toHaveCount(1);
-  await expect(toast).toHaveCSS("position", "fixed");
   await expect(toast).toBeInViewport();
 
   const bounds = (await toast.boundingBox())!;
@@ -1334,7 +1334,9 @@ test("docs topics, section links, and examples work across screen sizes @cross-b
   await page.getByRole("link", { name: "Follow the correction and revision steps" }).click();
 
   await expect(page).toHaveURL(/\/docs\/applications#revisions$/);
-  await expect(page.locator("#revisions")).toBeInViewport();
+  await expect(
+    page.getByRole("heading", { level: 2, name: /^Correct or revise recorded material/ }),
+  ).toBeInViewport();
 
   await openGuide("/docs/recommendations#budget");
 
@@ -1374,11 +1376,11 @@ test("docs recommendation example previews, saves, and resets without changing s
   const amount = example.getByRole("textbox", { name: "Proposed allocation" });
   const preview = example.getByRole("status", { name: "Budget preview" });
 
-  await expect(preview).toHaveText("Remaining with draft €8,000");
+  await expectBudgetPreview(preview, "Remaining with draft", "€8,000");
 
   await amount.fill("40000");
 
-  await expect(preview).toHaveText("Over budget with draft €8,000");
+  await expectBudgetPreview(preview, "Over budget with draft", "€8,000");
 
   await checkPage(page);
   await example.scrollIntoViewIfNeeded();
@@ -1388,7 +1390,7 @@ test("docs recommendation example previews, saves, and resets without changing s
   await page.getByRole("option", { name: "Defer", exact: true }).click();
 
   await expect(amount).toHaveCount(0);
-  await expect(preview).toHaveText("Remaining with draft €32,000");
+  await expectBudgetPreview(preview, "Remaining with draft", "€32,000");
 
   await example.getByRole("textbox", { name: "Reasoning" }).fill("Wait for the next round.");
   await example.getByRole("button", { name: "Save recommendation" }).click();
@@ -1399,7 +1401,7 @@ test("docs recommendation example previews, saves, and resets without changing s
 
   await page.keyboard.press("Enter");
 
-  await expect(preview).toHaveText("Remaining with draft €32,000");
+  await expectBudgetPreview(preview, "Remaining with draft", "€32,000");
 
   await example.getByRole("textbox", { name: "Reasoning" }).fill("Discard this change.");
   await example.getByRole("button", { name: "Discard changes", exact: true }).click();
@@ -1410,7 +1412,7 @@ test("docs recommendation example previews, saves, and resets without changing s
   await edit.click();
 
   await expect(amount).toHaveValue("24000.00");
-  await expect(preview).toHaveText("Remaining with draft €8,000");
+  await expectBudgetPreview(preview, "Remaining with draft", "€8,000");
 
   await page.goto(workspaceApplication);
 

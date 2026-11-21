@@ -1,14 +1,5 @@
 import { Link, useLocation, useRouter, type LinkOptions } from "@tanstack/react-router";
-import {
-  useCallback,
-  useContext,
-  useEffect,
-  useRef,
-  useState,
-  type ComponentProps,
-  type Ref,
-  type MouseEvent,
-} from "react";
+import { useContext, useEffect, useRef, useState, type ComponentProps } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { NavigationPin, NavigationPinChange, NavigationTarget } from "@merit/grantmaking/api";
@@ -17,18 +8,19 @@ import {
   ApplicationNavigationList,
   ApplicationNavigationRow,
 } from "@merit/ui/application-navigation";
-import { useCloseNavigation } from "@merit/ui/application-shell";
 import { Button } from "@merit/ui/button";
-import { PopoverDialog } from "@merit/ui/dialog";
+import { Disclosure } from "@merit/ui/disclosure";
 import { Icon } from "@merit/ui/icon";
+import { Notice } from "@merit/ui/notice";
 import { Tooltip } from "@merit/ui/tooltip";
 
 import { resourceRef } from "../grantmaking/contracts/resource-url";
-import { NavigationPinsContext } from "./context";
+import { NavigationPinsContext, type NavigationPinsState } from "./context";
 import styles from "./navigation.module.css";
 
-const PIN_PREVIEW_LIMIT = 5;
 const PIN_SEGMENTS = { review: "work", round: "rounds", application: "applications" };
+/** Each pin repeats its collection's sidebar icon, so a mixed list stays scannable. */
+const PIN_ICONS = { round: "layers", application: "application", review: "edit" } as const;
 
 const pinLocation = (pin: NavigationPin): LinkOptions => {
   if (pin.target.kind === "review") {
@@ -48,6 +40,16 @@ const pinLocation = (pin: NavigationPin): LinkOptions => {
         params: { workspaceSlug, applicationRef: resourceRef(pin.title, pin.target.id) },
         search: { from: "applications" },
       };
+};
+
+/** The pin for the current page, when that page is pinned. */
+const useCurrentPin = (pins: NavigationPin[]) => {
+  const pathname = useLocation({ select: (location) => location.pathname });
+  return pins.find(
+    (pin) =>
+      pathname.includes(`/${PIN_SEGMENTS[pin.target.kind]}/`) &&
+      pathname.replace(/\/$/, "").endsWith(pin.target.id),
+  );
 };
 
 type PinChange = (input: NavigationPinChange) => Promise<void>;
@@ -74,9 +76,11 @@ const PinMenu = ({
       activation="contextMenu"
       tooltip={tooltip}
       items={[
-        ...(index > 0 ? [{ id: "up", label: t("pins.up") }] : []),
-        ...(index < pins.length - 1 ? [{ id: "down", label: t("pins.down") }] : []),
-        { id: "unpin", label: t("pins.unpin") },
+        ...(index > 0 ? [{ id: "up", label: t("pins.up"), icon: "ascending" as const }] : []),
+        ...(index < pins.length - 1
+          ? [{ id: "down", label: t("pins.down"), icon: "descending" as const }]
+          : []),
+        { id: "unpin", label: t("pins.unpin"), icon: "pin" as const },
       ]}
       onAction={(action) =>
         void change(
@@ -100,46 +104,35 @@ const PinRow = ({
   busy,
   change,
   current,
-  popup = false,
-  suppressTooltips = false,
-  onNavigate,
 }: {
   pins: NavigationPin[];
   index: number;
   busy: boolean;
   change: PinChange;
   current: boolean;
-  popup?: boolean;
-  suppressTooltips?: boolean;
-  onNavigate?: (event: MouseEvent<HTMLAnchorElement>) => void;
 }) => {
   const { t } = useTranslation("web");
   const pin = pins[index]!;
-  const hint = pin.context ? `${pin.title} · ${pin.context}` : pin.title;
-  const showHintTooltip = !popup && !suppressTooltips;
+  const hint = pin.context ? `${pin.title}, ${pin.context}` : pin.title;
   const link = (
     <Link
       {...pinLocation(pin)}
       data-pin-id={pin.target.id}
-      onClick={onNavigate}
       aria-current={current ? "page" : undefined}
       activeOptions={{ includeSearch: false }}
       aria-label={pin.context ? `${pin.title} ${pin.context}` : pin.title}
     >
-      <span className={popup ? styles.popupLabel : styles.pinLabel}>
-        <span>{pin.title}</span>
-        {popup && pin.context && <small> {pin.context}</small>}
-      </span>
+      <Icon name={PIN_ICONS[pin.target.kind]} />
+      <span className={styles.pinLabel}>{pin.title}</span>
     </Link>
   );
   return (
     <ApplicationNavigationRow
       reorderKey={pin.target.id}
       action={
-        <Tooltip content={t("pins.unpin")} isDisabled={suppressTooltips}>
+        <Tooltip content={t("pins.unpin")}>
           <Button
             variant="quiet"
-            size="small"
             iconOnly
             aria-label={t("pins.unpinName", { title: pin.title })}
             aria-disabled={busy || undefined}
@@ -151,15 +144,9 @@ const PinRow = ({
       }
     >
       {pins.length > 1 ? (
-        <PinMenu
-          pins={pins}
-          index={index}
-          change={change}
-          trigger={link}
-          tooltip={showHintTooltip ? hint : undefined}
-        />
+        <PinMenu pins={pins} index={index} change={change} trigger={link} tooltip={hint} />
       ) : (
-        <Tooltip customTrigger content={hint} isDisabled={!showHintTooltip}>
+        <Tooltip customTrigger content={hint}>
           {link}
         </Tooltip>
       )}
@@ -175,168 +162,82 @@ type NavigationSectionProps = {
   icon: ComponentProps<typeof Icon>["name"];
 };
 
-type PinSurface = "sidebar" | "popup";
-
-/** Choose a surviving control only when a successful change removes the source row. */
-const recoveryTarget = (input: NavigationPinChange, pins: NavigationPin[], surface: PinSurface) => {
-  if (input.action === "unpin") {
-    if (surface === "sidebar" || pins.length <= PIN_PREVIEW_LIMIT + 1) {
-      return "collection";
-    }
-    const index = pins.findIndex((pin) => pin.target.id === input.target.id);
-    return (pins[index + 1] ?? pins[index - 1])?.target;
-  }
-  if (input.action !== "move" || surface !== "sidebar") {
-    return null;
-  }
-  const destination = input.before
-    ? pins.findIndex((pin) => pin.target.id === input.before!.id)
-    : pins.length;
-  return destination > PIN_PREVIEW_LIMIT ? "overflow" : null;
+/**
+ * A collection destination. When the current page is pinned, the Pinned section marks it
+ * instead, so only one sidebar entry is current.
+ */
+export const NavigationSection = ({
+  title,
+  kind,
+  workspaceSlug,
+  location,
+  icon,
+}: NavigationSectionProps) => {
+  const state = useContext(NavigationPinsContext);
+  const currentPin = useCurrentPin(
+    state?.pins.filter((pin) => pin.target.kind === kind && pin.workspaceSlug === workspaceSlug) ??
+      [],
+  );
+  return (
+    <section aria-label={title} className={styles.section}>
+      <Link
+        {...location}
+        data-pin-collection={kind}
+        activeOptions={{ exact: Boolean(currentPin), includeSearch: false }}
+      >
+        <Icon name={icon} />
+        {title}
+      </Link>
+    </section>
+  );
 };
 
-const pinLink = (container: HTMLElement | null, id: string) =>
-  Array.from(container?.querySelectorAll<HTMLAnchorElement>("a[data-pin-id]") ?? []).find(
-    (link) => link.dataset.pinId === id,
-  );
-
-/** Menus restore to their row; removed controls fall back to their dialog or the body. */
-const ownsPinFocus = (
+/** After a pin is removed, move focus to a neighbouring pin or, failing that, its collection. */
+const restorePinFocus = (
+  input: NavigationPinChange,
+  pins: NavigationPin[],
   active: Element | null,
   row: HTMLElement | null | undefined,
-  dialog: Element | null | undefined,
+  isCurrent: () => boolean,
 ) => {
-  const current = document.activeElement;
-  return (
-    current === active ||
-    row?.contains(current) ||
-    (!active?.isConnected && (current === document.body || current === dialog))
-  );
-};
-
-/** Defer recovery outside a closing popup until its focus scope can release focus. */
-const usePopupList = () => {
-  const list = useRef<HTMLUListElement>(null);
-  const afterClose = useRef<(() => void) | null>(null);
-  const ref = useCallback((node: HTMLUListElement | null) => {
-    list.current = node;
-    if (!node) {
-      afterClose.current?.();
-      afterClose.current = null;
-    }
-  }, []);
-
-  const afterRemoval = (callback: () => void) => {
-    if (list.current) {
-      afterClose.current = callback;
-    } else {
-      callback();
-    }
-  };
-
-  return { list, ref, afterRemoval };
-};
-
-const schedulePinFocusRecovery = ({
-  version,
-  interaction,
-  target,
-  surface,
-  active,
-  row,
-  dialog,
-  collection,
-  overflow,
-  popupList,
-  afterRemoval,
-}: {
-  version: number;
-  interaction: { current: number };
-  target: ReturnType<typeof recoveryTarget>;
-  surface: PinSurface;
-  active: Element | null;
-  row: HTMLElement | null | undefined;
-  dialog: Element | null | undefined;
-  collection: { current: HTMLAnchorElement | null };
-  overflow: { current: HTMLButtonElement | null };
-  popupList: { current: HTMLUListElement | null };
-  afterRemoval: (callback: () => void) => void;
-}) => {
-  const restoreFocus = () => {
-    const cleanupRestoreFallback = () => {
-      document.removeEventListener("react-aria-focus-scope-restore", suppressFallbackRestore, true);
-    };
-
-    const suppressFallbackRestore = (event: Event) => {
-      if (version !== interaction.current || document.activeElement !== document.body) {
-        cleanupRestoreFallback();
-        return;
-      }
-
-      event.preventDefault();
-    };
-
-    if ((target === "collection" && surface === "popup") || target === "overflow") {
-      document.addEventListener("react-aria-focus-scope-restore", suppressFallbackRestore, true);
-    }
-
-    requestAnimationFrame(() => {
-      cleanupRestoreFallback();
-
-      if (version !== interaction.current || !ownsPinFocus(active, row, dialog)) {
-        return;
-      }
-
-      const controls = { collection: collection.current, overflow: overflow.current };
-      const control =
-        typeof target === "string"
-          ? controls[target]
-          : target && pinLink(popupList.current, target.id);
-      control?.focus();
-    });
-  };
-
-  // A frame can precede React's removal commit. The dialog still contains focus then,
-  // so wait for its list to detach before moving focus outside the closing popup.
-  if (target === "collection" && surface === "popup") {
-    afterRemoval(restoreFocus);
-  } else {
-    restoreFocus();
+  if (input.action !== "unpin") {
+    return;
   }
+  const index = pins.findIndex((pin) => pin.target.id === input.target.id);
+  const neighbour = pins[index + 1] ?? pins[index - 1];
+  requestAnimationFrame(() => {
+    if (!isCurrent()) {
+      return;
+    }
+    const current = document.activeElement;
+    const control = neighbour
+      ? document.querySelector<HTMLElement>(`a[data-pin-id="${neighbour.target.id}"]`)
+      : document.querySelector<HTMLElement>(`a[data-pin-collection="${input.target.kind}"]`);
+    // Removing the focused row leaves focus on the body or the containing navigation drawer.
+    const fallback = control?.closest('[role="dialog"]') ?? document.body;
+    if (
+      current === active ||
+      row?.contains(current) ||
+      current === document.body ||
+      current === fallback
+    ) {
+      control?.focus();
+    }
+  });
 };
 
-const useNavigationSection = ({ kind, workspaceSlug }: NavigationSectionProps) => {
-  const state = useContext(NavigationPinsContext);
-  const router = useRouter();
-  const pathname = useLocation({ select: (location) => location.pathname });
-  const collection = useRef<HTMLAnchorElement>(null);
-  const overflow = useRef<HTMLButtonElement>(null);
-  const { list: popupList, ref: popupListRef, afterRemoval } = usePopupList();
-  const [open, setOpen] = useState(false);
-  const [error, setError] = useState<"sidebar" | "popup" | null>(null);
+/** Saves a pin change for the current page; navigation invalidates its feedback and focus. */
+const usePinChange = (state: NavigationPinsState | null) => {
+  const [failed, setFailed] = useState(false);
   const submitting = useRef(false);
   const interaction = useRef(0);
-  const pins =
-    state?.pins.filter((pin) => pin.target.kind === kind && pin.workspaceSlug === workspaceSlug) ??
-    [];
-  const segment = PIN_SEGMENTS[kind];
-  const currentPin = pathname.includes(`/${segment}/`)
-    ? pins.find((pin) => pathname.replace(/\/$/, "").endsWith(pin.target.id))
-    : undefined;
+  const router = useRouter();
 
   useEffect(() => {
-    const reset = () => {
-      interaction.current += 1;
-      setOpen(false);
-      setError(null);
-    };
-
-    reset();
-    // Like search, overflow belongs to the page where it was opened. Invalidate before
-    // the new page takes focus, including Back/Forward and already scheduled recovery.
     const unsubscribe = router.subscribe("onBeforeNavigate", ({ hrefChanged }) => {
       if (hrefChanged) {
-        reset();
+        interaction.current += 1;
+        setFailed(false);
       }
     });
 
@@ -344,198 +245,139 @@ const useNavigationSection = ({ kind, workspaceSlug }: NavigationSectionProps) =
       unsubscribe();
       interaction.current += 1;
     };
-  }, [router, kind, workspaceSlug]);
+  }, [router]);
 
-  useEffect(() => {
-    if (pins.length <= PIN_PREVIEW_LIMIT) {
-      setOpen(false);
-    }
-  }, [pins.length]);
-
-  const onOpenChange = (next: boolean) => {
-    interaction.current += 1;
-    setError(null);
-    setOpen(next);
-  };
-
-  const change = async (input: NavigationPinChange, surface: PinSurface) => {
+  const change = async (input: NavigationPinChange, group: NavigationPin[]) => {
     if (!state || state.busy || submitting.current) {
       return;
     }
 
     submitting.current = true;
-    setError(null);
+    setFailed(false);
+
     const version = ++interaction.current;
+
+    const isCurrent = () => version === interaction.current;
+
     const active = document.activeElement;
-    const container = surface === "popup" ? popupList.current : collection.current?.parentElement;
-    const row = pinLink(container ?? null, input.target.id)?.closest("li");
-    const dialog = row?.closest("[role=dialog]");
+    const row = document.querySelector(`a[data-pin-id="${input.target.id}"]`)?.closest("li");
     const saved = await state.change(input);
     submitting.current = false;
-
-    if (version !== interaction.current) {
+    if (!isCurrent()) {
       return;
     }
 
     if (!saved) {
-      setError(surface);
+      setFailed(true);
       return;
     }
 
-    if (input.action === "unpin" && pins.length <= PIN_PREVIEW_LIMIT + 1) {
-      setOpen(false);
-    }
-
-    schedulePinFocusRecovery({
-      version,
-      interaction,
-      target: recoveryTarget(input, pins, surface),
-      surface,
-      active,
-      row,
-      dialog,
-      collection,
-      overflow,
-      popupList,
-      afterRemoval,
-    });
+    restorePinFocus(input, group, active, row, isCurrent);
   };
 
-  return {
-    state,
-    pins,
-    currentPin,
-    collection,
-    overflow,
-    popupList: popupListRef,
-    open,
-    setOpen: onOpenChange,
-    error,
-    change,
-  };
+  return { failed, change };
 };
 
-const PinList = ({
+/** One kind's pins in their own saved order; moves stay within the list. */
+const PinGroup = ({
+  kind,
   pins,
   currentPin,
   busy,
   change,
-  popup = false,
-  suppressTooltips = false,
-  listRef,
-  onNavigate,
 }: {
+  kind: NavigationTarget["kind"];
   pins: NavigationPin[];
   currentPin?: NavigationPin;
   busy: boolean;
-  change: PinChange;
-  popup?: boolean;
-  suppressTooltips?: boolean;
-  listRef?: Ref<HTMLUListElement>;
-  onNavigate?: ComponentProps<typeof PinRow>["onNavigate"];
-}) => (
-  <ApplicationNavigationList
-    ref={listRef}
-    appearance={popup ? "popup" : "sidebar"}
-    className={popup ? undefined : styles.pins}
-    isDisabled={busy || pins.length < 2}
-    onMove={(id, target, position) => {
-      const pin = pins.find((item) => item.target.id === id);
-      const targetIndex = pins.findIndex((item) => item.target.id === target);
-      if (!pin || targetIndex < 0) {
-        return;
-      }
-      const before = position === "before" ? pins[targetIndex] : pins[targetIndex + 1];
-      void change({ action: "move", target: pin.target, before: before?.target ?? null });
-    }}
-  >
-    {(popup ? pins : pins.slice(0, PIN_PREVIEW_LIMIT)).map((pin, index) => (
-      <PinRow
-        key={pin.target.id}
-        pins={pins}
-        index={index}
-        current={pin === currentPin}
-        busy={busy}
-        change={change}
-        popup={popup}
-        suppressTooltips={suppressTooltips}
-        onNavigate={onNavigate}
-      />
-    ))}
-  </ApplicationNavigationList>
-);
-
-export const NavigationSection = (props: NavigationSectionProps) => {
-  const { title, location, icon, kind } = props;
+  change: (input: NavigationPinChange, group: NavigationPin[]) => Promise<void>;
+}) => {
   const { t } = useTranslation("web");
-  const closeNavigation = useCloseNavigation();
-  const { state, pins, currentPin, collection, overflow, popupList, open, setOpen, error, change } =
-    useNavigationSection(props);
-  const previewCurrent = pins.slice(0, PIN_PREVIEW_LIMIT).includes(currentPin!);
+
   return (
-    <section aria-label={title} className={styles.section}>
-      <Link
-        {...location}
-        ref={collection}
-        activeOptions={{ exact: previewCurrent, includeSearch: false }}
-      >
-        <Icon name={icon} />
-        {title}
-      </Link>
-      {pins.length > 0 && (
-        <PinList
+    <ApplicationNavigationList
+      aria-label={t(`pins.pinned_${kind}`)}
+      isDisabled={busy || pins.length < 2}
+      onMove={(id, target, position) => {
+        const pin = pins.find((item) => item.target.id === id);
+        const targetIndex = pins.findIndex((item) => item.target.id === target);
+        if (!pin || targetIndex < 0) {
+          return;
+        }
+        const before = position === "before" ? pins[targetIndex] : pins[targetIndex + 1];
+        void change({ action: "move", target: pin.target, before: before?.target ?? null }, pins);
+      }}
+    >
+      {pins.map((pin, index) => (
+        <PinRow
+          key={pin.target.id}
           pins={pins}
-          currentPin={currentPin}
-          busy={state?.busy ?? false}
-          suppressTooltips={open}
-          change={(input) => change(input, "sidebar")}
+          index={index}
+          current={pin === currentPin}
+          busy={busy}
+          change={(input) => change(input, pins)}
         />
-      )}
-      {pins.length > PIN_PREVIEW_LIMIT && (
-        <PopoverDialog
-          title={t(`pins.pinned_${kind}`)}
-          placement="right top"
-          isOpen={open}
-          onOpenChange={setOpen}
-          trigger={
-            <Button ref={overflow} className={styles.overflow} variant="quiet" size="small">
-              {t("pins.more", { count: pins.length - PIN_PREVIEW_LIMIT })}
-            </Button>
-          }
-        >
-          <PinList
-            listRef={popupList}
-            pins={pins}
-            currentPin={currentPin}
-            busy={state?.busy ?? false}
-            popup
-            change={(input) => change(input, "popup")}
-            onNavigate={(event) => {
-              if (
-                event.button === 0 &&
-                !event.metaKey &&
-                !event.ctrlKey &&
-                !event.shiftKey &&
-                !event.altKey
-              ) {
-                setOpen(false);
-                closeNavigation();
-              }
-            }}
-          />
-          {error === "popup" && (
-            <p role="alert" className={styles.error}>
+      ))}
+    </ApplicationNavigationList>
+  );
+};
+
+/**
+ * The workspace's pins in one collapsible section near the top of the sidebar. Pins keep the
+ * domain's ordering: each kind (funding rounds, applications, review assignments) is its own
+ * saved order, so each is its own list and moves stay within it. The sidebar scrolls when the
+ * section is long.
+ */
+export const PinnedSection = ({
+  workspaceSlug,
+  kinds,
+}: {
+  workspaceSlug: string;
+  /** Kinds this person can open in the workspace. */
+  kinds: readonly NavigationTarget["kind"][];
+}) => {
+  const state = useContext(NavigationPinsContext);
+  const { t } = useTranslation("web");
+  const { failed, change } = usePinChange(state);
+  const pins =
+    state?.pins.filter(
+      (pin) => pin.workspaceSlug === workspaceSlug && kinds.includes(pin.target.kind),
+    ) ?? [];
+  const currentPin = useCurrentPin(pins);
+
+  if (!state || pins.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className={styles.pinned}>
+      <Disclosure title={t("pins.section")} count={pins.length} headingLevel={2} defaultExpanded>
+        <div className={styles.pinList}>
+          {kinds.map((kind) => {
+            const group = pins.filter((pin) => pin.target.kind === kind);
+            return (
+              group.length > 0 && (
+                <PinGroup
+                  key={kind}
+                  kind={kind}
+                  pins={group}
+                  currentPin={currentPin}
+                  busy={state.busy}
+                  change={change}
+                />
+              )
+            );
+          })}
+        </div>
+        {failed && (
+          <div className={styles.error}>
+            <Notice tone="danger" appearance="inline" role="alert">
               {t("pins.saveError")}
-            </p>
-          )}
-        </PopoverDialog>
-      )}
-      {error === "sidebar" && (
-        <p role="alert" className={styles.error}>
-          {t("pins.saveError")}
-        </p>
-      )}
-    </section>
+            </Notice>
+          </div>
+        )}
+      </Disclosure>
+    </div>
   );
 };
 
@@ -546,11 +388,19 @@ export const NavigationPinsStatus = () => {
     return null;
   }
   return (
-    <div role="status" className={styles.error}>
-      {t("pins.loadError")}{" "}
-      <Button variant="quiet" size="small" onPress={state.retry}>
-        {t("pins.retry")}
-      </Button>
+    <div className={styles.error}>
+      <Notice
+        tone="danger"
+        appearance="inline"
+        role="status"
+        actions={
+          <Button variant="quiet" onPress={state.retry}>
+            {t("pins.retry")}
+          </Button>
+        }
+      >
+        {t("pins.loadError")}
+      </Notice>
     </div>
   );
 };

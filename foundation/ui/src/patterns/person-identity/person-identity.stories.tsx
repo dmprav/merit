@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
 import { Badge } from "../../components/badge/badge";
-import linkStyles from "../../components/link/link.module.css";
+import { Link } from "../../components/link/link";
 import { PersonIdentity } from "./person-identity";
 import styles from "./person-identity.stories.module.css";
 
@@ -44,9 +44,9 @@ export const Reviewer: Story = {
 };
 export const Linked: Story = {
   render: (args) => (
-    <a href="#person-profile" className={linkStyles.text}>
+    <Link href="#person-profile">
       <PersonIdentity {...args} />
-    </a>
+    </Link>
   ),
 };
 export const LongName: Story = {

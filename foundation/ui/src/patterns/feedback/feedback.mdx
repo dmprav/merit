@@ -1,6 +1,6 @@
 import { Canvas, Meta } from "@storybook/addon-docs/blocks";
 import * as Notices from "../../components/notice/notice.stories";
-import * as Status from "../status-message/status-message.stories";
+import * as Toasts from "../toast/toast.stories";
 import * as States from "../state-message/state-message.stories";
 
 <Meta title="Patterns/Feedback" />
@@ -23,17 +23,23 @@ shows all three contexts using the same controls.
 
 ## Choose and place feedback
 
-| Situation                                                 | Presentation                                               |
-| --------------------------------------------------------- | ---------------------------------------------------------- |
-| A completed action needs a brief confirmation             | `StatusMessage` with `confirmation`                        |
-| An update needs announcing without a visible confirmation | `StatusMessage`                                            |
-| A concern or failure needs explanation and a next action  | A persistent `Notice` beside the affected work             |
-| The page cannot show its initial content                  | `StateMessage` inside the available page or recovery frame |
+| Situation                                                         | Presentation                                               |
+| ----------------------------------------------------------------- | ---------------------------------------------------------- |
+| An action's outcome, including its failure, that the screen lacks | A toast through `showToast`                                |
+| A failure of input that is still open, such as a form's save      | One line beside the commit action in that form or dialog   |
+| An update needs announcing without being shown                    | `StatusMessage`                                            |
+| A concern that stays true while the person works                  | A persistent `Notice` beside the affected work             |
+| The page cannot show its initial content                          | `StateMessage` inside the available page or recovery frame |
+
+Toasts are the default. A failure belongs beside the work only when the person's
+unsaved input is right there, or when nothing else can fill the space. A plain
+success leaves after four seconds; a failure, or a toast offering Undo or Retry,
+stays until the person acts or dismisses it.
 
 Place persistent feedback beside the work it affects. Choose a Notice tone that
 matches the meaning and include an explanation and useful next action. Use its
 `title` for the outcome and `actions` for recovery; the notice owns their alignment
-and wrapping. Keep simple failures to a short sentence.
+and wrapping. Story tests reject a button inside a notice's message. Keep simple failures to a short sentence.
 
 Choose the Notice appearance by the surface it sits in and how much it holds:
 
@@ -44,7 +50,7 @@ Choose the Notice appearance by the surface it sits in and how much it holds:
 | Guidance on how to complete the task, with no outcome or concern to report                     | Muted description text beside the fields it explains, not a Notice |
 
 Forms and confirmation dialogs place failures in `DialogContent.feedback`, above
-the tinted action footer and outside the scrolling body. Feedback stays visible
+the action footer and outside the scrolling body. Feedback stays visible
 while the footer retains its single purpose: committing or leaving the task.
 Field validation stays beside its field.
 
@@ -52,11 +58,15 @@ When field messages explain what needs correcting, focus the first invalid field
 instead of repeating a generic validation banner. Reserve form-level feedback for
 problems that cannot be assigned to one field, such as a failed save.
 
-A concurrent edit or basis change needs an inline `ConflictBanner` above the fields while
+A [concurrent edit](?path=/story/patterns-conflict-recovery--save-conflict) or a
+[change to the underlying evidence](?path=/story/patterns-conflict-recovery--basis-shift) needs an inline `ConflictBanner` above the fields while
 keeping the author's own editor mounted and editable. Offer clear recovery actions (**Keep my changes**
-or **Reaffirm draft…** vs **Discard & load latest**) and place any optional **View latest** preview
-outside the warning `Notice` container so longer saved content does not crowd the alert.
-When access or the underlying record is gone before saving, show `RetainedDraftNotice` with
+or **Reaffirm draft…** vs **Discard & load latest**). For a form of short fields, show each
+differing field's saved value beneath it with `SavedValue`, as the application details editor
+does, so people compare where they edit. For longer writing, place an optional **View latest**
+preview outside the warning `Notice` container so the saved content does not crowd the alert.
+When access or the underlying record is gone before saving, show a
+[retained draft](?path=/story/patterns-conflict-recovery--retained-draft) with `RetainedDraftNotice` and offer
 **Copy draft** and **Discard draft** so unsaved writing is never trapped. The feature owns which differences matter, whether editing can
 continue, and which changes require strict revision checks versus last-write-wins metadata updates.
 
@@ -66,19 +76,21 @@ normal text contrast. A compact warning about a prospective side effect follows
 the confirmation pattern's body treatment instead of implying that an operation
 has already failed.
 
-A confirmed save followed by a failed refresh needs a warning about outdated data,
-with the saved outcome explicit. Never imply the write failed or offer to repeat it.
-See [Notices](?path=/docs/components-notice--docs) for tone and announcement guidance and
-[Status messages](?path=/docs/patterns-status-message--docs) for brief confirmations.
-Position workspace confirmations with the `confirmation` class from
-`application-shell.module.css`; the status component owns their lifetime and
-announcement behavior.
+A confirmed save followed by a failed refresh retries the read quietly first. If
+it still fails, a warning toast states that the change was saved and offers
+**Refresh**; the work stays available meanwhile. Never imply the write failed or
+offer to repeat it. A later change made against outdated information meets the
+workflow's concurrent-edit check rather than a blocked screen.
+See [Notices](?path=/docs/components-notice--docs) for tone and announcement guidance.
 
-Keep `StatusMessage` mounted before messages arrive, and supply a new `eventId`
-for each event, including repeated messages. Its
-[API contract](?path=/docs/patterns-status-message--docs) owns announcement and lifetime behavior.
+The document root renders one `Toasts` region, centered at the bottom of the page
+beside the application shell's sidebar. It owns toast lifetime, stacking, and
+announcement; F6 moves focus to it. Keep each message to one short sentence and
+at most one action. When a controller reports outcomes as an event counter,
+`useEventToast` shows each new event and replaces the previous event's toast, so
+an earlier Undo cannot outlive a later save.
 
-<Canvas of={Status.InWorkspace} story={{ inline: false, height: "380px" }} />
+<Canvas of={Toasts.InWorkspace} story={{ inline: false, height: "380px" }} />
 
 For dense status columns, use a plain badge with an icon and visible label.
 Lead with the state that determines the next action instead of stacking routine
@@ -92,13 +104,15 @@ The underlying delivery and acceptance facts remain distinct.
 Show failures when they affect the person's work or next decision. A background
 refresh with usable content can remain quiet. Failed saves and uncertain outcomes
 need feedback beside the action and must retain the draft.
-After a confirmed save, keep the success feedback and explain a failed refresh
-only when the missing information affects subsequent work.
+After a confirmed save, keep the success feedback and report a failed refresh
+with `useToastWhile`, which keeps the toast up only while the failure lasts.
 
 Use the existing recovery view when an initial read fails, including offline.
 Retry the affected read or route without reloading the document. Show progress on
 the retry button and prevent repeated activation while it runs. Routine background
-reads need no loading indicator.
+reads need no loading indicator. When a later page of a collection fails while
+earlier entries stay on screen, `CollectionRecovery` offers the retry as a toast and
+keeps the entries usable. Dismissing the toast leaves a retry button beside the entries.
 
 Keep workspace navigation and account controls when a page fails inside an
 accessible workspace. When the workspace itself is inaccessible, use the

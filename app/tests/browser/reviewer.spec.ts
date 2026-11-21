@@ -53,7 +53,7 @@ test("an invited reviewer independently accepts, saves, submits and amends @cros
         material_version: number;
         criteria_version: number;
       }>(
-        "SELECT c.id, c.organization_id, c.round_id, c.material_version, r.criteria_version FROM application_cases c JOIN funding_rounds r ON r.id = c.round_id JOIN organizations o ON o.id = c.organization_id WHERE o.slug = 'alder' LIMIT 1",
+        "SELECT c.id, c.organization_id, c.round_id, c.material_version, r.criteria_version FROM application_cases c JOIN funding_rounds r ON r.id = c.round_id JOIN organizations o ON o.id = c.organization_id WHERE o.slug = 'alder' AND NOT EXISTS (SELECT 1 FROM review_requests rr WHERE rr.case_id = c.id AND rr.status = 'outstanding') ORDER BY c.position LIMIT 1",
       )
     ).rows[0]!;
     const contactId = randomUUID();
@@ -107,7 +107,7 @@ test("an invited reviewer independently accepts, saves, submits and amends @cros
     const reviewNavigation = await openNavigation(reviewer);
     await expect(
       reviewNavigation
-        .getByRole("region", { name: "My work", exact: true })
+        .getByRole("list", { name: "Pinned review assignments", exact: true })
         .getByRole("link", { name: `${title} Alder Foundation`, exact: true }),
     ).toHaveAttribute("href", `/app/alder/work/${assignmentId}`);
     await expect(
@@ -211,9 +211,11 @@ test("an invited reviewer independently accepts, saves, submits and amends @cros
       reasoning,
     );
     await reviewer.getByRole("button", { name: "Submit assessment", exact: true }).click();
-    await expect(
-      reviewer.getByRole("status").filter({ hasText: "Your assessment has been submitted." }),
-    ).toHaveCount(1);
+    const confirmation = reviewer.getByRole("alertdialog", {
+      name: "Your assessment has been submitted.",
+      exact: true,
+    });
+    await expect(confirmation).toBeVisible();
     await reviewer.getByRole("button", { name: "Amend assessment", exact: true }).click();
     await reviewer
       .getByRole("textbox", { name: "Overall reasoning" })
@@ -223,8 +225,8 @@ test("an invited reviewer independently accepts, saves, submits and amends @cros
       .fill("Clarified the evidence interpretation.");
     await reviewer.getByRole("button", { name: "Submit amendment", exact: true }).click();
     await expect(
-      reviewer.getByRole("status").filter({ hasText: "Your assessment has been submitted." }),
-    ).toHaveCount(1);
+      reviewer.getByRole("alertdialog", { name: "Your assessment has been amended.", exact: true }),
+    ).toBeVisible();
     await expect(
       reviewer.getByText("Amended independent judgment.", { exact: true }),
     ).toBeVisible();

@@ -5,6 +5,7 @@ import { Badge } from "@merit/ui/badge";
 import { DescriptionList, DescriptionListItem } from "@merit/ui/description-list";
 import { Icon } from "@merit/ui/icon";
 import { Notice } from "@merit/ui/notice";
+import { Text } from "@merit/ui/text";
 import { Timestamp } from "@merit/ui/timestamp";
 
 import type { Organization } from "../contracts";
@@ -112,7 +113,9 @@ export const InvitationSummary = ({
       )}
       {invitation && <InvitationRecord invitation={invitation} />}
       {state === "joined" ? (
-        <p className={styles.muted}>{t("joinedHelp")}</p>
+        <Text as="p" variant="caption">
+          {t("joinedHelp")}
+        </Text>
       ) : state === "needsAdmin" ? (
         <Notice tone="warning">{t("needsAdminHelp")}</Notice>
       ) : (

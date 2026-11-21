@@ -19,7 +19,7 @@ Reviewers provide independent judgments; the manager draws on those
 judgments to propose the application’s treatment in the round. The recommendation
 may be unwritten while reviews are underway. Its absence is distinct from a
 deferral or a recorded zero allocation and reserves no funding. Reviewer and manager
-outcomes use the same format for recommendation position and proposed amount.
+judgments can be compared by their funding position and proposed amount.
 Review progress and version freshness are separate from the funding position;
 only manager recommendations count toward the round’s proposed allocations.
 A funding recommendation requires [ready application material](record-applications.md#save-preparation-and-mark-it-ready);
@@ -46,10 +46,6 @@ While writing a recommendation, the manager can consult submitted material,
 assessments, version history, and application details without losing the draft
 or their place in the reference material.
 
-Editors follow the shared [editing pattern](../../foundation/ui/src/patterns/editing/editing.mdx).
-Saving, closing, or discarding preserves the chosen reference material and reading
-context.
-
 Recommended amounts in EUR accept at most two decimal places. Preserve the amount
 the manager intends: reject excess precision with corrective feedback, without silent
 rounding or truncation. See the [money decision](../decisions/0008-money.md).
@@ -59,11 +55,12 @@ Saved recommendations persist on the server. The
 define the lifetime and reset behavior of its isolated workspace.
 
 A workspace save checks current manager access and the recommendation revision and
-application version on which the draft was started. When the application version or saved
-recommendation changes before saving, the editor stays mounted with an inline conflict banner
-offering **Reaffirm draft for v…** (or **Keep my draft**) versus **Discard & load latest**, plus an
-optional **View latest** preview. A save that changes
-the recommendation's content, author, or application basis records the actor,
+application version on which the draft was started. If either has changed, the
+manager retains their draft and can inspect the latest saved information. They
+must choose whether to reaffirm their judgment against the current basis or
+discard their draft and load the latest.
+
+A save that changes the recommendation's content, author, or application basis records the actor,
 timestamp, and before/after recommendation together, along with a compact workspace
 audit event referencing the saved recommendation revision. A save that changes none
 of these keeps the current revision and records nothing. Its actor name and web or MCP provenance are captured
@@ -72,6 +69,8 @@ leaves the recommendation unchanged. Managers read these events in
 [Activity](review-and-decide.md#catch-up-on-shared-changes).
 
 The [recommendation presentation guide](../../capabilities/recommendations/web/src/views/recommendations/README.md)
-owns summary composition, editor labels, contextual help, and the screen examples.
+explains the connection to the editor. The
+[design examples](../../capabilities/grantmaking/web/src/views/recommendations/recommendation-editor.mdx)
+show how a manager sees the judgment’s basis and the budget effect of an edit.
 
 [All grantmaking workflows](review-and-decide.md)

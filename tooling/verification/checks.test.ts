@@ -340,6 +340,29 @@ it("requires colors from tokens outside the token file", async () => {
   expect(await rules(join(root, "foundation/ui/src/foundations/tokens.css"))).toEqual([]);
 });
 
+it("keeps type, color, and surfaces out of feature styles", async () => {
+  const configFile = join(root, "stylelint.config.mjs");
+  // Earlier feature styles restyled shared text, links, and buttons this way.
+  const code =
+    ".meta { display: grid; gap: var(--space-2); color: var(--muted); font-size: var(--text-caption); }\n\n.panel { border-top: 1px solid var(--border); }\n\n.actions > button { justify-self: start; }\n\n.choice[data-variant] { width: 100%; }\n";
+
+  const rules = async (path: string) =>
+    (await stylelint.lint({ code, codeFilename: join(root, path), configFile })).results.flatMap(
+      ({ warnings }) => warnings.map(({ rule }) => rule),
+    );
+
+  expect((await rules("capabilities/reviews/web/src/views/probe.module.css")).toSorted()).toEqual([
+    "property-disallowed-list",
+    "property-disallowed-list",
+    "property-disallowed-list",
+    "selector-disallowed-list",
+    "selector-disallowed-list",
+  ]);
+  expect(await rules("interfaces/product/src/features/probe.stories.module.css")).toEqual([]);
+  expect(await rules("interfaces/site/src/features/probe.module.css")).toEqual([]);
+  expect(await rules("foundation/ui/src/components/probe.module.css")).toEqual([]);
+});
+
 it.each([
   "applications",
   "contacts",

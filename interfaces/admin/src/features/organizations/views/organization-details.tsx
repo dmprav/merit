@@ -1,19 +1,22 @@
-import { Link, useHydrated } from "@tanstack/react-router";
-import { useEffect, useRef, useState, type Ref } from "react";
+import { useHydrated } from "@tanstack/react-router";
+import { useEffect, useRef, type Ref } from "react";
 import { useTranslation } from "react-i18next";
 
-import shellStyles from "@merit/ui/application-shell.module.css";
 import { Button } from "@merit/ui/button";
 import { ConfirmationDialog } from "@merit/ui/confirmation-dialog";
+import { DescriptionList, DescriptionListItem } from "@merit/ui/description-list";
+import { Divider } from "@merit/ui/divider";
 import { Icon } from "@merit/ui/icon";
-import linkStyles from "@merit/ui/link.module.css";
+import { Stack } from "@merit/ui/layout";
 import { Notice } from "@merit/ui/notice";
 import { PageHeader } from "@merit/ui/page-header";
 import { PersonIdentity } from "@merit/ui/person-identity";
 import { SectionHeader } from "@merit/ui/section-header";
-import { StatusMessage } from "@merit/ui/status-message";
+import { Text } from "@merit/ui/text";
+import { showToast } from "@merit/ui/toast";
 import { Tooltip } from "@merit/ui/tooltip";
 
+import { RoutedLink } from "../../../shared/routed-link";
 import type { OrganizationData } from "../contracts";
 import { useOrganization, type OrganizationController } from "../controllers/organization";
 import { NameEditor, OwnerEditor } from "./organization-editors";
@@ -23,15 +26,10 @@ import { InvitationBadge, InvitationSummary, invitationNeedsAttention } from "./
 export const OrganizationDetailsView = ({ data }: { data: OrganizationData }) => {
   const { t } = useTranslation("administration");
   const hydrated = useHydrated();
-  const [notice, setNotice] = useState({ message: null as string | null, key: 0 });
-
-  const announce = (message: string) =>
-    setNotice((previous) => ({ message, key: previous.key + 1 }));
-
   const { work, editNameAction, invitationAction, refreshAction, invitationSection } =
     useOrganizationDetails({
       data,
-      onCommitted: (event) => announce(t(event)),
+      onCommitted: (event) => showToast({ tone: "success", message: t(event) }),
     });
   const {
     organization,
@@ -51,25 +49,18 @@ export const OrganizationDetailsView = ({ data }: { data: OrganizationData }) =>
         status={<InvitationBadge invitation={invitation} hasOwner={organization.hasOwner} />}
         actions={
           organization.canOpenWorkspace && (
-            <Link
+            <RoutedLink
+              variant="secondary"
               to="/app/$workspaceSlug/rounds"
               params={{ workspaceSlug: organization.slug }}
-              className={linkStyles.button}
-              data-variant="secondary"
             >
               {t("openWorkspace")}
-            </Link>
+            </RoutedLink>
           )
         }
       />
-      <StatusMessage
-        message={notice.message}
-        eventId={notice.key}
-        confirmation
-        className={shellStyles.confirmation}
-      />
       <div className={styles.details}>
-        <dl className={styles.record}>
+        <DescriptionList layout="rows" divided>
           <OrganizationName
             value={organization.name}
             editor={name}
@@ -78,34 +69,36 @@ export const OrganizationDetailsView = ({ data }: { data: OrganizationData }) =>
           />
           <OrganizationAddress
             slug={organization.slug}
-            onCopied={() => announce(t("addressCopied"))}
+            onCopied={() => showToast({ tone: "success", message: t("addressCopied") })}
           />
           {organization.hasOwner && (
-            <div className={styles.recordRow}>
-              <dt id="owner-label">{t("owner")}</dt>
-              <dd>
-                <section ref={invitationSection} tabIndex={-1} aria-labelledby="owner-label">
-                  {organization.owner?.name ? (
-                    <PersonIdentity name={organization.owner.name} />
-                  ) : (
-                    <span className={styles.muted}>{t("ownerNameUnavailable")}</span>
-                  )}
-                </section>
-              </dd>
-            </div>
+            <DescriptionListItem label={t("owner")} labelId="owner-label">
+              <section ref={invitationSection} tabIndex={-1} aria-labelledby="owner-label">
+                {organization.owner?.name ? (
+                  <PersonIdentity name={organization.owner.name} />
+                ) : (
+                  <Text variant="missing">{t("ownerNameUnavailable")}</Text>
+                )}
+              </section>
+            </DescriptionListItem>
           )}
-        </dl>
+        </DescriptionList>
         {refreshProblem && (
-          <Notice as="div" tone="danger" role="alert">
-            <p>{t("refreshFailed")}</p>
-            <Button
-              ref={refreshAction}
-              variant="secondary"
-              isPending={refreshing}
-              onPress={refresh}
-            >
-              {t("refresh")}
-            </Button>
+          <Notice
+            tone="danger"
+            role="alert"
+            actions={
+              <Button
+                ref={refreshAction}
+                variant="secondary"
+                isPending={refreshing}
+                onPress={refresh}
+              >
+                {t("refresh")}
+              </Button>
+            }
+          >
+            {t("refreshFailed")}
           </Notice>
         )}
         {!organization.hasOwner && (
@@ -193,75 +186,60 @@ const OrganizationName = ({
   const editLabel = t(editor.hasDraft ? "resumeName" : "editName");
 
   return (
-    <div className={styles.recordRow}>
-      <dt>{t("name")}</dt>
-      <dd>
-        {editor.editing ? (
+    <DescriptionListItem label={t("name")}>
+      {editor.editing ? (
+        <div className={styles.recordEditor}>
           <NameEditor editor={editor} disabled={disabled} />
-        ) : (
-          <div className={styles.recordValue}>
-            <span>{value}</span>
-            <Tooltip content={editLabel}>
-              <Button
-                ref={actionRef}
-                iconOnly
-                data-draft={editor.hasDraft || undefined}
-                variant="quiet"
-                size="small"
-                aria-label={editLabel}
-                isDisabled={disabled}
-                onPress={editor.open}
-              >
-                <Icon name="edit" />
-              </Button>
-            </Tooltip>
-          </div>
-        )}
-      </dd>
-    </div>
+        </div>
+      ) : (
+        <div className={styles.recordValue}>
+          <span>{value}</span>
+          <Tooltip content={editLabel}>
+            <Button
+              ref={actionRef}
+              iconOnly
+              data-draft={editor.hasDraft || undefined}
+              variant="quiet"
+              aria-label={editLabel}
+              isDisabled={disabled}
+              onPress={editor.open}
+            >
+              <Icon name="edit" />
+            </Button>
+          </Tooltip>
+        </div>
+      )}
+    </DescriptionListItem>
   );
 };
 
 const OrganizationAddress = ({ slug, onCopied }: { slug: string; onCopied: () => void }) => {
   const { t } = useTranslation("administration");
-  const [copyError, setCopyError] = useState(false);
   const address = `/app/${slug}/rounds`;
 
   return (
-    <div className={styles.recordRow}>
-      <dt>{t("address")}</dt>
-      <dd>
-        <div className={styles.recordValue}>
-          <span className={styles.address}>{address}</span>
-          <Tooltip content={t("copyAddress")}>
-            <Button
-              variant="quiet"
-              size="small"
-              iconOnly
-              aria-label={t("copyAddress")}
-              onPress={async () => {
-                try {
-                  await navigator.clipboard.writeText(
-                    new URL(address, window.location.origin).href,
-                  );
-                  setCopyError(false);
-                  onCopied();
-                } catch {
-                  setCopyError(true);
-                }
-              }}
-            >
-              <Icon name="copy" />
-            </Button>
-          </Tooltip>
-        </div>
-        {copyError && (
-          <Notice tone="danger" role="alert">
-            {t("copyFailed")}
-          </Notice>
-        )}
-      </dd>
-    </div>
+    <DescriptionListItem label={t("address")}>
+      <div className={styles.recordValue}>
+        <span className={styles.address}>{address}</span>
+        <Tooltip content={t("copyAddress")}>
+          <Button
+            variant="quiet"
+            iconOnly
+            aria-label={t("copyAddress")}
+            onPress={async () => {
+              try {
+                await navigator.clipboard.writeText(new URL(address, window.location.origin).href);
+                onCopied();
+              } catch {
+                showToast({ tone: "danger", message: t("copyFailed") });
+              }
+            }}
+          >
+            <Icon name="copy" />
+          </Button>
+        </Tooltip>
+      </div>
+    </DescriptionListItem>
   );
 };
 
@@ -280,27 +258,23 @@ const InvitationSection = ({
 
   return (
     <div className={styles.ownership}>
-      <section
-        ref={sectionRef}
-        tabIndex={-1}
-        className={styles.section}
-        aria-labelledby="administrator-heading"
-      >
-        <SectionHeader
-          id="administrator-heading"
-          className={styles.ownerHeading}
-          title={t("invitation")}
-        />
-        <InvitationSummary invitation={work.record} showStatus={false} />
-        {!work.record?.acceptedAt && (
-          <div className={styles.divider}>
-            {work.editing ? (
-              <OwnerEditor editor={work} disabled={disabled} actionRef={actionRef} />
-            ) : (
-              <InvitationActions work={work} disabled={disabled} actionRef={actionRef} />
-            )}
-          </div>
-        )}
+      <section ref={sectionRef} tabIndex={-1} aria-labelledby="administrator-heading">
+        <SectionHeader id="administrator-heading" title={t("invitation")} />
+        <div className={styles.section}>
+          <InvitationSummary invitation={work.record} showStatus={false} />
+          {!work.record?.acceptedAt && (
+            <div className={styles.ownerActions}>
+              <Stack gap={6}>
+                <Divider />
+                {work.editing ? (
+                  <OwnerEditor editor={work} disabled={disabled} actionRef={actionRef} />
+                ) : (
+                  <InvitationActions work={work} disabled={disabled} actionRef={actionRef} />
+                )}
+              </Stack>
+            </div>
+          )}
+        </div>
       </section>
     </div>
   );
@@ -367,6 +341,7 @@ const InvitationActions = ({
         {work.active ? (
           <>
             <Button
+              size="medium"
               ref={actionRef}
               variant={invitationNeedsAttention(work.record, false) ? "primary" : "secondary"}
               isDisabled={disabled || !work.ready}
@@ -375,23 +350,30 @@ const InvitationActions = ({
             >
               {t(work.sending ? "sending" : "resend")}
             </Button>
-            <Button variant="quiet" isDisabled={disabled} onPress={work.open}>
+            <Button size="medium" variant="quiet" isDisabled={disabled} onPress={work.open}>
               {t(work.hasDraft ? "resumeInvitation" : "replace")}
             </Button>
           </>
         ) : (
-          <Button ref={actionRef} isDisabled={disabled} onPress={work.open}>
+          <Button size="medium" ref={actionRef} isDisabled={disabled} onPress={work.open}>
             {t(work.hasDraft ? "resumeInvitation" : "inviteOwner")}
           </Button>
         )}
       </div>
-      {work.active && <p className={styles.muted}>{t("invitationHelp")}</p>}
       {work.active && (
-        <div className={styles.secondaryActions}>
-          <Button variant="quiet" size="small" isDisabled={disabled} onPress={work.requestRevoke}>
-            {t("revoke")}
-          </Button>
-        </div>
+        <Text as="p" variant="caption">
+          {t("invitationHelp")}
+        </Text>
+      )}
+      {work.active && (
+        <Stack gap={4}>
+          <Divider />
+          <div>
+            <Button variant="quiet" isDisabled={disabled} onPress={work.requestRevoke}>
+              {t("revoke")}
+            </Button>
+          </div>
+        </Stack>
       )}
     </div>
   );

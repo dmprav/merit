@@ -1,0 +1,74 @@
+/* Recorded events on one quiet rail: a marker per event, its title and attribution on one line. */
+.timeline {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.entry {
+  --marker: 7px;
+  position: relative;
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+  padding-inline-start: var(--space-5);
+  font-size: var(--text-body);
+  line-height: 1.5;
+}
+
+/* The marker centers on the title's first line. */
+.entry::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: 0;
+  top: calc((1lh - var(--marker)) / 2);
+  width: var(--marker);
+  height: var(--marker);
+  border: 1.5px solid var(--border-control);
+  border-radius: 50%;
+  background: var(--surface);
+}
+
+/* The rail joins each marker to the next event. */
+.entry:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  inset-inline-start: calc(var(--marker) / 2 - 0.5px);
+  top: calc((1lh + var(--marker)) / 2 + var(--space-1));
+  bottom: calc(-1 * var(--space-4) + var(--space-1));
+  width: 1px;
+  background: var(--border);
+}
+
+.heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--space-2);
+  min-width: 0;
+}
+
+.title {
+  min-width: 0;
+  font-size: inherit;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.title:focus {
+  outline: none;
+}
+
+/* Focus moves here after navigation within the page; the heading is not a control. */
+@media (forced-colors: active) {
+  .title:focus {
+    outline: 2px solid Highlight;
+  }
+
+  .entry::before,
+  .entry::after {
+    forced-color-adjust: none;
+    border-color: CanvasText;
+    background: Canvas;
+  }
+}

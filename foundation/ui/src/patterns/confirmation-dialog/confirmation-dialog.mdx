@@ -17,18 +17,15 @@ Cancellation receives initial focus so opening the dialog does not commit the ac
 
 ## Compose the decision
 
-Confirmations share the creation and editing dialog frame: a persistent tinted
-footer, small labelled actions, and the same notice for failures. The frame is
-narrower than a form so a short decision reads as one compact block with its actions. Keep Cancel and
-the specific confirmation action; draft Discard and Close belong to editing.
-The footer contains actions, while consequences belong in the body.
+Put the consequences in the body and the two choices in the footer. Use the
+shared confirmation frame for a short decision. Use a [form dialog](?path=/docs/patterns-form-dialog--docs)
+when the person needs to edit several values.
 
-Present the decision in cohesive body text. Group access changes together,
-preserved work and return access together, then any handover guidance. Keep related
-sentences in the same paragraph; avoid a heading, divider, bullet, or container
-for every fact. The title and destructive action already establish the removal
-context, so ordinary consequences need neither warning color nor warning icons.
-Use body size and contrast for recovery guidance too.
+Group details by what the person needs to understand before proceeding. For
+example, someone removing access needs to know what ends immediately, what work
+is preserved, and how access could be restored. Plain paragraphs keep those
+effects readable together. The title and action label already identify the
+destructive action.
 
 Keep the affected scope and count visible. Omit individual recipients when the
 scope and count sufficiently describe the change. Add one concise sentence when

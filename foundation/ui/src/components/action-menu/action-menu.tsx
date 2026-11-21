@@ -9,6 +9,8 @@ import {
 import { Menu, MenuItem, MenuTrigger, Pressable } from "react-aria-components/Menu";
 import { Popover } from "react-aria-components/Popover";
 
+import rowStyles from "../../foundations/list-row.module.css";
+import { IconBase, type IconName } from "../icon/icon-base";
 import { Tooltip } from "../tooltip/tooltip";
 import styles from "./action-menu.module.css";
 
@@ -75,7 +77,8 @@ export const ActionMenu = ({
   /** Context menus preserve the link's normal navigation and use platform right-click/long-press gestures. */
   activation?: "press" | "contextMenu";
   tooltip?: string;
-  items: readonly { id: string; label: string }[];
+  /** Give every item an icon or none, so labels stay aligned. */
+  items: readonly { id: string; label: string; icon?: IconName }[];
   onAction: (id: string) => void;
 }) => {
   const menuRef = useRef<HTMLDivElement>(null);
@@ -105,8 +108,13 @@ export const ActionMenu = ({
           onAction={(key) => onAction(String(key))}
         >
           {items.map((item) => (
-            <MenuItem id={item.id} key={item.id} className={styles.item}>
-              {item.label}
+            <MenuItem id={item.id} key={item.id} textValue={item.label} className={rowStyles.row}>
+              {item.icon && (
+                <span className={rowStyles.leading}>
+                  <IconBase name={item.icon} />
+                </span>
+              )}
+              <span className={rowStyles.copy}>{item.label}</span>
             </MenuItem>
           ))}
         </Menu>

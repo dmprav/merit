@@ -9,6 +9,8 @@ and examples maintained beside the code.
   [feature ownership](guides/web-features.md), and [coding conventions](guides/coding-conventions.md).
 - **Verify a change:** [commands and runtime checks](guides/verification.md),
   [test design and coverage](guides/testing.md), and [UI review](guides/ui-verification.md).
+- **Design a screen:** [experience principles](foundations/experience.md), the
+  [design system in Storybook](../foundation/ui/src/overview.mdx), and [UI development](guides/ui.md).
 - **Understand a product task:** [workflows](workflows/README.md), supported by
   [domain concepts](domain/concepts.md) and [foundations](foundations/README.md).
 - **Deploy or provision access:** [deployment](guides/deployment.md) and

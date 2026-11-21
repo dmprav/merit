@@ -16,6 +16,8 @@ import {
 } from "@merit/forms";
 import { assessmentEntrySchema, isEligibleReviewer } from "@merit/reviews/domain";
 import { Button } from "@merit/ui/button";
+import { SectionHeader } from "@merit/ui/section-header";
+import { Text } from "@merit/ui/text";
 
 import type { ReviewProblem } from "../../contracts/reviews";
 import type { ReviewDraft, ReviewFormValues } from "../../controllers/reviews/drafts";
@@ -69,7 +71,6 @@ export const ReviewForm = ({
   return (
     <Form
       scrollFields
-      className={styles.editorForm}
       label={t(draft.mode)}
       submission={submission}
       actions={
@@ -86,7 +87,11 @@ export const ReviewForm = ({
     >
       <div className={styles.form}>
         {beforeFields}
-        {followUp && draft.mode === "record" && <p className={styles.meta}>{t("followUpHint")}</p>}
+        {followUp && draft.mode === "record" && (
+          <Text as="p" variant="supporting">
+            {t("followUpHint")}
+          </Text>
+        )}
         {draft.mode !== "edit" && (
           <form.Field name="contactId">
             {(field) => (
@@ -218,7 +223,9 @@ const AssessmentFields = ({
         </form.Field>
       </div>
       <AssessmentBasis form={form} versions={versions} criteriaHistory={criteriaHistory} />
-      <p className={styles.meta}>{t("requestedBasis")}</p>
+      <Text as="p" variant="supporting">
+        {t("requestedBasis")}
+      </Text>
       <form.Field name="date">
         {(field) => <FormDateField field={field} label={t("assessmentDate")} />}
       </form.Field>
@@ -306,9 +313,7 @@ const CriterionNotes = ({
           <section className={styles.criterionNotes} aria-label={t("observations")}>
             {expanded && field.state.value.length > 0 ? (
               <>
-                <div className={styles.notesHeading}>
-                  <h3>{t("observations")}</h3>
-                </div>
+                <SectionHeader level={3} title={t("observations")} />
                 {field.state.value.map((observation, index) => (
                   <form.Field key={index} name={`observations[${index}].text`}>
                     {(item) => (
@@ -327,8 +332,8 @@ const CriterionNotes = ({
               </>
             ) : field.state.value.length > 0 || selectedCriteria.length > 0 ? (
               <Button
-                size="small"
                 variant="quiet"
+                alignment="start"
                 onPress={() => {
                   field.handleChange(addCriterionObservations(field.state.value, selectedCriteria));
                   setShowNotes(true);
@@ -337,7 +342,9 @@ const CriterionNotes = ({
                 {t("addObservations")}
               </Button>
             ) : (
-              <p className={styles.meta}>{t("chooseCriteriaForNotes")}</p>
+              <Text as="p" variant="supporting">
+                {t("chooseCriteriaForNotes")}
+              </Text>
             )}
           </section>
         );

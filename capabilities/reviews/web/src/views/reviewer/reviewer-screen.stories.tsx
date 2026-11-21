@@ -34,7 +34,7 @@ const ReviewerPreview = ({
 };
 
 const meta = {
-  title: "Features/Applications/Participate in review",
+  title: "Features/Applications/Review an assigned application",
   component: ReviewerPreview,
   tags: ["!autodocs"],
   parameters: { layout: "fullscreen" },

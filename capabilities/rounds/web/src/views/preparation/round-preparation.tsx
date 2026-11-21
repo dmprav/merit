@@ -2,27 +2,28 @@ import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import { ConflictBanner, FormDialog } from "@merit/forms";
-import { useLocaleSettings } from "@merit/i18n";
 import { useFormat } from "@merit/i18n/format";
 import { decodeMoney } from "@merit/money";
 import { RemotePagedContent } from "@merit/query/pages";
 import { ActionMenu } from "@merit/ui/action-menu";
 import { ActionProvenance } from "@merit/ui/action-provenance";
-import shellStyles from "@merit/ui/application-shell.module.css";
+import { Attribution } from "@merit/ui/attribution";
 import { Button } from "@merit/ui/button";
 import { ChoiceList } from "@merit/ui/choice-list";
 import { ConfirmationDialog } from "@merit/ui/confirmation-dialog";
 import { DateChoice } from "@merit/ui/date-choice";
 import { DialogContent, PickerPopover } from "@merit/ui/dialog";
+import { Disclosure } from "@merit/ui/disclosure";
 import { EditorLoading, EditorClose } from "@merit/ui/editor-loading";
 import { Icon } from "@merit/ui/icon";
 import { InlineName } from "@merit/ui/inline-name";
-import { Inline } from "@merit/ui/layout";
+import { Inline, Reading } from "@merit/ui/layout";
 import { Notice } from "@merit/ui/notice";
 import { PagedContent } from "@merit/ui/paged-content";
 import { PersonIdentity } from "@merit/ui/person-identity";
 import { PropertyButton } from "@merit/ui/property-button";
-import { StatusMessage } from "@merit/ui/status-message";
+import { Timeline, TimelineEntry } from "@merit/ui/timeline";
+import { showToast, useEventToast, useToastWhile } from "@merit/ui/toast";
 import { Tooltip } from "@merit/ui/tooltip";
 
 import type { PreparationRound } from "../../contracts/preparation";
@@ -72,7 +73,6 @@ export const RoundEditButton = ({
     <Tooltip content={label}>
       <Button
         ref={(element) => preparation.registerEditTrigger(section, element)}
-        size="small"
         variant="quiet"
         iconOnly
         data-draft={changed || undefined}
@@ -189,6 +189,10 @@ export const RoundEditor = ({
           draft={draft}
           round={round}
           budgetPreviouslySet={preparation.budgetHistory.length > 0}
+          afterFields={
+            section === "budget" &&
+            preparation.budgetHistory.length > 0 && <BudgetHistory preparation={preparation} />
+          }
           isConflict={isConflict}
           isPending={preparation.pending}
           beforeFields={
@@ -207,13 +211,62 @@ export const RoundEditor = ({
           onDiscard={() => preparation.discard(section)}
           inline={section === "purpose" || section === "criteria"}
           onSave={async (draft) => preparationError(t, await preparation.saveDraft(draft))}
-          afterFields={
-            section === "budget" &&
-            preparation.budgetHistory.length > 0 && <BudgetHistory preparation={preparation} />
-          }
         />
       )}
     </>
+  );
+};
+
+const BudgetHistory = ({ preparation }: Props) => {
+  const { t } = useTranslation("roundPreparation");
+  const { money } = useFormat();
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <Disclosure title={t("preparation.budgetHistory")} onExpandedChange={setExpanded}>
+      <RemotePagedContent
+        source={preparation.historySource}
+        entries={preparation.budgetHistory}
+        active={expanded}
+      >
+        {(page) => (
+          <PagedContent {...page}>
+            {(entries) => (
+              <Timeline>
+                {entries.map((entry) => (
+                  <TimelineEntry
+                    key={entry.revision}
+                    headingLevel={4}
+                    title={t("preparation.budgetTransition", {
+                      before:
+                        entry.before === null
+                          ? t("preparation.notSet")
+                          : money(decodeMoney(entry.before)),
+                      after:
+                        entry.after === null
+                          ? t("preparation.notSet")
+                          : money(decodeMoney(entry.after)),
+                    })}
+                    attribution={
+                      <Inline align="baseline" gap={3}>
+                        <Attribution actor={entry.actor} recordedAt={entry.recordedAt} />
+                        <ActionProvenance value={entry.provenance} detail />
+                      </Inline>
+                    }
+                  >
+                    {entry.reason && (
+                      <Reading as="p" prose={false}>
+                        {entry.reason}
+                      </Reading>
+                    )}
+                  </TimelineEntry>
+                ))}
+              </Timeline>
+            )}
+          </PagedContent>
+        )}
+      </RemotePagedContent>
+    </Disclosure>
   );
 };
 
@@ -312,22 +365,19 @@ export const RoundManager = ({
       value={<PersonIdentity name={valueText} isPlaceholder={!name} />}
       valueText={valueText}
     >
-      {({ closeButton }) => (
-        <ChoiceList
-          headerActions={closeButton}
-          label={t("preparation.chooseManager")}
-          searchLabel={t("preparation.searchPeople")}
-          emptyLabel={t("preparation.noPeople")}
-          selectedKey={round.managerUserId ?? null}
-          isDisabled={pending}
-          items={managers.map((manager) => ({
-            id: manager.userId,
-            label: manager.name ?? manager.email ?? t("preparation.unknownPerson"),
-            description: manager.name ? (manager.email ?? undefined) : undefined,
-          }))}
-          onChoose={(userId) => void preparation.assignManager(userId)}
-        />
-      )}
+      <ChoiceList
+        label={t("preparation.chooseManager")}
+        searchLabel={t("preparation.searchPeople")}
+        emptyLabel={t("preparation.noPeople")}
+        selectedKey={round.managerUserId ?? null}
+        isDisabled={pending}
+        items={managers.map((manager) => ({
+          id: manager.userId,
+          label: manager.name ?? manager.email ?? t("preparation.unknownPerson"),
+          description: manager.name ? (manager.email ?? undefined) : undefined,
+        }))}
+        onChoose={(userId) => void preparation.assignManager(userId)}
+      />
     </QuickEditor>
   );
 };
@@ -348,7 +398,7 @@ const QuickEditor = ({
   section: "meetingDate" | "manager";
   value: ReactNode;
   valueText: string;
-  children: ReactNode | ((props: { closeButton: ReactNode }) => ReactNode);
+  children: ReactNode;
 }) => {
   const { t } = useTranslation("roundPreparation");
 
@@ -370,27 +420,18 @@ const QuickEditor = ({
         open ? preparation.open(section) : preparation.close({ restoreFocus: false })
       }
     >
-      {({ closeButton }) => (
-        <>
-          {!preparation.ready ? (
-            <DialogContent label={t(`preparation.edit.${section}`)}>
-              <Inline justify="between">
-                <h3>{t(`preparation.edit.${section}`)}</h3>
-                {closeButton}
-              </Inline>
-              <EditorLoading />
-            </DialogContent>
-          ) : typeof children === "function" ? (
-            children({ closeButton })
-          ) : (
-            children
-          )}
-          {preparation.error && (
-            <Notice tone="danger" role="alert">
-              {preparationError(t, preparation.error)}
-            </Notice>
-          )}
-        </>
+      {!preparation.ready ? (
+        <DialogContent label={t(`preparation.edit.${section}`)}>
+          <h3>{t(`preparation.edit.${section}`)}</h3>
+          <EditorLoading />
+        </DialogContent>
+      ) : (
+        children
+      )}
+      {preparation.error && (
+        <Notice tone="danger" role="alert">
+          {preparationError(t, preparation.error)}
+        </Notice>
       )}
     </PickerPopover>
   );
@@ -417,7 +458,7 @@ export const RoundActions = ({
       <ActionMenu
         label={t("preparation.moreActions")}
         trigger={
-          <Button ref={triggerRef} size="small" variant="quiet" isDisabled={pending}>
+          <Button ref={triggerRef} variant="quiet" isDisabled={pending}>
             {t("preparation.moreActions")}
           </Button>
         }
@@ -453,122 +494,36 @@ export const RoundDeleteConfirmation = ({ preparation }: Props) => {
 
 export const RoundFeedback = ({ preparation }: Props) => {
   const { t } = useTranslation("roundPreparation");
-  const { undo, feedback, pending, refreshError } = preparation;
+  const { undo, feedback, refreshError } = preparation;
 
-  return (
-    <>
-      <StatusMessage
-        confirmation={!undo}
-        className={shellStyles.confirmation}
-        eventId={feedback.event}
-        message={
-          feedback.outcome
-            ? t(feedback.outcome === "saved" ? "preparation.saved" : "preparation.undone")
-            : null
-        }
-      />
-      {undo && (
-        <div className={styles.undo}>
-          <span>{t("preparation.saved")}</span>
-          <Button
-            size="small"
-            variant="quiet"
-            isDisabled={pending}
-            onPress={() => {
-              void preparation.undoSave();
-            }}
-          >
-            {t("preparation.undo")}
-          </Button>
-          <Button
-            size="small"
-            variant="quiet"
-            iconOnly
-            aria-label={t("preparation.close")}
-            onPress={() => preparation.dismissUndo()}
-          >
-            <Icon name="close" />
-          </Button>
-          {preparation.error && <span role="alert">{preparationError(t, preparation.error)}</span>}
-        </div>
-      )}
-      {refreshError && (
-        <Notice as="div" tone="warning">
-          <p>
-            {t(
-              refreshError === "saved"
-                ? "preparation.refreshError"
-                : "preparation.refreshReadError",
-            )}
-          </p>
-          <Button
-            size="small"
-            variant="secondary"
-            onPress={() => {
-              void preparation.refresh(refreshError);
-            }}
-          >
-            {t("preparation.refresh")}
-          </Button>
-        </Notice>
-      )}
-    </>
-  );
-};
+  const undoSave = async () => {
+    const failure = preparationError(t, await preparation.undoSave());
+    if (failure) {
+      showToast({ tone: "danger", message: failure });
+    }
+  };
 
-const BudgetHistory = ({ preparation }: Props) => {
-  const [open, setOpen] = useState(false);
-  const { t } = useTranslation(["roundPreparation", "common"]);
-  const { formatLocale } = useLocaleSettings();
-  const { money } = useFormat();
-  return (
-    <details className={styles.history} onToggle={(event) => setOpen(event.currentTarget.open)}>
-      <summary>{t("preparation.budgetHistory")}</summary>
-      <RemotePagedContent
-        source={preparation.historySource}
-        entries={preparation.budgetHistory}
-        active={open}
-      >
-        {(page) => (
-          <PagedContent {...page}>
-            {(entries) => (
-              <ol>
-                {entries.map((entry) => (
-                  <li key={entry.revision}>
-                    <p>
-                      {t("preparation.budgetTransition", {
-                        before:
-                          entry.before === null
-                            ? t("preparation.notSet")
-                            : money(decodeMoney(entry.before)),
-                        after:
-                          entry.after === null
-                            ? t("preparation.notSet")
-                            : money(decodeMoney(entry.after)),
-                      })}
-                    </p>
-                    <p>{entry.reason}</p>
-                    <Inline align="baseline" gap={3}>
-                      <span>
-                        {t("common:recordedBy", {
-                          name: entry.actor ?? t("preparation.unknownPerson"),
-                        })}
-                      </span>
-                      <ActionProvenance value={entry.provenance} />
-                      <time dateTime={entry.recordedAt}>
-                        {new Date(entry.recordedAt).toLocaleString(formatLocale, {
-                          timeZone: "UTC",
-                        })}{" "}
-                        UTC
-                      </time>
-                    </Inline>
-                  </li>
-                ))}
-              </ol>
-            )}
-          </PagedContent>
-        )}
-      </RemotePagedContent>
-    </details>
+  useEventToast(
+    feedback.event,
+    feedback.outcome && {
+      tone: "success",
+      message: t(feedback.outcome === "saved" ? "preparation.saved" : "preparation.undone"),
+      action: undo ? { label: t("preparation.undo"), onPress: () => void undoSave() } : undefined,
+    },
   );
+
+  useToastWhile(
+    refreshError && {
+      tone: "warning",
+      message: t(
+        refreshError === "saved" ? "preparation.refreshError" : "preparation.refreshReadError",
+      ),
+      action: {
+        label: t("preparation.refresh"),
+        onPress: () => void preparation.refresh(refreshError),
+      },
+    },
+  );
+
+  return null;
 };

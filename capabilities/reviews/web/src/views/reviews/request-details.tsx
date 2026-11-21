@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useLocaleSettings } from "@merit/i18n";
 import type { ReviewState } from "@merit/reviews/domain";
 import { ActionProvenance } from "@merit/ui/action-provenance";
+import { Text } from "@merit/ui/text";
 
 import styles from "./review-work.module.css";
 
@@ -40,37 +41,39 @@ export const RequestDetails = ({ request }: { request: Request }) => {
   const { t } = useTranslation("reviews");
 
   return (
-    <div className={styles.requestDetails}>
-      <p>
-        {request.applicationVersion === null
-          ? t("applicationBasisUnknown")
-          : t("requestSubmission", { version: request.applicationVersion })}
-        {" · "}
-        {request.criteriaVersion === null
-          ? t("criteriaBasisUnknown")
-          : t("requestCriteria", { version: request.criteriaVersion })}
-      </p>
-      {request.recorder ? (
-        <RequestEvent
-          label={t("requestAdded", { name: request.recorder.name })}
-          actor={request.recorder}
-        />
-      ) : (
-        <p>{t("recorderUnknown")}</p>
-      )}
-      {request.closedBy && (
-        <RequestEvent
-          label={
-            request.closedBy.cause === "application_withdrawn"
-              ? t("requestClosedWithdrawn", { name: request.closedBy.name })
-              : t("requestClosed", {
-                  status: t(request.status === "received" ? "received" : "cancelled"),
-                  name: request.closedBy.name,
-                })
-          }
-          actor={request.closedBy}
-        />
-      )}
-    </div>
+    <Text as="div" variant="caption">
+      <div className={styles.requestDetails}>
+        <p>
+          {request.applicationVersion === null
+            ? t("applicationBasisUnknown")
+            : t("requestSubmission", { version: request.applicationVersion })}
+          {" · "}
+          {request.criteriaVersion === null
+            ? t("criteriaBasisUnknown")
+            : t("requestCriteria", { version: request.criteriaVersion })}
+        </p>
+        {request.recorder ? (
+          <RequestEvent
+            label={t("requestAdded", { name: request.recorder.name })}
+            actor={request.recorder}
+          />
+        ) : (
+          <p>{t("recorderUnknown")}</p>
+        )}
+        {request.closedBy && (
+          <RequestEvent
+            label={
+              request.closedBy.cause === "application_withdrawn"
+                ? t("requestClosedWithdrawn", { name: request.closedBy.name })
+                : t("requestClosed", {
+                    status: t(request.status === "received" ? "received" : "cancelled"),
+                    name: request.closedBy.name,
+                  })
+            }
+            actor={request.closedBy}
+          />
+        )}
+      </div>
+    </Text>
   );
 };

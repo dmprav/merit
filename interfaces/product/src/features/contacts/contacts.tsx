@@ -1,11 +1,11 @@
-import { Link } from "@tanstack/react-router";
 import type { ComponentProps } from "react";
 
 import {
   ContactPicker as Picker,
   ContactsDirectory as Directory,
 } from "@merit/contacts-web/contacts";
-import linkStyles from "@merit/ui/link.module.css";
+
+import { RoutedLink } from "../../shared/routed-link";
 
 export type { Contact } from "@merit/contacts-web/contracts";
 
@@ -16,15 +16,15 @@ export const ContactsDirectory = (
 ) => (
   <Directory
     {...props}
-    renderApplicationLink={(item, children, destination) => (
-      <Link
-        className={`${linkStyles.text} ${destination ? "" : linkStyles.standalone}`}
+    renderApplicationLink={(item, children, { variant, tab }) => (
+      <RoutedLink
+        variant={variant}
         to="/app/$workspaceSlug/applications/$applicationRef"
         params={{ workspaceSlug: props.workspaceSlug, applicationRef: item.publicId }}
-        search={{ tab: destination }}
+        search={{ tab }}
       >
         {children}
-      </Link>
+      </RoutedLink>
     )}
   />
 );
