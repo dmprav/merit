@@ -51,7 +51,6 @@ export const ConfirmationDialog = ({
   error,
 }: ConfirmationDialogProps) => {
   const descriptionId = useId();
-  const pendingMessage = isPending ? (pendingLabel ?? confirmLabel) : null;
 
   return (
     <FramedDialog
@@ -83,21 +82,17 @@ export const ConfirmationDialog = ({
             >
               {cancelLabel}
             </Button>
-            <ButtonBase
-              size="small"
-              variant={intent === "destructive" ? "destructive" : "primary"}
-              aria-busy={isPending}
-              aria-disabled={isPending}
-              onPress={isPending ? undefined : onConfirm}
-            >
-              {pendingMessage ?? confirmLabel}
-            </ButtonBase>
+            <ConfirmAction
+              intent={intent}
+              label={confirmLabel}
+              pendingLabel={pendingLabel}
+              pending={isPending}
+              onConfirm={onConfirm}
+            />
           </Inline>
         }
       >
         <div className={styles.content}>
-          {/* Keep the announcement text in the dialog so closing it removes the pending message too. */}
-          <StatusMessage message={pendingMessage} eventId={confirmLabel} />
           <p id={descriptionId} className={styles.description}>
             {description}
           </p>
@@ -105,5 +100,36 @@ export const ConfirmationDialog = ({
         </div>
       </DialogContent>
     </FramedDialog>
+  );
+};
+
+const ConfirmAction = ({
+  intent,
+  label,
+  pendingLabel,
+  pending,
+  onConfirm,
+}: {
+  intent: "default" | "destructive";
+  label: string;
+  pendingLabel?: string;
+  pending: boolean;
+  onConfirm: () => void;
+}) => {
+  const pendingMessage = pending ? (pendingLabel ?? label) : null;
+  return (
+    <>
+      <ButtonBase
+        size="small"
+        variant={intent === "destructive" ? "destructive" : "primary"}
+        aria-busy={pending}
+        aria-disabled={pending}
+        onPress={pending ? undefined : onConfirm}
+      >
+        {pendingMessage ?? label}
+      </ButtonBase>
+      {/* A local text announcement closes with the dialog, even when its button disappears. */}
+      <StatusMessage message={pendingMessage} eventId={label} />
+    </>
   );
 };
