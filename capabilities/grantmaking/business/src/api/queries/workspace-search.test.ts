@@ -23,7 +23,7 @@ const groups = (rounds: MatchQuality[], applications: MatchQuality[]) => ({
     total: rounds.length,
     results: rounds.map((matchQuality, index) => ({
       ...round,
-      title: `Round ${index}`,
+      title: `Round ${rounds.length - index}`,
       matchQuality,
     })),
   },
@@ -31,7 +31,7 @@ const groups = (rounds: MatchQuality[], applications: MatchQuality[]) => ({
     total: applications.length,
     results: applications.map((matchQuality, index) => ({
       ...application,
-      title: `Application ${index}`,
+      title: `Application ${applications.length - index}`,
       matchQuality,
     })),
   },
@@ -77,7 +77,7 @@ it("merges exact, prefix and contains matches, rounds first and in server order 
     orderedSearchRecords(search).map((record) =>
       record.kind === "round" ? record.round.title : record.application.title,
     ),
-  ).toEqual(["Round 0", "Application 2", "Application 1", "Round 1", "Round 2", "Application 0"]);
+  ).toEqual(["Round 3", "Application 1", "Application 2", "Round 2", "Round 1", "Application 3"]);
 });
 
 it("merges empty groups into no records", () => {
