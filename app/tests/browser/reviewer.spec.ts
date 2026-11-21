@@ -107,7 +107,7 @@ test("an invited reviewer independently accepts, saves, submits and amends @cros
     const reviewNavigation = await openNavigation(reviewer);
     await expect(
       reviewNavigation
-        .getByRole("region", { name: "My work", exact: true })
+        .getByRole("list", { name: "Pinned review assignments", exact: true })
         .getByRole("link", { name: `${title} Alder Foundation`, exact: true }),
     ).toHaveAttribute("href", `/app/alder/work/${assignmentId}`);
     await expect(
@@ -212,7 +212,10 @@ test("an invited reviewer independently accepts, saves, submits and amends @cros
     );
     await reviewer.getByRole("button", { name: "Submit assessment", exact: true }).click();
     await expect(
-      reviewer.getByRole("status").filter({ hasText: "Your assessment has been submitted." }),
+      reviewer.getByRole("alertdialog", {
+        name: "Your assessment has been submitted.",
+        exact: true,
+      }),
     ).toHaveCount(1);
     await reviewer.getByRole("button", { name: "Amend assessment", exact: true }).click();
     await reviewer
@@ -223,7 +226,10 @@ test("an invited reviewer independently accepts, saves, submits and amends @cros
       .fill("Clarified the evidence interpretation.");
     await reviewer.getByRole("button", { name: "Submit amendment", exact: true }).click();
     await expect(
-      reviewer.getByRole("status").filter({ hasText: "Your assessment has been submitted." }),
+      reviewer.getByRole("alertdialog", {
+        name: "Your assessment has been submitted.",
+        exact: true,
+      }),
     ).toHaveCount(1);
     await expect(
       reviewer.getByText("Amended independent judgment.", { exact: true }),

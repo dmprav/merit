@@ -763,6 +763,7 @@ test("personal pins list every saved pin and collapse under their heading @cross
     exact: true,
   });
   await expect(reloaded.getByRole("link").nth(5)).toHaveText("Pinned round 7");
+  await reloaded.getByRole("link", { name: "Pinned round 7", exact: true }).focus();
   await reloaded.getByRole("button", { name: "Unpin Pinned round 7 from sidebar" }).click();
   await expect(reloaded.getByRole("link").nth(5)).toBeFocused();
   await expect(reloaded.getByRole("link")).toHaveCount(6);

@@ -244,9 +244,9 @@ test(
     await page.getByRole("button", { name: "Save recommendation", exact: true }).click();
 
     await expect(page.getByRole("form")).toHaveCount(0);
-    await expect(page.getByRole("status").filter({ hasText: "Recommendation saved" })).toHaveCount(
-      1,
-    );
+    await expect(
+      page.getByRole("alertdialog", { name: "Recommendation saved", exact: true }),
+    ).toHaveCount(1);
     await expect(page.getByText(savedReasoning, { exact: true })).toBeVisible();
 
     await page.reload();

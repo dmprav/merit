@@ -76,9 +76,10 @@ test("owner invites an administrator, grant access is explicit, and removal expl
 
   await expect(dialog).toHaveCount(0);
   await expect(
-    page
-      .getByRole("status")
-      .filter({ hasText: "Invitation saved. Check its email delivery status below." }),
+    page.getByRole("alertdialog", {
+      name: "Invitation saved. Check its email delivery status below.",
+      exact: true,
+    }),
   ).toBeVisible();
   await expect(page.getByRole("row").filter({ hasText: "dana@example.test" })).toContainText(
     "Awaiting acceptance",
@@ -148,7 +149,7 @@ test("owner invites an administrator, grant access is explicit, and removal expl
   await invitationActions.click();
   await page.getByRole("menuitem", { name: "Resend", exact: true }).click();
 
-  await expect(page.getByRole("alert")).toHaveText(
+  await expect(page.getByRole("main").getByRole("alert")).toHaveText(
     "Wait one minute after the last invitation to this email, then try again.",
   );
   await expect(invitationActions).toBeFocused();

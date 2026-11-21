@@ -210,14 +210,19 @@ const restorePinFocus = (
       return;
     }
     const current = document.activeElement;
-    // Leave focus where the person moved it while the change saved.
-    if (current !== active && !row?.contains(current) && current !== document.body) {
-      return;
-    }
     const control = neighbour
       ? document.querySelector<HTMLElement>(`a[data-pin-id="${neighbour.target.id}"]`)
       : document.querySelector<HTMLElement>(`a[data-pin-collection="${input.target.kind}"]`);
-    control?.focus();
+    // Removing the focused row leaves focus on the body or the containing navigation drawer.
+    const fallback = control?.closest('[role="dialog"]') ?? document.body;
+    if (
+      current === active ||
+      row?.contains(current) ||
+      current === document.body ||
+      current === fallback
+    ) {
+      control?.focus();
+    }
   });
 };
 
