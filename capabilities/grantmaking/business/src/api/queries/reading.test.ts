@@ -10,7 +10,7 @@ import {
 const workspaceSlug = "alder";
 const applicationId = "0123456789ab";
 
-it("requires actual round context and a recognized relationship for contact application summaries", () => {
+describe("contact application summaries", () => {
   const summary = {
     applicationId,
     roundId: "0123456789ac",
@@ -27,16 +27,25 @@ it("requires actual round context and a recognized relationship for contact appl
     contactId: null,
     hasWorkingRevision: false,
   };
-  expect(contactApplicationSummarySchema.parse(summary)).toEqual(summary);
-  expect(
-    contactApplicationSummarySchema.safeParse({ ...summary, roundTitle: undefined }).success,
-  ).toBe(false);
-  expect(contactApplicationSummarySchema.safeParse({ ...summary, relationships: [] }).success).toBe(
-    false,
-  );
-  expect(
-    contactApplicationSummarySchema.safeParse({ ...summary, relationships: ["member"] }).success,
-  ).toBe(false);
+
+  it("accepts a summary with its round context and every recognized relationship", () => {
+    expect(contactApplicationSummarySchema.parse(summary)).toEqual(summary);
+  });
+
+  it("requires the actual round title", () => {
+    expect(
+      contactApplicationSummarySchema.safeParse({ ...summary, roundTitle: undefined }).success,
+    ).toBe(false);
+  });
+
+  it.each([
+    { reason: "no relationship", relationships: [] },
+    { reason: "an unrecognized relationship", relationships: ["member"] },
+  ])("rejects $reason", ({ relationships }) => {
+    expect(contactApplicationSummarySchema.safeParse({ ...summary, relationships }).success).toBe(
+      false,
+    );
+  });
 });
 
 describe("round list requests", () => {

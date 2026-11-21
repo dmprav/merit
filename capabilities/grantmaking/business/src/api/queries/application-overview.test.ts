@@ -1,4 +1,4 @@
-import { expect, it } from "vite-plus/test";
+import { describe, expect, it } from "vite-plus/test";
 
 import { applicationOverviewSchema, workspaceApplicationsInput } from "./application-overview";
 
@@ -16,10 +16,13 @@ const summary = {
   recommendation: null,
 };
 
-it("keeps workspace summaries serializable and excludes application material", () => {
+it("excludes application material from workspace summaries", () => {
   expect(applicationOverviewSchema.parse({ ...summary, submission: { answers: [] } })).toEqual(
     summary,
   );
+});
+
+it("keeps a summary with a recommendation serializable", () => {
   const recommended = {
     ...summary,
     recommendation: {
@@ -28,6 +31,7 @@ it("keeps workspace summaries serializable and excludes application material", (
       allocation: { minorUnits: "0", currency: "EUR" as const },
     },
   };
+
   expect(applicationOverviewSchema.parse(JSON.parse(JSON.stringify(recommended)))).toEqual(
     recommended,
   );
@@ -48,19 +52,26 @@ it.each([
   expect(applicationOverviewSchema.safeParse({ ...summary, ...invalid }).success).toBe(false);
 });
 
-it("defaults to any criteria and validates each independent dimension at the request boundary", () => {
-  expect(workspaceApplicationsInput.parse({ workspaceSlug: "alder" }).filter).toEqual({});
-  const filter = {
-    participation: "withdrawn",
-    readiness: "ready",
-    reviews: "awaiting",
-    evidence: "changed",
-    recommendation: "missing",
-  };
-  expect(workspaceApplicationsInput.parse({ workspaceSlug: "alder", filter }).filter).toEqual(
-    filter,
-  );
-  for (const invalid of [
+describe("workspace application filters", () => {
+  const request = { workspaceSlug: "alder" };
+
+  it("defaults to any criteria", () => {
+    expect(workspaceApplicationsInput.parse(request).filter).toEqual({});
+  });
+
+  it("accepts a value for every independent dimension together", () => {
+    const filter = {
+      participation: "withdrawn",
+      readiness: "ready",
+      reviews: "awaiting",
+      evidence: "changed",
+      recommendation: "missing",
+    };
+
+    expect(workspaceApplicationsInput.parse({ ...request, filter }).filter).toEqual(filter);
+  });
+
+  it.each([
     "all",
     { participation: "ready" },
     { readiness: "withdrawn" },
@@ -68,9 +79,7 @@ it("defaults to any criteria and validates each independent dimension at the req
     { evidence: "stale" },
     { recommendation: "written" },
     { other: "awaiting" },
-  ]) {
-    expect(
-      workspaceApplicationsInput.safeParse({ workspaceSlug: "alder", filter: invalid }).success,
-    ).toBe(false);
-  }
+  ])("rejects filter %j", (filter) => {
+    expect(workspaceApplicationsInput.safeParse({ ...request, filter }).success).toBe(false);
+  });
 });
