@@ -68,7 +68,7 @@ it.each([
   ["/app/alder/settings/members", "/app/:workspace/settings/members"],
   ["/app/alder/work", "/app/:workspace/work"],
   ["/app/alder/work/assign-123", "/app/:workspace/work/:assignment"],
-  ["/app/alder/contacts/contact-7/history", "/app/:workspace/contacts/:id"],
+  ["/app/alder/contacts/contact-7/unknown-child", "/app/:workspace/contacts/:id"],
 ])("redacts confidential parameters in %s as %s", (path, expected) => {
   expect(sanitizeAnalyticsPath(path)).toBe(expected);
 });
