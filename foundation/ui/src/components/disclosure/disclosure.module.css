@@ -1,0 +1,70 @@
+.disclosure {
+  min-width: 0;
+}
+
+.heading {
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+/* A quiet trigger whose label lines up with the content around it. */
+.trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: var(--control-height-small);
+  margin-inline-start: calc(-1 * var(--space-2));
+  border-radius: var(--control-radius);
+  padding-inline: var(--space-2);
+  color: var(--muted);
+  font-size: var(--text-control);
+  font-weight: 500;
+  cursor: pointer;
+  outline: none;
+  transition:
+    background-color var(--motion-fast),
+    color var(--motion-fast);
+}
+
+.trigger[data-hovered] {
+  background: var(--surface-muted);
+  color: var(--foreground);
+}
+
+.trigger[data-focus-visible] {
+  background: var(--action-subtle);
+  color: var(--action);
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+
+.chevron {
+  transition: transform var(--motion-fast);
+}
+
+.disclosure[data-expanded] .chevron {
+  transform: rotate(90deg);
+}
+
+.count {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.panel[aria-hidden="false"] {
+  padding-top: var(--space-3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .trigger,
+  .chevron {
+    transition: none;
+  }
+}
+
+@media (pointer: coarse) {
+  .trigger {
+    min-height: var(--target-touch);
+  }
+}

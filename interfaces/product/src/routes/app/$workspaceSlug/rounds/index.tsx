@@ -8,6 +8,7 @@ import { resourceRef } from "../../../../features/grantmaking/contracts/resource
 import { roundsOptions } from "../../../../features/grantmaking/data/queries";
 import { useWorkspaceRoundsData } from "../../../../features/grantmaking/data/workspace-data";
 import { workspaceOptions } from "../../../../features/workspace/data/queries";
+import { RoutedLink } from "../../../../shared/routed-link";
 
 const Workspace = () => {
   const { workspaceSlug } = Route.useParams();
@@ -43,7 +44,8 @@ const WorkspaceRounds = ({
         </Link>
       )}
       renderApplicationsLink={(round, children) => (
-        <Link
+        <RoutedLink
+          variant="standalone"
           to="/app/$workspaceSlug/rounds/$roundRef"
           params={{
             workspaceSlug: round.workspaceSlug,
@@ -52,7 +54,7 @@ const WorkspaceRounds = ({
           search={{ section: "applications" }}
         >
           {children}
-        </Link>
+        </RoutedLink>
       )}
     />
   );

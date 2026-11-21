@@ -53,17 +53,24 @@ export const FormDialog = ({
 export const Form = ({
   submission,
   label,
-  className,
   children,
   actions,
+  layout = "stacked",
+  stickyActions = false,
   scrollFields: requestedScrollFields = false,
   submitOnModEnter: requestedSubmitOnModEnter = false,
 }: {
   submission: Submission;
   label: string;
-  className?: string;
   children: ReactNode;
   actions: ReactNode;
+  /** inline puts a single field's actions beside it, such as renaming in place. */
+  layout?: "stacked" | "inline";
+  /**
+   * Keep the actions in view at the bottom of a long form that scrolls with its pane. Fields
+   * scrolled into view stay above them.
+   */
+  stickyActions?: boolean;
   /** Scroll fields within a bounded parent while keeping errors and actions visible. */
   scrollFields?: boolean;
   /** Submit from any field with Cmd/Ctrl+Enter, using ordinary validation. */
@@ -133,7 +140,9 @@ export const Form = ({
           noValidate
           aria-label={label}
           aria-busy={submission.isSubmitting}
-          className={`${className ?? ""} ${scrollFields ? localStyles.scrollFields : ""}`}
+          className={`${localStyles.form} ${scrollFields ? localStyles.scrollFields : ""}`}
+          data-layout={layout}
+          data-sticky-actions={stickyActions || undefined}
           onKeyDownCapture={handleKeyDown}
           onSubmit={handleSubmit}
         >
@@ -158,7 +167,6 @@ export const FormActions = ({
   submission,
   onCancel,
   cancelLabel,
-  cancelVariant = "secondary",
   submitLabel,
   submittingLabel,
   isSubmitDisabled = false,
@@ -167,7 +175,6 @@ export const FormActions = ({
   submission: Submission;
   onCancel: () => void;
   cancelLabel: string;
-  cancelVariant?: "secondary" | "quiet";
   submitLabel: string;
   submittingLabel: string;
   isSubmitDisabled?: boolean;
@@ -175,25 +182,16 @@ export const FormActions = ({
 }) => (
   <div className={localStyles.actions}>
     {discard && (
-      <Button
-        size="small"
-        variant="quiet"
-        className={localStyles.discard}
-        isDisabled={submission.isSubmitting}
-        onPress={discard.onPress}
-      >
-        {discard.label}
-      </Button>
+      <span className={localStyles.discard}>
+        <Button variant="quiet" isDisabled={submission.isSubmitting} onPress={discard.onPress}>
+          {discard.label}
+        </Button>
+      </span>
     )}
-    <Button
-      size="small"
-      variant={cancelVariant}
-      isDisabled={submission.isSubmitting}
-      onPress={onCancel}
-    >
+    <Button variant="secondary" isDisabled={submission.isSubmitting} onPress={onCancel}>
       {cancelLabel}
     </Button>
-    <Button size="small" type="submit" isDisabled={submission.isSubmitting || isSubmitDisabled}>
+    <Button type="submit" isDisabled={submission.isSubmitting || isSubmitDisabled}>
       {submission.isSubmitting ? submittingLabel : submitLabel}
     </Button>
   </div>

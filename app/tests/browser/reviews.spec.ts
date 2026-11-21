@@ -100,8 +100,9 @@ test("contacts and reviews preserve judgments across application and criteria ch
     await expect(picker).not.toBeVisible();
   }
 
-  const request = page.getByRole("article").filter({ hasText: sam });
-  await request.getByRole("button", { name: "Record assessment", exact: true }).click();
+  const request = page.getByRole("article", { name: sam, exact: true });
+  await request.getByRole("button", { name: `Request actions for ${sam}`, exact: true }).click();
+  await page.getByRole("menuitem", { name: "Record assessment", exact: true }).click();
   let form = page.getByRole("form", { name: "Record assessment" });
   await form.getByRole("button", { name: "Application material reviewed" }).click();
   await page.getByRole("option", { name: /current/ }).click();

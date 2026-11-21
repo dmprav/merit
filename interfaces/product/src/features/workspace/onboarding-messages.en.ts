@@ -7,7 +7,7 @@ export const en = {
     prototype:
       "Merit is a portfolio project, not a live grant-management service. Request an invitation to explore a workspace with sample data.",
     email: "Email address",
-    privacy: "Privacy notice",
+    privacyFootnote: "See the <privacy>privacy notice</privacy> for how requests are handled.",
     privacyNewTab: "Privacy notice (opens in a new tab)",
     submit: "Submit request",
     close: "Close",

@@ -5,7 +5,6 @@ import { FormDialog } from "@merit/forms";
 import { RemotePagedContent } from "@merit/query/pages";
 import { DataTable, type TableColumn } from "@merit/tables";
 import { ActionMenu } from "@merit/ui/action-menu";
-import shellStyles from "@merit/ui/application-shell.module.css";
 import { Button } from "@merit/ui/button";
 import { CollectionFilter, CollectionToolbar } from "@merit/ui/collection-toolbar";
 import { DialogContent, SidePanel } from "@merit/ui/dialog";
@@ -15,7 +14,8 @@ import { Notice } from "@merit/ui/notice";
 import { PageHeader } from "@merit/ui/page-header";
 import { PagedContent } from "@merit/ui/paged-content";
 import { PersonIdentity } from "@merit/ui/person-identity";
-import { StatusMessage } from "@merit/ui/status-message";
+import { Text } from "@merit/ui/text";
+import { useEventToast, useToastWhile } from "@merit/ui/toast";
 
 import type { Contact, ContactApplication, ContactsData } from "../contracts";
 import { useContactsDirectory } from "../controllers/directory";
@@ -47,14 +47,14 @@ const ContactApplicationsCell = ({
   const titles = contact.applicationTitles ?? [];
   if (titles.length === 0) {
     return (
-      <span className={styles.meta} role="img" aria-label={t("noApplications")}>
-        —
+      <span role="img" aria-label={t("noApplications")}>
+        <Text variant="missing">—</Text>
       </span>
     );
   }
 
   if (!contact.applicationsSource) {
-    return <span className={styles.meta}>{t("applicationCount", { count: titles.length })}</span>;
+    return <Text variant="supporting">{t("applicationCount", { count: titles.length })}</Text>;
   }
 
   return (
@@ -62,11 +62,7 @@ const ContactApplicationsCell = ({
       isOpen={open}
       onOpenChange={setOpen}
       title={t("applicationsFor", { person: contact.name || contact.email })}
-      trigger={
-        <Button variant="quiet" size="small">
-          {t("applicationCount", { count: titles.length })}
-        </Button>
-      }
+      trigger={<Button variant="quiet">{t("applicationCount", { count: titles.length })}</Button>}
     >
       <DialogContent>
         <RemotePagedContent source={contact.applicationsSource} entries={[]} active={open}>
@@ -82,28 +78,33 @@ const ContactApplicationsCell = ({
             >
               {(entries) =>
                 entries.length === 0 ? (
-                  <p className={styles.meta}>{t("noApplications")}</p>
+                  <Text as="p" variant="missing">
+                    {t("noApplications")}
+                  </Text>
                 ) : (
-                  <ul className={styles.applicationTitles}>
+                  <Stack as="ul" gap={0} divided="between">
                     {entries.map((application) => (
                       <li key={application.publicId}>
                         {renderApplicationLink(
                           application,
                           <>
                             <span>{application.title}</span>{" "}
-                            <span className={styles.meta}>{application.roundTitle}</span>{" "}
-                            <span className={styles.meta}>
-                              {application.relationships
-                                .map((relationship) =>
-                                  t(`applicationRelationships.${relationship}`),
-                                )
-                                .join(" · ")}
-                            </span>
+                            <Text variant="supporting">
+                              {t("applicationContext", {
+                                relationships: application.relationships
+                                  .map((relationship) =>
+                                    t(`applicationRelationships.${relationship}`),
+                                  )
+                                  .join(", "),
+                                round: application.roundTitle,
+                              })}
+                            </Text>
                           </>,
+                          { variant: "row" },
                         )}
                       </li>
                     ))}
-                  </ul>
+                  </Stack>
                 )
               }
             </PagedContent>
@@ -137,7 +138,6 @@ const ContactActionsCell = (
           <Button
             id={`${directoryId}-${contact.id}`}
             variant="quiet"
-            size="small"
             iconOnly
             data-draft={hasDraft || undefined}
             aria-describedby={hasDraft ? draftDescription : undefined}
@@ -167,7 +167,8 @@ type ContactsDirectoryProps = {
   renderApplicationLink: (
     record: Pick<ContactApplication, "publicId" | "title">,
     children: ReactNode,
-    destination?: "reviews",
+    /** row presents a whole list row; tab opens the application at that section. */
+    link: { variant: "inline" | "row"; tab?: "reviews" },
   ) => ReactNode;
   data: ContactsData;
   workspaceSlug: string;
@@ -253,7 +254,7 @@ export const ContactsDirectory = ({
       <PageHeader
         title={t("contacts")}
         actions={
-          <Button id={`${directoryId}-add`} onPress={() => setEditing("new")}>
+          <Button size="medium" id={`${directoryId}-add`} onPress={() => setEditing("new")}>
             {t(draftStore.has(workspaceSlug) ? "resumeNew" : "addContact")}
           </Button>
         }
@@ -340,13 +341,12 @@ const ContactsTable = ({
       header: t("affiliation"),
       layout: { width: "24%" },
       cell: ({ contact }) =>
-        contact.affiliation || <span className={styles.meta}>{t("notProvided")}</span>,
+        contact.affiliation || <Text variant="missing">{t("notProvided")}</Text>,
     },
     {
       id: "email",
       header: t("email"),
-      cell: ({ contact }) =>
-        contact.email || <span className={styles.meta}>{t("notProvided")}</span>,
+      cell: ({ contact }) => contact.email || <Text variant="missing">{t("notProvided")}</Text>,
     },
     {
       id: "applications",
@@ -390,53 +390,44 @@ const DirectoryFeedback = ({
   renderApplicationLink: ContactsDirectoryProps["renderApplicationLink"];
 }) => {
   const { t } = useTranslation("contacts");
-  const { error, refreshError, outstanding, saved, pending: saving, retryRefresh } = work;
+  const { error, refreshError, outstanding, saved, retryRefresh } = work;
+  useEventToast(saved, { tone: "success", message: t("saved") });
+  useToastWhile(
+    refreshError && {
+      tone: "warning",
+      message: t(refreshError === "saved" ? "refreshError" : "refreshReadError"),
+      action: { label: t("refresh"), onPress: () => void retryRefresh() },
+    },
+  );
 
   return (
     <>
       {(error || refreshError || outstanding.length > 0) && (
-        <Stack gap={3} className={styles.feedback}>
-          {error && (
-            <Notice tone="danger" role="alert">
-              {t(error === "conflict" ? "conflict" : "error")}
-            </Notice>
-          )}
-          {refreshError && (
-            <Notice
-              tone="warning"
-              appearance="inline"
-              role="alert"
-              title={t(refreshError === "saved" ? "refreshError" : "refreshReadError")}
-              actions={
-                <Button
-                  variant="quiet"
-                  size="small"
-                  isDisabled={saving}
-                  onPress={() => void retryRefresh()}
-                >
-                  {t("retry")}
-                </Button>
-              }
-            />
-          )}
-          {outstanding.length > 0 && (
-            <Notice as="div" tone="warning">
-              <p>{t("outstandingContacts")}</p>
-              <ul>
-                {outstanding.map((item) => (
-                  <li key={item.publicId}>{renderApplicationLink(item, item.title, "reviews")}</li>
-                ))}
-              </ul>
-            </Notice>
-          )}
-        </Stack>
+        <div className={styles.feedback}>
+          <Stack gap={3}>
+            {error && (
+              <Notice tone="danger" role="alert">
+                {t(error === "conflict" ? "conflict" : "error")}
+              </Notice>
+            )}
+            {outstanding.length > 0 && (
+              <Notice as="div" tone="warning">
+                <p>{t("outstandingContacts")}</p>
+                <ul>
+                  {outstanding.map((item) => (
+                    <li key={item.publicId}>
+                      {renderApplicationLink(item, item.title, {
+                        variant: "inline",
+                        tab: "reviews",
+                      })}
+                    </li>
+                  ))}
+                </ul>
+              </Notice>
+            )}
+          </Stack>
+        </div>
       )}
-      <StatusMessage
-        message={saved ? t("saved") : null}
-        eventId={saved}
-        confirmation={Boolean(saved)}
-        className={shellStyles.confirmation}
-      />
     </>
   );
 };
@@ -459,7 +450,6 @@ const DirectoryFilters = ({
     <CollectionToolbar
       filterLabel={t("filter")}
       filterTitle={t("filterContacts")}
-      closeLabel={t("closeFilters")}
       summary={t("contactCount", { count })}
       search={{
         label: t("search"),

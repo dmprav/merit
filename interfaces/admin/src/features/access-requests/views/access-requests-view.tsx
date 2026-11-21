@@ -5,12 +5,13 @@ import { DataTable, type TableColumn } from "@merit/tables";
 import { Button } from "@merit/ui/button";
 import { PickerPopover } from "@merit/ui/dialog";
 import { Icon } from "@merit/ui/icon";
+import { Stack } from "@merit/ui/layout";
 import { Notice } from "@merit/ui/notice";
 import { PageHeader } from "@merit/ui/page-header";
+import { SectionHeader } from "@merit/ui/section-header";
 import { Timestamp } from "@merit/ui/timestamp";
 
 import type { AccessRequestsData } from "../contracts";
-import styles from "./access-requests-view.module.css";
 
 export const AccessRequestsView = ({
   requests,
@@ -40,7 +41,6 @@ export const AccessRequestsView = ({
       cell: (record) =>
         !record.reviewedAt && (
           <Button
-            size="small"
             variant="quiet"
             isDisabled={data.reviewing || data.refreshFailed}
             onPress={() => data.review(record.email)}
@@ -65,12 +65,7 @@ export const AccessRequestsView = ({
           tone="warning"
           role="alert"
           actions={
-            <Button
-              variant="quiet"
-              size="small"
-              isPending={data.refreshing}
-              onPress={() => void data.refresh()}
-            >
+            <Button variant="quiet" isPending={data.refreshing} onPress={() => void data.refresh()}>
               {t("requests.refresh")}
             </Button>
           }
@@ -97,22 +92,17 @@ const RequestHelp = () => {
       title={t("requests.about")}
       placement="bottom end"
       trigger={
-        <Button variant="quiet" size="small">
+        <Button variant="quiet">
           <Icon name="info" />
           {t("requests.about")}
         </Button>
       }
     >
-      {({ closeButton }) => (
-        <div className={styles.help}>
-          <div className={styles.helpHeading}>
-            <h2>{t("requests.about")}</h2>
-            {closeButton}
-          </div>
-          <p>{t("requests.description")}</p>
-          <p>{t("requests.reviewExplanation")}</p>
-        </div>
-      )}
+      <SectionHeader title={t("requests.about")} />
+      <Stack gap={2}>
+        <p>{t("requests.description")}</p>
+        <p>{t("requests.reviewExplanation")}</p>
+      </Stack>
     </PickerPopover>
   );
 };

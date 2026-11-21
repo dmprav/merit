@@ -1,9 +1,8 @@
 import type { ComponentProps } from "react";
 
 import type { RoundsData } from "@merit/grantmaking-web/contracts/pages";
+import { CreateAction } from "@merit/grantmaking-web/creation";
 import { FundingRoundsView } from "@merit/grantmaking-web/rounds";
-
-import { WorkspaceCreateAction } from "./creation-action";
 
 export const FundingRoundsWork = ({
   data,
@@ -14,6 +13,6 @@ export const FundingRoundsWork = ({
   <FundingRoundsView
     {...props}
     rounds={data.rounds}
-    createAction={data.createRound && <WorkspaceCreateAction data={data.createRound} />}
+    createAction={data.createRound && <CreateAction data={data.createRound} />}
   />
 );

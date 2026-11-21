@@ -20,6 +20,7 @@ import { defaultLocale } from "@merit/i18n";
 import { fromMinorUnits, encodeMoney } from "@merit/money";
 import { createQueryClient } from "@merit/query";
 import { encodeRecommendation } from "@merit/recommendations/api";
+import { Toasts } from "@merit/ui/toast";
 
 import { productRoute } from "../../../../../tests/product-route";
 import { WebMessagesProvider } from "../../../../app/messages";
@@ -230,6 +231,7 @@ const renderApplication = async (search = "?tab=reviews", path = applicationPath
         <ApplicationListViews>
           <Outlet />
         </ApplicationListViews>
+        <Toasts />
       </WebMessagesProvider>
     ),
   });
@@ -603,16 +605,7 @@ it("saves through the server and shows the committed recommendation using the sh
   });
   expect(screen.queryByRole("form")).not.toBeInTheDocument();
   expect(screen.getByText("Confirmed new venue costs.", { exact: true })).toBeVisible();
-  expect(
-    screen.getByText("Recommendation saved", { selector: '[aria-hidden="true"]' }),
-  ).toBeVisible();
-  await waitFor(() =>
-    expect(
-      screen
-        .getAllByRole("status")
-        .some((element) => element.textContent === "Recommendation saved"),
-    ).toBe(true),
-  );
+  expect(await screen.findByRole("alertdialog", { name: "Recommendation saved" })).toBeVisible();
 });
 
 it("keeps the chosen reference and draft when closing and reopening the recommendation", async () => {

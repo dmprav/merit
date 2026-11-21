@@ -29,12 +29,7 @@ const showPicker = (
   }: Partial<
     Pick<
       ComponentProps<typeof ContactPicker>,
-      | "value"
-      | "isEligible"
-      | "isRequired"
-      | "disabledContactIds"
-      | "emptySelectionLabel"
-      | "headerActions"
+      "value" | "isEligible" | "isRequired" | "disabledContactIds" | "emptySelectionLabel"
     >
   > & { contacts?: Contact[] } = {},
 ) => {
@@ -189,15 +184,10 @@ it.each([true, false])(
   },
 );
 
-it("keeps the containing picker close action beside searchable choices", async () => {
-  const close = vi.fn();
-  const { user, onChange } = showPicker(true, {
-    headerActions: <button onClick={close}>Close picker</button>,
-  });
+it("filters searchable choices without choosing one", async () => {
+  const { user, onChange } = showPicker(true);
   await user.type(screen.getByRole("textbox", { name: "Find a contact" }), "Another");
   expect(screen.queryByRole("option", { name: "Current contact" })).not.toBeInTheDocument();
   expect(screen.getByRole("option", { name: "Another contact" })).toBeVisible();
-  await user.click(screen.getByRole("button", { name: "Close picker" }));
-  expect(close).toHaveBeenCalledOnce();
   expect(onChange).not.toHaveBeenCalled();
 });

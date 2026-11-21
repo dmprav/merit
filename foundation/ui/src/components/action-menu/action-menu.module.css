@@ -15,29 +15,3 @@
 .menu {
   outline: none;
 }
-
-.item {
-  display: flex;
-  align-items: center;
-  min-height: var(--control-height-small);
-  padding: var(--space-1) var(--space-3);
-  border-radius: calc(var(--control-radius) - 2px);
-  font-size: var(--text-detail);
-  cursor: pointer;
-  outline: none;
-}
-
-.item[data-focused] {
-  background: var(--surface-muted);
-}
-
-.item[data-focus-visible] {
-  background: var(--action-subtle);
-  box-shadow: inset 3px 0 var(--focus);
-}
-
-@media (pointer: coarse) {
-  .item {
-    min-height: var(--target-touch);
-  }
-}

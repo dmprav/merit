@@ -34,7 +34,7 @@ const ReadyNameEditor = ({
   return (
     <Form
       label={t("editName")}
-      className={styles.nameEditor}
+      layout="inline"
       submission={{ ...submission, isSubmitting: disabled || submission.isSubmitting }}
       actions={
         <div className={styles.nameEditorActions}>
@@ -42,7 +42,6 @@ const ReadyNameEditor = ({
             <Button
               type="submit"
               variant="quiet"
-              size="small"
               iconOnly
               aria-label={t(submission.isSubmitting ? "saving" : "save")}
               isPending={submission.isSubmitting}
@@ -51,13 +50,7 @@ const ReadyNameEditor = ({
             </Button>
           </Tooltip>
           <Tooltip content={t("cancel")}>
-            <Button
-              variant="quiet"
-              size="small"
-              iconOnly
-              aria-label={t("cancel")}
-              onPress={editor.cancel}
-            >
+            <Button variant="quiet" iconOnly aria-label={t("cancel")} onPress={editor.cancel}>
               <Icon name="close" />
             </Button>
           </Tooltip>
@@ -69,7 +62,7 @@ const ReadyNameEditor = ({
           <FormTextField
             field={field}
             label={t("name")}
-            className={styles.nameInput}
+            isLabelHidden
             onKeyDown={(event) => {
               if (event.key === "Escape" && !disabled && !submission.isSubmitting) {
                 event.preventDefault();
@@ -115,6 +108,7 @@ const ReadyOwnerEditor = ({
           <form.Subscribe selector={(state) => state.values.email}>
             {(email) => (
               <Button
+                size="medium"
                 ref={actionRef}
                 type="submit"
                 isPending={submission.isSubmitting}
@@ -124,10 +118,10 @@ const ReadyOwnerEditor = ({
               </Button>
             )}
           </form.Subscribe>
-          <Button variant="secondary" onPress={editor.close}>
+          <Button size="medium" variant="secondary" onPress={editor.close}>
             {t("closeEditor")}
           </Button>
-          <Button variant="quiet" onPress={editor.discard}>
+          <Button size="medium" variant="quiet" onPress={editor.discard}>
             {t("discard")}
           </Button>
         </div>
@@ -175,7 +169,6 @@ const PreparingEditor = ({ title, onClose }: { title: string; onClose: () => voi
   return (
     <div>
       <SectionHeader
-        className={styles.ownerHeading}
         title={title}
         aside={<EditorClose label={t("closeEditor")} onClose={onClose} />}
       />

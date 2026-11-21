@@ -4,6 +4,7 @@ import { expect, it, vi } from "vite-plus/test";
 
 import { AnalyticsProvider } from "@merit/analytics";
 import { MessagesProvider } from "@merit/i18n";
+import { Toasts } from "@merit/ui/toast";
 
 import { webMessages } from "../../app/messages";
 import { RequestAccess } from "./access-request";
@@ -22,6 +23,7 @@ it("uses the common email translation before submitting an access request", asyn
         messages={{ ...webMessages, common: { validation: { email: "Translated access email" } } }}
       >
         <AccessRequestDialog request={request} hydrated />
+        <Toasts />
       </MessagesProvider>
     </AnalyticsProvider>,
   );
@@ -39,7 +41,8 @@ it("uses the common email translation before submitting an access request", asyn
   await user.type(email, "sam@example.test");
   await user.click(screen.getByRole("button", { name: "Submit request" }));
 
-  expect(await screen.findByRole("status")).toHaveTextContent("Request saved.");
+  expect(await screen.findByRole("alertdialog", { name: /^Request saved\./ })).toBeVisible();
+  expect(screen.queryByRole("dialog", { name: "Request an invitation" })).not.toBeInTheDocument();
   expect(request).toHaveBeenCalledOnce();
   expect(analytics.track).toHaveBeenCalledExactlyOnceWith("access_request_submitted");
 });
@@ -48,13 +51,22 @@ it("explains the prototype, retains failed input, and confirms only a saved requ
   vi.mocked(requestAccess)
     .mockResolvedValueOnce({ status: "unavailable" })
     .mockResolvedValueOnce({ status: "ok" });
-  render(<RequestAccess />);
+  render(
+    <>
+      <RequestAccess />
+      <Toasts />
+    </>,
+  );
   const user = userEvent.setup();
   await user.click(screen.getByRole("button", { name: "Request an invitation" }));
   const dialog = within(screen.getByRole("dialog", { name: "Request an invitation" }));
 
   expect(dialog.getByText(/portfolio project, not a live grant-management service/)).toBeVisible();
   expect(dialog.queryByRole("button", { name: "Discard draft" })).not.toBeInTheDocument();
+  expect(dialog.getByRole("link", { name: "Privacy notice (opens in a new tab)" })).toHaveAttribute(
+    "href",
+    "/privacy",
+  );
 
   await user.type(dialog.getByRole("textbox", { name: "Email address" }), "Visitor@example.test");
 
@@ -69,9 +81,9 @@ it("explains the prototype, retains failed input, and confirms only a saved requ
 
   await user.click(dialog.getByRole("button", { name: "Submit request" }));
 
-  await waitFor(() => expect(dialog.getByRole("status")).toHaveTextContent("Request saved."));
-  expect(
-    dialog.queryByText(/portfolio project, not a live grant-management service/),
-  ).not.toBeInTheDocument();
+  expect(await screen.findByRole("alertdialog", { name: /^Request saved\./ })).toBeVisible();
+  await waitFor(() =>
+    expect(screen.queryByRole("dialog", { name: "Request an invitation" })).not.toBeInTheDocument(),
+  );
   expect(requestAccess).toHaveBeenLastCalledWith({ data: { email: "Visitor@example.test" } });
 });

@@ -1,8 +1,8 @@
 import { test, expect } from "@merit/test-support/browser";
 
 for (const [id, title] of [
-  ["overview", "Choose an interface pattern"],
-  ["foundations-tokens", "Foundations"],
+  ["overview", "Explore Merit’s interface"],
+  ["design-language", "Design language"],
   ["patterns-page-composition", "Compose a page"],
   ["components-layout-primitives", "Layout primitives"],
   ["components-fields", "Label fields and explain validation"],
@@ -23,6 +23,18 @@ for (const [id, title] of [
     await expect(page.locator("vite-error-overlay")).toHaveCount(0);
     await expect(page.locator(".sb-show-errordisplay")).toHaveCount(0);
 
+    if (id === "overview") {
+      for (const [header, link] of [
+        ["The person needs to…", "Real links"],
+        ["To decide…", "Design language"],
+      ]) {
+        const table = page
+          .getByRole("table")
+          .filter({ has: page.getByRole("columnheader", { name: header }) });
+        await expect(table.getByRole("link", { name: link, exact: true })).toBeVisible();
+      }
+    }
+
     if (id === "patterns-confirmation-dialog") {
       await expect(
         page.getByText("The feature owns the operation", { exact: false }),
@@ -42,7 +54,7 @@ for (const [id, title] of [
 }
 
 test("fullscreen shell owns its main landmark and uses the viewport", async ({ page }) => {
-  await page.goto("/iframe.html?id=patterns-status-message--in-workspace&viewMode=story");
+  await page.goto("/iframe.html?id=patterns-application-shell--workspace&viewMode=story");
 
   await expect(page.locator("#storybook-root")).toHaveAttribute("data-story-ready", "true");
   await expect(page.getByRole("main")).toHaveCount(1);

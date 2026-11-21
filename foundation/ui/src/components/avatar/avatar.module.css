@@ -22,14 +22,12 @@
   content: attr(data-initials);
 }
 
+/* No one is chosen: a dashed outline the size of a face, so it cannot read as a radio button. */
 .avatar[data-empty] {
+  border: 1px dashed var(--border-control);
   background: transparent;
 }
 
 .avatar[data-empty]::before {
-  content: "";
-  width: 70%;
-  height: 70%;
-  border: 1px solid var(--muted);
-  border-radius: 50%;
+  content: none;
 }

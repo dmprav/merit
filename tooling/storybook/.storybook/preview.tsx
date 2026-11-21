@@ -5,6 +5,8 @@ import { STORY_FINISHED } from "storybook/internal/core-events";
 import { addons } from "storybook/preview-api";
 import { sb } from "storybook/test";
 
+import { Toasts } from "@merit/ui/toast";
+
 import "./styles.css";
 
 sb.mock(
@@ -147,6 +149,18 @@ const preview: Preview = {
 
       waitCycles += 1;
     }
+
+    // Every notice places its controls the same way, so none may sit inside its message.
+    if (doc.querySelector("[data-notice-message] :is(button, [role='button'])")) {
+      throw new Error("Place Notice buttons in its actions, not its message.");
+    }
+
+    // A page header offers one labelled action; further commands go in a "More actions" menu.
+    for (const actions of doc.querySelectorAll("[data-page-actions]")) {
+      if (actions.querySelectorAll(":is(button, a):not([data-icon-only])").length > 1) {
+        throw new Error("Give a page header one labelled action and move the rest into a menu.");
+      }
+    }
   },
   parameters: {
     layout: "padded",
@@ -157,6 +171,7 @@ const preview: Preview = {
     (Story, context) => (
       <Theme product={context.globals.theme === "product"}>
         <Story />
+        <Toasts />
       </Theme>
     ),
   ],

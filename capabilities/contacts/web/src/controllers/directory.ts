@@ -1,5 +1,7 @@
 import { useState } from "react";
 
+import { useWorkflowRefresh } from "@merit/query/refresh";
+
 import type { Contact, ContactsData } from "../contracts";
 
 export const useContactsDirectory = (workspaceSlug: string, data: ContactsData) => {
@@ -7,8 +9,7 @@ export const useContactsDirectory = (workspaceSlug: string, data: ContactsData) 
   const [error, setError] = useState<
     Exclude<Awaited<ReturnType<ContactsData["save"]>>, { status: "ok" }>["status"] | null
   >(null);
-  const [refreshError, setRefreshError] = useState<"saved" | "read" | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
+  const { refresh, refreshError, refreshing } = useWorkflowRefresh(() => data.refresh());
   const [outstanding, setOutstanding] = useState<{ publicId: string; title: string }[]>([]);
   const [saved, setSaved] = useState(0);
 
@@ -18,17 +19,6 @@ export const useContactsDirectory = (workspaceSlug: string, data: ContactsData) 
     setSaved((value) => value + 1);
   };
 
-  const refresh = async (context: "saved" | "read") => {
-    setRefreshing(true);
-    try {
-      await data.refresh();
-      setRefreshError(null);
-    } catch {
-      setRefreshError(context);
-    }
-    setRefreshing(false);
-  };
-
   const contactSaved = async () => {
     committed();
     await refresh("saved");
@@ -36,7 +26,6 @@ export const useContactsDirectory = (workspaceSlug: string, data: ContactsData) 
 
   const changeArchived = async (contact: Contact) => {
     setError(null);
-    setRefreshError(null);
     setOutstanding([]);
     setPending(true);
     let changed = false;

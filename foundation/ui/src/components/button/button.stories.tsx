@@ -9,9 +9,12 @@ import localStyles from "./button.stories.module.css";
 const meta = {
   title: "Components/Button",
   component: Button,
-  args: { children: "Save recommendation", onPress: fn() },
+  args: { children: "Save recommendation", size: "medium", onPress: fn() },
   argTypes: {
-    variant: { control: "select", options: ["primary", "secondary", "quiet", "destructive"] },
+    variant: {
+      control: "select",
+      options: ["primary", "secondary", "quiet", "destructive", "inline"],
+    },
   },
 } satisfies Meta<typeof Button>;
 
@@ -43,19 +46,20 @@ export const Overview: Story = {
           <section key={variant} aria-label={variant} className={localStyles.variant}>
             <h2 className={localStyles.description}>{variant}</h2>
             <div>
-              <Button variant={variant}>{label}</Button>
-            </div>
-            <div>
-              <Button variant={variant} size="small">
+              <Button size="medium" variant={variant}>
                 {label}
               </Button>
             </div>
+            <div>
+              <Button variant={variant}>{label}</Button>
+            </div>
             <div className={localStyles.actions}>
-              <Button variant={variant}>
+              <Button size="medium" variant={variant}>
                 <Icon name={variant === "destructive" ? "discard" : "add"} />
                 {variant === "destructive" ? "Remove reviewer" : "Add reviewer"}
               </Button>
               <Button
+                size="medium"
                 variant={variant}
                 iconOnly
                 aria-label={variant === "destructive" ? "Discard draft" : "More actions"}
@@ -64,12 +68,12 @@ export const Overview: Story = {
               </Button>
             </div>
             <div>
-              <Button variant={variant} isPending>
+              <Button size="medium" variant={variant} isPending>
                 {variant === "destructive" ? "Revoking…" : "Saving…"}
               </Button>
             </div>
             <div>
-              <Button variant={variant} isDisabled>
+              <Button size="medium" variant={variant} isDisabled>
                 {label}
               </Button>
             </div>
@@ -100,6 +104,22 @@ export const AlignedWithContent: Story = {
         <Button {...args} />
       </div>
     </section>
+  ),
+};
+export const InlineCommand: Story = {
+  args: { variant: "inline", children: "request access" },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "The inline variant presents a command within copy, such as opening a dialog, with the inline link's text treatment. Use Link for destinations.",
+      },
+    },
+  },
+  render: (args) => (
+    <p>
+      You are not a member of this workspace. You can <Button {...args} /> from its administrators.
+    </p>
   ),
 };
 export const MutedSurface: Story = {
@@ -136,7 +156,7 @@ export const KeyboardFocus: Story = {
             ["destructive", "Revoke invitation"],
           ] as const
         ).map(([variant, label]) => (
-          <Button key={variant} variant={variant}>
+          <Button size="medium" key={variant} variant={variant}>
             {label}
           </Button>
         ))}
@@ -226,8 +246,10 @@ const Counter = () => {
   return (
     <div className={localStyles.stack}>
       <div className={localStyles.row}>
-        <Button onPress={() => setCount((value) => value + 1)}>Try primary</Button>
-        <Button variant="secondary" onPress={() => setCount(0)}>
+        <Button size="medium" onPress={() => setCount((value) => value + 1)}>
+          Try primary
+        </Button>
+        <Button size="medium" variant="secondary" onPress={() => setCount(0)}>
           Reset counter
         </Button>
       </div>

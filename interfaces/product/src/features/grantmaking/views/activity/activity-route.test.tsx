@@ -15,6 +15,7 @@ import type { WorkspaceActivity } from "@merit/grantmaking/api";
 import { defaultLocale } from "@merit/i18n";
 import type { Workspace } from "@merit/organizations/api";
 import { createQueryClient } from "@merit/query";
+import { Toasts } from "@merit/ui/toast";
 
 import { productRoute } from "../../../../../tests/product-route";
 import { WebMessagesProvider } from "../../../../app/messages";
@@ -128,6 +129,7 @@ const renderActivity = async () => {
     component: () => (
       <WebMessagesProvider>
         <Outlet />
+        <Toasts />
       </WebMessagesProvider>
     ),
   });
@@ -237,14 +239,16 @@ it("reports a failed older page, keeps the entries, and retries that page", asyn
 
   await user.click(screen.getByRole("button", { name: "Show older activity" }));
 
-  expect(await screen.findByRole("alert")).toHaveTextContent("Activity could not be loaded.");
+  const failure = await screen.findByRole("alertdialog", {
+    name: "Activity could not be loaded.",
+  });
   expect(screen.getByRole("link", { name: "Workshop Saturdays" })).toBeVisible();
 
-  await user.click(screen.getByRole("button", { name: "Try again" }));
+  await user.click(within(failure).getByRole("button", { name: "Try again" }));
 
   expect(await screen.findByText("Round criteria changed")).toBeVisible();
   expect(requests().at(-1)).toMatchObject({ after: "cursor-1" });
-  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
 });
 
 it("keeps the filters on the page when a filter change fails, and retries", async () => {

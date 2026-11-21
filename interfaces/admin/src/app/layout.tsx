@@ -9,9 +9,9 @@ import {
   ApplicationShell,
   ApplicationContext,
   ApplicationContextOption,
+  ApplicationDocumentationLink,
   ApplicationRecovery,
 } from "@merit/ui/application-shell";
-import shellStyles from "@merit/ui/application-shell.module.css";
 import { Brand } from "@merit/ui/brand";
 import { Icon } from "@merit/ui/icon";
 import { StateMessage } from "@merit/ui/state-message";
@@ -195,15 +195,11 @@ const AdminFooter = () => {
   const { t } = useTranslation(["administration", "common"]);
   return (
     <>
-      <a
+      <ApplicationDocumentationLink
         href="/docs"
-        target="_blank"
-        rel="noopener noreferrer"
-        className={shellStyles.documentationLink}
-        aria-label={t("common:docsNewTab")}
-      >
-        {t("common:docs")}
-      </a>
+        label={t("common:docs")}
+        newTabLabel={t("common:docsNewTab")}
+      />
       <AdminAccount />
     </>
   );

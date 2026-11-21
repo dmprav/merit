@@ -475,7 +475,7 @@ test("personal pins stay under their object type and survive reloads @cross-brow
     page.getByRole("button", { name: "Pin Community grants 2028 to sidebar", exact: true }),
   ).toHaveAttribute("aria-pressed", "true");
   let navigation = await openNavigation(page);
-  const rounds = navigation.getByRole("region", { name: "Funding rounds", exact: true });
+  const rounds = navigation.getByRole("list", { name: "Pinned funding rounds", exact: true });
   const pinActions = rounds.getByRole("link", { name: "Community grants 2028", exact: true });
   const unpin = rounds.getByRole("button", { name: "Unpin Community grants 2028 from sidebar" });
   await expect(rounds.getByRole("button", { name: /Reorder/ })).toHaveCount(0);
@@ -558,7 +558,6 @@ test("personal pins stay under their object type and survive reloads @cross-brow
   await pinActions.click({ button: "right" });
   await page.getByRole("menuitem", { name: "Move up", exact: true }).click();
   await expect(rounds.getByRole("link")).toHaveText([
-    "Funding rounds",
     "Community grants 2028",
     "Local Connections 2027",
   ]);
@@ -569,7 +568,6 @@ test("personal pins stay under their object type and survive reloads @cross-brow
     const target = rounds.getByRole("link", { name: "Community grants 2028", exact: true });
     await source.dragTo(target, { targetPosition: { x: 10, y: 3 } });
     await expect(rounds.getByRole("link")).toHaveText([
-      "Funding rounds",
       "Local Connections 2027",
       "Community grants 2028",
     ]);
@@ -586,7 +584,6 @@ test("personal pins stay under their object type and survive reloads @cross-brow
       targetPosition: { x: 10, y: 3 },
     });
     await expect(rounds.getByRole("link")).toHaveText([
-      "Funding rounds",
       "Community grants 2028",
       "Local Connections 2027",
     ]);
@@ -635,7 +632,7 @@ test("personal pins stay under their object type and survive reloads @cross-brow
     await serverPage.close();
   }
   navigation = await openNavigation(page);
-  const applications = navigation.getByRole("region", { name: "Applications", exact: true });
+  const applications = navigation.getByRole("list", { name: "Pinned applications", exact: true });
   await expect(
     applications.getByRole("link", {
       name: "Workshop Saturdays Local Connections 2027",
@@ -643,8 +640,8 @@ test("personal pins stay under their object type and survive reloads @cross-brow
     }),
   ).toHaveAttribute("aria-current", "page");
   await expect(
-    navigation.getByRole("region", { name: "Funding rounds", exact: true }).getByRole("link"),
-  ).toHaveText(["Funding rounds", "Community grants 2028", "Local Connections 2027"]);
+    navigation.getByRole("list", { name: "Pinned funding rounds", exact: true }).getByRole("link"),
+  ).toHaveText(["Community grants 2028", "Local Connections 2027"]);
   // Measure the drawer after its entrance animation has reached its final contrast.
   await settleAnimations(page);
   await page.screenshot({ path: testInfo.outputPath("personal-pins.png"), animations: "disabled" });
@@ -664,7 +661,8 @@ test("personal pins stay under their object type and survive reloads @cross-brow
       exact: true,
     }),
   ).toHaveCount(0);
-  await expect(applications.getByRole("link", { name: "Applications", exact: true })).toBeFocused();
+  // The last pin of its kind returns focus to its collection.
+  await expect(navigation.getByRole("link", { name: "Applications", exact: true })).toBeFocused();
   await navigation.getByRole("link", { name: "Workspace settings", exact: true }).click();
   await expect(page).toHaveURL(/\/app\/alder\/settings\/members$/);
   await expect(page.getByRole("heading", { name: "Members & access", exact: true })).toBeVisible();
@@ -683,7 +681,7 @@ test("personal pins stay under their object type and survive reloads @cross-brow
   await expect(navigation.getByRole("button", { name: /Reorder/ })).toHaveCount(0);
 });
 
-test("personal pins keep a fixed preview and manage the full overflow collection @cross-browser", async ({
+test("personal pins list every saved pin and collapse under their heading @cross-browser", async ({
   page,
   workspaceDatabase,
 }, testInfo) => {
@@ -718,13 +716,18 @@ test("personal pins keep a fixed preview and manage the full overflow collection
   }
   await page.goto(`/app/alder/rounds/${ids[6]}`);
   await expect(page.getByRole("main")).toBeFocused();
-  let navigation = await openNavigation(page);
-  let rounds = navigation.getByRole("region", { name: "Funding rounds", exact: true });
-  await expect(rounds.getByRole("link")).toHaveCount(6);
-  await expect(rounds.getByRole("link", { name: "Funding rounds", exact: true })).toHaveAttribute(
+  const navigation = await openNavigation(page);
+  const rounds = navigation.getByRole("list", { name: "Pinned funding rounds", exact: true });
+  // Every saved pin is listed; the sidebar scrolls instead of hiding pins behind an overflow.
+  await expect(rounds.getByRole("link")).toHaveCount(7);
+  await expect(navigation.getByRole("button", { name: /more…/ })).toHaveCount(0);
+  await expect(rounds.getByRole("link", { name: "Pinned round 7", exact: true })).toHaveAttribute(
     "aria-current",
     "page",
   );
+  await expect(
+    navigation.getByRole("link", { name: "Funding rounds", exact: true }),
+  ).not.toHaveAttribute("aria-current");
   if (!testInfo.project.use.isMobile) {
     await rounds
       .getByRole("link", { name: "Pinned round 1", exact: true })
@@ -732,70 +735,36 @@ test("personal pins keep a fixed preview and manage the full overflow collection
         targetPosition: { x: 10, y: 29 },
       });
     await expect(rounds.getByRole("link")).toHaveText([
-      "Funding rounds",
       "Pinned round 2",
       "Pinned round 3",
       "Pinned round 4",
       "Pinned round 5",
       "Pinned round 1",
+      "Pinned round 6",
+      "Pinned round 7",
     ]);
-    await expect(
-      rounds.getByRole("button", { name: "Unpin Pinned round 1 from sidebar" }),
-    ).not.toHaveAttribute("aria-disabled", "true");
     await page.mouse.move(700, 500);
     await page.mouse.up();
   }
-  const overflow = rounds.getByRole("button", { name: "2 more…" });
-  await overflow.click();
-  const popup = page.getByRole("dialog", { name: "Pinned funding rounds", exact: true });
-  await expect(popup).toBeFocused();
-  await expect(popup.getByRole("link")).toHaveCount(7);
-  await expect(popup.getByRole("link", { name: "Pinned round 7", exact: true })).toHaveAttribute(
-    "aria-current",
-    "page",
-  );
-  await expect(rounds.getByRole("link")).toHaveCount(6);
-  await expect(page.getByRole("tooltip")).toHaveCount(0);
-  await page.keyboard.press("Escape");
-  await expect(popup).toHaveCount(0);
-  await expect(overflow).toBeFocused();
-  await overflow.click();
-  await expect(popup.getByRole("button", { name: /Reorder/ })).toHaveCount(0);
-  const reorder = popup.getByRole("link", { name: "Pinned round 7", exact: true });
+  const reorder = rounds.getByRole("link", { name: "Pinned round 7", exact: true });
   await reorder.click({ button: "right" });
   await page.getByRole("menuitem", { name: "Move up", exact: true }).click();
-  await expect(popup.getByRole("link").nth(5)).toHaveText("Pinned round 7");
+  await expect(rounds.getByRole("link").nth(5)).toHaveText("Pinned round 7");
   await expect(reorder).toBeFocused();
-  await expect(
-    popup.getByRole("button", { name: "Unpin Pinned round 7 from sidebar" }),
-  ).not.toHaveAttribute("aria-disabled", "true");
-  await reorder.click({ button: "right" });
-  await page.getByRole("menuitem", { name: "Move up", exact: true }).click();
-  await expect(popup.getByRole("link").nth(4)).toHaveText("Pinned round 7");
-  await expect(reorder).toBeFocused();
-  await popup.getByRole("link", { name: "Pinned round 6", exact: true }).click();
-  await expect(page.getByRole("main")).toBeFocused();
-  await expect(page.getByRole("dialog")).toHaveCount(0);
-  navigation = await openNavigation(page);
-  rounds = navigation.getByRole("region", { name: "Funding rounds", exact: true });
-  await expect(rounds.getByRole("link").last()).toHaveText("Pinned round 7");
-  const fifth = rounds.getByRole("link", { name: "Pinned round 7", exact: true });
-  await fifth.click({ button: "right" });
-  await page.getByRole("menuitem", { name: "Move down", exact: true }).click();
-  await expect(rounds.getByRole("button", { name: "2 more…" })).toBeFocused();
-  await expect(fifth).toHaveCount(0);
+  const toggle = navigation.getByRole("button", { name: /^Pinned\s?7$/ });
+  await toggle.click();
+  await expect(rounds).toHaveCount(0);
+  await toggle.click();
+  await expect(rounds.getByRole("link")).toHaveCount(7);
   await page.reload();
   await expect(page.getByRole("main")).toBeFocused();
-  navigation = await openNavigation(page);
-  rounds = navigation.getByRole("region", { name: "Funding rounds", exact: true });
-  await rounds.getByRole("button", { name: "2 more…" }).click();
-  await expect(popup.getByRole("link").nth(5)).toHaveText("Pinned round 7");
-  await expect(popup.getByRole("link").last()).toHaveText("Pinned round 6");
-  await popup.getByRole("button", { name: "Unpin Pinned round 7 from sidebar" }).click();
-  await expect(popup.getByRole("link", { name: "Pinned round 6", exact: true })).toBeFocused();
-  await expect(popup.getByRole("link")).toHaveCount(6);
-  await popup.getByRole("button", { name: "Unpin Pinned round 6 from sidebar" }).click();
-  await expect(popup).toHaveCount(0);
-  await expect(rounds.getByRole("link", { name: "Funding rounds", exact: true })).toBeFocused();
-  await expect(rounds.getByRole("button", { name: /more…/ })).toHaveCount(0);
+  const reloaded = (await openNavigation(page)).getByRole("list", {
+    name: "Pinned funding rounds",
+    exact: true,
+  });
+  await expect(reloaded.getByRole("link").nth(5)).toHaveText("Pinned round 7");
+  await reloaded.getByRole("link", { name: "Pinned round 7", exact: true }).focus();
+  await reloaded.getByRole("button", { name: "Unpin Pinned round 7 from sidebar" }).click();
+  await expect(reloaded.getByRole("link").nth(5)).toBeFocused();
+  await expect(reloaded.getByRole("link")).toHaveCount(6);
 });

@@ -1,7 +1,7 @@
 import { QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, fireEvent, within } from "@testing-library/react";
+import { act, render, screen, waitFor, fireEvent, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { assert, beforeEach, expect, it, vi } from "vite-plus/test";
+import { afterEach, assert, beforeEach, expect, it, vi } from "vite-plus/test";
 
 import { readDraftStorage, seedDraftStorage } from "@merit/drafts/testing";
 import { GrantmakingDrafts } from "@merit/grantmaking-web/drafts";
@@ -23,6 +23,7 @@ import {
   RoundDeleteConfirmation,
 } from "@merit/rounds-web/preparation";
 import { usePreparationEditing } from "@merit/rounds-web/preparation";
+import { Toasts } from "@merit/ui/toast";
 
 import { WebMessagesProvider } from "../../../../app/messages";
 import { workspacePreparationData } from "../../data/preparation/workspace-data";
@@ -163,6 +164,7 @@ const renderPreparation = (
         <GrantmakingDrafts storageScope={storageScope}>
           <PreparationSession client={client} repeatActions={repeatActions} page={page} />
         </GrantmakingDrafts>
+        <Toasts />
       </WebMessagesProvider>
     </QueryClientProvider>,
   );
@@ -196,12 +198,26 @@ it("only offers Resume for changed drafts and explicitly discards them", async (
   expect(screen.getByRole("textbox", { name: "Purpose" })).toHaveValue(round.purpose);
 });
 
+afterEach(() => vi.useRealTimers());
+
+/** Fake timers that keep running, so a failed refresh can exhaust its quiet retries on demand. */
+const useRetryTimers = () => {
+  // Only timeouts are faked, so draft storage keeps its own scheduling.
+  vi.useFakeTimers({ shouldAdvanceTime: true, toFake: ["setTimeout", "clearTimeout"] });
+  return userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+};
+
+const exhaustQuietRetries = () =>
+  act(async () => {
+    await vi.advanceTimersByTimeAsync(4000);
+  });
+
 it("does not report a successful save when deletion and its refresh fail", async () => {
   const client = createQueryClient();
   const refresh = vi.spyOn(client, "fetchQuery").mockRejectedValue(new Error("Offline"));
   vi.mocked(deleteRound).mockResolvedValue({ status: "conflict" });
   renderPreparation(client);
-  const user = userEvent.setup();
+  const user = useRetryTimers();
   await user.click(screen.getByRole("button", { name: "More actions" }));
   await user.click(screen.getByRole("menuitem", { name: "Delete round" }));
   await user.click(screen.getByRole("button", { name: "Delete round" }));
@@ -209,11 +225,14 @@ it("does not report a successful save when deletion and its refresh fail", async
   await waitFor(() => expect(refresh).toHaveBeenCalled());
 
   await user.click(screen.getByRole("button", { name: "Cancel" }));
+  await exhaustQuietRetries();
 
   expect(
-    screen.getByText("The latest round could not be loaded. Refresh before continuing."),
+    await screen.findByRole("alertdialog", { name: "The latest round could not be loaded." }),
   ).toBeVisible();
-  expect(screen.queryByText(/Your changes were saved/)).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("alertdialog", { name: "Saved, but the latest round could not be loaded." }),
+  ).not.toBeInTheDocument();
   await waitFor(() => expect(screen.getByRole("button", { name: "More actions" })).toHaveFocus());
 });
 
@@ -336,7 +355,8 @@ it("keeps the picker open and blocks dismissal while saving", async () => {
   await user.keyboard("{Escape}");
 
   expect(screen.getByRole("dialog", { name: "Assign manager" })).toBeVisible();
-  expect(screen.getByRole("button", { name: "Close dialog" })).toBeDisabled();
+  await user.click(document.body);
+  expect(screen.getByRole("dialog", { name: "Assign manager" })).toBeVisible();
 
   finish({ status: "unavailable" });
 
@@ -397,7 +417,7 @@ it("recovers a purpose draft, saves only that section, and preserves another dra
   const client = createQueryClient();
   vi.spyOn(client, "invalidateQueries").mockRejectedValue(new Error("Offline"));
   const mounted = renderPreparation(client, false, false, scope);
-  const user = userEvent.setup();
+  const user = useRetryTimers();
   await user.click(await screen.findByRole("button", { name: "Continue editing purpose" }));
 
   expect(screen.getByRole("textbox", { name: "Purpose" })).toHaveValue("Unfinished purpose");
@@ -419,7 +439,12 @@ it("recovers a purpose draft, saves only that section, and preserves another dra
       purpose: "Unfinished purpose",
     },
   });
-  expect(screen.getByText(/Your changes were saved/)).toBeVisible();
+  await exhaustQuietRetries();
+  expect(
+    await screen.findByRole("alertdialog", {
+      name: "Saved, but the latest round could not be loaded.",
+    }),
+  ).toBeVisible();
   expect(screen.queryByText(/We couldn’t save this round/)).not.toBeInTheDocument();
 
   const stored = await readDraftStorage(scope, "rounds");
@@ -446,14 +471,15 @@ it("retains a failed form draft and reports a failed conflict read separately", 
   vi.spyOn(client, "fetchQuery").mockRejectedValue(new Error("Offline"));
   vi.mocked(editRound).mockResolvedValue({ status: "conflict" });
   renderPreparation(client);
-  const user = userEvent.setup();
+  const user = useRetryTimers();
   await user.click(screen.getByRole("button", { name: "Edit purpose" }));
   await user.type(screen.getByRole("textbox", { name: "Purpose" }), " Keep this work.");
   await user.click(screen.getByRole("button", { name: "Save changes" }));
 
   expect(await screen.findByRole("alert")).toHaveTextContent("changed");
+  await exhaustQuietRetries();
   expect(
-    screen.getByText("The latest round could not be loaded. Refresh before continuing."),
+    await screen.findByRole("alertdialog", { name: "The latest round could not be loaded." }),
   ).toBeVisible();
   expect(screen.getByRole("textbox", { name: "Purpose" })).toHaveValue(
     `${round.purpose} Keep this work.`,

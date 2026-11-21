@@ -16,15 +16,20 @@ import {
   ApplicationPage,
   ApplicationContext,
   ApplicationContextOption,
+  ApplicationDocumentationLink,
+  ApplicationNavigationGroup,
 } from "@merit/ui/application-shell";
-import shellStyles from "@merit/ui/application-shell.module.css";
 import { Brand } from "@merit/ui/brand";
 import { Icon } from "@merit/ui/icon";
 
 import { DemoTools } from "../features/demo/demo-tools";
 import { workspaceRoundsLocation } from "../features/grantmaking/page-routing";
 import { WorkspaceSearch } from "../features/grantmaking/workspace-search";
-import { NavigationSection, NavigationPinsStatus } from "../features/navigation/navigation-section";
+import {
+  NavigationPinsStatus,
+  NavigationSection,
+  PinnedSection,
+} from "../features/navigation/navigation-section";
 import navigationStyles from "../features/navigation/navigation.module.css";
 import { SearchButton } from "../features/navigation/search-button";
 import { useSearchShortcut } from "../features/navigation/search-shortcut";
@@ -44,9 +49,14 @@ export type ShellWorkspace = {
 
 /** The search box's open state and its shortcut; `available` says whether this person can search. */
 const useSearchBox = (available: boolean) => {
+  const searchButton = useRef<HTMLButtonElement>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [focusRequest, setFocusRequest] = useState(0);
   const open = useCallback(() => {
+    // The modal restores its opener. A shortcut from the page body needs a return target.
+    if (document.activeElement === document.body) {
+      (searchButton.current ?? document.getElementById("main"))?.focus();
+    }
     setIsOpen(true);
     // An open box keeps its text and takes focus back to the field.
     setFocusRequest((count) => count + 1);
@@ -55,7 +65,13 @@ const useSearchBox = (available: boolean) => {
   const pathname = useLocation({ select: (location) => location.pathname });
   useEffect(() => setIsOpen(false), [pathname]);
   useSearchShortcut(available ? open : undefined);
-  return { isOpen, onOpenChange: setIsOpen, focusRequest, open: available ? open : undefined };
+  return {
+    isOpen,
+    onOpenChange: setIsOpen,
+    focusRequest,
+    searchButton,
+    open: available ? open : undefined,
+  };
 };
 
 /** Every grant-work role uses the same workspace context. */
@@ -64,7 +80,6 @@ export type ShellContext = { kind: "workspace"; workspace: ShellWorkspace };
 export const AppShell = ({ current, children }: { current: ShellContext; children: ReactNode }) => {
   const { t } = useTranslation(["common", "reviewer"]);
   const workspace = current.workspace;
-  const searchButton = useRef<HTMLButtonElement>(null);
   const name = workspace.name;
   // Search covers grant work, so it follows the same access as the Applications overview.
   const searchSlug = workspace.canWorkOnGrants ? workspace.slug : undefined;
@@ -86,19 +101,19 @@ export const AppShell = ({ current, children }: { current: ShellContext; childre
         }
         identity={<ContextIdentity name={name} workspace={workspace} />}
         navigation={
-          <AppNavigation workspace={workspace} onSearch={search.open} searchButton={searchButton} />
+          <AppNavigation
+            workspace={workspace}
+            onSearch={search.open}
+            searchButton={search.searchButton}
+          />
         }
         footer={
           <>
-            <a
+            <ApplicationDocumentationLink
               href="/docs"
-              target="_blank"
-              rel="noopener noreferrer"
-              className={shellStyles.documentationLink}
-              aria-label={t("docsNewTab")}
-            >
-              {t("docs")}
-            </a>
+              label={t("docs")}
+              newTabLabel={t("docsNewTab")}
+            />
             <WorkspaceAccount />
           </>
         }
@@ -112,7 +127,6 @@ export const AppShell = ({ current, children }: { current: ShellContext; childre
           isOpen={search.isOpen}
           onOpenChange={search.onOpenChange}
           focusRequest={search.focusRequest}
-          restoreFocus={() => (searchButton.current ?? document.getElementById("main"))?.focus()}
         />
       )}
     </>
@@ -172,12 +186,17 @@ const AppNavigation = ({
   const { canAdminister } = useContext(WorkspaceNavigationContext);
   const grantWork = workspace?.canWorkOnGrants ? workspace.slug : undefined;
   const reviews = workspace.kind !== "demo";
+  const pinKinds = [
+    ...(grantWork ? (["round", "application"] as const) : []),
+    ...(reviews ? (["review"] as const) : []),
+  ];
 
   return (
     <>
+      {grantWork && onSearch && <SearchButton onPress={onSearch} buttonRef={searchButton} />}
+      <PinnedSection workspaceSlug={workspace.slug} kinds={pinKinds} />
       {grantWork && (
         <>
-          {onSearch && <SearchButton onPress={onSearch} buttonRef={searchButton} />}
           <NavigationSection
             title={t("navigation.rounds")}
             kind="round"
@@ -214,10 +233,9 @@ const AppNavigation = ({
       )}
       <NavigationPinsStatus />
       {(grantWork || workspace.canViewTeam || canAdminister) && (
-        <div className={navigationStyles.secondary}>
-          {(grantWork || workspace.canViewTeam) && (
-            <span className={navigationStyles.groupLabel}>{t("navigation.workspace")}</span>
-          )}
+        <ApplicationNavigationGroup
+          label={grantWork || workspace.canViewTeam ? t("navigation.workspace") : undefined}
+        >
           {grantWork && (
             <Link to="/app/$workspaceSlug/contacts" params={{ workspaceSlug: grantWork }}>
               <Icon name="contacts" />
@@ -239,7 +257,7 @@ const AppNavigation = ({
               {t("common:administration")}
             </Link>
           )}
-        </div>
+        </ApplicationNavigationGroup>
       )}
     </>
   );

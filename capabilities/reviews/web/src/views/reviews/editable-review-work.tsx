@@ -9,16 +9,16 @@ import { parseMoneyInput } from "@merit/money/input";
 import type { ReviewState } from "@merit/reviews/domain";
 import { ActionMenu } from "@merit/ui/action-menu";
 import { ActionProvenance } from "@merit/ui/action-provenance";
-import shellStyles from "@merit/ui/application-shell.module.css";
 import { Button } from "@merit/ui/button";
 import { DescriptionList, DescriptionListItem } from "@merit/ui/description-list";
 import { DialogContent } from "@merit/ui/dialog";
+import { Divider } from "@merit/ui/divider";
 import { EditorLoading } from "@merit/ui/editor-loading";
 import { Icon } from "@merit/ui/icon";
 import { Inline } from "@merit/ui/layout";
 import { Notice } from "@merit/ui/notice";
 import { ReferencePane, ReferenceWorkspace, WorkPane } from "@merit/ui/reference-workspace";
-import { StatusMessage } from "@merit/ui/status-message";
+import { useEventToast, useToastWhile } from "@merit/ui/toast";
 
 import type { ReviewProps, ReviewData } from "../../contracts/reviews";
 import { useManagerReviewers } from "../../controllers/reviewer/use-manager-reviewers";
@@ -168,7 +168,6 @@ const ReviewTaskClose = ({
   return (
     <Button
       variant="quiet"
-      size="small"
       iconOnly
       autoFocus={managing || !work.ready}
       aria-label={t("closeTask")}
@@ -273,7 +272,6 @@ const AssessmentActions = ({
       trigger={
         <Button
           variant="quiet"
-          size="small"
           iconOnly
           aria-label={t("reviewActions", { name: assessment.reviewer })}
           isDisabled={disabled || Boolean(work.draft) || work.saving}
@@ -319,7 +317,6 @@ const ReviewActions = ({
         !editing && (
           <Button
             ref={actionRef}
-            size="small"
             variant="secondary"
             data-draft
             isDisabled={disabled || saving}
@@ -334,14 +331,13 @@ const ReviewActions = ({
             workspaceSlug={workspaceSlug}
             disabledContactIds={pending.map((request) => request.contactId)}
             trigger={
-              <Button size="small" variant="quiet" isDisabled={disabled || saving}>
+              <Button variant="quiet" isDisabled={disabled || saving}>
                 {t("request")}
               </Button>
             }
             onBegin={beginRequest}
           />
           <Button
-            size="small"
             variant="secondary"
             ref={actionRef}
             isDisabled={disabled || saving}
@@ -352,12 +348,7 @@ const ReviewActions = ({
         </>
       )}
       {onManage && (
-        <Button
-          variant="quiet"
-          size="small"
-          isDisabled={disabled || editing || saving}
-          onPress={onManage}
-        >
+        <Button variant="quiet" isDisabled={disabled || editing || saving} onPress={onManage}>
           {t("manageReviews")}
         </Button>
       )}
@@ -393,59 +384,53 @@ const RequestActions = ({
   } = work;
 
   return (
-    <Inline className={styles.requestActions}>
-      {!assigned && (
-        <Button
-          size="small"
-          variant="quiet"
-          isDisabled={disabled || Boolean(draft) || saving}
-          onPress={() => onStart("record", request.contactId)}
-        >
-          {t("record")}
-        </Button>
-      )}
-      {replacementId === request.id ? (
-        <RequestPicker
-          initiallyOpen
-          replacing
-          workspaceSlug={workspaceSlug}
-          disabledContactIds={pending.map((item) => item.contactId)}
-          onClose={closeReplacement}
-          trigger={
-            <Button size="small" variant="quiet" iconOnly aria-label={t("replace")}>
-              <Icon name="more" />
-            </Button>
-          }
-          onBegin={() => beginRequest(request.id)}
-        />
-      ) : (
-        <ActionMenu
-          label={t("requestActions", { name: request.reviewer })}
-          trigger={
-            <Button
-              size="small"
-              variant="quiet"
-              iconOnly
-              aria-label={t("requestActions", { name: request.reviewer })}
-              isDisabled={disabled || Boolean(draft) || saving}
-            >
-              <Icon name="more" />
-            </Button>
-          }
-          items={[
-            { id: "replace", label: t("replace") },
-            { id: "cancel", label: t("cancelRequest") },
-          ]}
-          onAction={(action) => {
-            if (action === "replace") {
-              replaceRequest(request.id);
-            } else {
-              void cancelRequest(request.id);
+    <div className={styles.requestActions}>
+      <Inline>
+        {replacementId === request.id ? (
+          <RequestPicker
+            initiallyOpen
+            replacing
+            workspaceSlug={workspaceSlug}
+            disabledContactIds={pending.map((item) => item.contactId)}
+            onClose={closeReplacement}
+            trigger={
+              <Button variant="quiet" iconOnly aria-label={t("replace")}>
+                <Icon name="more" />
+              </Button>
             }
-          }}
-        />
-      )}
-    </Inline>
+            onBegin={() => beginRequest(request.id)}
+          />
+        ) : (
+          <ActionMenu
+            label={t("requestActions", { name: request.reviewer })}
+            trigger={
+              <Button
+                variant="quiet"
+                iconOnly
+                aria-label={t("requestActions", { name: request.reviewer })}
+                isDisabled={disabled || Boolean(draft) || saving}
+              >
+                <Icon name="more" />
+              </Button>
+            }
+            items={[
+              ...(assigned ? [] : [{ id: "record", label: t("record"), icon: "edit" as const }]),
+              { id: "replace", label: t("replace"), icon: "team" },
+              { id: "cancel", label: t("cancelRequest"), icon: "close" },
+            ]}
+            onAction={(action) => {
+              if (action === "record") {
+                onStart("record", request.contactId);
+              } else if (action === "replace") {
+                replaceRequest(request.id);
+              } else {
+                void cancelRequest(request.id);
+              }
+            }}
+          />
+        )}
+      </Inline>
+    </div>
   );
 };
 
@@ -601,8 +586,13 @@ const ReviewConflictBanner = ({
             {t("recordedBy", { name: recorder.name })} ·{" "}
             <time dateTime={recorder.recordedAt}>
               {timestamp(recorder.recordedAt, { timeZone: "UTC" })} UTC
-            </time>{" "}
-            · <ActionProvenance value={recorder.provenance} />
+            </time>
+            {recorder.provenance?.interface === "mcp" && (
+              <>
+                {" "}
+                · <ActionProvenance value={recorder.provenance} />
+              </>
+            )}
           </>
         ) : undefined
       }
@@ -706,43 +696,29 @@ const LatestAssessmentDetails = ({
 
 const ReviewFeedback = ({ work }: { work: ReturnType<typeof useReview> }) => {
   const { t } = useTranslation("reviews");
-  const { error, refreshError, refreshing, refresh, saved } = work;
+  const { error, refreshError, refresh, saved } = work;
+  useEventToast(saved, { tone: "success", message: t("saved") });
+  useToastWhile(
+    refreshError && {
+      tone: "warning",
+      message: t(refreshError === "saved" ? "refreshError" : "refreshReadError"),
+      action: { label: t("refresh"), onPress: () => void refresh() },
+    },
+  );
   return (
     <>
       {(error || refreshError) && (
-        <div className={styles.workspaceFeedback}>
-          {error && (
-            <Notice appearance="inline" role="alert" tone="danger">
-              {reviewError(t, error)}
-            </Notice>
-          )}
-          {refreshError && (
-            <Notice
-              appearance="inline"
-              role="alert"
-              tone="warning"
-              actions={
-                <Button
-                  size="small"
-                  variant="quiet"
-                  isPending={refreshing}
-                  onPress={() => void refresh()}
-                >
-                  {t("retry")}
-                </Button>
-              }
-            >
-              {t(refreshError === "saved" ? "refreshError" : "refreshReadError")}
-            </Notice>
-          )}
+        <div>
+          <Divider />
+          <div className={styles.workspaceFeedback}>
+            {error && (
+              <Notice appearance="inline" role="alert" tone="danger">
+                {reviewError(t, error)}
+              </Notice>
+            )}
+          </div>
         </div>
       )}
-      <StatusMessage
-        message={saved ? t("saved") : null}
-        eventId={saved}
-        confirmation={Boolean(saved)}
-        className={shellStyles.confirmation}
-      />
     </>
   );
 };

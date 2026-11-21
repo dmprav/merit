@@ -20,7 +20,11 @@ const ConfirmationExample = (args: ComponentProps<typeof ConfirmationDialog>) =>
         args.onConfirm();
         setOpen(false);
       }}
-      trigger={<Button variant="secondary">Review revocation</Button>}
+      trigger={
+        <Button size="medium" variant="secondary">
+          Review revocation
+        </Button>
+      }
     />
   );
 };
@@ -105,7 +109,11 @@ const RetryExample = (args: ComponentProps<typeof ConfirmationDialog>) => {
       </p>
       <ConfirmationDialog
         {...args}
-        trigger={<Button variant="secondary">Review revocation</Button>}
+        trigger={
+          <Button size="medium" variant="secondary">
+            Review revocation
+          </Button>
+        }
         isOpen={open}
         isPending={pending}
         error={error}

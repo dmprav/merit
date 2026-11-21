@@ -5,13 +5,10 @@ import { FormDialog } from "@merit/forms";
 import { Button } from "@merit/ui/button";
 import { DialogContent } from "@merit/ui/dialog";
 import { EditorLoading } from "@merit/ui/editor-loading";
-import { Icon } from "@merit/ui/icon";
-import { Notice } from "@merit/ui/notice";
-import { StatusMessage } from "@merit/ui/status-message";
+import { useEventToast, useToastWhile } from "@merit/ui/toast";
 
-import type { CreatedRecord, CreationData } from "../../contracts/creation";
+import type { CreationData } from "../../contracts/creation";
 import { useCreation } from "../../controllers/creation/use-creation";
-import styles from "./creation-composer.module.css";
 import { CreationForm } from "./creation-form";
 
 type CreationActionProps = {
@@ -20,9 +17,6 @@ type CreationActionProps = {
   locationKey?: string;
   /** Supplies an alternate entry point; its callback opens the existing draft without saving. */
   renderTrigger?: (open: () => void) => ReactNode;
-  /** Restores a surviving alternate entry point when a closed composer’s notice is dismissed. */
-  restoreTriggerFocus?: () => void;
-  renderCreatedLink: (record: CreatedRecord, label: string) => ReactNode;
 };
 
 type CreationController = ReturnType<typeof useCreation>;
@@ -31,43 +25,17 @@ export const CreateAction = (props: CreationActionProps) => (
   <CreationComposer key={props.data.draftKey} {...props} />
 );
 
-const focusDismissTarget = (focusId: string, open: boolean, restoreTriggerFocus?: () => void) => {
-  if (!open && restoreTriggerFocus) {
-    restoreTriggerFocus();
-    return;
-  }
-  document.getElementById(`${focusId}-${open ? "title" : "trigger"}`)?.focus();
-};
-
-const CreationComposer = ({
-  data,
-  locationKey,
-  renderCreatedLink,
-  renderTrigger,
-  restoreTriggerFocus,
-}: CreationActionProps) => {
+const CreationComposer = ({ data, locationKey, renderTrigger }: CreationActionProps) => {
   const { t } = useTranslation("fundingRounds");
   const creation = useCreation(data, locationKey);
   const focusId = useId();
-  const { target, open, created, saving, changeOpen } = creation;
+  const { target, open, saving, changeOpen } = creation;
   const isApplication = target.kind === "application";
   const label = t(isApplication ? "intake.add" : "preparation.create");
-  const statusMessage = created ? t("creation.created", { title: created.title }) : null;
-  const feedback = created && (
-    <CreationFeedback
-      creation={creation}
-      renderCreatedLink={renderCreatedLink}
-      onDismiss={() => {
-        focusDismissTarget(focusId, open, restoreTriggerFocus);
-        creation.dismiss();
-      }}
-    />
-  );
+  useCreationToasts(creation);
 
   return (
     <>
-      <StatusMessage eventId={created?.publicId ?? ""} message={statusMessage} />
-      {!open && feedback && <div className={styles.confirmation}>{feedback}</div>}
       {renderTrigger?.(creation.openEditor)}
       <FormDialog
         title={label}
@@ -82,8 +50,6 @@ const CreationComposer = ({
           )
         }
       >
-        <StatusMessage eventId={created?.publicId ?? ""} message={statusMessage} />
-        {feedback}
         <CreationDialogBody focusId={focusId} label={label} creation={creation} />
       </FormDialog>
     </>
@@ -121,48 +87,33 @@ const CreationDialogBody = ({
   );
 };
 
-const CreationFeedback = ({
-  creation,
-  renderCreatedLink,
-  onDismiss,
-}: Pick<CreationActionProps, "renderCreatedLink"> & {
-  creation: CreationController;
-  onDismiss: () => void;
-}) => {
+/** A created record opens on its own; toasts confirm it and recover a failed open or refresh. */
+const useCreationToasts = (creation: CreationController) => {
   const { t } = useTranslation("fundingRounds");
-  const { created, target, refreshFailed, openFailed, refresh } = creation;
-  if (!created) {
-    return null;
-  }
+  const { created, target, openFailed, refreshError } = creation;
 
-  return (
-    <Notice as="div" tone={refreshFailed || openFailed ? "warning" : "success"}>
-      <div className={styles.feedback}>
-        <span>{t("creation.created", { title: created.title })}</span>
-        {renderCreatedLink(
-          created,
-          t(target.kind === "round" ? "creation.openRound" : "creation.openApplication"),
-        )}
-        <Button
-          size="small"
-          variant="quiet"
-          iconOnly
-          aria-label={t("creation.dismiss")}
-          onPress={onDismiss}
-        >
-          <Icon name="close" />
-        </Button>
-      </div>
-      {openFailed && <p>{t("creation.openError")}</p>}
-      {refreshFailed && (
-        <div className={styles.feedback}>
-          <span>{t("creation.refreshError")}</span>
-          <Button size="small" variant="quiet" onPress={() => void refresh()}>
-            {t("creation.refresh")}
-          </Button>
-        </div>
-      )}
-    </Notice>
+  useEventToast(
+    created?.publicId ?? "",
+    created && { tone: "success", message: t("creation.created", { title: created.title }) },
+  );
+  useToastWhile(
+    created && openFailed
+      ? {
+          tone: "warning",
+          message: t("creation.openError", { title: created.title }),
+          action: {
+            label: t(target.kind === "round" ? "creation.openRound" : "creation.openApplication"),
+            onPress: () => void creation.openCreated(),
+          },
+        }
+      : null,
+  );
+  useToastWhile(
+    refreshError && {
+      tone: "warning",
+      message: t("creation.refreshError"),
+      action: { label: t("creation.refresh"), onPress: () => void creation.refresh() },
+    },
   );
 };
 
@@ -181,7 +132,7 @@ const CreationTrigger = ({
   return (
     <Button
       id={id}
-      size={target.kind === "application" ? "small" : undefined}
+      size={target.kind === "application" ? "small" : "medium"}
       variant={target.kind === "application" ? "secondary" : "primary"}
       onPress={openEditor}
     >

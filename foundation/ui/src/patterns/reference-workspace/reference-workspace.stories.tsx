@@ -96,7 +96,9 @@ const Example = () => {
         footer={
           <>
             <p role="status">{saved ? "Saved" : "Not saved"}</p>
-            <Button onPress={() => setSaved(true)}>Save notes</Button>
+            <Button size="medium" onPress={() => setSaved(true)}>
+              Save notes
+            </Button>
           </>
         }
       >
@@ -147,7 +149,7 @@ export const WorkOnly: Story = {
           <Stack>
             <p>Request access to read the document and add your notes.</p>
             <div>
-              <Button>Request access</Button>
+              <Button size="medium">Request access</Button>
             </div>
           </Stack>
         </WorkPane>

@@ -4,13 +4,14 @@ import { useTranslation } from "react-i18next";
 import type { IntakeState } from "@merit/applications-web/contracts";
 import { useFormat } from "@merit/i18n/format";
 import { decodeMoney } from "@merit/money";
-import { ActionProvenance } from "@merit/ui/action-provenance";
+import { Attribution } from "@merit/ui/attribution";
 import { Button } from "@merit/ui/button";
 import { Icon } from "@merit/ui/icon";
-import { Inline } from "@merit/ui/layout";
+import { Reading } from "@merit/ui/layout";
 import { Notice } from "@merit/ui/notice";
 import { useReadingNavigation } from "@merit/ui/reference-workspace";
-import { Timestamp } from "@merit/ui/timestamp";
+import { SectionHeader } from "@merit/ui/section-header";
+import { Timeline, TimelineEntry } from "@merit/ui/timeline";
 
 import styles from "./application-audit-history.module.css";
 import { HistoricalApplication, SnapshotComparison } from "./application-history";
@@ -52,21 +53,23 @@ export const ApplicationAuditHistory = ({
 
   return (
     <section ref={root} className={styles.history} aria-label={t("intake.history")}>
-      <h2>{t("intake.history")}</h2>
+      <SectionHeader title={t("intake.history")} />
       {history.length === 0 && <p>{t("intake.unrecordedHistory")}</p>}
-      <ol className={styles.events}>
+      <Timeline>
         {history
           .toSorted((left, right) => right.revision - left.revision)
           .map((entry) => (
-            <li key={entry.revision}>
-              <h3>{t(historyLabel(entry.action))}</h3>
-              <Inline align="baseline" gap={3} className={styles.meta}>
-                <span>
-                  {t("common:recordedBy", { name: entry.actor ?? t("preparation.unknownPerson") })}
-                </span>
-                <ActionProvenance value={entry.provenance} />
-                <Timestamp value={entry.recordedAt} />
-              </Inline>
+            <TimelineEntry
+              key={entry.revision}
+              title={t(historyLabel(entry.action))}
+              attribution={
+                <Attribution
+                  actor={entry.actor}
+                  provenance={entry.provenance}
+                  recordedAt={entry.recordedAt}
+                />
+              }
+            >
               {entry.action === "application.withdraw" && entry.after?.withdrawal && (
                 <p>
                   {t("intake.withdrawnOn", {
@@ -74,10 +77,13 @@ export const ApplicationAuditHistory = ({
                   })}
                 </p>
               )}
-              {entry.reason && <p className={styles.reading}>{entry.reason}</p>}
+              {entry.reason && (
+                <Reading as="p" prose={false}>
+                  {entry.reason}
+                </Reading>
+              )}
               {inspectableActions.has(entry.action) && (entry.before || entry.after) && (
                 <Button
-                  size="small"
                   variant="quiet"
                   alignment="start"
                   ref={(element) => {
@@ -96,9 +102,9 @@ export const ApplicationAuditHistory = ({
                   <Icon name="right" />
                 </Button>
               )}
-            </li>
+            </TimelineEntry>
           ))}
-      </ol>
+      </Timeline>
     </section>
   );
 };
@@ -117,21 +123,21 @@ const HistoricalChange = ({
   const { t } = useTranslation(["fundingRounds", "common"]);
   return (
     <section ref={rootRef} className={styles.history} aria-label={t("intake.history")}>
-      <Button size="small" variant="quiet" alignment="start" onPress={onBack}>
+      <Button variant="quiet" alignment="start" onPress={onBack}>
         <Icon name="left" />
         {t("history.backEvents")}
       </Button>
-      <h2 ref={headingRef} tabIndex={-1}>
-        {t(historyLabel(entry.action))}
-      </h2>
-      <Inline align="baseline" gap={3} className={styles.meta}>
-        <span>
-          {t("common:recordedBy", { name: entry.actor ?? t("preparation.unknownPerson") })}
-        </span>
-        <ActionProvenance value={entry.provenance} />
-        <Timestamp value={entry.recordedAt} />
-      </Inline>
-      {entry.reason && <p className={styles.reading}>{entry.reason}</p>}
+      <SectionHeader title={t(historyLabel(entry.action))} headingRef={headingRef} />
+      <Attribution
+        actor={entry.actor}
+        provenance={entry.provenance}
+        recordedAt={entry.recordedAt}
+      />
+      {entry.reason && (
+        <Reading as="p" prose={false}>
+          {entry.reason}
+        </Reading>
+      )}
       {entry.before && entry.after ? (
         <SnapshotComparison
           before={historySnapshot(entry.before)}

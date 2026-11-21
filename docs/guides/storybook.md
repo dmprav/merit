@@ -1,62 +1,48 @@
 # Develop and document states in Storybook
 
-Use Storybook to make component and feature states inspectable without a database
-or credentials. Follow [UI development](ui.md) when composing the interaction and
-[UI verification](ui-verification.md) when checking it.
+Use the [Storybook Overview](../../foundation/ui/src/overview.mdx) to find a
+shared pattern or inspect a feature. When contributing an example, decide what
+a reader should be able to see, try, or choose.
 
 ## Develop states in Storybook
 
-Keep stories beside components as `*.stories.tsx`. Show the states a person can
-encounter, including empty content, validation, pending actions, and failure where
-relevant. Use real focus and interaction to demonstrate behavior. Feature stories
-can compose the shared controls into realistic tasks; the
-[recommendation editor stories](../../capabilities/grantmaking/web/src/views/recommendations/recommendation-editor.stories.tsx)
-show editing and save recovery. The
-[organization creation](../../interfaces/admin/src/features/organizations/create-organization.stories.tsx) and
-[organization details](../../interfaces/admin/src/features/organizations/organization-details.stories.tsx)
-stories cover provisioning, editing, and invitation recovery. The
-[Team management](../../interfaces/product/src/features/team/team-view.stories.tsx),
-[invitation acceptance](../../interfaces/product/src/features/workspace/views/invitation-view.stories.tsx),
-[round management](../../interfaces/product/src/features/grantmaking/views/preparation/round-preparation.stories.tsx), and
-[application management](../../interfaces/product/src/features/grantmaking/views/intake/application-intake.stories.tsx)
-examples show the real feature controls in context, including consequential actions.
-[Workspace recovery](../../interfaces/product/src/features/workspace/workspace.stories.tsx)
-covers entry and recovery outside an editor. The demo uses those same screens;
-its guide and lifecycle are checked in the application browser suite.
+- **Write a story for an observable state or interaction.** Use the real component
+  with realistic content. Someone should be able to try a choice, inspect its
+  effect, or see what recovery looks like. Compare simple visual variants in one
+  example. Give an interaction its own story when reaching that state matters,
+  as in [resuming a recommendation](../../capabilities/grantmaking/web/src/views/recommendations/recommendation-editor.stories.tsx).
+- **Use Autodocs for the public component API.** Set the suite's `component` to
+  the exported control and `subcomponents` to related exports. Keep caller
+  obligations beside the implementation in JSDoc. Put controlled state in
+  `render` so the example shows how a caller uses the control. A suite about
+  a composition can use a scenario harness.
+- **Write colocated MDX when the reader has a choice to make.** Explain when to
+  use a treatment, what would change that choice, and show it with existing
+  stories. For example, [Team](../../interfaces/product/src/features/team/team-design.mdx)
+  shows why revoking invitations has different emphasis during an access edit
+  and a removal. Use `Canvas` for live examples and `Description` and `ArgTypes`
+  for generated contracts. A pattern can be useful guidance without needing a
+  new shared component.
 
-The [Team design guidance](../../interfaces/product/src/features/team/team-design.mdx)
-curates accepted examples with their rationale: routine fields, an editor side
-effect, a removal confirmation, and failure feedback. Use this form for settled
-choices that future work should reuse. Link existing stories instead of copying
-fixtures or preserving superseded alternatives. Mark synthetic boundary fixtures
-as such so they do not imply a normal product workflow.
-Keep synthetic navigation and test controls outside the product frame. Isolated
-form stories should use the same editing placement as the connected screen, or a
-clearly bounded standalone form; they must not introduce duplicate saved values
-or a second pane that the actual task does not use.
+Use `tags: ["!autodocs"]` for feature suites and when attached MDX replaces a
+component's generated page. Readers can open a feature story in its intended
+state. Embed a small set of feature examples in separate frames when a comparison
+needs explanation. The [documentation guide](documentation.md#give-knowledge-a-clear-home)
+explains where workflows, API contracts, and customer instructions belong.
 
-Give each story a distinct purpose: explain a choice, expose a meaningful state,
-or protect an important interaction. Show simple visual variants together in a
-comparison and use a configurable example for individual values. Keep focused
-stories for keyboard behavior, pending actions, difficult content, and recovery.
-Split suites by the task someone wants to inspect, rather than by story count.
+## Place the example where people look for it
 
-The [contact editor](../../interfaces/product/src/features/contacts/contact-editor.stories.tsx)
-and [contact picker](../../interfaces/product/src/features/contacts/contact-picker.stories.tsx)
-make editing and selection discoverable beside the directory. The
-[access request](../../interfaces/product/src/features/workspace/views/access-request.stories.tsx)
-and [operator review](../../interfaces/admin/src/features/access-requests/access-requests.stories.tsx)
-examples cover both sides of requesting workspace access.
+Keep `*.stories.tsx` and authored MDX beside the component or feature.
+Alongside the Overview, the [Design language guide](../../foundation/ui/src/foundations/foundations.mdx)
+explains shared choices about emphasis, reading, layout, and interaction cues.
+Organize other examples by the responsibility a reader is looking for.
 
-Organize the sidebar by the responsibility a reader is looking for:
-
-| Group         | What belongs there                                                      |
-| ------------- | ----------------------------------------------------------------------- |
-| `Overview`    | A starting point for choosing controls and finding their conventions.   |
-| `Foundations` | Design tokens, typography, themes, and focus conventions.               |
-| `Components`  | Reusable controls and layout building blocks, including the data table. |
-| `Patterns`    | Shared interactions and presentation, including page composition.       |
-| `Features`    | Domain screens and tasks, grouped by the work people recognize.         |
+| Group        | What belongs there                                                      |
+| ------------ | ----------------------------------------------------------------------- |
+| `Overview`   | Entry points into grant work and guidance for choosing controls.        |
+| `Components` | Reusable controls and layout building blocks, including the data table. |
+| `Patterns`   | Shared interactions and presentation, including page composition.       |
+| `Features`   | Domain screens and tasks, grouped by the work people recognize.         |
 
 Use `Components/Dialog` for the reusable container and
 `Patterns/Confirmation dialog` for the consequential-action pattern, and
@@ -71,24 +57,26 @@ with the responsibility it explains. Patterns such as `Patterns/Feedback` can be
 MDX pages that compose existing stories without introducing a shared component.
 The [UI package guide](../../foundation/ui/README.md) explains these boundaries.
 
-Group feature stories as `Features/<area>/<screen or task>`, with states as
-individual stories. Use Funding rounds, Applications, Team, Contacts, Workspace,
-Administration, or Demo as the area. For example,
-`Features/Funding rounds/Manage round` contains **Concurrent edits**, while
-`Features/Funding rounds/Preparation form` holds focused form examples. Keep
-creation and detail screens in separate suites, even when they share a component.
-The [Storybook configuration](../../tooling/storybook/.storybook/main.ts) orders
-the groups and feature tasks, with shared suites ordered alphabetically. Keep the
-task order aligned when adding a screen. Within each suite, export a representative
-usable example first, followed by relevant variations and recovery states.
+Group feature stories as `Features/<area>/<screen or task>` and name each
+story for the state someone wants to inspect. For example,
+`Features/Funding rounds/Manage round` contains **Concurrent edits**. Use
+separate suites for creating and inspecting a record. The
+[Storybook configuration](../../tooling/storybook/.storybook/main.ts) owns
+the sidebar order. Export a representative usable state first.
 
 Story titles determine their URLs. When changing a title, update links in MDX and
 browser tests, and rename affected visual baselines to match the new story IDs.
 Keep the existing baseline images when only navigation changes.
 
+## Set up an inspectable state
+
 Leave interactive examples in a state people can inspect and try. If an
 interaction closes or removes the demonstrated UI, restore the example or cover
 that behavior in a component test.
+
+Keep synthetic navigation and test controls outside the product frame. Mark
+fixtures that exercise unusual data. Match the real placement of an editor, or
+show a bounded standalone form when its surrounding screen adds little.
 
 Storybook runs without a database or credentials and loads the application styles.
 Use the theme toolbar to inspect product and site palettes, and shared fictional
@@ -119,31 +107,13 @@ Storybook's padding. Frame `Features/*` stories with `ApplicationPage` or `AppPa
 using `breadcrumb={null}` unless the story demonstrates breadcrumbs, parent links,
 or preserved route context. Keep the same width and header density as the
 application when layout affects the task. Reserve workspace navigation for
-`Patterns/Application shell` and `Features/Workspace` stories that own entry or
+`Patterns/Application shell` and `Features/Workspace` stories that demonstrate navigation, entry, or
 recovery. For viewport-contained application work, use `ApplicationContainedPreview`
 from grantmaking's testing fixture: it applies the shell scrolling contract with
 `ApplicationPage contained` without navigation or breadcrumbs.
 Avoid copying shell CSS classes or setting a separate preview height. Examples own their landmarks, so
 shell stories must not acquire another `main`.
 
-Set a shared component suite's `component` to the exported component, with
-related exports as `subcomponents`, so its name, description, and props reach
-the docs. Keep a controlled value in the story's `render` with `useState` rather
-than in a separate wrapper, so examples show the component's actual usage.
-Suites that demonstrate a composition, such as `Patterns/Form dialog`, can keep
-a scenario harness as their component.
-
-Expose Controls only when changing an arg updates the example. Disable controls
-for initial fixture data and state owned by an interactive harness. Keep callbacks
-observable with `fn()` where they are part of the demonstrated interaction.
-
-Write component-selection and composition guidance in colocated MDX when it needs
-an explanation. Embed existing stories with `Canvas` and generated contracts with
-`Description` and `ArgTypes`; avoid copying JSX or prop tables. Set
-`tags: ["!autodocs"]` on story metadata when an attached MDX page replaces Autodocs.
-Also disable Autodocs for feature suites: rendering every starting screen in one
-page obscures the states established by their interactions. Add a curated MDX
-page only when it explains workflow distinctions, linking to individual stories
-or embedding focused examples in separate frames. Simple controls can keep
-Autodocs. See the [documentation guide](documentation.md)
-for ownership across guides, API comments, and stories.
+Expose Controls for args that actually change the example. Disable controls for
+fixture data and state owned by the interactive example. Use `fn()` to make
+callbacks observable when the interaction depends on them.

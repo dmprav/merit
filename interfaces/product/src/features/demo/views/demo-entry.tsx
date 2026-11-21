@@ -2,11 +2,13 @@ import { useTranslation } from "react-i18next";
 
 import { Button } from "@merit/ui/button";
 import { Inline, Stack } from "@merit/ui/layout";
+import { PageHeader } from "@merit/ui/page-header";
+import { SectionHeader } from "@merit/ui/section-header";
 import { StateMessage } from "@merit/ui/state-message";
+import { Text } from "@merit/ui/text";
 
 import { StandalonePage } from "../../../components/standalone-page";
 import type { DemoState } from "../contracts";
-import styles from "./demo-entry.module.css";
 
 const entryMessages = {
   expired: {
@@ -39,25 +41,27 @@ export const DemoEntryView = ({
     return (
       <StandalonePage>
         <Stack gap={6}>
-          <header>
-            <Stack gap={3}>
-              <h1 className={styles.title}>{t("demoWorkspace.introduction.title")}</h1>
-              <p>{t("demoWorkspace.introduction.role")}</p>
-            </Stack>
-          </header>
-          <Stack as="section" gap={2} aria-labelledby="demo-scenario">
-            <h2 id="demo-scenario" className={styles.scenarioTitle}>
-              {t("demoWorkspace.introduction.scenarioTitle")}
-            </h2>
+          <div>
+            <PageHeader title={t("demoWorkspace.introduction.title")} density="compact" />
+            <p>{t("demoWorkspace.introduction.role")}</p>
+          </div>
+          <section aria-labelledby="demo-scenario">
+            <SectionHeader
+              id="demo-scenario"
+              title={t("demoWorkspace.introduction.scenarioTitle")}
+            />
             <p>{t("demoWorkspace.introduction.scenario")}</p>
-          </Stack>
+          </section>
           <Stack gap={4}>
-            <p className={styles.lifetime}>{t("demoWorkspace.introduction.lifetime")}</p>
+            <Text as="p" variant="supporting">
+              {t("demoWorkspace.introduction.lifetime")}
+            </Text>
             <Inline gap={3}>
-              <Button isDisabled={!hydrated} onPress={() => void start(false, true)}>
+              <Button size="medium" isDisabled={!hydrated} onPress={() => void start(false, true)}>
                 {t("demoWorkspace.introduction.exploreExample")}
               </Button>
               <Button
+                size="medium"
                 variant="secondary"
                 isDisabled={!hydrated}
                 onPress={() => void start(false, false)}
@@ -79,6 +83,7 @@ export const DemoEntryView = ({
         actions={
           pending ? undefined : (
             <Button
+              size="medium"
               isDisabled={!hydrated}
               onPress={() => {
                 void start(state.status === "expired");

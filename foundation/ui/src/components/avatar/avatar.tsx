@@ -1,6 +1,6 @@
 import styles from "./avatar.module.css";
 
-/** Decorative initials, or an unfilled circle when no person is selected. Pair with visible text. */
+/** Decorative initials, or a dashed outline when no person is selected. Pair with visible text. */
 export const Avatar = ({
   name,
   size = "compact",

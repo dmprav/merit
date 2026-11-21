@@ -52,7 +52,9 @@ const DocsFrame = ({ page, children }: { page: DocsPage; children: ReactNode }) 
       </aside>
       <details className={styles.mobileNavigation} key={page}>
         <summary>
-          <Icon name="right" className={styles.disclosureIcon} />
+          <span className={styles.disclosureIcon}>
+            <Icon name="right" />
+          </span>
           {t("docs.browse")}
           <span>{t(`docs.pages.${page}.title`)}</span>
         </summary>
@@ -121,7 +123,9 @@ export const DocsArticle = ({
         </header>
         <details className={styles.mobileContents}>
           <summary>
-            <Icon name="right" className={styles.disclosureIcon} />
+            <span className={styles.disclosureIcon}>
+              <Icon name="right" />
+            </span>
             {t("docs.contents")}
           </summary>
           <nav aria-label={t("docs.contents")}>{contents}</nav>

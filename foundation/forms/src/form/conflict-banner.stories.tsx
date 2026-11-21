@@ -13,7 +13,7 @@ const meta = {
   decorators: [
     (Story) => (
       <MessagesProvider messages={{}}>
-        <Reading>
+        <Reading prose={false}>
           <Story />
         </Reading>
       </MessagesProvider>
@@ -42,7 +42,7 @@ const InteractiveExample = ({
       )}
       {outcome && (
         <Inline>
-          <Button size="small" variant="secondary" onPress={() => setOutcome(null)}>
+          <Button variant="secondary" onPress={() => setOutcome(null)}>
             Reset example
           </Button>
         </Inline>
@@ -69,7 +69,7 @@ const RetainedDraftExample = () => {
       )}
       {discarded && (
         <Inline>
-          <Button size="small" variant="secondary" onPress={() => setDiscarded(false)}>
+          <Button variant="secondary" onPress={() => setDiscarded(false)}>
             Reset example
           </Button>
         </Inline>

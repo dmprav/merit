@@ -98,11 +98,13 @@ export const en = {
   invitationRevoked: "Invitation revoked.",
   memberSaved: "Access updated.",
   memberRemoved: "Member removed. Their existing work has been preserved.",
-  refresh: "Refresh team",
+  refresh: "Refresh",
   teamChanged: "Team details have changed. Refresh before making another change.",
-  refreshFailedTitle: "Changes saved",
   teamChangedTitle: "Review the latest team",
-  refreshFailed: "The latest team could not be loaded. Refresh before making another change.",
+  refreshFailed: "The latest team could not be loaded.",
+  refreshFailedAfterSave: "Saved, but the latest team could not be loaded.",
+  refreshFailedWhileStale:
+    "The latest team could not be loaded. Refresh before making another change.",
   errors: {
     invitation_cooldown: "Wait one minute after the last invitation to this email, then try again.",
     invitation_hourly_limit:

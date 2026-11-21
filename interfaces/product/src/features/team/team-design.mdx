@@ -7,7 +7,7 @@ import * as Team from "./team-view.stories";
 
 Use these states as the reference for restrained team management UI. They apply
 [Merit's experience principles](../../../../../docs/foundations/experience.md)
-and the shared [design foundations](?path=/docs/foundations-tokens--docs).
+and the shared [design language](?path=/docs/design-language--docs).
 The owning [workflow](../../../../../docs/workflows/manage-team.md) defines authority,
 commitment, and recovery; this page explains presentation choices.
 
@@ -20,10 +20,9 @@ warning just because the editor uses one.
 
 ### Warn about an editor's side effect
 
-Keep the count and effect visible after the fields. Use a small amber warning
-icon, detail text, and one concise explanation: “Saving revokes 1 invitation.
-Recipients will need a new invitation to join.” There is no extra title, box,
-recipient list, tooltip, or details action. The
+Keep the count and effect visible after the fields so the administrator knows
+what Save will do. “Saving revokes 1 invitation. Recipients will need a new
+invitation to join” gives them the scope and the remedy. The
 [many-invitation state](?path=/story/features-team-manage-team--many-affected-invitations)
 keeps the same compact structure.
 
@@ -31,18 +30,17 @@ keeps the same compact structure.
 
 ### Make a removal confirmation read as one explanation
 
-Use three related paragraphs: access and invitation effects; preserved work,
-account, and how to restore access; then handover guidance. Keep ordinary body
-size and contrast throughout. No warning icon, amber text, or separate panel is
-needed for these expected consequences. The destructive button communicates the
-commitment; Cancel remains the safe initial focus.
+Group the access and invitation effects together. Explain which work and account
+details survive removal, how to restore access, and what needs handing over.
+Ordinary body text lets the administrator read these consequences together. The
+labelled removal button names the commitment and Cancel receives initial focus.
 
 <Canvas of={Team.RemovalConsequences} story={{ inline: false, height: "620px" }} />
 
 ### Separate an unsuccessful action from its consequences
 
-Use a concise red inline message with a decorative icon above the tinted footer.
-Keep the fields and draft intact, and keep the footer devoted to actions. A
+After an unsuccessful invitation, keep the fields and draft intact so the
+administrator can retry. Put the error beside the form actions. A
 removal failure uses the same feedback treatment while its consequence prose
 stays neutral. A [saved change whose refresh failed](?path=/story/features-team-manage-team--saved-but-refresh-failed)
 is a different result: state that the save succeeded and offer to refresh.
@@ -52,128 +50,30 @@ is a different result: state that the save succeeded and offer to refresh.
 [Inspect removal failure](?path=/story/features-team-manage-team--removal-failure)
 · [Inspect removal in progress](?path=/story/features-team-manage-team--removing)
 
-## Reuse the accepted details
+## Read a member or invitation row
 
-<table>
-  <thead>
-    <tr>
-      <th>Decision</th>
-      <th>Accepted pattern and reason</th>
-      <th>Live reference</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>Person identity</td>
-      <td>Regular-weight name, tightly grouped email and avatar; “You” beside the name</td>
-      <td>
-        <a href="?path=/story/features-team-manage-team--owner">Members</a>
-      </td>
-    </tr>
-    <tr>
-      <td>Disabled account</td>
-      <td>
-        A separate Account column keeps availability distinct from identity and assigned
-        permissions. Active and disabled accounts use neutral labels. Reserve warnings for an
-        actionable consequence, such as work needing reassignment, where it can be resolved.
-      </td>
-      <td>
-        <a href="?path=/story/features-team-members--disabled-account">Disabled account</a>
-      </td>
-    </tr>
-    <tr>
-      <td>Invitation table</td>
-      <td>
-        Separate recipient, responsibility, access, status, expiry, and action columns; no inline
-        duplicate Resend
-      </td>
-      <td>
-        <a href="?path=/story/features-team-invitations--delivery-states">Delivery states</a>
-      </td>
-    </tr>
-    <tr>
-      <td>Invitation status</td>
-      <td>
-        One icon and label for the state that determines the next action; never pair “Awaiting
-        acceptance” with failed sending
-      </td>
-      <td>
-        <a href="?path=/story/features-team-invitations--delivery-states">Delivery states</a>
-      </td>
-    </tr>
-    <tr>
-      <td>Fixed value in an editor</td>
-      <td>
-        Muted read-only field with a quiet dashed focus outline, no dropdown arrow, and a short
-        restriction explanation
-      </td>
-      <td>
-        <a href="?path=/story/features-team-manage-team--owner-access">Owner access</a>
-      </td>
-    </tr>
-    <tr>
-      <td>Role explanation</td>
-      <td>Describe choices inside the menu; show only the selected label when closed</td>
-      <td>
-        <a href="?path=/story/features-team-manage-team--role-choices">Role choices</a>
-      </td>
-    </tr>
-    <tr>
-      <td>Draft entry</td>
-      <td>
-        Resume through the existing row menu with “Resume editing access” and a draft marker; no
-        extra pencil button
-      </td>
-      <td>
-        <a href="?path=/story/features-team-manage-team--resume-access">Resume access</a>
-      </td>
-    </tr>
-    <tr>
-      <td>Read-only directory</td>
-      <td>
-        A simple counted section heading aligned with the directory; no nonfunctional single tab
-      </td>
-      <td>
-        <a href="?path=/story/features-team-manage-team--read-only">Read only</a>
-      </td>
-    </tr>
-    <tr>
-      <td>Dialog actions</td>
-      <td>
-        Shared tinted footer and small labelled buttons; editing uses Close/Discard/Save, removal
-        uses Cancel/Remove from organization
-      </td>
-      <td>
-        <a href="?path=/story/features-team-manage-team--invite-member">Invite member</a>
-      </td>
-    </tr>
-  </tbody>
-</table>
+A member's identity, assigned permissions, and ability to sign in answer different
+questions. Give a [disabled account](?path=/story/features-team-members--disabled-account)
+its own neutral Account value. Show an actionable consequence, such as work that
+needs reassigning, where someone can resolve it. The
+[long and missing identity example](?path=/story/features-team-members--long-and-missing-identity)
+uses synthetic records to show how the identity column handles incomplete data.
 
-Invitation status preserves the distinction between sending and acceptance in the
-data. Presentation prioritizes expiry, then failed or unconfirmed sending; only
-a successfully sent, unexpired invitation shows “Awaiting acceptance”. This does
-not claim inbox delivery. These are feature rules, not a universal ordering for
-all status indicators.
+For an invitation, lead with the state that determines the next action. An expired
+invitation needs a new link. For an unexpired invitation, failed or unconfirmed
+sending takes precedence over waiting for acceptance. “Awaiting acceptance”
+means sending succeeded and the invitation is still open. It makes no claim
+about inbox delivery. [Compare delivery states](?path=/story/features-team-invitations--delivery-states).
 
-The [long and missing identity](?path=/story/features-team-members--long-and-missing-identity)
-fixture deliberately exercises nullable data; it is not the normal invitation
-flow. Disabled accounts have a separate example. Use real supported roles in
-editors rather than adding choices to make a demo look more complete.
+## Change someone's access
 
-## Apply the principles to the next screen
+Show a fixed responsibility as a read-only value with the reason it cannot
+change. Explain available roles inside the picker, where the administrator is
+choosing between them. [Owner access](?path=/story/features-team-manage-team--owner-access)
+and [role choices](?path=/story/features-team-manage-team--role-choices) show how
+the shared [fields](?path=/docs/components-fields--docs) work in this context.
 
-Start with copy, grouping, and spacing. Add an icon, badge, or container only when
-it supplies a distinction the person needs. A request to make something compact
-is not automatically a request to hide it behind another interaction. Preserve
-accepted treatments as the rest of the screen evolves; explain any departure
-through a concrete difference in the task.
-
-Shared contracts live in [confirmation](?path=/docs/patterns-confirmation-dialog--docs),
-[feedback](?path=/docs/patterns-feedback--docs),
-[identity](?path=/docs/patterns-person-identity--docs),
-[fields](?path=/docs/components-fields--docs), and
-[editing](?path=/docs/patterns-editing--docs). Improve those owners for shared
-behavior instead of copying Team's feature implementation into another capability.
-The [UI development guide](../../../../../docs/guides/ui.md#review-a-representative-slice)
-explains how to review a small representative slice before propagating a design.
+An unfinished edit belongs to that member. Keep **Resume editing access** in the
+same row menu that opened the editor so the administrator can find it again.
+[Resume access](?path=/story/features-team-manage-team--resume-access) applies the
+shared [editing pattern](?path=/docs/patterns-editing--docs).

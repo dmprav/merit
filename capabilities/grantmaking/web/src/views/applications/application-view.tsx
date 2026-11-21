@@ -23,6 +23,7 @@ import {
   ReferenceWorkspace,
   WorkPane,
 } from "@merit/ui/reference-workspace";
+import { SectionHeader } from "@merit/ui/section-header";
 
 import { ApplicationAuditHistory } from "./application-audit-history";
 import { ApplicationHistory } from "./application-history";
@@ -130,28 +131,26 @@ const ApplicationLayout = (props: ApplicationLayoutProps) => {
   };
 
   return (
-    <div className={styles.view}>
-      <ReferenceWorkspace
-        header={<ApplicationHeader {...props} />}
-        toWorkLabel={t(
-          editor
-            ? "workspace.toEditor"
-            : review.active
-              ? "workspace.toReviewTask"
-              : "workspace.toOverview",
-        )}
-        toReferenceLabel={t("workspace.browseReference")}
-        after={
-          <>
-            {content.feedback}
-            {review.feedback}
-          </>
-        }
-      >
-        <ApplicationReferencePane {...props} labels={labels} />
-        <ApplicationWorkPane {...props} />
-      </ReferenceWorkspace>
-    </div>
+    <ReferenceWorkspace
+      header={<ApplicationHeader {...props} />}
+      toWorkLabel={t(
+        editor
+          ? "workspace.toEditor"
+          : review.active
+            ? "workspace.toReviewTask"
+            : "workspace.toOverview",
+      )}
+      toReferenceLabel={t("workspace.browseReference")}
+      after={
+        <>
+          {content.feedback}
+          {review.feedback}
+        </>
+      }
+    >
+      <ApplicationReferencePane {...props} labels={labels} />
+      <ApplicationWorkPane {...props} />
+    </ReferenceWorkspace>
   );
 };
 
@@ -170,7 +169,6 @@ const ApplicationHeader = ({ application, content, navigation }: ApplicationLayo
               label={t("intake.moreActions")}
               trigger={
                 <Button
-                  size="small"
                   variant="quiet"
                   iconOnly
                   isDisabled={content.menu.disabled}
@@ -233,11 +231,7 @@ const ApplicationReferencePane = ({
           hidden={reference !== key}
         >
           {key === "history" && (
-            <div className={styles.historyHeading}>
-              <h2 ref={historyHeading} tabIndex={-1}>
-                {labels.history}
-              </h2>
-            </div>
+            <SectionHeader title={labels.history} headingRef={historyHeading} />
           )}
           {key === "evidence" ? (
             content.evidence
@@ -293,7 +287,7 @@ const ApplicationWorkPane = ({
       title={active && (editor ? t("applications.recommendation") : review.editorTitle)}
       titleActions={editor ? editorCloseAction : review.editorCloseAction}
     >
-      <ApplicationTaskContent editor={editor} review={review} notice={content.notice} />
+      <ApplicationTaskContent editor={editor} review={review} />
       {!active && (
         <ApplicationWorkOverview
           application={application}
@@ -321,14 +315,11 @@ const ApplicationWorkPane = ({
 const ApplicationTaskContent = ({
   editor,
   review,
-  notice,
 }: {
   editor?: ReactNode;
   review: ReviewWorkspace;
-  notice: ReactNode;
 }) => (
   <>
-    {notice && <div className={styles.workspaceNotice}>{notice}</div>}
     {editor && <div className={styles.recommendation}>{editor}</div>}
     <div
       hidden={Boolean(editor) || !review.active}

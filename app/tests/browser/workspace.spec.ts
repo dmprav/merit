@@ -88,7 +88,7 @@ test("demo and workspace show the expected assessment and inspectable review bas
       await expect(
         page
           .getByRole("article", { name: "Jules Patel", exact: true })
-          .getByRole("button", { name: "Record assessment", exact: true }),
+          .getByRole("button", { name: "Request actions for Jules Patel", exact: true }),
       ).toBeVisible();
     }
     await expect(assessment).toBeVisible();
@@ -244,9 +244,9 @@ test(
     await page.getByRole("button", { name: "Save recommendation", exact: true }).click();
 
     await expect(page.getByRole("form")).toHaveCount(0);
-    await expect(page.getByRole("status").filter({ hasText: "Recommendation saved" })).toHaveCount(
-      1,
-    );
+    await expect(
+      page.getByRole("alertdialog", { name: "Recommendation saved", exact: true }),
+    ).toHaveCount(1);
     await expect(page.getByText(savedReasoning, { exact: true })).toBeVisible();
 
     await page.reload();

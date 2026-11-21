@@ -137,7 +137,7 @@ export const AddContact: Story = {
     const dialog = within(await page.findByRole("dialog", { name: "Add contact" }));
     await waitFor(() => expect(dialog.getByRole("textbox", { name: "Name" })).toBeVisible());
     await expect(
-      dialog.getByText("Adding a contact does not create an account or grant access."),
+      dialog.getByText(/Adding a contact does not create an account or grant access\./),
     ).toBeVisible();
   },
 };

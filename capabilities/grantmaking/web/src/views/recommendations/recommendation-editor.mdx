@@ -1,0 +1,30 @@
+import { Canvas, Meta } from "@storybook/addon-docs/blocks";
+import * as Recommendation from "./recommendation-editor.stories";
+import * as Applications from "../applications/application-view.stories";
+
+<Meta of={Recommendation} />
+
+# Read and edit a funding recommendation
+
+A manager reading an application needs to know what each person proposed and
+which submission they saw. Put the author, funding position, proposed amount,
+and any qualification about the basis together. When the application has changed,
+show that beside the judgment, where someone scanning the outcome will see it.
+**Compare changes** should open the recorded basis. If the basis is unknown,
+say so and leave the comparison unavailable.
+
+<Canvas of={Applications.EarlierManagerRecommendation} story={{ inline: false, height: "620px" }} />
+
+## Show what saving this draft would mean
+
+Place the proposed allocation and its effect on the round together. A manager
+can adjust the amount and see the remaining budget or overage before saving.
+Show when a conditional recommendation counts in full or a deferral reserves
+nothing. **Save recommendation** records a proposal. The person can consult the
+submission and assessments throughout the edit.
+
+<Canvas of={Recommendation.BudgetPreview} story={{ inline: false, height: "620px" }} />
+
+[Resume an unfinished recommendation](?path=/story/features-applications-recommendation--resume-editing)
+to see where the work continues. The [reference workspace](?path=/docs/patterns-reference-workspace--docs)
+explains the shared arrangement for reading and writing.

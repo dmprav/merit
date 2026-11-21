@@ -41,7 +41,7 @@ const Picker = ({ baseline, save }: { baseline: ReviewBaseline; save: ReviewData
       workspaceSlug="alder"
       disabledContactIds={["jules"]}
       onBegin={beginRequest}
-      trigger={<Button>Add review request</Button>}
+      trigger={<Button size="medium">Add review request</Button>}
     />
   );
 };
@@ -154,7 +154,8 @@ it("blocks closing and further choices while the request saves", async () => {
 
   await user.click(picker.getByRole("option", { name: /Sam Morgan/ }));
 
-  expect(picker.getByRole("button", { name: "Close dialog" })).toBeDisabled();
+  await user.keyboard("{Escape}");
+  expect(screen.getByRole("dialog")).toBeVisible();
   expect(picker.getByRole("option", { name: /Sam Morgan/ })).toHaveAttribute(
     "aria-disabled",
     "true",

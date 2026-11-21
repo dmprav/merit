@@ -3,10 +3,6 @@
   gap: var(--space-4);
 }
 
-.actions:not(:empty) {
+.actions {
   margin-top: var(--space-4);
-}
-
-.close {
-  margin-inline-start: auto;
 }

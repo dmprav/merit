@@ -25,6 +25,11 @@
   padding: var(--space-3);
 }
 
+/* List content, such as a choice list, runs to the picker's edges like a menu. */
+.popover[data-appearance="picker"] .dialog:has([data-list-content]) {
+  padding: var(--space-1);
+}
+
 .popover[data-appearance="reference"] {
   display: flex;
   flex-direction: column;
@@ -48,7 +53,6 @@
   justify-content: space-between;
   gap: var(--space-3);
   padding: var(--space-1) var(--space-2) var(--space-1) var(--dialog-gutter);
-  background: var(--surface-muted);
 }
 
 .title {
@@ -72,7 +76,6 @@
   flex-shrink: 0;
   padding: var(--space-3) var(--dialog-gutter);
   border-top: 1px solid var(--border);
-  background: var(--surface-muted);
 }
 
 /* Let utility content scroll with the guide when space is too small for both. */

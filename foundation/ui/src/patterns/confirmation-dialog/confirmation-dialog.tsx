@@ -1,10 +1,12 @@
 import { useId, type ReactNode } from "react";
 
 import { Button } from "../../components/button/button";
+import { ButtonBase } from "../../components/button/button-base";
 import { DialogContent } from "../../components/dialog/dialog";
 import { FramedDialog } from "../../components/dialog/framed-dialog";
 import { Inline } from "../../components/layout/layout";
 import { Notice } from "../../components/notice/notice";
+import { StatusMessage } from "../status-message/status-message";
 import styles from "./confirmation-dialog.module.css";
 
 type ConfirmationDialogProps = {
@@ -73,7 +75,6 @@ export const ConfirmationDialog = ({
         footer={
           <Inline justify="end" gap={3}>
             <Button
-              size="small"
               variant="secondary"
               autoFocus
               isDisabled={isPending}
@@ -81,14 +82,13 @@ export const ConfirmationDialog = ({
             >
               {cancelLabel}
             </Button>
-            <Button
-              size="small"
-              variant={intent === "destructive" ? "destructive" : "primary"}
-              isPending={isPending}
-              onPress={onConfirm}
-            >
-              {isPending ? (pendingLabel ?? confirmLabel) : confirmLabel}
-            </Button>
+            <ConfirmAction
+              intent={intent}
+              label={confirmLabel}
+              pendingLabel={pendingLabel}
+              pending={isPending}
+              onConfirm={onConfirm}
+            />
           </Inline>
         }
       >
@@ -100,5 +100,36 @@ export const ConfirmationDialog = ({
         </div>
       </DialogContent>
     </FramedDialog>
+  );
+};
+
+const ConfirmAction = ({
+  intent,
+  label,
+  pendingLabel,
+  pending,
+  onConfirm,
+}: {
+  intent: "default" | "destructive";
+  label: string;
+  pendingLabel?: string;
+  pending: boolean;
+  onConfirm: () => void;
+}) => {
+  const pendingMessage = pending ? (pendingLabel ?? label) : null;
+  return (
+    <>
+      <ButtonBase
+        size="small"
+        variant={intent === "destructive" ? "destructive" : "primary"}
+        aria-busy={pending}
+        aria-disabled={pending}
+        onPress={pending ? undefined : onConfirm}
+      >
+        {pendingMessage ?? label}
+      </ButtonBase>
+      {/* A local text announcement closes with the dialog, even when its button disappears. */}
+      <StatusMessage message={pendingMessage} eventId={label} />
+    </>
   );
 };

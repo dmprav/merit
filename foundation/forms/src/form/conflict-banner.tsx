@@ -1,11 +1,10 @@
 import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
-import shellStyles from "@merit/ui/application-shell.module.css";
 import { Button } from "@merit/ui/button";
 import { Inline } from "@merit/ui/layout";
 import { Notice } from "@merit/ui/notice";
-import { StatusMessage } from "@merit/ui/status-message";
+import { showToast } from "@merit/ui/toast";
 
 import styles from "./conflict-banner.module.css";
 
@@ -56,28 +55,17 @@ export const ConflictBanner = ({
           (keepMine || useSaved || latest) && (
             <Inline>
               {keepMine && (
-                <Button
-                  size="small"
-                  variant="secondary"
-                  isDisabled={isDisabled}
-                  onPress={keepMine.onPress}
-                >
+                <Button variant="secondary" isDisabled={isDisabled} onPress={keepMine.onPress}>
                   {keepMine.label}
                 </Button>
               )}
               {useSaved && (
-                <Button
-                  size="small"
-                  variant="secondary"
-                  isDisabled={isDisabled}
-                  onPress={useSaved.onPress}
-                >
+                <Button variant="secondary" isDisabled={isDisabled} onPress={useSaved.onPress}>
                   {useSaved.label}
                 </Button>
               )}
               {latest && (
                 <Button
-                  size="small"
                   variant="quiet"
                   aria-expanded={showLatest}
                   onPress={() => setShowLatest((open) => !open)}
@@ -102,6 +90,16 @@ export const ConflictBanner = ({
   );
 };
 
+/**
+ * Under a field whose draft differs from the latest saved version: the saved value, so the person
+ * compares it where they edit instead of in a separate panel. Place it after the field's control.
+ */
+export const SavedValue = ({ label, children }: { label: string; children: ReactNode }) => (
+  <p className={styles.savedValue}>
+    <span className={styles.savedLabel}>{label}</span> {children}
+  </p>
+);
+
 const RetainedDraftActions = ({
   copyLabel,
   copyingLabel,
@@ -120,43 +118,15 @@ const RetainedDraftActions = ({
   onDiscard?: () => void;
 }) => (
   <Inline>
-    <Button size="small" variant="secondary" isDisabled={isDisabled || copying} onPress={onCopy}>
+    <Button variant="secondary" isDisabled={isDisabled || copying} onPress={onCopy}>
       {copying ? copyingLabel : copyLabel}
     </Button>
     {onDiscard && (
-      <Button size="small" variant="quiet" isDisabled={isDisabled} onPress={onDiscard}>
+      <Button variant="quiet" isDisabled={isDisabled} onPress={onDiscard}>
         {discardLabel}
       </Button>
     )}
   </Inline>
-);
-
-const CopyStatusFeedback = ({
-  copying,
-  copyFailed,
-  copied,
-  copiedLabel,
-  copyFailedLabel,
-}: {
-  copying: boolean;
-  copyFailed: boolean;
-  copied: number;
-  copiedLabel: string;
-  copyFailedLabel: string;
-}) => (
-  <>
-    {copyFailed && (
-      <Notice appearance="inline" tone="danger" role="alert">
-        {copyFailedLabel}
-      </Notice>
-    )}
-    <StatusMessage
-      message={copied > 0 && !copying && !copyFailed ? copiedLabel : null}
-      eventId={copied}
-      confirmation
-      className={shellStyles.confirmation}
-    />
-  </>
 );
 
 const useRetainedDraftLabels = (labels: {
@@ -216,17 +186,14 @@ export const RetainedDraftNotice = ({
     discardLabel,
   });
   const [copying, setCopying] = useState(false);
-  const [copyFailed, setCopyFailed] = useState(false);
-  const [copied, setCopied] = useState(0);
 
   const copy = async () => {
     setCopying(true);
-    setCopyFailed(false);
     try {
       await navigator.clipboard.writeText(textToCopy);
-      setCopied((count) => count + 1);
+      showToast({ tone: "success", message: labels.copiedLabel });
     } catch {
-      setCopyFailed(true);
+      showToast({ tone: "danger", message: labels.copyFailedLabel });
     }
     setCopying(false);
   };
@@ -252,13 +219,6 @@ export const RetainedDraftNotice = ({
       >
         <p>{message}</p>
       </Notice>
-      <CopyStatusFeedback
-        copying={copying}
-        copyFailed={copyFailed}
-        copied={copied}
-        copiedLabel={labels.copiedLabel}
-        copyFailedLabel={labels.copyFailedLabel}
-      />
       {children && <div className={styles.retainedContent}>{children}</div>}
     </section>
   );

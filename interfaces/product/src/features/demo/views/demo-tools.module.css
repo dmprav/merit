@@ -1,9 +1,4 @@
-.guide {
-  line-height: 1.55;
-}
-
 .tasks {
-  justify-items: start;
   margin-top: var(--space-3);
 }
 
@@ -13,6 +8,4 @@
 
 .expiry {
   margin-bottom: var(--space-2);
-  font-size: var(--text-caption);
-  color: var(--muted);
 }

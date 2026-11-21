@@ -41,7 +41,7 @@ const ApplicationPreview = ({ round, application, ...props }: PreviewProps) => {
 };
 
 const meta = {
-  title: "Features/Applications/Overview",
+  title: "Features/Applications/Application detail",
   tags: ["!autodocs"],
   parameters: { layout: "fullscreen" },
   component: ApplicationPreview,
@@ -145,10 +145,10 @@ const ExternalReferencePreview = (props: PreviewProps) => {
       <section aria-label="Story controls">
         <h2>Story controls: external navigation</h2>
         <Inline>
-          <Button variant="quiet" onPress={() => setTab("evidence")}>
+          <Button size="medium" variant="quiet" onPress={() => setTab("evidence")}>
             Open submission externally
           </Button>
-          <Button variant="quiet" onPress={() => setTab("reviews")}>
+          <Button size="medium" variant="quiet" onPress={() => setTab("reviews")}>
             Open assessments externally
           </Button>
         </Inline>

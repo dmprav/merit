@@ -1,10 +1,15 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { FormTextField, type useForm } from "@merit/forms";
 import { roundPreparationLimits } from "@merit/rounds/domain";
 import { Button } from "@merit/ui/button";
+import { Icon } from "@merit/ui/icon";
+import { Stack } from "@merit/ui/layout";
+import { Panel } from "@merit/ui/panel";
 import { StatusMessage } from "@merit/ui/status-message";
+import { Text } from "@merit/ui/text";
+import { Tooltip } from "@merit/ui/tooltip";
 
 import type { PreparationValues } from "../../controllers/preparation/preparation-state";
 import styles from "./preparation.module.css";
@@ -22,7 +27,8 @@ export const CriteriaFields = ({ form, isSubmitting }: CriteriaFieldsProps) => {
   } | null>(null);
   const { announcement, moved, removed } = useCriterionAnnouncements();
 
-  const criteriaElement = useCriterionFocus(focusRequest);
+  const criterionId = useId();
+  const criteriaElement = useCriterionFocus(focusRequest, criterionId);
 
   return (
     <form.Field name="criteria" mode="array">
@@ -30,62 +36,68 @@ export const CriteriaFields = ({ form, isSubmitting }: CriteriaFieldsProps) => {
         <div className={styles.fields} ref={criteriaElement}>
           <StatusMessage eventId={announcement.event} message={announcement.message} />
           {field.state.value.map((criterion, index) => (
-            <fieldset
-              key={criterion.key}
-              data-criterion-key={criterion.key}
-              className={styles.criterion}
-            >
-              <legend>{t("preparation.criterion", { number: index + 1 })}</legend>
-              <CriterionInputs form={form} index={index} isReadOnly={isSubmitting} />
-              <div className={styles.actions}>
-                <Button
-                  size="small"
-                  variant="quiet"
-                  isDisabled={index === 0 || isSubmitting}
-                  aria-label={t("preparation.moveUpFor", { number: index + 1 })}
-                  data-criterion-action="up"
-                  onPress={() => {
-                    field.swapValues(index, index - 1);
-                    setFocusRequest({ key: criterion.key, action: "up" });
-                    moved(criterion.title, index);
-                  }}
-                >
-                  {t("preparation.moveUp")}
-                </Button>
-                <Button
-                  size="small"
-                  variant="quiet"
-                  isDisabled={index === field.state.value.length - 1 || isSubmitting}
-                  aria-label={t("preparation.moveDownFor", { number: index + 1 })}
-                  data-criterion-action="down"
-                  onPress={() => {
-                    field.swapValues(index, index + 1);
-                    setFocusRequest({ key: criterion.key, action: "down" });
-                    moved(criterion.title, index + 2);
-                  }}
-                >
-                  {t("preparation.moveDown")}
-                </Button>
-                <Button
-                  size="small"
-                  variant="quiet"
-                  isDisabled={isSubmitting}
-                  aria-label={t("preparation.removeFor", { number: index + 1 })}
-                  onPress={() => {
-                    const next = field.state.value[index + 1] ?? field.state.value[index - 1];
-                    field.removeValue(index);
-                    setFocusRequest({ key: next?.key ?? null, action: "title" });
-                    removed(criterion.title);
-                  }}
-                >
-                  {t("preparation.remove")}
-                </Button>
-              </div>
-            </fieldset>
+            <Panel as="fieldset" key={criterion.key} id={`${criterionId}-${criterion.key}`}>
+              <Text as="legend" variant="caption">
+                {t("preparation.criterion", { number: index + 1 })}
+              </Text>
+              <Stack gap={3}>
+                <CriterionInputs form={form} index={index} isReadOnly={isSubmitting} />
+                <div className={styles.criterionActions}>
+                  <Tooltip content={t("preparation.moveUp")}>
+                    <Button
+                      variant="quiet"
+                      iconOnly
+                      isDisabled={index === 0 || isSubmitting}
+                      aria-label={t("preparation.moveUpFor", { number: index + 1 })}
+                      data-criterion-action="up"
+                      onPress={() => {
+                        field.swapValues(index, index - 1);
+                        setFocusRequest({ key: criterion.key, action: "up" });
+                        moved(criterion.title, index);
+                      }}
+                    >
+                      <Icon name="ascending" />
+                    </Button>
+                  </Tooltip>
+                  <Tooltip content={t("preparation.moveDown")}>
+                    <Button
+                      variant="quiet"
+                      iconOnly
+                      isDisabled={index === field.state.value.length - 1 || isSubmitting}
+                      aria-label={t("preparation.moveDownFor", { number: index + 1 })}
+                      data-criterion-action="down"
+                      onPress={() => {
+                        field.swapValues(index, index + 1);
+                        setFocusRequest({ key: criterion.key, action: "down" });
+                        moved(criterion.title, index + 2);
+                      }}
+                    >
+                      <Icon name="descending" />
+                    </Button>
+                  </Tooltip>
+                  <Tooltip content={t("preparation.remove")}>
+                    <Button
+                      variant="quiet"
+                      iconOnly
+                      isDisabled={isSubmitting}
+                      aria-label={t("preparation.removeFor", { number: index + 1 })}
+                      onPress={() => {
+                        const next = field.state.value[index + 1] ?? field.state.value[index - 1];
+                        field.removeValue(index);
+                        setFocusRequest({ key: next?.key ?? null, action: "title" });
+                        removed(criterion.title);
+                      }}
+                    >
+                      <Icon name="discard" />
+                    </Button>
+                  </Tooltip>
+                </div>
+              </Stack>
+            </Panel>
           ))}
           <Button
-            variant="secondary"
-            size="small"
+            variant="quiet"
+            alignment="start"
             isDisabled={
               field.state.value.length >= roundPreparationLimits.criteriaCount || isSubmitting
             }
@@ -96,6 +108,7 @@ export const CriteriaFields = ({ form, isSubmitting }: CriteriaFieldsProps) => {
               setFocusRequest({ key, action: "title" });
             }}
           >
+            <Icon name="add" />
             {t("preparation.addCriterion")}
           </Button>
         </div>
@@ -142,6 +155,7 @@ const CriterionInputs = ({
 
 const useCriterionFocus = (
   focusRequest: { key: string | null; action: "title" | "up" | "down" } | null,
+  criterionId: string,
 ) => {
   const criteriaElement = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -153,7 +167,7 @@ const useCriterionFocus = (
       focusRequest.key === null
         ? null
         : criteriaElement.current?.querySelector<HTMLElement>(
-            `[data-criterion-key="${focusRequest.key}"]`,
+            `#${CSS.escape(`${criterionId}-${focusRequest.key}`)}`,
           );
     const target =
       focusRequest.action === "title"
@@ -166,7 +180,7 @@ const useCriterionFocus = (
       row?.querySelector<HTMLInputElement>("input") ??
       criteriaElement.current?.querySelector<HTMLButtonElement>("[data-add-criterion]")
     )?.focus();
-  }, [focusRequest]);
+  }, [focusRequest, criterionId]);
 
   return criteriaElement;
 };

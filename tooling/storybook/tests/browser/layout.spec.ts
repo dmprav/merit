@@ -48,17 +48,17 @@ test("page header wraps long titles and keeps actions in keyboard order", async 
   await expect(page.locator("#storybook-root")).toHaveAttribute("data-story-ready", "true");
 
   const title = page.getByRole("heading", { level: 1 });
-  const exportAction = page.getByRole("button", { name: "Export summary", exact: true });
   const reviewAction = page.getByRole("button", { name: "Review round", exact: true });
+  const moreActions = page.getByRole("button", { name: "More actions", exact: true });
 
   await expect(title).toHaveAccessibleName(
     "Community partnerships for arts, education and neighbourhood development",
   );
   await expect(page.getByText("In preparation", { exact: true })).toBeVisible();
 
-  await exportAction.focus();
+  await reviewAction.focus();
   await page.keyboard.press("Tab");
-  await expect(reviewAction).toBeFocused();
+  await expect(moreActions).toBeFocused();
 
   await checkPage(page);
   await page.screenshot({ path: testInfo.outputPath("page-header-long.png") });
@@ -68,10 +68,10 @@ test("page header wraps long titles and keeps actions in keyboard order", async 
     document.documentElement.style.fontSize = "200%";
   });
 
-  for (const element of [title, exportAction, reviewAction]) {
+  for (const element of [title, reviewAction, moreActions]) {
     expect(await element.evaluate((node) => node.scrollWidth <= node.clientWidth + 1)).toBe(true);
   }
-  expect((await exportAction.boundingBox())!.y).toBeGreaterThan((await title.boundingBox())!.y);
+  expect((await reviewAction.boundingBox())!.y).toBeGreaterThan((await title.boundingBox())!.y);
 
   await checkPage(page);
   await page.screenshot({ path: testInfo.outputPath("page-header-enlarged.png"), fullPage: true });
@@ -84,7 +84,9 @@ test("application preview uses pane scrolling on desktop and document scrolling 
     await page.setViewportSize({ width: 1440, height: 800 });
   }
 
-  await page.goto("/iframe.html?id=features-applications-overview--evidence&viewMode=story");
+  await page.goto(
+    "/iframe.html?id=features-applications-application-detail--evidence&viewMode=story",
+  );
   await expect(page.locator("#storybook-root")).toHaveAttribute("data-story-ready", "true");
 
   await expect(page.getByRole("main")).toHaveCount(1);

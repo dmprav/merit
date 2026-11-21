@@ -1,5 +1,9 @@
-.shell {
+/* The document holds the sidebar width so page-level overlays, such as toasts, can center beside it. */
+:root:has(.shell) {
   --sidebar-width: 210px;
+}
+
+.shell {
   display: grid;
   grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
   min-height: 100dvh;
@@ -308,6 +312,50 @@ button.contextTrigger {
   gap: var(--space-2);
 }
 
+.navigationGroup {
+  display: grid;
+  gap: var(--space-1);
+  margin-top: var(--space-6);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+}
+
+.navigationGroupLabel {
+  padding: var(--space-1) var(--space-2);
+  color: var(--muted);
+  font-size: var(--text-meta);
+}
+
+.navigationLabel {
+  min-width: 0;
+}
+
+.navigationShortcut {
+  visibility: hidden;
+  margin-inline-start: auto;
+  padding-inline-start: var(--space-3);
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--text-meta);
+  white-space: nowrap;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .navigationItem:hover .navigationShortcut {
+    visibility: visible;
+  }
+}
+
+.navigationItem:focus-visible .navigationShortcut {
+  visibility: visible;
+}
+
+@media (pointer: coarse) {
+  .navigationShortcut {
+    display: none;
+  }
+}
+
 .documentationLink {
   padding: 8px 10px;
   color: var(--muted);
@@ -412,6 +460,11 @@ button.accountTrigger,
   }
 }
 
+/* Previews keep the stage's scrolling contract without the sidebar. */
+.stageOnly {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .stage {
   min-width: 0;
   display: flex;
@@ -419,8 +472,7 @@ button.accountTrigger,
 }
 
 .topbar,
-.content,
-.status {
+.content {
   --page-gutter: 36px;
 }
 
@@ -442,27 +494,9 @@ button.accountTrigger,
   flex: 1;
 }
 
-.status {
-  padding: var(--space-3) var(--page-gutter);
-  font-size: var(--text-caption);
-  color: var(--danger);
-  border-bottom: 1px solid var(--border);
-}
-
-.shell .confirmation,
-.content .confirmation {
-  position: fixed;
-  z-index: 30;
-  bottom: var(--space-4);
-  left: calc(50% + var(--sidebar-width, 0px) / 2);
-  transform: translateX(-50%);
-  max-width: min(28rem, calc(100vw - var(--sidebar-width, 0px) - 2 * var(--space-4)));
-}
-
 @media (min-width: 1400px) {
   .topbar,
-  .content,
-  .status {
+  .content {
     --page-gutter: 44px;
   }
 
@@ -472,15 +506,14 @@ button.accountTrigger,
 }
 
 @media (max-width: 1000px) {
-  .shell {
+  :root:has(.shell) {
     --sidebar-width: 180px;
   }
 }
 
 @media (max-width: 760px) {
   .topbar,
-  .content,
-  .status {
+  .content {
     --page-gutter: var(--space-6);
   }
 
@@ -490,8 +523,11 @@ button.accountTrigger,
 }
 
 @media (max-width: 600px) {
-  .shell {
+  :root:has(.shell) {
     --sidebar-width: 0px;
+  }
+
+  .shell {
     display: flex;
     flex-direction: column;
   }
@@ -534,8 +570,7 @@ button.accountTrigger,
   }
 
   .topbar,
-  .content,
-  .status {
+  .content {
     --page-gutter: var(--space-4);
   }
 
@@ -565,8 +600,7 @@ button.accountTrigger,
     padding-bottom: 0;
   }
 
-  .shell:has(.contained) .topbar,
-  .shell:has(.contained) .status {
+  .shell:has(.contained) .topbar {
     flex-shrink: 0;
   }
 }
@@ -700,7 +734,34 @@ button.accountTrigger,
 
 /* Keep labels readable beside the always-visible touch removal control. */
 @media (min-width: 601px) and (pointer: coarse) {
-  .shell {
+  :root:has(.shell) {
     --sidebar-width: 244px;
+  }
+}
+
+.standalone {
+  min-height: 100dvh;
+  background: var(--surface);
+}
+
+.standaloneHeader {
+  padding: var(--space-6) var(--space-8);
+}
+
+.standaloneBrand {
+  font-size: var(--text-page);
+}
+
+.standaloneContent {
+  width: min(100%, 28rem);
+  font-size: var(--text-body);
+  margin: clamp(2rem, 14vh, 8rem) auto 0;
+  padding: var(--space-6);
+  outline: none;
+}
+
+@media (max-width: 600px) {
+  .standaloneContent {
+    margin-top: var(--space-8);
   }
 }

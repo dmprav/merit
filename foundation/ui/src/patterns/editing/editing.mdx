@@ -58,32 +58,24 @@ commitment. The feature owns saving, conflicts, and revision-checked undo.
 
 Use `ChoiceList` for a searchable property picker. Its selection commits through
 the owning workflow. Present these small pickers in `PickerPopover`; the dialog
-retains an accessible name without repeating the field label in a separate heading. `DateChoice` supplies its own Cancel
-control. Pass the dialog's `closeButton` to `ChoiceList.headerActions` to keep
-search and dismissal together.
+retains an accessible name without repeating the field label in a separate heading.
+`ChoiceList` puts its search in the picker's header and uses the shared list row for
+results, the same row Select options and menu items use. `DateChoice` supplies its
+own Cancel control.
 
 <Canvas of={Editing.ChoiceListPicker} />
 
 ## Write or edit several fields
 
-Use `Form` and `FormActions` from `@merit/forms`. Form footers use labelled buttons:
-primary Save, secondary Close, and quieter Discard separated from the commit controls.
-Use `cancelVariant="quiet"` when Close should have less visual emphasis, as in
-the inline intake editors.
-Keep actions reachable within the editor's scroll area. A dialog header can use
-an × close icon; secondary footer actions use labels with the rest of that group.
-For a bounded editing task, wrap the feature's `Form` in `FormDialog` from `@merit/forms`.
-It supplies a context header, scrollable fields, a tinted footer with persistent
-actions, and Cmd/Ctrl+Enter submission together. The form can remain inside a
-feature component; it inherits these conventions without repeating presentation
-props. The [form dialog examples](?path=/docs/patterns-form-dialog--docs) show context
-wrapping, long content, validation, and pending and failed saves.
-Sustained writing, such as recording an assessment, belongs beside its reference material in the
-workspace. Short property forms replace the values they edit in place; do not
-repeat saved values beside them by default. When a true save or basis conflict occurs, keep
-the editor mounted and disclose the latest saved values through an optional **View latest**
-section beneath the inline conflict banner.
-The container does not change Close semantics.
+Keep short property forms in the space occupied by the values they edit.
+Use a [form dialog](?path=/docs/patterns-form-dialog--docs) for a bounded task
+that needs its own surface. For sustained writing, such as recording an
+assessment, use a [reference workspace](?path=/docs/patterns-reference-workspace--docs)
+so the author can consult the evidence with the editor open.
+
+Group the labelled Save and Close actions in reach of the fields and separate
+Discard from them. In a form, `FormActions` supplies this group. Closing a dialog
+or inline editor has the same effect on the draft.
 
 Beside headings, use a pencil icon to edit or resume, with an accessible action
 name and tooltip. Set `data-draft` on the shared `Button` for a visible draft dot
@@ -110,35 +102,17 @@ recovery; they are not shared or server-saved records. Public invitation request
 retain their short email entry only while closed on the current page. Standalone
 previews and Storybook drafts remain in memory.
 
-`useDrafts` from `@merit/drafts` provides this recovery through IndexedDB. Keep
-schemas, format versions, and workspace-qualified record keys with
-the feature. The [draft package](../../../../drafts/README.md) owns storage and
-account cleanup. Storage accepts unfinished values, including invalid inputs;
-submission validates the commitment. Retain original revisions and retry identities;
-reopening a draft must never silently advance its baseline. Mount the store for its
-account scope and share it across entry points for the same record. Keep saved
-content and navigation available during recovery. An opened editor waits only for
-its own store before initializing drafts or mounting its form. Use `EditorLoading`
-inside the existing padded body, retaining the actual title and enabled Close
-control. Use `EditorClose` in inline waits to focus Close and let Escape
-cancel the opening. Closing cancels the pending opening. Draft-writing quick
-actions also wait for their store. If storage fails, retain edits in
-memory and explain that recovery requires keeping the tab open. Separate tabs
-can save different drafts. If another tab changes the same local draft, preserve
-its recovery copy and keep this tab’s edits in memory with a warning to save or
-discard before closing. Discarding this tab’s edits leaves the other tab’s copy
-intact. Browser storage may be cleared by the browser or the person using it;
-local persistence does not establish server commitment.
+While a draft is being restored, keep the editor title and Close action available.
+The person can leave the editor and continue reading saved work. If local storage
+is unavailable, keep the writing in memory and explain that closing the tab risks
+losing it. When another tab holds a newer local draft, preserve both copies and
+explain which one the person can save or discard here. The
+[drafts package](../../../../drafts/README.md) describes how to connect the store
+and handle these outcomes.
 
-Collisions preserve the draft inside the mounted editor; the
-[feedback pattern](?path=/docs/patterns-feedback--docs) describes how `ConflictBanner`
-and `RetainedDraftNotice` present recovery.
-A committed write followed by a failed refresh remains a successful save: retain
-the known result and offer a refresh without repeating the write. The
-[web feature guide](../../../../../docs/guides/web-features.md#find-an-existing-workflow)
-explains how controllers and data adapters carry these separate outcomes.
-
-Verify close and reopen, discard, navigation and reload, failed saves, concurrent
-changes, and account isolation. Check draft markers, Resume names, and keyboard
-focus as well as stored values. Feature tests exercise these boundaries through
-their actual forms.
+When the saved record or its evidence has changed, keep the draft visible and
+offer a comparison with the latest version before the person chooses what to
+keep. If access ends while someone is writing, give them a way to copy their
+draft. A successful save followed by a failed refresh calls for refreshing the
+view. The [feedback pattern](?path=/docs/patterns-feedback--docs) shows the
+different recovery actions.

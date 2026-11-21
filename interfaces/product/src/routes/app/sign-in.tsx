@@ -1,14 +1,18 @@
 import { SignIn, useClerk, useUser } from "@clerk/tanstack-react-start";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@merit/ui/button";
-import linkStyles from "@merit/ui/link.module.css";
+import { Link } from "@merit/ui/link";
+import { PageHeader } from "@merit/ui/page-header";
 import { StateMessage } from "@merit/ui/state-message";
+import { Text } from "@merit/ui/text";
 
 import { webTranslator } from "../../app/messages";
 import { StandalonePage } from "../../components/standalone-page";
+import { RoutedLink } from "../../shared/routed-link";
+import clerkStyles from "./sign-in.clerk.module.css";
 import localStyles from "./sign-in.module.css";
 
 const AccountSignIn = ({ returnTo }: { returnTo: string }) => {
@@ -39,14 +43,16 @@ const AccountSignIn = ({ returnTo }: { returnTo: string }) => {
           ? t("signedInAs", { email: user.primaryEmailAddress.emailAddress })
           : t("signedIn")}
       </p>
-      <p className={localStyles.description}>{t("switchAccountHelp")}</p>
+      <Text as="p" variant="supporting">
+        {t("switchAccountHelp")}
+      </Text>
       {error && <p role="alert">{error}</p>}
-      <Button isPending={pending} onPress={signOut}>
+      <Button size="medium" isPending={pending} onPress={signOut}>
         {t("switchAccount")}
       </Button>
-      <a href={returnTo} className={`${linkStyles.text} ${linkStyles.standalone}`}>
+      <Link variant="standalone" href={returnTo}>
         {t("continueSignIn")}
-      </a>
+      </Link>
     </div>
   ) : (
     <SignIn
@@ -70,7 +76,7 @@ const AccountSignIn = ({ returnTo }: { returnTo: string }) => {
           fontSize: "var(--text-body)",
           borderRadius: "var(--control-radius)",
         },
-        elements: { rootBox: localStyles.form, cardBox: localStyles.card },
+        elements: { rootBox: clerkStyles.form, cardBox: clerkStyles.card },
       }}
     />
   );
@@ -87,10 +93,12 @@ const SignInPage = () => {
           description={t("signIn.unavailable.description")}
           actions={
             <>
-              <Button onPress={() => window.location.reload()}>{t("common:tryAgain")}</Button>
-              <Link to="/demo" className={linkStyles.button} data-variant="secondary">
+              <Button size="medium" onPress={() => window.location.reload()}>
+                {t("common:tryAgain")}
+              </Button>
+              <RoutedLink variant="secondary" to="/demo">
                 {t("signIn.tryDemo")}
-              </Link>
+              </RoutedLink>
             </>
           }
         />
@@ -100,22 +108,19 @@ const SignInPage = () => {
 
   return (
     <StandalonePage>
-      <div className={localStyles.introduction}>
-        <h1 className={localStyles.title}>{t("signIn.title")}</h1>
-        <p className={localStyles.description}>{t("signIn.description")}</p>
-      </div>
+      <PageHeader title={t("signIn.title")} description={t("signIn.description")} />
       {import.meta.env.MERIT_LOCAL_WORKSPACE ? (
-        <Link to="/app" className={linkStyles.button} data-variant="primary">
+        <RoutedLink variant="primary" to="/app">
           {t("backToWorkspace")}
-        </Link>
+        </RoutedLink>
       ) : (
         <AccountSignIn returnTo={returnTo} />
       )}
       <p className={localStyles.demo}>
-        <Link to="/demo" className={`${linkStyles.text} ${linkStyles.standalone}`}>
+        <RoutedLink variant="standalone" to="/demo">
           {t("signIn.tryDemo")}
-        </Link>
-        <span className={localStyles.description}>{t("signIn.demoDescription")}</span>
+        </RoutedLink>
+        <Text variant="supporting">{t("signIn.demoDescription")}</Text>
       </p>
     </StandalonePage>
   );

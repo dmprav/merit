@@ -71,6 +71,8 @@
 }
 
 [data-product-theme] {
+  /* Dense work reads in three steps: caption for metadata, detail for interface and copy, reading for prose. */
+  --text-body: var(--text-detail);
   --text-control: var(--text-detail);
   --text-label: var(--text-detail);
   --background: #ffffff;

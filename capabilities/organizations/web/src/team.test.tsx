@@ -1,9 +1,10 @@
 import { QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, within, waitFor } from "@testing-library/react";
+import { act, render, screen, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { assert, beforeEach, expect, it, vi } from "vite-plus/test";
+import { afterEach, assert, beforeEach, expect, it, vi } from "vite-plus/test";
 
 import { createQueryClient } from "@merit/query";
+import { Toasts } from "@merit/ui/toast";
 
 import { teamFixture as initial } from "../tests/team.fixtures";
 import type { TeamTransport } from "./contracts/team";
@@ -58,6 +59,8 @@ beforeEach(() => {
   }));
 });
 
+afterEach(() => vi.useRealTimers());
+
 const show = (data = initial, draftScope?: string) =>
   render(
     <QueryClientProvider client={createQueryClient()}>
@@ -68,6 +71,7 @@ const show = (data = initial, draftScope?: string) =>
           transport={transport}
           revalidateAccess={revalidateAccess}
         />
+        <Toasts />
       </OrganizationMessagesProvider>
     </QueryClientProvider>,
   );
@@ -80,7 +84,7 @@ it("shows a read-only directory to program managers", () => {
   });
 
   expect(screen.getByText("Morgan Lee")).toBeVisible();
-  expect(screen.queryByRole("button", { name: "Refresh team" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Refresh" })).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: /Actions for/ })).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Invite member" })).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Edit access" })).not.toBeInTheDocument();
@@ -168,28 +172,46 @@ it("keeps the entries and reuses the request ID after a failed invitation", asyn
 });
 
 it("keeps a saved invitation distinct from a failed team refresh", async () => {
-  const user = userEvent.setup();
+  vi.useFakeTimers({ shouldAdvanceTime: true, toFake: ["setTimeout", "clearTimeout"] });
+  const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
   const dialog = await startInvitation(user);
-  transport.read.mockRejectedValueOnce(new Error("offline"));
+  // The read after saving and both quiet retries fail before the failure is reported.
+  transport.read
+    .mockRejectedValueOnce(new Error("offline"))
+    .mockRejectedValueOnce(new Error("offline"))
+    .mockRejectedValueOnce(new Error("offline"));
   await user.click(within(dialog).getByRole("button", { name: "Invite member" }));
 
   await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-  expect(await screen.findByRole("alert")).toHaveTextContent("The latest team could not be loaded");
-  const confirmation = await screen.findByText(
-    "Invitation saved. Check its email delivery status below.",
-    { selector: '[role="status"]' },
-  );
-  expect(screen.getByRole("button", { name: "Invite member" })).toBeDisabled();
-  await waitFor(() => expect(screen.getByRole("button", { name: "Refresh team" })).toHaveFocus());
-
-  await user.click(await screen.findByRole("button", { name: "Refresh team" }));
-
-  await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+  expect(
+    await screen.findByRole("alertdialog", {
+      name: "Invitation saved. Check its email delivery status below.",
+    }),
+  ).toBeVisible();
   await waitFor(() => expect(screen.getByRole("tab", { name: /Invitations/ })).toHaveFocus());
-  expect(confirmation).toBeInTheDocument();
-  expect(confirmation).toHaveTextContent(
-    "Invitation saved. Check its email delivery status below.",
+
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(4000);
+  });
+  const warning = await screen.findByRole("alertdialog", {
+    name: "Saved, but the latest team could not be loaded.",
+  });
+  // A failed refresh leaves the team available for further work.
+  expect(screen.getByRole("button", { name: "Invite member" })).toBeEnabled();
+
+  screen.getByRole("tab", { name: /Invitations/ }).blur();
+  await user.click(within(warning).getByRole("button", { name: "Refresh" }));
+
+  await waitFor(() =>
+    expect(
+      screen.queryByRole("alertdialog", {
+        name: "Saved, but the latest team could not be loaded.",
+      }),
+    ).not.toBeInTheDocument(),
   );
+  await waitFor(() => expect(screen.getByRole("tab", { name: /Invitations/ })).toHaveFocus());
+  expect(transport.read).toHaveBeenCalledTimes(4);
+  expect(transport.invite).toHaveBeenCalledOnce();
 });
 
 it("keeps a stale edit open for recovery instead of announcing success", async () => {
@@ -211,10 +233,10 @@ it("keeps a stale edit open for recovery instead of announcing success", async (
 
   expect(screen.getByRole("alert")).toHaveTextContent("Team details have changed");
 
-  await user.click(await screen.findByRole("button", { name: "Refresh team" }));
+  await user.click(await screen.findByRole("button", { name: "Refresh" }));
 
   await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
-  expect(screen.queryByRole("button", { name: "Refresh team" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Refresh" })).not.toBeInTheDocument();
 });
 
 it("shows the revocation count when demoting an administrator and clears the warning when retaining administration", async () => {
@@ -377,7 +399,12 @@ it("resends an invitation from its action menu and keeps failed sending recovera
   await user.click(trigger);
   await user.click(await screen.findByRole("menuitem", { name: "Resend" }));
 
-  await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+  expect(
+    await screen.findByRole("alertdialog", {
+      name: "Invitation saved. Check its email delivery status below.",
+    }),
+  ).toBeVisible();
+  expect(screen.queryByText(/We couldn’t complete this action/)).not.toBeInTheDocument();
   expect(transport.resend).toHaveBeenLastCalledWith({
     workspaceSlug: "alder",
     invitationId: "pending",

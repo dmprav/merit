@@ -1,5 +1,5 @@
 import { act, renderHook } from "@testing-library/react";
-import { expect, it, vi } from "vite-plus/test";
+import { afterEach, expect, it, vi } from "vite-plus/test";
 
 import { teamFixture } from "../../tests/team.fixtures";
 import type { MutationResult, TeamData } from "../contracts/team";
@@ -28,7 +28,10 @@ const showTeam = (data: TeamData) => {
   return { result, committed };
 };
 
+afterEach(() => vi.useRealTimers());
+
 it("reports a committed change separately from an injected refresh failure without repeating the write", async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
   const data = teamData({
     resend: vi.fn().mockResolvedValue({ status: "ok", value: null }),
     refreshAfterSave: vi.fn().mockRejectedValue(new Error("Offline")),
@@ -40,11 +43,19 @@ it("reports a committed change separately from an injected refresh failure witho
 
   expect(committed).toHaveBeenCalledOnce();
   expect(result.current.error).toBeNull();
-  expect(result.current.refreshFailed).toBe(true);
+  // The failed read retries quietly before it is reported.
+  expect(result.current.refreshError).toBeNull();
 
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(4000);
+  });
+
+  expect(result.current.refreshError).toBe("saved");
+
+  vi.mocked(data.refreshAfterSave).mockResolvedValueOnce(undefined);
   await act(() => result.current.refresh());
 
-  expect(result.current.refreshFailed).toBe(false);
+  expect(result.current.refreshError).toBeNull();
   expect(data.resend).toHaveBeenCalledOnce();
 });
 
@@ -78,7 +89,7 @@ it.each([
     expect(problem).toBe(en.errors[status]);
     expect(result.current.error).toBe(status);
     expect(result.current.stale).toBe(stale);
-    expect(result.current.notice.message).toBeNull();
+    expect(result.current.refreshError).toBeNull();
     expect(committed).not.toHaveBeenCalled();
   },
 );

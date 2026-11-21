@@ -27,6 +27,18 @@
   color: var(--muted);
 }
 
+.savedValue {
+  margin-top: var(--space-1);
+  color: var(--muted);
+  font-size: var(--text-caption);
+  overflow-wrap: anywhere;
+}
+
+.savedLabel {
+  color: var(--warning);
+  font-weight: 500;
+}
+
 .retainedContent {
   display: grid;
   gap: var(--space-3);

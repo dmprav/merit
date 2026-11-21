@@ -1,8 +1,9 @@
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { expect, it, vi } from "vite-plus/test";
+import { afterEach, expect, it, vi } from "vite-plus/test";
 
 import { ReferencePane, ReferenceWorkspace } from "@merit/ui/reference-workspace";
+import { Toasts } from "@merit/ui/toast";
 
 import type { ManagerReviewerData } from "../../contracts/reviewer";
 import { useManagerReviewers } from "../../controllers/reviewer/use-manager-reviewers";
@@ -20,10 +21,21 @@ const renderManager = (data = managerTransport({ status: "ok", value: [] })) => 
   const view = render(
     <GrantmakingMessagesProvider>
       <ConnectedManager data={data} />
+      <Toasts />
     </GrantmakingMessagesProvider>,
   );
   return { ...view, data, user: userEvent.setup() };
 };
+
+afterEach(() => vi.useRealTimers());
+
+/** Waits out the quiet retries a failed refresh makes before it is reported. */
+const afterQuietRetries = () =>
+  act(async () => {
+    await vi.advanceTimersByTimeAsync(4000);
+  });
+
+const savedRefreshFailure = "Saved, but the latest reviewer participation could not be loaded.";
 
 it("sends an invitation without an optional response date or routine membership guidance", async () => {
   const { user, data } = renderManager();
@@ -180,41 +192,57 @@ it("restores the reviewer list reading position and history trigger after return
 it.each(["assignments", "workspace"] as const)(
   "recovers a committed invitation after the %s refresh fails without inviting again",
   async (failedRead) => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     const data = managerTransport({ status: "ok", value: [] });
     const readFailure = vi.spyOn(data, "read");
     const refreshFailure = vi.spyOn(data, "refresh");
     const { user } = renderManager(data);
     await user.click(await screen.findByRole("button", { name: "Invite reviewer" }));
-    if (failedRead === "assignments") {
-      readFailure.mockResolvedValueOnce({ status: "unavailable" });
-    } else {
-      refreshFailure.mockRejectedValueOnce(new Error("Unavailable"));
+    // The first read and both quiet retries fail before the failure is reported.
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      if (failedRead === "assignments") {
+        readFailure.mockResolvedValueOnce({ status: "unavailable" });
+      } else {
+        refreshFailure.mockRejectedValueOnce(new Error("Unavailable"));
+      }
     }
     const invitation = within(screen.getByRole("dialog", { name: "Invite reviewer" }));
     await user.click(invitation.getByRole("button", { name: "Invite reviewer" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(screen.getByText("Awaiting acceptance")).toBeVisible();
-    expect(screen.getByRole("alert")).toHaveTextContent("The change was saved");
-    await user.click(screen.getByRole("button", { name: "Refresh" }));
-    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+    await afterQuietRetries();
+    const failure = screen.getByRole("alertdialog", { name: savedRefreshFailure });
+    await user.click(within(failure).getByRole("button", { name: "Refresh" }));
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("alertdialog", { name: savedRefreshFailure }),
+      ).not.toBeInTheDocument(),
+    );
     expect(data.invite).toHaveBeenCalledTimes(1);
-    expect(data.read).toHaveBeenCalledTimes(3);
-    expect(data.refresh).toHaveBeenCalledTimes(failedRead === "assignments" ? 1 : 2);
+    expect(screen.getByText("Awaiting acceptance")).toBeVisible();
   },
 );
 
 it("retries a failed initial assignment read and clears its read failure", async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
   const data = managerTransport({ status: "ok", value: [] });
-  vi.spyOn(data, "read").mockRejectedValueOnce(new Error("Unavailable"));
+  vi.spyOn(data, "read")
+    .mockRejectedValueOnce(new Error("Unavailable"))
+    .mockRejectedValueOnce(new Error("Unavailable"))
+    .mockRejectedValueOnce(new Error("Unavailable"));
   const { user } = renderManager(data);
-  expect(await screen.findByRole("alert")).toHaveTextContent("could not be loaded");
-  await user.click(screen.getByRole("button", { name: "Refresh" }));
+  await afterQuietRetries();
+  const failure = await screen.findByRole("alertdialog", {
+    name: "The latest reviewer participation could not be loaded.",
+  });
+  await user.click(within(failure).getByRole("button", { name: "Refresh" }));
   expect(await screen.findByRole("button", { name: "Invite reviewer" })).toBeEnabled();
-  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
   expect(data.invite).not.toHaveBeenCalled();
 });
 
 it("retains a saved refresh failure when a workspace update arrives during recovery", async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
   const data = managerTransport({ status: "ok", value: [] });
   let rejectWorkspace!: (error: Error) => void;
   vi.spyOn(data, "refresh").mockImplementationOnce(
@@ -247,16 +275,25 @@ it("retains a saved refresh failure when a workspace update arrives during recov
   rerender(
     <GrantmakingMessagesProvider>
       <ConnectedManager data={nextData} />
+      <Toasts />
     </GrantmakingMessagesProvider>,
   );
+  // The workspace stays unavailable through the quiet retries.
+  vi.mocked(data.refresh).mockRejectedValue(new Error("Workspace read failed"));
   await act(async () => rejectWorkspace(new Error("Workspace read failed")));
   await act(async () => finishLateRead(assignments));
+  await afterQuietRetries();
 
-  expect(screen.getByRole("alert")).toHaveTextContent("The change was saved");
+  const failure = screen.getByRole("alertdialog", { name: savedRefreshFailure });
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   nextData.read.mockResolvedValue(assignments);
-  await user.click(screen.getByRole("button", { name: "Refresh" }));
-  await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
-  expect(data.refresh).toHaveBeenCalledTimes(2);
+  vi.mocked(data.refresh).mockResolvedValue(undefined);
+  await user.click(within(failure).getByRole("button", { name: "Refresh" }));
+  await waitFor(() =>
+    expect(
+      screen.queryByRole("alertdialog", { name: savedRefreshFailure }),
+    ).not.toBeInTheDocument(),
+  );
+  expect(screen.getByText("Awaiting acceptance")).toBeVisible();
   expect(data.invite).toHaveBeenCalledTimes(1);
 });

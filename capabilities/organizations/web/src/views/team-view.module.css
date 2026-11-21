@@ -1,19 +1,11 @@
-.accessWarning {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-2);
-  color: var(--warning);
-  font-size: var(--text-detail);
-  line-height: 1.5;
-}
-
-.accessWarning > svg {
-  margin-top: 2px;
-}
-
+/* Matches the tab list shown to people who can manage members. */
 .directoryHeading {
-  min-height: var(--control-height);
-  padding-block: var(--space-2);
-  border-bottom: 1px solid var(--border);
   margin-bottom: var(--space-6);
+}
+
+.directoryTitle {
+  display: grid;
+  align-content: center;
+  min-height: var(--control-height);
+  padding-block-start: var(--space-2);
 }

@@ -1,53 +1,40 @@
-import type { Ref } from "react";
-import {
-  Button as AriaButton,
-  type ButtonProps as AriaButtonProps,
-} from "react-aria-components/Button";
-import { composeRenderProps } from "react-aria-components/composeRenderProps";
+import type { ReactNode } from "react";
 
-import { Icon } from "../icon/icon";
-import styles from "./button.module.css";
+import { ButtonBase, type ButtonBaseProps } from "./button-base";
 
-type ButtonProps = AriaButtonProps & {
-  variant?: "primary" | "secondary" | "quiet" | "destructive";
-  size?: "small" | "medium" | "large";
-  iconOnly?: boolean;
-  /** Align a quiet action's content with surrounding text while retaining its padded target. */
-  alignment?: "default" | "start";
-  ref?: Ref<HTMLButtonElement>;
+type ButtonProps = Pick<
+  ButtonBaseProps,
+  | "variant"
+  | "size"
+  | "iconOnly"
+  | "alignment"
+  | "ref"
+  | "id"
+  | "type"
+  | "onPress"
+  | "isDisabled"
+  | "isPending"
+  | "autoFocus"
+  | "aria-label"
+  | "aria-labelledby"
+  | "aria-describedby"
+  | "aria-expanded"
+  | "aria-pressed"
+  | "aria-haspopup"
+  | "aria-controls"
+  | "aria-disabled"
+> & {
+  children: ReactNode;
 };
 
 /**
  * Quiet buttons use --button-quiet-background from their surrounding surface for hover and
- * expanded states. Press and keyboard focus retain the shared control treatment.
+ * expanded states, and --button-quiet-foreground for their text. Press and keyboard focus retain
+ * the shared control treatment. The surrounding layout places a button; its variant, size, and
+ * alignment are the supported presentations; small suits most actions in Merit's dense work
+ * surfaces, and medium or large give a page's main action more weight. onPress covers mouse,
+ * touch, and keyboard alike.
  */
-export const Button = ({
-  variant = "primary",
-  size = "medium",
-  iconOnly = false,
-  alignment = "default",
-  className,
-  children,
-  ...props
-}: ButtonProps) => {
-  return (
-    <AriaButton
-      {...props}
-      data-variant={variant}
-      data-size={size}
-      data-icon-only={iconOnly || undefined}
-      data-alignment={alignment === "start" ? alignment : undefined}
-      className={composeRenderProps(
-        className,
-        (className) => `${styles.button} ${className ?? ""}`,
-      )}
-    >
-      {composeRenderProps(children, (children, { isPending }) => (
-        <>
-          {isPending && <Icon name="loading" className={styles.spinner} />}
-          {!(isPending && iconOnly) && children}
-        </>
-      ))}
-    </AriaButton>
-  );
-};
+export const Button = ({ size = "small", ...props }: ButtonProps) => (
+  <ButtonBase {...props} size={size} />
+);

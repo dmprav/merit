@@ -2,7 +2,8 @@ import { type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import { reviewProgress, type ReviewCounts } from "@merit/reviews/domain";
-import { StatusIndicator } from "@merit/ui/status-indicator";
+import { StatusIndicator, StatusIndicatorSpace } from "@merit/ui/status-indicator";
+import { VisuallyHidden } from "@merit/ui/visually-hidden";
 
 import styles from "./review-summary.module.css";
 import { reviewStatusText } from "./status-text";
@@ -12,6 +13,8 @@ type ReviewSummaryProps = {
   criteriaChanged?: boolean;
   applicationTitle?: string;
   renderReviewLink?: (label: ReactNode) => ReactNode;
+  /** Keep an indicator's width when there is none, to line up with other values in a column. */
+  reserveIndicatorSpace?: boolean;
 };
 
 /** Completion is progress; freshness remains a separate qualification. */
@@ -20,6 +23,7 @@ export const ReviewSummary = ({
   criteriaChanged = false,
   applicationTitle,
   renderReviewLink,
+  reserveIndicatorSpace = false,
 }: ReviewSummaryProps) => {
   const { t } = useTranslation("reviewGrant");
   const status = reviewStatusText(t, reviews);
@@ -33,7 +37,7 @@ export const ReviewSummary = ({
       {assigned
         ? t("collection.progress", { completed: submitted, total: assigned })
         : t("collection.none")}
-      <span className={styles.visuallyHidden}>{`. ${status}`}</span>
+      <VisuallyHidden>{`. ${status}`}</VisuallyHidden>
     </span>
   );
 
@@ -44,10 +48,10 @@ export const ReviewSummary = ({
         <StatusIndicator
           label={t("collection.inspect", { title: applicationTitle ?? t("collection.round") })}
           explanation={explanation}
-          closeLabel={t("collection.close")}
           tone={reviews.outdated || criteriaChanged ? "warning" : "muted"}
         />
       )}
+      {!exceptional && reserveIndicatorSpace && <StatusIndicatorSpace />}
     </div>
   );
 };

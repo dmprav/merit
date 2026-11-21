@@ -1,3 +1,38 @@
+// Feature styles arrange their own content; type, color, and surfaces come from @merit/ui.
+const featureStyles = [
+  "app/src/**/*.module.css",
+  "capabilities/**/*.module.css",
+  "interfaces/{product,admin}/**/*.module.css",
+];
+// Storybook examples and development-only tools arrange demonstrations rather than product UI.
+// Third-party components styled through their appearance APIs keep those classes in
+// *.clerk.module.css (or a similarly named file for another provider).
+const featureStyleExceptions = [
+  "**/*.stories.module.css",
+  "app/src/development/**",
+  "**/*.clerk.module.css",
+];
+
+const typography = [
+  "font",
+  "font-family",
+  "font-size",
+  "font-style",
+  "font-weight",
+  "line-height",
+  "letter-spacing",
+  "color",
+  "text-transform",
+  "/^text-decoration/",
+];
+const surfaces = [
+  "background",
+  "background-color",
+  "box-shadow",
+  "border-radius",
+  "/^border(-(top|right|bottom|left|block|inline)(-(start|end))?)?(-(color|style|width))?$/",
+];
+
 /** @type {import("stylelint").Config} */
 export default {
   ignoreFiles: [
@@ -51,6 +86,24 @@ export default {
     ],
   },
   overrides: [
+    {
+      files: featureStyles,
+      ignoreFiles: featureStyleExceptions,
+      rules: {
+        "property-disallowed-list": [
+          [...typography, ...surfaces],
+          { message: (property) => `Use @merit/ui components for "${property}" in feature styles` },
+        ],
+        // Shared components own their states and internals; features select their own elements.
+        "selector-disallowed-list": [
+          [
+            /\[data-(variant|tone|appearance|size|density|alignment|align|justify|hovered|pressed|focus-visible)/,
+            /(^|[\s>+~(])(button|svg|label|input|textarea|header|a)(?![\w-])/,
+          ],
+          { splitList: true },
+        ],
+      },
+    },
     {
       files: ["foundation/ui/src/foundations/tokens.css"],
       rules: { "color-no-hex": null, "color-named": null, "function-disallowed-list": null },

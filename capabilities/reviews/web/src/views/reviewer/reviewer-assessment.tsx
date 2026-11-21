@@ -7,17 +7,22 @@ import { useFormat } from "@merit/i18n/format";
 import { decodeMoney } from "@merit/money";
 import type { ReviewerPage } from "@merit/reviews/api";
 import type { ReviewerSubmissionProblem } from "@merit/reviews/domain";
-import shellStyles from "@merit/ui/application-shell.module.css";
+import { Attribution } from "@merit/ui/attribution";
 import { Button } from "@merit/ui/button";
+import { DescriptionList, DescriptionListItem } from "@merit/ui/description-list";
+import { Disclosure } from "@merit/ui/disclosure";
+import { Divider } from "@merit/ui/divider";
 import { Icon } from "@merit/ui/icon";
-import { Inline, Stack } from "@merit/ui/layout";
+import { Inline, Reading, Stack } from "@merit/ui/layout";
 import { MoneyField } from "@merit/ui/money-field";
 import { Notice } from "@merit/ui/notice";
 import { WorkPane } from "@merit/ui/reference-workspace";
 import { SectionHeader } from "@merit/ui/section-header";
 import { Select } from "@merit/ui/select";
-import { StatusMessage } from "@merit/ui/status-message";
+import { Text } from "@merit/ui/text";
 import { TextField } from "@merit/ui/text-field";
+import { Timeline, TimelineEntry } from "@merit/ui/timeline";
+import { showToast, useEventToast } from "@merit/ui/toast";
 import { Tooltip } from "@merit/ui/tooltip";
 
 import { reconcileObservations } from "../../controllers/reviews/observations";
@@ -61,7 +66,10 @@ export const ReviewerAssessment = ({ work }: { work: ReviewerWork }) => {
       <SubmissionConfirmation page={page} />
       <div ref={form}>
         <Stack gap={5}>
-          <AssessmentRequest assignment={page.assignment} />
+          <AssessmentRequest
+            assignment={page.assignment}
+            note={writing ? t(page.assessment ? "amendmentHelp" : "privacy") : undefined}
+          />
           {writing ? <ReviewerDraftForm work={work} /> : <SubmittedAssessment work={work} />}
           <EarlierVersions page={page} />
         </Stack>
@@ -70,18 +78,28 @@ export const ReviewerAssessment = ({ work }: { work: ReviewerWork }) => {
   );
 };
 
-const AssessmentRequest = ({ assignment }: { assignment: ReviewerPage["assignment"] }) => {
+/** Who asked, by when, and while writing, who can read the draft. */
+const AssessmentRequest = ({
+  assignment,
+  note,
+}: {
+  assignment: ReviewerPage["assignment"];
+  note?: string;
+}) => {
   const { t } = useTranslation("reviewer");
   const format = useFormat();
   return (
-    <Stack gap={1} className={styles.hint}>
-      <p>{t("requestedBy", { name: assignment.managerName })}</p>
-      <p className={styles.responseDate}>
-        {assignment.dueDate
-          ? t("dueOn", { date: format.calendarDate(assignment.dueDate) })
-          : t("noDue")}
-      </p>
-    </Stack>
+    <Text as="div" variant="supporting">
+      <Stack gap={1}>
+        <p>{t("requestedBy", { name: assignment.managerName })}</p>
+        <p className={styles.responseDate}>
+          {assignment.dueDate
+            ? t("dueOn", { date: format.calendarDate(assignment.dueDate) })
+            : t("noDue")}
+        </p>
+        {note && <p>{note}</p>}
+      </Stack>
+    </Text>
   );
 };
 
@@ -92,7 +110,6 @@ const AmendmentTrigger = ({ work }: { work: ReviewerWork }) => {
     <Tooltip content={label}>
       <Button
         variant="quiet"
-        size="small"
         iconOnly
         aria-label={label}
         data-draft={work.amendmentDraft || undefined}
@@ -114,14 +131,8 @@ const SubmissionConfirmation = ({ page }: { page: ReviewerPage }) => {
     setSeen(versions);
     setEvent(event + 1);
   }
-  return (
-    <StatusMessage
-      message={event ? t("submitted") : null}
-      eventId={event}
-      confirmation
-      className={shellStyles.confirmation}
-    />
-  );
+  useEventToast(event, { tone: "success", message: t(versions > 1 ? "amended" : "submitted") });
+  return null;
 };
 
 const usePositions = () => {
@@ -252,29 +263,31 @@ const CriterionNotes = ({
     criteria.find((criterion) => criterion.title === note.criterion)?.description;
 
   return (
-    <Stack as="section" gap={4} aria-labelledby={headingId} className={styles.notes}>
-      <h3 id={headingId}>{t("observations")}</h3>
-      {observations.map((observation, index) => (
-        <TextField
-          key={observation.criterionId ?? `${observation.criterion}-${index}`}
-          label={observation.criterion}
-          description={description(observation)}
-          isReadOnly={work.submissionPending}
-          multiline
-          rows={3}
-          maxLength={5000}
-          value={observation.text}
-          onChange={(text) =>
-            work.update({
-              ...draft,
-              observations: observations.map((note, position) =>
-                position === index ? { ...note, text } : note,
-              ),
-            })
-          }
-        />
-      ))}
-    </Stack>
+    <section className={styles.notes} aria-labelledby={headingId}>
+      <Stack gap={4}>
+        <SectionHeader level={3} id={headingId} title={t("observations")} />
+        {observations.map((observation, index) => (
+          <TextField
+            key={observation.criterionId ?? `${observation.criterion}-${index}`}
+            label={observation.criterion}
+            description={description(observation)}
+            isReadOnly={work.submissionPending}
+            multiline
+            rows={3}
+            maxLength={5000}
+            value={observation.text}
+            onChange={(text) =>
+              work.update({
+                ...draft,
+                observations: observations.map((note, position) =>
+                  position === index ? { ...note, text } : note,
+                ),
+              })
+            }
+          />
+        ))}
+      </Stack>
+    </section>
   );
 };
 
@@ -288,23 +301,24 @@ const JudgmentSummary = ({
 }) => {
   const { t } = useTranslation("reviewer");
   const amount = content.amount === null ? null : decodeMoney(content.amount);
+  const observations = content.observations.filter((observation) => observation.text.trim());
   return (
     <Stack gap={3}>
       <AssessmentOutcome position={content.position} amount={amount} />
-      <p className={styles.writing}>{content.reasoning}</p>
-      {content.observations
-        .filter((observation) => observation.text.trim())
-        .map((observation, index) => (
-          <div key={index}>
-            <p className={styles.noteTitle}>{observation.criterion}</p>
-            <p className={styles.writing}>{observation.text}</p>
-          </div>
-        ))}
-      {note && (
-        <div>
-          <p className={styles.noteTitle}>{t("amendmentNote")}</p>
-          <p className={styles.writing}>{note}</p>
-        </div>
+      <Reading as="p">{content.reasoning}</Reading>
+      {(observations.length > 0 || note) && (
+        <DescriptionList>
+          {observations.map((observation, index) => (
+            <DescriptionListItem key={index} label={observation.criterion}>
+              <Reading as="p">{observation.text}</Reading>
+            </DescriptionListItem>
+          ))}
+          {note && (
+            <DescriptionListItem label={t("amendmentNote")}>
+              <Reading as="p">{note}</Reading>
+            </DescriptionListItem>
+          )}
+        </DescriptionList>
       )}
     </Stack>
   );
@@ -332,14 +346,13 @@ const useDraftFields = (draft: Draft | undefined) => {
 };
 
 const DraftFields = ({ fields }: { fields: ReturnType<typeof useDraftFields> }) => (
-  <Stack gap={3}>
+  <DescriptionList>
     {fields.map((field, index) => (
-      <div key={index}>
-        <p className={styles.noteTitle}>{field.label}</p>
-        <p className={styles.writing}>{field.value}</p>
-      </div>
+      <DescriptionListItem key={index} label={field.label}>
+        <Reading as="p">{field.value}</Reading>
+      </DescriptionListItem>
     ))}
-  </Stack>
+  </DescriptionList>
 );
 
 const DraftSummary = ({ draft }: { draft: Draft }) => (
@@ -368,37 +381,42 @@ const SubmittedAssessment = ({ work }: { work: ReviewerWork }) => {
     <>
       <ReviewerFeedback work={work} />
       <JudgmentSummary content={latest.content} />
-      <p className={styles.hint}>
+      <Text as="p" variant="supporting">
         {latest.recorder
           ? t("submittedOn", { name, date: recordedAt(latest.recorder.recordedAt) })
           : t("submittedBy", { name })}
-      </p>
+      </Text>
     </>
   );
 };
 
 const EarlierVersions = ({ page }: { page: ReviewerPage }) => {
   const { t } = useTranslation("reviewer");
-  const recordedAt = useRecordedAt();
   const earlier = page.assessment?.versions.slice(0, -1) ?? [];
   if (!earlier.length) {
     return null;
   }
   return (
-    <details className={styles.history}>
-      <summary>{t("history")}</summary>
-      <Stack gap={5}>
+    <Disclosure title={t("history")} count={earlier.length}>
+      <Timeline label={t("history")}>
         {earlier.map((version, index) => (
-          <section key={index} aria-label={t("version", { version: index + 1 })}>
-            <h3 className={styles.noteTitle}>
-              {t("version", { version: index + 1 })}
-              {version.recorder && ` · ${recordedAt(version.recorder.recordedAt)}`}
-            </h3>
+          <TimelineEntry
+            key={index}
+            title={t("version", { version: index + 1 })}
+            attribution={
+              version.recorder && (
+                <Attribution
+                  actor={version.recorder.name}
+                  recordedAt={version.recorder.recordedAt}
+                />
+              )
+            }
+          >
             <JudgmentSummary content={version.content} note={version.note} />
-          </section>
+          </TimelineEntry>
         ))}
-      </Stack>
-    </details>
+      </Timeline>
+    </Disclosure>
   );
 };
 
@@ -431,15 +449,12 @@ export const RetainedDraft = ({ work }: { work: ReviewerWork }) => {
   const { t } = useTranslation("reviewer");
   const fields = useDraftFields(work.draft);
   const [copying, setCopying] = useState(false);
-  const [copyFailed, setCopyFailed] = useState(false);
-  const [copied, setCopied] = useState(0);
   if (work.canWrite || !work.dirty || !work.draft) {
     return null;
   }
 
   const copy = async () => {
     setCopying(true);
-    setCopyFailed(false);
     try {
       await navigator.clipboard.writeText(
         [
@@ -447,41 +462,28 @@ export const RetainedDraft = ({ work }: { work: ReviewerWork }) => {
           ...fields.map((field) => `${field.label}\n${field.value}`),
         ].join("\n\n"),
       );
-      setCopied((event) => event + 1);
+      showToast({ tone: "success", message: t("draftCopied") });
     } catch {
-      setCopyFailed(true);
+      showToast({ tone: "danger", message: t("copyFailed") });
     }
     setCopying(false);
   };
 
   return (
-    <Stack
-      as="section"
-      gap={3}
-      className={styles.retainedDraft}
-      aria-label={t("unsavedAssessment")}
-    >
-      <SectionHeader
-        title={t("unsavedAssessment")}
-        aside={
-          <Button variant="secondary" size="small" isDisabled={copying} onPress={() => void copy()}>
-            {t(copying ? "copyingDraft" : "copyDraft")}
-          </Button>
-        }
-      />
-      <p>{t("retainedDraft")}</p>
-      {copyFailed && (
-        <Notice appearance="inline" tone="danger" role="alert">
-          {t("copyFailed")}
-        </Notice>
-      )}
-      <StatusMessage
-        message={copied && !copying && !copyFailed ? t("draftCopied") : null}
-        eventId={copied}
-        confirmation
-        className={shellStyles.confirmation}
-      />
-      <DraftFields fields={fields} />
+    <Stack as="section" gap={5} aria-label={t("unsavedAssessment")}>
+      <Divider />
+      <Stack gap={3}>
+        <SectionHeader
+          title={t("unsavedAssessment")}
+          aside={
+            <Button variant="secondary" isDisabled={copying} onPress={() => void copy()}>
+              {t(copying ? "copyingDraft" : "copyDraft")}
+            </Button>
+          }
+        />
+        <p>{t("retainedDraft")}</p>
+        <DraftFields fields={fields} />
+      </Stack>
     </Stack>
   );
 };
@@ -489,9 +491,11 @@ export const RetainedDraft = ({ work }: { work: ReviewerWork }) => {
 const DraftSaveStatus = ({ busy, dirty }: { busy: boolean; dirty: boolean }) => {
   const { t } = useTranslation("reviewer");
   return (
-    <p role="status" className={styles.hint}>
-      {t(busy ? "saving" : dirty ? "unsaved" : "saved")}
-    </p>
+    <div role="status">
+      <Text as="p" variant="supporting">
+        {t(busy ? "saving" : dirty ? "unsaved" : "saved")}
+      </Text>
+    </div>
   );
 };
 
@@ -504,6 +508,8 @@ const ReviewerSubmitActions = ({
 }) => {
   const { t } = useTranslation("reviewer");
   const amending = Boolean(work.page.assessment);
+  const canRetry =
+    work.error === "unavailable" && work.dirty && !work.conflict && !work.submissionPending;
   return (
     <>
       <div className={styles.footerFeedback}>
@@ -512,32 +518,34 @@ const ReviewerSubmitActions = ({
             {t("contentInvalid")}
           </Notice>
         )}
-        <ReviewerFeedback work={work} />
-        <p className={styles.hint}>{t(amending ? "amendmentHelp" : "privacy")}</p>
+        <ReviewerFeedback work={work} offerRefresh={!canRetry} />
       </div>
-      {amending ? (
-        <Button
-          variant="quiet"
-          isDisabled={work.busy || work.submissionPending}
-          onPress={work.discardAmendment}
-        >
-          {t("discardAmendment")}
-        </Button>
-      ) : (
-        <DraftSaveStatus busy={work.busy} dirty={work.dirty} />
-      )}
+      {/* One row: whether the draft is saved, then the commands that act on it. */}
+      <DraftSaveStatus busy={work.busy} dirty={work.dirty} />
       <Inline align="center">
-        {amending && <DraftSaveStatus busy={work.busy} dirty={work.dirty} />}
-        {work.error &&
-          work.error !== "draftInvalid" &&
-          !work.conflict &&
-          !work.submissionPending && (
-            <Button variant="secondary" isDisabled={work.busy} onPress={() => void work.save()}>
-              {t("retry")}
-            </Button>
-          )}
         {amending && (
           <Button
+            size="medium"
+            variant="quiet"
+            isDisabled={work.busy || work.submissionPending}
+            onPress={work.discardAmendment}
+          >
+            {t("discardAmendment")}
+          </Button>
+        )}
+        {canRetry && (
+          <Button
+            size="medium"
+            variant="secondary"
+            isDisabled={work.busy}
+            onPress={() => void work.save()}
+          >
+            {t("retry")}
+          </Button>
+        )}
+        {amending && (
+          <Button
+            size="medium"
             variant="secondary"
             isDisabled={work.submissionPending}
             onPress={work.closeAmendment}
@@ -546,6 +554,7 @@ const ReviewerSubmitActions = ({
           </Button>
         )}
         <Button
+          size="medium"
           isDisabled={work.busy || Boolean(work.conflict)}
           onPress={async () => {
             if ((await work.submit()) === "invalid") {

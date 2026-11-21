@@ -1,9 +1,9 @@
 import { QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ResourceLanguage } from "i18next";
 import { useState, type ReactNode } from "react";
-import { expect, it, vi } from "vite-plus/test";
+import { afterEach, expect, it, vi } from "vite-plus/test";
 
 import type { IntakeData, IntakeState } from "@merit/applications-web/contracts";
 import { ApplicationIntake, type IntakeSession } from "@merit/applications-web/work";
@@ -13,6 +13,7 @@ import { makeApplication, makeReviewRequest, makeRound } from "@merit/grantmakin
 import { MessagesProvider } from "@merit/i18n";
 import { fromMinorUnits } from "@merit/money";
 import { createQueryClient } from "@merit/query";
+import { Toasts } from "@merit/ui/toast";
 
 import { grantmakingMessages } from "../../messages";
 import { ApplicationView } from "../applications/application-view";
@@ -130,12 +131,30 @@ const renderIntake = (
         <GrantmakingDrafts storageScope={storageScope}>
           <Harness />
         </GrantmakingDrafts>
+        <Toasts />
       </MessagesProvider>
     </QueryClientProvider>,
   );
 
-  return { calls, user: userEvent.setup(), unmount: rendered.unmount };
+  const user = userEvent.setup({
+    advanceTimers: (milliseconds) => {
+      if (vi.isFakeTimers()) {
+        vi.advanceTimersByTime(milliseconds);
+      }
+    },
+  });
+  return { calls, user, unmount: rendered.unmount };
 };
+
+afterEach(() => vi.useRealTimers());
+
+/** Lets a failed refresh exhaust its quiet retries so the failure is reported. */
+const exhaustQuietRetries = () =>
+  act(async () => {
+    await vi.advanceTimersByTimeAsync(4000);
+  });
+
+const refreshWarning = "Saved, but the latest application could not be loaded.";
 
 it.each([true, false])("presents read-only intake with recorded material: %s", (hasMaterial) => {
   const application = {
@@ -247,8 +266,12 @@ it.each(["Start revised submission", "Correct intake"])(
 it.each([false, true])(
   "retains a committed action's refresh warning and retries without rewriting (recommendation editor: %s)",
   async (editingRecommendation) => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    // The first read and both quiet retries fail, then the first explicit retry fails too.
     const refresh = vi
       .fn<IntakeData["refresh"]>()
+      .mockRejectedValueOnce(new Error("Offline"))
+      .mockRejectedValueOnce(new Error("Offline"))
       .mockRejectedValueOnce(new Error("Offline"))
       .mockRejectedValueOnce(new Error("Still offline"))
       .mockResolvedValue(undefined);
@@ -264,22 +287,22 @@ it.each([false, true])(
     await user.click(await screen.findByRole("button", { name: "Application actions" }));
     await user.click(await screen.findByRole("menuitem", { name: "Start revised submission" }));
 
+    await exhaustQuietRetries();
     const workspace = within(screen.getByRole("complementary", { name: "Application workspace" }));
-    expect(await workspace.findByRole("alert")).toHaveTextContent("Your change was saved");
+    const warning = await screen.findByRole("alertdialog", { name: refreshWarning });
     if (editingRecommendation) {
       expect(workspace.getByRole("textbox", { name: "Recommendation draft" })).toHaveValue(
         "Keep this reasoning",
       );
     }
 
-    await user.click(await screen.findByRole("button", { name: "Refresh application" }));
+    await user.click(within(warning).getByRole("button", { name: "Refresh" }));
 
-    expect(screen.getByRole("alert")).toHaveTextContent("Your change was saved");
+    const retained = await screen.findByRole("alertdialog", { name: refreshWarning });
+    await user.click(within(retained).getByRole("button", { name: "Refresh" }));
 
-    await user.click(await screen.findByRole("button", { name: "Refresh application" }));
-
-    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
-    expect(refresh).toHaveBeenCalledTimes(3);
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+    expect(refresh).toHaveBeenCalledTimes(5);
     expect(calls).toHaveBeenCalledTimes(1);
   },
 );
@@ -444,9 +467,7 @@ it("saves details independently and reconciles preserved submission writing befo
     "Unfinished local writing",
   );
   expect(screen.getByRole("button", { name: "Save working revision" })).toBeDisabled();
-  expect(screen.getByRole("alert")).toHaveTextContent(
-    "This application changed while you were editing",
-  );
+  expect(screen.getByText("This application changed while you were editing")).toBeVisible();
 
   await user.click(await screen.findByRole("button", { name: "Keep my changes" }));
   expect(screen.getByRole("button", { name: "Save working revision" })).toBeEnabled();
@@ -522,6 +543,7 @@ it("recovers section drafts after remounting in the same account scope", async (
 });
 
 it("preserves a title correction when the committed start cannot refresh", async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
   const refresh = vi.fn<IntakeData["refresh"]>().mockRejectedValue(new Error("Offline"));
   const { user, calls } = renderIntake(refresh);
   await user.click(await screen.findByRole("button", { name: original.title }));
@@ -533,7 +555,8 @@ it("preserves a title correction when the committed start cannot refresh", async
   expect(await screen.findByRole("textbox", { name: "Project title" })).toHaveValue(
     "Recovered correction",
   );
-  expect(screen.getByRole("alert")).toHaveTextContent("Your change was saved");
+  await exhaustQuietRetries();
+  expect(await screen.findByRole("alertdialog", { name: refreshWarning })).toBeVisible();
   expect(calls).toHaveBeenCalledTimes(1);
 });
 

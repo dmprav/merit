@@ -100,4 +100,7 @@ this implementation.
 The [MCP guide](../guides/mcp.md#participate-in-and-manage-reviews) explains reviewer
 and manager tools, dedicated scopes, and revision recovery.
 
+The [reviewer screen guide](../../capabilities/reviews/web/src/views/reviewer/README.md)
+shows how writing, amendments, and recovery appear to the reviewer.
+
 [Grantmaking workflows](review-and-decide.md)

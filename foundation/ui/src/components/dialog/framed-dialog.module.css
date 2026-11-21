@@ -39,6 +39,7 @@
 
 .dialog {
   --dialog-gutter: var(--space-6);
+  --dialog-body-gap: var(--space-3);
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -77,8 +78,8 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-3);
-  padding: var(--space-3) var(--dialog-gutter);
-  background: var(--surface-muted);
+  /* The heading opens the dialog's surface; a divider appears only once the body scrolls under it. */
+  padding: var(--space-4) var(--space-4) 0 var(--dialog-gutter);
 }
 
 .heading {

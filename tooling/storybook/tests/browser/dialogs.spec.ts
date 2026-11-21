@@ -375,7 +375,7 @@ test(
 test("workspace search scrolls long results within a short screen", async ({ page }) => {
   await page.setViewportSize({ ...page.viewportSize()!, height: 480 });
   await page.goto(
-    "/iframe.html?id=features-funding-rounds-workspace-search--more-matches-than-shown&viewMode=story",
+    "/iframe.html?id=features-workspace-search--more-matches-than-shown&viewMode=story",
   );
   await expect(page.locator("#storybook-root")).toHaveAttribute("data-story-ready", "true");
   const dialog = page.getByRole("dialog", { name: "Search" });

@@ -11,8 +11,8 @@ Date entry allows full calendar years within ten years of the current local year
 In 2026 this permits January 1, 2016 through December 31, 2036. Calendars disable
 days and month navigation outside this range.
 The input and calendar button share one field boundary and the same label, error,
-focus, and requirement presentation as text fields. The compact popup places month
-navigation and its close action in one row. A filled day is selected; a dot marks
+focus, and requirement presentation as text fields. The compact popup closes when you select a date, press Escape, or click outside it.
+A filled day is selected; a dot marks
 today, while an underline and inset marker identify keyboard focus.
 
 <Canvas of={DateFields.CalendarOpen} />
@@ -31,8 +31,8 @@ historical dates remain readable.
 `FormDateField` from `@merit/forms` connects the value, touched state, errors, and
 invalid-field focus to the form. Selecting a calendar day updates the form without
 submitting it. Closing the calendar leaves the input unchanged and returns focus
-to its trigger. Pass `isDisabled={submission.isSubmitting}` so an already open
-calendar also becomes unavailable during saving.
+to its trigger. The field and an open calendar inherit the nearest form’s pending
+state. Use `isDisabled` for an additional restriction specific to the field.
 
 <Canvas of={DateFields.States} />
 

@@ -1,10 +1,9 @@
-import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
-import linkStyles from "@merit/ui/link.module.css";
 import { PageHeader } from "@merit/ui/page-header";
 
 import { AdminPageState } from "../../shared/admin-page-state";
+import { RoutedLink } from "../../shared/routed-link";
 import type { Organization, ReadResult, ListResult } from "./contracts";
 import { useAdminDrafts } from "./controllers/drafts";
 import { CreateOrganization } from "./create-organization";
@@ -27,13 +26,9 @@ export const OrganizationList = ({ result }: { result: ListResult }) => {
         view={drafts.listView}
         onViewChange={drafts.setListView}
         renderLink={(org) => (
-          <Link
-            to="/admin/organizations/$organizationId"
-            params={{ organizationId: org.id }}
-            className={linkStyles.text}
-          >
+          <RoutedLink to="/admin/organizations/$organizationId" params={{ organizationId: org.id }}>
             {org.name}
-          </Link>
+          </RoutedLink>
         )}
       />
     </>

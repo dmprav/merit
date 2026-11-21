@@ -1,10 +1,11 @@
-import { Link, useHydrated, useRouter } from "@tanstack/react-router";
+import { useHydrated, useRouter } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
 import type { Result } from "@merit/organizations/api";
 import { Button } from "@merit/ui/button";
-import linkStyles from "@merit/ui/link.module.css";
 import { StateMessage } from "@merit/ui/state-message";
+
+import { RoutedLink } from "./routed-link";
 
 export const AdminPageState = ({
   status,
@@ -33,16 +34,11 @@ export const AdminPageState = ({
       description={status === "forbidden" ? t("errors.forbidden") : undefined}
       actions={
         status === "loading" ? undefined : status === "signed_out" ? (
-          <Link
-            to="/app/sign-in"
-            search={{ returnTo }}
-            className={linkStyles.button}
-            data-variant="primary"
-          >
+          <RoutedLink variant="primary" to="/app/sign-in" search={{ returnTo }}>
             {t("signIn")}
-          </Link>
+          </RoutedLink>
         ) : status === "unavailable" ? (
-          <Button isDisabled={!hydrated} onPress={() => void router.invalidate()}>
+          <Button size="medium" isDisabled={!hydrated} onPress={() => void router.invalidate()}>
             {t("tryAgain")}
           </Button>
         ) : undefined

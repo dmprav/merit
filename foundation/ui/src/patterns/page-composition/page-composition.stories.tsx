@@ -23,11 +23,7 @@ const meta = {
         status={<Badge>Decisions pending</Badge>}
         kicker="Funding round"
         description="Prepare the evidence and recommendations for committee."
-        actions={
-          <Button size="small" variant="secondary">
-            Review round
-          </Button>
-        }
+        actions={<Button variant="secondary">Review round</Button>}
       />
       <section aria-labelledby="applications-title">
         <SectionHeader
@@ -40,9 +36,9 @@ const meta = {
           Applications will appear here when they are ready to review.
         </p>
       </section>
-      <Notice tone="warning" className={styles.notice}>
-        Confirm the revised budget before making a recommendation.
-      </Notice>
+      <div className={styles.notice}>
+        <Notice tone="warning">Confirm the revised budget before making a recommendation.</Notice>
+      </div>
     </div>
   ),
 } satisfies Meta;
@@ -80,11 +76,7 @@ export const SectionHeaders: StoryObj<typeof meta> = {
         <SectionHeader
           id="recommendation-title"
           title="Manager recommendation for Local Connections 2027"
-          aside={
-            <Button size="small" variant="secondary">
-              Edit recommendation
-            </Button>
-          }
+          aside={<Button variant="secondary">Edit recommendation</Button>}
         />
         <p className={styles.description}>Long headings and actions wrap within a narrow pane.</p>
       </section>
@@ -166,7 +158,9 @@ const AwardAmendmentExample = () => {
               setApproved(true);
               setOpen(false);
             }}
-            trigger={<Button>{approved ? "Review example again" : "Review approval"}</Button>}
+            trigger={
+              <Button size="medium">{approved ? "Review example again" : "Review approval"}</Button>
+            }
           />
         </aside>
       </div>

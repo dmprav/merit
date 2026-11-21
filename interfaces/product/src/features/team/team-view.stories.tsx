@@ -338,17 +338,23 @@ export const RemovalFailure: Story = {
 };
 export const SavedButRefreshFailed: Story = {
   beforeEach: () => {
-    mocked(readTeam).mockRejectedValueOnce(new Error("Preview refresh failure"));
+    // The first read and both quiet retries fail, so the failure is reported.
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      mocked(readTeam).mockRejectedValueOnce(new Error("Preview refresh failure"));
+    }
   },
   play: async (context) => {
     await InviteMember.play!(context);
     const dialog = within(within(context.canvasElement.ownerDocument.body).getByRole("dialog"));
     await context.userEvent.click(dialog.getByRole("button", { name: "Invite member" }));
 
-    await expect(await context.canvas.findByRole("alert")).toHaveTextContent(
-      "The latest team could not be loaded",
+    const toast = await within(context.canvasElement.ownerDocument.body).findByRole(
+      "alertdialog",
+      { name: "Saved, but the latest team could not be loaded." },
+      { timeout: 8000 },
     );
-    await expect(context.canvas.getByRole("button", { name: "Refresh team" })).toBeEnabled();
+    await expect(within(toast).getByRole("button", { name: "Refresh" })).toBeEnabled();
+    await expect(context.canvas.getByRole("button", { name: "Invite member" })).toBeEnabled();
     // Wait for the library's transient announcement of the now-closed invite dialog.
     await waitFor(
       () =>

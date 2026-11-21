@@ -34,6 +34,8 @@
 
 .standalone {
   display: inline-flex;
+  /* A separate destination keeps its own width in a vertical flow, such as a Stack. */
+  justify-self: start;
   align-items: center;
   gap: var(--space-2);
   min-width: 0;
@@ -53,4 +55,32 @@
   .text {
     transition: none;
   }
+}
+
+/* A list row as one destination; separating rows belongs to the list. */
+.row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  min-height: var(--target-touch);
+  padding: var(--space-3);
+  border-radius: calc(var(--control-radius) - 2px);
+  color: var(--foreground);
+  font-size: var(--text-control);
+  font-weight: 400;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+@media (hover: hover) {
+  .row:hover {
+    background: var(--surface-muted);
+  }
+}
+
+.row:focus-visible {
+  background: var(--action-subtle);
+  outline: 1px solid var(--focus);
+  outline-offset: -1px;
 }

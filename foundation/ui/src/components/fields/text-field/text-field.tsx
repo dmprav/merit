@@ -1,5 +1,4 @@
 import { useId } from "react";
-import { composeRenderProps } from "react-aria-components/composeRenderProps";
 import {
   TextField as AriaTextField,
   Input,
@@ -12,7 +11,30 @@ import fieldStyles from "../field.module.css";
 import inputStyles from "../input.module.css";
 import styles from "./text-field.module.css";
 
-type TextFieldProps = Omit<AriaTextFieldProps, "children"> &
+type TextFieldProps = Pick<
+  AriaTextFieldProps,
+  | "id"
+  | "name"
+  | "type"
+  | "value"
+  | "defaultValue"
+  | "onChange"
+  | "onBlur"
+  | "onFocus"
+  | "onKeyDown"
+  | "isRequired"
+  | "isReadOnly"
+  | "isDisabled"
+  | "isInvalid"
+  | "validate"
+  | "validationBehavior"
+  | "maxLength"
+  | "minLength"
+  | "autoComplete"
+  | "autoFocus"
+  | "inputMode"
+  | "aria-describedby"
+> &
   FieldPresentationProps & {
     placeholder?: string;
     /** Fixed text inside a single-line input. isHidden hides it visually while retaining its accessible description and input focus. */
@@ -28,13 +50,13 @@ type TextFieldProps = Omit<AriaTextFieldProps, "children"> &
  */
 export const TextField = ({
   label,
+  isLabelHidden,
   description,
   errorMessage,
   placeholder,
   prefix,
   multiline = false,
   rows = 5,
-  className,
   ...props
 }: TextFieldProps) => {
   const descriptionId = useId();
@@ -55,14 +77,14 @@ export const TextField = ({
           .filter(Boolean)
           .join(" ") || undefined
       }
-      className={composeRenderProps(
-        className,
-        (className) => `${fieldStyles.field} ${className ?? ""}`,
-      )}
+      className={fieldStyles.field}
     >
       {({ isInvalid }) => (
         <>
-          <FieldLabel required={props.isRequired && !props.isReadOnly && !props.isDisabled}>
+          <FieldLabel
+            required={props.isRequired && !props.isReadOnly && !props.isDisabled}
+            isHidden={isLabelHidden}
+          >
             {label}
           </FieldLabel>
           {multiline ? (

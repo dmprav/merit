@@ -1,10 +1,9 @@
-.meta {
-  color: var(--muted);
-  font-size: var(--text-caption);
-  line-height: 1.6;
+.judgment {
+  display: grid;
+  gap: var(--space-1);
 }
 
-.judgmentHeader {
+.header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -12,36 +11,60 @@
   min-height: var(--control-height-small);
 }
 
-.judgmentHeader > svg {
+.header > svg {
   color: var(--muted);
   margin-right: var(--space-2);
 }
 
-.judgmentIdentity {
+.identity {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--space-2);
+  min-width: 0;
   font-size: var(--text-detail);
   font-weight: 400;
 }
 
-.judgmentBody {
+.meta {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space-2);
+  color: var(--muted);
+  font-size: var(--text-caption);
+}
+
+.body {
   display: grid;
   gap: var(--space-1);
   padding-inline-start: calc(var(--avatar-compact-size) + var(--space-2));
   font-size: var(--text-detail);
 }
 
-.judgmentSummary {
+.summary {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
   gap: var(--space-1) var(--space-3);
 }
 
-.judgmentBasis {
+.basis {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
   color: var(--muted);
   font-size: var(--text-caption);
+  font-weight: 400;
+}
+
+.choice[data-variant] {
+  display: grid;
+  justify-content: stretch;
+  text-align: left;
+  white-space: normal;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  width: 100%;
   font-weight: 400;
 }

@@ -69,8 +69,8 @@ export const intakeMessages = {
     save: "Save",
     saved: "Application saved.",
     saveError: "Could not save the application. Your changes are preserved. Try again.",
-    refreshError: "Your change was saved, but the latest view could not load. Refresh to see it.",
-    refresh: "Refresh application",
+    refreshError: "Saved, but the latest application could not be loaded.",
+    refresh: "Refresh",
     emailInvalid: "Enter a valid email address or leave it blank.",
     conflictTitle: "This application changed while you were editing",
     conflict:
@@ -78,6 +78,9 @@ export const intakeMessages = {
     confirmationConflict:
       "This application has changed. Close this dialog, review the latest saved work, and start this action again.",
     latest: "Latest saved values",
+    conflictFields:
+      "Your edits are preserved. Fields that changed show the saved value; keep your changes or load the latest.",
+    savedValue: "Now saved as",
     viewLatest: "View latest",
     hideLatest: "Hide latest",
     keepChanges: "Keep my changes",
@@ -114,7 +117,6 @@ export const intakeMessages = {
     withdrawn: "Withdrawn",
     withdrawnHeading: "Withdrawn application",
     withdrawnOn: "Withdrawn on {{date}}",
-    withdrawalRecordedBy: "Recorded by {{name}}",
     reinstate: "Reinstate application",
     reinstateDescription:
       "The application returns to its earlier status and working revision and counts as active work again. Review requests closed by the withdrawal stay closed.",

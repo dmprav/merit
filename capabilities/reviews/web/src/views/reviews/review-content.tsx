@@ -13,10 +13,13 @@ import {
 } from "@merit/reviews/domain";
 import { ActionProvenance } from "@merit/ui/action-provenance";
 import { Button } from "@merit/ui/button";
+import { DescriptionList, DescriptionListItem } from "@merit/ui/description-list";
+import { Divider } from "@merit/ui/divider";
 import { Icon } from "@merit/ui/icon";
-import { Inline, Stack } from "@merit/ui/layout";
+import { Inline, Reading, Stack } from "@merit/ui/layout";
 import { PersonIdentity } from "@merit/ui/person-identity";
 import { SectionHeader } from "@merit/ui/section-header";
+import { Text } from "@merit/ui/text";
 
 import type { ReviewApplication, ReviewRound } from "../../contracts/reviews";
 import { AssessmentOutcome } from "./assessment-outcome";
@@ -43,7 +46,6 @@ const RecordedAssessment = ({
   criteria: NonNullable<ReviewRound["criteria"]>;
   onInspectVersion?: (version: ReviewApplication["version"]) => void;
 }) => {
-  const { t } = useTranslation("reviews");
   const { content } = version;
   const amount = content.amount === null ? null : decodeMoney(content.amount);
 
@@ -57,29 +59,25 @@ const RecordedAssessment = ({
         criteria={criteria}
         onInspectVersion={onInspectVersion}
       />
-      <p className={styles.reasoning}>{content.reasoning}</p>
+      {/* A summary reads at body size beside other work; details are for sustained reading. */}
+      <Reading as="p" prose={detailed}>
+        {content.reasoning}
+      </Reading>
       {detailed &&
         content.observations
           .filter((observation) => observation.text.trim())
           .map((observation, index) => (
-            <div key={index} className={styles.reasoning}>
+            <Reading key={index}>
               <strong>{observation.criterion}</strong>
               <p>{observation.text}</p>
-            </div>
+            </Reading>
           ))}
-      {detailed ? (
+      {detailed && (
         <AssessmentDetails
           version={version}
           onInspectCriteria={onInspectCriteria}
           criteriaAction={criteriaAction}
         />
-      ) : (
-        <p className={styles.meta}>
-          {content.date ? <AssessmentDate date={content.date} /> : t("dateUnknown")}
-          {content.applicationVersion === applicationVersion && (
-            <> · {t("reviewedVersion", { version: content.applicationVersion })}</>
-          )}
-        </p>
       )}
     </>
   );
@@ -101,34 +99,35 @@ const AssessmentBasisNotice = ({
   return (
     <>
       {reviewFreshness(basis) !== "current" && (
-        <Inline className={styles.reviewBasis}>
-          {basis.applicationVersion === "different" && (
-            <>
-              <span>{t("earlierSubmission")}</span>
-              {onInspectVersion && (
-                <Button
-                  variant="quiet"
-                  size="small"
-                  onPress={() => onInspectVersion(content.applicationVersion!)}
-                >
-                  {t("compareChanges")}
-                </Button>
-              )}
-            </>
-          )}
-          {basis.criteriaContent === "different" && <span>{t("criteriaChanged")}</span>}
-          {(basis.applicationVersion === "unknown" || basis.criteriaContent === "unknown") && (
-            <span>
-              {t(
-                basis.applicationVersion === "unknown" && basis.criteriaContent === "unknown"
-                  ? "basisUnknown"
-                  : basis.applicationVersion === "unknown"
-                    ? "applicationBasisUnknown"
-                    : "criteriaBasisUnknown",
-              )}
-            </span>
-          )}
-        </Inline>
+        <Text as="div" variant="caption">
+          <Inline>
+            {basis.applicationVersion === "different" && (
+              <>
+                <span>{t("earlierSubmission")}</span>
+                {onInspectVersion && (
+                  <Button
+                    variant="quiet"
+                    onPress={() => onInspectVersion(content.applicationVersion!)}
+                  >
+                    {t("compareChanges")}
+                  </Button>
+                )}
+              </>
+            )}
+            {basis.criteriaContent === "different" && <span>{t("criteriaChanged")}</span>}
+            {(basis.applicationVersion === "unknown" || basis.criteriaContent === "unknown") && (
+              <span>
+                {t(
+                  basis.applicationVersion === "unknown" && basis.criteriaContent === "unknown"
+                    ? "basisUnknown"
+                    : basis.applicationVersion === "unknown"
+                      ? "applicationBasisUnknown"
+                      : "criteriaBasisUnknown",
+                )}
+              </span>
+            )}
+          </Inline>
+        </Text>
       )}
     </>
   );
@@ -150,15 +149,16 @@ const AssessmentDetails = ({
 
   return (
     <section className={styles.reviewDetails} aria-label={t("inspectBasis")}>
-      <dl className={styles.detailFacts}>
-        <dt>{t("assessmentDate")}</dt>
-        <dd>{content.date ? calendarDate(content.date) : t("unknown")}</dd>
-        <dt>{t("recordedByLabel")}</dt>
-        <dd>{version.recorder?.name ?? t("unknown")}</dd>
+      <DescriptionList layout="rows">
+        <DescriptionListItem label={t("assessmentDate")}>
+          {content.date ? calendarDate(content.date) : t("unknown")}
+        </DescriptionListItem>
+        <DescriptionListItem label={t("recordedByLabel")}>
+          {version.recorder?.name ?? t("unknown")}
+        </DescriptionListItem>
         {version.recorder && (
           <>
-            <dt>{t("recordedAtLabel")}</dt>
-            <dd>
+            <DescriptionListItem label={t("recordedAtLabel")}>
               <time dateTime={version.recorder.recordedAt}>
                 {new Date(version.recorder.recordedAt).toLocaleString(formatLocale, {
                   day: "numeric",
@@ -170,35 +170,31 @@ const AssessmentDetails = ({
                 })}{" "}
                 UTC
               </time>
-            </dd>
-            <dt>{t("recordedThrough")}</dt>
-            <dd>
-              <ActionProvenance value={version.recorder.provenance} />
-            </dd>
+            </DescriptionListItem>
+            <DescriptionListItem label={t("recordedThrough")}>
+              <ActionProvenance value={version.recorder.provenance} detail />
+            </DescriptionListItem>
           </>
         )}
-        <dt>{t("submission")}</dt>
-        <dd>
+        <DescriptionListItem label={t("submission")}>
           {content.applicationVersion === null
             ? t("unknown")
             : t("version", { version: content.applicationVersion })}
-        </dd>
-        <dt>{t("criteriaVersion")}</dt>
-        <dd>
+        </DescriptionListItem>
+        <DescriptionListItem label={t("criteriaVersion")}>
           {content.criteriaVersion === null
             ? t("unknown")
             : t("version", { version: content.criteriaVersion })}
-        </dd>
-      </dl>
+        </DescriptionListItem>
+      </DescriptionList>
       {version.note && (
         <div>
           <strong>{t("note")}</strong>
-          <p className={styles.reasoning}>{version.note}</p>
+          <Reading as="p">{version.note}</Reading>
         </div>
       )}
       <Button
         variant="quiet"
-        size="small"
         alignment="start"
         data-review-action={criteriaAction}
         onPress={onInspectCriteria}
@@ -222,17 +218,21 @@ const AssessmentCriteria = ({
   return (
     <div className={styles.reviewDetails}>
       <section aria-label={t("originalCriteria")} className={styles.detailCriteria}>
-        <p className={styles.meta}>
+        <Text as="p" variant="supporting">
           {version.content.criteriaVersion === null
             ? t("criteriaBasisUnknown")
             : t("version", { version: version.content.criteriaVersion })}
-        </p>
+        </Text>
         <CriteriaRecord criteria={version.criteria} />
       </section>
       {compareCriteriaContent(version.criteria, criteria) === "different" && (
         <section aria-label={t("latestCriteria")} className={styles.detailCriteria}>
-          <h3>{t("latestCriteria")}</h3>
-          <p className={styles.meta}>{t("version", { version: criteriaVersion })}</p>
+          <div>
+            <SectionHeader level={3} title={t("latestCriteria")} />
+            <Text as="p" variant="supporting">
+              {t("version", { version: criteriaVersion })}
+            </Text>
+          </div>
           <CriteriaRecord criteria={criteria} />
         </section>
       )}
@@ -247,13 +247,21 @@ const CriteriaRecord = ({
 }) => {
   const { t } = useTranslation("reviews");
   return criteria === null ? (
-    <p className={styles.meta}>{t("unknown")}</p>
+    <Text as="p" variant="missing">
+      {t("unknown")}
+    </Text>
   ) : (
     <dl>
       {criteria.map((item, index) => (
         <div key={index}>
-          <dt>{item.title}</dt>
-          {item.description && <dd>{item.description}</dd>}
+          <dt>
+            <Text variant="emphasis">{item.title}</Text>
+          </dt>
+          {item.description && (
+            <Text as="dd" variant="supporting">
+              {item.description}
+            </Text>
+          )}
         </div>
       ))}
     </dl>
@@ -377,13 +385,12 @@ const AssessmentList = ({
       )}
       {!focusedId && state.requests.length > 0 && (
         <Button
-          size="small"
           variant="quiet"
           alignment="start"
           data-review-action="requests"
           onPress={() => inspect({ kind: "requests" })}
         >
-          {t("requestHistory")} <span className={styles.meta}>{state.requests.length}</span>
+          {t("requestHistory")} <Text variant="supporting">{state.requests.length}</Text>
         </Button>
       )}
     </>
@@ -411,23 +418,18 @@ const ReviewReadingHeader = ({
   if (inspection) {
     return (
       <>
-        <Button size="small" variant="quiet" alignment="start" onPress={back}>
+        <Button variant="quiet" alignment="start" onPress={back}>
           <Icon name="left" />
           {t(inspectionReturnLabel(previous))}
         </Button>
-        <h2 ref={heading} tabIndex={-1}>
-          {t(inspectionTitle(inspection))}
-        </h2>
+        <SectionHeader headingRef={heading} title={t(inspectionTitle(inspection))} />
       </>
     );
   }
   return (
-    <SectionHeader
-      title={title ?? t("title")}
-      className={styles.reviewHeader}
-      count={count || undefined}
-      aside={actions}
-    />
+    <div className={styles.reviewHeader}>
+      <SectionHeader title={title ?? t("title")} count={count || undefined} aside={actions} />
+    </div>
   );
 };
 
@@ -478,11 +480,9 @@ const PendingRequests = ({
   return (
     <Stack as="section" gap={3} aria-label={t("awaitingTitle")}>
       {!focusedId && (
-        <SectionHeader
-          title={t("awaitingTitle")}
-          count={pending.length}
-          className={styles.reviewHeader}
-        />
+        <div className={styles.reviewHeader}>
+          <SectionHeader title={t("awaitingTitle")} count={pending.length} />
+        </div>
       )}
       {pending.map((request) => {
         const basis = compareReviewBasis(request, {
@@ -497,10 +497,18 @@ const PendingRequests = ({
               <PersonIdentity name={request.reviewer} description={t("outstanding")} />
               {focusedId && <RequestDetails request={request} />}
               {freshness === "outdated" ? (
-                <p className={styles.requestChange}>{t("requestChanged")}</p>
+                <div className={styles.requestChange}>
+                  <Text as="p" variant="caption">
+                    {t("requestChanged")}
+                  </Text>
+                </div>
               ) : (
                 freshness === "unknown" && (
-                  <p className={styles.requestChange}>{t("basisUnknown")}</p>
+                  <div className={styles.requestChange}>
+                    <Text as="p" variant="caption">
+                      {t("basisUnknown")}
+                    </Text>
+                  </div>
                 )
               )}
             </div>
@@ -535,58 +543,70 @@ const AssessmentEntry = ({
   const criteria = round.criteria;
   const latest = assessment.versions.at(-1)!;
   return (
-    <article aria-label={t("by", { name: assessment.reviewer })} className={styles.assessment}>
-      <div className={styles.assessmentHeader}>
-        <PersonIdentity name={assessment.reviewer} nameAs="h3" />
-        {assessmentActions?.(assessment)}
+    <Stack as="article" gap={4} aria-label={t("by", { name: assessment.reviewer })}>
+      <div>
+        <div className={styles.assessmentHeader}>
+          <span className={styles.assessmentAuthor}>
+            <PersonIdentity name={assessment.reviewer} nameAs="h3" />
+            {!detailed && !showHistory && (
+              <Text variant="caption">
+                {latest.content.date ? (
+                  <AssessmentDate date={latest.content.date} />
+                ) : (
+                  t("dateUnknown")
+                )}
+              </Text>
+            )}
+          </span>
+          {assessmentActions?.(assessment)}
+        </div>
+        <Stack gap={3}>
+          {showHistory ? (
+            <AssessmentHistory
+              assessment={assessment}
+              application={application}
+              round={round}
+              onInspectVersion={onInspectVersion}
+              onInspectCriteria={onInspectCriteria}
+            />
+          ) : (
+            <RecordedAssessment
+              version={latest}
+              applicationVersion={application.version}
+              criteriaVersion={round.criteriaVersion}
+              criteria={criteria}
+              detailed={detailed}
+              onInspectVersion={onInspectVersion}
+              onInspectCriteria={() => onInspectCriteria(latest)}
+              criteriaAction={`${assessment.id}:criteria`}
+            />
+          )}
+          {!detailed && (
+            <Button
+              variant="quiet"
+              alignment="start"
+              data-review-action={`${assessment.id}:details`}
+              onPress={onDetails}
+            >
+              {t("inspectBasis")}
+              <Icon name="right" />
+            </Button>
+          )}
+          {!showHistory && (assessment.previousId || assessment.versions.length > 1) && (
+            <Button
+              variant="quiet"
+              alignment="start"
+              data-review-action={`${assessment.id}:history`}
+              onPress={onHistory}
+            >
+              {t("assessmentHistory")}
+              <Icon name="right" />
+            </Button>
+          )}
+        </Stack>
       </div>
-      <Stack gap={3} className={styles.assessmentContent}>
-        {showHistory ? (
-          <AssessmentHistory
-            assessment={assessment}
-            application={application}
-            round={round}
-            onInspectVersion={onInspectVersion}
-            onInspectCriteria={onInspectCriteria}
-          />
-        ) : (
-          <RecordedAssessment
-            version={latest}
-            applicationVersion={application.version}
-            criteriaVersion={round.criteriaVersion}
-            criteria={criteria}
-            detailed={detailed}
-            onInspectVersion={onInspectVersion}
-            onInspectCriteria={() => onInspectCriteria(latest)}
-            criteriaAction={`${assessment.id}:criteria`}
-          />
-        )}
-        {!detailed && (
-          <Button
-            size="small"
-            variant="quiet"
-            alignment="start"
-            data-review-action={`${assessment.id}:details`}
-            onPress={onDetails}
-          >
-            {t("inspectBasis")}
-            <Icon name="right" />
-          </Button>
-        )}
-        {!showHistory && (assessment.previousId || assessment.versions.length > 1) && (
-          <Button
-            size="small"
-            variant="quiet"
-            alignment="start"
-            data-review-action={`${assessment.id}:history`}
-            onPress={onHistory}
-          >
-            {t("assessmentHistory")}
-            <Icon name="right" />
-          </Button>
-        )}
-      </Stack>
-    </article>
+      <Divider />
+    </Stack>
   );
 };
 
@@ -610,19 +630,22 @@ const AssessmentHistory = ({
         .flatMap((item) =>
           (item.id === assessment.id ? item.versions.slice(0, -1) : item.versions).map(
             (version, index) => (
-              <section key={`${item.id}/${index}`} className={styles.card}>
-                <h3>{t("editCount", { version: index + 1 })}</h3>
-                <RecordedAssessment
-                  version={version}
-                  detailed
-                  applicationVersion={application.version}
-                  criteriaVersion={round.criteriaVersion}
-                  criteria={criteria}
-                  onInspectVersion={onInspectVersion}
-                  onInspectCriteria={() => onInspectCriteria(version)}
-                  criteriaAction={`${item.id}:${index}:criteria`}
-                />
-              </section>
+              <Stack as="section" key={`${item.id}/${index}`} gap={4}>
+                <div className={styles.card}>
+                  <SectionHeader level={3} title={t("editCount", { version: index + 1 })} />
+                  <RecordedAssessment
+                    version={version}
+                    detailed
+                    applicationVersion={application.version}
+                    criteriaVersion={round.criteriaVersion}
+                    criteria={criteria}
+                    onInspectVersion={onInspectVersion}
+                    onInspectCriteria={() => onInspectCriteria(version)}
+                    criteriaAction={`${item.id}:${index}:criteria`}
+                  />
+                </div>
+                <Divider />
+              </Stack>
             ),
           ),
         )}
@@ -638,10 +661,10 @@ const AssessmentDate = ({ date }: { date: string }) => {
 const ReviewRequestHistory = ({ requests }: { requests: ReviewState["requests"] }) => {
   const { t } = useTranslation("reviews");
   return (
-    <section aria-label={t("requestHistory")}>
-      <ul className={styles.requestHistoryList}>
+    <section aria-label={t("requestHistory")} className={styles.requestHistory}>
+      <Stack as="ul" gap={0} divided="between">
         {requests.map((request) => (
-          <li key={request.id}>
+          <li key={request.id} className={styles.requestEntry}>
             <Inline justify="between">
               <PersonIdentity name={request.reviewer} />
               <span>
@@ -659,7 +682,7 @@ const ReviewRequestHistory = ({ requests }: { requests: ReviewState["requests"] 
             <RequestDetails request={request} />
           </li>
         ))}
-      </ul>
+      </Stack>
     </section>
   );
 };

@@ -31,50 +31,6 @@
   border-bottom: 1px solid var(--border);
 }
 
-.table th .sortButton {
-  max-width: 100%;
-  padding-inline: var(--space-1);
-  margin-inline: calc(-1 * var(--space-1));
-  border: 0;
-  color: inherit;
-  font: inherit;
-  text-align: inherit;
-  justify-content: flex-start;
-}
-
-.sortButton > span {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.table th .sortButton:not([data-focus-visible]):is([data-hovered], [data-pressed]),
-.table th[aria-sort] .sortButton:not([data-focus-visible]) {
-  color: var(--foreground);
-  background: var(--surface-muted);
-}
-
-.table [data-align="end"] .sortButton {
-  flex-direction: row-reverse;
-}
-
-.sortIcon {
-  width: 14px;
-  height: 14px;
-  flex-shrink: 0;
-  opacity: 0.65;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .sortIcon {
-    opacity: 0;
-  }
-}
-
-.table th[aria-sort] .sortIcon,
-.sortButton:is([data-hovered], [data-focus-visible]) .sortIcon {
-  opacity: 1;
-}
-
 .table td {
   padding: var(--space-3) var(--space-4) var(--space-3) 0;
   border-bottom: 1px solid var(--border);

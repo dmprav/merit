@@ -16,6 +16,7 @@ import {
   FormMoneyField,
   FormTextField,
   RetainedDraftNotice,
+  SavedValue,
   useForm,
   useTranslatedSchema,
 } from "@merit/forms";
@@ -26,12 +27,13 @@ import { Button } from "@merit/ui/button";
 import { DescriptionList, DescriptionListItem } from "@merit/ui/description-list";
 import { EditorLoading, EditorClose } from "@merit/ui/editor-loading";
 import { Icon } from "@merit/ui/icon";
+import { SectionHeader } from "@merit/ui/section-header";
+import { Text } from "@merit/ui/text";
 import { TextField } from "@merit/ui/text-field";
 
 import type {
   IntakeDraft,
   IntakeSection,
-  IntakeSnapshot,
   IntakeValues,
   SectionDraft,
 } from "../../controllers/intake/intake-state";
@@ -147,19 +149,25 @@ const RetainedIntakeNotice = ({
 
 const IntakeConflictNotice = ({ editor }: { editor: EditorProps["editor"] }) => {
   const { t } = useTranslation("applicationIntake");
+  // Details show each saved value beside its field; other sections compare in a panel.
+  const fieldsShowSaved = editor.section === "metadata";
   return (
     <ConflictBanner
       title={t("intake.conflictTitle")}
-      message={t("intake.conflict")}
+      message={t(fieldsShowSaved ? "intake.conflictFields" : "intake.conflict")}
       keepMine={{ label: t("intake.keepChanges"), onPress: editor.keepMyChanges }}
       useSaved={{ label: t("intake.useLatest"), onPress: editor.useLatestSavedValues }}
       isDisabled={editor.pending}
-      latest={{
-        toggleLabel: t("intake.viewLatest"),
-        hideLabel: t("intake.hideLatest"),
-        heading: t("intake.latest"),
-        children: <LatestValues editor={editor} />,
-      }}
+      latest={
+        fieldsShowSaved
+          ? undefined
+          : {
+              toggleLabel: t("intake.viewLatest"),
+              hideLabel: t("intake.hideLatest"),
+              heading: t("intake.latest"),
+              children: <LatestValues editor={editor} />,
+            }
+      }
     />
   );
 };
@@ -213,7 +221,7 @@ const EditorFrame = ({
         submission={submission}
         scrollFields={false}
         submitOnModEnter
-        className={`${styles.form} ${section === "content" ? styles.longEditor : ""}`}
+        stickyActions={section === "content"}
         actions={
           <FormActions
             submission={submission}
@@ -226,7 +234,6 @@ const EditorFrame = ({
             }}
             onCancel={onClose}
             cancelLabel={t("preparation.close")}
-            cancelVariant="quiet"
             submitLabel={t(isRevision ? "intake.saveWorkingRevision" : "intake.save")}
             submittingLabel={t("editor.saving")}
             isSubmitDisabled={conflict || disabled || editor.pending}
@@ -236,25 +243,41 @@ const EditorFrame = ({
         <div className={styles.fields}>
           {conflict && <IntakeConflictNotice editor={editor} />}
           {isRevision && (
-            <p className={styles.hint}>
+            <Text as="p" variant="caption">
               {t(section === "metadata" ? "intake.workingDetailsHint" : "intake.workingDraftHint")}
-            </p>
+            </Text>
           )}
           {children}
-          {isRevision && (
-            <TextField
-              name="reason"
-              value={editor.reason}
-              onChange={editor.changeReason}
-              label={t("intake.reason")}
-              multiline
-              rows={3}
-              maxLength={intakeLimits.reasonLength}
-            />
-          )}
+          {isRevision && <RevisionReasonField editor={editor} />}
         </div>
       </Form>
     </div>
+  );
+};
+
+const RevisionReasonField = ({ editor }: Pick<EditorProps, "editor">) => {
+  const { t } = useTranslation("applicationIntake");
+  const showSavedReason =
+    editor.conflict &&
+    editor.section === "metadata" &&
+    editor.reason.trim() !== editor.latest.reason.trim();
+  return (
+    <>
+      <TextField
+        name="reason"
+        value={editor.reason}
+        onChange={editor.changeReason}
+        label={t("intake.reason")}
+        multiline
+        rows={3}
+        maxLength={intakeLimits.reasonLength}
+      />
+      {showSavedReason && (
+        <SavedValue label={t("intake.savedValue")}>
+          {editor.latest.reason || t("intake.notKnown")}
+        </SavedValue>
+      )}
+    </>
   );
 };
 
@@ -264,7 +287,7 @@ const LatestValues = ({ editor }: Pick<EditorProps, "editor">) => {
   if (!section) {
     return null;
   }
-  const { content, contactId } = latest;
+  const { content } = latest;
 
   return (
     <div className={styles.latestPreview}>
@@ -273,9 +296,6 @@ const LatestValues = ({ editor }: Pick<EditorProps, "editor">) => {
           <DescriptionListItem label={t("intake.projectTitle")}>
             {content.title}
           </DescriptionListItem>
-        )}
-        {section === "metadata" && (
-          <ConflictMetadata editor={editor} content={content} contactId={contactId} />
         )}
         {section === "details" && (
           <DescriptionListItem label={t("intake.staffSummary")}>
@@ -288,46 +308,6 @@ const LatestValues = ({ editor }: Pick<EditorProps, "editor">) => {
       </DescriptionList>
       {section === "content" && <SubmissionAnswers answers={content.answers} headingLevel={5} />}
     </div>
-  );
-};
-
-const ConflictMetadata = ({
-  editor,
-  content,
-  contactId,
-}: Pick<EditorProps, "editor"> & {
-  content: IntakeSnapshot["content"];
-  contactId: IntakeSnapshot["contactId"];
-}) => {
-  const { t } = useTranslation(["applicationIntake", "contacts"]);
-  const { money } = useFormat();
-  const amount = parseMoney(content.requested);
-  const contact =
-    contactId === editor.latest.contactId && editor.application.submission?.contact ? (
-      editor.application.submission.contact
-    ) : contactId ? (
-      <ContactLabel
-        workspaceSlug={editor.workspaceSlug}
-        contactId={contactId}
-        fallback={t("intake.contactNotAvailable")}
-      />
-    ) : (
-      t("contacts:noContact")
-    );
-
-  return (
-    <>
-      <DescriptionListItem label={t("intake.applicant")}>
-        {content.applicant || t("intake.notKnown")}
-      </DescriptionListItem>
-      <DescriptionListItem label={t("intake.requested")}>
-        {amount.ok ? money(amount.value) : content.requested || t("intake.notKnown")}
-      </DescriptionListItem>
-      <DescriptionListItem label={t("intake.contact")}>{contact}</DescriptionListItem>
-      <DescriptionListItem label={t("evidence.projectPeriod")}>
-        {content.projectPeriod || t("intake.notKnown")}
-      </DescriptionListItem>
-    </>
   );
 };
 
@@ -372,22 +352,24 @@ const MetadataForm = (props: SectionProps<"metadata">) => {
         application={application}
         fields={{
           applicant: (
-            <form.Field name="applicant">
-              {(field) => (
-                <FormTextField
-                  field={field}
-                  className={styles.metadataField}
-                  label={t("intake.applicant")}
-                  maxLength={intakeLimits.applicantLength}
-                  autoFocus
-                />
-              )}
-            </form.Field>
+            <DetailField editor={props.editor} field="applicant">
+              <form.Field name="applicant">
+                {(field) => (
+                  <FormTextField
+                    field={field}
+                    isLabelHidden
+                    label={t("intake.applicant")}
+                    maxLength={intakeLimits.applicantLength}
+                    autoFocus
+                  />
+                )}
+              </form.Field>
+            </DetailField>
           ),
           contact: (
-            <form.Field name="contactId">
-              {(field) => (
-                <div className={styles.contactField}>
+            <DetailField editor={props.editor} field="contactId">
+              <form.Field name="contactId">
+                {(field) => (
                   <ContactPicker
                     workspaceSlug={workspaceSlug}
                     value={
@@ -398,50 +380,128 @@ const MetadataForm = (props: SectionProps<"metadata">) => {
                     onChange={field.handleChange}
                     onBlur={field.handleBlur}
                     label={t("intake.contact")}
+                    isLabelHidden
                     onEditorOpenChange={setContactEditorOpen}
                   />
-                </div>
-              )}
-            </form.Field>
+                )}
+              </form.Field>
+            </DetailField>
           ),
           projectPeriod: (
-            <form.Field name="projectPeriod">
-              {(field) => (
-                <FormTextField
-                  field={{
-                    name: field.name,
-                    state: { ...field.state, value: field.state.value ?? "" },
-                    handleChange: field.handleChange,
-                    handleBlur: field.handleBlur,
-                  }}
-                  className={styles.metadataField}
-                  label={t("evidence.projectPeriod")}
-                  maxLength={intakeLimits.projectPeriodLength}
-                />
-              )}
-            </form.Field>
+            <DetailField editor={props.editor} field="projectPeriod">
+              <form.Field name="projectPeriod">
+                {(field) => (
+                  <FormTextField
+                    field={{
+                      name: field.name,
+                      state: { ...field.state, value: field.state.value ?? "" },
+                      handleChange: field.handleChange,
+                      handleBlur: field.handleBlur,
+                    }}
+                    isLabelHidden
+                    label={t("evidence.projectPeriod")}
+                    maxLength={intakeLimits.projectPeriodLength}
+                  />
+                )}
+              </form.Field>
+            </DetailField>
           ),
           requested: (
-            <form.Field name="requested">
-              {(field) => (
-                <FormMoneyField
-                  field={field}
-                  precisionMessage={t("intake.amountPrecision")}
-                  className={styles.metadataField}
-                  label={t("intake.requested")}
-                  placeholder={t("intake.notKnown")}
-                  prefix={{
-                    text: "€",
-                    label: t("common:euros"),
-                    isHidden: !field.state.value.trim(),
-                  }}
-                />
-              )}
-            </form.Field>
+            <DetailField editor={props.editor} field="requested">
+              <form.Field name="requested">
+                {(field) => (
+                  <FormMoneyField
+                    field={field}
+                    precisionMessage={t("intake.amountPrecision")}
+                    isLabelHidden
+                    label={t("intake.requested")}
+                    placeholder={t("intake.notKnown")}
+                    prefix={{
+                      text: "€",
+                      label: t("common:euros"),
+                      isHidden: !field.state.value.trim(),
+                    }}
+                  />
+                )}
+              </form.Field>
+            </DetailField>
           ),
         }}
       />
     </EditorFrame>
+  );
+};
+
+type MetadataField = "applicant" | "contactId" | "projectPeriod" | "requested";
+
+/** A detail's control, followed in a conflict by its latest saved value when they differ. */
+const DetailField = ({
+  editor,
+  field,
+  children,
+}: {
+  editor: EditorProps["editor"];
+  field: MetadataField;
+  children: ReactNode;
+}) => (
+  <div className={styles.detailField}>
+    {children}
+    <MetadataSavedValue editor={editor} field={field} />
+  </div>
+);
+
+/** In a conflict, a detail whose draft differs from the latest saved version shows that value. */
+const MetadataSavedValue = ({
+  editor,
+  field,
+}: {
+  editor: EditorProps["editor"];
+  field: MetadataField;
+}) => {
+  const { t } = useTranslation("applicationIntake");
+  const { money } = useFormat();
+  const draft = editor.draft;
+  if (!editor.conflict || draft?.section !== "metadata") {
+    return null;
+  }
+  if (field === "contactId") {
+    const draftId =
+      draft.value.contactId === undefined ? editor.application.contactId : draft.value.contactId;
+    return <SavedContactValue editor={editor} draftId={draftId ?? null} />;
+  }
+  const saved = editor.latest.content[field] ?? "";
+  if ((draft.value[field] ?? "").trim() === saved.trim()) {
+    return null;
+  }
+  const amount = field === "requested" ? parseMoney(saved) : null;
+  return (
+    <SavedValue label={t("intake.savedValue")}>
+      {amount?.ok ? money(amount.value) : saved || t("intake.notKnown")}
+    </SavedValue>
+  );
+};
+
+const SavedContactValue = ({
+  editor,
+  draftId,
+}: Pick<EditorProps, "editor"> & { draftId: string | null }) => {
+  const { t } = useTranslation(["applicationIntake", "contacts"]);
+  const savedId = editor.latest.contactId;
+  if (draftId === (savedId ?? null)) {
+    return null;
+  }
+  return (
+    <SavedValue label={t("intake.savedValue")}>
+      {savedId ? (
+        <ContactLabel
+          workspaceSlug={editor.workspaceSlug}
+          contactId={savedId}
+          fallback={t("intake.contactNotAvailable")}
+        />
+      ) : (
+        t("contacts:noContact")
+      )}
+    </SavedValue>
   );
 };
 
@@ -461,12 +521,11 @@ const SubmissionForm = (props: SectionProps<"content">) => {
                 aria-label={t("intake.section", { number: index + 1 })}
               >
                 <div className={styles.sectionHeading}>
-                  <span>{t("intake.section", { number: index + 1 })}</span>
+                  <Text variant="caption">{t("intake.section", { number: index + 1 })}</Text>
                   <ActionMenu
                     label={t("intake.sectionActions", { number: index + 1 })}
                     trigger={
                       <Button
-                        size="small"
                         variant="quiet"
                         iconOnly
                         aria-label={t("intake.sectionActions", { number: index + 1 })}
@@ -514,13 +573,14 @@ const SubmissionForm = (props: SectionProps<"content">) => {
               </fieldset>
             ))}
             <Button
-              size="small"
-              variant="secondary"
+              variant="quiet"
+              alignment="start"
               isDisabled={field.state.value.length >= intakeLimits.answersCount}
               onPress={() =>
                 field.pushValue({ questionId: crypto.randomUUID(), question: "", response: "" })
               }
             >
+              <Icon name="add" />
               {t("intake.addSection")}
             </Button>
           </>
@@ -557,8 +617,8 @@ export const IntakeForm = (props: EditorProps) => {
   const draft = props.editor.draft;
   if (!props.editor.ready || !draft) {
     return (
-      <div className={styles.form}>
-        <h3>{t(sectionLabels[props.editor.section ?? "details"])}</h3>
+      <div>
+        <SectionHeader level={3} title={t(sectionLabels[props.editor.section ?? "details"])} />
         <EditorLoading />
         <EditorClose label={t("preparation.close")} onClose={props.onClose} />
       </div>

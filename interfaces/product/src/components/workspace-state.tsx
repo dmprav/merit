@@ -1,9 +1,9 @@
-import { Link, useLocation } from "@tanstack/react-router";
+import { useLocation } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
-import linkStyles from "@merit/ui/link.module.css";
 import { StateMessage } from "@merit/ui/state-message";
 
+import { RoutedLink } from "../shared/routed-link";
 import { RouteRetry } from "./route-retry";
 
 const stateKeys = {
@@ -57,14 +57,9 @@ export const WorkspaceState = ({
       }
       actions={
         status === "signed_out" ? (
-          <Link
-            to="/app/sign-in"
-            search={{ returnTo: pathname }}
-            className={linkStyles.button}
-            data-variant="primary"
-          >
+          <RoutedLink variant="primary" to="/app/sign-in" search={{ returnTo: pathname }}>
             {t("common:signIn")}
-          </Link>
+          </RoutedLink>
         ) : status === "unavailable" ? (
           <RouteRetry>{t("common:tryAgain")}</RouteRetry>
         ) : null

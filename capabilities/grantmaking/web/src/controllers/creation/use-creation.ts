@@ -2,6 +2,8 @@ import { useMutation } from "@tanstack/react-query";
 import { useEffect, useLayoutEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { useWorkflowRefresh } from "@merit/query/refresh";
+
 import type { CreationData, CreationDraft } from "../../contracts/creation";
 import { useCreationDrafts } from "./drafts";
 
@@ -33,18 +35,18 @@ export const useCreation = (data: CreationData, locationKey?: string) => {
     }
   }, [open, ready, draft, setCreation, key]);
   const [created, setCreated] = useState<{ title: string; publicId: string } | null>(null);
-  const [refreshFailed, setRefreshFailed] = useState(false);
+  const { refresh, refreshError } = useWorkflowRefresh(() => data.refresh());
   const [openFailed, setOpenFailed] = useState(false);
   const mutation = useMutation({
     mutationFn: (value: CreationDraft) => data.create(value, t("intake.material")),
   });
 
-  const refresh = async () => {
+  const openRecord = async (record: { title: string; publicId: string }) => {
+    setOpenFailed(false);
     try {
-      await data.refresh();
-      setRefreshFailed(false);
+      await data.open(record);
     } catch {
-      setRefreshFailed(true);
+      setOpenFailed(true);
     }
   };
 
@@ -55,18 +57,12 @@ export const useCreation = (data: CreationData, locationKey?: string) => {
     }
 
     // A committed creation is successful even if refreshing the list fails.
-    setCreated({ title: value.title.trim(), publicId: result.publicId });
-    setRefreshFailed(false);
-    setOpenFailed(false);
+    const record = { title: value.title.trim(), publicId: result.publicId };
+    setCreated(record);
     setCreation(key, undefined);
     setOpen(false);
-    void refresh();
-
-    try {
-      await data.open({ title: value.title.trim(), publicId: result.publicId });
-    } catch {
-      setOpenFailed(true);
-    }
+    void refresh("saved");
+    await openRecord(record);
 
     return null;
   };
@@ -84,14 +80,14 @@ export const useCreation = (data: CreationData, locationKey?: string) => {
     target,
     open,
     created,
-    refreshFailed,
+    refreshError,
     openFailed,
     saving: mutation.isPending,
     resumable: Boolean(draft && hasInput(draft)),
     changeOpen,
-    refresh,
+    refresh: () => refresh(refreshError ?? "saved"),
+    openCreated: () => (created ? openRecord(created) : Promise.resolve()),
     save,
-    dismiss: () => setCreated(null),
     openEditor: () => setOpen(true),
     update: (value: CreationDraft) => setCreation(key, value),
     close: () => changeOpen(false),

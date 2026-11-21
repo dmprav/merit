@@ -24,7 +24,6 @@ const Preview = ({
     <CollectionToolbar
       filterLabel="Filter"
       filterTitle="Filter projects"
-      closeLabel="Close filters"
       filters={
         <>
           <CollectionFilter

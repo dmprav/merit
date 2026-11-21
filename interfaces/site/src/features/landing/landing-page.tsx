@@ -1,4 +1,3 @@
-import { Link } from "@tanstack/react-router";
 import { Fragment, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -10,9 +9,9 @@ import { Badge } from "@merit/ui/badge";
 import { Button } from "@merit/ui/button";
 import { PopoverDialog } from "@merit/ui/dialog";
 import { Icon } from "@merit/ui/icon";
-import linkStyles from "@merit/ui/link.module.css";
 import { Tooltip } from "@merit/ui/tooltip";
 
+import { RoutedLink } from "../../app/routed-link";
 import styles from "./landing-page.module.css";
 import { createLandingPreview, type LandingPreview } from "./landing-preview";
 import { positionKeys } from "./recommendation-labels";
@@ -31,9 +30,9 @@ export const LandingPage = () => (
 const DemoLink = () => {
   const { t } = useTranslation("site");
   return (
-    <Link to="/demo" className={linkStyles.button} data-variant="primary" data-size="large">
+    <RoutedLink variant="primary" size="large" to="/demo">
       {t("navigation.demo")} <Icon name="forward" />
-    </Link>
+    </RoutedLink>
   );
 };
 
@@ -48,33 +47,29 @@ const Hero = ({ round }: { round: LandingPreview["round"] }) => {
           <h1 id="hero-title" className={styles.titleText}>
             {t("hero.title")}
           </h1>
-          <PopoverDialog
-            title={t("hero.projectLabel")}
-            isOpen={projectNoteOpen}
-            onOpenChange={setProjectNoteOpen}
-            placement="bottom start"
-            trigger={
-              <Tooltip
-                content={t("hero.projectDescription")}
-                placement="top"
-                isDisabled={projectNoteOpen}
-              >
-                <Button
-                  variant="quiet"
-                  size="small"
-                  iconOnly
-                  aria-label={t("hero.projectLabel")}
-                  className={styles.projectNote}
+          <span className={styles.projectNote}>
+            <PopoverDialog
+              title={t("hero.projectLabel")}
+              isOpen={projectNoteOpen}
+              onOpenChange={setProjectNoteOpen}
+              placement="bottom start"
+              trigger={
+                <Tooltip
+                  content={t("hero.projectDescription")}
+                  placement="top"
+                  isDisabled={projectNoteOpen}
                 >
-                  <span className={styles.asterisk} aria-hidden="true">
-                    *
-                  </span>
-                </Button>
-              </Tooltip>
-            }
-          >
-            <p>{t("hero.projectDescription")}</p>
-          </PopoverDialog>
+                  <Button variant="quiet" iconOnly aria-label={t("hero.projectLabel")}>
+                    <span className={styles.asterisk} aria-hidden="true">
+                      *
+                    </span>
+                  </Button>
+                </Tooltip>
+              }
+            >
+              <p>{t("hero.projectDescription")}</p>
+            </PopoverDialog>
+          </span>
         </div>
         <p className={styles.description}>{t("hero.description")}</p>
         <div className={styles.action}>

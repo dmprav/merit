@@ -52,8 +52,10 @@
 }
 
 .button[data-variant="secondary"] {
-  border-color: var(--border-control);
+  /* Text identifies the command, so a quieter edge than a field's keeps actions from outweighing content. */
+  border-color: color-mix(in srgb, var(--border-control) 45%, var(--border));
   background: var(--surface);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--foreground) 6%, transparent);
   color: var(--foreground);
 }
 
@@ -69,9 +71,32 @@
   color: var(--foreground);
 }
 
+/* A command within copy shares the inline link's text treatment. */
+.button[data-variant="inline"] {
+  display: inline;
+  min-height: 0;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  font: inherit;
+  text-align: inherit;
+  color: var(--action);
+  text-decoration-line: underline;
+  text-decoration-color: color-mix(in srgb, currentColor 60%, transparent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+}
+
+.button[data-variant="inline"]:is([data-hovered], [data-pressed]):where(
+    :not([data-disabled], [aria-disabled="true"])
+  ) {
+  color: var(--action-hover);
+  text-decoration-color: currentColor;
+}
+
 .button[data-variant="secondary"]:is([data-hovered], a:hover):where(:not([aria-disabled="true"])) {
   background: var(--surface-muted);
-  border-color: var(--muted);
+  border-color: color-mix(in srgb, var(--border-control) 70%, var(--border));
 }
 
 /* React Aria also marks open triggers pressed; quiet triggers retain their expanded fill. */
@@ -83,16 +108,17 @@
 
 .button[data-size="small"] {
   min-height: var(--control-height-small);
-  padding: var(--space-1) var(--space-2);
-  font-size: var(--text-caption);
+  padding: var(--space-1) calc(var(--space-2) + 2px);
 }
 
 .button[data-variant="quiet"][data-alignment="start"] {
+  /* Keep the action's own width in a vertical flow, such as a Stack. */
+  justify-self: start;
   margin-inline-start: calc(-1 * (var(--space-3) + 1px));
 }
 
 .button[data-variant="quiet"][data-alignment="start"][data-size="small"] {
-  margin-inline-start: calc(-1 * (var(--space-2) + 1px));
+  margin-inline-start: calc(-1 * (var(--space-2) + 3px));
 }
 
 .button[data-icon-only] {
@@ -135,22 +161,16 @@
   cursor: not-allowed;
 }
 
-.button[aria-disabled="true"]:not([data-pending]) {
+.button[aria-disabled="true"]:not([data-pending], [aria-busy="true"]) {
   cursor: default;
 }
 
-.button:is([data-disabled], [aria-disabled="true"]:not([data-pending])) {
-  border-color: var(--border);
-  background: var(--surface-muted);
-  color: var(--muted);
+/* Unavailable commands keep their variant so people can still tell what they would do. */
+.button:is([data-disabled], [aria-disabled="true"]:not([data-pending], [aria-busy="true"])) {
+  opacity: 0.5;
 }
 
-.button[data-variant="quiet"]:is([data-disabled], [aria-disabled="true"]:not([data-pending])) {
-  border-color: transparent;
-  background: transparent;
-}
-
-.button[data-pending] {
+.button:is([data-pending], [aria-busy="true"]) {
   cursor: wait;
 }
 
@@ -175,8 +195,8 @@
 }
 
 @media (pointer: coarse) {
-  .button,
-  .button[data-size="small"] {
+  .button:not([data-variant="inline"]),
+  .button[data-size="small"]:not([data-variant="inline"]) {
     min-height: var(--target-touch);
   }
 

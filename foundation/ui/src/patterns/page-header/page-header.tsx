@@ -2,6 +2,10 @@ import type { ReactNode } from "react";
 
 import styles from "./page-header.module.css";
 
+/**
+ * The page's title, context, and its one main action. Put further commands in an icon-only
+ * "More actions" menu beside it; Storybook rejects a second labelled action.
+ */
 export const PageHeader = ({
   title,
   status,
@@ -9,7 +13,6 @@ export const PageHeader = ({
   description,
   actions,
   density = "comfortable",
-  className = "",
 }: {
   title: ReactNode;
   status?: ReactNode;
@@ -17,9 +20,8 @@ export const PageHeader = ({
   description?: ReactNode;
   actions?: ReactNode;
   density?: "comfortable" | "compact";
-  className?: string;
 }) => (
-  <header className={`${styles.header} ${className}`} data-density={density}>
+  <header className={styles.header} data-density={density}>
     <div className={styles.context}>
       {kicker && <p className={styles.kicker}>{kicker}</p>}
       <div className={styles.titleRow}>
@@ -28,6 +30,10 @@ export const PageHeader = ({
       </div>
       {description && <div className={styles.description}>{description}</div>}
     </div>
-    {actions && <div className={styles.actions}>{actions}</div>}
+    {actions && (
+      <div className={styles.actions} data-page-actions>
+        {actions}
+      </div>
+    )}
   </header>
 );

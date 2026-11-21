@@ -2,6 +2,7 @@ import type { ComponentProps } from "react";
 import { useTranslation } from "react-i18next";
 
 import { permits } from "@merit/access";
+import { Divider } from "@merit/ui/divider";
 import { SectionHeader } from "@merit/ui/section-header";
 import { Tabs } from "@merit/ui/tabs";
 
@@ -40,11 +41,12 @@ export const TeamDirectories = ({
   if (!permits(team.subject, "manage_members", team.subject)) {
     return (
       <>
-        <SectionHeader
-          title={t("members")}
-          count={team.members.length}
-          className={styles.directoryHeading}
-        />
+        <div className={styles.directoryHeading}>
+          <div className={styles.directoryTitle}>
+            <SectionHeader title={t("members")} count={team.members.length} />
+          </div>
+          <Divider />
+        </div>
         {members}
       </>
     );

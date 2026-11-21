@@ -133,60 +133,6 @@
   outline: none;
 }
 
-.option {
-  display: flex;
-  min-height: var(--control-height-small);
-  cursor: pointer;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  border-radius: calc(var(--control-radius) - 2px);
-  padding: var(--space-1) var(--space-2);
-  font-size: var(--text-control);
-  outline: none;
-}
-
-.option[data-focused] {
-  background: var(--surface-muted);
-}
-
-.option[data-selected] {
-  background: var(--action-subtle);
-  font-weight: 500;
-}
-
-.option[data-focus-visible] {
-  background: var(--action-subtle);
-  box-shadow: inset 3px 0 var(--focus);
-}
-
-.option[data-disabled] {
-  cursor: not-allowed;
-  color: var(--muted);
-}
-
-.optionCopy {
-  display: grid;
-  gap: var(--space-1);
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.optionDescription {
-  font-size: var(--text-caption);
-  font-weight: 400;
-  line-height: 1.5;
-  color: var(--muted);
-}
-
-.check {
-  display: flex;
-  width: 1rem;
-  height: 1rem;
-  flex-shrink: 0;
-  color: var(--action);
-}
-
 @media (prefers-reduced-motion: reduce) {
   .trigger,
   .indicator {
@@ -195,8 +141,7 @@
 }
 
 @media (pointer: coarse) {
-  .trigger,
-  .option {
+  .trigger {
     min-height: var(--target-touch);
   }
 }
@@ -209,9 +154,4 @@
   border-top: 1px solid var(--border);
   margin-top: var(--space-1);
   padding-top: var(--space-1);
-}
-
-.action {
-  justify-content: flex-start;
-  text-align: start;
 }

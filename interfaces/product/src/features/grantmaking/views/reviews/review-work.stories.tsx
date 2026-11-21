@@ -381,7 +381,12 @@ export const CreateReviewer: Story = {
 export const CriterionNotes: Story = {
   play: async ({ canvas, canvasElement, userEvent }) => {
     const pending = within(canvas.getByRole("article", { name: "Jules Patel" }));
-    await userEvent.click(pending.getByRole("button", { name: "Record assessment" }));
+    await userEvent.click(pending.getByRole("button", { name: "Request actions for Jules Patel" }));
+    await userEvent.click(
+      await within(canvasElement.ownerDocument.body).findByRole("menuitem", {
+        name: "Record assessment",
+      }),
+    );
     const dialog = within(within(canvasElement.ownerDocument.body).getByRole("form"));
     await userEvent.click(dialog.getByRole("button", { name: "Add criterion notes" }));
     await userEvent.type(
@@ -445,8 +450,11 @@ export const CorrectingAssessment: Story = {
 export const AssessmentSaved: Story = {
   play: async (context) => {
     const pending = within(context.canvas.getByRole("article", { name: "Jules Patel" }));
-    await context.userEvent.click(pending.getByRole("button", { name: "Record assessment" }));
     const page = within(context.canvasElement.ownerDocument.body);
+    await context.userEvent.click(
+      pending.getByRole("button", { name: "Request actions for Jules Patel" }),
+    );
+    await context.userEvent.click(await page.findByRole("menuitem", { name: "Record assessment" }));
     const dialog = within(await page.findByRole("form", { name: "Record assessment" }));
     await context.userEvent.type(
       dialog.getByRole("textbox", { name: "Assessment text" }),
@@ -533,9 +541,12 @@ export const SavedButRefreshFailed: Story = {
         within(context.canvasElement.ownerDocument.body).queryByRole("form"),
       ).not.toBeInTheDocument(),
     );
-    await expect(context.canvas.getByRole("alert")).toHaveTextContent(
-      "Saved, but the latest information could not be loaded",
+    // The failed read retries quietly for about four seconds before it is reported.
+    const toast = await within(context.canvasElement.ownerDocument.body).findByRole(
+      "alertdialog",
+      { name: "Saved, but the latest reviews could not be loaded." },
+      { timeout: 8000 },
     );
-    await expect(context.canvas.getByRole("button", { name: "Retry" })).toBeEnabled();
+    await expect(within(toast).getByRole("button", { name: "Refresh" })).toBeEnabled();
   },
 };

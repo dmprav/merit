@@ -5,18 +5,19 @@ repository root unless a guide says otherwise.
 
 ## Develop a change
 
-| To…                                                         | Read…                                                       |
-| ----------------------------------------------------------- | ----------------------------------------------------------- |
-| Run locally, configure identity, or change the database     | [Local development](development.md)                         |
-| Design PostgreSQL tables, keys, constraints, and indexes    | [Database schema](database.md)                              |
-| Write or review code using the project's conventions        | [Coding conventions](coding-conventions.md)                 |
-| Understand and change the automated dependency policy       | [Architecture checks](architecture-checks.md)               |
-| Change capability workflows, transports, and reusable views | [Web features](web-features.md)                             |
-| Follow one save through the browser, MCP, and business core | [Recommendation walkthrough](recommendation-walkthrough.md) |
-| Compose components, forms, and screens                      | [UI development](ui.md)                                     |
-| Write labels, explanations, and translated messages         | [Interface copy](interface-copy.md)                         |
-| Develop component states and interactive documentation      | [Storybook](storybook.md)                                   |
-| Design and preview invitation emails                        | [Email development](emails.md)                              |
+| To…                                                         | Read…                                                          |
+| ----------------------------------------------------------- | -------------------------------------------------------------- |
+| Run locally, configure identity, or change the database     | [Local development](development.md)                            |
+| Design PostgreSQL tables, keys, constraints, and indexes    | [Database schema](database.md)                                 |
+| Write or review code using the project's conventions        | [Coding conventions](coding-conventions.md)                    |
+| Understand and change the automated dependency policy       | [Architecture checks](architecture-checks.md)                  |
+| Change capability workflows, transports, and reusable views | [Web features](web-features.md)                                |
+| Follow one save through the browser, MCP, and business core | [Recommendation walkthrough](recommendation-walkthrough.md)    |
+| Choose a shared pattern for a screen                        | [Design system Overview](../../foundation/ui/src/overview.mdx) |
+| Compose components, forms, and screens                      | [UI development](ui.md)                                        |
+| Write labels, explanations, and translated messages         | [Interface copy](interface-copy.md)                            |
+| Develop component states and interactive documentation      | [Storybook](storybook.md)                                      |
+| Design and preview invitation emails                        | [Email development](emails.md)                                 |
 
 ## Verify a change
 

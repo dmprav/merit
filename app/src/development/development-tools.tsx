@@ -43,7 +43,6 @@ const MeritPanel = () => {
               <Button
                 key={person.id}
                 variant={person.id === current.id ? "primary" : "secondary"}
-                size="small"
                 aria-pressed={person.id === current.id}
                 onPress={() => selectPerson(person.id)}
               >
