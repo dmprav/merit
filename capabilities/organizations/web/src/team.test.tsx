@@ -19,6 +19,8 @@ const transport = {
   revoke: vi.fn<TeamTransport["revoke"]>(),
 };
 const revalidateAccess = vi.fn<() => Promise<void>>();
+const [pendingInvitation] = initial.invitations;
+assert(pendingInvitation, "the team fixture has an outstanding invitation");
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -70,9 +72,8 @@ const show = (data = initial, draftScope?: string) =>
     </QueryClientProvider>,
   );
 
-it("shows a read-only directory to program managers and protects the owner", async () => {
-  const user = userEvent.setup();
-  const { unmount } = show({
+it("shows a read-only directory to program managers", () => {
+  show({
     ...initial,
     subject: { ...initial.subject, administration: "none" },
     invitations: [],
@@ -84,10 +85,13 @@ it("shows a read-only directory to program managers and protects the owner", asy
   expect(screen.queryByRole("button", { name: "Invite member" })).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Edit access" })).not.toBeInTheDocument();
   expect(screen.queryByRole("heading", { name: /Invitations/ })).not.toBeInTheDocument();
+});
 
-  unmount();
+it("protects the owner from removal", async () => {
+  const user = userEvent.setup();
   show();
-  const owner = screen.getByText("Dana Reed").closest("tr")!;
+  const owner = screen.getByText("Dana Reed").closest("tr");
+  assert(owner);
   await user.click(within(owner).getByRole("button", { name: "Actions for Dana Reed" }));
 
   expect(screen.getByRole("menuitem", { name: "Edit access" })).toBeVisible();
@@ -132,8 +136,7 @@ it("reviews handover and invitation revocation before removing a member and rest
   expect(revalidateAccess).toHaveBeenCalledOnce();
 });
 
-it("retains an invitation after failure and keeps a successful change distinct from refresh failure", async () => {
-  const user = userEvent.setup();
+const startInvitation = async (user: ReturnType<typeof userEvent.setup>) => {
   show();
   await user.click(await screen.findByRole("button", { name: "Invite member" }));
   const dialog = screen.getByRole("dialog", { name: "Invite member" });
@@ -141,6 +144,12 @@ it("retains an invitation after failure and keeps a successful change distinct f
     within(dialog).getByRole("textbox", { name: "Email address" }),
     "next@example.test",
   );
+  return dialog;
+};
+
+it("keeps the entries and reuses the request ID after a failed invitation", async () => {
+  const user = userEvent.setup();
+  const dialog = await startInvitation(user);
   transport.invite.mockResolvedValueOnce({ status: "unavailable" });
   await user.click(within(dialog).getByRole("button", { name: "Invite member" }));
 
@@ -149,6 +158,18 @@ it("retains an invitation after failure and keeps a successful change distinct f
     "next@example.test",
   );
 
+  await user.click(within(dialog).getByRole("button", { name: "Invite member" }));
+
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  expect(transport.invite).toHaveBeenCalledTimes(2);
+  const [first, second] = transport.invite.mock.calls;
+  assert(first && second);
+  expect(second[0].requestId).toBe(first[0].requestId);
+});
+
+it("keeps a saved invitation distinct from a failed team refresh", async () => {
+  const user = userEvent.setup();
+  const dialog = await startInvitation(user);
   transport.read.mockRejectedValueOnce(new Error("offline"));
   await user.click(within(dialog).getByRole("button", { name: "Invite member" }));
 
@@ -169,16 +190,13 @@ it("retains an invitation after failure and keeps a successful change distinct f
   expect(confirmation).toHaveTextContent(
     "Invitation saved. Check its email delivery status below.",
   );
-  expect(transport.invite).toHaveBeenCalledTimes(2);
-  const [first, second] = transport.invite.mock.calls;
-  assert(first && second);
-  expect(second[0].requestId).toBe(first[0].requestId);
 });
 
 it("keeps a stale edit open for recovery instead of announcing success", async () => {
   const user = userEvent.setup();
   show();
-  const member = screen.getByText("Morgan Lee").closest("tr")!;
+  const member = screen.getByText("Morgan Lee").closest("tr");
+  assert(member);
   await user.click(within(member).getByRole("button", { name: "Actions for Morgan Lee" }));
   await user.click(await screen.findByRole("menuitem", { name: "Edit access" }));
   const dialog = screen.getByRole("dialog", { name: "Edit access for Morgan Lee" });
@@ -202,7 +220,8 @@ it("keeps a stale edit open for recovery instead of announcing success", async (
 it("shows the revocation count when demoting an administrator and clears the warning when retaining administration", async () => {
   const user = userEvent.setup();
   show();
-  const member = screen.getByText("Morgan Lee").closest("tr")!;
+  const member = screen.getByText("Morgan Lee").closest("tr");
+  assert(member);
   await user.click(within(member).getByRole("button", { name: "Actions for Morgan Lee" }));
   await user.click(await screen.findByRole("menuitem", { name: "Edit access" }));
   const dialog = screen.getByRole("dialog", { name: "Edit access for Morgan Lee" });
@@ -234,7 +253,7 @@ it("returns focus to the member menu after cancelling removal", async () => {
 
 it("keeps removal pending and preserves consequences after failure", async () => {
   const user = userEvent.setup();
-  let finish!: (value: Awaited<ReturnType<typeof transport.removeMember>>) => void;
+  let finish: ((value: Awaited<ReturnType<typeof transport.removeMember>>) => void) | undefined;
   transport.removeMember.mockReturnValueOnce(
     new Promise((resolve) => {
       finish = resolve;
@@ -257,6 +276,7 @@ it("keeps removal pending and preserves consequences after failure", async () =>
 
   expect(dialog).toBeVisible();
 
+  assert(finish);
   finish({ status: "conflict" });
 
   expect(await within(dialog).findByRole("alert")).toHaveTextContent("refresh the team");
@@ -338,6 +358,8 @@ it("resends an invitation from its action menu and keeps failed sending recovera
   const trigger = screen.getByRole("button", {
     name: "Actions for invitation to colleague@example.test",
   });
+  const invitations = screen.getByRole("table", { name: "Invitations" });
+  expect(within(invitations).getByText("Email sending failed")).toBeVisible();
   transport.resend.mockResolvedValueOnce({ status: "unavailable" });
   await user.click(trigger);
   await user.click(await screen.findByRole("menuitem", { name: "Resend" }));
@@ -349,7 +371,7 @@ it("resends an invitation from its action menu and keeps failed sending recovera
     status: "ok",
     value: {
       ...initial,
-      invitations: [{ ...initial.invitations[0]!, id: "replacement", delivery: "sent" }],
+      invitations: [{ ...pendingInvitation, id: "replacement", delivery: "sent" }],
     },
   });
   await user.click(trigger);
@@ -360,13 +382,16 @@ it("resends an invitation from its action menu and keeps failed sending recovera
     workspaceSlug: "alder",
     invitationId: "pending",
   });
+  await waitFor(() =>
+    expect(within(invitations).queryByText("Email sending failed")).not.toBeInTheDocument(),
+  );
   await waitFor(() => expect(trigger).toHaveFocus());
 });
 
 it("lets administrators manage ordinary invitations but protects administrator invitations", async () => {
   const user = userEvent.setup();
   const administratorInvite = {
-    ...initial.invitations[0]!,
+    ...pendingInvitation,
     id: "admin-invite",
     email: "admin@example.test",
     administration: "administrator" as const,
@@ -444,7 +469,7 @@ it("keeps the invitation draft across tab changes and reveals the invitation aft
     status: "ok",
     value: {
       ...initial,
-      invitations: [{ ...initial.invitations[0]!, email: "next@example.test", delivery: "sent" }],
+      invitations: [{ ...pendingInvitation, email: "next@example.test", delivery: "sent" }],
     },
   });
   await user.click(within(dialog).getByRole("button", { name: "Invite member" }));
