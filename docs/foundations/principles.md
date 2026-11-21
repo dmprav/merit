@@ -147,6 +147,7 @@ otherwise it hides the upstream bug.
 - **When:** Debugging failures, investigating regressions, or when repeated fixes fail the same gate.
 - **Don’t force it:** Handling legitimate boundary conditions such as stale revisions or missing client addresses.
 - **Sign you skipped it:** Adding sleeps or retries to quiet a flaky test, or writing a third workaround after two attempts failed CI.
+- **Details:** [Diagnose a failure](../../.agents/skills/diagnose/SKILL.md).
 
 ### Explain the number
 

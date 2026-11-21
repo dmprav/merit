@@ -61,15 +61,10 @@ Before asking anything, learn what the codebase already answers.
 
 ## 2. Grill until the brief is approved
 
-Interview the requester until you share one understanding of the feature. Walk
-the decision tree in dependency order, resolving one branch before the decisions
-that depend on it.
+Follow the [grill](../grill/SKILL.md) skill to interview the requester and
+approve the brief. For a feature, the interview also covers:
 
-- Ask **one question at a time**, with your recommended answer and its reason, so
-  the requester can reply with a word.
-- Do not ask what the code or docs answer. State it as a finding they can correct.
-- Ask about behavior and product meaning, not implementation the guides decide.
-- Cover, where relevant: who acts and with what authority; states and transitions;
+- Where relevant: who acts and with what authority; states and transitions;
   validation and business rules; what is saved and audited; empty, long, and
   missing content; failed saves, conflicts, and recovery; MCP and other interfaces.
 - When persistence changes, follow the [database schema guide](../../../docs/guides/database.md)
@@ -77,12 +72,8 @@ that depend on it.
   deletion/cascade lifecycle, and query/index access paths before writing code.
 - Show the chosen UI precedent and the runner-up, and ask which the new screen
   should match. This question prevents most UI that looks worse than its neighbors.
-- Stop when no open question would change what gets built.
 
-Then write the brief. **The builder receives only the brief**, so it must be
-complete without this conversation: if a builder would need to ask you something
-the brief could have said, add it now. Write behavior as checkable statements, not
-intentions.
+The builder is the brief's reader. Write it in this shape:
 
 ```markdown
 ## Feature brief
@@ -114,10 +105,7 @@ requirement that justifies it; "None" is a good answer>
 screenshot beside the precedent>
 ```
 
-Ask the requester to approve the brief, and wait for an explicit yes. If they ask
-you to skip the grilling, still write the brief, mark your assumptions in it, and
-get that yes. The approved brief is the contract for the builder, the reviewer, and
-the PR; change it only with the requester's agreement.
+The approved brief is the contract for the builder, the reviewer, and the PR.
 
 ## 3. Delegate the build
 
