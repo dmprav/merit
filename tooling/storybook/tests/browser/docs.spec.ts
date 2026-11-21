@@ -54,7 +54,7 @@ for (const [id, title] of [
 }
 
 test("fullscreen shell owns its main landmark and uses the viewport", async ({ page }) => {
-  await page.goto("/iframe.html?id=patterns-toast--in-workspace&viewMode=story");
+  await page.goto("/iframe.html?id=patterns-application-shell--workspace&viewMode=story");
 
   await expect(page.locator("#storybook-root")).toHaveAttribute("data-story-ready", "true");
   await expect(page.getByRole("main")).toHaveCount(1);

@@ -95,6 +95,7 @@ export const en = {
   discardAmendment: "Discard amendment",
   amendmentNote: "Reason for amendment",
   submitted: "Your assessment has been submitted.",
+  amended: "Your assessment has been amended.",
   submittedBy: "Submitted by {{name}}",
   submittedOn: "Submitted by {{name}} on {{date}}",
   history: "Earlier submitted versions",

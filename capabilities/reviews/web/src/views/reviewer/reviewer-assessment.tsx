@@ -131,7 +131,7 @@ const SubmissionConfirmation = ({ page }: { page: ReviewerPage }) => {
     setSeen(versions);
     setEvent(event + 1);
   }
-  useEventToast(event, { tone: "success", message: t("submitted") });
+  useEventToast(event, { tone: "success", message: t(versions > 1 ? "amended" : "submitted") });
   return null;
 };
 
