@@ -1334,7 +1334,9 @@ test("docs topics, section links, and examples work across screen sizes @cross-b
   await page.getByRole("link", { name: "Follow the correction and revision steps" }).click();
 
   await expect(page).toHaveURL(/\/docs\/applications#revisions$/);
-  await expect(page.locator("#revisions")).toBeInViewport();
+  await expect(
+    page.getByRole("heading", { level: 2, name: /^Correct or revise recorded material/ }),
+  ).toBeInViewport();
 
   await openGuide("/docs/recommendations#budget");
 
