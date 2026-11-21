@@ -1,5 +1,4 @@
 import {
-  createMcpHandler,
   hostHeaderValidationResponse,
   originValidationResponse,
 } from "@modelcontextprotocol/server";
@@ -51,8 +50,8 @@ export const handleWorkspaceMcp = async (
   }
 
   // Each request closes over its own verified identity; it is never shared between clients.
-  const handler = createMcpHandler(() => createWorkspaceServer(actor, dependencies, url.origin));
-  const response = await handler.fetch(request, {
+  const server = createWorkspaceServer(actor, dependencies, url.origin);
+  const response = await server.handle(request, {
     authInfo: {
       token: request.headers.get("Authorization")?.replace(/^Bearer /i, "") ?? "",
       clientId: actor.provenance.clientId,

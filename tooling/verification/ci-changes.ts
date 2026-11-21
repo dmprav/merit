@@ -26,6 +26,7 @@ const WORKSPACE_PACKAGE_PATTERNS = [
   "capabilities/access/package.json",
   "interfaces/*/package.json",
   "foundation/*/package.json",
+  "capabilities/*/ai/package.json",
   "capabilities/*/business/package.json",
   "capabilities/*/web/package.json",
   "tooling/checkly/package.json",

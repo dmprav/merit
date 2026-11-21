@@ -263,17 +263,16 @@ test("web and MCP share the hourly demo allowance across starts and resets", asy
 
   const { state } = await web.start({ fresh: false });
   assert(state.status === "ready");
-  const current = await mcp.read(actor);
+  expect(await mcp.start(actor, { fresh: false })).toEqual({ status: "limited" });
+  const current = await readDemoWorkspace(db, actor);
   assert(current.status === "ready");
-  expect(current.workspaceSlug).toBe(state.workspaceSlug);
-  const reset = { fresh: true, resetWorkspaceId: current.workspaceId };
-  expect(await mcp.start(actor, reset)).toEqual({ status: "limited" });
-  expect((await web.start(reset)).state).toEqual({ status: "limited" });
-  expect(await mcp.read(actor)).toEqual(current);
+  expect((await web.start({ fresh: true, resetWorkspaceId: current.workspace.id })).state).toEqual({
+    status: "limited",
+  });
   expect(await web.read()).toEqual(state);
   expect(
     await createAccountDemoServices(database, "192.0.2.2").start(actor, { fresh: false }),
-  ).toEqual(current);
+  ).toEqual(state);
 });
 
 test("a missing address denies both demo entry points before provisioning", async ({ db }) => {

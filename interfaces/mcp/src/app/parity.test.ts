@@ -54,31 +54,6 @@ type DispatchCase = {
   response?: unknown;
 };
 
-const membership = {
-  workspaceSlug: "alder",
-  userId: "sam",
-  expectedMembershipId: "00000000-0000-4000-a000-000000000003",
-  expectedMembershipVersion: 3,
-  expectedInvitationIds: [commandId],
-};
-
-const team = {
-  organization: { name: "Alder", slug: "alder", kind: "standard" as const },
-  subject: {
-    userId: "dana",
-    organizationId: "org",
-    active: true,
-    administration: "administrator" as const,
-    role: "program_manager" as const,
-  },
-  canManageMembers: true,
-};
-const demo = {
-  status: "ready" as const,
-  workspaceId: "new-demo",
-  workspaceSlug: "demo-new",
-  expiresAt: summary.expiresAt,
-};
 const roundId = "b8q3w5j7c2df";
 const recommendation = {
   position: "Fund",
@@ -94,16 +69,6 @@ const contact = {
   affiliation: "Review panel",
   archived: false,
 };
-const invitation = {
-  id: commandId,
-  email: "sam@example.test",
-  administration: "none" as const,
-  role: "program_manager" as const,
-  expiresAt: summary.expiresAt,
-  delivery: "sent" as const,
-  invitedBy: "Dana",
-};
-
 const dispatchCases: DispatchCase[] = [
   {
     name: "list_my_reviews",
@@ -216,13 +181,6 @@ const dispatchCases: DispatchCase[] = [
     },
   },
   {
-    name: "get_team",
-    args: { workspaceSlug: "alder" },
-    fn: (o) => o.organizations.teamOverview,
-    result: { status: "ok", value: team },
-    response: { status: "ok", ...team },
-  },
-  {
     name: "list_team_members",
     args: { workspaceSlug: "alder" },
     fn: (o) => o.organizations.membersPage,
@@ -231,120 +189,11 @@ const dispatchCases: DispatchCase[] = [
     response: { status: "ok", members: [], nextCursor: null },
   },
   {
-    name: "change_member",
-    args: { ...membership, administration: "none", role: "reviewer" },
-    fn: (o) => o.organizations.changeMember,
-    result: { status: "conflict" },
-  },
-  {
-    name: "remove_member",
-    args: membership,
-    fn: (o) => o.organizations.removeMember,
-    result: { status: "conflict" },
-  },
-  {
-    name: "get_navigation_pins",
-    args: {},
-    fn: (o) => o.navigation.read,
-    input: undefined,
-    result: { status: "ok", pins: [] },
-  },
-  {
-    name: "change_navigation_pin",
-    args: { action: "move", target: { kind: "review", id: assignmentId }, before: null },
-    fn: (o) => o.navigation.change,
-    result: { status: "ok", pins: [] },
-  },
-  {
-    name: "list_organizations",
-    args: {},
-    fn: (o) => o.organizations.list,
-    input: undefined,
-    result: { status: "ok", value: [] },
-    response: { status: "ok", organizations: [], nextCursor: null },
-  },
-  {
-    name: "get_organization",
-    args: { organizationId: "org" },
-    fn: (o) => o.organizations.read,
-    result: { status: "forbidden" },
-  },
-  {
-    name: "create_organization",
-    args: { requestId: commandId, name: "Alder", slug: "alder", email: "sam@example.test" },
-    fn: (o) => o.organizations.create,
-    result: { status: "ok", value: { organizationId: "org" } },
-    response: { status: "ok", organizationId: "org" },
-  },
-  {
-    name: "rename_organization",
-    args: { organizationId: "org", name: "Alder Trust" },
-    fn: (o) => o.organizations.rename,
-    result: { status: "ok", value: null },
-    response: { status: "ok" },
-  },
-  {
-    name: "replace_owner_invitation",
-    args: { organizationId: "org", email: "sam@example.test" },
-    fn: (o) => o.organizations.invite,
-    result: { status: "ok", value: null },
-    response: { status: "ok" },
-  },
-  {
-    name: "revoke_owner_invitation",
-    args: { organizationId: "org" },
-    fn: (o) => o.organizations.revoke,
-    result: { status: "ok", value: null },
-    response: { status: "ok" },
-  },
-  {
-    name: "list_access_requests",
-    args: {},
-    fn: (o) => o.organizations.accessRequests,
-    input: undefined,
-    result: { status: "ok", value: [] },
-    response: { status: "ok", accessRequests: [], nextCursor: null },
-  },
-  {
-    name: "review_access_request",
-    args: { email: "sam@example.test" },
-    fn: (o) => o.organizations.reviewAccessRequest,
-    result: { status: "not_found" },
-  },
-  {
-    name: "get_membership_invitation",
-    args: { token: "a".repeat(64) },
-    fn: (o) => o.organizations.invitation,
-    result: { status: "wrong_account" },
-  },
-  {
-    name: "accept_membership_invitation",
-    args: { token: "a".repeat(64) },
-    fn: (o) => o.organizations.accept,
-    result: { status: "wrong_account" },
-  },
-  {
-    name: "get_demo",
-    args: {},
-    fn: (o) => o.demo.read,
-    input: undefined,
-    result: { status: "empty" },
-    response: { status: "ok", demo: { status: "empty" } },
-  },
-  {
     name: "start_demo",
     args: {},
     fn: (o) => o.demo.start,
     input: { fresh: false },
     result: { status: "expired" },
-  },
-  {
-    name: "reset_demo",
-    args: { resetWorkspaceId: "old-demo" },
-    fn: (o) => o.demo.start,
-    input: { fresh: true, resetWorkspaceId: "old-demo" },
-    result: demo,
-    response: { status: "ok", demo },
   },
   {
     name: "create_application",
@@ -441,49 +290,6 @@ const dispatchCases: DispatchCase[] = [
     },
   },
   {
-    name: "list_team_invitations",
-    args: { workspaceSlug: "alder" },
-    fn: (o) => o.organizations.invitationsPage,
-    input: { workspaceSlug: "alder", limit: 20 },
-    result: { status: "ok", value: { invitations: [invitation], nextCursor: null } },
-    response: { status: "ok", invitations: [invitation], nextCursor: null },
-  },
-  {
-    name: "get_team_event",
-    args: { workspaceSlug: "alder", eventId: commandId },
-    fn: (o) => o.organizations.teamEvent,
-    input: { workspaceSlug: "alder", eventId: commandId, offset: 0, length: 8000 },
-    result: {
-      status: "ok",
-      value: { format: "json", content: "{}", offset: 0, nextOffset: null, totalCharacters: 2 },
-    },
-    response: {
-      status: "ok",
-      format: "json",
-      content: "{}",
-      offset: 0,
-      nextOffset: null,
-      totalCharacters: 2,
-    },
-  },
-  {
-    name: "resend_member_invitation",
-    args: { workspaceSlug: "alder", invitationId: commandId },
-    fn: (o) => o.organizations.resendMemberInvitation,
-    result: {
-      status: "ok",
-      value: { invitationId: assignmentId, replacesInvitationId: commandId },
-    },
-    response: { status: "ok", invitationId: assignmentId, replacesInvitationId: commandId },
-  },
-  {
-    name: "revoke_member_invitation",
-    args: { workspaceSlug: "alder", invitationId: commandId },
-    fn: (o) => o.organizations.revokeMemberInvitation,
-    result: { status: "ok", value: { invitationId: commandId } },
-    response: { status: "ok", invitationId: commandId },
-  },
-  {
     name: "list_contacts",
     args: { workspaceSlug: "alder", archived: false },
     fn: (o) => o.contacts.listContactSummaries,
@@ -539,9 +345,9 @@ it.each(dispatchCases)(
     vi.mocked(operation).mockResolvedValueOnce(result);
     const client = await connect(operations);
     try {
-      const tools = (await client.listTools()).tools;
+      const tools = await client.tools();
       expect(tools.find((tool) => tool.name === name)?.outputSchema).toBeDefined();
-      const called = await client.callTool({ name, arguments: args });
+      const called = await client.callTool(name, args);
       expect(called.structuredContent).toEqual(response);
       const input = "input" in test ? test.input : args;
       expect(operation).toHaveBeenCalledExactlyOnceWith(
@@ -552,39 +358,6 @@ it.each(dispatchCases)(
     }
   },
 );
-
-it("requests workspace access with a normalized email and no actor", async () => {
-  const operations = testOperations();
-  vi.mocked(operations.organizations.requestAccess).mockResolvedValueOnce({ status: "ok" });
-  const client = await connect(operations);
-  try {
-    expect(
-      (
-        await client.callTool({
-          name: "request_workspace_access",
-          arguments: { email: "Sam@example.test" },
-        })
-      ).structuredContent,
-    ).toEqual({ status: "ok" });
-    expect(operations.organizations.requestAccess).toHaveBeenCalledExactlyOnceWith({
-      email: "sam@example.test",
-    });
-  } finally {
-    await client.close();
-  }
-});
-
-it("marks owner invitation replacement as a non-idempotent external delivery", async () => {
-  const client = await connect(testOperations());
-  try {
-    const tools = (await client.listTools()).tools;
-    expect(
-      tools.find((tool) => tool.name === "replace_owner_invitation")?.annotations,
-    ).toMatchObject({ openWorldHint: true, idempotentHint: false });
-  } finally {
-    await client.close();
-  }
-});
 
 it("returns the reviewer's complete validated page and strips uncontracted fields", async () => {
   const operations = testOperations();
@@ -599,10 +372,7 @@ it("returns the reviewer's complete validated page and strips uncontracted field
   vi.mocked(operations.reviewer.read).mockResolvedValue({ status: "ok", value: page });
   const client = await connect(operations);
   try {
-    const result = await client.callTool({
-      name: "get_reviewer_assignment",
-      arguments: { assignmentId },
-    });
+    const result = await client.callTool("get_reviewer_assignment", { assignmentId });
     expect(result.structuredContent).toMatchObject({
       status: "ok",
       draft: { revision: 7, content: draft },
@@ -624,17 +394,14 @@ it("paginates visible assignments in stable ID order", async () => {
   });
   const client = await connect(operations);
   try {
+    expect((await client.callTool("list_my_reviews", { limit: 1 })).structuredContent).toEqual({
+      status: "ok",
+      assignments: [summary],
+      nextCursor: assignmentId,
+    });
     expect(
-      (await client.callTool({ name: "list_my_reviews", arguments: { limit: 1 } }))
+      (await client.callTool("list_my_reviews", { limit: 1, after: assignmentId }))
         .structuredContent,
-    ).toEqual({ status: "ok", assignments: [summary], nextCursor: assignmentId });
-    expect(
-      (
-        await client.callTool({
-          name: "list_my_reviews",
-          arguments: { limit: 1, after: assignmentId },
-        })
-      ).structuredContent,
     ).toEqual({ status: "ok", assignments: [{ ...summary, id: commandId }], nextCursor: null });
   } finally {
     await client.close();
@@ -645,9 +412,7 @@ it("rejects an empty review list page before listing assignments", async () => {
   const operations = testOperations();
   const client = await connect(operations);
   try {
-    expect(
-      (await client.callTool({ name: "list_my_reviews", arguments: { limit: 0 } })).isError,
-    ).toBe(true);
+    expect((await client.callTool("list_my_reviews", { limit: 0 })).isError).toBe(true);
     expect(operations.reviewer.list).not.toHaveBeenCalled();
   } finally {
     await client.close();
@@ -661,7 +426,7 @@ it.each(["expired", "limited", "unavailable"] as const)(
     vi.mocked(operations.demo.start).mockResolvedValue({ status });
     const client = await connect(operations);
     try {
-      const result = await client.callTool({ name: "start_demo", arguments: {} });
+      const result = await client.callTool("start_demo", {});
       expect(result.isError).toBe(true);
       expect(result.structuredContent).toEqual({ status });
     } finally {

@@ -1,9 +1,8 @@
 # Work with Merit through MCP
 
-Connect an OAuth-capable Streamable HTTP client to `/mcp/workspace`. MCP supports
-workspace grant work, reviewer participation, contacts, team operations, personal
-shortcuts, onboarding, and operator administration through the same services as the website.
-The browser demo remains public; there is no anonymous MCP endpoint.
+Connect an OAuth-capable Streamable HTTP client to `/mcp/workspace` to try a
+fictional demo, carry out grant work, or complete your own review assignments.
+MCP requires a signed-in account. The browser also offers an anonymous demo.
 For Clerk configuration, live access checks, and authentication troubleshooting,
 use [MCP operations](mcp-operations.md).
 
@@ -13,22 +12,22 @@ use [MCP operations](mcp-operations.md).
    the deployed site's origin. See [local development](development.md).
 2. Sign in and grant the client the access it needs. Website cookies do not
    authenticate MCP. Workspace and review work require current membership;
-   assignments additionally restrict review access. Onboarding and operator
-   administration use their own authority checks.
+   assignments additionally restrict review access.
 
-Start with the tools for your task. Each uses its own [client grants](#choose-client-access)
-and current Merit permissions; workspace discovery is needed only for workspace work.
+Choose your starting point:
 
-| Task                    | Start with                                                                                    | Continue with                                                            |
-| ----------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| Grant or team work      | `list_workspaces`, then `list_funding_rounds` or `get_team` with the returned `workspaceSlug` | [Read context](#read-the-context-you-need) and [edit](#edit-and-recover) |
-| Your review assignments | `list_my_reviews`, then `get_reviewer_assignment`                                             | [Participate in reviews](#participate-in-and-manage-reviews)             |
-| Join a workspace        | `get_membership_invitation` with the token from your invitation                               | [Onboarding](#personal-shortcuts-onboarding-and-administration)          |
-| Your shortcuts          | `get_navigation_pins`                                                                         | [Personal shortcuts](#personal-shortcuts-onboarding-and-administration)  |
-| Your account's demo     | `get_demo`                                                                                    | [Demo access](#personal-shortcuts-onboarding-and-administration)         |
-| Operator administration | `list_organizations` or `list_access_requests`                                                | [Administration](#personal-shortcuts-onboarding-and-administration)      |
+| Task              | Start with                                        | Continue with                                                                                            |
+| ----------------- | ------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| Try Merit         | `start_demo`                                      | Open the returned `roundRef` with `get_funding_round` or list rounds using the returned `workspaceSlug`. |
+| Manage grants     | `list_workspaces`, then `list_funding_rounds`     | [Read context](#read-the-context-you-need) and [edit](#edit-and-recover).                                |
+| Complete a review | `list_my_reviews`, then `get_reviewer_assignment` | [Participate in reviews](#participate-in-and-manage-reviews).                                            |
 
-No operator database lookup is needed. Discover the workspace slug and record IDs
+`start_demo` resumes the account’s active example or starts a new one. The
+example expires after seven days. If it has expired, repeat with `fresh: true`.
+To replace an active example, choose **Reset demo** in the browser.
+See the [demo workflow](../workflows/public-demo-and-access.md) for access and storage.
+
+Discover workspace slugs and record IDs
 through the read tools. Workspace slugs identify organizations to clients; rounds
 and applications use the same permanent IDs across MCP, web, and storage, as
 described in the [business model](../../capabilities/grantmaking/business/README.md#records-and-reading-views).
@@ -37,24 +36,18 @@ monetary formats. Text and structured results carry the same validated data.
 
 ## Choose client access
 
-| OAuth grant                      | Allows, subject to current Merit permissions                                                                      |
-| -------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `workspace:read`                 | Workspace discovery, rounds, applications, manager assignment views, contacts, and team reads                     |
-| `grants:write`                   | Round preparation, intake, reviews, reviewer invitations and assignment management, recommendations, and contacts |
-| `team:write`                     | Member invitations and membership changes                                                                         |
-| `reviews:read`                   | Your reviewer assignments, assigned evidence, private drafts, and submissions                                     |
-| `reviews:write`                  | Accept/decline assignments, report conflicts, save private drafts, submit and amend your assessments              |
-| `profile:read` / `profile:write` | Read / change your navigation pins                                                                                |
-| `onboarding:read`                | Read membership invitations and your account's demo status                                                        |
-| `onboarding:write`               | Request workspace access, accept membership invitations, start and reset your account's demo                      |
-| `admin:read` / `admin:write`     | Read / manage organizations, initial-owner invitations, and access requests as a Merit operator                   |
+| OAuth grant        | Allows, subject to current Merit permissions                                                                      |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| `workspace:read`   | Workspace discovery, rounds, applications, manager assignment views, contacts, and workspace members              |
+| `grants:write`     | Round preparation, intake, reviews, reviewer invitations and assignment management, recommendations, and contacts |
+| `reviews:read`     | Your reviewer assignments, assigned evidence, private drafts, and submissions                                     |
+| `reviews:write`    | Accept/decline assignments, report conflicts, save private drafts, submit and amend your assessments              |
+| `onboarding:write` | Start or resume the signed-in account's demo                                                                      |
 
-Grant only the access the client needs. Existing workspace grants do not authorize
-private reviewer work, personal settings, onboarding, or operator administration.
-Team administration still requires current owner or administrator authority;
-operator tools require a configured Merit operator. There are no independent agent
-accounts: every call acts for the authenticated person. Sign-in and OAuth consent
-remain outside the tools; no anonymous MCP access is available.
+Grant the scopes needed for the task. For example, trying a sample round requires
+`onboarding:write` to start the demo and `workspace:read` to read the round.
+A reviewer’s private work has its own scopes. Every tool acts for the person who
+signed in and granted consent.
 
 The server verifies OAuth identity and client ID on each request, then checks the
 required grant for each tool. Shared application operations recheck current
@@ -65,11 +58,11 @@ person's identity in tool arguments does not grant workspace access.
 
 Lists default to 20 records and accept a `limit` from 1 to 50. Follow `nextCursor`
 by passing it as `after` until it is `null`. Record lists use stable identifier
-order, not title or date order. Access requests use normalized email order.
+order, not title or date order.
 Histories and workspace activity are newest first; round and application
 histories instead list ascending revisions, paged by passing `nextRevision` as
 `afterRevision`.
-Personal pins return their complete saved order rather than a paginated list. These are live reads: changing a title does not move a
+These are live reads: changing a title does not move a
 record between pages, but records inserted before a cursor require restarting
 the list to discover them. Each request rechecks access. Pagination is not a
 transactional snapshot of a workspace.
@@ -107,8 +100,7 @@ narrow the list, as on the web; take person IDs from the returned `people`, and 
 the same filters while following a cursor. Each entry carries the
 recorded person's name, web or MCP-client provenance, a stored action name, and the
 record's current title and browser link, or a null record that no longer exists.
-Only current program managers can read it. For membership and invitation changes,
-read `list_team_history`. The
+Only current program managers can read it. The
 [workflow](../workflows/review-and-decide.md#catch-up-on-shared-changes) lists what
 is recorded.
 
@@ -132,13 +124,10 @@ absent optional source is the JSON value `null`. Invalid offsets or a missing
 required source identifier return `invalid_range`. No content is silently truncated.
 
 `get_contact` returns the current profile. `list_contact_applications` shows
-applicant and reviewer associations, including historical review use. `get_team` returns workspace and
-permission context; members, pending invitations, and access history have separate
-list tools. `list_team_history` also uses a newest-first time cursor. Invitations
-and access history require current administrative authority.
-`get_team_event` reads an immutable event's JSON details with explicit continuation.
-Manager candidates are active team members with program-manager responsibility;
-the save operation still checks their eligibility.
+applicant and reviewer associations, including historical review use.
+Use `list_team_members` to find eligible people when choosing a round manager or
+inviting a reviewer. A round manager must be an active program manager. The
+save operation checks eligibility again.
 
 ## Edit and recover
 
@@ -150,7 +139,6 @@ the save operation still checks their eligibility.
 | Review            | `request_review`, `cancel_review_request`, `record_assessment`, `correct_assessment`                                                                                    |
 | Recommend         | `save_recommendation`                                                                                                                                                   |
 | Maintain contacts | `create_contact`, `update_contact`, `archive_contact`, `restore_contact`                                                                                                |
-| Manage a team     | `invite_member`, `resend_member_invitation`, `revoke_member_invitation`, `change_member`, `remove_member`                                                               |
 
 Read before editing. Preserve the original preconditions for strict checks until the save succeeds:
 
@@ -161,11 +149,8 @@ Read before editing. Preserve the original preconditions for strict checks until
 | Recommendation                                                                     | `expectedRecommendationRevision` and `expectedApplicationVersion`                                       |
 | Review request, cancellation, assessment recording, or correction                  | Target-scoped check using `expectedAssessmentVersion` or review/application/criteria preconditions      |
 | Contact profile update vs archive/restore                                          | `expectedContactRevision` required for archive/restore (optional LWW for profile update)                |
-| Member change or removal                                                           | `expectedMembershipId`, `expectedMembershipVersion` (and `expectedInvitationIds` when revoking access)  |
 
-Application preconditions come from `get_application`. Member versions come from
-`list_team_members`; when demoting an administrator or removing a member, collect pending invitations issued by that person with
-`list_team_invitations`, filtering `issuedBy` and following continuation. If strict
+Application preconditions come from `get_application`. If strict
 preconditions change before the write, the operation rejects the stale request with `conflict`.
 Independent metadata updates (round name, committee date, responsible manager, staff summary,
 applicant contact link, and contact profile details) apply last-write-wins without rejecting stale revisions. Contact
@@ -196,11 +181,8 @@ retries. Version checks prevent duplicate edits from being applied again; a retr
 may return a conflict after the original save succeeded. After a lost response,
 read the current state before deciding whether another save is needed. Successful
 mutations identify the affected record; edits return the resulting revision where
-applicable. A successful invitation replacement returns the new and replaced IDs.
-Reissuing an invitation replaces the old invitation, so reread pending invitations
-after response loss.
-Invitation delivery happens after commit; inspect delivery status and use resend
-to recover a failed email. Review requests only track work and send no messages.
+applicable. Review invitations send email after commit. Inspect delivery status
+and use resend to recover a failed email. Review requests only track work.
 
 Requested edits save directly, including budget changes with their required reason.
 There is no additional web-confirmation step. Ask for suggestions when no save is
@@ -237,44 +219,16 @@ on retries. Read the assignment to check notification status after submission.
 Managers use `list_application_reviewers`, `invite_reviewer`, and
 `manage_reviewer_assignment`. Create a review request first, then invite its
 contact using the email recorded on their qualifying membership. If they have not
-joined yet, an owner or administrator first uses `invite_member` with the
-`reviewer` role; the recipient accepts the membership invitation before the
-assignment invitation is issued. Unlike `request_review`, `invite_reviewer` sends email. Management actions
+joined yet, an owner or administrator opens **Workspace settings → Members & access**
+on the website and invites them with the reviewer role. After the recipient accepts
+membership, the manager can send the assignment invitation through MCP. Management actions
 end or reinstate access, clear conflicts with a reason, resend invitations, or retry
 submission notifications. Clearing a conflict requires the reviewer to accept again.
 These tools preserve the [reviewer workflow](../workflows/participate-in-review.md).
 
-## Personal shortcuts, onboarding, and administration
-
-`get_navigation_pins` and `change_navigation_pin` read and change your personal
-shortcuts. Pinning grants no access. Moving a shortcut names its neighbour in the
-same section, or uses `before: null` to move to the end. Changes are safe to retry.
-
-Use `get_membership_invitation` with the token from an invitation link to read the
-offered organization responsibilities, then `accept_membership_invitation` to join.
-Acceptance requires the invited verified email and preserves disabled-account and
-revoked-invitation checks. `request_workspace_access` records a request to explore
-the prototype; it sends no email and grants no access.
-
-`get_demo` reads your account's demo without creating it. `start_demo` resumes an
-active copy or creates one; use `fresh: true` after expiry. To replace all demo
-progress, call `reset_demo` with `resetWorkspaceId` from `get_demo`. Keep that ID
-on retries so the replacement cannot be reset again accidentally. These operations
-use the same seeding, seven-day expiry, and rate limits as the browser. They never
-use anonymous browser cookies. An empty or expired read is a successful status
-lookup; an expired start, rate limit, or unavailable operation is a tool error.
-
-Operators use `list_organizations`, `get_organization`, `create_organization`,
-`rename_organization`, `replace_owner_invitation`, and `revoke_owner_invitation`.
-Creation sends an initial-owner invitation; reuse `requestId` on retry and inspect
-the organization's delivery status. Replacing an invitation also resends it and
-invalidates the previous link, so read current status before retrying. These tools
-do not grant operators workspace membership. `list_access_requests` and
-`review_access_request` support triage without sending messages or granting access.
-
 ## Understand attribution
 
-Grant-work and team history record the person, timestamp, and interface. Entries
+Grant-work history records the person, timestamp, and interface. Entries
 for changes made through MCP also record the verified OAuth client ID. Web history displays that provenance alongside the actor;
 MCP reads return it as structured data. Client-supplied names are not trusted as
 identity. Earlier records without provenance are shown as not recorded.

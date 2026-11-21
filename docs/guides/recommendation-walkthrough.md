@@ -121,13 +121,13 @@ preserves the same distinction between commitment and refresh.
 
 ## Reach the same operation through MCP
 
-The [save_recommendation tool](../../interfaces/mcp/src/features/recommendations/tools.ts)
+The [save_recommendation tool](../../capabilities/recommendations/ai/src/tools.ts)
 maps `applicationId` to `publicId` and `expectedRecommendationRevision` to
 `expectedRevision`. It passes `expectedApplicationVersion` and the verified MCP
 actor to the same service operation. The
-[registrar](../../interfaces/mcp/src/components/register-tool.ts) enforces the
-declared `grants:write` scope, validates responses, and reports unexpected failures
-as unavailable. Business access and revision checks still happen in the operation.
+[MCP server](../../interfaces/mcp/src/app/server.ts) enforces the published
+`grants:write` scope. The [AI tool runtime](../../foundation/ai/src/tool.ts) validates
+responses and reports unexpected failures as unavailable. Business access and revision checks still happen in the operation.
 
 MCP has no browser draft store or Query cache. The client retains its original
 preconditions, reconciles conflicts, and reads current state after a lost response.

@@ -1,11 +1,12 @@
-import { Client, StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
-import { expect, vi } from "vite-plus/test";
+import { createMCPClient } from "@tanstack/ai-mcp";
+import { vi } from "vite-plus/test";
 
 import { resolveAccountUser } from "@merit/auth/server";
 import { currentAccount } from "@merit/auth/session";
 import type { Database } from "@merit/db";
 import { roundTest } from "@merit/grantmaking/testing/rounds";
 import { handleWorkspaceMcp, mcpScopes } from "@merit/mcp";
+import { productLinks } from "@merit/product/links";
 
 import { createAccountDemoServices } from "../../src/server/demo-workspace.server";
 import { createApplicationServices } from "../../src/server/services.server";
@@ -35,7 +36,6 @@ export const createTransport = (
     contacts,
     organizations: team,
     reviewer,
-    navigation,
   } = createApplicationServices({
     database: async (operation) => operation(db),
     identity,
@@ -67,10 +67,37 @@ export const createTransport = (
     recommendations,
     grantmaking,
     contacts,
-    organizations: team,
-    navigation,
+    organizations: {
+      ...team,
+      workspaceHomeUrl: (workspace) =>
+        new URL(productLinks.workspaceHome(workspace), endpoint).href,
+    },
     demo: createAccountDemoServices(async (operation) => operation(db), "integration"),
-  };
+  } satisfies Omit<Parameters<typeof handleWorkspaceMcp>[2], "authenticate">;
+
+  const connect = (userId: string, scopes: readonly string[]) =>
+    createMCPClient({
+      name: "merit-persistence-test",
+      transport: {
+        type: "http",
+        url: endpoint.href,
+        fetch: (url, init) => {
+          const request = new Request(url, init);
+          request.headers.set("host", endpoint.host);
+          return handleWorkspaceMcp(request, endpoint.href, {
+            authenticate: async () => ({
+              userId,
+              provenance: { interface: "mcp", clientId: "integration-client" },
+              scopes,
+            }),
+            ...mcpOperations,
+          });
+        },
+      },
+    });
+
+  // A connected assistant discovers the catalog once and uses its grant across calls.
+  const clients = new Map<string, ReturnType<typeof connect>>();
 
   const callMcp = async (
     userId: string,
@@ -78,37 +105,19 @@ export const createTransport = (
     name = "get_funding_round",
     scopes: readonly string[] = mcpScopes,
   ) => {
-    const client = new Client({ name: "merit-persistence-test", version: "1.0.0" });
-
-    try {
-      await client.connect(
-        new StreamableHTTPClientTransport(endpoint, {
-          fetch: (url, init) => {
-            const request = new Request(url, init);
-            request.headers.set("host", endpoint.host);
-
-            return handleWorkspaceMcp(request, endpoint.href, {
-              authenticate: async () => ({
-                userId,
-                provenance: { interface: "mcp", clientId: "integration-client" },
-                scopes,
-              }),
-              ...mcpOperations,
-            });
-          },
-        }),
-      );
-      const tools = await client.listTools();
-
-      expect(tools.tools.map((tool) => tool.name)).toContain("get_funding_round");
-
-      return await client.callTool({ name, arguments: toolArguments });
-    } finally {
-      await client.close();
+    const key = JSON.stringify([userId, ...scopes]);
+    let client = clients.get(key);
+    if (!client) {
+      client = connect(userId, scopes);
+      clients.set(key, client);
     }
+    return (await client).callTool(name, toolArguments);
   };
 
-  return { services, mcpOperations, team, reviewer, navigation, callMcp, session };
+  const close = () =>
+    Promise.all(Array.from(clients.values(), async (client) => (await client).close()));
+
+  return { services, mcpOperations, team, reviewer, callMcp, session, close };
 };
 
 export const transportTest = roundTest.extend(
@@ -117,9 +126,14 @@ export const transportTest = roundTest.extend(
   async ({ db }, { onCleanup }) => {
     vi.stubEnv("VITE_CLERK_PUBLISHABLE_KEY", "test-only");
     session.userId = "seed_alder";
-    onCleanup(() => {
-      vi.unstubAllEnvs();
+    const transport = createTransport(db);
+    onCleanup(async () => {
+      try {
+        await transport.close();
+      } finally {
+        vi.unstubAllEnvs();
+      }
     });
-    return createTransport(db);
+    return transport;
   },
 );

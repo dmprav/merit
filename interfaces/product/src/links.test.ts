@@ -2,6 +2,20 @@ import { expect, it } from "vite-plus/test";
 
 import { productLinks } from "./links";
 
+it.each([
+  [true, true, "rounds"],
+  [true, false, "rounds"],
+  [false, true, "settings/members"],
+  [false, false, "work"],
+] as const)(
+  "builds the workspace home for grant access %s and team access %s",
+  (canWorkOnGrants, canViewTeam, destination) => {
+    expect(productLinks.workspaceHome({ slug: "alder/1", canWorkOnGrants, canViewTeam })).toBe(
+      `/app/alder%2F1/${destination}`,
+    );
+  },
+);
+
 it("keeps an invitation token inside one encoded path segment", () => {
   expect(productLinks.invitation("token/with?reserved#characters")).toBe(
     "/invitations/token%2Fwith%3Freserved%23characters",

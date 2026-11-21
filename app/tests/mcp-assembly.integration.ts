@@ -1,4 +1,4 @@
-import { Client, StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
+import { createMCPClient } from "@tanstack/ai-mcp";
 import { afterEach, expect, vi } from "vite-plus/test";
 
 import { AuthenticationError } from "@merit/auth";
@@ -38,20 +38,24 @@ it("assembles real MCP services with each bearer's workspace and scopes despite 
   }));
 
   const discover = async (subject: string) => {
-    const client = new Client({ name: "assembly-test", version: "1.0.0" });
+    const client = await createMCPClient({
+      name: "assembly-test",
+      transport: {
+        type: "http",
+        url: endpoint.href,
+        headers: {
+          Authorization: `Bearer ${subject}`,
+          Cookie: "__session=another-account; merit-demo-session=guest",
+        },
+        fetch: (url, init) => {
+          const request = new Request(url, init);
+          request.headers.set("Host", endpoint.host);
+          return handleMcp(request, config, dependencies(db));
+        },
+      },
+    });
     try {
-      await client.connect(
-        new StreamableHTTPClientTransport(endpoint, {
-          fetch: (url, init) => {
-            const request = new Request(url, init);
-            request.headers.set("Host", endpoint.host);
-            request.headers.set("Authorization", `Bearer ${subject}`);
-            request.headers.set("Cookie", "__session=another-account; merit-demo-session=guest");
-            return handleMcp(request, config, dependencies(db));
-          },
-        }),
-      );
-      return (await client.callTool({ name: "list_workspaces", arguments: {} })).structuredContent;
+      return (await client.callTool("list_workspaces", {})).structuredContent;
     } finally {
       await client.close();
     }
@@ -59,7 +63,7 @@ it("assembles real MCP services with each bearer's workspace and scopes despite 
 
   expect(await discover("seed_alder")).toMatchObject({
     status: "ok",
-    workspaces: [{ slug: "alder" }],
+    workspaces: [{ slug: "alder", url: "https://merit.example/app/alder/rounds" }],
     grantedScopes: ["workspace:read"],
   });
   expect(await discover("seed_birch")).toMatchObject({

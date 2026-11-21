@@ -15,9 +15,9 @@ workspace fixture identity applies only to web requests, never to MCP.
    The resource URL and client connection must match, including trailing slashes.
 3. Enable the intended clients and require PKCE.
 4. Configure the [published scopes](mcp.md#choose-client-access) as custom OAuth
-   scopes for the intended clients: `workspace:read`, `grants:write`, `team:write`,
-   `reviews:read`, `reviews:write`, `profile:read`, `profile:write`,
-   `onboarding:read`, `onboarding:write`, `admin:read`, and `admin:write`.
+   scopes for the intended clients. Grant work uses `workspace:read` and
+   `grants:write`. Reviewer participation uses `reviews:read` and `reviews:write`.
+   Starting the account demo uses `onboarding:write`.
    Grant only the scopes needed for the person's task. Existing clients must
    request additional consent before using newly added scopes; existing tokens
    do not acquire those permissions automatically.
@@ -35,13 +35,13 @@ resource, configured issuer, and supported scopes. A signed-out request to
 
 With a provisioned user, discover a workspace, read an application, and save a
 recommendation with fictional data. Verify the result and client provenance in the
-web workspace. Check read-only and grant-editing clients cannot administer the
-team or use the new scope families; revoke membership and confirm subsequent
-workspace calls fail. Test a reviewer with qualifying membership and an assignment,
-then remove and restore membership. Verify the assignment remains inaccessible
-until a manager explicitly reinstates it.
-Also check wrong-email invitation acceptance, a non-operator using admin tools, and an account demo reset
-with its original workspace ID retried. Check consent, refresh,
+web workspace. Verify that a read-only client needs an additional grant to
+save grant work. Revoke membership and confirm subsequent workspace calls fail.
+Test a reviewer with qualifying membership and an assignment, then remove and
+restore their membership through the website. Verify the assignment remains
+inaccessible until a manager explicitly reinstates it.
+With a signed-in account, start or resume its demo and read the returned round.
+Check consent, refresh,
 sign-out, and token revocation with the clients you intend to support. Automated
 [verification](verification.md#verification) covers transport, signed token
 verification, shared operations, access isolation, and persisted provenance; it
@@ -54,7 +54,7 @@ For changes to tool registration and contracts, follow the
 
 If authentication fails, check the exact resource URL, issuer, granted scopes, and
 current authority for the requested tool. Reviewers need qualifying workspace membership bound to their assignment.
-Onboarding and operator administration do not require workspace membership. Host validation uses `APP_ORIGIN`. Browser requests must have
+Starting an account demo requires sign-in and the demo scope. Host validation uses `APP_ORIGIN`. Browser requests must have
 the exact application origin, including scheme and port; opaque and other origins
 are rejected before authentication. Native and server clients may omit Origin.
 A hosted client cannot reach your computer's localhost without an appropriate

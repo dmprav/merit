@@ -133,6 +133,7 @@ export const imports = {
     {
       files: [
         "**/interfaces/*/src/**",
+        "**/capabilities/*/ai/src/**",
         "**/capabilities/*/business/src/**",
         "**/capabilities/access/src/**",
         "**/foundation/*/src/**",
@@ -261,8 +262,28 @@ export const imports = {
       ]),
     },
     {
+      files: ["**/capabilities/*/ai/src/**"],
+      rules: forbidImports(`^(${frameworks}|${serverLibraries})`),
+    },
+    {
+      files: ["**/foundation/ai/src/**"],
+      rules: forbidImports(
+        `^(@clerk/|@modelcontextprotocol/|react($|/|-)|i18next($|/)|${serverLibraries})`,
+        [
+          ...restrictedImports,
+          { group: ["@tanstack/**", "!@tanstack/ai"], message: "Shared AI tools use TanStack AI." },
+        ],
+      ),
+    },
+    {
       files: ["**/interfaces/mcp/src/**"],
-      rules: forbidImports("^(drizzle-orm(/|$)|pg$|@tanstack/|react($|/|-)|i18next($|/))"),
+      rules: forbidImports("^(drizzle-orm(/|$)|pg$|react($|/|-)|i18next($|/))", [
+        ...restrictedImports,
+        {
+          group: ["@tanstack/**", "!@tanstack/ai-mcp", "!@tanstack/ai-mcp/server"],
+          message: "The MCP interface uses TanStack AI for tools and MCP transport.",
+        },
+      ]),
     },
     {
       files: ["**/interfaces/site/src/**"],

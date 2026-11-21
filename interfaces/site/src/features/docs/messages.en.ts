@@ -447,7 +447,7 @@ export const docs = {
     mcp: {
       title: "Connect through MCP",
       description:
-        "Work on grants, complete your reviews, and manage account tasks through a connected client.",
+        "Try the fictional demo, work on grants, and complete your assigned reviews through a connected client.",
       connect: {
         title: "Connect your account",
         body: "Add this server URL in a client that supports remote MCP over Streamable HTTP and OAuth. Sign in with your Merit account and choose the access to grant the client. Your current Merit permissions still apply.",
@@ -458,6 +458,10 @@ export const docs = {
       },
       request: {
         title: "Make your first request",
+        demoTitle: "To try Merit",
+        demoPrompt: "Start my Merit demo and show me the sample funding round.",
+        demoTool:
+          "Your client uses <tool>start_demo</tool> to create or resume your seven-day example and <tool>get_funding_round</tool> to open the sample round. Grant onboarding:write and workspace:read for this task.",
         staffTitle: "For workspace staff",
         reviewerTitle: "For reviewers",
         reviewerPrompt:
@@ -470,7 +474,7 @@ export const docs = {
       },
       result: {
         title: "Read, prepare, and save",
-        body: "Workspace staff can read evidence and history, prepare grant work, maintain contacts, and save recommendations. Reviewers can respond to invitations, save private drafts, and submit or amend their own assessments. Account tools handle personal shortcuts, membership invitations, and your demo. Operator administration has separate permissions. Public publication and funding decisions are not available.",
+        body: "Workspace staff can read evidence and history, prepare grant work, maintain contacts, and save recommendations. Reviewers can respond to invitations, save private drafts, and submit or amend their own assessments. Workspace owners and administrators invite new members on the website. A manager can then send an application review invitation through the client.",
         money:
           "Grant summaries and recorded assessments use an integer minorUnits string and a currency field. For example, 2200000 minor units in EUR means €22,000. Reviewer drafts accept decimal text such as 123.45. An unstated assessment amount is null.",
         saving:
@@ -479,26 +483,18 @@ export const docs = {
       workspace: {
         title: "Access and permissions",
         availability:
-          "Sign in with your Merit account. Workspace and review work require current membership; review assignments also restrict which material you can read and assess. Personal shortcuts and onboarding use their own access rules. Anonymous visitors can explore the browser demo; MCP always requires sign-in.",
+          "Sign in with your Merit account. Workspace and review work require current membership; review assignments also restrict which material you can read and assess. You can start an account demo even before you join a standard workspace.",
         auth: "Grant the client only the access needed for your task. These OAuth grants limit what it can do on your behalf; they never replace your current Merit permissions. Request additional consent if a new task needs a different grant.",
         task: "Task",
         grants: "Client access",
         scopes: {
           work: "Grant work",
           workGrants: "workspace:read to read; grants:write to change grant work or contacts.",
-          team: "Team",
-          teamGrants:
-            "workspace:read to read; team:write to manage membership, with owner or administrator authority.",
           reviews: "Your reviews",
           reviewsGrants:
             "reviews:read to read; reviews:write to respond, save drafts, submit, or amend.",
-          profile: "Your shortcuts",
-          profileGrants: "profile:read to read; profile:write to change your pins.",
-          onboarding: "Invitations and your demo",
-          onboardingGrants:
-            "onboarding:read to read; onboarding:write to accept membership invitations, request access, or start and reset your demo.",
-          admin: "Operator tools",
-          adminGrants: "admin:read or admin:write, with designated Merit operator authority.",
+          demo: "Your demo",
+          demoGrants: "onboarding:write to start or resume your account’s fictional workspace.",
         },
       },
       troubleshooting: {

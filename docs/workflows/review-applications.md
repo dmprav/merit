@@ -3,7 +3,7 @@
 Review requests track expected work; assessments record judgments received.
 Program managers do both through web and MCP, including in the demo. They can also
 [invite reviewers to submit their own assessments](participate-in-review.md) in
-standard workspaces through the browser. Manager-recorded assessments continue
+standard workspaces through the browser or MCP. Manager-recorded assessments continue
 to support reviews received from people without Merit accounts.
 Use written observations against criteria, overall reasoning, a funding position,
 and a proposed amount where stated. Numeric scores and automatic ranking are outside
