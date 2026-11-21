@@ -5,32 +5,50 @@ import { expect, it, vi } from "vite-plus/test";
 
 import { ActionMenu } from "./action-menu";
 
-it("preserves real link activation and cancels a context menu without an action", async () => {
+const ContextMenuLink = ({
+  onAction = vi.fn(),
+  onClick,
+}: {
+  onAction?: () => void;
+  onClick?: (event: MouseEvent) => void;
+}) => (
+  <ActionMenu
+    label="Pin actions"
+    activation="contextMenu"
+    tooltip="Round · Workspace"
+    trigger={
+      <a href="/round" onClick={onClick}>
+        Round
+      </a>
+    }
+    items={[{ id: "up", label: "Move up" }]}
+    onAction={onAction}
+  />
+);
+
+it("keeps a plain click on a context-menu trigger as link navigation", async () => {
   const user = userEvent.setup();
-  const action = vi.fn();
   const navigate = vi.fn((event: MouseEvent) => event.preventDefault());
-  render(
-    <ActionMenu
-      label="Pin actions"
-      activation="contextMenu"
-      tooltip="Round · Workspace"
-      trigger={
-        <a href="/round" onClick={navigate}>
-          Round
-        </a>
-      }
-      items={[{ id: "up", label: "Move up" }]}
-      onAction={action}
-    />,
-  );
-  const link = screen.getByRole("link", { name: "Round" });
-  await user.click(link);
+  render(<ContextMenuLink onClick={navigate} />);
+
+  await user.click(screen.getByRole("link", { name: "Round" }));
+
   expect(navigate).toHaveBeenCalledOnce();
   expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+});
+
+it("cancels a context menu with Escape without an action and restores link focus", async () => {
+  const user = userEvent.setup();
+  const action = vi.fn();
+  render(<ContextMenuLink onAction={action} />);
+  const link = screen.getByRole("link", { name: "Round" });
   link.focus();
   fireEvent.contextMenu(link);
+
   expect(screen.getByRole("menuitem", { name: "Move up" })).toBeVisible();
+
   await user.keyboard("{Escape}");
+
   await waitFor(() => expect(link).toHaveFocus());
   expect(action).not.toHaveBeenCalled();
 });
@@ -58,16 +76,7 @@ it("prevents macOS context-menu Enter from activating the link before the menu o
 
 it("moves focus into a context menu opened after a virtual focus event", async () => {
   const user = userEvent.setup();
-  render(
-    <ActionMenu
-      label="Pin actions"
-      activation="contextMenu"
-      tooltip="Round · Workspace"
-      trigger={<a href="/round">Round</a>}
-      items={[{ id: "up", label: "Move up" }]}
-      onAction={vi.fn()}
-    />,
-  );
+  render(<ContextMenuLink />);
   const link = screen.getByRole("link", { name: "Round" });
   link.focus();
   // Simulate native/CDP focus without prior pointer/keyboard modality.
