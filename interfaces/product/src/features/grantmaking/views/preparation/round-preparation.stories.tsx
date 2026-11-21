@@ -247,7 +247,7 @@ export const BudgetHistory: Story = {
     await expect(readBudgetHistory).not.toHaveBeenCalled();
     await userEvent.click(dialog.getByRole("button", { name: "Budget history" }));
 
-    await expect(await dialog.findByText("via MCP client example-client")).toBeVisible();
+    await waitFor(() => expect(dialog.getByText("via MCP client example-client")).toBeVisible());
     await expect(
       dialog.getByText("Additional funding approved for accessible venues."),
     ).toBeVisible();
