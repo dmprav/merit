@@ -70,6 +70,24 @@ it("keeps loaded entries usable and offers a retry toast after a failed read", a
   expect(screen.queryByRole("button", { name: "Load older entries" })).not.toBeInTheDocument();
   await user.click(within(toast).getByRole("button", { name: "Try again" }));
   expect(retry).toHaveBeenCalledOnce();
+  expect(screen.getByRole("button", { name: "Try again" })).toBeVisible();
+});
+
+it("keeps the failed page recoverable after the toast is dismissed", async () => {
+  const retry = vi.fn();
+  const user = userEvent.setup();
+  render(
+    <PagedContent entries={["recent"]} loaded failed hasMore retry={retry}>
+      {(entries) => <p>{entries.join(", ")}</p>}
+    </PagedContent>,
+    { wrapper },
+  );
+
+  await user.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Close" }));
+  expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+  expect(screen.getByText("recent")).toBeVisible();
+  await user.click(screen.getByRole("button", { name: "Try again" }));
+  expect(retry).toHaveBeenCalledOnce();
 });
 
 it("places recovery in the page when no entries could be shown", () => {

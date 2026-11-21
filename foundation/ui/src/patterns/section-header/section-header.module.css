@@ -15,7 +15,7 @@
   font-weight: 500;
 }
 
-.title:focus {
+.title:focus:not(:focus-visible) {
   outline: none;
 }
 

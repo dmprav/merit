@@ -148,14 +148,14 @@ const RefreshFailure = ({ failed, onRefresh }: { failed: boolean; onRefresh: () 
 it("keeps a toast up while its condition lasts and removes it once the condition clears", () => {
   const refresh = vi.fn();
 
-  const view = (failed: boolean) => (
+  const view = (failed: boolean | null) => (
     <MessagesProvider messages={{}}>
-      <RefreshFailure failed={failed} onRefresh={refresh} />
+      {failed !== null && <RefreshFailure failed={failed} onRefresh={refresh} />}
       <Toasts />
     </MessagesProvider>
   );
 
-  const { rerender, unmount } = render(view(false));
+  const { rerender } = render(view(false));
 
   expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
 
@@ -170,7 +170,28 @@ it("keeps a toast up while its condition lasts and removes it once the condition
   expect(toast("The latest round could not be loaded.")).not.toBeInTheDocument();
 
   rerender(view(true));
-  unmount();
+  rerender(view(null));
 
   expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+});
+
+it("uses the current recovery action while the failure stays active", async () => {
+  const original = vi.fn();
+  const current = vi.fn();
+
+  const view = (onRefresh: () => void) => (
+    <MessagesProvider messages={{}}>
+      <RefreshFailure failed onRefresh={onRefresh} />
+      <Toasts />
+    </MessagesProvider>
+  );
+
+  const { rerender } = render(view(original));
+  rerender(view(current));
+
+  await userEvent
+    .setup({ advanceTimers: vi.advanceTimersByTime })
+    .click(screen.getByRole("button", { name: "Refresh" }));
+  expect(current).toHaveBeenCalledOnce();
+  expect(original).not.toHaveBeenCalled();
 });

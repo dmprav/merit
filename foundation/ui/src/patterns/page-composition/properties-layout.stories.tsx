@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect } from "storybook/test";
 
 import {
   DescriptionList,
@@ -31,5 +32,16 @@ export default meta;
 
 type Story = StoryObj<typeof meta>;
 
-export const PropertiesFirstWhenStacked: Story = {};
-export const PropertiesLastWhenStacked: Story = { args: { stackedPlacement: "after" } };
+export const PropertiesFirstWhenStacked: Story = {
+  play: async ({ canvas }) => {
+    const panel = canvas.getByRole("complementary", { name: "Round properties" });
+    await expect(panel.nextElementSibling).toHaveTextContent("Support local projects");
+  },
+};
+export const PropertiesLastWhenStacked: Story = {
+  args: { stackedPlacement: "after" },
+  play: async ({ canvas }) => {
+    const panel = canvas.getByRole("complementary", { name: "Round properties" });
+    await expect(panel.previousElementSibling).toHaveTextContent("Support local projects");
+  },
+};

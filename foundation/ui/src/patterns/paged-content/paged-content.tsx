@@ -34,18 +34,33 @@ export const CollectionRecovery = ({
   isPending?: boolean;
   showsEntries?: boolean;
 }) => {
+  const [dismissed, setDismissed] = useState(false);
   useToastWhile(
-    showsEntries && !isPending
+    showsEntries && !isPending && !dismissed
       ? {
           tone: "danger",
           message,
-          action: onRetry && { label: retryLabel, onPress: () => void onRetry() },
+          onDismiss: () => setDismissed(true),
+          action: onRetry && {
+            label: retryLabel,
+            onPress: () => {
+              setDismissed(true);
+              void onRetry();
+            },
+          },
         }
       : null,
   );
 
   if (showsEntries) {
-    return isPending ? <p role="status">{message}</p> : null;
+    if (isPending) {
+      return <p role="status">{message}</p>;
+    }
+    return dismissed && onRetry ? (
+      <Button size="medium" variant="quiet" onPress={() => void onRetry()}>
+        {retryLabel}
+      </Button>
+    ) : null;
   }
 
   return (

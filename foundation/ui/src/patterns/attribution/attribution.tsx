@@ -20,7 +20,7 @@ export const Attribution = ({
   recordedAt,
 }: {
   actor: string | null;
-  /** null shows that the interface was not recorded. */
+  /** Names an MCP client beside the actor when one was recorded. */
   provenance?: ActionProvenanceValue | null;
   /** An instant, shown in the viewer's local time. */
   recordedAt?: string;

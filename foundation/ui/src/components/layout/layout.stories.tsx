@@ -48,6 +48,16 @@ type Story = StoryObj<typeof meta>;
 
 export const Flow: Story = {};
 
+export const Divided: Story = {
+  args: { gap: 6, divided: "between" },
+  play: async ({ canvas }) => {
+    const section = canvas.getByRole("region", { name: "Prepare the recommendation" });
+    const actions = canvas.getByRole("group", { name: "Recommendation actions" });
+    await expect(getComputedStyle(actions).paddingTop).toBe(getComputedStyle(section).rowGap);
+    await expect(getComputedStyle(actions).gap).not.toBe(getComputedStyle(section).rowGap);
+  },
+};
+
 export const ReadingWidth: Story = {
   parameters: { controls: { disable: true } },
   render: () => (

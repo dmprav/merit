@@ -17,11 +17,17 @@ export const PropertiesLayout = ({
   properties: ReactNode;
   propertiesLabel: string;
   stackedPlacement?: "before" | "after";
-}) => (
-  <div className={styles.layout} data-stacked-placement={stackedPlacement}>
-    <div className={styles.main}>{children}</div>
+}) => {
+  const panel = (
     <aside className={styles.properties} aria-label={propertiesLabel}>
       {properties}
     </aside>
-  </div>
-);
+  );
+  return (
+    <div className={styles.layout} data-stacked-placement={stackedPlacement}>
+      {stackedPlacement === "before" && panel}
+      <div className={styles.main}>{children}</div>
+      {stackedPlacement === "after" && panel}
+    </div>
+  );
+};

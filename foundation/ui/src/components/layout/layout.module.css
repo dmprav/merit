@@ -7,36 +7,72 @@
   --layout-gap: 0px;
 }
 
+.stack[data-gap="0"] > * {
+  --parent-stack-gap: 0px;
+}
+
 :is(.stack, .inline)[data-gap="1"] {
   --layout-gap: var(--space-1);
+}
+
+.stack[data-gap="1"] > * {
+  --parent-stack-gap: var(--space-1);
 }
 
 :is(.stack, .inline)[data-gap="2"] {
   --layout-gap: var(--space-2);
 }
 
+.stack[data-gap="2"] > * {
+  --parent-stack-gap: var(--space-2);
+}
+
 :is(.stack, .inline)[data-gap="3"] {
   --layout-gap: var(--space-3);
+}
+
+.stack[data-gap="3"] > * {
+  --parent-stack-gap: var(--space-3);
 }
 
 :is(.stack, .inline)[data-gap="4"] {
   --layout-gap: var(--space-4);
 }
 
+.stack[data-gap="4"] > * {
+  --parent-stack-gap: var(--space-4);
+}
+
 :is(.stack, .inline)[data-gap="5"] {
   --layout-gap: var(--space-5);
+}
+
+.stack[data-gap="5"] > * {
+  --parent-stack-gap: var(--space-5);
 }
 
 :is(.stack, .inline)[data-gap="6"] {
   --layout-gap: var(--space-6);
 }
 
+.stack[data-gap="6"] > * {
+  --parent-stack-gap: var(--space-6);
+}
+
 :is(.stack, .inline)[data-gap="7"] {
   --layout-gap: var(--space-7);
 }
 
+.stack[data-gap="7"] > * {
+  --parent-stack-gap: var(--space-7);
+}
+
 :is(.stack, .inline)[data-gap="8"] {
   --layout-gap: var(--space-8);
+}
+
+.stack[data-gap="8"] > * {
+  --parent-stack-gap: var(--space-8);
 }
 
 .stack {
@@ -88,7 +124,7 @@
 
 /* Entries that carry their own padding keep it; the rules still separate them. */
 :where(.stack[data-divided="between"]) > * + * {
-  padding-top: var(--layout-gap);
+  padding-top: var(--parent-stack-gap);
 }
 
 .stack[data-divided="between"] > * + * {
@@ -96,7 +132,7 @@
 }
 
 :where(.stack:is([data-divided="after"], [data-divided="around"])) > * {
-  padding-bottom: var(--layout-gap);
+  padding-bottom: var(--parent-stack-gap);
 }
 
 .stack:is([data-divided="after"], [data-divided="around"]) > * {

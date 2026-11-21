@@ -1,14 +1,17 @@
 .layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 320px;
+  grid-template-areas: "work properties";
   gap: var(--space-7);
 }
 
 .main {
+  grid-area: work;
   min-width: 0;
 }
 
 .properties {
+  grid-area: properties;
   min-width: 0;
   align-self: start;
   padding-left: var(--space-6);
@@ -18,6 +21,12 @@
 @media (max-width: 1350px) {
   .layout {
     grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: none;
+  }
+
+  .main,
+  .properties {
+    grid-area: auto;
   }
 
   .properties {
@@ -26,7 +35,6 @@
   }
 
   .layout[data-stacked-placement="before"] > .properties {
-    grid-row: 1;
     padding-bottom: var(--space-5);
     border-bottom: 1px solid var(--border);
   }

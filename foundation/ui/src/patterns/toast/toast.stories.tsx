@@ -91,25 +91,27 @@ export const InWorkspace: Story = {
   parameters: { layout: "fullscreen" },
   decorators: [
     (Story) => (
-      <ApplicationShell
-        brand="Merit"
-        contextLabel="Alder Foundation"
-        openNavigationLabel="Open navigation"
-        closeNavigationLabel="Close navigation"
-        navigation={<a href="#main">Funding rounds</a>}
-        navigationLabel="Main navigation"
-        skipLabel="Skip to content"
-      >
-        <ApplicationPage
-          width="full"
-          locationKey="toast"
-          breadcrumb={null}
-          breadcrumbLabel="Breadcrumb"
+      <>
+        <Story />
+        <ApplicationShell
+          brand="Merit"
+          contextLabel="Alder Foundation"
+          openNavigationLabel="Open navigation"
+          closeNavigationLabel="Close navigation"
+          navigation={<a href="#main">Funding rounds</a>}
+          navigationLabel="Main navigation"
+          skipLabel="Skip to content"
         >
-          <h1>Local Connections</h1>
-          <Story />
-        </ApplicationPage>
-      </ApplicationShell>
+          <ApplicationPage
+            width="full"
+            locationKey="toast"
+            breadcrumb={null}
+            breadcrumbLabel="Breadcrumb"
+          >
+            <h1>Local Connections</h1>
+          </ApplicationPage>
+        </ApplicationShell>
+      </>
     ),
   ],
   play: async ({ canvasElement, userEvent }) => {

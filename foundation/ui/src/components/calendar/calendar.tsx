@@ -30,7 +30,7 @@ export const Calendar = ({
   label: string;
   isDisabled?: boolean;
   autoFocus?: boolean;
-  /** Actions displayed after month navigation, such as a containing picker's close button. */
+  /** Actions displayed after month navigation. */
   headerActions?: ReactNode;
 }) => {
   const { t } = useTranslation("common");

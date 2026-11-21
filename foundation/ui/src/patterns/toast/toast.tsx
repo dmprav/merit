@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useRef } from "react";
+import { useEffect, useEffectEvent, useLayoutEffect, useRef } from "react";
 import { Text } from "react-aria-components/Text";
 import {
   UNSTABLE_Toast as AriaToast,
@@ -23,6 +23,8 @@ export type ToastMessage = {
   tone: keyof typeof icons;
   /** One short sentence, such as "Recommendation saved". */
   message: string;
+  /** Called when the person dismisses the notification using its close button. */
+  onDismiss?: () => void;
   /** One follow-up, such as Undo or Retry. Pressing it also dismisses the toast. */
   action?: { label: string; onPress: () => void };
 };
@@ -78,7 +80,18 @@ export const useEventToast = (eventId: string | number, toast: ToastMessage | nu
  */
 export const useToastWhile = (toast: ToastMessage | null) => {
   const active = toast !== null;
-  const show = useEffectEvent(() => toast && showToast(toast));
+  const action = useRef(toast?.action);
+  useLayoutEffect(() => {
+    action.current = toast?.action;
+  }, [toast?.action]);
+  const show = useEffectEvent(
+    () =>
+      toast &&
+      showToast({
+        ...toast,
+        action: toast.action && { ...toast.action, onPress: () => action.current?.onPress() },
+      }),
+  );
 
   useEffect(() => {
     if (!active) {
@@ -125,7 +138,13 @@ export const Toasts = () => {
           )}
           {toast.timeout === undefined && (
             // React Aria names the close slot in the reader's language.
-            <ButtonBase slot="close" variant="quiet" size="small" iconOnly>
+            <ButtonBase
+              slot="close"
+              variant="quiet"
+              size="small"
+              iconOnly
+              onPress={toast.content.onDismiss}
+            >
               <IconBase name="close" />
             </ButtonBase>
           )}
