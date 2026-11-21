@@ -178,6 +178,7 @@ it.each([false, true])(
     expect(data.selectContact).toHaveBeenCalledExactlyOnceWith("sam", 3);
 
     if (reopen) {
+      await user.click(screen.getByRole("textbox", { name: "Find a contact" }));
       await user.keyboard("{Escape}");
       await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     }

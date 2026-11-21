@@ -28,7 +28,16 @@ export const settleAnimations = (page: Page) =>
 export const checkPage = async (page: Page) => {
   await expect(page.locator("vite-error-overlay")).toHaveCount(0);
   await expect(page.locator("body")).toBeVisible();
-  // Measure the settled surface, rather than intermediate overlay opacity.
+  // React Aria mounts a transparent dialog before its entrance animation begins.
+  await expect
+    .poll(() =>
+      page
+        .getByRole("dialog")
+        .evaluateAll((dialogs) =>
+          dialogs.every((dialog) => dialog.checkVisibility({ opacityProperty: true })),
+        ),
+    )
+    .toBe(true);
   await settleAnimations(page);
   await expect(page.locator("[data-entering], [data-exiting]")).toHaveCount(0);
   expect(
