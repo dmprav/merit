@@ -76,47 +76,6 @@ type Story = StoryObj<typeof meta>;
 
 export const Overview: Story = {};
 
-export const History: Story = {
-  args: {
-    contacts: [
-      {
-        ...leah,
-        email: "",
-        revision: 1,
-        history: [
-          {
-            contactId: leah.id,
-            revision: 1,
-            actor: "Dana Reed",
-            provenance: { interface: "mcp", clientId: "example-client" },
-            recordedAt: "2026-11-09T10:00:00Z",
-            before: leah,
-            after: { ...leah, email: "" },
-          },
-        ],
-      },
-    ],
-  },
-  play: async ({ canvas, canvasElement, userEvent }) => {
-    const body = within(canvasElement.ownerDocument.body);
-    const trigger = canvas.getByRole("button", { name: "Actions for Leah Martin" });
-    await userEvent.click(trigger);
-    await userEvent.click(body.getByRole("menuitem", { name: "Contact history" }));
-    const dialog = within(
-      within(canvasElement.ownerDocument.body).getByRole("dialog", { name: "Contact history" }),
-    );
-    await waitFor(() => expect(dialog.getByText("Recorded by Dana Reed")).toBeVisible());
-    await expect(dialog.getByText("via MCP client example-client")).toBeVisible();
-    await expect(dialog.getByText("leah@example.test")).toBeVisible();
-    await expect(dialog.getByText("Removed")).toBeVisible();
-    await expect(dialog.getByText("Name")).not.toBeVisible();
-    await userEvent.click(dialog.getByRole("button", { name: "Close dialog" }));
-    await waitFor(() => expect(trigger).toHaveFocus());
-    await userEvent.click(trigger);
-    await userEvent.click(body.getByRole("menuitem", { name: "Contact history" }));
-  },
-};
-
 export const Empty: Story = {
   args: { contacts: [] },
   play: async ({ canvas }) => {
@@ -128,31 +87,6 @@ export const EmptyActive: Story = {
   args: { contacts: [{ ...leah, archived: true }] },
   play: async ({ canvas }) => {
     await expect(canvas.getByText("No active contacts.")).toBeVisible();
-  },
-};
-
-export const LongHistory: Story = {
-  args: {
-    contacts: [
-      {
-        ...leah,
-        history: Array.from({ length: 8 }, (_, index) => ({
-          contactId: leah.id,
-          revision: index + 1,
-          actor: "Dana Reed",
-          provenance: { interface: "web" },
-          recordedAt: "2026-11-09T10:00:00Z",
-          before: index === 0 ? null : leah,
-          after: { ...leah, affiliation: `Community programme ${index + 1}` },
-        })),
-      },
-    ],
-  },
-  play: async ({ canvas, canvasElement, userEvent }) => {
-    await userEvent.click(canvas.getByRole("button", { name: "Actions for Leah Martin" }));
-    await userEvent.click(
-      within(canvasElement.ownerDocument.body).getByRole("menuitem", { name: "Contact history" }),
-    );
   },
 };
 

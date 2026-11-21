@@ -24,7 +24,6 @@ const queries: [string, (service: ContactService) => Promise<unknown>][] = [
   ["contact directory", (service) => service.listContacts(actor, { workspaceSlug })],
   ["contact summaries", (service) => service.listContactSummaries(actor, { workspaceSlug })],
   ["contact details", (service) => service.getContact(actor, { workspaceSlug, contactId })],
-  ["contact history", (service) => service.contactHistory(actor, { workspaceSlug, contactId })],
 ];
 
 for (const [name, query] of queries) {

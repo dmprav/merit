@@ -1,7 +1,6 @@
 # Contacts business capability
 
-Contacts owns workspace profiles, their revision history, and archival and
-restoration. The [contact workflow](../../../docs/workflows/manage-contacts.md)
+Contacts owns current workspace profiles, including archival and restoration. The [contact workflow](../../../docs/workflows/manage-contacts.md)
 defines the behavior shared by web and MCP.
 
 ## Source ownership
@@ -10,13 +9,13 @@ defines the behavior shared by web and MCP.
 | ------------------------------ | -------------------------------------------------------------------------- |
 | `domain/`                      | Profile identity and validation, independent of transport and persistence. |
 | `api/commands.ts`              | Create, update, archive, and restore inputs and their results.             |
-| `api/queries.ts`               | Directory, summary, detail, and history inputs and results.                |
-| `api/records.ts`               | Public record and history shapes shared by commands and queries.           |
+| `api/queries.ts`               | Directory, summary, and detail inputs and results.                         |
+| `api/records.ts`               | Current profile fields shared by commands and queries.                     |
 | `api/service.ts`               | The browser-safe service interface used by web and MCP.                    |
 | `server/commands/`             | Authorization, revision checks, transaction ownership, and changes.        |
 | `server/queries/`              | Authorized reads and public result assembly.                               |
 | `server/persistence/commands/` | Writes using the transaction supplied by their caller.                     |
-| `server/persistence/queries/`  | Directory, detail, pagination, and history SQL.                            |
+| `server/persistence/queries/`  | Directory, detail, and pagination SQL.                                     |
 | `server/persistence/`          | Private schema and authorized contact lookup shared with grant work.       |
 | `server/service.ts`            | Binds the database and grant-work dependency to the service interface.     |
 
@@ -37,12 +36,12 @@ Contacts owns the profile change; grantmaking owns application titles and
 outstanding review requests. Archival checks run in the contact command's
 transaction under the organization-owned grant-work lock imported from
 `@merit/organizations/locks`. Profile edits take a shared workspace lock and lock
-the contact row before checking its revision. Grant commands that copy a name or email
-hold a shared lock on that contact through commit. Profile changes and
-history commit together, and unchanged edits preserve the revision.
+the contact row before updating its details. Grant commands that copy a name or email
+hold a shared lock on that contact through commit. A changed profile advances its
+revision for archive and restore checks. An unchanged edit keeps its revision.
 
 Every independent query uses a read-only, repeatable-read transaction. Directory
-profiles, history, and application titles are read from that same snapshot.
+profiles and related application titles come from the same snapshot.
 Queries invoked inside a caller-owned transaction use a savepoint and preserve
 its mode and rollback behavior.
 

@@ -1,7 +1,5 @@
 import { eq } from "drizzle-orm";
 
-import { recordAuditEvent } from "@merit/audit/server/record";
-import { actorProvenance, type Actor } from "@merit/auth";
 import type { Transaction } from "@merit/db";
 
 import { contacts } from "../schema";
@@ -11,11 +9,10 @@ type StoredContact = typeof contacts.$inferSelect;
 export const insertContact = (db: Transaction, values: typeof contacts.$inferInsert) =>
   db.insert(contacts).values(values);
 
-export const recordContactChange = async (
+export const saveContactProfile = async (
   db: Transaction,
   before: StoredContact | null,
   after: StoredContact,
-  actor: Actor,
 ) => {
   if (
     before &&
@@ -32,23 +29,5 @@ export const recordContactChange = async (
   } else {
     await insertContact(db, after);
   }
-  await recordAuditEvent(db, {
-    organizationId: after.organizationId,
-    actor: { userId: actor.userId, provenance: actorProvenance(actor) },
-    action: !before
-      ? "contact.created"
-      : before.archived !== after.archived
-        ? after.archived
-          ? "contact.archived"
-          : "contact.restored"
-        : "contact.updated",
-    target: {
-      type: "contact",
-      id: after.id,
-      revision: after.revision,
-      name: after.name || after.email,
-    },
-    details: { before, after },
-  });
   return after;
 };

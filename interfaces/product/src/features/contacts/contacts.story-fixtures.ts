@@ -8,7 +8,6 @@ import { reviewRevisionSchema } from "@merit/reviews/domain";
 import {
   readContacts,
   saveContact,
-  readContactHistory,
   readContactApplications,
 } from "./data/server/contacts.functions";
 
@@ -31,7 +30,7 @@ export const contactApplicationsSource = (
 
 /** In-memory transport outcomes shared by the directory, editor, and picker examples. */
 export const configureContacts = (initial: Contact[]) => {
-  let contacts = initial.map((contact) => ({ history: [], applicationTitles: [], ...contact }));
+  let contacts = initial.map((contact) => ({ applicationTitles: [], ...contact }));
   mocked(readContactApplications).mockImplementation(async ({ data, signal }) => {
     const contact = contacts.find((item) => item.id === data.contactId);
     const page = await contact?.applicationsSource?.read(
@@ -59,13 +58,6 @@ export const configureContacts = (initial: Contact[]) => {
       nextCursor: page?.nextCursor ?? null,
     };
   });
-  mocked(readContactHistory).mockImplementation(async ({ data }) => ({
-    status: "ok",
-    entries: (contacts.find((contact) => contact.id === data.contactId)?.history ?? []).map(
-      (entry) => ({ ...entry, actorUserId: null }),
-    ),
-    nextCursor: null,
-  }));
   mocked(readContacts).mockImplementation(async () => ({
     status: "ok",
     workspaceName: "Alder Foundation",
@@ -88,7 +80,6 @@ export const configureContacts = (initial: Contact[]) => {
       email: "",
       affiliation: "",
       archived: false,
-      history: [],
       applicationTitles: [],
       ...current,
       ...("details" in data ? data.details : {}),

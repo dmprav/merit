@@ -134,11 +134,10 @@ Current integrations have distinct responsibilities:
 | Grantmaking demo seeding               | Grant-work and contact demo seeding through `@merit/*/server/demo`, excluding `organizations/server/demo`.          |
 | Audit recording and history            | Write-owning commands record through `@merit/audit/server/record`; queries read through `@merit/audit/server/read`. |
 
-Organizations, Contacts, Applications, Rounds, Reviews, and Recommendations record
-audit events from their commands in the existing transaction. Grantmaking, Contacts,
-Organizations, and Reviews read history through their queries and authorize every
-read; the [audit guide](../../capabilities/audit/business/README.md) owns the
-recording contract.
+Organizations, Applications, Rounds, Reviews, and Recommendations record audit
+events in the same transaction as the command. Grantmaking, Organizations, and
+Reviews authorize history reads through their queries. The
+[audit guide](../../capabilities/audit/business/README.md) explains the recording contract.
 
 The four grant-work owners have explicit downstream dependencies. Applications can
 read Rounds; Reviews and Recommendations can read Applications and Rounds. Neither

@@ -7,11 +7,9 @@ import type {
   contactsRequestSchema,
   contactListInput,
   contactReadInput,
-  contactHistoryInput,
   ContactDirectory,
   ContactSummaryPage,
   ContactSummary,
-  ContactHistoryPage,
 } from "./queries";
 
 type NotFound = { status: "not_found" };
@@ -30,8 +28,4 @@ export interface ContactService {
     actor: Actor,
     input: z.input<typeof contactReadInput>,
   ) => Promise<{ status: "ok"; contact: ContactSummary } | NotFound>;
-  contactHistory: (
-    actor: Actor,
-    input: z.input<typeof contactHistoryInput>,
-  ) => Promise<ContactHistoryPage | NotFound>;
 }

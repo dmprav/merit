@@ -15,7 +15,6 @@
     "./server/demo": "./src/server/demo.ts"
   },
   "dependencies": {
-    "@merit/audit": "workspace:*",
     "@merit/auth": "workspace:*",
     "@merit/db": "workspace:*",
     "@merit/organizations": "workspace:*",

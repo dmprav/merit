@@ -1,6 +1,5 @@
 import { z } from "zod";
 
-import { provenanceSchema } from "@merit/auth";
 import { contactCommands } from "@merit/contacts/api";
 
 const contactDetails = contactCommands.create.shape.details;
@@ -19,18 +18,3 @@ export const contactWriteErrorSchema = z.union([
     outstanding: z.array(z.object({ applicationId: z.string(), title: z.string() })),
   }),
 ]);
-const snapshot = contactDetails.extend({ archived: z.boolean() });
-export const contactHistorySchema = z.object({
-  status: z.literal("ok"),
-  entries: z.array(
-    z.object({
-      revision: z.number().int().nonnegative(),
-      recordedAt: z.iso.datetime(),
-      actorUserId: z.string().nullable(),
-      provenance: provenanceSchema.nullable(),
-      before: snapshot.nullable(),
-      after: snapshot,
-    }),
-  ),
-  nextCursor: z.string().nullable(),
-});

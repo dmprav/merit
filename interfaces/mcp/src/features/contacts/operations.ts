@@ -3,7 +3,7 @@ import type { GrantmakingQueries } from "@merit/grantmaking/api";
 
 export type ContactOperations = Pick<
   ContactService,
-  "listContactSummaries" | "getContact" | "contactHistory" | "changeContact"
+  "listContactSummaries" | "getContact" | "changeContact"
 >;
 
 export type ContactApplicationOperations = Pick<GrantmakingQueries, "listContactApplications">;

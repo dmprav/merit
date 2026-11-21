@@ -1,7 +1,7 @@
 # Record workspace activity
 
-`@merit/audit` owns the append-only `audit_events` store. Organizations, Contacts,
-Applications, Rounds, Reviews, and Recommendations own the meaning of their events
+`@merit/audit` owns the append-only `audit_events` store. Organizations, Applications,
+Rounds, Reviews, and Recommendations own the meaning of their events
 and the authorization for their commands and history views. Business versions and
 command receipts remain separate: evidence and judgment versions describe what was
 considered; receipts make retries safe; events explain what happened.
@@ -33,7 +33,6 @@ explicit reader strategy; never reinterpret old facts using new live state.
 | Owner           | Events                                                                                                                                                                                                                                                                       |
 | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Organizations   | `organization.created`, `organization.renamed`; `team_invitation.issued`, `.replaced`, `.revoked`, `.accepted`; `membership.access_changed`, `.removed`                                                                                                                      |
-| Contacts        | `contact.created`, `.updated`, `.archived`, `.restored`                                                                                                                                                                                                                      |
 | Applications    | `application.created`, `.material_changed`, `.marked_ready`, `.summary_changed`, `.contact_changed`, `.revision_recorded`, `.correction_recorded`, `.deleted`, `.withdraw`, `.reinstate`; `application_working_revision.started`, `.updated`, `.discarded`                   |
 | Rounds          | `round.created`, `.details_changed`, `.budget_changed`, `.criteria_changed`, `.manager_changed`, `.deleted`                                                                                                                                                                  |
 | Reviews         | `review_request.created`, `.cancelled`; `review_assignment.invited`, `.invitation_renewed`, `.accepted`, `.declined`, `.withdrawn`, `.conflict_reported`, `.conflict_cleared`, `.access_ended`, `.reinstated`; `assessment.recorded`, `.corrected`, `.submitted`, `.amended` |
@@ -66,7 +65,7 @@ round time, actor time, and assignment history.
 [Grantmaking's reader](../../grantmaking/business/src/server/queries/activity.ts)
 checks current grant-work access and limits events to grant subjects. Team history
 checks team administration and selects only organization, invitation, and membership
-subjects. Contact and reviewer histories retain their existing access checks.
+subjects. Reviewer history checks access to the assignment.
 There is no universal client-facing endpoint that grants access to every event.
 
 `readAuditHistory` from `@merit/audit/server/read` supplies bounded subject history
@@ -75,7 +74,7 @@ transaction, specifying permitted target types and the subject or assignment.
 `auditPageInput` from `@merit/audit/api` validates cursors and limits (20 by default,
 at most 50). Event payload interpretation remains with the owning capability.
 
-Browser contact and reviewer histories load when opened. Application and budget
+Reviewer history loads when opened in the browser. Application and budget
 pages carry a bounded initial history; older entries load through their
 capability's authorized reader. A failed page read can be retried, and a denied
 read removes previously displayed history. Reviewer assignment lists contain

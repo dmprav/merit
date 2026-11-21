@@ -55,17 +55,12 @@ export const ContactGuide = () => {
           ),
         },
         {
-          id: "history",
-          title: t("docs.pages.contacts.history.title"),
-          children: <p>{t("docs.pages.contacts.history.body")}</p>,
-        },
-        {
           id: "saving",
           title: t("docs.pages.contacts.saving.title"),
           children: (
             <>
               <p>{t("docs.pages.contacts.saving.draft")}</p>
-              <p>{t("docs.pages.contacts.saving.conflict")}</p>
+              <p>{t("docs.pages.contacts.saving.missing")}</p>
               <p>{t("docs.pages.contacts.saving.refresh")}</p>
             </>
           ),

@@ -231,18 +231,14 @@ export const docs = {
         consequence:
           "Archived contacts leave ordinary selection lists. Existing application links and assessment history remain intact.",
       },
-      history: {
-        title: "Inspect contact history",
-        body: "Open Contact history beneath a person to compare earlier and saved details, who recorded each change, and when. Changed marks fields that differ between the two records; unchanged details remain visible for context. Close the dialog to return to the same place in Contacts. Updating contact details preserves the identity of the reviewer and recorder on earlier assessments.",
-      },
       saving: {
-        title: "Resume edits and resolve conflicts",
+        title: "Resume a contact draft",
         draft:
           "Close retains a draft through navigation and browser restarts on the same device. Use Resume contact for an unfinished new contact or Resume editing for existing details. Discard draft removes it. Signing out or changing accounts clears draft recovery.",
-        conflict:
-          "If the contact changed while you were editing, compare Current saved details with your draft. Choose Discard draft and use saved work, or Keep draft after reviewing current work, then review your values before saving.",
+        missing:
+          "If the contact is no longer available when you reopen a draft, copy any details you still need before discarding the draft.",
         refresh:
-          "If saving succeeded but the latest information could not load, use Retry to refresh it. Your saved change remains recorded.",
+          "If the directory cannot load after you save a contact, retry the refresh. Your changes are already saved.",
       },
     },
     reviews: {

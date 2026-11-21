@@ -69,11 +69,6 @@ Applicant contacts and reviewers use the same contact capability. Existing email
 contacts and uncertain identities remain separate; matching names or email addresses
 never automatically merges people. Contact merging is not implemented.
 
-Contact history records who changed the profile, when, and through which interface.
-Each revision identifies the changed fields, including removed values and archive
-or restore changes. The saved profile remains available for context. This history
-is separate from workspace Activity, which covers grant work.
-
 Keep recorded application details, reviewer attribution, and recording history.
 Accounts, memberships, and invitations retain their identity and access meaning;
 manager recommendations, staff summaries, and audit records retain their authorship.

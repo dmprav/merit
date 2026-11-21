@@ -18,17 +18,6 @@ const leah: Contact = {
   archived: false,
   revision: 1,
   applicationTitles: Array.from({ length: 30 }, (_, index) => `Community programme ${index + 1}`),
-  history: [
-    {
-      contactId: "leah",
-      revision: 1,
-      actor: "Dana",
-      provenance: { interface: "web" },
-      recordedAt: "2026-11-09T10:00:00Z",
-      before: null,
-      after: { name: "Leah", email: "leah@example.test", affiliation: "Kitchen", archived: false },
-    },
-  ],
 };
 const sam: Contact = {
   id: "sam",
@@ -50,23 +39,20 @@ const show = (contacts: Contact[] = [leah, sam]) => {
 
   const client = createQueryClient();
 
-  const page = (records: Contact[]) => (
+  render(
     <QueryClientProvider client={client}>
       <ContactsMessagesProvider>
         <ContactsDirectory
           workspaceSlug="alder"
           data={data}
-          contacts={records}
+          contacts={contacts}
           renderApplicationLink={(item, children) => (
             <a href={`/applications/${item.publicId}`}>{children}</a>
           )}
         />
       </ContactsMessagesProvider>
-    </QueryClientProvider>
+    </QueryClientProvider>,
   );
-
-  const view = render(page(contacts));
-  return { update: (records: Contact[]) => view.rerender(page(records)) };
 };
 
 it("keeps names-only application counts noninteractive while preserving title search", async () => {
@@ -216,23 +202,4 @@ it("returns to active contacts through the removable Archived chip and resets se
   expect(screen.getByRole("searchbox")).toHaveValue("");
   await user.keyboard("{Escape}");
   expect(await screen.findByRole("table")).toHaveTextContent("Leah");
-});
-
-it("keeps history open across directory updates and restores focus to the same row menu", async () => {
-  const { update } = show([leah, { ...sam, archived: false }]);
-  const user = userEvent.setup();
-  const trigger = screen.getByRole("button", { name: "Actions for Leah" });
-  await user.click(trigger);
-  await user.click(screen.getByRole("menuitem", { name: "Contact history" }));
-  expect(screen.getByRole("dialog", { name: "Contact history" })).toBeVisible();
-  update([
-    { ...leah, name: "Leah Martin" },
-    { ...sam, archived: false },
-  ]);
-  expect(screen.getByRole("dialog", { name: "Contact history" })).toHaveTextContent("Leah Martin");
-  await user.click(screen.getByRole("button", { name: "Close dialog" }));
-  await waitFor(() => expect(trigger).toHaveFocus());
-  expect(screen.getByRole("button", { name: "Actions for Leah Martin" })).toBe(trigger);
-  await user.click(screen.getByRole("button", { name: "Actions for Sam" }));
-  expect(screen.queryByRole("menuitem", { name: "Contact history" })).not.toBeInTheDocument();
 });

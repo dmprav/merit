@@ -47,8 +47,8 @@ layers check that the parts connect rather than repeating rule variations.
 | Browser tests (Storybook and application) | Real focus, layout, responsive and cross-browser interaction, and complete user flows.    |
 
 A suite that composes another capability should assert what the composition adds.
-For example, the contacts capability owns contact revisions, history, and access;
-grantmaking tests check that applications resolve live contact details and that
+For example, Contacts tests cover profile revisions and access. Grantmaking tests
+check that applications resolve live contact details and that
 outstanding review requests block archival.
 
 ### Justify overlapping coverage

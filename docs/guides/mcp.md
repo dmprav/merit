@@ -107,8 +107,8 @@ narrow the list, as on the web; take person IDs from the returned `people`, and 
 the same filters while following a cursor. Each entry carries the
 recorded person's name, web or MCP-client provenance, a stored action name, and the
 record's current title and browser link, or a null record that no longer exists.
-Only current program managers can read it. Contact and team changes are not
-listed; read their history listings for those. The
+Only current program managers can read it. For membership and invitation changes,
+read `list_team_history`. The
 [workflow](../workflows/review-and-decide.md#catch-up-on-shared-changes) lists what
 is recorded.
 
@@ -131,9 +131,8 @@ JSON. A changed fingerprint returns `conflict`; restart from offset zero. An
 absent optional source is the JSON value `null`. Invalid offsets or a missing
 required source identifier return `invalid_range`. No content is silently truncated.
 
-Contact history is separate from contact details. `list_contact_history` returns
-newest-first pages; pass `nextCursor` as `after` to read older changes. `list_contact_applications`
-shows applicant and reviewer associations, including historical review use. `get_team` returns workspace and
+`get_contact` returns the current profile. `list_contact_applications` shows
+applicant and reviewer associations, including historical review use. `get_team` returns workspace and
 permission context; members, pending invitations, and access history have separate
 list tools. `list_team_history` also uses a newest-first time cursor. Invitations
 and access history require current administrative authority.
@@ -275,8 +274,8 @@ do not grant operators workspace membership. `list_access_requests` and
 
 ## Understand attribution
 
-Changes record the person, timestamp, and interface. MCP changes also record the
-verified OAuth client ID. Web history displays that provenance alongside the actor;
+Grant-work and team history record the person, timestamp, and interface. Entries
+for changes made through MCP also record the verified OAuth client ID. Web history displays that provenance alongside the actor;
 MCP reads return it as structured data. Client-supplied names are not trusted as
 identity. Earlier records without provenance are shown as not recorded.
 

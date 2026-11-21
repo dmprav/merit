@@ -1,13 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { encodeActivityCursor } from "@merit/audit/api";
-
-import {
-  contactsRequestSchema,
-  contactListInput,
-  contactReadInput,
-  contactHistoryInput,
-} from "./queries";
+import { contactsRequestSchema, contactListInput, contactReadInput } from "./queries";
 
 const address = {
   workspaceSlug: "alder",
@@ -19,26 +12,24 @@ it("accepts a workspace address for the contact directory", () => {
   });
 });
 
-describe.each([
-  { name: "contact list", schema: contactListInput, input: { workspaceSlug: "alder" } },
-  { name: "contact history", schema: contactHistoryInput, input: address },
-])("$name pagination", ({ schema, input }) => {
+describe("contact list pagination", () => {
+  const input = { workspaceSlug: "alder" };
   it("defaults to 20 records", () => {
-    expect(schema.parse(input)).toEqual({ ...input, limit: 20 });
+    expect(contactListInput.parse(input)).toEqual({ ...input, limit: 20 });
   });
 
   it("accepts page sizes at both supported boundaries", () => {
     for (const limit of [1, 50]) {
-      expect(schema.parse({ ...input, limit })).toEqual({ ...input, limit });
+      expect(contactListInput.parse({ ...input, limit })).toEqual({ ...input, limit });
     }
   });
 
   it.each([0, 51, 1.5, "20", null])("rejects invalid page size %j", (limit) => {
-    expect(schema.safeParse({ ...input, limit }).success).toBe(false);
+    expect(contactListInput.safeParse({ ...input, limit }).success).toBe(false);
   });
 
   it("rejects caller-supplied ownership", () => {
-    expect(schema.safeParse({ ...input, organizationId: "birch" }).success).toBe(false);
+    expect(contactListInput.safeParse({ ...input, organizationId: "birch" }).success).toBe(false);
   });
 });
 
@@ -68,22 +59,5 @@ describe("contact read addresses", () => {
     expect(contactListInput.safeParse({ workspaceSlug: "alder", archived: "false" }).success).toBe(
       false,
     );
-  });
-
-  it("preserves an opaque history cursor", () => {
-    const after = encodeActivityCursor({
-      recordedAt: new Date("2026-11-13T12:00:00.123Z"),
-      id: "60000000-0000-4000-8000-000000000002",
-    });
-
-    expect(contactHistoryInput.parse({ ...address, after })).toEqual({
-      ...address,
-      after,
-      limit: 20,
-    });
-  });
-
-  it.each([0, 7, -1, 0.5, "0", "", null])("rejects invalid history cursor %j", (after) => {
-    expect(contactHistoryInput.safeParse({ ...address, after }).success).toBe(false);
   });
 });

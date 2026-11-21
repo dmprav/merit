@@ -5,7 +5,6 @@ import {
   contactCommands,
   contactListInput,
   contactReadInput,
-  contactHistoryInput,
 } from "@merit/contacts/api";
 import { publicIdSchema } from "@merit/db/identifiers";
 import {
@@ -16,12 +15,7 @@ import {
 import type { RegisterTool } from "../../components/register-tool";
 import type { McpActor } from "../../contracts";
 import type { ContactApplicationOperations, ContactOperations } from "./operations";
-import {
-  contactSchema,
-  contactHistorySchema,
-  contactReadErrorSchema,
-  contactWriteErrorSchema,
-} from "./responses";
+import { contactSchema, contactReadErrorSchema, contactWriteErrorSchema } from "./responses";
 
 export const registerContactTools = (
   register: RegisterTool,
@@ -44,7 +38,7 @@ export const registerContactTools = (
     {
       ...read,
       description:
-        "List bounded shared contact summaries in stable contactId order. Follow nextCursor. Filter archived explicitly or omit the filter for all contacts. History is fetched separately.",
+        "List bounded shared contact summaries in stable contactId order. Follow nextCursor. Filter archived explicitly or omit the filter for all contacts.",
       inputSchema: contactListInput,
       outputSchema: z.object({
         status: z.literal("ok"),
@@ -81,17 +75,6 @@ export const registerContactTools = (
     },
     (input) => contacts.getContact(actor, input),
   );
-  register(
-    "list_contact_history",
-    {
-      ...read,
-      description:
-        "Read contact changes and provenance in newest-first order. Follow nextCursor as after.",
-      inputSchema: contactHistoryInput,
-      outputSchema: contactHistorySchema,
-    },
-    (input) => contacts.contactHistory(actor, input),
-  );
   registerContactWrites(register, actor, contacts);
 };
 
@@ -119,7 +102,7 @@ const registerContactWrites = (
     ],
     [
       "restore_contact",
-      "Restore an archived contact using expectedContactRevision, preserving its details and history.",
+      "Restore an archived contact using expectedContactRevision, preserving its current details.",
       contactCommands.restore,
     ],
   ] as const) {

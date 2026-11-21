@@ -1,4 +1,3 @@
-import type { ContactHistoryEntry } from "@merit/contacts/api";
 import type {
   DirectoryContact,
   ContactDirectory,
@@ -14,11 +13,9 @@ export type ContactApplication = {
   relationships: ("applicant_contact" | "review_requested" | "assessment_recorded")[];
 };
 
-export type Contact = Omit<DirectoryContact, "applicationTitles" | "history"> & {
+export type Contact = Omit<DirectoryContact, "applicationTitles"> & {
   applicationTitles?: string[];
-  history?: ContactHistoryEntry[];
   applicationsSource?: PageSource<ContactApplication>;
-  historySource?: PageSource<ContactHistoryEntry>;
 };
 
 export type ContactsData = {
@@ -33,7 +30,6 @@ export type ContactsData = {
 
 export type ContactsSource = {
   applications?: (workspaceSlug: string, contact: Contact) => PageSource<ContactApplication>;
-  history?: (workspaceSlug: string, contact: Contact) => PageSource<ContactHistoryEntry>;
   scope: (workspaceSlug: string) => readonly unknown[];
   read: (
     workspaceSlug: string,

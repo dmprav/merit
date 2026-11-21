@@ -93,14 +93,14 @@ read "Changed".
 
 | Shown                                                                                                                                                           | Not shown here                                             |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| Application created, material, staff summary, or contact changed, marked ready, revised, corrected, or deleted; working revision started, updated, or discarded | Contact and team changes                                   |
+| Application created, material, staff summary, or contact changed, marked ready, revised, corrected, or deleted; working revision started, updated, or discarded | Contact profile and team changes                           |
 | Round created, details, budget, criteria, or manager changed, or deleted                                                                                        | Reviewer drafts and email delivery, which are not recorded |
 | Review requested or cancelled; reviewer invited, renewed, accepted, declined, withdrew, reported or cleared a conflict, ended, or reinstated                    |                                                            |
 | Assessment recorded, corrected, submitted, or amended                                                                                                           |                                                            |
 | Recommendation saved                                                                                                                                            |                                                            |
 
-Contact and team changes remain in contact history and Members & access. An entry is
-written in the same transaction as the change it describes, so a rejected or
+Members & access shows team changes. Merit writes each Activity entry in the
+same transaction as its grant-work change, so a rejected or
 conflicting write leaves none and a failure to record it leaves the change unsaved.
 
 Activity loads 50 entries at a time and loads the next page as the reader approaches

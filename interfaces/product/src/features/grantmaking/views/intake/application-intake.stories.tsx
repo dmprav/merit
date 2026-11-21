@@ -35,7 +35,6 @@ const contacts = [
     affiliation: "Neighbourhood Kitchen",
     archived: false,
     revision: 0,
-    history: [],
     applicationTitles: [],
   },
   {
@@ -45,7 +44,6 @@ const contacts = [
     affiliation: "",
     archived: false,
     revision: 0,
-    history: [],
     applicationTitles: [],
   },
 ];
