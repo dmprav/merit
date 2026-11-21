@@ -15,6 +15,7 @@ import {
 
 import { applicationCases } from "@merit/applications/schema";
 import { appUsers } from "@merit/auth/schema";
+import { enumCheck, nonNegativeCheck, optimisticRevision } from "@merit/db/schema";
 
 import type { ReviewerStatus } from "../../domain/reviewer";
 import { reviewRequests, assessments } from "./schema";
@@ -36,7 +37,7 @@ export const reviewAssignments = pgTable(
     managerEmail: text("manager_email").notNull(),
     dueDate: date("due_date"),
     status: text().$type<ReviewerStatus>().notNull().default("invited"),
-    revision: integer().notNull().default(0),
+    revision: optimisticRevision(),
     acceptedAt: timestamp("accepted_at", { withTimezone: true }),
     assessmentId: uuid("assessment_id"),
     conflict: text().notNull().default(""),
@@ -57,11 +58,15 @@ export const reviewAssignments = pgTable(
       columns: [t.caseId, t.assessmentId],
       foreignColumns: [assessments.caseId, assessments.id],
     }),
-    check(
-      "review_assignment_status",
-      sql`${t.status} IN ('invited','accepted','submitted','conflict','cancelled','declined')`,
-    ),
-    check("review_assignment_revision", sql`${t.revision} >= 0`),
+    enumCheck("review_assignment_status", t.status, [
+      "invited",
+      "accepted",
+      "submitted",
+      "conflict",
+      "cancelled",
+      "declined",
+    ]),
+    nonNegativeCheck("review_assignment_revision", t.revision),
     check(
       "review_assignment_identity",
       sql`${t.status} NOT IN ('accepted', 'submitted') OR (${t.reviewerUserId} IS NOT NULL AND ${t.acceptedAt} IS NOT NULL)`,
@@ -70,6 +75,9 @@ export const reviewAssignments = pgTable(
       "review_assignment_submission",
       sql`${t.status} <> 'submitted' OR ${t.assessmentId} IS NOT NULL`,
     ),
+    index("review_assignments_case_idx").on(t.organizationId, t.caseId),
+    index("review_assignments_manager_idx").on(t.managerUserId),
+    index("review_assignments_assessment_idx").on(t.caseId, t.assessmentId),
     index("review_assignments_reviewer").on(t.reviewerUserId),
     index("review_assignments_email").on(t.email),
   ],
@@ -81,7 +89,7 @@ export const reviewerDrafts = pgTable(
     assignmentId: uuid("assignment_id")
       .primaryKey()
       .references(() => reviewAssignments.id, { onDelete: "cascade" }),
-    revision: integer().notNull().default(0),
+    revision: optimisticRevision(),
     position: text(),
     amount: text(),
     reasoning: text().notNull().default(""),
@@ -90,7 +98,7 @@ export const reviewerDrafts = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    check("reviewer_draft_revision", sql`${t.revision} >= 0`),
+    nonNegativeCheck("reviewer_draft_revision", t.revision),
     check(
       "reviewer_draft_position_check",
       sql`${t.position} is null or ${t.position} in ('Fund', 'Fund with a condition', 'Defer', 'Decline')`,
@@ -114,7 +122,7 @@ export const reviewerDraftObservations = pgTable(
   },
   (t) => [
     primaryKey({ columns: [t.assignmentId, t.position] }),
-    check("reviewer_draft_observations_position_check", sql`${t.position} >= 0`),
+    nonNegativeCheck("reviewer_draft_observations_position_check", t.position),
     check("reviewer_draft_observations_criterion_check", sql`length(${t.criterion}) <= 200`),
     check("reviewer_draft_observations_text_check", sql`length(${t.text}) <= 5000`),
   ],
@@ -129,7 +137,10 @@ export const reviewerCommandReceipts = pgTable(
     commandId: uuid("command_id").notNull(),
     resultRevision: integer("result_revision").notNull(),
   },
-  (t) => [unique("reviewer_receipts_command_key").on(t.assignmentId, t.commandId)],
+  (t) => [
+    primaryKey({ columns: [t.assignmentId, t.commandId] }),
+    nonNegativeCheck("reviewer_command_receipts_revision_check", t.resultRevision),
+  ],
 );
 
 export const reviewerMessages = pgTable(
@@ -147,5 +158,9 @@ export const reviewerMessages = pgTable(
       .default("pending"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("reviewer_messages_assignment").on(t.assignmentId)],
+  (t) => [
+    index("reviewer_messages_assignment").on(t.assignmentId),
+    enumCheck("reviewer_messages_kind_check", t.kind, ["invitation", "submission"]),
+    enumCheck("reviewer_messages_status_check", t.status, ["pending", "sent", "failed"]),
+  ],
 );

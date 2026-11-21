@@ -39,6 +39,10 @@ uncommitted but in place.
    writing one; for UI, list and read the
    [Storybook documentation](../../../docs/guides/ui.md#compose-and-style-a-feature).
    If one nearly fits, extend it rather than making a local copy.
+   For schema changes, follow the
+   [database schema guide](../../../docs/guides/database.md), import shared
+   builders from `@merit/db/schema`, and generate and check migrations per
+   [local development](../../../docs/guides/development.md#schema-changes).
 4. Write tests at the layer that owns each rule, following
    [testing](../../../docs/guides/testing.md#choose-the-owning-layer), shaped like
    the precedent's tests. Each rule under **Behavior** needs a test that would fail

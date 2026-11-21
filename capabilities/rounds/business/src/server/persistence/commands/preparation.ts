@@ -126,7 +126,7 @@ const roundColumns = (snapshot: FundingRoundData) => ({
   purpose: snapshot.purpose,
   managerName: snapshot.manager,
   currency: snapshot.currency,
-  budget: snapshot.budget?.minorUnits ?? null,
+  budgetMinorUnits: snapshot.budget?.minorUnits ?? null,
   meetingDate: snapshot.meetingDate,
   snapshotDate: snapshot.snapshotDate,
   decisionStatus: snapshot.decisionStatus,

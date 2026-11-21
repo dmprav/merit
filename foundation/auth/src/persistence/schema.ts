@@ -16,5 +16,8 @@ export const guestSessions = pgTable(
       .references(() => appUsers.id),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   },
-  (table) => [index("guest_sessions_expiry_idx").on(table.expiresAt)],
+  (table) => [
+    index("guest_sessions_expiry_idx").on(table.expiresAt),
+    index("guest_sessions_user_idx").on(table.userId),
+  ],
 );
