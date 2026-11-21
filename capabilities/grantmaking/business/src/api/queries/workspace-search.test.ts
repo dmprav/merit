@@ -73,11 +73,17 @@ it("merges exact, prefix and contains matches, rounds first and in server order 
     ...groups(["exact", "contains", "contains"], ["contains", "prefix", "exact"]),
   };
 
-  expect(
-    orderedSearchRecords(search).map((record) =>
-      record.kind === "round" ? record.round.title : record.application.title,
-    ),
-  ).toEqual(["Round 3", "Application 1", "Application 2", "Round 2", "Round 1", "Application 3"]);
+  const [exactRound, firstContainsRound, secondContainsRound] = search.rounds.results;
+  const [containsApplication, prefixApplication, exactApplication] = search.applications.results;
+
+  expect(orderedSearchRecords(search)).toEqual([
+    { kind: "round", round: exactRound },
+    { kind: "application", application: exactApplication },
+    { kind: "application", application: prefixApplication },
+    { kind: "round", round: firstContainsRound },
+    { kind: "round", round: secondContainsRound },
+    { kind: "application", application: containsApplication },
+  ]);
 });
 
 it("merges empty groups into no records", () => {
