@@ -5,7 +5,7 @@ import { assert, expect, vi } from "vite-plus/test";
 import { createFundingApplication, editFundingApplication } from "@merit/applications/server";
 import { AuthenticationError } from "@merit/auth";
 import { getFundingRoundPage, listFundingRounds } from "@merit/grantmaking/server";
-import { applicationWork } from "@merit/grantmaking/server/integrations";
+import { applicationWork } from "@merit/grantmaking/testing/application-work";
 import { handleWorkspaceMcp } from "@merit/mcp";
 import { encodeMoney } from "@merit/money";
 import { actor } from "@merit/organizations/testing/workspace";

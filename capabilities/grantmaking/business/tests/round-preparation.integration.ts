@@ -25,7 +25,7 @@ import { criteriaVersionSchema } from "@merit/rounds/domain";
 import type { RoundChange } from "@merit/rounds/domain";
 import { createFundingRound, editFundingRound, deleteFundingRound } from "@merit/rounds/server";
 
-import { applicationWork } from "../src/server/persistence/commands/application-work";
+import { applicationWork } from "./application-work";
 
 const create = async (db: NodePgDatabase) => {
   const result = await createFundingRound(db, actor, {

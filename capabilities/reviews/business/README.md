@@ -18,7 +18,10 @@ and the assignment. Organizations grants membership; Reviews never provisions it
 The assignment binds its membership identity so removal and rejoining cannot restore
 old access. Organizations supplies its exclusive workspace lock to the
 [review revocation collaborator](src/server/persistence/commands/membership.ts)
-when review responsibilities end. A manager must explicitly reinstate assignments
+when review responsibilities end. Applications uses the
+[application work collaborator](src/server/persistence/commands/application-work.ts)
+to check whether review activity blocks deletion and to close outstanding requests
+on withdrawal. A manager must explicitly reinstate assignments
 after qualifying membership is restored. Invites and resends share a transaction-scoped
 workspace invitation lock while checking message limits and queuing delivery.
 Other grant work can proceed in independent cases. Manager reads never expose

@@ -16,7 +16,7 @@ import {
   requestedTotalProblem,
   withIntakeContact,
 } from "../../domain/intake-recording";
-import { isWithdrawn } from "../../domain/model";
+import { isWithdrawn, type ApplicationUsage } from "../../domain/model";
 import type { ApplicationWork } from "../grant-work";
 import {
   findIntakeApplication,
@@ -156,7 +156,7 @@ export const editFundingApplication = async (
       request.change,
       author,
       request.change.action === "delete"
-        ? await work.usage(tx, access.organizationId, request.publicId)
+        ? await applicationUsage(tx, work, request.publicId)
         : { hasReviews: false, hasRecommendation: false },
     );
     if (!result.ok) {
@@ -193,6 +193,16 @@ const intakeAuthor = (person: { userId: string; name: string | null; email: stri
   recordedAt: new Date().toISOString(),
 });
 
+// Runs under the case lock, so downstream work cannot start between the two checks.
+const applicationUsage = async (
+  tx: Transaction,
+  work: ApplicationWork,
+  caseId: string,
+): Promise<ApplicationUsage> => ({
+  hasReviews: await work.reviews.hasActivity(tx, caseId),
+  hasRecommendation: await work.recommendations.hasRecommendation(tx, caseId),
+});
+
 const closeReviewsOnWithdrawal = async (
   tx: Transaction,
   work: ApplicationWork,
@@ -200,7 +210,7 @@ const closeReviewsOnWithdrawal = async (
   closing: { actor: Actor; name: string },
 ) => {
   if (request.change.action === "withdraw") {
-    await work.closeReviewsForWithdrawal(tx, { ...closing, caseId: request.publicId });
+    await work.reviews.closeForWithdrawal(tx, { ...closing, caseId: request.publicId });
   }
 };
 
@@ -226,7 +236,7 @@ const intakeTotalProblem = async (
     return problem;
   }
   // A reinstated recommendation counts toward the round's proposed allocations again.
-  return work.allocationTotalProblem(tx, {
+  return work.recommendations.allocationTotalProblem(tx, {
     organizationId: row.organizationId,
     roundId: row.roundId,
     caseId: row.id,

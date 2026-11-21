@@ -14,8 +14,8 @@ import {
   listWorkspaceApplications,
   searchWorkspace,
 } from "@merit/grantmaking/server";
-import { applicationWork } from "@merit/grantmaking/server/integrations";
 import { seedExampleRounds } from "@merit/grantmaking/testing";
+import { applicationWork } from "@merit/grantmaking/testing/application-work";
 import { actor } from "@merit/organizations/testing/workspace";
 import { loadFundingRoundPage } from "@merit/product/grantmaking";
 import { loadWorkspace } from "@merit/product/workspace";

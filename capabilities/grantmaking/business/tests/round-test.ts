@@ -8,7 +8,7 @@ import { actor, workspaceTest } from "@merit/organizations/testing/workspace";
 import { saveFundingRecommendation } from "@merit/recommendations/server";
 import { createFundingRound } from "@merit/rounds/server";
 
-import { applicationWork } from "../src/server/persistence/commands/application-work";
+import { applicationWork } from "./application-work";
 
 export const roundTest = workspaceTest.extend("rounds", { auto: true }, async ({ db }) => {
   const addresses: PublicRoundRequest[] = [];

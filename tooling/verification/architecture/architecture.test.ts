@@ -1515,14 +1515,32 @@ describe.concurrent("architecture rules", () => {
         'export { value as material } from "@merit/applications/scope"; export { value as criteria } from "@merit/rounds/scope";',
       "capabilities/recommendations/business/src/server/commands/probe.ts":
         'export { value } from "@merit/applications/locks";',
-      "capabilities/grantmaking/business/src/server/persistence/commands/probe.ts":
-        'export type { Value } from "@merit/applications/server/grant-work"; export { value as reviews } from "@merit/reviews/scope"; export { value as recommendation } from "@merit/recommendations/scope";',
+      "capabilities/grantmaking/business/src/server/persistence/queries/probe.ts":
+        'export { value as reviews } from "@merit/reviews/scope"; export { value as recommendation } from "@merit/recommendations/scope";',
+      "capabilities/reviews/business/src/server/persistence/commands/probe.ts":
+        'export type { Value } from "@merit/applications/server/grant-work";',
+      "capabilities/recommendations/business/src/server/persistence/commands/probe.ts":
+        'export type { Value } from "@merit/applications/server/grant-work";',
       "capabilities/applications/business/src/server/grant-work.ts":
         'export type { Value } from "../domain/model";',
       "app/src/server/services.server.ts":
-        'export { value as rounds } from "@merit/rounds/server"; export { value as applications } from "@merit/applications/server"; export { value as reviews } from "@merit/reviews/server"; export { value as recommendations } from "@merit/recommendations/server"; export { value as reviewLifecycle } from "@merit/reviews/server/integrations";',
+        'export { value as rounds } from "@merit/rounds/server"; export { value as applications } from "@merit/applications/server"; export { value as reviews } from "@merit/reviews/server"; export { value as recommendations } from "@merit/recommendations/server"; export { value as reviewWork } from "@merit/reviews/server/integrations"; export { value as recommendationWork } from "@merit/recommendations/server/integrations";',
     });
   });
+
+  // Downstream owners supply their own lifecycle work; composition cannot relay it.
+  test.each(["@merit/reviews/server/integrations", "@merit/recommendations/server/integrations"])(
+    "grantmaking command persistence cannot import %s",
+    async (source) => {
+      await check(
+        {
+          ...extractedCapabilityFiles,
+          "capabilities/grantmaking/business/src/server/persistence/commands/probe.ts": `export { value } from "${source}";`,
+        },
+        crossCapabilityMessage,
+      );
+    },
+  );
   test.each([
     ["rounds", "@merit/applications/schema"],
     ["applications", "@merit/reviews/schema"],

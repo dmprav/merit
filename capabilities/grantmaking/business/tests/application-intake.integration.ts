@@ -28,7 +28,7 @@ import { reviewRevisionSchema, type ReviewChange } from "@merit/reviews/domain";
 import { saveApplicationReview } from "@merit/reviews/server";
 import { createFundingRound, deleteFundingRound } from "@merit/rounds/server";
 
-import { applicationWork } from "../src/server/persistence/commands/application-work";
+import { applicationWork } from "./application-work";
 import { makeAssessment } from "./fixtures";
 
 const setup = async (db: NodePgDatabase) => {

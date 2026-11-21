@@ -25,7 +25,7 @@ import { criteriaVersionSchema } from "@merit/rounds/domain";
 import { createFundingRound, deleteFundingRound, editFundingRound } from "@merit/rounds/server";
 import { createTestDatabase } from "@merit/test-support/test-database";
 
-import { applicationWork } from "../src/server/persistence/commands/application-work";
+import { applicationWork } from "./application-work";
 
 let database: Awaited<ReturnType<typeof createTestDatabase>>;
 let db: Database;

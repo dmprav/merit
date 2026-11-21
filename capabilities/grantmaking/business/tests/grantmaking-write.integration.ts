@@ -15,7 +15,7 @@ import { saveApplicationReview } from "@merit/reviews/server";
 import { criteriaVersionSchema } from "@merit/rounds/domain";
 import { editFundingRound } from "@merit/rounds/server";
 
-import { applicationWork } from "../src/server/persistence/commands/application-work";
+import { applicationWork } from "./application-work";
 import { roundTest } from "./round-test";
 
 const createContact = async (

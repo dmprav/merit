@@ -5,8 +5,8 @@ import { assert } from "vite-plus/test";
 import { editFundingApplication } from "@merit/applications/server";
 import { changeWorkspaceContact } from "@merit/contacts/server";
 import { getFundingApplicationPage } from "@merit/grantmaking/server";
-import { applicationWork } from "@merit/grantmaking/server/integrations";
 import { fundingRoundContactUsage } from "@merit/grantmaking/server/integrations";
+import { applicationWork } from "@merit/grantmaking/testing/application-work";
 import { actor } from "@merit/organizations/testing/workspace";
 
 import { transportTest } from "./transport-test";

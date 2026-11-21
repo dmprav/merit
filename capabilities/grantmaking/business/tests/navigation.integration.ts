@@ -12,7 +12,7 @@ import { createFundingRound } from "@merit/rounds/server";
 
 import type { NavigationTarget } from "../src/api/navigation";
 import { createNavigationService } from "../src/server";
-import { applicationWork } from "../src/server/persistence/commands/application-work";
+import { applicationWork } from "./application-work";
 import { roundTest as it } from "./round-test";
 
 const service = (db: Database) =>

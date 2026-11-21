@@ -38,9 +38,9 @@ These callbacks avoid dependencies from upstream owners to downstream implementa
 
 Applications decides whether intake changed and owns material, draft, and case writes.
 Its [history codec](../../applications/business/src/server/persistence/history-encoding.ts)
-records intake-only before and after snapshots in the same transaction. The
-[usage adapter](src/server/persistence/commands/application-work.ts) checks whether
-downstream judgments prevent deletion. An unchanged save keeps its revision and
+records intake-only before and after snapshots in the same transaction. Reviews'
+and Recommendations' [application work](../../applications/business/src/server/grant-work.ts)
+reports whether their judgments prevent deletion. An unchanged save keeps its revision and
 creates no history. Creation receipts remain available after eligible deletion.
 
 Reviews owns its concurrency revision in `review_states`. Recommendations derives its
