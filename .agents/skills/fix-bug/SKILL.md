@@ -36,6 +36,9 @@ Then write the fix brief:
 section, test, or the requester's approval>
 
 **Out of scope:** <related problems noticed but not fixed here>
+
+**Precedents:** <for a UI fix, the screen or story that already shows the
+intended presentation, and what to match; "None" otherwise>
 ```
 
 Approve the brief with the requester only when the intended behavior came from
@@ -43,11 +46,13 @@ grilling. Otherwise it is a record for the reviewer and the pull request.
 
 ## 2. Diagnose
 
-Follow [diagnose](../diagnose/SKILL.md) in this session: build the reproduction as
-a test at the owning layer, rank hypotheses, find the first wrong step, and fix it
-there. Keep the red output.
+Follow [diagnose](../diagnose/SKILL.md) in this session through finding the first
+wrong step: build the reproduction as a test at the owning layer and rank and test
+hypotheses. Keep the red output, and do not change code beyond the reproduction
+and temporary instrumentation yet.
 
-Stop and return to the requester when the root cause shows that:
+Before fixing, stop and return to the requester when the first wrong step shows
+that:
 
 - the correct fix changes behavior the brief does not cover;
 - it touches authorization, tenant scope, money, or audit history in a way the
@@ -55,6 +60,10 @@ Stop and return to the requester when the root cause shows that:
 - it needs a schema change or data migration; or
 - the change is better built as a feature. Say so, and suggest
   [building it as a feature](../build-feature/SKILL.md) instead.
+
+Otherwise, or once the requester has settled it, finish
+[diagnose](../diagnose/SKILL.md#4-fix-the-first-wrong-step): fix the first wrong
+step, prove the fix, and clean up.
 
 Before finishing, search for the same flawed pattern in neighboring code. Fix
 instances that share the root cause in this change; list others under
@@ -66,8 +75,11 @@ For a fix beyond a few lines, or one in authorization, tenant scope, money, audi
 history, or persistence, start a fresh `feature-reviewer` subagent following
 [review.md](../build-feature/review.md). Pass the fix brief as the brief, the base
 branch, the reproduction command, and a screenshot directory, and nothing about
-how you found the cause. Ask it to also judge whether the fix addresses the first
-wrong step rather than a symptom. Triage its findings as
+how you found the cause. Tell it to read **Intended behavior** as the rubric's
+**Behavior**, to compare UI with the brief's **Precedents**, and to report any
+change beyond restoring the intended behavior as an unapproved departure. Ask it
+to also judge whether the fix addresses the first wrong step rather than a
+symptom. Triage its findings as
 [build-feature describes](../build-feature/SKILL.md#4-review-independently).
 
 For a smaller fix, reread the full diff from disk against the review rubric's
