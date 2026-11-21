@@ -53,7 +53,7 @@ test("an invited reviewer independently accepts, saves, submits and amends @cros
         material_version: number;
         criteria_version: number;
       }>(
-        "SELECT c.id, c.organization_id, c.round_id, c.material_version, r.criteria_version FROM application_cases c JOIN funding_rounds r ON r.id = c.round_id JOIN organizations o ON o.id = c.organization_id WHERE o.slug = 'alder' AND NOT EXISTS (SELECT 1 FROM review_requests rr WHERE rr.case_id = c.id) ORDER BY c.position LIMIT 1",
+        "SELECT c.id, c.organization_id, c.round_id, c.material_version, r.criteria_version FROM application_cases c JOIN funding_rounds r ON r.id = c.round_id JOIN organizations o ON o.id = c.organization_id WHERE o.slug = 'alder' AND NOT EXISTS (SELECT 1 FROM review_requests rr WHERE rr.case_id = c.id AND rr.status = 'outstanding') ORDER BY c.position LIMIT 1",
       )
     ).rows[0]!;
     const contactId = randomUUID();
