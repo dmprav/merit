@@ -308,7 +308,8 @@ describe("operator invitation work", () => {
     await user.click(within(dialog).getByRole("button", { name: "Revoke invitation" }));
 
     expect(screen.getByRole("button", { name: "Revoking invitation…" })).toHaveAttribute(
-      "data-pending",
+      "aria-busy",
+      "true",
     );
     expect(screen.getByRole("dialog", { name: "Revoke invitation" })).toBeVisible();
 

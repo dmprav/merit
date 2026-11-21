@@ -30,12 +30,22 @@ export const ButtonBase = ({
   alignment = "default",
   className,
   children,
+  render,
+  "aria-busy": busy,
   ...props
 }: ButtonBaseProps) => {
-  const busy = props["aria-busy"] === true;
   return (
     <AriaButton
       {...props}
+      // React Aria filters aria-busy from the host button. Preserve it for a locally announced action.
+      render={
+        busy
+          ? (attributes, state) => {
+              const busyAttributes = { ...attributes, "aria-busy": true };
+              return render ? render(busyAttributes, state) : <button {...busyAttributes} />;
+            }
+          : render
+      }
       data-variant={variant}
       // A command within copy takes its size from the surrounding text.
       data-size={variant === "inline" ? undefined : size}
