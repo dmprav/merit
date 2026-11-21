@@ -15,13 +15,12 @@ import {
 import { invitationEmail, teamAccess } from "@merit/organizations/api";
 import { revokesIssuedInvitations, revokesReviewAccess } from "@merit/organizations/domain";
 import { DescriptionList, DescriptionListItem } from "@merit/ui/description-list";
-import { Icon } from "@merit/ui/icon";
 import { Stack } from "@merit/ui/layout";
+import { Notice } from "@merit/ui/notice";
 import { TextField } from "@merit/ui/text-field";
 
 import type { Team, Member, Invitation } from "../contracts/team";
 import type { InviteDraft, Access } from "../controllers/editors";
-import styles from "./team-view.module.css";
 
 const InvitationImpact = ({ invitations }: { invitations: Invitation[] }) => {
   const { t } = useTranslation("team");
@@ -35,12 +34,9 @@ const InvitationImpact = ({ invitations }: { invitations: Invitation[] }) => {
   });
 
   return (
-    <div className={styles.accessWarning}>
-      <Icon name="warning" />
-      <p>
-        <span>{summary}</span> {t("revocationRecovery")}
-      </p>
-    </div>
+    <Notice tone="warning" appearance="inline">
+      <span>{summary}</span> {t("revocationRecovery")}
+    </Notice>
   );
 };
 
@@ -275,10 +271,9 @@ const EditFormFields = ({
         <form.Subscribe selector={(state) => state.values.role}>
           {(role) =>
             revokesReviewAccess(member.role, role) ? (
-              <div className={styles.accessWarning}>
-                <Icon name="warning" />
-                <p>{t("savingEndsReviewAssignments")}</p>
-              </div>
+              <Notice tone="warning" appearance="inline">
+                {t("savingEndsReviewAssignments")}
+              </Notice>
             ) : null
           }
         </form.Subscribe>

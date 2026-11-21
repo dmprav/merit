@@ -7,7 +7,7 @@ export const en = {
     up: "Move up",
     down: "Move down",
     reorder: "Reorder {{title}}",
-    more: "{{count}} more…",
+    section: "Pinned",
     pinned_round: "Pinned funding rounds",
     pinned_application: "Pinned applications",
     pinned_review: "Pinned review assignments",

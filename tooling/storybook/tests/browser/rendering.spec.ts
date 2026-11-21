@@ -11,10 +11,9 @@ for (const story of [
   { id: "components-tabs--overflow-interactions", ready: '[role="tablist"]' },
   { id: "components-text-field--states", ready: "input[readonly]" },
   { id: "patterns-page-composition--overview", ready: "h1" },
-  { id: "patterns-status-message--success", ready: "button" },
   { id: "patterns-status-message--announcement-only", ready: "button" },
-  { id: "patterns-status-message--long-message", ready: "button" },
-  { id: "patterns-status-message--in-workspace", ready: "button" },
+  { id: "patterns-toast--outcomes", ready: '[role="alertdialog"]' },
+  { id: "patterns-toast--in-workspace", ready: '[role="alertdialog"]' },
   { id: "patterns-state-message--recovery", ready: "h1" },
   { id: "patterns-state-message--missing", ready: "h1" },
   { id: "patterns-state-message--loading", ready: '[role="status"]' },
@@ -26,9 +25,9 @@ for (const story of [
     id: "features-applications-recommendation--budget-preview",
     ready: '[aria-label="Budget preview"]',
   },
-  { id: "features-applications-overview--changed-evidence", ready: "h1" },
+  { id: "features-applications-application-detail--changed-evidence", ready: "h1" },
   {
-    id: "features-applications-overview--reviews",
+    id: "features-applications-application-detail--reviews",
     ready: 'section[aria-label="Reviewer assessments"]',
   },
   { id: "features-applications-recommendation--no-recommendation", ready: "button" },
@@ -71,27 +70,26 @@ for (const story of [
       await page.screenshot({ path: testInfo.outputPath("select-open.png") });
     }
 
+    if (story.id === "patterns-toast--in-workspace") {
+      const toast = page.getByRole("alertdialog", { name: "Criterion removed" });
+
+      await expect(toast).toBeInViewport();
+
+      const bounds = (await toast.boundingBox())!;
+      const workspace = (await page.locator("#main").boundingBox())!;
+
+      expect(
+        Math.abs(bounds.x + bounds.width / 2 - (workspace.x + workspace.width / 2)),
+      ).toBeLessThan(1);
+      expect(bounds.width).toBeLessThanOrEqual(workspace.width - 32);
+      await page.screenshot({ path: testInfo.outputPath(`${story.id}.png`) });
+    }
+
     if (story.id.startsWith("patterns-status-message")) {
       await page.getByRole("button", { name: "Repeat event" }).click();
 
       await expect(page.getByRole("status")).not.toBeEmpty();
 
-      if (story.id === "patterns-status-message--in-workspace") {
-        const confirmation = page.locator('span[aria-hidden="true"]').filter({
-          hasText: "Your recommendation and its supporting explanation",
-        });
-
-        await expect(confirmation).toBeInViewport();
-        await expect(confirmation).toHaveCSS("position", "fixed");
-
-        const bounds = (await confirmation.boundingBox())!;
-        const workspace = (await page.locator("#main").boundingBox())!;
-
-        expect(
-          Math.abs(bounds.x + bounds.width / 2 - (workspace.x + workspace.width / 2)),
-        ).toBeLessThan(1);
-        expect(bounds.width).toBeLessThanOrEqual(workspace.width - 32);
-      }
       await page.screenshot({ path: testInfo.outputPath(`${story.id}.png`) });
     }
     await checkPage(page);

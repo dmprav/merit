@@ -6,8 +6,8 @@ import * as Layout from "./layout.stories";
 # Layout primitives
 
 Use these building blocks for recurring flow and line length inside a component.
-The [foundations](?path=/docs/foundations-tokens--docs) own the
-spacing scale; [page composition](?path=/docs/patterns-page-composition--docs)
+The [design language guide](?path=/docs/design-language--docs) explains the
+spacing scale. [Page composition](?path=/docs/patterns-page-composition--docs)
 explains page framing and arrangements for reading, comparison, and editing.
 
 ## Compose simple flows
@@ -21,13 +21,15 @@ step in the spacing scale when a group needs a different rhythm.
 Choose an appropriate element with `as`: label sections, preserve article semantics,
 and supply `li` children for lists. These components add no headings or landmarks
 automatically. Keep DOM order meaningful for reading and keyboard navigation.
-Use `className` for placement and feature presentation, such as a reading width
-or attribution indentation. Keep columns, unequal row and column gaps, and
-breakpoint-dependent changes in local CSS.
+The primitives accept semantics, such as `as`, `id`, `role`, and accessible names,
+but no `className` or `style`. Put feature presentation, such as columns, unequal
+row and column gaps, borders, container queries, and breakpoint-dependent changes,
+on the feature's own element around or within the flow.
 
 <Canvas of={Layout.Narrow} story={{ inline: true, height: "480px" }} />
 
 Use `align="start"` when a short action should sit at the top of multiline content,
+`align="end"` when controls should share the bottom edge of fields beside them,
 and `align="baseline"` when differently sized text should share a baseline.
 Use `justify="between"` to separate context from its action while they fit on one
 line; a wrapped item starts a new line in reading order. Use `justify="end"` for
@@ -36,11 +38,25 @@ each line, so check the wrapped result as well as the wide arrangement.
 
 <Canvas of={Layout.Alignment} story={{ inline: true, height: "340px" }} />
 
+## Rule off entries
+
+Set `divided` on `Stack` to separate entries with rules instead of drawing borders in
+feature CSS. `between` centers a rule in each gap; `after` also ends the last entry
+with one, as in an activity feed; `around` also opens the list, as in a record of
+labelled rows. Use `gap={0}` when each entry carries its own padding, such as
+whole-row links whose hover surface must reach the rule. Use
+[Divider](?path=/docs/components-divider--docs) for a single rule between blocks.
+
+<Canvas of={Layout.DividedEntries} />
+
 ## Constrain reading
 
 Import `Reading` from `@merit/ui/layout` to constrain prose to `measure-reading`
-inside a page or panel. Choose its element with `as`, and apply reading typography
-in the content's CSS Module. It adds no spacing, headings, or landmarks by default.
+inside a page or panel. Choose its element with `as`. It uses reading typography
+and keeps the line breaks of text people wrote, such as a submission answer or a
+reason, while long unbroken values wrap. Set `prose={false}` for a short reason in
+a compact summary that should keep the surrounding size. It adds no spacing,
+headings, or landmarks.
 Constrain the prose itself so surrounding actions, comparison columns, and tables
 can use their available width.
 

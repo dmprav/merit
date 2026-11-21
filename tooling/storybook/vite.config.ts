@@ -6,9 +6,12 @@ import { reactCompilerOptions } from "../react-compiler";
 export default defineConfig({
   run: {
     tasks: {
-      dev: { command: "storybook dev -p 6006 --no-open", cache: false },
+      dev: { command: "storybook dev -p 6006", cache: false },
       test: "vp test --run --config vitest.config.ts",
-      "test:watch": { command: "vp test --watch --config vitest.config.ts", cache: false },
+      "test:watch": {
+        command: "vp test --watch --config vitest.config.ts",
+        cache: false,
+      },
       "test:browser": {
         command: "playwright test --config playwright.config.ts --project=desktop",
         cache: false,

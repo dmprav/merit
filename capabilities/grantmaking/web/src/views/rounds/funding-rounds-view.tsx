@@ -7,6 +7,7 @@ import { DataTable, type TableColumn } from "@merit/tables";
 import { PageHeader } from "@merit/ui/page-header";
 import { PersonIdentity } from "@merit/ui/person-identity";
 import { StatusIndicator } from "@merit/ui/status-indicator";
+import { Text } from "@merit/ui/text";
 
 import styles from "./funding-rounds-view.module.css";
 
@@ -30,7 +31,6 @@ const ResponsibleManagerCell = ({ round }: { round: RoundSummary }) => {
         <StatusIndicator
           label={t("rounds.reassignmentNeeded")}
           explanation={t("rounds.reassignmentExplanation")}
-          closeLabel={t("rounds.closeReassignment")}
         />
       )}
     </span>
@@ -55,7 +55,11 @@ export const FundingRoundsView = ({
       id: "round",
       header: t("rounds.round"),
       layout: { width: "26%", primary: true },
-      cell: (round) => <div className={styles.title}>{renderRoundLink(round)}</div>,
+      cell: (round) => (
+        <Text as="div" variant="emphasis">
+          <div className={styles.title}>{renderRoundLink(round)}</div>
+        </Text>
+      ),
     },
     {
       id: "status",
@@ -73,14 +77,11 @@ export const FundingRoundsView = ({
       id: "applications",
       header: t("applications.title"),
       layout: { width: "12%" },
-      cell: (round) => (
-        <span className={styles.applications}>
-          {renderApplicationsLink(
-            round,
-            t("workspace.applicationCount", { count: round.applicationCount }),
-          )}
-        </span>
-      ),
+      cell: (round) =>
+        renderApplicationsLink(
+          round,
+          t("workspace.applicationCount", { count: round.applicationCount }),
+        ),
     },
     {
       id: "committee",

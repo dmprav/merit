@@ -5,9 +5,9 @@ import { type ApplicationView as Application } from "@merit/grantmaking/api";
 import { useFormat } from "@merit/i18n/format";
 import { summarizeAssessments } from "@merit/reviews/domain";
 import { Button } from "@merit/ui/button";
-import { Icon } from "@merit/ui/icon";
-import judgment from "@merit/ui/judgment.module.css";
-import { PersonIdentity } from "@merit/ui/person-identity";
+import { JudgmentChoice } from "@merit/ui/judgment";
+import { SectionHeader } from "@merit/ui/section-header";
+import { Text } from "@merit/ui/text";
 
 import styles from "../review-overview.module.css";
 import { reviewPositionKeys } from "./assessment-outcome";
@@ -39,32 +39,31 @@ export const ReviewOverview = ({
 
   return (
     <section aria-label={t("assessments.shortTitle")}>
-      <div className={styles.sectionHeading}>
-        <h2>{t("assessments.shortTitle")}</h2>
-        <Button variant="quiet" size="small" onPress={onShowAll}>
-          {t("reviews:allAssessments")}
-        </Button>
-      </div>
-      <p className={judgment.meta}>{status}</p>
+      <SectionHeader
+        emphasis="quiet"
+        title={t("assessments.shortTitle")}
+        aside={
+          <Button variant="quiet" onPress={onShowAll}>
+            {t("reviews:allAssessments")}
+          </Button>
+        }
+      />
+      <Text as="p" variant="caption">
+        {status}
+      </Text>
       {actions}
       <div className={styles.reviewList}>
         {application.assessments.map((assessment) => {
           const reviewed = assessment.submission;
 
           return (
-            <Button
-              variant="quiet"
+            <JudgmentChoice
               key={assessment.id}
-              className={styles.reviewChoice}
               ref={(element) => triggerRef(assessment.id, element)}
               onPress={() => onSelect(assessment.id)}
-            >
-              <span className={judgment.judgmentHeader}>
-                <PersonIdentity name={assessment.reviewer} className={judgment.judgmentIdentity} />
-                <Icon name="right" />
-              </span>
-              <span className={judgment.judgmentBody}>
-                <span className={judgment.judgmentSummary}>
+              author={assessment.reviewer}
+              summary={
+                <>
                   <strong>
                     {reviewed
                       ? reviewed.recommendation.position
@@ -77,10 +76,10 @@ export const ReviewOverview = ({
                       {t("reviews:proposed", { amount: money(reviewed.recommendation.allocation) })}
                     </span>
                   )}
-                </span>
-                <ReviewChoiceBasis application={application} assessment={assessment} />
-              </span>
-            </Button>
+                </>
+              }
+              basis={<ReviewChoiceBasis application={application} assessment={assessment} />}
+            />
           );
         })}
       </div>
@@ -100,7 +99,7 @@ const ReviewChoiceBasis = ({
   const reviewed = assessment.submission;
   const version = reviewed?.applicationVersion ?? request?.applicationVersion;
   return (
-    <span className={judgment.judgmentBasis}>
+    <>
       <span>
         {version == null
           ? t("reviews:applicationBasisUnknown")
@@ -115,6 +114,6 @@ const ReviewChoiceBasis = ({
       </span>
       {assessment.criteriaChanged && <span>{t("reviews:criteriaChanged")}</span>}
       {assessment.criteriaUnknown && <span>{t("reviews:criteriaBasisUnknown")}</span>}
-    </span>
+    </>
   );
 };

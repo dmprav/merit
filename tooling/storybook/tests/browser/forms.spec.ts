@@ -3,7 +3,7 @@ import { calendarDay } from "@merit/test-support/browser/calendar";
 
 for (const application of [false, true]) {
   test(
-    `creation confirmation dismissal restores useful focus (application: ${application})`,
+    `creation confirms with a toast and keeps the next draft resumable (application: ${application})`,
     { tag: "@cross-browser" },
     async ({ page }) => {
       const story = application ? "applications" : "funding-rounds";
@@ -15,11 +15,11 @@ for (const application of [false, true]) {
       await input.fill("Saved record");
       await page.getByRole("button", { name: createLabel, exact: true }).click();
       await expect(page.getByRole("dialog")).toHaveCount(0);
+      await expect(
+        page.getByRole("alertdialog", { name: "Created “Saved record”." }),
+      ).toBeVisible();
       await page.getByRole("button", { name: createLabel, exact: true }).click();
       await input.fill("Next draft");
-      await page.getByRole("button", { name: "Dismiss confirmation" }).click();
-
-      await expect(input).toBeFocused();
       await input.press("Escape");
       await expect(page.getByRole("dialog")).toHaveCount(0);
       await page
@@ -28,9 +28,11 @@ for (const application of [false, true]) {
       await expect(input).toHaveValue("Next draft");
       await page.getByRole("button", { name: createLabel, exact: true }).click();
       await expect(page.getByRole("dialog")).toHaveCount(0);
-      await page.getByRole("button", { name: "Dismiss confirmation" }).click();
-
-      await expect(page.getByRole("button", { name: createLabel, exact: true })).toBeFocused();
+      await expect(
+        page.getByRole("region", { name: "Created record" }).getByRole("heading", {
+          name: "Next draft",
+        }),
+      ).toBeVisible();
       await checkPage(page);
     },
   );
@@ -85,7 +87,7 @@ for (const theme of ["product", "site"]) {
       const trigger = page.getByRole("button", { name: "Choose date for Committee date" });
       await input.fill("2027-02-");
       await trigger.click();
-      await page.getByRole("button", { name: "Close dialog" }).click();
+      await page.keyboard.press("Escape");
 
       await expect(input).toHaveValue("2027-02-");
       await expect(trigger).toBeFocused();

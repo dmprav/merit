@@ -9,6 +9,7 @@ import {
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
+import { CreateAction } from "@merit/grantmaking-web/creation";
 import {
   WorkspaceSearchDialog,
   type SearchDestination,
@@ -18,7 +19,6 @@ import {
 
 import type { ShellWorkspace } from "../../app/app-shell";
 import { resourceRef } from "./contracts/resource-url";
-import { WorkspaceCreateAction } from "./creation-action";
 import { workspaceCreationData } from "./data/creation/workspace-data";
 import { workspaceSearchData } from "./data/workspace-search";
 
@@ -47,13 +47,11 @@ export const WorkspaceSearch = ({
   isOpen,
   onOpenChange,
   focusRequest,
-  restoreFocus,
 }: {
   workspace: ShellWorkspace;
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
   focusRequest: number;
-  restoreFocus: () => void;
 }) => {
   const { t } = useTranslation("web");
   const workspaceSlug = workspace.slug;
@@ -82,10 +80,9 @@ export const WorkspaceSearch = ({
   const pages = useSearchPages(workspace);
 
   return (
-    <WorkspaceCreateAction
+    <CreateAction
       data={creation}
       locationKey={locationKey}
-      restoreTriggerFocus={restoreFocus}
       renderTrigger={(openCreation) => (
         <WorkspaceSearchDialog
           isOpen={isOpen}

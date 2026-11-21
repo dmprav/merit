@@ -7,12 +7,10 @@ import { encodeMoney } from "@merit/money";
 import type { ReviewerPage } from "@merit/reviews/api";
 import { reviewerSubmission, reviewRevisionSchema, type ReviewState } from "@merit/reviews/domain";
 import { criteriaVersionSchema } from "@merit/rounds/domain";
-import { ApplicationPage } from "@merit/ui/application-shell";
-import shellStyles from "@merit/ui/application-shell.module.css";
+import { ApplicationPage, ApplicationStage } from "@merit/ui/application-shell";
 
 import type { ReviewerData, ManagerReviewerData } from "../../contracts/reviewer";
 import { Messages as GrantmakingMessagesProvider } from "../../messages";
-import previewStyles from "./reviewer-preview.module.css";
 
 const round = getExampleRound();
 const application = round.applications[0]!;
@@ -203,13 +201,7 @@ export const ReviewPreviewFrame = ({
 
   return (
     <GrantmakingMessagesProvider>
-      {manager ? (
-        page
-      ) : (
-        <div className={`${shellStyles.shell} ${previewStyles.stageOnly}`}>
-          <div className={shellStyles.stage}>{page}</div>
-        </div>
-      )}
+      {manager ? page : <ApplicationStage>{page}</ApplicationStage>}
     </GrantmakingMessagesProvider>
   );
 };

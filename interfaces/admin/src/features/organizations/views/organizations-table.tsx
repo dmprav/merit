@@ -5,6 +5,7 @@ import { useLocaleSettings } from "@merit/i18n";
 import { administratorInvitationState, type OrganizationSummary } from "@merit/organizations/api";
 import { DataTable, type TableColumn } from "@merit/tables";
 import { StateMessage } from "@merit/ui/state-message";
+import { Text } from "@merit/ui/text";
 import { Timestamp } from "@merit/ui/timestamp";
 
 import type { OrganizationListView } from "../controllers/drafts";
@@ -67,7 +68,7 @@ const useOrganizationColumns = (renderLink: OrganizationsTableProps["renderLink"
       cell: (org) => (
         <div className={styles.cell}>
           <strong>{renderLink(org)}</strong>
-          <span className={styles.muted}>{org.slug}</span>
+          <Text variant="caption">{org.slug}</Text>
         </div>
       ),
     },
@@ -83,9 +84,7 @@ const useOrganizationColumns = (renderLink: OrganizationsTableProps["renderLink"
       id: "recipient",
       header: t("recipient"),
       layout: { width: "24%" },
-      cell: (org) => (
-        <span className={styles.muted}>{org.invitation?.email ?? t("noRecipient")}</span>
-      ),
+      cell: (org) => org.invitation?.email ?? <Text variant="missing">{t("noRecipient")}</Text>,
     },
     {
       id: "expires",
@@ -96,7 +95,7 @@ const useOrganizationColumns = (renderLink: OrganizationsTableProps["renderLink"
         return org.invitation && (state === "pending" || state === "expired") ? (
           <Timestamp value={new Date(org.invitation.expiresAt).toISOString()} />
         ) : (
-          <span className={styles.muted}>—</span>
+          <Text variant="missing">—</Text>
         );
       },
     },

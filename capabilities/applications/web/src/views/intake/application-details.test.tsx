@@ -54,9 +54,6 @@ it("keeps recorded applicant, contact, amount, and dates in definition-list orde
   expect(definition("Requested amount")).toHaveTextContent("€22,000");
   expect(definition("Project dates")).toHaveTextContent("March–August 2027");
   expect(definition("Submitted")).toHaveTextContent("20 January 2027");
-  expect(screen.getByText("Applicant", { selector: "dt" }).closest("dl")).not.toHaveAttribute(
-    "data-editing",
-  );
 });
 
 it.each([
@@ -108,10 +105,6 @@ it("replaces editable values and hides contact email while keeping the submitted
   expect(screen.getByRole("textbox", { name: "Project dates" })).toHaveValue("Autumn 2027");
   expect(definition("Submitted")).toHaveTextContent("20 January 2027");
   expect(within(definition("Submitted")).queryByRole("textbox")).not.toBeInTheDocument();
-  expect(screen.getByRole("textbox", { name: "Applicant" }).closest("dl")).toHaveAttribute(
-    "data-editing",
-    "true",
-  );
 });
 
 it.each([undefined, emptyFields])(

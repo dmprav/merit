@@ -1,16 +1,15 @@
 import { test, expect, checkPage } from "@merit/test-support/browser";
 
 test(
-  "application page recovery stays in view beside pagination",
+  "application page recovery keeps the current page and moves to the next one after a retry",
   { tag: "@cross-browser" },
   async ({ page }, testInfo) => {
     await page.goto(
-      "/iframe.html?id=features-applications-workspace-overview--paged-recovery&viewMode=story",
+      "/iframe.html?id=features-applications-all-applications--paged-recovery&viewMode=story",
     );
     await expect(page.locator("#storybook-root")).toHaveAttribute("data-story-ready", "true");
     await page.getByRole("button", { name: "Next", exact: true }).click();
-    const failure = page.getByRole("alert");
-    await expect(failure).toContainText("Applications could not be loaded");
+    const failure = page.getByRole("alertdialog", { name: /Applications could not be loaded/ });
     await expect(failure).toBeInViewport();
     const retry = failure.getByRole("button", { name: "Try again" });
     await expect(retry).toBeInViewport();
@@ -19,17 +18,11 @@ test(
     ).toBeVisible();
     await page.screenshot({ path: testInfo.outputPath("page-recovery.png") });
     await retry.click();
-    await expect(page.getByRole("button", { name: "Try again" })).toHaveAttribute(
-      "aria-disabled",
-      "true",
-    );
-    await expect(page.getByRole("button", { name: "Try again" })).toBeFocused();
+    await expect(failure).toHaveCount(0);
     await expect(page.getByRole("group", { name: "Applications" })).toBeFocused();
     await expect(
       page.getByRole("link", { name: "Community project 51", exact: true }),
     ).toBeInViewport();
-    // React Aria's temporary pending announcement outlives the removed Retry button.
-    await expect(page.locator('[data-live-announcer] [role="img"]')).toHaveCount(0);
     await checkPage(page);
   },
 );
@@ -78,12 +71,16 @@ test(
   "activity drawer preserves reading position as older events load",
   { tag: "@cross-browser" },
   async ({ page }) => {
+    // One-line events are compact; a short viewport keeps the older page below the fold.
+    await page.setViewportSize({ width: 1280, height: 480 });
     await page.goto(
       "/iframe.html?id=features-activity-workspace-activity--more-pages&viewMode=story",
     );
     await expect(page.locator("#storybook-root")).toHaveAttribute("data-story-ready", "true");
     const more = page.getByRole("button", { name: "Show older activity" });
-    await more.scrollIntoViewIfNeeded();
+    // Reaching the end loads older events, whether or not the button had time to show.
+    await page.mouse.wheel(0, 4000);
+    await page.getByRole("button", { name: /Round created:/ }).scrollIntoViewIfNeeded();
     await expect(page.getByRole("button", { name: /Round created:/ })).toBeVisible();
     await expect(more).toHaveCount(0);
     const trigger = page.getByRole("button", { name: /Round criteria changed:/ });
@@ -110,7 +107,7 @@ test(
   { tag: "@cross-browser" },
   async ({ page }, testInfo) => {
     await page.goto(
-      "/iframe.html?id=features-applications-workspace-overview--across-rounds&viewMode=story",
+      "/iframe.html?id=features-applications-all-applications--across-rounds&viewMode=story",
     );
     await expect(page.locator("#storybook-root")).toHaveAttribute("data-story-ready", "true");
     const trigger = page.getByRole("button", { name: "Filter", exact: true });
@@ -167,7 +164,7 @@ test(
   async ({ page }, testInfo) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(
-      "/iframe.html?id=features-applications-workspace-overview--long-and-unknown&viewMode=story",
+      "/iframe.html?id=features-applications-all-applications--long-and-unknown&viewMode=story",
     );
     await expect(page.locator("#storybook-root")).toHaveAttribute("data-story-ready", "true");
     const initialPosition = await page.evaluate(() => window.scrollY);

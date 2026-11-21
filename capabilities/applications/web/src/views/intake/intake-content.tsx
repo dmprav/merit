@@ -2,7 +2,11 @@ import { useRef, type ReactNode, type Ref } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { ApplicationView as Application } from "@merit/grantmaking/api";
-import { Inline, Reading } from "@merit/ui/layout";
+import { Attribution } from "@merit/ui/attribution";
+import { Divider } from "@merit/ui/divider";
+import { Reading, Stack } from "@merit/ui/layout";
+import { SectionHeader } from "@merit/ui/section-header";
+import { Text } from "@merit/ui/text";
 
 import type { IntakeData } from "../../contracts/intake";
 import type { IntakeSection } from "../../controllers/intake/intake-state";
@@ -16,7 +20,7 @@ import {
   IntakeControls,
   IntakeSectionEditButton,
   IntakeFeedback,
-  IntakeRefreshFeedback,
+  useIntakeRefreshToast,
   IntakeTitle,
   WithdrawalStatus,
   intakeMenuItems,
@@ -33,7 +37,6 @@ type IntakeContent = {
   evidence: ReactNode;
   details: ReactNode;
   feedback: ReactNode;
-  notice: ReactNode;
   menu: {
     items: { id: string; label: string }[];
     disabled: boolean;
@@ -58,6 +61,7 @@ export const ApplicationIntake = (props: Props) =>
 
 const EditableIntake = (props: Props & { session: IntakeSession }) => {
   const intakeEditing = useApplicationIntake({ application: props.application, ...props.session });
+  useIntakeRefreshToast(intakeEditing);
   return <IntakePresentation {...props} intakeEditing={intakeEditing} />;
 };
 
@@ -129,7 +133,6 @@ const IntakePresentation = ({
       </div>
     ),
     feedback: intakeEditing && <IntakeFeedback intake={intakeEditing} />,
-    notice: intakeEditing?.refreshError && <IntakeRefreshFeedback intake={intakeEditing} />,
     menu: {
       items: intakeEditing ? intakeMenuItems(intakeEditing.menuActions, t) : [],
       disabled: Boolean(intakeEditing?.pending),
@@ -160,17 +163,20 @@ const IntakeMetadata = ({ application, intakeEditing, onClose, triggerRef }: Sec
     />
   ) : (
     <section>
-      <Inline justify="between" className={styles.sectionHeading}>
-        <h2>{t("workspace.details")}</h2>
-        {intakeEditing && (
-          <IntakeSectionEditButton
-            intake={intakeEditing}
-            hasSummary={Boolean(application.summary)}
-            section="metadata"
-            triggerRef={triggerRef}
-          />
-        )}
-      </Inline>
+      <SectionHeader
+        title={t("workspace.details")}
+        emphasis="quiet"
+        aside={
+          intakeEditing && (
+            <IntakeSectionEditButton
+              intake={intakeEditing}
+              hasSummary={Boolean(application.summary)}
+              section="metadata"
+              triggerRef={triggerRef}
+            />
+          )
+        }
+      />
       {intakeEditing?.section === "metadata" ? (
         <IntakeForm editor={intakeEditing.editor} onClose={onClose} />
       ) : (
@@ -184,31 +190,33 @@ const StaffSummary = ({ application, intakeEditing, onClose, triggerRef }: Secti
   const { t } = useTranslation("applicationIntake");
 
   return application.summary || intakeEditing?.section === "details" ? (
-    <section className={styles.summary} aria-label={t("intake.staffSummary")}>
+    <Stack as="section" gap={5} aria-label={t("intake.staffSummary")}>
+      <Divider />
       {intakeEditing?.section === "details" ? (
         <IntakeForm editor={intakeEditing.editor} onClose={onClose} />
       ) : (
-        <>
-          <Inline justify="between" className={styles.sectionHeading}>
-            <h2>{t("intake.staffSummary")}</h2>
-            {intakeEditing && (
-              <IntakeSectionEditButton
-                intake={intakeEditing}
-                hasSummary={Boolean(application.summary)}
-                section="details"
-                triggerRef={triggerRef}
-              />
-            )}
-          </Inline>
-          <Reading as="p" className={styles.prose}>
-            {application.summary}
-          </Reading>
-          {application.summaryAuthor && (
-            <p className={styles.meta}>{application.summaryAuthor.name}</p>
-          )}
-        </>
+        <div>
+          <SectionHeader
+            title={t("intake.staffSummary")}
+            emphasis="quiet"
+            aside={
+              intakeEditing && (
+                <IntakeSectionEditButton
+                  intake={intakeEditing}
+                  hasSummary={Boolean(application.summary)}
+                  section="details"
+                  triggerRef={triggerRef}
+                />
+              )
+            }
+          />
+          <Stack gap={3}>
+            <Reading as="p">{application.summary}</Reading>
+            {application.summaryAuthor && <Attribution actor={application.summaryAuthor.name} />}
+          </Stack>
+        </div>
       )}
-    </section>
+    </Stack>
   ) : (
     intakeEditing && (
       <IntakeSectionEditButton
@@ -233,9 +241,7 @@ const ApplicantSubmission = ({
 
   const actions = (
     <div className={styles.submissionActions}>
-      <span className={styles.meta}>
-        {t("workspace.version", { version: application.version })}
-      </span>
+      <Text variant="caption">{t("workspace.version", { version: application.version })}</Text>
       {intakeEditing && (
         <IntakeSectionEditButton
           intake={intakeEditing}
@@ -254,10 +260,7 @@ const ApplicantSubmission = ({
         <IntakeControls intake={intakeEditing} headingActions={actions} />
       ) : (
         <>
-          <Inline justify="between" className={styles.sectionHeading}>
-            <h2>{t("workspace.submission")}</h2>
-            {actions}
-          </Inline>
+          <SectionHeader title={t("workspace.submission")} aside={actions} />
           {application.withdrawal && <WithdrawalStatus application={application} />}
         </>
       )}

@@ -1,7 +1,6 @@
 import type { CSSProperties } from "react";
 
-import { Button } from "@merit/ui/button";
-import { Icon } from "@merit/ui/icon";
+import { SortButton } from "@merit/ui/sort-button";
 
 import styles from "./data-table.module.css";
 import type { TableColumn, TableSort } from "./types";
@@ -26,10 +25,13 @@ export const TableColumnHeader = ({
   >
     <span className={column.layout?.rowActions ? styles.visuallyHidden : styles.desktopHeader}>
       {onSort ? (
-        <Button className={styles.sortButton} variant="quiet" size="small" onPress={onSort}>
-          <span>{column.header}</span>
-          <Icon name={direction ?? "sort"} className={styles.sortIcon} />
-        </Button>
+        <SortButton
+          direction={direction}
+          align={column.layout?.align === "end" ? "end" : "start"}
+          onPress={onSort}
+        >
+          {column.header}
+        </SortButton>
       ) : (
         column.header
       )}

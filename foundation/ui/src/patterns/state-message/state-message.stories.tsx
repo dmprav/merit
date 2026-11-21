@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 
 import { Button } from "../../components/button/button";
 import { Icon } from "../../components/icon/icon";
-import linkStyles from "../../components/link/link.module.css";
+import { Link } from "../../components/link/link";
 import { StateMessage } from "./state-message";
 import styles from "./state-message.stories.module.css";
 
@@ -20,7 +20,7 @@ const meta = {
   args: {
     title: "Workspace unavailable",
     description: "We couldn’t load your workspace. Please try again.",
-    actions: <Button>Try again</Button>,
+    actions: <Button size="medium">Try again</Button>,
   },
 } satisfies Meta<typeof StateMessage>;
 
@@ -69,9 +69,9 @@ export const LongContent: Story = {
     description:
       "You’re signed in, but no workspace is available to your account. Contact the person who invited you to arrange access. You can explore the demo in the meantime.",
     actions: (
-      <a href="#demo" className={linkStyles.button} data-variant="primary">
+      <Link variant="primary" href="#demo">
         Try the demo
-      </a>
+      </Link>
     ),
   },
 };
@@ -85,11 +85,6 @@ export const Compact: Story = {
         title="No results match “harbr”."
         description="Search by funding round, application title, or applicant."
         illustration={<Icon name="search" />}
-        actions={
-          <Button size="small" variant="secondary">
-            Clear search
-          </Button>
-        }
       />
       <StateMessage
         size="compact"
@@ -98,7 +93,7 @@ export const Compact: Story = {
         description="Your search is kept. Try again in a moment."
         illustration={<Icon name="warning" />}
         actions={
-          <Button size="small" variant="secondary">
+          <Button variant="quiet">
             <Icon name="reset" />
             Try again
           </Button>

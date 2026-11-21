@@ -192,7 +192,7 @@ export const ReferenceSwitcher = <Key extends string>({
     <ActionMenu
       label={label}
       trigger={
-        <Button ref={triggerRef} variant="quiet" size="small" aria-label={triggerLabel}>
+        <Button ref={triggerRef} variant="quiet" aria-label={triggerLabel}>
           {options[selected]}
           <Icon name="down" />
         </Button>

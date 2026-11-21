@@ -1,4 +1,5 @@
 import { useId, useState } from "react";
+import { Button as RowButton } from "react-aria-components/Button";
 import {
   Select as AriaSelect,
   SelectValue,
@@ -9,8 +10,8 @@ import {
   type SelectProps as AriaSelectProps,
 } from "react-aria-components/Select";
 
-import { Button as ActionButton } from "../../button/button";
-import { Icon } from "../../icon/icon";
+import rowStyles from "../../../foundations/list-row.module.css";
+import { IconBase, type IconName } from "../../icon/icon-base";
 import { FieldLabel, FieldFeedback, type FieldPresentationProps } from "../field-parts";
 import fieldStyles from "../field.module.css";
 import styles from "./select.module.css";
@@ -32,20 +33,22 @@ export type SelectProps<Id extends string> = Pick<
     selectedKey?: Id | null;
     defaultSelectedKey?: Id;
     onSelectionChange?: (id: Id) => void;
-    actions?: readonly { id: string; label: string; onAction: () => void }[];
+    /** Related commands below the options, such as adding a missing choice. */
+    actions?: readonly { id: string; label: string; icon?: IconName; onAction: () => void }[];
   };
 
 /**
  * Use Select to choose a field value; the owning form or editing pattern determines when that value
  * is saved. Give unfamiliar options a short description so people can compare meanings before
- * selecting; the closed control retains just the label. The selected option keeps its tint and
- * checkmark while keyboard focus uses the shared side marker. Long menus scroll with related
- * actions in a separate footer. Use real links for destinations and ActionMenu for commands. See
+ * selecting; the closed control retains just the label. Options use the shared list row: the
+ * selected one shows a checkmark and keyboard focus the shared side marker. Long menus scroll with
+ * related actions, each with an optional leading icon, in a separate footer. Use real links for destinations and ActionMenu for commands. See
  * [control selection](?path=/docs/overview--docs#choose-controls-by-outcome) for the related
  * patterns.
  */
 export const Select = <Id extends string>({
   label,
+  isLabelHidden,
   description,
   errorMessage,
   items,
@@ -85,7 +88,7 @@ export const Select = <Id extends string>({
     >
       {({ isInvalid }) => (
         <>
-          <FieldLabel required={showRequired} requiredId={requiredId}>
+          <FieldLabel required={showRequired} requiredId={requiredId} isHidden={isLabelHidden}>
             {label}
           </FieldLabel>
           <SelectTrigger label={label} appearance={appearance} isInvalid={isInvalid} />
@@ -97,7 +100,7 @@ export const Select = <Id extends string>({
                   id={item.id}
                   textValue={item.label}
                   isDisabled={item.isDisabled || props.isDisabled}
-                  className={styles.option}
+                  className={rowStyles.row}
                 >
                   {({ isSelected }) => (
                     <SelectOptionContent
@@ -112,19 +115,24 @@ export const Select = <Id extends string>({
             {actions && actions.length > 0 && (
               <div className={styles.actions}>
                 {actions.map((action) => (
-                  <ActionButton
+                  // Opt out of the select's trigger context; this is a separate command.
+                  <RowButton
                     key={action.id}
-                    size="small"
-                    variant="quiet"
-                    className={styles.action}
+                    slot={null}
+                    className={rowStyles.row}
                     isDisabled={props.isDisabled}
                     onPress={() => {
                       setOpen(false);
                       action.onAction();
                     }}
                   >
-                    {action.label}
-                  </ActionButton>
+                    {action.icon && (
+                      <span className={rowStyles.leading}>
+                        <IconBase name={action.icon} />
+                      </span>
+                    )}
+                    <span className={rowStyles.copy}>{action.label}</span>
+                  </RowButton>
                 ))}
               </div>
             )}
@@ -171,7 +179,7 @@ const SelectTrigger = ({
           isPlaceholder ? defaultChildren : selectedText
         }
       </SelectValue>
-      <Icon name="down" className={styles.indicator} />
+      <IconBase name="down" className={styles.indicator} />
     </Button>
   );
 };
@@ -186,15 +194,15 @@ const SelectOptionContent = ({
   isSelected: boolean;
 }) => (
   <>
-    <span className={styles.optionCopy}>
+    <span className={rowStyles.copy}>
       <span>{label}</span>
       {description && (
         <>
           {" "}
-          <span className={styles.optionDescription}>{description}</span>
+          <span className={rowStyles.description}>{description}</span>
         </>
       )}
     </span>
-    <span className={styles.check}>{isSelected && <Icon name="check" />}</span>
+    <span className={rowStyles.trailing}>{isSelected && <IconBase name="check" />}</span>
   </>
 );

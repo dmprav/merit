@@ -1,6 +1,7 @@
 import { fileURLToPath } from "node:url";
 
 import type { StorybookConfig } from "@storybook/react-vite";
+import remarkGfm from "remark-gfm";
 
 const config: StorybookConfig = {
   stories: [
@@ -11,7 +12,14 @@ const config: StorybookConfig = {
     "../../../capabilities/*/web/src/**/*.@(stories.tsx|mdx)",
     "../../../interfaces/admin/src/features/**/*.@(stories.tsx|mdx)",
   ],
-  addons: ["@storybook/addon-docs", "@storybook/addon-a11y", "@storybook/addon-vitest"],
+  addons: [
+    {
+      name: "@storybook/addon-docs",
+      options: { mdxPluginOptions: { mdxCompileOptions: { remarkPlugins: [remarkGfm] } } },
+    },
+    "@storybook/addon-a11y",
+    "@storybook/addon-vitest",
+  ],
   framework: {
     name: "@storybook/react-vite",
     options: {
@@ -28,32 +36,41 @@ const config: StorybookConfig = {
       method: "alphabetical",
       order: [
         "Overview",
-        "Foundations",
-        ["Tokens", "Focus"],
+        "Design language",
         "Components",
         "Patterns",
         "Features",
         [
           "Funding rounds",
-          ["List", "Create", "Overview", "Manage round", "Preparation form", "Workspace search"],
+          ["List", "Create", "Overview", "Manage round", "Preparation form"],
           "Applications",
           [
+            "All applications",
             "Create",
-            "Overview",
+            "Application detail",
             "Manage intake",
             "Intake form",
+            "Withdraw and reinstate",
             "Manage reviews",
-            "Reviewer participation",
-            "Participate in review",
+            "Manage reviewer invitations",
+            "Review an assigned application",
             "Recommendation",
             "Version history",
           ],
+          "Activity",
           "Team",
           ["Design guidance", "Manage team", "Members", "Invitations"],
           "Contacts",
           ["Directory", "Edit contact", "Contact picker"],
           "Workspace",
-          ["Entry and recovery", "Request access", "Accept invitation"],
+          [
+            "Entry and recovery",
+            "Request access",
+            "Accept invitation",
+            "My work",
+            "Search",
+            "Pins",
+          ],
           "Administration",
           [
             "Access requests",

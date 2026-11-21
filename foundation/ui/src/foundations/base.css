@@ -13,6 +13,11 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Product copy without its own type step reads at body size, not the browser's 16px. */
+[data-product-theme] body {
+  font-size: var(--text-body);
+}
+
 a {
   text-underline-offset: 4px;
 }

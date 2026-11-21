@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect } from "storybook/test";
 
 import { Button } from "../button/button";
+import { Text } from "../text/text";
 import { Inline, Reading, Stack } from "./layout";
 import styles from "./layout.stories.module.css";
 
@@ -12,24 +13,32 @@ const meta = {
   subcomponents: { Inline, Reading },
   args: { gap: 4 },
   render: (args) => (
-    <Stack {...args} as="section" aria-labelledby="layout-title" className={styles.preview}>
-      <h2 id="layout-title" className={styles.heading}>
-        Prepare the recommendation
-      </h2>
-      <p className={styles.reading}>
-        Read the current submission and compare the assessments before recording a recommendation.
-        Keep the evidence and its source available while you write.
-      </p>
-      <Stack as="ol" gap={2} aria-label="Preparation steps" className={styles.steps}>
-        <li>Read the revised submission.</li>
-        <li>Compare the reviewer assessments.</li>
-        <li>Record the recommendation and its reasons.</li>
+    <div className={styles.preview}>
+      <Stack {...args} as="section" aria-labelledby="layout-title">
+        <h2 id="layout-title" className={styles.heading}>
+          Prepare the recommendation
+        </h2>
+        <Reading as="p">
+          Read the current submission and compare the assessments before recording a recommendation.
+          Keep the evidence and its source available while you write.
+        </Reading>
+        <div className={styles.steps}>
+          <Stack as="ol" gap={2} aria-label="Preparation steps">
+            <li>Read the revised submission.</li>
+            <li>Compare the reviewer assessments.</li>
+            <li>Record the recommendation and its reasons.</li>
+          </Stack>
+        </div>
+        <Inline role="group" aria-label="Recommendation actions">
+          <Button size="medium" variant="secondary">
+            Read the revised submission
+          </Button>
+          <Button size="medium" variant="secondary">
+            Compare reviewer assessments
+          </Button>
+        </Inline>
       </Stack>
-      <Inline role="group" aria-label="Recommendation actions">
-        <Button variant="secondary">Read the revised submission</Button>
-        <Button variant="secondary">Compare reviewer assessments</Button>
-      </Inline>
-    </Stack>
+    </div>
   ),
 } satisfies Meta<typeof Stack>;
 
@@ -43,15 +52,17 @@ export const ReadingWidth: Story = {
   parameters: { controls: { disable: true } },
   render: () => (
     <Stack gap={5}>
-      <Reading as="p" className={styles.reading}>
+      <Reading as="p">
         Read the current submission alongside its supporting evidence before preparing a
         recommendation. Keep the applicant’s account distinct from reviewer judgments, with source
         material available for inspection. The prose keeps a readable line length while the actions
         below can use the width of their container.
       </Reading>
       <Inline justify="between">
-        <Button variant="secondary">Read submission</Button>
-        <Button>Prepare recommendation</Button>
+        <Button size="medium" variant="secondary">
+          Read submission
+        </Button>
+        <Button size="medium">Prepare recommendation</Button>
       </Inline>
     </Stack>
   ),
@@ -86,25 +97,42 @@ export const Narrow: Story = {
 
 export const Alignment: Story = {
   render: (args) => (
-    <Stack {...args} gap={6} className={styles.preview}>
-      <Inline gap={3} align="start" justify="between" role="group" aria-label="Submission context">
-        <Stack gap={1} className={styles.context}>
-          <h2 className={styles.heading}>Source materials</h2>
-          <p>
-            Read the current submission and its supporting evidence before making a recommendation.
-          </p>
-        </Stack>
-        <Button variant="secondary">Read submission</Button>
-      </Inline>
-      <Inline align="baseline">
-        <span className={styles.heading}>£42,000</span>
-        <span className={styles.caption}>requested in this submission</span>
-      </Inline>
-      <Inline gap={3} justify="end" role="group" aria-label="Recommendation actions">
-        <Button variant="secondary">Close</Button>
-        <Button>Save recommendation</Button>
-      </Inline>
-    </Stack>
+    <div className={styles.preview}>
+      <Stack {...args} gap={6}>
+        <Inline
+          gap={3}
+          align="start"
+          justify="between"
+          role="group"
+          aria-label="Submission context"
+        >
+          <div className={styles.context}>
+            <Stack gap={1}>
+              <h2 className={styles.heading}>Source materials</h2>
+              <p>
+                Read the current submission and its supporting evidence before making a
+                recommendation.
+              </p>
+            </Stack>
+          </div>
+          <Button size="medium" variant="secondary">
+            Read submission
+          </Button>
+        </Inline>
+        <Inline align="baseline">
+          <span className={styles.heading}>£42,000</span>
+          <Text as="span" variant="caption">
+            requested in this submission
+          </Text>
+        </Inline>
+        <Inline gap={3} justify="end" role="group" aria-label="Recommendation actions">
+          <Button size="medium" variant="secondary">
+            Close
+          </Button>
+          <Button size="medium">Save recommendation</Button>
+        </Inline>
+      </Stack>
+    </div>
   ),
   play: async ({ canvas, userEvent }) => {
     const actions = canvas.getByRole("group", { name: "Recommendation actions" });
@@ -145,4 +173,17 @@ export const NarrowAlignment: Story = {
     await expect(canvas.getByRole("button", { name: "Close" })).toHaveFocus();
     await Alignment.play?.(context);
   },
+};
+
+export const DividedEntries: Story = {
+  parameters: { controls: { disable: true } },
+  render: () => (
+    <div className={styles.preview}>
+      <Stack as="ol" gap={3} divided="between" aria-label="Contact history">
+        <li>Email changed by Dana Reed</li>
+        <li>Affiliation added by Sam Morgan</li>
+        <li>Contact recorded by Dana Reed</li>
+      </Stack>
+    </div>
+  ),
 };

@@ -34,6 +34,22 @@ export const Sources: Story = {
     </Stack>
   ),
   play: async ({ canvas }) => {
+    await expect(canvas.getByText("via MCP client grant-review-assistant")).toBeVisible();
+    await expect(canvas.queryByText("via Merit web")).toBeNull();
+    await expect(canvas.queryByText("Interface not recorded")).toBeNull();
+  },
+};
+
+/** A record's own details name every interface, including web and unrecorded ones. */
+export const RecordDetail: Story = {
+  render: () => (
+    <Stack>
+      <ActionProvenance value={{ interface: "web" }} detail />
+      <ActionProvenance value={{ interface: "mcp", clientId: "grant-review-assistant" }} detail />
+      <ActionProvenance value={null} detail />
+    </Stack>
+  ),
+  play: async ({ canvas }) => {
     await expect(canvas.getByText("via Merit web")).toBeVisible();
     await expect(canvas.getByText("via MCP client grant-review-assistant")).toBeVisible();
     await expect(canvas.getByText("Interface not recorded")).toBeVisible();

@@ -1,6 +1,9 @@
-.form {
+/* Keeps the editor's fill chain while spacing it from the section heading. */
+.formFrame {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
   min-height: 0;
-  gap: var(--space-5);
   padding-top: var(--space-4);
 }
 
@@ -9,63 +12,15 @@
   gap: var(--space-4);
 }
 
-.criterion {
-  min-width: 0;
-  border: 1px solid var(--border);
-  border-radius: var(--panel-radius);
-  padding: var(--space-4);
-  display: grid;
-  gap: var(--space-3);
-}
-
-.criterion legend {
-  font-size: var(--text-caption);
-  color: var(--muted);
-  padding-inline: var(--space-2);
-}
-
 .actions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
 }
 
-.hint {
-  font-size: var(--text-caption);
-  color: var(--muted);
-  line-height: 1.5;
-}
-
-.history {
-  margin-top: var(--space-5);
-  font-size: var(--text-caption);
-}
-
-.history li {
-  padding-block: var(--space-3);
-  border-bottom: 1px solid var(--border);
-}
-
-.history p {
-  margin-top: var(--space-1);
-  white-space: pre-line;
-}
-
-.history ol {
-  list-style: none;
-  padding: 0;
-}
-
-.history summary {
-  cursor: pointer;
-  font-weight: 600;
-}
-
-.undo {
+/* Reordering and removal are secondary to the criterion's text, so they sit quietly at its end. */
+.criterionActions {
   display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  padding-block: var(--space-2);
-  font-size: var(--text-detail);
+  justify-content: flex-end;
+  gap: var(--space-1);
 }

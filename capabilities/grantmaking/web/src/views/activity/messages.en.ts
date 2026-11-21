@@ -13,7 +13,6 @@ export const activityMessages = {
     noMatches: "No activity matches these filters.",
     filter: "Filter",
     filters: "Filter activity",
-    closeFilters: "Close filters",
     removeRound: "Remove round filter: {{round}}",
     removePerson: "Remove person filter: {{person}}",
     loaded_one: "{{count}} event loaded",

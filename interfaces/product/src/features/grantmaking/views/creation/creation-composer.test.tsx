@@ -2,42 +2,43 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
-import { assert, beforeEach, expect, it, vi } from "vite-plus/test";
+import { afterEach, assert, beforeEach, expect, it, vi } from "vite-plus/test";
 
+import { CreateAction } from "@merit/grantmaking-web/creation";
 import { GrantmakingDrafts } from "@merit/grantmaking-web/drafts";
 import { createQueryClient } from "@merit/query";
+import { Toasts } from "@merit/ui/toast";
 
 import { WebMessagesProvider } from "../../../../app/messages";
-import { WorkspaceCreateAction } from "../../creation-action";
 import { workspaceCreationData } from "../../data/creation/workspace-data";
 import { createRound, createApplication } from "../../data/server/creation/creation.functions";
 
 const { navigate } = vi.hoisted(() => ({ navigate: vi.fn() }));
-vi.mock("@tanstack/react-router", () => ({
-  useNavigate: () => navigate,
-  Link: ({
-    children,
-    to,
-    params,
-    className,
-  }: {
-    children: ReactNode;
-    to: string;
-    params: Record<string, string>;
-    className?: string;
-  }) => (
-    <a
-      className={className}
-      href={to.replace(/\$(\w+)/g, (match: string, key: string) => params[key] ?? match)}
-    >
-      {children}
-    </a>
-  ),
-}));
+vi.mock("@tanstack/react-router", () => {
+  const href = (to: string, params: Record<string, string>) =>
+    to.replace(/\$(\w+)/g, (match: string, key: string) => params[key] ?? match);
+
+  return {
+    useNavigate: () => navigate,
+    createLink:
+      (Anchor: (props: { href: string; children: ReactNode }) => ReactNode) =>
+      ({
+        children,
+        to,
+        params,
+      }: {
+        children: ReactNode;
+        to: string;
+        params: Record<string, string>;
+      }) => <Anchor href={href(to, params)}>{children}</Anchor>,
+  };
+});
 vi.mock("../../data/server/creation/creation.functions", () => ({
   createRound: vi.fn(),
   createApplication: vi.fn(),
 }));
+afterEach(() => vi.useRealTimers());
+
 beforeEach(() => {
   navigate.mockReset().mockResolvedValue(undefined);
   vi.mocked(createRound).mockReset().mockResolvedValue({ status: "ok", publicId: "k7m2p9x4n6rt" });
@@ -51,7 +52,7 @@ const setup = (application = false, client = createQueryClient()) => {
     <QueryClientProvider client={client}>
       <WebMessagesProvider>
         <GrantmakingDrafts>
-          <WorkspaceCreateAction
+          <CreateAction
             data={workspaceCreationData(
               client,
               application
@@ -66,6 +67,7 @@ const setup = (application = false, client = createQueryClient()) => {
             )}
           />
         </GrantmakingDrafts>
+        <Toasts />
       </WebMessagesProvider>
     </QueryClientProvider>,
   );
@@ -302,12 +304,17 @@ it("discards an application draft explicitly so the next creation starts empty",
 });
 
 it.each([false, true])(
-  "recovers a saved record inside and outside the dialog without losing the next draft (application: %s)",
+  "recovers a created record that could not open or refresh without losing the next draft (application: %s)",
   async (application) => {
+    // Faking only timeouts leaves draft storage and pointer events on their own queues.
+    vi.useFakeTimers({ shouldAdvanceTime: true, toFake: ["setTimeout", "clearTimeout"] });
     const client = createQueryClient();
+    // The first read and both quiet retries fail, so the refresh failure is reported.
     vi.spyOn(client, "invalidateQueries")
       .mockRejectedValueOnce(new Error("Offline"))
-      .mockResolvedValueOnce();
+      .mockRejectedValueOnce(new Error("Offline"))
+      .mockRejectedValueOnce(new Error("Offline"))
+      .mockResolvedValue();
     navigate.mockRejectedValueOnce(new Error("Offline"));
     const user = setup(application, client);
     const createLabel = application ? "Add application" : "Create funding round";
@@ -318,53 +325,43 @@ it.each([false, true])(
     await user.type(screen.getByRole("textbox", { name: fieldLabel }), "Saved record");
     await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: createLabel }));
 
-    expect(
-      await screen.findByText("Created successfully, but the list could not refresh."),
-    ).toBeVisible();
-    expect(screen.getByRole("link", { name: openLabel })).toHaveAttribute(
-      "href",
-      `/app/alder/${application ? "applications" : "rounds"}/saved-record-k7m2p9x4n6rt`,
-    );
+    const opening = await screen.findByRole("alertdialog", {
+      name: "Created “Saved record”, but it could not be opened.",
+    });
+    await vi.advanceTimersByTimeAsync(4000);
+    const refreshing = await screen.findByRole("alertdialog", {
+      name: "Created, but the latest list could not be loaded.",
+    });
+
     await user.click(screen.getByRole("button", { name: createLabel }));
     const dialog = within(screen.getByRole("dialog"));
-    expect(dialog.getByRole("link", { name: openLabel })).toBeVisible();
     expect(dialog.getByRole("textbox", { name: fieldLabel })).toHaveValue("");
     await user.type(dialog.getByRole("textbox", { name: fieldLabel }), "Next draft");
-
-    await user.click(dialog.getByRole("button", { name: "Refresh list" }));
-
-    await waitFor(() =>
-      expect(
-        screen.queryByText("Created successfully, but the list could not refresh."),
-      ).not.toBeInTheDocument(),
-    );
-    expect(
-      dialog.getByText(
-        "Created successfully, but the page could not open. Use the link above to continue.",
-      ),
-    ).toBeVisible();
-    // Dismissal must keep focus usable even before the dialog's next animation frame.
-    const frame = vi.spyOn(window, "requestAnimationFrame").mockReturnValue(0);
-    try {
-      await user.click(dialog.getByRole("button", { name: "Dismiss confirmation" }));
-      expect(dialog.getByRole("textbox", { name: fieldLabel })).toHaveFocus();
-    } finally {
-      frame.mockRestore();
-    }
-    expect(dialog.queryByRole("link", { name: openLabel })).not.toBeInTheDocument();
-    expect(dialog.getByRole("textbox", { name: fieldLabel })).toHaveValue("Next draft");
-    await waitFor(() => expect(dialog.getByRole("textbox", { name: fieldLabel })).toHaveFocus());
     await user.keyboard("{Escape}");
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+
+    await user.click(within(refreshing).getByRole("button", { name: "Refresh" }));
+    await waitFor(() => expect(refreshing).not.toBeInTheDocument());
+
+    await user.click(within(opening).getByRole("button", { name: openLabel }));
+    await waitFor(() => expect(opening).not.toBeInTheDocument());
+    expect(navigate).toHaveBeenLastCalledWith({
+      to: application
+        ? "/app/$workspaceSlug/applications/$applicationRef"
+        : "/app/$workspaceSlug/rounds/$roundRef",
+      params: application
+        ? { workspaceSlug: "alder", applicationRef: "saved-record-k7m2p9x4n6rt" }
+        : { workspaceSlug: "alder", roundRef: "saved-record-k7m2p9x4n6rt" },
+    });
+
     await user.click(
       screen.getByRole("button", {
         name: application ? "Resume application" : "Resume funding round",
       }),
     );
     expect(screen.getByRole("textbox", { name: fieldLabel })).toHaveValue("Next draft");
-    expect(screen.queryByRole("link", { name: openLabel })).not.toBeInTheDocument();
     expect(create).toHaveBeenCalledTimes(1);
-    expect(navigate).toHaveBeenCalledTimes(1);
+    expect(navigate).toHaveBeenCalledTimes(2);
   },
 );
 
@@ -429,22 +426,17 @@ it("retries failed application creation with the keyboard without duplicating th
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 });
 
-it("keeps an open link to the saved record if navigation fails without retrying creation", async () => {
+it("offers to open the saved record again if navigation fails without retrying creation", async () => {
   navigate.mockRejectedValueOnce(new Error("Offline"));
   const user = setup();
   await user.click(screen.getByRole("button", { name: "Create funding round" }));
   await user.type(screen.getByRole("textbox", { name: "Round name" }), "Saved round");
   await user.keyboard("{Enter}");
 
-  expect(
-    await screen.findByText(
-      "Created successfully, but the page could not open. Use the link above to continue.",
-    ),
-  ).toBeVisible();
-  expect(screen.getByRole("link", { name: "Open round" })).toHaveAttribute(
-    "href",
-    "/app/alder/rounds/saved-round-k7m2p9x4n6rt",
-  );
+  const toast = await screen.findByRole("alertdialog", {
+    name: "Created “Saved round”, but it could not be opened.",
+  });
+  expect(within(toast).getByRole("button", { name: "Open round" })).toBeVisible();
   expect(createRound).toHaveBeenCalledTimes(1);
 
   await user.click(screen.getByRole("button", { name: "Create funding round" }));

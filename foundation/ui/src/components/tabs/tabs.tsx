@@ -2,8 +2,8 @@ import { useId, useLayoutEffect, useRef, useState, type ReactNode } from "react"
 import { Tab, TabList, TabPanel, Tabs as AriaTabs } from "react-aria-components/Tabs";
 
 import scrollStyles from "../../foundations/scroll-area.module.css";
-import { Button } from "../button/button";
-import { Icon } from "../icon/icon";
+import { ButtonBase } from "../button/button-base";
+import { IconBase } from "../icon/icon-base";
 import styles from "./tabs.module.css";
 
 type TabsProps<Id extends string> = {
@@ -213,7 +213,7 @@ export const Tabs = <Id extends string>({
             ))}
           </TabList>
           <div ref={controls} className={styles.controls} hidden={!scroll.overflow}>
-            <Button
+            <ButtonBase
               variant="quiet"
               size="small"
               iconOnly
@@ -221,9 +221,9 @@ export const Tabs = <Id extends string>({
               aria-disabled={!scroll.backward}
               onPress={() => scrollToTab("backward")}
             >
-              <Icon name="left" className={styles.direction} />
-            </Button>
-            <Button
+              <IconBase name="left" className={styles.direction} />
+            </ButtonBase>
+            <ButtonBase
               variant="quiet"
               size="small"
               iconOnly
@@ -231,8 +231,8 @@ export const Tabs = <Id extends string>({
               aria-disabled={!scroll.forward}
               onPress={() => scrollToTab("forward")}
             >
-              <Icon name="right" className={styles.direction} />
-            </Button>
+              <IconBase name="right" className={styles.direction} />
+            </ButtonBase>
           </div>
         </div>
         {actions && <div className={styles.actions}>{actions}</div>}

@@ -1,4 +1,4 @@
-import { Link, useHydrated, useNavigate } from "@tanstack/react-router";
+import { useHydrated, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -6,9 +6,9 @@ import { FormDialog } from "@merit/forms";
 import { Button } from "@merit/ui/button";
 import { DialogContent } from "@merit/ui/dialog";
 import { EditorLoading } from "@merit/ui/editor-loading";
-import linkStyles from "@merit/ui/link.module.css";
 import { Notice } from "@merit/ui/notice";
 
+import { RoutedLink } from "../../shared/routed-link";
 import { useOrganizationCreation } from "./controllers/creation";
 import { useAdminDrafts } from "./controllers/drafts";
 import { useCreationData } from "./data/organization";
@@ -49,9 +49,7 @@ export const CreateOrganization = () => {
       }}
       isDismissDisabled={pending}
       trigger={
-        <Button size="small" isDisabled={!hydrated}>
-          {t(drafts.creation ? "resumeCreation" : "create")}
-        </Button>
+        <Button isDisabled={!hydrated}>{t(drafts.creation ? "resumeCreation" : "create")}</Button>
       }
     >
       {open &&
@@ -59,10 +57,10 @@ export const CreateOrganization = () => {
           <DialogContent label={t("created")}>
             <Notice as="div" tone="success">
               <p>{t("created")}</p>
-              <Link
+              <RoutedLink
+                variant="standalone"
                 to="/admin/organizations/$organizationId"
                 params={{ organizationId: committedId }}
-                className={`${linkStyles.text} ${linkStyles.standalone}`}
                 onClick={(event) => {
                   if (
                     !event.metaKey &&
@@ -76,7 +74,7 @@ export const CreateOrganization = () => {
                 }}
               >
                 {t("continue")}
-              </Link>
+              </RoutedLink>
             </Notice>
           </DialogContent>
         ) : !drafts.creationReady ? (

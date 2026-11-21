@@ -485,7 +485,6 @@ export const useRoundPreparation = ({
       ),
 
     refresh,
-    dismissUndo: () => setUndo(null),
     undoSave: () =>
       undo ? save({ ...undo.draft, revision: undo.revision }, "undo") : Promise.resolve(null),
   };

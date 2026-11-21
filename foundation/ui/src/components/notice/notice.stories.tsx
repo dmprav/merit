@@ -3,7 +3,7 @@ import { fn } from "storybook/test";
 
 import { Button } from "../button/button";
 import { Inline, Reading, Stack } from "../layout/layout";
-import linkStyles from "../link/link.module.css";
+import { Link } from "../link/link";
 import { Notice } from "./notice";
 
 const meta = {
@@ -25,7 +25,7 @@ export const Playground: Story = {};
 export const Tones: Story = {
   parameters: { controls: { disable: true } },
   render: () => (
-    <Reading>
+    <Reading prose={false}>
       <Stack gap={3}>
         <Notice tone="neutral">Only workspace members can view this application.</Notice>
         <Notice tone="success">The invitation was sent. It expires in seven days.</Notice>
@@ -46,10 +46,10 @@ export const WithRecovery: Story = {
     children: "Your draft is still here. Compare it with the saved version before continuing.",
     actions: (
       <Inline>
-        <Button variant="secondary" onPress={fn()}>
+        <Button size="medium" variant="secondary" onPress={fn()}>
           Use saved version
         </Button>
-        <Button variant="secondary" onPress={fn()}>
+        <Button size="medium" variant="secondary" onPress={fn()}>
           Keep my draft
         </Button>
       </Inline>
@@ -78,10 +78,7 @@ export const LongContent: Story = {
       <>
         Delivery is not confirmed for community.partnerships.and.grants@alder-foundation.example.
         You can copy the invitation link and share it directly. See the{" "}
-        <a className={linkStyles.text} href="/docs/team">
-          team guide
-        </a>{" "}
-        for invitation options.
+        <Link href="/docs/team">team guide</Link> for invitation options.
       </>
     ),
   },

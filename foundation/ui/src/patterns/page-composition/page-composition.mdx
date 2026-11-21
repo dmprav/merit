@@ -29,11 +29,16 @@ Keep a layout decision with the behavior that would make it change.
 | Read-only facts with labels above their values          | `DescriptionList` and `DescriptionListItem` |
 | Fields, validation feedback, and editing actions        | The shared `Form` and editing components    |
 | Sustained work beside reference material                | `ReferenceWorkspace`                        |
+| A record's work beside a panel of its properties        | `PropertiesLayout`                          |
+| Rules between entries and bordered groups               | `Stack` `divided`, `Divider`, and `Panel`   |
+| Recorded events beside a rail                           | `Timeline`                                  |
 | Comparison columns and other feature-specific scrolling | The feature's CSS Module                    |
 
 Use the [application shell](?path=/docs/patterns-application-shell--docs) for navigation
 and [layout primitives](?path=/docs/components-layout-primitives--docs) for simple flows.
 The shared frame supports different tasks; each feature owns its particular arrangement.
+
+## Arrange a collection for comparison
 
 Use the [collection toolbar](?path=/docs/patterns-collection-toolbar--docs) to keep
 filtering, active filter chips, optional scoped search and counts together above
@@ -43,7 +48,13 @@ feature; the shared pattern owns their compact presentation and focus behavior.
 Choose a table when people compare the same properties across records, such as
 application review progress or funding-round budgets. Use a chronological list
 when the event and its context matter more than column-by-column comparison, as
-in Activity. Keep ordinary values and localized timestamps plain and reserve warning
+in [Activity](?path=/story/features-activity-workspace-activity--populated).
+In a [table](?path=/docs/components-data-table--docs), give the record a clear
+identity and keep comparable values in consistent columns. Keep row actions in
+one predictable place. The [narrow example](?path=/story/components-data-table--narrow-navigation)
+shows how each value keeps its label and the record keeps its primary link.
+
+Keep ordinary values and localized timestamps plain and reserve warning
 emphasis for facts that change the next action. A shared
 [status indicator](?path=/docs/patterns-status-indicator--docs) keeps a brief
 qualification beside its value, available through hover, focus, and tap without
@@ -64,7 +75,9 @@ Use `SectionHeader` for sections beneath the page heading. Connect the section's
 `aria-labelledby` to the header's `id`. Use `count` for a simple count that belongs
 with the heading; put qualified summaries and actions in `aside`.
 
-Let long headings and actions wrap. Check the page with missing information and
+A page header carries one labelled action, the page's main next step. Put further
+commands in an icon-only **More actions** menu beside it; story tests reject a second
+labelled action. Let long headings and actions wrap. Check the page with missing information and
 narrow widths so its hierarchy stays readable throughout the task.
 
 <Canvas of={Pages.SectionHeaders} story={{ inline: false, height: "540px" }} />
@@ -80,8 +93,8 @@ between screens. Keep this frame in the interface's page assembly.
 Use the default `PageHeader` for ordinary pages. Choose `density="compact"` for a
 sustained workspace where the heading shares the viewport with reference material
 and editing. The header owns typography, wrapping action groups, and the space
-before content. Its `className` supports placement, such as an inset in a workspace
-with separate scrolling panes; feature CSS should not restyle its internal heading.
+before content. Place it within a workspace through the surrounding layout, such
+as an inset element around a pane's header; feature CSS should not restyle it.
 
 <Canvas of={PageLayout.Standard} story={{ inline: false, height: "460px" }} />
 
@@ -106,7 +119,7 @@ ratios, breakpoints, and scroll regions in the owning feature's CSS Module, wher
 their relationship to the task is visible.
 
 The [version history](?path=/story/features-applications-version-history--across-three-versions),
-[review content](?path=/story/features-applications-overview--reviews), and
+[review content](?path=/story/features-applications-application-detail--reviews), and
 [recommendation editor](?path=/story/features-applications-recommendation--resume-editing)
 show these arrangements with real feature components. Check them with long content,
 missing information, enlarged text, and narrow widths when changing shared layout.

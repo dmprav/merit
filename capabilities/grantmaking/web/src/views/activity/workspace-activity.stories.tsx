@@ -148,7 +148,7 @@ export default meta;
 export const Populated: StoryObj<typeof meta> = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getAllByText("Dana Reed")).not.toHaveLength(0);
+    await expect(canvas.getAllByText("Recorded by Dana Reed")).not.toHaveLength(0);
     await expect(
       canvas.getByText(formatTimestamp("2027-01-20T11:00:00.000Z", "en-GB")),
     ).toBeVisible();

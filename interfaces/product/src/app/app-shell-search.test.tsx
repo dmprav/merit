@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test"
 
 import { GrantmakingDrafts } from "@merit/grantmaking-web/drafts";
 import { createQueryClient } from "@merit/query";
+import { Toasts } from "@merit/ui/toast";
 
 import { renderWithRouter } from "../../tests/render-with-router";
 import { createRound } from "../features/grantmaking/data/server/creation/creation.functions";
@@ -74,6 +75,7 @@ const show = (
               </label>
             </main>
           </AppShell>
+          <Toasts />
         </WorkspaceNavigationContext>
       </GrantmakingDrafts>
     </QueryClientProvider>,
@@ -383,7 +385,7 @@ describe("workspace choices", () => {
 });
 
 it.each([false, true])(
-  "returns focus to a surviving control after alternate-entry notice dismissal (mobile: %s)",
+  "offers to open a search-created round again when navigation fails (mobile: %s)",
   async (mobile) => {
     const matchMedia = window.matchMedia;
     const media = vi
@@ -402,18 +404,15 @@ it.each([false, true])(
       await user.type(await screen.findByRole("textbox", { name: "Round name" }), "New fund");
       vi.spyOn(router, "navigate").mockRejectedValueOnce(new Error("Offline"));
       await user.click(screen.getByRole("button", { name: "Create funding round" }));
-      expect(
-        await screen.findByText(
-          "Created successfully, but the page could not open. Use the link above to continue.",
-        ),
-      ).toBeVisible();
-      expect(screen.getByRole("link", { name: "Open round" })).toHaveAttribute(
-        "href",
-        "/app/alder/rounds/new-fund-k7m2p9x4n6rt",
+      const toast = await screen.findByRole("alertdialog", {
+        name: "Created “New fund”, but it could not be opened.",
+      });
+      await user.click(within(toast).getByRole("button", { name: "Open round" }));
+
+      await waitFor(() =>
+        expect(router.state.location.pathname).toBe("/app/alder/rounds/new-fund-k7m2p9x4n6rt"),
       );
-      await user.click(screen.getByRole("button", { name: "Dismiss confirmation" }));
-      expect(mobile ? screen.getByRole("main") : opener).toHaveFocus();
-      expect(screen.queryByRole("link", { name: "Open round" })).not.toBeInTheDocument();
+      expect(toast).not.toBeInTheDocument();
       expect(createRound).toHaveBeenCalledOnce();
     } finally {
       media.mockRestore();
@@ -459,9 +458,6 @@ it.each(["back", "query"])(
 );
 
 it("keeps saved feedback when a pending creation settles after navigation", async () => {
-  const client = createQueryClient();
-  vi.spyOn(client, "invalidateQueries").mockRejectedValueOnce(new Error("Refresh unavailable"));
-
   let finish: (result: { status: "ok"; publicId: string }) => void = () => {};
 
   vi.mocked(createRound).mockReturnValueOnce(
@@ -469,7 +465,7 @@ it("keeps saved feedback when a pending creation settles after navigation", asyn
       finish = resolve;
     }),
   );
-  const { user, router } = await show({ kind: "workspace", workspace: alder }, client);
+  const { user, router } = await show({ kind: "workspace", workspace: alder });
   await user.click(screen.getByRole("button", { name: "Search" }));
   await user.click(await screen.findByRole("option", { name: /Create funding round/ }));
   await user.type(await screen.findByRole("textbox", { name: "Round name" }), "Saved round");
@@ -485,13 +481,7 @@ it("keeps saved feedback when a pending creation settles after navigation", asyn
   await waitFor(() =>
     expect(router.state.location.pathname).toBe("/app/alder/rounds/saved-round-k7m2p9x4n6rt"),
   );
-  expect(
-    await screen.findByText("Created successfully, but the list could not refresh."),
-  ).toBeVisible();
-  expect(screen.getByRole("link", { name: "Open round" })).toHaveAttribute(
-    "href",
-    "/app/alder/rounds/saved-round-k7m2p9x4n6rt",
-  );
+  expect(await screen.findByRole("alertdialog", { name: "Created “Saved round”." })).toBeVisible();
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   expect(createRound).toHaveBeenCalledOnce();
 });

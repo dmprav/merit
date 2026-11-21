@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { Button } from "../../components/button/button";
 import { Notice } from "../../components/notice/notice";
+import { useToastWhile } from "../toast/toast";
 import styles from "./paged-content.module.css";
 
 /** Initial retries lose their error flag before they have data; keep recovery visible until settled. */
@@ -14,38 +15,57 @@ export const useCollectionRecovery = (failed: boolean, fetching: boolean) => {
   return failed || (previouslyFailed && fetching);
 };
 
-/** Place beside the page controls so recovery stays where the request started. */
+/**
+ * Recovers a collection read. While earlier entries stay on screen, a failed page is a toast
+ * with Retry, the entries remain usable, and a retry in progress shows as a status line. When
+ * nothing could be shown, place it beside the page controls so recovery stays where the request
+ * started.
+ */
 export const CollectionRecovery = ({
   message,
   retryLabel,
   onRetry,
   isPending = false,
+  showsEntries = false,
 }: {
   message: string;
   retryLabel: string;
   onRetry?: () => unknown;
   isPending?: boolean;
-}) => (
-  <Notice
-    className={styles.recovery}
-    tone="danger"
-    role={isPending ? "status" : "alert"}
-    actions={
-      onRetry && (
-        <Button
-          variant="secondary"
-          size="small"
-          isPending={isPending}
-          onPress={() => void onRetry()}
-        >
-          {retryLabel}
-        </Button>
-      )
-    }
-  >
-    {message}
-  </Notice>
-);
+  showsEntries?: boolean;
+}) => {
+  useToastWhile(
+    showsEntries && !isPending
+      ? {
+          tone: "danger",
+          message,
+          action: onRetry && { label: retryLabel, onPress: () => void onRetry() },
+        }
+      : null,
+  );
+
+  if (showsEntries) {
+    return isPending ? <p role="status">{message}</p> : null;
+  }
+
+  return (
+    <div className={styles.recovery}>
+      <Notice
+        tone="danger"
+        role={isPending ? "status" : "alert"}
+        actions={
+          onRetry && (
+            <Button variant="secondary" isPending={isPending} onPress={() => void onRetry()}>
+              {retryLabel}
+            </Button>
+          )
+        }
+      >
+        {message}
+      </Notice>
+    </div>
+  );
+};
 
 export type PagedContentState<T> = {
   entries: T[];
@@ -101,10 +121,11 @@ export const PagedContent = <T,>({
           retryLabel={retryLabel}
           isPending={fetching}
           onRetry={retry}
+          showsEntries={loaded && entries.length > 0}
         />
       )}
       {hasMore && !recovering && (
-        <Button variant="quiet" isPending={fetching} onPress={() => void more?.()}>
+        <Button size="medium" variant="quiet" isPending={fetching} onPress={() => void more?.()}>
           {moreLabel}
         </Button>
       )}

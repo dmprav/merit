@@ -1,10 +1,10 @@
-import { useTranslation } from "react-i18next";
+import { Trans, useTranslation } from "react-i18next";
 
 import { Form, FormActions, FormDialog, FormTextField } from "@merit/forms";
 import { Button } from "@merit/ui/button";
-import { DialogContent } from "@merit/ui/dialog";
-import linkStyles from "@merit/ui/link.module.css";
-import { Notice } from "@merit/ui/notice";
+import { Link } from "@merit/ui/link";
+import { Text } from "@merit/ui/text";
+import { showToast } from "@merit/ui/toast";
 
 import type { RequestAccess } from "../contracts";
 import { useAccessRequest } from "../controllers/use-access-request";
@@ -18,63 +18,50 @@ export const AccessRequestDialog = ({
   hydrated: boolean;
 }) => {
   const { t } = useTranslation("onboarding");
-  const { open, setOpen, saved, setSaved, hasDraft, setHasDraft, form, submission } =
-    useAccessRequest(request);
+  const { open, setOpen, hasDraft, setHasDraft, form, submission } = useAccessRequest(request, () =>
+    showToast({ tone: "success", message: t("request.saved") }),
+  );
 
   return (
     <FormDialog
       title={t("request.title")}
       trigger={
-        <Button variant="quiet" className={styles.trigger} isDisabled={!hydrated}>
+        <Button size="medium" variant="inline" isDisabled={!hydrated}>
           {t(hasDraft ? "request.resume" : "request.title")}
         </Button>
       }
       isOpen={open}
       isDismissDisabled={submission.isSubmitting}
-      onOpenChange={(value) => {
-        setOpen(value);
-        if (value) {
-          setSaved(false);
-        }
-      }}
+      onOpenChange={setOpen}
     >
-      {saved ? (
-        <DialogContent
-          label={t("request.title")}
-          footer={<Button onPress={() => setOpen(false)}>{t("request.close")}</Button>}
-        >
-          <Notice role="status" tone="neutral">
-            {t("request.saved")}
-          </Notice>
-        </DialogContent>
-      ) : (
-        <Form
-          label={t("request.title")}
-          submission={submission}
-          actions={
-            <FormActions
-              submission={submission}
-              onCancel={() => setOpen(false)}
-              cancelLabel={t("request.close")}
-              discard={
-                hasDraft
-                  ? {
-                      label: t("request.discard"),
-                      onPress: () => {
-                        form.reset();
-                        setHasDraft(false);
-                        setOpen(false);
-                      },
-                    }
-                  : undefined
-              }
-              submitLabel={t("request.submit")}
-              submittingLabel={t("request.submitting")}
-            />
-          }
-        >
-          <div className={styles.content}>
-            <p>{t("request.prototype")}</p>
+      <Form
+        label={t("request.title")}
+        submission={submission}
+        actions={
+          <FormActions
+            submission={submission}
+            onCancel={() => setOpen(false)}
+            cancelLabel={t("request.close")}
+            discard={
+              hasDraft
+                ? {
+                    label: t("request.discard"),
+                    onPress: () => {
+                      form.reset();
+                      setHasDraft(false);
+                      setOpen(false);
+                    },
+                  }
+                : undefined
+            }
+            submitLabel={t("request.submit")}
+            submittingLabel={t("request.submitting")}
+          />
+        }
+      >
+        <div className={styles.content}>
+          <p>{t("request.prototype")}</p>
+          <div className={styles.field}>
             <form.Field name="email">
               {(field) => (
                 <FormTextField
@@ -88,20 +75,25 @@ export const AccessRequestDialog = ({
                 />
               )}
             </form.Field>
-            <p className={styles.note}>
-              <a
-                href="/privacy"
-                target="_blank"
-                rel="noopener noreferrer"
-                className={linkStyles.text}
-                aria-label={t("request.privacyNewTab")}
-              >
-                {t("request.privacy")}
-              </a>
-            </p>
+            <Text as="p" variant="supporting">
+              <Trans
+                t={t}
+                i18nKey="request.privacyFootnote"
+                components={{
+                  privacy: (
+                    <Link
+                      href="/privacy"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={t("request.privacyNewTab")}
+                    />
+                  ),
+                }}
+              />
+            </Text>
           </div>
-        </Form>
-      )}
+        </div>
+      </Form>
     </FormDialog>
   );
 };

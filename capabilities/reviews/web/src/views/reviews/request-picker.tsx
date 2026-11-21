@@ -6,6 +6,7 @@ import { isEligibleReviewer } from "@merit/reviews/domain";
 import { Button } from "@merit/ui/button";
 import { PickerPopover } from "@merit/ui/dialog";
 import { Notice } from "@merit/ui/notice";
+import { Text } from "@merit/ui/text";
 
 import type { ReviewRequest } from "../../contracts/reviews";
 import { useReviewRequest } from "../../controllers/reviews/use-review-request";
@@ -46,42 +47,48 @@ export const RequestPicker = ({
       isDismissDisabled={pending || editingContact}
       onOpenChange={changeOpen}
     >
-      {({ closeButton }) => (
-        <div className={styles.form} aria-busy={pending}>
-          <ContactPicker
-            isEligible={isEligibleReviewer}
-            direct
-            headerActions={closeButton}
-            isRequired
-            workspaceSlug={workspaceSlug}
-            label={t("reviewer")}
-            value={attempt?.contactId ?? null}
-            onChange={(id) => void choose(id)}
-            isDisabled={pending}
-            disabledContactIds={disabledContactIds}
-            onEditorOpenChange={setEditingContact}
-          />
-          <p className={styles.requestHint}>{t("quickRequestHint")}</p>
-          {pending && (
-            <p role="status" className={styles.meta}>
+      <div className={styles.form} aria-busy={pending}>
+        <ContactPicker
+          isEligible={isEligibleReviewer}
+          direct
+          isRequired
+          workspaceSlug={workspaceSlug}
+          label={t("reviewer")}
+          value={attempt?.contactId ?? null}
+          onChange={(id) => void choose(id)}
+          isDisabled={pending}
+          disabledContactIds={disabledContactIds}
+          onEditorOpenChange={setEditingContact}
+        />
+        <Text as="p" variant="caption">
+          {t("quickRequestHint")}
+        </Text>
+        {pending && (
+          <div role="status">
+            <Text as="p" variant="supporting">
               {t("saving")}
-            </p>
-          )}
-          {error && (
-            <Notice tone="danger" role="alert">
-              {reviewError(t, error)}{" "}
+            </Text>
+          </div>
+        )}
+        {error && (
+          <Notice
+            appearance="inline"
+            tone="danger"
+            role="alert"
+            actions={
               <Button
-                size="small"
                 variant="quiet"
                 isDisabled={pending}
                 onPress={() => void choose(attempt?.contactId ?? null)}
               >
                 {t("retry")}
               </Button>
-            </Notice>
-          )}
-        </div>
-      )}
+            }
+          >
+            {reviewError(t, error)}
+          </Notice>
+        )}
+      </div>
     </PickerPopover>
   );
 };

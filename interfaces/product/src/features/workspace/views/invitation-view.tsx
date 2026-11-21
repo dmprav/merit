@@ -1,16 +1,15 @@
-import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@merit/ui/button";
 import { DescriptionList, DescriptionListItem } from "@merit/ui/description-list";
 import { Inline, Stack } from "@merit/ui/layout";
-import linkStyles from "@merit/ui/link.module.css";
 import { Notice } from "@merit/ui/notice";
 import { PageHeader } from "@merit/ui/page-header";
 import { StateMessage } from "@merit/ui/state-message";
 
 import { RouteRetry } from "../../../components/route-retry";
 import { StandalonePage } from "../../../components/standalone-page";
+import { RoutedLink } from "../../../shared/routed-link";
 import type { InvitationResult } from "../contracts";
 
 /** Invitation responsibilities and recovery, independent of loading and acceptance transport. */
@@ -47,20 +46,19 @@ export const InvitationView = ({
           actions={
             <Inline gap={3}>
               {["signed_out", "wrong_account"].includes(result.status) ? (
-                <Link
+                <RoutedLink
+                  variant="primary"
                   to="/app/sign-in"
                   search={{ returnTo: `/invitations/${token}` }}
-                  className={linkStyles.button}
-                  data-variant="primary"
                 >
                   {t(result.status === "signed_out" ? "signIn" : "switchAccount")}
-                </Link>
+                </RoutedLink>
               ) : result.status === "unavailable" ? (
                 <RouteRetry>{t("retry")}</RouteRetry>
               ) : (
-                <Link to="/app" className={`${linkStyles.text} ${linkStyles.standalone}`}>
+                <RoutedLink variant="standalone" to="/app">
                   {t("back")}
-                </Link>
+                </RoutedLink>
               )}
             </Inline>
           }
@@ -121,7 +119,7 @@ const InvitationDetails = ({
             {error}
           </Notice>
         )}
-        <Button isPending={pending} onPress={onAccept}>
+        <Button size="medium" isPending={pending} onPress={onAccept}>
           {t(pending ? "accepting" : invitation.accepted ? "continue" : "accept")}
         </Button>
       </Stack>

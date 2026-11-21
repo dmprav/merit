@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { expect, waitFor, mocked, within } from "storybook/test";
+import { expect, fn, waitFor, mocked, within } from "storybook/test";
 
 import { GrantmakingDrafts } from "@merit/grantmaking-web/drafts";
 import { FundingRoundPreview as FundingRoundView } from "@merit/grantmaking-web/testing";
@@ -34,7 +34,7 @@ const preparation: PreparationState = {
   ],
   budgetHistory: [
     {
-      revision: 1,
+      revision: 2,
       action: "budget",
       before: encodeMoney(fromMinorUnits(7000000n)),
       after: encodeMoney(example.budget!),
@@ -91,13 +91,20 @@ const ConflictEditor = () => {
   );
 };
 
-const RoundSession = ({ round }: { round: RoundView }) => {
+const RoundSession = ({
+  round,
+  onDeleted,
+}: {
+  round: RoundView;
+  onDeleted?: PreparationSession["onDeleted"];
+}) => {
   const client = useQueryClient();
   const navigate = useNavigate();
   const session: PreparationSession = {
     data: workspacePreparationData(client, "alder", "k7m2p9x4n6rt", preparation),
-    onDeleted: () =>
-      navigate({ to: "/app/$workspaceSlug/rounds", params: { workspaceSlug: "alder" } }),
+    onDeleted:
+      onDeleted ??
+      (() => navigate({ to: "/app/$workspaceSlug/rounds", params: { workspaceSlug: "alder" } })),
   };
   return <FundingRoundView round={round} preparation={session} />;
 };
@@ -107,11 +114,13 @@ const RoundManagementPreview = ({
   reassign = false,
   longManager = false,
   conflict = false,
+  onDeleted,
 }: {
   empty?: boolean;
   reassign?: boolean;
   longManager?: boolean;
   conflict?: boolean;
+  onDeleted?: PreparationSession["onDeleted"];
 }) => {
   const round: RoundView = roundView({
     ...example,
@@ -131,7 +140,7 @@ const RoundManagementPreview = ({
           breadcrumbLabel="Breadcrumb"
           width="full"
         >
-          {conflict ? <ConflictEditor /> : <RoundSession round={round} />}
+          {conflict ? <ConflictEditor /> : <RoundSession round={round} onDeleted={onDeleted} />}
         </ApplicationPage>
       </GrantmakingDrafts>
     </StoryEnvironment>
@@ -188,7 +197,7 @@ export const AssignManager: Story = {
 
     await expect(dialog.getByRole("textbox", { name: "Search people" })).toHaveFocus();
     await expect(dialog.queryByRole("heading", { name: "Assign manager" })).not.toBeInTheDocument();
-    await waitFor(() => expect(dialog.getByRole("button", { name: "Close dialog" })).toBeVisible());
+    await expect(dialog.queryByRole("button", { name: "Close dialog" })).not.toBeInTheDocument();
   },
 };
 export const ResumePurpose: Story = {
@@ -208,20 +217,51 @@ export const ResumePurpose: Story = {
   },
 };
 export const BudgetHistory: Story = {
+  beforeEach: () => {
+    mocked(readBudgetHistory)
+      .mockClear()
+      .mockImplementation(async ({ data }) =>
+        data.after === "earlier"
+          ? {
+              status: "ok",
+              entries: [
+                {
+                  revision: 1,
+                  action: "budget",
+                  before: null,
+                  after: encodeMoney(fromMinorUnits(7000000n)),
+                  reason: null,
+                  actor: "Leah Martin",
+                  provenance: { interface: "web" },
+                  recordedAt: "2026-10-01T10:00:00Z",
+                },
+              ],
+              nextCursor: null,
+            }
+          : { status: "ok", entries: preparation.budgetHistory, nextCursor: "earlier" },
+      );
+  },
   play: async ({ canvas, canvasElement, userEvent }) => {
     await userEvent.click(await canvas.findByRole("button", { name: /^Edit budget:/ }));
     const dialog = within(within(canvasElement.ownerDocument.body).getByRole("dialog"));
-    await userEvent.click(dialog.getByText("Budget history"));
+    await expect(readBudgetHistory).not.toHaveBeenCalled();
+    await userEvent.click(dialog.getByRole("button", { name: "Budget history" }));
 
-    await waitFor(() => expect(dialog.getByText("via MCP client example-client")).toBeVisible());
-    await waitFor(async () =>
-      expect(dialog.getByText("Additional funding approved for accessible venues.")).toBeVisible(),
-    );
+    await expect(await dialog.findByText("via MCP client example-client")).toBeVisible();
+    await expect(
+      dialog.getByText("Additional funding approved for accessible venues."),
+    ).toBeVisible();
+    await userEvent.click(dialog.getByRole("button", { name: "Load older entries" }));
+    await expect(await dialog.findByText("Recorded by Leah Martin")).toBeVisible();
+    await expect(dialog.getByText("via Merit web")).toBeVisible();
+    await expect(dialog.getByRole("heading", { name: "Not set → €70,000" })).toBeVisible();
   },
 };
 export const BudgetReasonRequired: Story = {
   play: async (context) => {
-    await BudgetHistory.play!(context);
+    await context.userEvent.click(
+      await context.canvas.findByRole("button", { name: /^Edit budget:/ }),
+    );
     const dialog = within(within(context.canvasElement.ownerDocument.body).getByRole("dialog"));
     await context.userEvent.clear(dialog.getByRole("textbox", { name: "Round budget" }));
     await context.userEvent.type(dialog.getByRole("textbox", { name: "Round budget" }), "95000");
@@ -263,6 +303,42 @@ export const DeleteFailure: Story = {
     await context.userEvent.click(dialog.getByRole("button", { name: "Delete round" }));
 
     await waitFor(async () => expect(await dialog.findByRole("alert")).toBeVisible());
+  },
+};
+
+const returnToList = fn<PreparationSession["onDeleted"]>();
+
+export const RoundDeletedReturnToListFailed: Story = {
+  name: "Round deleted, return to list failed",
+  args: { empty: true, onDeleted: returnToList },
+  beforeEach: () => {
+    mocked(deleteRound).mockResolvedValue({ status: "ok" });
+    returnToList
+      .mockReset()
+      .mockRejectedValueOnce(new Error("Navigation failed"))
+      .mockResolvedValue(undefined);
+  },
+  play: async ({ canvas, canvasElement, userEvent }) => {
+    await userEvent.click(canvas.getByRole("button", { name: "More actions" }));
+    const body = within(canvasElement.ownerDocument.body);
+    await userEvent.click(body.getByRole("menuitem", { name: "Delete round" }));
+    await userEvent.click(body.getByRole("button", { name: "Delete round" }));
+    await expect(await canvas.findByRole("status")).toHaveTextContent("Round deleted.");
+    await expect(await canvas.findByRole("alert")).toHaveTextContent(
+      "We couldn’t open the rounds list",
+    );
+    await waitFor(() =>
+      expect(canvas.getByRole("button", { name: "Return to funding rounds" })).toHaveFocus(),
+    );
+    await expect(deleteRound).toHaveBeenCalledOnce();
+    // React Aria keeps the closed confirmation's pending announcement for seven seconds,
+    // labelled by a button that no longer exists. Clear it, as a remount would, so the
+    // accessibility scan and browser suite need not wait for React Aria's timer.
+    for (const log of canvasElement.ownerDocument.querySelectorAll(
+      "[data-live-announcer] [role=log]",
+    )) {
+      log.replaceChildren();
+    }
   },
 };
 

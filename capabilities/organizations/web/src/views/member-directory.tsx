@@ -51,7 +51,6 @@ const MemberActions = ({
           <Button
             ref={trigger}
             variant="quiet"
-            size="small"
             iconOnly
             data-draft={draft || undefined}
             aria-describedby={draft ? draftDescription : undefined}

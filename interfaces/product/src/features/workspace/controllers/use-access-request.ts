@@ -7,11 +7,11 @@ import { accessRequestInput } from "@merit/organizations/api";
 
 import type { RequestAccess } from "../contracts";
 
-export const useAccessRequest = (request: RequestAccess) => {
+/** A saved request closes the dialog; onSubmitted confirms it outside the dialog. */
+export const useAccessRequest = (request: RequestAccess, onSubmitted: () => void) => {
   const analytics = useAnalytics();
   const { t } = useTranslation("onboarding");
   const [open, setOpen] = useState(false);
-  const [saved, setSaved] = useState(false);
   const [hasDraft, setHasDraft] = useState(false);
   const { form, submission } = useForm({
     defaultValues: { email: "" },
@@ -25,12 +25,13 @@ export const useAccessRequest = (request: RequestAccess) => {
       }
 
       analytics.track("access_request_submitted");
-      setSaved(true);
       setHasDraft(false);
       form.reset();
+      setOpen(false);
+      onSubmitted();
       return null;
     },
   });
 
-  return { open, setOpen, saved, setSaved, hasDraft, setHasDraft, form, submission };
+  return { open, setOpen, hasDraft, setHasDraft, form, submission };
 };

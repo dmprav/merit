@@ -10,6 +10,7 @@ import {
   roundPreparationLimits,
   type FundingRound,
 } from "@merit/rounds/domain";
+import { Text } from "@merit/ui/text";
 
 import {
   hasPreparationChanges,
@@ -80,37 +81,40 @@ const PreparationFrame = ({
   const effectiveSubmission = isPending ? { ...submission, isSubmitting: true } : submission;
 
   return (
-    <Form
-      submission={effectiveSubmission}
-      label={t(`preparation.edit.${draft.section}`)}
-      className={styles.form}
-      scrollFields={!inline}
-      submitOnModEnter
-      actions={
-        <FormActions
-          submission={effectiveSubmission}
-          discard={
-            changed && onDiscard
-              ? { label: t("preparation.discard"), onPress: onDiscard }
-              : undefined
-          }
-          onCancel={onCancel}
-          cancelLabel={t(onDiscard || !changed ? "preparation.close" : "preparation.discard")}
-          submitLabel={t(
-            draft.section === "budget" ? "preparation.updateBudget" : "preparation.save",
-          )}
-          submittingLabel={t("editor.saving")}
-          isSubmitDisabled={!hasPreparationChanges(draft) || isConflict || isPending}
-        />
-      }
-    >
-      {beforeFields}
-      {draft.section !== "purpose" && changed && (
-        <p className={styles.hint}>{t("preparation.draftHint")}</p>
-      )}
-      <div className={styles.fields}>{children}</div>
-      {afterFields}
-    </Form>
+    <div className={styles.formFrame}>
+      <Form
+        submission={effectiveSubmission}
+        label={t(`preparation.edit.${draft.section}`)}
+        scrollFields={!inline}
+        submitOnModEnter
+        actions={
+          <FormActions
+            submission={effectiveSubmission}
+            discard={
+              changed && onDiscard
+                ? { label: t("preparation.discard"), onPress: onDiscard }
+                : undefined
+            }
+            onCancel={onCancel}
+            cancelLabel={t(onDiscard || !changed ? "preparation.close" : "preparation.discard")}
+            submitLabel={t(
+              draft.section === "budget" ? "preparation.updateBudget" : "preparation.save",
+            )}
+            submittingLabel={t("editor.saving")}
+            isSubmitDisabled={!hasPreparationChanges(draft) || isConflict || isPending}
+          />
+        }
+      >
+        {beforeFields}
+        {draft.section !== "purpose" && changed && (
+          <Text as="p" variant="caption">
+            {t("preparation.draftHint")}
+          </Text>
+        )}
+        <div className={styles.fields}>{children}</div>
+        {afterFields}
+      </Form>
+    </div>
   );
 };
 

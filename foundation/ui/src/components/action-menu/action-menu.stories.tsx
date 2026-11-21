@@ -11,7 +11,7 @@ const meta = {
   args: {
     label: "More actions",
     trigger: (
-      <Button size="small" variant="quiet" iconOnly aria-label="More actions">
+      <Button variant="quiet" iconOnly aria-label="More actions">
         <Icon name="more" />
       </Button>
     ),

@@ -3,9 +3,8 @@ import { useTranslation } from "react-i18next";
 
 import type { ApplicationView as Application } from "@merit/grantmaking/api";
 import { useFormat } from "@merit/i18n/format";
+import { DescriptionList, DescriptionListItem } from "@merit/ui/description-list";
 import { PersonIdentity } from "@merit/ui/person-identity";
-
-import styles from "./application-details.module.css";
 
 type Props = {
   application: Application;
@@ -24,29 +23,22 @@ export const ApplicationDetails = ({ application, contact, fields }: Props) => {
   const submission = application.submission;
 
   return (
-    <dl className={styles.facts} data-editing={Boolean(fields) || undefined}>
+    <DescriptionList layout="rows">
       <ApplicantDetails submission={submission} contact={contact} fields={fields} />
-      <div>
-        <dt>{t("intake.requested")}</dt>
-        <dd data-editing={Boolean(fields) || undefined}>
-          {fields?.requested ?? money(application.requested)}
-        </dd>
-      </div>
+      <DescriptionListItem label={t("intake.requested")}>
+        {fields?.requested ?? money(application.requested)}
+      </DescriptionListItem>
       {(fields || submission?.projectPeriod) && (
-        <div>
-          <dt>{t("evidence.projectPeriod")}</dt>
-          <dd data-editing={Boolean(fields) || undefined}>
-            {fields?.projectPeriod ?? submission?.projectPeriod}
-          </dd>
-        </div>
+        <DescriptionListItem label={t("evidence.projectPeriod")}>
+          {fields?.projectPeriod ?? submission?.projectPeriod}
+        </DescriptionListItem>
       )}
       {submission?.submittedOn && (
-        <div>
-          <dt>{t("evidence.submittedOn")}</dt>
-          <dd>{calendarDate(submission.submittedOn)}</dd>
-        </div>
+        <DescriptionListItem label={t("evidence.submittedOn")}>
+          {calendarDate(submission.submittedOn)}
+        </DescriptionListItem>
       )}
-    </dl>
+    </DescriptionList>
   );
 };
 
@@ -60,32 +52,25 @@ const ApplicantDetails = ({
   return (
     <>
       {(fields || submission?.organization) && (
-        <div>
-          <dt>{t("intake.applicant")}</dt>
-          <dd data-editing={Boolean(fields) || undefined}>
-            {fields?.applicant ?? submission?.organization}
-          </dd>
-        </div>
+        <DescriptionListItem label={t("intake.applicant")}>
+          {fields?.applicant ?? submission?.organization}
+        </DescriptionListItem>
       )}
       {(fields || contact || submission?.contact) && (
-        <div>
-          <dt>{t("intake.contact")}</dt>
-          <dd className={styles.contactValue}>
-            {fields?.contact ??
-              contact ??
-              (submission?.contact ? (
-                <PersonIdentity name={submission.contact} />
-              ) : (
-                t("contacts:noContact")
-              ))}
-          </dd>
-        </div>
+        <DescriptionListItem label={t("intake.contact")}>
+          {fields?.contact ??
+            contact ??
+            (submission?.contact ? (
+              <PersonIdentity name={submission.contact} />
+            ) : (
+              t("contacts:noContact")
+            ))}
+        </DescriptionListItem>
       )}
       {!fields && submission?.contactEmail && (
-        <div>
-          <dt>{t("intake.contactEmail")}</dt>
-          <dd>{submission.contactEmail}</dd>
-        </div>
+        <DescriptionListItem label={t("intake.contactEmail")}>
+          {submission.contactEmail}
+        </DescriptionListItem>
       )}
     </>
   );

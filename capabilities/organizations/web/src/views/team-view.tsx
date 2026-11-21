@@ -5,7 +5,6 @@ import { useTranslation } from "react-i18next";
 import { permits } from "@merit/access";
 import { FormDialog } from "@merit/forms";
 import { revokesReviewAccess } from "@merit/organizations/domain";
-import shellStyles from "@merit/ui/application-shell.module.css";
 import { Button } from "@merit/ui/button";
 import { ConfirmationDialog } from "@merit/ui/confirmation-dialog";
 import { DialogContent } from "@merit/ui/dialog";
@@ -13,7 +12,7 @@ import { EditorLoading } from "@merit/ui/editor-loading";
 import { Stack } from "@merit/ui/layout";
 import { Notice } from "@merit/ui/notice";
 import { PageHeader } from "@merit/ui/page-header";
-import { StatusMessage } from "@merit/ui/status-message";
+import { showToast, useToastWhile } from "@merit/ui/toast";
 
 import type { TeamData, TeamSection, Member, Invitation } from "../contracts/team";
 import { useTeam } from "../controllers/team";
@@ -32,7 +31,6 @@ type TeamWorkflow = ReturnType<typeof useTeam>;
 type TeamViewProps = { data: TeamData; draftScope?: string };
 
 export const TeamView = ({ data, draftScope }: TeamViewProps) => {
-  const { t } = useTranslation(["team", "common"]);
   const team = data.team;
 
   const [dialog, setDialog] = useState<TeamDialog>(null);
@@ -45,7 +43,8 @@ export const TeamView = ({ data, draftScope }: TeamViewProps) => {
     data,
     draftScope,
     onClose: () => close(),
-    onCommitted: (nextSection) => {
+    onCommitted: (message, nextSection) => {
+      showToast({ tone: "success", message });
       if (nextSection) {
         setSection(nextSection);
         trigger.current = null;
@@ -53,12 +52,12 @@ export const TeamView = ({ data, draftScope }: TeamViewProps) => {
       close();
     },
   });
-  const { editors, busy, refreshFailed, stale, refresh } = workflow;
+  const { editors, busy, stale, refresh } = workflow;
 
   useTeamFocus({ busy, dialog, restoreFocus, trigger, recoveryButton, directory });
 
   const canManage = permits(team.subject, "manage_members", team.subject);
-  const actionsDisabled = busy || refreshFailed || stale;
+  const actionsDisabled = busy || stale;
 
   const close = () => {
     restoreFocus.current = true;
@@ -80,21 +79,14 @@ export const TeamView = ({ data, draftScope }: TeamViewProps) => {
 
   return (
     <DraftRecovery editors={editors}>
-      <PageHeader
-        title={t("title")}
-        actions={
-          canManage && (
-            <Button
-              isDisabled={actionsDisabled}
-              onPress={() => {
-                editors.openInvitation();
-                open({ kind: "invite" });
-              }}
-            >
-              {t(editors.invitationChanged ? "resumeInvite" : "invite")}
-            </Button>
-          )
-        }
+      <TeamHeader
+        canInvite={canManage}
+        resume={editors.invitationChanged}
+        isDisabled={actionsDisabled}
+        onInvite={() => {
+          editors.openInvitation();
+          open({ kind: "invite" });
+        }}
       />
       <Stack gap={5}>
         <TeamFeedback
@@ -137,47 +129,69 @@ export const TeamView = ({ data, draftScope }: TeamViewProps) => {
   );
 };
 
+const TeamHeader = ({
+  canInvite,
+  resume,
+  isDisabled,
+  onInvite,
+}: {
+  canInvite: boolean;
+  resume: boolean;
+  isDisabled: boolean;
+  onInvite: () => void;
+}) => {
+  const { t } = useTranslation("team");
+
+  return (
+    <PageHeader
+      title={t("title")}
+      actions={
+        canInvite && (
+          <Button size="medium" isDisabled={isDisabled} onPress={onInvite}>
+            {t(resume ? "resumeInvite" : "invite")}
+          </Button>
+        )
+      }
+    />
+  );
+};
+
 const TeamFeedback = ({
-  workflow: { busy, error, refreshFailed, notice, stale },
+  workflow: { busy, error, refreshError, refresh, stale },
   dialogOpen,
   recoveryRef,
   onRefresh,
 }: {
-  workflow: Pick<TeamWorkflow, "busy" | "error" | "refreshFailed" | "notice" | "stale">;
+  workflow: Pick<TeamWorkflow, "busy" | "error" | "refreshError" | "refresh" | "stale">;
   dialogOpen: boolean;
   recoveryRef: Ref<HTMLButtonElement>;
   onRefresh: () => Promise<void>;
 }) => {
   const { t } = useTranslation("team");
+  useToastWhile(
+    refreshError && !stale
+      ? {
+          tone: "warning",
+          message: t(refreshError === "saved" ? "refreshFailedAfterSave" : "refreshFailed"),
+          action: { label: t("refresh"), onPress: () => void refresh() },
+        }
+      : null,
+  );
 
   return (
     <>
-      <StatusMessage
-        message={notice.message}
-        eventId={notice.key}
-        confirmation
-        className={shellStyles.confirmation}
-      />
-      {(refreshFailed || stale) && (
+      {stale && (
         <Notice
           tone="warning"
           role="alert"
-          title={t(
-            refreshFailed && !stale && notice.message ? "refreshFailedTitle" : "teamChangedTitle",
-          )}
+          title={t("teamChangedTitle")}
           actions={
-            <Button
-              ref={recoveryRef}
-              variant="secondary"
-              size="small"
-              isDisabled={busy}
-              onPress={onRefresh}
-            >
+            <Button ref={recoveryRef} variant="secondary" isDisabled={busy} onPress={onRefresh}>
               {t("refresh")}
             </Button>
           }
         >
-          {t(refreshFailed ? "refreshFailed" : "teamChanged")}
+          {t(refreshError ? "refreshFailedWhileStale" : "teamChanged")}
         </Notice>
       )}
       {error && !dialogOpen && !stale && (

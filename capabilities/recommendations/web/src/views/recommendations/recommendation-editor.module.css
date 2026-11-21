@@ -7,31 +7,6 @@
   margin-bottom: var(--space-5);
 }
 
-.empty {
-  color: var(--muted);
-  font-size: var(--text-body);
-}
-
-.budgetPreview {
-  flex: 1;
-  font-size: var(--text-detail);
-  color: var(--muted);
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-
-.budgetPreview strong {
-  color: var(--foreground);
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-}
-
-.budgetPreview .overBudget {
-  color: var(--warning);
-}
-
 .allocationFields {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
@@ -41,9 +16,4 @@
 
 .budgetContext {
   padding-block-start: var(--space-2);
-}
-
-.budgetNote {
-  font-size: var(--text-caption);
-  color: var(--muted);
 }

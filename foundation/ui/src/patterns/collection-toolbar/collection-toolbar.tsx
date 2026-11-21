@@ -1,16 +1,17 @@
 import { useRef, type ReactNode } from "react";
+import { Button as RowButton } from "react-aria-components/Button";
 
-import { Button } from "../../components/button/button";
+import { ButtonBase } from "../../components/button/button-base";
 import { PickerPopover } from "../../components/dialog/dialog";
 import { SearchField } from "../../components/fields/search-field/search-field";
 import { Select, type SelectProps } from "../../components/fields/select/select";
-import { Icon } from "../../components/icon/icon";
+import { IconBase } from "../../components/icon/icon-base";
+import rowStyles from "../../foundations/list-row.module.css";
 import styles from "./collection-toolbar.module.css";
 
 type CollectionToolbarProps = {
   filterLabel: string;
   filterTitle: string;
-  closeLabel: string;
   filters: ReactNode;
   chips?: readonly { id: string; label: string; removeLabel: string; onRemove: () => void }[];
   /** The feature decides whether its current criteria can be reset. */
@@ -38,7 +39,6 @@ export const CollectionFilter = <Id extends string>(
 export const CollectionToolbar = ({
   filterLabel,
   filterTitle,
-  closeLabel,
   filters,
   chips = [],
   reset,
@@ -51,19 +51,18 @@ export const CollectionToolbar = ({
     <div className={styles.toolbar}>
       <PickerPopover
         title={filterTitle}
-        closeLabel={closeLabel}
         placement="bottom start"
         trigger={
-          <Button ref={filterTrigger} variant="quiet" size="small">
-            <Icon name="filter" />
+          <ButtonBase ref={filterTrigger} variant="quiet" size="small">
+            <IconBase name="filter" />
             {filterLabel}
-          </Button>
+          </ButtonBase>
         }
       >
         <FilterPanel filters={filters} search={search} reset={reset} />
       </PickerPopover>
       {chips.map((chip) => (
-        <Button
+        <ButtonBase
           key={chip.id}
           variant="quiet"
           size="small"
@@ -75,11 +74,11 @@ export const CollectionToolbar = ({
           }}
         >
           <span>{chip.label}</span>
-          <Icon name="close" />
-        </Button>
+          <IconBase name="close" />
+        </ButtonBase>
       ))}
       {search?.value && (
-        <Button
+        <ButtonBase
           variant="quiet"
           size="small"
           className={styles.chip}
@@ -89,10 +88,10 @@ export const CollectionToolbar = ({
             filterTrigger.current?.focus();
           }}
         >
-          <Icon name="search" />
+          <IconBase name="search" />
           <span>{search.value}</span>
-          <Icon name="close" />
-        </Button>
+          <IconBase name="close" />
+        </ButtonBase>
       )}
       {summary != null && (
         <span className={styles.summary} role="status">
@@ -111,22 +110,24 @@ const FilterPanel = ({
   const filterPanel = useRef<HTMLDivElement>(null);
 
   return (
-    <div className={styles.filters} ref={filterPanel}>
-      {search && <SearchField {...search} autoFocus />}
+    <div className={styles.filters} ref={filterPanel} data-list-content>
+      {search && <SearchField {...search} appearance="header" autoFocus />}
       <div className={styles.criteria}>{filters}</div>
       {reset && !reset.isDisabled && (
-        <Button
-          variant="quiet"
-          size="small"
-          className={styles.reset}
-          onPress={() => {
-            reset.onReset();
-            filterPanel.current?.querySelector<HTMLElement>("input, button")?.focus();
-          }}
-        >
-          <Icon name="reset" />
-          {reset.label}
-        </Button>
+        <div className={styles.reset}>
+          <RowButton
+            className={rowStyles.row}
+            onPress={() => {
+              reset.onReset();
+              filterPanel.current?.querySelector<HTMLElement>("input, button")?.focus();
+            }}
+          >
+            <span className={rowStyles.leading}>
+              <IconBase name="reset" />
+            </span>
+            <span className={rowStyles.copy}>{reset.label}</span>
+          </RowButton>
+        </div>
       )}
     </div>
   );

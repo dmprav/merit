@@ -67,7 +67,7 @@ const Preview = ({ read }: { read: Read }) => {
   return (
     <QueryClientProvider client={client}>
       <GrantmakingMessagesProvider>
-        <Button variant="secondary" onPress={() => setIsOpen(true)}>
+        <Button size="medium" variant="secondary" onPress={() => setIsOpen(true)}>
           Search
         </Button>
         <WorkspaceSearchDialog
@@ -113,7 +113,7 @@ const Preview = ({ read }: { read: Read }) => {
 };
 
 const meta = {
-  title: "Features/Funding rounds/Workspace search",
+  title: "Features/Workspace/Search",
   tags: ["!autodocs"],
   parameters: { layout: "fullscreen" },
   component: Preview,

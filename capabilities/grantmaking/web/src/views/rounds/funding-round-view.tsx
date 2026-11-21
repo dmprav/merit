@@ -8,9 +8,14 @@ import { ReviewSummary } from "@merit/reviews-web/work";
 import { RoundPreparation, type PreparationSession } from "@merit/rounds-web/work";
 import { type TableColumn } from "@merit/tables";
 import { Badge } from "@merit/ui/badge";
+import { DescriptionList, DescriptionListItem } from "@merit/ui/description-list";
+import { Divider } from "@merit/ui/divider";
+import { Stack } from "@merit/ui/layout";
 import { PageHeader } from "@merit/ui/page-header";
-import { StatusIndicator } from "@merit/ui/status-indicator";
+import { PropertiesLayout } from "@merit/ui/properties-layout";
+import { StatusIndicator, StatusIndicatorSpace } from "@merit/ui/status-indicator";
 import { Tabs } from "@merit/ui/tabs";
+import { Text } from "@merit/ui/text";
 
 import type { ApplicationList } from "../../contracts/application-list";
 import { ApplicationCollection } from "./application-collection";
@@ -54,51 +59,54 @@ export const FundingRoundView = ({
             actions={content.actions ?? (readOnly && <Badge>{t("mode.readOnly")}</Badge>)}
           />
           {content.feedback}
-          <div className={localStyles.workspace} data-section={activeSection}>
-            <div className={localStyles.main}>
-              <Tabs
-                label={t("round.sections")}
-                actions={activeSection === "applications" ? applicationAction : undefined}
-                selectedKey={activeSection}
-                onSelectionChange={(next) => {
-                  setLocalSection(next);
-                  onSectionChange?.(next);
-                }}
-                scrollBackwardLabel={t("common:scrollTabsBackward")}
-                scrollForwardLabel={t("common:scrollTabsForward")}
-                items={[
-                  {
-                    id: "overview",
-                    label: t("round.overview"),
-                    content: content.overview,
-                  },
-                  {
-                    id: "applications",
-                    label: t("applications.title"),
-                    count: round.applicationCount,
-                    content: (
-                      <ApplicationCollection
-                        list={{
-                          ...applicationList,
-                          pagination: {
-                            ...applicationList.pagination,
-                            total: round.applicationCount,
-                          },
-                        }}
-                        columns={columns}
-                        emptyScope="round"
-                        stickyHeader
-                      />
-                    ),
-                  },
-                ]}
-              />
-            </div>
-            <aside className={localStyles.propertiesPanel} aria-label={t("round.properties")}>
-              {content.properties}
-              {activeSection === "applications" && <RoundBudget round={round} />}
-            </aside>
-          </div>
+          <PropertiesLayout
+            propertiesLabel={t("round.properties")}
+            stackedPlacement={activeSection === "applications" ? "after" : "before"}
+            properties={
+              <>
+                {content.properties}
+                {activeSection === "applications" && <RoundBudget round={round} />}
+              </>
+            }
+          >
+            <Tabs
+              label={t("round.sections")}
+              actions={activeSection === "applications" ? applicationAction : undefined}
+              selectedKey={activeSection}
+              onSelectionChange={(next) => {
+                setLocalSection(next);
+                onSectionChange?.(next);
+              }}
+              scrollBackwardLabel={t("common:scrollTabsBackward")}
+              scrollForwardLabel={t("common:scrollTabsForward")}
+              items={[
+                {
+                  id: "overview",
+                  label: t("round.overview"),
+                  content: content.overview,
+                },
+                {
+                  id: "applications",
+                  label: t("applications.title"),
+                  count: round.applicationCount,
+                  content: (
+                    <ApplicationCollection
+                      list={{
+                        ...applicationList,
+                        pagination: {
+                          ...applicationList.pagination,
+                          total: round.applicationCount,
+                        },
+                      }}
+                      columns={columns}
+                      emptyScope="round"
+                      stickyHeader
+                    />
+                  ),
+                },
+              ]}
+            />
+          </PropertiesLayout>
         </>
       )}
     </RoundPreparation>
@@ -112,66 +120,73 @@ const RoundBudget = ({ round }: { round: RoundPage }) => {
   const over = remaining !== null && isNegative(remaining);
 
   return (
-    <section className={localStyles.budget} aria-label={t("round.summary")}>
-      <div className={localStyles.budgetScope}>
-        <span>{t("applications.wholeRound")}</span>
-        <StatusIndicator
-          tone="muted"
-          label={t("budget.scope")}
-          explanation={
-            round.totals.withdrawnApplications > 0
-              ? `${t("budget.scopeExplanation")} ${t("budget.withdrawnApplications", {
-                  count: round.totals.withdrawnApplications,
-                })}`
-              : t("budget.scopeExplanation")
-          }
-          closeLabel={t("budget.closeDetails")}
-        />
-      </div>
-      <dl className={localStyles.budgetLine}>
-        <div>
-          <dt>
-            {t(
-              round.totals.unknownRequests > 0 ? "budget.knownRequests" : "applications.requested",
-            )}
-          </dt>
-          <dd>
-            {money(round.totals.requested)}
-            {round.totals.unknownRequests > 0 && (
-              <StatusIndicator
-                tone="muted"
-                label={t("budget.unknownRequestsDetails")}
-                explanation={t("budget.unknownRequests", { count: round.totals.unknownRequests })}
-                closeLabel={t("budget.closeDetails")}
-              />
-            )}
-          </dd>
-        </div>
-        <div>
-          <dt>{t("applications.proposed")}</dt>
-          <dd>{money(round.totals.proposed)}</dd>
-        </div>
-        <div>
-          <dt>{t(over ? "budget.overIfApproved" : "budget.remaining")}</dt>
-          <dd className={over ? localStyles.warning : undefined}>
-            {remaining === null ? t("preparation.budgetUnset") : money(absolute(remaining))}
-            {over && (
-              <StatusIndicator
-                label={t("budget.over")}
-                explanation={t("budget.exceeded", { amount: money(absolute(remaining)) })}
-                closeLabel={t("budget.closeDetails")}
-              />
-            )}
-          </dd>
-        </div>
-        <div>
-          <dt>{t("applications.reviewStatus")}</dt>
-          <dd>
-            <ReviewSummary reviews={round.totals.reviews} />
-          </dd>
-        </div>
-      </dl>
-    </section>
+    <div className={localStyles.budget}>
+      <Stack as="section" gap={4} aria-label={t("round.summary")}>
+        <Divider />
+        <Stack gap={2}>
+          <div className={localStyles.budgetScope}>
+            <Text variant="caption">{t("applications.wholeRound")}</Text>
+            <StatusIndicator
+              tone="muted"
+              label={t("budget.scope")}
+              explanation={
+                round.totals.withdrawnApplications > 0
+                  ? `${t("budget.scopeExplanation")} ${t("budget.withdrawnApplications", {
+                      count: round.totals.withdrawnApplications,
+                    })}`
+                  : t("budget.scopeExplanation")
+              }
+            />
+          </div>
+          <DescriptionList layout="figures">
+            <DescriptionListItem
+              label={t(
+                round.totals.unknownRequests > 0
+                  ? "budget.knownRequests"
+                  : "applications.requested",
+              )}
+            >
+              {money(round.totals.requested)}
+              {round.totals.unknownRequests > 0 ? (
+                <StatusIndicator
+                  tone="muted"
+                  label={t("budget.unknownRequestsDetails")}
+                  explanation={t("budget.unknownRequests", {
+                    count: round.totals.unknownRequests,
+                  })}
+                />
+              ) : (
+                <StatusIndicatorSpace />
+              )}
+            </DescriptionListItem>
+            <DescriptionListItem label={t("applications.proposed")}>
+              {money(round.totals.proposed)}
+              <StatusIndicatorSpace />
+            </DescriptionListItem>
+            <DescriptionListItem label={t(over ? "budget.overIfApproved" : "budget.remaining")}>
+              {remaining === null ? (
+                t("preparation.budgetUnset")
+              ) : over ? (
+                <Text variant="attention">{money(absolute(remaining))}</Text>
+              ) : (
+                money(absolute(remaining))
+              )}
+              {over ? (
+                <StatusIndicator
+                  label={t("budget.over")}
+                  explanation={t("budget.exceeded", { amount: money(absolute(remaining)) })}
+                />
+              ) : (
+                <StatusIndicatorSpace />
+              )}
+            </DescriptionListItem>
+            <DescriptionListItem label={t("applications.reviewStatus")}>
+              <ReviewSummary reviews={round.totals.reviews} reserveIndicatorSpace />
+            </DescriptionListItem>
+          </DescriptionList>
+        </Stack>
+      </Stack>
+    </div>
   );
 };
 
@@ -188,15 +203,19 @@ const useApplicationColumns = ({
       sort: true,
       layout: { width: "28%", primary: true },
       cell: (application) => (
-        <>
-          <div className={localStyles.title}>
-            <span className={localStyles.identity}>
-              {renderApplicationLink?.(application) ?? application.title}
-            </span>
-            <ApplicationStatusLine application={application} />
-          </div>
-          <p className={localStyles.applicant}>{application.applicant}</p>
-        </>
+        <Stack gap={1}>
+          <Text as="div" variant="emphasis">
+            <div className={localStyles.title}>
+              <span className={localStyles.identity}>
+                {renderApplicationLink?.(application) ?? application.title}
+              </span>
+              <ApplicationStatusLine application={application} />
+            </div>
+          </Text>
+          <Text as="p" variant="caption">
+            {application.applicant}
+          </Text>
+        </Stack>
       ),
     },
     {
@@ -233,8 +252,8 @@ const useApplicationColumns = ({
       sort: true,
       cell: (application) =>
         application.requested === null ? (
-          <span className={localStyles.muted} aria-label={t("intake.unknownAmount")}>
-            {t("intake.notKnown")}
+          <span aria-label={t("intake.unknownAmount")}>
+            <Text variant="missing">{t("intake.notKnown")}</Text>
           </span>
         ) : (
           money(decodeMoney(application.requested))
@@ -263,12 +282,18 @@ const useApplicationColumns = ({
 const ApplicationStatusLine = ({ application }: { application: Application }) => {
   const { t } = useTranslation("fundingRounds");
   if (application.withdrawn) {
-    return <span className={localStyles.withdrawn}>{t("applications.withdrawn")}</span>;
+    return (
+      <Badge appearance="plain" tone="neutral">
+        {t("applications.withdrawn")}
+      </Badge>
+    );
   }
 
   return (
     application.intakeStatus === "in_preparation" && (
-      <span className={localStyles.preparing}>{t("intake.preparing")}</span>
+      <Badge appearance="plain" tone="warning">
+        {t("intake.preparing")}
+      </Badge>
     )
   );
 };

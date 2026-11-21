@@ -3,21 +3,20 @@ import { useTranslation } from "react-i18next";
 
 import { ContactPicker } from "@merit/contacts-web/contacts";
 import type { ApplicationView as Application } from "@merit/grantmaking/api";
-import shell from "@merit/ui/application-shell.module.css";
 import { Button } from "@merit/ui/button";
 import { PickerPopover } from "@merit/ui/dialog";
 import { Inline } from "@merit/ui/layout";
 import { Notice } from "@merit/ui/notice";
 import { PersonIdentity } from "@merit/ui/person-identity";
 import { PropertyButton } from "@merit/ui/property-button";
-import { StatusMessage } from "@merit/ui/status-message";
+import { SectionHeader } from "@merit/ui/section-header";
+import { useEventToast, useToastWhile } from "@merit/ui/toast";
 
 import type { ApplicationContactData } from "../../contracts/intake";
 import { useApplicationContact } from "../../controllers/intake/use-application-contact";
 import styles from "./application-contact.module.css";
 import { ApplicationDetails } from "./application-details";
 import { IntakeEditButton } from "./application-intake";
-import contentStyles from "./intake-content.module.css";
 
 type ContactSectionProps = {
   data: ApplicationContactData;
@@ -34,6 +33,18 @@ export const ApplicationContact = (props: ContactSectionProps) => {
   const [editingContact, setEditingContact] = useState(false);
   const contact = useApplicationContact(data, application.contactId, revision);
   const { open, saved, canUndo, pending, undoSelection } = contact;
+  useEventToast(saved, { tone: "success", message: t("contactSelection.saved") });
+  useToastWhile(
+    contact.refreshError && {
+      tone: "warning",
+      message: t(
+        contact.refreshError === "saved"
+          ? "contactSelection.refreshError"
+          : "contactSelection.refreshReadError",
+      ),
+      action: { label: t("contactSelection.refresh"), onPress: () => void contact.retryRefresh() },
+    },
+  );
   const { trigger, sectionTrigger } = useContactFocus(contact, editing);
 
   const editingDisabled = pending || isDisabled;
@@ -48,17 +59,20 @@ export const ApplicationContact = (props: ContactSectionProps) => {
 
   return (
     <section aria-label={t("workspace.details")}>
-      <Inline justify="between" className={contentStyles.sectionHeading}>
-        <h2>{t("workspace.details")}</h2>
-        {!editing && (
-          <IntakeEditButton
-            label={t("intake.editMetadata")}
-            isDisabled={editingDisabled}
-            onPress={() => setEditing(true)}
-            triggerRef={sectionTrigger}
-          />
-        )}
-      </Inline>
+      <SectionHeader
+        title={t("workspace.details")}
+        emphasis="quiet"
+        aside={
+          !editing && (
+            <IntakeEditButton
+              label={t("intake.editMetadata")}
+              isDisabled={editingDisabled}
+              onPress={() => setEditing(true)}
+              triggerRef={sectionTrigger}
+            />
+          )
+        }
+      />
       <div
         role="group"
         aria-label={editing ? t("intake.editMetadata") : undefined}
@@ -88,36 +102,27 @@ export const ApplicationContact = (props: ContactSectionProps) => {
           }
         />
         {!open && <ContactFeedback {...contact} />}
-        <Inline className={styles.actions}>
-          {canUndo && (
-            <Button
-              size="small"
-              variant="quiet"
-              isDisabled={editingDisabled}
-              onPress={() => void undoSelection()}
-            >
-              {t("preparation.undo")}
-            </Button>
-          )}
-          {editing && (
-            <Button
-              size="small"
-              variant="quiet"
-              className={styles.close}
-              isDisabled={closeDisabled}
-              onPress={close}
-            >
-              {t("preparation.close")}
-            </Button>
-          )}
-        </Inline>
+        {(canUndo || editing) && (
+          <div className={styles.actions}>
+            <Inline justify={canUndo ? "between" : "end"}>
+              {canUndo && (
+                <Button
+                  variant="quiet"
+                  isDisabled={editingDisabled}
+                  onPress={() => void undoSelection()}
+                >
+                  {t("preparation.undo")}
+                </Button>
+              )}
+              {editing && (
+                <Button variant="quiet" isDisabled={closeDisabled} onPress={close}>
+                  {t("preparation.close")}
+                </Button>
+              )}
+            </Inline>
+          </div>
+        )}
       </div>
-      <StatusMessage
-        className={shell.confirmation}
-        message={saved ? t("contactSelection.saved") : null}
-        eventId={saved}
-        confirmation={Boolean(saved)}
-      />
     </section>
   );
 };
@@ -189,34 +194,25 @@ const ContactChoice = ({
         </PropertyButton>
       }
     >
-      {({ closeButton }) => (
-        <div className={styles.form}>
-          <ContactPicker
-            direct
-            headerActions={closeButton}
-            workspaceSlug={workspaceSlug}
-            label={t("contactSelection.contact")}
-            value={application.contactId}
-            isDisabled={contact.pending}
-            onChange={(selected) => void contact.selectContact(selected)}
-            onEditorOpenChange={onEditorOpenChange}
-          />
-          <ContactFeedback {...contact} />
-        </div>
-      )}
+      <div className={styles.form}>
+        <ContactPicker
+          direct
+          workspaceSlug={workspaceSlug}
+          label={t("contactSelection.contact")}
+          value={application.contactId}
+          isDisabled={contact.pending}
+          onChange={(selected) => void contact.selectContact(selected)}
+          onEditorOpenChange={onEditorOpenChange}
+        />
+        <ContactFeedback {...contact} />
+      </div>
     </PickerPopover>
   );
 };
 
 const ContactFeedback = ({
   failure,
-  refreshError,
-  pending,
-  retryRefresh,
-}: Pick<
-  ReturnType<typeof useApplicationContact>,
-  "failure" | "refreshError" | "pending" | "retryRefresh"
->) => {
+}: Pick<ReturnType<typeof useApplicationContact>, "failure">) => {
   const { t } = useTranslation("applicationIntake");
   const errors = {
     conflict: "intake.contactConflict",
@@ -239,18 +235,6 @@ const ContactFeedback = ({
       {error && (
         <Notice appearance="inline" tone="danger" role="alert">
           {error}
-        </Notice>
-      )}
-      {refreshError && (
-        <Notice appearance="inline" tone="warning" role="alert">
-          {t(
-            refreshError === "saved"
-              ? "contactSelection.refreshError"
-              : "contactSelection.refreshReadError",
-          )}{" "}
-          <Button variant="quiet" isDisabled={pending} onPress={retryRefresh}>
-            {t("contactSelection.retry")}
-          </Button>
         </Notice>
       )}
     </>

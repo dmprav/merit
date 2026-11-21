@@ -1,30 +1,8 @@
-.title,
-.title a[href] {
+.title {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   overflow: hidden;
-  font-size: var(--text-detail);
-  font-weight: 500;
-}
-
-.applications a:hover {
-  color: var(--action);
-  text-decoration-line: underline;
-  text-underline-offset: 3px;
-}
-
-.applications a {
-  text-decoration-line: underline;
-  text-decoration-color: var(--border-control);
-  text-underline-offset: 3px;
-}
-
-@media (max-width: 760px) {
-  .applications a {
-    display: inline-block;
-    padding-block: var(--space-1);
-  }
 }
 
 .manager {

@@ -88,7 +88,7 @@ test("demo and workspace show the expected assessment and inspectable review bas
       await expect(
         page
           .getByRole("article", { name: "Jules Patel", exact: true })
-          .getByRole("button", { name: "Record assessment", exact: true }),
+          .getByRole("button", { name: "Request actions for Jules Patel", exact: true }),
       ).toBeVisible();
     }
     await expect(assessment).toBeVisible();

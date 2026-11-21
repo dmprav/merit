@@ -1,7 +1,7 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { useState, type ReactNode } from "react";
-import { expect, it, vi } from "vite-plus/test";
+import { afterEach, expect, it, vi } from "vite-plus/test";
 
 import { materialVersionSchema } from "@merit/applications/domain";
 import { applicationView } from "@merit/grantmaking/api";
@@ -152,7 +152,16 @@ it("retains invalid-review details and authentication outcomes without translati
   expect(result.current.saved).toBe(0);
 });
 
+afterEach(() => vi.useRealTimers());
+
+/** Waits out the quiet retries a failed refresh makes before it is reported. */
+const afterQuietRetries = () =>
+  act(async () => {
+    await vi.advanceTimersByTimeAsync(4000);
+  });
+
 it("keeps request and assessment conflicts distinct when loading current work also fails", async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
   const { result, data } = setup();
   data.save.mockResolvedValue({ status: "conflict" });
   data.refresh.mockRejectedValue(new Error("Offline"));
@@ -163,6 +172,7 @@ it("keeps request and assessment conflicts distinct when loading current work al
       status: "request_conflict",
     }),
   );
+  await afterQuietRetries();
   expect(result.current.refreshError).toBe("read");
   await act(() => result.current.cancelRequest(requestId));
   expect(result.current.error).toEqual({ status: "conflict" });
@@ -170,6 +180,7 @@ it("keeps request and assessment conflicts distinct when loading current work al
 });
 
 it("preserves a committed request through a failed refresh and retries only the read", async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
   const { result, data } = setup();
   data.save.mockResolvedValue({ status: "ok", revision: reviewRevisionSchema.parse(4) });
   let failRefresh!: (error: Error) => void;
@@ -185,12 +196,17 @@ it("preserves a committed request through a failed refresh and retries only the 
   });
   await waitFor(() => expect(result.current.saved).toBe(1));
   expect(result.current.saving).toBe(true);
+  data.refresh.mockRejectedValue(new Error("Offline"));
   await act(async () => {
     failRefresh(new Error("Offline"));
     expect(await save).toBeNull();
   });
-  expect(result.current.refreshError).toBe("saved");
   expect(result.current.saving).toBe(false);
+  expect(result.current.refreshError).toBeNull();
+
+  await afterQuietRetries();
+
+  expect(result.current.refreshError).toBe("saved");
 
   data.refresh.mockResolvedValue(undefined);
   await act(() => result.current.refresh());

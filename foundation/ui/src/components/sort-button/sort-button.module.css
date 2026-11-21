@@ -1,0 +1,45 @@
+/* Repeated attributes outrank the quiet button's treatment, which this heading replaces. */
+.sortButton[data-variant][data-size] {
+  max-width: 100%;
+  padding-inline: var(--space-1);
+  margin-inline: calc(-1 * var(--space-1));
+  border: 0;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  justify-content: flex-start;
+}
+
+.sortButton[data-variant][data-size]:not([data-focus-visible]):is(
+    [data-hovered],
+    [data-pressed],
+    [data-direction]
+  ) {
+  color: var(--foreground);
+  background: var(--surface-muted);
+}
+
+.sortButton[data-align="end"] {
+  flex-direction: row-reverse;
+}
+
+.label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.icon {
+  width: 14px;
+  height: 14px;
+  opacity: 0.65;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .icon {
+    opacity: 0;
+  }
+}
+
+.sortButton:is([data-direction], [data-hovered], [data-focus-visible]) .icon {
+  opacity: 1;
+}

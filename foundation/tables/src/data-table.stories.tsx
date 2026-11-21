@@ -3,7 +3,8 @@ import { useState, type ComponentProps } from "react";
 
 import { Button } from "@merit/ui/button";
 
-import { DataTable, type TableSort, type TableColumn, type TableState } from "./index";
+import { DataTable } from "./data-table";
+import type { TableColumn, TableSort } from "./types";
 
 type Item = { id: string; title: string; amount?: number; date?: string };
 
@@ -60,26 +61,28 @@ const longColumns: TableColumn<Item>[] = [
   columns[1]!,
 ];
 
-const Preview = ({
-  empty = false,
-  longContent = false,
-  density = "comfortable",
-  state,
-  emptyMessage = "No projects yet.",
-  navigation = false,
-  manyRows = false,
-  stickyHeader,
-}: {
-  empty?: boolean;
-  longContent?: boolean;
-  density?: "comfortable" | "compact";
-  state?: TableState;
-  emptyMessage?: string;
-  navigation?: boolean;
-  manyRows?: boolean;
-  stickyHeader?: ComponentProps<typeof DataTable>["stickyHeader"];
-}) => {
+type ExampleProps = ComponentProps<typeof DataTable<Item>>;
+
+const SortableTable = (props: ExampleProps) => {
   const [sorting, setSorting] = useState<TableSort>(null);
+  return (
+    <DataTable
+      {...props}
+      sorting={{
+        value: sorting,
+        onChange: setSorting,
+        labels: {
+          by: "Sort projects",
+          original: "Original order",
+          ascending: "ascending",
+          descending: "descending",
+        },
+      }}
+    />
+  );
+};
+
+const NavigationTable = (props: ExampleProps) => {
   const [inspected, setInspected] = useState<string>();
   const navigationColumns: TableColumn<Item>[] = [
     {
@@ -99,7 +102,6 @@ const Preview = ({
       cell: (record) => (
         <Button
           variant="quiet"
-          size="small"
           aria-label={`Inspect ${record.title}`}
           onPress={() => setInspected(record.title)}
         >
@@ -111,57 +113,54 @@ const Preview = ({
 
   return (
     <>
-      <DataTable
-        data={empty ? [] : manyRows ? manyItems : longContent ? longItems : items}
-        columns={navigation ? navigationColumns : longContent ? longColumns : columns}
-        density={density}
-        stickyHeader={stickyHeader}
-        getRowId={(item) => item.id}
-        label="Projects"
-        emptyMessage={emptyMessage}
-        state={state}
-        sorting={{
-          value: sorting,
-          onChange: setSorting,
-          labels: {
-            by: "Sort projects",
-            original: "Original order",
-            ascending: "ascending",
-            descending: "descending",
-          },
-        }}
-      />
+      <SortableTable {...props} columns={navigationColumns} />
       {inspected && <p role="status">Inspecting {inspected}</p>}
     </>
   );
 };
 
-const meta = { title: "Components/Data table", component: Preview } satisfies Meta<typeof Preview>;
+const meta = {
+  title: "Components/Data table",
+  component: DataTable,
+  render: (args) => <SortableTable {...args} />,
+  args: {
+    data: items,
+    columns,
+    getRowId: (item) => item.id,
+    label: "Projects",
+    emptyMessage: "No projects yet.",
+  },
+  argTypes: {
+    columns: { control: false },
+    getRowId: { control: false },
+    sorting: { control: false },
+  },
+} satisfies Meta<typeof DataTable<Item>>;
 
 export default meta;
 
-type Story = StoryObj<typeof meta>;
+type Story = StoryObj<ExampleProps>;
 
 export const Default: Story = {};
 export const Compact: Story = { args: { density: "compact" } };
-export const LongContent: Story = { args: { longContent: true } };
-export const Empty: Story = { args: { empty: true } };
-export const NoResults: Story = { args: { empty: true, emptyMessage: "No matching projects." } };
+export const LongContent: Story = { args: { data: longItems, columns: longColumns } };
+export const Empty: Story = { args: { data: [] } };
+export const NoResults: Story = { args: { data: [], emptyMessage: "No matching projects." } };
 export const Loading: Story = {
-  args: { empty: true, state: { type: "loading", message: "Loading projects…" } },
+  args: { data: [], state: { type: "loading", message: "Loading projects…" } },
 };
 export const Refreshing: Story = {
   args: { state: { type: "loading", message: "Updating projects…" } },
 };
 export const LoadError: Story = {
-  args: { empty: true, state: { type: "error", message: "Could not load projects." } },
+  args: { data: [], state: { type: "error", message: "Could not load projects." } },
 };
 export const RefreshError: Story = {
   args: {
     state: { type: "error", message: "Could not update projects. Showing previous results." },
   },
 };
-export const Navigation: Story = { args: { navigation: true } };
+export const Navigation: Story = { render: (args) => <NavigationTable {...args} /> };
 const manyItems: Item[] = Array.from({ length: 40 }, (_, index) => ({
   id: String(index),
   title: `Community project ${index + 1}`,
@@ -169,7 +168,7 @@ const manyItems: Item[] = Array.from({ length: 40 }, (_, index) => ({
 }));
 
 export const NarrowContainer: Story = {
-  args: { longContent: true },
+  args: { data: longItems, columns: longColumns },
   decorators: [
     (Story) => (
       <div style={{ width: "36rem", maxWidth: "100%" }}>
@@ -180,10 +179,11 @@ export const NarrowContainer: Story = {
 };
 export const NarrowNavigation: Story = {
   ...NarrowContainer,
-  args: { navigation: true, longContent: true },
+  ...Navigation,
+  args: { data: longItems },
 };
 export const StickyPageHeader: Story = {
-  args: { manyRows: true, stickyHeader: { mode: "page", top: 48 } },
+  args: { data: manyItems, stickyHeader: { mode: "page", top: 48 } },
   decorators: [
     (Story) => (
       <>
@@ -209,5 +209,5 @@ export const StickyPageHeader: Story = {
   ],
 };
 export const StickyTableHeader: Story = {
-  args: { manyRows: true, stickyHeader: { mode: "table", maxHeight: "20rem" } },
+  args: { data: manyItems, stickyHeader: { mode: "table", maxHeight: "20rem" } },
 };

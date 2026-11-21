@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 
-import { Button } from "../../components/button/button";
-import { Icon } from "../../components/icon/icon";
+import { ButtonBase } from "../../components/button/button-base";
+import { IconBase } from "../../components/icon/icon-base";
 import { Tooltip } from "../../components/tooltip/tooltip";
 import { EditorLoading, EditorClose } from "./editor-loading";
 import styles from "./inline-name.module.css";
@@ -79,7 +79,7 @@ export const InlineName = ({
       )}
     </span>
   ) : (
-    <Button
+    <ButtonBase
       ref={trigger}
       variant="quiet"
       className={styles.trigger}
@@ -89,8 +89,8 @@ export const InlineName = ({
       onPress={open}
     >
       {value}
-      <Icon name="edit" />
-    </Button>
+      <IconBase name="edit" />
+    </ButtonBase>
   );
 };
 
@@ -190,7 +190,7 @@ const InlineNameActions = ({
 }) => (
   <span className={styles.actions}>
     <Tooltip content={saveLabel}>
-      <Button
+      <ButtonBase
         size="small"
         variant="quiet"
         iconOnly
@@ -198,11 +198,11 @@ const InlineNameActions = ({
         isDisabled={saveDisabled}
         onPress={() => void save()}
       >
-        <Icon name="check" />
-      </Button>
+        <IconBase name="check" />
+      </ButtonBase>
     </Tooltip>
     <Tooltip content={cancelLabel}>
-      <Button
+      <ButtonBase
         size="small"
         variant="quiet"
         iconOnly
@@ -210,8 +210,8 @@ const InlineNameActions = ({
         isDisabled={pending}
         onPress={close}
       >
-        <Icon name="close" />
-      </Button>
+        <IconBase name="close" />
+      </ButtonBase>
     </Tooltip>
   </span>
 );

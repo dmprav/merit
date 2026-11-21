@@ -611,16 +611,9 @@ test("saving announces success with a compact, centred confirmation and restores
   await page.getByRole("button", { name: "Save recommendation", exact: true }).click();
 
   await expect(edit).toBeFocused();
-  const status = page.getByRole("status").filter({ hasText: "Recommendation saved" });
-
-  await expect(status).toHaveCount(1);
-
-  const toast = page
-    .locator('span[aria-hidden="true"]')
-    .filter({ hasText: "Recommendation saved" });
+  const toast = page.getByRole("alertdialog", { name: "Recommendation saved" });
 
   await expect(toast).toHaveCount(1);
-  await expect(toast).toHaveCSS("position", "fixed");
   await expect(toast).toBeInViewport();
 
   const bounds = (await toast.boundingBox())!;

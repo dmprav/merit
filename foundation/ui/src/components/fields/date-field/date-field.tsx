@@ -8,10 +8,10 @@ import { useTranslation } from "react-i18next";
 
 import { calendarDateSchema } from "@merit/dates";
 
-import { Button } from "../../button/button";
+import { ButtonBase } from "../../button/button-base";
 import { Calendar } from "../../calendar/calendar";
 import { PickerPopover } from "../../dialog/dialog";
-import { Icon } from "../../icon/icon";
+import { IconBase } from "../../icon/icon-base";
 import { Tooltip } from "../../tooltip/tooltip";
 import { FieldLabel, FieldFeedback, type FieldPresentationProps } from "../field-parts";
 import fieldStyles from "../field.module.css";
@@ -46,6 +46,7 @@ type DateFieldProps = Pick<
  */
 export const DateField = ({
   label,
+  isLabelHidden,
   description,
   errorMessage,
   value,
@@ -70,7 +71,10 @@ export const DateField = ({
     >
       {({ isInvalid }) => (
         <>
-          <FieldLabel required={props.isRequired && !props.isReadOnly && !props.isDisabled}>
+          <FieldLabel
+            required={props.isRequired && !props.isReadOnly && !props.isDisabled}
+            isHidden={isLabelHidden}
+          >
             {label}
           </FieldLabel>
           <div className={`${inputStyles.inputGroup} ${styles.controls}`}>
@@ -89,7 +93,7 @@ export const DateField = ({
                 onOpenChange={setOpen}
                 trigger={
                   <Tooltip content={calendarLabel}>
-                    <Button
+                    <ButtonBase
                       variant="quiet"
                       size="small"
                       iconOnly
@@ -97,18 +101,17 @@ export const DateField = ({
                       aria-label={calendarLabel}
                       isDisabled={props.isDisabled || props.isReadOnly}
                     >
-                      <Icon name="round" />
-                    </Button>
+                      <IconBase name="round" />
+                    </ButtonBase>
                   </Tooltip>
                 }
               >
-                {({ closeButton }) => (
+                {() => (
                   <Calendar
                     label={label}
                     value={calendarDateSchema.safeParse(value).success ? value : null}
                     isDisabled={props.isDisabled || props.isReadOnly}
                     autoFocus
-                    headerActions={closeButton}
                     onChange={(date) => {
                       onChange(date);
                       setOpen(false);

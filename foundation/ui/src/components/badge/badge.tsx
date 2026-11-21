@@ -1,4 +1,4 @@
-import type { ComponentProps } from "react";
+import type { ReactNode } from "react";
 
 import styles from "./badge.module.css";
 
@@ -14,18 +14,18 @@ import styles from "./badge.module.css";
 export const Badge = ({
   tone = "neutral",
   appearance = "badge",
-  className = "",
-  ...props
-}: ComponentProps<"span"> & {
+  children,
+  lang,
+}: {
+  children: ReactNode;
+  /** The label's language when it differs from the surrounding text. */
+  lang?: string;
   tone?: "neutral" | "success" | "warning" | "danger";
   appearance?: "badge" | "plain";
 }) => {
   return (
-    <span
-      {...props}
-      data-tone={tone}
-      data-appearance={appearance}
-      className={`${styles.badge} ${className}`}
-    />
+    <span lang={lang} data-tone={tone} data-appearance={appearance} className={styles.badge}>
+      {children}
+    </span>
   );
 };

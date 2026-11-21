@@ -3,13 +3,15 @@ import { useTranslation } from "react-i18next";
 
 import type { ActivityEntry, ActivityPerson } from "@merit/grantmaking/api";
 import { ActionProvenance } from "@merit/ui/action-provenance";
+import { Attribution } from "@merit/ui/attribution";
 import { Button } from "@merit/ui/button";
 import { CollectionFilter, CollectionToolbar } from "@merit/ui/collection-toolbar";
 import { DescriptionList, DescriptionListItem } from "@merit/ui/description-list";
 import { DialogContent, SidePanel } from "@merit/ui/dialog";
-import { Icon } from "@merit/ui/icon";
 import { Reading, Stack } from "@merit/ui/layout";
 import { CollectionRecovery, useCollectionRecovery } from "@merit/ui/paged-content";
+import { Text } from "@merit/ui/text";
+import { Timeline, TimelineEntry } from "@merit/ui/timeline";
 import { Timestamp } from "@merit/ui/timestamp";
 
 import type { ActivityFilters } from "../../contracts/pages";
@@ -115,13 +117,13 @@ export const WorkspaceActivity = ({
           retryLabel={t("activity.retry")}
           isPending={pending}
           onRetry={onRetry}
+          showsEntries={entries.length > 0}
         />
       )}
       <div ref={end} className={styles.more}>
         {!recovering && hasMore && (
           <Button
             variant="quiet"
-            size="small"
             onPress={showMore}
             isPending={status === "loadingMore"}
             isDisabled={status === "refreshing"}
@@ -143,11 +145,11 @@ const ActivityEvents = ({
     return null;
   }
   return (
-    <ol className={styles.events} aria-label={t("activity.title")}>
+    <Timeline label={t("activity.title")}>
       {entries.map((entry) => (
         <ActivityEvent key={entry.id} entry={entry} renderRecordLink={renderRecordLink} />
       ))}
-    </ol>
+    </Timeline>
   );
 };
 
@@ -255,7 +257,6 @@ const FilterControls = ({
     <CollectionToolbar
       filterLabel={t("activity.filter")}
       filterTitle={t("activity.filters")}
-      closeLabel={t("activity.closeFilters")}
       chips={chips}
       summary={summary}
       reset={{
@@ -305,23 +306,19 @@ const ActivityEvent = ({
 }) => {
   const { t } = useTranslation(["fundingRounds", "contacts"]);
   const recordTitle = entry.record?.title || entry.subject.name || t("activity.unavailableRecord");
-  const actor = entry.actor || t("contacts:unknownPerson");
   const action = t(actionLabel(entry.action));
   return (
-    <li className={styles.event}>
-      <div className={styles.content}>
-        <div className={styles.action}>
+    <TimelineEntry
+      title={
+        <span className={styles.action}>
           <SidePanel
             title={action}
             trigger={
               <Button
-                variant="quiet"
-                size="small"
-                className={styles.actionTrigger}
+                variant="inline"
                 aria-label={t("activity.openDetails", { action, record: recordTitle })}
               >
                 {action}
-                <Icon name="right" />
               </Button>
             }
           >
@@ -333,16 +330,19 @@ const ActivityEvent = ({
             {entry.record ? (
               renderRecordLink(entry.record, recordTitle)
             ) : (
-              <span className={styles.muted}>{recordTitle}</span>
+              <Text variant="missing">{recordTitle}</Text>
             )}
           </span>
-        </div>
-        <p className={styles.metadata}>
-          <span className={styles.actor}>{actor}</span>
-        </p>
-      </div>
-      <Timestamp value={entry.recordedAt} className={styles.metadata} />
-    </li>
+        </span>
+      }
+      attribution={
+        <Attribution
+          actor={entry.actor}
+          provenance={entry.provenance}
+          recordedAt={entry.recordedAt}
+        />
+      }
+    />
   );
 };
 
@@ -361,7 +361,7 @@ const ActivityDetails = ({
         <DescriptionListItem label={t("activity.record")}>
           {entry.record ? renderRecordLink(entry.record, recordTitle) : recordTitle}
           {!entry.record && entry.subject.name && (
-            <span className={styles.muted}>{t("activity.unavailableRecord")}</span>
+            <Text variant="missing">{t("activity.unavailableRecord")}</Text>
           )}
         </DescriptionListItem>
         <DescriptionListItem label={t("activity.person")}>
@@ -371,13 +371,13 @@ const ActivityDetails = ({
           <Timestamp value={entry.recordedAt} />
         </DescriptionListItem>
         <DescriptionListItem label={t("activity.source")}>
-          <ActionProvenance value={entry.provenance} />
+          <ActionProvenance value={entry.provenance} detail />
         </DescriptionListItem>
       </DescriptionList>
       {entry.reason && (
         <DescriptionList>
           <DescriptionListItem label={t("activity.reason")}>
-            <Reading as="p" className={styles.reason}>
+            <Reading prose={false} as="p">
               {entry.reason}
             </Reading>
           </DescriptionListItem>

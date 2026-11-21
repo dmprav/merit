@@ -5,6 +5,7 @@ import { afterEach, expect, it, vi } from "vite-plus/test";
 
 import type { ActivityEntry } from "@merit/grantmaking/api";
 import { formatTimestamp } from "@merit/i18n/format";
+import { Toasts } from "@merit/ui/toast";
 
 import { GrantmakingMessagesProvider } from "../../messages";
 import { WorkspaceActivity } from "./workspace-activity";
@@ -47,7 +48,14 @@ const show = (props: Partial<ComponentProps<typeof WorkspaceActivity>> = {}) => 
     />
   );
 
-  const result = render(view(), { wrapper: GrantmakingMessagesProvider });
+  const result = render(view(), {
+    wrapper: ({ children }) => (
+      <GrantmakingMessagesProvider>
+        {children}
+        <Toasts />
+      </GrantmakingMessagesProvider>
+    ),
+  });
   return {
     onFiltersChange,
     onShowMore,
@@ -71,8 +79,9 @@ it("opens event details from the action and keeps the record as a separate nativ
   const row = within(screen.getAllByRole("listitem")[0]!);
   const time = row.getByText(formatTimestamp("2027-01-20T12:00:00.000Z", "en-GB"));
   expect(time).toHaveAttribute("datetime", "2027-01-20T12:00:00.000Z");
-  expect(row.getByText("Dana Reed")).toBeVisible();
-  expect(screen.queryByText("via MCP client grant-assistant")).not.toBeInTheDocument();
+  expect(row.getByText("Recorded by Dana Reed")).toBeVisible();
+  // Like every history, the list names an MCP client beside the actor.
+  expect(row.getByText("via MCP client grant-assistant")).toBeVisible();
   const link = row.getByRole("link", { name: "Local Connections 2027" });
   expect(link).toHaveAttribute("href", "/round/k7m2p9x4n6rt");
   expect(link.closest("button")).toBeNull();
@@ -116,7 +125,7 @@ it("names an unrecorded person, labels unknown actions generically and marks mis
     ],
   });
 
-  expect(screen.getByText("Unknown person")).toBeVisible();
+  expect(screen.getByText("Recorded by Name not recorded")).toBeVisible();
   expect(screen.getByText("Changed")).toBeVisible();
   expect(screen.getByText("Application deleted")).toBeVisible();
   expect(screen.getAllByText("No longer available")).toHaveLength(2);
@@ -307,16 +316,17 @@ it("keeps entries visible and offers a retry after a failure", async () => {
   const onRetry = vi.fn();
   const { rerender } = show({ status: "failed", hasMore: true, onRetry });
 
-  expect(screen.getByRole("alert")).toHaveTextContent("Activity could not be loaded.");
+  const failure = screen.getByRole("alertdialog", { name: "Activity could not be loaded." });
   expect(screen.getByRole("link", { name: "Workshop Saturdays" })).toBeVisible();
   expect(screen.queryByRole("button", { name: "Show older activity" })).not.toBeInTheDocument();
-  const retry = screen.getByRole("button", { name: "Try again" });
-  await user.click(retry);
+  await user.click(within(failure).getByRole("button", { name: "Try again" }));
   expect(onRetry).toHaveBeenCalledOnce();
   rerender({ status: "refreshing" });
-  expect(screen.getByRole("button", { name: "Try again" })).toBe(retry);
-  expect(retry).toHaveAttribute("aria-disabled", "true");
-  expect(retry).toHaveFocus();
+  expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+  expect(screen.getAllByRole("status").some((s) => s.textContent === "Loading activity…")).toBe(
+    true,
+  );
+  expect(screen.getByRole("link", { name: "Workshop Saturdays" })).toBeVisible();
   rerender({ status: "ready" });
   expect(screen.queryByRole("button", { name: "Try again" })).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Show older activity" })).toBeVisible();
@@ -412,7 +422,8 @@ it("stops automatic loading after failure and resumes only after a retry deliver
   rerender({ status: "failed" });
   observer.intersect();
   expect(onShowMore).toHaveBeenCalledOnce();
-  await userEvent.setup().click(screen.getByRole("button", { name: "Try again" }));
+  const failure = screen.getByRole("alertdialog", { name: "Activity could not be loaded." });
+  await userEvent.setup().click(within(failure).getByRole("button", { name: "Try again" }));
   expect(onRetry).toHaveBeenCalledOnce();
   rerender({ status: "ready", entries: [entry(1), entry(2)] });
   observer.intersect();

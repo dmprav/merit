@@ -165,7 +165,8 @@
 
   .reference > .content,
   .work > .content {
-    padding-bottom: var(--space-6);
+    --pane-padding-block-end: var(--space-6);
+    padding-bottom: var(--pane-padding-block-end);
   }
 
   .content[data-fill] {
@@ -175,7 +176,7 @@
   }
 
   .work > .content[data-fill] {
-    padding-bottom: 0;
+    --pane-padding-block-end: 0px;
   }
 }
 

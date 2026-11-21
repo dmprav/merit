@@ -1,11 +1,4 @@
-import {
-  createContext,
-  useContext,
-  useRef,
-  useState,
-  type ComponentProps,
-  type ReactNode,
-} from "react";
+import { createContext, useContext, useRef, useState, type ReactNode, type Ref } from "react";
 
 import styles from "./application-shell.module.css";
 
@@ -24,11 +17,14 @@ const NavigationReorderContext = createContext<NavigationReorder | null>(null);
 export const ApplicationNavigationList = ({
   onMove,
   appearance = "sidebar",
-  className,
   isDisabled = false,
   children,
   ...props
-}: Omit<ComponentProps<"ul">, "onMove" | "onDrop" | "onDragLeave"> & {
+}: {
+  children: ReactNode;
+  ref?: Ref<HTMLUListElement>;
+  "aria-label"?: string;
+  "aria-labelledby"?: string;
   onMove: (id: string, target: string, position: "before" | "after") => void;
   isDisabled?: boolean;
   appearance?: "sidebar" | "popup";
@@ -48,7 +44,7 @@ export const ApplicationNavigationList = ({
     >
       <ul
         {...props}
-        className={`${styles.navigationList} ${className ?? ""}`}
+        className={styles.navigationList}
         data-appearance={appearance}
         onDragLeave={(event) => {
           if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {

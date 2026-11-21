@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 
-import { Button } from "../../components/button/button";
-import { Icon } from "../../components/icon/icon";
+import { ButtonBase } from "../../components/button/button-base";
+import { IconBase } from "../../components/icon/icon-base";
 import styles from "./editor-loading.module.css";
 
 /**
@@ -13,7 +13,7 @@ export const EditorLoading = () => {
   const { t } = useTranslation("common");
   return (
     <span className={styles.loading} role="status" data-body-state>
-      <Icon name="loading" className={styles.spinner} />
+      <IconBase name="loading" className={styles.spinner} />
       <span className={styles.copy}>
         <span className={styles.title}>{t("editorPreparing")}</span>
         <span className={styles.description}>{t("editorPreparingDescription")}</span>
@@ -36,7 +36,7 @@ export const EditorClose = ({
   autoFocus?: boolean;
   isDisabled?: boolean;
 }) => (
-  <Button
+  <ButtonBase
     autoFocus={autoFocus}
     isDisabled={isDisabled}
     size="small"
@@ -51,6 +51,6 @@ export const EditorClose = ({
       }
     }}
   >
-    {iconOnly ? <Icon name="close" /> : label}
-  </Button>
+    {iconOnly ? <IconBase name="close" /> : label}
+  </ButtonBase>
 );

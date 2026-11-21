@@ -1,0 +1,24 @@
+.text[data-variant="supporting"] {
+  color: var(--muted);
+  font-size: var(--text-detail);
+}
+
+/* Captions often run to a few lines beside a form, so they keep the reading leading. */
+.text[data-variant="caption"] {
+  color: var(--muted);
+  font-size: var(--text-caption);
+  line-height: var(--leading-reading);
+}
+
+.text[data-variant="missing"] {
+  color: var(--muted);
+}
+
+.text[data-variant="emphasis"] {
+  font-weight: 500;
+}
+
+.text[data-variant="attention"] {
+  color: var(--warning);
+  font-weight: 500;
+}

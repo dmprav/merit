@@ -1,0 +1,73 @@
+/*
+ * One row for every list of choices or commands in a popover: select options, menu items,
+ * picker results, and their footer actions. An optional leading icon, the copy, then a trailing
+ * mark such as the selected check, which keeps its column so labels stay aligned.
+ */
+.row {
+  display: flex;
+  min-height: var(--control-height-small);
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  border-radius: calc(var(--control-radius) - 2px);
+  padding: var(--space-1) var(--space-2);
+  color: var(--foreground);
+  font-size: var(--text-control);
+  line-height: 1.25rem;
+  text-align: start;
+  cursor: pointer;
+  outline: none;
+}
+
+.row:is([data-focused], [data-hovered]) {
+  background: var(--surface-muted);
+}
+
+.row[data-focus-visible] {
+  background: var(--action-subtle);
+  box-shadow: inset 3px 0 var(--focus);
+}
+
+.row[data-disabled] {
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+.leading {
+  display: flex;
+  flex-shrink: 0;
+  color: var(--muted);
+}
+
+.copy {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.description {
+  color: var(--muted);
+  font-size: var(--text-caption);
+}
+
+.trailing {
+  display: flex;
+  width: 1rem;
+  flex-shrink: 0;
+  color: var(--action);
+}
+
+@media (pointer: coarse) {
+  .row {
+    min-height: var(--target-touch);
+  }
+}
+
+@media (forced-colors: active) {
+  .row[data-focus-visible] {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+}

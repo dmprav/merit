@@ -1,7 +1,7 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { expect, it, vi } from "vite-plus/test";
+import { afterEach, expect, it, vi } from "vite-plus/test";
 
 import { createQueryClient } from "@merit/query";
 
@@ -32,7 +32,16 @@ const setup = () => {
   return { ...hook, data };
 };
 
+afterEach(() => vi.useRealTimers());
+
+/** Waits out the quiet retries a failed refresh makes before it is reported. */
+const afterQuietRetries = () =>
+  act(async () => {
+    await vi.advanceTimersByTimeAsync(4000);
+  });
+
 it("retains committed Undo when refresh fails and retries only the read", async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
   const { result, data } = setup();
   data.refresh.mockRejectedValue(new Error("Offline"));
 
@@ -44,6 +53,10 @@ it("retains committed Undo when refresh fails and retries only the read", async 
   expect(result.current.open).toBe(false);
   expect(result.current.canUndo).toBe(true);
   expect(result.current.failure).toBeNull();
+  expect(result.current.refreshError).toBeNull();
+
+  await afterQuietRetries();
+
   expect(result.current.refreshError).toBe("saved");
 
   act(() => result.current.changeOpen(true));
@@ -64,6 +77,7 @@ it("retains committed Undo when refresh fails and retries only the read", async 
 });
 
 it("keeps the opened baseline through a conflict and failed read until the picker is reopened", async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
   const { result, data, rerender } = setup();
   data.selectContact.mockResolvedValue({ status: "conflict" });
   data.refreshCurrent.mockRejectedValue(new Error("Offline"));
@@ -76,6 +90,9 @@ it("keeps the opened baseline through a conflict and failed read until the picke
   expect(result.current.saved).toBe(0);
   expect(result.current.canUndo).toBe(false);
   expect(result.current.failure).toEqual({ status: "conflict" });
+
+  await afterQuietRetries();
+
   expect(result.current.refreshError).toBe("read");
 
   await act(() => result.current.retryRefresh());

@@ -1,12 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect } from "storybook/test";
 
-import linkStyles from "@merit/ui/link.module.css";
-
 import { Brand } from "../brand/brand";
 import { Button } from "../button/button";
 import { Icon } from "../icon/icon";
 import { Inline, Reading, Stack } from "../layout/layout";
+import { Text } from "../text/text";
+import { Link } from "./link";
 import localStyles from "./link.stories.module.css";
 
 const meta = {
@@ -15,15 +15,11 @@ const meta = {
     docs: {
       description: {
         component:
-          "Use native anchors or router links for destinations. Apply text for underlined links within prose; add standalone for separate controls with optional icons and 44px touch targets. Use button with data-variant (primary, secondary, or quiet) to match adjacent buttons, data-size=small for compact labels, or data-size=large for prominent site entry points. Links share Button's hover, press, and focus treatments. Keep labels specific to their destination and announce when a link opens a new tab.",
+          "Use Link for destinations: native anchors directly, and router links through an adapter such as TanStack Router's createLink. The default inline variant underlines links within prose; standalone suits separate destinations with optional icons and 44px touch targets. Use primary, secondary, or quiet to match adjacent buttons, size small for compact labels, or size large for prominent site entry points. Links share Button's hover, press, and focus treatments. Keep labels specific to their destination and announce when a link opens a new tab.",
       },
     },
   },
-  render: () => (
-    <a href="#evidence" className={linkStyles.text}>
-      View supporting evidence
-    </a>
-  ),
+  render: () => <Link href="#evidence">View supporting evidence</Link>,
 } satisfies Meta;
 
 export default meta;
@@ -32,113 +28,117 @@ type Story = StoryObj<typeof meta>;
 
 export const Overview: Story = {
   render: () => (
-    <Stack gap={6} className={localStyles.overview}>
-      <header>
-        <h1 className={localStyles.title}>Links</h1>
-        <p className={localStyles.description}>Clear destinations, in the rhythm of the work.</p>
-      </header>
-      <Stack as="section" gap={3} className={localStyles.example}>
-        <h2 className={localStyles.label}>Within a sentence</h2>
-        <Reading as="p">
-          Before making a recommendation, read the{" "}
-          <a href="#evidence" className={linkStyles.text}>
-            supporting evidence
-          </a>{" "}
-          and check the{" "}
-          <a href="#criteria" className={linkStyles.text}>
-            funding criteria
-          </a>
-          .
-        </Reading>
+    <div className={localStyles.overview}>
+      <Stack gap={6}>
+        <header>
+          <h1 className={localStyles.title}>Links</h1>
+          <p className={localStyles.description}>Clear destinations, in the rhythm of the work.</p>
+        </header>
+        <section className={localStyles.example}>
+          <Stack gap={3}>
+            <h2 className={localStyles.label}>Within a sentence</h2>
+            <Reading prose={false} as="p">
+              Before making a recommendation, read the{" "}
+              <Link href="#evidence">supporting evidence</Link> and check the{" "}
+              <Link href="#criteria">funding criteria</Link>.
+            </Reading>
+          </Stack>
+        </section>
+        <section className={localStyles.example}>
+          <Stack gap={3}>
+            <h2 className={localStyles.label}>Related destinations</h2>
+            <Inline gap={6}>
+              <Link variant="standalone" href="#rounds">
+                <Icon name="left" /> All funding rounds
+              </Link>
+              <Link variant="standalone" href="#evidence">
+                View evidence <Icon name="forward" />
+              </Link>
+              <Link
+                variant="standalone"
+                href="https://example.org"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Applicant website (opens in a new tab)"
+              >
+                Applicant website <Icon name="arrow" />
+              </Link>
+            </Inline>
+          </Stack>
+        </section>
+        <section className={localStyles.example}>
+          <Stack gap={3}>
+            <h2 className={localStyles.label}>Alongside actions</h2>
+            <Inline>
+              <Button size="medium">Add evidence</Button>
+              <Link variant="secondary" href="#evidence">
+                View evidence <Icon name="forward" />
+              </Link>
+              <Link variant="quiet" href="#rounds">
+                Back to round
+              </Link>
+            </Inline>
+          </Stack>
+        </section>
+        <section className={localStyles.example}>
+          <Stack gap={3}>
+            <h2 className={localStyles.label}>Site entry point</h2>
+            <Inline>
+              <Link variant="primary" size="large" href="#demo">
+                Explore the demo <Icon name="forward" />
+              </Link>
+            </Inline>
+          </Stack>
+        </section>
       </Stack>
-      <Stack as="section" gap={3} className={localStyles.example}>
-        <h2 className={localStyles.label}>Related destinations</h2>
-        <Inline gap={6}>
-          <a href="#rounds" className={`${linkStyles.text} ${linkStyles.standalone}`}>
-            <Icon name="left" /> All funding rounds
-          </a>
-          <a href="#evidence" className={`${linkStyles.text} ${linkStyles.standalone}`}>
-            View evidence <Icon name="forward" />
-          </a>
-          <a
-            href="https://example.org"
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="Applicant website (opens in a new tab)"
-            className={`${linkStyles.text} ${linkStyles.standalone}`}
-          >
-            Applicant website <Icon name="arrow" />
-          </a>
-        </Inline>
-      </Stack>
-      <Stack as="section" gap={3} className={localStyles.example}>
-        <h2 className={localStyles.label}>Alongside actions</h2>
-        <Inline>
-          <Button>Add evidence</Button>
-          <a href="#evidence" className={linkStyles.button} data-variant="secondary">
-            View evidence <Icon name="forward" />
-          </a>
-          <a href="#rounds" className={linkStyles.button} data-variant="quiet">
-            Back to round
-          </a>
-        </Inline>
-      </Stack>
-      <Stack as="section" gap={3} className={localStyles.example}>
-        <h2 className={localStyles.label}>Site entry point</h2>
-        <Inline>
-          <a href="#demo" className={linkStyles.button} data-variant="primary" data-size="large">
-            Explore the demo <Icon name="forward" />
-          </a>
-        </Inline>
-      </Stack>
-    </Stack>
+    </div>
   ),
 };
 
 export const Default: Story = {};
 export const Standalone: Story = {
   render: () => (
-    <a href="#evidence" className={`${linkStyles.text} ${linkStyles.standalone}`}>
+    <Link variant="standalone" href="#evidence">
       View supporting evidence <Icon name="forward" />
-    </a>
+    </Link>
   ),
 };
 export const ButtonAppearance: Story = {
   render: () => (
     <Stack>
       <Inline>
-        <a href="#round" className={linkStyles.button} data-variant="primary">
+        <Link variant="primary" href="#round">
           Open funding round
-        </a>
-        <Button>Create funding round</Button>
+        </Link>
+        <Button size="medium">Create funding round</Button>
       </Inline>
       <Inline>
-        <a href="#evidence" className={linkStyles.button} data-variant="secondary">
+        <Link variant="secondary" href="#evidence">
           Read supporting evidence
           <Icon name="forward" />
-        </a>
-        <Button variant="secondary">Add evidence</Button>
-      </Inline>
-      <Inline>
-        <a href="#guide" className={linkStyles.button} data-variant="secondary" data-size="small">
-          Read the guide
-        </a>
-        <Button variant="secondary" size="small">
-          Copy address
+        </Link>
+        <Button size="medium" variant="secondary">
+          Add evidence
         </Button>
       </Inline>
       <Inline>
-        <a href="#demo" className={linkStyles.button} data-variant="primary" data-size="large">
+        <Link variant="secondary" size="small" href="#guide">
+          Read the guide
+        </Link>
+        <Button variant="secondary">Copy address</Button>
+      </Inline>
+      <Inline>
+        <Link variant="primary" size="large" href="#demo">
           Explore the demo <Icon name="forward" />
-        </a>
+        </Link>
         <Button size="large">Request access</Button>
       </Inline>
       <Inline>
-        <a href="#workspace" className={linkStyles.button} data-variant="quiet">
+        <Link variant="quiet" href="#workspace">
           <Icon name="exit" />
           Leave workspace
-        </a>
-        <Button variant="quiet">
+        </Link>
+        <Button size="medium" variant="quiet">
           <Icon name="reset" />
           Reset example
         </Button>
@@ -153,22 +153,52 @@ export const ButtonAppearance: Story = {
 
 export const LongLabels: Story = {
   render: () => (
-    <Stack className={localStyles.narrow}>
-      <Reading as="p">
-        Read the{" "}
-        <a href="#evidence" className={linkStyles.text}>
-          supporting evidence and assessment for the community-led neighbourhood programme
-        </a>{" "}
-        before recording your recommendation.
-      </Reading>
-      <a href="#evidence" className={`${linkStyles.text} ${linkStyles.standalone}`}>
-        <span>View supporting evidence for the community-led neighbourhood programme</span>
-        <Icon name="forward" />
-      </a>
-      <a href="#evidence" className={linkStyles.text}>
-        evidence.community-foundation.example/2027/neighbourhood-programme/assessment
-      </a>
-    </Stack>
+    <div className={localStyles.narrow}>
+      <Stack>
+        <Reading prose={false} as="p">
+          Read the{" "}
+          <Link href="#evidence">
+            supporting evidence and assessment for the community-led neighbourhood programme
+          </Link>{" "}
+          before recording your recommendation.
+        </Reading>
+        <Link variant="standalone" href="#evidence">
+          <span>View supporting evidence for the community-led neighbourhood programme</span>
+          <Icon name="forward" />
+        </Link>
+        <Link href="#evidence">
+          evidence.community-foundation.example/2027/neighbourhood-programme/assessment
+        </Link>
+      </Stack>
+    </div>
+  ),
+};
+export const Rows: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "The row variant makes a whole list row one destination, with its title and supporting lines stacked. The list separates its rows.",
+      },
+    },
+  },
+  render: () => (
+    <div className={localStyles.narrow}>
+      <Stack as="ul" gap={1}>
+        <li>
+          <Link variant="row" href="#neighbour-table">
+            <span>Neighbour Table</span>
+            <Text variant="supporting">Community grants 2026</Text>
+          </Link>
+        </li>
+        <li>
+          <Link variant="row" href="#repair-cafe">
+            <span>Saturday repair café</span>
+            <Text variant="supporting">Neighbourhood partnerships 2025</Text>
+          </Link>
+        </li>
+      </Stack>
+    </div>
   ),
 };
 export const BrandLink: Story = {

@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 
 import motion from "../../foundations/motion.module.css";
 import scrollStyles from "../../foundations/scroll-area.module.css";
-import { Button } from "../button/button";
+import { ButtonBase } from "../button/button-base";
 import { Icon } from "../icon/icon";
 import { DialogContent, DialogFrameContext } from "./dialog-content";
 import styles from "./dialog.module.css";
@@ -65,7 +65,7 @@ const FloatingDialog = ({
   headerActions?: ReactNode;
   footer?: ReactNode;
   appearance: "reference" | "picker";
-  children: ReactNode | ((props: { close: () => void; closeButton: ReactNode }) => ReactNode);
+  children: ReactNode | ((props: { close: () => void }) => ReactNode);
 }) => {
   const { t } = useTranslation("common");
   const compact = useSyncExternalStore(subscribeViewport, isCompactViewport, () => false);
@@ -101,7 +101,7 @@ const FloatingDialog = ({
             <Dialog className={styles.dialog} aria-label={picker ? title : undefined}>
               {({ close }) => {
                 const closeButton = (
-                  <Button
+                  <ButtonBase
                     slot={null}
                     variant="quiet"
                     size="small"
@@ -111,10 +111,9 @@ const FloatingDialog = ({
                     isDisabled={isDismissDisabled}
                   >
                     <Icon name="close" />
-                  </Button>
+                  </ButtonBase>
                 );
-                const content =
-                  typeof children === "function" ? children({ close, closeButton }) : children;
+                const content = typeof children === "function" ? children({ close }) : children;
 
                 return (
                   <DialogFrameContext value={{ framed: !picker, title }}>
@@ -162,11 +161,12 @@ export const PopoverDialog = (
 ) => <FloatingDialog {...props} appearance="reference" />;
 
 /**
- * A picker or small filter panel that places the supplied `closeButton` beside its own
- * first row. The title names the dialog without a decorative header.
+ * A picker or small filter panel. The title names the dialog without a decorative header, and
+ * there is no visible close control: it dismisses with Escape or a press outside, and React Aria
+ * adds a hidden dismiss button for screen readers.
  */
 export const PickerPopover = (
-  props: FloatingDialogProps & {
-    children: ReactNode | ((props: { close: () => void; closeButton: ReactNode }) => ReactNode);
+  props: Omit<FloatingDialogProps, "closeLabel"> & {
+    children: ReactNode | ((props: { close: () => void }) => ReactNode);
   },
 ) => <FloatingDialog {...props} appearance="picker" />;

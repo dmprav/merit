@@ -2,13 +2,22 @@ import { Heading, type DialogProps } from "react-aria-components/Dialog";
 import { useTranslation } from "react-i18next";
 
 import scrollStyles from "../../foundations/scroll-area.module.css";
-import { Button } from "../button/button";
-import { Icon } from "../icon/icon";
+import { ButtonBase } from "../button/button-base";
+import { IconBase } from "../icon/icon-base";
 import { DialogFrameContext } from "./dialog-content";
 import styles from "./framed-dialog.module.css";
 import { ModalFrame, type ModalFrameProps } from "./modal-frame";
 
-export type FramedDialogProps = ModalFrameProps & {
+export type FramedDialogProps = Pick<
+  ModalFrameProps,
+  | "isOpen"
+  | "defaultOpen"
+  | "onOpenChange"
+  | "isDismissable"
+  | "isDismissDisabled"
+  | "trigger"
+  | "aria-describedby"
+> & {
   title: string;
   /** Fixed parent context that orients the task. */
   context?: string;
@@ -42,7 +51,7 @@ const FramedDialogHeader = ({
         </span>
       )}
     </div>
-    <Button
+    <ButtonBase
       variant="quiet"
       iconOnly
       aria-label={closeLabel}
@@ -50,14 +59,14 @@ const FramedDialogHeader = ({
       onPress={close}
       className={styles.close}
     >
-      <Icon name="close" />
-    </Button>
+      <IconBase name="close" />
+    </ButtonBase>
   </div>
 );
 
 /**
- * The titled frame shared by centered dialogs and side panels: a tinted header with
- * optional context, then `DialogContent` with its gutters and tinted footer.
+ * The titled frame shared by centered dialogs and side panels: a header with optional
+ * context, then `DialogContent` with its gutters and footer.
  */
 export const FramedDialog = ({
   frame,

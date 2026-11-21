@@ -74,7 +74,6 @@ export const DateChoice = ({
           <>
             <Tooltip content={cancelLabel}>
               <Button
-                size="small"
                 variant="quiet"
                 iconOnly
                 aria-label={cancelLabel}
@@ -86,7 +85,6 @@ export const DateChoice = ({
             </Tooltip>
             <Tooltip content={applyLabel}>
               <Button
-                size="small"
                 variant="quiet"
                 iconOnly
                 aria-label={applyLabel}
@@ -106,7 +104,6 @@ export const DateChoice = ({
         isDisabled={isDisabled}
       />
       <Button
-        size="small"
         variant="quiet"
         isDisabled={isDisabled || (!value && !typed)}
         onPress={() => choose(null)}

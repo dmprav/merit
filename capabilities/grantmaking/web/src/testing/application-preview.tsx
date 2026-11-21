@@ -1,9 +1,6 @@
 import type { ReactNode } from "react";
 
-import { ApplicationPage } from "@merit/ui/application-shell";
-import shellStyles from "@merit/ui/application-shell.module.css";
-
-import previewStyles from "./application-preview.module.css";
+import { ApplicationPage, ApplicationStage } from "@merit/ui/application-shell";
 
 /**
  * Viewport-contained application work in Storybook: the shell scrolling contract
@@ -16,18 +13,16 @@ export const ApplicationContainedPreview = ({
   locationKey: string;
   children: ReactNode;
 }) => (
-  <div className={`${shellStyles.shell} ${previewStyles.stageOnly}`}>
-    <div className={shellStyles.stage}>
-      <ApplicationPage
-        contained
-        locationKey={locationKey}
-        breadcrumb={null}
-        breadcrumbLabel="Breadcrumb"
-      >
-        {children}
-      </ApplicationPage>
-    </div>
-  </div>
+  <ApplicationStage>
+    <ApplicationPage
+      contained
+      locationKey={locationKey}
+      breadcrumb={null}
+      breadcrumbLabel="Breadcrumb"
+    >
+      {children}
+    </ApplicationPage>
+  </ApplicationStage>
 );
 
 export { FundingRoundPreview, applicationOverviewForPreview } from "./application-list-preview";

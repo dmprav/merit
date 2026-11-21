@@ -27,7 +27,6 @@ const Example = ({
     <CollectionToolbar
       filterLabel="Filter"
       filterTitle="Filter projects"
-      closeLabel="Close filters"
       filters={
         <CollectionFilter
           label="Status"

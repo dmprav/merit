@@ -2,6 +2,8 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, it, vi } from "vite-plus/test";
 
+import { Toasts } from "@merit/ui/toast";
+
 import type { ReviewerSession } from "../../controllers/reviewer/use-reviewer";
 import { GrantmakingMessagesProvider } from "../../testing/providers";
 import { ReviewerScreen } from "./reviewer-screen";
@@ -30,6 +32,7 @@ const renderReviewer = (
   render(
     <GrantmakingMessagesProvider>
       <ReviewerScreen initial={initial} data={data} session={session} />
+      <Toasts />
     </GrantmakingMessagesProvider>,
   );
   return { user: userEvent.setup() };
@@ -284,7 +287,7 @@ it("copies all retained draft fields and confirms only after clipboard success",
   expect(write).toHaveBeenCalledWith(expect.stringContaining("Keep the amendment explanation."));
 
   finish();
-  await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Draft copied."));
+  expect(await screen.findByRole("alertdialog", { name: "Draft copied." })).toBeVisible();
   expect(screen.getByRole("button", { name: "Copy draft" })).toBeEnabled();
 });
 
@@ -295,7 +298,9 @@ it("explains a failed clipboard write and leaves the retained draft available", 
 
   await user.click(screen.getByRole("button", { name: "Copy draft" }));
 
-  expect(await screen.findByRole("alert")).toHaveTextContent("The draft could not be copied");
+  expect(
+    await screen.findByRole("alertdialog", { name: /^The draft could not be copied/ }),
+  ).toBeVisible();
   expect(screen.queryByText("Draft copied.")).not.toBeInTheDocument();
   expect(screen.getByText("My unsaved reasoning.")).toBeVisible();
   expect(screen.getByText("123.456")).toBeVisible();

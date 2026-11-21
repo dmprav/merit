@@ -216,7 +216,7 @@ export const MultipleRelationships: Story = {
     );
     await waitFor(() => expect(dialog.getAllByRole("link")).toHaveLength(1));
     await expect(dialog.getByRole("link")).toHaveAccessibleName(
-      "Neighbour Table Community grants 2026 Contact for the applicant · Asked to review · Provided an assessment",
+      "Neighbour Table Contact for the applicant, Asked to review, Provided an assessment in Community grants 2026",
     );
   },
 };

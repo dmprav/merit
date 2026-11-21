@@ -34,7 +34,7 @@ const Preview = (
 };
 
 const meta = {
-  title: "Features/Applications/Workspace overview",
+  title: "Features/Applications/All applications",
   tags: ["!autodocs"],
   parameters: { layout: "fullscreen" },
   component: Preview,

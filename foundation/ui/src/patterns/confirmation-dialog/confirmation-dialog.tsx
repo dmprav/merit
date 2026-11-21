@@ -73,7 +73,6 @@ export const ConfirmationDialog = ({
         footer={
           <Inline justify="end" gap={3}>
             <Button
-              size="small"
               variant="secondary"
               autoFocus
               isDisabled={isPending}
@@ -82,7 +81,6 @@ export const ConfirmationDialog = ({
               {cancelLabel}
             </Button>
             <Button
-              size="small"
               variant={intent === "destructive" ? "destructive" : "primary"}
               isPending={isPending}
               onPress={onConfirm}

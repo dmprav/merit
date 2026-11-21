@@ -154,7 +154,7 @@ const conflictedForm = async (
 };
 
 it.each(sections)(
-  "keeps the $section editor mounted with ConflictBanner and View latest disclosure on conflict",
+  "keeps the $section editor mounted with ConflictBanner and the saved values on conflict",
   async ({ section, field, saved }) => {
     const { user, data } = await conflictedForm(section);
 
@@ -164,6 +164,14 @@ it.each(sections)(
     expect(alert).toHaveTextContent("This application changed while you were editing");
     expect(data.save).not.toHaveBeenCalled();
 
+    if (section === "metadata") {
+      // Details compare in place: each differing field shows its saved value beneath it.
+      expect(screen.queryByRole("button", { name: "View latest" })).not.toBeInTheDocument();
+      const field = screen.getByRole("textbox", { name: "Applicant" }).closest("div");
+      expect(field?.parentElement).toHaveTextContent(`Now saved as ${saved[0]}`);
+      expect(screen.getByText("Saved explanation")).toBeVisible();
+      return;
+    }
     await user.click(screen.getByRole("button", { name: "View latest" }));
     const preview = screen.getByRole("region", { name: "Latest saved values" });
     expect(alert).not.toContainElement(preview);

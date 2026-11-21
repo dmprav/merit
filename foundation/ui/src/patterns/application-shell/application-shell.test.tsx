@@ -83,6 +83,7 @@ const SearchAction = ({ onSearch }: { onSearch: () => void }) => {
   const closeNavigation = useCloseNavigation();
   return (
     <Button
+      size="medium"
       onPress={() => {
         closeNavigation();
         onSearch();

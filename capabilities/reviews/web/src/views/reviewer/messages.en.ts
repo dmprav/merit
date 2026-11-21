@@ -61,8 +61,8 @@ export const en = {
   retry: "Try again",
   refresh: "Refresh",
   participationSavedRefreshError:
-    "The change was saved, but reviewer participation could not be refreshed. Refresh to load the latest state.",
-  participationReadError: "Reviewer participation could not be loaded. Refresh to try again.",
+    "Saved, but the latest reviewer participation could not be loaded.",
+  participationReadError: "The latest reviewer participation could not be loaded.",
   paused: "This review is paused while the manager considers the possible conflict.",
   ended:
     "Access to this assignment has ended. Contact the requesting manager if this needs to be reconsidered.",

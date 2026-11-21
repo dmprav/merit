@@ -375,7 +375,7 @@ test("joined organization presents its current owner and inline record actions",
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.getByRole("button", { name: "Copy address", exact: true }).click();
 
-  await expect(page.getByRole("status")).toHaveText("Workspace address copied.");
+  await expect(page.getByRole("alertdialog", { name: "Workspace address copied." })).toBeVisible();
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
     new URL("/app/alder/rounds", page.url()).href,
   );

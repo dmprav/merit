@@ -1,0 +1,27 @@
+import type { ReactNode } from "react";
+
+import styles from "./properties-layout.module.css";
+
+/**
+ * A record's main work beside a panel of its properties, such as a funding round's purpose and
+ * budget. On narrower screens the panel moves before the work, or after it when the work is a
+ * long collection people came to scan; a rule separates them in either arrangement.
+ */
+export const PropertiesLayout = ({
+  children,
+  properties,
+  propertiesLabel,
+  stackedPlacement = "before",
+}: {
+  children: ReactNode;
+  properties: ReactNode;
+  propertiesLabel: string;
+  stackedPlacement?: "before" | "after";
+}) => (
+  <div className={styles.layout} data-stacked-placement={stackedPlacement}>
+    <div className={styles.main}>{children}</div>
+    <aside className={styles.properties} aria-label={propertiesLabel}>
+      {properties}
+    </aside>
+  </div>
+);

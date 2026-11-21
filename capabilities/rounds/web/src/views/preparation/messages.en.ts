@@ -23,7 +23,7 @@ export const preparationMessages = {
     useSaved: "Discard & load latest",
     viewLatest: "View latest",
     hideLatest: "Hide latest",
-    refreshReadError: "The latest round could not be loaded. Refresh before continuing.",
+    refreshReadError: "The latest round could not be loaded.",
     create: "Create funding round",
     creating: "Creating…",
     name: "Round name",
@@ -53,7 +53,6 @@ export const preparationMessages = {
     reassignmentStatus: "Reassignment needed",
     reassignmentNeeded:
       "This person can no longer manage this round. Assign a current program manager.",
-    closeReassignment: "Close reassignment details",
     unassigned: "Unassigned",
     unknownPerson: "Name not recorded",
     chooseManager: "Choose a program manager",
@@ -89,9 +88,8 @@ export const preparationMessages = {
     accessLost: "You no longer have access to change this round. Your draft is still here.",
     conflict: "This round has changed. Review the latest saved values before saving again.",
     latestSaved: "Latest saved values",
-    refreshError:
-      "Your changes were saved, but the latest round could not be loaded. Refresh before continuing.",
-    refresh: "Refresh round",
+    refreshError: "Saved, but the latest round could not be loaded.",
+    refresh: "Refresh",
     delete: "Delete round",
     deleting: "Deleting…",
     deleted: "Round deleted.",

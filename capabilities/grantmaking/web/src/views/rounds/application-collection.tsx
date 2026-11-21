@@ -5,6 +5,7 @@ import { workspaceApplicationsPageSize, type ApplicationOverview } from "@merit/
 import { DataTable, type TableColumn } from "@merit/tables";
 import { Button } from "@merit/ui/button";
 import { CollectionRecovery } from "@merit/ui/paged-content";
+import { Text } from "@merit/ui/text";
 
 import type { ApplicationList } from "../../contracts/application-list";
 import { ApplicationFilters } from "./application-filters";
@@ -72,7 +73,11 @@ export const ApplicationCollection = ({
           }}
         />
       </div>
-      <OverviewRecovery pagination={pagination} onRetry={onRetry} />
+      <OverviewRecovery
+        pagination={pagination}
+        onRetry={onRetry}
+        showsEntries={applications.length > 0}
+      />
       <OverviewPagination
         pagination={pagination}
         onPrevious={onPrevious}
@@ -88,9 +93,11 @@ type Pagination = ApplicationList["pagination"];
 const OverviewRecovery = ({
   pagination,
   onRetry,
+  showsEntries,
 }: {
   pagination: Pagination;
   onRetry: () => void;
+  showsEntries: boolean;
 }) => {
   const { t } = useTranslation("fundingRounds");
   if (!pagination.failed && !pagination.retrying) {
@@ -102,6 +109,7 @@ const OverviewRecovery = ({
       retryLabel={t("overview.retry")}
       onRetry={onRetry}
       isPending={pagination.loading}
+      showsEntries={showsEntries}
     />
   );
 };
@@ -139,9 +147,12 @@ const ownsPageFocus = (previous: Element | null) => {
 const usePageNavigation = (pagination: Pagination, scope: string) => {
   const tableStart = useRef<HTMLDivElement>(null);
   const pending = useRef<{ offset: number; scope: string; focus: Element | null }>(undefined);
+  // A retry from the failure toast continues the failed request, so its page control keeps focus.
+  const failedFocus = useRef<Element | null>(null);
 
-  const navigate = (action: () => void) => {
-    pending.current = { offset: pagination.offset, scope, focus: document.activeElement };
+  const navigate = (action: () => void, focus = document.activeElement) => {
+    failedFocus.current = null;
+    pending.current = { offset: pagination.offset, scope, focus };
     action();
   };
 
@@ -151,6 +162,7 @@ const usePageNavigation = (pagination: Pagination, scope: string) => {
       return;
     }
     if (pagination.failed || request.scope !== scope) {
+      failedFocus.current = pagination.failed ? request.focus : null;
       pending.current = undefined;
       return;
     }
@@ -167,7 +179,7 @@ const usePageNavigation = (pagination: Pagination, scope: string) => {
     tableStart,
     onPrevious: () => navigate(pagination.onPrevious),
     onNext: () => navigate(pagination.onNext),
-    onRetry: () => navigate(pagination.onRetry),
+    onRetry: () => navigate(pagination.onRetry, failedFocus.current ?? document.activeElement),
   };
 };
 
@@ -188,17 +200,16 @@ const OverviewPagination = ({
   }
   return (
     <div className={styles.pagination}>
-      <span>
+      <Text variant="caption">
         {t("overview.range", {
           start: count ? pagination.offset + 1 : 0,
           end: pagination.offset + count,
           count: pagination.matching,
         })}
-      </span>
+      </Text>
       <div className={styles.pageActions}>
         <Button
           variant="quiet"
-          size="small"
           onPress={onPrevious}
           isPending={pagination.loading}
           isDisabled={pagination.offset === 0}
@@ -207,7 +218,6 @@ const OverviewPagination = ({
         </Button>
         <Button
           variant="quiet"
-          size="small"
           onPress={onNext}
           isPending={pagination.loading}
           isDisabled={pagination.offset + count >= pagination.matching}

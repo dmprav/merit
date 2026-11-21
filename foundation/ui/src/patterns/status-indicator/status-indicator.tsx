@@ -1,8 +1,8 @@
 import { useState } from "react";
 
-import { Button } from "../../components/button/button";
+import { ButtonBase } from "../../components/button/button-base";
 import { PickerPopover } from "../../components/dialog/dialog";
-import { Icon } from "../../components/icon/icon";
+import { IconBase } from "../../components/icon/icon-base";
 import { Tooltip } from "../../components/tooltip/tooltip";
 import styles from "./status-indicator.module.css";
 
@@ -10,12 +10,10 @@ import styles from "./status-indicator.module.css";
 export const StatusIndicator = ({
   label,
   explanation,
-  closeLabel,
   tone = "warning",
 }: {
   label: string;
   explanation: string;
-  closeLabel: string;
   tone?: "warning" | "muted";
 }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -23,13 +21,12 @@ export const StatusIndicator = ({
   return (
     <PickerPopover
       title={label}
-      closeLabel={closeLabel}
       placement="bottom start"
       isOpen={isOpen}
       onOpenChange={setIsOpen}
       trigger={
         <Tooltip content={explanation} isDisabled={isOpen}>
-          <Button
+          <ButtonBase
             variant="quiet"
             size="small"
             iconOnly
@@ -37,17 +34,20 @@ export const StatusIndicator = ({
             data-tone={tone}
             aria-label={label}
           >
-            <Icon name={tone === "warning" ? "warning" : "info"} />
-          </Button>
+            <IconBase name={tone === "warning" ? "warning" : "info"} />
+          </ButtonBase>
         </Tooltip>
       }
     >
-      {({ closeButton }) => (
-        <div className={styles.content}>
-          <p>{explanation}</p>
-          {closeButton}
-        </div>
-      )}
+      <div className={styles.content}>
+        <p>{explanation}</p>
+      </div>
     </PickerPopover>
   );
 };
+
+/**
+ * Reserves an indicator's width where a value has none, so values in a column of figures line up
+ * whether or not each one carries an indicator.
+ */
+export const StatusIndicatorSpace = () => <span aria-hidden="true" className={styles.space} />;

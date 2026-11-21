@@ -1,0 +1,22 @@
+.panel {
+  min-width: 0;
+  margin: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--panel-radius);
+}
+
+.panel[data-padding="4"] {
+  padding: var(--space-4);
+}
+
+.panel[data-padding="5"] {
+  padding: var(--space-5);
+}
+
+.panel[data-padding="6"] {
+  padding: var(--space-6);
+}
+
+.panel > legend {
+  padding-inline: var(--space-2);
+}

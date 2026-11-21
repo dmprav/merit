@@ -28,6 +28,10 @@ repeating the selected option's description beneath the control.
 Use disabled controls for unavailable interaction. Explain restrictions when their
 reason is unclear and offer a remedy when missing data blocks progress.
 
+Set `isLabelHidden` when nearby text already names the field visibly, such as a
+description list term beside an inline editor. The label stays the field's
+accessible name and keeps its validation and requirement semantics.
+
 Use `isRequired` for input needed by the current action. Editable required fields
 show accessible semantics and a quiet **Required** label, including after the
 person fills the field. Read-only and disabled fields omit the visible marker;
@@ -81,7 +85,7 @@ and identifiers. Fields without feedback leave no empty row.
 
 Multiline text fields default to five rows and a 120 px minimum, with vertical
 resizing and 8 px vertical padding. Labels, values, and feedback wrap or grow with
-long content and enlarged text. Shared [density and focus conventions](?path=/docs/foundations-tokens--docs)
+long content and enlarged text. Shared [density and focus conventions](?path=/docs/design-language--docs)
 keep field states consistent with the surrounding controls.
 
 <Canvas of={TextFields.LongContent} />

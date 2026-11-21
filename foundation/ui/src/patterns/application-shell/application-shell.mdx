@@ -17,6 +17,13 @@ names readable and supports Tab navigation, Escape, and outside dismissal. A sin
 workspace stays static. The interface supplies destinations and account actions
 according to the current session.
 
+Place navigation commands, such as opening search, with `ApplicationNavigationButton`,
+which shows an optional keyboard shortcut on hover and focus. Use
+`ApplicationDocumentationLink` in the footer for documentation that opens in a new
+tab, and `ApplicationContextLinks` for workspace links outside the switcher, such as
+a page for choosing where to work. Feature stories can use `ApplicationStage` for
+the page's scrolling frame without navigation.
+
 Supply translated navigation labels and a current context label for the compact
 header. The shell owns the mobile drawer and its focus behavior; `ApplicationPage`
 provides the main landmark that receives focus after navigation. Optional utilities,
@@ -49,7 +56,7 @@ Use `ApplicationNavigationRow` when a navigation link has a secondary action.
 Supply the link as its child and a quiet button or menu trigger as `action`.
 The shell keeps the selected row together visually and reveals its action on
 hover or keyboard focus without reserving label space. Touch keeps the action
-visible beside the link with a minimum 44px target; narrow viewports retain the drawer. The [pin examples](?path=/story/product-navigation-pins--pinned)
+visible beside the link with a minimum 44px target; narrow viewports retain the drawer. The [pin examples](?path=/story/features-workspace-pins--pinned)
 show this in context, including truncated labels, a full-list popup, and a link context menu. Use a custom-trigger `Tooltip` for full link text on hover and focus;
 retain the complete accessible name and essential context on the destination page.
 

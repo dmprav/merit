@@ -5,10 +5,12 @@ import { useFormat } from "@merit/i18n/format";
 import { Badge } from "@merit/ui/badge";
 import { Button } from "@merit/ui/button";
 import { DescriptionList, DescriptionListItem } from "@merit/ui/description-list";
+import { Reading } from "@merit/ui/layout";
 import { PersonIdentity } from "@merit/ui/person-identity";
 import { SectionHeader } from "@merit/ui/section-header";
 import { StateMessage } from "@merit/ui/state-message";
 import { StatusIndicator } from "@merit/ui/status-indicator";
+import { Text } from "@merit/ui/text";
 
 import type { PreparationData, PreparationRound } from "../../contracts/preparation";
 import styles from "./preparation-content.module.css";
@@ -63,7 +65,12 @@ const EditablePreparation = (props: Props & { session: PreparationSession }) => 
             ) : undefined
           }
           actions={
-            <Button autoFocus isPending={preparation.pending} onPress={preparation.returnToRounds}>
+            <Button
+              size="medium"
+              autoFocus
+              isPending={preparation.pending}
+              onPress={preparation.returnToRounds}
+            >
               {t("preparation.returnToRounds")}
             </Button>
           }
@@ -120,7 +127,7 @@ const RoundOverview = ({
         {preparation?.editing === "purpose" ? (
           <RoundEditor preparation={preparation} section="purpose" />
         ) : (
-          <p>{round.purpose || t("preparation.purposeUnset")}</p>
+          <Reading as="p">{round.purpose || t("preparation.purposeUnset")}</Reading>
         )}
       </section>
       <section className={styles.detailSection}>
@@ -139,13 +146,15 @@ const RoundOverview = ({
           <ul className={styles.criteria}>
             {round.criteria.map((criterion, index) => (
               <li key={index}>
-                <h3>{criterion.title}</h3>
-                {criterion.description && <p>{criterion.description}</p>}
+                <SectionHeader level={3} title={criterion.title} />
+                {criterion.description && <Reading as="p">{criterion.description}</Reading>}
               </li>
             ))}
           </ul>
         ) : (
-          <p className={styles.muted}>{t("round.noCriteria")}</p>
+          <Text as="p" variant="missing">
+            {t("round.noCriteria")}
+          </Text>
         )}
       </section>
     </div>
@@ -163,53 +172,54 @@ const RoundProperties = ({
   const { money, calendarDate } = useFormat();
 
   return (
-    <DescriptionList className={styles.properties} layout="rows">
-      <DescriptionListItem label={t("round.status")}>
-        <Badge>{round.decisionStatus}</Badge>
-      </DescriptionListItem>
-      <DescriptionListItem label={t("budget.total")}>
-        {preparation ? (
-          <RoundBudgetEditor preparation={preparation} />
-        ) : round.budget === null ? (
-          t("preparation.notSet")
-        ) : (
-          money(round.budget)
-        )}
-      </DescriptionListItem>
-      <DescriptionListItem label={t("round.committeeDate")}>
-        {preparation ? (
-          <RoundDate preparation={preparation} />
-        ) : round.meetingDate === null ? (
-          t("preparation.notScheduled")
-        ) : (
-          calendarDate(round.meetingDate)
-        )}
-      </DescriptionListItem>
-      <DescriptionListItem label={t("preparation.responsibleManager")}>
-        <span className={styles.manager}>
+    <div className={styles.properties}>
+      <DescriptionList layout="rows">
+        <DescriptionListItem label={t("round.status")}>
+          <Badge>{round.decisionStatus}</Badge>
+        </DescriptionListItem>
+        <DescriptionListItem label={t("budget.total")}>
           {preparation ? (
-            <RoundManager preparation={preparation} />
-          ) : round.manager.trim() ? (
-            <PersonIdentity name={round.manager.trim()} />
+            <RoundBudgetEditor preparation={preparation} />
+          ) : round.budget === null ? (
+            t("preparation.notSet")
           ) : (
-            <PersonIdentity
-              name={t(
-                round.managerNeedsReassignment
-                  ? "preparation.unassigned"
-                  : "preparation.unknownPerson",
-              )}
-              isPlaceholder
-            />
+            money(round.budget)
           )}
-          {round.manager.trim() && round.managerNeedsReassignment && (
-            <StatusIndicator
-              label={t("preparation.reassignmentStatus")}
-              explanation={t("preparation.reassignmentNeeded")}
-              closeLabel={t("preparation.closeReassignment")}
-            />
+        </DescriptionListItem>
+        <DescriptionListItem label={t("round.committeeDate")}>
+          {preparation ? (
+            <RoundDate preparation={preparation} />
+          ) : round.meetingDate === null ? (
+            t("preparation.notScheduled")
+          ) : (
+            calendarDate(round.meetingDate)
           )}
-        </span>
-      </DescriptionListItem>
-    </DescriptionList>
+        </DescriptionListItem>
+        <DescriptionListItem label={t("preparation.responsibleManager")}>
+          <span className={styles.manager}>
+            {preparation ? (
+              <RoundManager preparation={preparation} />
+            ) : round.manager.trim() ? (
+              <PersonIdentity name={round.manager.trim()} />
+            ) : (
+              <PersonIdentity
+                name={t(
+                  round.managerNeedsReassignment
+                    ? "preparation.unassigned"
+                    : "preparation.unknownPerson",
+                )}
+                isPlaceholder
+              />
+            )}
+            {round.manager.trim() && round.managerNeedsReassignment && (
+              <StatusIndicator
+                label={t("preparation.reassignmentStatus")}
+                explanation={t("preparation.reassignmentNeeded")}
+              />
+            )}
+          </span>
+        </DescriptionListItem>
+      </DescriptionList>
+    </div>
   );
 };

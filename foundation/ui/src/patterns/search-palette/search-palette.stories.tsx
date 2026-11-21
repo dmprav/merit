@@ -149,7 +149,7 @@ export const Failure: Story = {
         title="Search isn’t available right now."
         description="Your search is kept. Try again in a moment."
         actions={
-          <Button size="small" variant="secondary">
+          <Button variant="secondary">
             <Icon name="reset" />
             Try again
           </Button>

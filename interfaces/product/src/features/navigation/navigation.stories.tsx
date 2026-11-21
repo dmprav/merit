@@ -61,17 +61,10 @@ const PinsPreview = ({ pins }: { pins: NavigationPin[] }) => (
 );
 
 const meta = {
-  title: "Product/Navigation/Pins",
+  title: "Features/Workspace/Pins",
   component: PinsPreview,
-  parameters: {
-    layout: "fullscreen",
-    docs: {
-      description: {
-        component:
-          "Personal shortcuts reuse Application shell selection and Button focus treatments. Compare with Patterns / Application shell / Workspace switcher. Actions overlay the trailing edge on hover or focus without shifting labels; touch keeps them visible. These fixtures show saved states; persistence is exercised in the application browser tests.",
-      },
-    },
-  },
+  tags: ["!autodocs"],
+  parameters: { layout: "fullscreen" },
   args: { pins: [application] },
 } satisfies Meta<typeof PinsPreview>;
 
@@ -130,7 +123,8 @@ export const ManyPins: Story = {
     })),
   },
 };
-export const OverflowPins: Story = {
+/** The pinned list collapses under its heading; a long list scrolls with the sidebar. */
+export const CollapsedPins: Story = {
   ...ManyPins,
   play: async ({ canvas, canvasElement, userEvent }) => {
     const openNavigation = canvas.queryByRole("button", { name: "Open navigation" });
@@ -138,9 +132,12 @@ export const OverflowPins: Story = {
       await userEvent.click(openNavigation);
     }
     const body = within(canvasElement.ownerDocument.body);
-    await userEvent.click(body.getByRole("button", { name: "7 more…" }));
+    const toggle = body.getByRole("button", { name: "Pinned 12" });
+    await expect(toggle).toHaveAttribute("aria-expanded", "true");
+    await userEvent.click(toggle);
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
     await waitFor(() =>
-      expect(body.getByRole("dialog", { name: "Pinned applications" })).toBeVisible(),
+      expect(body.queryByRole("link", { name: /^Community project 3/ })).not.toBeInTheDocument(),
     );
   },
 };

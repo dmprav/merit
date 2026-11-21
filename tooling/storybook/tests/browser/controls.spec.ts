@@ -203,7 +203,7 @@ for (const theme of ["product", "site"] as const) {
 
   test(`control focus stays consistent across states in the ${theme} theme`, async ({ page }) => {
     await page.goto(
-      `/iframe.html?id=foundations-focus--comparison&viewMode=story&globals=theme:${theme}`,
+      `/iframe.html?id=design-language--focus-comparison&viewMode=story&globals=theme:${theme}`,
     );
 
     await expect(page.locator("#storybook-root")).toHaveAttribute("data-story-ready", "true");

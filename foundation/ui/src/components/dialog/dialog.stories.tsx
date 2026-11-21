@@ -2,8 +2,8 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState, type ComponentProps } from "react";
 import { expect, waitFor, within } from "storybook/test";
 
+import { ChoiceList } from "../../patterns/editing/choice-list";
 import { Button } from "../button/button";
-import { Icon } from "../icon/icon";
 import { Inline } from "../layout/layout";
 import {
   DialogContent,
@@ -34,7 +34,9 @@ const guidanceWithActions = ({ close }: { close: () => void }) => (
   <DialogContent
     footer={
       <Inline justify="end">
-        <Button onPress={close}>Done</Button>
+        <Button size="medium" onPress={close}>
+          Done
+        </Button>
       </Inline>
     }
   >
@@ -52,7 +54,11 @@ const meta = {
   args: {
     title: "Review guidance",
     closeLabel: "Close dialog",
-    trigger: <Button variant="secondary">Open dialog</Button>,
+    trigger: (
+      <Button size="medium" variant="secondary">
+        Open dialog
+      </Button>
+    ),
     children: (
       <DialogContent>
         <p className={localStyles.description}>
@@ -130,7 +136,9 @@ export const CenteredReading: Story = {
         reading
         footer={
           <Inline justify="end">
-            <Button onPress={close}>Done</Button>
+            <Button size="medium" onPress={close}>
+              Done
+            </Button>
           </Inline>
         }
       >
@@ -194,40 +202,30 @@ const PickerExample = () => {
   return (
     <PickerPopover
       title="Choose a status"
-      closeLabel="Close dialog"
       placement="bottom start"
       isOpen={open}
       onOpenChange={setOpen}
-      trigger={<Button variant="secondary">Status: {status}</Button>}
+      trigger={
+        <Button size="medium" variant="secondary">
+          Status: {status}
+        </Button>
+      }
     >
-      {({ close, closeButton }) => (
-        <div className={localStyles.picker}>
-          <div className={localStyles.pickerHeader}>
-            <span className={localStyles.pickerLabel}>Status</span>
-            {closeButton}
-          </div>
-          {statuses.map((option) => (
-            <Button
-              key={option}
-              variant="quiet"
-              size="small"
-              aria-pressed={option === status}
-              onPress={() => {
-                setStatus(option);
-                close();
-              }}
-            >
-              {option}
-              {option === status && <Icon name="check" />}
-            </Button>
-          ))}
-        </div>
-      )}
+      <ChoiceList
+        label="Status"
+        searchLabel="Change status…"
+        emptyLabel="No matching status"
+        items={statuses.map((option) => ({ id: option, label: option }))}
+        selectedKey={status ?? null}
+        onChoose={(option) => {
+          setStatus(option);
+          setOpen(false);
+        }}
+      />
     </PickerPopover>
   );
 };
 
-/** A picker places the supplied close control beside its own first row, without a header. */
 export const Picker: Story = {
   render: () => <PickerExample />,
   play: async ({ canvasElement }) => {
@@ -236,8 +234,9 @@ export const Picker: Story = {
     });
 
     await expect(within(dialog).queryByRole("heading")).not.toBeInTheDocument();
+    await expect(within(dialog).queryByRole("button")).not.toBeInTheDocument();
     await waitFor(() =>
-      expect(within(dialog).getByRole("button", { name: "Close dialog" })).toBeVisible(),
+      expect(within(dialog).getByRole("textbox", { name: "Change status…" })).toHaveFocus(),
     );
   },
 };

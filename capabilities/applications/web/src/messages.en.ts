@@ -7,10 +7,9 @@ export const en = {
     changeContact: "Change contact",
     contact: "Applicant contact",
     saved: "Saved",
-    retry: "Retry",
-    refreshError: "Saved, but the latest information could not be loaded. Refresh to see it.",
-    refreshReadError:
-      "The latest information could not be loaded. Try again to review current work.",
+    refresh: "Refresh",
+    refreshError: "Saved, but the latest application could not be loaded.",
+    refreshReadError: "The latest application could not be loaded.",
     accessLost: "This workspace is no longer available to you.",
   },
   preparation: {

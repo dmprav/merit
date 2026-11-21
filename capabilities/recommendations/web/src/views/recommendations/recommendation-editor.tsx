@@ -23,11 +23,13 @@ import {
   canChangeRecommendation,
 } from "@merit/recommendations/domain";
 import { Button } from "@merit/ui/button";
+import { DescriptionList, DescriptionListItem } from "@merit/ui/description-list";
 import { DialogContent } from "@merit/ui/dialog";
 import { EditorLoading, EditorClose } from "@merit/ui/editor-loading";
 import { Icon } from "@merit/ui/icon";
 import { Stack } from "@merit/ui/layout";
 import { SectionHeader } from "@merit/ui/section-header";
+import { Text } from "@merit/ui/text";
 import { Tooltip } from "@merit/ui/tooltip";
 
 import type { RecommendationDraft, SaveRecommendation } from "../../contracts/recommendations";
@@ -37,7 +39,6 @@ import { recommendationFormSchema } from "./form-schema";
 import { recommendationPositionKeys, recommendationSaveError } from "./messages";
 import localStyles from "./recommendation-editor.module.css";
 import { RecommendationSummary } from "./recommendation-summary";
-import recommendationStyles from "./recommendation.module.css";
 
 const zeroAllocation = fromMinorUnits(0n);
 const actionLabels = {
@@ -183,7 +184,9 @@ const RecommendationSummaryContent = ({
   return recommendation ? (
     <RecommendationSummary recommendation={recommendation} manager={manager} />
   ) : (
-    <p className={localStyles.empty}>{t("applications.notRecommended")}</p>
+    <Text as="p" variant="missing">
+      {t("applications.notRecommended")}
+    </Text>
   );
 };
 
@@ -199,11 +202,9 @@ const RecommendationSection = ({
   const { t } = useTranslation("fundingRecommendations");
   return (
     <>
-      <SectionHeader
-        className={localStyles.header}
-        title={t("applications.recommendation")}
-        aside={action}
-      />
+      <div className={localStyles.header}>
+        <SectionHeader title={t("applications.recommendation")} aside={action} />
+      </div>
       {summary}
       {editor}
     </>
@@ -283,22 +284,22 @@ const RecommendationAction = ({
   const showLabel = preparingDeferral || showActionLabel;
 
   return (
-    <Tooltip content={t(labels.tooltip)}>
-      <Button
-        size="small"
-        iconOnly={!showLabel}
-        data-draft={canResume || undefined}
-        ref={ref}
-        variant={preparingDeferral ? "secondary" : "quiet"}
-        isDisabled={disabled}
-        className={isOpen ? localStyles.editingAction : undefined}
-        aria-label={t(labels.accessible, { title })}
-        onPress={onOpen}
-      >
-        {!preparingDeferral && <Icon name="edit" />}
-        {showLabel && t(labels.text)}
-      </Button>
-    </Tooltip>
+    <span className={isOpen ? localStyles.editingAction : undefined}>
+      <Tooltip content={t(labels.tooltip)}>
+        <Button
+          iconOnly={!showLabel}
+          data-draft={canResume || undefined}
+          ref={ref}
+          variant={preparingDeferral ? "secondary" : "quiet"}
+          isDisabled={disabled}
+          aria-label={t(labels.accessible, { title })}
+          onPress={onOpen}
+        >
+          {!preparingDeferral && <Icon name="edit" />}
+          {showLabel && t(labels.text)}
+        </Button>
+      </Tooltip>
+    </span>
   );
 };
 
@@ -402,7 +403,6 @@ const RecommendationForm = ({
     <Form
       submitOnModEnter
       submission={submission}
-      className={recommendationStyles.form}
       scrollFields
       label={t("editor.openFor", { title })}
       actions={
@@ -492,6 +492,24 @@ const AllocationFields = ({ form }: { form: RecommendationFormModel }) => {
   );
 };
 
+const BudgetFigure = ({
+  label,
+  amount,
+  isOver = false,
+}: {
+  label: string;
+  amount: string;
+  isOver?: boolean;
+}) => (
+  <DescriptionList layout="figures">
+    <DescriptionListItem label={label}>
+      <Text as="strong" variant={isOver ? "attention" : "emphasis"}>
+        {amount}
+      </Text>
+    </DescriptionListItem>
+  </DescriptionList>
+);
+
 const RecommendationBudget = ({
   form,
   application,
@@ -504,63 +522,52 @@ const RecommendationBudget = ({
     allocation: zeroAllocation,
   });
   return (
-    <Stack gap={2} className={localStyles.budgetContext}>
-      <p className={localStyles.budgetPreview}>
-        <span>{t("editor.availableBefore")}</span>
-        <strong>
-          {available.ok && available.totals.remaining !== null
-            ? money(available.totals.remaining)
-            : "—"}
-        </strong>
-      </p>
-      {round.totals.withdrawnApplications > 0 && (
-        <p className={localStyles.budgetNote}>
-          {t("editor.withdrawnNotCounted", { count: round.totals.withdrawnApplications })}
-        </p>
-      )}
-      <form.Subscribe selector={(state) => [state.values.position, state.values.amount] as const}>
-        {([position, amount]) => {
-          const allocation = position === "Defer" ? zeroAllocation : parseMoneyInput(amount);
-          const preview =
-            allocation === null
-              ? null
-              : previewRecommendation(round, application, {
-                  position,
-                  allocation,
-                });
+    <div className={localStyles.budgetContext}>
+      <Stack gap={2}>
+        <BudgetFigure
+          label={t("editor.availableBefore")}
+          amount={
+            available.ok && available.totals.remaining !== null
+              ? money(available.totals.remaining)
+              : "—"
+          }
+        />
+        {round.totals.withdrawnApplications > 0 && (
+          <Text as="p" variant="caption">
+            {t("editor.withdrawnNotCounted", { count: round.totals.withdrawnApplications })}
+          </Text>
+        )}
+        <form.Subscribe selector={(state) => [state.values.position, state.values.amount] as const}>
+          {([position, amount]) => {
+            const allocation = position === "Defer" ? zeroAllocation : parseMoneyInput(amount);
+            const preview =
+              allocation === null
+                ? null
+                : previewRecommendation(round, application, {
+                    position,
+                    allocation,
+                  });
+            const over =
+              preview?.ok &&
+              preview.totals.remaining !== null &&
+              isNegative(preview.totals.remaining);
 
-          return (
-            <p
-              className={localStyles.budgetPreview}
-              role="status"
-              aria-label={t("editor.budgetPreview")}
-            >
-              <span>
-                {t(
-                  preview?.ok &&
-                    preview.totals.remaining !== null &&
-                    isNegative(preview.totals.remaining)
-                    ? "editor.previewOver"
-                    : "editor.previewRemaining",
-                )}
-              </span>{" "}
-              <strong
-                className={
-                  preview?.ok &&
-                  preview.totals.remaining !== null &&
-                  isNegative(preview.totals.remaining)
-                    ? localStyles.overBudget
-                    : undefined
-                }
-              >
-                {preview?.ok && preview.totals.remaining !== null
-                  ? money(absolute(preview.totals.remaining))
-                  : "—"}
-              </strong>
-            </p>
-          );
-        }}
-      </form.Subscribe>
-    </Stack>
+            return (
+              <div role="status" aria-label={t("editor.budgetPreview")}>
+                <BudgetFigure
+                  label={t(over ? "editor.previewOver" : "editor.previewRemaining")}
+                  amount={
+                    preview?.ok && preview.totals.remaining !== null
+                      ? money(absolute(preview.totals.remaining))
+                      : "—"
+                  }
+                  isOver={over}
+                />
+              </div>
+            );
+          }}
+        </form.Subscribe>
+      </Stack>
+    </div>
   );
 };

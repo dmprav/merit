@@ -1,13 +1,17 @@
 import { useRef } from "react";
 import { Input, TextField } from "react-aria-components/TextField";
 
-import { Button } from "../../button/button";
-import { Icon } from "../../icon/icon";
+import searchStyles from "../../../foundations/popover-search.module.css";
+import { ButtonBase } from "../../button/button-base";
+import { IconBase } from "../../icon/icon-base";
 import fieldStyles from "../field.module.css";
 import inputStyles from "../input.module.css";
 import styles from "./search-field.module.css";
 
-/** A scoped search with one field boundary; clearing preserves input focus. Escape belongs to its container. */
+/**
+ * A scoped search with one field boundary; clearing preserves input focus. Escape belongs to its
+ * container. appearance=header heads a popover list instead, without a boundary of its own.
+ */
 export const SearchField = ({
   label,
   clearLabel,
@@ -17,7 +21,9 @@ export const SearchField = ({
   autoFocus,
   isDisabled,
   maxLength,
+  appearance = "field",
 }: {
+  appearance?: "field" | "header";
   label: string;
   clearLabel: string;
   value: string;
@@ -40,11 +46,21 @@ export const SearchField = ({
       isDisabled={isDisabled}
       maxLength={maxLength}
     >
-      <div className={`${inputStyles.inputGroup} ${styles.field}`}>
-        <Icon name="search" className={styles.icon} />
-        <Input ref={input} className={inputStyles.input} placeholder={placeholder} />
+      <div
+        className={
+          appearance === "header"
+            ? searchStyles.search
+            : `${inputStyles.inputGroup} ${styles.field}`
+        }
+      >
+        <IconBase name="search" className={appearance === "header" ? undefined : styles.icon} />
+        <Input
+          ref={input}
+          className={appearance === "header" ? searchStyles.input : inputStyles.input}
+          placeholder={placeholder}
+        />
         {value && (
-          <Button
+          <ButtonBase
             variant="quiet"
             size="small"
             iconOnly
@@ -55,8 +71,8 @@ export const SearchField = ({
               input.current?.focus();
             }}
           >
-            <Icon name="close" />
-          </Button>
+            <IconBase name="close" />
+          </ButtonBase>
         )}
       </div>
     </TextField>

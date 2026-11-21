@@ -7,44 +7,20 @@ The [save walkthrough](../../../../../../docs/guides/recommendation-walkthrough.
 follows this editor through its controller, transport, business operation, and
 cache update, with the tests that cover each boundary.
 
-## Compare judgments and their bases
+## Connect the summary and editor
 
-The application overview brings the manager's recommendation and reviewer
-judgments together, with comparable authors, roles, proposed amounts, and
-reasoning. Outcome and amount share a baseline. An earlier submission qualifies
-the outcome on its own line before reasoning, with **Compare changes** opening
-the recommendation's actual recorded submission basis. Details retain exact
-versions, recording provenance, and access to corrections and follow-ups. Keep
-unknown dates or versions explicit and offer no invented comparison target.
+Use the [recommendation examples](../../../../../grantmaking/web/src/views/recommendations/recommendation-editor.mdx)
+when changing how the application presents a judgment, its submission basis, or
+the effect of the draft on the round budget. The application view composes the
+summary and editor with the selected reference material. Saving, closing, and
+discarding return to the overview with that material still available.
 
-Keep a compact budget summary alongside application work: the proposed total,
-remaining amount if approved, or amount above budget. Use **Proposed allocation**
-and **Save recommendation** to make the action's scope clear. Place a brief note
-beside the allocation when a deferral reserves nothing or a conditional
-recommendation counts in full.
+Use the recorded basis to resolve **Compare changes**. Unknown dates and versions
+must remain explicit. Keep amount errors beside the field and distinguish a
+missing allocation from excess precision. The optional budget help links to
+`/docs/recommendations#budget` in a labelled new tab so consulting it preserves
+the draft and reading context.
 
-Group the available and draft-adjusted amounts as two aligned rows, with emphasis
-on their values. Spacing is sufficient to separate this context from the fields;
-it does not need another bordered panel. Amount entry rejects extra decimal
-places without rounding. Keep corrective feedback short and beside the amount;
-a missing amount asks for an amount rather than explaining numeric precision.
-
-Optional budget help explains the current draft's effect alongside other saved
-recommendations and that saving does not commit funding. Link to
-`/docs/recommendations#budget` in a clearly labelled new tab so consulting help
-preserves the draft and reading context.
-
-## Keep reference material available
-
-During editing, preserve access to submitted material, assessments, version
-history, and application details. A successful save restores the overview while
-leaving the chosen reference material in place. Closing or discarding also keeps
-that context. Follow the shared
-[editing pattern](../../../../../../foundation/ui/src/patterns/editing/editing.mdx)
-for controls, draft lifetime, and recovery.
-
-Use the [editor stories](../../../../../grantmaking/web/src/views/recommendations/recommendation-editor.stories.tsx) for focused states and
-the [application-view stories](../../../../../grantmaking/web/src/views/applications/application-view.stories.tsx) for
-cross-pane reading and editing. Follow
-[UI verification](../../../../../../docs/guides/ui-verification.md) when checking
-focus, scrolling, draft recovery, and narrow-screen navigation.
+The [editor stories](../../../../../grantmaking/web/src/views/recommendations/recommendation-editor.stories.tsx)
+exercise form states. The [application-view stories](../../../../../grantmaking/web/src/views/applications/application-view.stories.tsx)
+compose the full reading and editing surface.

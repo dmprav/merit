@@ -42,7 +42,6 @@ export const ApplicationFilters = ({ query, filter, onChange, summary, round }: 
     <CollectionToolbar
       filterLabel={t("applications.filter")}
       filterTitle={t("applications.filterTitle")}
-      closeLabel={t("applications.closeFilters")}
       summary={summary}
       search={{
         label: t("applications.search"),

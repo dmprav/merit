@@ -39,7 +39,7 @@ export const McpGuide = () => {
               <p>{t("docs.pages.mcp.connect.body")}</p>
               <div className={localStyles.endpoint}>
                 <code>{endpoint}</code>
-                <Button variant="secondary" size="small" onPress={copy} isDisabled={!origin}>
+                <Button variant="secondary" onPress={copy} isDisabled={!origin}>
                   <Icon name="copy" />
                   {t("docs.pages.mcp.connect.copy")}
                 </Button>

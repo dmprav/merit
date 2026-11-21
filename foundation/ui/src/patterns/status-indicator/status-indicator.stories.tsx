@@ -10,7 +10,6 @@ const meta = {
   args: {
     label: "Earlier recommendation",
     explanation: "This recommendation was prepared for an earlier application version.",
-    closeLabel: "Close explanation",
   },
 } satisfies Meta<typeof StatusIndicator>;
 
