@@ -4,8 +4,8 @@ Bring Merit's documentation in line with the
 [documentation guide](../../docs/guides/documentation.md) and propose the fixes
 as one pull request. This task runs every morning on a schedule, and anyone can
 also run it by hand. Each run reviews the documents affected by recent merges
-plus one document from a fixed rotation, so documents nobody edits are checked
-too.
+plus one area from a fixed rotation, which it sweeps for content to remove, so
+documents nobody edits are checked and pruned too.
 
 Before starting, read the documentation guide in full, along with
 [AGENTS.md](../../AGENTS.md) and the [documentation index](../../docs/README.md).
@@ -50,26 +50,40 @@ including where it no longer matches the code. Stop after the commit that brings
 the total to about 15 documents. The last commit you finished is this review's
 record; later commits wait for the next run.
 
-## 4. Review today's rotation document
+## 4. Sweep today's rotation area
 
-List the documents in a stable order:
+An area is a documentation directory such as `docs/guides` or a package such as
+`foundation/ui`; files directly in the root or in `docs/` form the `.` area.
+List the areas in a stable order:
 
 ```sh
-git ls-files '*.md' '*.mdx' ':!:.github/**' ':!:.agents/**' ':!:verifications/**'
+git ls-files '*.md' '*.mdx' ':!:.github/**' ':!:.agents/**' ':!:verifications/**' \
+  | awk -F/ '{ print (NF <= 2 ? "." : $1 "/" $2) }' | sort -u
 ```
 
-Count the days from 2026-11-13 to today in UTC, divide by the number of
-documents, and take the document at the position of the remainder, counting
-from zero. While it was already reviewed in step 3, advance to the next
-document, wrapping to the start of the list when needed. If every document was
-already reviewed, skip this step. Reread the chosen document in full and fix
-where it doesn't follow the guide.
+Count the days from 2026-11-13 to today in UTC, divide by the number of areas,
+and take the area at the position of the remainder, counting from zero.
+
+Read every document in the area in full before changing any, along with the
+documents they link to and the code they describe. This sweep looks for content
+to remove, so its changes should normally shrink the area:
+
+- content superseded by a later decision, workflow, or implementation;
+- explanations repeated from their primary home, replaced by a link;
+- descriptions of code, commands, screens, or options that no longer exist;
+- documents without a distinct reader task, merged into the page that owns it;
+- detail that types, configuration, stories, or examples already explain.
+
+Delete a document when nothing in it remains, and update the links to it. Fix
+other departures from the guide you find along the way, under the same limits
+as step 5.
 
 ## 5. Keep changes to what the guide asks for
 
 Make only changes that apply a specific part of the guide, such as giving an
 explanation one primary home, removing superseded content, or correcting a
-statement that no longer matches the code. Don't add new explanations; list
+statement that no longer matches the code. When removing or shortening would
+fix a problem as well as rewriting, remove. Don't add new explanations; list
 missing documentation under **Follow-ups** instead.
 
 When the code and the documentation disagree and the intended behavior is
@@ -89,7 +103,8 @@ If there is something to fix:
    branch, using the [repository template](../../.github/pull_request_template.md)
    and keeping the description concise.
 3. In **Why**, briefly summarize the scope (number of commits/docs reviewed and
-   the rotation document) and end with this review's record.
+   the swept area, with its net lines removed) and end with this review's
+   record.
 4. In **What changed**, summarize changes briefly by theme or document rather
    than listing every guide rule applied.
 5. In **Follow-ups**, list only unresolved disagreements or missing docs that
