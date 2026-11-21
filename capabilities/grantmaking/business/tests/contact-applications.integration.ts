@@ -128,13 +128,6 @@ it("pages distinct related applications with actual round titles and all recorde
       }),
     ).toMatchObject({ status: "ok" });
   }
-  // The directory lists each related application once, however many relationships link it.
-  const directory = await listWorkspaceContacts(db, actor, { workspaceSlug }, contactWork);
-  assert(directory.status === "ok");
-  expect(directory.contacts.find(({ id }) => id === contact.contact.id)?.applicationTitles).toEqual(
-    ["Neighbour Table", "Neighbour Table"],
-  );
-
   const first = await listContactApplications(db, actor, { ...input, limit: 1 });
   assert(first.status === "ok" && first.nextCursor);
   const second = await listContactApplications(db, actor, {
@@ -154,4 +147,78 @@ it("pages distinct related applications with actual round titles and all recorde
   expect(await listContactApplications(db, actor, { ...input, after: first.nextCursor })).toEqual({
     status: "not_found",
   });
+});
+
+it("lists applications linked through intake or review once each in the contact directory, in round order", async ({
+  db,
+}) => {
+  const contact = await changeWorkspaceContact(
+    db,
+    actor,
+    {
+      workspaceSlug,
+      contactId: randomUUID(),
+      action: "create",
+      details: { name: "Leah Martin", email: "leah@example.test", affiliation: "" },
+    },
+    contactWork,
+  );
+  assert(contact.status === "ok");
+  const round = await createFundingRound(db, actor, {
+    workspaceSlug,
+    requestId: randomUUID(),
+    title: "Community grants",
+  });
+  assert(round.status === "ok");
+
+  const application = async (title: string) => {
+    const created = await createFundingApplication(db, actor, {
+      workspaceSlug,
+      publicId: round.publicId,
+      requestId: randomUUID(),
+      title,
+    });
+    assert(created.status === "ok");
+    return created.publicId;
+  };
+
+  const assignApplicant = async (publicId: string) =>
+    expect(
+      await selectApplicationContact(db, actor, {
+        workspaceSlug,
+        publicId,
+        expectedRevision: 0,
+        contactId: contact.contact.id,
+      }),
+    ).toMatchObject({ status: "ok" });
+
+  const requestReview = async (publicId: string) =>
+    expect(
+      await saveApplicationReview(db, actor, {
+        workspaceSlug,
+        publicId,
+        expectedApplicationVersion: materialVersionSchema.parse(1),
+        expectedCriteriaVersion: criteriaVersionSchema.parse(1),
+        expectedRevision: reviewRevisionSchema.parse(0),
+        change: {
+          action: "request",
+          id: randomUUID(),
+          contactId: contact.contact.id,
+          replacesId: null,
+        },
+      }),
+    ).toMatchObject({ status: "ok" });
+
+  await assignApplicant(await application("Applicant contact only"));
+  await requestReview(await application("Review request only"));
+  const both = await application("Applicant and reviewer");
+  await assignApplicant(both);
+  await requestReview(both);
+  await application("Unrelated application");
+
+  const directory = await listWorkspaceContacts(db, actor, { workspaceSlug }, contactWork);
+  assert(directory.status === "ok");
+  expect(directory.contacts.find(({ id }) => id === contact.contact.id)?.applicationTitles).toEqual(
+    ["Applicant contact only", "Review request only", "Applicant and reviewer"],
+  );
 });
