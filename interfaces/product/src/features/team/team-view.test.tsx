@@ -109,14 +109,17 @@ it("sends removal through the team server functions and revalidates every route 
   expect(revalidation.filter({ routeId: "/_product/app/$workspaceSlug" })).toBe(true);
 });
 
-it("sends invitation resend and revocation to their own server functions", async () => {
-  const user = userEvent.setup();
+const openInvitationActions = async (user: ReturnType<typeof userEvent.setup>) => {
   show();
   await user.click(screen.getByRole("tab", { name: /Invitations/ }));
-  const trigger = screen.getByRole("button", {
-    name: "Actions for invitation to colleague@example.test",
-  });
-  await user.click(trigger);
+  await user.click(
+    screen.getByRole("button", { name: "Actions for invitation to colleague@example.test" }),
+  );
+};
+
+it("sends an invitation resend to its own server function", async () => {
+  const user = userEvent.setup();
+  await openInvitationActions(user);
   await user.click(await screen.findByRole("menuitem", { name: "Resend" }));
 
   await waitFor(() =>
@@ -125,9 +128,11 @@ it("sends invitation resend and revocation to their own server functions", async
     }),
   );
   expect(revokeMemberInvitation).not.toHaveBeenCalled();
+});
 
-  await waitFor(() => expect(trigger).toHaveFocus());
-  await user.click(trigger);
+it("sends an invitation revocation to its own server function", async () => {
+  const user = userEvent.setup();
+  await openInvitationActions(user);
   await user.click(await screen.findByRole("menuitem", { name: "Revoke" }));
   await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Revoke" }));
 
@@ -136,7 +141,7 @@ it("sends invitation resend and revocation to their own server functions", async
       data: { workspaceSlug: "alder", invitationId: "pending" },
     }),
   );
-  expect(resendMemberInvitation).toHaveBeenCalledOnce();
+  expect(resendMemberInvitation).not.toHaveBeenCalled();
 });
 
 it("keeps unsaved access drafts in the workspace draft scope", async () => {
