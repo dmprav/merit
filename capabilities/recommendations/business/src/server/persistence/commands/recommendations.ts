@@ -32,7 +32,7 @@ export const readRecommendationState = async (
       applicationVersion: applicationCases.materialVersion,
       intakeStatus: applicationCases.intakeStatus,
       roundId: fundingRounds.id,
-      roundBudget: fundingRounds.budget,
+      roundBudget: fundingRounds.budgetMinorUnits,
       roundCurrency: fundingRounds.currency,
       withdrawnApplications: roundWithdrawnCount(fundingRounds),
     })

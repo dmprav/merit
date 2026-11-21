@@ -200,6 +200,8 @@ it("rejects invalid calendar dates at the normalized storage boundary", async ({
 
 it("rejects invalid budgets at the normalized storage boundary", async ({ database }) => {
   await expect(
-    database.client.query("UPDATE funding_rounds SET budget = -1 WHERE organization_id = 'alder'"),
+    database.client.query(
+      "UPDATE funding_rounds SET budget_minor_units = -1 WHERE organization_id = 'alder'",
+    ),
   ).rejects.toThrow();
 });

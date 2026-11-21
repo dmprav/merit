@@ -186,7 +186,8 @@ ordering of required checks.
 
 ## Schema changes
 
-After changing a table definition:
+Follow the [database schema guide](database.md) when designing or altering
+tables. After changing a table definition:
 
 ```sh
 vp run @merit/db#db:generate

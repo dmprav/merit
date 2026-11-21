@@ -83,6 +83,20 @@ and [web features](../../../docs/guides/web-features.md#choose-the-owning-layer)
 - Do business terms match the [domain concepts](../../../docs/domain/concepts.md)
   and stay consistent across UI, MCP, and code?
 
+## Database and migrations
+
+Standard: [database schema guide](../../../docs/guides/database.md) and
+[schema changes](../../../docs/guides/development.md#schema-changes).
+
+- When tables or columns changed, did you inspect the generated SQL in
+  `foundation/db/database/migrations/` as well as the Drizzle `schema.ts` files?
+- Do primary keys follow the surrogate/public-ID rules (no mutable natural keys),
+  and do foreign columns use consistent names and non-redundant tenant-scoped FKs?
+- Does every foreign key have a covering leading index, and does every closed
+  status/kind column carry a SQL `CHECK` constraint?
+- Are shared Drizzle helpers from `@merit/db/schema` reused rather than
+  redefined locally?
+
 ## Code
 
 Standard: [coding conventions](../../../docs/guides/coding-conventions.md).

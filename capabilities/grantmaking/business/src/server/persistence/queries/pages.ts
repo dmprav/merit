@@ -144,7 +144,7 @@ export const listRoundSummaries = async (db: Database, userId: string, workspace
       manager: fundingRounds.managerName,
       managerNeedsReassignment,
       meetingDate: fundingRounds.meetingDate,
-      budgetMinorUnits: fundingRounds.budget,
+      budgetMinorUnits: fundingRounds.budgetMinorUnits,
       currency: fundingRounds.currency,
       applicationCount: sql<number>`(select count(*)::integer from ${applicationCases} where ${applicationCases.organizationId} = ${fundingRounds.organizationId} and ${applicationCases.roundId} = ${fundingRounds.id})`,
     })
