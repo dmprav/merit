@@ -74,10 +74,10 @@ amendment** through the same pencil's label and tooltip with a draft marker, whi
 the submitted assessment. Returning to the page opens the reading view first.
 Submission is confirmed with the shared status message.
 
-When two devices saved different drafts, both versions appear in full, labelled,
-side by side where the pane allows, beneath a short inline warning. The comparison
-itself stays neutral, with explicit choices beneath. Reporting a possible conflict
-uses a compact form dialog; closing it preserves the explanation on the current page.
+When two devices saved different drafts, the shared conflict banner offers
+**View saved** for the other device's draft and explicit choices between the two
+versions. Reporting a possible conflict uses a compact form dialog; closing it
+preserves the explanation on the current page.
 
 When access ends, one state heading and explanation replace the application and
 editor. Any unsaved writing stays in a separate **Unsaved assessment** section.

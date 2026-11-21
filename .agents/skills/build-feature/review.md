@@ -134,7 +134,6 @@ list as described in [the skill](SKILL.md#6-learn-from-escapes).
 - Does each invitation, withdrawn, access-ended, and recovery state have one
   clear outcome heading, a distinct preserved draft when needed, and one action
   hierarchy? Compare the complete desktop and narrow screen, not isolated controls.
-
 - Do isolated stories use the connected screen’s task placement, and are synthetic
   test controls visibly outside the product frame? See
   [Storybook states](../../../docs/guides/storybook.md#develop-states-in-storybook).
@@ -145,14 +144,12 @@ list as described in [the skill](SKILL.md#6-learn-from-escapes).
 - Does compacting a header preserve its visibly labeled next workflow action,
   remove duplicate navigation, and keep full destination context accessible with
   keyboard and touch? See [design for repeated use](../../../docs/foundations/experience.md#design-for-repeated-use).
-
 - When editing a whole section, do its values remain passive until the section edit
   action is used, without parallel row-level edit controls? Check preparation and
   recorded states against [editing scope](../../../foundation/ui/src/patterns/editing/editing.mdx).
 - Do complete historical records use one consistent label/value treatment for their
   metadata, keeping staff interpretation separate from applicant responses? See
   [evidence and interpretation](../../../docs/foundations/experience.md#make-evidence-and-assistance-inspectable).
-
 - Do capability and connected-route tests wait for observable readiness before
   interacting with restored drafts or capturing an animated scroll position,
   while retaining their draft, recovery, focus, and exact restoration assertions? See [test behavior](../../../docs/guides/testing.md#test-behavior)

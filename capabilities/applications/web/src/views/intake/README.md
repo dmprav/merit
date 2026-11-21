@@ -77,10 +77,9 @@ material. Use saved event snapshots for recorded changes; when a snapshot is
 absent, show the available record with an explanation instead of a diff. Keep
 reasons and attribution visible in either mode.
 
-An intake conflict temporarily replaces the form with one reconciliation task.
-Compare the saved and unsaved values for that editor, with labeled facts and
-formatted amounts. Keep invalid recovered amounts exact. Choosing a resolution
-returns to editing for review before saving; closing preserves the original draft.
+An intake conflict keeps the form mounted with the shared conflict banner above
+its fields; **View latest** shows that editor's latest saved values. Choosing a
+resolution returns to editing for review before saving.
 
 `SubmissionAnswers` owns the shared reading layout for manager and reviewer
 submissions. Each caller supplies only its authorized source and owns its heading.
@@ -92,10 +91,9 @@ section eligibility, opening an editor, original revision baselines, and save
 commands. Forms receive its focused editor interface and supply edited values.
 The pure [intake state helpers](../../controllers/intake/intake-state.ts) build
 section saves and title corrections from those values and their baselines.
-They also construct the saved and unsaved comparison sources, retaining omitted
-versus cleared contacts and exact recovery text. The controller identifies whether
-application details offer intake editing, immediate contact editing, or reading
-only. Edit buttons receive presentation state and an action; they do not reconstruct
+They also detect a conflicting draft and reconcile it with the latest saved
+values. The controller identifies whether application details offer intake
+editing, immediate contact editing, or reading only. Edit buttons receive presentation state and an action; they do not reconstruct
 that choice or impersonate another workflow's controller.
 Keep this coordination out of controls so a background refresh cannot silently
 replace the revision against which someone started writing.
