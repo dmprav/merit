@@ -18,8 +18,9 @@ export const PropertiesLayout = ({
   propertiesLabel: string;
   stackedPlacement?: "before" | "after";
 }) => {
+  // Keep the panel mounted when changing sections moves it across the main content.
   const panel = (
-    <aside className={styles.properties} aria-label={propertiesLabel}>
+    <aside key="properties" className={styles.properties} aria-label={propertiesLabel}>
       {properties}
     </aside>
   );
