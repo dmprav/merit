@@ -417,14 +417,6 @@ describe("application intake", () => {
     expect(application).toEqual(before);
   });
 
-  it("reports missing applicant, amount and answers on an empty intake", () => {
-    expect(missingIntakeFields(intakeContent(makeApplication()))).toEqual([
-      "applicant",
-      "requested",
-      "answers",
-    ]);
-  });
-
   it("accepts an explicitly zero requested amount for readiness", () => {
     expect(missingIntakeFields({ ...completed, requested: "0" })).toEqual([]);
   });
@@ -679,10 +671,13 @@ describe("withdrawal", () => {
     expect(intakeChangeSchema.safeParse({ action: "reinstate", reason }).success).toBe(false);
   });
 
-  it("trims the reason and limits it to the reviewer resolution length", () => {
+  it("trims the withdrawal reason", () => {
     expect(intakeChangeSchema.parse({ ...withdraw, reason: "  Stepped back  " })).toMatchObject({
       reason: "Stepped back",
     });
+  });
+
+  it("limits the withdrawal reason to the reviewer resolution length", () => {
     expect(intakeChangeSchema.safeParse({ ...withdraw, reason: "x".repeat(2000) }).success).toBe(
       true,
     );

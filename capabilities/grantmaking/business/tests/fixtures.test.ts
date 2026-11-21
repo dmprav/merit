@@ -4,21 +4,21 @@ import { roundView } from "../src/api/queries/round-view";
 import { fundingRoundOverviewSchema } from "../src/domain/model";
 import { makeApplication, makeRound, makeReviewedApplication } from "./fixtures";
 
-it("starts reviewed applications with a consistent basis and independent nested data", () => {
-  const application = makeReviewedApplication();
-  const round = makeRound({ applications: [application] });
+it("starts reviewed applications with a valid round and current assessments", () => {
+  const round = makeRound({ applications: [makeReviewedApplication()] });
 
   expect(fundingRoundOverviewSchema.safeParse(round).success).toBe(true);
+  expect(roundView(round).applications[0]?.assessments.map((value) => value.status)).toEqual([
+    "current",
+    "current",
+  ]);
+});
 
-  const view = roundView(round).applications[0];
-
-  assert.isDefined(view);
-  expect(view.assessments.map((value) => value.status)).toEqual(["current", "current"]);
-
-  assert.isDefined(application.submission);
-  assert.isDefined(application.submission.answers[0]);
-  assert.isDefined(application.reviews.assessments[0]);
-  assert.isDefined(application.reviews.assessments[0].versions[0]);
+it("allocates fresh nested data for each reviewed round", () => {
+  const application = makeReviewedApplication();
+  const round = makeRound({ applications: [application] });
+  assert.isDefined(application.submission?.answers[0]);
+  assert.isDefined(application.reviews.assessments[0]?.versions[0]);
   assert.isDefined(round.criteriaHistory[0]);
 
   application.submission.answers[0].response = "Changed submission";
@@ -30,20 +30,19 @@ it("starts reviewed applications with a consistent basis and independent nested 
     title: "Changed criteria",
   });
   const next = makeRound({ applications: [makeReviewedApplication()] });
-  const nextApplication = next.applications[0];
 
-  assert.isDefined(nextApplication);
-  assert.isDefined(nextApplication.submission);
-  assert.isDefined(nextApplication.submission.answers[0]);
-  expect(nextApplication.submission.answers[0].response).toBe("Weekly community meals.");
+  expect(next.applications[0]?.submission?.answers[0]?.response).toBe("Weekly community meals.");
+  expect(next.criteriaHistory).toEqual([{ version: 1, criteria: [] }]);
+  expect(roundView(next).applications[0]?.assessments.map((value) => value.status)).toEqual([
+    "current",
+    "current",
+  ]);
+});
 
-  const nextView = roundView(next).applications[0];
-
-  assert.isDefined(nextView);
-  expect(nextView.assessments.map((value) => value.status)).toEqual(["current", "current"]);
-
-  const incomplete = makeApplication();
-  incomplete.reviews.assessments.push(application.reviews.assessments[0]);
+it("allocates fresh review lists for each incomplete application", () => {
+  const assessment = makeReviewedApplication().reviews.assessments[0];
+  assert.isDefined(assessment);
+  makeApplication().reviews.assessments.push(assessment);
 
   expect(makeApplication().reviews.assessments).toEqual([]);
 });

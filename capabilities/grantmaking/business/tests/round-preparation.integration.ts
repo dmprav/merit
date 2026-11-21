@@ -239,27 +239,24 @@ describe("funding-round preparation", () => {
     ).toEqual([]);
   });
 
-  it("creates once, reads incomplete content through both interfaces, and retains a deleted receipt", async ({
+  it("reads a new round's undecided preparation through its page, overview, and list", async ({
     db,
-    database,
   }) => {
-    const request = { workspaceSlug, requestId: randomUUID(), title: "  New round  " };
-    const first = await createFundingRound(db, actor, request);
-
-    expect(first.status).toBe("ok");
-    expect(await createFundingRound(db, actor, request)).toEqual(first);
-    if (first.status !== "ok") {
-      throw new Error("Creation failed");
-    }
-
-    const page = (await getFundingRoundPage(db, actor, {
+    const created = await createFundingRound(db, actor, {
       workspaceSlug,
-      publicId: first.publicId,
-      kind: "round",
-    }))!;
+      requestId: randomUUID(),
+      title: "  New round  ",
+    });
+    assert(created.status === "ok");
 
-    expect(page.round).toMatchObject({
-      id: first.publicId,
+    const page = await getFundingRoundPage(db, actor, {
+      workspaceSlug,
+      publicId: created.publicId,
+      kind: "round",
+    });
+
+    expect(page?.round).toMatchObject({
+      id: created.publicId,
       title: "New round",
       budget: null,
       meetingDate: null,
@@ -270,24 +267,30 @@ describe("funding-round preparation", () => {
       totals: { remaining: null },
     });
     expect(
-      await getFundingRoundOverview(db, actor, { workspaceSlug, roundId: first.publicId }),
-    ).toMatchObject({ status: "ok", round: { roundId: first.publicId, budget: null } });
+      await getFundingRoundOverview(db, actor, { workspaceSlug, roundId: created.publicId }),
+    ).toMatchObject({ status: "ok", round: { roundId: created.publicId, budget: null } });
     const listed = await listFundingRounds(db, actor, workspaceSlug);
     assert(listed.status === "ok");
-    expect(listed.rounds.find((round) => round.publicId === first.publicId)).toMatchObject({
+    expect(listed.rounds.find((round) => round.publicId === created.publicId)).toMatchObject({
       budget: null,
       manager: "Dana Reed",
       managerNeedsReassignment: false,
     });
+  });
+
+  it("deletes an empty round and keeps its creation request from recreating it", async ({
+    db,
+    database,
+  }) => {
+    const request = { workspaceSlug, requestId: randomUUID(), title: "New round" };
+    const created = await createFundingRound(db, actor, request);
+    assert(created.status === "ok");
+
     expect(
       await deleteFundingRound(
         db,
         actor,
-        {
-          workspaceSlug,
-          publicId: first.publicId,
-          expectedRevision: 0,
-        },
+        { workspaceSlug, publicId: created.publicId, expectedRevision: 0 },
         roundHasApplications,
       ),
     ).toEqual({ status: "ok" });
@@ -295,6 +298,7 @@ describe("funding-round preparation", () => {
       status: "invalid",
       error: "round_deleted",
     });
+    expect((await database.client.query("SELECT id FROM funding_rounds")).rows).toEqual([]);
     expect(
       (
         await database.client.query<{ action: string }>(

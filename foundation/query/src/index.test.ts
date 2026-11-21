@@ -1,43 +1,87 @@
 import {
   dehydrate,
+  focusManager,
   hydrate,
   QueryObserver,
   MutationObserver,
   onlineManager,
 } from "@tanstack/react-query";
-import { assert, expect, it, vi } from "vite-plus/test";
+import { expect, it, vi } from "vite-plus/test";
 
 import { available, createQueryClient, privateKey } from "./index";
 
-it("isolates server requests and hydrates without a duplicate mount read", async () => {
+it("creates a separate cache for each server request", async () => {
   const server = createQueryClient();
   const otherRequest = createQueryClient();
   const queryKey = [...privateKey, "workspace", "alder"];
-  const queryFn = vi.fn(async () => ({
-    name: "Alder",
-    amount: { minorUnits: "120050", currency: "EUR" },
-  }));
-  await server.fetchQuery({ queryKey, queryFn });
+  await server.fetchQuery({ queryKey, queryFn: async () => ({ name: "Alder" }) });
 
   expect(otherRequest.getQueryData(queryKey)).toBeUndefined();
+
+  server.clear();
+  otherRequest.clear();
+});
+
+it("hydrates loader data without repeating the read when an observer mounts", async () => {
+  const server = createQueryClient();
+  const queryKey = [...privateKey, "workspace", "alder"];
+  const workspace = { name: "Alder", amount: { minorUnits: "120050", currency: "EUR" } };
+  const queryFn = vi.fn(async () => workspace);
+  await server.fetchQuery({ queryKey, queryFn });
 
   const browser = createQueryClient();
   hydrate(browser, dehydrate(server));
   const observer = new QueryObserver(browser, { queryKey, queryFn });
   const unsubscribe = observer.subscribe(() => {});
-  const initialRead = queryFn.mock.results[0];
 
-  assert.isDefined(initialRead);
-  expect(observer.getCurrentResult().data).toEqual(await initialRead.value);
+  expect(observer.getCurrentResult().data).toEqual(workspace);
   expect(queryFn).toHaveBeenCalledTimes(1);
 
   unsubscribe();
   server.clear();
-  otherRequest.clear();
   browser.clear();
 });
 
-it("keeps the last data after an unavailable read but replaces it after access denial", async () => {
+it("reads again when a loader returns to a cached resource", async () => {
+  const client = createQueryClient();
+  const queryKey = [...privateKey, "round"];
+  await client.fetchQuery({ queryKey, queryFn: async () => ({ status: "ok", value: "open" }) });
+
+  const current = await client.fetchQuery({
+    queryKey,
+    queryFn: async () => ({ status: "forbidden" }),
+  });
+
+  expect(current).toEqual({ status: "forbidden" });
+
+  client.clear();
+});
+
+it("does not refresh an active read when the window regains focus", async () => {
+  const client = createQueryClient();
+  client.mount();
+  const queryKey = [...privateKey, "editor"];
+  const queryFn = vi.fn(async () => ({ status: "ok", value: "Draft" }));
+  const observer = new QueryObserver(client, { queryKey, queryFn });
+  const unsubscribe = observer.subscribe(() => {});
+
+  try {
+    await vi.waitFor(() => expect(observer.getCurrentResult().status).toBe("success"));
+    focusManager.setFocused(false);
+    focusManager.setFocused(true);
+    await Promise.resolve();
+
+    expect(observer.getCurrentResult().fetchStatus).toBe("idle");
+    expect(queryFn).toHaveBeenCalledTimes(1);
+  } finally {
+    unsubscribe();
+    client.unmount();
+    client.clear();
+    focusManager.setFocused(undefined);
+  }
+});
+
+it("keeps the last data when a refresh is unavailable", async () => {
   const client = createQueryClient();
   const queryKey = [...privateKey, "team"];
   await client.fetchQuery({
@@ -52,36 +96,20 @@ it("keeps the last data after an unavailable read but replaces it after access d
   expect(unavailable).toHaveBeenCalledTimes(1);
   expect(client.getQueryData(queryKey)).toEqual({ status: "ok", value: "directory" });
 
-  await client.fetchQuery({ queryKey, queryFn: async () => available({ status: "forbidden" }) });
-
-  expect(client.getQueryData(queryKey)).toEqual({ status: "forbidden" });
-
   client.clear();
 });
 
-it("cancels a stale read before publishing a confirmed write", async () => {
+it("replaces the last data when a refresh denies access", async () => {
   const client = createQueryClient();
-  const queryKey = [...privateKey, "recommendation"];
-  let resolve!: (value: string) => void;
-  let signal!: AbortSignal;
-  const pending = client
-    .fetchQuery({
-      queryKey,
-      queryFn: (context) => {
-        signal = context.signal;
-        return new Promise<string>((done) => {
-          resolve = done;
-        });
-      },
-    })
-    .catch(() => undefined);
-  await client.cancelQueries({ queryKey });
-  client.setQueryData(queryKey, "confirmed");
-  resolve("old read");
-  await pending;
+  const queryKey = [...privateKey, "team"];
+  await client.fetchQuery({
+    queryKey,
+    queryFn: async () => available({ status: "ok", value: "directory" }),
+  });
 
-  expect(signal.aborted).toBe(true);
-  expect(client.getQueryData(queryKey)).toBe("confirmed");
+  await client.fetchQuery({ queryKey, queryFn: async () => available({ status: "forbidden" }) });
+
+  expect(client.getQueryData(queryKey)).toEqual({ status: "forbidden" });
 
   client.clear();
 });

@@ -89,16 +89,14 @@ it("saves a recommendation without a retained draft against the current revision
   });
 });
 
-it("saves an edited draft against its original recommendation revision and application version", async () => {
+const renderStoredRecommendation = async (storageScope: string) => {
   const save = vi.fn<RecommendationData["save"]>().mockResolvedValue({ status: "ok" });
 
   const Store = ({ children }: { children: ReactNode }) => (
-    <DraftContext value={useRecommendationDraftStore("use-recommendation-test").value}>
-      {children}
-    </DraftContext>
+    <DraftContext value={useRecommendationDraftStore(storageScope).value}>{children}</DraftContext>
   );
 
-  const { result, rerender } = renderHook(
+  const hook = renderHook(
     ({ revision, version }) =>
       useRecommendation(
         "application",
@@ -107,9 +105,13 @@ it("saves an edited draft against its original recommendation revision and appli
       ),
     { initialProps: { revision: 5, version: application.version }, wrapper: Store },
   );
-  await waitFor(() => expect(result.current.ready).toBe(true));
+  await waitFor(() => expect(hook.result.current.ready).toBe(true));
+  act(() => hook.result.current.updateDraft(draft));
+  return { ...hook, save };
+};
 
-  act(() => result.current.updateDraft(draft));
+it("saves an edited draft against its original recommendation revision and application version", async () => {
+  const { result, rerender, save } = await renderStoredRecommendation("use-recommendation-test");
   rerender({ revision: 6, version: makeApplication({ version: 2 }).version });
   act(() => result.current.updateDraft({ ...draft, reasoning: "Edited after the change" }));
   await act(async () => expect(await result.current.save(recommendation)).toBeNull());
@@ -120,97 +122,86 @@ it("saves an edited draft against its original recommendation revision and appli
   });
 });
 
-it("classifies basis_changed vs record_changed conflicts and supports keepDraft and loadLatest", async () => {
-  const save = vi.fn<RecommendationData["save"]>().mockResolvedValue({ status: "ok" });
-
-  const Store = ({ children }: { children: ReactNode }) => (
-    <DraftContext value={useRecommendationDraftStore("use-recommendation-conflict-test").value}>
-      {children}
-    </DraftContext>
-  );
-
-  const { result, rerender } = renderHook(
-    ({ revision, version }) =>
-      useRecommendation(
-        "application",
-        { ...application, version },
-        { revision, disabled: false, save },
-      ),
-    { initialProps: { revision: 5, version: application.version }, wrapper: Store },
-  );
-  await waitFor(() => expect(result.current.ready).toBe(true));
-
-  act(() => result.current.updateDraft(draft));
+it("reports a record change when the saved recommendation advances under a draft", async () => {
+  const { result, rerender } = await renderStoredRecommendation("record-change-test");
   expect(result.current.conflict).toBeNull();
 
   rerender({ revision: 6, version: application.version });
+
   expect(result.current.conflict).toBe("record_changed");
+});
+
+it("reports a basis change when the application version advances under a draft", async () => {
+  const { result, rerender } = await renderStoredRecommendation("basis-change-test");
 
   rerender({ revision: 6, version: makeApplication({ version: 2 }).version });
+
   expect(result.current.conflict).toBe("basis_changed");
+});
+
+it("keeps a conflicted draft and saves it against the latest revision and version", async () => {
+  const { result, rerender, save } = await renderStoredRecommendation("keep-draft-test");
+  rerender({ revision: 6, version: makeApplication({ version: 2 }).version });
 
   act(() => result.current.keepDraft());
+
   expect(result.current.conflict).toBeNull();
   expect(result.current.draft).toEqual(draft);
-
   await act(async () => expect(await result.current.save(recommendation)).toBeNull());
-  expect(save).toHaveBeenLastCalledWith(recommendation, {
+  expect(save).toHaveBeenCalledExactlyOnceWith(recommendation, {
     expectedRevision: 6,
     expectedApplicationVersion: 2,
   });
+});
 
-  rerender({ revision: 7, version: makeApplication({ version: 2 }).version });
-  expect(result.current.conflict).toBe("record_changed");
+it("discards a conflicted draft and resets the editor when loading the latest", async () => {
+  const { result, rerender } = await renderStoredRecommendation("load-latest-test");
+  rerender({ revision: 6, version: application.version });
+
   act(() => result.current.loadLatest());
+
   expect(result.current.conflict).toBeNull();
   expect(result.current.draft).toBeUndefined();
   expect(result.current.draftReset).toBe(1);
 });
 
-it("surfaces draft-store key conflicts and resolves stored draft values before resetting", async () => {
-  const save = vi.fn<RecommendationData["save"]>();
+const renderStoreConflict = () => {
   const storedDraft = {
     value: { position: recommendation.position, amount: "200", reasoning: "Stored tab draft" },
     baseline: { expectedRevision: 5, expectedApplicationVersion: application.version },
   };
-  const storeState: {
-    drafts: Record<
-      string,
-      {
-        value: typeof draft;
-        baseline: { expectedRevision: number; expectedApplicationVersion: number };
-      }
-    >;
+  const store: {
+    drafts: Record<string, typeof storedDraft>;
     conflicts: Set<string>;
+    finishUseStored?: () => void;
   } = {
-    drafts: {
-      application: {
-        value: draft,
-        baseline: { expectedRevision: 5, expectedApplicationVersion: application.version },
-      },
-    },
+    drafts: { application: { ...storedDraft, value: draft } },
     conflicts: new Set(["application"]),
   };
-  let finishUseStored: (() => void) | undefined;
 
-  const { result, rerender } = renderHook(
-    () => useRecommendation("application", application, { revision: 5, disabled: false, save }),
+  const hook = renderHook(
+    () =>
+      useRecommendation("application", application, {
+        revision: 5,
+        disabled: false,
+        save: vi.fn<RecommendationData["save"]>(),
+      }),
     {
       wrapper: ({ children }: { children: ReactNode }) => (
         <DraftContext
           value={{
             ready: true,
-            drafts: storeState.drafts,
-            conflicts: storeState.conflicts,
+            drafts: store.drafts,
+            conflicts: store.conflicts,
             resolveConflict: (_key, choice) => {
               if (choice === "keep") {
-                storeState.conflicts = new Set();
+                store.conflicts = new Set();
                 return Promise.resolve();
               }
               return new Promise<void>((resolve) => {
-                finishUseStored = () => {
-                  storeState.drafts = { application: storedDraft };
-                  storeState.conflicts = new Set();
+                store.finishUseStored = () => {
+                  store.drafts = { application: storedDraft };
+                  store.conflicts = new Set();
                   resolve();
                 };
               });
@@ -224,25 +215,33 @@ it("surfaces draft-store key conflicts and resolves stored draft values before r
       ),
     },
   );
+  return { ...hook, store, storedDraft };
+};
+
+it("reports a draft changed in another tab as a record change", () => {
+  const { result } = renderStoreConflict();
 
   expect(result.current.conflict).toBe("record_changed");
   expect(result.current.draft).toEqual(draft);
+});
+
+it("keeps this tab's draft when resolving a draft changed in another tab", () => {
+  const { result, rerender } = renderStoreConflict();
 
   act(() => result.current.keepDraft());
   rerender();
+
   expect(result.current.conflict).toBeNull();
   expect(result.current.draft).toEqual(draft);
+});
 
-  storeState.conflicts = new Set(["application"]);
-  rerender();
-  expect(result.current.conflict).toBe("record_changed");
+it("resets the editor only after the other tab's stored draft has loaded", async () => {
+  const { result, rerender, store, storedDraft } = renderStoreConflict();
 
   act(() => result.current.loadLatest());
   expect(result.current.draftReset).toBe(0);
 
-  await act(async () => {
-    finishUseStored?.();
-  });
+  await act(async () => store.finishUseStored?.());
   rerender();
 
   expect(result.current.conflict).toBeNull();

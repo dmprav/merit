@@ -569,37 +569,63 @@ describe("organization team", () => {
     expect((await service().accept({ userId: "first" }, { token: token() })).status).toBe("ok");
   });
 
-  it("revokes invitations on removal, preserves the user and events, and never restores membership through an accepted link", async () => {
-    const accepted = await join("admin", "administrator");
-    const pending = await invite("colleague", "none", "program_manager", "admin");
-    const request = await memberRequest("admin");
+  it("removes the membership while keeping the person's account", async () => {
+    await join("admin", "administrator");
 
-    expect((await service().removeMember({ userId: "owner" }, request)).status).toBe("ok");
+    expect(
+      (await service().removeMember({ userId: "owner" }, await memberRequest("admin"))).status,
+    ).toBe("ok");
     expect(await service().workspaces({ userId: "admin" })).toEqual({
       status: "ok",
       value: [],
     });
-    expect(await service().accept({ userId: "colleague" }, { token: pending })).toEqual({
-      status: "revoked",
-    });
-    expect(await service().accept({ userId: "admin" }, { token: accepted })).toEqual({
-      status: "forbidden",
-    });
     expect(
       (await database.client.query("SELECT id FROM app_users WHERE clerk_user_id='admin'")).rows,
     ).toHaveLength(1);
+  });
 
+  it("revokes the invitations a removed member issued and records them with the removal", async () => {
+    await join("admin", "administrator");
+    const pending = await invite("colleague", "none", "program_manager", "admin");
+    const request = await memberRequest("admin");
+
+    expect((await service().removeMember({ userId: "owner" }, request)).status).toBe("ok");
+    expect(await service().accept({ userId: "colleague" }, { token: pending })).toEqual({
+      status: "revoked",
+    });
     const event = (
       await database.client.query<{ details: { revokedInvitationIds: string[]; userId: string } }>(
         "SELECT details FROM audit_events WHERE action='membership.removed'",
       )
     ).rows[0];
-
     assert.isDefined(event);
+    expect(request.expectedInvitationIds).toHaveLength(1);
     expect(event.details.revokedInvitationIds).toEqual(request.expectedInvitationIds);
-    expect(event.details.userId).toBe(request.userId);
+    expect(event.details.userId).toBe("admin");
+  });
 
+  it("does not restore a removed membership through the member's accepted link", async () => {
+    const accepted = await join("admin", "administrator");
+
+    expect(
+      (await service().removeMember({ userId: "owner" }, await memberRequest("admin"))).status,
+    ).toBe("ok");
+    expect(await service().accept({ userId: "admin" }, { token: accepted })).toEqual({
+      status: "forbidden",
+    });
+    expect(await service().workspaces({ userId: "admin" })).toEqual({
+      status: "ok",
+      value: [],
+    });
+  });
+
+  it("rejoins a removed administrator with only the access of the new invitation", async () => {
+    await join("admin", "administrator");
+    expect(
+      (await service().removeMember({ userId: "owner" }, await memberRequest("admin"))).status,
+    ).toBe("ok");
     await ageInvitations("admin@example.test");
+
     await join("admin");
 
     expect((await team("admin")).subject.administration).toBe("none");

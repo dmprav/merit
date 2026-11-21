@@ -30,7 +30,7 @@ beforeEach(() => {
   vi.mocked(acceptInvitation).mockReset();
 });
 
-it("retries an invitation read in place, guards repeated clicks, and remains retryable after failure", async () => {
+const showInvitationRoute = async () => {
   const root = createRootRoute({
     component: () => (
       <WebMessagesProvider>
@@ -52,42 +52,70 @@ it("retries an invitation read in place, guards repeated clicks, and remains ret
     defaultPendingMinMs: 0,
   });
   await router.load();
-  expect(router.state.matches.at(-1)?.meta).toContainEqual({
-    title: "Organization invitation · Merit",
-  });
   render(
     <QueryClientProvider client={client}>
       <RouterProvider router={router} />
     </QueryClientProvider>,
   );
-  const user = userEvent.setup();
-  const surrounding = screen.getByRole("textbox", { name: "Unfinished surrounding work" });
-  await user.type(surrounding, "Keep this work");
+  return { router, user: userEvent.setup() };
+};
 
-  let fail!: (value: { status: "unavailable" }) => void;
+const pendingRead = () => {
+  let settle!: (value: { status: "unavailable" }) => void;
   vi.mocked(readInvitation).mockImplementationOnce(
     () =>
       new Promise((resolve) => {
-        fail = resolve;
+        settle = resolve;
       }),
   );
-  const retry = screen.getByRole("button", { name: "Try again" });
-  await user.click(retry);
-  await waitFor(() => expect(retry).toHaveAttribute("aria-disabled", "true"));
-  await user.click(retry);
-  expect(readInvitation).toHaveBeenCalledTimes(2);
+  return (value: { status: "unavailable" }) => settle(value);
+};
 
-  await act(async () => fail({ status: "unavailable" }));
-  await waitFor(() =>
-    expect(screen.getByRole("button", { name: "Try again" })).not.toHaveAttribute("aria-disabled"),
-  );
+it("titles the invitation page", async () => {
+  const { router } = await showInvitationRoute();
+
+  expect(router.state.matches.at(-1)?.meta).toContainEqual({
+    title: "Organization invitation · Merit",
+  });
+});
+
+it("retries an invitation read in place without disturbing surrounding work", async () => {
+  const { user } = await showInvitationRoute();
+  const surrounding = screen.getByRole("textbox", { name: "Unfinished surrounding work" });
+  await user.type(surrounding, "Keep this work");
   vi.mocked(readInvitation).mockResolvedValue({ status: "expired" });
+
   await user.click(screen.getByRole("button", { name: "Try again" }));
 
   expect(await screen.findByRole("heading", { name: "Invitation expired" })).toBeVisible();
   expect(screen.getByRole("textbox", { name: "Unfinished surrounding work" })).toBe(surrounding);
   expect(surrounding).toHaveValue("Keep this work");
   expect(acceptInvitation).not.toHaveBeenCalled();
+});
+
+it("ignores repeated retries while a read is pending", async () => {
+  const { user } = await showInvitationRoute();
+  pendingRead();
+  const retry = screen.getByRole("button", { name: "Try again" });
+
+  await user.click(retry);
+  await waitFor(() => expect(retry).toHaveAttribute("aria-disabled", "true"));
+  await user.click(retry);
+
+  expect(readInvitation).toHaveBeenCalledTimes(2);
+});
+
+it("offers retry again after a retried read fails", async () => {
+  const { user } = await showInvitationRoute();
+  const fail = pendingRead();
+  await user.click(screen.getByRole("button", { name: "Try again" }));
+
+  await act(async () => fail({ status: "unavailable" }));
+
+  await waitFor(() =>
+    expect(screen.getByRole("button", { name: "Try again" })).not.toHaveAttribute("aria-disabled"),
+  );
+  expect(screen.getByRole("heading", { name: "Invitation unavailable" })).toBeVisible();
 });
 
 it.each([
