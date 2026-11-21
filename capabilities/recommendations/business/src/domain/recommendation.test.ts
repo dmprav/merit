@@ -315,11 +315,11 @@ it("records a recommendation against the current application version instead of 
   expect(result.recommendation.recorded).toEqual({ date: "2027-01-19", applicationVersion: 2 });
 });
 
-it("rejects funding an application whose material is still in preparation", () => {
+it("rejects funding a ready application that has no requested amount", () => {
   expect(
     prepareRecommendation(
       { budget: null, totals: { proposed: fromMinorUnits(0n) } },
-      makeApplication({ intakeStatus: "in_preparation", requested: null }),
+      makeApplication({ intakeStatus: "ready", requested: null }),
       { position: "Fund", allocation: fromMinorUnits(100n), reasoning: "Support it." },
     ),
   ).toEqual({ ok: false, error: "application_not_ready" });
