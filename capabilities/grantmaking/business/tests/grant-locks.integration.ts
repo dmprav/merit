@@ -15,7 +15,6 @@ import { changeWorkspaceContact } from "@merit/contacts/server";
 import type { Database } from "@merit/db";
 import { migrate } from "@merit/db/migrate";
 import { getFundingApplicationPage, getFundingRoundPage } from "@merit/grantmaking/server";
-import { fundingRoundContactUsage } from "@merit/grantmaking/server/integrations";
 import { seedExampleRounds } from "@merit/grantmaking/testing";
 import { createOrganizationService } from "@merit/organizations/server";
 import { reviewRevisionSchema } from "@merit/reviews/domain";
@@ -26,6 +25,7 @@ import { createFundingRound, deleteFundingRound, editFundingRound } from "@merit
 import { createTestDatabase } from "@merit/test-support/test-database";
 
 import { applicationWork } from "./application-work";
+import { contactWork } from "./contact-work";
 
 let database: Awaited<ReturnType<typeof createTestDatabase>>;
 let db: Database;
@@ -158,7 +158,7 @@ const fixture = async (email = "sam@example.test") => {
       action: "create" as const,
       details: { name: "Sam", email, affiliation: "" },
     },
-    fundingRoundContactUsage,
+    contactWork,
   );
 
   if (contact.status !== "ok") {
@@ -188,7 +188,7 @@ const updateProfile = (connection: Database, data: Fixture) =>
       action: "update",
       details: { name: "Updated contact", email: "sam@example.test", affiliation: "" },
     },
-    fundingRoundContactUsage,
+    contactWork,
   );
 
 const archiveContact = (connection: Database, data: Fixture) =>
@@ -201,7 +201,7 @@ const archiveContact = (connection: Database, data: Fixture) =>
       action: "archive",
       expectedContactRevision: 0,
     },
-    fundingRoundContactUsage,
+    contactWork,
   );
 
 const revisionProtectedEdits = {
@@ -301,7 +301,7 @@ it("serializes competing Tier 1 contact updates and applies the later details", 
         action: "update",
         details: { name: "Later contact", email: "sam@example.test", affiliation: "" },
       },
-      fundingRoundContactUsage,
+      contactWork,
     ),
   );
   await expectBlocked();
@@ -443,7 +443,7 @@ const archive = (connection: Database, data: Fixture) =>
       action: "archive",
       expectedContactRevision: data.contact.revision,
     },
-    fundingRoundContactUsage,
+    contactWork,
   );
 
 it("rejects contact archival after waiting for an outstanding review request", async () => {

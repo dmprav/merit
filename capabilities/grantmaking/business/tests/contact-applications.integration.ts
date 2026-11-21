@@ -5,14 +5,15 @@ import { assert, expect } from "vite-plus/test";
 
 import { materialVersionSchema } from "@merit/applications/domain";
 import { createFundingApplication, selectApplicationContact } from "@merit/applications/server";
-import { changeWorkspaceContact } from "@merit/contacts/server";
+import { changeWorkspaceContact, listWorkspaceContacts } from "@merit/contacts/server";
 import { listContactApplications, listFundingApplications } from "@merit/grantmaking/server";
-import { fundingRoundContactUsage } from "@merit/grantmaking/server/integrations";
 import { actor, workspaceTest as it, workspaceSlug } from "@merit/organizations/testing/workspace";
 import { reviewRevisionSchema } from "@merit/reviews/domain";
 import { saveApplicationReview } from "@merit/reviews/server";
 import { criteriaVersionSchema } from "@merit/rounds/domain";
 import { createFundingRound } from "@merit/rounds/server";
+
+import { contactWork } from "./contact-work";
 
 it("pages distinct related applications with actual round titles and all recorded relationships", async ({
   db,
@@ -30,7 +31,7 @@ it("pages distinct related applications with actual round titles and all recorde
         affiliation: "Neighbourhood Kitchen",
       },
     },
-    fundingRoundContactUsage,
+    contactWork,
   );
   assert(contact.status === "ok");
   const input = { workspaceSlug, contactId: contact.contact.id };
@@ -127,6 +128,13 @@ it("pages distinct related applications with actual round titles and all recorde
       }),
     ).toMatchObject({ status: "ok" });
   }
+  // The directory lists each related application once, however many relationships link it.
+  const directory = await listWorkspaceContacts(db, actor, { workspaceSlug }, contactWork);
+  assert(directory.status === "ok");
+  expect(directory.contacts.find(({ id }) => id === contact.contact.id)?.applicationTitles).toEqual(
+    ["Neighbour Table", "Neighbour Table"],
+  );
+
   const first = await listContactApplications(db, actor, { ...input, limit: 1 });
   assert(first.status === "ok" && first.nextCursor);
   const second = await listContactApplications(db, actor, {

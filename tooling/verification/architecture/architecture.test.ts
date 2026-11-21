@@ -908,8 +908,6 @@ describe.concurrent("architecture rules", () => {
       [`${grantmakingRoot}/src/server/service.ts`]:
         'export type { Value } from "../api/service"; export { value as command } from "./commands/value"; export { value as query } from "./queries/value";',
       [`${grantmakingRoot}/src/server/index.ts`]: 'export * from "./service";',
-      [`${grantmakingRoot}/src/server/integrations.ts`]:
-        'export { value } from "./persistence/queries/value"; export type { Value } from "./persistence/commands/value";',
       [`${grantmakingRoot}/src/server/demo.ts`]:
         'export { value as example } from "../examples/value"; export { value as saved } from "./persistence/commands/value";',
       [`${grantmakingRoot}/src/examples/value.ts`]:
@@ -917,8 +915,7 @@ describe.concurrent("architecture rules", () => {
       "interfaces/product/src/shared/request-context.ts":
         'export type { Value } from "@merit/grantmaking/api";',
       [source]: 'export { value } from "@merit/grantmaking/examples";',
-      "app/src/server/services.server.ts":
-        'export * from "@merit/grantmaking/server"; export * from "@merit/grantmaking/server/integrations";',
+      "app/src/server/services.server.ts": 'export * from "@merit/grantmaking/server";',
       "app/src/server/demo.server.ts": 'export * from "@merit/grantmaking/server/demo";',
       "app/src/server/demo-workspace.server.ts": 'export * from "@merit/grantmaking/server/demo";',
     });
@@ -1244,6 +1241,7 @@ describe.concurrent("architecture rules", () => {
     [`${organizationsRoot}/src/server/commands/probe.ts`, "@merit/contacts/scope"],
     [`${grantmakingRoot}/src/server/demo.ts`, "@merit/organizations/server/demo"],
     [`${grantmakingRoot}/src/server/integrations.ts`, "@merit/contacts/server/demo"],
+    ["app/src/server/services.server.ts", "@merit/grantmaking/server/integrations"],
     [`${grantmakingRoot}/src/server/persistence/queries/probe.test.ts`, "@merit/contacts/server"],
     ["capabilities/new-capability/business/src/server/probe.ts", "@merit/contacts/server"],
     ["capabilities/new-capability/business/src/server/probe.ts", "@merit/organizations/schema"],
@@ -1289,12 +1287,14 @@ describe.concurrent("architecture rules", () => {
         'export { value as organization } from "@merit/organizations/schema"; export { value as scope } from "@merit/organizations/scope";',
       [`${organizationsRoot}/src/server/persistence/projections.ts`]:
         'export { value } from "@merit/access/scope";',
-      [`${grantmakingRoot}/src/server/integrations.ts`]:
+      "capabilities/applications/business/src/server/integrations.ts":
+        'export type { Value } from "@merit/contacts/server/grant-work";',
+      "capabilities/reviews/business/src/server/integrations.ts":
         'export type { Value } from "@merit/contacts/server/grant-work";',
       [`${grantmakingRoot}/src/server/demo.ts`]:
         'export { value } from "@merit/contacts/server/demo";',
       "app/src/server/services.server.ts":
-        'export { value as contacts } from "@merit/contacts/server"; export { value as grants } from "@merit/grantmaking/server"; export { value as organizations } from "@merit/organizations/server"; export type { Value } from "@merit/grantmaking/server/integrations";',
+        'export { value as contacts } from "@merit/contacts/server"; export { value as grants } from "@merit/grantmaking/server"; export { value as organizations } from "@merit/organizations/server"; export { value as applicationContacts } from "@merit/applications/server/integrations"; export { value as reviewContacts } from "@merit/reviews/server/integrations";',
       "app/src/server/demo.server.ts":
         'export { value as service } from "@merit/grantmaking/server"; export { value as seed } from "@merit/grantmaking/server/demo"; export { value as lifecycle } from "@merit/organizations/server/demo";',
       "app/scripts/clean-demos.ts":

@@ -12,11 +12,11 @@ import {
   getFundingApplicationContent,
   getFundingApplicationContext,
 } from "@merit/grantmaking/server";
-import { fundingRoundContactUsage } from "@merit/grantmaking/server/integrations";
 import { actor, workspaceTest as it, workspaceSlug } from "@merit/organizations/testing/workspace";
 import { createFundingRound } from "@merit/rounds/server";
 
 import { applicationWork } from "./application-work";
+import { contactWork } from "./contact-work";
 
 it("reads authorized case context and material by application ID without round input", async ({
   db,
@@ -178,7 +178,7 @@ it("projects and clears the linked contact without putting profile data into rec
       action: "create",
       details: { name: "Robin Hale", email: "robin@example.test", affiliation: "" },
     },
-    fundingRoundContactUsage,
+    contactWork,
   );
   assert(contact.status === "ok");
   const linkedContact = await editFundingApplication(

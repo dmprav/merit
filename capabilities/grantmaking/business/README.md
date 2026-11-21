@@ -155,13 +155,15 @@ Current applications resolve linked profiles within the workspace. Editing a
 profile does not advance application intake revisions; historical snapshots and
 assessment attribution retain the details recorded at the time.
 
-Application assembly supplies grantmaking's contact-usage operations to contacts.
-Contact writes acquire the organization-owned grant-work lock and check outstanding
+Application assembly supplies Applications' and Reviews' contact work to Contacts:
+each reports the applications its own records link to a person, and Reviews reports
+outstanding requests. Contact writes acquire the organization-owned grant-work lock and check outstanding
 requests before archiving. Application changes hold a shared lock on the contact when capturing
 its details in history. These explicit interfaces avoid a package dependency cycle:
 
 - [Contact integration contract](../../contacts/business/src/server/grant-work.ts).
-- [Grantmaking contact usage](src/server/integrations.ts).
+- Contact work from [Applications](../../applications/business/src/server/integrations.ts)
+  and [Reviews](../../reviews/business/src/server/integrations.ts).
 - [Organization lock order](../../organizations/business/src/server/persistence/commands/locks.ts),
   exposed to commands through `@merit/organizations/locks`.
 

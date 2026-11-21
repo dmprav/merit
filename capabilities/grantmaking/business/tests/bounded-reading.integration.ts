@@ -27,7 +27,6 @@ import {
   roundBudgetHistory,
 } from "@merit/grantmaking/server";
 import { removeDemoFunding } from "@merit/grantmaking/server/demo";
-import { fundingRoundContactUsage } from "@merit/grantmaking/server/integrations";
 import { seedExampleRounds } from "@merit/grantmaking/testing";
 import { actor, workspaceTest as it, workspaceSlug } from "@merit/organizations/testing/workspace";
 import { reviewRevisionSchema } from "@merit/reviews/domain";
@@ -37,6 +36,7 @@ import { criteriaVersionSchema } from "@merit/rounds/domain";
 import { createFundingRound, deleteFundingRound, editFundingRound } from "@merit/rounds/server";
 
 import { applicationWork } from "./application-work";
+import { contactWork } from "./contact-work";
 
 it("paginates independently of exact whole-round totals and enforces current access", async ({
   db,
@@ -345,7 +345,7 @@ it("returns the same review freshness as shared web reads without loading histor
         action: "create",
         details: { name, email: "", affiliation: "" },
       },
-      fundingRoundContactUsage,
+      contactWork,
     );
     assert(result.status === "ok");
     return result.contact.id;

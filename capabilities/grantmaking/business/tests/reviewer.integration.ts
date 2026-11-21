@@ -22,9 +22,9 @@ import {
   listApplicationReviewSummaries,
   listWorkspaceApplications,
 } from "../src/server";
-import { fundingRoundContactUsage } from "../src/server/integrations";
 import { applicationWork } from "./application-work";
 import { withAuditFailure, recordedEvents } from "./audit-events";
+import { contactWork } from "./contact-work";
 import { roundTest } from "./round-test";
 
 const sam = { userId: "sam" };
@@ -45,7 +45,7 @@ const it = roundTest.extend("reviewerScenario", async ({ db, database, rounds })
       contactId: randomUUID(),
       details: { name: "Sam Morgan", email: "sam@example.test", affiliation: "" },
     },
-    fundingRoundContactUsage,
+    contactWork,
   );
   assert(created.status === "ok");
   const requestId = randomUUID();
@@ -169,7 +169,7 @@ it("refuses new invitations without a qualifying workspace membership and sends 
       contactId: randomUUID(),
       details: { name: "Other Reviewer", email: "other@example.test", affiliation: "" },
     },
-    fundingRoundContactUsage,
+    contactWork,
   );
   assert(contact.status === "ok");
   const requestId = randomUUID();

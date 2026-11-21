@@ -3,6 +3,7 @@ import type { Database } from "@merit/db";
 import { readWorkspace } from "@merit/organizations/transactions";
 
 import { contactsRequestSchema, type ContactDirectory } from "../../api/queries";
+import { linkedApplicationTitles } from "../../domain/linked-applications";
 import type { ContactGrantWork } from "../grant-work";
 import { readContacts } from "../persistence/queries/directory";
 
@@ -19,7 +20,11 @@ export const listWorkspaceContacts = async (
       return { status: "not_found" } as const;
     }
 
-    const titles = await grantWork.applicationTitles(tx, rows[0].organizationId);
+    const { organizationId } = rows[0];
+    const titles = linkedApplicationTitles([
+      ...(await grantWork.applications.applicationLinks(tx, organizationId)),
+      ...(await grantWork.reviews.applicationLinks(tx, organizationId)),
+    ]);
 
     return {
       status: "ok",

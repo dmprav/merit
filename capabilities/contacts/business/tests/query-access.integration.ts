@@ -16,8 +16,8 @@ import {
 } from "../src/server/index";
 
 const grantWork: ContactGrantWork = {
-  applicationTitles: async () => new Map<string, string[]>(),
-  outstandingRequests: async () => [],
+  applications: { applicationLinks: async () => [] },
+  reviews: { applicationLinks: async () => [], outstandingRequests: async () => [] },
 };
 const contactId = "60000000-0000-4000-8000-000000000001";
 const queries: [string, (service: ContactService) => Promise<unknown>][] = [

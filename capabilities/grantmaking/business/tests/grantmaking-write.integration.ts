@@ -7,7 +7,6 @@ import { materialVersionSchema } from "@merit/applications/domain";
 import { editFundingApplication, selectApplicationContact } from "@merit/applications/server";
 import { changeWorkspaceContact } from "@merit/contacts/server";
 import { getFundingApplicationPage } from "@merit/grantmaking/server";
-import { fundingRoundContactUsage } from "@merit/grantmaking/server/integrations";
 import { encodeMoney, fromMinorUnits } from "@merit/money";
 import { actor } from "@merit/organizations/testing/workspace";
 import { reviewRevisionSchema } from "@merit/reviews/domain";
@@ -16,6 +15,7 @@ import { criteriaVersionSchema } from "@merit/rounds/domain";
 import { editFundingRound } from "@merit/rounds/server";
 
 import { applicationWork } from "./application-work";
+import { contactWork } from "./contact-work";
 import { roundTest } from "./round-test";
 
 const createContact = async (
@@ -32,7 +32,7 @@ const createContact = async (
       action: "create",
       details: { name, email: "", affiliation: "" },
     },
-    fundingRoundContactUsage,
+    contactWork,
   );
   assert(created.status === "ok", "Could not create the contact fixture");
   return created.contact.id;

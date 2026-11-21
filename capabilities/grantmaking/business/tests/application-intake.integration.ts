@@ -19,7 +19,6 @@ import {
   getFundingRoundPage,
   listWorkspaceApplications,
 } from "@merit/grantmaking/server";
-import { fundingRoundContactUsage } from "@merit/grantmaking/server/integrations";
 import { fromMinorUnits, toDecimal } from "@merit/money";
 import { actor, workspaceTest as it, workspaceSlug } from "@merit/organizations/testing/workspace";
 import { encodeRecommendation } from "@merit/recommendations/api";
@@ -29,6 +28,7 @@ import { saveApplicationReview } from "@merit/reviews/server";
 import { createFundingRound, deleteFundingRound } from "@merit/rounds/server";
 
 import { applicationWork } from "./application-work";
+import { contactWork } from "./contact-work";
 import { makeAssessment } from "./fixtures";
 
 const setup = async (db: NodePgDatabase) => {
@@ -148,7 +148,7 @@ const setupContact = async (db: NodePgDatabase) => {
       action: "create",
       details: { name: "Sam Morgan", email: "sam@example.test", affiliation: "" },
     },
-    fundingRoundContactUsage,
+    contactWork,
   );
   assert(saved.status === "ok");
   return saved.contact;
@@ -215,7 +215,7 @@ it.for(["save_content", "save_revision"] as const)(
           action: "archive",
           expectedContactRevision: contact.revision,
         },
-        fundingRoundContactUsage,
+        contactWork,
       ),
     ).toMatchObject({ status: "ok" });
     const before = await read();
@@ -607,7 +607,7 @@ it("keeps contact and staff summary attribution separate from the source version
         action: "create",
         details: { name: "Leah Martin", email: "leah@example.test", affiliation: "" },
       },
-      fundingRoundContactUsage,
+      contactWork,
     ),
   ).toMatchObject({ status: "ok" });
   await change({ action: "save_content", content, contactId });
@@ -812,7 +812,7 @@ const unavailableContacts = {
         action: "create",
         details: { name: "Sam Morgan", email: "sam@example.test", affiliation: "" },
       },
-      fundingRoundContactUsage,
+      contactWork,
     );
     assert(created.status === "ok");
     return created.contact.id;
@@ -828,7 +828,7 @@ const unavailableContacts = {
         action: "archive",
         expectedContactRevision: contact.revision,
       },
-      fundingRoundContactUsage,
+      contactWork,
     );
     assert(archived.status === "ok");
     return contact.id;

@@ -9,7 +9,6 @@ import { roundHasApplications } from "@merit/applications/server/integrations";
 import type { Actor } from "@merit/auth";
 import { changeWorkspaceContact } from "@merit/contacts/server";
 import { getFundingApplicationPage, getFundingRoundPage } from "@merit/grantmaking/server";
-import { fundingRoundContactUsage } from "@merit/grantmaking/server/integrations";
 import { encodeMoney, fromMinorUnits } from "@merit/money";
 import { actor, workspaceTest as it, workspaceSlug } from "@merit/organizations/testing/workspace";
 import {
@@ -23,6 +22,7 @@ import { createFundingRound, deleteFundingRound, editFundingRound } from "@merit
 
 import { applicationWork } from "./application-work";
 import { withAuditFailure, recordedEvents } from "./audit-events";
+import { contactWork } from "./contact-work";
 
 const assistant: Actor = {
   userId: "dana",
@@ -454,7 +454,7 @@ const assessmentScenario = async (db: NodePgDatabase) => {
         contactId: randomUUID(),
         details: { name, email: "", affiliation: "" },
       },
-      fundingRoundContactUsage,
+      contactWork,
     );
     assert(created.status === "ok");
     return created.contact;

@@ -22,9 +22,9 @@ import {
   listWorkspaceActivity,
   listWorkspaceApplications,
 } from "../src/server";
-import { fundingRoundContactUsage } from "../src/server/integrations";
 import { applicationWork } from "./application-work";
 import { recordedEvents, withAuditFailure } from "./audit-events";
+import { contactWork } from "./contact-work";
 import { roundTest } from "./round-test";
 
 const sam = { userId: "sam" };
@@ -58,7 +58,7 @@ const it = roundTest.extend("scenario", async ({ db, database, rounds }) => {
         contactId: randomUUID(),
         details: { name, email, affiliation: "" },
       },
-      fundingRoundContactUsage,
+      contactWork,
     );
     assert(created.status === "ok");
     return created.contact;
@@ -393,7 +393,7 @@ it("closes every outstanding request, including those without a reviewer invitat
       contactId: randomUUID(),
       details: { name: "Uninvited", email: "uninvited@example.test", affiliation: "" },
     },
-    fundingRoundContactUsage,
+    contactWork,
   );
   assert(other.status === "ok");
   const requestId = randomUUID();

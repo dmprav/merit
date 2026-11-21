@@ -19,7 +19,6 @@ import {
   listWorkspaceApplications,
 } from "@merit/grantmaking/server";
 import { fundingExampleIds } from "@merit/grantmaking/server/demo";
-import { fundingRoundContactUsage } from "@merit/grantmaking/server/integrations";
 import { seedExampleRounds } from "@merit/grantmaking/testing";
 import { encodeMoney, fromMinorUnits } from "@merit/money";
 import { actor } from "@merit/organizations/testing/workspace";
@@ -30,6 +29,7 @@ import { criteriaVersionSchema } from "@merit/rounds/domain";
 import { createFundingRound, editFundingRound } from "@merit/rounds/server";
 
 import { readApplicationOverviews } from "../src/server/persistence/queries/application-overview";
+import { contactWork } from "./contact-work";
 import { roundTest as it } from "./round-test";
 
 it("reads recommendations only for the page or the round's selected filter and sort", async ({
@@ -192,7 +192,7 @@ it("uses the latest assessment version and counts a replacement only once", asyn
       action: "create",
       details: { name: "Sam Morgan", email: "", affiliation: "" },
     },
-    fundingRoundContactUsage,
+    contactWork,
   );
   assert(reviewer.status === "ok");
   const content = {

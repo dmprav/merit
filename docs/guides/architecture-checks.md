@@ -124,14 +124,14 @@ structured packages. Browser-safe dependencies retain their existing rules.
 
 Current integrations have distinct responsibilities:
 
-| Consumer                            | Permitted integration                                                                                               |
-| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| Applications and Reviews commands   | Contact lookup through `@merit/contacts/scope`.                                                                     |
-| Capability commands                 | Organization locks through `@merit/organizations/locks` (and downstream grant-work locks).                          |
-| Approved persistence roles          | Shared schemas and scopes through `./schema` and `./scope`; shared policy bindings may use `@merit/access/scope`.   |
-| Grantmaking's contact-usage adapter | The type-only `@merit/contacts/server/grant-work` interface, implemented for injection by application assembly.     |
-| Grantmaking demo seeding            | Grant-work and contact demo seeding through `@merit/*/server/demo`, excluding `organizations/server/demo`.          |
-| Audit recording and history         | Write-owning commands record through `@merit/audit/server/record`; queries read through `@merit/audit/server/read`. |
+| Consumer                              | Permitted integration                                                                                               |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Applications and Reviews commands     | Contact lookup through `@merit/contacts/scope`.                                                                     |
+| Capability commands                   | Organization locks through `@merit/organizations/locks` (and downstream grant-work locks).                          |
+| Approved persistence roles            | Shared schemas and scopes through `./schema` and `./scope`; shared policy bindings may use `@merit/access/scope`.   |
+| Applications and Reviews integrations | The type-only `@merit/contacts/server/grant-work` interface, each implementing the part about its own records.      |
+| Grantmaking demo seeding              | Grant-work and contact demo seeding through `@merit/*/server/demo`, excluding `organizations/server/demo`.          |
+| Audit recording and history           | Write-owning commands record through `@merit/audit/server/record`; queries read through `@merit/audit/server/read`. |
 
 Organizations, Applications, Rounds, Reviews, and Recommendations record audit
 events in the same transaction as the command. Grantmaking, Organizations, and
@@ -144,13 +144,12 @@ Applications nor Rounds can import review or recommendation implementation. Revi
 and Recommendations remain independent of each other. Grantmaking composition reads
 all four through owned schema, scope, readers, history, and encoding exports.
 Reviews and Recommendations each implement their part of Applications’ type-only
-`@merit/applications/server/grant-work` contract in their own command persistence,
-so the rules about their records stay with their owners. Application assembly wires
-these through `@merit/reviews/server/integrations` and
-`@merit/recommendations/server/integrations`, together with
-`@merit/applications/server/integrations` and `@merit/grantmaking/server/integrations`.
-Grantmaking cannot relay downstream lifecycle work. The architecture fixtures
-check these allowed and rejected directions.
+`@merit/applications/server/grant-work` contract, and Applications and Reviews each
+implement their part of the Contacts contract, so the rules about their records stay
+with their owners. Application assembly wires these through each owner's
+`@merit/*/server/integrations` entry. Grantmaking supplies no integrations: it cannot
+relay downstream lifecycle work, and assembly cannot import an integrations entry
+from it. The architecture fixtures check these allowed and rejected directions.
 
 Organization `scope` exports contain read predicates. The `locks` entry lives in
 command persistence, so neither queries nor the shared scope module can import

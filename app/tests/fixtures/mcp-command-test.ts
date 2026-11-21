@@ -5,8 +5,8 @@ import { assert } from "vite-plus/test";
 import { editFundingApplication } from "@merit/applications/server";
 import { changeWorkspaceContact } from "@merit/contacts/server";
 import { getFundingApplicationPage } from "@merit/grantmaking/server";
-import { fundingRoundContactUsage } from "@merit/grantmaking/server/integrations";
 import { applicationWork } from "@merit/grantmaking/testing/application-work";
+import { contactWork } from "@merit/grantmaking/testing/contact-work";
 import { actor } from "@merit/organizations/testing/workspace";
 
 import { transportTest } from "./transport-test";
@@ -67,7 +67,7 @@ export const commandTest = transportTest.extend("commands", async ({ db, rounds,
         action: "create",
         details: { name: "Sam", email: "sam@example.test", affiliation: "Review panel" },
       },
-      fundingRoundContactUsage,
+      contactWork,
     );
     assert(result.status === "ok", "Could not prepare the MCP contact");
     return contactId;
