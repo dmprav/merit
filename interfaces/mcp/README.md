@@ -7,38 +7,31 @@ covers provider configuration and live access verification.
 
 ## Add or change a tool
 
-Keep a tool's description, schemas, and argument translation together in its
-feature. Each capability owns its MCP feature folder (`rounds`, `applications`,
-`reviews`, `recommendations`, `grantmaking`, `contacts`, `workspace`, `team`,
-`organizations`, `navigation`, and `demo`), with response presenters and schemas
-beside tool registration.
+Define each tool in the owning capability's server-side `ai` package. Keep its
+description, input and result schemas, and argument translation together. Inject
+the authenticated actor and the operations it uses. For example,
+[Applications](../../capabilities/applications/ai/src/tools.ts) adapts application
+intake commands, while [Grantmaking](../../capabilities/grantmaking/ai/src/tools.ts)
+presents cross-capability queries such as the applications associated with a contact.
+The owning business operation checks permissions and revision preconditions.
 
-Reuse named command schemas from the owning business module, such as
-`intakeChanges.saveRevision` or `contactCommands.restore`. A tool's meaning must
-not depend on a union schema's array order. Keep authorization, lifecycle rules,
-and transaction boundaries in the business operation.
+Use the capability factory directly in a first-party feature. For example,
+`createReviewerTools(actor, reviewer)` from `@merit/reviews-ai` exposes the
+reviewer's participation tools. Manager review tools have a separate factory.
+The [tool runtime](../../foundation/ai/src/tool.ts) validates inputs and outputs
+and returns safe diagnostics when an operation fails.
 
-Features that narrow or combine operations declare what they consume in
-`operations.ts`; single-service features such as `rounds`, `applications`,
-`reviews`, `recommendations`, and `navigation` consume their owning business
-service interface directly in `tools.ts`. Inputs use business contracts and an
-explicit actor; result types reuse the business operation's public outcome,
-unwrapped into domain-named MCP response fields. Workflow registration accepts
-only its required operations. [App composition](src/app/operations.ts) combines
-these capability ports in `McpOperations`, and
-[MCP server wiring](../../app/src/server/mcp.server.ts) supplies the owning
-business packages' bound services. MCP consumes those services independently of
-product request context.
-
-Register tools through the [shared registrar](src/components/register-tool.ts).
-It handles OAuth scopes, validates outgoing results, and contains unexpected
-failures. Preserve explicit scopes, annotations, revision preconditions, and
-response schemas when changing a registration.
+To publish a capability tool, include its factory in the [MCP catalog](src/app/tools.ts)
+and assign its OAuth scope and client hints in the [publication policy](src/app/publication.ts).
+The [MCP server](src/app/server.ts) enforces the scope and formats protocol
+responses. Workspace discovery also reports the remote client's granted scopes.
+[Application assembly](../../app/src/server/mcp.server.ts) supplies each factory's
+operations and the request's verified identity.
 
 ## Verify behavior
 
-Run `vp run @merit/mcp#test`. Dispatch tests exercise tools through the MCP client
-and HTTP handler with injected operations. Assert the intended business action,
+Run `vp run @merit/mcp#test`. Dispatch tests exercise tools through the TanStack MCP HTTP client
+and request handler with injected operations. Assert the intended business action,
 original revision, verified actor, and presented result independently of the
 registration table. Include payload-bearing commands as well as empty lifecycle
 transitions.

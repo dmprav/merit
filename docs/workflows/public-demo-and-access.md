@@ -124,7 +124,7 @@ account connection; there is no anonymous example tool. The
 
 Web and MCP operate on the same workspace data under the same permissions and
 business rules. Clients can carry out requested grant edits, including budget
-changes, without browser confirmation. Team administration requires a separate
-client grant. History identifies the person and interface, including the verified
-client for MCP actions. Signed-in users can work in their own demo through authenticated MCP under the
-same memberships and scopes. Anonymous browser sessions do not authorize MCP.
+changes, without browser confirmation. Owners and administrators manage workspace
+membership on the website. History identifies the person and interface, including the verified
+client for MCP actions. Signed-in users can start or resume their own demo through MCP and use its
+returned workspace and round identifiers to explore fictional grant work. Anonymous browser sessions do not authorize MCP.

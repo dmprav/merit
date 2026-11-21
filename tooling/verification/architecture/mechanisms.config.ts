@@ -94,8 +94,12 @@ export const MECHANISMS: readonly Mechanism[] = [
   {
     id: "delegated-mcp",
     summary: "OAuth-scoped MCP tools enforcing capability preconditions and web parity.",
-    contracts: ["interfaces/mcp/src/components/**", "interfaces/mcp/src/app/**"],
-    adapters: ["interfaces/mcp/src/features/**"],
+    contracts: [
+      "foundation/ai/src/**",
+      "interfaces/mcp/src/app/**",
+      "interfaces/mcp/src/contracts.ts",
+    ],
+    adapters: ["capabilities/*/ai/src/**"],
     docs: [
       "interfaces/mcp/README.md",
       "docs/guides/mcp.md",

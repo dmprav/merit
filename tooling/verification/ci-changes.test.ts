@@ -124,6 +124,17 @@ describe("ci-changes", () => {
     expect(result.run_storybook).toBe(true);
   });
 
+  test("routes reviewer tool changes to the AI package and MCP consumer", () => {
+    const result = classifyChangedFiles({
+      eventName: "pull_request",
+      changedFiles: ["capabilities/reviews/ai/src/tools.ts"],
+      workspacePackages,
+    });
+    expect(result.package_filters).toContain("--filter '@merit/reviews-ai'");
+    expect(result.package_filters).toContain("--filter '@merit/mcp'");
+    expect(result.run_app).toBe(true);
+  });
+
   test("routes direct Storybook story sources in forms and capability web packages", () => {
     const formsResult = classifyChangedFiles({
       eventName: "pull_request",

@@ -1,100 +1,51 @@
-import { AuthenticationError, type Actor } from "@merit/auth";
+import { AuthenticationError } from "@merit/auth";
 import { verifyClerkOAuth } from "@merit/auth/clerk-oauth";
 import { resolveAccountUser } from "@merit/auth/server";
 import type { DatabaseRunner } from "@merit/db";
 import { handleWorkspaceMcp } from "@merit/mcp";
+import { productLinks } from "@merit/product/links";
 import { setSpanAttributes, withSpan } from "@merit/telemetry";
 
 import { createAccountDemoServices } from "./demo-workspace.server";
-import { createClerkIdentitySupport, type OrganizationIdentity } from "./identity.server";
 import { createApplicationServices } from "./services.server";
 
-type McpConfig = Parameters<typeof verifyClerkOAuth>[1] & { operatorUserIds: string };
+type McpConfig = Parameters<typeof verifyClerkOAuth>[1];
 
-type ResolvedMcpSession = {
-  actor: {
-    userId: string;
-    provenance: { interface: "mcp"; clientId: string };
-    scopes: readonly string[];
-  };
-  clerkUserId: string;
-  operator: boolean;
-};
-
-export const createMcpIdentity = (
-  request: Request,
-  config: McpConfig,
-  database: DatabaseRunner,
-) => {
-  const { isOperatorAccount, readProfile } = createClerkIdentitySupport(
-    config.secretKey,
-    config.operatorUserIds,
-  );
-  let sessionPromise: Promise<ResolvedMcpSession> | undefined;
-
-  const resolveSession = () =>
-    (sessionPromise ??= withSpan("auth.resolve_mcp_session", async (span) => {
-      const verified = await verifyClerkOAuth(request, config);
-      const user = await database((db) => resolveAccountUser(db, verified.clerkUserId));
-      if (user.status === "disabled") {
-        throw new AuthenticationError("disabled");
-      }
-
-      const session: ResolvedMcpSession = {
-        actor: {
-          userId: user.userId,
-          provenance: { interface: "mcp" as const, clientId: verified.clientId },
-          scopes: verified.scopes,
-        },
-        clerkUserId: verified.clerkUserId,
-        operator: isOperatorAccount(verified.clerkUserId),
-      };
-      setSpanAttributes(span, {
-        "merit.mcp.client_id": verified.clientId,
-        "merit.auth.status": "authenticated",
-        "merit.auth.operator": session.operator,
-      });
-      return session;
-    }));
-
-  const sessionForActor = async (actor: Actor) => {
-    const session = await resolveSession().catch(() => undefined);
-    return session?.actor.userId === actor.userId ? session : undefined;
-  };
-
-  const readVerifiedProfile = async (actor: Actor) => {
-    const session = await sessionForActor(actor);
-    if (!session) {
-      return { verifiedEmails: [], displayName: null };
+export const authenticateMcp = (request: Request, config: McpConfig, database: DatabaseRunner) =>
+  withSpan("auth.resolve_mcp_session", async (span) => {
+    const verified = await verifyClerkOAuth(request, config);
+    const user = await database((db) => resolveAccountUser(db, verified.clerkUserId));
+    if (user.status === "disabled") {
+      throw new AuthenticationError("disabled");
     }
-    return readProfile(session.clerkUserId);
-  };
-
-  const organizationIdentity: OrganizationIdentity = {
-    isOperator: async (actor) => (await sessionForActor(actor))?.operator ?? false,
-    verifiedEmails: async (actor) => (await readVerifiedProfile(actor)).verifiedEmails,
-    displayName: async (actor) => (await readVerifiedProfile(actor)).displayName,
-  };
-
-  return {
-    organizationIdentity,
-    authenticate: async () => (await resolveSession()).actor,
-  };
-};
+    setSpanAttributes(span, {
+      "merit.mcp.client_id": verified.clientId,
+      "merit.auth.status": "authenticated",
+    });
+    return {
+      userId: user.userId,
+      provenance: { interface: "mcp" as const, clientId: verified.clientId },
+      scopes: verified.scopes,
+    };
+  });
 
 export const handleMcp = (
   request: Request,
   config: McpConfig,
   dependencies: Omit<Parameters<typeof createApplicationServices>[0], "identity">,
 ) => {
-  const identity = createMcpIdentity(request, config, dependencies.database);
   const services = createApplicationServices({
     ...dependencies,
-    identity: identity.organizationIdentity,
+    // MCP uses workspace and member reads. Organization provisioning and invitations use web identity.
+    identity: {
+      isOperator: async () => false,
+      verifiedEmails: async () => [],
+      displayName: async () => null,
+    },
   });
 
   return handleWorkspaceMcp(request, config.resource, {
-    authenticate: identity.authenticate,
+    authenticate: () => authenticateMcp(request, config, dependencies.database),
     rounds: services.rounds,
     applications: services.applications,
     reviews: services.reviews,
@@ -102,8 +53,12 @@ export const handleMcp = (
     recommendations: services.recommendations,
     grantmaking: services.grantmaking,
     contacts: services.contacts,
-    organizations: services.organizations,
-    navigation: services.navigation,
+    organizations: {
+      workspacesPage: services.organizations.workspacesPage,
+      membersPage: services.organizations.membersPage,
+      workspaceHomeUrl: (workspace) =>
+        new URL(productLinks.workspaceHome(workspace), config.resource).href,
+    },
     demo: createAccountDemoServices(dependencies.database, dependencies.networkAddress),
   });
 };

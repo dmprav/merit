@@ -8,6 +8,9 @@
       "path": "capabilities/access"
     },
     {
+      "path": "capabilities/applications/ai"
+    },
+    {
       "path": "capabilities/applications/business"
     },
     {
@@ -15,6 +18,9 @@
     },
     {
       "path": "capabilities/audit/business"
+    },
+    {
+      "path": "capabilities/contacts/ai"
     },
     {
       "path": "capabilities/contacts/business"
@@ -26,10 +32,16 @@
       "path": "foundation/storage"
     },
     {
+      "path": "capabilities/grantmaking/ai"
+    },
+    {
       "path": "capabilities/grantmaking/business"
     },
     {
       "path": "capabilities/grantmaking/web"
+    },
+    {
+      "path": "capabilities/organizations/ai"
     },
     {
       "path": "capabilities/organizations/business"
@@ -38,10 +50,16 @@
       "path": "capabilities/organizations/web"
     },
     {
+      "path": "capabilities/recommendations/ai"
+    },
+    {
       "path": "capabilities/recommendations/business"
     },
     {
       "path": "capabilities/recommendations/web"
+    },
+    {
+      "path": "capabilities/reviews/ai"
     },
     {
       "path": "capabilities/reviews/business"
@@ -50,10 +68,16 @@
       "path": "capabilities/reviews/web"
     },
     {
+      "path": "capabilities/rounds/ai"
+    },
+    {
       "path": "capabilities/rounds/business"
     },
     {
       "path": "capabilities/rounds/web"
+    },
+    {
+      "path": "foundation/ai"
     },
     {
       "path": "foundation/analytics"

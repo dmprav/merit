@@ -8,11 +8,7 @@ import {
   fundingExampleIds,
   seedFundingExample,
 } from "@merit/grantmaking/server/demo";
-import {
-  readDemoWorkspace,
-  startDemoWorkspace,
-  allowDemoEntry,
-} from "@merit/organizations/server/demo";
+import { startDemoWorkspace, allowDemoEntry } from "@merit/organizations/server/demo";
 
 // Only the local web demo explicitly disables the limit. A missing address denies entry.
 export const checkDemoEntry = async (
@@ -76,11 +72,7 @@ export const createAccountDemoServices = (
   database: DatabaseRunner,
   networkAddress: string | undefined,
 ) => ({
-  read: async (actor: Actor) => {
-    const result = await database((db) => readDemoWorkspace(db, actor));
-    return result.status === "ready" ? demoDestination(database, result.workspace, actor) : result;
-  },
-  start: async (actor: Actor, input: { fresh: boolean; resetWorkspaceId?: string }) => {
+  start: async (actor: Actor, input: { fresh: boolean }) => {
     const problem = await checkDemoEntry(database, networkAddress);
     if (problem) {
       return problem;

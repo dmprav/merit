@@ -1,4 +1,4 @@
-import { Client, StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
+import { createMCPClient } from "@tanstack/ai-mcp";
 
 import { mcpScopes, type McpActor } from "../src/contracts";
 import { handleWorkspaceMcp } from "../src/index";
@@ -11,13 +11,15 @@ export const actor: McpActor = {
   scopes: mcpScopes,
 };
 
-export const connect = async (
+export const connect = (
   operations: ReturnType<typeof testOperations>,
   scopes: readonly string[] = mcpScopes,
-) => {
-  const client = new Client({ name: "untrusted-client-name", version: "1.0.0" });
-  await client.connect(
-    new StreamableHTTPClientTransport(endpoint, {
+) =>
+  createMCPClient({
+    name: "untrusted-client-name",
+    transport: {
+      type: "http",
+      url: endpoint.href,
       fetch: (input, init) => {
         const request = new Request(input, init);
         request.headers.set("host", endpoint.host);
@@ -26,7 +28,5 @@ export const connect = async (
           authenticate: async () => ({ ...actor, scopes }),
         });
       },
-    }),
-  );
-  return client;
-};
+    },
+  });

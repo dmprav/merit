@@ -231,7 +231,7 @@ and email integration. Shared database support lives in `tooling/testing/databas
 production exports and without a reverse dependency on capability test code.
 The application integration task discovers both groups, preserving one command for
 the complete persisted suite. Application suites separate demo seeding, workspace
-access, and MCP intake, contacts, reviews, and team commands. The
+access, and MCP intake, contacts, and reviews. The
 [MCP grant-work journey](../../app/tests/mcp-workflow.integration.ts) retains a
 representative complete flow; independent rules have their own setup and tests.
 The capability-owned [round fixture](../../capabilities/grantmaking/business/tests/round-test.ts),

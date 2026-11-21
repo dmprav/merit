@@ -88,7 +88,9 @@ it.each(["include", "reference"] as const)(
     const capability = join(root, "capabilities/grantmaking/web");
     const directory = mkdtempSync(join(tmpdir(), "merit-source-probe-"));
     const config = join(directory, "tsconfig.json");
-    const forbidden = realpathSync(join(root, "interfaces/product/src/links.ts"));
+    const forbidden = realpathSync(
+      join(root, "interfaces/product/src/shared/workspace-location.ts"),
+    );
     const included = {
       extends: join(capability, "tsconfig.json"),
       include: [forbidden],

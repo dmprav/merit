@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 
 import { Button } from "@merit/ui/button";
@@ -55,28 +55,27 @@ export const McpGuide = () => {
           title: t("docs.pages.mcp.request.title"),
           children: (
             <>
-              <h3>{t("docs.pages.mcp.request.staffTitle")}</h3>
-              <blockquote className={styles.example}>
-                {t("docs.pages.mcp.request.prompt")}
-              </blockquote>
-              <p>
-                <Trans
-                  t={t}
-                  i18nKey="docs.pages.mcp.request.tool"
-                  components={{ tool: <code /> }}
-                />
-              </p>
-              <h3>{t("docs.pages.mcp.request.reviewerTitle")}</h3>
-              <blockquote className={styles.example}>
-                {t("docs.pages.mcp.request.reviewerPrompt")}
-              </blockquote>
-              <p>
-                <Trans
-                  t={t}
-                  i18nKey="docs.pages.mcp.request.reviewerTool"
-                  components={{ tool: <code /> }}
-                />
-              </p>
+              {(
+                [
+                  ["demoTitle", "demoPrompt", "demoTool"],
+                  ["staffTitle", "prompt", "tool"],
+                  ["reviewerTitle", "reviewerPrompt", "reviewerTool"],
+                ] as const
+              ).map(([title, prompt, tool]) => (
+                <Fragment key={title}>
+                  <h3>{t(`docs.pages.mcp.request.${title}`)}</h3>
+                  <blockquote className={styles.example}>
+                    {t(`docs.pages.mcp.request.${prompt}`)}
+                  </blockquote>
+                  <p>
+                    <Trans
+                      t={t}
+                      i18nKey={`docs.pages.mcp.request.${tool}`}
+                      components={{ tool: <code /> }}
+                    />
+                  </p>
+                </Fragment>
+              ))}
             </>
           ),
         },
@@ -123,7 +122,7 @@ const ClientAccess = () => {
           </tr>
         </thead>
         <tbody>
-          {(["work", "team", "reviews", "profile", "onboarding", "admin"] as const).map((key) => (
+          {(["work", "reviews", "demo"] as const).map((key) => (
             <tr key={key}>
               <th scope="row">{t(`docs.pages.mcp.workspace.scopes.${key}`)}</th>
               <td>{t(`docs.pages.mcp.workspace.scopes.${key}Grants`)}</td>

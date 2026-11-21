@@ -8,22 +8,24 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
+    "@merit/ai": "workspace:*",
     "@merit/applications": "workspace:*",
+    "@merit/applications-ai": "workspace:*",
     "@merit/auth": "workspace:*",
-    "@merit/contacts": "workspace:*",
-    "@merit/db": "workspace:*",
-    "@merit/grantmaking": "workspace:*",
-    "@merit/money": "workspace:*",
-    "@merit/organizations": "workspace:*",
+    "@merit/contacts-ai": "workspace:*",
+    "@merit/grantmaking-ai": "workspace:*",
+    "@merit/organizations-ai": "workspace:*",
     "@merit/recommendations": "workspace:*",
+    "@merit/recommendations-ai": "workspace:*",
     "@merit/reviews": "workspace:*",
+    "@merit/reviews-ai": "workspace:*",
     "@merit/rounds": "workspace:*",
-    "@merit/telemetry": "workspace:*",
+    "@merit/rounds-ai": "workspace:*",
     "@modelcontextprotocol/server": "catalog:",
+    "@tanstack/ai-mcp": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@modelcontextprotocol/client": "catalog:",
     "@types/node": "catalog:",
     "typescript": "catalog:",
     "vite-plus": "catalog:"

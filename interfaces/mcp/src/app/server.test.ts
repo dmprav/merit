@@ -59,9 +59,9 @@ describe("workspace MCP contracts", () => {
     });
     const client = await connect(operations);
     try {
-      const result = await client.callTool({
-        name: "list_contact_applications",
-        arguments: { workspaceSlug: "alder", contactId },
+      const result = await client.callTool("list_contact_applications", {
+        workspaceSlug: "alder",
+        contactId,
       });
       expect(result.structuredContent).toMatchObject({
         status: "ok",
@@ -75,7 +75,7 @@ describe("workspace MCP contracts", () => {
   it("publishes the explicit workflow tools under unique names", async () => {
     const client = await connect(testOperations());
     try {
-      const names = (await client.listTools()).tools.map((tool) => tool.name);
+      const names = (await client.tools()).map((tool) => tool.name);
       expect(new Set(names).size).toBe(names.length);
       expect(names).toEqual(
         expect.arrayContaining([
@@ -91,7 +91,9 @@ describe("workspace MCP contracts", () => {
           "request_review",
           "record_assessment",
           "archive_contact",
-          "list_team_history",
+          "list_team_members",
+          "start_demo",
+          "submit_reviewer_assessment",
         ]),
       );
     } finally {
@@ -103,9 +105,9 @@ describe("workspace MCP contracts", () => {
     vi.mocked(operations.grantmaking.readRound).mockResolvedValue({ status: "ok", round });
     const client = await connect(operations);
     try {
-      const result = await client.callTool({
-        name: "get_funding_round",
-        arguments: { workspaceSlug: "alder", roundId: id },
+      const result = await client.callTool("get_funding_round", {
+        workspaceSlug: "alder",
+        roundId: id,
       });
       expect(result.structuredContent).toEqual({
         status: "ok",
@@ -122,9 +124,9 @@ describe("workspace MCP contracts", () => {
       const operations = testOperations();
       const client = await connect(operations);
       try {
-        const result = await client.callTool({
-          name: "get_funding_round",
-          arguments: { workspaceSlug: "alder", ...fields },
+        const result = await client.callTool("get_funding_round", {
+          workspaceSlug: "alder",
+          ...fields,
         });
         expect(result.isError).toBe(true);
         expect(operations.grantmaking.readRound).not.toHaveBeenCalled();
@@ -136,27 +138,9 @@ describe("workspace MCP contracts", () => {
   it.each([
     ["create_funding_round", "grants:write", ["workspace:read"]],
     ["list_workspace_activity", "workspace:read", ["grants:write"]],
-    ["invite_member", "team:write", ["workspace:read", "grants:write"]],
-    ["get_reviewer_assignment", "reviews:read", ["workspace:read", "grants:write", "team:write"]],
-    [
-      "submit_reviewer_assessment",
-      "reviews:write",
-      ["workspace:read", "grants:write", "team:write"],
-    ],
-    ["get_navigation_pins", "profile:read", ["workspace:read", "grants:write", "team:write"]],
-    ["change_navigation_pin", "profile:write", ["workspace:read", "grants:write", "team:write"]],
-    [
-      "get_membership_invitation",
-      "onboarding:read",
-      ["workspace:read", "grants:write", "team:write"],
-    ],
-    [
-      "accept_membership_invitation",
-      "onboarding:write",
-      ["workspace:read", "grants:write", "team:write"],
-    ],
-    ["list_organizations", "admin:read", ["workspace:read", "grants:write", "team:write"]],
-    ["create_organization", "admin:write", ["workspace:read", "grants:write", "team:write"]],
+    ["get_reviewer_assignment", "reviews:read", ["workspace:read", "grants:write"]],
+    ["submit_reviewer_assessment", "reviews:write", ["workspace:read", "grants:write"]],
+    ["start_demo", "onboarding:write", ["workspace:read", "grants:write"]],
   ])(
     "challenges %s for the %s scope before executing any operation",
     async (name, scope, granted) => {
@@ -192,20 +176,29 @@ describe("workspace MCP contracts", () => {
       }
     },
   );
+  it("challenges a TanStack client before reading private assignments without the reviewer scope", async () => {
+    const operations = testOperations();
+    const client = await connect(operations, ["workspace:read"]);
+    try {
+      await expect(client.callTool("list_my_reviews", {})).rejects.toThrow(
+        /403|insufficient.scope/i,
+      );
+      expect(operations.reviewer.list).not.toHaveBeenCalled();
+    } finally {
+      await client.close();
+    }
+  });
   it("does not allow deletion through the ordinary edit tool", async () => {
     const operations = testOperations();
     const client = await connect(operations);
     try {
       expect(
         (
-          await client.callTool({
-            name: "edit_application",
-            arguments: {
-              workspaceSlug: "alder",
-              applicationId: id,
-              expectedIntakeRevision: 4,
-              change: { action: "delete" },
-            },
+          await client.callTool("edit_application", {
+            workspaceSlug: "alder",
+            applicationId: id,
+            expectedIntakeRevision: 4,
+            change: { action: "delete" },
           })
         ).isError,
       ).toBe(true);
@@ -230,9 +223,10 @@ describe("workspace MCP contracts", () => {
     });
     const client = await connect(operations);
     try {
-      const result = await client.callTool({
-        name: "archive_contact",
-        arguments: { workspaceSlug: "alder", contactId, expectedContactRevision: 2 },
+      const result = await client.callTool("archive_contact", {
+        workspaceSlug: "alder",
+        contactId,
+        expectedContactRevision: 2,
       });
       expect(result.structuredContent).toEqual({
         status: "ok",
@@ -255,14 +249,11 @@ describe("workspace MCP contracts", () => {
     vi.mocked(operations.rounds.editRound).mockResolvedValueOnce({ status: "conflict" });
     const client = await connect(operations);
     try {
-      const result = await client.callTool({
-        name: "edit_funding_round",
-        arguments: {
-          workspaceSlug: "alder",
-          roundId: id,
-          expectedPreparationRevision: 0,
-          change: { section: "budget", amount: "100.50", reason: "Revised envelope" },
-        },
+      const result = await client.callTool("edit_funding_round", {
+        workspaceSlug: "alder",
+        roundId: id,
+        expectedPreparationRevision: 0,
+        change: { section: "budget", amount: "100.50", reason: "Revised envelope" },
       });
       expect(result.isError).toBe(true);
       expect(result.structuredContent).toEqual({ status: "conflict" });
@@ -280,12 +271,8 @@ describe("workspace MCP contracts", () => {
     const client = await connect(operations);
     try {
       expect(
-        (
-          await client.callTool({
-            name: "list_funding_rounds",
-            arguments: { workspaceSlug: "alder" },
-          })
-        ).structuredContent,
+        (await client.callTool("list_funding_rounds", { workspaceSlug: "alder" }))
+          .structuredContent,
       ).toEqual(outcome);
     } finally {
       await client.close();
@@ -325,15 +312,12 @@ describe("workspace MCP contracts", () => {
     });
     const client = await connect(operations);
     try {
-      const result = await client.callTool({
-        name: "list_workspace_activity",
-        arguments: {
-          workspaceSlug: "alder",
-          roundId: id,
-          personId: "dana",
-          after: "previous",
-          limit: 3,
-        },
+      const result = await client.callTool("list_workspace_activity", {
+        workspaceSlug: "alder",
+        roundId: id,
+        personId: "dana",
+        after: "previous",
+        limit: 3,
       });
 
       expect(operations.grantmaking.listWorkspaceActivity).toHaveBeenCalledWith(actor, {
@@ -381,12 +365,8 @@ describe("workspace MCP contracts", () => {
       const client = await connect(operations);
       try {
         expect(
-          (
-            await client.callTool({
-              name: "list_workspace_activity",
-              arguments: { workspaceSlug: "alder", ...filter },
-            })
-          ).isError,
+          (await client.callTool("list_workspace_activity", { workspaceSlug: "alder", ...filter }))
+            .isError,
         ).toBe(true);
         expect(operations.grantmaking.listWorkspaceActivity).not.toHaveBeenCalled();
       } finally {
@@ -404,12 +384,8 @@ describe("workspace MCP contracts", () => {
     const client = await connect(operations);
     try {
       expect(
-        (
-          await client.callTool({
-            name: "list_workspace_activity",
-            arguments: { workspaceSlug: "alder" },
-          })
-        ).structuredContent,
+        (await client.callTool("list_workspace_activity", { workspaceSlug: "alder" }))
+          .structuredContent,
       ).toEqual(outcome);
     } finally {
       await client.close();
@@ -444,9 +420,9 @@ describe("workspace MCP contracts", () => {
     vi.mocked(operations.grantmaking.searchWorkspace).mockResolvedValue(found);
     const client = await connect(operations);
     try {
-      const result = await client.callTool({
-        name: "search_workspace",
-        arguments: { workspaceSlug: "alder", query: "harbour trust" },
+      const result = await client.callTool("search_workspace", {
+        workspaceSlug: "alder",
+        query: "harbour trust",
       });
 
       expect(operations.grantmaking.searchWorkspace).toHaveBeenCalledWith(actor, {
@@ -467,9 +443,9 @@ describe("workspace MCP contracts", () => {
     const operations = testOperations();
     const client = await connect(operations);
     try {
-      const result = await client.callTool({
-        name: "search_workspace",
-        arguments: { workspaceSlug: "alder", ...input },
+      const result = await client.callTool("search_workspace", {
+        workspaceSlug: "alder",
+        ...input,
       });
 
       expect(result.isError).toBe(true);
@@ -487,12 +463,8 @@ describe("workspace MCP contracts", () => {
       const client = await connect(operations);
       try {
         expect(
-          (
-            await client.callTool({
-              name: "search_workspace",
-              arguments: { workspaceSlug: "alder", query: "harbour" },
-            })
-          ).structuredContent,
+          (await client.callTool("search_workspace", { workspaceSlug: "alder", query: "harbour" }))
+            .structuredContent,
         ).toEqual(outcome);
       } finally {
         await client.close();
@@ -501,13 +473,15 @@ describe("workspace MCP contracts", () => {
   );
   it("does not log the typed query when a search fails", async () => {
     const operations = testOperations();
-    vi.mocked(operations.grantmaking.searchWorkspace).mockRejectedValue(new Error("Database down"));
+    vi.mocked(operations.grantmaking.searchWorkspace).mockRejectedValue(
+      new Error("query failed: confidential applicant"),
+    );
     const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
     const client = await connect(operations);
     try {
-      const result = await client.callTool({
-        name: "search_workspace",
-        arguments: { workspaceSlug: "alder", query: "confidential applicant" },
+      const result = await client.callTool("search_workspace", {
+        workspaceSlug: "alder",
+        query: "confidential applicant",
       });
 
       expect(result.structuredContent).toMatchObject({ status: "unavailable" });
@@ -524,9 +498,9 @@ describe("workspace MCP contracts", () => {
     vi.mocked(operations.grantmaking.readRound).mockResolvedValue({ status: "ok", round: source });
     const client = await connect(operations);
     try {
-      const result = await client.callTool({
-        name: "get_funding_round",
-        arguments: { workspaceSlug: "alder", roundId: id },
+      const result = await client.callTool("get_funding_round", {
+        workspaceSlug: "alder",
+        roundId: id,
       });
       expect(result.isError).toBe(false);
       expect(result.content).toEqual([
@@ -552,19 +526,16 @@ describe("workspace MCP contracts", () => {
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
     const client = await connect(operations);
     try {
-      const result = await client.callTool({
-        name: "create_funding_round",
-        arguments: {
-          workspaceSlug: "alder",
-          requestId: "00000000-0000-4000-a000-000000000001",
-          title: "New round",
-        },
+      const result = await client.callTool("create_funding_round", {
+        workspaceSlug: "alder",
+        requestId: "00000000-0000-4000-a000-000000000001",
+        title: "New round",
       });
       const diagnostic = z
         .object({ status: z.literal("unavailable"), diagnosticId: z.uuid() })
         .parse(result.structuredContent);
       expect(result.isError).toBe(true);
-      expect(log).toHaveBeenCalledExactlyOnceWith("Workspace MCP operation failed.", {
+      expect(log).toHaveBeenCalledExactlyOnceWith("Workspace tool failed.", {
         tool: "create_funding_round",
         stage: "response",
         diagnosticId: diagnostic.diagnosticId,

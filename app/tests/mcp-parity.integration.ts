@@ -9,7 +9,7 @@ import type { ReviewerPage, ReviewerSummary } from "@merit/reviews/api";
 import type { EmailSender } from "../src/server/email-delivery.server";
 import { createTransport } from "./fixtures/transport-test";
 
-const it = roundTest.extend("parity", async ({ db, database }) => {
+const it = roundTest.extend("parity", async ({ db, database }, { onCleanup }) => {
   await database.client.query(
     "INSERT INTO app_users (id, name, clerk_user_id) VALUES ('sam','Sam Morgan','sam-account'), ('other','Other','other-account')",
   );
@@ -25,6 +25,10 @@ const it = roundTest.extend("parity", async ({ db, database }) => {
       messages.push(message);
     },
   );
+
+  onCleanup(async () => {
+    await transport.close();
+  });
 
   const invoke = async (userId: string, name: string, input: Record<string, unknown> = {}) =>
     (await transport.callMcp(userId, input, name)).structuredContent as Record<string, unknown>;
@@ -243,129 +247,19 @@ reviewerTest(
   },
 );
 
-const createOrganization = async (
-  p: {
-    saved: (
-      userId: string,
-      name: string,
-      input: Record<string, unknown>,
-    ) => Promise<Record<string, unknown>>;
-  },
-  email: string,
-) => {
-  const created = await p.saved("dana", "create_organization", {
-    requestId: randomUUID(),
-    name: "New Trust",
-    slug: "new-trust",
-    email,
-  });
-  return created.organizationId as string;
-};
-
-const invitationToken = (message: Parameters<EmailSender>[0] | undefined) => {
-  const token = message?.text.match(/\/invitations\/([a-f0-9]{64})/)?.[1];
-  assert(token);
-  return token;
-};
-
-it.for([
-  [
-    "create_organization",
-    { requestId: randomUUID(), name: "New Trust", slug: "new-trust", email: "sam@example.test" },
-  ],
-  ["list_organizations", {}],
-  ["list_access_requests", {}],
-] as const)("refuses %s to a non-operator through MCP", async ([name, input], { parity: p }) => {
-  expect(await p.invoke("sam", name, input)).toEqual({ status: "forbidden" });
-});
-
-it("admits the invited owner through the emailed MCP invitation token", async ({ parity: p }) => {
-  const organizationId = await createOrganization(p, "sam@example.test");
-  expect(p.messages).toMatchObject([{ to: "sam@example.test" }]);
-  const token = invitationToken(p.messages[0]);
-
-  expect((await p.saved("sam", "get_membership_invitation", { token })).invitation).toMatchObject({
-    administration: "owner",
-    role: "program_manager",
-    accepted: false,
-  });
-  expect(
-    (await p.saved("sam", "accept_membership_invitation", { token })).organization,
-  ).toMatchObject({ id: organizationId, canWorkOnGrants: true });
-  expect(
-    (await p.saved("dana", "get_organization", { organizationId })).organization,
-  ).toMatchObject({ hasOwner: true });
-});
-
-it("rejects an owner invitation token presented by an account without the invited email", async ({
+it("starts an isolated fictional demo and resumes it for the same account", async ({
   parity: p,
 }) => {
-  const organizationId = await createOrganization(p, "sam@example.test");
-
-  expect(
-    await p.invoke("other", "accept_membership_invitation", {
-      token: invitationToken(p.messages[0]),
-    }),
-  ).toEqual({ status: "wrong_account" });
-  expect(
-    (await p.saved("dana", "get_organization", { organizationId })).organization,
-  ).toMatchObject({ hasOwner: false, invitation: { acceptedAt: null } });
-});
-
-it("records MCP provenance in organization administration history", async ({
-  database,
-  parity: p,
-}) => {
-  const organizationId = await createOrganization(p, "other@example.test");
-  await p.saved("dana", "rename_organization", { organizationId, name: "Renamed Trust" });
-  await p.saved("dana", "replace_owner_invitation", { organizationId, email: "sam@example.test" });
-  await p.saved("dana", "revoke_owner_invitation", { organizationId });
-
-  const history = await database.client.query(
-    "SELECT action, provenance FROM audit_events WHERE organization_id=$1 ORDER BY recorded_at",
-    [organizationId],
-  );
-  expect(history.rows).toEqual(
-    [
-      "organization.created",
-      "organization.renamed",
-      "team_invitation.replaced",
-      "team_invitation.revoked",
-    ].map((action) => ({
-      action,
-      provenance: { interface: "mcp", clientId: "integration-client" },
-    })),
-  );
-});
-
-it("records an operator's review of a workspace access request made through MCP", async ({
-  parity: p,
-}) => {
-  await p.saved("sam", "request_workspace_access", { email: "sam@example.test" });
-  expect((await p.saved("dana", "list_access_requests")).accessRequests).toMatchObject([
-    { email: "sam@example.test", reviewedAt: null },
-  ]);
-
-  expect(
-    (await p.saved("dana", "review_access_request", { email: "sam@example.test" })).accessRequest,
-  ).toMatchObject({ reviewedBy: "dana" });
-});
-
-it("starts and resets only the authenticated account's demo with safe reset retries", async ({
-  parity: p,
-}) => {
-  expect(await p.saved("sam", "get_demo")).toEqual({ status: "ok", demo: { status: "empty" } });
   const first = await p.saved("sam", "start_demo");
-  const initial = first.demo as { workspaceId: string; workspaceSlug: string };
+  const demo = first.demo;
+  assert(demo && typeof demo === "object" && "workspaceSlug" in demo && "roundRef" in demo);
+  const round = await p.saved("sam", "get_funding_round", {
+    workspaceSlug: demo.workspaceSlug,
+    roundId: demo.roundRef,
+  });
+  expect(round.round).toMatchObject({ roundId: demo.roundRef, title: "Local Connections 2027" });
   expect(await p.saved("sam", "start_demo")).toEqual(first);
-  expect(await p.saved("other", "get_demo")).toEqual({ status: "ok", demo: { status: "empty" } });
-  const reset = await p.saved("sam", "reset_demo", { resetWorkspaceId: initial.workspaceId });
-  expect((reset.demo as { workspaceId: string }).workspaceId).not.toBe(initial.workspaceId);
-  expect(await p.saved("sam", "reset_demo", { resetWorkspaceId: initial.workspaceId })).toEqual(
-    reset,
-  );
-  expect((await p.saved("sam", "get_demo")).demo).toEqual(reset.demo);
   expect(
-    await p.invoke("sam", "list_funding_rounds", { workspaceSlug: initial.workspaceSlug }),
+    await p.invoke("other", "list_funding_rounds", { workspaceSlug: demo.workspaceSlug }),
   ).toEqual({ status: "not_found" });
 });

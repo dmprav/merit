@@ -245,13 +245,23 @@ const policies = [
   ),
   forbid(
     { element: { type: "foundation" } },
-    { element: { type: ["business", "web", "interface", "app"] } },
+    { element: { type: ["ai", "business", "web", "interface", "app"] } },
     "Foundation cannot depend on capabilities or application code.",
   ),
   forbid(
-    { element: { type: ["business", "web"] } },
+    { element: { type: ["ai", "business", "web"] } },
     { element: { type: ["interface", "app"] } },
     "Capabilities cannot depend on interfaces or application assembly.",
+  ),
+  forbid(
+    { element: { type: "business" } },
+    { element: { type: "ai" } },
+    "Business capabilities cannot depend on AI tools.",
+  ),
+  forbid(
+    { element: { type: "ai" } },
+    { element: { type: "web" } },
+    "AI tools use business contracts and receive operations from their caller.",
   ),
   forbid(
     { element: { type: "business" } },
@@ -358,6 +368,7 @@ export default defineConfig({
       "boundaries/elements": [
         { type: "business", pattern: "capabilities/*/business", partialMatch: false },
         { type: "business", pattern: "capabilities/access", partialMatch: false },
+        { type: "ai", pattern: "capabilities/*/ai", partialMatch: false },
         { type: "web", pattern: "capabilities/*/web", partialMatch: false },
         { type: "foundation", pattern: "foundation/*", partialMatch: false },
         { type: "interface", pattern: "interfaces/*", partialMatch: false },
@@ -392,6 +403,8 @@ export default defineConfig({
           ],
           server: [
             "app/src/server/**",
+            "capabilities/*/ai/src/**",
+            "foundation/ai/src/**",
             "capabilities/*/business/src/**",
             "capabilities/access/src/**",
             "foundation/db/src/**",

@@ -212,15 +212,19 @@ const check = async (files: Record<string, string>, message?: string, viaVp = fa
       );
     }
     for (const [dependency, owner] of [
+      ["@tanstack/ai", "foundation/ai"],
+      ["@tanstack/ai-mcp", "interfaces/mcp"],
       ["@tanstack/react-query", "interfaces/admin"],
       ["@tanstack/react-router", "interfaces/product"],
       ["react-aria-components", "foundation/ui"],
       ["posthog-js", "foundation/analytics"],
     ]) {
-      const require = createRequire(new URL(`../../../${owner}/package.json`, import.meta.url));
+      const dependencyDirectory = fileURLToPath(
+        new URL(`../../../${owner}/node_modules/${dependency}`, import.meta.url),
+      );
       const target = join(root, "node_modules", dependency!);
       mkdirSync(dirname(target), { recursive: true });
-      symlinkSync(dirname(require.resolve(`${dependency}/package.json`)), target, "dir");
+      symlinkSync(dependencyDirectory, target, "dir");
     }
     for (const [path, text] of Object.entries(contents)) {
       if (path.endsWith("/package.json")) {
@@ -297,6 +301,49 @@ describe.concurrent("architecture rules", () => {
         [`${root}/${dependency}.ts`]: "export type Operation = () => Promise<void>;",
       },
       "Views and controllers receive operations through contracts",
+    );
+  });
+
+  test.each([
+    ["@tanstack/ai", "toolDefinition", "The MCP interface uses TanStack AI"],
+    ["@tanstack/ai-mcp/server", "createMCPServer", undefined],
+    ["@tanstack/react-router", "createRouter", "The MCP interface uses TanStack AI"],
+  ])("checks MCP framework ownership for %s", async (library, name, message) => {
+    await check(
+      { "interfaces/mcp/src/probe.ts": `export { ${name} } from "${library}";` },
+      message,
+    );
+  });
+
+  test("keeps protocol integration out of capability AI tools", async () => {
+    await check(
+      {
+        "capabilities/reviews/ai/src/probe.ts":
+          'export { createMCPServer } from "@tanstack/ai-mcp/server";',
+      },
+      "This library belongs outside this source area",
+    );
+  });
+
+  test.each([
+    ["interfaces/product/src/app/probe.ts", "Browser code cannot import server implementation"],
+    [
+      "capabilities/reviews/business/src/server/probe.ts",
+      "Business capabilities cannot depend on AI tools",
+    ],
+    ["app/src/server/probe.ts", undefined],
+  ])("checks capability AI tool access from %s", async (consumer, message) => {
+    await check(
+      {
+        "capabilities/reviews/ai/package.json": JSON.stringify({
+          name: "@merit/reviews-ai",
+          type: "module",
+          exports: { ".": "./src/tools.ts" },
+        }),
+        "capabilities/reviews/ai/src/tools.ts": "export const value = 1;",
+        [consumer]: 'export { value } from "@merit/reviews-ai";',
+      },
+      message,
     );
   });
 

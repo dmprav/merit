@@ -181,6 +181,7 @@ shared business capabilities.
 | `app/`                          | Node.js server assembly, root document and router, account lifecycle, request context, external adapters, and runtime configuration. |
 | `interfaces/`                   | Product, site, admin, MCP, and email presentation and protocol integration.                                                          |
 | `capabilities/<name>/business/` | Domain rules, browser-safe contracts, authorized operations, transactions, and persistence.                                          |
+| `capabilities/<name>/ai/`       | Actor-bound, server-side tools for a capability, including model-facing descriptions, schemas, and result presentation.              |
 | `capabilities/<name>/web/`      | Reusable views, editing controllers, drafts, query/cache behavior, translations, and public examples.                                |
 | `capabilities/access/`          | Shared authorization policy.                                                                                                         |
 | `foundation/`                   | Technical libraries and UI primitives, independent of business capabilities.                                                         |
@@ -272,9 +273,15 @@ identity fixtures and development tools, excluded from production builds.
 Request context types remain browser-safe and depend on interface contracts.
 
 The [service assembly](../../app/src/server/services.server.ts) connects capability
-implementations to request identity and delivery dependencies. Browser identity
-resolves lazily within Start's request context; MCP binds profile reads to its
-verified bearer account. Each request owns its identity and profile cache.
+implementations to request identity and delivery dependencies. Browser identity and profile reads resolve lazily within Start's request context.
+MCP verifies the bearer account for each request and binds that actor to its
+TanStack AI tools. Each capability’s AI package binds its tools to the actor and the business
+operations they use. For example, [Reviews](../../capabilities/reviews/ai/src/tools.ts)
+exposes reviewer participation separately from manager actions. The
+[MCP catalog](../../interfaces/mcp/src/app/tools.ts) assembles capability tools
+and supplies OAuth scopes, client hints, and protocol responses. The
+[AI foundation](../../foundation/ai/src/tool.ts) validates tool inputs and results
+and records safe diagnostics for server-side callers.
 
 Browser interfaces own routes, page assembly, typed navigation, and concrete
 transport. Capability web packages own reusable interactions. Views present work,

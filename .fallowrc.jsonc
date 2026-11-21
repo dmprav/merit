@@ -50,6 +50,9 @@
         // The email CLI resolves its version-matched preview UI dynamically.
         "ignoreDependencies": ["@react-email/ui"],
       },
+      "capabilities/*/ai": {
+        "includeEntryExports": true,
+      },
       "capabilities/*/business": {
         "includeEntryExports": true,
       },

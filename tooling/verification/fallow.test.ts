@@ -34,6 +34,7 @@ const checkFallow = <Command extends "architecture" | "dead-code" | "health" = "
           "foundation/*",
           "interfaces/*",
           "capabilities/access",
+          "capabilities/*/ai",
           "capabilities/*/business",
           "capabilities/*/web",
           "tooling/storybook",
@@ -268,6 +269,7 @@ test("allows shared export names without exempting unused exports", () => {
 
 test.each([
   "capabilities/grantmaking/business",
+  "capabilities/reviews/ai",
   "capabilities/access",
   "capabilities/grantmaking/web",
   "capabilities/contacts/web",

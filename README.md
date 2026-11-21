@@ -42,11 +42,10 @@ visitor's isolated workspace.
 - **Operator administration:** create organizations, invite their first owners,
   and review requests to explore the prototype. See
   [provisioning](docs/guides/organizations.md) for setup and procedures.
-- **MCP:** authenticated clients discover workspaces and carry out the same grant,
-  contact, and team work, participate as reviewers, manage personal shortcuts,
-  join invitations, and start or reset account demos. Merit operators can also
-  provision organizations and triage access requests. The [connection guide](docs/guides/mcp.md) explains
-  authorization, scopes, and attribution.
+- **MCP:** connect an assistant to start a fictional demo, work on grants as a
+  program manager, or complete your own assigned reviews. The
+  [connection guide](docs/guides/mcp.md) explains discovery, permissions, and
+  attribution.
 
 Demo submissions, evidence, and AI examples are hand-authored fiction.
 Applicant-facing submission, attachments, live AI processing, reviewer discussions,
