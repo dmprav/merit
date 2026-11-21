@@ -105,6 +105,16 @@ it("blocks repeated confirmation and every dismissal while pending", async () =>
   expect(confirm).toHaveBeenCalledOnce();
 });
 
+it("removes its pending announcement when the confirmation closes", async () => {
+  const { finish } = await pendingConfirmation();
+  const announcement = screen.getByRole("status");
+  await waitFor(() => expect(announcement).toHaveTextContent("Revoking invitation…"));
+
+  await act(async () => finish(null));
+
+  expect(announcement).not.toBeInTheDocument();
+});
+
 it("shows a failed confirmation in the dialog and permits a retry", async () => {
   const { user, confirm, action, finish } = await pendingConfirmation();
 

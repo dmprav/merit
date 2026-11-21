@@ -9,11 +9,14 @@ import { intakeContent, prepareIntakeChange } from "@merit/applications/domain";
 import { ApplicationView } from "@merit/grantmaking-web/applications";
 import { GrantmakingDrafts } from "@merit/grantmaking-web/drafts";
 import { ApplicationContainedPreview } from "@merit/grantmaking-web/testing";
-import { decodeApplicationDetail, encodeApplicationDetail } from "@merit/grantmaking/api";
-import { roundView } from "@merit/grantmaking/api";
+import {
+  applicationView,
+  decodeApplicationDetail,
+  encodeApplicationDetail,
+} from "@merit/grantmaking/api";
 import { getExampleRound } from "@merit/grantmaking/examples";
 import { fromMinorUnits } from "@merit/money";
-import { reviewRevisionSchema } from "@merit/reviews/domain";
+import { reviewRevisionSchema, type ReviewState } from "@merit/reviews/domain";
 
 import { StoryEnvironment } from "../../../../tests/storybook";
 import { readContacts } from "../../contacts/data/server/contacts.functions";
@@ -25,7 +28,13 @@ import { readApplicationHistory } from "../data/server/history.functions";
 import { editApplication } from "../data/server/intake/intake.functions";
 
 const round = { ...getExampleRound(), id: "k7m2p9x4n6rt" };
-export const original = round.applications[0]!;
+const neighbourTable = round.applications.find(
+  (application) => application.title === "Neighbour Table",
+);
+if (!neighbourTable) {
+  throw new Error("Intake stories require the Neighbour Table example");
+}
+export const original = neighbourTable;
 export const contacts = [
   {
     id: "60000000-0000-4000-8000-000000000001",
@@ -195,6 +204,26 @@ export const ApplicationManagementPreview = ({
   </StoryEnvironment>
 );
 
+const closeOutstandingRequests = (
+  reviews: ReviewState,
+  recorder: { userId: string; name: string; recordedAt: string },
+): ReviewState => {
+  const outstanding = reviews.requests.filter((request) => request.status === "outstanding");
+  return {
+    ...reviews,
+    revision: reviewRevisionSchema.parse(reviews.revision + outstanding.length),
+    requests: reviews.requests.map((request) =>
+      request.status === "outstanding"
+        ? {
+            ...request,
+            status: "cancelled",
+            closedBy: { ...recorder, cause: "application_withdrawn" },
+          }
+        : request,
+    ),
+  };
+};
+
 export const configureIntake = (state: Parameters<typeof fixture>[0] = "incomplete") => {
   let page = fixture(state);
   mocked(readApplicationHistory).mockImplementation(async () => ({
@@ -235,16 +264,16 @@ export const configureIntake = (state: Parameters<typeof fixture>[0] = "incomple
     return { status: "ok", revision: page.intake.revision };
   });
   mocked(editApplication).mockImplementation(async ({ data }) => {
+    if (data.expectedRevision !== page.intake.revision) {
+      return { status: "conflict" };
+    }
+    const recorder = { userId: "dana", name: "Dana Reed", recordedAt: new Date().toISOString() };
     const { application, round: context } = decodeApplicationDetail(page);
     const changed = prepareIntakeChange(
       application,
       page.intake.workingRevision,
       data.change,
-      {
-        userId: "dana",
-        name: "Dana Reed",
-        recordedAt,
-      },
+      recorder,
       {
         hasReviews: Boolean(
           application.reviews.requests.length || application.reviews.assessments.length,
@@ -275,10 +304,18 @@ export const configureIntake = (state: Parameters<typeof fixture>[0] = "incomple
         },
       };
     }
-    const next = roundView({
-      ...round,
-      applications: [{ ...application, ...updated }],
-    }).applications[0]!;
+    const next = applicationView(
+      {
+        ...updated,
+        managerRecommendation: application.managerRecommendation,
+        reviews:
+          data.change.action === "withdraw"
+            ? closeOutstandingRequests(application.reviews, recorder)
+            : application.reviews,
+      },
+      context.criteria,
+      context.criteriaVersion,
+    );
     page = {
       ...page,
       ...encodeApplicationDetail({ application: next, round: context }),

@@ -1,10 +1,12 @@
 import { useId, type ReactNode } from "react";
 
 import { Button } from "../../components/button/button";
+import { ButtonBase } from "../../components/button/button-base";
 import { DialogContent } from "../../components/dialog/dialog";
 import { FramedDialog } from "../../components/dialog/framed-dialog";
 import { Inline } from "../../components/layout/layout";
 import { Notice } from "../../components/notice/notice";
+import { StatusMessage } from "../status-message/status-message";
 import styles from "./confirmation-dialog.module.css";
 
 type ConfirmationDialogProps = {
@@ -49,6 +51,7 @@ export const ConfirmationDialog = ({
   error,
 }: ConfirmationDialogProps) => {
   const descriptionId = useId();
+  const pendingMessage = isPending ? (pendingLabel ?? confirmLabel) : null;
 
   return (
     <FramedDialog
@@ -80,17 +83,21 @@ export const ConfirmationDialog = ({
             >
               {cancelLabel}
             </Button>
-            <Button
+            <ButtonBase
+              size="small"
               variant={intent === "destructive" ? "destructive" : "primary"}
-              isPending={isPending}
-              onPress={onConfirm}
+              aria-busy={isPending}
+              aria-disabled={isPending}
+              onPress={isPending ? undefined : onConfirm}
             >
-              {isPending ? (pendingLabel ?? confirmLabel) : confirmLabel}
-            </Button>
+              {pendingMessage ?? confirmLabel}
+            </ButtonBase>
           </Inline>
         }
       >
         <div className={styles.content}>
+          {/* Keep the announcement text in the dialog so closing it removes the pending message too. */}
+          <StatusMessage message={pendingMessage} eventId={confirmLabel} />
           <p id={descriptionId} className={styles.description}>
             {description}
           </p>

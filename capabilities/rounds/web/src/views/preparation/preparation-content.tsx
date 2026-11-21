@@ -65,14 +65,11 @@ const EditablePreparation = (props: Props & { session: PreparationSession }) => 
             ) : undefined
           }
           actions={
-            <Button
-              size="medium"
-              autoFocus
-              isPending={preparation.pending}
-              onPress={preparation.returnToRounds}
-            >
-              {t("preparation.returnToRounds")}
-            </Button>
+            !preparation.pending && (
+              <Button size="medium" autoFocus onPress={preparation.returnToRounds}>
+                {t("preparation.returnToRounds")}
+              </Button>
+            )
           }
         />
       </div>

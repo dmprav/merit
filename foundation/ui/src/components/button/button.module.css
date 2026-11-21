@@ -161,16 +161,16 @@
   cursor: not-allowed;
 }
 
-.button[aria-disabled="true"]:not([data-pending]) {
+.button[aria-disabled="true"]:not([data-pending], [aria-busy="true"]) {
   cursor: default;
 }
 
 /* Unavailable commands keep their variant so people can still tell what they would do. */
-.button:is([data-disabled], [aria-disabled="true"]:not([data-pending])) {
+.button:is([data-disabled], [aria-disabled="true"]:not([data-pending], [aria-busy="true"])) {
   opacity: 0.5;
 }
 
-.button[data-pending] {
+.button:is([data-pending], [aria-busy="true"]) {
   cursor: wait;
 }
 

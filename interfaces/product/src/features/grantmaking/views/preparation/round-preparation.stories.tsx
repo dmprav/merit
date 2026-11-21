@@ -331,14 +331,6 @@ export const RoundDeletedReturnToListFailed: Story = {
       expect(canvas.getByRole("button", { name: "Return to funding rounds" })).toHaveFocus(),
     );
     await expect(deleteRound).toHaveBeenCalledOnce();
-    // React Aria keeps the closed confirmation's pending announcement for seven seconds,
-    // labelled by a button that no longer exists. Clear it, as a remount would, so the
-    // accessibility scan and browser suite need not wait for React Aria's timer.
-    for (const log of canvasElement.ownerDocument.querySelectorAll(
-      "[data-live-announcer] [role=log]",
-    )) {
-      log.replaceChildren();
-    }
   },
 };
 

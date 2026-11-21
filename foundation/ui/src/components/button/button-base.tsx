@@ -9,6 +9,7 @@ import { IconBase } from "../icon/icon-base";
 import styles from "./button.module.css";
 
 export type ButtonBaseProps = AriaButtonProps & {
+  "aria-busy"?: boolean;
   /** inline presents a command within copy, such as opening a dialog; use Link for destinations. */
   variant?: "primary" | "secondary" | "quiet" | "destructive" | "inline";
   size?: "small" | "medium" | "large";
@@ -31,6 +32,7 @@ export const ButtonBase = ({
   children,
   ...props
 }: ButtonBaseProps) => {
+  const busy = props["aria-busy"] === true;
   return (
     <AriaButton
       {...props}
@@ -46,8 +48,8 @@ export const ButtonBase = ({
     >
       {composeRenderProps(children, (children, { isPending }) => (
         <>
-          {isPending && <IconBase name="loading" className={styles.spinner} />}
-          {!(isPending && iconOnly) && children}
+          {(isPending || busy) && <IconBase name="loading" className={styles.spinner} />}
+          {!((isPending || busy) && iconOnly) && children}
         </>
       ))}
     </AriaButton>
