@@ -76,27 +76,24 @@ it("matches preparing applications by their intake status", () => {
   ).toBe(true);
 });
 
-it("treats outdated reviews, changed criteria, and earlier recommendations as changed evidence", () => {
-  expect(matchesApplicationCriteria(unreviewed, { evidence: "changed" })).toBe(false);
+it.each([
+  { source: "an outdated review", change: { reviews: { ...unreviewed.reviews, outdated: 1 } } },
+  { source: "changed criteria", change: { criteriaChanged: true } },
+  {
+    source: "a recommendation on earlier material",
+    change: { recommendation: { outdated: true } },
+  },
+])("treats $source as changed evidence", ({ change }) => {
+  expect(matchesApplicationCriteria({ ...unreviewed, ...change }, { evidence: "changed" })).toBe(
+    true,
+  );
+});
+
+it.each([
+  { state: "without reviews or a recommendation", recommendation: null },
+  { state: "with a current recommendation", recommendation: { outdated: false } },
+])("reports unchanged evidence for an application $state", ({ recommendation }) => {
   expect(
-    matchesApplicationCriteria(
-      { ...unreviewed, recommendation: { outdated: false } },
-      { evidence: "changed" },
-    ),
+    matchesApplicationCriteria({ ...unreviewed, recommendation }, { evidence: "changed" }),
   ).toBe(false);
-  expect(
-    matchesApplicationCriteria(
-      { ...unreviewed, recommendation: { outdated: true } },
-      { evidence: "changed" },
-    ),
-  ).toBe(true);
-  expect(
-    matchesApplicationCriteria({ ...unreviewed, criteriaChanged: true }, { evidence: "changed" }),
-  ).toBe(true);
-  expect(
-    matchesApplicationCriteria(
-      { ...unreviewed, reviews: { ...unreviewed.reviews, outdated: 1 } },
-      { evidence: "changed" },
-    ),
-  ).toBe(true);
 });

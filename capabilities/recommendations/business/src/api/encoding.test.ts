@@ -70,8 +70,14 @@ it.each([null, fromMinorUnits(10000n)])("preserves unknown and exceeded budgets:
     withdrawnApplications: 0,
   });
 });
-it("rejects negative and overflowing persisted allocation totals", () => {
-  expect(() => decodeBudgetContext(null, [encodeMoney(fromMinorUnits(-1n))], 0)).toThrow();
+
+it("rejects a negative persisted allocation", () => {
+  expect(() => decodeBudgetContext(null, [encodeMoney(fromMinorUnits(-1n))], 0)).toThrow(
+    /Amount must be nonnegative/,
+  );
+});
+
+it("rejects persisted allocations whose total exceeds the money limit", () => {
   expect(() =>
     decodeBudgetContext(
       null,

@@ -53,6 +53,19 @@ it("initializes PostHog with the privacy configuration for the trimmed key and h
   );
 });
 
+it("sends events to the EU PostHog host when the configured host is blank", async () => {
+  const { instance, load, finish } = deferredPostHog();
+  createPostHogAnalytics({ apiKey: "phc_test_key", host: "   ", load });
+  finish();
+
+  await vi.waitFor(() =>
+    expect(instance.init).toHaveBeenCalledExactlyOnceWith(
+      "phc_test_key",
+      expect.objectContaining({ api_host: "https://eu.i.posthog.com" }),
+    ),
+  );
+});
+
 it("queues actions until PostHog loads, then sends them in order and later ones directly", async () => {
   const { instance, load, finish } = deferredPostHog();
   const client = createPostHogAnalytics({ apiKey: "phc_test_key", load });

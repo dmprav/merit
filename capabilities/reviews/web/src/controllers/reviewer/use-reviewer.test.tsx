@@ -1,8 +1,10 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { expect, it, vi } from "vite-plus/test";
 
+import { materialVersionSchema } from "@merit/applications/domain";
 import { encodeMoney, fromMinorUnits } from "@merit/money";
 import type { ReviewerPage } from "@merit/reviews/api";
+import { criteriaVersionSchema } from "@merit/rounds/domain";
 
 import type { ReviewerData } from "../../contracts/reviewer";
 import { useReviewer } from "./use-reviewer";
@@ -232,8 +234,9 @@ it("keeps an incomplete judgment local and reports each problem beside its field
   expect(result.current.problems).toEqual(["reasoning"]);
 });
 
-it("opens submitted work for reading, then closes, resumes, or discards an amendment", async () => {
-  const { result } = setup((page) => {
+// A submitted judgment ("Original", €40) with an unfinished amendment saved as the draft.
+const setupSubmitted = () =>
+  setup((page) => {
     const submitted = { ...page.draft!.content };
     page.assignment.status = "submitted";
     page.assessment = {
@@ -249,28 +252,43 @@ it("opens submitted work for reading, then closes, resumes, or discards an amend
             ...submitted,
             amount: encodeMoney(fromMinorUnits(4000n)),
             date: null,
-            applicationVersion: 1,
-            criteriaVersion: 1,
+            applicationVersion: materialVersionSchema.parse(1),
+            criteriaVersion: criteriaVersionSchema.parse(1),
           },
           criteria: [],
           recorder: null,
           note: "",
         },
       ],
-    } as unknown as ReviewerPage["assessment"];
+    };
     page.draft!.content.reasoning = "Unfinished amendment";
   });
+
+it("opens submitted work for reading while noting a retained amendment", () => {
+  const { result } = setupSubmitted();
+
   expect(result.current.amending).toBe(false);
   expect(result.current.amendmentDraft).toBe(true);
+});
+
+it("keeps an unfinished amendment when the reviewer closes it", () => {
+  const { result } = setupSubmitted();
 
   act(() => result.current.startAmendment());
   expect(result.current.amending).toBe(true);
   act(() => result.current.closeAmendment());
+
   expect(result.current.amending).toBe(false);
   expect(result.current.draft?.reasoning).toBe("Unfinished amendment");
+  expect(result.current.amendmentDraft).toBe(true);
+});
+
+it("restores the submitted judgment when the reviewer discards an amendment", async () => {
+  const { result } = setupSubmitted();
 
   act(() => result.current.startAmendment());
   act(() => result.current.discardAmendment());
+
   expect(result.current.amending).toBe(false);
   expect(result.current.draft).toEqual({
     position: "Fund",

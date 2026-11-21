@@ -97,10 +97,11 @@ it("sends the caller's baseline rather than the current revision with the encode
   });
 });
 
-it("refreshes the application query on conflict without failing when reload errors", async () => {
-  const queryKey = ["alder", "application", "app-1"] as const;
-  const queryFn = vi.fn<() => Promise<CachedApplication>>().mockRejectedValue(new Error("Offline"));
-  const data = createRecommendationData(
+const conflictData = (
+  queryKey: readonly ["alder", "application", "app-1"],
+  queryFn: () => Promise<CachedApplication>,
+) =>
+  createRecommendationData(
     client,
     { workspaceSlug: "alder", publicId: "app-1", revision: 1 },
     {
@@ -111,11 +112,29 @@ it("refreshes the application query on conflict without failing when reload erro
     },
   );
 
-  expect(
-    await data.save(
-      { position: "Defer", allocation: fromMinorUnits(0n), reasoning: "Hold." },
-      { expectedRevision: 1, expectedApplicationVersion: 1 },
-    ),
-  ).toEqual({ status: "conflict" });
-  expect(queryFn).toHaveBeenCalledTimes(1);
+const deferral = { position: "Defer" as const, allocation: fromMinorUnits(0n), reasoning: "Hold." };
+const conflictBaseline = { expectedRevision: 1, expectedApplicationVersion: 1 };
+
+it("reloads the current application after a conflict", async () => {
+  const queryKey = ["alder", "application", "app-1"] as const;
+  const latest: CachedApplication = {
+    status: "ok",
+    recommendation: encodeRecommendation(deferral),
+    revision: 3,
+  };
+  client.setQueryData(queryKey, { status: "ok", recommendation: null, revision: 1 });
+  const data = conflictData(queryKey, async () => latest);
+
+  expect(await data.save(deferral, conflictBaseline)).toEqual({ status: "conflict" });
+  expect(client.getQueryData(queryKey)).toEqual(latest);
+});
+
+it("still reports a conflict and keeps the cached application when reloading fails", async () => {
+  const queryKey = ["alder", "application", "app-1"] as const;
+  const cached: CachedApplication = { status: "ok", recommendation: null, revision: 1 };
+  client.setQueryData(queryKey, cached);
+  const data = conflictData(queryKey, () => Promise.reject(new Error("Offline")));
+
+  expect(await data.save(deferral, conflictBaseline)).toEqual({ status: "conflict" });
+  expect(client.getQueryData(queryKey)).toEqual(cached);
 });

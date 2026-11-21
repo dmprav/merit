@@ -180,10 +180,7 @@ it("orders by match quality, then active before withdrawn, then title and ID", a
   ]);
 });
 
-it("limits each group, reports its total, and applies access before counting", async ({
-  db,
-  database,
-}) => {
+it("limits each group to its first results and reports the full total", async ({ db }) => {
   const round = await createRound(db, "Match round");
   for (let index = 0; index < 7; index += 1) {
     await createRound(db, `Match round ${index}`);
@@ -191,14 +188,6 @@ it("limits each group, reports its total, and applies access before counting", a
   for (let index = 0; index < 13; index += 1) {
     await createApplication(db, round, `Match ${String(index).padStart(2, "0")}`);
   }
-  const birch = await createRound(db, "Match elsewhere", {
-    workspace: "birch",
-    userId: "birch-manager",
-  });
-  await createApplication(db, birch, "Match elsewhere", undefined, {
-    workspace: "birch",
-    userId: "birch-manager",
-  });
 
   const found = await search(db, "match");
 
@@ -209,14 +198,41 @@ it("limits each group, reports its total, and applies access before counting", a
   expect(titles(found.applications)).toEqual(
     Array.from({ length: 10 }, (_, index) => `Match ${String(index).padStart(2, "0")}`),
   );
+});
+
+it("finds and counts only the requested workspace's records", async ({ db }) => {
+  const round = await createRound(db, "Match here");
+  await createApplication(db, round, "Match here");
+  const birch = await createRound(db, "Match elsewhere", {
+    workspace: "birch",
+    userId: "birch-manager",
+  });
+  await createApplication(db, birch, "Match elsewhere", undefined, {
+    workspace: "birch",
+    userId: "birch-manager",
+  });
+
+  expect(await search(db, "match")).toMatchObject({
+    rounds: { total: 1, results: [{ title: "Match here" }] },
+    applications: { total: 1, results: [{ title: "Match here" }] },
+  });
   expect(
     await searchWorkspace(
       db,
       { userId: "birch-manager" },
       { workspaceSlug: "birch", query: "match" },
     ),
-  ).toMatchObject({ rounds: { total: 1 }, applications: { total: 1 } });
+  ).toMatchObject({
+    rounds: { total: 1, results: [{ title: "Match elsewhere" }] },
+    applications: { total: 1, results: [{ title: "Match elsewhere" }] },
+  });
+});
+
+it("refuses search to a workspace member without grant access", async ({ db, database }) => {
+  const round = await createRound(db, "Match round");
+  await createApplication(db, round, "Match application");
   await database.client.query("UPDATE memberships SET role = 'member' WHERE user_id = 'dana'");
+
   expect(await searchWorkspace(db, actor, { workspaceSlug, query: "match" })).toEqual({
     status: "forbidden",
   });

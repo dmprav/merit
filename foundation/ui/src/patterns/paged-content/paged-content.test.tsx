@@ -81,7 +81,7 @@ it("hides entries and controls when access is denied", () => {
   expect(screen.queryByRole("button")).not.toBeInTheDocument();
 });
 
-it("retains the same retry control during recovery and announces completion only through the caller", async () => {
+it("keeps the same retry control disabled and loaded entries visible while recovery reads", async () => {
   const retry = vi.fn();
   const user = userEvent.setup();
 
