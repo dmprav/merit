@@ -14,7 +14,11 @@ counter. The command calls `recordAuditEvent` from
 recommendation version and audit event commit or roll back together.
 
 `/api` contains browser-safe inputs, outcomes, and public JSON encoding. `/server`
-exposes the service factory and authorized save. Approved composition reads use
+exposes the service factory and authorized save. `/server/integrations` implements
+Recommendations' part of the [application work](../../applications/business/src/server/grant-work.ts)
+contract: whether a recommendation blocks deletion, and whether reinstating a case
+would push the round's proposed total past the [money contract](../../../foundation/money/README.md),
+using the same [total rule](src/domain/budget.ts) as a saved recommendation. Approved composition reads use
 `/schema` and `/scope`. `/server/demo` exposes recommendation version insertion only
 for trusted example seeding. Public field selection and stored-history
 encoding remain separate contracts. Recommendation rules need application facts,

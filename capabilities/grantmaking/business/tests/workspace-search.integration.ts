@@ -9,7 +9,7 @@ import { searchWorkspace } from "@merit/grantmaking/server";
 import { actor, workspaceTest as it, workspaceSlug } from "@merit/organizations/testing/workspace";
 import { createFundingRound, editFundingRound } from "@merit/rounds/server";
 
-import { applicationWork } from "../src/server/persistence/commands/application-work";
+import { applicationWork } from "./application-work";
 
 const createRound = async (
   db: NodePgDatabase,

@@ -26,7 +26,7 @@ import { saveApplicationReview } from "@merit/reviews/server";
 import { criteriaVersionSchema } from "@merit/rounds/domain";
 import { createFundingRound, editFundingRound } from "@merit/rounds/server";
 
-import { applicationWork } from "../src/server/persistence/commands/application-work";
+import { applicationWork } from "./application-work";
 
 const contact = async (db: NodePgDatabase, name = "Sam") => {
   const input = {

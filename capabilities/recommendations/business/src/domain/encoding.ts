@@ -33,15 +33,18 @@ export const decodeBudgetContext = (
 ) => {
   const value =
     budget === null ? null : fundingRoundSchema.shape.budget.unwrap().parse(decodeMoney(budget));
-  const amounts = z
+
+  return {
+    budget: value,
+    totals: { ...allocationTotals(value, decodeAllocations(allocations)), withdrawnApplications },
+  };
+};
+
+/** Decodes stored current allocations; an absent allocation contributes nothing. */
+export const decodeAllocations = (allocations: unknown) =>
+  z
     .array(moneyDataSchema.nullable())
     .parse(allocations)
     .flatMap((amount) =>
       amount ? [fundingRoundSchema.shape.budget.unwrap().parse(decodeMoney(amount))] : [],
     );
-
-  return {
-    budget: value,
-    totals: { ...allocationTotals(value, amounts), withdrawnApplications },
-  };
-};

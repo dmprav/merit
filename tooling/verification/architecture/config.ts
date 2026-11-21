@@ -145,13 +145,6 @@ const serverImports: DependenciesPolicy[] = [
     "@merit/applications/history",
     business("applications", "shared-persistence"),
   ),
-  // Withdrawal closes outstanding reviews through the reviews capability's own operation, which
-  // owns request status, reviewer access, and audit; grantmaking only supplies the transaction.
-  permitServer(
-    business("grantmaking", "command-persistence"),
-    "@merit/reviews/server/integrations",
-    business("reviews", "integrations"),
-  ),
   permitServer(
     business("grantmaking", "{command-persistence,demo}"),
     "@merit/*/server/demo",

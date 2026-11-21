@@ -25,7 +25,7 @@ import { createRecommendationsService } from "@merit/recommendations/server";
 import { saveFundingRecommendation } from "@merit/recommendations/server";
 import { createFundingRound } from "@merit/rounds/server";
 
-import { applicationWork } from "../src/server/persistence/commands/application-work";
+import { applicationWork } from "./application-work";
 import { withAuditFailure } from "./audit-events";
 
 const recommendationRequest = (publicId: string): SaveRecommendationRequest => ({

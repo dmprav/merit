@@ -16,7 +16,7 @@ import { fundingRoundContactUsage } from "@merit/grantmaking/server/integrations
 import { actor, workspaceTest as it, workspaceSlug } from "@merit/organizations/testing/workspace";
 import { createFundingRound } from "@merit/rounds/server";
 
-import { applicationWork } from "../src/server/persistence/commands/application-work";
+import { applicationWork } from "./application-work";
 
 it("reads authorized case context and material by application ID without round input", async ({
   db,

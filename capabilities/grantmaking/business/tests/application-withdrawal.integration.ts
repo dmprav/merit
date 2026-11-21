@@ -23,7 +23,7 @@ import {
   listWorkspaceApplications,
 } from "../src/server";
 import { fundingRoundContactUsage } from "../src/server/integrations";
-import { applicationWork } from "../src/server/persistence/commands/application-work";
+import { applicationWork } from "./application-work";
 import { recordedEvents, withAuditFailure } from "./audit-events";
 import { roundTest } from "./round-test";
 
@@ -671,6 +671,43 @@ it("reinstates with a reason, restoring active work but not the closed requests"
       `application.withdraw application/${s.address.publicId}@${withdrawn.intake.revision}`,
     ].sort(),
   );
+});
+
+it("rejects reinstatement whose recommendation would overflow the round's proposed total", async ({
+  db,
+  rounds,
+}) => {
+  // Each allocation is representable; the two together exceed the money contract.
+  const large = (6n * 10n ** 29n).toString();
+
+  const change = async (address: { workspaceSlug: string; publicId: string }, edit: IntakeChange) =>
+    editFundingApplication(
+      db,
+      actor,
+      {
+        ...address,
+        expectedRevision: (await getFundingApplicationPage(db, actor, address))!.intake.revision,
+        change: edit,
+      },
+      applicationWork,
+    );
+
+  const returning = await rounds.createApplication("Returning proposal");
+  await rounds.recommendApplication(returning, large);
+  expect(await change(returning, withdrawal())).toMatchObject({ status: "ok" });
+  const sibling = await rounds.createApplication("Proposal funded meanwhile");
+  await rounds.recommendApplication(sibling, large);
+  const withdrawn = await getFundingApplicationPage(db, actor, returning);
+
+  expect(
+    await change(returning, { action: "reinstate", reason: "The applicant returned." }),
+  ).toEqual({ status: "invalid", error: "allocation_total_too_large" });
+  expect(await getFundingApplicationPage(db, actor, returning)).toEqual(withdrawn);
+
+  expect(await change(sibling, withdrawal())).toMatchObject({ status: "ok" });
+  expect(
+    await change(returning, { action: "reinstate", reason: "The applicant returned." }),
+  ).toMatchObject({ status: "ok" });
 });
 
 it("lets a manager restore a closed reviewer assignment after reinstatement", async ({

@@ -11,6 +11,7 @@
     "./testing": "./testing/seed-example-rounds.ts",
     "./testing/fixtures": "./tests/fixtures.ts",
     "./testing/rounds": "./tests/round-test.ts",
+    "./testing/application-work": "./tests/application-work.ts",
     "./server/demo": "./src/server/demo.ts",
     "./server/integrations": "./src/server/integrations.ts"
   },

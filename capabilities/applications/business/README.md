@@ -15,9 +15,10 @@ request ID before writing a case. Independent rounds can accept applications con
 
 Applications owns creation-receipt lookup and the intake payload recorded atomically
 through [Audit](../../audit/business/README.md), including actor provenance. Assembly supplies a
-[transaction-bound collaborator](src/server/grant-work.ts) for downstream usage
-checks. Any review request, assessment, or recommendation prevents deletion,
-including a cancelled request.
+[transaction-bound collaborator](src/server/grant-work.ts) for downstream work:
+Reviews and Recommendations each implement the part about their own records.
+Any review request, assessment, or recommendation prevents deletion, including a
+cancelled request.
 
 ## Withdraw and reinstate
 
@@ -31,11 +32,12 @@ withdrawn, so reviews, recommendations, and contact selection reject writes insi
 their own transactions; `readCaseWithdrawn` answers the same for a case the caller
 already locked. Persistence exports the SQL form of the predicate from `/scope` (`caseWithdrawn`, `activeCase(alias)`, and `roundWithdrawnCount`); every total, list, and sibling allocation uses them rather than writing `withdrawn_on is null`.
 
-Withdrawing also calls the collaborator's `closeReviewsForWithdrawal` in the same
+Withdrawing also calls the collaborator's `reviews.closeForWithdrawal` in the same
 transaction, after the case lock. Reviews owns the closure of outstanding requests
 and their assignments; applications does not know how. Reinstatement recomputes the
-requested-total limit like an amount change, and does not reopen anything the
-withdrawal closed.
+requested-total limit like an amount change, asks Recommendations whether counting
+the case's current allocation again keeps the round's proposed total representable,
+and does not reopen anything the withdrawal closed.
 
 ## Support workspace search
 

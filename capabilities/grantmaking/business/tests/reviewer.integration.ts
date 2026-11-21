@@ -23,7 +23,7 @@ import {
   listWorkspaceApplications,
 } from "../src/server";
 import { fundingRoundContactUsage } from "../src/server/integrations";
-import { applicationWork } from "../src/server/persistence/commands/application-work";
+import { applicationWork } from "./application-work";
 import { withAuditFailure, recordedEvents } from "./audit-events";
 import { roundTest } from "./round-test";
 

@@ -9,5 +9,3 @@ export const fundingRoundContactUsage: ContactGrantWork = {
   applicationTitles: contactApplicationTitles,
   outstandingRequests: outstandingContactRequests,
 };
-
-export { applicationWork } from "./persistence/commands/application-work";
