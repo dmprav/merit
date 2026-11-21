@@ -3,6 +3,13 @@ import { describe, expect, it } from "vite-plus/test";
 import { fromMinorUnits } from "@merit/money";
 
 import type { FundingRound } from "./model";
+import {
+  budgetChangeRequirements,
+  newPreparedRound,
+  prepareRoundChange,
+  roundChangeSchema,
+  withRoundManager,
+} from "./preparation";
 import { criteriaVersionSchema } from "./versions";
 
 const makeRound = (overrides: Partial<FundingRound> = {}) => ({
@@ -17,14 +24,6 @@ const makeRound = (overrides: Partial<FundingRound> = {}) => ({
   ),
   ...overrides,
 });
-
-import {
-  budgetChangeRequirements,
-  newPreparedRound,
-  prepareRoundChange,
-  roundChangeSchema,
-  withRoundManager,
-} from "./preparation";
 
 describe("initial round preparation", () => {
   const context = {
