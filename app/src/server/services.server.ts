@@ -1,17 +1,23 @@
 import { createApplicationsService } from "@merit/applications/server";
-import { roundHasApplications } from "@merit/applications/server/integrations";
+import {
+  contactApplicationWork,
+  roundHasApplications,
+} from "@merit/applications/server/integrations";
 import { createContactService } from "@merit/contacts/server";
 import type { Database } from "@merit/db";
 import { renderReviewerEmail } from "@merit/emails/reviewer";
 import { createGrantmakingService, createNavigationService } from "@merit/grantmaking/server";
-import { fundingRoundContactUsage } from "@merit/grantmaking/server/integrations";
 import { createOrganizationService } from "@merit/organizations/server";
 import { productLinks } from "@merit/product/links";
 import { createRecommendationsService } from "@merit/recommendations/server";
 import { applicationRecommendationWork } from "@merit/recommendations/server/integrations";
 import { createReviewService } from "@merit/reviews/server";
 import { createReviewerService } from "@merit/reviews/server";
-import { applicationReviewWork, revokeMembershipReviews } from "@merit/reviews/server/integrations";
+import {
+  applicationReviewWork,
+  contactReviewWork,
+  revokeMembershipReviews,
+} from "@merit/reviews/server/integrations";
 import { createRoundsService } from "@merit/rounds/server";
 import { instrumentService } from "@merit/telemetry";
 
@@ -64,7 +70,10 @@ export const createApplicationServices = ({
   );
   const contacts = instrumentService(
     "contacts",
-    createContactService({ database, grantWork: fundingRoundContactUsage }),
+    createContactService({
+      database,
+      grantWork: { applications: contactApplicationWork, reviews: contactReviewWork },
+    }),
   );
   const organizations = instrumentService(
     "organizations",

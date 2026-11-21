@@ -44,7 +44,7 @@ export const changeWorkspaceContact = async (
     }
 
     if (target.archived) {
-      const outstanding = await grantWork.outstandingRequests(
+      const outstanding = await grantWork.reviews.outstandingRequests(
         tx,
         access.organization.id,
         request.contactId,

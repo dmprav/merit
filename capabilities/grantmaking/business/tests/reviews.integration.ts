@@ -16,7 +16,6 @@ import {
   getFundingApplicationContent,
   getFundingRoundPage,
 } from "@merit/grantmaking/server";
-import { fundingRoundContactUsage } from "@merit/grantmaking/server/integrations";
 import { encodeMoney, fromMinorUnits } from "@merit/money";
 import { actor, workspaceTest as it, workspaceSlug } from "@merit/organizations/testing/workspace";
 import { saveFundingRecommendation } from "@merit/recommendations/server";
@@ -27,6 +26,7 @@ import { criteriaVersionSchema } from "@merit/rounds/domain";
 import { createFundingRound, editFundingRound } from "@merit/rounds/server";
 
 import { applicationWork } from "./application-work";
+import { contactWork } from "./contact-work";
 
 const contact = async (db: NodePgDatabase, name = "Sam") => {
   const input = {
@@ -35,7 +35,7 @@ const contact = async (db: NodePgDatabase, name = "Sam") => {
     action: "create" as const,
     details: { name, email: "", affiliation: "" },
   };
-  const result = await changeWorkspaceContact(db, actor, input, fundingRoundContactUsage);
+  const result = await changeWorkspaceContact(db, actor, input, contactWork);
 
   if (result.status !== "ok") {
     throw new Error("Contact creation failed");
@@ -492,7 +492,7 @@ it("resolves live contact details without rewriting applications or history", as
     details: { name: "Sam Morgan", email: "sam@example.test", affiliation: "" },
   };
 
-  expect(await changeWorkspaceContact(db, actor, change, fundingRoundContactUsage)).toMatchObject({
+  expect(await changeWorkspaceContact(db, actor, change, contactWork)).toMatchObject({
     status: "ok",
   });
 
@@ -548,12 +548,7 @@ it("resolves live contact details without rewriting applications or history", as
     ).reviewer,
   ).toBe("Sam");
 
-  const directory = await listWorkspaceContacts(
-    db,
-    actor,
-    { workspaceSlug },
-    fundingRoundContactUsage,
-  );
+  const directory = await listWorkspaceContacts(db, actor, { workspaceSlug }, contactWork);
 
   if (directory.status !== "ok") {
     throw new Error("Missing contact directory");
@@ -573,7 +568,7 @@ const archiveContact = (db: NodePgDatabase, contactId: string) =>
     db,
     actor,
     { workspaceSlug, contactId, action: "archive", expectedContactRevision: 0 },
-    fundingRoundContactUsage,
+    contactWork,
   );
 
 it("blocks archiving a contact with an outstanding review request until it is cancelled", async ({
@@ -900,9 +895,7 @@ it("supports contacts and reviews with the documented runtime grants and immutab
         details: { name: "Runtime reviewer", email: "reviewer@example.test", affiliation: "" },
       };
 
-      expect(
-        await changeWorkspaceContact(tx, actor, input, fundingRoundContactUsage),
-      ).toMatchObject({
+      expect(await changeWorkspaceContact(tx, actor, input, contactWork)).toMatchObject({
         status: "ok",
       });
       expect(
@@ -921,16 +914,11 @@ it("supports contacts and reviews with the documented runtime grants and immutab
             action: "update",
             details: { ...input.details, name: "Updated reviewer" },
           },
-          fundingRoundContactUsage,
+          contactWork,
         ),
       ).toMatchObject({ status: "ok", contact: { revision: 1 } });
 
-      const contacts = await listWorkspaceContacts(
-        tx,
-        actor,
-        { workspaceSlug },
-        fundingRoundContactUsage,
-      );
+      const contacts = await listWorkspaceContacts(tx, actor, { workspaceSlug }, contactWork);
 
       expect(contacts.status).toBe("ok");
 

@@ -24,7 +24,7 @@ import {
   seedFundingExample,
   removeDemoFunding,
 } from "@merit/grantmaking/server/demo";
-import { fundingRoundContactUsage } from "@merit/grantmaking/server/integrations";
+import { contactWork } from "@merit/grantmaking/testing/contact-work";
 import { organizations } from "@merit/organizations/schema";
 import { getWorkspace } from "@merit/organizations/server";
 import {
@@ -131,7 +131,7 @@ test("creates independent complete examples and resumes concurrent starts", asyn
     db,
     { userId: "alice" },
     { workspaceSlug: first.workspace.slug },
-    fundingRoundContactUsage,
+    contactWork,
   );
 
   expect(contacts.status).toBe("ok");

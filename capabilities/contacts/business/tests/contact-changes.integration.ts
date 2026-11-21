@@ -15,8 +15,8 @@ import {
 } from "../src/server/index";
 
 const grantWork: ContactGrantWork = {
-  applicationTitles: async () => new Map<string, string[]>(),
-  outstandingRequests: async () => [],
+  applications: { applicationLinks: async () => [] },
+  reviews: { applicationLinks: async () => [], outstandingRequests: async () => [] },
 };
 const details = { name: "Sam", email: "sam@example.test", affiliation: "Review panel" };
 

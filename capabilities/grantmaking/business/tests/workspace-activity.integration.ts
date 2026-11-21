@@ -15,8 +15,8 @@ import { criteriaVersionSchema } from "@merit/rounds/domain";
 import { createFundingRound, deleteFundingRound } from "@merit/rounds/server";
 
 import { listWorkspaceActivity } from "../src/server";
-import { fundingRoundContactUsage } from "../src/server/integrations";
 import { applicationWork } from "./application-work";
+import { contactWork } from "./contact-work";
 import { roundTest } from "./round-test";
 
 const workspaceSlug = "alder";
@@ -64,7 +64,7 @@ const it = roundTest.extend("activity", async ({ db, database, rounds }) => {
       contactId: randomUUID(),
       details: { name: "Sam", email: "", affiliation: "" },
     },
-    fundingRoundContactUsage,
+    contactWork,
   );
   assert(contact.status === "ok");
   const assessmentId = randomUUID();

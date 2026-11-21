@@ -8,9 +8,10 @@ import { changeWorkspaceContact } from "@merit/contacts/server";
 import type { Database } from "@merit/db";
 import type { GrantmakingQueries } from "@merit/grantmaking/api";
 import { createGrantmakingService, getFundingRoundOverview } from "@merit/grantmaking/server";
-import { fundingRoundContactUsage } from "@merit/grantmaking/server/integrations";
 import { actor, workspaceTest as it, workspaceSlug } from "@merit/organizations/testing/workspace";
 import { createFundingRound } from "@merit/rounds/server";
+
+import { contactWork } from "./contact-work";
 
 type Records = { roundId: string; applicationId: string; contactId: string };
 
@@ -161,7 +162,7 @@ const createReadableRecords = async (db: Database): Promise<Records> => {
       action: "create",
       details: { name: "Leah Martin", email: "leah@example.test", affiliation: "" },
     },
-    fundingRoundContactUsage,
+    contactWork,
   );
   assert(contact.status === "ok");
   const linked = await selectApplicationContact(db, actor, {

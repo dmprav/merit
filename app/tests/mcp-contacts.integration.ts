@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { assert, expect } from "vite-plus/test";
 
 import { getContactDetails, changeWorkspaceContact } from "@merit/contacts/server";
-import { fundingRoundContactUsage } from "@merit/grantmaking/server/integrations";
+import { contactWork } from "@merit/grantmaking/testing/contact-work";
 import { actor } from "@merit/organizations/testing/workspace";
 
 import { commandTest as it } from "./fixtures/mcp-command-test";
@@ -36,7 +36,7 @@ it.for(["update", "archive", "restore"] as const)(
           action: "archive",
           expectedContactRevision: 0,
         },
-        fundingRoundContactUsage,
+        contactWork,
       );
       assert(archived.status === "ok");
     }
@@ -88,7 +88,7 @@ it("updates a contact with last-write-wins over concurrent edits", async ({
       action: "update",
       details,
     },
-    fundingRoundContactUsage,
+    contactWork,
   );
   assert(changed.status === "ok");
   expect(
@@ -119,7 +119,7 @@ it("rejects archiving a contact with a stale revision without changing its state
       action: "update",
       details: { name: "Current name", email: "sam@example.test", affiliation: "Review panel" },
     },
-    fundingRoundContactUsage,
+    contactWork,
   );
   assert(updated.status === "ok");
   const latest = await getContactDetails(db, actor, { workspaceSlug: "alder", contactId });

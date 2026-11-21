@@ -5,14 +5,15 @@ import { assert, expect } from "vite-plus/test";
 
 import { materialVersionSchema } from "@merit/applications/domain";
 import { createFundingApplication, selectApplicationContact } from "@merit/applications/server";
-import { changeWorkspaceContact } from "@merit/contacts/server";
+import { changeWorkspaceContact, listWorkspaceContacts } from "@merit/contacts/server";
 import { listContactApplications, listFundingApplications } from "@merit/grantmaking/server";
-import { fundingRoundContactUsage } from "@merit/grantmaking/server/integrations";
 import { actor, workspaceTest as it, workspaceSlug } from "@merit/organizations/testing/workspace";
 import { reviewRevisionSchema } from "@merit/reviews/domain";
 import { saveApplicationReview } from "@merit/reviews/server";
 import { criteriaVersionSchema } from "@merit/rounds/domain";
 import { createFundingRound } from "@merit/rounds/server";
+
+import { contactWork } from "./contact-work";
 
 it("pages distinct related applications with actual round titles and all recorded relationships", async ({
   db,
@@ -30,7 +31,7 @@ it("pages distinct related applications with actual round titles and all recorde
         affiliation: "Neighbourhood Kitchen",
       },
     },
-    fundingRoundContactUsage,
+    contactWork,
   );
   assert(contact.status === "ok");
   const input = { workspaceSlug, contactId: contact.contact.id };
@@ -146,4 +147,78 @@ it("pages distinct related applications with actual round titles and all recorde
   expect(await listContactApplications(db, actor, { ...input, after: first.nextCursor })).toEqual({
     status: "not_found",
   });
+});
+
+it("lists applications linked through intake or review once each in the contact directory, in round order", async ({
+  db,
+}) => {
+  const contact = await changeWorkspaceContact(
+    db,
+    actor,
+    {
+      workspaceSlug,
+      contactId: randomUUID(),
+      action: "create",
+      details: { name: "Leah Martin", email: "leah@example.test", affiliation: "" },
+    },
+    contactWork,
+  );
+  assert(contact.status === "ok");
+  const round = await createFundingRound(db, actor, {
+    workspaceSlug,
+    requestId: randomUUID(),
+    title: "Community grants",
+  });
+  assert(round.status === "ok");
+
+  const application = async (title: string) => {
+    const created = await createFundingApplication(db, actor, {
+      workspaceSlug,
+      publicId: round.publicId,
+      requestId: randomUUID(),
+      title,
+    });
+    assert(created.status === "ok");
+    return created.publicId;
+  };
+
+  const assignApplicant = async (publicId: string) =>
+    expect(
+      await selectApplicationContact(db, actor, {
+        workspaceSlug,
+        publicId,
+        expectedRevision: 0,
+        contactId: contact.contact.id,
+      }),
+    ).toMatchObject({ status: "ok" });
+
+  const requestReview = async (publicId: string) =>
+    expect(
+      await saveApplicationReview(db, actor, {
+        workspaceSlug,
+        publicId,
+        expectedApplicationVersion: materialVersionSchema.parse(1),
+        expectedCriteriaVersion: criteriaVersionSchema.parse(1),
+        expectedRevision: reviewRevisionSchema.parse(0),
+        change: {
+          action: "request",
+          id: randomUUID(),
+          contactId: contact.contact.id,
+          replacesId: null,
+        },
+      }),
+    ).toMatchObject({ status: "ok" });
+
+  await assignApplicant(await application("Applicant contact only"));
+  await requestReview(await application("Review request only"));
+  const both = await application("Applicant and reviewer");
+  await assignApplicant(both);
+  await requestReview(both);
+  await application("Unrelated application");
+
+  const directory = await listWorkspaceContacts(db, actor, { workspaceSlug }, contactWork);
+  assert(directory.status === "ok");
+  expect(directory.contacts.find(({ id }) => id === contact.contact.id)?.applicationTitles).toEqual(
+    ["Applicant contact only", "Review request only", "Applicant and reviewer"],
+  );
 });

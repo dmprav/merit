@@ -14,7 +14,6 @@ import {
   getFundingApplicationPage,
   listFundingRounds,
 } from "@merit/grantmaking/server";
-import { fundingRoundContactUsage } from "@merit/grantmaking/server/integrations";
 import { toDecimal } from "@merit/money";
 import { actor, workspaceTest as it, workspaceSlug } from "@merit/organizations/testing/workspace";
 import { readWorkspace } from "@merit/organizations/transactions";
@@ -26,6 +25,7 @@ import type { RoundChange } from "@merit/rounds/domain";
 import { createFundingRound, editFundingRound, deleteFundingRound } from "@merit/rounds/server";
 
 import { applicationWork } from "./application-work";
+import { contactWork } from "./contact-work";
 
 const create = async (db: NodePgDatabase) => {
   const result = await createFundingRound(db, actor, {
@@ -564,7 +564,7 @@ describe("funding-round preparation", () => {
         action: "create" as const,
         details: { name: "Sam", email: "", affiliation: "" },
       },
-      fundingRoundContactUsage,
+      contactWork,
     );
     assert(contact.status === "ok");
     const recorded = await saveApplicationReview(db, actor, {
