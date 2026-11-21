@@ -27,12 +27,12 @@ type ContactSectionProps = {
 
 export const ApplicationContact = (props: ContactSectionProps) => {
   const { data, revision, application, isDisabled } = props;
-  const { t } = useTranslation(["applicationIntake", "contacts"]);
+  const { t } = useTranslation("applicationIntake");
   const name = application.submission?.contact;
   const [editing, setEditing] = useState(false);
   const [editingContact, setEditingContact] = useState(false);
   const contact = useApplicationContact(data, application.contactId, revision);
-  const { open, saved, canUndo, pending, undoSelection } = contact;
+  const { open, saved, pending } = contact;
   useEventToast(saved, { tone: "success", message: t("contactSelection.saved") });
   useToastWhile(
     contact.refreshError && {
@@ -54,8 +54,6 @@ export const ApplicationContact = (props: ContactSectionProps) => {
     setEditing(false);
     requestAnimationFrame(() => sectionTrigger.current?.focus());
   };
-
-  const identity = name ? <PersonIdentity name={name} /> : <span>{t("contacts:noContact")}</span>;
 
   return (
     <section aria-label={t("workspace.details")}>
@@ -97,33 +95,63 @@ export const ApplicationContact = (props: ContactSectionProps) => {
                 triggerRef={trigger}
               />
             ) : (
-              identity
+              <ContactIdentity name={name} />
             )
           }
         />
         {!open && <ContactFeedback {...contact} />}
-        {(canUndo || editing) && (
-          <div className={styles.actions}>
-            <Inline justify={canUndo ? "between" : "end"}>
-              {canUndo && (
-                <Button
-                  variant="quiet"
-                  isDisabled={editingDisabled}
-                  onPress={() => void undoSelection()}
-                >
-                  {t("preparation.undo")}
-                </Button>
-              )}
-              {editing && (
-                <Button variant="quiet" isDisabled={closeDisabled} onPress={close}>
-                  {t("preparation.close")}
-                </Button>
-              )}
-            </Inline>
-          </div>
-        )}
+        <ContactActions
+          canUndo={contact.canUndo}
+          editing={editing}
+          editingDisabled={editingDisabled}
+          closeDisabled={closeDisabled}
+          onUndo={() => void contact.undoSelection()}
+          onClose={close}
+        />
       </div>
     </section>
+  );
+};
+
+const ContactIdentity = ({ name }: { name?: string }) => {
+  const { t } = useTranslation("contacts");
+  return name ? <PersonIdentity name={name} /> : <span>{t("noContact")}</span>;
+};
+
+const ContactActions = ({
+  canUndo,
+  editing,
+  editingDisabled,
+  closeDisabled,
+  onUndo,
+  onClose,
+}: {
+  canUndo: boolean;
+  editing: boolean;
+  editingDisabled: boolean;
+  closeDisabled: boolean;
+  onUndo: () => void;
+  onClose: () => void;
+}) => {
+  const { t } = useTranslation("applicationIntake");
+  if (!canUndo && !editing) {
+    return null;
+  }
+  return (
+    <div className={styles.actions}>
+      <Inline justify={canUndo ? "between" : "end"}>
+        {canUndo && (
+          <Button variant="quiet" isDisabled={editingDisabled} onPress={onUndo}>
+            {t("preparation.undo")}
+          </Button>
+        )}
+        {editing && (
+          <Button variant="quiet" isDisabled={closeDisabled} onPress={onClose}>
+            {t("preparation.close")}
+          </Button>
+        )}
+      </Inline>
+    </div>
   );
 };
 
@@ -169,7 +197,7 @@ const ContactChoice = ({
   onEditorOpenChange: (open: boolean) => void;
   triggerRef: Ref<HTMLButtonElement>;
 }) => {
-  const { t } = useTranslation(["applicationIntake", "contacts"]);
+  const { t } = useTranslation("applicationIntake");
   const name = application.submission?.contact;
   const label = name
     ? t("contactSelection.changeContactValue", { name })
@@ -190,7 +218,7 @@ const ContactChoice = ({
           isDisabled={contact.pending || isDisabled}
           autoFocus
         >
-          {name ? <PersonIdentity name={name} /> : <span>{t("contacts:noContact")}</span>}
+          <ContactIdentity name={name} />
         </PropertyButton>
       }
     >

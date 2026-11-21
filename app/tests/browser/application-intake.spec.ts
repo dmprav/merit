@@ -171,7 +171,9 @@ test("record, complete, recommend, and revise an application without a budget", 
       .getByText(`leah.${testInfo.project.name}@example.test`, { exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByRole("region", { name: "Staff summary" }).getByText("Dana Reed", { exact: true }),
+    page
+      .getByRole("region", { name: "Staff summary" })
+      .getByText("Recorded by Dana Reed", { exact: true }),
   ).toBeVisible();
 
   await page.getByRole("button", { name: "Mark ready for review" }).click();

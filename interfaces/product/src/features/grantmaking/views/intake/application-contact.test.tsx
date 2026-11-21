@@ -112,6 +112,10 @@ const setup = (
 
 afterEach(() => vi.useRealTimers());
 
+// Retry delays use timeouts. Keep rendering intervals and focus restoration on the real clock.
+const useRetryTimers = () =>
+  vi.useFakeTimers({ shouldAdvanceTime: true, toFake: ["setTimeout", "clearTimeout"] });
+
 const offline = () => Promise.reject(new Error("Offline"));
 
 /** Lets a failed refresh exhaust its quiet retries so the failure is reported. */
@@ -147,7 +151,7 @@ it("uses one section pencil, read-only recorded facts, and a contact choice only
 it.each([false, true])(
   "retries a committed refresh failure without assigning again (picker reopened: %s)",
   async (reopen) => {
-    vi.useFakeTimers({ shouldAdvanceTime: true });
+    useRetryTimers();
     const { data, user } = setup();
     await user.click(screen.getByRole("button", { name: "Edit application details" }));
     data.refresh.mockImplementationOnce(offline);
@@ -231,7 +235,7 @@ it.each([
 );
 
 it("keeps a conflicting assignment distinct from a failed read and disables actions during an explicit retry", async () => {
-  vi.useFakeTimers({ shouldAdvanceTime: true });
+  useRetryTimers();
   const { data, user } = setup();
   await user.click(screen.getByRole("button", { name: "Edit application details" }));
   data.selectContact.mockResolvedValueOnce({ status: "conflict" });
@@ -308,7 +312,7 @@ it("returns keyboard focus to the contact control after a slow post-save refresh
 });
 
 it("keeps Undo and refresh recovery after closing the section and returns focus to its pencil", async () => {
-  vi.useFakeTimers({ shouldAdvanceTime: true });
+  useRetryTimers();
   const { data, user } = setup();
   data.refresh.mockImplementationOnce(offline);
   data.refresh.mockImplementationOnce(offline);

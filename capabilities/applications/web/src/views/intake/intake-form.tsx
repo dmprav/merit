@@ -248,28 +248,36 @@ const EditorFrame = ({
             </Text>
           )}
           {children}
-          {isRevision && (
-            <TextField
-              name="reason"
-              value={editor.reason}
-              onChange={editor.changeReason}
-              label={t("intake.reason")}
-              multiline
-              rows={3}
-              maxLength={intakeLimits.reasonLength}
-            />
-          )}
-          {isRevision &&
-            conflict &&
-            section === "metadata" &&
-            editor.reason.trim() !== editor.latest.reason.trim() && (
-              <SavedValue label={t("intake.savedValue")}>
-                {editor.latest.reason || t("intake.notKnown")}
-              </SavedValue>
-            )}
+          {isRevision && <RevisionReasonField editor={editor} />}
         </div>
       </Form>
     </div>
+  );
+};
+
+const RevisionReasonField = ({ editor }: Pick<EditorProps, "editor">) => {
+  const { t } = useTranslation("applicationIntake");
+  const showSavedReason =
+    editor.conflict &&
+    editor.section === "metadata" &&
+    editor.reason.trim() !== editor.latest.reason.trim();
+  return (
+    <>
+      <TextField
+        name="reason"
+        value={editor.reason}
+        onChange={editor.changeReason}
+        label={t("intake.reason")}
+        multiline
+        rows={3}
+        maxLength={intakeLimits.reasonLength}
+      />
+      {showSavedReason && (
+        <SavedValue label={t("intake.savedValue")}>
+          {editor.latest.reason || t("intake.notKnown")}
+        </SavedValue>
+      )}
+    </>
   );
 };
 
@@ -450,31 +458,18 @@ const MetadataSavedValue = ({
   editor: EditorProps["editor"];
   field: MetadataField;
 }) => {
-  const { t } = useTranslation(["applicationIntake", "contacts"]);
+  const { t } = useTranslation("applicationIntake");
   const { money } = useFormat();
   const draft = editor.draft;
   if (!editor.conflict || draft?.section !== "metadata") {
     return null;
   }
-  const { content, contactId } = editor.latest;
   if (field === "contactId") {
-    const current =
+    const draftId =
       draft.value.contactId === undefined ? editor.application.contactId : draft.value.contactId;
-    return (current ?? null) === (contactId ?? null) ? null : (
-      <SavedValue label={t("intake.savedValue")}>
-        {contactId ? (
-          <ContactLabel
-            workspaceSlug={editor.workspaceSlug}
-            contactId={contactId}
-            fallback={t("intake.contactNotAvailable")}
-          />
-        ) : (
-          t("contacts:noContact")
-        )}
-      </SavedValue>
-    );
+    return <SavedContactValue editor={editor} draftId={draftId ?? null} />;
   }
-  const saved = content[field] ?? "";
+  const saved = editor.latest.content[field] ?? "";
   if ((draft.value[field] ?? "").trim() === saved.trim()) {
     return null;
   }
@@ -482,6 +477,30 @@ const MetadataSavedValue = ({
   return (
     <SavedValue label={t("intake.savedValue")}>
       {amount?.ok ? money(amount.value) : saved || t("intake.notKnown")}
+    </SavedValue>
+  );
+};
+
+const SavedContactValue = ({
+  editor,
+  draftId,
+}: Pick<EditorProps, "editor"> & { draftId: string | null }) => {
+  const { t } = useTranslation(["applicationIntake", "contacts"]);
+  const savedId = editor.latest.contactId;
+  if (draftId === (savedId ?? null)) {
+    return null;
+  }
+  return (
+    <SavedValue label={t("intake.savedValue")}>
+      {savedId ? (
+        <ContactLabel
+          workspaceSlug={editor.workspaceSlug}
+          contactId={savedId}
+          fallback={t("intake.contactNotAvailable")}
+        />
+      ) : (
+        t("contacts:noContact")
+      )}
     </SavedValue>
   );
 };
