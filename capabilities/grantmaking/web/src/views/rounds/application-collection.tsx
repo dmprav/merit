@@ -150,9 +150,9 @@ const usePageNavigation = (pagination: Pagination, scope: string) => {
   // A retry from the failure toast continues the failed request, so its page control keeps focus.
   const failedFocus = useRef<Element | null>(null);
 
-  const navigate = (action: () => void, focus = document.activeElement) => {
+  const navigate = (action: () => void) => {
     failedFocus.current = null;
-    pending.current = { offset: pagination.offset, scope, focus };
+    pending.current = { offset: pagination.offset, scope, focus: document.activeElement };
     action();
   };
 
@@ -179,7 +179,13 @@ const usePageNavigation = (pagination: Pagination, scope: string) => {
     tableStart,
     onPrevious: () => navigate(pagination.onPrevious),
     onNext: () => navigate(pagination.onNext),
-    onRetry: () => navigate(pagination.onRetry, failedFocus.current ?? document.activeElement),
+    onRetry: () => {
+      const control = failedFocus.current;
+      if (control instanceof HTMLButtonElement && control.isConnected) {
+        control.focus({ preventScroll: true });
+      }
+      navigate(pagination.onRetry);
+    },
   };
 };
 

@@ -939,8 +939,10 @@ it("loads assignments independently of the management view before allowing manua
     finish({ status: "ok", value: [{ ...reviewerPage().assignment, requestId: request.id }] }),
   );
   // An invited reviewer records their own assessment, so the request offers no manual recording.
+  await waitFor(() => expect(requestActions).toBeEnabled());
   await user.click(requestActions);
-  expect(screen.queryByRole("menuitem", { name: "Record assessment" })).not.toBeInTheDocument();
+  const menu = within(await screen.findByRole("menu"));
+  expect(menu.queryByRole("menuitem", { name: "Record assessment" })).not.toBeInTheDocument();
   await user.keyboard("{Escape}");
   await user.click(screen.getByRole("button", { name: "Manage reviews" }));
   expect(await screen.findByText("sam@example.test")).toBeVisible();

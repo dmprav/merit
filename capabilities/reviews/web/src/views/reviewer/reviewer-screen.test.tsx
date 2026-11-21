@@ -128,6 +128,15 @@ it("retries a failed save without losing the unsaved sentence", async () => {
   expect(screen.queryByRole("alert")).not.toBeInTheDocument();
 });
 
+it("reloads a clean assignment after a failed read", async () => {
+  const { user } = renderReviewer(reviewerPage(), "ordinary", { error: "unavailable" });
+
+  await user.click(screen.getByRole("button", { name: "Refresh" }));
+
+  await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+  expect(screen.getByText("Draft saved", { exact: true })).toBeVisible();
+});
+
 it("shows both drafts and holds submission until the reviewer chooses one", async () => {
   const page = reviewerPage();
   page.draft!.content.amount = "123.456";

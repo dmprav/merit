@@ -17,6 +17,8 @@ test(
       page.getByRole("link", { name: "Community project 50", exact: true }),
     ).toBeVisible();
     await page.screenshot({ path: testInfo.outputPath("page-recovery.png") });
+    // Retrying the page should still realign the table after visiting another control.
+    await page.getByRole("link", { name: "Community project 50", exact: true }).focus();
     await retry.click();
     await expect(failure).toHaveCount(0);
     await expect(page.getByRole("group", { name: "Applications" })).toBeFocused();

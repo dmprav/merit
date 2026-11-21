@@ -49,9 +49,14 @@ export type ShellWorkspace = {
 
 /** The search box's open state and its shortcut; `available` says whether this person can search. */
 const useSearchBox = (available: boolean) => {
+  const searchButton = useRef<HTMLButtonElement>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [focusRequest, setFocusRequest] = useState(0);
   const open = useCallback(() => {
+    // The modal restores its opener. A shortcut from the page body needs a return target.
+    if (document.activeElement === document.body) {
+      (searchButton.current ?? document.getElementById("main"))?.focus();
+    }
     setIsOpen(true);
     // An open box keeps its text and takes focus back to the field.
     setFocusRequest((count) => count + 1);
@@ -60,7 +65,13 @@ const useSearchBox = (available: boolean) => {
   const pathname = useLocation({ select: (location) => location.pathname });
   useEffect(() => setIsOpen(false), [pathname]);
   useSearchShortcut(available ? open : undefined);
-  return { isOpen, onOpenChange: setIsOpen, focusRequest, open: available ? open : undefined };
+  return {
+    isOpen,
+    onOpenChange: setIsOpen,
+    focusRequest,
+    searchButton,
+    open: available ? open : undefined,
+  };
 };
 
 /** Every grant-work role uses the same workspace context. */
@@ -69,7 +80,6 @@ export type ShellContext = { kind: "workspace"; workspace: ShellWorkspace };
 export const AppShell = ({ current, children }: { current: ShellContext; children: ReactNode }) => {
   const { t } = useTranslation(["common", "reviewer"]);
   const workspace = current.workspace;
-  const searchButton = useRef<HTMLButtonElement>(null);
   const name = workspace.name;
   // Search covers grant work, so it follows the same access as the Applications overview.
   const searchSlug = workspace.canWorkOnGrants ? workspace.slug : undefined;
@@ -91,7 +101,11 @@ export const AppShell = ({ current, children }: { current: ShellContext; childre
         }
         identity={<ContextIdentity name={name} workspace={workspace} />}
         navigation={
-          <AppNavigation workspace={workspace} onSearch={search.open} searchButton={searchButton} />
+          <AppNavigation
+            workspace={workspace}
+            onSearch={search.open}
+            searchButton={search.searchButton}
+          />
         }
         footer={
           <>

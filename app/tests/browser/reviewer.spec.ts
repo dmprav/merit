@@ -211,12 +211,12 @@ test("an invited reviewer independently accepts, saves, submits and amends @cros
       reasoning,
     );
     await reviewer.getByRole("button", { name: "Submit assessment", exact: true }).click();
-    await expect(
-      reviewer.getByRole("alertdialog", {
-        name: "Your assessment has been submitted.",
-        exact: true,
-      }),
-    ).toHaveCount(1);
+    const confirmation = reviewer.getByRole("alertdialog", {
+      name: "Your assessment has been submitted.",
+      exact: true,
+    });
+    await expect(confirmation).toBeVisible();
+    await expect(confirmation).toHaveCount(0);
     await reviewer.getByRole("button", { name: "Amend assessment", exact: true }).click();
     await reviewer
       .getByRole("textbox", { name: "Overall reasoning" })
@@ -225,12 +225,7 @@ test("an invited reviewer independently accepts, saves, submits and amends @cros
       .getByRole("textbox", { name: "Explain your amendment" })
       .fill("Clarified the evidence interpretation.");
     await reviewer.getByRole("button", { name: "Submit amendment", exact: true }).click();
-    await expect(
-      reviewer.getByRole("alertdialog", {
-        name: "Your assessment has been submitted.",
-        exact: true,
-      }),
-    ).toHaveCount(1);
+    await expect(confirmation).toBeVisible();
     await expect(
       reviewer.getByText("Amended independent judgment.", { exact: true }),
     ).toBeVisible();

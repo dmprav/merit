@@ -189,6 +189,14 @@ describe("the keyboard shortcut", () => {
     await waitFor(() => expect(notes).toHaveFocus());
   });
 
+  it("returns to Search when the shortcut opens from the page body", async () => {
+    const { user } = await show();
+    pressK({ ctrlKey: true }, document.body);
+    await screen.findByRole("searchbox");
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.getByRole("button", { name: "Search" })).toHaveFocus());
+  });
+
   it("keeps an open box open, with its text, and focuses the field", async () => {
     const { user } = await show();
     pressK({ ctrlKey: true });
@@ -384,9 +392,14 @@ describe("workspace choices", () => {
   });
 });
 
-it.each([false, true])(
-  "offers to open a search-created round again when navigation fails (mobile: %s)",
-  async (mobile) => {
+it.each([
+  { mobile: false, dismiss: true },
+  { mobile: true, dismiss: true },
+  { mobile: false, dismiss: false },
+  { mobile: true, dismiss: false },
+])(
+  "recovers from failed navigation after search creation (mobile: $mobile, dismiss: $dismiss)",
+  async ({ mobile, dismiss }) => {
     const matchMedia = window.matchMedia;
     const media = vi
       .spyOn(window, "matchMedia")
@@ -407,11 +420,27 @@ it.each([false, true])(
       const toast = await screen.findByRole("alertdialog", {
         name: "Created “New fund”, but it could not be opened.",
       });
-      await user.click(within(toast).getByRole("button", { name: "Open round" }));
-
-      await waitFor(() =>
-        expect(router.state.location.pathname).toBe("/app/alder/rounds/new-fund-k7m2p9x4n6rt"),
-      );
+      if (dismiss) {
+        // The notification region returns focus when its last message leaves.
+        await waitFor(
+          () =>
+            expect(
+              screen.queryByRole("alertdialog", { name: "Created “New fund”." }),
+            ).not.toBeInTheDocument(),
+          { timeout: 6000 },
+        );
+        await user.click(within(toast).getByRole("button", { name: "Close" }));
+        await waitFor(() =>
+          expect(
+            mobile ? screen.getByRole("button", { name: "Open navigation" }) : opener,
+          ).toHaveFocus(),
+        );
+      } else {
+        await user.click(within(toast).getByRole("button", { name: "Open round" }));
+        await waitFor(() =>
+          expect(router.state.location.pathname).toBe("/app/alder/rounds/new-fund-k7m2p9x4n6rt"),
+        );
+      }
       expect(toast).not.toBeInTheDocument();
       expect(createRound).toHaveBeenCalledOnce();
     } finally {

@@ -17,7 +17,8 @@ import { IntakeForm } from "./intake-form";
 
 vi.mock("@merit/contacts-web/contacts", () => ({
   ContactPicker: () => null,
-  ContactLabel: ({ fallback }: { fallback: ReactNode }) => fallback,
+  ContactLabel: ({ contactId, fallback }: { contactId: string; fallback: ReactNode }) =>
+    contactId === "leah" ? "Leah" : fallback,
 }));
 
 const application = applicationView(
@@ -146,6 +147,7 @@ const conflictedForm = async (
       current={{
         ...application,
         summary: "Saved summary",
+        contactId: "leah",
         submission: { version: 1, contact: "Leah", answers: [] },
       }}
     />,
@@ -169,6 +171,11 @@ it.each(sections)(
       expect(screen.queryByRole("button", { name: "View latest" })).not.toBeInTheDocument();
       const field = screen.getByRole("textbox", { name: "Applicant" }).closest("div");
       expect(field?.parentElement).toHaveTextContent(`Now saved as ${saved[0]}`);
+      for (const value of saved.slice(1, 4)) {
+        expect(screen.getByText(value, { exact: true }).parentElement).toHaveTextContent(
+          `Now saved as ${value}`,
+        );
+      }
       expect(screen.getByText("Saved explanation")).toBeVisible();
       return;
     }

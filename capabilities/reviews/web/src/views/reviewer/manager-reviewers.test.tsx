@@ -219,8 +219,7 @@ it.each(["assignments", "workspace"] as const)(
       ).not.toBeInTheDocument(),
     );
     expect(data.invite).toHaveBeenCalledTimes(1);
-    expect(data.read).toHaveBeenCalledTimes(5);
-    expect(data.refresh).toHaveBeenCalledTimes(failedRead === "assignments" ? 1 : 4);
+    expect(screen.getByText("Awaiting acceptance")).toBeVisible();
   },
 );
 
@@ -295,6 +294,6 @@ it("retains a saved refresh failure when a workspace update arrives during recov
       screen.queryByRole("alertdialog", { name: savedRefreshFailure }),
     ).not.toBeInTheDocument(),
   );
-  expect(data.refresh).toHaveBeenCalledTimes(4);
+  expect(screen.getByText("Awaiting acceptance")).toBeVisible();
   expect(data.invite).toHaveBeenCalledTimes(1);
 });

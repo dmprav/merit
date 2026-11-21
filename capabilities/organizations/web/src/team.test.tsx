@@ -199,6 +199,7 @@ it("keeps a saved invitation distinct from a failed team refresh", async () => {
   // A failed refresh leaves the team available for further work.
   expect(screen.getByRole("button", { name: "Invite member" })).toBeEnabled();
 
+  screen.getByRole("tab", { name: /Invitations/ }).blur();
   await user.click(within(warning).getByRole("button", { name: "Refresh" }));
 
   await waitFor(() =>
@@ -208,6 +209,7 @@ it("keeps a saved invitation distinct from a failed team refresh", async () => {
       }),
     ).not.toBeInTheDocument(),
   );
+  await waitFor(() => expect(screen.getByRole("tab", { name: /Invitations/ })).toHaveFocus());
   expect(transport.read).toHaveBeenCalledTimes(4);
   expect(transport.invite).toHaveBeenCalledOnce();
 });

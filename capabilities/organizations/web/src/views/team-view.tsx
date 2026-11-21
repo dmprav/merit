@@ -157,12 +157,12 @@ const TeamHeader = ({
 };
 
 const TeamFeedback = ({
-  workflow: { busy, error, refreshError, refresh, stale },
+  workflow: { busy, error, refreshError, stale },
   dialogOpen,
   recoveryRef,
   onRefresh,
 }: {
-  workflow: Pick<TeamWorkflow, "busy" | "error" | "refreshError" | "refresh" | "stale">;
+  workflow: Pick<TeamWorkflow, "busy" | "error" | "refreshError" | "stale">;
   dialogOpen: boolean;
   recoveryRef: Ref<HTMLButtonElement>;
   onRefresh: () => Promise<void>;
@@ -173,7 +173,7 @@ const TeamFeedback = ({
       ? {
           tone: "warning",
           message: t(refreshError === "saved" ? "refreshFailedAfterSave" : "refreshFailed"),
-          action: { label: t("refresh"), onPress: () => void refresh() },
+          action: { label: t("refresh"), onPress: () => void onRefresh() },
         }
       : null,
   );

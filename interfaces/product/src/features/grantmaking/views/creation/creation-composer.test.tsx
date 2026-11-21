@@ -1,4 +1,4 @@
-import { QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { render, screen, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
@@ -10,6 +10,7 @@ import { createQueryClient } from "@merit/query";
 import { Toasts } from "@merit/ui/toast";
 
 import { WebMessagesProvider } from "../../../../app/messages";
+import { grantWorkQueryKey } from "../../../../shared/grant-work-query-key";
 import { workspaceCreationData } from "../../data/creation/workspace-data";
 import { createRound, createApplication } from "../../data/server/creation/creation.functions";
 
@@ -47,9 +48,10 @@ beforeEach(() => {
     .mockResolvedValue({ status: "ok", publicId: "k7m2p9x4n6rt" });
 });
 
-const setup = (application = false, client = createQueryClient()) => {
+const setup = (application = false, client = createQueryClient(), list?: ReactNode) => {
   render(
     <QueryClientProvider client={client}>
+      {list}
       <WebMessagesProvider>
         <GrantmakingDrafts>
           <CreateAction
@@ -309,14 +311,32 @@ it.each([false, true])(
     // Faking only timeouts leaves draft storage and pointer events on their own queues.
     vi.useFakeTimers({ shouldAdvanceTime: true, toFake: ["setTimeout", "clearTimeout"] });
     const client = createQueryClient();
-    // The first read and both quiet retries fail, so the refresh failure is reported.
-    vi.spyOn(client, "invalidateQueries")
+    const read = vi
+      .fn<() => Promise<string[]>>()
       .mockRejectedValueOnce(new Error("Offline"))
       .mockRejectedValueOnce(new Error("Offline"))
       .mockRejectedValueOnce(new Error("Offline"))
-      .mockResolvedValue();
+      .mockResolvedValue(["Saved record"]);
+
+    const List = () => {
+      const { data } = useQuery({
+        queryKey: [...grantWorkQueryKey("alder"), "list"],
+        queryFn: read,
+        initialData: [],
+        staleTime: Infinity,
+        retry: false,
+      });
+      return (
+        <ul aria-label="Saved records">
+          {data.map((name) => (
+            <li key={name}>{name}</li>
+          ))}
+        </ul>
+      );
+    };
+
     navigate.mockRejectedValueOnce(new Error("Offline"));
-    const user = setup(application, client);
+    const user = setup(application, client, <List />);
     const createLabel = application ? "Add application" : "Create funding round";
     const fieldLabel = application ? "Project title" : "Round name";
     const openLabel = application ? "Open application" : "Open round";
@@ -340,7 +360,10 @@ it.each([false, true])(
     await user.keyboard("{Escape}");
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
 
+    const list = within(screen.getByRole("list", { name: "Saved records" }));
+    expect(list.queryByText("Saved record")).not.toBeInTheDocument();
     await user.click(within(refreshing).getByRole("button", { name: "Refresh" }));
+    expect(await list.findByText("Saved record")).toBeVisible();
     await waitFor(() => expect(refreshing).not.toBeInTheDocument());
 
     await user.click(within(opening).getByRole("button", { name: openLabel }));

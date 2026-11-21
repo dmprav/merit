@@ -508,8 +508,8 @@ const ReviewerSubmitActions = ({
 }) => {
   const { t } = useTranslation("reviewer");
   const amending = Boolean(work.page.assessment);
-  // Only a transient failure is fixed by saving again; other problems need the latest assignment.
-  const canRetry = work.error === "unavailable" && !work.conflict && !work.submissionPending;
+  const canRetry =
+    work.error === "unavailable" && work.dirty && !work.conflict && !work.submissionPending;
   return (
     <>
       <div className={styles.footerFeedback}>
