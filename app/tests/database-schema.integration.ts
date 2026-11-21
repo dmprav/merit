@@ -93,6 +93,24 @@ it("indexes every foreign key with a leading non-partial index and avoids duplic
            AND wp.parent_col = np.parent_col
        )
      )
+     AND (
+       wide.confmatchtype = 'f'
+       OR NOT EXISTS (
+         SELECT 1
+         FROM unnest(wide.conkey, wide.confkey) AS wp(child_col, parent_col)
+         JOIN pg_attribute a
+           ON a.attrelid = wide.conrelid
+          AND a.attnum = wp.child_col
+          AND NOT a.attisdropped
+         WHERE NOT EXISTS (
+           SELECT 1
+           FROM unnest(narrow.conkey, narrow.confkey) AS np(child_col, parent_col)
+           WHERE np.child_col = wp.child_col
+             AND np.parent_col = wp.parent_col
+         )
+           AND NOT a.attnotnull
+       )
+     )
     JOIN pg_class c ON c.oid = narrow.conrelid
     JOIN pg_class t ON t.oid = narrow.confrelid
     JOIN pg_namespace n ON n.oid = c.relnamespace
