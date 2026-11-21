@@ -3,8 +3,8 @@ import {
   check,
   date,
   foreignKey,
+  index,
   integer,
-  numeric,
   pgTable,
   primaryKey,
   text,
@@ -15,15 +15,17 @@ import {
 
 import { appUsers } from "@merit/auth/schema";
 import { contacts } from "@merit/contacts/schema";
+import {
+  enumCheck,
+  moneyMinorUnits,
+  nonNegativeCheck,
+  optimisticRevision,
+  positiveCheck,
+  publicId,
+  recordedAt,
+} from "@merit/db/schema";
 import { organizations } from "@merit/organizations/schema";
 import { fundingRounds } from "@merit/rounds/schema";
-
-const recordedAt = () => timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow();
-
-const publicId = () =>
-  text("id")
-    .primaryKey()
-    .default(sql`merit_public_id()`);
 
 export const applicationCases = pgTable(
   "application_cases",
@@ -35,7 +37,7 @@ export const applicationCases = pgTable(
     roundId: text("round_id").notNull(),
     position: integer().notNull().default(0),
     materialVersion: integer("material_version").notNull(),
-    revision: integer().notNull().default(0),
+    revision: optimisticRevision(),
     contactId: uuid("contact_id"),
     intakeStatus: text("intake_status", { enum: ["in_preparation", "ready"] }).notNull(),
     withdrawnOn: date("withdrawn_on"),
@@ -62,9 +64,13 @@ export const applicationCases = pgTable(
       columns: [t.organizationId, t.contactId],
       foreignColumns: [contacts.organizationId, contacts.id],
     }),
+    index("application_cases_contact_idx").on(t.organizationId, t.contactId),
+    index("application_cases_current_material_idx").on(t.id, t.materialVersion),
     unique("application_cases_round_position_key").on(t.organizationId, t.roundId, t.position),
-    check("application_cases_revisions_check", sql`${t.revision} >= 0`),
-    check("application_cases_status_check", sql`${t.intakeStatus} IN ('in_preparation', 'ready')`),
+    nonNegativeCheck("application_cases_position_check", t.position),
+    positiveCheck("application_cases_material_version_check", t.materialVersion),
+    nonNegativeCheck("application_cases_revisions_check", t.revision),
+    enumCheck("application_cases_status_check", t.intakeStatus, ["in_preparation", "ready"]),
     check(
       "application_cases_withdrawal_check",
       sql`(${t.withdrawnOn} IS NULL AND ${t.withdrawalReason} IS NULL AND ${t.withdrawalRecorderUserId} IS NULL AND ${t.withdrawalRecorderName} IS NULL AND ${t.withdrawalRecordedAt} IS NULL) OR (${t.withdrawnOn} IS NOT NULL AND ${t.withdrawalReason} IS NOT NULL AND ${t.withdrawalRecorderUserId} IS NOT NULL AND ${t.withdrawalRecorderName} IS NOT NULL AND ${t.withdrawalRecordedAt} IS NOT NULL)`,
@@ -83,7 +89,7 @@ export const materialVersions = pgTable(
       .references(() => applicationCases.id, { onDelete: "cascade" }),
     version: integer().notNull(),
     title: text().notNull(),
-    requestedMinorUnits: numeric("requested_minor_units", { precision: 30, scale: 0 }),
+    requestedMinorUnits: moneyMinorUnits("requested_minor_units"),
     requestedCurrency: text("requested_currency"),
     submissionVersion: integer("submission_version"),
     applicantOrganization: text("applicant_organization"),
@@ -99,7 +105,8 @@ export const materialVersions = pgTable(
   },
   (t) => [
     primaryKey({ columns: [t.caseId, t.version] }),
-    check("material_version_positive", sql`${t.version} > 0`),
+    index("material_versions_recorded_by_idx").on(t.recordedByUserId),
+    positiveCheck("material_version_positive", t.version),
     check(
       "material_requested_check",
       sql`(${t.requestedMinorUnits} IS NULL) = (${t.requestedCurrency} IS NULL) AND (${t.requestedMinorUnits} IS NULL OR (${t.requestedMinorUnits} >= 0 AND ${t.requestedCurrency} = 'EUR'))`,
@@ -108,10 +115,17 @@ export const materialVersions = pgTable(
       "material_submission_check",
       sql`(${t.submissionVersion} IS NULL AND ${t.applicantOrganization} IS NULL AND ${t.submittedOn} IS NULL AND ${t.projectPeriod} IS NULL) OR (${t.submissionVersion} IS NOT NULL AND ${t.submissionVersion} > 0)`,
     ),
-    check(
-      "material_source_kind_check",
-      sql`${t.sourceKind} IN ('recorded_external', 'fictional_example')`,
-    ),
+    enumCheck("material_versions_change_kind_check", t.changeKind, [
+      "initial",
+      "recorded",
+      "save_content",
+      "correction",
+      "revision",
+    ]),
+    enumCheck("material_source_kind_check", t.sourceKind, [
+      "recorded_external",
+      "fictional_example",
+    ]),
   ],
 );
 export const materialVersionAnswers = pgTable(
@@ -131,7 +145,7 @@ export const materialVersionAnswers = pgTable(
       foreignColumns: [materialVersions.caseId, materialVersions.version],
     }).onDelete("cascade"),
     unique("material_version_answers_question_key").on(t.caseId, t.materialVersion, t.questionId),
-    check("material_version_answers_position_check", sql`${t.position} >= 0`),
+    nonNegativeCheck("material_version_answers_position_check", t.position),
   ],
 );
 export const materialVersionEvidence = pgTable(
@@ -149,8 +163,8 @@ export const materialVersionEvidence = pgTable(
       columns: [t.caseId, t.materialVersion],
       foreignColumns: [materialVersions.caseId, materialVersions.version],
     }).onDelete("cascade"),
-    check("material_version_evidence_position_check", sql`${t.position} >= 0`),
-    check("material_version_evidence_version_check", sql`${t.evidenceVersion} > 0`),
+    nonNegativeCheck("material_version_evidence_position_check", t.position),
+    positiveCheck("material_version_evidence_version_check", t.evidenceVersion),
   ],
 );
 export const materialDrafts = pgTable(
@@ -173,6 +187,10 @@ export const materialDrafts = pgTable(
       columns: [t.caseId, t.baseMaterialVersion],
       foreignColumns: [materialVersions.caseId, materialVersions.version],
     }),
+    index("material_drafts_base_material_idx").on(t.caseId, t.baseMaterialVersion),
+    positiveCheck("material_drafts_base_material_version_check", t.baseMaterialVersion),
+    enumCheck("material_drafts_kind_check", t.kind, ["correction", "revision"]),
+    nonNegativeCheck("material_drafts_revision_check", t.revision),
   ],
 );
 export const materialDraftAnswers = pgTable(
@@ -189,7 +207,7 @@ export const materialDraftAnswers = pgTable(
   (t) => [
     primaryKey({ columns: [t.caseId, t.position] }),
     unique("material_draft_answers_question_key").on(t.caseId, t.questionId),
-    check("material_draft_answers_position_check", sql`${t.position} >= 0`),
+    nonNegativeCheck("material_draft_answers_position_check", t.position),
   ],
 );
 

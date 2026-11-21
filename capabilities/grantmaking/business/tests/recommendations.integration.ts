@@ -666,7 +666,7 @@ describe("persisted recommendations", () => {
     const request = recommendationRequest(scenario.selected.publicId);
     const budget = encodeMoney(fromMinorUnits(1000n));
     await database.client.query(
-      "UPDATE funding_rounds SET budget = $1 WHERE organization_id = 'alder'",
+      "UPDATE funding_rounds SET budget_minor_units = $1 WHERE organization_id = 'alder'",
       [budget.minorUnits],
     );
     const result = await saveFundingRecommendation(db, actor, request);

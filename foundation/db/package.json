@@ -6,6 +6,7 @@
   "type": "module",
   "exports": {
     ".": "./src/connection.ts",
+    "./schema": "./src/schema-helpers.ts",
     "./search": "./src/search.ts",
     "./runtime-grants": "./database/runtime-grants.ts",
     "./migrate": "./database/migrate.ts",

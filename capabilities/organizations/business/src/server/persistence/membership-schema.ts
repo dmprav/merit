@@ -7,12 +7,14 @@ import {
   primaryKey,
   text,
   integer,
+  unique,
   uniqueIndex,
   uuid,
   timestamp,
 } from "drizzle-orm/pg-core";
 
 import { appUsers } from "@merit/auth/schema";
+import { nonNegativeCheck } from "@merit/db/schema";
 
 export const organizations = pgTable(
   "organizations",
@@ -54,6 +56,7 @@ export const memberships = pgTable(
     version: integer().notNull().default(0),
   },
   (table) => [
+    unique("memberships_id_key").on(table.id),
     uniqueIndex("memberships_owner_key")
       .on(table.organizationId)
       .where(sql`${table.administration} = 'owner'`),
@@ -77,5 +80,6 @@ export const memberships = pgTable(
       "memberships_role_check",
       sql`${table.role} IN ('member', 'program_manager', 'reviewer', 'committee_reader')`,
     ),
+    nonNegativeCheck("memberships_version_check", table.version),
   ],
 );

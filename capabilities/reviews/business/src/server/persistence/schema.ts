@@ -3,8 +3,8 @@ import {
   check,
   date,
   foreignKey,
+  index,
   integer,
-  numeric,
   pgTable,
   primaryKey,
   text,
@@ -16,9 +16,15 @@ import {
 import { applicationCases, materialVersions } from "@merit/applications/schema";
 import { appUsers } from "@merit/auth/schema";
 import { contacts } from "@merit/contacts/schema";
+import {
+  enumCheck,
+  moneyMinorUnits,
+  nonNegativeCheck,
+  optimisticRevision,
+  positiveCheck,
+  recordedAt,
+} from "@merit/db/schema";
 import { fundingRounds, criteriaVersions } from "@merit/rounds/schema";
-
-const recordedAt = () => timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow();
 
 export const reviewRequests = pgTable(
   "review_requests",
@@ -67,11 +73,13 @@ export const reviewRequests = pgTable(
       columns: [t.criteriaRoundPublicId, t.criteriaVersion],
       foreignColumns: [criteriaVersions.roundPublicId, criteriaVersions.version],
     }),
-    check(
-      "review_requests_status_check",
-      sql`${t.status} in ('outstanding', 'received', 'cancelled')`,
-    ),
-    check("review_requests_position_check", sql`${t.position} >= 0`),
+    index("review_requests_round_idx").on(t.organizationId, t.criteriaRoundPublicId),
+    index("review_requests_case_idx").on(t.organizationId, t.caseId),
+    index("review_requests_contact_idx").on(t.organizationId, t.contactId),
+    index("review_requests_material_idx").on(t.caseId, t.applicationVersion),
+    index("review_requests_criteria_idx").on(t.criteriaRoundPublicId, t.criteriaVersion),
+    enumCheck("review_requests_status_check", t.status, ["outstanding", "received", "cancelled"]),
+    nonNegativeCheck("review_requests_position_check", t.position),
     check(
       "review_requests_recorder_check",
       sql`((${t.recorderUserId} is null) = (${t.recorderName} is null)) and ((${t.recorderUserId} is null) = (${t.recorderRecordedAt} is null))`,
@@ -123,7 +131,11 @@ export const assessments = pgTable(
       columns: [t.caseId, t.requestId],
       foreignColumns: [reviewRequests.caseId, reviewRequests.id],
     }),
-    check("assessments_position_check", sql`${t.position} >= 0`),
+    index("assessments_case_idx").on(t.organizationId, t.caseId),
+    index("assessments_contact_idx").on(t.organizationId, t.contactId),
+    index("assessments_author_user_idx").on(t.authorUserId),
+    index("assessments_previous_idx").on(t.caseId, t.previousId),
+    nonNegativeCheck("assessments_position_check", t.position),
   ],
 );
 
@@ -139,7 +151,7 @@ export const assessmentVersions = pgTable(
     criteriaVersion: integer("criteria_version"),
     assessedOn: date("assessed_on"),
     position: text(),
-    amountMinorUnits: numeric("amount_minor_units", { precision: 30, scale: 0 }),
+    amountMinorUnits: moneyMinorUnits("amount_minor_units"),
     amountCurrency: text("amount_currency").$type<"EUR">(),
     reasoning: text().notNull(),
     recorderUserId: text("recorder_user_id"),
@@ -172,7 +184,11 @@ export const assessmentVersions = pgTable(
       columns: [t.criteriaRoundPublicId, t.criteriaVersion],
       foreignColumns: [criteriaVersions.roundPublicId, criteriaVersions.version],
     }),
-    check("assessment_versions_version_check", sql`${t.version} >= 1`),
+    index("assessment_versions_case_idx").on(t.organizationId, t.caseId),
+    index("assessment_versions_round_idx").on(t.organizationId, t.criteriaRoundPublicId),
+    index("assessment_versions_material_idx").on(t.caseId, t.applicationVersion),
+    index("assessment_versions_criteria_idx").on(t.criteriaRoundPublicId, t.criteriaVersion),
+    positiveCheck("assessment_versions_version_check", t.version),
     check(
       "assessment_versions_criteria_pair_check",
       sql`(${t.criteriaRoundPublicId} is null) = (${t.criteriaVersion} is null)`,
@@ -226,8 +242,8 @@ export const assessmentVersionObservations = pgTable(
         assessmentVersions.version,
       ],
     }).onDelete("cascade"),
-    check("assessment_version_observations_version_check", sql`${t.version} >= 1`),
-    check("assessment_version_observations_position_check", sql`${t.position} >= 0`),
+    positiveCheck("assessment_version_observations_version_check", t.version),
+    nonNegativeCheck("assessment_version_observations_position_check", t.position),
     check("assessment_version_observations_criterion_check", sql`length(${t.criterion}) <= 200`),
     check("assessment_version_observations_text_check", sql`length(${t.text}) <= 5000`),
   ],
@@ -239,7 +255,7 @@ export const reviewStates = pgTable(
     caseId: text("case_id")
       .primaryKey()
       .references(() => applicationCases.id, { onDelete: "cascade" }),
-    revision: integer().notNull().default(0),
+    revision: optimisticRevision(),
   },
-  (t) => [check("review_states_revision_check", sql`${t.revision} >= 0`)],
+  (t) => [nonNegativeCheck("review_states_revision_check", t.revision)],
 );

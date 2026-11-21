@@ -8,6 +8,7 @@ repository root unless a guide says otherwise.
 | To…                                                         | Read…                                                       |
 | ----------------------------------------------------------- | ----------------------------------------------------------- |
 | Run locally, configure identity, or change the database     | [Local development](development.md)                         |
+| Design PostgreSQL tables, keys, constraints, and indexes    | [Database schema](database.md)                              |
 | Write or review code using the project's conventions        | [Coding conventions](coding-conventions.md)                 |
 | Understand and change the automated dependency policy       | [Architecture checks](architecture-checks.md)               |
 | Change capability workflows, transports, and reusable views | [Web features](web-features.md)                             |

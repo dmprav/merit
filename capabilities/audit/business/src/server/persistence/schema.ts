@@ -1,12 +1,13 @@
-import { index, integer, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { index, integer, jsonb, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 
 import type { Provenance } from "@merit/auth";
 import { appUsers } from "@merit/auth/schema";
+import { positiveCheck, uuidPk } from "@merit/db/schema";
 
 export const auditEvents = pgTable(
   "audit_events",
   {
-    id: uuid().primaryKey().defaultRandom(),
+    id: uuidPk(),
     // The baseline installs the organization FK without a reverse package dependency.
     organizationId: text("organization_id").notNull(),
     actorUserId: text("actor_user_id")
@@ -20,7 +21,7 @@ export const auditEvents = pgTable(
     targetRevision: integer("target_revision"),
     targetName: text("target_name"),
     roundId: text("round_id"),
-    applicationId: text("application_id"),
+    applicationId: text("case_id"),
     assignmentId: text("assignment_id"),
     formatVersion: integer("format_version").notNull().default(1),
     details: jsonb().$type<Record<string, unknown>>().notNull().default({}),
@@ -49,6 +50,7 @@ export const auditEvents = pgTable(
       table.recordedAt,
       table.id,
     ),
+    index("audit_events_actor_user_idx").on(table.actorUserId),
     index("audit_events_actor_time_idx").on(
       table.organizationId,
       table.actorUserId,
@@ -61,5 +63,6 @@ export const auditEvents = pgTable(
       table.recordedAt,
       table.id,
     ),
+    positiveCheck("audit_events_format_version_check", table.formatVersion),
   ],
 );
