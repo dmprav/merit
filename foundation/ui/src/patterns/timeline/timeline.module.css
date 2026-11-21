@@ -49,6 +49,7 @@
 }
 
 .title {
+  min-width: 0;
   font-size: inherit;
   font-weight: 500;
   overflow-wrap: anywhere;

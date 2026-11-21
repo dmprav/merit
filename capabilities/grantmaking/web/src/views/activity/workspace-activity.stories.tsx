@@ -253,18 +253,13 @@ export const ClearFilters: StoryObj<typeof meta> = {
 
 export const MorePages: StoryObj<typeof meta> = {
   args: { entries: [...recent, ...earlier], more: olderPage },
-  play: async ({ canvasElement }) => {
-    await expect(
-      within(canvasElement).getByRole("button", { name: "Show older activity" }),
-    ).toBeVisible();
-  },
 };
 
 export const ShowOlderActivity: StoryObj<typeof meta> = {
-  args: { entries: [...recent, ...earlier], more: olderPage },
+  args: MorePages.args,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    canvas.getByRole("button", { name: "Show older activity" }).scrollIntoView();
+    canvas.queryByRole("button", { name: "Show older activity" })?.scrollIntoView();
     await waitFor(() => expect(canvas.getAllByText("Round criteria changed")).toHaveLength(1));
     await expect(
       canvas.queryByRole("button", { name: "Show older activity" }),

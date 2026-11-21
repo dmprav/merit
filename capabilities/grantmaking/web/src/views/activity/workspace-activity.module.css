@@ -5,10 +5,9 @@
 
 /* The event's action opens its details; the record it changed follows on the same line. */
 .action {
-  display: inline-flex;
+  display: flex;
   align-items: baseline;
   gap: 0 var(--space-2);
-  min-width: 0;
 }
 
 .record {

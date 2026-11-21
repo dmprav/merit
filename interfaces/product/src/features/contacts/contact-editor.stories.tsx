@@ -101,20 +101,19 @@ export const ResumedDraft: Story = {
     await context.userEvent.click(
       within(dialog.getByRole("form")).getByRole("button", { name: "Close" }),
     );
+    const page = within(context.canvasElement.ownerDocument.body);
+    await waitFor(() =>
+      expect(page.queryByRole("dialog", { name: "Edit contact details" })).not.toBeInTheDocument(),
+    );
     const actions = await context.canvas.findByRole("button", { name: "Actions for Leah Martin" });
     await expect(actions).toHaveAttribute("data-draft", "true");
     await expect(actions).toHaveAccessibleDescription("Resume editing");
     await context.userEvent.click(actions);
-    await context.userEvent.click(
-      within(context.canvasElement.ownerDocument.body).getByRole("menuitem", {
-        name: "Resume editing",
-      }),
+    await context.userEvent.click(page.getByRole("menuitem", { name: "Resume editing" }));
+    const resumed = within(await page.findByRole("dialog", { name: "Edit contact details" }));
+    await expect(resumed.getByRole("textbox", { name: "Affiliation" })).toHaveValue(
+      "Community Kitchen",
     );
-    await expect(
-      within(context.canvasElement.ownerDocument.body).getByRole("textbox", {
-        name: "Affiliation",
-      }),
-    ).toHaveValue("Community Kitchen");
   },
 };
 export const ConcurrentChanges: Story = {

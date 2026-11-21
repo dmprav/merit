@@ -79,7 +79,7 @@ test(
     await expect(page.locator("#storybook-root")).toHaveAttribute("data-story-ready", "true");
     const more = page.getByRole("button", { name: "Show older activity" });
     // Reaching the end loads older events, whether or not the button had time to show.
-    await page.mouse.wheel(0, 4000);
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
     await page.getByRole("button", { name: /Round created:/ }).scrollIntoViewIfNeeded();
     await expect(page.getByRole("button", { name: /Round created:/ })).toBeVisible();
     await expect(more).toHaveCount(0);
