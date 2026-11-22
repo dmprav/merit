@@ -45,11 +45,7 @@ application; it is not a separate kind of person. A **Merit account** identifies
 someone who can sign in. **Workspace membership** establishes participation and
 responsibilities in a foundation's workspace. A reviewer member can enter that
 workspace, but only a **review assignment** grants access to the application
-material they are asked to assess. Program managers can also receive assignments;
-their separate staff access does not make another person's draft visible.
-
-**My work** presents a person's assignments within the current workspace. It is a
-view of work owned by the relevant capability, not a separate task lifecycle.
+material they are asked to assess.
 
 An applicant need not have an account in Merit. The **applicant contact** is the
 person to approach about a request; the **recorder** is the person who entered
