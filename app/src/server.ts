@@ -14,15 +14,13 @@ import { createDemoServices, demoCookie } from "./server/demo.server";
 import { createEmailSender } from "./server/email-delivery.server";
 import { createWebIdentity } from "./server/identity.server";
 import { handleMcp } from "./server/mcp.server";
+import { readAppOrigin, readDatabaseUrl } from "./server/runtime-config.server";
 import { createApplicationServices } from "./server/services.server";
 
-const database = createDatabasePool(
-  env.DATABASE_URL ?? "postgres://merit_runtime:merit@127.0.0.1:55432/merit",
-);
-
+const origin = readAppOrigin();
+const database = createDatabasePool(readDatabaseUrl());
 const analytics = createServerAnalytics(readAnalyticsConfig());
 
-const origin = env.APP_ORIGIN ?? "http://localhost:3000";
 const clerkConfig = {
   publishableKey: env.CLERK_PUBLISHABLE_KEY ?? "",
   secretKey: env.CLERK_SECRET_KEY ?? "",
@@ -116,6 +114,7 @@ const handleWebRequest = async (
     identity: identity.organizationIdentity,
   });
   const context: ApplicationRequestContext = {
+    secureCookies: origin.startsWith("https://"),
     navigation: services.navigation,
     reviewer: services.reviewer,
     currentIdentity: identity.currentIdentity,

@@ -17,6 +17,12 @@ vp run @merit/app#build
 vp run @merit/app#preview
 ```
 
+The preview task selects `MERIT_LOCAL_PREVIEW=1` and binds to loopback. This runs
+the production build with local database and HTTP origin defaults. For a deployment,
+leave the preview setting unset and supply both `DATABASE_URL` and an HTTPS
+`APP_ORIGIN`. The server validates these when loading its entry point. Demo cookies
+and server-function origin checks use that public origin through TLS termination.
+
 Open [localhost:3000](http://localhost:3000). With the preview running, use
 `vp run @merit/app#smoke` in a second terminal to check public pages and
 signed-out access. See [verification](verification.md#verification) for the

@@ -12,6 +12,7 @@ export interface ApplicationRequestContext {
   navigation: NavigationService;
   reviewer: ReviewerService;
   demo: DemoServices;
+  secureCookies: boolean;
   currentIdentity: () => Promise<Identity>;
   rounds: RoundsService;
   applications: ApplicationsService;

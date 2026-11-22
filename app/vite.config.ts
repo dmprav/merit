@@ -30,7 +30,10 @@ const run = {
     "dev:workspace": { command: "vp dev --mode local-workspace", cache: false },
     build: ["vp build", "tsc --noEmit"],
     test: "vp test --config vitest.config.ts",
-    preview: { command: "vp preview --port 3000", cache: false },
+    preview: {
+      command: "env MERIT_LOCAL_PREVIEW=1 vp preview --host localhost --port 3000 --strictPort",
+      cache: false,
+    },
     "demo:cleanup": { command: "vpx scripts/clean-demos.ts", cache: false },
     "db:seed": { command: "vpx scripts/seed.ts", cache: false },
     smoke: { command: "vpx tests/smoke.ts", cache: false },
