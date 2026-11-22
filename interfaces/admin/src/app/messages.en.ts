@@ -30,6 +30,8 @@ export const en = {
     actions: "Actions",
     new: "New",
     reviewed: "Reviewed",
+    loadMore: "Load more requests",
+    loadError: "More requests could not load. Try again.",
     markReviewed: "Mark reviewed",
     empty: "No access requests yet.",
     error: "The request could not be marked reviewed. Please try again.",

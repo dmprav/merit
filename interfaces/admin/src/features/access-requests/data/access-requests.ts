@@ -36,11 +36,21 @@ export const useAccessRequestsData = (): AccessRequestsData => {
 
       try {
         client.setQueryData(accessRequestsOptions().queryKey, (previous) =>
-          previous?.status === "ok"
+          previous
             ? {
                 ...previous,
-                value: previous.value.map((request) =>
-                  request.email === email ? result.value : request,
+                pages: previous.pages.map((page) =>
+                  page.status === "ok"
+                    ? {
+                        ...page,
+                        value: {
+                          ...page.value,
+                          requests: page.value.requests.map((request) =>
+                            request.email === email ? result.value : request,
+                          ),
+                        },
+                      }
+                    : page,
                 ),
               }
             : previous,

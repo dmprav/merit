@@ -17,6 +17,8 @@ import type {
 import type { organizationIdInput, invitationTokenInput, teamInput } from "./identifiers";
 import type {
   workspacePageInput,
+  accessRequestPageInput,
+  AccessRequestPage,
   teamPageInput,
   teamHistoryInput,
   invitationPageInput,
@@ -38,7 +40,10 @@ import type { Result } from "./result";
 export interface OrganizationService {
   canAdminister: (actor: Actor) => Promise<boolean>;
   requestAccess: (input: z.input<typeof accessRequestInput>) => Promise<RequestAccessResult>;
-  accessRequests: (actor: Actor) => Promise<Result<AccessRequest[]>>;
+  accessRequests: (
+    actor: Actor,
+    input?: z.input<typeof accessRequestPageInput>,
+  ) => Promise<Result<AccessRequestPage>>;
   reviewAccessRequest: (
     actor: Actor,
     input: z.input<typeof accessRequestInput>,
