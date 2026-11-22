@@ -154,12 +154,6 @@ else
   pnpm --filter @merit/test-support exec playwright install chromium
 fi
 
-# Database, workspace, and email checks need the Compose services. Cloud images
-# ship Docker without a running daemon; the script starts one when it can.
-if ! ./node_modules/.bin/vpx tooling/scripts/start-services.ts; then
-  echo "Warning: Compose services are not running; database and browser checks will fail." >&2
-fi
-
 # Strip any interactive-only early return so non-interactive shells load the PATH.
 if [ -f "$HOME/.bashrc" ]; then
   sed -i '/case \$- in/,/esac/d' "$HOME/.bashrc"
@@ -175,6 +169,12 @@ fi
 # fails with EBUSY (voidzero-dev/vite-plus#1643).
 if [ -f "$HOME/.bashrc" ] && ! grep -qxF 'export MERIT_TASK_CACHE=off' "$HOME/.bashrc" 2>/dev/null; then
   printf '\nexport MERIT_TASK_CACHE=off\n' >> "$HOME/.bashrc"
+fi
+
+# Database, workspace, and email checks need the Compose services. Cloud images
+# ship Docker without a running daemon; the script starts one when it can.
+if ! ./node_modules/.bin/vpx tooling/scripts/start-services.ts; then
+  echo "Warning: Compose services are not running; database and browser checks will fail." >&2
 fi
 
 run_doctor

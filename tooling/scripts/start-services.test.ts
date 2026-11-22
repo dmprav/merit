@@ -90,6 +90,18 @@ it("asks for Docker instead of starting a daemon without root", async () => {
   expect(execFileSync).not.toHaveBeenCalledWith(...composeUp);
 });
 
+it("asks for Docker instead of configuring a daemon that is not installed", async () => {
+  dockerInfoReadyAfter(Infinity);
+  vi.mocked(execFileSync).mockImplementation((command) => {
+    throw new Error(`${command} unavailable`);
+  });
+  vi.mocked(existsSync).mockReturnValue(false);
+
+  await expect(import("./start-services")).rejects.toThrow("Start Docker");
+  expect(writeFileSync).not.toHaveBeenCalled();
+  expect(spawn).not.toHaveBeenCalled();
+});
+
 it("reports a daemon that never becomes reachable", async () => {
   dockerInfoReadyAfter(Infinity);
   vi.mocked(existsSync).mockReturnValue(true);

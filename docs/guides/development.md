@@ -77,9 +77,10 @@ Use `docker compose stop` to stop it without deleting data.
 
 `vp run services:start` runs the same Compose command. In a root session where
 Docker is installed but its daemon is stopped, such as a cloud agent environment,
-it first starts the daemon with the `mirror.gcr.io` registry mirror, because
-Docker Hub rate-limits anonymous pulls from shared addresses. Compose pins every
-image by digest, so the mirror cannot change what runs. The
+it first starts the daemon. When `/etc/docker/daemon.json` does not exist, it
+writes one that sets the `mirror.gcr.io` registry mirror, because Docker Hub
+rate-limits anonymous pulls from shared addresses. Compose pins every image by
+digest, so the mirror cannot change what runs. The
 [agent environment setup](../../.agents/install-environment.sh) runs it, so agents
 can run database, workspace, and email checks themselves.
 
