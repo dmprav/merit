@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { createOrganizationInput, inviteMemberInput, suggestSlug, teamInput } from "./index";
+import {
+  createOrganizationInput,
+  inviteMemberInput,
+  memberInput,
+  suggestSlug,
+  teamInput,
+} from "./index";
 
 const input = {
   requestId: "01a1bf9d-aa6f-7b30-9015-bcabb7406cbc",
@@ -9,6 +15,21 @@ const input = {
   email: "person@example.test",
 };
 describe("organization input boundaries", () => {
+  it("validates the target user and invitation IDs for a membership change", () => {
+    const change = {
+      workspaceSlug: input.slug,
+      userId: "u".repeat(100),
+      expectedMembershipId: input.requestId,
+      expectedMembershipVersion: 0,
+      expectedInvitationIds: [input.requestId],
+    };
+    expect(memberInput.safeParse(change).success).toBe(true);
+    expect(memberInput.safeParse({ ...change, userId: change.userId + "u" }).success).toBe(false);
+    expect(memberInput.safeParse({ ...change, expectedInvitationIds: ["invalid"] }).success).toBe(
+      false,
+    );
+  });
+
   it.each([
     ["none", "member", false],
     ["none", "program_manager", true],

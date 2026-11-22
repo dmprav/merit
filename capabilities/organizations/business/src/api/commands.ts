@@ -47,10 +47,10 @@ export const inviteMemberInput = teamInput
 export const teamInvitationInput = teamInput.extend({ invitationId: z.uuid() });
 
 export const memberInput = teamInput.extend({
-  userId: z.string().min(1),
+  userId: z.string().min(1).max(100),
   expectedMembershipId: z.uuid(),
   expectedMembershipVersion: z.number().int().min(0),
-  expectedInvitationIds: z.array(z.string()),
+  expectedInvitationIds: z.array(z.uuid()),
 });
 
 export const changeMemberInput = memberInput.extend(teamAccess.shape);
