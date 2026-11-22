@@ -42,7 +42,8 @@
 
   /* Typography */
   /* Platform fonts stay as the fallback while Instrument Sans loads. */
-  --font-sans: "Instrument Sans Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-sans:
+    "Instrument Sans Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --text-meta: 0.6875rem;
   --text-caption: 0.75rem;
   --text-detail: 0.8125rem;
