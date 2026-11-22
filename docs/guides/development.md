@@ -441,8 +441,9 @@ that diffs against the PR base commit:
   `storybook-vitest`, `integration`, `tooling-self-tests`, and the `browser-*`
   suites only for affected dependents.
 
-The container-backed Playwright suites wait on both `build` and `static-checks`
-so lint, type, or boundary failures fail fast; they run all five browser projects,
+The container-backed Playwright suites `browser-storybook`, `browser-demo`, and
+`browser-workspace` wait on both `build` and `static-checks` so lint, type, or
+boundary failures fail fast; they run all five browser projects,
 sharded and without retries. The workflow file defines each job's commands,
 shards, and services.
 
