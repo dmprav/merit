@@ -512,6 +512,7 @@ describe("recording reviews", () => {
     { position: "Fund", minorUnits: 1, accepted: true },
     { position: "Fund", minorUnits: 0, accepted: false },
     { position: "Fund with a condition", minorUnits: 0, accepted: false },
+    { position: "Fund with a condition", minorUnits: 1, accepted: true },
     { position: null, minorUnits: 0, accepted: true },
   ] as const)(
     "accepts a $position position with $minorUnits minor units: $accepted",
