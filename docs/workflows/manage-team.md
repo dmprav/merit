@@ -15,6 +15,10 @@ curates the accepted screen composition and live Storybook examples.
 
 ## Understand responsibilities
 
+Team requests report a workspace as missing when it is outside the caller’s
+active memberships or its demo has expired. Members who can access the workspace
+receive a permission denial if their role does not allow the requested team action.
+
 Membership has two independent attributes: organization responsibility and grant-work
 role. The owner controls administrator appointments; administrators manage ordinary
 membership and invitations. Program managers can read and edit current grant work.

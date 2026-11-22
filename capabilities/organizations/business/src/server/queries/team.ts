@@ -6,13 +6,11 @@ import type { Database, Transaction } from "@merit/db";
 
 import type { Team } from "../../api/queries";
 import * as persistence from "../persistence/queries/team";
-import { missingTeamWorkspace } from "../persistence/team";
 import { readWorkspace } from "../persistence/tenant";
 import { fail } from "../result";
 
 const workspace = async (tx: Transaction, slug: string, actor: string) => {
-  const organization =
-    (await persistence.readWorkspace(tx, slug)) ?? fail(await missingTeamWorkspace(tx));
+  const organization = (await persistence.readWorkspace(tx, slug)) ?? fail("not_found");
   const member = (await persistence.readSubject(tx, organization.id, actor)) ?? fail("forbidden");
   if (!permits(member, "read_team", member)) {
     fail("forbidden");

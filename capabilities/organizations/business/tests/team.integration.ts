@@ -212,7 +212,9 @@ describe("organization team", () => {
   });
 
   it.each(["operator", "outsider"])("hides the team from the nonmember %s", async (userId) => {
-    expect(await service().team({ userId }, input)).toEqual({ status: "forbidden" });
+    for (const workspaceSlug of [input.workspaceSlug, "missing"]) {
+      expect(await service().team({ userId }, { workspaceSlug })).toEqual({ status: "not_found" });
+    }
   });
 
   describe("membership authority", () => {
@@ -879,7 +881,7 @@ describe("organization team", () => {
     await database.client.query("UPDATE app_users SET active=false WHERE clerk_user_id='admin'");
 
     expect(await service().removeMember({ userId: "admin" }, member)).toEqual({
-      status: "forbidden",
+      status: "not_found",
     });
     expect((await team()).members.map((m) => m.name)).toContain("manager");
   });
@@ -903,9 +905,13 @@ describe("organization team", () => {
 
     expect((await service().accept({ userId: "other" }, { token: token() })).status).toBe("ok");
 
-    expect(await service().removeMember({ userId: "other" }, member)).toEqual({
-      status: "forbidden",
-    });
+    for (const workspaceSlug of [member.workspaceSlug, "missing"]) {
+      expect(
+        await service().removeMember({ userId: "other" }, { ...member, workspaceSlug }),
+      ).toEqual({
+        status: "not_found",
+      });
+    }
     expect(
       await service().removeMember({ userId: "other" }, { ...member, workspaceSlug: "other" }),
     ).toEqual({
