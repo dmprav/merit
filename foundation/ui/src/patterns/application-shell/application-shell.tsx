@@ -102,6 +102,62 @@ const NavigationDrawer = ({
   </ModalFrame>
 );
 
+/** The compact top bar: the navigation drawer, the current context, and utilities. */
+const MobileHeader = ({
+  compact,
+  navigationLabel,
+  openNavigationLabel,
+  closeNavigationLabel,
+  contextLabel,
+  utility,
+  children,
+}: {
+  compact: boolean;
+  navigationLabel: string;
+  openNavigationLabel: string;
+  closeNavigationLabel: string;
+  contextLabel: string;
+  utility?: ReactNode;
+  children: ReactNode;
+}) => {
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!compact) {
+      setOpen(false);
+    }
+  }, [compact]);
+
+  const closeAfterLink = (event: MouseEvent) => {
+    if (navigatesAway(event)) {
+      setOpen(false);
+      // Navigation owns focus after the drawer's focus scope has restored its trigger.
+      requestAnimationFrame(() => document.getElementById("main")?.focus({ preventScroll: true }));
+    }
+  };
+
+  return (
+    <header className={styles.mobileHeader}>
+      {compact && (
+        <NavigationDrawer
+          label={navigationLabel}
+          openLabel={openNavigationLabel}
+          closeLabel={closeNavigationLabel}
+          isOpen={open}
+          onOpenChange={setOpen}
+        >
+          {/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- Clicks bubble from real links, including keyboard activation; this wrapper is not a control. */}
+          <div className={styles.drawerContent} onClick={closeAfterLink}>
+            <CloseNavigationContext value={() => setOpen(false)}>{children}</CloseNavigationContext>
+          </div>
+        </NavigationDrawer>
+      )}
+      <span className={styles.mobileContext}>{contextLabel}</span>
+      {compact && utility}
+    </header>
+  );
+};
+
 /** Apps supply destinations and identity; the shell owns desktop and mobile navigation. */
 export const ApplicationShell = ({
   brand,
@@ -135,22 +191,6 @@ export const ApplicationShell = ({
   children: ReactNode;
 }) => {
   const compact = useSyncExternalStore(subscribeViewport, isCompactViewport, () => false);
-  const [open, setOpen] = useState(false);
-
-  useEffect(() => {
-    if (!compact) {
-      setOpen(false);
-    }
-  }, [compact]);
-
-  const closeAfterLink = (event: MouseEvent) => {
-    if (navigatesAway(event)) {
-      setOpen(false);
-      // Navigation owns focus after the drawer's focus scope has restored its trigger.
-      requestAnimationFrame(() => document.getElementById("main")?.focus({ preventScroll: true }));
-    }
-  };
-
   const navigationContent = (
     <>
       <div>
@@ -172,26 +212,16 @@ export const ApplicationShell = ({
       <a href="#main" className={styles.skip}>
         {skipLabel}
       </a>
-      <header className={styles.mobileHeader}>
-        {compact && (
-          <NavigationDrawer
-            label={navigationLabel}
-            openLabel={openNavigationLabel}
-            closeLabel={closeNavigationLabel}
-            isOpen={open}
-            onOpenChange={setOpen}
-          >
-            {/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- Clicks bubble from real links, including keyboard activation; this wrapper is not a control. */}
-            <div className={styles.drawerContent} onClick={closeAfterLink}>
-              <CloseNavigationContext value={() => setOpen(false)}>
-                {navigationContent}
-              </CloseNavigationContext>
-            </div>
-          </NavigationDrawer>
-        )}
-        <span className={styles.mobileContext}>{contextLabel}</span>
-        {compact && utility}
-      </header>
+      <MobileHeader
+        compact={compact}
+        navigationLabel={navigationLabel}
+        openNavigationLabel={openNavigationLabel}
+        closeNavigationLabel={closeNavigationLabel}
+        contextLabel={contextLabel}
+        utility={utility}
+      >
+        {navigationContent}
+      </MobileHeader>
       {!compact && <aside className={styles.sidebar}>{navigationContent}</aside>}
       <div className={styles.stage}>{children}</div>
       {companion && <CompanionPanel {...companion} />}
