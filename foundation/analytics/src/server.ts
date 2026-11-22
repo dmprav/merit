@@ -2,6 +2,8 @@ import { createHash, randomUUID } from "node:crypto";
 
 import { defaultPostHogHost } from "./posthog-host";
 
+export { defaultPostHogHost };
+
 export type GrantOutcome = {
   event:
     | "round_created"

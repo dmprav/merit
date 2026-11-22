@@ -108,6 +108,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.clearAllMocks();
+  vi.unstubAllEnvs();
 });
 
 const fetchRequest = async (url: string) => serverEntry.fetch(new Request(url), {} as never);
@@ -145,12 +146,61 @@ it("checks out and releases a pooled client per database call without holding co
   expect(clients.every((client) => client.release.mock.calls.length === 1)).toBe(true);
 });
 
-it("prevents web responses from being framed", async () => {
-  handlerFetch.mockResolvedValueOnce(new Response("page", { status: 200 }));
+it("protects HTML behind HTTPS termination while preserving stricter route headers", async () => {
+  vi.stubEnv("APP_ORIGIN", "https://merit.example");
+  vi.stubEnv("CLERK_ISSUER", "https://clerk.merit.example");
+  vi.stubEnv("VITE_POSTHOG_KEY", "test-analytics");
+  vi.stubEnv("VITE_POSTHOG_HOST", "https://analytics.merit.example/ingest");
+  vi.resetModules();
+  const { default: httpsEntry } = await import("../src/server");
+  const request = new Request("http://internal/app");
+  handlerFetch.mockImplementation(
+    async () =>
+      new Response("page", {
+        headers: {
+          "Content-Type": "text/html; charset=utf-8",
+          "Content-Security-Policy": "form-action 'self'",
+          "Referrer-Policy": "no-referrer",
+        },
+      }),
+  );
 
-  const response = await fetchRequest("https://merit.example/app");
+  const first = await httpsEntry.fetch(request, {} as never);
+  const second = await httpsEntry.fetch(request, {} as never);
+  expect(first.headers.get("X-Content-Type-Options")).toBe("nosniff");
+  expect(first.headers.get("Strict-Transport-Security")).toBe("max-age=31536000");
+  expect(first.headers.get("Referrer-Policy")).toBe("no-referrer");
+  expect(first.headers.get("Permissions-Policy")).toContain("camera=()");
+  for (const directive of [
+    "frame-ancestors 'none'",
+    "object-src 'none'",
+    "base-uri 'none'",
+    "form-action 'self'",
+  ]) {
+    expect(first.headers.get("Content-Security-Policy")).toContain(directive);
+  }
+  const nonce = handlerFetch.mock.calls[0]?.[1].context.nonce;
+  expect(nonce).toMatch(/^[A-Za-z0-9+/]{22}==$/);
+  expect(first.headers.get("Cache-Control")).toContain("no-store");
+  const candidate = first.headers.get("Content-Security-Policy-Report-Only");
+  expect(candidate).toContain(`script-src 'self' 'nonce-${nonce}' https://clerk.merit.example`);
+  expect(candidate).toContain("https://analytics.merit.example");
+  expect(candidate).toContain("default-src 'self'");
+  expect(second.headers.get("Content-Security-Policy-Report-Only")).not.toBe(
+    first.headers.get("Content-Security-Policy-Report-Only"),
+  );
+});
 
-  expect(response.headers.get("Content-Security-Policy")).toBe("frame-ancestors 'none'");
+it("omits HSTS and the HTTPS document policy for a loopback HTTP origin", async () => {
+  vi.stubEnv("APP_ORIGIN", "http://localhost:3000");
+  vi.resetModules();
+  const { default: localEntry } = await import("../src/server");
+  handlerFetch.mockResolvedValueOnce(
+    new Response("page", { headers: { "Content-Type": "text/html" } }),
+  );
+  const response = await localEntry.fetch(new Request("https://merit.example/app"), {} as never);
+  expect(response.headers.has("Strict-Transport-Security")).toBe(false);
+  expect(response.headers.has("Content-Security-Policy-Report-Only")).toBe(false);
 });
 
 it("waits for in-flight database calls and releases their pooled clients before reporting a web handler failure", async () => {
@@ -224,6 +274,9 @@ it("does not open any pg.Client when early routes or non-database requests compl
     "https://merit.example/.well-known/oauth-protected-resource/mcp/workspace",
   );
   expect(metadata.status).toBe(200);
+  expect(metadata.headers.get("X-Content-Type-Options")).toBe("nosniff");
+  expect(metadata.headers.get("Referrer-Policy")).toBe("strict-origin-when-cross-origin");
+  expect(metadata.headers.has("Content-Security-Policy-Report-Only")).toBe(false);
 
   handlerFetch.mockResolvedValueOnce(new Response("static", { status: 200 }));
   const staticPage = await fetchRequest("https://merit.example/");

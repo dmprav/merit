@@ -25,6 +25,6 @@ export interface ApplicationRequestContext {
 
 declare module "@tanstack/react-start" {
   interface Register {
-    server: { requestContext: ApplicationRequestContext };
+    server: { requestContext: ApplicationRequestContext & { nonce?: string } };
   }
 }

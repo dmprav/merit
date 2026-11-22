@@ -214,6 +214,29 @@ should remain inaccessible. In a workspace with fictional data, save a manager
 recommendation and reload the page to verify that the change persists through
 the deployed server's runtime credentials.
 
+## Verify HTTP security headers
+
+The server applies MIME sniffing protection, a default referrer policy, and
+browser restrictions for camera, microphone, and geolocation. Invitation and
+reviewer links keep their stricter `no-referrer` policy. The enforced Content
+Security Policy (CSP) disallows framing, plugins, and document base URLs.
+
+When the public origin uses HTTPS, the application sends one year of HSTS.
+Configure the TLS ingress to serve HSTS on all HTTPS responses, including
+static assets, redirects, and errors that bypass the application. Preserve the
+application's route-specific headers and serve each nonce-bearing HTML response
+without shared caching.
+
+HTTPS HTML also carries a report-only CSP. The server generates a fresh nonce
+for TanStack's hydration scripts and includes the configured Clerk and analytics
+origins in the relevant directives. Before enforcing this policy, inspect
+browser CSP violations while loading a public page, completing Clerk sign-in,
+navigating a workspace, and delivering a staging PostHog event. Use the browser
+developer tools or configure the `merit-csp` Reporting API group at ingress to
+send reports to an approved destination. Reports can include sensitive page URLs.
+Once those checks pass on the deployed origin, promote the verified candidate
+to the enforced header while retaining the per-response nonce.
+
 ## Configure tracing and synthetic checks
 
 Trace export is disabled when `OTEL_EXPORTER_OTLP_ENDPOINT` is empty. To export

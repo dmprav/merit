@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { env } from "node:process";
 
 import handler, { createServerEntry } from "@tanstack/react-start/server-entry";
@@ -12,6 +13,7 @@ import { readAnalyticsConfig } from "./analytics-config";
 import type { ApplicationRequestContext } from "./request-context";
 import { createDemoServices, demoCookie } from "./server/demo.server";
 import { createEmailSender } from "./server/email-delivery.server";
+import { applySecurityHeaders, createDocumentPolicy } from "./server/http-headers.server";
 import { createWebIdentity } from "./server/identity.server";
 import { handleMcp } from "./server/mcp.server";
 import { readAppOrigin, readDatabaseUrl } from "./server/runtime-config.server";
@@ -29,6 +31,9 @@ const clerkConfig = {
   operatorUserIds: env.MERIT_OPERATOR_USER_IDS ?? "",
 };
 
+const publicHttps = new URL(origin).protocol === "https:";
+const documentPolicy = createDocumentPolicy(clerkConfig.issuer, readAnalyticsConfig());
+
 const sendEmail = createEmailSender({
   from: env.EMAIL_FROM ?? (import.meta.env.DEV ? "invitations@merit.local" : ""),
   resendKey: env.RESEND_API_KEY ?? "",
@@ -40,8 +45,9 @@ const peerAddress = (request: Request) =>
   "ip" in request && typeof request.ip === "string" && request.ip ? request.ip : undefined;
 
 export default createServerEntry({
-  fetch(request, options) {
-    return traceServerRequest(
+  async fetch(request, options) {
+    const nonce = publicHttps ? randomBytes(16).toString("base64") : undefined;
+    const response = await traceServerRequest(
       request,
       {
         endpoint: env.OTEL_EXPORTER_OTLP_ENDPOINT,
@@ -69,7 +75,7 @@ export default createServerEntry({
               return await handleMcp(request, clerkConfig, dependencies);
             }
 
-            return await handleWebRequest(request, options, dependencies);
+            return await handleWebRequest(request, options, dependencies, nonce);
           } finally {
             await requestDatabase.close();
           }
@@ -83,6 +89,7 @@ export default createServerEntry({
         }
       },
     );
+    return applySecurityHeaders(response, nonce, documentPolicy);
   },
 });
 
@@ -90,6 +97,7 @@ const handleWebRequest = async (
   request: Request,
   options: Parameters<typeof handler.fetch>[1],
   dependencies: Omit<Parameters<typeof createApplicationServices>[0], "identity">,
+  nonce: string | undefined,
 ) => {
   const localIdentity = await resolveLocalIdentity(request);
   if (localIdentity instanceof Response) {
@@ -134,21 +142,9 @@ const handleWebRequest = async (
     contacts: services.contacts,
   };
 
-  const response = await handler.fetch(request, {
+  return handler.fetch(request, {
     ...options,
-    context: { ...options?.context, ...context },
-  });
-  return preventFraming(response);
-};
-
-const preventFraming = (response: Response) => {
-  const headers = new Headers(response.headers);
-  headers.append("Content-Security-Policy", "frame-ancestors 'none'");
-
-  return new Response(response.body, {
-    status: response.status,
-    statusText: response.statusText,
-    headers,
+    context: { ...options?.context, ...context, nonce },
   });
 };
 
