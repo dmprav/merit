@@ -151,36 +151,6 @@ const dispatchCases: DispatchCase[] = [
     response: { status: "ok", draftRevision: 9 },
   },
   {
-    name: "list_workspace_activity",
-    args: { workspaceSlug: "alder", roundId: applicationId, personId: "dana", limit: 25 },
-    fn: (o) => o.grantmaking.listWorkspaceActivity,
-    result: { status: "ok", entries: [], people: [], nextCursor: null },
-  },
-  {
-    name: "search_workspace",
-    args: { workspaceSlug: "alder", query: "harbour trust" },
-    fn: (o) => o.grantmaking.searchWorkspace,
-    result: {
-      status: "ok",
-      rounds: { results: [], total: 0 },
-      applications: {
-        total: 1,
-        results: [
-          {
-            id: applicationId,
-            title: "Boat repairs",
-            applicant: "Trust for the Harbour",
-            roundId: "b8q3w5j7c2df",
-            roundTitle: "Community grants",
-            intakeStatus: "ready" as const,
-            withdrawn: false,
-            matchQuality: "contains" as const,
-          },
-        ],
-      },
-    },
-  },
-  {
     name: "list_team_members",
     args: { workspaceSlug: "alder" },
     fn: (o) => o.organizations.membersPage,

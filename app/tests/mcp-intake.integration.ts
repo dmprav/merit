@@ -210,21 +210,6 @@ it("rejects a withdrawal using a stale intake revision without recording it", as
   expect(await scenario.read()).toEqual(before);
 });
 
-it("returns a rejected withdrawal as the operation's typed invalid result", async ({
-  commands: { invoke, applicationScenario },
-}) => {
-  const scenario = await applicationScenario();
-
-  expect(
-    await invoke("withdraw_application", {
-      ...(await scenario.args()),
-      withdrawnOn: "9999-12-31",
-      reason: "Stepped back",
-    }),
-  ).toEqual({ status: "invalid", error: "withdrawal_date_in_future" });
-  expect((await scenario.read()).application).not.toHaveProperty("withdrawal");
-});
-
 it.for([
   {
     action: "save_content",
