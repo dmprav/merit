@@ -57,15 +57,27 @@ describe("workspace MCP contracts", () => {
       await client.close();
     }
   });
+  it("keeps unregistered tool names out of analytics", async () => {
+    const captureMcpToolFinished = vi.fn();
+    const client = await connect({ ...testOperations(), captureMcpToolFinished });
+    try {
+      await expect(client.callTool("unregistered_name", {})).rejects.toThrow();
+      expect(captureMcpToolFinished).not.toHaveBeenCalled();
+    } finally {
+      await client.close();
+    }
+  });
   it("returns a round with exact financial totals and its canonical URL", async () => {
     const operations = testOperations();
     vi.mocked(operations.grantmaking.readRound).mockResolvedValue({ status: "ok", round });
-    const client = await connect(operations);
+    const captureMcpToolFinished = vi.fn();
+    const client = await connect({ ...operations, captureMcpToolFinished });
     try {
       const result = await client.callTool("get_funding_round", {
         workspaceSlug: "alder",
         roundId: id,
       });
+      expect(captureMcpToolFinished.mock.calls).toEqual([["get_funding_round", "ok"]]);
       expect(result.structuredContent).toEqual({
         status: "ok",
         round,
@@ -79,7 +91,8 @@ describe("workspace MCP contracts", () => {
     "rejects round request %j before reading the round",
     async (fields) => {
       const operations = testOperations();
-      const client = await connect(operations);
+      const captureMcpToolFinished = vi.fn();
+      const client = await connect({ ...operations, captureMcpToolFinished });
       try {
         const result = await client.callTool("get_funding_round", {
           workspaceSlug: "alder",
@@ -87,6 +100,7 @@ describe("workspace MCP contracts", () => {
         });
         expect(result.isError).toBe(true);
         expect(operations.grantmaking.readRound).not.toHaveBeenCalled();
+        expect(captureMcpToolFinished.mock.calls).toEqual([["get_funding_round", "invalid_input"]]);
       } finally {
         await client.close();
       }
@@ -102,6 +116,7 @@ describe("workspace MCP contracts", () => {
     "challenges %s for the %s scope before executing any operation",
     async (name, scope, granted) => {
       const operations = testOperations();
+      const captureMcpToolFinished = vi.fn();
       const response = await handleWorkspaceMcp(
         new Request(endpoint, {
           method: "POST",
@@ -119,12 +134,17 @@ describe("workspace MCP contracts", () => {
           }),
         }),
         endpoint.href,
-        { ...operations, authenticate: async () => ({ ...actor, scopes: granted }) },
+        {
+          ...operations,
+          captureMcpToolFinished,
+          authenticate: async () => ({ ...actor, scopes: granted }),
+        },
       );
       const challenge = response.headers.get("WWW-Authenticate");
       expect(response.status).toBe(403);
       expect(challenge).toContain('error="insufficient_scope"');
       expect(challenge).toContain(scope);
+      expect(captureMcpToolFinished.mock.calls).toEqual([[name, "insufficient_scope"]]);
       expect(challenge).toContain("resource_metadata=");
       for (const service of Object.values(operations)) {
         for (const operation of Object.values(service)) {
@@ -204,7 +224,10 @@ describe("workspace MCP contracts", () => {
   it("returns a business conflict as the tool's structured result", async () => {
     const operations = testOperations();
     vi.mocked(operations.rounds.editRound).mockResolvedValueOnce({ status: "conflict" });
-    const client = await connect(operations);
+    const captureMcpToolFinished = vi.fn(() => {
+      throw new Error("Analytics unavailable");
+    });
+    const client = await connect({ ...operations, captureMcpToolFinished });
     try {
       const result = await client.callTool("edit_funding_round", {
         workspaceSlug: "alder",
@@ -214,6 +237,7 @@ describe("workspace MCP contracts", () => {
       });
       expect(result.isError).toBe(true);
       expect(result.structuredContent).toEqual({ status: "conflict" });
+      expect(captureMcpToolFinished.mock.calls).toEqual([["edit_funding_round", "conflict"]]);
     } finally {
       await client.close();
     }

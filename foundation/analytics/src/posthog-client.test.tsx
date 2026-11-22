@@ -34,7 +34,7 @@ it("returns a no-op client when the PostHog API key is missing", () => {
   const client = createPostHogAnalytics({ apiKey: "   ", load });
 
   client.pageView("/demo");
-  client.track("demo_started");
+  client.track("demo_reset");
   client.reset();
 
   expect(load).not.toHaveBeenCalled();
@@ -71,7 +71,7 @@ it("queues actions until PostHog loads, then sends them in order and later ones 
   const client = createPostHogAnalytics({ apiKey: "phc_test_key", load });
 
   client.pageView("/invitations/secret-token-xyz");
-  client.track("demo_started", { guided: true });
+  client.track("demo_started", { guided: true, fresh: false });
   client.reset();
 
   expect(instance.capture).not.toHaveBeenCalled();
@@ -88,7 +88,7 @@ it("queues actions until PostHog loads, then sends them in order and later ones 
         $pathname: "/invitations/:token",
       },
     ],
-    ["demo_started", { guided: true }],
+    ["demo_started", { guided: true, fresh: false }],
   ]);
 
   client.track("demo_reset");
@@ -101,13 +101,13 @@ it("keeps at most 50 actions while PostHog loads", async () => {
   const client = createPostHogAnalytics({ apiKey: "phc_test_key", load });
 
   for (let index = 0; index < 55; index += 1) {
-    client.track(`event_${index}`);
+    client.track(index < 50 ? "demo_reset" : "access_request_submitted");
   }
   finish();
   await vi.waitFor(() => expect(instance.init).toHaveBeenCalledOnce());
 
   expect(instance.capture.mock.calls.map(([event]) => event)).toEqual(
-    Array.from({ length: 50 }, (_, index) => `event_${index}`),
+    Array.from({ length: 50 }, () => "demo_reset"),
   );
 });
 
@@ -134,7 +134,7 @@ it("degrades silently to no-op if loading PostHog fails", async () => {
   client.pageView("/demo");
   await vi.waitFor(() => expect(load).toHaveBeenCalledOnce());
 
-  expect(() => client.track("demo_started")).not.toThrow();
+  expect(() => client.track("demo_reset")).not.toThrow();
   expect(() => client.reset()).not.toThrow();
 });
 

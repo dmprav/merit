@@ -38,6 +38,9 @@ to in the change.
 
 ## Behavior
 
+- When measurement changes, do the population, timing, and properties of the
+  signal support the decision in the brief? Check what retries, failed actions,
+  demo activity, and different interfaces contribute to the count.
 - Does the change do everything under the brief's **Behavior**, and nothing under
   **Out of scope**?
 - Are empty, long, missing, failed, conflicting, and read-only states handled as

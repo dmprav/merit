@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { assert, expect } from "vite-plus/test";
+import { assert, expect, vi } from "vite-plus/test";
 
 import { getFundingApplicationPage } from "@merit/grantmaking/server";
 import { roundTest } from "@merit/grantmaking/testing/rounds";
@@ -14,6 +14,7 @@ const it = roundTest.extend("parity", async ({ db, database }, { onCleanup }) =>
     "INSERT INTO app_users (id, name, clerk_user_id) VALUES ('sam','Sam Morgan','sam-account'), ('other','Other','other-account')",
   );
   const messages: Parameters<EmailSender>[0][] = [];
+  const captureGrantOutcome = vi.fn();
   const transport = createTransport(
     db,
     {
@@ -24,6 +25,7 @@ const it = roundTest.extend("parity", async ({ db, database }, { onCleanup }) =>
     async (message) => {
       messages.push(message);
     },
+    { captureGrantOutcome, captureMcpToolFinished: vi.fn() },
   );
 
   onCleanup(async () => {
@@ -39,7 +41,7 @@ const it = roundTest.extend("parity", async ({ db, database }, { onCleanup }) =>
     return response;
   };
 
-  return { ...transport, messages, invoke, saved };
+  return { ...transport, captureGrantOutcome, messages, invoke, saved };
 });
 
 const reviewerTest = it.extend("assignment", async ({ database, rounds, parity: p }) => {
@@ -244,6 +246,16 @@ reviewerTest(
     const submitted = await p.saved("sam", "submit_reviewer_assessment", submission);
     expect(await p.saved("sam", "submit_reviewer_assessment", submission)).toEqual(submitted);
     expect(p.messages.slice(1)).toMatchObject([{ to: "dana@example.test" }]);
+    expect(p.captureGrantOutcome.mock.calls).toEqual([
+      [
+        {
+          event: "assessment_submitted",
+          surface: "mcp",
+          workspaceKind: "standard",
+          workspaceId: "alder",
+        },
+      ],
+    ]);
   },
 );
 
@@ -262,4 +274,90 @@ it("starts an isolated fictional demo and resumes it for the same account", asyn
   expect(
     await p.invoke("other", "list_funding_rounds", { workspaceSlug: demo.workspaceSlug }),
   ).toEqual({ status: "not_found" });
+});
+
+it("counts new web grant writes once across receipt replays and unchanged recommendations", async ({
+  parity: p,
+  rounds,
+}) => {
+  const { rounds: roundService, applications, recommendations } = p.mcpOperations;
+  const actor = { userId: "dana" };
+  const workspaceSlug = "alder";
+  const round = { workspaceSlug, title: "Autumn", requestId: randomUUID() };
+  const created = await roundService.createRound(actor, round);
+  assert(created.status === "ok");
+  expect(await roundService.createRound(actor, round)).toEqual(created);
+
+  const application = {
+    workspaceSlug,
+    publicId: created.publicId,
+    title: "Community theatre",
+    requestId: randomUUID(),
+  };
+  const recorded = await applications.createApplication(actor, application);
+  assert(recorded.status === "ok");
+  expect(await applications.createApplication(actor, application)).toEqual(recorded);
+
+  const address = await rounds.createApplication("Community garden");
+  await rounds.recommendApplication(address, "3000");
+  const proposal = {
+    ...address,
+    expectedRevision: 1,
+    expectedApplicationVersion: 1,
+    recommendation: {
+      position: "Fund" as const,
+      allocation: { currency: "EUR" as const, minorUnits: "5000" },
+      reasoning: "Expanded access",
+    },
+  };
+  const saved = await recommendations.saveRecommendation(actor, proposal);
+  assert(saved.status === "ok");
+  expect(await recommendations.saveRecommendation(actor, proposal)).toEqual({ status: "conflict" });
+  const unchanged = await recommendations.saveRecommendation(actor, {
+    ...proposal,
+    expectedRevision: saved.recommendationVersion,
+  });
+  assert(unchanged.status === "ok");
+  expect(p.captureGrantOutcome.mock.calls).toEqual(
+    ["round_created", "application_recorded", "funding_recommendation_saved"].map((event) => [
+      { event, workspaceKind: "standard", workspaceId: "alder", surface: "web" },
+    ]),
+  );
+});
+
+it("counts a visitor's own MCP write in the demo and ignores prepared grant records", async ({
+  database,
+  parity: p,
+}) => {
+  const { demo } = await p.saved("sam", "start_demo");
+  assert(demo && typeof demo === "object" && "workspaceSlug" in demo);
+  await p.saved("sam", "create_funding_round", {
+    workspaceSlug: demo.workspaceSlug,
+    title: "New demo round",
+    requestId: randomUUID(),
+  });
+  const workspace = await database.client.query<{ id: string }>(
+    "SELECT id FROM organizations WHERE slug = $1",
+    [demo.workspaceSlug],
+  );
+  expect(p.captureGrantOutcome.mock.calls).toEqual([
+    [
+      {
+        event: "round_created",
+        workspaceKind: "demo",
+        surface: "mcp",
+        workspaceId: workspace.rows[0]?.id,
+      },
+    ],
+  ]);
+});
+
+it("returns the committed result when the analytics observer fails", async ({ parity: p }) => {
+  p.captureGrantOutcome.mockImplementationOnce(() => {
+    throw new Error("offline");
+  });
+  const request = { workspaceSlug: "alder", title: "Autumn", requestId: randomUUID() };
+  const created = await p.saved("dana", "create_funding_round", request);
+  expect(await p.saved("dana", "create_funding_round", request)).toEqual(created);
+  expect(p.captureGrantOutcome).toHaveBeenCalledTimes(1);
 });

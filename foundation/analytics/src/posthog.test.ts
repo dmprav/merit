@@ -8,7 +8,7 @@ it("returns a no-op client during SSR when window is unavailable", () => {
   const client = createPostHogAnalytics({ apiKey: "phc_test_key", load });
 
   client.pageView("/demo");
-  client.track("demo_started");
+  client.track("demo_reset");
   client.reset();
 
   expect(load).not.toHaveBeenCalled();

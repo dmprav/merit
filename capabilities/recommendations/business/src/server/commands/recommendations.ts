@@ -3,7 +3,8 @@ import { recordAuditEvent } from "@merit/audit/server/record";
 import { actorProvenance, type Actor } from "@merit/auth";
 import type { Database, Transaction } from "@merit/db";
 import { compare } from "@merit/money";
-import { writeWorkspace } from "@merit/organizations/transactions";
+import type { WorkspaceChangeObserver } from "@merit/organizations/domain";
+import { writeObservedWorkspace } from "@merit/organizations/transactions";
 
 import {
   saveRecommendationRequestSchema,
@@ -35,6 +36,7 @@ export const saveFundingRecommendation = async (
   actor: Actor,
   input: SaveRecommendationRequest,
   isCurrentAssessment: IsCurrentAssessment,
+  onCommitted?: WorkspaceChangeObserver,
 ) => {
   const parsed = saveRecommendationRequestSchema.safeParse(input);
   if (!parsed.success) {
@@ -43,7 +45,7 @@ export const saveFundingRecommendation = async (
 
   const request = parsed.data;
 
-  return writeWorkspace(db, actor.userId, request.workspaceSlug, async (tx) => {
+  return writeObservedWorkspace(db, actor, request, onCommitted, async (tx, changed) => {
     const identity = await lockApplicationCase(tx, actor.userId, request, "update");
     if (!identity) {
       return { status: "not_found" } as const;
@@ -112,6 +114,7 @@ export const saveFundingRecommendation = async (
     }
 
     await recordRecommendationEvent(tx, { identity, actor, row, request, next });
+    changed(identity.organizationId, identity.organizationKind);
 
     return {
       ...summary,

@@ -1,4 +1,5 @@
 import type { Database } from "@merit/db";
+import type { WorkspaceChangeObserver } from "@merit/organizations/domain";
 
 type DatabaseAccess = <T>(operation: (db: Database) => Promise<T>) => Promise<T>;
 
@@ -8,12 +9,14 @@ import type { RoundApplications } from "./grant-work";
 
 export const createRoundsService = ({
   database,
+  onCreated,
   roundHasApplications,
 }: {
   database: DatabaseAccess;
+  onCreated?: WorkspaceChangeObserver;
   roundHasApplications: RoundApplications;
 }): RoundsService => ({
-  createRound: (actor, input) => database((db) => createFundingRound(db, actor, input)),
+  createRound: (actor, input) => database((db) => createFundingRound(db, actor, input, onCreated)),
   editRound: (actor, input) => database((db) => editFundingRound(db, actor, input)),
   deleteRound: (actor, input) =>
     database((db) => deleteFundingRound(db, actor, input, roundHasApplications)),

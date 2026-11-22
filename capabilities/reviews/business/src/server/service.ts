@@ -1,5 +1,6 @@
 import type { Actor } from "@merit/auth";
 import type { Database } from "@merit/db";
+import type { WorkspaceChangeObserver } from "@merit/organizations/domain";
 
 import {
   reviewerAddressSchema,
@@ -28,6 +29,7 @@ import {
 type Dependencies = { database: <T>(operation: (db: Database) => Promise<T>) => Promise<T> };
 
 type ReviewerDependencies = Dependencies & {
+  onSubmitted?: WorkspaceChangeObserver;
   send: (message: ReviewerMessage) => Promise<void>;
   reviewerUrl: (slug: string, id: string) => string;
   managerUrl: (slug: string, applicationId: string) => string;
@@ -106,7 +108,9 @@ export const createReviewerService = (dependencies: ReviewerDependencies): Revie
     },
     saveDraft: (actor, input) => database((db) => saveReviewerDraft(db, actor, input)),
     submit: async (actor, input) => {
-      const result = await database((db) => submitReviewerAssessment(db, actor, input));
+      const result = await database((db) =>
+        submitReviewerAssessment(db, actor, input, dependencies.onSubmitted),
+      );
       if (result.status === "ok") {
         await deliverReviewerMessages(dependencies, actor.userId, input.assignmentId);
       }

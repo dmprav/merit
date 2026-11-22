@@ -44,7 +44,7 @@ vi.mock("@merit/analytics/posthog", () => ({
 const Probe = () => {
   const analytics = useAnalytics();
   return (
-    <button type="button" onClick={() => analytics.track("demo_started")}>
+    <button type="button" onClick={() => analytics.track("demo_reset")}>
       Track
     </button>
   );
@@ -90,5 +90,5 @@ it("records pageviews on navigation and exposes the analytics client to children
   expect(client.pageView).toHaveBeenNthCalledWith(2, "/demo/workshop-saturdays");
 
   screen.getByRole("button", { name: "Track" }).click();
-  expect(client.track).toHaveBeenCalledExactlyOnceWith("demo_started");
+  expect(client.track).toHaveBeenCalledExactlyOnceWith("demo_reset");
 });

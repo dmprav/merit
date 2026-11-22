@@ -4,7 +4,13 @@ import { actorProvenance, type Actor } from "@merit/auth";
 import { lockContactProfile } from "@merit/contacts/locks";
 import { readContact } from "@merit/contacts/scope";
 import type { Database, Transaction } from "@merit/db";
-import { assignmentScope, writeScoped, writeWorkspace } from "@merit/organizations/transactions";
+import type { WorkspaceChangeObserver } from "@merit/organizations/domain";
+import {
+  assignmentScope,
+  writeScoped,
+  writeObservedWorkspace,
+  writeWorkspace,
+} from "@merit/organizations/transactions";
 
 import {
   inviteReviewerSchema,
@@ -296,18 +302,25 @@ export const saveReviewerDraft = async (
   });
 };
 
+const submissionRecorder = (actor: Actor, name: string) => ({
+  userId: actor.userId,
+  name,
+  recordedAt: new Date().toISOString(),
+  provenance: actorProvenance(actor),
+});
+
 export const submitReviewerAssessment = async (
   db: Database,
   actor: Actor,
   input: Parameters<ReviewerService["submit"]>[1],
+  onCommitted?: WorkspaceChangeObserver,
 ): ReturnType<ReviewerService["submit"]> => {
   const parsed = submitReviewerSchema.safeParse(input);
   if (!parsed.success) {
     return { status: "invalid", error: "invalid_input" };
   }
   const request = parsed.data;
-  const scope = assignmentScope(actor.userId, request.assignmentId, request.workspaceSlug);
-  return writeScoped(db, scope, async (tx) => {
+  return writeObservedWorkspace(db, actor, request, onCommitted, async (tx, changed) => {
     const record = await lockReviewerAssignment(tx, request.assignmentId);
     const user = await lockActiveReviewer(tx, actor.userId);
     if (
@@ -348,12 +361,7 @@ export const submitReviewerAssessment = async (
     if (!contactId) {
       return { status: "not_found" };
     }
-    const recorder = {
-      userId: actor.userId,
-      name: user.name ?? record.reviewer,
-      recordedAt: new Date().toISOString(),
-      provenance: actorProvenance(actor),
-    };
+    const recorder = submissionRecorder(actor, user.name ?? record.reviewer);
     const recorded = await recordOwnAssessment(
       tx,
       record,
@@ -366,6 +374,9 @@ export const submitReviewerAssessment = async (
     );
     if (recorded.status !== "ok") {
       return recorded;
+    }
+    if (assignment.assessmentId === null) {
+      changed(assignment.organizationId, record.organizationKind);
     }
     return completeReviewerSubmission(tx, {
       assignment,

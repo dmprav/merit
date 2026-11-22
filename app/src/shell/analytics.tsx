@@ -4,13 +4,10 @@ import { useEffect, useState, type ReactNode } from "react";
 import { AnalyticsProvider, type AnalyticsClient } from "@merit/analytics";
 import { createPostHogAnalytics } from "@merit/analytics/posthog";
 
-const readEnvString = (value: unknown) => (typeof value === "string" ? value : undefined);
+import { readAnalyticsConfig } from "../analytics-config";
 
 export const createShellAnalytics = (): AnalyticsClient =>
-  createPostHogAnalytics({
-    apiKey: readEnvString(import.meta.env.VITE_POSTHOG_KEY),
-    host: readEnvString(import.meta.env.VITE_POSTHOG_HOST),
-  });
+  createPostHogAnalytics(readAnalyticsConfig());
 
 const PageViewTracker = ({ client }: { client: AnalyticsClient }) => {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
