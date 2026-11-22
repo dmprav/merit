@@ -589,8 +589,7 @@ it("rejects every write to a withdrawn case on every capability, while reads sta
 
   // Nothing changed, and the whole case remains readable.
   const after = await s.read();
-  expect(after.intake.revision).toBe(withdrawn.intake.revision);
-  expect(after.application).toEqual(withdrawn.application);
+  expect(after).toEqual(withdrawn);
   expect(after.application.managerRecommendation).not.toBeNull();
   expect(after.application.submission?.answers.length).toBeGreaterThan(0);
   expect(after.application.reviews.assessments).toHaveLength(1);
