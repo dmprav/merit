@@ -191,14 +191,38 @@ it("rejects a different database password even at the allowed loopback address",
   expect(result.output).not.toContain(secret);
 });
 
+it("keeps detecting credentials in files containing inline scanner directives", () => {
+  const repo = repository();
+  const value = token();
+  repo.write("config.ts", `// secretlint-disable\nconst token = "${value}";\n`);
+
+  const result = repo.scan();
+  expect(result.status, result.output).toBe(1);
+  expect(result.output).toContain("@secretlint/secretlint-rule-github");
+  expect(result.output).not.toContain(value);
+});
+
 it.each([
   { rule: "merit/resend-api-key", secret: resendKey },
   { rule: "merit/clerk-secret-key", secret: () => clerkKey("live") },
   { rule: "merit/clerk-secret-key", secret: () => clerkKey("test") },
-])("detects a key with $rule", ({ rule, secret }) => {
+  { rule: "merit/checkly-api-key", secret: () => `cu_${alphanumeric(40)}` },
+  { rule: "merit/checkly-api-key", secret: () => `sv_${alphanumeric(40)}` },
+  { rule: "merit/checkly-api-key", field: "CHECKLY_API_KEY", secret: () => alphanumeric(48) },
+  {
+    rule: "merit/webhook-signing-secret",
+    secret: () => `whsec_${randomBytes(32).toString("base64")}`,
+  },
+  { rule: "merit/posthog-personal-api-key", secret: () => `phx_${alphanumeric(48)}` },
+  {
+    rule: "merit/file-storage-secret",
+    field: "FILE_STORAGE_SECRET_ACCESS_KEY",
+    secret: () => randomBytes(32).toString("hex"),
+  },
+])("detects a key with $rule", ({ rule, secret, field }) => {
   const repo = repository();
   const value = secret();
-  repo.write("app/.env.example", `KEY=${value}\n`);
+  repo.write("app/.env.example", `${field ?? "KEY"}=${value}\n`);
 
   const result = repo.scan();
   expect(result.status, result.output).toBe(1);
@@ -214,6 +238,9 @@ it("ignores provider prefixes inside identifiers and short placeholders", () => 
       // Prefixes preceded by identifier characters are part of a longer name.
       `const value = "pre${resendKey()}";`,
       `const value = "task${clerkKey("live").slice(2)}";`,
+      `const projectToken = "phc_${alphanumeric(48)}";`,
+      "FILE_STORAGE_SECRET_ACCESS_KEY=merit-local-storage",
+      "CHECKLY_API_KEY=example",
       // Documentation placeholders do not have the issued key shape.
       `const value = "${["re", "123456789"].join("_")}";`,
       `const value = "${["re", alphanumeric(8), alphanumeric(12)].join("_")}";`,
