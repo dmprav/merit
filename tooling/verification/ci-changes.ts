@@ -3,8 +3,6 @@ import { appendFileSync, existsSync, globSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { z } from "zod";
-
 export type WorkspacePackage = {
   name: string;
   dir: string;
@@ -233,10 +231,13 @@ const diffFiles = (repoRoot: string, diffRange: string) =>
     .map((line) => line.trim())
     .filter(Boolean);
 
-// git reports a commit this checkout lacks as an invalid range, a bad object or an unknown revision.
-const missingCommitError = z.object({
-  stderr: z.string().regex(/Invalid revision range|bad object|unknown revision|bad revision/),
-});
+// git reports a commit this checkout lacks as an invalid range, a bad object or an unknown
+// revision. The changes job runs before dependencies install, so this uses no schema library.
+const isMissingCommitError = (error: unknown) =>
+  error instanceof Error &&
+  "stderr" in error &&
+  typeof error.stderr === "string" &&
+  /Invalid revision range|bad object|unknown revision|bad revision/.test(error.stderr);
 
 // A push or merge group compares with the commit before it. A new branch has no such commit,
 // and a force push may name one this checkout lacks, so the diff is unknown.
@@ -248,7 +249,7 @@ const pushedFiles = (repoRoot: string) => {
   try {
     return diffFiles(repoRoot, `${beforeSha}..${process.env.HEAD_SHA || "HEAD"}`);
   } catch (error) {
-    if (!missingCommitError.safeParse(error).success) {
+    if (!isMissingCommitError(error)) {
       throw error;
     }
     return null;

@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, test } from "vite-plus/test";
@@ -174,4 +175,12 @@ describe("ci-changes", () => {
       expect(result.dependencies_changed).toBe(expected);
     },
   );
+  test("imports only Node built-ins, because the changes job runs before dependencies install", () => {
+    const source = readFileSync(new URL("./ci-changes.ts", import.meta.url), "utf8");
+    const specifiers = [...source.matchAll(/^import [^;]*? from "([^"]+)";$/gms)].map(
+      ([, specifier]) => specifier,
+    );
+    expect(specifiers.length).toBeGreaterThan(0);
+    expect(specifiers.filter((specifier) => !specifier?.startsWith("node:"))).toEqual([]);
+  });
 });
