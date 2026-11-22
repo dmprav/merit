@@ -4,6 +4,7 @@ import { assert, expect, vi } from "vite-plus/test";
 
 import { getFundingApplicationPage } from "@merit/grantmaking/server";
 import { roundTest } from "@merit/grantmaking/testing/rounds";
+import { actor } from "@merit/organizations/testing/workspace";
 import type { ReviewerPage, ReviewerSummary } from "@merit/reviews/api";
 
 import type { EmailSender } from "../src/server/email-delivery.server";
@@ -276,31 +277,45 @@ it("starts an isolated fictional demo and resumes it for the same account", asyn
   ).toEqual({ status: "not_found" });
 });
 
-it("counts new web grant writes once across receipt replays and unchanged recommendations", async ({
-  parity: p,
-  rounds,
-}) => {
-  const { rounds: roundService, applications, recommendations } = p.mcpOperations;
-  const actor = { userId: "dana" };
-  const workspaceSlug = "alder";
-  const round = { workspaceSlug, title: "Autumn", requestId: randomUUID() };
-  const created = await roundService.createRound(actor, round);
-  assert(created.status === "ok");
-  expect(await roundService.createRound(actor, round)).toEqual(created);
+const webWorkspace = { workspaceKind: "standard", workspaceId: "alder", surface: "web" };
 
-  const application = {
-    workspaceSlug,
-    publicId: created.publicId,
+it("counts a web round creation once when its receipt is replayed", async ({ parity: p }) => {
+  const { createRound } = p.mcpOperations.rounds;
+  const request = { workspaceSlug: "alder", title: "Autumn", requestId: randomUUID() };
+  const created = await createRound(actor, request);
+  assert(created.status === "ok");
+  expect(p.captureGrantOutcome).toHaveBeenCalledExactlyOnceWith({
+    ...webWorkspace,
+    event: "round_created",
+  });
+
+  expect(await createRound(actor, request)).toEqual(created);
+  expect(p.captureGrantOutcome).toHaveBeenCalledTimes(1);
+});
+
+it("counts a web application once when its receipt is replayed", async ({ parity: p, rounds }) => {
+  const { createApplication } = p.mcpOperations.applications;
+  const request = {
+    workspaceSlug: rounds.pageInput.workspaceSlug,
+    publicId: rounds.pageInput.publicId,
     title: "Community theatre",
     requestId: randomUUID(),
   };
-  const recorded = await applications.createApplication(actor, application);
+  const recorded = await createApplication(actor, request);
   assert(recorded.status === "ok");
-  expect(await applications.createApplication(actor, application)).toEqual(recorded);
+  expect(p.captureGrantOutcome).toHaveBeenCalledExactlyOnceWith({
+    ...webWorkspace,
+    event: "application_recorded",
+  });
 
+  expect(await createApplication(actor, request)).toEqual(recorded);
+  expect(p.captureGrantOutcome).toHaveBeenCalledTimes(1);
+});
+
+const recommendationTest = it.extend("proposal", async ({ rounds }) => {
   const address = await rounds.createApplication("Community garden");
   await rounds.recommendApplication(address, "3000");
-  const proposal = {
+  return {
     ...address,
     expectedRevision: 1,
     expectedApplicationVersion: 1,
@@ -310,20 +325,36 @@ it("counts new web grant writes once across receipt replays and unchanged recomm
       reasoning: "Expanded access",
     },
   };
-  const saved = await recommendations.saveRecommendation(actor, proposal);
-  assert(saved.status === "ok");
-  expect(await recommendations.saveRecommendation(actor, proposal)).toEqual({ status: "conflict" });
-  const unchanged = await recommendations.saveRecommendation(actor, {
-    ...proposal,
-    expectedRevision: saved.recommendationVersion,
-  });
-  assert(unchanged.status === "ok");
-  expect(p.captureGrantOutcome.mock.calls).toEqual(
-    ["round_created", "application_recorded", "funding_recommendation_saved"].map((event) => [
-      { event, workspaceKind: "standard", workspaceId: "alder", surface: "web" },
-    ]),
-  );
 });
+
+recommendationTest("ignores a conflicting web recommendation", async ({ parity: p, proposal }) => {
+  const result = await p.mcpOperations.recommendations.saveRecommendation(actor, {
+    ...proposal,
+    expectedRevision: 0,
+  });
+  expect(result).toEqual({ status: "conflict" });
+  expect(p.captureGrantOutcome).not.toHaveBeenCalled();
+});
+
+recommendationTest(
+  "counts a web recommendation only when its content changes",
+  async ({ parity: p, proposal }) => {
+    const { saveRecommendation } = p.mcpOperations.recommendations;
+    const saved = await saveRecommendation(actor, proposal);
+    assert(saved.status === "ok");
+    expect(p.captureGrantOutcome).toHaveBeenCalledExactlyOnceWith({
+      ...webWorkspace,
+      event: "funding_recommendation_saved",
+    });
+
+    const unchanged = await saveRecommendation(actor, {
+      ...proposal,
+      expectedRevision: saved.recommendationVersion,
+    });
+    assert(unchanged.status === "ok");
+    expect(p.captureGrantOutcome).toHaveBeenCalledTimes(1);
+  },
+);
 
 it("counts a visitor's own MCP write in the demo and ignores prepared grant records", async ({
   database,
