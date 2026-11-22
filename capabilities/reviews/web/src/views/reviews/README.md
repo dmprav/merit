@@ -89,11 +89,11 @@ reference panes and calls its open or show-all actions; it does not remount revi
 content to reset navigation. The shared reading-navigation hook restores focus and
 the physical pane's reading position even when its owner lives above the pane.
 
-The [review controller](../../controllers/reviews/use-review.ts) reports a conflict
-only when the draft's target assessment or request has changed, and supplies the
-current assessment values and keep/load actions to the shared conflict banner.
-Keeping a draft reaffirms it against the current versions without saving yet, while
-discarding loads the latest server values. Render the feedback slot outside switchable references so a
+The [review controller](../../controllers/reviews/use-review.ts) decides which
+review changes conflict with a draft, and supplies the current assessment values
+and keep/load actions to the shared conflict banner. Keeping a draft reaffirms it
+against the current versions without saving yet, while discarding loads the
+latest server values. Render the feedback slot outside switchable references so a
 saved-but-not-refreshed warning and Retry remain available after the editor
 closes, regardless of which material the person is reading. Retry refreshes the
 saved state without repeating the write.
