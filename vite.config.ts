@@ -92,6 +92,7 @@ export default defineConfig({
       "ready:tooling": {
         command: [
           "vp run test:docs",
+          "vp run test:design-system",
           "vp run test:react-compiler",
           "vp run test:fallow",
           "vp run test:architecture",
@@ -169,6 +170,10 @@ export default defineConfig({
         cache: false,
       },
       "test:docs": { command: "vp test tooling/verification/docs.test.ts", cache: false },
+      "test:design-system": {
+        command: "vp test tooling/storybook/design-system/tokens.test.ts",
+        cache: false,
+      },
       "test:react-compiler": {
         command: "vp test tooling/verification/react-compiler.test.ts",
         cache: false,

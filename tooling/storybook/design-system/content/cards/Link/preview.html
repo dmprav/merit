@@ -1,0 +1,112 @@
+<!-- @dsCard group="Components" height=409 -->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Link — preview</title>
+  </head>
+  <body>
+    <div id="root" style="padding: 16px"></div>
+    <script>
+      var M = window.Merit,
+        h = React.createElement;
+      ReactDOM.createRoot(document.getElementById("root")).render(
+        h(
+          M.Provider,
+          null,
+          h(
+            M.Stack,
+            { gap: 5 },
+            h(
+              M.Reading,
+              { prose: false, as: "p" },
+              "Before making a recommendation, read the ",
+              h(M.Link, { href: "#evidence" }, "supporting evidence"),
+              " and check the ",
+              h(M.Link, { href: "#criteria" }, "funding criteria"),
+              ".",
+            ),
+            h(
+              M.Inline,
+              { gap: 6 },
+              h(
+                M.Link,
+                { variant: "standalone", href: "#rounds" },
+                h(M.Icon, { name: "left" }),
+                " All funding rounds",
+              ),
+              h(
+                M.Link,
+                { variant: "standalone", href: "#evidence" },
+                "View evidence ",
+                h(M.Icon, { name: "forward" }),
+              ),
+              h(
+                M.Link,
+                {
+                  variant: "standalone",
+                  href: "#applicant",
+                  target: "_blank",
+                  rel: "noopener noreferrer",
+                  "aria-label": "Applicant website (opens in a new tab)",
+                },
+                "Applicant website ",
+                h(M.Icon, { name: "arrow" }),
+              ),
+            ),
+            h(
+              M.Inline,
+              null,
+              h(M.Button, { size: "medium" }, "Add evidence"),
+              h(
+                M.Link,
+                { variant: "secondary", href: "#evidence" },
+                "View evidence ",
+                h(M.Icon, { name: "forward" }),
+              ),
+              h(M.Link, { variant: "quiet", href: "#rounds" }, "Back to round"),
+            ),
+            h(
+              M.Inline,
+              null,
+              h(
+                M.Link,
+                { variant: "primary", size: "large", href: "#demo" },
+                "Explore the demo ",
+                h(M.Icon, { name: "forward" }),
+              ),
+            ),
+            h(
+              "div",
+              { style: { maxWidth: "360px" } },
+              h(
+                M.Stack,
+                { as: "ul", gap: 1 },
+                h(
+                  "li",
+                  null,
+                  h(
+                    M.Link,
+                    { variant: "row", href: "#neighbour-table" },
+                    h("span", null, "Neighbour Table"),
+                    h(M.Text, { variant: "supporting" }, "Community grants 2026"),
+                  ),
+                ),
+                h(
+                  "li",
+                  null,
+                  h(
+                    M.Link,
+                    { variant: "row", href: "#repair-cafe" },
+                    h("span", null, "Saturday repair café"),
+                    h(M.Text, { variant: "supporting" }, "Neighbourhood partnerships 2025"),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    </script>
+  </body>
+</html>

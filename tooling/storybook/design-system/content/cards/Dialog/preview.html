@@ -1,0 +1,86 @@
+<!-- @dsCard group="Components" height=440 -->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Dialog — preview</title>
+  </head>
+  <body>
+    <div id="root" style="padding: 16px"></div>
+    <script>
+      var M = window.Merit,
+        h = React.createElement;
+      function Frames() {
+        var trigger = function (label) {
+          return h(M.Button, { size: "medium", variant: "secondary" }, label);
+        };
+        var body = h(
+          M.DialogContent,
+          null,
+          h("p", null, "Compare the application with its supporting evidence."),
+        );
+        return h(
+          M.Inline,
+          { gap: 2 },
+          h(
+            M.SidePanel,
+            { title: "Related applications", trigger: trigger("Open side panel") },
+            body,
+          ),
+          h(
+            M.PopoverDialog,
+            { title: "An example dialog", trigger: trigger("Open popover") },
+            h("p", null, "Nothing will be published or changed in the funding round."),
+          ),
+          h(
+            M.PickerPopover,
+            {
+              title: "Choose a status",
+              placement: "bottom start",
+              trigger: trigger("Status: Draft"),
+            },
+            h("p", null, "Draft"),
+          ),
+          h(M.ModalDialog, {
+            title: "Review guidance",
+            context: "Community grants",
+            contextLabel: "Round",
+            defaultOpen: true,
+            trigger: trigger("Open dialog"),
+            children: function (r) {
+              return h(
+                M.DialogContent,
+                {
+                  footer: h(
+                    M.Inline,
+                    { justify: "end" },
+                    h(M.Button, { size: "medium", onPress: r.close }, "Done"),
+                  ),
+                },
+                h(
+                  M.DialogSection,
+                  { title: "Inspect the evidence" },
+                  h(
+                    "p",
+                    null,
+                    "Compare the application with its supporting evidence. Keep applicant statements separate from reviewer judgments, and record questions that need clarification.",
+                  ),
+                ),
+                h(
+                  M.DialogSection,
+                  { title: "Record open questions" },
+                  h(
+                    "p",
+                    null,
+                    "Write down missing information and questions deliberately left for discussion.",
+                  ),
+                ),
+              );
+            },
+          }),
+        );
+      }
+      ReactDOM.createRoot(document.getElementById("root")).render(h(M.Provider, null, h(Frames)));
+    </script>
+  </body>
+</html>

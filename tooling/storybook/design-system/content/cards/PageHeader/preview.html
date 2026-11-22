@@ -1,0 +1,56 @@
+<!-- @dsCard group="Patterns" height=244 -->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>PageHeader — preview</title>
+  </head>
+  <body>
+    <div id="root" style="padding: 16px"></div>
+    <script>
+      var M = window.Merit,
+        h = React.createElement;
+      ReactDOM.createRoot(document.getElementById("root")).render(
+        h(
+          M.Provider,
+          null,
+          h(
+            M.Stack,
+            { gap: 5 },
+            h(M.PageHeader, {
+              title: "Local Connections 2027",
+              kicker: "Funding round",
+              status: h(M.Badge, null, "In preparation"),
+              description: "Prepare the evidence and recommendations for committee.",
+              actions: h(
+                React.Fragment,
+                null,
+                h(M.Button, { size: "medium" }, "Review round"),
+                h(M.ActionMenu, {
+                  label: "More actions",
+                  trigger: h(
+                    M.Button,
+                    {
+                      size: "medium",
+                      variant: "quiet",
+                      iconOnly: true,
+                      "aria-label": "More actions",
+                    },
+                    h(M.Icon, { name: "more" }),
+                  ),
+                  items: [{ id: "export", label: "Export summary", icon: "arrow" }],
+                  onAction: function () {},
+                }),
+              ),
+            }),
+            h(M.PageHeader, {
+              density: "compact",
+              title: "Annual report",
+              description: "Version 3 · Updated 4 March",
+            }),
+          ),
+        ),
+      );
+    </script>
+  </body>
+</html>

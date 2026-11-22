@@ -5,6 +5,9 @@
   "license": "UNLICENSED",
   "type": "module",
   "devDependencies": {
+    "@merit/forms": "workspace:*",
+    "@merit/i18n": "workspace:*",
+    "@merit/tables": "workspace:*",
     "@merit/test-support": "workspace:*",
     "@merit/ui": "workspace:*",
     "@playwright/test": "catalog:",
@@ -17,6 +20,7 @@
     "@types/react-dom": "catalog:",
     "@vitejs/plugin-react": "catalog:",
     "@vitest/browser-playwright": "catalog:",
+    "lucide-react": "catalog:",
     "oxc-transform-react": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
@@ -25,6 +29,7 @@
     "typescript": "catalog:",
     "vite": "catalog:",
     "vite-plus": "catalog:",
-    "vitest": "catalog:"
+    "vitest": "catalog:",
+    "zod": "catalog:"
   }
 }

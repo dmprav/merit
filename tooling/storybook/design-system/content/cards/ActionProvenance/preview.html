@@ -1,0 +1,44 @@
+<!-- @dsCard group="Patterns" height=152 -->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>ActionProvenance — preview</title>
+  </head>
+  <body>
+    <div id="root" style="padding: 16px"></div>
+    <script>
+      var M = window.Merit,
+        h = React.createElement;
+      ReactDOM.createRoot(document.getElementById("root")).render(
+        h(
+          M.Provider,
+          null,
+          h(
+            M.Stack,
+            { gap: 3 },
+            h(
+              M.Inline,
+              { gap: 3, align: "baseline" },
+              h(M.PersonIdentity, { name: "Dana Reed" }),
+              h(M.ActionProvenance, {
+                value: { interface: "mcp", clientId: "grant-review-assistant" },
+              }),
+              h(M.ActionProvenance, { value: { interface: "web" } }),
+            ),
+            h(
+              M.Stack,
+              { gap: 1 },
+              h(M.ActionProvenance, { value: { interface: "web" }, detail: true }),
+              h(M.ActionProvenance, {
+                value: { interface: "mcp", clientId: "grant-review-assistant" },
+                detail: true,
+              }),
+              h(M.ActionProvenance, { value: null, detail: true }),
+            ),
+          ),
+        ),
+      );
+    </script>
+  </body>
+</html>

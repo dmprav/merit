@@ -1,0 +1,49 @@
+<!-- @dsCard group="Components" height=216 -->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Text — preview</title>
+  </head>
+  <body>
+    <div id="root" style="padding: 16px"></div>
+    <script>
+      var M = window.Merit,
+        h = React.createElement;
+      ReactDOM.createRoot(document.getElementById("root")).render(
+        h(
+          M.Provider,
+          null,
+          h(
+            M.Stack,
+            { gap: 3 },
+            h(
+              "div",
+              null,
+              h("p", null, "Neighbour Table"),
+              h(M.Text, { as: "p", variant: "supporting" }, "Neighbourhood Kitchen"),
+            ),
+            h(
+              M.Text,
+              { as: "p", variant: "caption" },
+              "Identify the material and criteria actually reviewed, or leave them unknown.",
+            ),
+            h("p", null, "Project dates: ", h(M.Text, { variant: "missing" }, "Not known")),
+            h(
+              "p",
+              null,
+              "Available before this recommendation: ",
+              h(M.Text, { variant: "emphasis" }, "€32,000"),
+            ),
+            h(
+              "p",
+              null,
+              "Over budget if approved: ",
+              h(M.Text, { variant: "attention" }, "€4,000"),
+            ),
+          ),
+        ),
+      );
+    </script>
+  </body>
+</html>

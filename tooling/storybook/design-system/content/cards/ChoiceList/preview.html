@@ -1,0 +1,57 @@
+<!-- @dsCard group="Patterns" height=290 -->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>ChoiceList — preview</title>
+  </head>
+  <body>
+    <div id="root" style="padding: 16px"></div>
+    <script>
+      var M = window.Merit,
+        h = React.createElement;
+      var people = [
+        { id: "dana", label: "Dana Reed", description: "dana@example.test" },
+        { id: "leah", label: "Leah Martin", description: "leah@example.test" },
+        { id: "sam", label: "Sam Okafor", description: "Access ended", isDisabled: true },
+      ];
+      function Demo() {
+        var s = React.useState("dana"),
+          person = s[0],
+          setPerson = s[1];
+        var o = React.useState(true),
+          open = o[0],
+          setOpen = o[1];
+        var name = people.filter(function (p) {
+          return p.id === person;
+        })[0].label;
+        return h(
+          M.PickerPopover,
+          {
+            title: "Manager",
+            isOpen: open,
+            onOpenChange: setOpen,
+            placement: "bottom start",
+            trigger: h(
+              M.PropertyButton,
+              { action: "choose", label: "Change manager: " + name },
+              h(M.PersonIdentity, { name: name }),
+            ),
+          },
+          h(M.ChoiceList, {
+            label: "Manager",
+            searchLabel: "Search people",
+            emptyLabel: "No matching people",
+            selectedKey: person,
+            items: people,
+            onChoose: function (id) {
+              setPerson(id);
+              setOpen(false);
+            },
+          }),
+        );
+      }
+      ReactDOM.createRoot(document.getElementById("root")).render(h(M.Provider, null, h(Demo)));
+    </script>
+  </body>
+</html>

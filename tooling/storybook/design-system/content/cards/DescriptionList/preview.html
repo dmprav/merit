@@ -1,0 +1,72 @@
+<!-- @dsCard group="Components" height=443 -->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>DescriptionList — preview</title>
+  </head>
+  <body>
+    <div id="root" style="padding: 16px"></div>
+    <script>
+      var M = window.Merit,
+        h = React.createElement;
+      function items() {
+        return [
+          h(M.DescriptionListItem, { key: "s", label: "Status" }, h(M.Badge, null, "Open")),
+          h(M.DescriptionListItem, { key: "b", label: "Budget" }, "£120,000"),
+          h(
+            M.DescriptionListItem,
+            { key: "m", label: "Manager" },
+            h(M.PersonIdentity, { name: "Dana Reed" }),
+          ),
+          h(M.DescriptionListItem, { key: "r", label: "Reviews submitted" }, 0),
+        ];
+      }
+      ReactDOM.createRoot(document.getElementById("root")).render(
+        h(
+          M.Provider,
+          null,
+          h(
+            M.Stack,
+            { gap: 6 },
+            h(M.DescriptionList, { layout: "columns" }, items()),
+            h(
+              M.Inline,
+              { gap: 8, align: "start" },
+              h(
+                "div",
+                { style: { width: "320px" } },
+                h(M.DescriptionList, { layout: "rows", divided: true }, items()),
+              ),
+              h(
+                "div",
+                { style: { width: "260px" } },
+                h(
+                  M.DescriptionList,
+                  null,
+                  h(
+                    M.DescriptionListItem,
+                    { label: "Organisation" },
+                    "Northside Community Partnerships",
+                  ),
+                  h(M.DescriptionListItem, { label: "Requested" }, "£42,000"),
+                ),
+              ),
+            ),
+            h(
+              "div",
+              { style: { width: "320px" } },
+              h(
+                M.DescriptionList,
+                { layout: "figures" },
+                h(M.DescriptionListItem, { label: "Requested" }, "£42,000"),
+                h(M.DescriptionListItem, { label: "Proposed allocation" }, "£36,500"),
+                h(M.DescriptionListItem, { label: "Round budget remaining" }, "£118,250"),
+              ),
+            ),
+          ),
+        ),
+      );
+    </script>
+  </body>
+</html>

@@ -1,0 +1,40 @@
+<!-- @dsCard group="Patterns" height=144 -->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Timestamp — preview</title>
+  </head>
+  <body>
+    <div id="root" style="padding: 16px"></div>
+    <script>
+      var M = window.Merit,
+        h = React.createElement;
+      ReactDOM.createRoot(document.getElementById("root")).render(
+        h(
+          M.Provider,
+          null,
+          h(
+            M.DescriptionList,
+            { layout: "rows" },
+            h(
+              M.DescriptionListItem,
+              { label: "Submitted" },
+              h(M.Timestamp, { value: "2027-01-20T12:00:45Z" }),
+            ),
+            h(
+              M.DescriptionListItem,
+              { label: "Last edited" },
+              h(M.Timestamp, { value: "2027-03-04T08:15:00Z" }),
+            ),
+            h(
+              M.DescriptionListItem,
+              { label: "Committee decision" },
+              h(M.Timestamp, { value: "2027-06-15T16:30:00Z" }),
+            ),
+          ),
+        ),
+      );
+    </script>
+  </body>
+</html>

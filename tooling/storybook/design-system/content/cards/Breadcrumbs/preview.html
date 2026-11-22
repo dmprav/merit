@@ -1,0 +1,50 @@
+<!-- @dsCard group="Components" height=270 -->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Breadcrumbs — preview</title>
+  </head>
+  <body>
+    <div id="root" style="padding: 16px"></div>
+    <script>
+      var M = window.Merit,
+        h = React.createElement;
+      ReactDOM.createRoot(document.getElementById("root")).render(
+        h(
+          M.Provider,
+          null,
+          h(
+            M.Stack,
+            { gap: 5 },
+            h(M.Breadcrumbs, {
+              label: "Breadcrumb",
+              items: [
+                h("a", { key: "rounds", href: "#rounds" }, "Rounds"),
+                h("a", { key: "round", href: "#applications" }, "Local Connections 2027"),
+                "Workshop Saturdays",
+              ],
+            }),
+            h(M.Breadcrumbs, { label: "Breadcrumb", items: ["Organizations"] }),
+            h(
+              "div",
+              { style: { maxWidth: "420px" } },
+              h(M.Breadcrumbs, {
+                label: "Breadcrumb",
+                items: [
+                  h("a", { key: "rounds", href: "#rounds" }, "Rounds"),
+                  h(
+                    "a",
+                    { key: "round", href: "#applications" },
+                    "Local Connections 2027: Neighbourhood partnerships and community spaces",
+                  ),
+                  "Workshop Saturdays: A shared space for making, learning, and meeting neighbours",
+                ],
+              }),
+            ),
+          ),
+        ),
+      );
+    </script>
+  </body>
+</html>

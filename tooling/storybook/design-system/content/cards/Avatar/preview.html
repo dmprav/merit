@@ -1,0 +1,45 @@
+<!-- @dsCard group="Components" height=132 -->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Avatar — preview</title>
+  </head>
+  <body>
+    <div id="root" style="padding: 16px"></div>
+    <script>
+      var M = window.Merit,
+        h = React.createElement;
+      ReactDOM.createRoot(document.getElementById("root")).render(
+        h(
+          M.Provider,
+          null,
+          h(
+            M.Stack,
+            { gap: 3 },
+            h(
+              M.Inline,
+              { gap: 3 },
+              h(M.Avatar, { name: "Dana Reed" }),
+              h(M.Avatar, { name: "Dana" }),
+              h(M.Avatar, {}),
+            ),
+            h(
+              M.Inline,
+              { gap: 3 },
+              h(M.Avatar, { name: "Dana Reed", size: "regular" }),
+              h(M.Avatar, { name: "Amara Okafor", size: "regular" }),
+              h(M.Avatar, { size: "regular" }),
+            ),
+            h(
+              M.Inline,
+              { gap: 2 },
+              h(M.Avatar, { name: "Dana Reed" }),
+              h("span", null, "Dana Reed"),
+            ),
+          ),
+        ),
+      );
+    </script>
+  </body>
+</html>

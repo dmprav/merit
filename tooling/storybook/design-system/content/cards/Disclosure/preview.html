@@ -1,0 +1,40 @@
+<!-- @dsCard group="Components" height=212 -->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Disclosure — preview</title>
+  </head>
+  <body>
+    <div id="root" style="padding: 16px"></div>
+    <script>
+      var M = window.Merit,
+        h = React.createElement;
+      ReactDOM.createRoot(document.getElementById("root")).render(
+        h(
+          M.Provider,
+          null,
+          h(
+            M.Stack,
+            { gap: 5 },
+            h(
+              M.Disclosure,
+              { title: "Earlier versions", count: 2 },
+              h("p", null, "Version 1 recommended funding at €18,000 before the venue changed."),
+            ),
+            h(
+              M.Disclosure,
+              { title: "Earlier versions", count: 2, defaultExpanded: true },
+              h("p", null, "Version 1 recommended funding at €18,000 before the venue changed."),
+            ),
+            h(
+              M.Disclosure,
+              { title: "Reviewer notes" },
+              h("p", null, "Notes kept for the panel discussion."),
+            ),
+          ),
+        ),
+      );
+    </script>
+  </body>
+</html>

@@ -1,0 +1,74 @@
+<!-- @dsCard group="Components" height=524 -->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Layout — preview</title>
+  </head>
+  <body>
+    <div id="root" style="padding: 16px"></div>
+    <script>
+      var M = window.Merit,
+        h = React.createElement;
+      ReactDOM.createRoot(document.getElementById("root")).render(
+        h(
+          M.Provider,
+          null,
+          h(
+            M.Stack,
+            { gap: 7 },
+            h(
+              M.Stack,
+              { as: "section", gap: 4, "aria-label": "Prepare the recommendation" },
+              h(
+                M.Reading,
+                { as: "p" },
+                "Read the current submission and compare the assessments before recording a recommendation. Keep the evidence and its source available while you write.",
+              ),
+              h(
+                M.Stack,
+                { as: "ol", gap: 2, "aria-label": "Preparation steps" },
+                h("li", null, "Read the revised submission."),
+                h("li", null, "Compare the reviewer assessments."),
+                h("li", null, "Record the recommendation and its reasons."),
+              ),
+              h(
+                M.Inline,
+                { role: "group", "aria-label": "Recommendation actions" },
+                h(
+                  M.Button,
+                  { size: "medium", variant: "secondary" },
+                  "Read the revised submission",
+                ),
+                h(
+                  M.Button,
+                  { size: "medium", variant: "secondary" },
+                  "Compare reviewer assessments",
+                ),
+              ),
+            ),
+            h(
+              M.Inline,
+              { align: "baseline" },
+              h(M.Text, { as: "span", variant: "emphasis" }, "£42,000"),
+              h(M.Text, { as: "span", variant: "caption" }, "requested in this submission"),
+            ),
+            h(
+              M.Stack,
+              { gap: 3, divided: "around" },
+              h("div", null, "Dana Reed submitted a review"),
+              h("div", null, "Amara Okafor was assigned"),
+              h("div", null, "Application moved to review"),
+            ),
+            h(
+              M.Inline,
+              { gap: 3, justify: "end", role: "group", "aria-label": "Recommendation actions" },
+              h(M.Button, { size: "medium", variant: "secondary" }, "Close"),
+              h(M.Button, { size: "medium" }, "Save recommendation"),
+            ),
+          ),
+        ),
+      );
+    </script>
+  </body>
+</html>

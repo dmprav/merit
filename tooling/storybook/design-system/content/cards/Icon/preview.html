@@ -1,0 +1,99 @@
+<!-- @dsCard group="Components" height=354 -->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Icon — preview</title>
+  </head>
+  <body>
+    <div id="root" style="padding: 16px"></div>
+    <script>
+      var M = window.Merit,
+        h = React.createElement;
+      var names = [
+        "warning",
+        "clock",
+        "info",
+        "pin",
+        "pinned",
+        "settings",
+        "add",
+        "discard",
+        "menu",
+        "sort",
+        "team",
+        "contacts",
+        "ascending",
+        "descending",
+        "guide",
+        "more",
+        "home",
+        "layers",
+        "application",
+        "activity",
+        "round",
+        "left",
+        "right",
+        "down",
+        "check",
+        "arrow",
+        "forward",
+        "edit",
+        "copy",
+        "loading",
+        "exit",
+        "reset",
+        "close",
+        "search",
+        "filter",
+      ];
+      ReactDOM.createRoot(document.getElementById("root")).render(
+        h(
+          M.Provider,
+          null,
+          h(
+            M.Stack,
+            { gap: 6 },
+            h(
+              M.Inline,
+              { as: "ul", gap: 4 },
+              names.map(function (n) {
+                return h(
+                  "li",
+                  { key: n, style: { width: "84px" } },
+                  h(
+                    M.Stack,
+                    { gap: 1 },
+                    h(M.Icon, { name: n }),
+                    h(M.Text, { variant: "caption" }, n),
+                  ),
+                );
+              }),
+            ),
+            h(
+              M.Inline,
+              { gap: 2 },
+              h(
+                M.Button,
+                { size: "medium", variant: "secondary" },
+                h(M.Icon, { name: "edit" }),
+                "Edit recommendation",
+              ),
+              h(
+                M.Button,
+                {
+                  size: "medium",
+                  variant: "quiet",
+                  iconOnly: true,
+                  "aria-label": "Next application",
+                },
+                h(M.Icon, { name: "right" }),
+              ),
+              h(M.Button, { size: "medium", isPending: true }, "Saving…"),
+            ),
+          ),
+        ),
+      );
+    </script>
+  </body>
+</html>

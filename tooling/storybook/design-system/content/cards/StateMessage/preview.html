@@ -1,0 +1,79 @@
+<!-- @dsCard group="Patterns" height=380 -->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>StateMessage — preview</title>
+  </head>
+  <body>
+    <div id="root" style="padding: 16px"></div>
+    <script>
+      var M = window.Merit,
+        h = React.createElement;
+      var missing = h(
+        "svg",
+        {
+          width: 64,
+          height: 72,
+          viewBox: "0 0 64 72",
+          fill: "none",
+          stroke: "currentColor",
+          strokeWidth: 1.5,
+          strokeLinecap: "round",
+          strokeLinejoin: "round",
+          "aria-hidden": "true",
+        },
+        h("path", { d: "M40 6H14a4 4 0 0 0-4 4v52a4 4 0 0 0 4 4h36a4 4 0 0 0 4-4V20L40 6Z" }),
+        h("path", { d: "M40 6v14h14M20 30h24M20 38h14M29 48l10 10M39 48 29 58" }),
+      );
+      ReactDOM.createRoot(document.getElementById("root")).render(
+        h(
+          M.Provider,
+          null,
+          h(
+            M.Stack,
+            { gap: 6 },
+            h(
+              M.Inline,
+              { gap: 6, align: "start" },
+              h(M.StateMessage, {
+                title: "Workspace unavailable",
+                description: "We couldn’t load your workspace. Please try again.",
+                actions: h(M.Button, { size: "medium" }, "Try again"),
+              }),
+              h(M.StateMessage, {
+                title: "Application not found",
+                description: "This application isn’t in the demo.",
+                illustration: missing,
+              }),
+            ),
+            h(M.StateMessage, { title: "Loading your workspace…", role: "status" }),
+            h(
+              M.Inline,
+              { gap: 6, align: "start" },
+              h(M.StateMessage, {
+                size: "compact",
+                illustration: h(M.Icon, { name: "search" }),
+                title: "No results match “harbr”.",
+                description: "Search by funding round, application title, or applicant.",
+              }),
+              h(M.StateMessage, {
+                size: "compact",
+                tone: "danger",
+                illustration: h(M.Icon, { name: "warning" }),
+                title: "Search isn’t available right now.",
+                description: "Your search is kept. Try again in a moment.",
+                actions: h(
+                  M.Button,
+                  { variant: "quiet" },
+                  h(M.Icon, { name: "reset" }),
+                  "Try again",
+                ),
+              }),
+            ),
+          ),
+        ),
+      );
+    </script>
+  </body>
+</html>

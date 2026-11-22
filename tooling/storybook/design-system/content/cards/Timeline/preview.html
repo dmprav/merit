@@ -1,0 +1,57 @@
+<!-- @dsCard group="Patterns" height=180 -->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Timeline — preview</title>
+  </head>
+  <body>
+    <div id="root" style="padding: 16px"></div>
+    <script>
+      var M = window.Merit,
+        h = React.createElement;
+      ReactDOM.createRoot(document.getElementById("root")).render(
+        h(
+          M.Provider,
+          null,
+          h(
+            M.Timeline,
+            { label: "Application history" },
+            h(
+              M.TimelineEntry,
+              {
+                title: "Recommendation recorded",
+                attribution: h(M.Attribution, {
+                  actor: "Sam Patel",
+                  provenance: { interface: "web" },
+                  recordedAt: "2027-01-24T15:20:00Z",
+                }),
+              },
+              h("p", null, "Fund in full: the costs match two independent quotes."),
+            ),
+            h(
+              M.TimelineEntry,
+              {
+                title: "Revised submission recorded",
+                attribution: h(M.Attribution, {
+                  actor: "Dana Reed",
+                  provenance: { interface: "web" },
+                  recordedAt: "2027-01-17T11:00:00Z",
+                }),
+              },
+              h("p", null, "The applicant clarified booking and access arrangements."),
+            ),
+            h(M.TimelineEntry, {
+              title: "Application recorded",
+              attribution: h(M.Attribution, {
+                actor: null,
+                provenance: null,
+                recordedAt: "2027-01-08T09:30:00Z",
+              }),
+            }),
+          ),
+        ),
+      );
+    </script>
+  </body>
+</html>

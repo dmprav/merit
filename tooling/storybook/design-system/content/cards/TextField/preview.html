@@ -1,0 +1,69 @@
+<!-- @dsCard group="Components" height=681 -->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>TextField — preview</title>
+  </head>
+  <body>
+    <div id="root" style="padding: 16px"></div>
+    <script>
+      var M = window.Merit,
+        h = React.createElement;
+      ReactDOM.createRoot(document.getElementById("root")).render(
+        h(
+          M.Provider,
+          null,
+          h(
+            "div",
+            { style: { maxWidth: "448px" } },
+            h(
+              M.Stack,
+              { gap: 4 },
+              h(M.TextField, {
+                label: "Display name",
+                description: "Use the name your colleagues recognize.",
+                placeholder: "Alex Morgan",
+              }),
+              h(M.TextField, {
+                label: "Display name",
+                defaultValue: "Alex Morgan",
+                isRequired: true,
+              }),
+              h(M.TextField, {
+                label: "Display name",
+                defaultValue: "A",
+                isInvalid: true,
+                errorMessage: "Use at least two characters.",
+              }),
+              h(M.TextField, {
+                label: "Proposed allocation",
+                prefix: { text: "€", label: "Euros" },
+                inputMode: "decimal",
+                defaultValue: "20000.00",
+              }),
+              h(M.TextField, {
+                label: "Organization responsibility",
+                defaultValue: "Owner",
+                isReadOnly: true,
+                description: "Contact the Merit operator for ownership changes.",
+              }),
+              h(M.TextField, {
+                label: "Display name",
+                defaultValue: "Alex Morgan",
+                isDisabled: true,
+              }),
+              h(M.TextField, {
+                label: "Summary",
+                defaultValue:
+                  "A community-led programme expanding access to local arts and culture.",
+                multiline: true,
+                rows: 2,
+              }),
+            ),
+          ),
+        ),
+      );
+    </script>
+  </body>
+</html>

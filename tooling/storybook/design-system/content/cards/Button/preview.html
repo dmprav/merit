@@ -1,0 +1,45 @@
+<!-- @dsCard group="Components" height=120 -->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Button — preview</title>
+  </head>
+  <body>
+    <div id="root" style="padding: 16px"></div>
+    <script>
+      var M = window.Merit,
+        h = React.createElement;
+      ReactDOM.createRoot(document.getElementById("root")).render(
+        h(
+          M.Provider,
+          null,
+          h(
+            M.Stack,
+            { gap: 3 },
+            h(
+              M.Inline,
+              { gap: 2 },
+              h(M.Button, { variant: "primary" }, "Mark ready for review"),
+              h(M.Button, { variant: "secondary" }, "Keep my changes"),
+              h(M.Button, { variant: "quiet" }, h(M.Icon, { name: "add" }), "Add reviewer"),
+              h(M.Button, { variant: "destructive" }, "Remove member"),
+            ),
+            h(
+              M.Inline,
+              { gap: 2 },
+              h(M.Button, { variant: "primary", isPending: true }, "Saving"),
+              h(M.Button, { variant: "primary", isDisabled: true }, "Submit decision"),
+              h(
+                M.Button,
+                { variant: "quiet", iconOnly: true, "aria-label": "More actions" },
+                h(M.Icon, { name: "more" }),
+              ),
+              h(M.Button, { variant: "primary", size: "large" }, "Create organization"),
+            ),
+          ),
+        ),
+      );
+    </script>
+  </body>
+</html>

@@ -117,3 +117,12 @@ shell stories must not acquire another `main`.
 Expose Controls for args that actually change the example. Disable controls for
 fixture data and state owned by the interactive example. Use `fn()` to make
 callbacks observable when the interaction depends on them.
+
+## Share the catalog outside the repository
+
+The [design-system export](../../tooling/storybook/design-system/README.md) packages
+the same shared catalog for designers and agents who work outside the repository:
+tokens from `tokens.css`, the built library and a card for each component and pattern.
+When a change adds a token, a shared export, or changes what a component shows, update
+its classification or card there and rebuild with
+`vp run @merit/storybook#build:design-system`.

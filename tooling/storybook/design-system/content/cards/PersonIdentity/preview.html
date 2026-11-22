@@ -1,0 +1,61 @@
+<!-- @dsCard group="Patterns" height=388 -->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>PersonIdentity — preview</title>
+  </head>
+  <body>
+    <div id="root" style="padding: 16px"></div>
+    <script>
+      var M = window.Merit,
+        h = React.createElement;
+      ReactDOM.createRoot(document.getElementById("root")).render(
+        h(
+          M.Provider,
+          null,
+          h(
+            M.Stack,
+            { gap: 4 },
+            h(
+              M.Inline,
+              { gap: 6 },
+              h(M.PersonIdentity, { name: "Dana Reed" }),
+              h(M.PersonIdentity, { name: "Unassigned", isPlaceholder: true }),
+              h(M.Link, { href: "#person-profile" }, h(M.PersonIdentity, { name: "Leah Martin" })),
+            ),
+            h(M.PersonIdentity, { name: "Dana Reed", description: "Program manager" }),
+            h(M.PersonIdentity, {
+              name: "Dana Reed",
+              description: "dana@example.test",
+              annotation: "You",
+            }),
+            h(M.PersonIdentity, {
+              name: "Morgan Lee",
+              description: "morgan@example.test",
+              status: h(M.Badge, { appearance: "plain" }, "Account disabled"),
+            }),
+            h(M.PersonIdentity, {
+              name: "Sam Patel",
+              nameAs: "h3",
+              description: h(
+                React.Fragment,
+                null,
+                h("span", null, "4 November 2026 · Application v1"),
+                h(M.Badge, { tone: "warning" }, "Outdated"),
+              ),
+            }),
+            h(
+              "div",
+              { style: { width: "220px", maxWidth: "100%" } },
+              h(M.PersonIdentity, {
+                name: "Alexandria Montgomery-Worthington",
+                description: "Programme manager for community partnerships and development",
+              }),
+            ),
+          ),
+        ),
+      );
+    </script>
+  </body>
+</html>
