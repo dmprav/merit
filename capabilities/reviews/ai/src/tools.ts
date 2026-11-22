@@ -111,7 +111,7 @@ const reviewerWrites = (
         inputSchema: submitReviewerSchema,
         outputSchema: reviewerRevisionSchema,
         description:
-          "Submit your saved draft or amendment against expectedDraftRevision. Records you as author and notifies the manager. Requires position and reasoning; funding positions require a positive amount. Amendments require a note. Reuse commandId on retry; read the assignment for notification status.",
+          "Submit your saved draft or amendment against expectedDraftRevision. Records you as author. The manager can read each version. Submission email is rate-limited. Requires position and reasoning; funding positions require a positive amount. Amendments require a note. Reuse commandId on retry. Read assignment.notification for the latest queued submission email.",
       },
       async (input) => {
         const result = await reviewer.submit(actor, input);

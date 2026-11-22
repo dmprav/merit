@@ -252,11 +252,27 @@ export const recordReviewerReceipt = (
     resultRevision: input.revision,
   });
 
-const invitationLimited = async (tx: Transaction, organizationId: string, email: string) => {
+type ReviewerEmailQuota =
+  | { kind: "invitation"; email: string }
+  | { kind: "submission"; assignmentId: string };
+
+const reviewerEmailLimited = async (
+  tx: Transaction,
+  organizationId: string,
+  quota: ReviewerEmailQuota,
+) => {
+  const invitation = quota.kind === "invitation";
+  const cooldown = invitation
+    ? eq(reviewerMessages.recipient, quota.email)
+    : eq(reviewerMessages.assignmentId, quota.assignmentId);
+  const limits = invitation ? { hourly: 20, daily: 100 } : { hourly: 100, daily: 500 };
+  await tx.execute(
+    sql`SELECT pg_advisory_xact_lock(hashtextextended(${`reviewer-${quota.kind}s:${organizationId}`}, 0))`,
+  );
   const [counts] = await tx
     .select({
-      recent: sql<number>`count(*) filter (where ${reviewerMessages.createdAt} > now() - interval '1 minute' and ${reviewerMessages.recipient} = ${email})::int`,
-      hourly: sql<number>`count(*) filter (where ${reviewerMessages.createdAt} > now() - interval '1 hour')::int`,
+      recent: sql<number>`count(*) filter (where ${reviewerMessages.createdAt} > statement_timestamp() - interval '1 minute' and ${cooldown})::int`,
+      hourly: sql<number>`count(*) filter (where ${reviewerMessages.createdAt} > statement_timestamp() - interval '1 hour')::int`,
       daily: sql<number>`count(*)::int`,
     })
     .from(reviewerMessages)
@@ -264,11 +280,13 @@ const invitationLimited = async (tx: Transaction, organizationId: string, email:
     .where(
       and(
         eq(reviewAssignments.organizationId, organizationId),
-        eq(reviewerMessages.kind, "invitation"),
-        sql`${reviewerMessages.createdAt} > now() - interval '24 hours'`,
+        eq(reviewerMessages.kind, quota.kind),
+        sql`${reviewerMessages.createdAt} > statement_timestamp() - interval '24 hours'`,
       ),
     );
-  return Boolean(counts && (counts.recent || counts.hourly >= 20 || counts.daily >= 100));
+  return Boolean(
+    counts && (counts.recent || counts.hourly >= limits.hourly || counts.daily >= limits.daily),
+  );
 };
 
 /** The quota covers initial invitations and resends across every case in the workspace. */
@@ -277,10 +295,12 @@ export const queueReviewerInvitation = async (
   message: { organizationId: string; assignmentId: string; commandId: string; email: string },
   prepareAssignment: () => Promise<unknown>,
 ) => {
-  await tx.execute(
-    sql`SELECT pg_advisory_xact_lock(hashtextextended(${`reviewer-invitations:${message.organizationId}`}, 0))`,
-  );
-  if (await invitationLimited(tx, message.organizationId, message.email)) {
+  if (
+    await reviewerEmailLimited(tx, message.organizationId, {
+      kind: "invitation",
+      email: message.email,
+    })
+  ) {
     return false;
   }
   await prepareAssignment();
@@ -289,25 +309,46 @@ export const queueReviewerInvitation = async (
     assignmentId: message.assignmentId,
     kind: "invitation",
     recipient: message.email,
+    createdAt: sql`statement_timestamp()`,
   });
   return true;
 };
 
 export const queueSubmissionMessage = async (
   tx: Transaction,
-  assignmentId: string,
-  id: string,
-  recipient: string,
+  assignment: { id: string; organizationId: string; managerEmail: string },
+  commandId: string,
 ) => {
-  await tx.insert(reviewerMessages).values({ id, assignmentId, kind: "submission", recipient });
+  if (
+    await reviewerEmailLimited(tx, assignment.organizationId, {
+      kind: "submission",
+      assignmentId: assignment.id,
+    })
+  ) {
+    return;
+  }
+  await tx.insert(reviewerMessages).values({
+    id: commandId,
+    assignmentId: assignment.id,
+    kind: "submission",
+    recipient: assignment.managerEmail,
+    createdAt: sql`statement_timestamp()`,
+  });
 };
 
-export const pendingReviewerMessages = (db: Database, assignmentId: string) =>
-  db
-    .select()
-    .from(reviewerMessages)
-    .where(eq(reviewerMessages.assignmentId, assignmentId))
-    .orderBy(desc(reviewerMessages.createdAt), desc(reviewerMessages.id));
+export const latestReviewerMessage = async (
+  db: Database,
+  assignmentId: string,
+  kind: "invitation" | "submission",
+) =>
+  (
+    await db
+      .select()
+      .from(reviewerMessages)
+      .where(and(eq(reviewerMessages.assignmentId, assignmentId), eq(reviewerMessages.kind, kind)))
+      .orderBy(desc(reviewerMessages.createdAt), desc(reviewerMessages.id))
+      .limit(1)
+  )[0];
 
 export const finishReviewerMessage = (
   db: Database,
