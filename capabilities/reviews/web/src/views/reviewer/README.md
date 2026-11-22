@@ -18,10 +18,10 @@ The assignment uses the shared
 the same frame as the manager's application overview and recommendation editor.
 On desktop the compact header stays in place while the application material and
 the assessment scroll independently, so reading never moves the fields or the
-**Submit** action. The reference switcher chooses between the pinned application
+**Submit assessment** action. The reference switcher chooses between the pinned application
 material and the assessment criteria; each keeps its reading position, and each
 shows the assigned version and any change warning. Narrow screens stack the panes
-with links between them and keep the save status and **Submit** at the bottom of
+with links between them and keep the save status and **Submit assessment** at the bottom of
 the viewport.
 
 The application header groups the applicant and requested amount. The requesting
@@ -58,21 +58,18 @@ reads after a saved change; it never repeats that command.
 
 The assessment reads in the order the manager will read it: funding position and
 proposed amount on one row, overall reasoning, then optional notes, each shown with
-its criterion's description. **Submit** first checks the draft against the
+its criterion's description. **Submit assessment** first checks the draft against the
 [reviews domain](../../../../business/src/domain/reviewer.ts) rule that the server
 also applies. Each problem then appears beside its field, focus moves to the first
-one. Privacy information stays beside **Submit**. The amount field rejects excess
+one. Privacy information stays beside **Submit assessment**. The amount field rejects excess
 precision as people type or paste, as the recommendation editor does; restored
 invalid values remain visible and cannot be submitted.
 
 Submitted work shows the judgment, its date, and earlier versions with their
-amendment notes. An icon-only pencil in the pane header opens an amendment, with
-an accessible **Amend assessment** label and tooltip on hover or keyboard focus. Its footer
-follows the [editing pattern](../../../../../../foundation/ui/src/patterns/editing/editing.mdx):
-**Close** keeps the autosaved amendment and the header then offers **Resume
-amendment** through the same pencil's label and tooltip with a draft marker, while **Discard amendment** returns the draft to
-the submitted assessment. Returning to the page opens the reading view first.
-Submission is confirmed with a toast.
+amendment notes. The pane header's **Amend assessment** pencil follows the
+[editing pattern](../../../../../../foundation/ui/src/patterns/editing/editing.mdx),
+becoming **Resume amendment** with a draft marker; **Discard amendment** returns the
+draft to the submitted assessment. Submission is confirmed with a toast.
 
 When two devices saved different drafts, the shared conflict banner offers
 **View saved** for the other device's draft and explicit choices between the two
