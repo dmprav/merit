@@ -39,7 +39,7 @@ const readCustomProperties = (css: string) => {
   const source = css.replaceAll(/\/\*[\s\S]*?\*\//g, "");
   for (const [, selector = "", body = ""] of source.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
     const declarations: Declarations = blocks.get(selector.trim()) ?? new Map();
-    for (const [, name = "", value = ""] of body.matchAll(/--([\w-]+)\s*:\s*([^;]+);/g)) {
+    for (const [, name = "", value = ""] of body.matchAll(/--([\w-]+)\s*:\s*([^;]+?)\s*(?:;|$)/g)) {
       declarations.set(name, value.trim());
     }
     blocks.set(selector.trim(), declarations);
@@ -72,6 +72,25 @@ const literalValue = (value: string, base: Declarations, seen: string[] = []): s
     throw new Error(`Cannot resolve var(--${name}).`);
   }
   return literalValue(next, base, [...seen, name]);
+};
+
+/** Non-color families hold one value, so a theme override would be lost; such properties stay css-only. */
+const sharedLength = (
+  name: string,
+  meta: TokenMeta,
+  blocks: Map<string, Declarations>,
+  base: Declarations,
+) => {
+  const value = literalValue(base.get(name) ?? "", base);
+  for (const theme of meta.themes.slice(1)) {
+    const override = blocks.get(theme.selector)?.get(name);
+    if (override !== undefined && literalValue(override, base) !== value) {
+      throw new Error(
+        `--${name} changes in the ${theme.id} theme; classify it as "css" in tokens.meta.json so the override is kept.`,
+      );
+    }
+  }
+  return value;
 };
 
 type Token = { name: string; value: string | Record<string, string>; usage: string };
@@ -147,7 +166,7 @@ export const buildTokens = (css: string, meta: TokenMeta, provenance: Record<str
     const value =
       entry.family === "color"
         ? singleOrThemed(themeValues(name, meta, blocks))
-        : literalValue(base.get(name) ?? "", base);
+        : sharedLength(name, meta, blocks, base);
     families[entry.family].push({ name, value, usage: entry.usage });
   }
   for (const { family, name, value, usage } of meta.extra) {

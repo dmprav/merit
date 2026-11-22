@@ -45,6 +45,10 @@ const themeSelectors = (css: string, themes: { id: string; selector: string }[])
     .reduce((text, theme) => text.replaceAll(theme.selector, `[data-theme="${theme.id}"]`), css);
 
 const main = async () => {
+  const relative = path.relative(output, here);
+  if (relative === "" || !relative.startsWith("..")) {
+    throw new Error(`Refusing to write to ${output}: it contains the design-system source.`);
+  }
   await rm(output, { recursive: true, force: true });
   await mkdir(components, { recursive: true });
 
@@ -76,7 +80,7 @@ const main = async () => {
   await writeFile(
     path.join(components, "bundle.css"),
     [
-      "/* Merit — values tokens.json cannot hold, document defaults and every component's CSS Module. Colors, spacing, radii, shadows and sizes come from tokens.css. */",
+      "/* Merit — values tokens.json cannot hold, document defaults and every component's CSS Module. Colors, spacing, radii, shadows and sizes come from the tokens.css the design system generates from tokens.json. */",
       cssOnlyProperties(tokensCss, meta),
       ...documentDefaults.map((css) => themeSelectors(css, meta.themes)),
       library,

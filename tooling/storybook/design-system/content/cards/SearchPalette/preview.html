@@ -92,6 +92,9 @@
               keyboardHelp: { navigate: "to move", open: "to open", close: "to close" },
               announcement: "4 results",
               announcementId: 1,
+              onEscape: function () {
+                setOpen(false);
+              },
             }),
           ),
         );

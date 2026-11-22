@@ -7,7 +7,7 @@ The frames for a focused task or reference material that should preserve the sur
 - `PopoverDialog`: reference material beside a value, with a persistent heading and close control; pass content directly (it supplies its own body), `headerActions` and an optional `footer` for utilities.
 - `PickerPopover`: a picker or small filter panel. Its `title` names it without a visible header or close control; it dismisses with Escape or an outside press.
 - Frames have no visual options; a new task gets a new frame, not an option on an existing one.
-- Supply `title`, and either `trigger` or controlled `isOpen`/`onOpenChange` (`defaultOpen` also works). Omit `trigger` for a dialog the feature opens itself; focus returns to where it was.
+- Supply `title`. `ModalDialog` and `SidePanel` take a `trigger` or controlled `isOpen`/`onOpenChange` (`defaultOpen` also works); omit `trigger` for a dialog the feature opens itself, and focus returns to where it was. `PopoverDialog` and `PickerPopover` always need a `trigger` to anchor to, and can add controlled `isOpen`/`onOpenChange`.
 - For work within a fixed parent, add `context` and a localised `contextLabel` ("Round: Community grants").
 - Inside `ModalDialog` and `SidePanel`, put the body in `DialogContent`: `children` scroll, `feedback` stays above the `footer` actions, `reading` sets reading typography, `label` renames the scroll region. Group content with `DialogSection` (`title`, `children`).
 - The close control is labelled "Close dialog"; pass `closeLabel` only for a more specific name. `isDismissable` enables backdrop dismissal; `isDismissDisabled` guards close, Escape and outside dismissal together while an operation must stay visible.

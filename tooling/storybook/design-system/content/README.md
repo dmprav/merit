@@ -57,7 +57,7 @@ The mark (Logos group) sits 1.2em tall beside the lowercase wordmark **merit** i
 
 ## Building with the components
 
-The components are Merit's own React libraries (`@merit/ui`, `@merit/forms` and `@merit/tables`), built as one script. Every export sits on `window.Merit`; load React 19 and ReactDOM 19 from `components/lib/` first, then `components/bundle.js`, with `tokens.css` and `components/bundle.css`.
+The components are Merit's own React libraries (`@merit/ui`, `@merit/forms` and `@merit/tables`), built as one script. Every export sits on `window.Merit`; load React 19 and ReactDOM 19 from `components/lib/` first, then `components/bundle.js`, with `tokens.css` (which the design system generates from `tokens.json`) and `components/bundle.css`.
 
 - Wrap every rendered tree in `Merit.Provider`, which supplies the shared English messages and en-GB date and number formatting.
 - Set `data-theme="product"` on the root element inside the application and `site` (the default) on the public site and guides.

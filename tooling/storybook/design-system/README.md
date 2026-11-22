@@ -24,6 +24,9 @@ the files a design-system artifact keeps under `project/`:
 | `components/<Card>/`, `README.md`  | The authored cards and brand book in [content](content)                                                                                     |
 | `assets/Icons`, `assets/Logos`     | Icon's Lucide glyphs and Brand's mark, rendered with the shared size, stroke and colors                                                     |
 
+The export has no `tokens.css`: the design-system artifact generates it from `tokens.json`,
+so `bundle.css` and the previews rely on that file.
+
 Pass a directory as the first argument to `vpx design-system/build.ts` to write somewhere
 else.
 
@@ -32,8 +35,9 @@ else.
 **The build fails rather than publish a token it cannot place.** Every custom property in
 `tokens.css` needs an entry in `tokens.meta.json`: a token family with a usage note, the
 font family, or `css` with the reason it stays in `bundle.css`. A new property, or an entry
-for one that was removed, stops the build with its name. `vp run test:design-system` covers
-this contract.
+for one that was removed, stops the build with its name, and so does a spacing, radius, shadow or size property the
+product theme overrides, since those families hold one value. `vp run test:design-system`
+covers this contract.
 
 **Cards are authored, so review them when a component's behavior or props change.** Each
 card is a `preview.html` that mounts the real component through `window.Merit` and a

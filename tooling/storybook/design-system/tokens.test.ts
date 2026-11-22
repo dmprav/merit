@@ -33,6 +33,20 @@ test("rejects a custom property the classification does not list", () => {
   expect(() => buildTokens(css, meta, {})).toThrow("Classify --new-accent");
 });
 
+test("reads a final declaration that has no semicolon", () => {
+  const css = ":root { --surface: #ffffff; --new-accent: #123456 }";
+  const meta = fixtureMeta({ surface: { family: "color", usage: "Cards." } });
+
+  expect(() => buildTokens(css, meta, {})).toThrow("Classify --new-accent");
+});
+
+test("rejects a theme override of a family that holds one value", () => {
+  const css = ":root { --space-1: 0.25rem; } [data-product-theme] { --space-1: 0.5rem; }";
+  const meta = fixtureMeta({ "space-1": { family: "spacing", usage: "Tight gaps." } });
+
+  expect(() => buildTokens(css, meta, {})).toThrow("--space-1 changes in the product theme");
+});
+
 test("rejects a classification for a property tokens.css no longer declares", () => {
   const meta = fixtureMeta({
     surface: { family: "color", usage: "Cards." },
