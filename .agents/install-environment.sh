@@ -77,8 +77,11 @@ run_doctor() {
 
   services_status="not running (run: vp run services:start)"
   if [[ "$docker_status" == running* ]]; then
-    services_status="$(docker compose ps --format '{{.Service}} {{.Health}}' 2>/dev/null | paste -sd, - | sed 's/,/, /g')"
-    services_status="${services_status:-not running (run: vp run services:start)}"
+    if services_status="$(docker compose ps --all --format '{{.Service}} {{.State}}{{if .Health}} ({{.Health}}){{end}}' 2>/dev/null | paste -sd, - | sed 's/,/, /g')"; then
+      services_status="${services_status:-not running (run: vp run services:start)}"
+    else
+      services_status="unknown (docker compose ps failed)"
+    fi
   fi
 
   if command -v mailpit > /dev/null 2>&1; then
