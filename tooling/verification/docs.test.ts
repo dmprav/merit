@@ -231,6 +231,38 @@ const parseCodeRabbitFilePatterns = (yamlText: string) => {
   return entries;
 };
 
+const parseToneInstructions = (yamlText: string) => {
+  const lines = yamlText.split(/\r?\n/);
+  const startIdx = lines.findIndex((line) => /^tone_instructions:\s*[>|][-+]?\s*$/.test(line));
+  if (startIdx === -1) {
+    const inline = lines.find((line) => /^tone_instructions:\s*\S/.test(line));
+    return inline ? unquoteYamlScalar(inline.slice("tone_instructions:".length)) : "";
+  }
+  const blockLines: string[] = [];
+  for (const rawLine of lines.slice(startIdx + 1)) {
+    if (rawLine.trim() === "") {
+      blockLines.push("");
+      continue;
+    }
+    if (!/^\s/.test(rawLine)) {
+      break;
+    }
+    blockLines.push(rawLine.trim());
+  }
+  while (blockLines.length > 0 && blockLines.at(-1) === "") {
+    blockLines.pop();
+  }
+  return blockLines.reduce((acc, line, index) => {
+    if (index === 0) {
+      return line;
+    }
+    if (line === "") {
+      return `${acc}\n`;
+    }
+    return acc.endsWith("\n") ? `${acc}${line}` : `${acc} ${line}`;
+  }, "");
+};
+
 it("keeps Greptile and CodeRabbit review guide lists valid and aligned", () => {
   const greptileConfig = greptileFilesSchema.parse(
     JSON.parse(readFileSync(join(root, ".greptile/files.json"), "utf8")),
@@ -239,8 +271,7 @@ it("keeps Greptile and CodeRabbit review guide lists valid and aligned", () => {
   expect(new Set(greptilePaths).size).toBe(greptilePaths.length);
 
   const coderabbitYaml = readFileSync(join(root, ".coderabbit.yaml"), "utf8");
-  const toneMatch = /^tone_instructions:\s*>\r?\n((?:  .*\r?\n)+)/m.exec(coderabbitYaml);
-  const toneInstructions = toneMatch?.[1]?.replace(/\r?\n\s+/g, " ").trim() ?? "";
+  const toneInstructions = parseToneInstructions(coderabbitYaml);
   expect(toneInstructions.length).toBeGreaterThan(0);
   expect(toneInstructions.length).toBeLessThanOrEqual(250);
 
