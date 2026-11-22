@@ -114,6 +114,8 @@ it("blocks destructive git commands unless explicitly overridden", () => {
   try {
     for (const command of [
       "git reset --hard",
+      "(git reset --hard)",
+      "{ git reset --hard; }",
       'git reset "--hard"',
       "git -C . reset --hard",
       "echo ok && git reset --hard HEAD~1",
@@ -124,6 +126,8 @@ it("blocks destructive git commands unless explicitly overridden", () => {
       "git push -f origin HEAD:main",
       "git push origin +HEAD:main",
       "git push -o skip origin +HEAD:main",
+      "git push --force origin HEAD",
+      "git push origin +HEAD",
       "git push --force",
     ]) {
       const blocked = runHook("guard-git.mjs", { tool_input: { command } }, { cwd: repo });
@@ -131,12 +135,24 @@ it("blocks destructive git commands unless explicitly overridden", () => {
       expect(blocked.stderr).toContain("MERIT_ALLOW_DESTRUCTIVE_GIT=1");
     }
 
-    const blockedViaDashC = runHook(
-      "guard-git.mjs",
-      { tool_input: { command: `git -C "${repo}" push --force` } },
-      { cwd: branchRepo },
-    );
-    expect(blockedViaDashC.status).toBe(2);
+    for (const command of [
+      `git -C "${repo}" push --force`,
+      "git push --force --all origin",
+      "git push --mirror origin",
+      "git switch main && git push --force origin",
+    ]) {
+      const blocked = runHook("guard-git.mjs", { tool_input: { command } }, { cwd: branchRepo });
+      expect(blocked.status, command).toBe(2);
+    }
+
+    for (const command of ["git push --force origin HEAD", "git push origin +HEAD"]) {
+      const allowedOnFeature = runHook(
+        "guard-git.mjs",
+        { tool_input: { command } },
+        { cwd: branchRepo },
+      );
+      expect(allowedOnFeature.status, `${command}: ${allowedOnFeature.stderr}`).toBe(0);
+    }
 
     const overridden = runHook(
       "guard-git.mjs",
