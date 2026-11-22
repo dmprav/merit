@@ -35,8 +35,8 @@ behavior and keep their layouts with those patterns.
 
 ## Center a bounded task
 
-Forms, confirmations, and reference reading all use `ModalDialog`, so the dialog
-does not shift position or size between tasks.
+Forms and reference reading use `ModalDialog`, and confirmations use a narrower
+version of the same frame, so the dialog does not shift position between tasks.
 
 <Canvas of={Dialog.CenteredWithActions} />
 
