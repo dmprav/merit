@@ -1,0 +1,83 @@
+<!-- @dsCard group="Patterns" height=378 -->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>FormFields — preview</title>
+  </head>
+  <body>
+    <div id="root" style="padding: 16px"></div>
+    <script>
+      var M = window.Merit,
+        h = React.createElement,
+        z = M.z;
+      function Allocation() {
+        var ref = React.useRef(null);
+        var f = M.useForm({
+          defaultValues: { title: "", amount: "12500.50", date: "2027-02-", status: "draft" },
+          schema: z.object({
+            title: z.string().trim().min(1, "Enter a title."),
+            amount: z.string().min(1, "Enter an amount."),
+            date: z.iso.date({ error: "Enter a valid date." }),
+            status: z.string(),
+          }),
+          onSubmit: function () {
+            return null;
+          },
+          submitErrorMessage: "Could not save. Try again.",
+        });
+        var form = f.form,
+          submission = f.submission;
+        React.useEffect(function () {
+          var el = ref.current && ref.current.querySelector("form");
+          if (el) el.requestSubmit();
+        }, []);
+        return h(
+          "div",
+          { ref: ref, style: { maxWidth: "448px" } },
+          h(
+            M.Form,
+            {
+              label: "Proposed allocation",
+              submission: submission,
+              actions: h(M.FormActions, {
+                submission: submission,
+                onCancel: function () {},
+                cancelLabel: "Cancel",
+                submitLabel: "Save",
+                submittingLabel: "Saving…",
+              }),
+            },
+            h(form.Field, { name: "title" }, function (field) {
+              return h(M.FormTextField, { field: field, label: "Title", isRequired: true });
+            }),
+            h(form.Field, { name: "amount" }, function (field) {
+              return h(M.FormMoneyField, {
+                field: field,
+                label: "Proposed allocation",
+                prefix: { text: "€", label: "Euros" },
+                precisionMessage: "Use numbers with up to two decimal places.",
+              });
+            }),
+            h(form.Field, { name: "date" }, function (field) {
+              return h(M.FormDateField, { field: field, label: "Date" });
+            }),
+            h(form.Field, { name: "status" }, function (field) {
+              return h(M.FormSelect, {
+                field: field,
+                label: "Status",
+                items: [
+                  { id: "draft", label: "Draft" },
+                  { id: "ready", label: "Ready" },
+                ],
+              });
+            }),
+          ),
+        );
+      }
+      ReactDOM.createRoot(document.getElementById("root")).render(
+        h(M.Provider, null, h(Allocation)),
+      );
+    </script>
+  </body>
+</html>

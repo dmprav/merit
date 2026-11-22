@@ -1,0 +1,79 @@
+<!-- @dsCard group="Patterns" height=520 -->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>FormDialog — preview</title>
+  </head>
+  <body>
+    <div id="root" style="padding: 16px"></div>
+    <script>
+      var M = window.Merit,
+        h = React.createElement,
+        z = M.z;
+      function NoteDialog() {
+        var s = React.useState(true),
+          open = s[0],
+          setOpen = s[1];
+        var f = M.useForm({
+          defaultValues: { title: "", notes: "" },
+          schema: z.object({
+            title: z.string().trim().min(1, "Enter a title."),
+            notes: z.string(),
+          }),
+          onSubmit: function () {
+            setOpen(false);
+            return null;
+          },
+          submitErrorMessage: "Could not save. Try again.",
+        });
+        var form = f.form,
+          submission = f.submission;
+        return h(
+          M.FormDialog,
+          {
+            title: "Write a note",
+            context: "Community grants",
+            contextLabel: "Round",
+            isOpen: open,
+            onOpenChange: setOpen,
+            isDismissDisabled: submission.isSubmitting,
+            trigger: h(M.Button, { size: "medium" }, "Write a note"),
+          },
+          h(
+            M.Form,
+            {
+              label: "Note",
+              submission: submission,
+              actions: h(M.FormActions, {
+                submission: submission,
+                onCancel: function () {
+                  setOpen(false);
+                },
+                cancelLabel: "Close",
+                discard: {
+                  label: "Discard draft",
+                  onPress: function () {
+                    form.reset();
+                    setOpen(false);
+                  },
+                },
+                submitLabel: "Save note",
+                submittingLabel: "Saving…",
+              }),
+            },
+            h(form.Field, { name: "title" }, function (field) {
+              return h(M.FormTextField, { field: field, label: "Title", isRequired: true });
+            }),
+            h(form.Field, { name: "notes" }, function (field) {
+              return h(M.FormTextField, { field: field, label: "Notes", multiline: true, rows: 5 });
+            }),
+          ),
+        );
+      }
+      ReactDOM.createRoot(document.getElementById("root")).render(
+        h(M.Provider, null, h(NoteDialog)),
+      );
+    </script>
+  </body>
+</html>
