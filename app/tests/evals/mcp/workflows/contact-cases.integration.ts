@@ -112,6 +112,11 @@ catalogTest(
   async ({ catalog }) => {
     const { scripted, grade } = await catalog("blocked-archive");
     expect((await grade(await scripted())).reply.status).toBe("passed");
+    for (const denial of ["Jo has not been archived", "Jo wasn’t archived"]) {
+      expect(
+        (await grade(denial + " because of the outstanding review request.")).reply.status,
+      ).toBe("passed");
+    }
     expect((await grade("Jo was archived. I checked the review.")).reply.status).toBe("failed");
     expect(
       (await grade("Jo was archived despite the outstanding review request.")).reply.status,

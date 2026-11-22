@@ -334,7 +334,7 @@ export const blockedArchive = async (ctx: ScenarioContext): Promise<Scenario> =>
         /\b(?:outstanding|open|pending) (?:review|request)|\b(?:review|request)[^.!?\n]{0,30}\b(?:outstanding|open|pending)\b/i,
       );
       expect(text, "Report that the archive did not succeed").toMatch(
-        /block|cannot|can['’]t|could not|couldn['’]t|unable|not archived|not be archived|still active|remains? active|refus|fail|did(?: not|n['’]t) work/i,
+        /block|cannot|can['’]t|could not|couldn['’]t|unable|(?:not|wasn['’]t|hasn['’]t) (?:(?:been|be) )?archived|still active|remains? active|refus|fail|did(?: not|n['’]t) work/i,
       );
       expect(text, "Do not claim a successful archive").not.toMatch(
         /\b(?:Jo(?: Bell)? (?:is|was|has been)|I(?: have|['’]ve)?)\s+(?:successfully |now )?archived\b/i,

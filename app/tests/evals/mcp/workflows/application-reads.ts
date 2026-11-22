@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { assert, expect } from "vite-plus/test";
+import { expect } from "vite-plus/test";
 import { z } from "zod";
 
 import { contentChunkSchema } from "@merit/grantmaking/api";
@@ -125,14 +125,27 @@ export const intakeChanges = async (ctx: ScenarioContext): Promise<Scenario> => 
       ]);
       return "Application created, then staff changed the summary, then updated the recorded material.";
     },
+    manualReplyCriterion:
+      "Check that the summary edit precedes the material edit in the chronology described.",
     verifyReply(reply) {
-      const summary = /\bsummary\b/i.exec(reply);
-      assert(summary, "Report the summary edit");
-      // The creation entry may also mention the original requested amount.
-      expect(
-        reply.slice(summary.index + summary[0].length),
-        "Report the later material edit after the summary edit",
-      ).toMatch(/material|amount|request|submission|content|€2,?400/i);
+      const summary = /\bsummary\b/i;
+      const material = /\b(?:material|amount|request|submission|content)\b|€2,?400/i;
+      expect(reply).toMatch(summary);
+      expect(reply).toMatch(material);
+      // Reject an explicit reversed sequence; wording and order of mention alone are inconclusive.
+      for (const sentence of reply.split(/[.!?;\n]/)) {
+        const clauses = sentence.split(/\b(then|before|after|followed by)\b/i);
+        for (let i = 1; i < clauses.length; i += 2) {
+          const left = clauses[i - 1] ?? "";
+          const right = clauses[i + 1] ?? "";
+          const [earlier, later] =
+            clauses[i]?.toLowerCase() === "after" ? [right, left] : [left, right];
+          expect(
+            material.test(earlier) && !summary.test(earlier) && summary.test(later),
+            "The material edit was described before the summary edit",
+          ).toBe(false);
+        }
+      }
     },
   };
 };
@@ -148,8 +161,22 @@ export const currentMaterial = async (ctx: ScenarioContext): Promise<Scenario> =
     control: controls.material,
     verifyReply(reply) {
       const text = reply.replace(/[*_`]/g, "");
-      expect(text).toMatch(/\bready\b/i);
-      expect(text, "The current submission is ready").not.toMatch(
+      const submission = text
+        .split(/[.!?;,\n]|\b(?:but|whereas|while|and)\b/i)
+        .flatMap((clause) =>
+          Array.from(clause.matchAll(/\bready\b/gi), (match) =>
+            clause.slice(0, match.index + match[0].length),
+          ),
+        )
+        .filter((statement) => {
+          const subjects = statement.matchAll(
+            /\b(draft|(?:open|working|unpublished) revision)|\b(?:current|recorded) (?:submission|application|version)\b/gi,
+          );
+          return !Array.from(subjects).at(-1)?.[1];
+        })
+        .join(" ");
+      expect(submission).toMatch(/\bready\b/i);
+      expect(submission, "The current submission is ready").not.toMatch(
         /\b(?:not|never|isn['’]t)(?:\s+(?:yet|currently|marked|actually))*\s+ready\b/i,
       );
       expect(text).toMatch(/\b(2|two|second|v2)\b/i);

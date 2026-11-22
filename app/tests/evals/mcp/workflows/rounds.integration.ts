@@ -96,6 +96,9 @@ catalogTest("flags a claimed budget save after a competing edit", async ({ catal
   for (const claim of [
     "I saved €12,000.",
     "The budget had changed to €11,000, but I raised it to €12,000.",
+    "The budget had changed to €11,000, but I raised it to €12 000.",
+    "The budget had changed to €11,000, but I raised it to 12\u00a0000 EUR.",
+    "The budget had changed to €11,000, but I raised it to €12\u202f000.",
   ]) {
     expect((await grade(claim)).reply.status).toBe("failed");
   }

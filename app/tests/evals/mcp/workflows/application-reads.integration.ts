@@ -45,7 +45,10 @@ catalogTest(
 
 catalogTest("grades the summary edit before the later material change", async ({ catalog }) => {
   const { grade, scripted } = await catalog("intake-changes");
-  expect((await grade(await scripted())).reply.status).toBe("passed");
+  expect((await grade(await scripted())).reply.status).toBe("partial");
+  expect(
+    (await grade("The recorded material was updated after staff edited the summary.")).reply.status,
+  ).toBe("partial");
   expect((await grade("Staff updated the material, then changed the summary.")).reply.status).toBe(
     "failed",
   );
@@ -55,12 +58,26 @@ catalogTest("grades the summary edit before the later material change", async ({
         "Created with €2,000 requested. Staff edited the summary, then raised the amount to €2,400.",
       )
     ).reply.status,
-  ).toBe("passed");
+  ).toBe("partial");
+  expect(
+    (await grade("The summary was changed after staff updated the material.")).reply.status,
+  ).toBe("failed");
 });
 
 catalogTest("rejects a denial of the current submission’s ready status", async ({ catalog }) => {
   const { grade, scripted } = await catalog("current-material");
   expect((await grade(await scripted())).reply.status).toBe("passed");
+  expect(
+    (await grade("The current submission is ready (version 2). The open revision is not ready."))
+      .reply.status,
+  ).toBe("passed");
+  expect(
+    (
+      await grade(
+        "The working revision is ready but the current submission is not ready (version 2).",
+      )
+    ).reply.status,
+  ).toBe("failed");
   expect(
     (await grade("Lanterns is not ready; its current submission is version 2.")).reply.status,
   ).toBe("failed");
