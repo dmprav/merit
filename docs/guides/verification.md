@@ -33,7 +33,9 @@ satisfies the required PR gate while its inputs remain unchanged.
 Targeted checks can defer discovery of unrelated regressions to that milestone.
 All existing suites and coverage thresholds remain part of full verification.
 
-For a full run, start PostgreSQL and Mailpit (`docker compose up -d --wait`).
+For a full run, start PostgreSQL and Mailpit with `vp run services:start`
+([local setup](development.md#start-and-seed-postgresql) explains how it starts
+Docker in agent environments).
 `vp run ready` checks documentation links and their regression
 tests, builds the application, and checks formatting, TypeScript and CSS lint,
 React Compiler diagnostics, independent capability types, dependency boundaries,
