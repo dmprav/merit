@@ -69,15 +69,33 @@ it("downloads the original representation and rejects forced HTTP compression", 
   await expect(objects.get(forcedKey, bytes.byteLength)).rejects.toThrow("content encoding");
 });
 
-it("rejects invalid keys, bucket names and read lengths before requesting storage", async () => {
+it("rejects an invalid key before uploading to storage", async () => {
   using fetch = vi.spyOn(AwsClient.prototype, "fetch").mockResolvedValue(new Response());
   const objects = createFileObjects(local);
-  const key = `files/${randomUUID()}`;
-  await expect(objects.put("files/invalid", new Uint8Array(), "")).rejects.toThrow();
+  const bytes = new Uint8Array();
+  const sha256 = createHash("sha256").update(bytes).digest("hex");
+  await expect(objects.put("files/invalid", bytes, sha256)).rejects.toThrow();
+  expect(fetch).not.toHaveBeenCalled();
+});
+
+it("rejects an invalid key before downloading from storage", async () => {
+  using fetch = vi.spyOn(AwsClient.prototype, "fetch").mockResolvedValue(new Response());
+  const objects = createFileObjects(local);
   await expect(objects.get("files/invalid", 0)).rejects.toThrow();
-  await expect(objects.get(key, 25 * 1024 * 1024 + 1)).rejects.toThrow();
-  const invalidBucket = createFileObjects({ ...local, FILE_STORAGE_BUCKET: "merit..files" });
-  await expect(invalidBucket.get(key, 0)).rejects.toThrow("not configured");
+  expect(fetch).not.toHaveBeenCalled();
+});
+
+it("rejects an oversized read length before downloading from storage", async () => {
+  using fetch = vi.spyOn(AwsClient.prototype, "fetch").mockResolvedValue(new Response());
+  const objects = createFileObjects(local);
+  await expect(objects.get(`files/${randomUUID()}`, 25 * 1024 * 1024 + 1)).rejects.toThrow();
+  expect(fetch).not.toHaveBeenCalled();
+});
+
+it("rejects a bucket containing adjacent periods before requesting storage", async () => {
+  using fetch = vi.spyOn(AwsClient.prototype, "fetch").mockResolvedValue(new Response());
+  const objects = createFileObjects({ ...local, FILE_STORAGE_BUCKET: "merit..files" });
+  await expect(objects.get(`files/${randomUUID()}`, 0)).rejects.toThrow("not configured");
   expect(fetch).not.toHaveBeenCalled();
 });
 
