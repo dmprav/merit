@@ -55,6 +55,7 @@ const show = (contacts: Contact[] = [leah, sam]) => {
       </ContactsMessagesProvider>
     </QueryClientProvider>,
   );
+  return data;
 };
 
 it("keeps names-only application counts noninteractive while preserving title search", async () => {
@@ -206,4 +207,66 @@ it("returns to active contacts through the removable Archived chip and resets se
   expect(screen.getByRole("searchbox")).toHaveValue("");
   await user.keyboard("{Escape}");
   expect(await screen.findByRole("table")).toHaveTextContent("Leah");
+});
+
+it("finds same-name contacts by application, switches status, and returns focus after editing", async () => {
+  const data = show([
+    {
+      id: "sam-workshop",
+      name: "Sam Morgan",
+      email: "sam@example.test",
+      affiliation: "Community group",
+      applicationTitles: ["Workshop Saturdays"],
+      archived: false,
+      revision: 0,
+    },
+    {
+      id: "sam-rides",
+      name: "Sam Morgan",
+      email: "",
+      affiliation: "",
+      applicationTitles: ["Ride Together"],
+      archived: true,
+      revision: 1,
+    },
+  ]);
+  const user = userEvent.setup();
+
+  expect(screen.getByText("1 application")).toBeVisible();
+  expect(screen.queryByText("Ride Together")).not.toBeInTheDocument();
+
+  await user.click(screen.getByRole("button", { name: "Filter" }));
+  await user.type(screen.getByRole("searchbox", { name: "Find a contact" }), "Ride Together");
+  expect(screen.getByText("No contacts match your search.")).toBeVisible();
+  await user.click(await screen.findByRole("button", { name: /Status/ }));
+  await user.click(await screen.findByRole("option", { name: "Archived" }));
+  await waitFor(() => expect(screen.getByRole("button", { name: /Status/ })).toHaveFocus());
+  await user.keyboard("{Escape}");
+  expect(screen.getByRole("table")).toHaveTextContent("Sam Morgan");
+  expect(screen.queryByText("sam@example.test")).not.toBeInTheDocument();
+
+  await user.click(screen.getByRole("button", { name: "Filter" }));
+  await user.type(screen.getByRole("searchbox", { name: "Find a contact" }), " missing");
+  expect(screen.getByText("No contacts match your search.")).toBeVisible();
+  await user.click(await screen.findByRole("button", { name: "Clear search" }));
+  expect(screen.getByRole("searchbox", { name: "Find a contact" })).toHaveValue("");
+  await user.keyboard("{Escape}");
+  expect(screen.getByText("1 application")).toBeVisible();
+  expect(screen.queryByText("Workshop Saturdays")).not.toBeInTheDocument();
+
+  await user.click(await screen.findByRole("button", { name: "Actions for Sam Morgan" }));
+
+  expect(screen.getByRole("menuitem", { name: "Restore" })).toBeVisible();
+
+  await user.click(await screen.findByRole("menuitem", { name: "Edit contact details" }));
+  const dialog = screen.getByRole("dialog", { name: "Edit contact details" });
+
+  expect(within(dialog).getByRole("textbox", { name: "Name" })).toHaveValue("Sam Morgan");
+
+  await user.click(within(dialog).getByRole("button", { name: "Discard draft" }));
+
+  await waitFor(() =>
+    expect(screen.getByRole("button", { name: "Actions for Sam Morgan" })).toHaveFocus(),
+  );
+  expect(data.save).not.toHaveBeenCalled();
 });

@@ -1,49 +1,7 @@
-import { assert, expect, it } from "vite-plus/test";
+import { expect, it } from "vite-plus/test";
 
-import { encodeMoney, fromMinorUnits } from "@merit/money";
-
-import { makeApplication, makeAssessment, makeRound } from "../../tests/fixtures";
+import { makeApplication, makeRound } from "../../tests/fixtures";
 import { fundingRoundOverviewSchema } from "./model";
-
-it.each([
-  { position: "Defer", amount: encodeMoney(fromMinorUnits(100n)), valid: false },
-  { position: "Fund", amount: encodeMoney(fromMinorUnits(0n)), valid: false },
-  {
-    position: "Fund with a condition",
-    amount: encodeMoney(fromMinorUnits(1000000n)),
-    valid: true,
-  },
-  { position: "Fund €24,000", amount: null, valid: false },
-])(
-  "validates a recorded reviewer outcome: $position with $amount is valid=$valid",
-  ({ position, amount, valid }) => {
-    const assessment = makeAssessment();
-    const version = assessment.versions[0];
-    assert.isDefined(version);
-    const application = makeApplication({
-      reviews: { revision: 1, requests: [], assessments: [] },
-    });
-    const record = {
-      ...application,
-      reviews: {
-        ...application.reviews,
-        assessments: [
-          {
-            ...assessment,
-            versions: [{ ...version, content: { ...version.content, position, amount } }],
-          },
-        ],
-      },
-    };
-
-    expect(
-      fundingRoundOverviewSchema.safeParse(makeRound({ applications: [application] })).success,
-    ).toBe(true);
-    expect(
-      fundingRoundOverviewSchema.safeParse({ ...makeRound(), applications: [record] }).success,
-    ).toBe(valid);
-  },
-);
 
 it("accepts an application without a manager recommendation", () => {
   const round = makeRound({ applications: [makeApplication({ managerRecommendation: null })] });

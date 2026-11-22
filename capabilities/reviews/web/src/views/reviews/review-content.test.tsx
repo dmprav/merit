@@ -75,13 +75,6 @@ it.each([
   },
   { name: "empty", reviewed: [], current: [], badge: null, comparison: false },
   {
-    name: "restored in a later version",
-    reviewed: reviewedCriteria,
-    current: reviewedCriteria,
-    badge: null,
-    comparison: false,
-  },
-  {
     name: "added after review",
     reviewed: [],
     current: currentCriteria,

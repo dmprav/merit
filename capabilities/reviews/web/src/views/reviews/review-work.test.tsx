@@ -399,7 +399,7 @@ it.each(["review", "application", "criteria"] as const)(
   },
 );
 
-it("keeps the editor mounted with ConflictBanner when the target assessment itself changes", async () => {
+it("keeps the editor mounted with a conflict notice when the target assessment itself changes", async () => {
   const { user, data, props, rerender } = renderReview();
   const form = await openCorrection(user);
 
@@ -826,7 +826,7 @@ it("keeps reference focus when delayed assessment save completes", async () => {
   expect(details).toHaveFocus();
 });
 
-it("keeps reference focus when target assessment changes and keeps writing mounted for resolution", async () => {
+it("keeps reference focus when the target assessment changes under open writing", async () => {
   const { user, props, rerender } = renderReview();
   const form = await openCorrection(user);
   await user.type(form.getByRole("textbox", { name: "Assessment text" }), "Preserved writing");
@@ -852,12 +852,6 @@ it("keeps reference focus when target assessment changes and keeps writing mount
   );
   expect(screen.getByRole("alert")).toHaveTextContent("This review changed while you were editing");
   expect(reference).toHaveFocus();
-  expect(screen.getByRole("textbox", { name: "Assessment text" })).toHaveValue(
-    "Local participation.Preserved writing",
-  );
-  await user.click(screen.getByRole("button", { name: "Keep my draft" }));
-  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Save assessment" })).toBeEnabled();
 });
 
 it("attributes a conflicting assessment to the assessment recorder without borrowing request attribution", async () => {

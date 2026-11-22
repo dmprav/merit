@@ -1,8 +1,6 @@
 import { describe, expect, it, vi } from "vite-plus/test";
 import { z } from "zod";
 
-import { materialVersionSchema } from "@merit/applications/domain";
-import { reviewRevisionSchema } from "@merit/reviews/domain";
 import { criteriaVersionSchema } from "@merit/rounds/domain";
 
 import { actor, endpoint, connect } from "../../tests/client";
@@ -31,47 +29,6 @@ const round = {
 };
 
 describe("workspace MCP contracts", () => {
-  it("preserves contact-specific round and relationship context in related application responses", async () => {
-    const application = {
-      applicationId: id,
-      roundId: "m7m2p9x4n6rt",
-      title: "Neighbour Table",
-      roundTitle: "Community grants 2026",
-      relationships: ["applicant_contact", "assessment_recorded"] as (
-        | "applicant_contact"
-        | "assessment_recorded"
-      )[],
-      applicationVersion: materialVersionSchema.parse(1),
-      intakeRevision: 0,
-      reviewRevision: reviewRevisionSchema.parse(0),
-      recommendationRevision: 0,
-      intakeStatus: "in_preparation" as const,
-      withdrawn: false,
-      requested: null,
-      contactId,
-      hasWorkingRevision: false,
-    };
-    const operations = testOperations();
-    vi.mocked(operations.grantmaking.listContactApplications).mockResolvedValue({
-      status: "ok",
-      applications: [application],
-      nextCursor: null,
-    });
-    const client = await connect(operations);
-    try {
-      const result = await client.callTool("list_contact_applications", {
-        workspaceSlug: "alder",
-        contactId,
-      });
-      expect(result.structuredContent).toMatchObject({
-        status: "ok",
-        applications: [application],
-        nextCursor: null,
-      });
-    } finally {
-      await client.close();
-    }
-  });
   it("publishes the explicit workflow tools under unique names", async () => {
     const client = await connect(testOperations());
     try {

@@ -45,6 +45,15 @@ describe("round edit revision preconditions", () => {
     ).toBe(true);
   });
 
+  it.each([-1, 0.5])("rejects expectedRevision %s, which is not a nonnegative integer", (value) => {
+    const change = { section: "details" as const, purpose: "Updated purpose" };
+
+    expect(
+      editRoundRequestSchema.safeParse({ workspaceSlug, publicId, expectedRevision: value, change })
+        .success,
+    ).toBe(false);
+  });
+
   it.each([
     { section: "details" as const, title: "Undo title" },
     { section: "details" as const, meetingDate: null },

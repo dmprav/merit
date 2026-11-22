@@ -68,6 +68,7 @@ it.each([
   ["contact_email_required", "Add an email address to this contact"],
   ["manager_email_required", "Your workspace membership has no email address"],
   ["request_unavailable", "The assignment changed"],
+  ["application_withdrawn", "This application was withdrawn"],
   ["invalid_input", "could not be made as entered"],
 ] as const)("explains a %s invitation rejection with its recovery", async (error, message) => {
   const data = managerTransport({ status: "ok", value: [] });

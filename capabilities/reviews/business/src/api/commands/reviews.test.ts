@@ -34,6 +34,25 @@ it("keeps sequence types distinct while retaining numeric wire values", () => {
   compareReviewVersions(request.expectedApplicationVersion, request.expectedCriteriaVersion);
 });
 
+it.each(["expectedApplicationVersion", "expectedCriteriaVersion"] as const)(
+  "requires %s when saving a review",
+  (field) => {
+    const request = {
+      workspaceSlug: "alder",
+      publicId: "b8q3w5j7c2df",
+      expectedRevision: 0,
+      expectedApplicationVersion: 1,
+      expectedCriteriaVersion: 1,
+      change: { action: "cancel", id: "2c343adf-a49f-50bd-8d8d-6c676aec4bdc" },
+    };
+
+    expect(saveReviewRequestSchema.safeParse(request).success).toBe(true);
+    expect(saveReviewRequestSchema.safeParse({ ...request, [field]: undefined }).success).toBe(
+      false,
+    );
+  },
+);
+
 it("uses the same UUID for a request and its later cancellation", () => {
   const id = "ABCDEF00-0000-4000-8000-000000000001";
   const request = { action: "request", id, contactId: id, replacesId: null };

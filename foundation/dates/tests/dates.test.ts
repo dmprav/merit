@@ -1,3 +1,4 @@
+import { resetLocalTimeZone, setLocalTimeZone } from "@internationalized/date";
 import { describe, expect, it, vi, afterEach } from "vite-plus/test";
 
 import {
@@ -10,6 +11,7 @@ import {
 } from "../src/index";
 
 afterEach(() => {
+  resetLocalTimeZone();
   vi.unstubAllEnvs();
   vi.useRealTimers();
 });
@@ -31,14 +33,16 @@ describe("date input range", () => {
     expect(calendarDateInputSchema.safeParse(value).success).toBe(accepted);
   });
 
-  it("updates the range at the new year without invalidating stored history", () => {
+  it("updates the range at the viewer's new year without invalidating stored history", () => {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date(2026, 11, 31, 12));
+    setLocalTimeZone("America/Los_Angeles");
+    // 23:59:59 on 31 December in Los Angeles, already 1 January in UTC.
+    vi.setSystemTime(new Date("2027-01-01T07:59:59Z"));
 
     expect(calendarDateInputBounds().minValue.toString()).toBe("2016-01-01");
     expect(calendarDateInputBounds().maxValue.toString()).toBe("2036-12-31");
 
-    vi.setSystemTime(new Date(2027, 0, 1, 12));
+    vi.setSystemTime(new Date("2027-01-01T08:00:00Z"));
 
     expect(calendarDateInputBounds().minValue.toString()).toBe("2017-01-01");
     expect(calendarDateInputBounds().maxValue.toString()).toBe("2037-12-31");
@@ -110,7 +114,9 @@ describe("calendar dates", () => {
 
 it("reads today as the viewer's local calendar date", () => {
   vi.useFakeTimers();
-  vi.setSystemTime(new Date(2026, 10, 13, 23, 30));
+  setLocalTimeZone("America/Los_Angeles");
+  // 23:30 on 13 November in Los Angeles, already 14 November in UTC.
+  vi.setSystemTime(new Date("2026-11-14T07:30:00Z"));
 
   expect(todayCalendarDate()).toBe("2026-11-13");
 });

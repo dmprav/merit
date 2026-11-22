@@ -188,10 +188,7 @@ describe("reading workspace activity", () => {
     ).toMatchObject({ events: [], people: [] });
   });
 
-  test("filters by recorded person and by historical round, and lists everyone with recorded activity", async ({
-    db,
-    database,
-  }) => {
+  test("filters by recorded person and by historical round", async ({ db, database }) => {
     await database.client.query("INSERT INTO app_users (id, name) VALUES ('rae', 'Rae Quinn')");
     await db.transaction(async (tx) => {
       await record(tx, {
@@ -249,12 +246,31 @@ describe("reading workspace activity", () => {
     expect(await actions({ actorUserId: "dana", roundId: "round1" })).toEqual([
       "assessment.recorded",
     ]);
+  });
 
-    // The latest recorded name identifies a person; an unnamed event never hides a known name.
-    const result = await read({});
+  test("lists everyone with recorded activity by their latest known name", async ({
+    db,
+    database,
+  }) => {
+    await database.client.query("INSERT INTO app_users (id, name) VALUES ('rae', 'Rae Quinn')");
+
+    const dana = (name: string | null, recordedAt: string) =>
+      db.transaction((tx) =>
+        record(tx, { actor: { ...event.actor, name }, recordedAt: new Date(recordedAt) }),
+      );
+
+    await dana("Dana Reed", "2026-11-01T10:00:00Z");
+    await dana("Dana Newname", "2026-11-02T10:00:00Z");
+    // An unnamed event never hides a known name.
+    await dana(null, "2026-11-03T10:00:00Z");
+    await db.transaction((tx) =>
+      record(tx, { actor: { userId: "rae", name: "Rae Quinn", provenance: null } }),
+    );
+
+    const result = await readWorkspaceActivity(db, scope);
     assert(result.status === "ok");
     expect(result.people).toEqual([
-      { userId: "dana", name: "Dana Reed" },
+      { userId: "dana", name: "Dana Newname" },
       { userId: "rae", name: "Rae Quinn" },
     ]);
   });

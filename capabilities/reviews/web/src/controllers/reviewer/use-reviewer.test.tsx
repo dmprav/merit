@@ -221,6 +221,39 @@ it("retries acceptance with the original command after its follow-up read fails"
   expect(data.respond.mock.lastCall?.[0]).toEqual(first);
 });
 
+const withdrawn = { status: "invalid", error: "application_withdrawn" } as const;
+
+it.each([
+  {
+    operation: "a draft save",
+    run: async ({ result, data }: ReturnType<typeof setup>) => {
+      data.save.mockResolvedValue(withdrawn);
+      act(() => result.current.update({ ...result.current.draft!, reasoning: "Unsaved" }));
+      await act(() => result.current.save());
+    },
+  },
+  {
+    operation: "a submission",
+    run: async ({ result, data }: ReturnType<typeof setup>) => {
+      data.submit.mockResolvedValue(withdrawn);
+      await act(() => result.current.submit());
+    },
+  },
+  {
+    operation: "a participation response",
+    run: async ({ result, data }: ReturnType<typeof setup>) => {
+      data.respond.mockResolvedValue(withdrawn);
+      await act(() => result.current.respond("decline", ""));
+    },
+  },
+])("explains $operation rejected because the application was withdrawn", async ({ run }) => {
+  const reviewer = setup();
+
+  await run(reviewer);
+
+  expect(reviewer.result.current.error).toBe("applicationWithdrawn");
+});
+
 it("keeps an incomplete judgment local and reports each problem beside its field", async () => {
   const { result, data } = setup();
   act(() => result.current.update({ ...result.current.draft!, position: null, reasoning: " " }));

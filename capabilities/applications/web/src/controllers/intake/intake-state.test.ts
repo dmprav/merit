@@ -242,7 +242,7 @@ it("offers no actions and no edits while withdrawn", () => {
 
   expect(intakeMenuActions(withdrawn, null, false)).toEqual([]);
   expect(intakeMenuActions(withdrawn, working, true)).toEqual([]);
-  expect(intakeRenameCommand(withdrawn, working, "New title")).toBeNull();
+  expect(intakeRenameCommand(withdrawn, null, "New title")).toBeNull();
   expect(
     intakeDraftCommand(
       newIntakeDraft("content", baseline, 4),
