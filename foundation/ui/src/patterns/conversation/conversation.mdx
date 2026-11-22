@@ -6,8 +6,9 @@ import * as Conversation from "./conversation.stories";
 # Show a conversation
 
 Use `Conversation` for the thread of an assistant panel, with a `ConversationMessage` for each turn.
-Pair it with the [message box](?path=/docs/patterns-message-box--docs) at the bottom of the
-[companion panel](?path=/docs/patterns-application-shell--docs).
+Put it in the [companion panel](?path=/docs/patterns-application-shell--docs), whose body scrolls the
+thread, and pair it with the [message box](?path=/docs/patterns-message-box--docs) in the panel's
+`footer`, so the box stays in view.
 
 A person's message sits right-aligned on a muted fill, at most 85% of the width. An assistant's answer
 is plain content at reading line height; compose its blocks (paragraphs, steps, proposals, notices)
@@ -18,6 +19,8 @@ technology hears who wrote it.
 
 The thread is a labelled log that stays silent while text streams in. Announce each finished answer
 once with [StatusMessage](?path=/docs/patterns-status-message--docs) rather than every streamed word.
+The panel's content mounts again when the screen crosses 1400 pixels or the panel reopens, so keep
+track of what was already announced with the conversation, not in the panel.
 Long content wraps, and narrow panels keep the same proportions.
 
 <Canvas of={Conversation.LongContent} />

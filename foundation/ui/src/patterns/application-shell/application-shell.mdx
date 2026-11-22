@@ -107,6 +107,12 @@ popup inside has already used it. The panel's content mounts only while it is op
 when the screen crosses 1400 pixels, so keep drafts and history with the caller.
 Compose a conversation from a [message box](?path=/docs/patterns-message-box--docs).
 
+The panel's body scrolls its content under the header, whose divider appears once it does.
+Give `footer` what must stay in view however far the content scrolls, such as the message
+box; it sits below the body in both presentations and mounts with the content.
+
+<Canvas of={Shell.AssistantPanelScrolling} story={{ inline: false, height: "540px" }} />
+
 ## Recover within the available frame
 
 Keep usable navigation when a page fails inside an accessible workspace. Use

@@ -258,12 +258,14 @@ const Companion = ({
   onClose,
   width,
   panelContent,
+  panelFooter,
   openerGone = false,
 }: {
   onWidthChange?: (width: number) => void;
   onClose?: () => void;
   width?: number;
   panelContent?: ReactNode;
+  panelFooter?: ReactNode;
   openerGone?: boolean;
 }) => {
   const [open, setOpen] = useState(false);
@@ -300,6 +302,7 @@ const Companion = ({
         width,
         onWidthChange,
         children: panelContent ?? <button type="button">Ask</button>,
+        footer: panelFooter,
       }}
     >
       <main id="main" tabIndex={-1}>
@@ -351,6 +354,23 @@ it("pushes the page aside with a labelled region on wide screens", async () => {
 
   expect(screen.queryByRole("complementary", { name: "Assistant" })).not.toBeInTheDocument();
   expect(document.documentElement.style.getPropertyValue("--companion-width")).toBe("");
+});
+
+it.each([
+  ["a labelled region on wide screens", true],
+  ["a modal sheet on compact screens", false],
+])("keeps the footer outside the scrolling body in %s", async (_, isWide) => {
+  compact = !isWide;
+  wide = isWide;
+  const user = userEvent.setup();
+  render(<Companion panelFooter={<button type="button">Pinned</button>} />);
+  await user.click(screen.getByRole("button", { name: "Open assistant" }));
+  const panel = await screen.findByRole(isWide ? "complementary" : "dialog", { name: "Assistant" });
+  const body = within(panel).getByRole("region", { name: "Assistant" });
+
+  expect(within(panel).getByRole("button", { name: "Pinned" })).toBeVisible();
+  expect(body).toContainElement(within(panel).getByRole("button", { name: "Ask" }));
+  expect(body).not.toContainElement(within(panel).getByRole("button", { name: "Pinned" }));
 });
 
 it("moves focus into the panel, then back to its opener", async () => {

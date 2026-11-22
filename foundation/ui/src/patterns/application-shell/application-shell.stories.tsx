@@ -21,35 +21,41 @@ import {
 import styles from "./application-shell.module.css";
 import storyStyles from "./application-shell.stories.module.css";
 
-/** The panel remounts its content when the screen crosses 1400 pixels, so the draft lives with the caller. */
-const AssistantConversation = ({
+/** The thread scrolls in the panel's body; the message box stays below it in the footer. */
+const AssistantThread = ({ count }: { count: number }) => (
+  <ul className={storyStyles.messages}>
+    <li>Which applications in this round still need a second review?</li>
+    <li className={storyStyles.reply}>
+      Three applications have one review so far: Riverside Youth Arts, Harbour Learning Garden, and
+      Northside Repair Cafe.
+    </li>
+    {Array.from({ length: count }, (_, index) => (
+      <li key={index} className={storyStyles.reply}>
+        Earlier question {index + 1} and its answer.
+      </li>
+    ))}
+  </ul>
+);
+
+const AssistantMessageBox = ({
   draft,
   onDraftChange,
 }: {
   draft: string;
   onDraftChange: (draft: string) => void;
 }) => (
-  <div className={storyStyles.conversation}>
-    <ul className={storyStyles.messages}>
-      <li>Which applications in this round still need a second review?</li>
-      <li className={storyStyles.reply}>
-        Three applications have one review so far: Riverside Youth Arts, Harbour Learning Garden,
-        and Northside Repair Cafe.
-      </li>
-    </ul>
-    <MessageBox
-      label="Message"
-      isLabelHidden
-      placeholder="Ask about this round"
-      value={draft}
-      onChange={onDraftChange}
-      sendLabel="Send message"
-      onSend={() => onDraftChange("")}
-      stopLabel="Stop"
-      onStop={() => {}}
-      autoFocus
-    />
-  </div>
+  <MessageBox
+    label="Message"
+    isLabelHidden
+    placeholder="Ask about this round"
+    value={draft}
+    onChange={onDraftChange}
+    sendLabel="Send message"
+    onSend={() => onDraftChange("")}
+    stopLabel="Stop"
+    onStop={() => {}}
+    autoFocus
+  />
 );
 
 /** Closes the compact navigation drawer before opening the panel over the page. */
@@ -73,7 +79,7 @@ type ShellExampleProps = {
   loading: boolean;
   signedIn: boolean;
   /** Shows the companion panel, opened or closed, with its opener in the navigation. */
-  companion?: { open: boolean; width?: number };
+  companion?: { open: boolean; width?: number; earlierMessages?: number };
 };
 
 const ShellExample = ({ name, loading, signedIn, companion }: ShellExampleProps) => {
@@ -128,7 +134,8 @@ const ShellExample = ({ name, loading, signedIn, companion }: ShellExampleProps)
           resizeLabel: "Resize assistant",
           width: companion.width,
           onWidthChange: fn(),
-          children: <AssistantConversation draft={draft} onDraftChange={setDraft} />,
+          children: <AssistantThread count={companion.earlierMessages ?? 0} />,
+          footer: <AssistantMessageBox draft={draft} onDraftChange={setDraft} />,
         }
       }
       footer={
@@ -266,6 +273,14 @@ export const AssistantPanelWidest: Story = {
   args: { companion: { open: true, width: 560 } },
   parameters: companionDescription(
     "The widest the panel resizes to. In the modal sheet the width is fixed at 400 pixels.",
+  ),
+  play: companionPlay,
+};
+
+export const AssistantPanelScrolling: Story = {
+  args: { companion: { open: true, earlierMessages: 24 } },
+  parameters: companionDescription(
+    "A long thread scrolls in the panel's body under the header, whose divider appears once it does. The footer keeps the message box in view.",
   ),
   play: companionPlay,
 };

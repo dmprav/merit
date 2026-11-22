@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 
 import { ButtonBase } from "../../components/button/button-base";
 import { IconBase } from "../../components/icon/icon-base";
+import { LoadingIconBase } from "../../components/icon/loading-icon-base";
 import styles from "./editor-loading.module.css";
 
 /**
@@ -13,7 +14,7 @@ export const EditorLoading = () => {
   const { t } = useTranslation("common");
   return (
     <span className={styles.loading} role="status" data-body-state>
-      <IconBase name="loading" className={styles.spinner} />
+      <LoadingIconBase className={styles.spinner} />
       <span className={styles.copy}>
         <span className={styles.title}>{t("editorPreparing")}</span>
         <span className={styles.description}>{t("editorPreparingDescription")}</span>
