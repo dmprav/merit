@@ -40,7 +40,7 @@ email state in aligned records. Delivery remains separate from acceptance: faile
 unconfirmed, or expired invitations do not imply waiting on the recipient.
 Each reviewer's **More actions** menu contains resend, end access, and assignment
 history commands. Conflict clearance and reinstatement stay visibly labeled.
-Assignment history opens in place as an event list with UTC times; returning
+Assignment history opens in place as an event list; returning
 restores the menu trigger's focus and the list's reading position.
 
 Inviting and clearing a conflict use compact shared form dialogs; ending access

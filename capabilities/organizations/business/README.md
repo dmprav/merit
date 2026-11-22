@@ -22,16 +22,9 @@ and [team workflow](../../../docs/workflows/manage-team.md) explain the behavior
 | `server/demo.ts`                                        | Trusted demo creation, reset, entry limits, and cleanup.                     |
 
 The [architecture checks](../../../docs/guides/architecture-checks.md) enforce
-the production directions, including type imports; API definitions share one pure role. Commands cannot depend on consumer
-queries; queries cannot depend on writes. The small server support modules define
-injected dependencies, operator authorization, result handling, and token hashing.
-They cannot import handlers, persistence, or service assembly.
-
-Public service types come from `@merit/organizations/api`. Public identifiers and
-result shapes are independent of database tables and inferred server return types.
-Colocate focused tests with their behavior and keep persisted scenarios in `tests/`.
-Tests may compose local layers regardless of placement; cross-package access rules
-still apply.
+the dependency directions between these roles.
+Public identifiers and result shapes are independent of database tables and
+inferred server return types.
 
 ## Transactions and integration entries
 

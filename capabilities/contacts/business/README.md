@@ -20,14 +20,7 @@ defines the behavior shared by web and MCP.
 | `server/service.ts`            | Binds the database and grant-work dependency to the service interface.  |
 
 The [architecture checks](../../../docs/guides/architecture-checks.md) enforce
-the production dependency directions, treating the browser-safe API as one role. Command code can read the state needed to decide a
-change; it cannot depend on consumer queries. Public service types come from
-`@merit/contacts/api`, independently of server implementations.
-
-Colocate focused tests with the behavior they explain, and keep persisted scenarios
-such as the [query transaction checks](tests/query-access.integration.ts) in
-`tests/`. Tests and shared fixtures may compose local layers regardless of their
-placement; public package access and cross-capability server permissions still apply.
+the dependency directions between these roles.
 
 ## Coordinate grant work
 
@@ -45,7 +38,8 @@ revision for archive and restore checks. An unchanged edit keeps its revision.
 Every independent query uses a read-only, repeatable-read transaction. Directory
 profiles and related application titles come from the same snapshot.
 Queries invoked inside a caller-owned transaction use a savepoint and preserve
-its mode and rollback behavior.
+its mode and rollback behavior, as the [query transaction checks](tests/query-access.integration.ts)
+exercise.
 
 `@merit/contacts/schema` supports cross-capability joins. `@merit/contacts/scope`
 provides an organization-scoped lookup whose caller must first authorize grant

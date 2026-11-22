@@ -78,11 +78,7 @@ alongside subject and resource facts. Supply the relationship itself, not a
 precomputed `canRead` decision that hides policy elsewhere. Add the database
 binding and test both evaluators against the same cases.
 
-Reviewer work uses `work_on_review`: an active account must own an accepted or
-submitted assignment bound to its current reviewer or program-manager membership.
-Grantmaking constructs a separate response with the pinned application and
-criteria, the author's private draft, and their submitted assessment. The
-[review participation workflow](../../docs/workflows/participate-in-review.md#handle-conflicts-and-access-changes)
+The [review participation workflow](../../docs/workflows/participate-in-review.md#handle-conflicts-and-access-changes)
 owns when assignments end, how they are reinstated, and who can read drafts.
 [Committee readership](../../docs/workflows/committee-decisions.md#review-discussion-and-committee-readership)
 remains future work and needs its own explicit view and policy.

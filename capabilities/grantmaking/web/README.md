@@ -118,9 +118,7 @@ The [controller](src/controllers/search/use-workspace-search.ts) waits about 150
 typing to pause and settles one query; the [data adapter](src/data/search/workspace-data.ts)
 cancels replaced requests and discards query data once search closes. Typed text stays
 in component state and travels only in the request body. Local choices match every
-word, ignoring case and accents. One mixed list orders exact, prefix, then other matches;
-records precede local choices on ties. The business API owns record ordering.
-Per-type record totals remain separate from the local choice count.
+word, ignoring case and accents.
 
 Earlier records remain visible but disabled while a new query loads; local choices
 remain usable. Settled results highlight the top choice, Up and Down move through the
@@ -156,10 +154,7 @@ Controllers own their draft, baseline, Undo, and saved outcome. For workflows
 that refresh after a command, [useWorkflowRefresh](../../../foundation/query/src/workflow-refresh.ts)
 tracks read progress and whether a failure followed a committed save. Supply the
 read operation and the `saved` or `read` context; a refresh failure is contained
-and must not enter the write's error handling. A failed read retries quietly
-before it is reported, and only its first attempt counts as refreshing, so work
-stays available. Once a failure is reported, the person's retry repeats only the
-read and reports at once. Views present the failure as a toast with **Refresh**.
+and must not enter the write's error handling. Views present the failure as a toast with **Refresh**.
 Recommendation saves instead populate the application cache from their committed
 response, as the [walkthrough](../../../docs/guides/recommendation-walkthrough.md#present-the-result-without-losing-the-draft-or-repeating-a-write)
 explains.
@@ -174,8 +169,8 @@ The local guides connect the interaction to its controller and examples:
   history, and recovery.
 - [Reviewer participation](../../reviews/web/src/views/reviewer/README.md): reviewer and manager
   interface states, reference comparisons, and UI verification.
-- [Recommendations](../../recommendations/web/src/views/recommendations/README.md): judgment summaries,
-  budget help, and reference material during editing.
+- [Recommendations](../../recommendations/web/src/views/recommendations/README.md): judgment summaries
+  and reference material during editing.
 
 Keep workflow tests and stories with their owning package. Tests of combined pages
 stay here with explicit records and fake operations.
