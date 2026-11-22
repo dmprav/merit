@@ -63,6 +63,23 @@ test("resolves a theme's aliases against that theme before comparing", () => {
   expect(() => buildTokens(inherited, meta, {})).toThrow("--space-1 changes in the product theme");
 });
 
+test("rejects a token declared only in a theme override", () => {
+  const css = ":root { --surface: #ffffff; } [data-product-theme] { --accent: #123456; }";
+  const meta = fixtureMeta({
+    surface: { family: "color", usage: "Cards." },
+    accent: { family: "color", usage: "Highlights." },
+  });
+
+  expect(() => buildTokens(css, meta, {})).toThrow("--accent is declared only in a theme override");
+});
+
+test("rejects a font family classification type.families does not export", () => {
+  const css = ":root { --font-mono: monospace; }";
+  const meta = fixtureMeta({ "font-mono": { family: "type-family", key: "mono" } });
+
+  expect(() => buildTokens(css, meta, {})).toThrow('does not map "mono"');
+});
+
 test("rejects a classification for a property tokens.css no longer declares", () => {
   const meta = fixtureMeta({
     surface: { family: "color", usage: "Cards." },

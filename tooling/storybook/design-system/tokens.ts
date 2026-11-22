@@ -168,8 +168,19 @@ export const buildTokens = (
   };
   for (const name of declared) {
     const entry = meta.variables[name];
+    if (entry?.family === "type-family" && meta.type.families[entry.key] !== `--${name}`) {
+      throw new Error(
+        `--${name} is classified as type family "${entry.key}", but tokens.meta.json type.families does not map "${entry.key}" to it.`,
+      );
+    }
     if (entry === undefined || entry.family === "css" || entry.family === "type-family") {
       continue;
+    }
+    if (!base.has(name)) {
+      // The design system lends a later theme's value to the first theme, so a theme-only token would apply everywhere.
+      throw new Error(
+        `--${name} is declared only in a theme override; declare its base value in ${baseTheme?.selector ?? "the base theme"} or classify it as "css".`,
+      );
     }
     const value =
       entry.family === "color"
