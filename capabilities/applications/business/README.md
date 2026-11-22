@@ -80,8 +80,8 @@ and chunk offsets describe the same record.
 
 `/api` is browser-safe; `/server` exposes authorized operations and the service
 factory. Approved downstream commands share `/locks`; readers use `/schema`,
-`/scope` and the frozen `/history` schema. `/server/integrations` provides the round-usage check,
-and `/server/demo` exposes trusted intake and authored-history insertion and demo cleanup.
+`/scope` and the frozen `/history` schema. `/server/integrations` provides the
+round-usage check and Contacts' applicant-contact links, and `/server/demo` exposes trusted intake and authored-history insertion and demo cleanup.
 
 The [web package](../web/package.json) owns intake and contact-selection editing,
 revisions, recovery, and messages. Run `vp run @merit/applications#test`,

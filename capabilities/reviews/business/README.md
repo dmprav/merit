@@ -14,21 +14,17 @@ defines comparison and unknown-basis precedence, including criteria reversions.
 
 Manager [review commands](src/server/commands/reviews.ts) require current workspace
 authority. [Reviewer commands](src/server/commands/reviewer.ts) require a current reviewer or program-manager membership
-and the assignment. Organizations grants membership; Reviews never provisions it.
-The assignment binds its membership identity so removal and rejoining cannot restore
-old access. Organizations supplies its exclusive workspace lock to the
+and the assignment. Organizations supplies its exclusive workspace lock to the
 [review revocation collaborator](src/server/persistence/commands/membership.ts)
 when review responsibilities end. Applications uses the
 [application work collaborator](src/server/persistence/commands/application-work.ts)
 to check whether review activity blocks deletion and to close outstanding requests
-on withdrawal. A manager must explicitly reinstate assignments
-after qualifying membership is restored. Invites and resends share a transaction-scoped
+on withdrawal. Invites and resends share a transaction-scoped
 workspace invitation lock while checking message limits and queuing delivery.
-Other grant work can proceed in independent cases. Manager reads never expose
-private reviewer drafts. Accepted review requests, cancellations, reviewer
-participation transitions, and assessments are recorded atomically through
+Other grant work can proceed in independent cases. Accepted review requests,
+cancellations, reviewer participation transitions, and assessments are recorded atomically through
 [Audit](../../audit/business/README.md); private drafts and email delivery attempts
-are not audited, and delivery failures do not undo a committed submission.
+are not audited.
 
 Recorded assessment commands and reads use the [money contract](../../../foundation/money/README.md).
 An unstated amount is `null`. An explicit zero is `{ "minorUnits": "0", "currency": "EUR" }`.
@@ -41,12 +37,8 @@ reviewer submission advance this revision under the case lock; assignment and
 private-draft revisions retain their independent meanings.
 
 Applications' `MaterialVersion`, Rounds' `CriteriaVersion`, and Reviews'
-`ReviewRevision` are distinct branded numbers. Owner schemas validate numeric
-inputs at decoding boundaries; JSON and database representations remain numbers.
-Review commands and restored drafts use the same version schemas: material and
-criteria versions start at one, while review revisions can start at zero.
-An assessment's recorded basis stays separate from the current versions captured
-by its edit baseline. Saves bind that baseline to the application in the data
+`ReviewRevision` are distinct branded numbers. An assessment's recorded basis
+stays separate from the current versions captured by its edit baseline. Saves bind that baseline to the application in the data
 adapter; independently transported material queries carry the application ID.
 Brands distinguish sequences, while authorization and ownership checks still
 establish which records those sequences belong to.
@@ -54,7 +46,7 @@ establish which records those sequences belong to.
 `/api` is browser-safe. `/server` exports the manager and reviewer service factories
 and authorized operations. Approved composition reads use `/schema`, `/scope`,
 `/participation-schema`, and `/readers`. `/server/integrations` exposes the
-collaborators that end review work on membership revocation and application withdrawal;
+collaborators that Organizations, Applications, and Contacts call with review work;
 `/server/demo` exposes review and assignment persistence only for trusted example seeding. Reviews reads application material and round criteria
 through owner exports and has no dependency on recommendation implementation.
 

@@ -24,7 +24,7 @@ include long titles, unknown review bases and withdrawn applications.
 
 **Add review request** opens the searchable [request picker](request-picker.tsx).
 Explain there that choosing a reviewer records the request immediately and sends
-no message. Prevent selecting current outstanding reviewers for a new request. Replacement
+no message. Replacement
 uses the same picker; a follow-up request for a known reviewer acts directly.
 Keep contact creation available inside the picker. Requests commit from the picker;
 only recorded assessments and corrections have resumable drafts.
@@ -68,11 +68,10 @@ own line before the reasoning. **Compare changes** opens the actual earlier
 submission. **Review details** exposes exact versions, criterion notes, recording
 provenance and change notes. **View criteria used** replaces the assessment with
 the exact historical rubric and current criteria when their content differs.
-Back names the view being returned to: **Back to assessment** or **Back to assessment
-history** restores the originating control and reading position.
-Unknown bases remain explicit; **Earlier assessments and edits** retains each
-original basis. **Back to assessments** restores the originating action and reading
-position. Request history follows the same in-pane navigation and groups each
+Back names the view being returned to—**Back to assessments**, **Back to assessment**,
+or **Back to assessment history**—and restores the originating control and reading
+position. Unknown bases remain explicit; **Earlier assessments and edits** retains each
+original basis. Request history follows the same in-pane navigation and groups each
 request's status, basis, dated events, actors, and interfaces.
 
 `ReviewWork` owns one review controller and supplies reading, action, task and feedback
@@ -80,8 +79,7 @@ slots to the application workspace. Recording, correction and **Manage reviews**
 occupy the right task pane; left-side reference navigation leaves an active form
 mounted. Reviewer assignments and commands share one controller above the reading
 and management views; loading assignments disables request actions until their
-participation is known. **Close** retains changed writing, **Resume editing** reopens it, and
-**Discard draft** removes it. Recommendation editing disables review authoring
+participation is known. Recommendation editing disables review authoring
 while leaving reading available. Standalone review work uses the same shared
 reference workspace.
 
@@ -91,20 +89,14 @@ reference panes and calls its open or show-all actions; it does not remount revi
 content to reset navigation. The shared reading-navigation hook restores focus and
 the physical pane's reading position even when its owner lives above the pane.
 
-Conflicting edits keep the editor mounted and surface an inline conflict banner
-above the form, comparing only target-scoped conflicts on the matching assessment
-or underlying criteria. Application, criteria, assessment, and request revision
-changes update the draft basis only when keeping the draft; keeping a draft
-reaffirms it against the current versions without saving yet, while discarding
-loads the latest server values. If the target record is removed, a retained
-draft notice offers copying the draft or discarding it. Ordinary save failures
-retain the form and its entries. Successful writes use the shell confirmation
-placement. Render the feedback slot outside switchable references so a
+The [review controller](../../controllers/reviews/use-review.ts) decides which
+review changes conflict with a draft, and supplies the current assessment values
+and keep/load actions to the shared conflict banner. Keeping a draft reaffirms it
+against the current versions without saving yet, while discarding loads the
+latest server values. Render the feedback slot outside switchable references so a
 saved-but-not-refreshed warning and Retry remain available after the editor
 closes, regardless of which material the person is reading. Retry refreshes the
-saved state without repeating the write. The [review controller](../../controllers/reviews/use-review.ts)
-supplies target-scoped conflict state, current assessment values, and keep/load
-actions to the view.
+saved state without repeating the write.
 
 Use the [manager-review stories](../../../../../../interfaces/product/src/features/grantmaking/views/reviews/review-work.stories.tsx)
 for the connected flow and the [review tests](review-work.test.tsx) for focused
