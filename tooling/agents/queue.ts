@@ -5,7 +5,11 @@ import { fileURLToPath } from "node:url";
 
 import { z } from "zod";
 
-import { extractLinkedIssueNumbers } from "../verification/agent-policy.ts";
+import {
+  extractLinkedIssueNumbers,
+  TRUSTED_AUTHOR_ASSOCIATIONS,
+  type IssueCommentRecord,
+} from "../verification/agent-policy.ts";
 
 export const MAX_OPEN_AGENT_PRS = 2;
 export const MAX_SHEPHERD_ROUNDS = 2;
@@ -70,7 +74,7 @@ export type ReadyIssueCandidate = {
   number: number;
   title: string;
   labels: string[];
-  comments: string[];
+  comments: IssueCommentRecord[];
 };
 
 export type QueueWorkOrder =
@@ -127,11 +131,14 @@ export const parseClaimMarker = (commentBody: string): ClaimMarker | null => {
 export const formatClaimComment = (claim: ClaimMarker): string =>
   `Claimed for autonomous implementation until ${claim.expiresAt}.\n\n<!-- merit-claim: ${JSON.stringify(claim)} -->`;
 
-/** Checks for an active claim while clamping effective TTL to `claimedAt + CLAIM_TTL_MS`. */
-export const hasActiveClaim = (comments: readonly string[], nowMs: number): boolean => {
+/** Checks for an active claim from a trusted repo author, clamping TTL to `claimedAt + CLAIM_TTL_MS`. */
+export const hasActiveClaim = (comments: readonly IssueCommentRecord[], nowMs: number): boolean => {
   let latestEffectiveExpiryMs = 0;
   for (const comment of comments) {
-    const marker = parseClaimMarker(comment);
+    if (!TRUSTED_AUTHOR_ASSOCIATIONS.has(comment.authorAssociation)) {
+      continue;
+    }
+    const marker = parseClaimMarker(comment.body);
     if (!marker) {
       continue;
     }
@@ -148,10 +155,14 @@ export const hasActiveClaim = (comments: readonly string[], nowMs: number): bool
   return latestEffectiveExpiryMs > nowMs;
 };
 
-export const parseAgentPrState = (comments: readonly string[]): AgentPrState => {
+/** Parses the latest agent state comment authored by a trusted repository writer. */
+export const parseAgentPrState = (comments: readonly IssueCommentRecord[]): AgentPrState => {
   let latest: AgentPrState = { shepherdRounds: 0, flakeReruns: 0 };
   for (const comment of comments) {
-    const match = AGENT_PR_MARKER_PATTERN.exec(comment);
+    if (!TRUSTED_AUTHOR_ASSOCIATIONS.has(comment.authorAssociation)) {
+      continue;
+    }
+    const match = AGENT_PR_MARKER_PATTERN.exec(comment.body);
     if (!match?.[1]) {
       continue;
     }
@@ -314,6 +325,11 @@ const ghRepoSchema = z.object({
   name: z.string(),
 });
 
+const ghCommentSchema = z.object({
+  body: z.string(),
+  authorAssociation: z.string().default(""),
+});
+
 const ghPrListSchema = z.array(
   z.object({
     number: z.number(),
@@ -323,7 +339,7 @@ const ghPrListSchema = z.array(
     headRefOid: z.string(),
     isDraft: z.boolean(),
     labels: z.array(z.object({ name: z.string() })),
-    comments: z.array(z.object({ body: z.string() })),
+    comments: z.array(ghCommentSchema),
     statusCheckRollup: z
       .array(
         z.object({
@@ -344,7 +360,7 @@ const ghReadyIssuesSchema = z.array(
     number: z.number(),
     title: z.string(),
     labels: z.array(z.object({ name: z.string() })),
-    comments: z.array(z.object({ body: z.string() })),
+    comments: z.array(ghCommentSchema),
   }),
 );
 
@@ -514,7 +530,7 @@ const fetchOpenAgentPrs = (repoRoot: string, repo: RepoIdentity): OpenAgentPr[] 
     labels: pr.labels.map((label) => label.name),
     checks: normalizeStatusCheckRollup(pr.statusCheckRollup),
     unresolvedThreads: fetchUnresolvedThreads(repoRoot, repo, pr.number),
-    state: parseAgentPrState(pr.comments.map((comment) => comment.body)),
+    state: parseAgentPrState(pr.comments),
   }));
 };
 
@@ -539,7 +555,7 @@ const fetchReadyIssues = (repoRoot: string): ReadyIssueCandidate[] => {
     number: issue.number,
     title: issue.title,
     labels: issue.labels.map((label) => label.name),
-    comments: issue.comments.map((comment) => comment.body),
+    comments: issue.comments,
   }));
 };
 

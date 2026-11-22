@@ -42,10 +42,15 @@ const singleLine = (max: number) =>
     .max(max)
     .refine((value) => !value.includes("\n"), "must be a single line");
 
-const nonAgentLabelSchema = singleLine(40).refine(
-  (label) => !label.toLowerCase().startsWith("agent:"),
-  "extraLabels cannot contain workflow-controlled agent:* labels",
-);
+const nonAgentLabelSchema = singleLine(40)
+  .refine(
+    (label) => !/[,`"']/.test(label),
+    "extraLabels must be a single label without commas or quotes",
+  )
+  .refine(
+    (label) => !label.toLowerCase().startsWith("agent:"),
+    "extraLabels cannot contain workflow-controlled agent:* labels",
+  );
 
 export const proposalInputSchema = z.object({
   lens: z.enum(SCOUT_LENSES),

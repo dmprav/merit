@@ -7,6 +7,7 @@ import { z } from "zod";
 import { classifyChangedPaths } from "../verification/architecture/mechanisms.ts";
 import { MAX_OPEN_PROPOSALS, SCOUT_LENSES, type ScoutLens } from "./proposal.ts";
 
+export const SCOUT_STATE_ISSUE_NUMBER = 219;
 export const SCOUT_STATE_ISSUE_TITLE = "chore: agent scout state";
 const ROTATION_EPOCH_UTC_MS = Date.UTC(2026, 10, 13);
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -172,6 +173,7 @@ export const parseCommitLog = (raw: string): CommitSummary[] =>
 export const buildScoutContext = ({
   lens,
   cursor,
+  scanTipSha,
   openProposedCount,
   commits,
   changedFiles,
@@ -182,6 +184,7 @@ export const buildScoutContext = ({
 }: {
   lens: ScoutLens;
   cursor: LensCursor | undefined;
+  scanTipSha: string;
   openProposedCount: number;
   commits: readonly CommitSummary[];
   changedFiles: readonly string[];
@@ -194,6 +197,7 @@ export const buildScoutContext = ({
     return {
       status: "cap_reached" as const,
       lens,
+      scanTipSha,
       openProposedCount,
       maxOpenProposals: MAX_OPEN_PROPOSALS,
     };
@@ -202,6 +206,7 @@ export const buildScoutContext = ({
   return {
     status: "ready" as const,
     lens,
+    scanTipSha,
     cursor: cursor ?? null,
     openProposedCount,
     maxOpenProposals: MAX_OPEN_PROPOSALS,
@@ -215,9 +220,12 @@ export const buildScoutContext = ({
   };
 };
 
-const ghStateIssueSchema = z.array(
-  z.object({ number: z.number(), title: z.string(), body: z.string() }),
-);
+const ghStateIssueSchema = z.object({
+  number: z.number(),
+  state: z.string(),
+  title: z.string(),
+  body: z.string(),
+});
 
 const ghIssueSummarySchema = z.array(
   z.object({
@@ -230,24 +238,16 @@ const ghIssueSummarySchema = z.array(
 const fetchScoutStateIssue = (repoRoot: string) => {
   const raw = execFileSync(
     "gh",
-    [
-      "issue",
-      "list",
-      "--state",
-      "open",
-      "--search",
-      `in:title "${SCOUT_STATE_ISSUE_TITLE}"`,
-      "--json",
-      "number,title,body",
-    ],
+    ["issue", "view", String(SCOUT_STATE_ISSUE_NUMBER), "--json", "number,state,title,body"],
     { cwd: repoRoot, encoding: "utf8" },
   );
-  const issues = ghStateIssueSchema.parse(JSON.parse(raw));
-  const exact = issues.find((issue) => issue.title === SCOUT_STATE_ISSUE_TITLE);
-  if (!exact) {
-    throw new Error(`Missing pinned state issue titled "${SCOUT_STATE_ISSUE_TITLE}"`);
+  const issue = ghStateIssueSchema.parse(JSON.parse(raw));
+  if (issue.state !== "OPEN" || issue.title !== SCOUT_STATE_ISSUE_TITLE) {
+    throw new Error(
+      `Pinned scout state issue #${SCOUT_STATE_ISSUE_NUMBER} must be OPEN and titled "${SCOUT_STATE_ISSUE_TITLE}" (got ${issue.state}: "${issue.title}").`,
+    );
   }
-  return exact;
+  return issue;
 };
 
 const isCommitAncestor = (repoRoot: string, sha: string, ref: string): boolean => {
@@ -340,12 +340,15 @@ const runContextCommand = (repoRoot: string, lens: ScoutLens) => {
 
   const now = new Date();
   const fallbackSinceIso = new Date(now.getTime() - 7 * MS_PER_DAY).toISOString();
-  const ref = "origin/main";
+  const scanTipSha = execFileSync("git", ["rev-parse", "origin/main"], {
+    cwd: repoRoot,
+    encoding: "utf8",
+  }).trim();
   const logArgs = buildCommitQueryArgs({
     cursor,
-    isAncestor: (sha) => isCommitAncestor(repoRoot, sha, ref),
+    isAncestor: (sha) => isCommitAncestor(repoRoot, sha, scanTipSha),
     fallbackSinceIso,
-    ref,
+    ref: scanTipSha,
   });
   const commits = parseCommitLog(execFileSync("git", logArgs, { cwd: repoRoot, encoding: "utf8" }));
 
@@ -370,7 +373,7 @@ const runContextCommand = (repoRoot: string, lens: ScoutLens) => {
     }
   }
 
-  const trackedFiles = execFileSync("git", ["ls-tree", "-r", "--name-only", ref], {
+  const trackedFiles = execFileSync("git", ["ls-tree", "-r", "--name-only", scanTipSha], {
     cwd: repoRoot,
     encoding: "utf8",
   })
@@ -390,6 +393,7 @@ const runContextCommand = (repoRoot: string, lens: ScoutLens) => {
   const context = buildScoutContext({
     lens,
     cursor,
+    scanTipSha,
     openProposedCount,
     commits,
     changedFiles: [...changedFilesSet].sort(),
@@ -402,12 +406,19 @@ const runContextCommand = (repoRoot: string, lens: ScoutLens) => {
 };
 
 const runAdvanceCommand = (repoRoot: string, lens: ScoutLens, args: readonly string[]) => {
+  const commitSha = readFlagValue(args, "--commit");
+  if (!commitSha) {
+    throw new Error(
+      'Missing required --commit <scanTipSha> flag. Pass the scanTipSha emitted by "scout.ts context".',
+    );
+  }
   const stateIssue = fetchScoutStateIssue(repoRoot);
   const state = parseScoutState(stateIssue.body);
-  const commitSha =
-    readFlagValue(args, "--commit") ??
-    execFileSync("git", ["rev-parse", "origin/main"], { cwd: repoRoot, encoding: "utf8" }).trim();
-  const commitDate = execFileSync("git", ["show", "-s", "--format=%cI", commitSha], {
+  const resolvedSha = execFileSync("git", ["rev-parse", "--verify", `${commitSha}^{commit}`], {
+    cwd: repoRoot,
+    encoding: "utf8",
+  }).trim();
+  const commitDate = execFileSync("git", ["show", "-s", "--format=%cI", resolvedSha], {
     cwd: repoRoot,
     encoding: "utf8",
   }).trim();
@@ -415,7 +426,7 @@ const runAdvanceCommand = (repoRoot: string, lens: ScoutLens, args: readonly str
   const lastPrNumber = prRaw ? Number.parseInt(prRaw, 10) : state[lens]?.lastPrNumber;
 
   const nextCursor = lensCursorSchema.parse({
-    lastCommitSha: commitSha,
+    lastCommitSha: resolvedSha,
     lastCommitDate: commitDate,
     ...(lastPrNumber !== undefined ? { lastPrNumber } : {}),
     lastRunAt: new Date().toISOString(),

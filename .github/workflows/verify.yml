@@ -90,12 +90,22 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          MERIT_REPO_ROOT: ${{ github.workspace }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_LABELS_JSON: ${{ toJSON(github.event.pull_request.labels.*.name) }}
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PR_BODY: ${{ github.event.pull_request.body }}
-        run: node tooling/verification/agent-policy.ts
+        run: |
+          if git cat-file -e "${PR_BASE_SHA}:tooling/verification/agent-policy.ts" 2>/dev/null; then
+            trusted_dir="$(mktemp -d)"
+            trap 'rm -rf "$trusted_dir"' EXIT
+            git show "${PR_BASE_SHA}:tooling/verification/verification-record.ts" > "$trusted_dir/verification-record.ts"
+            git show "${PR_BASE_SHA}:tooling/verification/agent-policy.ts" > "$trusted_dir/agent-policy.ts"
+            node "$trusted_dir/agent-policy.ts"
+          else
+            node tooling/verification/agent-policy.ts
+          fi
 
   renovate:
     needs: changes

@@ -155,20 +155,31 @@ describe("queue", () => {
     expect(escalated.kind).toBe("escalate");
   });
 
-  test("enforces WIP cap, skips needs-human/linked/claimed issues, and clamps far-future claim TTL", () => {
+  test("enforces WIP cap, skips needs-human/linked/claimed issues, ignores untrusted claims, and clamps far-future TTL", () => {
     const now = Date.UTC(2026, 10, 22, 12, 0, 0);
-    const activeClaim = formatClaimComment({
-      runId: "run-1",
-      claimedAt: new Date(now - 30 * 60 * 1000).toISOString(),
-      expiresAt: new Date(now + 90 * 60 * 1000).toISOString(),
-    });
-    const forgedFutureClaim = formatClaimComment({
-      runId: "run-bad",
-      claimedAt: new Date(now - 3 * 60 * 60 * 1000).toISOString(),
-      expiresAt: new Date(now + 365 * 24 * 60 * 60 * 1000).toISOString(),
-    });
+    const activeClaim = {
+      authorAssociation: "OWNER",
+      body: formatClaimComment({
+        runId: "run-1",
+        claimedAt: new Date(now - 30 * 60 * 1000).toISOString(),
+        expiresAt: new Date(now + 90 * 60 * 1000).toISOString(),
+      }),
+    };
+    const untrustedClaim = {
+      authorAssociation: "NONE",
+      body: activeClaim.body,
+    };
+    const forgedFutureClaim = {
+      authorAssociation: "OWNER",
+      body: formatClaimComment({
+        runId: "run-bad",
+        claimedAt: new Date(now - 3 * 60 * 60 * 1000).toISOString(),
+        expiresAt: new Date(now + 365 * 24 * 60 * 60 * 1000).toISOString(),
+      }),
+    };
 
     expect(hasActiveClaim([activeClaim], now)).toBe(true);
+    expect(hasActiveClaim([untrustedClaim], now)).toBe(false);
     expect(hasActiveClaim([forgedFutureClaim], now)).toBe(false);
 
     const picked = selectNextWork({
@@ -181,6 +192,7 @@ describe("queue", () => {
         }),
         baseIssue({ number: 120, title: "Already has PR" }),
         baseIssue({ number: 125, title: "Actively claimed", comments: [activeClaim] }),
+        baseIssue({ number: 127, title: "Spoofed untrusted claim", comments: [untrustedClaim] }),
         baseIssue({ number: 128, title: "Clamped expired claim", comments: [forgedFutureClaim] }),
         baseIssue({ number: 130, title: "Later issue" }),
       ],
@@ -188,21 +200,38 @@ describe("queue", () => {
     });
     expect(picked).toEqual({
       kind: "implement",
-      issueNumber: 128,
-      title: "Clamped expired claim",
-      branchSuggestion: "claude/issue-128",
+      issueNumber: 127,
+      title: "Spoofed untrusted claim",
+      branchSuggestion: "claude/issue-127",
     });
   });
 
-  test("parses latest agent PR state marker across multiple comments", () => {
-    const c1 = formatAgentPrStateComment({ issueNumber: 42, shepherdRounds: 1, flakeReruns: 0 });
-    const c2 = formatAgentPrStateComment({
+  test("parses latest trusted agent PR state marker while ignoring untrusted commenters", () => {
+    const c1 = {
+      authorAssociation: "OWNER",
+      body: formatAgentPrStateComment({ issueNumber: 42, shepherdRounds: 1, flakeReruns: 0 }),
+    };
+    const spoofed = {
+      authorAssociation: "NONE",
+      body: formatAgentPrStateComment({ issueNumber: 42, shepherdRounds: 99, flakeReruns: 5 }),
+    };
+    const c2 = {
+      authorAssociation: "COLLABORATOR",
+      body: formatAgentPrStateComment({
+        issueNumber: 42,
+        shepherdRounds: 2,
+        lastHeadSha: "abcdef1",
+        flakeReruns: 1,
+      }),
+    };
+    expect(
+      parseAgentPrState([{ authorAssociation: "OWNER", body: "ordinary" }, c1, spoofed]),
+    ).toEqual({
       issueNumber: 42,
-      shepherdRounds: 2,
-      lastHeadSha: "abcdef1",
-      flakeReruns: 1,
+      shepherdRounds: 1,
+      flakeReruns: 0,
     });
-    expect(parseAgentPrState(["ordinary comment", c1, c2])).toEqual({
+    expect(parseAgentPrState([c1, spoofed, c2])).toEqual({
       issueNumber: 42,
       shepherdRounds: 2,
       lastHeadSha: "abcdef1",

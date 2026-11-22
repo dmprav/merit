@@ -80,9 +80,10 @@ describe("proposal", () => {
     }
   });
 
-  test("rejects workflow-controlled agent:* labels in extraLabels and enforces --tier2-only metadata consistency", () => {
+  test("rejects workflow-controlled agent:* and comma-separated labels in extraLabels and enforces --tier2-only metadata consistency", () => {
     expect(() => sampleProposal({ extraLabels: ["agent:ready"] })).toThrow(/agent:\*/);
     expect(() => sampleProposal({ extraLabels: ["agent:allow-protected"] })).toThrow(/agent:\*/);
+    expect(() => sampleProposal({ extraLabels: ["type:bug,agent:ready"] })).toThrow(/commas/);
 
     const proposal = sampleProposal();
     const base = classifyProposalTier({ paths: proposal.paths, ambiguous: false });

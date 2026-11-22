@@ -110,6 +110,7 @@ describe("scout", () => {
     const readyAtFour = buildScoutContext({
       lens: "architecture",
       cursor: undefined,
+      scanTipSha: "abc1234567",
       openProposedCount: 4,
       commits: parseCommitLog("abc1234\t2026-11-22T00:00:00Z\tfeat: example"),
       changedFiles: ["capabilities/reviews/business/src/server/service.ts"],
@@ -119,6 +120,7 @@ describe("scout", () => {
       wontfixIssues: [],
     });
     expect(readyAtFour.status).toBe("ready");
+    expect(readyAtFour.scanTipSha).toBe("abc1234567");
     if (readyAtFour.status === "ready") {
       expect(readyAtFour.matchedMechanisms.risk).toBe("composes");
     }
@@ -126,6 +128,7 @@ describe("scout", () => {
     const cappedAtFive = buildScoutContext({
       lens: "architecture",
       cursor: undefined,
+      scanTipSha: "abc1234567",
       openProposedCount: 5,
       commits: parseCommitLog("abc1234\t2026-11-22T00:00:00Z\tfeat: example"),
       changedFiles: ["capabilities/reviews/business/src/server/service.ts"],
