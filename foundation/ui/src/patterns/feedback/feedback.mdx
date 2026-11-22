@@ -32,9 +32,7 @@ shows all three contexts using the same controls.
 | The page cannot show its initial content                          | `StateMessage` inside the available page or recovery frame |
 
 Toasts are the default. A failure belongs beside the work only when the person's
-unsaved input is right there, or when nothing else can fill the space. A plain
-success leaves after four seconds; a failure, or a toast offering Undo or Retry,
-stays until the person acts or dismisses it.
+unsaved input is right there, or when nothing else can fill the space.
 
 Place persistent feedback beside the work it affects. Choose a Notice tone that
 matches the meaning and include an explanation and useful next action. Use its
@@ -77,18 +75,15 @@ the confirmation pattern's body treatment instead of implying that an operation
 has already failed.
 
 A confirmed save followed by a failed refresh retries the read quietly first. If
-it still fails, a warning toast states that the change was saved and offers
-**Refresh**; the work stays available meanwhile. Never imply the write failed or
+it still fails, a warning toast from `useToastWhile` states that the change was
+saved and offers **Refresh**; the work stays available meanwhile. Never imply the write failed or
 offer to repeat it. A later change made against outdated information meets the
 workflow's concurrent-edit check rather than a blocked screen.
 See [Notices](?path=/docs/components-notice--docs) for tone and announcement guidance.
 
-The document root renders one `Toasts` region, centered at the bottom of the page
-beside the application shell's sidebar. It owns toast lifetime, stacking, and
-announcement; F6 moves focus to it. Keep each message to one short sentence and
-at most one action. When a controller reports outcomes as an event counter,
-`useEventToast` shows each new event and replaces the previous event's toast, so
-an earlier Undo cannot outlive a later save.
+The document root renders one `Toasts` region, which owns toast lifetime, stacking,
+and announcement. Keep each message to one short sentence and at most one action.
+When a controller reports outcomes as an event counter, use `useEventToast`.
 
 <Canvas of={Toasts.InWorkspace} story={{ inline: false, height: "380px" }} />
 
@@ -104,8 +99,6 @@ The underlying delivery and acceptance facts remain distinct.
 Show failures when they affect the person's work or next decision. A background
 refresh with usable content can remain quiet. Failed saves and uncertain outcomes
 need feedback beside the action and must retain the draft.
-After a confirmed save, keep the success feedback and report a failed refresh
-with `useToastWhile`, which keeps the toast up only while the failure lasts.
 
 Use the existing recovery view when an initial read fails, including offline.
 Retry the affected read or route without reloading the document. Show progress on

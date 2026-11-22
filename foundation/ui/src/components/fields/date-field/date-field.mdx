@@ -6,14 +6,8 @@ import * as DateFields from "./date-field.stories";
 # Enter a calendar date
 
 Use `DateField` from `@merit/ui/date-field` for a date without a time or time zone.
-People can type a `YYYY-MM-DD` value or open its calendar and choose a day.
-Date entry allows full calendar years within ten years of the current local year.
-In 2026 this permits January 1, 2016 through December 31, 2036. Calendars disable
-days and month navigation outside this range.
-The input and calendar button share one field boundary and the same label, error,
-focus, and requirement presentation as text fields. The compact popup closes when you select a date, press Escape, or click outside it.
-A filled day is selected; a dot marks
-today, while an underline and inset marker identify keyboard focus.
+People can type a `YYYY-MM-DD` value or open its calendar and choose a day within
+ten years of the current year.
 
 <Canvas of={DateFields.CalendarOpen} />
 
@@ -28,24 +22,12 @@ in YYYY-MM-DD format, within 10 years of the current year.” Keep required-date
 to the workflow. Use `calendarDateSchema` for stored records and formatting so
 historical dates remain readable.
 
-`FormDateField` from `@merit/forms` connects the value, touched state, errors, and
-invalid-field focus to the form. Selecting a calendar day updates the form without
-submitting it. Closing the calendar leaves the input unchanged and returns focus
-to its trigger. The field and an open calendar inherit the nearest form’s pending
-state. Use `isDisabled` for an additional restriction specific to the field.
+Use `FormDateField` from `@merit/forms` to connect the field to a form.
 
 <Canvas of={DateFields.States} />
 
 ## Commit a single property
 
-Use `DateChoice` from `@merit/ui/date-choice` for quick edits with immediate calendar
-selection and explicit saving of typed values. It composes `DateField` with
-`showCalendar={false}` and the separately displayed `Calendar` from
-`@merit/ui/calendar`. The calendar accepts a valid date string or `null` and emits
-a valid date on selection; keyboard navigation alone does not choose a date.
-Both use the same month navigation, day styling, and keyboard behavior.
-At enlarged text sizes, the day grid can scroll horizontally while month navigation
-stays visible.
-
-The [editing pattern](../../../patterns/editing/editing.mdx) owns Save, Cancel, and
-recovery conventions. The workflow owns persistence, conflict handling, and Undo.
+Use `DateChoice` to edit a single date property. The
+[editing pattern](../../../patterns/editing/editing.mdx) owns its Save, Cancel, and
+recovery conventions.

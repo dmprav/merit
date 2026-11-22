@@ -12,12 +12,8 @@ and workspace marks separate from people.
 
 ## Fit identity to its context
 
-Compact names use a 24 px avatar, an 8 px gap, and the surrounding typography.
-Names with supporting details or an explicit `nameAs` heading use the 28 px form.
-Names use regular body weight, including semantic headings. Use `nameAs` when the
-name itself introduces a section; heading semantics do not require visual emphasis.
-Keep a name and email tightly grouped, with the avatar centered beside both lines.
-Use `annotation` for a short identity qualifier such as “You”, beside the name.
+Use `nameAs` when the name itself introduces a section; heading semantics do not
+require visual emphasis. Use `annotation` for a short identity qualifier such as “You”, beside the name.
 Use `status` for a compact account qualifier when there is no dedicated account
 column. A disabled account is a neutral persistent state; actionable consequences
 belong where someone can resolve them. The feature supplies the label and tone.
@@ -33,8 +29,7 @@ account state its own column, separate from identity and access roles.
 <Canvas of={People.DisabledAccount} />
 
 When no person is selected, set `isPlaceholder` and provide a visible label such
-as “Unassigned”. The unfilled circle occupies the same avatar slot as an assigned
-person, preserving alignment without presenting absence as a warning.
+as “Unassigned”. It preserves alignment without presenting absence as a warning.
 
 <Canvas of={People.Unassigned} />
 
@@ -46,12 +41,9 @@ outcomes, and domain status logic with the feature.
 ## Align and wrap the whole identity
 
 Align the whole avatar/name group with other values. In compact property groups,
-use the same 32 px minimum row height for text and people, center content vertically,
-and avoid adding a second layer of vertical padding around an identity control.
-Let long names wrap and rows grow; keep touch targets at the shared control size.
-Supporting content beneath a person aligns with the name using the shared avatar
-size and spacing variables. Features arrange the group; avatar dimensions belong
-to the shared component, without local overrides.
+give text and people the same row height and avoid adding a second layer of
+vertical padding around an identity control. Let long names wrap and rows grow.
+Features arrange the group; avatar dimensions belong to the shared component.
 
 <Canvas of={People.LongName} />
 
