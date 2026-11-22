@@ -1,3 +1,4 @@
+import { PostHog as PostHogClient } from "posthog-js";
 import { afterEach, expect, it, vi } from "vite-plus/test";
 
 import {
@@ -11,6 +12,9 @@ type PostHog = Awaited<ReturnType<NonNullable<PostHogAnalyticsOptions["load"]>>>
 
 afterEach(() => {
   window.history.replaceState(null, "", "/");
+  document.title = "";
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 const deferredPostHog = () => {
@@ -152,4 +156,57 @@ it("keeps the redacted route in same-origin URLs before sending", () => {
     $current_url: "http://localhost:3000/app/:workspace/rounds/:round",
     $referrer: "http://localhost:3000/invitations/:token",
   });
+});
+
+const loadRealPostHog = async () => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("{}")));
+  const posthog = new PostHogClient();
+  const client = createPostHogAnalytics({ apiKey: "phc_test_key", load: async () => posthog });
+  await vi.waitFor(() => expect(posthog.__loaded).toBe(true));
+  const sent: unknown[] = [];
+  posthog.on("eventCaptured", (event) => sent.push(event));
+  return { client, sent };
+};
+
+it("sends no invitation token, workspace slug, or query string from the real PostHog client", async () => {
+  const token = "0123456789abcdef0123456789abcdef";
+  window.history.replaceState(null, "", `/invitations/${token}?source=email#accept`);
+  vi.spyOn(document, "referrer", "get").mockReturnValue(
+    "http://localhost:3000/app/alder/applications/app-9",
+  );
+  const { client, sent } = await loadRealPostHog();
+
+  client.pageView();
+  window.history.replaceState(null, "", "/app/alder/rounds/round-1?guide=workshop");
+  document.title = "Neighbourhood food grants · Merit";
+  client.pageView();
+  client.track("demo_reset");
+
+  expect(sent).toHaveLength(3);
+  const payload = JSON.stringify(sent);
+  for (const secret of [
+    token,
+    "alder",
+    "round-1",
+    "app-9",
+    "source=email",
+    "guide=workshop",
+    "#accept",
+    "Neighbourhood food grants",
+  ]) {
+    expect(payload).not.toContain(secret);
+  }
+});
+
+it("sends no search terms from a search engine referrer", async () => {
+  vi.spyOn(document, "referrer", "get").mockReturnValue(
+    "https://www.bing.com/search?q=alder+foundation+grant",
+  );
+  const { client, sent } = await loadRealPostHog();
+
+  client.pageView("/demo");
+  client.track("demo_reset");
+
+  expect(sent).toHaveLength(2);
+  expect(JSON.stringify(sent)).not.toContain("alder foundation grant");
 });

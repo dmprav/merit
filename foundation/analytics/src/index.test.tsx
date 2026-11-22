@@ -71,7 +71,22 @@ it.each([
   ["/app/alder/settings/members", "/app/:workspace/settings/members"],
   ["/app/alder/work", "/app/:workspace/work"],
   ["/app/alder/work/assign-123", "/app/:workspace/work/:assignment"],
-  ["/app/alder/contacts/contact-7/unknown-child", "/app/:workspace/contacts/:id"],
 ])("redacts confidential parameters in %s as %s", (path, expected) => {
   expect(sanitizeAnalyticsPath(path)).toBe(expected);
+});
+
+it.each([
+  ["/Invitations/0123abcdef", "/invitations/:token"],
+  ["/APP/Alder/Rounds/Round-1/", "/app/:workspace/rounds/:round"],
+])("matches routes regardless of case, recording %s as %s", (path, expected) => {
+  expect(sanitizeAnalyticsPath(path)).toBe(expected);
+});
+
+it.each([
+  ["/invitations"],
+  ["/app/alder/contacts/contact-7"],
+  ["/app/alder/unknown"],
+  ["/alder-foundation?token=123"],
+])("records the unrecognized path %s as /*other", (path) => {
+  expect(sanitizeAnalyticsPath(path)).toBe("/*other");
 });
