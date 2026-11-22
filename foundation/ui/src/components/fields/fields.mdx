@@ -16,9 +16,7 @@ and validation; the owning workflow determines what the action requires.
 Use a [description list](?path=/docs/components-description-list--docs) for fixed
 facts on a reading surface. Inside an editor, use a read-only text field when a
 value is fixed by permissions: retain the field's label, alignment, and readable
-value, and explain the restriction. Read-only fields support focus and copying,
-but retain their muted surface and use a quiet dashed focus outline instead of
-the editable field's active underline. They never expose a dropdown arrow.
+value, and explain the restriction. Read-only fields still support focus and copying.
 
 Explain unfamiliar choices where people compare them. Select options can carry
 short descriptions, while the closed control shows only the selected label.
@@ -32,10 +30,8 @@ Set `isLabelHidden` when nearby text already names the field visibly, such as a
 description list term beside an inline editor. The label stays the field's
 accessible name and keeps its validation and requirement semantics.
 
-Use `isRequired` for input needed by the current action. Editable required fields
-show accessible semantics and a quiet **Required** label, including after the
-person fills the field. Read-only and disabled fields omit the visible marker;
-the underlying requirement still applies. Leave optional fields unmarked.
+Use `isRequired` for input needed by the current action and leave optional fields
+unmarked.
 
 <Canvas of={TextFields.States} />
 
@@ -49,21 +45,15 @@ explanations inside the menu where people compare options.
 ## Enter money without rounding
 
 Use `MoneyField` for controlled decimal money text, or `FormMoneyField` with a
-shared form. It accepts decimal commas and grouped paste with a decimal point,
-rejects excess precision with localized feedback beside the input, and normalizes
-accepted values on blur. Invalid restored text stays exact until corrected.
-Features supply the currency prefix, labels, and precision message, and retain
+shared form. Features supply the currency prefix, labels, and precision message, and retain
 responsibility for required amounts, allowed funding positions, and save validation.
 
 <Canvas of={MoneyFields.Default} />
 
 ## Search within a collection
 
-Use `SearchField` for a scoped query. Its search icon, input, and clear action share
-one boundary and focus treatment. The accessible label names the collection;
-the placeholder can describe what matches. Clear appears only when there is text
-and returns focus to the input. Escape belongs to the containing panel and does
-not erase the query. The [search field examples](?path=/story/components-search-field--clearing)
+Use `SearchField` for a scoped query. The accessible label names the collection;
+the placeholder can describe what matches. The [search field examples](?path=/story/components-search-field--clearing)
 and [collection toolbar](?path=/docs/patterns-collection-toolbar--docs) show the interaction.
 
 ## Keep feedback beside the field
@@ -73,22 +63,7 @@ after an unsuccessful save. Keep forms focused on labels, values, and corrective
 feedback; broader explanations belong in user guides. Add inline explanation when
 it helps the person understand the current action.
 
-Field labels use control typography at medium weight; requirements and feedback
-use caption text. Field parts use `space-1` gaps. Errors replace helper text in a
-shared feedback area, retaining the helper's height so short errors do not shift
-the following control. Longer errors grow and wrap, including unbroken addresses
-and identifiers. Fields without feedback leave no empty row.
-
 <Canvas of={TextFields.Validation} />
-
-## Allow content to grow
-
-Multiline text fields default to five rows and a 120 px minimum, with vertical
-resizing and 8 px vertical padding. Labels, values, and feedback wrap or grow with
-long content and enlarged text. Shared [density and focus conventions](?path=/docs/design-language--docs)
-keep field states consistent with the surrounding controls.
-
-<Canvas of={TextFields.LongContent} />
 
 Use the [date field guidance](?path=/docs/components-date-field--docs) for calendar
 entry and the [select examples](?path=/docs/components-select--docs) for choosing

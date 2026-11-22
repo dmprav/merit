@@ -35,11 +35,8 @@ behavior and keep their layouts with those patterns.
 
 ## Center a bounded task
 
-`ModalDialog` sits near the top of the page at one width, with its heading on the
-dialog's own surface and the shared `DialogContent` layout. Forms, confirmations, and reference reading all use
-this frame, so the dialog does not shift position or size between tasks. Confirmations
-use a narrower version of the frame suited to a short decision. On viewports up to
-600px wide the dialog centers within small margins.
+Forms, confirmations, and reference reading all use `ModalDialog`, so the dialog
+does not shift position or size between tasks.
 
 <Canvas of={Dialog.CenteredWithActions} />
 
@@ -51,27 +48,18 @@ own typography.
 
 ## Browse related records beside a row
 
-`SidePanel` fills the viewport height at the end edge, keeping its heading and close
-control above the independently scrolling `DialogContent`. At widths up to 600px it
-fills the screen. Keep related records as native links inside the body so each
-destination can also open in another tab.
+Use `SidePanel` for records related to a row. Keep related records as native links
+inside the body so each destination can also open in another tab.
 
 <Canvas of={Dialog.SidePanel} />
 
 ## Work beside a value
 
-`PopoverDialog` keeps a compact heading and close control visible above a
-keyboard-scrollable body. Pass content directly: it supplies its own `DialogContent`.
-Group related information with spacing. Pass utility content through `footer` to
-group it below the body after a divider. When a footer is present, it scrolls with
-the content so utilities cannot squeeze out the reading area. The heading stays
-visible. Long titles wrap beside the close control.
+Use `PopoverDialog` for reference material beside a value. Pass content directly:
+it supplies its own `DialogContent`. Group related information with spacing and
+put utilities in its `footer`.
 
-`PickerPopover` holds pickers and small filter panels. Its title remains an accessible
-name without a decorative header, footer, or visible close control: pickers dismiss
-with Escape or an outside press at every width, and React Aria provides a hidden
-dismiss button for screen readers. A `ChoiceList` runs to the picker's edges like a
-menu; other content keeps the picker's padding.
+Use `PickerPopover` for pickers and small filter panels, such as a `ChoiceList`.
 
 <Canvas of={Dialog.Popover} />
 
@@ -81,26 +69,11 @@ menu; other content keeps the picker's padding.
 
 ## Keep content and actions reachable
 
-`DialogContent` owns the scrollable body and optional persistent footer. Put
-reference material in its children, pass outcome feedback through `feedback`, and
-actions through `footer`. Its keyboard-focusable region takes the dialog's title as
-its name; pass `label` only when the body needs a different one. The feedback area
-remains visible above the footer and shares the body's gutters; its height
-participates in the whole-dialog scrolling fallback. Inside `ModalDialog` and
-`SidePanel` it supplies the gutters, scrollbar and focus treatment, and a footer
-aligned with the body. The content can grow to the available height while the header and actions
-stay visible.
-
-Scrolling stays quiet at rest. The header gains its divider once content passes
-under it, and the footer's divider shows only while more content continues below.
-Browsers without scroll-driven animation keep both dividers. Every scrolling region
-inside a surface uses the same slim scrollbar at the frame's edge.
-
-When enlarged text or long translations leave too little space for the body, the
-centered dialog or side panel scrolls as one surface instead. The heading, fields,
-feedback, and actions remain reachable without squeezing the work into a single line.
-Focusing a field or action inside the content reveals the whole control with space
-around it in every engine, so its border never sits under a scrolling edge.
+`DialogContent` owns the scrollable body and keeps outcome feedback and actions
+visible while the body scrolls. Put reference material in its children, pass
+outcome feedback through `feedback`, and actions through `footer`. When enlarged
+text or long translations leave too little space for the body, the centered dialog
+or side panel scrolls as one surface, so every field and action stays reachable.
 
 The same layout also works inside a form. `Form` in `@merit/forms` consumes it
 inside `FormDialog`, preserving one native form around its fields and submit
@@ -113,9 +86,7 @@ implementing another scroll container or footer.
 **Let the frame set the type and give each part one role.** Dialogs render outside
 the application shell, so every frame sets the body text size; content inherits it
 rather than choosing its own. The title in the header is the only heading at the
-frame's level. Group content with `DialogSection`: its heading matches the size of the
-text it introduces, takes the shared heading weight, and sections share one spacing.
-Use `reading` on `DialogContent` for sustained prose, muted text for supporting
+frame's level. Group content with `DialogSection`. Use `reading` on `DialogContent` for sustained prose, muted text for supporting
 detail, and the caption size only for metadata such as context or timestamps.
 
 A state that replaces the whole body, such as `EditorLoading` while an editor recovers
@@ -130,20 +101,13 @@ and context share a compact row where space permits. Long context wraps in readi
 order on every screen, while the close control stays reachable.
 Omit context when it adds no useful orientation.
 
-The close control is labelled “Close dialog” from the shared message catalog; pass
-`closeLabel` only when a frame needs a more specific name. The close control and
-Escape use the same dismissal path. Enable backdrop dismissal only when it fits the
+The close control and Escape use the same dismissal path. Enable backdrop dismissal only when it fits the
 task. Use `isDismissDisabled` while an operation must remain visible; it guards the
 header close control, Escape, and outside dismissal together.
 
 Features own what closing means for their draft and what success commits. Follow
 the [editing pattern](?path=/docs/patterns-editing--docs) for Close, Discard, and
-Resume behavior. Centered dialogs fade in place; side panels slide from their edge,
-and popovers use a smaller, quicker entrance. Closing starts gently and accelerates
-out. Focus and input remain available during entrance, and reduced-motion
-preferences skip the transitions.
-
-The dialog retains its last open content until the exit finishes, so callers can
-clear their drafts on dismissal without collapsing the visible form. Focus returns
-to the trigger when it remains available. Omit `trigger` for a dialog the feature
-opens itself; focus then returns to where it was when the dialog opened.
+Resume behavior. The dialog retains its last open content until the exit finishes,
+so callers can clear their drafts on dismissal without collapsing the visible form.
+Focus returns to the trigger when it remains available. Omit `trigger` for a dialog
+the feature opens itself; focus then returns to where it was when the dialog opened.
