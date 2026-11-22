@@ -6,11 +6,14 @@ const maxFileBytes = 25 * 1024 * 1024;
 const fileBytes = z
   .instanceof(Uint8Array)
   .refine((bytes) => bytes.byteLength <= maxFileBytes, "File exceeds 25 MiB.");
+export const fileObjectKey = z
+  .string()
+  .regex(/^files\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u);
+export const fileByteLength = z.int().min(0).max(maxFileBytes);
+
 const fileReference = z.object({
-  objectKey: z
-    .string()
-    .regex(/^files\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u),
-  byteLength: z.int().min(0).max(maxFileBytes),
+  objectKey: fileObjectKey,
+  byteLength: fileByteLength,
   sha256: z.string().regex(/^[0-9a-f]{64}$/u),
 });
 

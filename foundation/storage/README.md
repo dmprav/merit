@@ -24,13 +24,16 @@ receipt before retrying. An uploaded object can outlive a rolled-back attachment
 
 Look up the attachment through the capability’s authorized resource query. Pass
 its persisted reference to `storage.readFile(reference)` after releasing the
-database connection. The foundation checks the length and digest before returning
-the bytes. Keep bucket credentials and reference resolution on the server.
+database connection. The S3 adapter validates the object key, bounds the download
+to the recorded length, and rejects incomplete reads. The foundation checks the
+length and digest before returning the bytes. Keep bucket credentials and
+reference resolution on the server.
 
 ## Configure a bucket
 
 Use a dedicated private bucket that accepts path-style S3 GET and conditional PUT
 with Signature Version 4, supports `If-None-Match: *`, and denies anonymous reads.
+Writes use `application/octet-stream`. Bucket names must exclude adjacent periods.
 The bucket and any intervening proxy must honor `Accept-Encoding: identity` on
 GET and return the original object length. Give the server credentials to create and read
 objects under `files/`. Production provider selection and provisioning belong to
