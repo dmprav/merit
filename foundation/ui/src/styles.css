@@ -1,4 +1,6 @@
 /* Shared document styles; component and feature styles live in CSS Modules. */
+/* Instrument Sans (weights 400–700) is self-hosted from the package, so no request leaves the app. */
+@import "@fontsource-variable/instrument-sans/wght.css";
 @import "./foundations/tokens.css";
 @import "./foundations/reset.css";
 @import "./foundations/base.css";

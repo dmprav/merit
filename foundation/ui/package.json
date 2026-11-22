@@ -60,6 +60,7 @@
     "./attribution": "./src/patterns/attribution/attribution.tsx"
   },
   "dependencies": {
+    "@fontsource-variable/instrument-sans": "catalog:",
     "@merit/dates": "workspace:*",
     "@merit/i18n": "workspace:*",
     "@merit/money": "workspace:*",
