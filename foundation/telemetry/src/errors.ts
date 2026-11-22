@@ -60,13 +60,10 @@ const sanitizeValue = (value: unknown, seen: WeakSet<object>): unknown => {
   if (Array.isArray(value)) {
     return value.map((item) => sanitizeValue(item, seen));
   }
-  return sanitizeRecord(value as Record<string, unknown>, seen);
+  return sanitizeRecord(value, seen);
 };
 
-const sanitizeRecord = (
-  record: Record<string, unknown>,
-  seen: WeakSet<object>,
-): Record<string, unknown> => {
+const sanitizeRecord = (record: object, seen: WeakSet<object>): Record<string, unknown> => {
   const sanitized: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(record)) {
     sanitized[key] = isSensitiveKey(key) ? "[Redacted]" : sanitizeValue(value, seen);

@@ -22,32 +22,34 @@ export const reviewAssessments = (
   return [
     ...assessments
       .filter((value) => !superseded.has(value.id))
-      .map((value) => {
-        const version = value.versions.at(-1)!;
-        const amount = version.content.amount === null ? null : decodeMoney(version.content.amount);
+      .flatMap((value) =>
+        value.versions.slice(-1).map((version) => {
+          const amount =
+            version.content.amount === null ? null : decodeMoney(version.content.amount);
 
-        const basisComparison = compareReviewBasis(
-          { ...version.content, criteria: version.criteria },
-          current,
-        );
-        return {
-          basisComparison,
-          id: value.id,
-          contactId: value.contactId,
-          reviewer: value.reviewer,
-          criteriaChanged: basisComparison.criteriaContent === "different",
-          criteriaUnknown: basisComparison.criteriaContent === "unknown",
-          submission: {
-            applicationVersion: version.content.applicationVersion,
-            date: version.content.date,
-            reasoning: version.content.reasoning,
-            recommendation: {
-              position: version.content.position,
-              allocation: amount,
+          const basisComparison = compareReviewBasis(
+            { ...version.content, criteria: version.criteria },
+            current,
+          );
+          return {
+            basisComparison,
+            id: value.id,
+            contactId: value.contactId,
+            reviewer: value.reviewer,
+            criteriaChanged: basisComparison.criteriaContent === "different",
+            criteriaUnknown: basisComparison.criteriaContent === "unknown",
+            submission: {
+              applicationVersion: version.content.applicationVersion,
+              date: version.content.date,
+              reasoning: version.content.reasoning,
+              recommendation: {
+                position: version.content.position,
+                allocation: amount,
+              },
             },
-          },
-        };
-      }),
+          };
+        }),
+      ),
     ...requests
       .filter((value) => value.status === "outstanding")
       .map((value) => {

@@ -14,10 +14,10 @@ const describeAppRoute = (segments: string[]): RouteDescriptor => {
   if (segments[1] === "sign-in") {
     return { route: "/app/sign-in", surface: "product" };
   }
-  if (segments.length === 2) {
+  const section = segments[2];
+  if (section === undefined) {
     return { route: "/app/:workspace", surface: "product" };
   }
-  const section = segments[2]!;
   if (section === "settings") {
     return {
       route:

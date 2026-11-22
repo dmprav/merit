@@ -1,8 +1,8 @@
 import { createMCPClient } from "@tanstack/ai-mcp";
 
+import type { McpDependencies } from "../src/app/server";
 import { mcpScopes, type McpActor } from "../src/contracts";
 import { handleWorkspaceMcp } from "../src/index";
-import type { testOperations } from "./operations";
 
 export const endpoint = new URL("http://localhost:3000/mcp/workspace");
 export const actor: McpActor = {
@@ -11,10 +11,7 @@ export const actor: McpActor = {
   scopes: mcpScopes,
 };
 
-export const connect = (
-  operations: ReturnType<typeof testOperations>,
-  scopes: readonly string[] = mcpScopes,
-) =>
+export const connect = (operations: McpDependencies, scopes: readonly string[] = mcpScopes) =>
   createMCPClient({
     name: "untrusted-client-name",
     transport: {

@@ -15,11 +15,18 @@ import { provenanceSchema } from "@merit/auth";
 import { calendarDateSchema } from "@merit/dates";
 import { encodeMoney, moneyDataSchema, parseMoney } from "@merit/money";
 
+export const assessmentPositionSchema = z.enum([
+  "Fund",
+  "Fund with a condition",
+  "Defer",
+  "Decline",
+]);
+
 const assessmentFields = z.strictObject({
   applicationVersion: materialVersionSchema.nullable(),
   criteriaVersion: criteriaVersionSchema.nullable(),
   date: calendarDateSchema.nullable(),
-  position: z.enum(["Fund", "Fund with a condition", "Defer", "Decline"]).nullable(),
+  position: assessmentPositionSchema.nullable(),
   amount: moneyDataSchema.refine((value) => !value.minorUnits.startsWith("-")).nullable(),
   reasoning: z.string().trim().min(1).max(20000),
   observations: z
@@ -215,14 +222,20 @@ const requestReview = (
     previous.closedBy = context.recorder;
   }
 
+  const criteriaEntry = context.criteriaHistory.find(
+    (value) => value.version === context.criteriaVersion,
+  );
+  if (!criteriaEntry) {
+    return invalid("criteria_unavailable");
+  }
+
   state.requests.push({
     id: change.id,
     contactId: contact.id,
     reviewer: contact.name,
     applicationVersion: context.applicationVersion,
     criteriaVersion: context.criteriaVersion,
-    criteria: context.criteriaHistory.find((value) => value.version === context.criteriaVersion)!
-      .criteria,
+    criteria: criteriaEntry.criteria,
     status: "outstanding",
     recorder: context.recorder,
     closedBy: null,
@@ -248,8 +261,8 @@ const editAssessment = (
     return invalid("reviewer_authored");
   }
 
-  const last = assessment.versions.at(-1)!;
-  if (JSON.stringify(last.content) === JSON.stringify(version.content) && !change.note) {
+  const last = assessment.versions.at(-1);
+  if (last && JSON.stringify(last.content) === JSON.stringify(version.content) && !change.note) {
     return { ok: true, changed: false } as const;
   }
 

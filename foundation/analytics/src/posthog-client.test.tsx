@@ -1,3 +1,4 @@
+import { PostHog as PostHogClient } from "posthog-js";
 import { afterEach, expect, it, vi } from "vite-plus/test";
 
 import {
@@ -11,6 +12,9 @@ type PostHog = Awaited<ReturnType<NonNullable<PostHogAnalyticsOptions["load"]>>>
 
 afterEach(() => {
   window.history.replaceState(null, "", "/");
+  document.title = "";
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 const deferredPostHog = () => {
@@ -34,7 +38,7 @@ it("returns a no-op client when the PostHog API key is missing", () => {
   const client = createPostHogAnalytics({ apiKey: "   ", load });
 
   client.pageView("/demo");
-  client.track("demo_started");
+  client.track("demo_reset");
   client.reset();
 
   expect(load).not.toHaveBeenCalled();
@@ -71,7 +75,7 @@ it("queues actions until PostHog loads, then sends them in order and later ones 
   const client = createPostHogAnalytics({ apiKey: "phc_test_key", load });
 
   client.pageView("/invitations/secret-token-xyz");
-  client.track("demo_started", { guided: true });
+  client.track("demo_started", { guided: true, fresh: false });
   client.reset();
 
   expect(instance.capture).not.toHaveBeenCalled();
@@ -88,7 +92,7 @@ it("queues actions until PostHog loads, then sends them in order and later ones 
         $pathname: "/invitations/:token",
       },
     ],
-    ["demo_started", { guided: true }],
+    ["demo_started", { guided: true, fresh: false }],
   ]);
 
   client.track("demo_reset");
@@ -101,13 +105,13 @@ it("keeps at most 50 actions while PostHog loads", async () => {
   const client = createPostHogAnalytics({ apiKey: "phc_test_key", load });
 
   for (let index = 0; index < 55; index += 1) {
-    client.track(`event_${index}`);
+    client.track(index < 50 ? "demo_reset" : "access_request_submitted");
   }
   finish();
   await vi.waitFor(() => expect(instance.init).toHaveBeenCalledOnce());
 
   expect(instance.capture.mock.calls.map(([event]) => event)).toEqual(
-    Array.from({ length: 50 }, (_, index) => `event_${index}`),
+    Array.from({ length: 50 }, () => "demo_reset"),
   );
 });
 
@@ -134,7 +138,7 @@ it("degrades silently to no-op if loading PostHog fails", async () => {
   client.pageView("/demo");
   await vi.waitFor(() => expect(load).toHaveBeenCalledOnce());
 
-  expect(() => client.track("demo_started")).not.toThrow();
+  expect(() => client.track("demo_reset")).not.toThrow();
   expect(() => client.reset()).not.toThrow();
 });
 
@@ -152,4 +156,57 @@ it("keeps the redacted route in same-origin URLs before sending", () => {
     $current_url: "http://localhost:3000/app/:workspace/rounds/:round",
     $referrer: "http://localhost:3000/invitations/:token",
   });
+});
+
+const loadRealPostHog = async () => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("{}")));
+  const posthog = new PostHogClient();
+  const client = createPostHogAnalytics({ apiKey: "phc_test_key", load: async () => posthog });
+  await vi.waitFor(() => expect(posthog.__loaded).toBe(true));
+  const sent: unknown[] = [];
+  posthog.on("eventCaptured", (event) => sent.push(event));
+  return { client, sent };
+};
+
+it("sends no invitation token, workspace slug, or query string from the real PostHog client", async () => {
+  const token = "0123456789abcdef0123456789abcdef";
+  window.history.replaceState(null, "", `/invitations/${token}?source=email#accept`);
+  vi.spyOn(document, "referrer", "get").mockReturnValue(
+    "http://localhost:3000/app/alder/applications/app-9",
+  );
+  const { client, sent } = await loadRealPostHog();
+
+  client.pageView();
+  window.history.replaceState(null, "", "/app/alder/rounds/round-1?guide=workshop");
+  document.title = "Neighbourhood food grants · Merit";
+  client.pageView();
+  client.track("demo_reset");
+
+  expect(sent).toHaveLength(3);
+  const payload = JSON.stringify(sent);
+  for (const secret of [
+    token,
+    "alder",
+    "round-1",
+    "app-9",
+    "source=email",
+    "guide=workshop",
+    "#accept",
+    "Neighbourhood food grants",
+  ]) {
+    expect(payload).not.toContain(secret);
+  }
+});
+
+it("sends no search terms from a search engine referrer", async () => {
+  vi.spyOn(document, "referrer", "get").mockReturnValue(
+    "https://www.bing.com/search?q=alder+foundation+grant",
+  );
+  const { client, sent } = await loadRealPostHog();
+
+  client.pageView("/demo");
+  client.track("demo_reset");
+
+  expect(sent).toHaveLength(2);
+  expect(JSON.stringify(sent)).not.toContain("alder foundation grant");
 });

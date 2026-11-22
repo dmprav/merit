@@ -9,7 +9,11 @@ import {
   type CriterionRecord,
 } from "@merit/rounds/scope";
 
-import type { AssessmentInput, ReviewState } from "../../domain/reviews";
+import {
+  assessmentPositionSchema,
+  reviewStateSchema,
+  type ReviewState,
+} from "../../domain/reviews";
 import { reviewRevisionSchema } from "../../domain/versions";
 import {
   assessments,
@@ -19,7 +23,7 @@ import {
   reviewStates,
 } from "./schema";
 
-type AssessmentPosition = NonNullable<AssessmentInput["position"]>;
+const requestRowShape = reviewStateSchema.shape.requests.element.shape;
 
 type ReviewRequestItem = ReviewState["requests"][number];
 
@@ -27,7 +31,7 @@ type AssessmentItem = ReviewState["assessments"][number];
 
 type AssessmentVersionItem = AssessmentItem["versions"][number];
 
-type ObservationItem = AssessmentInput["observations"][number];
+type ObservationItem = AssessmentVersionItem["content"]["observations"][number];
 
 export const hasReviewActivity = (caseId: string) => sql<boolean>`(
   exists (select 1 from ${reviewRequests} where ${reviewRequests.caseId} = ${caseId})
@@ -76,7 +80,7 @@ const assembleRecorder = (
 const assembleRequest = (
   row: typeof reviewRequests.$inferSelect,
   criteriaMap: Map<string, CriterionRecord[]>,
-): ReviewRequestItem => {
+): ReviewState["requests"][number] => {
   const closedBy = assembleRecorder(
     row.closedByUserId,
     row.closedByName,
@@ -88,8 +92,8 @@ const assembleRequest = (
     id: row.id,
     contactId: row.contactId,
     reviewer: row.reviewer,
-    applicationVersion: row.applicationVersion as ReviewRequestItem["applicationVersion"],
-    criteriaVersion: row.criteriaVersion as ReviewRequestItem["criteriaVersion"],
+    applicationVersion: requestRowShape.applicationVersion.parse(row.applicationVersion),
+    criteriaVersion: requestRowShape.criteriaVersion.parse(row.criteriaVersion),
     criteria:
       criteriaMap.get(criteriaVersionKey(row.criteriaRoundPublicId, row.criteriaVersion)) ?? [],
     status: row.status,
@@ -122,11 +126,10 @@ const assembleAssessmentVersion = (
   criteriaMap: Map<string, CriterionRecord[]>,
 ): AssessmentVersionItem => ({
   content: {
-    applicationVersion:
-      row.applicationVersion as AssessmentVersionItem["content"]["applicationVersion"],
-    criteriaVersion: row.criteriaVersion as AssessmentVersionItem["content"]["criteriaVersion"],
+    applicationVersion: requestRowShape.applicationVersion.nullable().parse(row.applicationVersion),
+    criteriaVersion: requestRowShape.criteriaVersion.nullable().parse(row.criteriaVersion),
     date: row.assessedOn,
-    position: row.position as AssessmentPosition | null,
+    position: assessmentPositionSchema.nullable().parse(row.position),
     amount:
       row.amountMinorUnits === null || row.amountCurrency === null
         ? null

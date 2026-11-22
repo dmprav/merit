@@ -96,35 +96,40 @@ const SearchItem = ({
   item: SearchPaletteItem;
   onOpen?: (item: SearchPaletteItem) => void;
   busy: boolean;
-}) => (
-  <ListBoxItem
-    id={item.id}
-    textValue={item.textValue}
-    href={busy && !item.availableWhileBusy ? undefined : item.href}
-    isDisabled={busy && !item.availableWhileBusy}
-    render={
-      !(busy && !item.availableWhileBusy) && item.renderLink
-        ? (props) => item.renderLink!(props as SearchPaletteLinkProps)
-        : undefined
-    }
-    onPress={(event) => {
-      if (!event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
-        onOpen?.(item);
-        item.onAction?.();
+}) => {
+  const renderLink = !(busy && !item.availableWhileBusy) ? item.renderLink : undefined;
+  return (
+    <ListBoxItem
+      id={item.id}
+      textValue={item.textValue}
+      href={busy && !item.availableWhileBusy ? undefined : item.href}
+      isDisabled={busy && !item.availableWhileBusy}
+      render={
+        renderLink
+          ? (props) =>
+              // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ListBoxItem sets href when item.href is provided, while its render type widens props to div/a.
+              renderLink(props as SearchPaletteLinkProps)
+          : undefined
       }
-    }}
-    className={styles.option}
-  >
-    {item.icon && <IconBase name={item.icon} className={styles.rowIcon} />}
-    <span className={styles.content}>
-      <span className={styles.primary}>
-        <span className={styles.title}>{item.title}</span>
-        {item.label && <span className={styles.label}>{item.label}</span>}
+      onPress={(event) => {
+        if (!event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
+          onOpen?.(item);
+          item.onAction?.();
+        }
+      }}
+      className={styles.option}
+    >
+      {item.icon && <IconBase name={item.icon} className={styles.rowIcon} />}
+      <span className={styles.content}>
+        <span className={styles.primary}>
+          <span className={styles.title}>{item.title}</span>
+          {item.label && <span className={styles.label}>{item.label}</span>}
+        </span>
+        {item.detail && <span className={styles.detail}>{item.detail}</span>}
       </span>
-      {item.detail && <span className={styles.detail}>{item.detail}</span>}
-    </span>
-  </ListBoxItem>
-);
+    </ListBoxItem>
+  );
+};
 
 const SearchGroup = ({
   group,

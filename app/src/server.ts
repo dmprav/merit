@@ -2,11 +2,13 @@ import { env } from "node:process";
 
 import handler, { createServerEntry } from "@tanstack/react-start/server-entry";
 
+import { createServerAnalytics } from "@merit/analytics/server";
 import { createDatabasePool, createRequestDatabase } from "@merit/db";
 import { mcpResourceMetadata } from "@merit/mcp";
 import { reportError } from "@merit/telemetry/errors";
 import { describeHttpRoute, traceServerRequest } from "@merit/telemetry/server";
 
+import { readAnalyticsConfig } from "./analytics-config";
 import type { ApplicationRequestContext } from "./request-context";
 import { createDemoServices, demoCookie } from "./server/demo.server";
 import { createEmailSender } from "./server/email-delivery.server";
@@ -17,6 +19,8 @@ import { createApplicationServices } from "./server/services.server";
 const database = createDatabasePool(
   env.DATABASE_URL ?? "postgres://merit_runtime:merit@127.0.0.1:55432/merit",
 );
+
+const analytics = createServerAnalytics(readAnalyticsConfig());
 
 const origin = env.APP_ORIGIN ?? "http://localhost:3000";
 const clerkConfig = {
@@ -57,6 +61,7 @@ export default createServerEntry({
           const requestDatabase = createRequestDatabase(database);
           try {
             const dependencies = {
+              analytics,
               database: requestDatabase.run,
               invitationOrigin: import.meta.env.DEV ? url.origin : origin,
               networkAddress: import.meta.env.DEV ? "local" : peerAddress(request),

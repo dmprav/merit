@@ -8,7 +8,7 @@ it("returns a no-op client during SSR when window is unavailable", () => {
   const client = createPostHogAnalytics({ apiKey: "phc_test_key", load });
 
   client.pageView("/demo");
-  client.track("demo_started");
+  client.track("demo_reset");
   client.reset();
 
   expect(load).not.toHaveBeenCalled();
@@ -27,7 +27,7 @@ it("configures PostHog for cookieless, non-autocapture analytics", () => {
     disable_session_recording: true,
     disable_surveys: true,
     disable_external_dependency_loading: true,
-    property_denylist: ["$ip"],
+    property_denylist: ["$ip", "title"],
     before_send: sanitizePostHogCapture,
   });
 });
@@ -70,5 +70,26 @@ it("strips tokens, query strings, tenant slugs, and IP properties before sending
     $current_url: "https://merit.example/",
     $referrer: "https://external.example/",
     guided: true,
+  });
+});
+
+it("redacts every location property posthog-js adds and drops the page title", () => {
+  const sanitized = sanitizePostHogCapture({
+    uuid: "event-1",
+    event: "$pageview",
+    properties: {
+      $session_entry_url: "https://merit.example/invitations/secret-token-123?source=email",
+      $session_entry_pathname: "/app/alder/applications/app-1",
+      $session_entry_referrer: "https://external.example/secret/path",
+      $referrer: "$direct",
+      title: "Neighbourhood food grants · Merit",
+    },
+  });
+
+  expect(sanitized.properties).toEqual({
+    $session_entry_url: "https://merit.example/",
+    $session_entry_pathname: "/app/:workspace/applications/:application",
+    $session_entry_referrer: "https://external.example/",
+    $referrer: "$direct",
   });
 });

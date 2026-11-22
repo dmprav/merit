@@ -23,6 +23,10 @@ export const lint = defineConfig({
     jsPlugins: [
       { name: "vite-plus", specifier: "vite-plus/oxlint-plugin" },
       {
+        name: "merit",
+        specifier: fileURLToPath(new URL("./lint-suppressions.ts", import.meta.url)),
+      },
+      {
         name: "@stylistic",
         specifier: fileURLToPath(import.meta.resolve("@stylistic/eslint-plugin")),
       },
@@ -51,6 +55,19 @@ export const lint = defineConfig({
       "typescript/no-unsafe-call": "error",
       "typescript/no-unsafe-member-access": "error",
       "typescript/no-unsafe-return": "error",
+      "typescript/no-non-null-assertion": "error",
+      "typescript/no-unsafe-type-assertion": "error",
+      "typescript/ban-ts-comment": [
+        "error",
+        {
+          "ts-expect-error": "allow-with-description",
+          "ts-ignore": true,
+          "ts-nocheck": true,
+          "ts-check": false,
+        },
+      ],
+      "unicorn/no-abusive-eslint-disable": "error",
+      "merit/require-suppression-reason": "error",
       "@stylistic/padding-line-between-statements": [
         "error",
         { blankLine: "always", prev: "import", next: "*" },
@@ -79,8 +96,15 @@ export const lint = defineConfig({
           "**/fixtures/**",
           "**/__fixtures__/**",
           "**/__mocks__/**",
-          "tooling/**",
         ],
+        rules: {
+          "max-lines-per-function": "off",
+          "typescript/no-non-null-assertion": "off",
+          "typescript/no-unsafe-type-assertion": "off",
+        },
+      },
+      {
+        files: ["tooling/**"],
         rules: { "max-lines-per-function": "off" },
       },
       {

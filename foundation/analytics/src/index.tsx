@@ -1,12 +1,12 @@
 import { createContext, useContext, type ReactNode } from "react";
 
-export type AnalyticsPropertyValue = string | number | boolean | null | undefined;
-
-export type AnalyticsProperties = Record<string, AnalyticsPropertyValue>;
+type BrowserEvent =
+  | [event: "demo_started", properties: { guided: boolean; fresh: boolean }]
+  | [event: "demo_reset" | "access_request_submitted"];
 
 export type AnalyticsClient = {
   pageView: (path?: string) => void;
-  track: (event: string, properties?: AnalyticsProperties) => void;
+  track: (...event: BrowserEvent) => void;
   reset: () => void;
 };
 
@@ -16,69 +16,65 @@ export const noopAnalytics: AnalyticsClient = {
   reset: () => {},
 };
 
-const stripSearchAndHash = (value: string) => {
+/**
+ * Route patterns analytics may record. Parameters name what they redact, and any
+ * path matching none of them is recorded as `/*other`.
+ */
+const analyticsRoutes = [
+  "/",
+  "/privacy",
+  "/demo",
+  "/demo/workshop-saturdays",
+  "/docs",
+  "/docs/applications",
+  "/docs/contacts",
+  "/docs/mcp",
+  "/docs/quickstart",
+  "/docs/recommendations",
+  "/docs/reviews",
+  "/docs/rounds",
+  "/docs/team",
+  "/docs/workspaces",
+  "/invitations/:token",
+  "/app",
+  "/app/sign-in",
+  "/app/:workspace",
+  "/app/:workspace/activity",
+  "/app/:workspace/applications",
+  "/app/:workspace/applications/:application",
+  "/app/:workspace/contacts",
+  "/app/:workspace/rounds",
+  "/app/:workspace/rounds/:round",
+  "/app/:workspace/settings",
+  "/app/:workspace/settings/members",
+  "/app/:workspace/work",
+  "/app/:workspace/work/:assignment",
+  "/admin",
+  "/admin/access-requests",
+  "/admin/organizations",
+  "/admin/organizations/:organization",
+].map((route) => ({ route, segments: route.split("/").filter(Boolean) }));
+
+const pathSegments = (value: string) => {
   const [withoutHash = ""] = value.split("#");
   const [pathname = ""] = withoutHash.split("?");
-  return pathname || "/";
+  return pathname.toLowerCase().split("/").filter(Boolean);
 };
 
-const normalizePath = (value: string) => {
-  const pathname = stripSearchAndHash(value);
-  if (pathname === "/") {
-    return "/";
-  }
-  return pathname.endsWith("/") ? pathname.slice(0, -1) : pathname;
-};
-
-const detailParamForSection = (section: string) => {
-  if (section === "rounds") {
-    return ":round";
-  }
-  if (section === "applications") {
-    return ":application";
-  }
-  if (section === "work") {
-    return ":assignment";
-  }
-  if (section === "settings") {
-    return "members";
-  }
-  return ":id";
-};
-
-const sanitizeAppPath = (segments: string[]) => {
-  const [, workspace, section, ...rest] = segments;
-  if (!workspace || workspace === "sign-in") {
-    return workspace ? "/app/sign-in" : "/app";
-  }
-  if (!section) {
-    return "/app/:workspace";
-  }
-  if (rest.length === 0) {
-    return `/app/:workspace/${section}`;
-  }
-  return `/app/:workspace/${section}/${detailParamForSection(section)}`;
-};
+const matchesRoute = (pattern: string[], segments: string[]) =>
+  pattern.length === segments.length &&
+  pattern.every((part, index) => part.startsWith(":") || part === segments[index]);
 
 /**
- * Redacts invitation tokens, tenant slugs, and record identifiers from route paths
- * so analytics never receive confidential workspace metadata or bearer URLs.
+ * Reduces a path to the route pattern it matches, so analytics never receive
+ * invitation tokens, tenant slugs, record identifiers, or unrecognized paths.
  */
 export const sanitizeAnalyticsPath = (value: string) => {
-  const normalized = normalizePath(value);
-  const segments = normalized.split("/").filter(Boolean);
-  const [first, second, third] = segments;
-
-  if (first === "invitations") {
-    return segments.length > 1 ? "/invitations/:token" : "/invitations";
-  }
-  if (first === "admin" && second === "organizations" && third) {
-    return "/admin/organizations/:organization";
-  }
-  if (first === "app") {
-    return sanitizeAppPath(segments);
-  }
-  return normalized;
+  const segments = pathSegments(value);
+  return (
+    analyticsRoutes.find(({ segments: pattern }) => matchesRoute(pattern, segments))?.route ??
+    "/*other"
+  );
 };
 
 const AnalyticsContext = createContext<AnalyticsClient>(noopAnalytics);

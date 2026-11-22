@@ -6,10 +6,9 @@ import {
 import { AuthenticationError } from "@merit/auth";
 
 import type { McpActor } from "../contracts";
-import type { McpOperations } from "./operations";
-import { createWorkspaceServer } from "./server";
+import { createWorkspaceServer, type McpDependencies } from "./server";
 
-type Dependencies = McpOperations & {
+type Dependencies = McpDependencies & {
   authenticate: (request: Request) => Promise<McpActor>;
 };
 

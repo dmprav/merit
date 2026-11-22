@@ -72,7 +72,7 @@ export const lockPreparationRoundAccess = async (
   input: { workspaceSlug: string; publicId: string },
 ) => {
   const [workspace] = await tx
-    .select({ id: organizations.id })
+    .select({ id: organizations.id, kind: organizations.kind })
     .from(organizations)
     .where(eq(organizations.slug, input.workspaceSlug))
     .for("share");
@@ -98,7 +98,8 @@ export const lockPreparationRoundAccess = async (
     return null;
   }
 
-  return (await readPreparationRound(tx, workspace.id, input.publicId)) ?? null;
+  const round = await readPreparationRound(tx, workspace.id, input.publicId);
+  return round ? { ...round, organizationKind: workspace.kind } : null;
 };
 
 type PreparationState = NonNullable<Awaited<ReturnType<typeof lockPreparationRound>>>;
@@ -182,8 +183,11 @@ export const insertPreparedRound = async (
       budgetEstablished: snapshot.budget !== null,
     })
     .returning();
-  await insertCriteriaHistoryEntries(tx, row!.id, snapshot.criteriaHistory);
-  return row!;
+  if (!row) {
+    throw new Error("Failed to insert prepared round.");
+  }
+  await insertCriteriaHistoryEntries(tx, row.id, snapshot.criteriaHistory);
+  return row;
 };
 
 const writePreparedRound = async (

@@ -21,7 +21,7 @@ export const readDemoWorkspace = async (db: Database, actor: Actor) => {
   );
   return !workspace
     ? ({ status: "empty" } as const)
-    : workspace.demoExpiresAt! <= new Date()
+    : !workspace.demoExpiresAt || workspace.demoExpiresAt <= new Date()
       ? ({ status: "expired" } as const)
       : ({ status: "ready", workspace } as const);
 };
@@ -43,16 +43,17 @@ export const startDemoWorkspace = async (
     }
 
     const current = await currentDemo(tx, actor.userId);
-    const active = current && current.demoExpiresAt! > new Date();
+    const activeWorkspace =
+      current?.demoExpiresAt && current.demoExpiresAt > new Date() ? current : undefined;
     if (input.resetWorkspaceId && current?.id !== input.resetWorkspaceId) {
-      return active
-        ? ({ status: "ready", workspace: current } as const)
+      return activeWorkspace
+        ? ({ status: "ready", workspace: activeWorkspace } as const)
         : ({ status: "expired" } as const);
     }
-    if (active && !input.resetWorkspaceId) {
-      return { status: "ready", workspace: current } as const;
+    if (activeWorkspace && !input.resetWorkspaceId) {
+      return { status: "ready", workspace: activeWorkspace } as const;
     }
-    if (current && !active && !input.fresh) {
+    if (current && !activeWorkspace && !input.fresh) {
       return { status: "expired" } as const;
     }
 
@@ -67,7 +68,7 @@ export const startDemoWorkspace = async (
       new Date(Date.now() + lifetime),
     );
     await writeWorkspace(tx, user.id, workspace.slug, (scoped) => seed(scoped, workspace, user.id));
-    return { status: "ready", workspace: workspace! } as const;
+    return { status: "ready", workspace } as const;
   });
 };
 

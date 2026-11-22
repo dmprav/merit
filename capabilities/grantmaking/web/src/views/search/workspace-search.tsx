@@ -303,12 +303,10 @@ const searchItems = (
     };
   });
   const byId = new Map([...roundItems, ...applicationItems].map((item) => [item.id, item]));
-  return orderedSearchRecords(search).map((record) => {
+  return orderedSearchRecords(search).flatMap((record) => {
     const value = record.kind === "round" ? record.round : record.application;
-    return {
-      item: byId.get(`${record.kind}:${value.id}`)!,
-      rank: searchMatchRank(value.matchQuality),
-    };
+    const item = byId.get(`${record.kind}:${value.id}`);
+    return item ? [{ item, rank: searchMatchRank(value.matchQuality) }] : [];
   });
 };
 
@@ -352,10 +350,9 @@ const announcementFor = (search: WorkspaceSearch, t: Translate) => {
     );
   }
 
-  if (parts.length === 0) {
+  const [first, second] = parts;
+  if (!first) {
     return "";
   }
-  return parts.length === 1
-    ? parts[0]!
-    : t("search.announce.both", { rounds: parts[0]!, applications: parts[1]! });
+  return second ? t("search.announce.both", { rounds: first, applications: second }) : first;
 };

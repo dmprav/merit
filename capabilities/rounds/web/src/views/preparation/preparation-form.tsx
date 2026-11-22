@@ -46,17 +46,18 @@ type SectionProps<S extends FormSection> = Omit<FormProps, "draft"> & {
 const usePreparationForm = <S extends FormSection>(
   props: SectionProps<S>,
   schema: z.ZodType<PreparationValues[S], PreparationValues[S]>,
+  buildDraft: (value: PreparationValues[S]) => PreparationDraft,
 ) => {
   const { t } = useTranslation("roundPreparation");
 
   return useForm<PreparationValues[S]>({
     defaultValues: props.draft.value,
     schema: useTranslatedSchema(schema),
-    onChange: (value) => props.onChange({ ...props.draft, value } as PreparationDraft),
+    onChange: (value) => props.onChange(buildDraft(value)),
     onSubmit: (value) =>
       props.isConflict
         ? Promise.resolve(t("preparation.conflict"))
-        : props.onSave({ ...props.draft, value } as PreparationDraft),
+        : props.onSave(buildDraft(value)),
     submitErrorMessage: t("preparation.saveError"),
   });
 };
@@ -130,6 +131,7 @@ const PurposeForm = (props: SectionProps<"purpose">) => {
           t("preparation.purposeTooLong"),
         ),
     }),
+    (value) => ({ ...props.draft, value }),
   );
 
   return (
@@ -179,6 +181,7 @@ const CriteriaForm = (props: SectionProps<"criteria">) => {
         )
         .max(roundPreparationLimits.criteriaCount, t("preparation.criteriaLimit")),
     }),
+    (value) => ({ ...props.draft, value }),
   );
 
   return (
@@ -227,6 +230,7 @@ const BudgetForm = (props: SectionProps<"budget">) => {
         });
       }
     }),
+    (value) => ({ ...props.draft, value }),
   );
 
   return (

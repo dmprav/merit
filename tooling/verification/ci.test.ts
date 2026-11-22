@@ -139,3 +139,22 @@ test("CI verify workflow covers every ready stage and sharded browser suite with
   const neededJobs = [...verifyBlock.matchAll(/^\s+-\s+([a-z0-9-]+)\r?$/gm)].map(([, id]) => id);
   expect(neededJobs).toEqual(jobIds.filter((id) => id !== "verify"));
 });
+
+test("CI uploads package Vitest reports from each workspace package without walking node_modules", async () => {
+  const workflow = await readFile(`${repoRoot}/.github/workflows/verify.yml`, "utf8");
+  const workspace = await readFile(`${repoRoot}/pnpm-workspace.yaml`, "utf8");
+
+  // upload-artifact reads the whole tree for a `**` pattern, including node_modules, and hangs.
+  const uploadPaths = [...workflow.matchAll(/^\s+path:\s*(?:\|\r?\n((?:\s{12}.*\r?\n)+)|(.+))/gm)]
+    .flatMap(([, block, single]) => (block ?? single ?? "").split(/\r?\n/))
+    .map((path) => path.trim().replace(/^"|"$/g, ""))
+    .filter(Boolean);
+  expect(uploadPaths.filter((path) => path.startsWith("**"))).toEqual([]);
+
+  const packagesBlock = workspace.match(/^packages:\r?\n((?: {2}- .*\r?\n)+)/m)?.[1] ?? "";
+  const packageGlobs = [...packagesBlock.matchAll(/^ {2}- (\S+)/gm)]
+    .map(([, glob]) => glob)
+    .filter((glob): glob is string => glob !== undefined);
+  const reportPaths = uploadPaths.filter((path) => path.endsWith("/.vitest-report.json"));
+  expect(reportPaths).toEqual(packageGlobs.map((glob) => `${glob}/.vitest-report.json`));
+});

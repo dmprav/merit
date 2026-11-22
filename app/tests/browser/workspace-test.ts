@@ -8,8 +8,7 @@ export { expect } from "@playwright/test";
 
 export const test = base.extend<{ workspaceDatabase: Client }>({
   workspaceDatabase: [
-    // Playwright requires destructured fixture dependencies, even when there are none.
-    // oxlint-disable-next-line no-empty-pattern
+    // oxlint-disable-next-line no-empty-pattern -- Playwright requires destructured fixture dependencies, even when there are none.
     async ({}, use) => {
       const connectionString = process.env.MERIT_WORKSPACE_TEST_DATABASE_URL;
       if (!connectionString || !/^\/test_[a-f0-9]{32}$/.test(new URL(connectionString).pathname)) {

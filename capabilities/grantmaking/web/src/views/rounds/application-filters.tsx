@@ -10,7 +10,14 @@ import { CollectionFilter, CollectionToolbar } from "@merit/ui/collection-toolba
 
 type Criterion = keyof ApplicationFilter;
 
-const criteria = Object.keys(applicationFilters) as Criterion[];
+const isCriterion = (key: string): key is Criterion => Object.hasOwn(applicationFilters, key);
+
+const criteria: Criterion[] = [];
+for (const key in applicationFilters) {
+  if (isCriterion(key)) {
+    criteria.push(key);
+  }
+}
 
 type Props = {
   query: string;
@@ -62,14 +69,20 @@ export const ApplicationFilters = ({ query, filter, onChange, summary, round }: 
               },
             ]
           : []),
-        ...selected.map((key) => {
-          const label = t(`applications.filters.${filter[key]!}`);
-          return {
-            id: key,
-            label,
-            removeLabel: t("applications.removeFilter", { name: label }),
-            onRemove: () => remove(key),
-          };
+        ...selected.flatMap((key) => {
+          const choice = filter[key];
+          if (!choice) {
+            return [];
+          }
+          const label = t(`applications.filters.${choice}`);
+          return [
+            {
+              id: key,
+              label,
+              removeLabel: t("applications.removeFilter", { name: label }),
+              onRemove: () => remove(key),
+            },
+          ];
         }),
       ]}
       reset={{

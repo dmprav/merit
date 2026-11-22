@@ -239,7 +239,18 @@ jobs:
           retention-days: 7
           include-hidden-files: true
           if-no-files-found: ignore
-          path: "**/.vitest-report.json"
+          # One entry per pnpm-workspace.yaml package: a `**` pattern walks node_modules and hangs.
+          path: |
+            app/.vitest-report.json
+            capabilities/access/.vitest-report.json
+            interfaces/*/.vitest-report.json
+            foundation/*/.vitest-report.json
+            capabilities/*/ai/.vitest-report.json
+            capabilities/*/business/.vitest-report.json
+            capabilities/*/web/.vitest-report.json
+            tooling/checkly/.vitest-report.json
+            tooling/storybook/.vitest-report.json
+            tooling/testing/.vitest-report.json
 
   storybook-vitest:
     needs: changes

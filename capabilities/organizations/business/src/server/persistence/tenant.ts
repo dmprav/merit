@@ -1,19 +1,26 @@
 import { sql } from "drizzle-orm";
 import { PgTransaction } from "drizzle-orm/pg-core";
+import { z } from "zod";
 
 import { readTransaction, type Database, type Transaction } from "@merit/db";
 
-export type MemberScope =
-  | { kind: "workspace"; userId: string; slug: string }
-  | { kind: "discovery"; userId: string }
-  | { kind: "assignment"; userId: string; assignmentId: string };
+const memberScopeSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("workspace"), userId: z.string(), slug: z.string() }),
+  z.object({ kind: z.literal("discovery"), userId: z.string() }),
+  z.object({ kind: z.literal("assignment"), userId: z.string(), assignmentId: z.string() }),
+]);
 
-type TenantScope =
-  | MemberScope
-  | { kind: "provision"; organizationId: string }
-  | { kind: "organization_directory" }
-  | { kind: "invitation"; tokenHash: string }
-  | { kind: "demo"; userId: string; newId?: string };
+const tenantScopeSchema = z.discriminatedUnion("kind", [
+  ...memberScopeSchema.options,
+  z.object({ kind: z.literal("provision"), organizationId: z.string() }),
+  z.object({ kind: z.literal("organization_directory") }),
+  z.object({ kind: z.literal("invitation"), tokenHash: z.string() }),
+  z.object({ kind: z.literal("demo"), userId: z.string(), newId: z.string().optional() }),
+]);
+
+export type MemberScope = z.infer<typeof memberScopeSchema>;
+
+type TenantScope = z.infer<typeof tenantScopeSchema>;
 
 type Operation<T> = (tx: Transaction) => Promise<T>;
 
@@ -31,7 +38,7 @@ const bindScope =
         ).rows[0]?.value
       : undefined;
     if (previous) {
-      const parent = JSON.parse(previous) as TenantScope;
+      const parent = tenantScopeSchema.parse(JSON.parse(previous));
       if (parent.kind === "workspace") {
         if (
           scope.kind !== "workspace" ||

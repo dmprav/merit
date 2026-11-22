@@ -71,6 +71,25 @@ export const newIntakeDraft = <S extends keyof IntakeValues>(
   value: structuredClone(sectionValues(section, baseline)),
 });
 
+export const buildIntakeDraft = (
+  section: keyof IntakeValues,
+  baseline: IntakeSnapshot,
+  revision: number,
+): IntakeDraft => {
+  switch (section) {
+    case "title":
+      return newIntakeDraft("title", baseline, revision);
+    case "metadata":
+      return newIntakeDraft("metadata", baseline, revision);
+    case "content":
+      return newIntakeDraft("content", baseline, revision);
+    case "details":
+      return newIntakeDraft("details", baseline, revision);
+    case "reason":
+      return newIntakeDraft("reason", baseline, revision);
+  }
+};
+
 export const intakeDraftChanged = (draft: IntakeDraft | undefined) =>
   Boolean(
     draft &&
@@ -85,9 +104,17 @@ export const reconcileIntake = <S extends keyof IntakeValues>(
 ): SectionDraft<S> => {
   const before = sectionValues(draft.section, draft.baseline);
   const value = { ...sectionValues(draft.section, latest) };
-  for (const key of Object.keys(value) as (keyof IntakeValues[S])[]) {
-    if (JSON.stringify(draft.value[key]) !== JSON.stringify(before[key])) {
-      value[key] = draft.value[key];
+  for (const key in value) {
+    if (
+      Object.hasOwn(value, key) &&
+      JSON.stringify(draft.value[key]) !== JSON.stringify(before[key])
+    ) {
+      Object.defineProperty(value, key, {
+        value: draft.value[key],
+        enumerable: true,
+        configurable: true,
+        writable: true,
+      });
     }
   }
 

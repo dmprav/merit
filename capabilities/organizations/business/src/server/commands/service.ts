@@ -185,12 +185,11 @@ const createAccessRequestCommands = (dependencies: Dependencies) => {
   const { run } = createExecution(dependencies);
   return {
     requestAccess: (input: { email: string }) => {
-      if (!dependencies.networkAddress) {
+      const networkAddress = dependencies.networkAddress;
+      if (!networkAddress) {
         return Promise.resolve({ status: "unavailable" } as const);
       }
-      return dependencies.database((db) =>
-        requestWorkspaceAccess(db, input, dependencies.networkAddress!),
-      );
+      return dependencies.database((db) => requestWorkspaceAccess(db, input, networkAddress));
     },
 
     reviewAccessRequest: (actor: Actor, input: { email: string }) =>
