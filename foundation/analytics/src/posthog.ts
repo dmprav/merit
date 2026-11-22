@@ -1,11 +1,7 @@
 import type { CaptureResult, PostHog, PostHogConfig } from "posthog-js";
 
-import {
-  noopAnalytics,
-  sanitizeAnalyticsPath,
-  type AnalyticsClient,
-  type AnalyticsProperties,
-} from "./index";
+import { noopAnalytics, sanitizeAnalyticsPath, type AnalyticsClient } from "./index";
+import { defaultPostHogHost } from "./posthog-host";
 
 export type PostHogAnalyticsOptions = {
   apiKey?: string;
@@ -15,10 +11,9 @@ export type PostHogAnalyticsOptions = {
 
 type QueuedAction =
   | { type: "pageView"; path?: string }
-  | { type: "track"; event: string; properties?: AnalyticsProperties }
+  | { type: "track"; args: Parameters<AnalyticsClient["track"]> }
   | { type: "reset" };
 
-const defaultPostHogHost = "https://eu.i.posthog.com";
 const maxQueuedActions = 50;
 
 const sanitizeUrl = (value: unknown) => {
@@ -83,7 +78,8 @@ const emitToPostHog = (instance: PostHog, action: QueuedAction) => {
     return;
   }
   if (action.type === "track") {
-    instance.capture(action.event, action.properties);
+    const [event, properties] = action.args;
+    instance.capture(event, properties && { guided: properties.guided, fresh: properties.fresh });
     return;
   }
 
@@ -143,7 +139,7 @@ export const createPostHogAnalytics = ({
 
   return {
     pageView: (path) => enqueueOrEmit({ type: "pageView", path }),
-    track: (event, properties) => enqueueOrEmit({ type: "track", event, properties }),
+    track: (...args) => enqueueOrEmit({ type: "track", args }),
     reset: () => enqueueOrEmit({ type: "reset" }),
   };
 };

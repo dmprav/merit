@@ -35,6 +35,7 @@ const selectReviewerRows = (db: Database) =>
       currentVersion: applicationCases.materialVersion,
       currentCriteriaVersion: fundingRounds.criteriaVersion,
       organization: organizations.name,
+      organizationKind: organizations.kind,
       slug: organizations.slug,
       delivery: sql<
         "pending" | "sent" | "failed"

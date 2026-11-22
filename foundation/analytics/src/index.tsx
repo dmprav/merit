@@ -1,12 +1,12 @@
 import { createContext, useContext, type ReactNode } from "react";
 
-export type AnalyticsPropertyValue = string | number | boolean | null | undefined;
-
-export type AnalyticsProperties = Record<string, AnalyticsPropertyValue>;
+type BrowserEvent =
+  | [event: "demo_started", properties: { guided: boolean; fresh: boolean }]
+  | [event: "demo_reset" | "access_request_submitted"];
 
 export type AnalyticsClient = {
   pageView: (path?: string) => void;
-  track: (event: string, properties?: AnalyticsProperties) => void;
+  track: (...event: BrowserEvent) => void;
   reset: () => void;
 };
 

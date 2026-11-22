@@ -10,7 +10,7 @@ const Probe = () => {
       type="button"
       onClick={() => {
         analytics.pageView("/demo");
-        analytics.track("demo_started", { guided: true });
+        analytics.track("demo_started", { guided: true, fresh: false });
         analytics.reset();
       }}
     >
@@ -41,7 +41,10 @@ it("forwards page views, events, and resets to the provided client", () => {
   screen.getByRole("button", { name: "Trigger" }).click();
 
   expect(client.pageView).toHaveBeenCalledExactlyOnceWith("/demo");
-  expect(client.track).toHaveBeenCalledExactlyOnceWith("demo_started", { guided: true });
+  expect(client.track).toHaveBeenCalledExactlyOnceWith("demo_started", {
+    guided: true,
+    fresh: false,
+  });
   expect(client.reset).toHaveBeenCalledOnce();
 });
 
