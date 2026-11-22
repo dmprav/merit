@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node .agents/hooks/session-health.mjs"
+            "command": "node \"$CLAUDE_PROJECT_DIR/.agents/hooks/session-health.mjs\""
           }
         ]
       }
@@ -16,7 +16,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node .agents/hooks/guard-migrations.mjs"
+            "command": "node \"$CLAUDE_PROJECT_DIR/.agents/hooks/guard-migrations.mjs\""
           }
         ]
       },
@@ -25,7 +25,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node .agents/hooks/guard-git.mjs"
+            "command": "node \"$CLAUDE_PROJECT_DIR/.agents/hooks/guard-git.mjs\""
           }
         ]
       }

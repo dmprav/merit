@@ -23,31 +23,38 @@ const git = (args, cwd) => {
   }
 };
 
-/** @returns {string | undefined} */
-const readTargetPath = () => {
+/** @returns {{ targetPath?: string; eventCwd?: string }} */
+const readHookInput = () => {
   try {
     const raw = readFileSync(0, "utf8").trim();
     if (!raw) {
-      return undefined;
+      return {};
     }
     /** @type {unknown} */
     const payload = JSON.parse(raw);
-    if (typeof payload !== "object" || payload === null || !("tool_input" in payload)) {
-      return undefined;
+    if (typeof payload !== "object" || payload === null) {
+      return {};
+    }
+    const eventCwd =
+      "cwd" in payload && typeof payload.cwd === "string" && payload.cwd.length > 0
+        ? payload.cwd
+        : undefined;
+    if (!("tool_input" in payload)) {
+      return { eventCwd };
     }
     const toolInput = payload.tool_input;
     if (typeof toolInput !== "object" || toolInput === null) {
-      return undefined;
+      return { eventCwd };
     }
     if ("file_path" in toolInput && typeof toolInput.file_path === "string") {
-      return toolInput.file_path;
+      return { targetPath: toolInput.file_path, eventCwd };
     }
     if ("path" in toolInput && typeof toolInput.path === "string") {
-      return toolInput.path;
+      return { targetPath: toolInput.path, eventCwd };
     }
-    return undefined;
+    return { eventCwd };
   } catch {
-    return undefined;
+    return {};
   }
 };
 
@@ -62,14 +69,14 @@ const baseRef = (cwd) => {
 };
 
 const main = () => {
-  const rawPath = readTargetPath();
-  if (!rawPath) {
+  const { targetPath, eventCwd } = readHookInput();
+  if (!targetPath) {
     process.exit(0);
   }
 
-  const cwd = process.env.CLAUDE_PROJECT_DIR || process.cwd();
+  const cwd = eventCwd || process.cwd();
   const repoRoot = git(["rev-parse", "--show-toplevel"], cwd) || cwd;
-  const resolved = isAbsolute(rawPath) ? rawPath : resolve(cwd, rawPath);
+  const resolved = isAbsolute(targetPath) ? targetPath : resolve(cwd, targetPath);
   const relPath = toPosix(relative(repoRoot, resolved));
 
   if (!relPath.startsWith(MIGRATIONS_PREFIX) || !relPath.endsWith(".sql")) {
