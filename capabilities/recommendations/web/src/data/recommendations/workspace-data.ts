@@ -1,6 +1,6 @@
 import type { FetchQueryOptions, QueryClient, QueryKey } from "@tanstack/react-query";
 
-import { encodeRecommendation } from "@merit/recommendations/api";
+import { encodeMoney } from "@merit/money";
 
 import type {
   RecommendationData,
@@ -33,7 +33,11 @@ export const createRecommendationData = <TApplication, TKey extends QueryKey>(
         workspaceSlug,
         publicId,
         ...baseline,
-        recommendation: encodeRecommendation(recommendation),
+        recommendation: {
+          position: recommendation.position,
+          allocation: encodeMoney(recommendation.allocation),
+          reasoning: recommendation.reasoning,
+        },
       });
       if (response.status === "ok") {
         await client.cancelQueries({ queryKey: application.queryKey });

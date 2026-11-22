@@ -86,7 +86,14 @@ it("sends the caller's baseline rather than the current revision with the encode
     },
   );
 
-  await data.save(recommendation, { expectedRevision: 2, expectedApplicationVersion: 3 });
+  await data.save(
+    {
+      ...recommendation,
+      author: { name: "Previous manager" },
+      recorded: { date: "2026-10-01", applicationVersion: 2 },
+    },
+    { expectedRevision: 2, expectedApplicationVersion: 3 },
+  );
 
   expect(save).toHaveBeenCalledExactlyOnceWith({
     workspaceSlug: "alder",
