@@ -15,10 +15,9 @@ the reference stays readable while the work stays in reach.
 
 ## Compose the panes
 
-Place the workspace in a contained `ApplicationPage`. On desktop, the header stays
-in place and each pane scrolls on its own, so reading further never moves the
-fields or their actions. Narrow and short screens stack the panes in reading order,
-and links named by `toWorkLabel` and `toReferenceLabel` move between them.
+Place the workspace in a contained `ApplicationPage`. On desktop, each pane scrolls
+on its own, so reading further never moves the fields or their actions. Narrow and
+short screens stack the panes and link between them.
 
 - `header` takes a compact `PageHeader` with the facts people need while working.
   Put occasional, consequential actions in its **More actions** menu instead of
@@ -58,25 +57,12 @@ the originating control and reading position. Small value pickers and bounded
 forms can still use the shared dialog patterns.
 
 `useReferenceViewport` tracks the chosen reference and restores each one's scroll
-position when people return to it. Switching moves focus to the reference viewport
-so keyboard users can scroll it. Pass `focusViewport: false` while an editor beside
-it should keep focus. The feature owns which references exist, any URL state that
-selects them, and focus targets inside its content.
+position when people return to it. The feature owns which references exist, any
+URL state that selects them, and focus targets inside its content.
 
 For list/detail navigation inside a pane, `useReadingNavigation` owns the visit
-trail, heading focus, and restoration of reading position. Attach its `root` and
-`heading` refs to the current view. Call `open` with the feature's destination and
-a function that resolves the originating control after it remounts; `back` restores
-that control's focus and the saved scroll position. Use `previous` to label Back
-with its actual destination. The feature owns destination types and content.
-An optional initial destination opens an existing selection. Use `reset` to replace
-the trail when opening a selection from outside the pane, supplying its return
-control; call it without a destination to show the list. This keeps external
-selection and nested inspection in one navigation owner without remounting content.
-The hook follows the physical scroll owner for nested dialogs and document
-scrolling for stacked or standalone content; it does not change the selected
-reference. Its owner can live above the pane; attach the refs to the rendered
-reading content so it can locate that pane.
+trail, heading focus, and restoration of reading position. Use `previous` to label
+Back with its actual destination. The feature owns destination types and content.
 
 The [application overview](?path=/story/features-applications-application-detail--evidence),
 [recommendation editor](?path=/story/features-applications-recommendation--resume-editing),

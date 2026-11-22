@@ -227,7 +227,8 @@ documentation and active decision records without repeating those rules.
 
 ## Change a guarantee deliberately
 
-Run `vp run test:architecture` after changing the package policy or resolver, and
+Run `vp run test:architecture` after changing the package policy, resolver, or
+mechanisms checker, and
 `vp run test:fallow` after changing Fallow configuration. The architecture tests
 exercise the actual lint command against temporary workspace packages, including
 deliberate private imports, aliases, runtime violations, library ownership, and

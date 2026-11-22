@@ -110,13 +110,8 @@ values or silently change an event's timezone.
 Route titles and descriptions use their interface's locale-bound translator with
 the router context's settings. Components use translation hooks rather than
 reading English catalogs directly. Outside the browser, the
-[email renderer](emails.md#ownership-and-delivery) receives explicit locale
-settings from application assembly. Its catalog stays with the email interface.
-Email templates use the `@merit/i18n/server` entry and register their catalogs
-against `Messages` in `@merit/i18n/core`, sharing the typed registry and locale
-context without browser controls. The renderer creates an
-instance for each email and supplies it to `ServerMessagesProvider`, keeping
-subject and body consistent without shared mutable translation state.
+[email renderer](emails.md#change-an-invitation) receives explicit locale
+settings from application assembly and keeps its catalog with the email interface.
 
 Pass Zod form schemas through `useTranslatedSchema` from `@merit/forms` before
 giving them to `useForm`. It uses the common catalog for email, required-value,

@@ -12,28 +12,17 @@ popover owns focus, dismissal and narrow-screen placement.
 
 <Canvas of={Toolbar.Default} />
 
-Active filters are quiet removable chips with explicit accessible removal labels.
-Reset appears as a quiet action inside the compact filter panel while filters or search are active.
-The panel has an accessible name without a repeated title bar or footer. Optional
-search and criterion rows use the same spacing in every collection.
 Keep counts accurate for the scope the
 feature has loaded; the toolbar does not paginate or fetch results.
 
-Each criterion is one compact label/value row, reusing Select's native label,
-keyboard selection, and checked options. Selection applies immediately and keeps
-the filter panel open. Show the collection's available criteria together so people
-can discover and combine them without an extra Add action. Unselected criteria
-remain visible with an unrestricted value such as **Any**. Long values truncate in the row and wrap in the option
-list. Escape closes the option list before closing its parent panel.
+Show the collection's available criteria together so people can discover and
+combine them without an extra Add action. Unselected criteria remain visible with
+an unrestricted value such as **Any**.
 
 Optional search belongs above the criteria in the same panel and uses the shared
-[search field](?path=/docs/components-fields--docs); clearing it never dismisses
-the panel. A restored or
-populated query remains visible as a removable chip until explicitly cleared.
-Escape and outside presses close the panel without changing values. Removing a
-chip returns focus to Filter. Provide localized labels that name the view being
-searched; the toolbar keeps queries in feature-owned state without storing them
-or writing them to the URL.
+[search field](?path=/docs/components-fields--docs). Provide localized labels that
+name the view being searched; the toolbar keeps queries in feature-owned state
+without storing them or writing them to the URL.
 
 <Canvas of={Toolbar.Filtering} />
 <Canvas of={Toolbar.Panel} />

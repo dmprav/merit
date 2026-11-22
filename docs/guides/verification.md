@@ -25,13 +25,10 @@ the pull request's [verification record](#record-verification).
 Run full workspace verification with `vp run ready` before merging or releasing
 completed changes, when explicitly requested, or when a change has broad effects
 that targeted checks cannot adequately cover. The
-[PR workflow](../../.github/workflows/verify.yml) runs every check and suite in
-`ready` with `--no-cache` across parallel, sharded Ubuntu jobs on `main`,
-`merge_group`, and root/infra pull requests, routes package-scoped pull requests
-to affected dependents via the workspace dependency graph, and uses targeted subsets
-for documentation-only or `renovate.json`-only pull requests. Its `verify` check
-is required by the [branch rules](development.md#branch-protection); pending or
-failed verification blocks merging. A passing run on the current PR commit
+[PR workflow](development.md#pull-request-verification) runs the `ready` checks
+affected by a pull request. Its `verify` check is required by the
+[branch rules](development.md#branch-protection); pending or failed verification
+blocks merging. A passing run on the current PR commit
 satisfies the required PR gate while its inputs remain unchanged.
 Targeted checks can defer discovery of unrelated regressions to that milestone.
 All existing suites and coverage thresholds remain part of full verification.

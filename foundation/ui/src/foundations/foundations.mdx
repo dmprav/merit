@@ -36,9 +36,7 @@ a proposal to comparing its costs.
 
 <Canvas of={Language.ReadingAndComparison} />
 
-Use `Reading` for submissions, assessments, and reasoning. It combines
-`--text-reading`, `--leading-reading`, and a `--measure-reading` of 65 characters.
-Use compact detail text for comparable facts and tabular numerals for amounts.
+Use `Reading` for submissions, assessments, and reasoning. Use compact detail text for comparable facts and tabular numerals for amounts.
 Keep labels beside values as the available width changes.
 
 Use the [layout primitives](?path=/docs/components-layout-primitives--docs) to
@@ -47,6 +45,18 @@ source to its passage and `gap={6}` separates the budget. Let a dense queue
 keep its compact controls while leaving room for touch targets, longer translations,
 and enlarged text. The [page composition guide](?path=/docs/patterns-page-composition--docs)
 applies these choices to whole screens.
+
+## Typeface
+
+**Use one typeface and let size and weight carry the hierarchy.** Merit sets all
+interface and reading text in Instrument Sans, through `--font-sans`, so the
+product looks the same on every platform. It stays even at the 12–13px sizes
+used for captions and detail text. Emphasize with weight 500 or 600, not italics.
+Use tabular numerals for amounts and counts so columns line up.
+
+The package `@fontsource-variable/instrument-sans` serves the font from Merit
+itself. Platform fonts remain in the stack as the fallback while it loads.
+Emails keep platform fonts, because mail clients do not load web fonts reliably.
 
 ## Interaction cues
 

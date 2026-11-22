@@ -15,10 +15,10 @@ assessments. Each related application shows its funding round and the contact's
 relationships to it; one application can have several relationships. Managers can
 open those applications from the directory, within their existing grant-work access.
 
-A contact has a name and optional email or affiliation. Existing applicant contacts
-with only an email remain valid; a reviewer's name is required when attributing an
-assessment. Names and email addresses do not establish that two records describe
-the same person. Contacts with the same name remain distinguishable.
+A contact needs a name or an email and may record an affiliation; a reviewer's
+name is required when attributing an assessment. Names and email addresses do not
+establish that two records describe the same person. Contacts with the same name
+remain distinguishable.
 
 The field in a review workflow is **Reviewer**; the person selected is a workspace
 contact. An application's contact is separate from the applicant seeking funding.
@@ -65,9 +65,8 @@ cancel requested work. Managers can restore an archived contact.
 
 ## Preserve identity and history
 
-Applicant contacts and reviewers use the same contact capability. Existing email-only
-contacts and uncertain identities remain separate; matching names or email addresses
-never automatically merges people. Contact merging is not implemented.
+Applicant contacts and reviewers use the same contact capability. Matching names
+or email addresses never automatically merge people; contact merging is not implemented.
 
 Keep recorded application details, reviewer attribution, and recording history.
 Accounts, memberships, and invitations retain their identity and access meaning;

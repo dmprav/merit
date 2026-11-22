@@ -76,10 +76,6 @@ Once deletion commits, the browser replaces editing controls with a deleted
 confirmation. If returning to the rounds list fails, **Return to funding rounds**
 retries navigation without repeating deletion.
 
-Creation and preparation edits are available through web and MCP. Both use the
-same saved records and access rules. Each write rechecks current program-manager access, rejects stale edits, and
-commits its history together with the change.
-
 ## Find and compare applications
 
 The rounds list helps people find their work. Within a round, Overview explains its
@@ -88,9 +84,9 @@ review progress and manager recommendations. Keep requested and proposed totals
 available while comparing applications, including the remaining amount if approved.
 Outdated assessments and awaiting reviews remain distinct; unknown requests and an
 unset budget remain explicit.
-Search matches application and applicant names. Filters narrow the list to preparation,
-awaiting reviews, no assigned reviewers, changed evidence or criteria, unknown review
-basis, or missing recommendations. These reflect recorded facts rather than a separate
+Search matches application and applicant names. Filters narrow the list by readiness
+or participation, or to awaiting reviews, no assigned reviewers, changed evidence or
+criteria, unknown review basis, or missing recommendations. These reflect recorded facts rather than a separate
 priority score. Requested and proposed amounts have separate sortable columns; unknown
 amounts stay last in either direction. The summary always describes the whole round,
 including while the list is filtered.

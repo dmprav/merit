@@ -31,29 +31,17 @@ the explanation on click or tap.
 
 ## Keyboard and pointer
 
-Tooltips use the same neutral surface, detail text, and corner radius as Merit's
-other floating controls, with tighter padding and lighter elevation to keep a
-short label quiet. A 350 ms hover delay avoids flashing across nearby actions;
-keyboard focus opens immediately. A short closing delay lets the pointer reach
-the tooltip to keep reading. The 120 ms fade follows the shared motion token and
-is skipped when reduced motion is preferred.
-
-The child must be a focusable React Aria control, such as Merit's `Button`, with
-its own accessible name. For a native link or a router link that forwards its ref
-and DOM props, set `customTrigger`; the shared `Focusable` integration connects
-hover and keyboard focus without adding a wrapper element. React Aria connects the explanation to the trigger and
-positions it within the viewport. `content` accepts text only so the tooltip
-cannot become an inaccessible container for links or buttons.
+Attach the tooltip to a focusable control with its own accessible name, such as
+Merit's `Button`, or set `customTrigger` for a link. `content` accepts text only
+so the tooltip cannot become an inaccessible container for links or buttons.
 
 <Canvas of={TooltipStories.Keyboard} />
 <Canvas of={TooltipStories.Hover} />
 
 ## Content and placement
 
-Prefer a short phrase or sentence. Longer text wraps within a bounded width,
-including when text is enlarged. Keep essential explanations in the page itself.
-Use the placement that leaves nearby work visible; React Aria can flip it when
-the viewport edge leaves too little room.
+Prefer a short phrase or sentence, and keep essential explanations in the page
+itself. Use the placement that leaves nearby work visible.
 
 <Canvas of={TooltipStories.LongContent} />
 <Canvas of={TooltipStories.Placements} />

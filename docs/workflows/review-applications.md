@@ -133,12 +133,6 @@ through the same workflow. Outstanding requests, outdated assessments, changed
 criteria, and unknown basis do not block saving the manager's recommendation.
 Saving that recommendation does not resolve those gaps.
 
-Derive work needing attention from attributable assessments and evidence sources,
-so people can understand the concern and decide how to respond.
-Questions deliberately left for committee discussion remain distinct from
-unfinished reviews, and changing a recommendation does not resolve an evidence
-concern.
-
 Keep submitted material available while consulting assessments, their basis, and
 outstanding requests. Preserve the person's reading context as they move between
 evidence, review work, and the round.
@@ -152,8 +146,7 @@ request remains outstanding. Then record the revised €22,000 application after
 loss of a free venue. Sam's assessment becomes outdated, Jules's request remains
 outstanding, and the manager's earlier recommendation remains intact until changed.
 This sequence must be achievable through ordinary controls without seeded assessments
-or reviewer accounts. The demo's prepared evidence annotations and AI suggestions
-are separate from this review capability.
+or reviewer accounts.
 
 Assessment editors follow the shared [editing pattern](../../foundation/ui/src/patterns/editing/editing.mdx).
 Writes check the original review revision and current application and criteria

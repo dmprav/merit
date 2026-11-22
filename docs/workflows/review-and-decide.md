@@ -91,13 +91,13 @@ since been deleted shows the name recorded with the entry, without a link, or "N
 longer available" when no name was recorded. Actions this page does not recognize
 read "Changed".
 
-| Shown                                                                                                                                                           | Not shown here                                             |
-| --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| Application created, material, staff summary, or contact changed, marked ready, revised, corrected, or deleted; working revision started, updated, or discarded | Contact profile and team changes                           |
-| Round created, details, budget, criteria, or manager changed, or deleted                                                                                        | Reviewer drafts and email delivery, which are not recorded |
-| Review requested or cancelled; reviewer invited, renewed, accepted, declined, withdrew, reported or cleared a conflict, ended, or reinstated                    |                                                            |
-| Assessment recorded, corrected, submitted, or amended                                                                                                           |                                                            |
-| Recommendation saved                                                                                                                                            |                                                            |
+| Shown                                                                                                                                                                                  | Not shown here                                             |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| Application created, material, staff summary, or contact changed, marked ready, revised, corrected, withdrawn, reinstated, or deleted; working revision started, updated, or discarded | Team changes and contact profile edits                     |
+| Round created, details, budget, criteria, or manager changed, or deleted                                                                                                               | Reviewer drafts and email delivery, which are not recorded |
+| Review requested or cancelled; reviewer invited, renewed, accepted, declined, withdrew, reported or cleared a conflict, ended, or reinstated                                           |                                                            |
+| Assessment recorded, corrected, submitted, or amended                                                                                                                                  |                                                            |
+| Recommendation saved                                                                                                                                                                   |                                                            |
 
 Members & access shows team changes. Merit writes each Activity entry in the
 same transaction as its grant-work change, so a rejected or
