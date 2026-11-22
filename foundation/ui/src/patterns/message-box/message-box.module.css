@@ -6,6 +6,13 @@ div.box {
   padding: var(--space-1);
 }
 
+/* Only the input takes the field's focus treatment; a chip or the send button keeps its own ring. */
+div.box:focus-within:not(:has(.input[data-focused])) {
+  border-color: var(--border-control);
+  background: var(--surface);
+  box-shadow: none;
+}
+
 .chips {
   display: flex;
   flex-wrap: wrap;

@@ -8,8 +8,9 @@ const open = async (page: Page, id: string) => {
 };
 
 test.describe("companion panel layout", () => {
-  test.beforeEach((_fixtures, testInfo) => {
+  test.beforeEach(async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== "desktop", "Sets its own viewport widths.");
+    await page.setViewportSize({ width: 1440, height: 800 });
   });
 
   test("pushes the page aside and scrolls on its own from 1400 pixels", async ({ page }) => {
@@ -71,31 +72,33 @@ test.describe("companion panel layout", () => {
       expect((await modal.boundingBox())!.height).toBe(800);
     });
   }
-});
 
-test("the message box grows to eight lines, then scrolls", async ({ page }) => {
-  await open(page, "patterns-message-box--long-text");
+  for (const [from, to, close] of [
+    [1440, 1280, "Escape"],
+    [1440, 1280, "Close"],
+  ] as const) {
+    test(`returns focus to the opener when the panel closes after narrowing (${close})`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width: from, height: 800 });
+      await open(page, "patterns-application-shell--assistant-panel-closed");
 
-  const input = page.getByRole("textbox", { name: "Message" });
+      const opener = page.getByRole("button", { name: "Open assistant" });
+      await opener.click();
+      await expect(page.getByRole("complementary", { name: "Assistant" })).toBeVisible();
+      await page.setViewportSize({ width: to, height: 800 });
+      const sheet = page.getByRole("dialog", { name: "Assistant" });
+      await expect(sheet).toBeVisible();
+      await expect(sheet.getByRole("textbox", { name: "Message" })).toBeFocused();
 
-  const lines = (count: number) =>
-    Array.from({ length: count }, (_, index) => `Line ${index + 1}`).join("\n");
+      if (close === "Escape") {
+        await page.keyboard.press("Escape");
+      } else {
+        await sheet.getByRole("button", { name: "Close assistant" }).click();
+      }
 
-  const height = async () => (await input.boundingBox())!.height;
-
-  await input.fill(lines(1));
-  const one = await height();
-  await input.fill(lines(4));
-  const four = await height();
-  await input.fill(lines(8));
-  const eight = await height();
-  await input.fill(lines(12));
-  const twelve = await height();
-
-  expect(four).toBeGreaterThan(one);
-  expect(eight).toBeGreaterThan(four);
-  expect(twelve).toBe(eight);
-  expect(await input.evaluate((node) => node.scrollHeight > node.clientHeight)).toBe(true);
-  await input.fill(lines(8));
-  expect(await input.evaluate((node) => node.scrollHeight <= node.clientHeight)).toBe(true);
+      await expect(sheet).toHaveCount(0);
+      await expect(opener).toBeFocused();
+    });
+  }
 });

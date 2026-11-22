@@ -10,12 +10,10 @@ import {
   type PointerEvent,
   type ReactNode,
 } from "react";
-import { Heading } from "react-aria-components/Dialog";
 
-import { ButtonBase } from "../../components/button/button-base";
 import framedStyles from "../../components/dialog/framed-dialog.module.css";
+import { FramedHeader } from "../../components/dialog/framed-header";
 import { ModalFrame } from "../../components/dialog/modal-frame";
-import { IconBase } from "../../components/icon/icon-base";
 import scrollStyles from "../../foundations/scroll-area.module.css";
 import styles from "./companion-panel.module.css";
 
@@ -82,47 +80,41 @@ const useFocusReturn = (isOpen: boolean) => {
     if (!closed) {
       return;
     }
-    // The dialog's own focus scope restores first; this covers a panel that was never modal. Focus
-    // that is still somewhere on the page stays: the pushed panel leaves the page usable.
-    const frame = requestAnimationFrame(() => {
-      const active = document.activeElement;
-      if (!active || active === document.body || !active.isConnected) {
-        restoreFocus(opener);
-      }
-    });
+    // The pushed panel unmounts at once. Focus that is still somewhere on the page stays: the
+    // pushed panel leaves the page usable.
+    const frame = requestAnimationFrame(() => restoreLostFocus(opener));
     return () => cancelAnimationFrame(frame);
   }, [isOpen, opener]);
+
+  return opener;
 };
 
-const CompanionHeader = ({
-  label,
-  titleId,
-  closeLabel,
-  onClose,
-}: Pick<ApplicationCompanion, "label" | "closeLabel" | "onClose"> & { titleId?: string }) => (
-  <div className={`${framedStyles.header} ${scrollStyles.dividerAfterStart}`}>
-    <div className={framedStyles.heading}>
-      {titleId ? (
-        <h2 id={titleId} className={framedStyles.title}>
-          {label}
-        </h2>
-      ) : (
-        <Heading slot="title" className={framedStyles.title}>
-          {label}
-        </Heading>
-      )}
-    </div>
-    <ButtonBase
-      variant="quiet"
-      iconOnly
-      aria-label={closeLabel}
-      className={framedStyles.close}
-      onPress={onClose}
-    >
-      <IconBase name="close" />
-    </ButtonBase>
-  </div>
-);
+const restoreLostFocus = (opener: Element | null) => {
+  const active = document.activeElement;
+  if (!active || active === document.body || !active.isConnected) {
+    restoreFocus(opener);
+  }
+};
+
+/**
+ * The sheet's exit animation keeps it mounted after it closes, and its focus scope then restores
+ * to whatever had focus when the sheet opened, which may be gone after crossing 1400 pixels.
+ * Once the sheet is actually removed, put lost focus back on the opener.
+ */
+const ReturnFocusWhenSheetUnmounts = ({ opener }: { opener: Element | null }) => {
+  const latest = useRef(opener);
+  useEffect(() => {
+    latest.current = opener;
+  });
+  useEffect(
+    () => () => {
+      // After the focus scope has restored its own target.
+      requestAnimationFrame(() => restoreLostFocus(latest.current));
+    },
+    [],
+  );
+  return null;
+};
 
 /** Moving the separator left widens the panel; Home and End jump to the limits. */
 const widthAfterKey = (key: string, width: number) => {
@@ -263,7 +255,7 @@ export const CompanionPanel = ({
   const panel = useRef<HTMLElement>(null);
   const panelId = useId();
   const titleId = useId();
-  useFocusReturn(isOpen);
+  const opener = useFocusReturn(isOpen);
 
   // The document holds the width so page-level overlays, such as toasts, center beside the panel.
   useLayoutEffect(() => {
@@ -284,7 +276,8 @@ export const CompanionPanel = ({
 
   // Escape reaches here only when no menu or popup inside the panel has used it.
   const closeOnEscape = (event: KeyboardEvent<HTMLElement>) => {
-    if (event.key === "Escape") {
+    // Escape that cancels an IME composition belongs to the composition, as in the modal sheet.
+    if (event.key === "Escape" && !event.nativeEvent.isComposing) {
       onClose();
     }
   };
@@ -311,8 +304,15 @@ export const CompanionPanel = ({
         onResize={setWidth}
         onCommit={(committed) => onWidthChange?.(committed)}
       />
-      <CompanionHeader label={label} titleId={titleId} closeLabel={closeLabel} onClose={onClose} />
-      <div className={`${styles.body} ${scrollStyles.scrollArea}`}>{children}</div>
+      <FramedHeader title={label} titleId={titleId} closeLabel={closeLabel} close={onClose} />
+      <div
+        role="region"
+        aria-label={label}
+        tabIndex={0}
+        className={`${styles.body} ${scrollStyles.scrollArea}`}
+      >
+        {children}
+      </div>
     </aside>
   ) : (
     <ModalFrame
@@ -332,8 +332,16 @@ export const CompanionPanel = ({
     >
       {(close) => (
         <>
-          <CompanionHeader label={label} closeLabel={closeLabel} onClose={close} />
-          <div className={`${styles.body} ${scrollStyles.scrollArea}`}>{children}</div>
+          <ReturnFocusWhenSheetUnmounts opener={opener} />
+          <FramedHeader title={label} closeLabel={closeLabel} close={close} />
+          <div
+            role="region"
+            aria-label={label}
+            tabIndex={0}
+            className={`${styles.body} ${scrollStyles.scrollArea}`}
+          >
+            {children}
+          </div>
         </>
       )}
     </ModalFrame>

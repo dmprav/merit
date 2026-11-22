@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { expect, it, vi } from "vite-plus/test";
@@ -171,13 +171,32 @@ it("removes a chip and moves focus to the next chip, then to the input", async (
   await waitFor(() => expect(screen.getByRole("textbox", { name: "Message" })).toHaveFocus());
 });
 
-it("shows the full text of a long chip label when the chip is focused", async () => {
+const stubChipWidth = (scrollWidth: number, clientWidth: number) => {
+  vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockReturnValue(scrollWidth);
+  vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(clientWidth);
+};
+
+it("shows the full text of a cut-off chip label when the chip is focused", async () => {
+  stubChipWidth(300, 120);
   const label = "A very long attachment name that would not fit on one line.pdf";
   const user = userEvent.setup();
   render(<Example initialChips={[label]} />);
   await user.tab();
 
   expect(await screen.findByRole("tooltip")).toHaveTextContent(label);
+  vi.restoreAllMocks();
+});
+
+it("shows no tooltip for a chip label that fits", async () => {
+  stubChipWidth(80, 120);
+  const user = userEvent.setup();
+  render(<Example initialChips={["Riverside Youth Arts"]} />);
+  await user.tab();
+  await act(() => new Promise((resolve) => setTimeout(resolve, 450)));
+
+  expect(screen.getByRole("button", { name: "Remove Riverside Youth Arts" })).toHaveFocus();
+  expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+  vi.restoreAllMocks();
 });
 
 it("connects the description to the input", () => {

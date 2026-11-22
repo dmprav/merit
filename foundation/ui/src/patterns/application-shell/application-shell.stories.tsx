@@ -3,7 +3,6 @@ import { useState } from "react";
 import { expect, fn, waitFor, within } from "storybook/test";
 
 import { Brand } from "../../components/brand/brand";
-import { Button } from "../../components/button/button";
 import { Icon } from "../../components/icon/icon";
 import { MessageBox } from "../message-box/message-box";
 import { PageHeader } from "../page-header/page-header";
@@ -14,6 +13,7 @@ import {
   ApplicationAccount,
   ApplicationContext,
   ApplicationContextOption,
+  ApplicationNavigationButton,
   ApplicationPage,
   ApplicationShell,
 } from "./application-shell";
@@ -52,7 +52,7 @@ type ShellExampleProps = {
   name: string;
   loading: boolean;
   signedIn: boolean;
-  /** Shows the companion panel, opened or closed, with its opener in the shell's utility slot. */
+  /** Shows the companion panel, opened or closed, with its opener in the navigation. */
   companion?: { open: boolean; width?: number };
 };
 
@@ -95,14 +95,14 @@ const ShellExample = ({ name, loading, signedIn, companion }: ShellExampleProps)
             <Icon name="team" />
             Team
           </a>
+          {companion && (
+            <ApplicationNavigationButton
+              icon="search"
+              label="Open assistant"
+              onPress={() => setOpen(true)}
+            />
+          )}
         </>
-      }
-      utility={
-        companion && (
-          <Button size="medium" variant="secondary" onPress={() => setOpen(true)}>
-            Open assistant
-          </Button>
-        )
       }
       companion={
         companion && {

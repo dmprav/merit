@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useEffect, useState, type ReactNode } from "react";
 import { beforeEach, expect, it, vi } from "vite-plus/test";
@@ -370,6 +370,39 @@ it("moves focus into the panel, then back to its opener", async () => {
   await waitFor(() => expect(opener).toHaveFocus());
 });
 
+it("makes the pushed panel's content reachable by keyboard so it can scroll", async () => {
+  compact = false;
+  wide = true;
+  const user = userEvent.setup();
+  render(<Companion />);
+  await user.click(screen.getByRole("button", { name: "Open assistant" }));
+
+  const body = within(screen.getByRole("complementary", { name: "Assistant" })).getByRole(
+    "region",
+    { name: "Assistant" },
+  );
+
+  expect(body).toHaveAttribute("tabindex", "0");
+});
+
+it("keeps the pushed panel open when Escape cancels an IME composition", async () => {
+  compact = false;
+  wide = true;
+  const onClose = vi.fn();
+  const user = userEvent.setup();
+  render(<Companion onClose={onClose} />);
+  await user.click(screen.getByRole("button", { name: "Open assistant" }));
+  const ask = screen.getByRole("button", { name: "Ask" });
+
+  fireEvent.keyDown(ask, { key: "Escape", isComposing: true });
+
+  expect(onClose).not.toHaveBeenCalled();
+
+  fireEvent.keyDown(ask, { key: "Escape" });
+
+  expect(onClose).toHaveBeenCalledOnce();
+});
+
 it("focuses the element the caller marks instead of the panel", async () => {
   compact = false;
   wide = true;
@@ -540,7 +573,7 @@ it("resizes by dragging the separator and reports the width when the pointer is 
   expect(onWidthChange).toHaveBeenCalledExactlyOnceWith(560);
 });
 
-it("toggles between the starting and widest width when the separator is pressed without dragging", async () => {
+it("toggles between the default and widest width when the separator is pressed without dragging", async () => {
   compact = false;
   wide = true;
   const onWidthChange = vi.fn();

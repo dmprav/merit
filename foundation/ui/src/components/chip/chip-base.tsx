@@ -1,4 +1,4 @@
-import type { Ref } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 
 import { ButtonBase } from "../button/button-base";
 import { IconBase, type IconName } from "../icon/icon-base";
@@ -15,20 +15,38 @@ export const ChipBase = ({
   icon,
   truncate = false,
   onRemove,
-  ref,
 }: {
   label: string;
   /** The button's accessible name, which says what removing the chip does. */
   removeLabel: string;
   icon?: IconName;
-  /** Keep the chip to one line, with the full label in a tooltip on hover and focus. */
+  /** Keep the chip to one line, with the full label in a tooltip on hover and focus when cut off. */
   truncate?: boolean;
   onRemove: () => void;
-  ref?: Ref<HTMLButtonElement>;
 }) => {
+  const text = useRef<HTMLSpanElement>(null);
+  const [isCutOff, setIsCutOff] = useState(false);
+
+  useLayoutEffect(() => {
+    const node = text.current;
+    if (!truncate || !node) {
+      return;
+    }
+
+    const measure = () => setIsCutOff(node.scrollWidth > node.clientWidth);
+
+    measure();
+    if (typeof ResizeObserver === "undefined") {
+      return;
+    }
+
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [truncate, label]);
+
   const chip = (
     <ButtonBase
-      ref={ref}
       variant="quiet"
       size="small"
       className={styles.chip}
@@ -38,10 +56,16 @@ export const ChipBase = ({
       onPress={onRemove}
     >
       {icon && <IconBase name={icon} />}
-      <span>{label}</span>
+      <span ref={text}>{label}</span>
       <IconBase name="close" />
     </ButtonBase>
   );
 
-  return truncate ? <Tooltip content={label}>{chip}</Tooltip> : chip;
+  return truncate ? (
+    <Tooltip content={label} isDisabled={!isCutOff}>
+      {chip}
+    </Tooltip>
+  ) : (
+    chip
+  );
 };
