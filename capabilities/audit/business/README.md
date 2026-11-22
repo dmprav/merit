@@ -13,8 +13,7 @@ transaction after authorization and validation. Keep the business locks until
 commit, and propagate recording errors so the state change, receipt, and event
 roll back together. The recording entry validates the envelope and snapshots the
 actor's name when the caller does not supply one. It does not authorize commands
-or start another transaction. Callers import this writer directly; rollback tests
-reject an audit insert or fail a deferred database trigger at commit.
+or start another transaction.
 
 The envelope contains the workspace, action, actor identity and recorded name,
 web or verified MCP provenance, target type and ID, target revision, recorded target
@@ -46,11 +45,8 @@ identity includes the author and application basis as well as its content. Priva
 reviewer drafts and email delivery attempts are operational state, not audit events.
 Shared application working revisions are persisted collaborative work and are audited.
 
-Application and round creation receipts survive eligible deletion in their own
-tables. Reviewer command receipts hold the result revision separately from events. Owning
-commands record receipts explicitly alongside their business writes; event builders
-only describe and append facts.
-Round budget rules use `budgetEstablished`, not a scan of historical events.
+Owning commands record receipts explicitly alongside their business writes; event
+builders only describe and append facts.
 
 ## Read workspace activity
 
@@ -59,8 +55,7 @@ Its caller must authorize the workspace and supply the permitted target types.
 It returns at most 50 compact envelopes, newest first by `(recorded_at, id)`, with
 a keyset cursor and recorded-person and historical-round filters. Details are not
 selected for this feed, except the recorded reason of the actions the caller names in
-`reasonActions` (grantmaking names withdrawals and reinstatements). The store has indexes for workspace time, subject revision and time,
-round time, actor time, and assignment history.
+`reasonActions` (grantmaking names withdrawals and reinstatements).
 
 [Grantmaking's reader](../../grantmaking/business/src/server/queries/activity.ts)
 checks current grant-work access and limits events to grant subjects. Team history
@@ -74,16 +69,8 @@ transaction, specifying permitted target types and the subject or assignment.
 `auditPageInput` from `@merit/audit/api` validates cursors and limits (20 by default,
 at most 50). Event payload interpretation remains with the owning capability.
 
-Reviewer history loads when opened in the browser. Application and budget
-pages carry a bounded initial history; older entries load through their
-capability's authorized reader. A failed page read can be retried, and a denied
-read removes previously displayed history. Reviewer assignment lists contain
-summaries and do not query history for every assignment.
-
 Authorized capability readers may still use `@merit/audit/schema` for compact
-projections and individual event content with an organization and subject scope. The workspace feed resolves
-current titles and links only for the selected page; recorded subject names remain
-available after deletion, and the round filter continues to include deleted records.
+projections and individual event content with an organization and subject scope.
 Unknown action names within a permitted subject type remain readable.
 
 ## Protect and retain events

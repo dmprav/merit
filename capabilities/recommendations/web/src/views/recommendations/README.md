@@ -1,4 +1,4 @@
-# Compose recommendations and budget help
+# Compose recommendations
 
 Use this guide when changing the recommendation overview or editor. The
 [recommendation workflow](../../../../../../docs/workflows/recommend-funding.md)
@@ -15,11 +15,8 @@ the effect of the draft on the round budget. The application view composes the
 summary and editor with the selected reference material. Saving, closing, and
 discarding return to the overview with that material still available.
 
-Use the recorded basis to resolve **Compare changes**. Unknown dates and versions
-must remain explicit. Keep amount errors beside the field and distinguish a
-missing allocation from excess precision. The optional budget help links to
-`/docs/recommendations#budget` in a labelled new tab so consulting it preserves
-the draft and reading context.
+Keep amount errors beside the field and distinguish a missing allocation from
+excess precision.
 
 The [editor stories](../../../../../grantmaking/web/src/views/recommendations/recommendation-editor.stories.tsx)
 exercise form states. The [application-view stories](../../../../../grantmaking/web/src/views/applications/application-view.stories.tsx)

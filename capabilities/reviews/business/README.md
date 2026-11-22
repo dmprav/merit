@@ -36,13 +36,6 @@ draft text remains available for correction.
 reviewer submission advance this revision under the case lock; assignment and
 private-draft revisions retain their independent meanings.
 
-Applications' `MaterialVersion`, Rounds' `CriteriaVersion`, and Reviews'
-`ReviewRevision` are distinct branded numbers. An assessment's recorded basis
-stays separate from the current versions captured by its edit baseline. Saves bind that baseline to the application in the data
-adapter; independently transported material queries carry the application ID.
-Brands distinguish sequences, while authorization and ownership checks still
-establish which records those sequences belong to.
-
 `/api` is browser-safe. `/server` exports the manager and reviewer service factories
 and authorized operations. Approved composition reads use `/schema`, `/scope`,
 `/participation-schema`, and `/readers`. `/server/integrations` exposes the

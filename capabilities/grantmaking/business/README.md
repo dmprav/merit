@@ -62,9 +62,7 @@ questions:
 | Review revision                            | Whether review work changed since a request or assessment edit began.                | Review requests, assessments, and corrections change the review state.                                                                                      |
 | Recommendation revision                    | Whether the manager's recommendation changed since an edit began.                    | A recommendation is saved. Its recorded application version identifies the material considered.                                                             |
 
-These sequences advance independently. Reviews stores its concurrency revision in
-`review_states`; Recommendations derives its current revision from immutable version
-records. An unchanged intake save retains its revision and creates no history entry.
+These sequences advance independently, each with its owning capability.
 
 An assessment retains both material and criteria bases when known; a manager
 recommendation retains its application material basis. Changing current material
@@ -76,15 +74,9 @@ map the read values to tool arguments.
 
 All accepted grant changes append events through the
 [audit capability](../../audit/business/README.md) in the command's transaction.
-The business write and event roll back together. Unchanged recommendations retain
-their revision when content, author, and application basis match the current version.
-Material, criteria, assessment, and recommendation versions remain with their owners.
-
 `listWorkspaceActivity` authorizes grant access and reads only grant subjects.
 Historical context supplies round filtering even after deletion; current titles and
-links are resolved for the selected page. Creation receipts live in dedicated
-application and round tables and survive eligible record deletion. Retry handling
-never needs to interpret audit payloads.
+links are resolved for the selected page.
 
 `searchWorkspace` finds rounds and applications by name or applicant for program
 managers. Rounds owns the match over its titles and Applications the match over the
@@ -127,13 +119,8 @@ summaries expose authorship and participation/conflict status to existing MCP re
 Each assignment belongs to one review request. Its revision coordinates lifecycle
 changes; its private draft has an independent revision and save receipt. Submission
 appends existing assessment versions, completes the request, advances those revisions,
-and records its email intent in one transaction. Assessment authorship and assignment
-events are immutable. Delivery failure does not undo a saved assessment.
-
-Reviewers join through Organizations before a manager can invite them to an assignment. Each assignment
-captures its qualifying reviewer or program-manager membership. Removing membership
-or review responsibilities invalidates scoped access; rejoining or restoring a role
-requires a manager to explicitly reinstate the assignment. Commands use the shared organization,
+and records its email intent in one transaction. Each assignment captures its
+qualifying reviewer or program-manager membership. Commands use the shared organization,
 round, case, and account lock order so revocation and submission serialize. The
 central access policy evaluates the current account, assignment, and membership facts.
 
@@ -155,11 +142,9 @@ Current applications resolve linked profiles within the workspace. Editing a
 profile does not advance application intake revisions; historical snapshots and
 assessment attribution retain the details recorded at the time.
 
-Application assembly supplies Applications' and Reviews' contact work to Contacts:
-each reports the applications its own records link to a person, and Reviews reports
-outstanding requests. Contact writes acquire the organization-owned grant-work lock and check outstanding
-requests before archiving. Application changes hold a shared lock on the contact when capturing
-its details in history. These explicit interfaces avoid a package dependency cycle:
+Application assembly supplies Applications' and Reviews' contact work to Contacts;
+[Contacts](../../contacts/business/README.md#coordinate-grant-work) explains the
+archival checks and locks. These explicit interfaces avoid a package dependency cycle:
 
 - [Contact integration contract](../../contacts/business/src/server/grant-work.ts).
 - Contact work from [Applications](../../applications/business/src/server/integrations.ts)
