@@ -20,6 +20,7 @@ import { IconBase, type IconName } from "../../components/icon/icon-base";
 import { Notice } from "../../components/notice/notice";
 import { PersonIdentity } from "../person-identity/person-identity";
 import styles from "./application-shell.module.css";
+import { CompanionPanel, type ApplicationCompanion } from "./companion-panel";
 
 const compactQuery = "(max-width: 600px)";
 
@@ -113,6 +114,7 @@ export const ApplicationShell = ({
   skipLabel,
   openNavigationLabel,
   closeNavigationLabel,
+  companion,
   children,
 }: {
   brand: ReactNode;
@@ -125,6 +127,11 @@ export const ApplicationShell = ({
   skipLabel: string;
   openNavigationLabel: string;
   closeNavigationLabel: string;
+  /**
+   * A panel beside the page: pushed in from the right at 1400 pixels and wider, a modal sheet
+   * below. Closed or absent, the shell renders without it.
+   */
+  companion?: ApplicationCompanion;
   children: ReactNode;
 }) => {
   const compact = useSyncExternalStore(subscribeViewport, isCompactViewport, () => false);
@@ -188,6 +195,7 @@ export const ApplicationShell = ({
       </header>
       {!compact && <aside className={styles.sidebar}>{navigationContent}</aside>}
       <div className={styles.stage}>{children}</div>
+      {companion && <CompanionPanel {...companion} />}
     </div>
   );
 };

@@ -1,0 +1,51 @@
+import { Canvas, Meta } from "@storybook/addon-docs/blocks";
+import * as MessageBox from "./message-box.stories";
+
+<Meta of={MessageBox} />
+
+# Write a message
+
+Use `MessageBox` where a person composes a message to send, such as a question to an
+assistant. It is not a form field: Enter sends, so a draft is never saved or validated.
+Use [TextField](?path=/docs/components-fields--docs) for text that belongs to a record.
+
+The caller owns the text. Pass `value` and `onChange`, send with `onSend`, and clear the
+text there. Supply every string, including the placeholder, and keep the label meaningful
+even when `isLabelHidden` hides it visually because a heading already names the place.
+
+<Canvas of={MessageBox.Empty} />
+
+## Send and stop
+
+Enter sends and Shift+Enter starts a new line. Enter that confirms an IME composition
+never sends. Send is an icon button, inactive while the text is empty or only whitespace.
+Pass `isBusy` while the caller works on the last message: Send becomes a visible Stop
+button that calls `onStop`. The input stays editable so the next message can be drafted, but
+Enter does not send until the caller is ready.
+
+<Canvas of={MessageBox.Busy} />
+
+The input grows with its text up to eight lines, then scrolls.
+
+<Canvas of={MessageBox.LongText} />
+
+## Attach context
+
+`chips` shows removable items above the input, such as the record a question is about.
+Each carries its label, an accessible name for removal, and the removal callback. Long
+labels truncate with the full text on hover. After a chip is removed, focus moves to the next
+chip, or to the input when none remain. The chips match the
+[collection toolbar's](?path=/docs/patterns-collection-toolbar--docs) removable filters.
+
+<Canvas of={MessageBox.WithChips} />
+
+## Explain the keys
+
+`description` adds one line of help below the box, connected to the input for assistive
+technology.
+
+<Canvas of={MessageBox.WithDescription} />
+
+Place the box at the bottom of a panel such as the
+[application shell's companion panel](?path=/docs/patterns-application-shell--docs). Keys the box
+does not use, including Escape, reach the surrounding panel.

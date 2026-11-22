@@ -69,6 +69,7 @@ const icons = {
   exit: LogOut,
   reset: RotateCcw,
   close: X,
+  send: ArrowUp,
   search: Search,
   filter: ListFilter,
 } as const;

@@ -1,0 +1,88 @@
+/* Push mode: the panel is the shell's third column, sized by the width the document holds. */
+.panel {
+  --dialog-gutter: var(--space-6);
+  grid-column: 3;
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  height: 100dvh;
+  border-inline-start: 1px solid var(--border);
+  background: var(--surface);
+  font-size: var(--text-body);
+  line-height: 1.55;
+  outline: none;
+  /* The header divider follows the scrolling body below it. */
+  timeline-scope: --dialog-body;
+  --edge-timeline: --dialog-body;
+}
+
+.panel:focus-visible {
+  box-shadow: inset 0 2px var(--focus);
+}
+
+/* A slim target on the leading edge, wider than the visible line. */
+.separator {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: -4px;
+  z-index: 1;
+  width: 8px;
+  cursor: col-resize;
+  touch-action: none;
+  outline: none;
+}
+
+.separator::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 3px;
+  width: 2px;
+  background: transparent;
+  transition: background-color var(--motion-fast);
+}
+
+.separator:hover::after,
+.separator[data-dragging],
+.separator:focus-visible::after {
+  background: var(--focus);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .separator::after {
+    transition: none;
+  }
+}
+
+.header {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-4) var(--space-2) var(--dialog-gutter);
+}
+
+.title {
+  min-width: 0;
+  font-size: var(--text-body);
+  line-height: 1.4;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scroll-timeline: --dialog-body block;
+}
+
+/* Modal mode: the sheet keeps the side panel's frame at a fixed width. */
+.sheetOverlay .sheet {
+  width: 400px;
+  max-width: 100%;
+}

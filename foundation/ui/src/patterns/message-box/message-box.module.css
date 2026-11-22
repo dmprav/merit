@@ -1,0 +1,39 @@
+/* The group supplies the field's border and focus treatment; the input inside stays borderless. */
+div.box {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-1);
+  padding: var(--space-1);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.compose {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+
+.box textarea.input {
+  flex: 1;
+  /* Eight lines of text, then the input scrolls. */
+  --message-lines: 8;
+  min-height: calc(var(--control-height-small) - 2px);
+  max-height: calc(var(--message-lines) * 1lh + 2 * var(--space-1));
+  padding: var(--space-1) var(--space-2);
+  overflow-y: auto;
+  resize: none;
+  font-size: var(--text-reading);
+  line-height: var(--leading-reading);
+}
+
+@media (pointer: coarse) {
+  .box textarea.input {
+    font-size: 1rem;
+  }
+}
