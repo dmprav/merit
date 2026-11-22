@@ -94,7 +94,8 @@ the presentation and keeps it open.
 In the pushed presentation a separator on the panel's left edge resizes it between 400
 and 560 pixels, starting at `width` (416 by default). Dragging, or the arrow keys on the focused
 separator (16 pixels a step, Home and End for the limits), reports each committed width
-through `onWidthChange`. The shell does not save it; the caller decides whether to.
+through `onWidthChange`. Pointer dragging has a non-drag path: pressing the separator
+without dragging toggles between the starting 416 pixels and the 560 widest. The shell does not save it; the caller decides whether to.
 
 <Canvas of={Shell.AssistantPanelWidest} story={{ inline: false, height: "540px" }} />
 

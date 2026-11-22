@@ -1,6 +1,6 @@
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { beforeEach, expect, it, vi } from "vite-plus/test";
 
 import { ActionMenu } from "../../components/action-menu/action-menu";
@@ -268,6 +268,17 @@ const Companion = ({
 }) => {
   const [open, setOpen] = useState(false);
   const [showOpener, setShowOpener] = useState(true);
+  // Stands in for a caller-owned toggle shortcut that closes the panel from anywhere on the page.
+  useEffect(() => {
+    const closeFromPage = (event: KeyboardEvent) => {
+      if (event.key === "F2") {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener("keydown", closeFromPage);
+    return () => document.removeEventListener("keydown", closeFromPage);
+  }, []);
   return (
     <ApplicationShell
       brand={<a href="/">merit</a>}
@@ -293,6 +304,7 @@ const Companion = ({
     >
       <main id="main" tabIndex={-1}>
         <h1>Grant work</h1>
+        <input aria-label="Page note" />
         {showOpener && (
           <button
             type="button"
@@ -398,6 +410,23 @@ it("returns focus to the main content when the opener is gone", async () => {
   await user.click(screen.getByRole("button", { name: "Close assistant" }));
 
   await waitFor(() => expect(screen.getByRole("main")).toHaveFocus());
+});
+
+it("leaves focus in a page field when the caller closes the panel", async () => {
+  compact = false;
+  wide = true;
+  const user = userEvent.setup();
+  render(<Companion />);
+  await user.click(screen.getByRole("button", { name: "Open assistant" }));
+  const field = screen.getByRole("textbox", { name: "Page note" });
+  await user.click(field);
+  await user.keyboard("{F2}");
+
+  expect(screen.queryByRole("complementary", { name: "Assistant" })).not.toBeInTheDocument();
+  await act(() => new Promise((resolve) => requestAnimationFrame(() => resolve(undefined))));
+  await act(() => new Promise((resolve) => requestAnimationFrame(() => resolve(undefined))));
+
+  expect(field).toHaveFocus();
 });
 
 it("lets an open menu in the panel use Escape before the panel does", async () => {
@@ -511,6 +540,27 @@ it("resizes by dragging the separator and reports the width when the pointer is 
   expect(onWidthChange).toHaveBeenCalledExactlyOnceWith(560);
 });
 
+it("toggles between the starting and widest width when the separator is pressed without dragging", async () => {
+  compact = false;
+  wide = true;
+  const onWidthChange = vi.fn();
+  const user = userEvent.setup();
+  render(<Companion onWidthChange={onWidthChange} />);
+  await user.click(screen.getByRole("button", { name: "Open assistant" }));
+  const separator = screen.getByRole("separator");
+
+  await user.click(separator);
+
+  expect(separator).toHaveAttribute("aria-valuenow", "560");
+  expect(onWidthChange).toHaveBeenLastCalledWith(560);
+
+  await user.click(separator);
+
+  expect(separator).toHaveAttribute("aria-valuenow", "416");
+  expect(onWidthChange).toHaveBeenLastCalledWith(416);
+  expect(onWidthChange).toHaveBeenCalledTimes(2);
+});
+
 it("opens as a modal sheet on narrower screens, without resizing", async () => {
   compact = false;
   const user = userEvent.setup();
@@ -557,7 +607,7 @@ it("keeps focus inside the modal sheet", async () => {
   await user.tab();
   await user.tab();
 
-  expect(sheet).toContainElement(document.activeElement as HTMLElement);
+  expect(sheet.contains(document.activeElement)).toBe(true);
   expect(screen.queryByRole("main")).not.toBeInTheDocument();
 });
 
@@ -581,7 +631,7 @@ it("keeps the panel open and changes its presentation when crossing 1400 pixels"
 
   const sheet = screen.getByRole("dialog", { name: "Assistant" });
   expect(screen.queryByRole("complementary", { name: "Assistant" })).not.toBeInTheDocument();
-  await waitFor(() => expect(sheet).toContainElement(document.activeElement as HTMLElement));
+  await waitFor(() => expect(sheet.contains(document.activeElement)).toBe(true));
 
   await user.keyboard("{Escape}");
 

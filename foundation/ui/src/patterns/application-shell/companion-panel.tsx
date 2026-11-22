@@ -24,6 +24,8 @@ const pushQuery = "(min-width: 1400px)";
 /** Resizing is limited to these widths, in CSS pixels. */
 const companionWidthLimits = { min: 400, max: 560, default: 416 } as const;
 const keyboardStep = 16;
+/** A press that moves less than this many pixels is a click, not a drag. */
+const clickSlop = 3;
 
 const subscribeViewport = (onChange: () => void) => {
   const media = window.matchMedia(pushQuery);
@@ -80,8 +82,14 @@ const useFocusReturn = (isOpen: boolean) => {
     if (!closed) {
       return;
     }
-    // The dialog's own focus scope restores first; this covers a panel that was never modal.
-    const frame = requestAnimationFrame(() => restoreFocus(opener));
+    // The dialog's own focus scope restores first; this covers a panel that was never modal. Focus
+    // that is still somewhere on the page stays: the pushed panel leaves the page usable.
+    const frame = requestAnimationFrame(() => {
+      const active = document.activeElement;
+      if (!active || active === document.body || !active.isConnected) {
+        restoreFocus(opener);
+      }
+    });
     return () => cancelAnimationFrame(frame);
   }, [isOpen, opener]);
 };
@@ -92,17 +100,25 @@ const CompanionHeader = ({
   closeLabel,
   onClose,
 }: Pick<ApplicationCompanion, "label" | "closeLabel" | "onClose"> & { titleId?: string }) => (
-  <div className={`${styles.header} ${scrollStyles.dividerAfterStart}`}>
-    {titleId ? (
-      <h2 id={titleId} className={styles.title}>
-        {label}
-      </h2>
-    ) : (
-      <Heading slot="title" className={styles.title}>
-        {label}
-      </Heading>
-    )}
-    <ButtonBase variant="quiet" iconOnly aria-label={closeLabel} onPress={onClose}>
+  <div className={`${framedStyles.header} ${scrollStyles.dividerAfterStart}`}>
+    <div className={framedStyles.heading}>
+      {titleId ? (
+        <h2 id={titleId} className={framedStyles.title}>
+          {label}
+        </h2>
+      ) : (
+        <Heading slot="title" className={framedStyles.title}>
+          {label}
+        </Heading>
+      )}
+    </div>
+    <ButtonBase
+      variant="quiet"
+      iconOnly
+      aria-label={closeLabel}
+      className={framedStyles.close}
+      onPress={onClose}
+    >
       <IconBase name="close" />
     </ButtonBase>
   </div>
@@ -140,6 +156,7 @@ const ResizeSeparator = ({
 }) => {
   const [dragging, setDragging] = useState(false);
   const origin = useRef({ x: 0, width });
+  const moved = useRef(false);
   const latest = useRef(width);
   const resize = useEffectEvent(onResize);
   const commit = useEffectEvent(onCommit);
@@ -150,13 +167,29 @@ const ResizeSeparator = ({
     }
 
     const move = (event: globalThis.PointerEvent) => {
+      if (Math.abs(event.clientX - origin.current.x) >= clickSlop) {
+        moved.current = true;
+      }
+      if (!moved.current) {
+        return;
+      }
       latest.current = clampWidth(origin.current.width + origin.current.x - event.clientX);
       resize(latest.current);
     };
 
-    const end = () => {
+    const end = (event: globalThis.PointerEvent) => {
       setDragging(false);
-      commit(latest.current);
+      if (moved.current) {
+        commit(latest.current);
+      } else if (event.type === "pointerup") {
+        // A press without dragging is the single-pointer way to resize: toggle default and widest.
+        const next =
+          origin.current.width === companionWidthLimits.default
+            ? companionWidthLimits.max
+            : companionWidthLimits.default;
+        resize(next);
+        commit(next);
+      }
     };
 
     document.body.style.userSelect = "none";
@@ -179,6 +212,7 @@ const ResizeSeparator = ({
     event.currentTarget.focus();
     origin.current = { x: event.clientX, width };
     latest.current = width;
+    moved.current = false;
     setDragging(true);
   };
 
@@ -250,12 +284,7 @@ export const CompanionPanel = ({
 
   // Escape reaches here only when no menu or popup inside the panel has used it.
   const closeOnEscape = (event: KeyboardEvent<HTMLElement>) => {
-    if (
-      event.key === "Escape" &&
-      !event.defaultPrevented &&
-      event.target instanceof Node &&
-      event.currentTarget.contains(event.target)
-    ) {
+    if (event.key === "Escape") {
       onClose();
     }
   };

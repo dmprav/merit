@@ -171,11 +171,13 @@ it("removes a chip and moves focus to the next chip, then to the input", async (
   await waitFor(() => expect(screen.getByRole("textbox", { name: "Message" })).toHaveFocus());
 });
 
-it("keeps the full text of a long chip label available", () => {
+it("shows the full text of a long chip label when the chip is focused", async () => {
   const label = "A very long attachment name that would not fit on one line.pdf";
+  const user = userEvent.setup();
   render(<Example initialChips={[label]} />);
+  await user.tab();
 
-  expect(screen.getByText(label)).toHaveAttribute("title", label);
+  expect(await screen.findByRole("tooltip")).toHaveTextContent(label);
 });
 
 it("connects the description to the input", () => {

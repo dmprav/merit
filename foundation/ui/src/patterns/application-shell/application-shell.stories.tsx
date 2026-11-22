@@ -8,6 +8,7 @@ import { Icon } from "../../components/icon/icon";
 import { MessageBox } from "../message-box/message-box";
 import { PageHeader } from "../page-header/page-header";
 import { StateMessage } from "../state-message/state-message";
+import { showToast } from "../toast/toast";
 import {
   ApplicationRecovery,
   ApplicationAccount,
@@ -51,7 +52,7 @@ type ShellExampleProps = {
   name: string;
   loading: boolean;
   signedIn: boolean;
-  /** Shows the companion panel, opened or closed, with a control in the page to open it. */
+  /** Shows the companion panel, opened or closed, with its opener in the shell's utility slot. */
   companion?: { open: boolean; width?: number };
 };
 
@@ -96,6 +97,13 @@ const ShellExample = ({ name, loading, signedIn, companion }: ShellExampleProps)
           </a>
         </>
       }
+      utility={
+        companion && (
+          <Button size="medium" variant="secondary" onPress={() => setOpen(true)}>
+            Open assistant
+          </Button>
+        )
+      }
       companion={
         companion && {
           label: "Assistant",
@@ -134,11 +142,6 @@ const ShellExample = ({ name, loading, signedIn, companion }: ShellExampleProps)
         breadcrumbLabel="Breadcrumb"
       >
         <PageHeader title="Funding rounds" description="Prepare grant work for review." />
-        {companion && (
-          <Button size="medium" variant="secondary" onPress={() => setOpen(true)}>
-            Open assistant
-          </Button>
-        )}
       </ApplicationPage>
     </ApplicationShell>
   );
@@ -226,6 +229,22 @@ export const AssistantPanel: Story = {
     "The companion panel at its starting 416 pixels. From 1400 pixels wide it pushes the page content aside; below that it opens as a modal sheet.",
   ),
   play: companionPlay,
+};
+
+export const AssistantPanelWithToast: Story = {
+  args: { companion: { open: true } },
+  parameters: companionDescription(
+    "A toast stays centered on the page area beside the open panel instead of the whole window.",
+  ),
+  play: async (context) => {
+    await companionPlay?.(context);
+    showToast({ tone: "success", message: "Recommendation saved" });
+    const toast = await within(context.canvasElement.ownerDocument.body).findByRole("alertdialog", {
+      name: "Recommendation saved",
+    });
+    // The toast fades in.
+    await waitFor(() => expect(toast).toBeVisible());
+  },
 };
 
 export const AssistantPanelWidest: Story = {
