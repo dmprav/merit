@@ -60,6 +60,13 @@ manager retains their draft and can inspect the latest saved information. They
 must choose whether to reaffirm their judgment against the current basis or
 discard their draft and load the latest.
 
+A manager can ask an MCP client to use a reviewer’s proposal only if the
+assessment still uses current evidence. The client identifies the assessment
+version it read. Before saving, Merit checks for corrections or a replacement
+assessment and compares the recorded material version and criteria content with
+the current evidence. If the check fails, the manager can inspect the updated
+assessment before deciding whether to proceed.
+
 A save that changes the recommendation's content, author, or application basis records the actor,
 timestamp, and before/after recommendation together, along with a compact workspace
 audit event referencing the saved recommendation revision. A save that changes none

@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { defineActorTool } from "@merit/ai";
+import { cursorPage } from "@merit/ai/contracts";
 import type { Actor } from "@merit/auth";
 import {
   contactCommandSchema,
@@ -21,15 +22,18 @@ export const createContactTools = (actor: Actor, contacts: ContactOperations) =>
     {
       errorSchema: contactReadErrorSchema,
       description:
-        "List bounded shared contact summaries in stable contactId order. Follow nextCursor. Filter archived explicitly or omit the filter for all contacts.",
+        "List bounded shared contact summaries in stable contactId order. Pass nextPage to this tool. Filter archived explicitly or omit the filter for all contacts.",
       inputSchema: contactListInput,
       outputSchema: z.object({
         status: z.literal("ok"),
         contacts: z.array(contactSchema),
-        nextCursor: z.uuid().nullable(),
+        nextPage: contactListInput.required({ after: true }).nullable(),
       }),
     },
-    (input) => contacts.listContactSummaries(actor, input),
+    async (input) => {
+      const result = await contacts.listContactSummaries(actor, input);
+      return result.status === "ok" ? cursorPage(input, result) : result;
+    },
   ),
   defineActorTool(
     actor,

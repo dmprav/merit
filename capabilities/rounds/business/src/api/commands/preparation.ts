@@ -5,6 +5,7 @@ import { isNegative, parseMoney } from "@merit/money";
 import { workspaceSlugSchema } from "@merit/organizations/api";
 
 import {
+  budgetReasonSchema,
   roundChangeSchema,
   roundTitleSchema,
   type prepareRoundChange,
@@ -16,25 +17,31 @@ export type PreparationSaveError =
   | "manager_unavailable"
   | "round_not_empty";
 
-export const createRoundRequestSchema = z.strictObject({
-  workspaceSlug: workspaceSlugSchema,
-  requestId: z.uuid(),
-  title: roundTitleSchema,
-  purpose: roundChangeSchema.options[0].shape.purpose.optional(),
-  meetingDate: roundChangeSchema.options[0].shape.meetingDate.optional(),
-  budget: z
-    .string()
-    .trim()
-    .max(32)
-    .refine((value) => {
-      if (!value) {
-        return true;
-      }
-      const parsed = parseMoney(value);
-      return parsed.ok && !isNegative(parsed.value);
-    }, "Enter a nonnegative amount with at most two decimal places.")
-    .optional(),
-});
+export const createRoundRequestSchema = z
+  .strictObject({
+    workspaceSlug: workspaceSlugSchema,
+    requestId: z.uuid(),
+    title: roundTitleSchema,
+    purpose: roundChangeSchema.options[0].shape.purpose.optional(),
+    meetingDate: roundChangeSchema.options[0].shape.meetingDate.optional(),
+    budget: z
+      .string()
+      .trim()
+      .max(32)
+      .refine((value) => {
+        if (!value) {
+          return true;
+        }
+        const parsed = parseMoney(value);
+        return parsed.ok && !isNegative(parsed.value);
+      }, "Enter a nonnegative amount with at most two decimal places.")
+      .optional(),
+    budgetReason: budgetReasonSchema.min(1).optional(),
+  })
+  .refine(({ budget, budgetReason }) => budgetReason === undefined || Boolean(budget), {
+    path: ["budgetReason"],
+    message: "Supply an initial budget with its reason.",
+  });
 export const editRoundInputSchema = z.strictObject({
   workspaceSlug: workspaceSlugSchema,
   publicId: publicIdSchema,

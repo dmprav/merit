@@ -1024,12 +1024,12 @@ importers:
       '@merit/auth':
         specifier: workspace:*
         version: link:../../../foundation/auth
-      '@merit/db':
-        specifier: workspace:*
-        version: link:../../../foundation/db
       '@merit/grantmaking':
         specifier: workspace:*
         version: link:../business
+      '@merit/money':
+        specifier: workspace:*
+        version: link:../../../foundation/money
       zod:
         specifier: 'catalog:'
         version: 4.6.7

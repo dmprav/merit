@@ -12,6 +12,29 @@ describe("round creation inputs", () => {
     ).toBe(budget);
   });
 
+  it("accepts an initial budget reason with a zero budget", () => {
+    const input = {
+      workspaceSlug,
+      requestId,
+      title: "Round",
+      budget: "0",
+      budgetReason: "  Board allocation  ",
+    };
+    expect(createRoundRequestSchema.parse(input).budgetReason).toBe("Board allocation");
+  });
+
+  it.each([
+    { budgetReason: "Board allocation" },
+    { budget: " ", budgetReason: "Board allocation" },
+    { budget: "50", budgetReason: " " },
+    { budget: "50", budgetReason: "a".repeat(2001) },
+  ])("rejects an invalid amount and reason combination", (budget) => {
+    expect(
+      createRoundRequestSchema.safeParse({ workspaceSlug, requestId, title: "Round", ...budget })
+        .success,
+    ).toBe(false);
+  });
+
   it.each(["-1", "1.001", "1e3", "9".repeat(33)])("rejects an invalid budget: %s", (budget) => {
     expect(
       createRoundRequestSchema.safeParse({ workspaceSlug, requestId, title: "Round", budget })

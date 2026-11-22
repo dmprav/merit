@@ -2,8 +2,8 @@ import { and, desc, eq, inArray, sql } from "drizzle-orm";
 
 import type { Database } from "@merit/db";
 
+import { auditBefore, auditOrder } from "../paging";
 import { auditEvents } from "../schema";
-import { auditBefore, auditOrder } from "./paging";
 
 export const readActivityEvents = (
   db: Database,

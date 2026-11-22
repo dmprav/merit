@@ -59,6 +59,6 @@ it("lists contact-related applications using the signed-in actor's grantmaking q
   expect(await related.execute(input)).toEqual({
     status: "ok",
     applications: [application],
-    nextCursor: null,
+    nextPage: null,
   });
 });

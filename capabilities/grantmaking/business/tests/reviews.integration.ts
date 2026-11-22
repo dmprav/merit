@@ -22,6 +22,7 @@ import { saveFundingRecommendation } from "@merit/recommendations/server";
 import { assessmentEntrySchema, reviewRevisionSchema } from "@merit/reviews/domain";
 import type { ReviewChange } from "@merit/reviews/domain";
 import { saveApplicationReview } from "@merit/reviews/server";
+import { isCurrentAssessment } from "@merit/reviews/server/integrations";
 import { criteriaVersionSchema } from "@merit/rounds/domain";
 import { createFundingRound, editFundingRound } from "@merit/rounds/server";
 
@@ -102,6 +103,97 @@ const content = {
   reasoning: "Practical plan with a confirmed free venue.",
   observations: [],
 };
+
+const recommendationFromAssessment = async (db: NodePgDatabase) => {
+  const { round, address, read, review } = await setup(db);
+  const sam = await contact(db);
+  const id = randomUUID();
+  const record = {
+    action: "record" as const,
+    id,
+    contactId: sam.id,
+    requestId: null,
+    previousId: null,
+    content,
+  };
+  expect(await review(record)).toMatchObject({ status: "ok" });
+  expect(
+    await editFundingApplication(
+      db,
+      actor,
+      {
+        ...address,
+        expectedRevision: (await read()).intake.revision,
+        change: { action: "mark_ready" },
+      },
+      applicationWork,
+    ),
+  ).toMatchObject({ status: "ok" });
+
+  const save = () =>
+    saveFundingRecommendation(
+      db,
+      actor,
+      {
+        ...address,
+        expectedRevision: 0,
+        expectedApplicationVersion: 1,
+        expectedCurrentAssessment: { id, version: 1 },
+        recommendation: {
+          position: "Fund",
+          allocation: content.amount,
+          reasoning: content.reasoning,
+        },
+      },
+      isCurrentAssessment,
+    );
+
+  return { round, read, review, record, save };
+};
+
+it("checks criteria content again when saving a recommendation from an assessment", async ({
+  db,
+}) => {
+  const { round, save, read } = await recommendationFromAssessment(db);
+
+  const setCriteria = (
+    expectedRevision: number,
+    criteria: { id: string; title: string; description: string }[],
+  ) =>
+    editFundingRound(db, actor, {
+      workspaceSlug,
+      publicId: round.publicId,
+      expectedRevision,
+      change: { section: "criteria", criteria },
+    });
+
+  expect(
+    await setCriteria(0, [{ id: randomUUID(), title: "Local benefit", description: "" }]),
+  ).toMatchObject({ status: "ok" });
+  expect(await save()).toEqual({ status: "conflict" });
+  expect((await read()).recommendationVersion).toBe(0);
+  expect(await setCriteria(1, [])).toMatchObject({ status: "ok" });
+  expect(await save()).toMatchObject({ status: "ok", recommendationVersion: 1 });
+});
+
+it.for(["corrected", "superseded"] as const)(
+  "rejects a conditional recommendation when the selected assessment is %s",
+  async (change, { db }) => {
+    const { record, review, save, read } = await recommendationFromAssessment(db);
+    const changed =
+      change === "corrected"
+        ? await review({
+            action: "edit",
+            id: record.id,
+            note: "Corrected the amount",
+            content: { ...content, amount: encodeMoney(fromMinorUnits(1250000n)) },
+          })
+        : await review({ ...record, previousId: record.id, id: randomUUID() });
+    expect(changed).toMatchObject({ status: "ok" });
+    expect(await save()).toEqual({ status: "conflict" });
+    expect((await read()).recommendationVersion).toBe(0);
+  },
+);
 
 it("round-trips unstated, zero, and fractional-euro amounts through assessment history", async ({
   db,
@@ -321,16 +413,21 @@ it("recreates the changed-budget scenario, keeps history, and distinguishes foll
     ),
   ).toMatchObject({ status: "ok" });
   expect(
-    await saveFundingRecommendation(db, actor, {
-      ...address,
-      expectedRevision: reviewRevisionSchema.parse(0),
-      expectedApplicationVersion: materialVersionSchema.parse(1),
-      recommendation: {
-        position: "Fund",
-        allocation: encodeMoney(fromMinorUnits(1800000n)),
-        reasoning: "Support the original plan.",
+    await saveFundingRecommendation(
+      db,
+      actor,
+      {
+        ...address,
+        expectedRevision: reviewRevisionSchema.parse(0),
+        expectedApplicationVersion: materialVersionSchema.parse(1),
+        recommendation: {
+          position: "Fund",
+          allocation: encodeMoney(fromMinorUnits(1800000n)),
+          reasoning: "Support the original plan.",
+        },
       },
-    }),
+      isCurrentAssessment,
+    ),
   ).toMatchObject({ status: "ok" });
 
   const edit = async (change: Parameters<typeof editFundingApplication>[2]["change"]) =>

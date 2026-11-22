@@ -37,7 +37,7 @@ type ReviewPage = { after?: string; limit: number };
 
 export const currentReviewEntries = (caseId: SQLWrapper, page?: ReviewPage) => sql`(
   select a.id, a.contact_id, a.reviewer, a.author_user_id,
-    v.material_version, v.criteria_round_id, v.criteria_version, false as outstanding
+    v.version as assessment_version, v.material_version, v.criteria_round_id, v.criteria_version, false as outstanding
   from (
     select id, contact_id, reviewer, author_user_id, case_id from ${assessments} a
     where a.case_id = ${caseId} and ${unreplaced}
@@ -49,12 +49,12 @@ export const currentReviewEntries = (caseId: SQLWrapper, page?: ReviewPage) => s
     }
   ) a
   join lateral (
-    select material_version, criteria_round_id, criteria_version from ${assessmentVersions}
+    select version, material_version, criteria_round_id, criteria_version from ${assessmentVersions}
     where case_id = a.case_id and assessment_id = a.id
     order by version desc limit 1
   ) v on true
   union all
-  (select r.id, r.contact_id, r.reviewer, null,
+  (select r.id, r.contact_id, r.reviewer, null, null::integer,
     r.material_version, r.criteria_round_id, r.criteria_version, true
    from ${reviewRequests} r where r.case_id = ${caseId} and r.status = 'outstanding'
    ${
@@ -82,6 +82,7 @@ export const readReviewSummaryPage = async (
   const entries = await db.execute<{
     id: string;
     outstanding: boolean;
+    assessment_version: number | null;
     contact_id: string;
     reviewer: string;
     author_user_id: string | null;
@@ -127,6 +128,7 @@ export const readReviewSummaryPage = async (
         : undefined;
     return {
       id: row.id,
+      assessmentVersion: row.assessment_version,
       kind: row.outstanding ? ("request" as const) : ("assessment" as const),
       reviewer: row.reviewer,
       contactId: row.contact_id,

@@ -20,7 +20,7 @@ export const createRoundTools = (actor: Actor, rounds: RoundsService) => [
     {
       errorSchema: writeErrorSchema,
       description:
-        "Create a round. Reuse requestId on retry. Budget is a decimal EUR string; blank means unknown.",
+        "Create a round. Reuse requestId on retry. Budget is an optional decimal EUR string. Supply budgetReason with the initial budget to record its reason in budget history. Use purpose for the round's grantmaking aims.",
       inputSchema: createRoundRequestSchema,
       outputSchema: roundCreatedSchema,
     },

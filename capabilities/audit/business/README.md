@@ -71,6 +71,8 @@ at most 50). Event payload interpretation remains with the owning capability.
 
 Authorized capability readers may still use `@merit/audit/schema` for compact
 projections and individual event content with an organization and subject scope.
+For newest-first projections, `@merit/audit/scope` provides the shared ordering,
+cursor predicate, and page construction.
 Unknown action names within a permitted subject type remain readable.
 
 ## Protect and retain events

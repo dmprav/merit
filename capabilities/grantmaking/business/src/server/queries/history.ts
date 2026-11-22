@@ -3,10 +3,11 @@ import type { z } from "zod";
 import type { Actor } from "@merit/auth";
 import type { Database } from "@merit/db";
 import { readWorkspace } from "@merit/organizations/transactions";
+import { readRoundBudgetHistory } from "@merit/rounds/readers";
 
 import { applicationAuditInput, roundBudgetHistoryInput } from "../../api/queries/reading";
 import { readApplicationIdentity, readRoundIdentity } from "../persistence/queries/reading";
-import { readApplicationHistory, readRoundHistory } from "./history-records";
+import { readApplicationHistory } from "./history-records";
 
 export const applicationAuditHistory = (
   db: Database,
@@ -51,6 +52,6 @@ export const roundBudgetHistory = (
     }
     return {
       status: "ok",
-      ...(await readRoundHistory(tx, round.organizationId, request.roundId, request)),
+      ...(await readRoundBudgetHistory(tx, round.organizationId, request.roundId, request)),
     } as const;
   });

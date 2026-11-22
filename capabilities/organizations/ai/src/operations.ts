@@ -1,5 +1,7 @@
 import type { OrganizationService, Workspace } from "@merit/organizations/api";
 
 export type WorkspaceOperations = Pick<OrganizationService, "workspacesPage" | "membersPage"> & {
-  workspaceHomeUrl: (workspace: Workspace) => string;
+  workspaceHomeUrl: (
+    workspace: Pick<Workspace, "slug" | "canWorkOnGrants" | "canViewTeam">,
+  ) => string;
 };

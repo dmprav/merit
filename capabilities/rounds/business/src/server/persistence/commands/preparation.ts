@@ -256,6 +256,7 @@ export const recordPreparationCreation = async (
   round: FundingRound,
   actor: Actor,
   requestId: string,
+  budgetReason?: string,
 ) => {
   const snapshot = encodeRound(round);
   const saved = await insertPreparedRound(tx, {
@@ -271,6 +272,7 @@ export const recordPreparationCreation = async (
     actorUserId: actor.userId,
     provenance: actorProvenance(actor),
     action: "create",
+    reason: budgetReason,
     after: snapshot,
   });
   return saved.id;

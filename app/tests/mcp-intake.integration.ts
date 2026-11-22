@@ -51,6 +51,7 @@ it("saves revision content without publishing it", async ({
     status: "ok",
     applicationId: args.applicationId,
     intakeRevision: args.expectedIntakeRevision + 1,
+    materialEffect: "draft_saved",
   });
   const saved = await scenario.read();
   expect(saved.application).toMatchObject({
@@ -320,4 +321,27 @@ it("applies stale-revision staff summary details with last-write-wins", async ({
     intakeRevision: stale.expectedIntakeRevision + 2,
   });
   expect((await scenario.read()).application.summary).toBe("Latest staff summary");
+});
+
+it("directs historical reads from current submission answers to immutable material", async ({
+  commands: { invoke, applicationScenario },
+}) => {
+  const { address } = await applicationScenario();
+  const input = { workspaceSlug: address.workspaceSlug, applicationId: address.publicId };
+
+  const read = (section: string, selector: { revision?: number; materialVersion?: number } = {}) =>
+    invoke("get_application_content", { ...input, section, ...selector });
+
+  const submission = await read("submission");
+  expect(submission).toHaveProperty("status", "ok");
+  expect(submission).toHaveProperty(
+    "sourceNote",
+    expect.stringContaining('section "material" and materialVersion: 1'),
+  );
+  const invalid = await read("material", { revision: 1 });
+  expect(invalid).toHaveProperty("status", "invalid_range");
+  expect(invalid).toHaveProperty("message", expect.stringContaining("materialVersion"));
+  const snapshot = await read("material", { materialVersion: 1 });
+  expect(snapshot).toHaveProperty("status", "ok");
+  expect(snapshot).toHaveProperty("content", expect.stringContaining('"recorded_external"'));
 });

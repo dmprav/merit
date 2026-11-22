@@ -24,7 +24,7 @@ const workspaceCatalog = (actor: McpActor, ops: McpOperations, origin: string) =
   ...createReviewerTools(actor, ops.reviewer),
   ...createRecommendationTools(actor, ops.recommendations),
   ...createContactTools(actor, ops.contacts),
-  ...createDemoTools(actor, ops.demo),
+  ...createDemoTools(actor, ops.demo, ops.organizations.workspaceHomeUrl),
 ];
 
 export type WorkspaceToolName = ReturnType<typeof workspaceCatalog>[number]["name"];

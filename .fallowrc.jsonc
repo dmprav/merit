@@ -29,6 +29,9 @@
   },
   "supportEntry": [
     "app/tests/browser/workspace.playwright.config.ts",
+    // The MCP eval CLI supplies its Vitest config and suite explicitly.
+    "app/vitest.eval.config.ts",
+    "app/tests/evals/mcp/suite.eval.ts",
     // JS Boundaries loads the configured resolver through its plugin host.
     "tooling/verification/architecture/resolver.mjs",
     // React Email discovers preview default exports through its CLI directory.

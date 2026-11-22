@@ -14,7 +14,7 @@ export const createManagerReviewTools = (actor: Actor, reviews: ReviewService) =
   const reviewCommands = [
     [
       "request_review",
-      "Record a review request. Sends no notifications. Reuse id on retry.",
+      "Track an outstanding review for a specific application and reviewer contact. If the user has not chosen a reviewer, leave the application unchanged and ask who should review it. Once the reviewer is identified, use their contactId. Recording the request sends no notification. Reuse id on retry.",
       reviewChanges.request,
     ],
     [
@@ -24,7 +24,7 @@ export const createManagerReviewTools = (actor: Actor, reviews: ReviewService) =
     ],
     [
       "record_assessment",
-      "Record an assessment received outside Merit, including its actual evidence bases. Use EUR minor units for a stated amount and null for an unstated amount. Unknown bases stay unknown. Attach observations with criterionId from the round criteria history when known; otherwise use null. Retain received labels and notes for removed criteria. Reuse id on retry.",
+      "Record an external reviewer’s assessment and its actual evidence bases. Merit cannot record a final committee award. When asked to enter that decision, explain the limit and stop; neither an assessment nor a recommendation is a substitute. Use EUR minor units for a stated amount and null for an unstated amount. Unknown bases stay unknown. Attach observations with criterionId from the round criteria history when known; otherwise use null. Retain received labels and notes for removed criteria. Reuse id on retry.",
       reviewChanges.record,
     ],
     [

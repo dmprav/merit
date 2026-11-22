@@ -57,6 +57,7 @@ export const createFundingRound = async (db: Database, actor: Actor, input: Crea
       round,
       actor,
       request.requestId,
+      request.budgetReason,
     );
     return { status: "ok", publicId } as const;
   });

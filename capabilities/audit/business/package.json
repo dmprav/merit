@@ -8,6 +8,7 @@
     "./server/record": "./src/server/integrations.ts",
     "./server/demo": "./src/server/demo.ts",
     "./server/read": "./src/server/read.ts",
+    "./scope": "./src/server/persistence/paging.ts",
     "./schema": "./src/server/persistence/schema.ts",
     "./api": "./src/domain/activity.ts"
   },

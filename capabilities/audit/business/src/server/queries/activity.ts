@@ -1,8 +1,8 @@
 import { readTransaction, type Database } from "@merit/db";
 
 import { activityInputSchema, type ActivityInput } from "../../domain/activity";
+import { auditPage } from "../persistence/paging";
 import { readActivityEvents, readActivityPeople } from "../persistence/queries/activity";
-import { auditPage } from "../persistence/queries/paging";
 
 /** Trusted read integration. The caller authorizes the workspace and selected record types. */
 export const readWorkspaceActivity = (

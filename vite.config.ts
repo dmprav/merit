@@ -39,6 +39,11 @@ export default defineConfig({
         "vp run test:browser:app:all",
       ],
       emails: "vp run @merit/emails#dev",
+      "eval:mcp": { command: "node app/tests/evals/mcp/run.ts", cache: false },
+      "eval:mcp:report": {
+        command: "node app/tests/evals/mcp/report.ts",
+        cache: false,
+      },
       "test:stories": "vp run @merit/storybook#test",
       "test:stories:watch": "vp run @merit/storybook#test:watch",
       "test:browser:app": "vp run @merit/app#test:demo-browser",
