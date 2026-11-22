@@ -743,14 +743,6 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
       ELSE false END
 $$;
 --> statement-breakpoint
--- Team operations distinguish a missing address from denied membership. Return
--- only that distinction for the requested slug, without exposing its organization row.
-CREATE FUNCTION merit_team_workspace_exists() RETURNS boolean
-LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
-  SELECT EXISTS (SELECT 1 FROM public.organizations
-    WHERE public.merit_scope()->>'kind' = 'workspace' AND slug = public.merit_scope()->>'slug')
-$$;
---> statement-breakpoint
 -- Provisioning, invitation acceptance and demo bootstrap operate on organization
 -- metadata before the recipient has ordinary workspace access.
 CREATE FUNCTION merit_onboarding_ids() RETURNS SETOF text

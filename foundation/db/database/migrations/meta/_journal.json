@@ -8,13 +8,6 @@
       "when": 1795248053271,
       "tag": "0000_initial",
       "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1795374465976,
-      "tag": "0001_drop_team_workspace_exists",
-      "breakpoints": true
     }
   ]
 }
