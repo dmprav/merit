@@ -141,8 +141,7 @@ local mode selects the database and identity adapter and stays out of builds.
 3. In that same file, set `CLERK_PUBLISHABLE_KEY` to the matching key,
    `CLERK_SECRET_KEY` to the secret key, and `CLERK_ISSUER` to the HTTPS Frontend
    API URL. Only variables prefixed with `VITE_` are exposed to the browser.
-   If upgrading an existing checkout, move your server settings from `app/.dev.vars`
-   into `app/.env.local`. Restart the dev server after changing its environment.
+   Restart the dev server after changing its environment.
 4. Run `vp run dev`, visit `/app/sign-in`, and create a development user. Copy its
    `user_…` ID from Clerk's user page, then link it to the local Alder manager:
 
@@ -208,21 +207,12 @@ Once deployed, keep applied migrations unchanged and add a migration for each ch
 
 ## Local database recovery
 
-The current pre-deployment baseline is
-[`0000_initial.sql`](../../foundation/db/database/migrations/0000_initial.sql).
-It creates the complete current schema, including reviewer participation, navigation
-pins, capability-owned revisions and retry receipts, one shared audit event store, and recorded assessment amounts in EUR minor units,
-in one migration.
-Recreate all databases initialized before this baseline, including those whose
-first migration was also named `0000_initial.sql`. The baseline has no upgrade
-or backfill path for prototype data; rerunning migrations does not reset it.
-The local seed and public demo share the same capability-owned scenario builder,
-including the revised submission's authored history. The current history format
-requires stable question and criterion IDs and does not read earlier prototype formats. Recreate databases from before this format
-reset; rerunning the seed preserves existing work and will not upgrade snapshots.
-
-After initializing this baseline, apply future changes through the normal
-[schema-change procedure](#schema-changes).
+The current pre-deployment baseline,
+[`0000_initial.sql`](../../foundation/db/database/migrations/0000_initial.sql),
+creates the complete schema in one migration. Recreate all databases initialized
+before this baseline, including those whose first migration had the same name.
+The baseline has no upgrade or backfill path for prototype data; rerunning
+migrations or the seed preserves existing work and does not upgrade it.
 
 To replace the disposable local Compose database, stop the development server and run:
 
@@ -230,7 +220,7 @@ To replace the disposable local Compose database, stop the development server an
 vp run db:reset
 ```
 
-This deletes all stored Compose data, restarts PostgreSQL and Mailpit, waits for
+This deletes all stored Compose data, restarts the Compose services, waits for
 readiness, applies migrations, and seeds fresh Alder and Birch workspaces. It
 ignores `DATABASE_URL` and uses the Compose database at `127.0.0.1:55432/merit`.
 The command stops if any step fails.
@@ -242,10 +232,8 @@ resetting removes those membership links too.
 Browser drafts use IndexedDB through [`@merit/drafts`](../../foundation/drafts/README.md).
 They recover in the same browser profile after reload or reopening the browser.
 Features own versioned draft formats; only the current version is accepted.
-Incompatible payloads remain stored and produce a recovery warning. Earlier
-prototype draft formats and session-storage drafts are not imported. After this
-predeployment reset, close the site's tabs and clear its browser storage before
-reopening it. Sign-out, account changes, and demo reset clear the appropriate drafts.
+Incompatible payloads remain stored and produce a recovery warning. Sign-out,
+account changes, and demo reset clear the appropriate drafts.
 
 ## Verification
 
@@ -453,27 +441,10 @@ that diffs against the PR base commit:
   `storybook-vitest`, `integration`, `tooling-self-tests`, and the `browser-*`
   suites only for affected dependents.
 
-`security-checks`, `tooling-self-tests`, `browser-tooling`, and `storybook-vitest`
-run in parallel with `build`, while the container-backed Playwright suites
-(`browser-storybook`, `browser-demo`, and `browser-workspace`) wait on both
-`build` and `static-checks` so lint, type, or boundary failures fail fast.
-Shared workspace setup and service-port forwarding live in local composite actions
-under `.github/actions/`:
-
-- `static-checks` runs static analysis (`ready:static`).
-- `security-checks` runs secret scanning and dependency auditing (`check:security`).
-- `package-tests` runs affected workspace package tests with `--concurrency-limit 2`
-  so shared runners stay responsive.
-- `storybook-vitest` runs `@merit/storybook#test` inside the pinned Playwright container
-  matching `@playwright/test` (`1.64.1`).
-- `integration` starts PostgreSQL, Mailpit and private file storage via `compose.yaml` and runs
-  `@merit/app#test:integration`.
-- `tooling-self-tests` runs `ready:tooling` followed by `test:checks`.
-- `browser-tooling`, `browser-storybook` (5 shards reusing the prebuilt Storybook
-  output), `browser-demo` (3 shards), and `browser-workspace` (6 shards) run all five
-  Playwright projects inside the pinned Playwright container without retries. Service-backed
-  browser jobs forward loopback ports (`127.0.0.1:55432` and `127.0.0.1:8025`) to
-  pinned PostgreSQL and Mailpit service containers.
+The container-backed Playwright suites wait on both `build` and `static-checks`
+so lint, type, or boundary failures fail fast; they run all five browser projects,
+sharded and without retries. The workflow file defines each job's commands,
+shards, and services.
 
 On every pull request, the `verification-record` job
 ([`verification-record.ts`](../../tooling/verification/verification-record.ts)) checks

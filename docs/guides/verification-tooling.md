@@ -45,10 +45,8 @@ together. Tooling regression tests use disposable fixtures and run
 alongside them. Package tests run without dependency ordering, with at most two
 packages concurrently so worker pools do not saturate shared runners; they consume
 workspace source rather than each other's outputs. In CI, the
-[PR verification workflow](../../.github/workflows/verify.yml) runs static checks,
-package tests, database integration, and sharded browser suites after a shared
-`build` job, with tooling self-tests, Storybook Vitest, and security checks alongside
-it, while `test:ci` verifies that every `ready` stage and
+[PR verification workflow](development.md#pull-request-verification) splits those
+stages into jobs, and `test:ci` verifies that every `ready` stage and
 workflow invariant remains covered. `ci:summary` ([`ci-summary.ts`](../../tooling/verification/ci-summary.ts))
 publishes structured Playwright and Vitest step summaries on CI without adding retries.
 Database and browser checks start after package tests locally to limit competing workers.
@@ -102,38 +100,19 @@ entry remains.
 
 ## Check architecture enforcement
 
-The [architecture checks](architecture-checks.md) enforce package dependency
-direction, public exports, runtime separation, library ownership, direct I/O
-restrictions, and capability TypeScript program isolation.
-Run `vp run test:architecture` when changing
-[their configuration](../../tooling/verification/architecture/config.ts),
-[import rules](../../tooling/verification/architecture/imports.ts), or resolver.
-Common business roles, pure business dependency rules, and standard cross-capability
-server roles apply to new capabilities without registration. Their full internal import
-matrix is exercised once against a new capability fixture; non-standard server
-integrations and upstream/sibling restrictions retain their own declarations and checks.
-Public API changes belong in the owning package’s `exports`; specialized server
-integrations remain explicit declarations.
-
-The [TypeScript isolation suite](../../tooling/verification/architecture/typescript.test.ts)
-runs with `architecture`, enumerates each web capability’s program including
-project references, and rejects application or interface source inclusion. Its
-negative probes use disposable configurations outside the checkout. The
-[cross-cutting mechanism check](../../tooling/verification/architecture/mechanisms.ts)
-also runs with `architecture` to verify the
-[mechanisms registry](../../tooling/verification/architecture/mechanisms.config.ts)
-(glob patterns, Markdown anchors, and active decision references), and its
-[unit suite](../../tooling/verification/architecture/mechanisms.test.ts) runs under
-`vp run test:architecture`.
+[Architecture checks](architecture-checks.md#change-a-guarantee-deliberately)
+explain what `vp run test:architecture` covers and when to run it after changing
+the [configuration](../../tooling/verification/architecture/config.ts),
+[import rules](../../tooling/verification/architecture/imports.ts), resolver, or
+[mechanisms checker](../../tooling/verification/architecture/mechanisms.ts).
 
 ## Check code health
 
-Fallow checks cycles, unused code, and production function complexity. Declare
-framework-loaded entry points and complexity policy in
-[`.fallowrc.jsonc`](../../.fallowrc.jsonc). `vp run check:complexity` runs
-`fallow health --complexity --production --no-cache` and is required by
-`ready:static`. It uses the [complexity policy](coding-conventions.md#check-function-complexity);
-health-only exclusions do not exempt files from dependency or unused-code checks.
+Fallow checks cycles, unused code, and production function complexity, configured
+in [`.fallowrc.jsonc`](../../.fallowrc.jsonc). The
+[complexity policy](coding-conventions.md#check-function-complexity) explains
+`vp run check:complexity`; health-only exclusions do not exempt files from
+dependency or unused-code checks.
 
 Run `vp run test:fallow` when changing the configuration or upgrading Fallow. Its
 [regression tests](../../tooling/verification/fallow.test.ts) cover Merit-specific configuration: package cycles with type-only edges, framework
