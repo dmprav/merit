@@ -19,4 +19,4 @@ MERIT_BASE_URL=https://your-merit-origin.example vp run @merit/checkly#test:synt
 MERIT_BASE_URL=https://your-merit-origin.example vp run @merit/checkly#deploy
 ```
 
-Checkly sends W3C `traceparent` and `tracestate` (`checkly=true`) headers automatically, allowing Merit's server telemetry in [`foundation/telemetry`](../../foundation/telemetry/README.md) to export synthetic request traces even under `OTEL_TRACE_FILTER=checkly`.
+Checkly sends W3C `traceparent` and `tracestate` (`checkly=true`) headers automatically, allowing Merit's server telemetry in [`foundation/telemetry`](../../foundation/telemetry/README.md) to correlate synthetic requests within the [server sampling budget](../../docs/guides/deployment.md#configure-tracing-and-synthetic-checks).

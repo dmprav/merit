@@ -6,7 +6,7 @@ import { createServerAnalytics } from "@merit/analytics/server";
 import { createDatabasePool, createRequestDatabase } from "@merit/db";
 import { mcpResourceMetadata } from "@merit/mcp";
 import { reportError } from "@merit/telemetry/errors";
-import { describeHttpRoute, traceServerRequest } from "@merit/telemetry/server";
+import { traceServerRequest } from "@merit/telemetry/server";
 
 import { readAnalyticsConfig } from "./analytics-config";
 import type { ApplicationRequestContext } from "./request-context";
@@ -79,7 +79,7 @@ export default createServerEntry({
           reportError(error, {
             surface: "server",
             operation: "server.fetch",
-            tags: { route: describeHttpRoute(url.pathname).route, method: request.method },
+            tags: { route: url.pathname, method: request.method },
           });
           throw error;
         }

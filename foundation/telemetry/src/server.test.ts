@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { currentTraceId, withSpan } from "./index";
 import { FetchOtlpTraceExporter, parseOtlpHeaders, resolveTracesUrl } from "./otlp-exporter";
 import { describeHttpRoute } from "./route-label";
-import { createTraceSampler, isChecklyTraceContext, resolveTraceFilter } from "./sampler";
+import { createTraceSampler, resolveTraceFilter } from "./sampler";
 import { ensureServerTelemetry, traceServerRequest } from "./server";
 
 describe("@merit/telemetry server and Checkly integration", () => {
@@ -31,6 +31,10 @@ describe("@merit/telemetry server and Checkly integration", () => {
     expect(resolveTracesUrl("   ")).toBeNull();
     expect(resolveTracesUrl("not-a-url")).toBeNull();
     expect(resolveTracesUrl("ftp://otel.example.com")).toBeNull();
+    expect(resolveTracesUrl("http://collector.example")).toBeNull();
+    for (const host of ["localhost", "127.0.0.1", "[::1]"]) {
+      expect(resolveTracesUrl(`http://${host}:4318`)).toBe(`http://${host}:4318/v1/traces`);
+    }
     expect(resolveTracesUrl("https://otel.eu-west-1.checklyhq.com")).toBe(
       "https://otel.eu-west-1.checklyhq.com/v1/traces",
     );
@@ -125,8 +129,6 @@ describe("@merit/telemetry server and Checkly integration", () => {
     expect(allSampler.shouldSample(ROOT_CONTEXT, "1".repeat(32), "op", 0, {}, [])).toEqual({
       decision: 2,
     });
-
-    expect(isChecklyTraceContext(ROOT_CONTEXT)).toBe(false);
   });
 
   it("acts as a zero-overhead pass-through when endpoint is unset", async () => {
@@ -204,6 +206,7 @@ describe("@merit/telemetry server and Checkly integration", () => {
     const [requestUrl, requestInit] = calls[0]!;
     expect(requestUrl).toBe("https://otel.eu-west-1.checklyhq.com/v1/traces");
     expect(requestInit.method).toBe("POST");
+    expect(requestInit.redirect).toBe("error");
     expect(requestInit.headers).toMatchObject({
       authorization: "test-key",
       "content-type": "application/json",
@@ -240,6 +243,46 @@ describe("@merit/telemetry server and Checkly integration", () => {
     await expect(handle!.forceFlush()).rejects.toEqual([
       new Error("OTLP export returned HTTP 500."),
     ]);
+  });
+
+  it("bounds marked requests across the process and preserves each admitted trace's children", async () => {
+    const exporter = new InMemorySpanExporter();
+    const config = { endpoint: "https://collector.example" };
+    await ensureServerTelemetry(config, { spanProcessor: new SimpleSpanProcessor({ exporter }) });
+    await traceServerRequest(
+      new Request("https://merit.example/", {
+        headers: {
+          traceparent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+        },
+      }),
+      config,
+      async () => new Response("ok"),
+    );
+    expect(exporter.getFinishedSpans()).toHaveLength(0);
+    const clock = vi.spyOn(performance, "now").mockReturnValue(100);
+
+    const visit = (id: number) =>
+      traceServerRequest(
+        new Request("https://merit.example/", {
+          headers: {
+            traceparent: `00-${id.toString(16).padStart(32, "0")}-00f067aa0ba902b7-01`,
+            tracestate: "checkly=true",
+          },
+        }),
+        config,
+        () => withSpan("child", () => new Response("ok")),
+      );
+
+    await visit(1);
+    clock.mockReturnValue(150);
+    for (let id = 2; id <= 11; id++) {
+      await visit(id);
+    }
+    expect(exporter.getFinishedSpans()).toHaveLength(20);
+    clock.mockReturnValue(60_100);
+    await visit(12);
+    await visit(13);
+    expect(exporter.getFinishedSpans()).toHaveLength(22);
   });
 
   it("handles FetchOtlpTraceExporter shutdown, empty batches, HTTP failures, and serializer failures", async () => {
