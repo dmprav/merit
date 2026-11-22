@@ -149,8 +149,7 @@ makes the saved working revision current and retains the earlier material. Versi
 identify the material available for assessment, not the number of times an applicant
 used Merit. Initial preparation edits also retain their versions and attribution.
 Recording a staff correction does not establish applicant approval or replace the
-fact of what was recorded earlier. Assessments keep the material version on which
-they were based until their judgment is explicitly reconsidered.
+fact of what was recorded earlier.
 Version history compares any available earlier and later versions, including a
 range that spans several revisions. Recorded updates within that range retain their
 actors, dates, sources, and explanations. Comparisons identify changed and
@@ -179,7 +178,7 @@ just as an applicant’s revised submission does. Earlier reviews and manager
 recommendations become outdated. Their content and proposed allocations remain
 intact until explicitly reconsidered; saving a recommendation against the current
 version reaffirms or changes it. Even minor answer corrections use this conservative
-rule. Contact changes and staff-summary edits do not invalidate judgments.
+rule.
 
 ## Delete unused preparation
 
@@ -239,8 +238,9 @@ reasons are not edited.
 ## Read and write guarantees
 
 Application reads expose current material, readiness, unknown amounts, the
-separate shared working revision, and any withdrawal. Every intake write checks current program-manager
-access and the intake revision, and commits its audit record in the same transaction.
+separate shared working revision, and any withdrawal. Every intake write checks current
+program-manager access and, except for staff-summary and contact changes, the intake
+revision, and commits its audit record in the same transaction.
 Recommendation saves also check the material version on which the judgment is based.
 
 The [intake presentation guide](../../capabilities/applications/web/src/views/intake/README.md)

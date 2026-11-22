@@ -59,7 +59,7 @@ reviewer to choose which text to continue with. Unconfirmed saves retain the sam
 command identity when retried; navigation warns about unsaved changes.
 
 Submission requires an overall funding position and reasoning. **Fund** and
-**Fund with conditions** also require a positive proposed amount; explain any
+**Fund with a condition** also require a positive proposed amount; explain any
 conditions in the reasoning. **Defer** and **Decline** need no allocation.
 Criterion notes are optional. Submission saves the authenticated author, original
 basis, and content atomically, completes the request, and notifies the manager.
