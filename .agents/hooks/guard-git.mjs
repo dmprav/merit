@@ -52,31 +52,118 @@ const readHookInput = () => {
  * @param {string} command
  * @param {number} startIndex
  * @param {string} quote
- * @returns {{ value: string; nextIndex: number }}
+ * @returns {{ value: string; nextIndex: number; nested: string[] }}
  */
 const readQuoted = (command, startIndex, quote) => {
   let value = "";
+  /** @type {string[]} */
+  const nested = [];
   let i = startIndex + 1;
   while (i < command.length) {
     const ch = command[i] ?? "";
     if (ch === quote) {
-      return { value, nextIndex: i };
+      return { value, nextIndex: i, nested };
     }
     if (quote === '"' && ch === "\\" && i + 1 < command.length) {
+      if (command[i + 1] === "\n") {
+        i += 2;
+        continue;
+      }
       value += command[i + 1] ?? "";
       i += 2;
+      continue;
+    }
+    if (quote === '"' && ch === "$" && command[i + 1] === "(") {
+      const sub = readParens(command, i + 1);
+      nested.push(sub.value);
+      i = sub.nextIndex + 1;
+      continue;
+    }
+    if (quote === '"' && ch === "`") {
+      const sub = readBacktick(command, i);
+      nested.push(sub.value);
+      i = sub.nextIndex + 1;
       continue;
     }
     value += ch;
     i += 1;
   }
-  return { value, nextIndex: i };
+  return { value, nextIndex: i, nested };
+};
+
+/**
+ * Consume a `(...)` group starting at the opening `(`.
+ * @param {string} command
+ * @param {number} startIndex
+ * @returns {{ value: string; nextIndex: number }}
+ */
+const readParens = (command, startIndex) => {
+  let depth = 0;
+  let quote = "";
+  let value = "";
+  for (let i = startIndex; i < command.length; i += 1) {
+    const ch = command[i] ?? "";
+    if (quote) {
+      if (quote === '"' && ch === "\\" && i + 1 < command.length) {
+        value += ch + (command[i + 1] ?? "");
+        i += 1;
+        continue;
+      }
+      if (ch === quote) {
+        quote = "";
+      }
+      value += ch;
+      continue;
+    }
+    if (ch === "'" || ch === '"') {
+      quote = ch;
+      value += ch;
+      continue;
+    }
+    if (ch === "(") {
+      depth += 1;
+      if (depth > 1) {
+        value += ch;
+      }
+    } else if (ch === ")") {
+      depth -= 1;
+      if (depth === 0) {
+        return { value, nextIndex: i };
+      }
+      value += ch;
+    } else {
+      value += ch;
+    }
+  }
+  return { value, nextIndex: command.length };
+};
+
+/**
+ * Consume a `` `...` `` command substitution starting at the opening backtick.
+ * @param {string} command
+ * @param {number} startIndex
+ * @returns {{ value: string; nextIndex: number }}
+ */
+const readBacktick = (command, startIndex) => {
+  let value = "";
+  for (let i = startIndex + 1; i < command.length; i += 1) {
+    const ch = command[i] ?? "";
+    if (ch === "\\" && i + 1 < command.length) {
+      value += command[i + 1] ?? "";
+      i += 1;
+      continue;
+    }
+    if (ch === "`") {
+      return { value, nextIndex: i };
+    }
+    value += ch;
+  }
+  return { value, nextIndex: command.length };
 };
 
 /**
  * Split a shell command into segments of unquoted-boundary-aware argument arrays
- * while preserving quoted values (e.g. `git reset "--hard"` -> `["git", "reset", "--hard"]`,
- * `git commit -m "avoid git reset --hard"` -> single argument token).
+ * while preserving quoted values and inspecting nested command substitutions.
  *
  * @param {string} command
  * @returns {string[][]}
@@ -84,6 +171,8 @@ const readQuoted = (command, startIndex, quote) => {
 const tokenizeSegments = (command) => {
   /** @type {string[][]} */
   const segments = [];
+  /** @type {string[]} */
+  const nestedCommands = [];
   /** @type {string[]} */
   let tokens = [];
   let current = "";
@@ -110,11 +199,18 @@ const tokenizeSegments = (command) => {
     if (ch === "'" || ch === '"') {
       const quoted = readQuoted(command, i, ch);
       current += quoted.value;
+      nestedCommands.push(...quoted.nested);
       inToken = true;
       i = quoted.nextIndex;
+    } else if (ch === "`") {
+      const sub = readBacktick(command, i);
+      nestedCommands.push(sub.value);
+      i = sub.nextIndex;
     } else if (ch === "\\" && i + 1 < command.length) {
-      current += command[i + 1] ?? "";
-      inToken = true;
+      if (command[i + 1] !== "\n") {
+        current += command[i + 1] ?? "";
+        inToken = true;
+      }
       i += 1;
     } else if (ch === "\n" || ch === ";" || ch === "(" || ch === ")") {
       flushSegment();
@@ -132,6 +228,9 @@ const tokenizeSegments = (command) => {
   }
 
   flushSegment();
+  for (const sub of nestedCommands) {
+    segments.push(...tokenizeSegments(sub));
+  }
   return segments;
 };
 
@@ -145,6 +244,20 @@ const currentBranch = (cwd) => {
     }).trim();
   } catch {
     return "";
+  }
+};
+
+/** @param {string} cwd */
+const checkoutKey = (cwd) => {
+  try {
+    const gitDir = execFileSync("git", ["rev-parse", "--git-dir"], {
+      cwd,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+    return gitDir ? resolve(cwd, gitDir) : cwd;
+  } catch {
+    return cwd;
   }
 };
 
@@ -170,7 +283,7 @@ const hasCleanForceAndDir = (tokens) => {
 /** @param {string} token */
 const isForceFlag = (token) =>
   token === "--force" ||
-  token === "-f" ||
+  /^-[A-Za-z]*f[A-Za-z]*$/.test(token) ||
   token.startsWith("--force-with-lease") ||
   token.startsWith("--force-if-includes");
 
@@ -206,7 +319,7 @@ const extractPushPositionals = (args) => {
 };
 
 /**
- * Extract target branch name from `git switch` or `git checkout`, ignoring `-- <path>`.
+ * Extract target branch name from `git switch` or `git checkout`, ignoring checkout pathspecs.
  * @param {string} subcommand
  * @param {string[]} subArgs
  * @returns {string | null}
@@ -217,20 +330,22 @@ const extractSwitchedBranch = (subcommand, subArgs) => {
   }
   const valueFlags = new Set(["-b", "-B", "-c", "-C", "--orphan"]);
   const hasCreateFlag = subArgs.some((token) => valueFlags.has(token));
-  if (subArgs.includes("--") && !hasCreateFlag) {
+  if (subcommand === "checkout" && subArgs.includes("--") && !hasCreateFlag) {
     return null;
   }
   /** @type {string | null} */
   let seenPositional = null;
+  let afterDoubleDash = false;
   for (let i = 0; i < subArgs.length; i += 1) {
     const token = subArgs[i] ?? "";
-    if (token === "--") {
-      return seenPositional;
+    if (!afterDoubleDash && token === "--") {
+      afterDoubleDash = true;
+      continue;
     }
-    if (valueFlags.has(token)) {
+    if (!afterDoubleDash && valueFlags.has(token)) {
       return subArgs[i + 1] ?? null;
     }
-    if (!token.startsWith("-")) {
+    if (afterDoubleDash || !token.startsWith("-")) {
       if (seenPositional !== null) {
         return null;
       }
@@ -240,24 +355,31 @@ const extractSwitchedBranch = (subcommand, subArgs) => {
   return seenPositional;
 };
 
+/** @param {string} pattern */
+const matchesMainGlob = (pattern) => {
+  if (!pattern) {
+    return false;
+  }
+  const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*");
+  const regex = new RegExp(`^${escaped}$`);
+  return regex.test("main") || regex.test("refs/heads/main");
+};
+
 /**
  * @param {string} spec
  * @param {string} branchName
  */
 const refspecTargetsMain = (spec, branchName) => {
   const clean = spec.startsWith("+") ? spec.slice(1) : spec;
+  if (clean === ":") {
+    return true;
+  }
   const colon = clean.indexOf(":");
   if (colon !== -1) {
     const dst = clean.slice(colon + 1);
-    return (
-      dst === "main" ||
-      dst === "refs/heads/main" ||
-      ((dst === "" || dst === "HEAD") && branchName === "main")
-    );
+    return matchesMainGlob(dst) || ((dst === "" || dst === "HEAD") && branchName === "main");
   }
-  return (
-    clean === "main" || clean === "refs/heads/main" || (clean === "HEAD" && branchName === "main")
-  );
+  return matchesMainGlob(clean) || (clean === "HEAD" && branchName === "main");
 };
 
 /**
@@ -341,9 +463,10 @@ const checkSegment = (tokens, cwd, mayBeOnMain) => {
     return null;
   }
   const { subcommand, subArgs, targetCwd } = parsed;
+  const repoKey = checkoutKey(targetCwd);
   const switchedBranch = extractSwitchedBranch(subcommand, subArgs);
   if (switchedBranch === "main") {
-    mayBeOnMain.add(targetCwd);
+    mayBeOnMain.add(repoKey);
   }
   if (subcommand === "reset" && subArgs.includes("--hard")) {
     return "git reset --hard";
@@ -360,7 +483,7 @@ const checkSegment = (tokens, cwd, mayBeOnMain) => {
     if (hasForceFlag && hasAllOrBranches) {
       return "git push --force to main";
     }
-    const branchName = mayBeOnMain.has(targetCwd) ? "main" : currentBranch(targetCwd);
+    const branchName = mayBeOnMain.has(repoKey) ? "main" : currentBranch(targetCwd);
     const refspecs = extractPushPositionals(subArgs).slice(1);
     const hasForcedMainRefspec = refspecs.some(
       (spec) => spec.startsWith("+") && refspecTargetsMain(spec, branchName),

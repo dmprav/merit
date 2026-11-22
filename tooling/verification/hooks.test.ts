@@ -123,12 +123,15 @@ it("blocks destructive git commands unless explicitly overridden", () => {
       "git clean -fdx",
       "git clean -f -d",
       "git push --force origin main",
+      "git push -vf origin main",
       "git push -f origin HEAD:main",
       "git push origin +HEAD:main",
       "git push -o skip origin +HEAD:main",
       "git push --force origin HEAD",
       "git push origin +HEAD",
       "git push --force",
+      'echo "$(git reset --hard)"',
+      "git reset --\\\nhard",
       "git checkout feat/safe -- README.md && git push --force origin",
       "git switch definitely-missing || git push --force origin",
     ]) {
@@ -141,7 +144,11 @@ it("blocks destructive git commands unless explicitly overridden", () => {
       `git -C "${repo}" push --force`,
       "git push --force --all origin",
       "git push --mirror origin",
+      "git push origin +:",
+      "git push origin +refs/heads/*:refs/heads/*",
       "git switch main && git push --force origin",
+      "git switch -- main && git push --force origin",
+      "git -C foundation switch main && git push --force origin",
     ]) {
       const blocked = runHook("guard-git.mjs", { tool_input: { command } }, { cwd: branchRepo });
       expect(blocked.status, command).toBe(2);
