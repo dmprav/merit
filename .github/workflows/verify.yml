@@ -241,11 +241,14 @@ jobs:
       - name: Run package unit and component tests
         env:
           TMPDIR: ${{ runner.temp }}
-        run: >-
-          vp run --no-cache --parallel --concurrency-limit 2
-          ${{ needs.changes.outputs.package_filters }} test
-          --reporter=default --reporter=github-actions --reporter=json
-          --outputFile.json=.vitest-report.json
+          PACKAGE_FILTERS: ${{ needs.changes.outputs.package_filters }}
+        run: |
+          filter_lines=$(jq -er '.[] | "--filter", .' <<< "$PACKAGE_FILTERS")
+          readarray -t filters <<< "$filter_lines"
+          vp run --no-cache --parallel --concurrency-limit 2 \
+            "${filters[@]}" test \
+            --reporter=default --reporter=github-actions --reporter=json \
+            --outputFile.json=.vitest-report.json
 
       - name: Publish test summary
         if: always()
