@@ -16,8 +16,13 @@ type QueuedAction =
 
 const maxQueuedActions = 50;
 
+const directTraffic = "$direct";
+
+/** Page context posthog-js adds that names a visitor or shows grant content. */
+const droppedProperties = ["$ip", "title"];
+
 const sanitizeUrl = (value: unknown) => {
-  if (typeof value !== "string" || !value) {
+  if (typeof value !== "string" || !value || value === directTraffic) {
     return value;
   }
   try {
@@ -32,22 +37,24 @@ const sanitizeUrl = (value: unknown) => {
   }
 };
 
-export const sanitizePostHogCapture = (result: CaptureResult): CaptureResult => {
-  const properties = { ...result.properties };
+// posthog-js copies the location into several properties, such as `$current_url`
+// and `$session_entry_url`, so redaction follows the key's suffix, not a fixed list.
+const sanitizeProperty = (key: string, value: unknown) => {
+  if (key.endsWith("pathname")) {
+    return typeof value === "string" ? sanitizeAnalyticsPath(value) : value;
+  }
+  if (key.endsWith("_url") || key.endsWith("referrer")) {
+    return sanitizeUrl(value);
+  }
+  return value;
+};
 
-  if (typeof properties.$pathname === "string") {
-    properties.$pathname = sanitizeAnalyticsPath(properties.$pathname);
-  }
-  if (typeof properties.$prev_pageview_pathname === "string") {
-    properties.$prev_pageview_pathname = sanitizeAnalyticsPath(properties.$prev_pageview_pathname);
-  }
-  if ("$current_url" in properties) {
-    properties.$current_url = sanitizeUrl(properties.$current_url);
-  }
-  if ("$referrer" in properties) {
-    properties.$referrer = sanitizeUrl(properties.$referrer);
-  }
-  delete properties.$ip;
+export const sanitizePostHogCapture = (result: CaptureResult): CaptureResult => {
+  const properties = Object.fromEntries(
+    Object.entries(result.properties)
+      .filter(([key]) => !droppedProperties.includes(key))
+      .map(([key, value]) => [key, sanitizeProperty(key, value)]),
+  );
 
   return { ...result, properties };
 };
@@ -63,7 +70,7 @@ export const createPostHogConfig = (host: string): Partial<PostHogConfig> => ({
   disable_session_recording: true,
   disable_surveys: true,
   disable_external_dependency_loading: true,
-  property_denylist: ["$ip"],
+  property_denylist: droppedProperties,
   before_send: sanitizePostHogCapture,
 });
 

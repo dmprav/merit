@@ -7,9 +7,17 @@ Configure the project token at [build time](../../docs/guides/deployment.md#conf
 
 The shell supplies `AnalyticsProvider`. Features call `useAnalytics` for demo
 starts, resets, and invitation request submissions. The browser adapter also
-records redacted route patterns. It loads `posthog-js` only when configured and
-uses in-memory identity. Autocapture, session recording, surveys, and person
-profiles are disabled.
+records page views as route patterns, such as `/app/:workspace/rounds/:round`.
+It loads `posthog-js` only when configured and uses in-memory identity.
+Autocapture, session recording, surveys, and person profiles are disabled.
+
+Before an event leaves the browser, every property `posthog-js` derives from the
+location, including the session's entry URL and referrer, is reduced to a known
+route pattern without its query string or fragment. Paths outside the known
+routes are recorded as `/*other`, and page titles and IP addresses are dropped.
+Add each new page to the patterns in [`index.tsx`](src/index.tsx); the shell's
+[analytics test](../../app/src/shell/analytics.test.tsx) fails to typecheck
+until every route in the route tree has one.
 
 ## Grant work and MCP
 
