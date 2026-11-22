@@ -89,7 +89,13 @@ export const ReferencePane = ({
 }) => {
   const { id } = useWorkspace();
   const viewport = useRef<HTMLDivElement>(null);
-  useImperativeHandle(viewportRef, () => viewport.current!, []);
+  useImperativeHandle(viewportRef, () => {
+    const node = viewport.current;
+    if (!node) {
+      throw new Error("ReferencePane viewport is not mounted.");
+    }
+    return node;
+  }, []);
   return (
     <ReadingViewportContext value={viewport}>
       <div className={styles.reference} id={`${id}-reference`}>
@@ -186,25 +192,36 @@ export const ReferenceSwitcher = <Key extends string>({
   selected: Key;
   onChange: (next: Key) => void;
   triggerRef?: Ref<HTMLButtonElement>;
-}) => (
-  <>
-    <span className={styles.meta}>{label}</span>
-    <ActionMenu
-      label={label}
-      trigger={
-        <Button ref={triggerRef} variant="quiet" aria-label={triggerLabel}>
-          {options[selected]}
-          <Icon name="down" />
-        </Button>
-      }
-      items={(Object.entries(options) as [Key, string][]).map(([id, name]) => ({
-        id,
-        label: name,
-      }))}
-      onAction={(next) => onChange(next as Key)}
-    />
-  </>
-);
+}) => {
+  const entries: { id: Key; label: string }[] = [];
+  for (const key in options) {
+    if (Object.hasOwn(options, key)) {
+      entries.push({ id: key, label: options[key] });
+    }
+  }
+
+  return (
+    <>
+      <span className={styles.meta}>{label}</span>
+      <ActionMenu
+        label={label}
+        trigger={
+          <Button ref={triggerRef} variant="quiet" aria-label={triggerLabel}>
+            {options[selected]}
+            <Icon name="down" />
+          </Button>
+        }
+        items={entries}
+        onAction={(next) => {
+          const match = entries.find((entry) => entry.id === next);
+          if (match) {
+            onChange(match.id);
+          }
+        }}
+      />
+    </>
+  );
+};
 
 /**
  * Tracks the chosen reference and restores each one's scroll position when

@@ -57,6 +57,7 @@ const sectionLabels = {
 const useEditorForm = <S extends IntakeSection>(
   { editor, draft, onClose }: SectionProps<S>,
   schema: z.ZodType<IntakeValues[S], IntakeValues[S]>,
+  buildDraft: (value: IntakeValues[S]) => IntakeDraft,
 ) => {
   const { t } = useTranslation("applicationIntake");
 
@@ -71,9 +72,9 @@ const useEditorForm = <S extends IntakeSection>(
       }
       return undefined;
     }),
-    onChange: (value) => editor.updateDraft({ ...draft, value } as IntakeDraft),
+    onChange: (value) => editor.updateDraft(buildDraft(value)),
     onSubmit: async (value) => {
-      const error = await editor.saveDraft({ ...draft, value } as IntakeDraft);
+      const error = await editor.saveDraft(buildDraft(value));
       if (!error) {
         onClose();
       }
@@ -313,7 +314,11 @@ const LatestValues = ({ editor }: Pick<EditorProps, "editor">) => {
 
 const TitleForm = (props: SectionProps<"title">) => {
   const { t } = useTranslation(["applicationIntake", "common", "contacts"]);
-  const { form, submission } = useEditorForm(props, intakeContentSchema.pick({ title: true }));
+  const { form, submission } = useEditorForm(
+    props,
+    intakeContentSchema.pick({ title: true }),
+    (value) => ({ ...props.draft, value }),
+  );
 
   return (
     <EditorFrame {...props} submission={submission}>
@@ -344,6 +349,7 @@ const MetadataForm = (props: SectionProps<"metadata">) => {
       projectPeriod: intakeContentSchema.shape.projectPeriod.unwrap(),
       contactId: z.string().nullable().optional(),
     }),
+    (value) => ({ ...props.draft, value }),
   );
 
   return (
@@ -507,7 +513,11 @@ const SavedContactValue = ({
 
 const SubmissionForm = (props: SectionProps<"content">) => {
   const { t } = useTranslation(["applicationIntake", "common", "contacts"]);
-  const { form, submission } = useEditorForm(props, intakeContentSchema.pick({ answers: true }));
+  const { form, submission } = useEditorForm(
+    props,
+    intakeContentSchema.pick({ answers: true }),
+    (value) => ({ ...props.draft, value }),
+  );
 
   return (
     <EditorFrame {...props} submission={submission}>
@@ -592,7 +602,11 @@ const SubmissionForm = (props: SectionProps<"content">) => {
 
 const SummaryForm = (props: SectionProps<"details">) => {
   const { t } = useTranslation(["applicationIntake", "common", "contacts"]);
-  const { form, submission } = useEditorForm(props, intakeDetailsSchema.pick({ summary: true }));
+  const { form, submission } = useEditorForm(
+    props,
+    intakeDetailsSchema.pick({ summary: true }),
+    (value) => ({ ...props.draft, value }),
+  );
 
   return (
     <EditorFrame {...props} submission={submission}>

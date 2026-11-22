@@ -39,8 +39,18 @@ type ApplicationMaterialData = {
 
 const materialVersionKey = (caseId: string, version: number) => `${caseId}:${version}`;
 
-export const requestedMoneyData = (minorUnits: string | null, currency: string | null) =>
-  minorUnits === null || currency === null ? null : { minorUnits, currency: currency as "EUR" };
+export const requestedMoneyData = (
+  minorUnits: string | null,
+  currency: string | null,
+): { minorUnits: string; currency: "EUR" } | null => {
+  if (minorUnits === null || currency === null) {
+    return null;
+  }
+  if (currency !== "EUR") {
+    throw new Error(`Unsupported currency: ${currency}`);
+  }
+  return { minorUnits, currency };
+};
 
 const assembleWithdrawal = (caseRow: CaseRow) =>
   caseRow.withdrawnOn === null ||

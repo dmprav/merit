@@ -6,7 +6,7 @@ import { calendarDateSchema } from "@merit/dates";
 import { ConflictBanner, RetainedDraftNotice } from "@merit/forms";
 import { useFormat } from "@merit/i18n/format";
 import { parseMoneyInput } from "@merit/money/input";
-import type { ReviewState } from "@merit/reviews/domain";
+import { assessmentPositionSchema, type ReviewState } from "@merit/reviews/domain";
 import { ActionMenu } from "@merit/ui/action-menu";
 import { ActionProvenance } from "@merit/ui/action-provenance";
 import { Button } from "@merit/ui/button";
@@ -637,10 +637,10 @@ const formatRecordedObservations = (observations: { criterion: string; text: str
     .map((item) => `${item.criterion}\n${item.text}`)
     .join("\n\n");
 
-const resolveReviewPosition = (position: string) =>
-  Object.hasOwn(reviewPositionKeys, position)
-    ? (position as keyof typeof reviewPositionKeys)
-    : null;
+const resolveReviewPosition = (position: string) => {
+  const parsed = assessmentPositionSchema.safeParse(position);
+  return parsed.success ? parsed.data : null;
+};
 
 const formatLatestVersionLabel = (
   t: (key: string, options?: { version: string }) => string,

@@ -47,7 +47,10 @@ export const ApplicationNavigationList = ({
         className={styles.navigationList}
         data-appearance={appearance}
         onDragLeave={(event) => {
-          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+          if (
+            !(event.relatedTarget instanceof Node) ||
+            !event.currentTarget.contains(event.relatedTarget)
+          ) {
             chooseTarget(null);
           }
         }}
@@ -89,7 +92,7 @@ export const ApplicationNavigationRow = ({
         canDrop && reorder?.dropTarget?.id === reorderKey ? reorder.dropTarget?.position : undefined
       }
       onDragStart={(event) => {
-        if (!reorder || (event.target as Element).closest("button")) {
+        if (!reorder || (event.target instanceof Element && event.target.closest("button"))) {
           event.preventDefault();
           return;
         }

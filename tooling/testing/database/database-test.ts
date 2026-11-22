@@ -7,8 +7,7 @@ import { createTestDatabase } from "./test-database";
 
 // Tests in a file share one database and must run sequentially.
 export const databaseTest = test
-  // Vitest requires destructured fixture dependencies, even when there are none.
-  // oxlint-disable-next-line no-empty-pattern
+  // oxlint-disable-next-line no-empty-pattern -- Vitest requires destructured fixture dependencies, even when there are none.
   .extend("database", { scope: "file" }, async ({}, { onCleanup }) => {
     const database = await createTestDatabase();
     onCleanup(() => database.dispose());

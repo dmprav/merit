@@ -182,8 +182,11 @@ export const insertPreparedRound = async (
       budgetEstablished: snapshot.budget !== null,
     })
     .returning();
-  await insertCriteriaHistoryEntries(tx, row!.id, snapshot.criteriaHistory);
-  return row!;
+  if (!row) {
+    throw new Error("Failed to insert prepared round.");
+  }
+  await insertCriteriaHistoryEntries(tx, row.id, snapshot.criteriaHistory);
+  return row;
 };
 
 const writePreparedRound = async (

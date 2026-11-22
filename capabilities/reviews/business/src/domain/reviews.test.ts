@@ -192,6 +192,18 @@ describe("recording reviews", () => {
     },
   );
 
+  it("rejects a review request when the requested criteria version is unavailable", () => {
+    const source = emptyReviews();
+
+    expect(
+      prepareReviewChange(source, request, {
+        ...context,
+        criteriaHistory: [],
+      }),
+    ).toEqual({ ok: false, error: "criteria_unavailable" });
+    expect(source).toEqual(emptyReviews());
+  });
+
   it("rejects editing an assessment that does not exist", () => {
     const source = emptyReviews();
 

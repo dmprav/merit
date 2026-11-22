@@ -128,10 +128,14 @@ remains a supported way to test for either `null` or `undefined`.
 
 Type checking treats indexed array and dictionary values as possibly absent and
 checks missing return paths. Lint checks hook usage and dependencies, promise
-misuse, unsafe operations on `any`, and unhandled union cases in switches. A
-switch may intentionally handle remaining cases with a meaningful default.
-Validate untrusted input, narrow optional values, and make failure behavior
-explicit; casts, non-null assertions, and `void` do not establish those guarantees.
+misuse, unsafe operations on `any`, unhandled union cases in switches, and
+disallows non-null assertions (`!`), unsafe `as` casts, `@ts-ignore` /
+`@ts-nocheck`, and unreasoned `@ts-expect-error` or `oxlint-disable` comments
+in production code (require `-- <reason>` on `oxlint-disable*` and an inline
+description on `@ts-expect-error`). A switch may intentionally handle remaining
+cases with a meaningful default. Validate untrusted input, narrow optional
+values, and make failure behavior explicit; casts, non-null assertions, and
+`void` do not establish those guarantees.
 
 JSX callbacks may perform asynchronous work and own its pending and error state.
 React does not await them, so they must handle failures themselves. The promise

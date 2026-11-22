@@ -501,9 +501,13 @@ const sectionReaders: Partial<Record<ApplicationContentInput["section"], Section
     value: (await readReviewsByCasesMap(db, [caseRow.id])).get(caseRow.id),
   }),
   assessment: async (db, caseRow, input) =>
-    optionalResult(await readAssessmentRecord(db, caseRow.id, input.entryId!)),
+    input.entryId
+      ? optionalResult(await readAssessmentRecord(db, caseRow.id, input.entryId))
+      : { found: false },
   review_request: async (db, caseRow, input) =>
-    optionalResult(await readReviewRequestRecord(db, caseRow.id, input.entryId!)),
+    input.entryId
+      ? optionalResult(await readReviewRequestRecord(db, caseRow.id, input.entryId))
+      : { found: false },
   working_revision: async (db, caseRow) => ({
     found: true,
     value: (await readWorkingRevisionsMap(db, [caseRow.id])).get(caseRow.id) ?? null,
@@ -581,6 +585,9 @@ export const readGrantHistory = (
   // authorization is joined to the history owner's organization on every call.
   const history = auditEvents;
   if (input.history === "recommendation") {
+    if (!input.applicationId) {
+      return [];
+    }
     return db
       .select({
         revision: recommendationVersions.revision,
@@ -592,7 +599,7 @@ export const readGrantHistory = (
       .innerJoin(workspace, eq(workspace.id, applicationCases.organizationId))
       .where(
         and(
-          eq(applicationCases.id, input.applicationId!),
+          eq(applicationCases.id, input.applicationId),
           input.afterRevision === undefined
             ? undefined
             : gt(recommendationVersions.revision, input.afterRevision),
@@ -600,6 +607,10 @@ export const readGrantHistory = (
       )
       .orderBy(recommendationVersions.revision)
       .limit(input.limit + 1);
+  }
+  const targetId = input.roundId ?? input.applicationId;
+  if (!targetId) {
+    return [];
   }
   return db
     .select({
@@ -611,7 +622,7 @@ export const readGrantHistory = (
     .innerJoin(workspace, eq(workspace.id, history.organizationId))
     .where(
       and(
-        eq(history.targetId, (input.roundId ?? input.applicationId)!),
+        eq(history.targetId, targetId),
         eq(history.targetType, input.history === "preparation" ? "round" : "application"),
         input.afterRevision === undefined
           ? undefined

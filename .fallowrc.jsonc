@@ -31,6 +31,8 @@
     "app/tests/browser/workspace.playwright.config.ts",
     // JS Boundaries loads the configured resolver through its plugin host.
     "tooling/verification/architecture/resolver.mjs",
+    // Oxlint loads the suppression plugin via URL specifier in lint.ts.
+    "tooling/verification/lint-suppressions.ts",
     // React Email discovers preview default exports through its CLI directory.
     "interfaces/emails/src/features/organizations/previews/*.tsx",
     // Storybook resolves adjacent manual mocks from sb.mock registrations.

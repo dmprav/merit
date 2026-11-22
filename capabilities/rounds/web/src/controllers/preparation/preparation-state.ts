@@ -68,6 +68,27 @@ export const preparationDraft = <S extends PreparationSection>(
   return { section, revision, baseline: values, value };
 };
 
+export const buildPreparationDraft = (
+  section: PreparationSection,
+  round: EditableRound,
+  revision: number,
+): PreparationDraft => {
+  switch (section) {
+    case "title":
+      return preparationDraft("title", round, revision);
+    case "purpose":
+      return preparationDraft("purpose", round, revision);
+    case "meetingDate":
+      return preparationDraft("meetingDate", round, revision);
+    case "criteria":
+      return preparationDraft("criteria", round, revision);
+    case "budget":
+      return preparationDraft("budget", round, revision);
+    case "manager":
+      return preparationDraft("manager", round, revision);
+  }
+};
+
 const sectionFields: Record<PreparationSection, PreparationField[]> = {
   title: ["title"],
   purpose: ["purpose"],
@@ -136,7 +157,7 @@ export const draftChange = (draft: PreparationDraft): RoundChange => {
       return {
         section: "criteria",
         criteria: draft.value.criteria.map(({ id, title, description }) => ({
-          id: id!,
+          id,
           title,
           description,
         })),

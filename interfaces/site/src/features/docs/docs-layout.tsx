@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { Icon } from "@merit/ui/icon";
 
 import { SiteShell } from "../../app/site-shell";
-import { docsGroups, docsPages, type DocsPage } from "./docs-navigation";
+import { docsGroups, docsGroupPages, docsPages, type DocsPage } from "./docs-navigation";
 import styles from "./docs.module.css";
 import { useActiveDocSection } from "./use-active-doc-section";
 
@@ -23,19 +23,17 @@ const DocsNavigation = ({ page }: { page: DocsPage }) => {
       {docsGroups.map((group) => (
         <div key={group} className={styles.navGroup}>
           <p className={styles.navHeading}>{t(`docs.groups.${group}`)}</p>
-          {Object.entries(docsPages)
-            .filter(([, entry]) => entry.group === group)
-            .map(([id, entry]) => (
-              <Link
-                key={id}
-                to={entry.to}
-                activeOptions={{ exact: true }}
-                aria-current={id === page ? "page" : undefined}
-                className={styles.navLink}
-              >
-                {id === "overview" ? t("docs.overview") : t(`docs.pages.${id as DocsPage}.title`)}
-              </Link>
-            ))}
+          {docsGroupPages(group).map((id) => (
+            <Link
+              key={id}
+              to={docsPages[id].to}
+              activeOptions={{ exact: true }}
+              aria-current={id === page ? "page" : undefined}
+              className={styles.navLink}
+            >
+              {id === "overview" ? t("docs.overview") : t(`docs.pages.${id}.title`)}
+            </Link>
+          ))}
         </div>
       ))}
     </nav>

@@ -21,48 +21,51 @@ export type { ActivityFilters };
 
 type ActivityRecord = NonNullable<ActivityEntry["record"]>;
 
-const actionLabels = {
-  "application.material_changed": "activity.actions.applicationMaterial",
-  "application.summary_changed": "activity.actions.applicationSummary",
-  "application.contact_changed": "activity.actions.applicationContact",
-  "application_working_revision.started": "activity.actions.revisionStarted",
-  "application_working_revision.updated": "activity.actions.revisionUpdated",
-  "application_working_revision.discarded": "activity.actions.revisionDiscarded",
-  "round.details_changed": "activity.actions.roundDetails",
-  "assessment.corrected": "activity.actions.assessmentCorrected",
-  "assessment.amended": "activity.actions.assessmentAmended",
-  "review_request.created": "activity.actions.reviewRequested",
-  "review_request.cancelled": "activity.actions.reviewCancelled",
-  "review_assignment.invited": "activity.actions.reviewerInvited",
-  "review_assignment.invitation_renewed": "activity.actions.reviewerRenewed",
-  "review_assignment.accepted": "activity.actions.reviewerAccepted",
-  "review_assignment.declined": "activity.actions.reviewerDeclined",
-  "review_assignment.withdrawn": "activity.actions.reviewerWithdrawn",
-  "review_assignment.conflict_reported": "activity.actions.reviewerConflict",
-  "review_assignment.conflict_cleared": "activity.actions.reviewerCleared",
-  "review_assignment.access_ended": "activity.actions.reviewerEnded",
-  "review_assignment.reinstated": "activity.actions.reviewerReinstated",
+const actionLabelEntries = [
+  ["application.material_changed", "activity.actions.applicationMaterial"],
+  ["application.summary_changed", "activity.actions.applicationSummary"],
+  ["application.contact_changed", "activity.actions.applicationContact"],
+  ["application_working_revision.started", "activity.actions.revisionStarted"],
+  ["application_working_revision.updated", "activity.actions.revisionUpdated"],
+  ["application_working_revision.discarded", "activity.actions.revisionDiscarded"],
+  ["round.details_changed", "activity.actions.roundDetails"],
+  ["assessment.corrected", "activity.actions.assessmentCorrected"],
+  ["assessment.amended", "activity.actions.assessmentAmended"],
+  ["review_request.created", "activity.actions.reviewRequested"],
+  ["review_request.cancelled", "activity.actions.reviewCancelled"],
+  ["review_assignment.invited", "activity.actions.reviewerInvited"],
+  ["review_assignment.invitation_renewed", "activity.actions.reviewerRenewed"],
+  ["review_assignment.accepted", "activity.actions.reviewerAccepted"],
+  ["review_assignment.declined", "activity.actions.reviewerDeclined"],
+  ["review_assignment.withdrawn", "activity.actions.reviewerWithdrawn"],
+  ["review_assignment.conflict_reported", "activity.actions.reviewerConflict"],
+  ["review_assignment.conflict_cleared", "activity.actions.reviewerCleared"],
+  ["review_assignment.access_ended", "activity.actions.reviewerEnded"],
+  ["review_assignment.reinstated", "activity.actions.reviewerReinstated"],
 
-  "application.created": "intake.eventCreate",
-  "application.marked_ready": "intake.eventReady",
-  "application.revision_recorded": "intake.eventRevision",
-  "application.correction_recorded": "intake.eventCorrection",
-  "application.deleted": "activity.actions.applicationDelete",
-  "application.withdraw": "activity.actions.applicationWithdraw",
-  "application.reinstate": "activity.actions.applicationReinstate",
-  "round.created": "activity.actions.roundCreate",
-  "round.budget_changed": "activity.actions.roundBudget",
-  "round.criteria_changed": "activity.actions.roundCriteria",
-  "round.manager_changed": "activity.actions.roundManager",
-  "round.deleted": "activity.actions.roundDelete",
-  "assessment.recorded": "activity.actions.assessmentRecorded",
-  "assessment.submitted": "activity.actions.assessmentSubmitted",
-  "recommendation.recorded": "activity.actions.recommendationSaved",
-} as const;
+  ["application.created", "intake.eventCreate"],
+  ["application.marked_ready", "intake.eventReady"],
+  ["application.revision_recorded", "intake.eventRevision"],
+  ["application.correction_recorded", "intake.eventCorrection"],
+  ["application.deleted", "activity.actions.applicationDelete"],
+  ["application.withdraw", "activity.actions.applicationWithdraw"],
+  ["application.reinstate", "activity.actions.applicationReinstate"],
+  ["round.created", "activity.actions.roundCreate"],
+  ["round.budget_changed", "activity.actions.roundBudget"],
+  ["round.criteria_changed", "activity.actions.roundCriteria"],
+  ["round.manager_changed", "activity.actions.roundManager"],
+  ["round.deleted", "activity.actions.roundDelete"],
+  ["assessment.recorded", "activity.actions.assessmentRecorded"],
+  ["assessment.submitted", "activity.actions.assessmentSubmitted"],
+  ["recommendation.recorded", "activity.actions.recommendationSaved"],
+] as const;
+
+const actionLabels: ReadonlyMap<string, (typeof actionLabelEntries)[number][1]> = new Map(
+  actionLabelEntries,
+);
 
 /** Actions recorded by a later release still read sensibly. */
-const actionLabel = (action: string) =>
-  actionLabels[action as keyof typeof actionLabels] ?? "activity.changed";
+const actionLabel = (action: string) => actionLabels.get(action) ?? "activity.changed";
 
 type WorkspaceActivityProps = {
   entries: readonly ActivityEntry[];

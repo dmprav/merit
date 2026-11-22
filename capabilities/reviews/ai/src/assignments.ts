@@ -78,8 +78,9 @@ export const pageItems = <T>(
     .filter((item) => input.after === undefined || key(item) > input.after)
     .sort((a, b) => (key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0));
   const page = sorted.slice(0, input.limit);
+  const last = page.at(-1);
   return {
     items: page,
-    nextCursor: sorted.length > input.limit ? key(page[page.length - 1]!) : null,
+    nextCursor: sorted.length > input.limit && last ? key(last) : null,
   };
 };

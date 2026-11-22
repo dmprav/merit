@@ -271,7 +271,8 @@ const retainedDraft = () => {
     observations: [{ criterionId: null, criterion: "Access", text: "Keep the criterion note." }],
     note: "Keep the amendment explanation.",
   };
-  return { initial, session: { draft, error: "accessLost" } };
+  const session: ReviewerSession = { draft, error: "accessLost" };
+  return { initial, session };
 };
 
 it("copies all retained draft fields and confirms only after clipboard success", async () => {

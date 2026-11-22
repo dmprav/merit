@@ -34,8 +34,11 @@ export const insertDemo = async (
       demoSeedVersion: seedVersion,
     })
     .returning();
+  if (!workspace) {
+    throw new Error("Failed to insert demo workspace.");
+  }
   await db.insert(memberships).values({ organizationId: id, userId, role: "program_manager" });
-  return workspace!;
+  return workspace;
 };
 
 export const lockExpiredDemo = async (db: Transaction, id: string) => {

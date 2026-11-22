@@ -33,7 +33,7 @@ const isCompactViewport = () => window.matchMedia(compactQuery).matches;
 
 /** Whether a click inside the drawer is a plain click on a real link, which navigates away. */
 const navigatesAway = (event: MouseEvent) => {
-  const link = (event.target as Element).closest("a[href]");
+  const link = event.target instanceof Element ? event.target.closest("a[href]") : null;
   return (
     link &&
     event.button === 0 &&
@@ -174,8 +174,7 @@ export const ApplicationShell = ({
             isOpen={open}
             onOpenChange={setOpen}
           >
-            {/* Clicks bubble from real links, including keyboard activation; this wrapper is not a control. */}
-            {/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
+            {/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- Clicks bubble from real links, including keyboard activation; this wrapper is not a control. */}
             <div className={styles.drawerContent} onClick={closeAfterLink}>
               <CloseNavigationContext value={() => setOpen(false)}>
                 {navigationContent}
@@ -253,12 +252,11 @@ export const ApplicationContext = ({
         isNonModal={!compact}
       >
         <Dialog aria-label={label} className={styles.contextDialog}>
-          {/* Clicks bubble from real links, including keyboard activation; this wrapper is not a control. */}
-          {/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
+          {/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- Clicks bubble from real links, including keyboard activation; this wrapper is not a control. */}
           <div
             className={styles.contextLinks}
             onClick={(event) => {
-              const link = (event.target as Element).closest("a[href]");
+              const link = event.target instanceof Element ? event.target.closest("a[href]") : null;
               if (
                 link &&
                 event.button === 0 &&

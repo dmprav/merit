@@ -23,13 +23,13 @@ const PIN_SEGMENTS = { review: "work", round: "rounds", application: "applicatio
 const PIN_ICONS = { round: "layers", application: "application", review: "edit" } as const;
 
 const pinLocation = (pin: NavigationPin): LinkOptions => {
+  const workspaceSlug = pin.workspaceSlug ?? "";
   if (pin.target.kind === "review") {
     return {
       to: "/app/$workspaceSlug/work/$assignmentId",
-      params: { workspaceSlug: pin.workspaceSlug!, assignmentId: pin.target.id },
+      params: { workspaceSlug, assignmentId: pin.target.id },
     };
   }
-  const workspaceSlug = pin.workspaceSlug!;
   return pin.target.kind === "round"
     ? {
         to: "/app/$workspaceSlug/rounds/$roundRef",
@@ -55,20 +55,23 @@ const useCurrentPin = (pins: NavigationPin[]) => {
 type PinChange = (input: NavigationPinChange) => Promise<void>;
 
 const PinMenu = ({
-  pins,
-  index,
+  pin,
+  previousTarget,
+  nextTarget,
+  canMoveDown,
   change,
   trigger,
   tooltip,
 }: {
-  pins: NavigationPin[];
-  index: number;
+  pin: NavigationPin;
+  previousTarget: NavigationTarget | null;
+  nextTarget: NavigationTarget | null;
+  canMoveDown: boolean;
   change: PinChange;
   trigger: ComponentProps<typeof ActionMenu>["trigger"];
   tooltip?: string;
 }) => {
   const { t } = useTranslation("web");
-  const pin = pins[index]!;
   return (
     <ActionMenu
       label={t("pins.reorder", { title: pin.title })}
@@ -76,8 +79,8 @@ const PinMenu = ({
       activation="contextMenu"
       tooltip={tooltip}
       items={[
-        ...(index > 0 ? [{ id: "up", label: t("pins.up"), icon: "ascending" as const }] : []),
-        ...(index < pins.length - 1
+        ...(previousTarget ? [{ id: "up", label: t("pins.up"), icon: "ascending" as const }] : []),
+        ...(canMoveDown
           ? [{ id: "down", label: t("pins.down"), icon: "descending" as const }]
           : []),
         { id: "unpin", label: t("pins.unpin"), icon: "pin" as const },
@@ -89,8 +92,7 @@ const PinMenu = ({
             : {
                 action: "move",
                 target: pin.target,
-                before:
-                  action === "up" ? pins[index - 1]!.target : (pins[index + 2]?.target ?? null),
+                before: action === "up" ? previousTarget : nextTarget,
               },
         )
       }
@@ -99,20 +101,25 @@ const PinMenu = ({
 };
 
 const PinRow = ({
-  pins,
-  index,
+  pin,
+  previousTarget,
+  nextTarget,
+  canMoveDown,
+  canReorder,
   busy,
   change,
   current,
 }: {
-  pins: NavigationPin[];
-  index: number;
+  pin: NavigationPin;
+  previousTarget: NavigationTarget | null;
+  nextTarget: NavigationTarget | null;
+  canMoveDown: boolean;
+  canReorder: boolean;
   busy: boolean;
   change: PinChange;
   current: boolean;
 }) => {
   const { t } = useTranslation("web");
-  const pin = pins[index]!;
   const hint = pin.context ? `${pin.title}, ${pin.context}` : pin.title;
   const link = (
     <Link
@@ -143,8 +150,16 @@ const PinRow = ({
         </Tooltip>
       }
     >
-      {pins.length > 1 ? (
-        <PinMenu pins={pins} index={index} change={change} trigger={link} tooltip={hint} />
+      {canReorder ? (
+        <PinMenu
+          pin={pin}
+          previousTarget={previousTarget}
+          nextTarget={nextTarget}
+          canMoveDown={canMoveDown}
+          change={change}
+          trigger={link}
+          tooltip={hint}
+        />
       ) : (
         <Tooltip customTrigger content={hint}>
           {link}
@@ -311,8 +326,11 @@ const PinGroup = ({
       {pins.map((pin, index) => (
         <PinRow
           key={pin.target.id}
-          pins={pins}
-          index={index}
+          pin={pin}
+          previousTarget={pins[index - 1]?.target ?? null}
+          nextTarget={pins[index + 2]?.target ?? null}
+          canMoveDown={index < pins.length - 1}
+          canReorder={pins.length > 1}
           current={pin === currentPin}
           busy={busy}
           change={(input) => change(input, pins)}

@@ -186,20 +186,23 @@ const inspectableActions = new Set([
   "application.contact_changed",
 ]);
 
-const historyLabels = {
-  "application.contact_changed": "intake.eventDetails",
-  "application.created": "intake.eventCreate",
-  "application.material_changed": "intake.eventContent",
-  "application.marked_ready": "intake.eventReady",
-  "application_working_revision.started": "intake.eventStart",
-  "application_working_revision.updated": "intake.eventDraft",
-  "application_working_revision.discarded": "intake.eventDiscard",
-  "application.revision_recorded": "intake.eventRevision",
-  "application.correction_recorded": "intake.eventCorrection",
-  "application.summary_changed": "intake.eventDetails",
-  "application.withdraw": "intake.eventWithdraw",
-  "application.reinstate": "intake.eventReinstate",
-} as const;
+const historyLabelEntries = [
+  ["application.contact_changed", "intake.eventDetails"],
+  ["application.created", "intake.eventCreate"],
+  ["application.material_changed", "intake.eventContent"],
+  ["application.marked_ready", "intake.eventReady"],
+  ["application_working_revision.started", "intake.eventStart"],
+  ["application_working_revision.updated", "intake.eventDraft"],
+  ["application_working_revision.discarded", "intake.eventDiscard"],
+  ["application.revision_recorded", "intake.eventRevision"],
+  ["application.correction_recorded", "intake.eventCorrection"],
+  ["application.summary_changed", "intake.eventDetails"],
+  ["application.withdraw", "intake.eventWithdraw"],
+  ["application.reinstate", "intake.eventReinstate"],
+] as const;
 
-const historyLabel = (action: string) =>
-  historyLabels[action as keyof typeof historyLabels] ?? "intake.history";
+const historyLabels: ReadonlyMap<string, (typeof historyLabelEntries)[number][1]> = new Map(
+  historyLabelEntries,
+);
+
+const historyLabel = (action: string) => historyLabels.get(action) ?? "intake.history";

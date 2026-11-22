@@ -5,7 +5,7 @@ import { Icon } from "@merit/ui/icon";
 
 import { RoutedLink } from "../../app/routed-link";
 import localStyles from "./docs-home.module.css";
-import { docsGroups, docsPages, type DocsPage } from "./docs-navigation";
+import { docsGroups, docsGroupPages, docsPages } from "./docs-navigation";
 import styles from "./docs.module.css";
 
 export const DocsHome = () => {
@@ -26,24 +26,22 @@ export const DocsHome = () => {
         </RoutedLink>
       </section>
       <div className={localStyles.directory}>
-        {docsGroups
-
-          .map((group) => (
-            <section key={group}>
-              <h2>{t(`docs.groups.${group}`)}</h2>
-              {Object.entries(docsPages)
-                .filter(([id, entry]) => id !== "overview" && entry.group === group)
-                .map(([id, entry]) => (
-                  <Link key={id} to={entry.to} className={localStyles.directoryLink}>
-                    <strong>
-                      {t(`docs.pages.${id as DocsPage}.title`)}
-                      <Icon name="forward" />
-                    </strong>
-                    <p>{t(`docs.pages.${id as DocsPage}.description`)}</p>
-                  </Link>
-                ))}
-            </section>
-          ))}
+        {docsGroups.map((group) => (
+          <section key={group}>
+            <h2>{t(`docs.groups.${group}`)}</h2>
+            {docsGroupPages(group)
+              .filter((id) => id !== "overview")
+              .map((id) => (
+                <Link key={id} to={docsPages[id].to} className={localStyles.directoryLink}>
+                  <strong>
+                    {t(`docs.pages.${id}.title`)}
+                    <Icon name="forward" />
+                  </strong>
+                  <p>{t(`docs.pages.${id}.description`)}</p>
+                </Link>
+              ))}
+          </section>
+        ))}
       </div>
     </article>
   );

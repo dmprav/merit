@@ -221,13 +221,11 @@ const ApplicationReferencePane = ({
         />
       }
     >
-      {Object.keys(labels).map((key) => (
+      {Object.entries(labels).map(([key, label]) => (
         <div
           key={key}
           role={key === "reviews" || key === "history" ? undefined : "region"}
-          aria-label={
-            key === "reviews" || key === "history" ? undefined : labels[key as ApplicationReference]
-          }
+          aria-label={key === "reviews" || key === "history" ? undefined : label}
           hidden={reference !== key}
         >
           {key === "history" && (

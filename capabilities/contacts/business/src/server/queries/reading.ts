@@ -19,10 +19,11 @@ export const listContactSummaries = async (
     }
     const rows = await reads.readContactSummaries(tx, actor.userId, request);
     const contacts = rows.slice(0, request.limit);
+    const last = contacts.at(-1);
     return {
       status: "ok",
       contacts,
-      nextCursor: rows.length > request.limit ? contacts.at(-1)!.contactId : null,
+      nextCursor: rows.length > request.limit && last ? last.contactId : null,
     } as const;
   });
 };

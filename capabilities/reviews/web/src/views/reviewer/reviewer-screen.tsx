@@ -32,7 +32,7 @@ import { Text } from "@merit/ui/text";
 import type { ReviewerData } from "../../contracts/reviewer";
 import { useReviewer, type ReviewerSession } from "../../controllers/reviewer/use-reviewer";
 import { ReviewerAssessment, RetainedDraft } from "./reviewer-assessment";
-import { ReviewerFeedback, type ReviewerErrorKey, type ReviewerWork } from "./reviewer-feedback";
+import { ReviewerFeedback, type ReviewerWork } from "./reviewer-feedback";
 import styles from "./reviewer.module.css";
 
 type ReviewerReferenceKey = "material" | "criteria";
@@ -58,7 +58,7 @@ export const ReviewerScreen = ({
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   const expired = isInvitationExpired(assignment);
   const material = work.canWrite ? page.material : null;
-  const errorKey = work.error as ReviewerErrorKey | null;
+  const errorKey = work.error;
 
   return (
     <>
@@ -383,7 +383,7 @@ const ConflictDialog = ({
   onOpenChange: (open: boolean) => void;
 }) => {
   const { t } = useTranslation("reviewer");
-  const errorKey = work.error as ReviewerErrorKey | null;
+  const errorKey = work.error;
   const { form, submission } = useForm({
     defaultValues: { note: "" },
     schema: z.object({ note: z.string().trim().min(1, t("conflictRequired")).max(2000) }),

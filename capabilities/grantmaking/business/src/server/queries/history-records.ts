@@ -4,7 +4,7 @@ import type { Database } from "@merit/db";
 import { moneyDataSchema } from "@merit/money";
 
 const fields = (entry: Awaited<ReturnType<typeof readAuditHistory>>["entries"][number]) => ({
-  revision: entry.targetRevision!,
+  revision: entry.targetRevision ?? 0,
   action: entry.action,
   reason: typeof entry.details.reason === "string" ? entry.details.reason : null,
   recordedAt: entry.recordedAt.toISOString(),
