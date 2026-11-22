@@ -47,6 +47,22 @@ test("rejects a theme override of a family that holds one value", () => {
   expect(() => buildTokens(css, meta, {})).toThrow("--space-1 changes in the product theme");
 });
 
+test("resolves a theme's aliases against that theme before comparing", () => {
+  const unchanged =
+    ":root { --space-1: 0.25rem; --unit: 0.5rem; } [data-product-theme] { --unit: 0.25rem; --space-1: var(--unit); }";
+  const inherited =
+    ":root { --unit: 0.25rem; --space-1: var(--unit); } [data-product-theme] { --unit: 0.5rem; }";
+  const meta = fixtureMeta({
+    "space-1": { family: "spacing", usage: "Tight gaps." },
+    unit: { family: "css", reason: "Base step." },
+  });
+
+  expect(buildTokens(unchanged, meta, {}).spacing.tokens).toEqual([
+    { name: "space-1", value: "0.25rem", usage: "Tight gaps." },
+  ]);
+  expect(() => buildTokens(inherited, meta, {})).toThrow("--space-1 changes in the product theme");
+});
+
 test("rejects a classification for a property tokens.css no longer declares", () => {
   const meta = fixtureMeta({
     surface: { family: "color", usage: "Cards." },

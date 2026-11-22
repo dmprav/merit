@@ -81,10 +81,11 @@ const sharedLength = (
   blocks: Map<string, Declarations>,
   base: Declarations,
 ) => {
-  const value = literalValue(base.get(name) ?? "", base);
+  const value = literalValue(`var(--${name})`, base);
   for (const theme of meta.themes.slice(1)) {
-    const override = blocks.get(theme.selector)?.get(name);
-    if (override !== undefined && literalValue(override, base) !== value) {
+    // A theme inherits the base declarations, so its aliases resolve against both.
+    const themed = new Map([...base, ...(blocks.get(theme.selector) ?? [])]);
+    if (literalValue(`var(--${name})`, themed) !== value) {
       throw new Error(
         `--${name} changes in the ${theme.id} theme; classify it as "css" in tokens.meta.json so the override is kept.`,
       );
