@@ -3,6 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { clearDrafts } from "@merit/drafts";
 import { Button } from "@merit/ui/button";
 import { Link } from "@merit/ui/link";
 import { PageHeader } from "@merit/ui/page-header";
@@ -26,6 +27,7 @@ const AccountSignIn = ({ returnTo }: { returnTo: string }) => {
     setError("");
 
     try {
+      await clearDrafts();
       await clerk.signOut({ redirectUrl: `/app/sign-in?returnTo=${encodeURIComponent(returnTo)}` });
     } catch {
       setError(t("signOutFailed"));

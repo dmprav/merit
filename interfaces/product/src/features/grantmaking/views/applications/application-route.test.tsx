@@ -19,7 +19,6 @@ import { makeApplication, makeRound } from "@merit/grantmaking/testing/fixtures"
 import { defaultLocale } from "@merit/i18n";
 import { fromMinorUnits, encodeMoney } from "@merit/money";
 import { createQueryClient } from "@merit/query";
-import { encodeRecommendation } from "@merit/recommendations/api";
 import { Toasts } from "@merit/ui/toast";
 
 import { productRoute } from "../../../../../tests/product-route";
@@ -596,9 +595,8 @@ it("saves through the server and shows the committed recommendation using the sh
       expectedRevision: 0,
       expectedApplicationVersion: selectedApplication().version,
       recommendation: {
-        ...encodeRecommendation(selectedApplication().managerRecommendation!),
-        author: undefined,
-        recorded: undefined,
+        position: persisted.application.managerRecommendation!.position,
+        allocation: persisted.application.managerRecommendation!.allocation,
         reasoning: "Confirmed new venue costs.",
       },
     },

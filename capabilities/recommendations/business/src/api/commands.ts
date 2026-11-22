@@ -13,7 +13,7 @@ export const saveRecommendationRequestSchema = z.strictObject({
   expectedCurrentAssessment: z
     .strictObject({ id: z.uuid(), version: z.number().int().positive() })
     .optional(),
-  recommendation: recommendationDataSchema,
+  recommendation: recommendationDataSchema.omit({ author: true, recorded: true }),
 });
 
 export type SaveRecommendationRequest = z.infer<typeof saveRecommendationRequestSchema>;

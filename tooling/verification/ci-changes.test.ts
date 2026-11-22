@@ -1,4 +1,6 @@
-import { readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, test } from "vite-plus/test";
@@ -9,6 +11,22 @@ const repoRoot = fileURLToPath(new URL("../..", import.meta.url));
 const workspacePackages = loadWorkspacePackages(repoRoot);
 
 describe("ci-changes", () => {
+  test.each(["other", "@merit/*", "@merit/a b", "@merit/trailing\n"])(
+    "rejects invalid workspace package name %j before producing filters",
+    (name) => {
+      const root = mkdtempSync(join(tmpdir(), "merit-ci-manifest-"));
+      try {
+        mkdirSync(join(root, "app"));
+        writeFileSync(join(root, "app/package.json"), JSON.stringify({ name }));
+        expect(() => loadWorkspacePackages(root)).toThrow(
+          "Invalid Merit package name in app/package.json",
+        );
+      } finally {
+        rmSync(root, { recursive: true, force: true });
+      }
+    },
+  );
+
   test("runs full suite on non-PR events", () => {
     for (const eventName of ["push", "merge_group", "workflow_dispatch"]) {
       const result = classifyChangedFiles({
@@ -21,7 +39,7 @@ describe("ci-changes", () => {
       expect(result.run_app).toBe(true);
       expect(result.run_storybook).toBe(true);
       expect(result.run_tooling).toBe(true);
-      expect(result.package_filters).toBe("--filter '@merit/*' --filter '!@merit/storybook'");
+      expect(result.package_filters).toEqual(["@merit/*", "!@merit/storybook"]);
     }
   });
 
@@ -61,7 +79,7 @@ describe("ci-changes", () => {
     expect(codeResult.docs_only).toBe(false);
     expect(codeResult.full_run).toBe(false);
     expect(codeResult.run_tooling).toBe(false);
-    expect(codeResult.package_filters).toContain("--filter '@merit/grantmaking'");
+    expect(codeResult.package_filters).toContain("@merit/grantmaking");
 
     const renovateResult = classifyChangedFiles({
       eventName: "pull_request",
@@ -110,8 +128,8 @@ describe("ci-changes", () => {
     expect(result.run_storybook).toBe(false);
     expect(result.run_tooling).toBe(false);
     expect(result.run_package_tests).toBe(true);
-    expect(result.package_filters).toContain("--filter '@merit/grantmaking'");
-    expect(result.package_filters).toContain("--filter '@merit/app'");
+    expect(result.package_filters).toContain("@merit/grantmaking");
+    expect(result.package_filters).toContain("@merit/app");
   });
 
   test("routes shared UI changes to both app and storybook", () => {
@@ -131,8 +149,8 @@ describe("ci-changes", () => {
       changedFiles: ["capabilities/reviews/ai/src/tools.ts"],
       workspacePackages,
     });
-    expect(result.package_filters).toContain("--filter '@merit/reviews-ai'");
-    expect(result.package_filters).toContain("--filter '@merit/mcp'");
+    expect(result.package_filters).toContain("@merit/reviews-ai");
+    expect(result.package_filters).toContain("@merit/mcp");
     expect(result.run_app).toBe(true);
   });
 

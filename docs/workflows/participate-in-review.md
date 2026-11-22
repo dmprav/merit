@@ -43,7 +43,8 @@ is visible to managers. Sender acceptance does not prove delivery to the inbox.
 The application material and criteria are pinned to the request's original versions.
 Changed application versions and different criteria content are flagged using the
 shared [review freshness policy](review-applications.md#review-basis-and-freshness-policy),
-without replacing the assigned evidence. A later criteria version with matching
+while the reviewer can read the assigned evidence. Managers can still see changes
+when reviewer access pauses or ends. A later criteria version with matching
 content does not raise a content-change warning. The manager decides whether to
 request a follow-up. A reviewer sees their invited, in-progress, and submitted assignments in the
 workspace’s **My work**, with status and response date. Reviewers with no assignments

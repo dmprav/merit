@@ -43,17 +43,25 @@ it("leaves fields outside the recommendation contract out of its encoding", () =
 });
 
 it.each(["Fund", "Defer"] as const)(
-  "accepts an encoded %s recommendation in a save request",
+  "accepts only writable %s recommendation fields",
   (position) => {
-    expect(
-      saveRecommendationRequestSchema.safeParse({
-        workspaceSlug: "alder",
-        publicId: "0123456789ab",
-        expectedRevision: 0,
-        expectedApplicationVersion: 1,
-        recommendation: encodeRecommendation(recorded(position)),
-      }).success,
-    ).toBe(true);
+    const { recorded: recording, ...proposal } = encodeRecommendation(recorded(position));
+    const request = {
+      workspaceSlug: "alder",
+      publicId: "0123456789ab",
+      expectedRevision: 0,
+      expectedApplicationVersion: 1,
+      recommendation: proposal,
+    };
+    expect(saveRecommendationRequestSchema.safeParse(request).success).toBe(true);
+    for (const metadata of [{ recorded: recording }, { author: { name: "Client" } }]) {
+      expect(
+        saveRecommendationRequestSchema.safeParse({
+          ...request,
+          recommendation: { ...proposal, ...metadata },
+        }).success,
+      ).toBe(false);
+    }
   },
 );
 

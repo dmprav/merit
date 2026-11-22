@@ -1,6 +1,43 @@
-import { describe, expect, it } from "vite-plus/test";
+import { screen, waitFor } from "@testing-library/react";
+import { afterEach, assert, describe, expect, it, vi } from "vite-plus/test";
 
+import { clearDrafts } from "@merit/drafts";
+
+import { renderWithRouter } from "../../../tests/render-with-router";
 import { Route } from "./sign-in";
+
+const { signOut } = vi.hoisted(() => ({ signOut: vi.fn() }));
+
+vi.mock("@clerk/tanstack-react-start", () => ({
+  useClerk: () => ({ signOut }),
+  useUser: () => ({ user: { primaryEmailAddress: null } }),
+}));
+vi.mock("@merit/drafts", () => ({ clearDrafts: vi.fn() }));
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllEnvs();
+});
+
+it("waits for account draft cleanup before redirecting to switch accounts", async () => {
+  vi.stubEnv("MERIT_LOCAL_WORKSPACE", "");
+  vi.stubEnv("VITE_CLERK_PUBLISHABLE_KEY", "configured");
+  vi.spyOn(Route, "useSearch").mockReturnValue({ returnTo: "/app/alder" });
+  const finishCleanup = vi.fn<() => void>();
+  vi.mocked(clearDrafts).mockImplementationOnce(
+    () => new Promise<boolean>((resolve) => finishCleanup.mockImplementation(() => resolve(true))),
+  );
+  const Page = Route.options.component;
+  assert.isDefined(Page);
+  const { user } = await renderWithRouter(<Page />, "/app/sign-in");
+  await user.click(screen.getByRole("button", { name: "Switch account" }));
+  expect(clearDrafts).toHaveBeenCalledWith();
+  expect(signOut).not.toHaveBeenCalled();
+  finishCleanup();
+  await waitFor(() =>
+    expect(signOut).toHaveBeenCalledWith({ redirectUrl: "/app/sign-in?returnTo=%2Fapp%2Falder" }),
+  );
+});
 
 const validateSearch = (returnTo: unknown) => {
   const validator = Route.options.validateSearch;

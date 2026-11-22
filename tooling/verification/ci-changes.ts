@@ -18,7 +18,7 @@ export type ChangeClassification = {
   run_storybook: boolean;
   run_tooling: boolean;
   run_package_tests: boolean;
-  package_filters: string;
+  package_filters: string[];
   dependencies_changed: boolean;
 };
 
@@ -35,7 +35,7 @@ const WORKSPACE_PACKAGE_PATTERNS = [
   "tooling/testing/package.json",
 ];
 
-const ALL_PACKAGES_FILTER = "--filter '@merit/*' --filter '!@merit/storybook'";
+const ALL_PACKAGES_FILTER = ["@merit/*", "!@merit/storybook"];
 
 const DOC_FILE_PATTERN =
   /^(docs\/|\.remarkrc\.mjs$|\.github\/pull_request_template\.md$|\.github\/ISSUE_TEMPLATE\/)/;
@@ -73,8 +73,11 @@ const readPackageManifest = (repoRoot: string, relPath: string) => {
     throw new Error(`Invalid package.json at ${relPath}`);
   }
   const manifest = parsed as PackageManifest;
-  if (typeof manifest.name !== "string") {
-    throw new Error(`Missing package name in ${relPath}`);
+  if (
+    typeof manifest.name !== "string" ||
+    !/^@merit\/[a-z0-9]+(?:-[a-z0-9]+)*$/.test(manifest.name)
+  ) {
+    throw new Error(`Invalid Merit package name in ${relPath}`);
   }
   return {
     dir: relPath.slice(0, -"/package.json".length),
@@ -185,7 +188,7 @@ export const classifyChangedFiles = ({
       run_storybook: false,
       run_tooling: false,
       run_package_tests: false,
-      package_filters: "",
+      package_filters: [],
       dependencies_changed: dependenciesChanged,
     };
   }
@@ -227,7 +230,7 @@ export const classifyChangedFiles = ({
         f === ".coderabbit.yaml",
     ),
     run_package_tests: testablePackages.length > 0,
-    package_filters: testablePackages.map((name) => `--filter '${name}'`).join(" "),
+    package_filters: testablePackages,
     dependencies_changed: dependenciesChanged,
   };
 };
@@ -279,7 +282,7 @@ const runCli = () => {
   const workspacePackages = loadWorkspacePackages(repoRoot);
   const result = classifyChangedFiles({ eventName, changedFiles, workspacePackages });
 
-  const lines = Object.entries(result).map(([key, value]) => `${key}=${String(value)}`);
+  const lines = Object.entries(result).map(([key, value]) => `${key}=${JSON.stringify(value)}`);
   process.stdout.write(`${lines.join("\n")}\n`);
   if (process.env.GITHUB_OUTPUT) {
     appendFileSync(process.env.GITHUB_OUTPUT, `${lines.join("\n")}\n`);

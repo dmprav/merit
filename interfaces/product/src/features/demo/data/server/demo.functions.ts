@@ -7,7 +7,7 @@ export const readDemo = createServerFn({ method: "GET" }).handler(({ context }) 
 );
 
 export const startDemo = createServerFn({ method: "POST" })
-  .validator(z.object({ fresh: z.boolean(), resetWorkspaceId: z.string().optional() }))
+  .validator(z.object({ fresh: z.boolean(), resetWorkspaceId: z.uuid().optional() }))
   .handler(async ({ context, data }) => {
     const { state, cookie } = await context.demo.start(data);
     if (cookie) {

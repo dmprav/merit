@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useQuery } from "@tanstack/react-query";
 import { expect, mocked, waitFor, within } from "storybook/test";
 
 import { ApplicationPage } from "@merit/ui/application-shell";
@@ -7,10 +6,9 @@ import { ApplicationPage } from "@merit/ui/application-shell";
 import { StoryEnvironment } from "../../../tests/storybook";
 import { AccessRequests } from "./access-requests";
 import type { AccessRequestsResult } from "./contracts";
-import { accessRequestsOptions } from "./data/queries";
 import { readAccessRequests, reviewAccessRequest } from "./data/server/access-requests.functions";
 
-const requests: Extract<AccessRequestsResult, { status: "ok" }>["value"] = [
+const requests: Extract<AccessRequestsResult, { status: "ok" }>["value"]["requests"] = [
   {
     email: "leah@example.test",
     requestedAt: new Date("2026-11-09T10:00:00Z"),
@@ -26,8 +24,7 @@ const requests: Extract<AccessRequestsResult, { status: "ok" }>["value"] = [
 ];
 
 const RequestsPreview = ({ initial }: { initial: AccessRequestsResult }) => {
-  const { data } = useQuery({ ...accessRequestsOptions(), initialData: initial });
-  return <AccessRequests result={data} />;
+  return <AccessRequests initialData={{ pages: [initial], pageParams: [null] }} />;
 };
 
 const meta = {
@@ -35,7 +32,7 @@ const meta = {
   tags: ["!autodocs"],
   component: RequestsPreview,
   parameters: { layout: "fullscreen", controls: { disable: true } },
-  args: { initial: { status: "ok", value: requests } },
+  args: { initial: { status: "ok", value: { requests, nextCursor: null } } },
   decorators: [
     (Story) => (
       <StoryEnvironment path="/admin/access-requests">
@@ -55,7 +52,9 @@ const meta = {
     mocked(readAccessRequests).mockImplementation(async () => result);
     mocked(reviewAccessRequest).mockImplementation(async ({ data }) => {
       const request =
-        result.status === "ok" ? result.value.find((item) => item.email === data.email) : undefined;
+        result.status === "ok"
+          ? result.value.requests.find((item) => item.email === data.email)
+          : undefined;
       if (!request) {
         return { status: "not_found" };
       }
@@ -67,7 +66,12 @@ const meta = {
       if (result.status === "ok") {
         result = {
           ...result,
-          value: result.value.map((item) => (item.email === data.email ? value : item)),
+          value: {
+            ...result.value,
+            requests: result.value.requests.map((item) =>
+              item.email === data.email ? value : item,
+            ),
+          },
         };
       }
       return { status: "ok", value };
@@ -80,6 +84,40 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const NewAndReviewed: Story = {};
+export const MoreRequests: Story = {
+  args: {
+    initial: {
+      status: "ok",
+      value: {
+        requests: requests.slice(0, 1),
+        nextCursor: { id: "a6d08031-f329-4050-9d4b-e7882679eba1", reviewed: false },
+      },
+    },
+  },
+  play: async ({ canvas, userEvent }) => {
+    mocked(readAccessRequests).mockRejectedValueOnce(new Error("Next page failed"));
+    await userEvent.click(canvas.getByRole("button", { name: "Load more requests" }));
+    await expect(await canvas.findByRole("alert")).toHaveTextContent(
+      "More requests could not load",
+    );
+    await expect(canvas.getByText("leah@example.test")).toBeVisible();
+    mocked(readAccessRequests).mockResolvedValueOnce({
+      status: "ok",
+      value: {
+        requests: requests.map((r) => ({ ...r, reviewedAt: new Date("2026-11-11T10:00:00Z") })),
+        nextCursor: null,
+      },
+    });
+    await userEvent.click(canvas.getByRole("button", { name: "Load more requests" }));
+    await expect(await canvas.findByText("morgan@example.test")).toBeVisible();
+    await expect(canvas.getByRole("row", { name: /leah@example.test/ })).toHaveTextContent(
+      "Reviewed",
+    );
+    await expect(
+      canvas.queryByRole("button", { name: "Load more requests" }),
+    ).not.toBeInTheDocument();
+  },
+};
 export const AboutRequests: Story = {
   play: async ({ canvas, canvasElement, userEvent }) => {
     await userEvent.click(canvas.getByRole("button", { name: "About requests" }));
@@ -90,7 +128,9 @@ export const AboutRequests: Story = {
     await expect(dialog).toHaveTextContent("Marking reviewed sends no email and grants no access");
   },
 };
-export const Empty: Story = { args: { initial: { status: "ok", value: [] } } };
+export const Empty: Story = {
+  args: { initial: { status: "ok", value: { requests: [], nextCursor: null } } },
+};
 export const MarkedReviewed: Story = {
   play: async ({ canvas, userEvent }) => {
     await userEvent.click(canvas.getByRole("button", { name: "Mark reviewed" }));

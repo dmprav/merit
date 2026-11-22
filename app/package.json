@@ -5,6 +5,7 @@
   "license": "UNLICENSED",
   "type": "module",
   "dependencies": {
+    "@clerk/tanstack-react-start": "catalog:",
     "@merit/admin": "workspace:*",
     "@merit/analytics": "workspace:*",
     "@merit/applications": "workspace:*",
@@ -43,7 +44,6 @@
   },
   "devDependencies": {
     "@axe-core/playwright": "catalog:",
-    "@clerk/tanstack-react-start": "catalog:",
     "@merit/access": "workspace:*",
     "@merit/money": "workspace:*",
     "@merit/test-support": "workspace:*",

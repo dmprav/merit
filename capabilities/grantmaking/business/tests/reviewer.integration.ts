@@ -459,6 +459,57 @@ it("pauses conflicts and revokes immediately while preserving private drafts for
   expect(await s.respond("accept")).toMatchObject({ status: "ok", value: { status: "submitted" } });
 });
 
+it.for(["report_conflict", "cancel", "decline"] as const)(
+  "hides later evidence changes from a reviewer after %s while the manager retains them",
+  async (action, { db, rounds, reviewerScenario: s }) => {
+    await s.respond("accept");
+    const ended =
+      action === "cancel"
+        ? await s.manage(action)
+        : await s.respond(action, "Relationship disclosed");
+    expect(ended.status).toBe("ok");
+    expect(
+      await editFundingRound(db, actor, {
+        workspaceSlug: "alder",
+        publicId: rounds.pageInput.publicId,
+        expectedRevision: 0,
+        change: {
+          section: "criteria",
+          criteria: [{ id: randomUUID(), title: "New criterion", description: "" }],
+        },
+      }),
+    ).toMatchObject({ status: "ok" });
+    const hidden = {
+      basisComparison: {
+        applicationVersion: "unknown",
+        criteriaVersion: "unknown",
+        criteriaContent: "unknown",
+      },
+      materialChanged: false,
+      criteriaChanged: false,
+    };
+    expect(await s.read()).toMatchObject({ assignment: hidden, material: null });
+    expect(await s.service.list(sam)).toMatchObject({ status: "ok", value: [hidden] });
+    const visible = {
+      basisComparison: {
+        applicationVersion: "same",
+        criteriaVersion: "different",
+        criteriaContent: "different",
+      },
+      criteriaChanged: true,
+    };
+    expect(await s.service.forApplication(actor, s.address)).toMatchObject({
+      status: "ok",
+      value: [visible],
+    });
+    if (action === "cancel") {
+      expect(await s.manage("reinstate")).toMatchObject({ status: "ok" });
+      expect((await s.read()).assignment).toMatchObject(visible);
+      expect(await s.service.list(sam)).toMatchObject({ status: "ok", value: [visible] });
+    }
+  },
+);
+
 it("keeps the assigned evidence and criteria when newer versions arrive", async ({
   db,
   rounds,

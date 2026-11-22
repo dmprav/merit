@@ -180,7 +180,8 @@ It excludes ignored local credentials and generated output, but still checks
 force-added ignored files. The staged scan checks the index, including the first
 commit; changing a working copy does not hide a staged secret. Run the history
 scan when adopting the check in an existing repository or investigating a leak.
-Full verification checks current files; it does not rescan all history.
+CI and full local verification scan the checked-out files. Use the history scan
+to check credentials that appeared only in an earlier commit of a pull request.
 
 Secretlint runs locally, never contacts providers, and masks findings. The staged
 scan checks the full staged content of each added or modified file. The history
@@ -192,8 +193,9 @@ remote side.
 If it reports a real credential, revoke or rotate it and remove it from source;
 deleting the current line does not remove earlier commits. Review false positives
 individually and record exceptions as exact values in
-[the scanner configuration](../../tooling/verification/secrets.config.ts). Keep
-provider rules enabled and avoid excluding entire source or test directories.
+[the scanner configuration](../../tooling/verification/secrets.config.ts). Inline suppression
+comments have no effect. Keep provider rules enabled and avoid excluding entire
+source or test directories.
 
 The dependency audit includes production and development dependencies. High and
 critical advisories fail the check; registry failures also fail it. Because new

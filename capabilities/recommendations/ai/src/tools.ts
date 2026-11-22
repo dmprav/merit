@@ -9,8 +9,6 @@ import {
 
 import { savedRecommendationSchema, presentRecommendation } from "./responses";
 
-const recommendation = saveRecommendationRequestSchema.shape.recommendation;
-
 export const createRecommendationTools = (
   actor: Actor,
   recommendations: RecommendationsService,
@@ -27,7 +25,6 @@ export const createRecommendationTools = (
         .extend({
           applicationId: publicIdSchema,
           expectedRecommendationRevision: revision,
-          recommendation: recommendation.omit({ author: true, recorded: true }),
         }),
       outputSchema: savedRecommendationSchema,
     },
