@@ -16,35 +16,55 @@ import {
   ApplicationNavigationButton,
   ApplicationPage,
   ApplicationShell,
+  useCloseNavigation,
 } from "./application-shell";
 import styles from "./application-shell.module.css";
 import storyStyles from "./application-shell.stories.module.css";
 
-const AssistantConversation = () => {
-  const [draft, setDraft] = useState("");
+/** The panel remounts its content when the screen crosses 1400 pixels, so the draft lives with the caller. */
+const AssistantConversation = ({
+  draft,
+  onDraftChange,
+}: {
+  draft: string;
+  onDraftChange: (draft: string) => void;
+}) => (
+  <div className={storyStyles.conversation}>
+    <ul className={storyStyles.messages}>
+      <li>Which applications in this round still need a second review?</li>
+      <li className={storyStyles.reply}>
+        Three applications have one review so far: Riverside Youth Arts, Harbour Learning Garden,
+        and Northside Repair Cafe.
+      </li>
+    </ul>
+    <MessageBox
+      label="Message"
+      isLabelHidden
+      placeholder="Ask about this round"
+      value={draft}
+      onChange={onDraftChange}
+      sendLabel="Send message"
+      onSend={() => onDraftChange("")}
+      stopLabel="Stop"
+      onStop={() => {}}
+      autoFocus
+    />
+  </div>
+);
+
+/** Closes the compact navigation drawer before opening the panel over the page. */
+const AssistantOpener = ({ onOpen }: { onOpen: () => void }) => {
+  const closeNavigation = useCloseNavigation();
 
   return (
-    <div className={storyStyles.conversation}>
-      <ul className={storyStyles.messages}>
-        <li>Which applications in this round still need a second review?</li>
-        <li className={storyStyles.reply}>
-          Three applications have one review so far: Riverside Youth Arts, Harbour Learning Garden,
-          and Northside Repair Cafe.
-        </li>
-      </ul>
-      <MessageBox
-        label="Message"
-        isLabelHidden
-        placeholder="Ask about this round"
-        value={draft}
-        onChange={setDraft}
-        sendLabel="Send message"
-        onSend={() => setDraft("")}
-        stopLabel="Stop"
-        onStop={() => {}}
-        autoFocus
-      />
-    </div>
+    <ApplicationNavigationButton
+      icon="search"
+      label="Open assistant"
+      onPress={() => {
+        closeNavigation();
+        onOpen();
+      }}
+    />
   );
 };
 
@@ -58,6 +78,7 @@ type ShellExampleProps = {
 
 const ShellExample = ({ name, loading, signedIn, companion }: ShellExampleProps) => {
   const [open, setOpen] = useState(companion?.open ?? false);
+  const [draft, setDraft] = useState("");
 
   return (
     <ApplicationShell
@@ -95,13 +116,7 @@ const ShellExample = ({ name, loading, signedIn, companion }: ShellExampleProps)
             <Icon name="team" />
             Team
           </a>
-          {companion && (
-            <ApplicationNavigationButton
-              icon="search"
-              label="Open assistant"
-              onPress={() => setOpen(true)}
-            />
-          )}
+          {companion && <AssistantOpener onOpen={() => setOpen(true)} />}
         </>
       }
       companion={
@@ -113,7 +128,7 @@ const ShellExample = ({ name, loading, signedIn, companion }: ShellExampleProps)
           resizeLabel: "Resize assistant",
           width: companion.width,
           onWidthChange: fn(),
-          children: <AssistantConversation />,
+          children: <AssistantConversation draft={draft} onDraftChange={setDraft} />,
         }
       }
       footer={

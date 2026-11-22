@@ -211,7 +211,7 @@ it("lets other keys reach the surrounding panel", async () => {
   const user = userEvent.setup();
   const onKeyDown = vi.fn();
   render(
-    // oxlint-disable-next-line jsx-a11y/no-static-element-interactions
+    // oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- Stands in for the surrounding panel, which listens for keys bubbling from its controls.
     <div onKeyDown={onKeyDown}>
       <Example />
     </div>,

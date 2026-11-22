@@ -100,8 +100,9 @@ without dragging toggles between the default 416 pixels and the 560 widest. The 
 <Canvas of={Shell.AssistantPanelWidest} story={{ inline: false, height: "540px" }} />
 
 Opening moves focus into the panel: to the element the caller gives `autoFocus`, otherwise to
-the panel itself. Closing returns focus to the control that opened it, or to the main
-content when that control is gone. Escape inside the pushed panel closes it unless a menu or
+the panel itself. Closing from inside the panel returns focus to the control that opened it,
+or to the main content when that control is gone. When the caller closes the pushed panel
+while focus is elsewhere on the page, such as from a shortcut, focus stays where it is. Escape inside the pushed panel closes it unless a menu or
 popup inside has already used it. The panel's content mounts only while it is open, and again
 when the screen crosses 1400 pixels, so keep drafts and history with the caller.
 Compose a conversation from a [message box](?path=/docs/patterns-message-box--docs).

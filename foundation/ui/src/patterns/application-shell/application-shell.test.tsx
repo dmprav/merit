@@ -410,7 +410,7 @@ it("focuses the element the caller marks instead of the panel", async () => {
   render(
     <Companion
       panelContent={
-        // oxlint-disable-next-line jsx-a11y/no-autofocus
+        // oxlint-disable-next-line jsx-a11y/no-autofocus -- The test checks that the panel honours the caller's autoFocus mark.
         <input aria-label="Message" autoFocus />
       }
     />,

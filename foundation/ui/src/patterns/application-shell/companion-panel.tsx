@@ -70,7 +70,8 @@ const useFocusReturn = (isOpen: boolean) => {
   if (isOpen !== wasOpen) {
     setWasOpen(isOpen);
     // Content with autoFocus takes focus while the panel mounts, so read it before then.
-    setOpener(isOpen ? document.activeElement : opener);
+    // Server rendering has no document, and nothing has focus to return to.
+    setOpener(isOpen && typeof document !== "undefined" ? document.activeElement : opener);
   }
 
   const previouslyOpen = useRef(false);
@@ -287,8 +288,7 @@ export const CompanionPanel = ({
   }
 
   return push ? (
-    // Escape bubbles from the controls inside; the region itself is not a control.
-    // oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
+    // oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- Escape bubbles from the controls inside; the region itself is not a control.
     <aside
       ref={panel}
       id={panelId}
