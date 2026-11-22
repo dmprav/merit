@@ -245,9 +245,15 @@ catalogs:
     '@tanstack/ai':
       specifier: 1.7.0
       version: 1.7.0
+    '@tanstack/ai-client':
+      specifier: 1.1.0
+      version: 1.1.0
     '@tanstack/ai-mcp':
       specifier: 1.3.0
       version: 1.3.0
+    '@tanstack/ai-react':
+      specifier: 1.0.2
+      version: 1.0.2
     '@tanstack/react-devtools':
       specifier: 0.10.14
       version: 0.10.14
@@ -2664,6 +2670,15 @@ importers:
       '@merit/ui':
         specifier: workspace:*
         version: link:../../foundation/ui
+      '@tanstack/ai':
+        specifier: 'catalog:'
+        version: 1.7.0(@opentelemetry/api@1.10.0)(zod@4.6.7)
+      '@tanstack/ai-client':
+        specifier: 'catalog:'
+        version: 1.1.0(@opentelemetry/api@1.10.0)(zod@4.6.7)
+      '@tanstack/ai-react':
+        specifier: 'catalog:'
+        version: 1.0.2(@opentelemetry/api@1.10.0)(@tanstack/ai@1.7.0(@opentelemetry/api@1.10.0)(zod@4.6.7))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(zod@4.6.7)
       '@tanstack/react-query':
         specifier: 'catalog:'
         version: 5.107.1(@types/react@19.3.0)(react@19.3.1)
@@ -5038,6 +5053,9 @@ packages:
   '@swc/helpers@0.5.24':
     resolution: {integrity: sha512-6tcXo4kA8HgGO7AVmawB57RYi/piBPYVHVcO6dXjX+SZw8GoHmi262sp4v2Ha2kNP9Cx84qei27yT+fjS1lxgg==}
 
+  '@tanstack/ai-client@1.1.0':
+    resolution: {integrity: sha512-XMTdKzB9JG851Sztd/ywaL9D9Mw5DS87nV2i+5/Yq9dT+JKMcGoXCriztyO+djwxHu5ZGY32o9o29zbMMBo9VQ==}
+
   '@tanstack/ai-event-client@1.1.0':
     resolution: {integrity: sha512-g4ctAzbvC1CuAjjTnp8iH5hlnFzVPJybVhuRMItUb5ISC4bQsrhUyhrsZ4QHW1brEpaAhfdss+MpdWux+7glUw==}
 
@@ -5048,6 +5066,20 @@ packages:
       '@tanstack/ai-harness': ^0.3.0
     peerDependenciesMeta:
       '@tanstack/ai-harness':
+        optional: true
+
+  '@tanstack/ai-react@1.0.2':
+    resolution: {integrity: sha512-c4khP6tKUVWUI0rehUuBSJTGJ2lH99qvdkxT6aBxmvhZVCps3icJYso0PCXJTCwEadML3k8j3+7o6159cu42/A==}
+    peerDependencies:
+      '@mcp-ui/client': ^7
+      '@tanstack/ai': ^1.1.0
+      '@types/react': '>=18.0.0'
+      react: '>=18.0.0'
+      react-dom: '>=18.0.0'
+    peerDependenciesMeta:
+      '@mcp-ui/client':
+        optional: true
+      react-dom:
         optional: true
 
   '@tanstack/ai-utils@1.1.0':
@@ -5097,6 +5129,17 @@ packages:
   '@tanstack/history@1.162.5':
     resolution: {integrity: sha512-w1+YvwmTkwt5n8yUqEH3IWZ9DsmorCZW/EQ3KYHnqEgIkOZpH54NvW6/Epq3Dzb8H0ifIeYX8PExvrNLIH5FIA==}
     engines: {node: '>=20.19'}
+
+  '@tanstack/markdown@0.0.13':
+    resolution: {integrity: sha512-ZSQP2ulBvlPzdpZeRheBJnaELo7e4ET/D/XrfgweHyqhhLMN5vUJJAUl7ufSRd7GlfO/vwdzjKPh0E0JwqJkDA==}
+    peerDependencies:
+      octane: '>=0.1.12'
+      react: '>=18'
+    peerDependenciesMeta:
+      octane:
+        optional: true
+      react:
+        optional: true
 
   '@tanstack/match-sorter-utils@9.2.6':
     resolution: {integrity: sha512-DIpUSOhPfQ7u/qfUi/Wgm0wBO56MyBYXGvnlI0NcauDRPqdBUlAZZjW2Dxm92m+k1UWVhKw8YJ4f47+75Aujyw==}
@@ -10861,6 +10904,16 @@ snapshots:
 
   '@swc/helpers@0.5.24': {}
 
+  '@tanstack/ai-client@1.1.0(@opentelemetry/api@1.10.0)(zod@4.6.7)':
+    dependencies:
+      '@tanstack/ai': 1.7.0(@opentelemetry/api@1.10.0)(zod@4.6.7)
+      '@tanstack/ai-event-client': 1.1.0
+      '@tanstack/ai-utils': 1.1.0
+      '@tanstack/store': 0.11.2
+    transitivePeerDependencies:
+      - '@opentelemetry/api'
+      - zod
+
   '@tanstack/ai-event-client@1.1.0':
     dependencies:
       '@tanstack/devtools-event-client': 0.4.4
@@ -10873,6 +10926,20 @@ snapshots:
       jose: 6.2.15
     transitivePeerDependencies:
       - '@opentelemetry/api'
+      - zod
+
+  '@tanstack/ai-react@1.0.2(@opentelemetry/api@1.10.0)(@tanstack/ai@1.7.0(@opentelemetry/api@1.10.0)(zod@4.6.7))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(zod@4.6.7)':
+    dependencies:
+      '@tanstack/ai': 1.7.0(@opentelemetry/api@1.10.0)(zod@4.6.7)
+      '@tanstack/ai-client': 1.1.0(@opentelemetry/api@1.10.0)(zod@4.6.7)
+      '@tanstack/markdown': 0.0.13(react@19.3.1)
+      '@types/react': 19.3.0
+      react: 19.3.1
+    optionalDependencies:
+      react-dom: 19.3.1(react@19.3.1)
+    transitivePeerDependencies:
+      - '@opentelemetry/api'
+      - octane
       - zod
 
   '@tanstack/ai-utils@1.1.0': {}
@@ -10940,6 +11007,10 @@ snapshots:
       '@tanstack/store': 0.11.2
 
   '@tanstack/history@1.162.5': {}
+
+  '@tanstack/markdown@0.0.13(react@19.3.1)':
+    optionalDependencies:
+      react: 19.3.1
 
   '@tanstack/match-sorter-utils@9.2.6':
     dependencies:
