@@ -16,14 +16,15 @@ const pagesSchema = z.array(z.object({ jobs: z.array(jobSchema) }));
 
 type Job = z.infer<typeof jobSchema>;
 
-// Playwright's list reporter prints one result line per test, including its project and file.
+// Playwright's list reporter prints one result line per attempt, including its project and
+// file, and marks attempts after the first with their retry number.
 const resultLine =
-  /^\S+Z\s+([✘✓])\s+\d+ (\[[^\]]+\]) › (.+?):\d+:\d+ › (.+) \([\d.]+(?:ms|s|m)\)$/gm;
+  /^\S+Z\s+([✘✓])\s+\d+ (\[[^\]]+\]) › (.+?):\d+:\d+ › (.+?)( \(retry #\d+\))? \([\d.]+(?:ms|s|m)\)$/gm;
 
-const testResults = (job: Job, readLog: (id: number) => string, mark: string) => {
+const testResults = (job: Job, log: string, mark: string, attempts: "first" | "retries") => {
   const suite = job.name.replace(/ \(\d+\/\d+\)$/, "");
-  return [...stripVTControlCharacters(readLog(job.id)).matchAll(resultLine)]
-    .filter(([, result]) => result === mark)
+  return [...stripVTControlCharacters(log).matchAll(resultLine)]
+    .filter(([, result, , , , retry]) => result === mark && (attempts === "retries") === !!retry)
     .map(([, , project, file, title]) => `${suite} ${project} ${file} › ${title}`);
 };
 
@@ -34,12 +35,14 @@ const collectBrowserFailures = (jobs: Job[], readLog: (id: number) => string) =>
       job.name.startsWith("browser-") && job.run_attempt === 1 && job.conclusion === "failure",
   );
   for (const job of failedJobs) {
-    const tests = testResults(job, readLog, "✘");
-    for (const test of tests) {
-      failures.set(test, false);
-    }
+    const log = readLog(job.id);
+    const tests = testResults(job, log, "✘", "first");
     if (tests.length === 0) {
       continue;
+    }
+    const retried = new Set(testResults(job, log, "✓", "retries"));
+    for (const test of tests) {
+      failures.set(test, retried.has(test));
     }
     const reruns = jobs.filter(
       (later) =>
@@ -48,9 +51,14 @@ const collectBrowserFailures = (jobs: Job[], readLog: (id: number) => string) =>
         (later.conclusion === "success" || later.conclusion === "failure"),
     );
     for (const rerun of reruns) {
-      for (const passed of testResults(rerun, readLog, "✓")) {
-        if (failures.has(passed)) {
-          failures.set(passed, true);
+      const rerunLog = readLog(rerun.id);
+      const passed = [
+        ...testResults(rerun, rerunLog, "✓", "first"),
+        ...testResults(rerun, rerunLog, "✓", "retries"),
+      ];
+      for (const test of passed) {
+        if (failures.has(test)) {
+          failures.set(test, true);
         }
       }
     }
@@ -119,7 +127,7 @@ const reportHistory = () => {
     }
   }
   console.log(
-    `Last ${runs.length} Verify runs\nFirst-attempt failures\tPassed on rerun\tSuite, browser project and test`,
+    `Last ${runs.length} Verify runs\nFirst-attempt failures\tPassed on retry or rerun\tSuite, browser project and test`,
   );
   for (const [test, count] of [...totals].sort(
     ([a, x], [b, y]) => y.failures - x.failures || a.localeCompare(b),

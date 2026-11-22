@@ -48,7 +48,8 @@ workspace source rather than each other's outputs. In CI, the
 [PR verification workflow](development.md#pull-request-verification) splits those
 stages into jobs, and `test:ci` verifies that every `ready` stage and
 workflow invariant remains covered. `ci:summary` ([`ci-summary.ts`](../../tooling/verification/ci-summary.ts))
-publishes structured Playwright and Vitest step summaries on CI without adding retries.
+publishes structured Playwright and Vitest step summaries on CI, marking each failed
+browser test as failed or flaky.
 Database and browser checks start after package tests locally to limit competing workers.
 The application browser suites remain sequential locally, and the persisted workspace
 suite retains its single worker. The coverage and lint probes run last, on their
@@ -69,8 +70,8 @@ what invalidates them, and how to request a fresh run or inspect cache behavior.
 Run `vp run ci:browser-history` with an authenticated GitHub CLI to inspect the
 latest 100 Verify runs. Pass a run count to change the sample, for example
 `vp run ci:browser-history 30`. Each row counts runs where a named Playwright
-test failed on the first attempt, and how many subsequently logged a pass in
-the same shard on a rerun of that workflow run and commit. The report uses
+test failed on the first attempt, and how many then passed, either on its CI
+retry or in the same shard on a rerun of that workflow run and commit. The report uses
 completed successful or failed runs with retained job logs. Cancellations,
 setup failures without a test result, and non-browser jobs are excluded.
 

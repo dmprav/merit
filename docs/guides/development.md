@@ -443,9 +443,10 @@ that diffs against the PR base commit:
 
 The container-backed Playwright suites `browser-storybook`, `browser-demo`, and
 `browser-workspace` wait on both `build` and `static-checks` so lint, type, or
-boundary failures fail fast; they run all five browser projects,
-sharded and without retries. The workflow file defines each job's commands,
-shards, and services.
+boundary failures fail fast; they run all five browser projects, sharded. A
+test that fails runs once more so the step summary separates flaky tests from
+consistent failures; a flaky test still fails the job, and the failed attempt
+keeps its trace. The workflow file defines each job's commands, shards, and services.
 
 On every pull request, the `verification-record` job
 ([`verification-record.ts`](../../tooling/verification/verification-record.ts)) checks
