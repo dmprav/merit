@@ -172,7 +172,7 @@ catalogs:
       version: 3.27.0
     '@clerk/tanstack-react-start':
       specifier: ^1.7.11
-      version: 1.7.13
+      version: 1.7.17
     '@commitlint/cli':
       specifier: ^21.2.4
       version: 21.2.4
@@ -498,7 +498,7 @@ importers:
     dependencies:
       '@clerk/tanstack-react-start':
         specifier: 'catalog:'
-        version: 1.7.13(@tanstack/react-router@1.170.46(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(@tanstack/react-start@1.169.5(@voidzero-dev/vite-plus-core@1.5.0(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(supports-color@10.2.2))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+        version: 1.7.17(@tanstack/react-router@1.170.46(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(@tanstack/react-start@1.169.5(@voidzero-dev/vite-plus-core@1.5.0(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(supports-color@10.2.2))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@merit/admin':
         specifier: workspace:*
         version: link:../interfaces/admin
@@ -1943,7 +1943,7 @@ importers:
         version: 3.27.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@clerk/tanstack-react-start':
         specifier: 'catalog:'
-        version: 1.7.13(@tanstack/react-router@1.170.46(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(@tanstack/react-start@1.169.5(@voidzero-dev/vite-plus-core@1.5.0(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(supports-color@10.2.2))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+        version: 1.7.17(@tanstack/react-router@1.170.46(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(@tanstack/react-start@1.169.5(@voidzero-dev/vite-plus-core@1.5.0(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(supports-color@10.2.2))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@merit/db':
         specifier: workspace:*
         version: link:../db
@@ -2384,7 +2384,7 @@ importers:
     dependencies:
       '@clerk/tanstack-react-start':
         specifier: 'catalog:'
-        version: 1.7.13(@tanstack/react-router@1.170.46(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(@tanstack/react-start@1.169.5(@voidzero-dev/vite-plus-core@1.5.0(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(supports-color@10.2.2))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+        version: 1.7.17(@tanstack/react-router@1.170.46(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(@tanstack/react-start@1.169.5(@voidzero-dev/vite-plus-core@1.5.0(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(supports-color@10.2.2))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@merit/auth':
         specifier: workspace:*
         version: link:../../foundation/auth
@@ -2585,7 +2585,7 @@ importers:
     dependencies:
       '@clerk/tanstack-react-start':
         specifier: 'catalog:'
-        version: 1.7.13(@tanstack/react-router@1.170.46(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(@tanstack/react-start@1.169.5(@voidzero-dev/vite-plus-core@1.5.0(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(supports-color@10.2.2))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+        version: 1.7.17(@tanstack/react-router@1.170.46(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(@tanstack/react-start@1.169.5(@voidzero-dev/vite-plus-core@1.5.0(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(supports-color@10.2.2))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@merit/access':
         specifier: workspace:*
         version: link:../../capabilities/access
@@ -3098,12 +3098,12 @@ packages:
     resolution: {integrity: sha512-pmhVVP9EsAOL1rlRU4xR0XSL1BJczxGAJIqv8c+C9fRz7TYzCndGUMSSE/Zg7i2QOA24ExJbEJUiOjILdUL2EQ==}
     engines: {node: '>=20.9.0'}
 
-  '@clerk/backend@3.29.0':
-    resolution: {integrity: sha512-VmoVqkQXDs3hi2HsUomqe9Z/izoGgQ+IbY8fJN9VsqSdKVgHGUBw6CjDbOufkDakDuC8zBtcT9sn0M3QR3RHfQ==}
+  '@clerk/backend@3.31.2':
+    resolution: {integrity: sha512-7RWZPcdRMzO0zqXgXz09AnibDNwa2nMOvlY79LNavJOajHeG5CoEkpfAYRO9uKjC9+MIy/PNGyBb9wXusu5LGA==}
     engines: {node: '>=20.9.0'}
 
-  '@clerk/react@6.18.8':
-    resolution: {integrity: sha512-4f/9t9x28JbMueJMPNLUsG/f3Kilzubdz1hnjOj4j6HFLmO48R907+ozWdte1t+Vsj1SJooJBqZj/nIU78JvNw==}
+  '@clerk/react@6.19.2':
+    resolution: {integrity: sha512-nYSQk+jNdTz/+eHPA6J3vwwyhxu+5OuDQcLpUjAqQ/m5bb69UIklOY7koRIAwYFDEwWrxWuuHHK8HmTwJNCJVw==}
     engines: {node: '>=20.9.0'}
     peerDependencies:
       react: ^18.0.0 || ~19.0.3 || ~19.1.4 || ~19.2.3 || ~19.3.0-0
@@ -3121,8 +3121,8 @@ packages:
       react-dom:
         optional: true
 
-  '@clerk/shared@4.45.1':
-    resolution: {integrity: sha512-rAGh+U8dSE6Ov1I3mXysIHaGhxx63ET+24kW4gnmApJvrfU8nq9JT9pQOoyzG3X4PQa93aaAsxkck46CynDeHA==}
+  '@clerk/shared@4.48.1':
+    resolution: {integrity: sha512-qNj66fHshem+ozP7R9fsVekJR/HvuI+R3PkpZmOE95Fg4B7BlqSkpKVuw0iD8xn7Guo3zGrHFqe6jzdjDHPXkw==}
     engines: {node: '>=20.9.0'}
     peerDependencies:
       react: ^18.0.0 || ~19.0.3 || ~19.1.4 || ~19.2.3 || ~19.3.0-0
@@ -3133,8 +3133,8 @@ packages:
       react-dom:
         optional: true
 
-  '@clerk/tanstack-react-start@1.7.13':
-    resolution: {integrity: sha512-oXxRY1Kgi+MQvVHyY1pr4z8QaTckwrnZyLgUpYriHNMykJUqWhAOeR5CU8uKxuuHIUdwPAjKC53BKZ02P7Ff7A==}
+  '@clerk/tanstack-react-start@1.7.17':
+    resolution: {integrity: sha512-phoZGoi6Yio7bcybOGrYKvrpgiZpgkNL+7P3Z2zvvlZiWnZr5x9gAmJLK/BWWWh+eSusWzY+L3LMis13ZDEGQg==}
     engines: {node: '>=20.9.0'}
     peerDependencies:
       '@tanstack/react-router': ^1.170.7
@@ -9170,10 +9170,12 @@ packages:
   yuku-core@0.19.0:
     resolution: {integrity: sha512-kYK9e1XdfirNhkipzW0wmMcSWcVF/CWnuugodfVYRCUwvoBefweL9HzB96OiKEhsx78V5WbUxbJqlizMX869Qg==}
     engines: {node: '>=14.18.0'}
+    deprecated: 'Yuku is now one package with one core. Use "yuku" instead: https://yuku.fyi/javascript/. Existing installs keep working but get no more fixes.'
 
   yuku-parser@0.19.0:
     resolution: {integrity: sha512-XrBh9ZiQK5mJVRxZBAvD6LwRyAYrK3MFtH3+onyuxFL5hFD44EC3QOmIC1FjTj6H2MMwq46/NAI+NZxLZPZgxg==}
     engines: {node: '>=14.18.0'}
+    deprecated: 'Yuku is now one package with one core. Use "yuku" instead: https://yuku.fyi/javascript/. Existing installs keep working but get no more fixes.'
 
   zip-stream@7.0.5:
     resolution: {integrity: sha512-dSvYKdvLsAHCDqPOhIwk/q5CvuWtTB3Dgpoe0uVEFjTzIOAmsQpprX25InCvrvJsirEbu1OHyy67n/kAj1Sw/w==}
@@ -9365,17 +9367,17 @@ snapshots:
       - react
       - react-dom
 
-  '@clerk/backend@3.29.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
+  '@clerk/backend@3.31.2(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
     dependencies:
-      '@clerk/shared': 4.45.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      '@clerk/shared': 4.48.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       standardwebhooks: 1.1.1
     transitivePeerDependencies:
       - react
       - react-dom
 
-  '@clerk/react@6.18.8(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
+  '@clerk/react@6.19.2(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
     dependencies:
-      '@clerk/shared': 4.45.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      '@clerk/shared': 4.48.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       react: 19.3.1
       react-dom: 19.3.1(react@19.3.1)
 
@@ -9389,7 +9391,7 @@ snapshots:
       react: 19.3.1
       react-dom: 19.3.1(react@19.3.1)
 
-  '@clerk/shared@4.45.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
+  '@clerk/shared@4.48.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
     dependencies:
       '@tanstack/query-core': 5.107.1
       dequal: 2.0.3
@@ -9399,11 +9401,11 @@ snapshots:
       react: 19.3.1
       react-dom: 19.3.1(react@19.3.1)
 
-  '@clerk/tanstack-react-start@1.7.13(@tanstack/react-router@1.170.46(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(@tanstack/react-start@1.169.5(@voidzero-dev/vite-plus-core@1.5.0(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(supports-color@10.2.2))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
+  '@clerk/tanstack-react-start@1.7.17(@tanstack/react-router@1.170.46(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(@tanstack/react-start@1.169.5(@voidzero-dev/vite-plus-core@1.5.0(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(supports-color@10.2.2))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
     dependencies:
-      '@clerk/backend': 3.29.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
-      '@clerk/react': 6.18.8(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
-      '@clerk/shared': 4.45.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      '@clerk/backend': 3.31.2(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      '@clerk/react': 6.19.2(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      '@clerk/shared': 4.48.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@tanstack/react-router': 1.170.46(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@tanstack/react-start': 1.169.5(@voidzero-dev/vite-plus-core@1.5.0(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(supports-color@10.2.2)
       react: 19.3.1
