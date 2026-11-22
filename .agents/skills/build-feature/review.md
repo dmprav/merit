@@ -29,8 +29,9 @@ repository.
 
 - Does the change deliver everything under **Behavior** (or **Intended
   behavior**) and touch nothing under **Out of scope**?
-- Does every changed file sit inside the brief's **Plan**, with every departure
-  from a precedent listed under **Departures**?
+- When the brief includes **Plan** or **Departures**, does every changed file
+  sit inside the plan and every departure from a precedent appear under
+  **Departures**?
 - Are empty, long, missing, failed, conflicting, authorization, and read-only
   states handled as the brief and precedent handle them?
 - For bug or security fixes, does the change fix the first wrong step rather

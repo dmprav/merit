@@ -2,11 +2,13 @@
   "files": [
     {
       "path": ".agents/skills/build-feature/review.md",
-      "description": "Universal change review rubric: behavior, scope, reuse, architecture, mechanisms, tests, and UI checks."
+      "description": "Universal change review rubric: behavior, scope, reuse, architecture, mechanisms, tests, and UI checks.",
+      "scope": ["capabilities/**", "interfaces/**", "foundation/**", "app/**"]
     },
     {
       "path": "docs/foundations/architecture.md",
-      "description": "Architecture principles: where business rules live and how capabilities, interfaces, and shared foundations depend on each other."
+      "description": "Architecture principles: where business rules live and how capabilities, interfaces, and shared foundations depend on each other.",
+      "scope": ["capabilities/**", "interfaces/**", "foundation/**", "app/**"]
     },
     {
       "path": "docs/guides/coding-conventions.md",

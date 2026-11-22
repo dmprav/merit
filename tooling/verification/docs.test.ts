@@ -238,9 +238,13 @@ it("keeps Greptile and CodeRabbit review guide lists valid and aligned", () => {
   const greptilePaths = greptileConfig.files.map((entry) => entry.path);
   expect(new Set(greptilePaths).size).toBe(greptilePaths.length);
 
-  const coderabbitEntries = parseCodeRabbitFilePatterns(
-    readFileSync(join(root, ".coderabbit.yaml"), "utf8"),
-  );
+  const coderabbitYaml = readFileSync(join(root, ".coderabbit.yaml"), "utf8");
+  const toneMatch = /^tone_instructions:\s*>\r?\n((?:  .*\r?\n)+)/m.exec(coderabbitYaml);
+  const toneInstructions = toneMatch?.[1]?.replace(/\r?\n\s+/g, " ").trim() ?? "";
+  expect(toneInstructions.length).toBeGreaterThan(0);
+  expect(toneInstructions.length).toBeLessThanOrEqual(250);
+
+  const coderabbitEntries = parseCodeRabbitFilePatterns(coderabbitYaml);
   const coderabbitPaths = coderabbitEntries.map((entry) => entry.files);
   expect(new Set(coderabbitPaths).size).toBe(coderabbitPaths.length);
 
@@ -253,10 +257,8 @@ it("keeps Greptile and CodeRabbit review guide lists valid and aligned", () => {
     expect(existsSync(fullPath) && statSync(fullPath).isFile(), `missing file: ${entry.path}`).toBe(
       true,
     );
-    if (entry.scope) {
-      expect(coderabbitByPath.get(entry.path)?.applyTo, `scope mismatch for ${entry.path}`).toEqual(
-        entry.scope,
-      );
-    }
+    expect(coderabbitByPath.get(entry.path)?.applyTo, `scope mismatch for ${entry.path}`).toEqual(
+      entry.scope,
+    );
   }
 });

@@ -3,9 +3,9 @@
 language: en-US
 tone_instructions: >
   Be concise and direct. Ground feedback in repository precedents, guides, and
-  domain concepts, naming the concrete fix. Do not comment on formatting,
-  import boundaries, React Compiler rules, or checks enforced by oxlint, oxfmt,
-  stylelint, remark, fallow, or `vp run architecture`.
+  domain concepts, naming the concrete fix. Do not comment on formatting or
+  checks enforced by oxlint, oxfmt, stylelint, remark, fallow, or
+  `vp run architecture`.
 
 reviews:
   profile: chill
@@ -55,7 +55,7 @@ reviews:
 
     - path: "capabilities/*/web/**"
       instructions: |
-        - Enforce `docs/guides/web-features.md` semantic ownership: views present state and invoke controller actions without fetching records or building save commands; controllers own drafts, revision baselines, conflict/recovery, and Undo; `data/` owns transport normalization and cache updates.
+        - Enforce `docs/guides/web-features.md` semantic ownership: views present state and invoke controller actions without fetching records or building save commands; controllers own drafts, revision baselines, conflict/recovery, and Undo; `data/` owns transport normalization and cache updates. Do not repeat import-boundary or React Compiler checks already enforced in CI.
         - Flag duplicated components, hooks, styles, or helpers that already exist in `foundation/ui/` or the capability.
         - Verify editing flows follow `foundation/ui/src/patterns/editing/editing.mdx` (passive whole-section editing, preserved reading position, aligned conflict comparisons).
 
