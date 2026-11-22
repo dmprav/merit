@@ -173,18 +173,21 @@ export const insertIntakeApplication = async (
       ...caseContent(values.snapshot),
       organizationId: values.organizationId,
       roundId: values.roundId,
-      position: values.position ?? position!.next,
+      position: values.position ?? position?.next ?? 0,
       revision: values.revision ?? 0,
     })
     .returning();
+  if (!saved) {
+    throw new Error("Failed to insert application case.");
+  }
   await insertMaterialVersionRows(db, {
-    caseId: saved!.id,
+    caseId: saved.id,
     material: encodeApplicationMaterial(decodeIntakeApplication(values.snapshot)),
     changeKind: values.changeKind ?? "recorded",
     sourceKind: values.source?.kind ?? "recorded_external",
     recordedByUserId: values.recordedByUserId,
   });
-  return saved!;
+  return saved;
 };
 
 export const insertDemoMaterialVersion = async (
@@ -224,7 +227,7 @@ const writeIntakeApplication = async (
     .select({ materialVersion: applicationCases.materialVersion })
     .from(applicationCases)
     .where(eq(applicationCases.id, publicId));
-  if (current!.materialVersion !== values.snapshot.version) {
+  if (current && current.materialVersion !== values.snapshot.version) {
     const material = encodeApplicationMaterial(decodeIntakeApplication(values.snapshot));
     await insertMaterialVersionRows(db, {
       caseId: publicId,

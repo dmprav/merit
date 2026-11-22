@@ -41,6 +41,79 @@ export const fundingExampleIds = async (organizationId: string) => {
   };
 };
 
+const seedExampleApplication = async (
+  db: Transaction,
+  options: {
+    organizationId: string;
+    roundId: string;
+    authorUserId: string;
+    position: number;
+    example: ReturnType<typeof getExampleRound>;
+    application: ReturnType<typeof encodeRoundOverview>["applications"][number];
+    ids: Awaited<ReturnType<typeof fundingExampleIds>>;
+    contactIds: Awaited<ReturnType<typeof seedExampleContacts>>;
+  },
+) => {
+  const { organizationId, roundId, authorUserId, position, example, application, ids, contactIds } =
+    options;
+  const reviews = structuredClone(application.reviews);
+  for (const review of [...reviews.requests, ...reviews.assessments]) {
+    const contactId = contactIds.get(review.contactId);
+    if (!contactId) {
+      throw new Error(`Missing seeded contact for review: ${review.contactId}`);
+    }
+    review.contactId = contactId;
+  }
+
+  const seededApplicationId = ids.applications[application.id];
+  if (!seededApplicationId) {
+    throw new Error(`Missing seeded ID for application: ${application.id}`);
+  }
+  const content = {
+    ...application,
+    id: seededApplicationId,
+    reviews,
+    contactId: application.contactId ? (contactIds.get(application.contactId) ?? null) : null,
+  };
+  const earlierMaterial =
+    application.id === "A3" ? originalWorkshopMaterial(example, content) : undefined;
+  const saved = await insertExampleApplication(db, {
+    organizationId,
+    roundId,
+    position,
+    snapshot: content,
+    revision: earlierMaterial ? 1 : 0,
+    recordedByUserId: authorUserId,
+    earlierMaterial: earlierMaterial
+      ? [
+          {
+            content: encodeApplicationMaterial(earlierMaterial),
+            reason: "The original request used a free venue.",
+            recordedAt: new Date("2027-01-08T12:00:00Z"),
+          },
+        ]
+      : [],
+  });
+  if (earlierMaterial) {
+    await recordApplicationChange(db, {
+      organizationId,
+      publicId: saved.id,
+      revision: 1,
+      actor: { userId: authorUserId },
+      provenance: null,
+      roundId,
+      action: "revision",
+      recordedAt: new Date("2027-01-17T12:00:00Z"),
+      reason: "The applicant lost the free venue and submitted a revised request.",
+      before: { application: earlierMaterial, workingRevision: null },
+      after: {
+        application: decodeApplication(content),
+        workingRevision: null,
+      },
+    });
+  }
+};
+
 /** Seed authored fictional history, never attribute prepared work to the visitor. */
 export const seedFundingExample = async (
   db: Transaction,
@@ -74,54 +147,16 @@ export const seedFundingExample = async (
   });
 
   for (const [position, application] of items.entries()) {
-    const reviews = structuredClone(application.reviews);
-    for (const review of [...reviews.requests, ...reviews.assessments]) {
-      review.contactId = contactIds.get(review.contactId)!;
-    }
-
-    const content = {
-      ...application,
-      id: ids.applications[application.id]!,
-      reviews,
-      contactId: application.contactId ? contactIds.get(application.contactId)! : null,
-    };
-    const earlierMaterial =
-      application.id === "A3" ? originalWorkshopMaterial(example, content) : undefined;
-    const saved = await insertExampleApplication(db, {
+    await seedExampleApplication(db, {
       organizationId,
       roundId: ids.roundId,
+      authorUserId,
       position,
-      snapshot: content,
-      revision: earlierMaterial ? 1 : 0,
-      recordedByUserId: authorUserId,
-      earlierMaterial: earlierMaterial
-        ? [
-            {
-              content: encodeApplicationMaterial(earlierMaterial),
-              reason: "The original request used a free venue.",
-              recordedAt: new Date("2027-01-08T12:00:00Z"),
-            },
-          ]
-        : [],
+      example,
+      application,
+      ids,
+      contactIds,
     });
-    if (earlierMaterial) {
-      await recordApplicationChange(db, {
-        organizationId,
-        publicId: saved.id,
-        revision: 1,
-        actor: { userId: authorUserId },
-        provenance: null,
-        roundId: ids.roundId,
-        action: "revision",
-        recordedAt: new Date("2027-01-17T12:00:00Z"),
-        reason: "The applicant lost the free venue and submitted a revised request.",
-        before: { application: earlierMaterial, workingRevision: null },
-        after: {
-          application: decodeApplication(content),
-          workingRevision: null,
-        },
-      });
-    }
   }
 };
 
@@ -129,7 +164,10 @@ const originalWorkshopMaterial = (
   example: ReturnType<typeof getExampleRound>,
   content: ReturnType<typeof encodeRoundOverview>["applications"][number],
 ) => {
-  const source = example.applications.find((item) => item.id === "A3")!;
+  const source = example.applications.find((item) => item.id === "A3");
+  if (!source?.submission) {
+    throw new Error("Missing example A3 submission.");
+  }
   return applicationRecordSchema.parse({
     ...source,
     id: content.id,
@@ -145,7 +183,7 @@ const originalWorkshopMaterial = (
       ...source.submission,
       version: 1,
       submittedOn: "2027-01-08",
-      answers: source.submission!.answers.map((answer) =>
+      answers: source.submission.answers.map((answer) =>
         answer.question === "Revised venue and funding request"
           ? {
               ...answer,

@@ -23,6 +23,7 @@ import {
   intakeConfirmationChange,
   outstandingReviewCount,
   intakeDraftChanged,
+  buildIntakeDraft,
   newIntakeDraft,
   reconcileIntake,
   type IntakeConfirmation,
@@ -174,7 +175,7 @@ const useIntakeEditing = (
     if (ready && section && !draft) {
       setApplicationEdit(
         `${data.draftKey}:${section}`,
-        newIntakeDraft(section, latest, intake.revision) as IntakeDraft,
+        buildIntakeDraft(section, latest, intake.revision),
       );
     }
   }, [ready, section, draft, setApplicationEdit, data.draftKey, latest, intake.revision]);
@@ -252,10 +253,23 @@ const resolveIntakeDraft = (
   latest: IntakeSnapshot,
   revision: number,
   source: "mine" | "saved",
-) =>
-  (source === "saved"
-    ? newIntakeDraft(draft.section, latest, revision)
-    : reconcileIntake(draft, latest, revision)) as IntakeDraft;
+): IntakeDraft => {
+  if (source === "saved") {
+    return buildIntakeDraft(draft.section, latest, revision);
+  }
+  switch (draft.section) {
+    case "title":
+      return reconcileIntake(draft, latest, revision);
+    case "metadata":
+      return reconcileIntake(draft, latest, revision);
+    case "content":
+      return reconcileIntake(draft, latest, revision);
+    case "details":
+      return reconcileIntake(draft, latest, revision);
+    case "reason":
+      return reconcileIntake(draft, latest, revision);
+  }
+};
 
 const useIntakeSave = (
   data: IntakeData,

@@ -88,13 +88,24 @@ const useSubmissionWork = (
   };
 };
 
+export type ReviewerErrorKey =
+  | "unavailable"
+  | "accessLost"
+  | "saveConflict"
+  | "stale"
+  | "expired"
+  | "applicationWithdrawn"
+  | "draftInvalid"
+  | "submissionInvalid"
+  | "submissionSaved";
+
 /**
  * Client session a preview resumes. The loaded assignment does not include an in-progress
  * save, a failed request, or an open amendment.
  */
 export type ReviewerSession = {
   busy?: boolean;
-  error?: string | null;
+  error?: ReviewerErrorKey | null;
   attempted?: boolean;
   amending?: boolean;
   /** Unsaved local draft. The assignment draft remains the last saved copy. */
@@ -123,7 +134,7 @@ export const useReviewer = (
   const [page, setPage] = useState(initial);
   const [busy, setBusy] = useState(start.busy);
   const working = useRef(false);
-  const [error, setError] = useState<string | null>(start.error);
+  const [error, setError] = useState<ReviewerErrorKey | null>(start.error);
   const pendingSubmission = useRef<Parameters<ReviewerService["submit"]>[1] | null>(null);
   const submissionConfirmed = useRef(false);
   const pendingResponse = useRef<Parameters<ReviewerService["respond"]>[1] | null>(null);
@@ -314,21 +325,21 @@ export const useReviewer = (
     if (working.current || conflict) {
       return;
     }
-    const savedDraft = pendingSubmission.current ? null : await save();
-    if (
-      !pendingSubmission.current &&
-      (!savedDraft || !same(savedDraft.content, latestDraft.current))
-    ) {
-      return;
+    let input = pendingSubmission.current;
+    if (!input) {
+      const savedDraft = await save();
+      if (!savedDraft || !same(savedDraft.content, latestDraft.current)) {
+        return;
+      }
+      input = {
+        assignmentId: page.assignment.id,
+        commandId: crypto.randomUUID(),
+        expectedDraftRevision: savedDraft.revision,
+      };
     }
     working.current = true;
     setBusy(true);
     setError(null);
-    const input = pendingSubmission.current ?? {
-      assignmentId: page.assignment.id,
-      commandId: crypto.randomUUID(),
-      expectedDraftRevision: savedDraft!.revision,
-    };
     pendingSubmission.current = input;
     setSubmissionPending(true);
     try {

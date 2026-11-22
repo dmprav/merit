@@ -117,7 +117,7 @@ export const writeRecommendation = async (
     .select({ revision: sql<number>`coalesce(max(${recommendationVersions.revision}), 0)` })
     .from(recommendationVersions)
     .where(eq(recommendationVersions.caseId, input.publicId));
-  if (head!.revision !== input.expectedRevision) {
+  if (!head || head.revision !== input.expectedRevision) {
     return false;
   }
   const content = recommendationDataSchema.parse(encodeRecommendation(input.after));

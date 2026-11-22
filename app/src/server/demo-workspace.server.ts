@@ -38,18 +38,24 @@ export const demoDestination = async (
       kind: "round",
     }),
   );
-  const application = await database((db) =>
-    getFundingApplicationContext(db, actor, {
-      workspaceSlug: workspace.slug,
-      applicationId: ids.applications.A3!,
-    }),
-  );
+  const applicationId = ids.applications.A3;
+  const application = applicationId
+    ? await database((db) =>
+        getFundingApplicationContext(db, actor, {
+          workspaceSlug: workspace.slug,
+          applicationId,
+        }),
+      )
+    : null;
+  if (!workspace.demoExpiresAt) {
+    throw new Error("Demo workspace is missing demoExpiresAt.");
+  }
   return {
     status: "ready" as const,
     workspaceId: workspace.id,
     workspaceSlug: workspace.slug,
-    expiresAt: workspace.demoExpiresAt!.toISOString(),
-    ...(application.status === "ok" ? { applicationRef: ids.applications.A3 } : {}),
+    expiresAt: workspace.demoExpiresAt.toISOString(),
+    ...(application?.status === "ok" && applicationId ? { applicationRef: applicationId } : {}),
     ...(round ? { roundRef: round.round.id } : {}),
   };
 };

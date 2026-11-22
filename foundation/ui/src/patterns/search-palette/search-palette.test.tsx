@@ -342,7 +342,7 @@ describe("search palette dialog", () => {
           onOpenChange={setIsOpen}
           data-testid="search-overlay"
         >
-          {/* oxlint-disable-next-line jsx-a11y/no-autofocus */}
+          {/* oxlint-disable-next-line jsx-a11y/no-autofocus -- Test fixture verifies initial focus inside the search dialog. */}
           <input aria-label="Query" autoFocus={onField} />
         </SearchPaletteDialog>
       </>

@@ -123,14 +123,23 @@ const instrumentMethod =
     });
 
 export const instrumentService = <T extends object>(domain: string, service: T): T => {
-  const wrapped: Record<string, unknown> = {};
+  const wrapped = { ...service };
   for (const [method, value] of Object.entries(service)) {
-    wrapped[method] =
-      typeof value === "function"
-        ? instrumentMethod(domain, method, value as (...input: unknown[]) => unknown)
-        : value;
+    if (typeof value === "function") {
+      Object.defineProperty(wrapped, method, {
+        value: instrumentMethod(
+          domain,
+          method,
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Object.entries yields untyped property values when wrapping arbitrary service objects.
+          value as (...input: unknown[]) => unknown,
+        ),
+        enumerable: true,
+        configurable: true,
+        writable: true,
+      });
+    }
   }
-  return wrapped as T;
+  return wrapped;
 };
 
 export const currentTraceId = (): string | undefined => {

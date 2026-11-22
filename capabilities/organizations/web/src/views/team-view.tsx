@@ -68,11 +68,13 @@ export const TeamView = ({ data, draftScope }: TeamViewProps) => {
     workflow.clearError();
   };
 
-  const open = (
-    next: NonNullable<typeof dialog>,
-    source = document.activeElement as HTMLElement | null,
-  ) => {
-    trigger.current = source;
+  const open = (next: NonNullable<typeof dialog>, source?: HTMLElement | null) => {
+    trigger.current =
+      source !== undefined
+        ? source
+        : document.activeElement instanceof HTMLElement
+          ? document.activeElement
+          : null;
     workflow.clearError();
     setDialog(next);
   };

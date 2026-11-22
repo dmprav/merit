@@ -14,3 +14,19 @@ export const docsPages = {
 } as const satisfies Record<string, { to: string; group: (typeof docsGroups)[number] }>;
 
 export type DocsPage = keyof typeof docsPages;
+
+const docsPageOrder = [
+  "overview",
+  "quickstart",
+  "workspaces",
+  "rounds",
+  "applications",
+  "contacts",
+  "reviews",
+  "recommendations",
+  "team",
+  "mcp",
+] as const satisfies readonly DocsPage[];
+
+export const docsGroupPages = (group: (typeof docsGroups)[number]): DocsPage[] =>
+  docsPageOrder.filter((id) => docsPages[id].group === group);

@@ -96,6 +96,7 @@ const AssessmentBasisNotice = ({
     { ...content, criteria: version.criteria },
     { applicationVersion, criteriaVersion, criteria },
   );
+  const inspectedVersion = content.applicationVersion;
   return (
     <>
       {reviewFreshness(basis) !== "current" && (
@@ -104,11 +105,8 @@ const AssessmentBasisNotice = ({
             {basis.applicationVersion === "different" && (
               <>
                 <span>{t("earlierSubmission")}</span>
-                {onInspectVersion && (
-                  <Button
-                    variant="quiet"
-                    onPress={() => onInspectVersion(content.applicationVersion!)}
-                  >
+                {onInspectVersion && inspectedVersion !== null && (
+                  <Button variant="quiet" onPress={() => onInspectVersion(inspectedVersion)}>
                     {t("compareChanges")}
                   </Button>
                 )}
@@ -541,7 +539,10 @@ const AssessmentEntry = ({
 }) => {
   const { t } = useTranslation("reviews");
   const criteria = round.criteria;
-  const latest = assessment.versions.at(-1)!;
+  const latest = assessment.versions.at(-1);
+  if (!latest) {
+    return null;
+  }
   return (
     <Stack as="article" gap={4} aria-label={t("by", { name: assessment.reviewer })}>
       <div>

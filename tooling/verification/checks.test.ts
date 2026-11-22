@@ -202,6 +202,92 @@ it.only("must not hide other tests", () => { expect(1).toBe(1); });
   );
 }, 30_000);
 
+it("rejects non-null assertions, unsafe casts, and unreasoned suppressions in production code", () => {
+  withSource(
+    "type-safety.ts",
+    `// @ts-nocheck
+export const badNonNull = (value: string | null) => value!;
+
+export const badCast = (value: unknown) => value as { name: string };
+
+// @ts-ignore
+export const ignored = 1;
+
+// @ts-expect-error
+export const unexplainedExpect = 1;
+
+// oxlint-disable-next-line typescript/no-non-null-assertion
+export const suppressed = (value: string | null) => value!;
+
+/* oxlint-disable */
+`,
+    (path) => {
+      const result = run(["lint", "--format", "json", path]);
+      const codes = lintResult.parse(JSON.parse(result.stdout)).diagnostics.map(({ code }) => code);
+
+      expect(result.status).toBe(1);
+      expect(codes).toEqual(
+        expect.arrayContaining([
+          "typescript(no-non-null-assertion)",
+          "typescript(no-unsafe-type-assertion)",
+          "typescript(ban-ts-comment)",
+          "unicorn(no-abusive-eslint-disable)",
+          "merit(require-suppression-reason)",
+        ]),
+      );
+
+      writeFileSync(
+        path,
+        `export const literal = ["a", "b"] as const;
+
+export const widened = "ok" as string;
+
+// @ts-expect-error -- probe verifies inline explanation is accepted
+export const explainedExpect: number = "still-checked-by-tsc";
+
+// oxlint-disable-next-line typescript/no-non-null-assertion -- intentional probe
+export const explainedDisable = (value: string | null) => value!;
+`,
+      );
+      const clean = run(["lint", "--format", "json", path]);
+      expect(clean.status, clean.stdout + clean.stderr).toBe(0);
+    },
+  );
+}, 30_000);
+
+it("allows ! and as in test files while still requiring suppression reasons", () => {
+  withSource(
+    "type-safety.test.ts",
+    `export const asserted = (value: string | null) => value!;
+
+export const cast = (value: unknown) => value as { name: string };
+`,
+    (path) => {
+      const allowed = run(["lint", "--format", "json", path]);
+      expect(allowed.status, allowed.stdout + allowed.stderr).toBe(0);
+
+      writeFileSync(
+        path,
+        `// @ts-ignore
+export const ignored = 1;
+
+// oxlint-disable-next-line typescript/no-non-null-assertion
+export const suppressed = (value: string | null) => value!;
+`,
+      );
+      const rejected = run(["lint", "--format", "json", path]);
+      const codes = lintResult
+        .parse(JSON.parse(rejected.stdout))
+        .diagnostics.map(({ code }) => code);
+
+      expect(rejected.status).toBe(1);
+      expect(codes).toEqual(
+        expect.arrayContaining(["typescript(ban-ts-comment)", "merit(require-suppression-reason)"]),
+      );
+    },
+  );
+}, 30_000);
+
 it.each([
   ["access", "capabilities/access", ["src/domain"]],
   ["audit", "capabilities/audit/business", ["src/domain"]],

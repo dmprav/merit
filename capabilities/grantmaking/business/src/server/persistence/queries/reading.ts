@@ -523,11 +523,16 @@ const sectionReaders: Partial<Record<ApplicationContentInput["section"], Section
     };
   },
   assessment: async (db, caseRow, input) => {
-    const assessment = await readAssessmentRecord(db, caseRow.id, input.entryId!);
+    if (!input.entryId) {
+      return { found: false };
+    }
+    const assessment = await readAssessmentRecord(db, caseRow.id, input.entryId);
     return optionalResult(assessment && withAssessmentAmounts(assessment));
   },
   review_request: async (db, caseRow, input) =>
-    optionalResult(await readReviewRequestRecord(db, caseRow.id, input.entryId!)),
+    input.entryId
+      ? optionalResult(await readReviewRequestRecord(db, caseRow.id, input.entryId))
+      : { found: false },
   working_revision: async (db, caseRow) => ({
     found: true,
     value: (await readWorkingRevisionsMap(db, [caseRow.id])).get(caseRow.id) ?? null,

@@ -88,9 +88,14 @@ const stagedFiles = function (): Generator<Source> {
   const blobs: Blob[] = [];
 
   for (let index = 0; index + 1 < fields.length; index += 2) {
-    const [, mode, , sha] = fields[index]!.split(" ");
+    const field = fields[index];
+    const path = fields[index + 1];
+    if (!field || !path) {
+      continue;
+    }
+    const [, mode, , sha] = field.split(" ");
     if (sha && (mode === "100644" || mode === "100755")) {
-      blobs.push({ sha, path: fields[index + 1]! });
+      blobs.push({ sha, path });
     }
   }
   return readBlobs(blobs, ({ path }) => path);

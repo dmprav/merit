@@ -83,10 +83,11 @@ export const createQueries = (
         ),
       );
       const workspaces = rows.slice(0, page.limit);
+      const last = workspaces.at(-1);
       return {
         status: "ok" as const,
         value: workspaces,
-        nextCursor: rows.length > page.limit ? workspaces.at(-1)!.id : null,
+        nextCursor: rows.length > page.limit && last ? last.id : null,
       };
     },
 

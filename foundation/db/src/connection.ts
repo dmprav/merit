@@ -18,7 +18,11 @@ export type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
 export const allocatePublicId = async (tx: Transaction) => {
   const result = await tx.execute<{ id: string }>(sql`SELECT merit_public_id() AS id`);
-  return result.rows[0]!.id;
+  const row = result.rows[0];
+  if (!row) {
+    throw new Error("merit_public_id() did not return a row.");
+  }
+  return row.id;
 };
 
 const createClient = (connectionString: string) => {

@@ -8,14 +8,27 @@ import { activityOptions } from "./queries";
 export const noActivityFilters: ActivityFilters = { roundId: "", personId: "" };
 
 // The server already presents these outcomes; the mapping keeps the page's status set closed.
-const pageOutcome = <Status extends string>(
-  status: Status,
-): Exclude<Status, "forbidden" | "invalid"> | "not_found" | "unavailable" =>
-  status === "forbidden"
-    ? "not_found"
-    : status === "invalid"
-      ? "unavailable"
-      : (status as Exclude<Status, "forbidden" | "invalid">);
+const pageOutcome = (
+  status:
+    | "forbidden"
+    | "invalid"
+    | "not_found"
+    | "signed_out"
+    | "unavailable"
+    | "workspace_not_found",
+) => {
+  switch (status) {
+    case "forbidden":
+      return "not_found" as const;
+    case "invalid":
+      return "unavailable" as const;
+    case "not_found":
+    case "signed_out":
+    case "unavailable":
+    case "workspace_not_found":
+      return status;
+  }
+};
 
 const loadState = (query: {
   isError: boolean;
