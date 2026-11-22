@@ -218,7 +218,9 @@ export const classifyChangedFiles = ({
     run_app: affected.has("@merit/app"),
     run_storybook:
       affected.has("@merit/storybook") || files.some((f) => STORYBOOK_SOURCE_PATTERN.test(f)),
-    run_tooling: files.some((f) => f.startsWith("tooling/")),
+    run_tooling: files.some(
+      (f) => f.startsWith("tooling/") || f.startsWith(".agents/hooks/") || f.startsWith(".claude/"),
+    ),
     run_package_tests: testablePackages.length > 0,
     package_filters: testablePackages.map((name) => `--filter '${name}'`).join(" "),
     dependencies_changed: dependenciesChanged,

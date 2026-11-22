@@ -178,8 +178,10 @@ reviewer findings, and add the ones you reject to the record.
 
 When the requester finds a problem the review missed, fix it, then add a checkable
 item to **Known escapes** in [review.md](review.md) in the same pull request.
-Phrase it as a question a reviewer can answer from the code or a screenshot, and
-link the guide section it comes from. When a guide lacked the guidance, improve the
-guide and link it instead. When the cause was a weak brief or precedent choice,
-tighten [grounding](#1-ground-the-request) or the
+**Known escapes** is capped at 10 items and 45 lines: when adding at the cap,
+graduate or retire an existing entry into a lint rule, Storybook assertion,
+test, or guide. Phrase it as a question a reviewer can answer from the code or
+a screenshot, and link the guide section it comes from. When a guide lacked the
+guidance, improve the guide and link it instead. When the cause was a weak brief
+or precedent choice, tighten [grounding](#1-ground-the-request) or the
 [brief](#2-grill-until-the-brief-is-approved) here instead.
