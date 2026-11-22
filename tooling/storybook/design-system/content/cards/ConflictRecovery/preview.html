@@ -1,0 +1,98 @@
+<!-- @dsCard group="Patterns" height=684 -->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>ConflictRecovery — preview</title>
+  </head>
+  <body>
+    <div id="root" style="padding: 16px"></div>
+    <script>
+      var M = window.Merit,
+        h = React.createElement;
+      function SaveConflict() {
+        var ref = React.useRef(null);
+        React.useEffect(function () {
+          var buttons = ref.current ? ref.current.querySelectorAll("button[aria-expanded]") : [];
+          if (buttons[0]) buttons[0].click();
+        }, []);
+        return h(
+          "div",
+          { ref: ref },
+          h(M.ConflictBanner, {
+            title: "This round changed while you were editing",
+            message: "Review the latest saved wording or save your edits over it.",
+            attribution: "Updated by Alex · 2m ago",
+            keepMine: { label: "Save my changes over latest", onPress: function () {} },
+            useSaved: { label: "Discard & load latest", onPress: function () {} },
+            latest: {
+              toggleLabel: "View latest",
+              hideLabel: "Hide latest",
+              heading: "Latest saved purpose",
+              children: h(
+                "p",
+                null,
+                "Support local arts and community gathering places across the region.",
+              ),
+            },
+          }),
+        );
+      }
+      function Purpose() {
+        var s = React.useState("Support local arts, sport and community gathering places."),
+          value = s[0],
+          setValue = s[1];
+        return h(
+          "div",
+          null,
+          h(M.TextField, {
+            label: "Purpose",
+            value: value,
+            onChange: setValue,
+            multiline: true,
+            rows: 3,
+          }),
+          h(
+            M.SavedValue,
+            { label: "Now saved as" },
+            "Support local arts and community gathering places across the region.",
+          ),
+        );
+      }
+      ReactDOM.createRoot(document.getElementById("root")).render(
+        h(
+          M.Provider,
+          null,
+          h(
+            "div",
+            { style: { maxWidth: "640px" } },
+            h(
+              M.Stack,
+              { gap: 6 },
+              h(SaveConflict),
+              h(Purpose),
+              h(M.ConflictBanner, {
+                title: "Submission updated to version 2",
+                message:
+                  "The application material changed while you were drafting this recommendation.",
+                keepMine: { label: "Reaffirm draft for v2", onPress: function () {} },
+                useSaved: { label: "Discard & load saved", onPress: function () {} },
+              }),
+              h(
+                M.RetainedDraftNotice,
+                {
+                  title: "Unsaved assessment",
+                  message:
+                    "Your access ended before this draft could save. Copy your text to keep it.",
+                  textToCopy: "Strong community leadership and a practical local delivery plan.",
+                  onDiscard: function () {},
+                },
+                h("p", null, "Strong community leadership and a practical local delivery plan."),
+              ),
+            ),
+          ),
+        ),
+      );
+    </script>
+  </body>
+</html>

@@ -1,0 +1,47 @@
+<!-- @dsCard group="Patterns" height=158 -->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>EditorLoading — preview</title>
+  </head>
+  <body>
+    <div id="root" style="padding: 16px"></div>
+    <script>
+      var M = window.Merit,
+        h = React.createElement;
+      ReactDOM.createRoot(document.getElementById("root")).render(
+        h(
+          M.Provider,
+          null,
+          h(
+            "div",
+            { style: { maxWidth: 420 } },
+            h(
+              M.Stack,
+              { gap: 4 },
+              h(M.EditorLoading, null),
+              h(
+                M.Inline,
+                { gap: 2 },
+                h(M.EditorClose, { label: "Close", onClose: function () {}, autoFocus: false }),
+                h(M.EditorClose, {
+                  label: "Close editor",
+                  iconOnly: true,
+                  onClose: function () {},
+                  autoFocus: false,
+                }),
+                h(M.EditorClose, {
+                  label: "Close",
+                  isDisabled: true,
+                  onClose: function () {},
+                  autoFocus: false,
+                }),
+              ),
+            ),
+          ),
+        ),
+      );
+    </script>
+  </body>
+</html>

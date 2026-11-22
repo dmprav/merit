@@ -1,0 +1,66 @@
+<!-- @dsCard group="Components" height=380 -->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>DateField — preview</title>
+  </head>
+  <body>
+    <div id="root" style="padding: 16px"></div>
+    <script>
+      var M = window.Merit,
+        h = React.createElement;
+      function Editable(props) {
+        var s = React.useState(props.value),
+          value = s[0],
+          set = s[1];
+        return h(M.DateField, Object.assign({}, props, { value: value, onChange: set }));
+      }
+      function CalendarOpen() {
+        var ref = React.useRef(null);
+        React.useEffect(function () {
+          var button = ref.current && ref.current.querySelector("button");
+          if (button) button.click();
+        }, []);
+        return h(
+          "div",
+          { ref: ref },
+          h(Editable, { label: "Committee date", value: "2027-01-21" }),
+        );
+      }
+      ReactDOM.createRoot(document.getElementById("root")).render(
+        h(
+          M.Provider,
+          null,
+          h(
+            M.Inline,
+            { gap: 7, align: "start" },
+            h("div", { style: { width: "320px" } }, h(CalendarOpen)),
+            h(
+              "div",
+              { style: { width: "320px" } },
+              h(
+                M.Stack,
+                { gap: 4 },
+                h(Editable, {
+                  label: "Start date",
+                  value: "",
+                  isRequired: true,
+                  description: "The first day the funded work begins.",
+                }),
+                h(Editable, {
+                  label: "Report due",
+                  value: "2027-02-31",
+                  isInvalid: true,
+                  errorMessage: "Enter a valid date in YYYY-MM-DD format.",
+                }),
+                h(Editable, { label: "Submitted", value: "2026-11-03", isReadOnly: true }),
+                h(Editable, { label: "Decision date", value: "2027-03-15", isDisabled: true }),
+              ),
+            ),
+          ),
+        ),
+      );
+    </script>
+  </body>
+</html>

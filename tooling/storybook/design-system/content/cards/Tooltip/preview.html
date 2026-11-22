@@ -1,0 +1,63 @@
+<!-- @dsCard group="Components" height=112 -->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Tooltip — preview</title>
+  </head>
+  <body>
+    <div id="root" style="padding: 16px"></div>
+    <script>
+      var M = window.Merit,
+        h = React.createElement;
+      function Demo() {
+        var ref = React.useRef(null);
+        React.useEffect(function () {
+          var t = setTimeout(function () {
+            var b = ref.current && ref.current.querySelector("button");
+            if (b) b.focus();
+          }, 50);
+          return function () {
+            clearTimeout(t);
+          };
+        }, []);
+        return h(
+          "div",
+          { ref: ref, style: { paddingTop: "48px" } },
+          h(
+            M.Inline,
+            { gap: 4 },
+            h(
+              M.Tooltip,
+              { content: "Copy address" },
+              h(
+                M.Button,
+                { size: "medium", variant: "quiet", iconOnly: true, "aria-label": "Copy address" },
+                h(M.Icon, { name: "copy" }),
+              ),
+            ),
+            h(
+              M.Tooltip,
+              {
+                content:
+                  "Resume editing the position, proposed allocation, and reasoning for this recommendation.",
+                placement: "bottom",
+              },
+              h(
+                M.Button,
+                {
+                  size: "medium",
+                  variant: "quiet",
+                  iconOnly: true,
+                  "aria-label": "Resume recommendation",
+                },
+                h(M.Icon, { name: "edit" }),
+              ),
+            ),
+          ),
+        );
+      }
+      ReactDOM.createRoot(document.getElementById("root")).render(h(M.Provider, null, h(Demo)));
+    </script>
+  </body>
+</html>

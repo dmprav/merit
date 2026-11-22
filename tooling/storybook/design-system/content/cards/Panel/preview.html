@@ -1,0 +1,50 @@
+<!-- @dsCard group="Components" height=421 -->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Panel — preview</title>
+  </head>
+  <body>
+    <div id="root" style="padding: 16px"></div>
+    <script>
+      var M = window.Merit,
+        h = React.createElement;
+      ReactDOM.createRoot(document.getElementById("root")).render(
+        h(
+          M.Provider,
+          null,
+          h(
+            "div",
+            { style: { maxWidth: "480px" } },
+            h(
+              M.Stack,
+              { gap: 4 },
+              h(
+                M.Panel,
+                { as: "fieldset" },
+                h(M.Text, { as: "legend", variant: "caption" }, "Criterion 1"),
+                h(
+                  M.Stack,
+                  { gap: 3 },
+                  h(M.TextField, { label: "Title", defaultValue: "Community connection" }),
+                  h(M.TextField, { label: "Guidance", multiline: true, rows: 3 }),
+                ),
+              ),
+              h(
+                M.Panel,
+                { as: "section", padding: 6, "aria-label": "Review invitation" },
+                h(
+                  M.Stack,
+                  { gap: 3 },
+                  h(M.Text, { as: "p", variant: "emphasis" }, "Workshop Saturdays"),
+                  h(M.Text, { as: "p", variant: "supporting" }, "Invited by Dana Reed"),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    </script>
+  </body>
+</html>

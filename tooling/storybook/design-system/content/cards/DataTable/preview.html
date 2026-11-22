@@ -1,0 +1,101 @@
+<!-- @dsCard group="Components" height=564 -->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>DataTable — preview</title>
+  </head>
+  <body>
+    <div id="root" style="padding: 16px"></div>
+    <script>
+      var M = window.Merit,
+        h = React.createElement;
+      var items = [
+        { id: "b", title: "Community transport", amount: 60 },
+        { id: "a", title: "Community meals", amount: 24 },
+        { id: "c", title: "Weekend workshops" },
+      ];
+      var columns = [
+        {
+          id: "title",
+          header: "Project",
+          cell: function (item) {
+            return item.title;
+          },
+          sort: {
+            value: function (item) {
+              return item.title;
+            },
+            compare: function (a, b) {
+              return a.title.localeCompare(b.title);
+            },
+          },
+        },
+        {
+          id: "amount",
+          header: "Participants",
+          cell: function (item) {
+            return item.amount != null ? item.amount : "—";
+          },
+          sort: {
+            value: function (item) {
+              return item.amount;
+            },
+            compare: function (a, b) {
+              return (a.amount || 0) - (b.amount || 0);
+            },
+          },
+          layout: { width: "10rem", align: "end", wrap: false },
+        },
+      ];
+      var labels = {
+        by: "Sort projects",
+        original: "Original order",
+        ascending: "ascending",
+        descending: "descending",
+      };
+      function Projects(props) {
+        var s = React.useState(props.initialSort || null),
+          sort = s[0],
+          setSort = s[1];
+        return h(
+          M.DataTable,
+          Object.assign(
+            {
+              data: items,
+              columns: columns,
+              getRowId: function (item) {
+                return item.id;
+              },
+              label: "Projects",
+              emptyMessage: "No projects yet.",
+              sorting: { value: sort, onChange: setSort, labels: labels },
+            },
+            props.extra,
+          ),
+        );
+      }
+      ReactDOM.createRoot(document.getElementById("root")).render(
+        h(
+          M.Provider,
+          null,
+          h(
+            M.Stack,
+            { gap: 6 },
+            h(Projects, { initialSort: { columnId: "amount", direction: "descending" } }),
+            h(Projects, {
+              extra: {
+                density: "compact",
+                state: {
+                  type: "error",
+                  message: "Could not update projects. Showing previous results.",
+                },
+              },
+            }),
+            h(Projects, { extra: { data: [], emptyMessage: "No matching projects." } }),
+          ),
+        ),
+      );
+    </script>
+  </body>
+</html>

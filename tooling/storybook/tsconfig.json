@@ -5,5 +5,5 @@
     "lib": ["ES2023", "DOM"],
     "types": ["node", "react", "react-dom", "vite/client"]
   },
-  "include": [".storybook/**/*", "*.ts", "tests/**/*.ts"]
+  "include": [".storybook/**/*", "*.ts", "tests/**/*.ts", "design-system/**/*.ts"]
 }

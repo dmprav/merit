@@ -1,0 +1,81 @@
+<!-- @dsCard group="Components" height=316 -->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Select — preview</title>
+  </head>
+  <body>
+    <div id="root" style="padding: 16px"></div>
+    <script>
+      var M = window.Merit,
+        h = React.createElement;
+      var items = [
+        { id: "fund", label: "Fund", description: "Recommend the requested support." },
+        { id: "conditional", label: "Fund with a condition" },
+        { id: "unavailable", label: "Unavailable option", isDisabled: true },
+        {
+          id: "defer",
+          label: "Defer",
+          description: "Wait for further information before deciding.",
+        },
+      ];
+      function Demo() {
+        var ref = React.useRef(null);
+        React.useEffect(function () {
+          var t = setTimeout(function () {
+            var b = ref.current && ref.current.querySelector("button");
+            if (b) b.click();
+          }, 50);
+          return function () {
+            clearTimeout(t);
+          };
+        }, []);
+        return h(
+          M.Inline,
+          { gap: 6, align: "start" },
+          h(
+            "div",
+            { ref: ref, style: { width: "280px" } },
+            h(M.Select, {
+              label: "Recommendation",
+              items: items,
+              defaultSelectedKey: "fund",
+              actions: [
+                { id: "add", label: "Add another option", icon: "add", onAction: function () {} },
+              ],
+            }),
+          ),
+          h(
+            "div",
+            { style: { width: "280px" } },
+            h(
+              M.Stack,
+              { gap: 4 },
+              h(M.Select, {
+                label: "Recommendation",
+                items: items,
+                placeholder: "Choose a recommendation",
+                isRequired: true,
+              }),
+              h(M.Select, {
+                label: "Recommendation",
+                items: items,
+                placeholder: "Choose a recommendation",
+                isInvalid: true,
+                errorMessage: "Choose a recommendation before saving.",
+              }),
+              h(M.Select, {
+                label: "Recommendation",
+                items: items,
+                defaultSelectedKey: "defer",
+                isDisabled: true,
+              }),
+            ),
+          ),
+        );
+      }
+      ReactDOM.createRoot(document.getElementById("root")).render(h(M.Provider, null, h(Demo)));
+    </script>
+  </body>
+</html>

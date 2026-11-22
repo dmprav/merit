@@ -1,0 +1,42 @@
+<!-- @dsCard group="Components" height=64 -->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>SortButton — preview</title>
+  </head>
+  <body>
+    <div id="root" style="padding: 16px"></div>
+    <script>
+      var M = window.Merit,
+        h = React.createElement;
+      function Headings() {
+        var dirs = [undefined, "ascending", "descending"];
+        var s = React.useState(1),
+          i = s[0],
+          setI = s[1];
+        return h(
+          M.Inline,
+          { gap: 6 },
+          h(M.SortButton, { onPress: function () {} }, "Applicant"),
+          h(
+            M.SortButton,
+            {
+              direction: dirs[i % 3],
+              onPress: function () {
+                setI(i + 1);
+              },
+            },
+            "Requested",
+          ),
+          h(
+            M.SortButton,
+            { align: "end", direction: "descending", onPress: function () {} },
+            "Amount",
+          ),
+        );
+      }
+      ReactDOM.createRoot(document.getElementById("root")).render(h(M.Provider, null, h(Headings)));
+    </script>
+  </body>
+</html>

@@ -1,0 +1,86 @@
+<!-- @dsCard group="Patterns" height=456 -->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Judgment — preview</title>
+  </head>
+  <body>
+    <div id="root" style="padding: 16px"></div>
+    <script>
+      var M = window.Merit,
+        h = React.createElement;
+      var noop = function () {};
+      ReactDOM.createRoot(document.getElementById("root")).render(
+        h(
+          M.Provider,
+          null,
+          h(
+            "div",
+            { style: { maxWidth: 560 } },
+            h(
+              M.Stack,
+              { gap: 5 },
+              h(
+                M.Judgment,
+                {
+                  author: "Dana Reed",
+                  meta: "9 November",
+                  summary: h(
+                    React.Fragment,
+                    null,
+                    h("strong", null, "Fund"),
+                    h("span", null, "€22,000 proposed"),
+                  ),
+                  basis: h("span", null, "Based on an earlier submission (version 2)"),
+                  action: h(
+                    M.Button,
+                    { variant: "quiet", iconOnly: true, "aria-label": "Edit recommendation" },
+                    h(M.Icon, { name: "edit" }),
+                  ),
+                },
+                h(
+                  "p",
+                  null,
+                  "The revised venue keeps every workshop accessible and the budget remains within the round.",
+                ),
+              ),
+              h(
+                M.Stack,
+                { gap: 1 },
+                h(M.Judgment, { author: "Leah Martin" }),
+                h(M.Text, { as: "p", variant: "missing" }, "No recommendation recorded"),
+              ),
+              h(
+                M.Stack,
+                { gap: 3 },
+                h(M.JudgmentChoice, {
+                  author: "Sam Okafor",
+                  onPress: noop,
+                  summary: h(
+                    React.Fragment,
+                    null,
+                    h("strong", null, "Fund"),
+                    h("span", null, "€20,000 proposed"),
+                  ),
+                  basis: h(
+                    React.Fragment,
+                    null,
+                    h("span", null, "Assessed version 2"),
+                    h("span", null, "Criteria changed since"),
+                  ),
+                }),
+                h(M.JudgmentChoice, {
+                  author: "Priya Shah",
+                  onPress: noop,
+                  summary: h("strong", null, "Outstanding"),
+                  basis: h("span", null, "Requested on version 3"),
+                }),
+              ),
+            ),
+          ),
+        ),
+      );
+    </script>
+  </body>
+</html>

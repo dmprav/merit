@@ -1,0 +1,86 @@
+<!-- @dsCard group="Patterns" height=640 -->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>PagedContent — preview</title>
+  </head>
+  <body>
+    <div id="root" style="padding: 16px"></div>
+    <script>
+      var M = window.Merit,
+        h = React.createElement;
+      var events = [
+        {
+          id: "e1",
+          title: "Revised submission recorded",
+          actor: "Dana Reed",
+          at: "2027-01-17T11:00:00Z",
+        },
+        { id: "e2", title: "Application recorded", actor: "Sam Patel", at: "2027-01-08T09:30:00Z" },
+      ];
+      function entries(list) {
+        return h(
+          M.Timeline,
+          { label: "Application history" },
+          list.map(function (e) {
+            return h(M.TimelineEntry, {
+              key: e.id,
+              title: e.title,
+              attribution: h(M.Attribution, { actor: e.actor, recordedAt: e.at }),
+            });
+          }),
+        );
+      }
+      function Example(props) {
+        return h(
+          M.Stack,
+          { gap: 2 },
+          h(M.SectionHeader, { title: props.title, level: 3, emphasis: "quiet" }),
+          props.children,
+        );
+      }
+      function noop() {}
+      ReactDOM.createRoot(document.getElementById("root")).render(
+        h(
+          M.Provider,
+          null,
+          h(
+            M.Stack,
+            { gap: 5 },
+            h(
+              Example,
+              { title: "Loaded page with older entries remaining" },
+              h(M.PagedContent, { entries: events, hasMore: true, more: noop }, entries),
+            ),
+            h(
+              Example,
+              { title: "Older page failed: entries stay, a toast offers Try again" },
+              h(
+                M.PagedContent,
+                { entries: events.slice(0, 1), failed: true, hasMore: true, retry: noop },
+                entries,
+              ),
+            ),
+            h(
+              Example,
+              { title: "First page loading" },
+              h(M.PagedContent, { entries: [], loaded: false, pending: true }, entries),
+            ),
+            h(
+              Example,
+              { title: "First page failed" },
+              h(M.PagedContent, { entries: [], loaded: false, failed: true, retry: noop }, entries),
+            ),
+            h(
+              Example,
+              { title: "Access withdrawn" },
+              h(M.PagedContent, { entries: events, denied: true, hasMore: true }, entries),
+            ),
+          ),
+          h(M.Toasts, null),
+        ),
+      );
+    </script>
+  </body>
+</html>

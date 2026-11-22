@@ -1,0 +1,33 @@
+<!-- @dsCard group="Patterns" height=402 -->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>DateChoice — preview</title>
+  </head>
+  <body>
+    <div id="root" style="padding: 16px"></div>
+    <script>
+      var M = window.Merit,
+        h = React.createElement;
+      function Demo() {
+        var s = React.useState("2027-01-21"),
+          date = s[0],
+          setDate = s[1];
+        return h(M.DateChoice, {
+          applyLabel: "Apply date",
+          cancelLabel: "Cancel",
+          onCancel: function () {},
+          value: date,
+          label: "Committee date",
+          clearLabel: "Clear date",
+          invalidMessage: "Enter a valid date in YYYY-MM-DD format.",
+          onChoose: setDate,
+        });
+      }
+      ReactDOM.createRoot(document.getElementById("root")).render(
+        h(M.Provider, null, h("div", { style: { maxWidth: 360 } }, h(Demo))),
+      );
+    </script>
+  </body>
+</html>

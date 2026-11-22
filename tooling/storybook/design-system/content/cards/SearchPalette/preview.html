@@ -1,0 +1,107 @@
+<!-- @dsCard group="Patterns" height=560 -->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>SearchPalette — preview</title>
+  </head>
+  <body>
+    <div id="root" style="padding: 16px"></div>
+    <script>
+      var M = window.Merit,
+        h = React.createElement;
+      function link(props) {
+        return h("a", props);
+      }
+      function row(id, title, detail, label) {
+        return {
+          id: id,
+          textValue: title + ", " + detail,
+          href: "#" + id,
+          renderLink: link,
+          title: title,
+          detail: detail,
+          label: label,
+          icon: id.indexOf("round") === 0 ? "round" : "application",
+        };
+      }
+      var groups = [
+        {
+          id: "rounds",
+          heading: "Funding rounds",
+          items: [row("round-1", "Harbour fund", "Committee meeting 15 Jun 2027")],
+        },
+        {
+          id: "applications",
+          heading: "Applications",
+          note: "Showing 3 of 43 applications. Type more to narrow.",
+          items: [
+            row("application-1", "Boat repairs", "Trust for the Harbour · Harbour fund"),
+            row(
+              "application-2",
+              "Quayside lights",
+              "Dock committee · Harbour fund",
+              "In preparation",
+            ),
+            row("application-3", "Old slipway", "Harbour society · Spring grants", "Withdrawn"),
+          ],
+        },
+      ];
+      function Example() {
+        var v = React.useState("harbour"),
+          value = v[0],
+          setValue = v[1];
+        var o = React.useState(true),
+          open = o[0],
+          setOpen = o[1];
+        return h(
+          M.Stack,
+          { gap: 3 },
+          h(
+            M.Inline,
+            null,
+            h(
+              M.Button,
+              {
+                variant: "secondary",
+                onPress: function () {
+                  setOpen(true);
+                },
+              },
+              h(M.Icon, { name: "search" }),
+              "Search",
+            ),
+          ),
+          h(
+            M.SearchPaletteDialog,
+            {
+              title: "Search the workspace",
+              closeLabel: "Close search",
+              trigger: null,
+              isOpen: open,
+              onOpenChange: setOpen,
+            },
+            h(M.SearchPalette, {
+              label: "Search",
+              placeholder: "Search funding rounds and applications",
+              resultsLabel: "Search results",
+              value: value,
+              onValueChange: setValue,
+              groups: groups,
+              resultsId: 1,
+              keyboardHelp: { navigate: "to move", open: "to open", close: "to close" },
+              announcement: "4 results",
+              announcementId: 1,
+              onEscape: function () {
+                setOpen(false);
+              },
+            }),
+          ),
+        );
+      }
+      ReactDOM.createRoot(document.getElementById("root")).render(
+        h(M.Provider, null, h(Example, null)),
+      );
+    </script>
+  </body>
+</html>

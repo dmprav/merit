@@ -1,0 +1,375 @@
+{
+  "$comment": "Classifies every custom property in foundation/ui/src/foundations/tokens.css for the design-system export. build.ts fails on an unclassified property. Type style values starting with -- resolve from tokens.css.",
+  "themes": [
+    {
+      "id": "site",
+      "name": "Site",
+      "selector": ":root"
+    },
+    {
+      "id": "product",
+      "name": "Product",
+      "selector": "[data-product-theme]"
+    }
+  ],
+  "variables": {
+    "background": {
+      "family": "color",
+      "usage": "Page background behind every surface. The product theme lifts it to white so dense work reads on one plane."
+    },
+    "surface": {
+      "family": "color",
+      "usage": "Fields, secondary buttons, dialogs and raised content."
+    },
+    "surface-muted": {
+      "family": "color",
+      "usage": "Quiet fills: neutral badges and notices, read-only fields, hover on quiet buttons, tabs and list rows."
+    },
+    "foreground": {
+      "family": "color",
+      "usage": "Body text and headings on background, surface and surface-muted (13:1)."
+    },
+    "muted": {
+      "family": "color",
+      "usage": "Secondary text: captions, descriptions, kickers, placeholders, unselected tabs. Reads on background, surface and surface-muted (5.1:1 or more)."
+    },
+    "border": {
+      "family": "color",
+      "usage": "Hairlines that group content: panels, tab rails, read-only fields, dividers. Decorative, not a control edge."
+    },
+    "border-control": {
+      "family": "color",
+      "usage": "Edge of an editable field (3.3:1 on surface). Mixed toward border for a secondary button's quieter edge."
+    },
+    "action": {
+      "family": "color",
+      "usage": "The one interactive colour: primary buttons, links, the selected tab rule, the brand mark. Text on background or surface (6.8:1)."
+    },
+    "action-hover": {
+      "family": "color",
+      "usage": "Hover and press for primary buttons and links."
+    },
+    "on-action": {
+      "family": "color",
+      "usage": "Text and icons on action (7.3:1)."
+    },
+    "focus": {
+      "family": "color",
+      "usage": "Focus outline: 2px solid, 2px offset. Fields swap it to danger while invalid."
+    },
+    "action-subtle": {
+      "family": "color",
+      "usage": "Focused secondary and quiet buttons, focused list rows and text selection. action text reads on it (6.4:1)."
+    },
+    "success": {
+      "family": "color",
+      "usage": "Success text and icons on success-subtle (6.5:1 site, 6.0:1 product). Always with a word."
+    },
+    "success-subtle": {
+      "family": "color",
+      "usage": "Success badge and notice fill."
+    },
+    "warning": {
+      "family": "color",
+      "usage": "Warning and attention text on warning-subtle (5.6:1) or background."
+    },
+    "warning-subtle": {
+      "family": "color",
+      "usage": "Warning badge and notice fill."
+    },
+    "danger": {
+      "family": "color",
+      "usage": "Destructive buttons, field errors, failure text on danger-subtle (6.1:1)."
+    },
+    "danger-hover": {
+      "family": "color",
+      "usage": "Hover for destructive buttons."
+    },
+    "on-danger": {
+      "family": "color",
+      "usage": "Text on danger (7.0:1)."
+    },
+    "danger-subtle": {
+      "family": "color",
+      "usage": "Danger badge and notice fill."
+    },
+    "overlay": {
+      "family": "css",
+      "reason": "A color-mix() of foreground; tokens.json cannot hold color-mix()."
+    },
+    "control-radius": {
+      "family": "radius",
+      "usage": "Buttons, fields, notices, tab labels."
+    },
+    "control-focus-width": {
+      "family": "size",
+      "usage": "Focus outline width."
+    },
+    "panel-radius": {
+      "family": "radius",
+      "usage": "Panels and dialogs."
+    },
+    "space-1": {
+      "family": "spacing",
+      "usage": "Label to field, badge gap, tight stacks."
+    },
+    "space-2": {
+      "family": "spacing",
+      "usage": "Gap between buttons, icon to label, a source and its passage."
+    },
+    "space-3": {
+      "family": "spacing",
+      "usage": "Control inline padding, notice padding, list row padding."
+    },
+    "space-4": {
+      "family": "spacing",
+      "usage": "Panel padding (default), list indentation."
+    },
+    "space-5": {
+      "family": "spacing",
+      "usage": "Large button inline padding, roomy panels."
+    },
+    "space-6": {
+      "family": "spacing",
+      "usage": "Separating groups, such as a budget after a proposal; tab toolbar margin."
+    },
+    "space-7": {
+      "family": "spacing",
+      "usage": "Larger section breaks."
+    },
+    "space-8": {
+      "family": "spacing",
+      "usage": "Page-level separation."
+    },
+    "measure-page": {
+      "family": "size",
+      "usage": "Maximum page width."
+    },
+    "font-sans": {
+      "family": "type-family",
+      "key": "sans"
+    },
+    "text-meta": {
+      "family": "css",
+      "reason": "Type scale step; the type styles carry its size."
+    },
+    "text-caption": {
+      "family": "css",
+      "reason": "Type scale step; the type styles carry its size."
+    },
+    "text-detail": {
+      "family": "css",
+      "reason": "Type scale step; the type styles carry its size."
+    },
+    "text-body": {
+      "family": "css",
+      "reason": "Type scale step; the type styles carry its size."
+    },
+    "text-reading": {
+      "family": "css",
+      "reason": "Type scale step; the type styles carry its size."
+    },
+    "leading-reading": {
+      "family": "css",
+      "reason": "Type scale step; the type styles carry its size."
+    },
+    "measure-reading": {
+      "family": "css",
+      "reason": "A ch length, which tokens.json cannot hold."
+    },
+    "text-section": {
+      "family": "css",
+      "reason": "Type scale step; the type styles carry its size."
+    },
+    "text-page": {
+      "family": "css",
+      "reason": "Type scale step; the type styles carry its size."
+    },
+    "text-page-compact": {
+      "family": "css",
+      "reason": "Type scale step; the type styles carry its size."
+    },
+    "text-display": {
+      "family": "css",
+      "reason": "Type scale step; the type styles carry its size."
+    },
+    "text-control": {
+      "family": "css",
+      "reason": "Type scale step; the type styles carry its size."
+    },
+    "text-label": {
+      "family": "css",
+      "reason": "Type scale step; the type styles carry its size."
+    },
+    "control-height": {
+      "family": "size",
+      "usage": "Tabs and regular-height controls."
+    },
+    "control-height-small": {
+      "family": "size",
+      "usage": "Default button and field height."
+    },
+    "avatar-compact-size": {
+      "family": "size",
+      "usage": "Avatar in dense rows."
+    },
+    "avatar-regular-size": {
+      "family": "size",
+      "usage": "Avatar beside a name."
+    },
+    "target-touch": {
+      "family": "size",
+      "usage": "Minimum control height on coarse pointers; large buttons."
+    },
+    "motion-fast": {
+      "family": "css",
+      "reason": "Duration; the format has no motion tokens."
+    },
+    "motion-medium": {
+      "family": "css",
+      "reason": "Duration; the format has no motion tokens."
+    },
+    "dialog-shadow": {
+      "family": "shadow",
+      "usage": "Modal dialogs over the overlay."
+    },
+    "popover-shadow": {
+      "family": "shadow",
+      "usage": "Menus, popovers, tooltips, the search palette."
+    }
+  },
+  "extra": [
+    {
+      "family": "radius",
+      "name": "badge-radius",
+      "value": "0.25rem",
+      "usage": "Badges and the section-count chip (written literally in badge.module.css and section-header.module.css)."
+    }
+  ],
+  "type": {
+    "families": {
+      "sans": "--font-sans"
+    },
+    "groups": [
+      {
+        "name": "Headings",
+        "family": "sans",
+        "styles": [
+          {
+            "name": "display",
+            "fontSize": "2.5rem",
+            "lineHeight": 1.2,
+            "fontWeight": 600,
+            "letterSpacing": "-0.025em",
+            "usage": "Public site heroes. Source scales it fluidly: clamp(1.875rem, 4vw, 2.5rem).",
+            "sample": "Grant work, with the evidence in view"
+          },
+          {
+            "name": "page",
+            "fontSize": "--text-page",
+            "lineHeight": 1.3,
+            "fontWeight": 600,
+            "letterSpacing": "-0.025em",
+            "usage": "Page title, one per page.",
+            "sample": "Spring 2026 round"
+          },
+          {
+            "name": "page-compact",
+            "fontSize": "--text-page-compact",
+            "lineHeight": 1.4,
+            "fontWeight": 600,
+            "letterSpacing": "-0.025em",
+            "usage": "Page title in compact headers and below 600px.",
+            "sample": "Applications"
+          },
+          {
+            "name": "section",
+            "fontSize": "--text-section",
+            "lineHeight": 1.5,
+            "fontWeight": 600,
+            "usage": "Section heading inside a page.",
+            "sample": "Budget"
+          },
+          {
+            "name": "kicker",
+            "fontSize": "--text-meta",
+            "lineHeight": 1.5,
+            "fontWeight": 400,
+            "letterSpacing": "0.07em",
+            "usage": "Uppercase eyebrow above a page title, in muted.",
+            "sample": "RECOMMENDATION"
+          }
+        ]
+      },
+      {
+        "name": "Text",
+        "family": "sans",
+        "styles": [
+          {
+            "name": "reading",
+            "fontSize": "--text-reading",
+            "lineHeight": "--leading-reading",
+            "fontWeight": 400,
+            "usage": "Sustained reading: submissions, assessments, reasoning. Keep to a 65ch measure.",
+            "sample": "The project will train forty community health workers across three districts."
+          },
+          {
+            "name": "body",
+            "fontSize": "--text-body",
+            "lineHeight": 1.5,
+            "fontWeight": 400,
+            "usage": "Default interface copy, controls and labels on the site. The product theme sets body, control and label text in detail instead.",
+            "sample": "Mark ready for review"
+          },
+          {
+            "name": "detail",
+            "fontSize": "--text-detail",
+            "lineHeight": 1.5,
+            "fontWeight": 400,
+            "usage": "Dense work: interface and copy in the product, tabs, notices, supporting text.",
+            "sample": "Submission v2 · 12 November"
+          },
+          {
+            "name": "caption",
+            "fontSize": "--text-caption",
+            "lineHeight": "--leading-reading",
+            "fontWeight": 400,
+            "usage": "Field descriptions, errors, badges, metadata, in muted.",
+            "sample": "Owners can invite and remove members."
+          },
+          {
+            "name": "meta",
+            "fontSize": "--text-meta",
+            "lineHeight": 1.5,
+            "fontWeight": 400,
+            "usage": "The smallest step: kickers and tight metadata only.",
+            "sample": "Updated 3 min ago"
+          },
+          {
+            "name": "control",
+            "fontSize": "--text-body",
+            "lineHeight": 1.5,
+            "fontWeight": 500,
+            "usage": "Button and field-label text (body size, weight 500).",
+            "sample": "Save changes"
+          }
+        ]
+      },
+      {
+        "name": "Brand",
+        "family": "sans",
+        "styles": [
+          {
+            "name": "wordmark",
+            "fontSize": "1.25rem",
+            "lineHeight": 1.2,
+            "fontWeight": 700,
+            "letterSpacing": "-0.05em",
+            "usage": "The wordmark 'merit', lowercase, beside the mark. Size follows its container.",
+            "sample": "merit"
+          }
+        ]
+      }
+    ]
+  }
+}

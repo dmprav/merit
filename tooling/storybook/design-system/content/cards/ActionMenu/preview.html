@@ -1,0 +1,56 @@
+<!-- @dsCard group="Components" height=180 -->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>ActionMenu — preview</title>
+  </head>
+  <body>
+    <div id="root" style="padding: 16px"></div>
+    <script>
+      var M = window.Merit,
+        h = React.createElement;
+      function OpenOnLoad(props) {
+        var ref = React.useRef(null);
+        React.useEffect(function () {
+          var button = ref.current && ref.current.querySelector("button");
+          if (button) button.click();
+        }, []);
+        return h("div", { ref: ref }, props.children);
+      }
+      ReactDOM.createRoot(document.getElementById("root")).render(
+        h(
+          M.Provider,
+          null,
+          h(
+            "div",
+            { style: { maxWidth: "420px" } },
+            h(
+              M.Inline,
+              { justify: "between" },
+              h("span", null, "Workshop Saturdays"),
+              h(
+                OpenOnLoad,
+                null,
+                h(M.ActionMenu, {
+                  label: "More actions",
+                  trigger: h(
+                    M.Button,
+                    { variant: "quiet", iconOnly: true, "aria-label": "More actions" },
+                    h(M.Icon, { name: "more" }),
+                  ),
+                  items: [
+                    { id: "copy", label: "Copy link", icon: "copy" },
+                    { id: "reset", label: "Reset demo", icon: "reset" },
+                    { id: "discard", label: "Discard draft", icon: "discard" },
+                  ],
+                  onAction: function () {},
+                }),
+              ),
+            ),
+          ),
+        ),
+      );
+    </script>
+  </body>
+</html>

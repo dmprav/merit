@@ -1,0 +1,89 @@
+<!-- @dsCard group="Patterns" height=210 -->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>PropertyButton — preview</title>
+  </head>
+  <body>
+    <div id="root" style="padding: 16px"></div>
+    <script>
+      var M = window.Merit,
+        h = React.createElement;
+      function Contact() {
+        var s = React.useState("Dana Reed"),
+          name = s[0],
+          setName = s[1];
+        var o = React.useState(true),
+          open = o[0],
+          setOpen = o[1];
+        return h(
+          M.PopoverDialog,
+          {
+            title: "Change contact",
+            closeLabel: "Close contact picker",
+            isOpen: open,
+            onOpenChange: setOpen,
+            trigger: h(
+              M.PropertyButton,
+              { action: "choose", label: "Change contact: " + name },
+              h(M.PersonIdentity, { name: name }),
+            ),
+          },
+          h(M.ChoiceList, {
+            label: "Contact",
+            searchLabel: "Search contacts",
+            emptyLabel: "No contacts",
+            selectedKey: name,
+            items: [
+              { id: "Dana Reed", label: "Dana Reed" },
+              { id: "Leah Martin", label: "Leah Martin" },
+            ],
+            onChoose: function (next) {
+              setName(next);
+              setOpen(false);
+            },
+          }),
+        );
+      }
+      ReactDOM.createRoot(document.getElementById("root")).render(
+        h(
+          M.Provider,
+          null,
+          h(
+            M.DescriptionList,
+            { layout: "rows" },
+            h(
+              M.DescriptionListItem,
+              { label: "Budget" },
+              h(M.PropertyButton, { action: "edit", label: "Edit budget: €120,000" }, "€120,000"),
+            ),
+            h(
+              M.DescriptionListItem,
+              { label: "Match funding" },
+              h(
+                M.PropertyButton,
+                {
+                  action: "edit",
+                  label: "Resume match funding: €30,000",
+                  draftLabel: "Unsaved changes",
+                },
+                "€30,000",
+              ),
+            ),
+            h(
+              M.DescriptionListItem,
+              { label: "Round budget" },
+              h(
+                M.PropertyButton,
+                { action: "edit", label: "Edit round budget: €500,000", isDisabled: true },
+                "€500,000",
+              ),
+            ),
+            h(M.DescriptionListItem, { label: "Contact" }, h(Contact, null)),
+          ),
+        ),
+      );
+    </script>
+  </body>
+</html>

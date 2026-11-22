@@ -1,0 +1,75 @@
+<!-- @dsCard group="Components" height=408 -->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Notice — preview</title>
+  </head>
+  <body>
+    <div id="root" style="padding: 16px"></div>
+    <script>
+      var M = window.Merit,
+        h = React.createElement;
+      ReactDOM.createRoot(document.getElementById("root")).render(
+        h(
+          M.Provider,
+          null,
+          h(
+            M.Reading,
+            { prose: false },
+            h(
+              M.Stack,
+              { gap: 3 },
+              h(M.Notice, { tone: "neutral" }, "Only workspace members can view this application."),
+              h(
+                M.Notice,
+                { tone: "success" },
+                "The invitation was sent. It expires in seven days.",
+              ),
+              h(
+                M.Notice,
+                { tone: "warning" },
+                "Confirm the revised budget before making a recommendation.",
+              ),
+              h(
+                M.Notice,
+                { tone: "danger" },
+                "The recommendation could not be saved. Your draft is retained.",
+              ),
+              h(
+                M.Notice,
+                {
+                  as: "div",
+                  tone: "warning",
+                  title: "A newer version has been saved",
+                  actions: h(
+                    M.Inline,
+                    null,
+                    h(M.Button, { size: "medium", variant: "secondary" }, "Use saved version"),
+                    h(M.Button, { size: "medium", variant: "secondary" }, "Keep my draft"),
+                  ),
+                },
+                "Your draft is still here. Compare it with the saved version before continuing.",
+              ),
+              h(
+                M.Notice,
+                { as: "ul", tone: "warning", "aria-label": "Before making a recommendation" },
+                h("li", null, "Confirm the revised budget with the applicant."),
+                h(
+                  "li",
+                  null,
+                  "Resolve the open eligibility question before making a recommendation.",
+                ),
+              ),
+              h(
+                M.Notice,
+                { appearance: "inline", tone: "danger", role: "alert" },
+                "The invitation couldn’t be saved. Your entries are preserved; try again.",
+              ),
+            ),
+          ),
+        ),
+      );
+    </script>
+  </body>
+</html>

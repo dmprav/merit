@@ -1,0 +1,111 @@
+<!-- @dsCard group="Patterns" height=300 -->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>CollectionToolbar — preview</title>
+  </head>
+  <body>
+    <div id="root" style="padding: 16px"></div>
+    <script>
+      var M = window.Merit,
+        h = React.createElement;
+      function Toolbar(props) {
+        var f = React.useState(props.filter || "all"),
+          filter = f[0],
+          setFilter = f[1];
+        var r = React.useState("all"),
+          round = r[0],
+          setRound = r[1];
+        var q = React.useState(props.query || ""),
+          query = q[0],
+          setQuery = q[1];
+        var ref = React.useRef(null);
+        React.useEffect(function () {
+          if (props.open) {
+            var b = ref.current && ref.current.querySelector("button");
+            if (b) b.click();
+          }
+        }, []);
+        var chips = [];
+        if (filter !== "all")
+          chips.push({
+            id: filter,
+            label: "Ready",
+            removeLabel: "Remove Ready filter",
+            onRemove: function () {
+              setFilter("all");
+            },
+          });
+        if (round !== "all")
+          chips.push({
+            id: "round",
+            label: "Community grants 2026",
+            removeLabel: "Remove round filter",
+            onRemove: function () {
+              setRound("all");
+            },
+          });
+        return h(
+          "div",
+          { ref: ref },
+          h(M.CollectionToolbar, {
+            filterLabel: "Filter",
+            filterTitle: "Filter projects",
+            filters: h(
+              React.Fragment,
+              null,
+              h(M.CollectionFilter, {
+                label: "Status",
+                selectedKey: filter,
+                onSelectionChange: setFilter,
+                items: [
+                  { id: "all", label: "All projects" },
+                  { id: "ready", label: "Ready" },
+                ],
+              }),
+              h(M.CollectionFilter, {
+                label: "Round",
+                selectedKey: round,
+                onSelectionChange: setRound,
+                items: [
+                  { id: "all", label: "All rounds" },
+                  { id: "community", label: "Community grants 2026" },
+                ],
+              }),
+            ),
+            chips: chips,
+            reset: {
+              label: "Reset",
+              isDisabled: filter === "all" && round === "all" && !query,
+              onReset: function () {
+                setFilter("all");
+                setRound("all");
+                setQuery("");
+              },
+            },
+            search: {
+              label: "Search projects",
+              clearLabel: "Clear search",
+              value: query,
+              onChange: setQuery,
+            },
+            summary: filter === "all" ? "12 projects" : "5 of 12 projects",
+          }),
+        );
+      }
+      ReactDOM.createRoot(document.getElementById("root")).render(
+        h(
+          M.Provider,
+          null,
+          h(
+            M.Stack,
+            { gap: 6 },
+            h(Toolbar, { filter: "ready", query: "Community" }),
+            h(Toolbar, { filter: "ready", open: true }),
+          ),
+        ),
+      );
+    </script>
+  </body>
+</html>

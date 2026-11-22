@@ -1,0 +1,35 @@
+<!-- @dsCard group="Patterns" height=172 -->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>OutcomeSummary — preview</title>
+  </head>
+  <body>
+    <div id="root" style="padding: 16px"></div>
+    <script>
+      var M = window.Merit,
+        h = React.createElement;
+      ReactDOM.createRoot(document.getElementById("root")).render(
+        h(
+          M.Provider,
+          null,
+          h(
+            M.Stack,
+            { gap: 2 },
+            h(M.OutcomeSummary, { title: "Recommends funding", detail: "€22,000 proposed" }),
+            h(M.OutcomeSummary, {
+              title: "Recommends funding with a condition",
+              detail: "€18,500 proposed",
+            }),
+            h(M.OutcomeSummary, { title: "Recommends declining", detail: "No funding proposed" }),
+            h(M.OutcomeSummary, {
+              title: "Funding position: Not stated",
+              detail: "Proposed amount: Not stated",
+            }),
+          ),
+        ),
+      );
+    </script>
+  </body>
+</html>

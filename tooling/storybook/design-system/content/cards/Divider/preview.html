@@ -1,0 +1,38 @@
+<!-- @dsCard group="Components" height=175 -->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Divider — preview</title>
+  </head>
+  <body>
+    <div id="root" style="padding: 16px"></div>
+    <script>
+      var M = window.Merit,
+        h = React.createElement;
+      ReactDOM.createRoot(document.getElementById("root")).render(
+        h(
+          M.Provider,
+          null,
+          h(
+            M.Stack,
+            { gap: 6 },
+            h(
+              M.Stack,
+              { gap: 4 },
+              h("p", null, "The invitation was sent to dana@example.test."),
+              h(M.Divider),
+              h("div", null, h(M.Button, { variant: "quiet" }, "Revoke invitation")),
+            ),
+            h(
+              M.Stack,
+              { gap: 2 },
+              h(M.Text, { variant: "caption" }, 'tone="emphasis"'),
+              h(M.Divider, { tone: "emphasis" }),
+            ),
+          ),
+        ),
+      );
+    </script>
+  </body>
+</html>

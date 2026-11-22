@@ -1,0 +1,61 @@
+<!-- @dsCard group="Patterns" height=220 -->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>InlineName — preview</title>
+  </head>
+  <body>
+    <div id="root" style="padding: 16px"></div>
+    <script>
+      var M = window.Merit,
+        h = React.createElement;
+      function Name(props) {
+        var s = React.useState(props.value),
+          name = s[0],
+          setName = s[1];
+        var ref = React.useRef(null);
+        React.useEffect(function () {
+          if (props.open) {
+            var b = ref.current && ref.current.querySelector("button");
+            if (b) b.click();
+          }
+        }, []);
+        return h(
+          "div",
+          { ref: ref },
+          h(M.PageHeader, {
+            kicker: "Funding round",
+            title: h(M.InlineName, {
+              value: name,
+              label: "Rename round",
+              saveLabel: "Save name",
+              cancelLabel: "Cancel",
+              errorMessage: "Could not save. Your name is still here.",
+              onSave: function (v) {
+                setName(v);
+                return Promise.resolve(null);
+              },
+            }),
+          }),
+        );
+      }
+      ReactDOM.createRoot(document.getElementById("root")).render(
+        h(
+          M.Provider,
+          null,
+          h(
+            "div",
+            { style: { maxWidth: 480 } },
+            h(
+              M.Stack,
+              { gap: 0 },
+              h(Name, { value: "Local Connections 2027" }),
+              h(Name, { value: "Community Spaces 2027", open: true }),
+            ),
+          ),
+        ),
+      );
+    </script>
+  </body>
+</html>

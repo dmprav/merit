@@ -1,0 +1,107 @@
+<!-- @dsCard group="Patterns" height=628 -->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>ReferenceWorkspace — preview</title>
+  </head>
+  <body>
+    <div id="root" style="padding: 16px"></div>
+    <script>
+      var M = window.Merit,
+        h = React.createElement;
+      var labels = { application: "Application", criteria: "Assessment criteria" };
+      function paragraphs(list) {
+        return list.map(function (text, i) {
+          return h("p", { key: i }, text);
+        });
+      }
+      function Example() {
+        var r = M.useReferenceViewport("application");
+        var s = React.useState(false),
+          saved = s[0],
+          setSaved = s[1];
+        return h(
+          M.ReferenceWorkspace,
+          {
+            header: h(M.PageHeader, {
+              density: "compact",
+              title: "Boat repairs",
+              description: "Trust for the Harbour · Harbour fund",
+            }),
+            toWorkLabel: "Go to your assessment",
+            toReferenceLabel: "Browse reference material",
+          },
+          h(
+            M.ReferencePane,
+            {
+              label: "Reference",
+              viewportRef: r.referenceViewport,
+              toolbar: h(M.ReferenceSwitcher, {
+                label: "Reference",
+                triggerLabel: "Reference material: " + labels[r.reference],
+                options: labels,
+                selected: r.reference,
+                onChange: function (next) {
+                  r.moveReference(next);
+                },
+              }),
+            },
+            h(
+              M.Stack,
+              {
+                as: "section",
+                "aria-label": labels.application,
+                hidden: r.reference !== "application",
+              },
+              h("h2", null, labels.application),
+              paragraphs([
+                "The trust will replace the rotten planking on two community rowing boats so that local schools can return to the water this summer.",
+              ]),
+            ),
+            h(
+              M.Stack,
+              { as: "section", "aria-label": labels.criteria, hidden: r.reference !== "criteria" },
+              h("h2", null, labels.criteria),
+              paragraphs(["Community benefit, deliverability and value for money."]),
+            ),
+          ),
+          h(
+            M.WorkPane,
+            {
+              as: "section",
+              label: "Assessment",
+              title: "Assessment",
+              footer: h(
+                React.Fragment,
+                null,
+                h("p", { role: "status" }, saved ? "Saved" : "Not saved"),
+                h(
+                  M.Button,
+                  {
+                    size: "medium",
+                    onPress: function () {
+                      setSaved(true);
+                    },
+                  },
+                  "Save assessment",
+                ),
+              ),
+            },
+            h(
+              M.Stack,
+              null,
+              paragraphs([
+                "Strong community benefit: the boats serve three schools and a youth club.",
+                "Costs are itemised and match two independent quotes.",
+              ]),
+            ),
+          ),
+        );
+      }
+      ReactDOM.createRoot(document.getElementById("root")).render(
+        h(M.Provider, null, h(Example, null)),
+      );
+    </script>
+  </body>
+</html>

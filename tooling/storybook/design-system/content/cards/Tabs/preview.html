@@ -1,0 +1,121 @@
+<!-- @dsCard group="Components" height=335 -->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Tabs — preview</title>
+  </head>
+  <body>
+    <div id="root" style="padding: 16px"></div>
+    <script>
+      var M = window.Merit,
+        h = React.createElement;
+      var labels = {
+        scrollBackwardLabel: "Scroll to earlier tabs",
+        scrollForwardLabel: "Scroll to later tabs",
+      };
+      ReactDOM.createRoot(document.getElementById("root")).render(
+        h(
+          M.Provider,
+          null,
+          h(
+            M.Stack,
+            { gap: 6 },
+            h(
+              M.Tabs,
+              Object.assign(
+                {
+                  label: "Application sections",
+                  items: [
+                    {
+                      id: "evidence",
+                      label: "Evidence",
+                      count: 12,
+                      content: h("p", null, "Versioned application evidence."),
+                    },
+                    {
+                      id: "reviews",
+                      label: "Reviews",
+                      count: 3,
+                      content: h("p", null, "Submitted reviewer assessments."),
+                    },
+                    {
+                      id: "decision",
+                      label: "Decision",
+                      content: h("p", null, "Recorded decision."),
+                      isDisabled: true,
+                    },
+                  ],
+                  actions: h(M.Button, { variant: "secondary" }, "Add application"),
+                },
+                labels,
+              ),
+            ),
+            h(
+              M.Tabs,
+              Object.assign(
+                {
+                  label: "Assessment queues",
+                  defaultSelectedKey: "reviews",
+                  items: [
+                    {
+                      id: "applications",
+                      label: "Applications awaiting assessment",
+                      count: 12345,
+                      countWarning: "Some applications need attention",
+                      content: h("p", null, "Applications awaiting assessment."),
+                    },
+                    {
+                      id: "reviews",
+                      label: "Reviews",
+                      count: 0,
+                      content: h("p", null, "No reviews yet."),
+                    },
+                    {
+                      id: "decisions",
+                      label: "Decisions",
+                      count: 4,
+                      isDisabled: true,
+                      content: null,
+                    },
+                  ],
+                },
+                labels,
+              ),
+            ),
+            h(
+              "div",
+              { style: { width: "280px" } },
+              h(
+                M.Tabs,
+                Object.assign(
+                  {
+                    label: "Application sections",
+                    items: [
+                      {
+                        id: "evidence",
+                        label: "Application evidence",
+                        content: h("p", null, "Versioned source passages."),
+                      },
+                      {
+                        id: "reviews",
+                        label: "Reviewer assessments",
+                        content: h("p", null, "Submitted assessments."),
+                      },
+                      {
+                        id: "decision",
+                        label: "Committee decision",
+                        content: h("p", null, "Recorded decision."),
+                      },
+                    ],
+                  },
+                  labels,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    </script>
+  </body>
+</html>

@@ -1,0 +1,36 @@
+<!-- @dsCard group="Components" height=89 -->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>VisuallyHidden — preview</title>
+  </head>
+  <body>
+    <div id="root" style="padding: 16px"></div>
+    <script>
+      var M = window.Merit,
+        h = React.createElement;
+      ReactDOM.createRoot(document.getElementById("root")).render(
+        h(
+          M.Provider,
+          null,
+          h(
+            M.Stack,
+            { gap: 3 },
+            h(
+              "section",
+              { "aria-labelledby": "history-title" },
+              h(M.VisuallyHidden, { as: "h2", id: "history-title" }, "Version history"),
+              h("p", null, "Compare what changed between submitted versions."),
+            ),
+            h(
+              M.Text,
+              { as: "p", variant: "caption" },
+              "The region above is named “Version history” for assistive technology; the heading is not shown.",
+            ),
+          ),
+        ),
+      );
+    </script>
+  </body>
+</html>

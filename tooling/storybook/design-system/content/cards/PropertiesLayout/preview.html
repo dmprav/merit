@@ -1,0 +1,59 @@
+<!-- @dsCard group="Patterns" height=484 -->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>PropertiesLayout — preview</title>
+  </head>
+  <body>
+    <div id="root" style="padding: 16px"></div>
+    <script>
+      var M = window.Merit,
+        h = React.createElement;
+      function properties() {
+        return h(
+          M.DescriptionList,
+          { layout: "rows" },
+          h(M.DescriptionListItem, { label: "Budget" }, "£120,000"),
+          h(M.DescriptionListItem, { label: "Committee" }, "14 March 2027"),
+          h(
+            M.DescriptionListItem,
+            { label: "Contact" },
+            h(M.PersonIdentity, { name: "Dana Reed" }),
+          ),
+        );
+      }
+      function purpose() {
+        return h(
+          M.Reading,
+          { as: "p" },
+          "Support local projects that bring neighbours together and make community spaces more accessible.",
+        );
+      }
+      ReactDOM.createRoot(document.getElementById("root")).render(
+        h(
+          M.Provider,
+          null,
+          h(
+            M.Stack,
+            { gap: 7 },
+            h(
+              M.PropertiesLayout,
+              { propertiesLabel: "Round properties", properties: properties() },
+              purpose(),
+            ),
+            h(
+              M.PropertiesLayout,
+              {
+                propertiesLabel: "Round properties",
+                properties: properties(),
+                stackedPlacement: "after",
+              },
+              purpose(),
+            ),
+          ),
+        ),
+      );
+    </script>
+  </body>
+</html>

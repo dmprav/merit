@@ -1,0 +1,64 @@
+<!-- @dsCard group="Patterns" height=304 -->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>SectionHeader — preview</title>
+  </head>
+  <body>
+    <div id="root" style="padding: 16px"></div>
+    <script>
+      var M = window.Merit,
+        h = React.createElement;
+      ReactDOM.createRoot(document.getElementById("root")).render(
+        h(
+          M.Provider,
+          null,
+          h(
+            M.Stack,
+            { gap: 5 },
+            h(
+              "div",
+              null,
+              h(M.SectionHeader, {
+                title: "Reviewers",
+                count: 3,
+                aside: h(
+                  M.Button,
+                  { variant: "quiet", size: "medium" },
+                  h(M.Icon, { name: "add" }),
+                  "Add reviewer",
+                ),
+              }),
+              h(M.PersonIdentity, { name: "Sam Patel" }),
+            ),
+            h(
+              "div",
+              null,
+              h(M.SectionHeader, {
+                title: "How will the project benefit the community?",
+                level: 3,
+              }),
+              h(
+                M.Reading,
+                { as: "p" },
+                "The boats serve three schools and a youth club along the harbour.",
+              ),
+            ),
+            h(
+              "div",
+              { style: { maxWidth: "320px" } },
+              h(M.SectionHeader, { title: "Round summary", emphasis: "quiet" }),
+              h(
+                M.DescriptionList,
+                { layout: "rows" },
+                h(M.DescriptionListItem, { label: "Budget" }, "£120,000"),
+                h(M.DescriptionListItem, { label: "Committee" }, "14 March 2027"),
+              ),
+            ),
+          ),
+        ),
+      );
+    </script>
+  </body>
+</html>

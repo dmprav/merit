@@ -20,6 +20,10 @@ export default defineConfig({
         command: "playwright test --config playwright.config.ts",
         cache: false,
       },
+      "build:design-system": {
+        command: "vpx design-system/build.ts",
+        cache: false,
+      },
       build: {
         command: "storybook build --output-dir dist",
         cache: {

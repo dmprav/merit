@@ -50,6 +50,10 @@
         // The email CLI resolves its version-matched preview UI dynamically.
         "ignoreDependencies": ["@react-email/ui"],
       },
+      "tooling/storybook": {
+        // The design-system export bundles these packages from an entry file it generates at build time.
+        "ignoreDependencies": ["@merit/forms", "@merit/tables"],
+      },
       "capabilities/*/ai": {
         "includeEntryExports": true,
       },

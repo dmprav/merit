@@ -1,0 +1,114 @@
+<!-- @dsCard group="Patterns" height=540 -->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>ApplicationShell — preview</title>
+  </head>
+  <body>
+    <div id="root" style="padding: 16px"></div>
+    <script>
+      var M = window.Merit,
+        h = React.createElement;
+      function pinRow(id, title) {
+        return h(
+          M.ApplicationNavigationRow,
+          {
+            key: id,
+            reorderKey: id,
+            action: h(
+              M.Button,
+              { variant: "quiet", iconOnly: true, "aria-label": "Unpin " + title },
+              h(M.Icon, { name: "close" }),
+            ),
+          },
+          h("a", { href: "#main" }, h(M.Icon, { name: "layers" }), title),
+        );
+      }
+      ReactDOM.createRoot(document.getElementById("root")).render(
+        h(
+          M.Provider,
+          null,
+          h(
+            "div",
+            { style: { margin: -16 } },
+            h(
+              M.ApplicationShell,
+              {
+                brand: h("a", { href: "#main" }, h(M.Brand, null)),
+                contextLabel: "Alder Foundation",
+                navigationLabel: "Main navigation",
+                skipLabel: "Skip to content",
+                openNavigationLabel: "Open navigation",
+                closeNavigationLabel: "Close navigation",
+                identity: h(
+                  M.ApplicationContext,
+                  { name: "Alder Foundation", label: "Switch workspace" },
+                  h(
+                    "a",
+                    { href: "#main", "aria-current": "true" },
+                    h(M.ApplicationContextOption, { name: "Alder Foundation" }),
+                  ),
+                  h(
+                    "a",
+                    { href: "#main" },
+                    h(M.ApplicationContextOption, { name: "Birch Foundation" }),
+                  ),
+                ),
+                navigation: h(
+                  React.Fragment,
+                  null,
+                  h(M.ApplicationNavigationButton, {
+                    icon: "search",
+                    label: "Search",
+                    shortcut: "/",
+                    onPress: function () {},
+                  }),
+                  h(
+                    "a",
+                    { href: "#main", "aria-current": "page" },
+                    h(M.Icon, { name: "layers" }),
+                    "Funding rounds",
+                  ),
+                  h(
+                    M.ApplicationNavigationGroup,
+                    { label: "Pinned" },
+                    h(
+                      M.ApplicationNavigationList,
+                      { "aria-label": "Pinned funding rounds", onMove: function () {} },
+                      pinRow("youth", "Youth Arts 2027"),
+                      pinRow("streets", "Green Streets"),
+                    ),
+                  ),
+                  h(
+                    M.ApplicationNavigationGroup,
+                    { label: "Organization" },
+                    h("a", { href: "#main" }, h(M.Icon, { name: "contacts" }), "Contacts"),
+                    h("a", { href: "#main" }, h(M.Icon, { name: "team" }), "Team"),
+                  ),
+                ),
+                footer: h(M.ApplicationAccount, {
+                  name: "Dana Reed",
+                  loadingLabel: "Loading account…",
+                  menuLabel: "Account menu",
+                }),
+              },
+              h(
+                M.ApplicationPage,
+                {
+                  locationKey: "rounds",
+                  breadcrumb: ["Funding rounds"],
+                  breadcrumbLabel: "Breadcrumb",
+                },
+                h(M.PageHeader, {
+                  title: "Funding rounds",
+                  description: "Prepare grant work for review.",
+                }),
+              ),
+            ),
+          ),
+        ),
+      );
+    </script>
+  </body>
+</html>

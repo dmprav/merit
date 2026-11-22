@@ -1,0 +1,50 @@
+<!-- @dsCard group="Patterns" height=100 -->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>StatusMessage — preview</title>
+  </head>
+  <body>
+    <div id="root" style="padding: 16px"></div>
+    <script>
+      var M = window.Merit,
+        h = React.createElement;
+      function Example() {
+        var e = React.useState(0),
+          event = e[0],
+          setEvent = e[1];
+        return h(
+          M.Stack,
+          { gap: 3 },
+          h(
+            "p",
+            null,
+            "Use a screen reader to hear the message. Repeat the event to announce it again.",
+          ),
+          h(
+            M.Inline,
+            null,
+            h(
+              M.Button,
+              {
+                size: "medium",
+                onPress: function () {
+                  setEvent(event + 1);
+                },
+              },
+              "Repeat event",
+            ),
+          ),
+          h(M.StatusMessage, {
+            message: "Applications reordered by submission date",
+            eventId: event,
+          }),
+        );
+      }
+      ReactDOM.createRoot(document.getElementById("root")).render(
+        h(M.Provider, null, h(Example, null)),
+      );
+    </script>
+  </body>
+</html>
