@@ -12,6 +12,7 @@ export interface ApplicationRequestContext {
   navigation: NavigationService;
   reviewer: ReviewerService;
   demo: DemoServices;
+  secureCookies: boolean;
   currentIdentity: () => Promise<Identity>;
   rounds: RoundsService;
   applications: ApplicationsService;
@@ -24,6 +25,6 @@ export interface ApplicationRequestContext {
 
 declare module "@tanstack/react-start" {
   interface Register {
-    server: { requestContext: ApplicationRequestContext };
+    server: { requestContext: ApplicationRequestContext & { nonce?: string } };
   }
 }

@@ -113,6 +113,7 @@ describe("local workspace isolation", () => {
     for (const key of ["CLERK_SECRET_KEY", "CLERK_PUBLISHABLE_KEY", "RESEND_API_KEY"]) {
       vi.stubEnv(key, "");
     }
+    vi.stubEnv("MERIT_LOCAL_PREVIEW", "1");
     vi.stubEnv("APP_ORIGIN", "http://127.0.0.1");
     try {
       const server = await preview({ preview: { host: "127.0.0.1", port: 0 } });

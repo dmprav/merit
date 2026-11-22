@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { getRequest, setCookie } from "@tanstack/react-start/server";
+import { setCookie } from "@tanstack/react-start/server";
 import { z } from "zod";
 
 export const readDemo = createServerFn({ method: "GET" }).handler(({ context }) =>
@@ -13,7 +13,7 @@ export const startDemo = createServerFn({ method: "POST" })
     if (cookie) {
       setCookie("merit-demo-session", cookie.token, {
         httpOnly: true,
-        secure: new URL(getRequest().url).protocol === "https:",
+        secure: context.secureCookies,
         sameSite: "lax",
         path: "/",
         expires: cookie.expiresAt,

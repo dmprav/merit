@@ -17,6 +17,12 @@ vp run @merit/app#build
 vp run @merit/app#preview
 ```
 
+The preview task selects `MERIT_LOCAL_PREVIEW=1` and binds to loopback. This runs
+the production build with local database and HTTP origin defaults. For a deployment,
+leave the preview setting unset and supply both `DATABASE_URL` and an HTTPS
+`APP_ORIGIN`. The server validates these when loading its entry point. Demo cookies
+and server-function origin checks use that public origin through TLS termination.
+
 Open [localhost:3000](http://localhost:3000). With the preview running, use
 `vp run @merit/app#smoke` in a second terminal to check public pages and
 signed-out access. See [verification](verification.md#verification) for the
@@ -207,6 +213,31 @@ provisioned user: the permitted workspace should load and other organizations
 should remain inaccessible. In a workspace with fictional data, save a manager
 recommendation and reload the page to verify that the change persists through
 the deployed server's runtime credentials.
+
+## Verify HTTP security headers
+
+The server applies MIME sniffing protection, a default referrer policy, and
+browser restrictions for camera, microphone, and geolocation. Invitation and
+reviewer links keep their stricter `no-referrer` policy. The enforced Content
+Security Policy (CSP) disallows framing, plugins, and document base URLs.
+
+When the public origin uses HTTPS, the application sends one year of HSTS.
+Configure the TLS ingress to serve HSTS on all HTTPS responses, including
+static assets, redirects, and errors that bypass the application. Preserve the
+application's route-specific headers and serve each nonce-bearing HTML response
+without shared caching.
+
+HTTPS HTML also carries a report-only CSP. The server generates a fresh nonce
+for TanStack's hydration scripts and includes the configured Clerk and analytics
+origins in the relevant directives. Before enforcing this policy, inspect
+browser CSP violations while loading a public page, completing Clerk sign-in,
+navigating a workspace, and delivering a staging PostHog event. Chromium reports
+string evaluation in the client schema bundle under this policy. Verify schema
+validation and its CSP-compatible fallback before enforcement. Use the browser
+developer tools or configure the `merit-csp` Reporting API group at ingress to
+send reports to an approved destination. Reports can include sensitive page URLs.
+Once those checks pass on the deployed origin, promote the verified candidate
+to the enforced header while retaining the per-response nonce.
 
 ## Configure tracing and synthetic checks
 

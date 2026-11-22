@@ -7,8 +7,9 @@ import {
 import { setResponseHeader } from "@tanstack/react-start/server";
 
 import { webRequestMiddleware } from "./server/middleware";
+import { readAppOrigin } from "./server/runtime-config.server";
 
-const appOrigin = createServerOnlyFn(() => process.env.APP_ORIGIN ?? "http://localhost:3000");
+const appOrigin = createServerOnlyFn((request?: Request) => readAppOrigin(request));
 
 const privateServerFunction = createMiddleware({ type: "function" }).server(({ next }) => {
   setResponseHeader("Cache-Control", "private, no-store");
@@ -18,7 +19,10 @@ const privateServerFunction = createMiddleware({ type: "function" }).server(({ n
 export const startInstance = createStart(() => ({
   functionMiddleware: [privateServerFunction],
   requestMiddleware: [
-    createCsrfMiddleware({ filter: (context) => context.handlerType === "serverFn" }),
+    createCsrfMiddleware({
+      filter: (context) => context.handlerType === "serverFn",
+      origin: (candidate, { request }) => candidate === appOrigin(request),
+    }),
     ...webRequestMiddleware(appOrigin),
   ],
 }));
