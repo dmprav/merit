@@ -88,10 +88,17 @@ export const MeritAi = ({
   const chip =
     panel.chipTitle === undefined ? undefined : { title: panel.chipTitle, onRemove: panel.detach };
 
+  // The control that asked may leave with the question; the box is where the person carries on.
+  const returnToBox = () => box.current?.querySelector("textarea")?.focus();
+
   const ask = (question: string) => {
     chat.send(question);
-    // The control that asked may leave with the question; the box is where the person carries on.
-    box.current?.querySelector("textarea")?.focus();
+    returnToBox();
+  };
+
+  const retry = () => {
+    chat.retry();
+    returnToBox();
   };
 
   const shell: MeritAiShell = {
@@ -105,7 +112,12 @@ export const MeritAi = ({
       width: panel.width,
       onWidthChange: panel.saveWidth,
       children: (
-        <MeritAiConversation chat={chat} canSuggest={context?.isExample === true} onAsk={ask} />
+        <MeritAiConversation
+          chat={chat}
+          canSuggest={context?.isExample === true}
+          onAsk={ask}
+          onRetry={retry}
+        />
       ),
       footer: <MeritAiComposer chat={chat} chip={chip} onSend={ask} boxRef={box} />,
     },

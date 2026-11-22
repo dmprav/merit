@@ -1,7 +1,10 @@
+import type { ConnectConnectionAdapter } from "@tanstack/ai-client";
+import { EventType } from "@tanstack/ai/client";
 import { act, renderHook, waitFor } from "@testing-library/react";
+import { useState } from "react";
 import { expect, it } from "vite-plus/test";
 
-import type { PageContext } from "../contracts";
+import { askApplicantInput, type PageContext } from "../contracts";
 import { askApplicant } from "../data/ask-applicant";
 import { createScriptedConnection, type Pace } from "../data/scripts";
 import { en } from "../messages.en";
@@ -16,14 +19,45 @@ const example: PageContext = {
 };
 const elsewhere: PageContext = { applicationRef: "boat-repairs-b8d5f1h6j2nr", isExample: false };
 
-const setup = (context: PageContext | undefined, pace: Pace = instant, failDecisions = 0) =>
-  renderHook(() =>
-    useMeritAiChat({
-      connection: createScriptedConnection({ questions, pace, failDecisions }),
-      tools: [askApplicant],
-      context,
-    }),
-  );
+/** A connection whose first run ends in an error; the ones after it are the scripted ones. */
+const failingOnce = (inner: ConnectConnectionAdapter): ConnectConnectionAdapter => {
+  let failed = false;
+  return {
+    ...inner,
+    connect: async function* (messages, data, signal, input) {
+      if (failed) {
+        yield* inner.connect(messages, data, signal, input);
+        return;
+      }
+      failed = true;
+      yield {
+        type: EventType.RUN_STARTED,
+        runId: input.runId,
+        threadId: input.threadId,
+        timestamp: Date.now(),
+      };
+      yield {
+        type: EventType.RUN_ERROR,
+        message: "The connection dropped.",
+        timestamp: Date.now(),
+      };
+    },
+  };
+};
+
+const setup = (
+  context: PageContext | undefined,
+  pace: Pace = instant,
+  failDecisions = 0,
+  flaky = false,
+) =>
+  renderHook(() => {
+    const [connection] = useState(() => {
+      const scripted = createScriptedConnection({ questions, pace, failDecisions });
+      return flaky ? failingOnce(scripted) : scripted;
+    });
+    return useMeritAiChat({ connection, tools: [askApplicant], context });
+  });
 
 const parts = (turn: Turn | undefined) => turn?.parts ?? [];
 
@@ -91,8 +125,10 @@ it("proposes the venue message and waits for the person's decision", async () =>
   expect(proposal).toMatchObject({
     name: "ask_applicant",
     state: "approval-requested",
-    input: { title: "Ask Maya Thompson to confirm the venue" },
   });
+  // The title and the consequence are the feature's copy; the model supplies neither.
+  const input: unknown = proposal?.input;
+  expect(askApplicantInput.strict().safeParse(input).success).toBe(true);
 });
 
 // An interrupt the client cannot bind to its registered tool would ignore this decision, so this
@@ -170,6 +206,8 @@ it("stops mid-answer, keeps what streamed, and remembers where it stopped", asyn
   expect(partial).not.toBe("");
   expect(partial).not.toContain("Jules Patel");
   expect(result.current.stoppedAt).toBe(result.current.turns.at(-1)?.id);
+  // A stopped answer is announced as stopped, not as if it had finished.
+  expect(result.current.announcement).toMatchObject({ sequence: 1, kind: "stopped" });
 
   act(() => result.current.send("Who is the applicant?"));
   expect(result.current.stoppedAt).toBeNull();
@@ -222,4 +260,61 @@ it("keeps the proposal open when its decision cannot be recorded, and records a 
   await waitFor(() => expect(result.current.announcement?.kind).toBe("declined"));
   expect(result.current.openProposal).toBeUndefined();
   expect(proposalOf(result.current.turns[1])).toMatchObject({ approval: { approved: false } });
+});
+
+it("shows a decision that cannot be recorded on the proposal only, not as a failed answer", async () => {
+  const { result } = setup(example, instant, 1);
+  await ask(result, en.suggestions.venue);
+
+  act(() => result.current.approve());
+  await waitFor(() => expect(result.current.decisionFailed).toBe(true));
+  await waitFor(() => expect(result.current.isBusy).toBe(false));
+
+  expect(result.current.failed).toBe(false);
+});
+
+it("sends the page's context again when a failed answer is retried", async () => {
+  const { result } = setup(example, instant, 0, true);
+
+  act(() => result.current.send(en.suggestions.changes));
+  await waitFor(() => expect(result.current.failed).toBe(true));
+  act(() => result.current.retry());
+  await waitFor(() => expect(textOf(result.current.turns.at(-1))).toContain("Version 2 raises"));
+
+  expect(result.current.failed).toBe(false);
+  expect(result.current.turns).toHaveLength(2);
+});
+
+it("returns a question to the box when declining the proposal it replaced is not recorded", async () => {
+  const { result } = setup(example, instant, 1);
+  await ask(result, en.suggestions.venue);
+
+  act(() => result.current.send("Who is the applicant?"));
+  await waitFor(() => expect(result.current.draft).toBe("Who is the applicant?"));
+  await waitFor(() => expect(result.current.isBusy).toBe(false));
+
+  // The person chose nothing: the proposal stays open without a failure for a choice not made.
+  expect(result.current.decisionFailed).toBe(false);
+  expect(result.current.openProposal).toBeDefined();
+  expect(result.current.turns).toHaveLength(2);
+
+  // Deciding later records that decision alone; the question is not sent by itself.
+  act(() => result.current.approve());
+  await waitFor(() => expect(result.current.announcement?.kind).toBe("approved"));
+  expect(result.current.turns).toHaveLength(2);
+  expect(result.current.draft).toBe("Who is the applicant?");
+});
+
+it("offers no Stop while a decision is being recorded, and ignores it", async () => {
+  const { result } = setup(example, { ...instant, decision: 150 });
+  await ask(result, en.suggestions.venue);
+
+  act(() => result.current.approve());
+  await waitFor(() => expect(result.current.recording).toBe("approved"));
+  expect(result.current.isAnswering).toBe(false);
+  act(() => result.current.stop());
+  await waitFor(() => expect(result.current.isBusy).toBe(false));
+
+  expect(result.current.stoppedAt).toBeNull();
+  expect(result.current.announcement?.kind).toBe("approved");
 });

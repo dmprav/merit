@@ -240,6 +240,10 @@ export const EmptyWithoutSuggestions: Story = {
     await panel(canvasElement);
     await expect(body.queryByRole("button", { name: /What changed/ })).toBeNull();
     await expect(body.getByRole("textbox", { name: "Message to Merit AI" })).toHaveFocus();
+    await expect(body.getByRole("textbox", { name: "Message to Merit AI" })).toHaveAttribute(
+      "placeholder",
+      "Ask about this page",
+    );
   },
 };
 
@@ -339,7 +343,7 @@ const proposed = async (
 export const ProposalAwaiting: Story = {
   play: async ({ canvasElement, userEvent }) => {
     const body = await proposed(canvasElement, userEvent);
-    await expect(body.getByText("Ask Maya Thompson to confirm the venue")).toBeVisible();
+    await expect(body.getByText("Send a message to Maya Thompson")).toBeVisible();
     await expect(body.getByText("Maya Thompson, Saturday Repair Collective")).toBeVisible();
     await expect(body.getByText("Maya Thompson gets this message by email.")).toBeVisible();
     await expect(body.getByRole("button", { name: "Approve" })).toBeEnabled();
@@ -386,6 +390,9 @@ export const ProposalDecisionFailed: Story = {
     const body = await proposed(canvasElement, userEvent);
     await userEvent.click(body.getByRole("button", { name: "Approve" }));
     await expect(await body.findByText("Couldn't record your decision. Try again.")).toBeVisible();
+    // The failed decision is not also a failed answer.
+    await expect(body.queryByText("Couldn't finish this answer.")).toBeNull();
+    await expect(body.queryByRole("button", { name: "Try again" })).toBeNull();
     // Both choices stay available; choosing again tries again.
     await expect(body.getByRole("button", { name: "Approve" })).not.toHaveAttribute(
       "aria-disabled",

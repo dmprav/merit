@@ -32,11 +32,9 @@ type Run = { runId: string; threadId: string };
 const venueCall = "call-venue";
 
 const venueProposal: AskApplicantInput = {
-  title: "Ask Maya Thompson to confirm the venue",
   recipient: { name: "Maya Thompson", organization: "Saturday Repair Collective" },
   message:
     "Hello Maya, thank you for the revised request. Before we review the €22,000 request, could you tell us which venue you will use, whether it is booked, and the dates you have agreed?",
-  consequence: "Maya Thompson gets this message by email.",
 };
 
 const answers = {
@@ -160,16 +158,14 @@ const approvalInterrupt = (runId: string, input: AskApplicantInput): Interrupt =
             $schema: "https://json-schema.org/draft/2020-12/schema",
             type: "object",
             properties: {
-              title: { type: "string" },
               recipient: {
                 type: "object",
                 properties: { name: { type: "string" }, organization: { type: "string" } },
                 required: ["name", "organization"],
               },
               message: { type: "string" },
-              consequence: { type: "string" },
             },
-            required: ["title", "recipient", "message", "consequence"],
+            required: ["recipient", "message"],
           },
         },
         required: ["approved"],
@@ -194,9 +190,9 @@ const approvalInterrupt = (runId: string, input: AskApplicantInput): Interrupt =
       toolName: askApplicantName,
       toolCallId: venueCall,
       originalArgs: input,
-      inputSchemaHash: "sha256:401e2430d8a75ea9b3b1e2ccf364f98ff76cb7669fa264bae06fa9111ed28d41",
+      inputSchemaHash: "sha256:001ce77ce09b7ab0ff43ac0bb43e42b62cf808125207518824bd87430842ab34",
       approvalSchemaHash: "sha256:22f76d9a1c618a3cfaa891208a14f6e5e6ab1be4ff1c38cc8a8cd1e8fd0c0e4e",
-      responseSchemaHash: "sha256:d4084578badeb956c671fe3b155019a91c4e4c65f9b56c7bd842c6f6bbab098c",
+      responseSchemaHash: "sha256:583dfbf499bf88daa100da26eb216241bd4fd5f14ef718d5de5f49f9949066e2",
       interruptedRunId: runId,
       generation: 0,
     },

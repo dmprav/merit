@@ -33,7 +33,7 @@ const Decided = ({
       <Stack gap={2}>
         <Inline gap={2} align="baseline">
           <Text as="strong" variant="emphasis">
-            {proposal.title}
+            {t("proposal.title", proposal.recipient)}
           </Text>
           <Text variant="supporting">
             {decision === "approved" ? t("proposal.approved") : t("proposal.declined")}
@@ -138,7 +138,7 @@ export const Proposal = ({
       <Stack gap={3}>
         <Inline gap={2} justify="between" align="start">
           <Text as="strong" variant="emphasis" id={titleId}>
-            {proposal.title}
+            {t("proposal.title", proposal.recipient)}
           </Text>
           <Badge tone="warning">{t("proposal.needsApproval")}</Badge>
         </Inline>
@@ -153,7 +153,7 @@ export const Proposal = ({
           </DescriptionListItem>
         </DescriptionList>
         <Text as="p" variant="supporting">
-          {proposal.consequence}
+          {t("proposal.consequence", proposal.recipient)}
         </Text>
         {hasFailed && recording === null && (
           <Notice appearance="inline" tone="danger" role="alert">

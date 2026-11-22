@@ -7,6 +7,7 @@ export const en = {
   authors: { person: "You", assistant: "Merit AI" },
   message: {
     label: "Message to Merit AI",
+    placeholder: "Ask about this page",
     description: "Demo preview: answers are recorded examples.",
     send: "Send message",
     stop: "Stop",
@@ -23,6 +24,8 @@ export const en = {
     step: { running: "in progress", done: "done", cutShort: "not finished" },
   },
   proposal: {
+    title: "Send a message to {{name}}",
+    consequence: "{{name}} gets this message by email.",
     needsApproval: "Needs approval",
     recipient: "To",
     recipientValue: "{{name}}, {{organization}}",
@@ -39,4 +42,4 @@ export const en = {
   stopped: "Stopped. This answer may be incomplete.",
   failed: "Couldn't finish this answer.",
   retry: "Try again",
-};
+} as const;

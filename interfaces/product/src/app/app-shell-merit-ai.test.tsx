@@ -1,3 +1,5 @@
+import type { ConnectConnectionAdapter } from "@tanstack/ai-client";
+import { EventType } from "@tanstack/ai/client";
 import { QueryClientProvider } from "@tanstack/react-query";
 import {
   createMemoryHistory,
@@ -41,18 +43,46 @@ const workshopId = "k3m9p2x7t4wq";
 const exampleHome = `/app/alder/applications/workshop-saturdays-${workshopId}`;
 const question = "What changed in version 2, and do the reviews cover it?";
 
+const failingOnce = (inner: ConnectConnectionAdapter): ConnectConnectionAdapter => {
+  let failed = false;
+  return {
+    ...inner,
+    connect: async function* (messages, data, signal, input) {
+      if (failed) {
+        yield* inner.connect(messages, data, signal, input);
+        return;
+      }
+      failed = true;
+      yield {
+        type: EventType.RUN_STARTED,
+        runId: input.runId,
+        threadId: input.threadId,
+        timestamp: Date.now(),
+      };
+      yield {
+        type: EventType.RUN_ERROR,
+        message: "The connection dropped.",
+        timestamp: Date.now(),
+      };
+    },
+  };
+};
+
 const show = async ({
   workspace = demo,
   path = exampleHome,
   pace = instant,
   open = false,
   failDecisions = 0,
+  failFirstRun = false,
 }: {
   workspace?: ShellWorkspace;
   path?: string;
   pace?: Pace;
   open?: boolean;
   failDecisions?: number;
+  /** The first answer ends in an error; the next ones are scripted. */
+  failFirstRun?: boolean;
 } = {}) => {
   const current: ShellContext = { kind: "workspace", workspace };
   const root = createRootRoute({
@@ -86,8 +116,10 @@ const show = async ({
   render(
     <MeritAiSetup
       value={{
-        createConnection: (questions) =>
-          createScriptedConnection({ questions, pace, failDecisions }),
+        createConnection: (questions) => {
+          const scripted = createScriptedConnection({ questions, pace, failDecisions });
+          return failFirstRun ? failingOnce(scripted) : scripted;
+        },
         isInitiallyOpen: open,
       }}
     >
@@ -210,6 +242,7 @@ describe("opening", () => {
     expect(await messageBox()).toHaveAccessibleDescription(
       "Demo preview: answers are recorded examples.",
     );
+    expect(await messageBox()).toHaveAttribute("placeholder", "Ask about this page");
     expect(screen.getByRole("log", { name: "Conversation with Merit AI" })).toBeVisible();
   });
 
@@ -455,7 +488,7 @@ describe.each([
 
     await body.findByText(new RegExp(step.result));
     await waitFor(() =>
-      expect(document.activeElement).toHaveTextContent("Ask Maya Thompson to confirm the venue"),
+      expect(document.activeElement).toHaveTextContent("Send a message to Maya Thompson"),
     );
     expect(await surface()).toContainElement(document.activeElement as HTMLElement);
     await waitFor(() => expect(spoken(body)).toContain(step.spoken));
@@ -488,7 +521,28 @@ describe("a decision that cannot be recorded", () => {
   });
 });
 
+describe("a failed answer", () => {
+  // Beside the page nothing contains focus, so what the button leaves behind is lost to the body.
+  beforeEach(() => wide(true));
+
+  it("keeps focus in the message box when it is tried again", async () => {
+    const { user } = await show({ open: true, failFirstRun: true });
+    const body = within(await surface());
+    await ask(user, question);
+    // The person reached the button from the keyboard, so it holds the focus that must not be lost.
+    (await body.findByRole("button", { name: "Try again" })).focus();
+    await user.keyboard("{Enter}");
+
+    await body.findByText(/Version 2 raises the request/);
+    expect(body.queryByText("Couldn't finish this answer.")).not.toBeInTheDocument();
+    expect(body.getByRole("textbox", { name: "Message to Merit AI" })).toHaveFocus();
+  });
+});
+
 describe("announcements", () => {
+  beforeEach(() => vi.useFakeTimers({ shouldAdvanceTime: true }));
+  afterEach(() => vi.useRealTimers());
+
   const proposalAnswer =
     "The replacement venue isn't booked yet. Here's a question for Maya Thompson:";
 
@@ -507,7 +561,9 @@ describe("announcements", () => {
     await reopened.findByText(proposalAnswer);
 
     // The panel's own announcement takes 100 milliseconds to arrive.
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
     expect(spoken(reopened)).toBe("");
   });
 });

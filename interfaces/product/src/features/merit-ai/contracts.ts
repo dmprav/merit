@@ -32,13 +32,13 @@ export type PageContext = z.infer<typeof pageContextSchema>;
 
 export const askApplicantName = "ask_applicant";
 
+/**
+ * What the model supplies for the proposal: who it is for and what it says. The title and the
+ * consequence of approving are the feature's own copy, never the model's.
+ */
 export const askApplicantInput = z.object({
-  /** What approving does, as the proposal's title. */
-  title: z.string(),
   recipient: z.object({ name: z.string(), organization: z.string() }),
   message: z.string(),
-  /** What happens when the person approves. */
-  consequence: z.string(),
 });
 
 export type AskApplicantInput = z.infer<typeof askApplicantInput>;

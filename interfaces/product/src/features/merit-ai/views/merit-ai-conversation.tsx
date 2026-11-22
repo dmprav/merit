@@ -13,7 +13,6 @@ import type { useMeritAiChat } from "../controllers/use-merit-ai-chat";
 import styles from "./merit-ai.module.css";
 import { Suggestions } from "./suggestions";
 import { TurnContent, type TurnActions } from "./turn-content";
-import { useFollowEnd } from "./use-follow-end";
 
 export type MeritAiChat = ReturnType<typeof useMeritAiChat>;
 
@@ -35,6 +34,9 @@ const useSpokenText = (chat: MeritAiChat) => {
   }
   if (announcement.kind === "answer") {
     return answerText(chat.turns.find((turn) => turn.id === announcement.turnId)) || null;
+  }
+  if (announcement.kind === "stopped") {
+    return t("stopped");
   }
   return announcement.kind === "approved"
     ? `${t("proposal.approved")}. ${t("proposal.demoNotice")}`
@@ -72,15 +74,25 @@ const Notices = ({
   );
 };
 
-const Thread = ({ chat, actions }: { chat: MeritAiChat; actions: TurnActions }) => {
+const Thread = ({
+  chat,
+  actions,
+  followKey,
+  onRetry,
+}: {
+  chat: MeritAiChat;
+  actions: TurnActions;
+  followKey: string | undefined;
+  onRetry: () => void;
+}) => {
   const { t } = useTranslation("meritAi");
   const last = chat.turns.at(-1);
   const isStopped = !chat.isBusy && chat.stoppedAt !== null && chat.stoppedAt === last?.id;
   const hasFailed = !chat.isBusy && chat.failed && !isStopped;
-  const notices = <Notices isStopped={isStopped} hasFailed={hasFailed} onRetry={chat.retry} />;
+  const notices = <Notices isStopped={isStopped} hasFailed={hasFailed} onRetry={onRetry} />;
 
   return (
-    <Conversation label={t("conversation")}>
+    <Conversation label={t("conversation")} followKey={followKey}>
       {chat.turns.map((turn) => (
         <ConversationMessage
           key={turn.id}
@@ -141,7 +153,10 @@ export const MeritAiComposer = ({
         onChange={chat.setDraft}
         sendLabel={t("message.send")}
         onSend={onSend}
-        isBusy={chat.isBusy}
+        // Stop is for an answer being written; a decision being recorded cannot be stopped.
+        isBusy={chat.isAnswering}
+        isSendDisabled={chat.isBusy}
+        placeholder={t("message.placeholder")}
         stopLabel={t("message.stop")}
         onStop={chat.stop}
         chips={
@@ -168,15 +183,17 @@ export const MeritAiConversation = ({
   chat,
   canSuggest,
   onAsk,
+  onRetry,
 }: {
   chat: MeritAiChat;
   /** The Workshop Saturdays page is open with its chip attached, so recorded questions apply. */
   canSuggest: boolean;
   /** Asks a question and returns focus to the box, as typing it there would. */
   onAsk: (question: string) => void;
+  /** Tries the failed answer again and returns focus to the box, as asking does. */
+  onRetry: () => void;
 }) => {
   const lastQuestion = chat.turns.findLast((turn) => turn.author === "person");
-  const thread = useFollowEnd(lastQuestion?.id);
   const actions: TurnActions = {
     isLive: chat.isBusy,
     isSettled: !chat.isBusy,
@@ -190,8 +207,8 @@ export const MeritAiConversation = ({
   const spoken = useSpokenText(chat);
 
   return (
-    <div ref={thread} className={styles.thread}>
-      <Thread chat={chat} actions={actions} />
+    <div className={styles.thread}>
+      <Thread chat={chat} actions={actions} followKey={lastQuestion?.id} onRetry={onRetry} />
       {chat.turns.length === 0 && canSuggest && (
         <Suggestions scripts={scriptIds} onChoose={onAsk} />
       )}
