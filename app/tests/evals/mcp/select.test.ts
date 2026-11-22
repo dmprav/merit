@@ -16,8 +16,11 @@ it("includes cases that must avoid a changed tool and intersects filters", () =>
   expect(selected.map(({ id }) => id)).toEqual(["compose-invite", "arrange-review"]);
 });
 
-it("rejects unknown selectors and empty intersections", () => {
+it("rejects an unknown selector", () => {
   expect(() => selectCases({ tool: ["invite"] })).toThrow("Unknown tool");
+});
+
+it("rejects an empty intersection of known selectors", () => {
   expect(() => selectCases({ case: ["compose-invite"], workflow: ["contacts"] })).toThrow(
     "No scenarios",
   );

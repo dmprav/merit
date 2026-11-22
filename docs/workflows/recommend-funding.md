@@ -61,8 +61,9 @@ must choose whether to reaffirm their judgment against the current basis or
 discard their draft and load the latest.
 
 A manager can ask an MCP client to use a reviewer’s proposal only if the
-assessment still uses current evidence. The client identifies the assessment
-version it read. Before saving, Merit checks for corrections or a replacement
+assessment still uses current evidence. To request this check, the client sends
+the assessment ID and version in `expectedCurrentAssessment`. When that field is
+present, Merit checks for corrections or a replacement
 assessment and compares the recorded material version and criteria content with
 the current evidence. If the check fails, the manager can inspect the updated
 assessment before deciding whether to proceed.

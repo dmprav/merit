@@ -12,9 +12,14 @@ export const invitationStatus = async (f: ReviewFixture): Promise<Scenario> => {
   await f.request(await f.contact("jo", "Jo Chen"));
   return {
     control: controls.invitationStatus,
+    manualReplyCriterion:
+      "Check that the failed invitation belongs to Priya and that Jo is never described as invited.",
     verifyReply(reply) {
       expect(reply).toMatch(/Priya/i);
       expect(reply).toMatch(/fail|unsuccess|not sent|didn.t send/i);
+      expect(reply.replaceAll("*", ""), "Jo had no invitation").not.toMatch(
+        /\bJo(?: Chen)?(?:['’]s (?:invite|invitation|email))? (?:was|is|has been) (?:also )?(?:invited|sent|delivered)\b|\b(?:an|the) (?:invitation|invite) was sent to Jo\b/i,
+      );
     },
     async verifyEffects() {
       expect(await f.assignments()).toMatchObject([

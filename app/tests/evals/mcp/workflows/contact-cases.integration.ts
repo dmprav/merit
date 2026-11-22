@@ -2,6 +2,7 @@ import { assert, expect } from "vite-plus/test";
 
 import { catalogTest } from "../catalog-trial";
 import { gradeSelection } from "../tool-selection";
+import { editIntake, findContact } from "./client";
 
 catalogTest(
   "accepts either contact read when it supplies Jo's email",
@@ -67,3 +68,54 @@ catalogTest("checks Sam's links after assigning him to Lanterns", async ({ catal
   );
   expect((await grade(reply, server.trace)).selection).toEqual([]);
 });
+
+catalogTest(
+  "a lookup made after linking Jo cannot establish Sam’s applications",
+  async ({ catalog }) => {
+    const { scripted, grade } = await catalog("link-contact");
+    const reply = await scripted(async (call) => {
+      const jo = await findContact(call, "Jo Bell");
+      await editIntake(call, "select_application_contact", { contactId: jo.contactId });
+      await call("list_contact_applications", {
+        workspaceSlug: jo.workspaceSlug,
+        contactId: jo.contactId,
+      });
+      const samId = crypto.randomUUID();
+      await call("create_contact", {
+        workspaceSlug: jo.workspaceSlug,
+        contactId: samId,
+        details: { name: "Sam Reed", email: "sam@example.test", affiliation: "Review Panel" },
+      });
+      await editIntake(call, "select_application_contact", { contactId: samId });
+      return "Sam is linked to Lanterns.";
+    });
+    const result = await grade(reply);
+    expect(result.effects).toEqual([]);
+    expect(result.selection).toContainEqual(expect.stringContaining("workspace lookup for Sam"));
+  },
+);
+
+catalogTest("matches each application to Jo’s role", async ({ catalog }) => {
+  const { scripted, grade } = await catalog("contact-applications");
+  expect((await grade(await scripted())).reply.status).toBe("partial");
+  expect(
+    (await grade("Jo reviewed Library Nights and is the applicant contact for Lanterns.")).reply
+      .status,
+  ).toBe("partial");
+  expect(
+    (await grade("Lanterns: recorded assessment. Library Nights: applicant contact.")).reply.status,
+  ).toBe("failed");
+});
+
+catalogTest(
+  "requires the blocked archive reply to report the outcome and its cause",
+  async ({ catalog }) => {
+    const { scripted, grade } = await catalog("blocked-archive");
+    expect((await grade(await scripted())).reply.status).toBe("passed");
+    expect((await grade("Jo was archived. I checked the review.")).reply.status).toBe("failed");
+    expect(
+      (await grade("Jo was archived despite the outstanding review request.")).reply.status,
+    ).toBe("failed");
+    expect((await grade("The archive failed.")).reply.status).toBe("failed");
+  },
+);

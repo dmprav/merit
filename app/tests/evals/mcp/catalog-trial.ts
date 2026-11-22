@@ -28,6 +28,7 @@ export const catalogTest = roundTest.extend(
         recipients.push(to);
       },
     );
+    let trialStarted = false;
     let closeServer: (() => Promise<void>) | undefined;
     onCleanup(async () => {
       try {
@@ -51,6 +52,11 @@ export const catalogTest = roundTest.extend(
     return async (id: string) => {
       const item = evalCases.find((definition) => definition.id === id);
       assert(item, `Missing scenario definition for ${id}`);
+      assert(
+        !trialStarted,
+        "Each catalog fixture supports one trial; use a separate test for another scenario",
+      );
+      trialStarted = true;
       const scenario = await item.prepare(context);
       recipients.length = 0;
       const server = await serveTrial(

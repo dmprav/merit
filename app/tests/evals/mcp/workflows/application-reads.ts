@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { expect } from "vite-plus/test";
+import { assert, expect } from "vite-plus/test";
 import { z } from "zod";
 
 import { contentChunkSchema } from "@merit/grantmaking/api";
@@ -117,17 +117,22 @@ export const intakeChanges = async (ctx: ScenarioContext): Promise<Scenario> => 
         ...(await client.findApplication(call, "Lanterns")),
         history: "intake",
       });
-      expect(result.entries).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({ action: "application.summary_changed" }),
-          expect.objectContaining({ action: "application.material_changed" }),
-        ]),
-      );
+      const entries = z.array(z.object({ action: z.string() })).parse(result.entries);
+      expect(entries.map((entry) => entry.action)).toEqual([
+        "application.created",
+        "application.summary_changed",
+        "application.material_changed",
+      ]);
       return "Application created, then staff changed the summary, then updated the recorded material.";
     },
     verifyReply(reply) {
-      expect(reply).toMatch(/summary/i);
-      expect(reply).toMatch(/material|amount|request|submission/i);
+      const summary = /\bsummary\b/i.exec(reply);
+      assert(summary, "Report the summary edit");
+      // The creation entry may also mention the original requested amount.
+      expect(
+        reply.slice(summary.index + summary[0].length),
+        "Report the later material edit after the summary edit",
+      ).toMatch(/material|amount|request|submission|content|€2,?400/i);
     },
   };
 };
@@ -142,8 +147,12 @@ export const currentMaterial = async (ctx: ScenarioContext): Promise<Scenario> =
   return {
     control: controls.material,
     verifyReply(reply) {
-      expect(reply).toMatch(/ready/i);
-      expect(reply).toMatch(/\b(2|two|second|v2)\b/i);
+      const text = reply.replace(/[*_`]/g, "");
+      expect(text).toMatch(/\bready\b/i);
+      expect(text, "The current submission is ready").not.toMatch(
+        /\b(?:not|never|isn['’]t)(?:\s+(?:yet|currently|marked|actually))*\s+ready\b/i,
+      );
+      expect(text).toMatch(/\b(2|two|second|v2)\b/i);
     },
   };
 };

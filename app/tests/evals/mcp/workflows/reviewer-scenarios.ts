@@ -1,6 +1,7 @@
 import { expect } from "vite-plus/test";
 
 import type { Scenario } from "../scenario";
+import { euroAmounts } from "./reply-amounts";
 import * as controls from "./review-controls";
 import {
   matchingText,
@@ -115,11 +116,33 @@ export const assignedEvidence = async (f: ReviewFixture): Promise<Scenario> => {
   await f.changeCriteria("Project sustainability", 1);
   return {
     control: controls.assignedEvidence,
+    manualReplyCriterion:
+      "Check that the reply describes the assigned evidence and distinguishes it from any later changes it mentions.",
     verifyReply(reply) {
       expect(reply).toMatch(/neighbou?rhood benefit/i);
-      expect(reply).toMatch(
-        /80\b|weekly community activities|(?:material|application|evidence)[^\n]{0,50}(?:version\s*|v)1\b/i,
-      );
+      expect(
+        euroAmounts(reply).map(({ cents }) => cents),
+        "Report the €80 requested in the assigned material",
+      ).toContain("8000");
+      // The criterion title identifies the assigned version even when the reply omits version numbers.
+      const statedCriteria = [...reply.matchAll(/criteria\s+(?:version\s*|v)(\d+)/gi)];
+      if (statedCriteria.length) {
+        expect(
+          statedCriteria.map((match) => match[1]),
+          "Assigned criteria version",
+        ).toContain("2");
+      }
+      const statedMaterial = [
+        ...reply.matchAll(
+          /(?:material|application|evidence)\s+(?:(?:is|was)\s+)?(?:version\s*|v)(\d+)/gi,
+        ),
+      ];
+      if (statedMaterial.length) {
+        expect(
+          statedMaterial.map((match) => match[1]),
+          "Assigned material version",
+        ).toContain("1");
+      }
     },
     async verifyEffects() {
       expect(await a.read()).toMatchObject({

@@ -57,8 +57,12 @@ export const application = (ctx: ScenarioContext, publicId: string) => {
       ...fields,
     });
 
-  const review = async (name: string, fields: Record<string, unknown>) => {
-    const page = await read();
+  const review = async (
+    name: string,
+    fields: Record<string, unknown>,
+    basis?: Awaited<ReturnType<typeof read>>,
+  ) => {
+    const page = basis ?? (await read());
     return checked(ctx.seed, name, {
       ...address,
       expectedReviewRevision: page.application.reviews.revision,
@@ -79,21 +83,25 @@ export const application = (ctx: ScenarioContext, publicId: string) => {
   ) => {
     const page = await read();
     const id = randomUUID();
-    await review("record_assessment", {
-      id,
-      contactId,
-      requestId: null,
-      previousId,
-      content: {
-        applicationVersion: page.application.version,
-        criteriaVersion: page.round.criteriaVersion,
-        date: "2025-09-01",
-        position: "Fund",
-        amount: { currency: "EUR", minorUnits: amount },
-        reasoning,
-        observations: [],
+    await review(
+      "record_assessment",
+      {
+        id,
+        contactId,
+        requestId: null,
+        previousId,
+        content: {
+          applicationVersion: page.application.version,
+          criteriaVersion: page.round.criteriaVersion,
+          date: "2025-09-01",
+          position: "Fund",
+          amount: { currency: "EUR", minorUnits: amount },
+          reasoning,
+          observations: [],
+        },
       },
-    });
+      page,
+    );
     return id;
   };
 

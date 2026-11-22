@@ -18,6 +18,7 @@ import {
 } from "../scenario";
 import * as client from "./client";
 import * as controls from "./grant-controls";
+import { euroAmounts } from "./reply-amounts";
 import { addMember, alder, createRound, listRoundRows } from "./round-fixtures";
 
 const setBudget = (call: Call, roundId: string, revision: number, amount: string, reason: string) =>
@@ -111,6 +112,49 @@ export const budgetChange = async (
       }
     },
     control: controls.changeBudget,
+    verifyReply: competingEdit
+      ? (reply) => {
+          const text = reply.replaceAll("*", "");
+          const amounts = euroAmounts(text);
+          const conflict =
+            /conflict|budget (?:has |had |was )?changed|condition.{0,25}(?:no longer|not|isn't)/i.test(
+              text,
+            );
+          expect(
+            conflict || amounts.some(({ cents }) => cents === "1100000"),
+            "Report the conflict or changed budget",
+          ).toBe(true);
+          for (const { cents, start, end } of amounts) {
+            if (cents !== "1200000") {
+              continue;
+            }
+            const before =
+              text
+                .slice(0, start)
+                .split(/[.!?;\n]|\bbut\b/i)
+                .at(-1) ?? "";
+            // A question about the next action does not confirm a completed save.
+            if (/^\s*(?:do you want|would you like|should (?:I|we))\b/i.test(before)) {
+              continue;
+            }
+            const confirmed =
+              /\b(?:saved|increased|raised|updated|set|now stands at|is now)\b[^\d]{0,60}$/i.test(
+                before,
+              ) || /^\s+(?:was|is|has been) (?:saved|set|recorded)\b/i.test(text.slice(end));
+            const denied =
+              /\b(?:not|never|unable|couldn['’]t|didn['’]t|wasn['’]t|haven['’]t|failed)\b/i.test(
+                before,
+              );
+            expect(confirmed && !denied, "The reply claims the requested budget was saved").toBe(
+              false,
+            );
+          }
+        }
+      : undefined,
+    manualReplyCriterion: competingEdit
+      ? "Check that the reply accurately describes the competing edit and leaves the next decision with the manager."
+      : undefined,
+
     verifyTrace(trace) {
       if (competingEdit) {
         expect(trace.some(isBudgetConflict), "Expected a conflict saving the requested round").toBe(
@@ -207,8 +251,33 @@ export const demand = async (ctx: ScenarioContext): Promise<Scenario> => {
       });
     },
     verifyReply(reply) {
-      expect(reply).toMatch(/\b250\b/);
-      expect(reply).toMatch(/\b(?:2|two)\b/i);
+      const text = reply.replaceAll("*", "");
+      const amounts = euroAmounts(text);
+      // With a breakdown, distinguish the total from amounts for individual applications.
+      const totals =
+        amounts.length === 1
+          ? amounts
+          : amounts.filter(
+              ({ start, end }) =>
+                /\b(?:total(?: amount)?(?: requested)?|applicants (?:requested|asked for))\s*(?:(?:is|was|of)\s*)?[:=]?\s*$/i.test(
+                  text.slice(0, start),
+                ) || /^\s*(?:in total|altogether|combined|overall)\b/i.test(text.slice(end)),
+            );
+      expect(
+        new Set(totals.map(({ cents }) => cents)),
+        "Report the total requested EUR amount",
+      ).toEqual(new Set(["25000"]));
+      const unknownCount =
+        /\b(\d+|two) (?:applications?|applicants?|projects?) (?:left|have|had|with|omitted|did not|didn['’]t) [^.;!?\n]{0,40}?(?:blank|unknown|missing|unspecified|no (?:requested )?amount|specify|state|provide)/i.exec(
+          text,
+        ) ??
+        /\b(?:unknown requests?|(?:blank|unknown|missing|unspecified) amounts?)\s*:\s*(\d+|two)\b/i.exec(
+          text,
+        );
+      expect(
+        unknownCount?.[1]?.toLowerCase() ?? "",
+        "Report two applications with unknown requests",
+      ).toMatch(/^(?:2|two)$/);
     },
   };
 };

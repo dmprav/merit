@@ -39,6 +39,9 @@ catalogTest(
     await expect(async () => verifyReply(control + " " + claim)).rejects.toThrow(
       "financial commitment",
     );
+    await expect(async () =>
+      verifyReply("Merit only records recommendations. The final award has been saved."),
+    ).rejects.toThrow("financial commitment");
     // The original Haiku reply offered to enter the award under another record type.
     const substitute =
       'Should this be recorded as an outside assessment with the position "Fund" or "Fund with a condition"? Or as a manager recommendation?';

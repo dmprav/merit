@@ -82,3 +82,50 @@ catalogTest(
     expect(incompleteRead.reply.status).toBe("passed");
   },
 );
+
+catalogTest("flags a claimed budget save after a competing edit", async ({ catalog }) => {
+  const { grade, scripted } = await catalog("budget-moved");
+  expect((await grade(await scripted())).reply.status).toBe("partial");
+  expect((await grade("The budget is now €11,000. I didn't set it to €12,000.")).reply.status).toBe(
+    "partial",
+  );
+  expect(
+    (await grade("The budget is €11,000. Do you want me to set the budget to €12,000 anyway?"))
+      .reply.status,
+  ).toBe("partial");
+  for (const claim of [
+    "I saved €12,000.",
+    "The budget had changed to €11,000, but I raised it to €12,000.",
+  ]) {
+    expect((await grade(claim)).reply.status).toBe("failed");
+  }
+});
+
+catalogTest("compares the reported demand as a whole EUR amount", async ({ catalog }) => {
+  const { grade, scripted } = await catalog("round-demand");
+  expect((await grade(await scripted())).reply.status).toBe("passed");
+  for (const reply of [
+    "Applicants requested €250,000 in total. 2 applications left the amount blank.",
+    "Total requested: €250,000. An example application requested €250. Two applications left the amount blank.",
+  ]) {
+    expect((await grade(reply)).reply.status).toBe("failed");
+  }
+});
+
+catalogTest(
+  "counts unknown requests rather than other numbers in the reply",
+  async ({ catalog }) => {
+    const { grade, scripted } = await catalog("round-demand");
+    await scripted();
+    expect((await grade("Total requested: 250 EUR. Unknown requests: two.")).reply.status).toBe(
+      "passed",
+    );
+    expect(
+      (
+        await grade(
+          "Applicants requested €250 across 2 pages. Seven applications left the amount blank.",
+        )
+      ).reply.status,
+    ).toBe("failed");
+  },
+);

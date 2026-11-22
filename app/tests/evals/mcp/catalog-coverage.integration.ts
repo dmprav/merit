@@ -32,3 +32,9 @@ catalogTest("covers the published MCP catalog and its discovery policy", async (
     await client.close();
   }
 });
+
+catalogTest("refuses a concurrent trial on the same workspace fixture", async ({ catalog }) => {
+  const first = catalog("accessible-workspaces");
+  await expect(catalog("accessible-workspaces")).rejects.toThrow("one trial");
+  await first;
+});

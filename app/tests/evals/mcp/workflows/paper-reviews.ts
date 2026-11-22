@@ -38,9 +38,25 @@ export const reviewOverview = async (f: ReviewFixture): Promise<Scenario> => {
   return {
     control: controls.overview,
     verifyReply(reply) {
-      expect(reply).toMatch(/Priya/i);
-      expect(reply).toMatch(/Jo\b/i);
-      expect(reply).toMatch(/old|prior|previous|supersed|outdat|earlier|stale|version 1/i);
+      const statements = reply
+        .replaceAll("*", "")
+        .split(/[.!?;\n]|\b(?:and|while|whereas|but)\s+(?=Priya\b|Jo\b)/i);
+      expect(
+        statements.some(
+          (text) =>
+            /\bPriya\b/i.test(text) &&
+            /outstanding|pending|await|waiting|requested|open review request/i.test(text),
+        ),
+        "Identify Priya’s outstanding review",
+      ).toBe(true);
+      expect(
+        statements.some(
+          (text) =>
+            /\bJo\b/i.test(text) &&
+            /old|prior|previous|supersed|outdat|earlier|stale|version 1/i.test(text),
+        ),
+        "Identify Jo’s assessment on older material",
+      ).toBe(true);
     },
     async verifyEffects() {
       expect(await reviews()).toEqual(before);

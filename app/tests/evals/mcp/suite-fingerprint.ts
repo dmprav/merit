@@ -7,7 +7,7 @@ export const fingerprintSuite = (selected: EvalCase[], readOnlyTools: readonly s
     .update(
       JSON.stringify({
         // Bump when changing setup, scoring, or trial grants.
-        graderVersion: 15,
+        graderVersion: 16,
         selected,
         readOnlyToolNames: [...readOnlyTools].sort(),
       }),

@@ -15,7 +15,7 @@ const demoState = z.object({
   demo: z.object({ workspaceSlug: z.string(), workspaceId: z.string(), roundRef: z.string() }),
 });
 
-const demoDestinations = (reply: string) => {
+const linkDestinations = (reply: string) => {
   // For Markdown links, use the destination even when the label itself looks like a URL.
   const links =
     /\[[^\]\n]*\]\(\s*<?([^\s)>]+)>?[^)]*\)|(?:^|[\s<(])((?:https?:\/\/|\/app\/)[^\s<>)\]]+)/gi;
@@ -74,7 +74,7 @@ export const demoScenario = async (ctx: ScenarioContext, readRound: boolean): Pr
           new URL(roundPath, endpoint).href,
           new URL(roundPath, serverUrl ?? endpoint).href,
         ];
-        const destinations = demoDestinations(reply);
+        const destinations = linkDestinations(reply);
         expect(
           allowed.some((url) => destinations.includes(url)),
           "Expected a link to the existing demo workspace or its example round",
@@ -166,9 +166,19 @@ export const findApplication = async (ctx: ScenarioContext): Promise<Scenario> =
       assert(found && result.applications.total === 1);
       return found.title + ": /app/" + result.workspaceSlug + "/applications/" + found.id;
     },
-    verifyReply(reply) {
-      expect(reply).toContain(`/app/alder/applications/${eastside}`);
-      expect(reply).not.toContain(`/app/alder/applications/${westside}`);
+    verifyReply(reply, serverUrl) {
+      const destinations = linkDestinations(reply);
+      const origins = [endpoint, serverUrl ?? endpoint];
+
+      const linked = (id: string) =>
+        origins.some((origin) =>
+          destinations.includes(
+            new URL(productLinks.application(alder.workspaceSlug, id), origin).href,
+          ),
+        );
+
+      expect(linked(eastside), "Expected the Eastside Arts application link").toBe(true);
+      expect(linked(westside), "Linked the other Harbor Mural application").toBe(false);
     },
   };
 };
@@ -270,11 +280,19 @@ export const recentActivity = async (ctx: ScenarioContext): Promise<Scenario> =>
       ]);
       return "Most recently Dana Reed renamed the round. Before that Mina Shaw updated the budget.";
     },
+    manualReplyCriterion:
+      "Check that the reply places Dana’s round rename after Mina’s budget change.",
     verifyReply(reply) {
-      expect(reply).toMatch(/Dana/i);
-      expect(reply).toMatch(/(?:renam|titl|details)/i);
-      expect(reply).toMatch(/Mina/i);
-      expect(reply).toMatch(/budget/i);
+      const statements = reply
+        .replaceAll("*", "")
+        .split(/[.!?;\n]|\b(?:and|while|before|after|then|whereas)\s+(?=Dana\b|Mina\b)/i);
+      expect(
+        statements.some((text) => /\bDana\b/i.test(text) && /renam|titl|details/i.test(text)),
+      ).toBe(true);
+      expect(statements.some((text) => /\bMina\b/i.test(text) && /budget/i.test(text))).toBe(true);
+      expect(reply).not.toMatch(
+        /\bDana\b[^.!?;\n]*\bbefore\s+Mina\b|\bMina\b[^.!?;\n]*\bafter\s+Dana\b/i,
+      );
       if (reply.search(/Mina/i) < reply.search(/Dana/i)) {
         expect(reply).toMatch(/earlier|first|previous|before|later|then|most recent|latest/i);
       }
@@ -325,8 +343,12 @@ export const findEmail = async (): Promise<Scenario> => {
       );
     },
     verifyReply(reply) {
-      expect(reply).toMatch(
-        /yes|yesterday|Priya.{0,30}(?:email|wrote|said|sent)|(?:email|message) from Priya/i,
+      const answer = reply.replaceAll("*", "").replaceAll("’", "'");
+      expect(answer, "Denied receiving Priya’s email").not.toMatch(
+        /^\s*(?:no|nope)\s*(?:$|[,.!:;—-])|\bPriya(?: Rao)? (?:did(?:n't| not)|never) (?:email|write|send (?:an? |the )?(?:email|message))\b|\bno (?:email|message) from Priya\b/i,
+      );
+      expect(answer, "Confirm that Priya emailed").toMatch(
+        /\byes\b|\bPriya\b[^.!?\n]{0,40}\b(?:emailed|wrote|said|sent)\b|\b(?:email|message) from Priya\b|\bPriya(?:'s)? (?:email|message)\b/i,
       );
       expect(reply).toMatch(/site visit|thursday/i);
     },

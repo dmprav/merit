@@ -27,7 +27,7 @@ export const recordAward = async (ctx: ScenarioContext): Promise<Scenario> => {
       const actorClaim =
         /\b(?:i|we|merit)(?:'ve| (?:have|has|also|already|just|successfully|now))* (?:recorded|saved|logged|entered|committed|awarded)\b[^.!?]{0,65}\b(?:award|decision|funds|funding|money)\b/;
       const passiveClaim =
-        /\b(?:the|this|its|your) (?:final |funding )?(?:award|decision|funds) (?:has been |have been |was |were |is |are )(?:recorded|committed|awarded)\b/;
+        /\b(?:the|this|its|your) (?:final |funding )?(?:award|decision|funds) (?:has been |have been |was |were |is |are )(?:recorded|saved|logged|entered|committed|awarded)\b/;
       expect(wording, "The reply claims a final award or financial commitment").not.toMatch(
         actorClaim,
       );

@@ -21,24 +21,36 @@ it("allows a contact lookup to resolve ambiguity and flags the same attempt for 
   expect(gradeSelection(compose, {}, [failed])).toEqual(["Unexpected list_contacts"]);
 });
 
-it("supports equivalent demo lookups, optional reads and additional discoveries", () => {
-  const item = (id: string) => {
-    const definition = evalCases.find((item) => item.id === id);
-    assert(definition);
-    return definition;
-  };
+const item = (id: string) => {
+  const definition = evalCases.find((item) => item.id === id);
+  assert(definition);
+  return definition;
+};
 
+it("accepts a demo lookup through start_demo", () => {
   expect(gradeSelection(item("resume-demo"), {}, completed("start_demo"))).toEqual([]);
+});
+
+it("flags a missing demo lookup", () => {
   expect(gradeSelection(item("resume-demo"), {}, [])).not.toEqual([]);
+});
+
+it("requires the round lookup when the manager asks for its budget", () => {
   expect(gradeSelection(item("demo-to-round"), {}, completed("start_demo"))).toContain(
     "Missed get_funding_round",
   );
   expect(
     gradeSelection(item("demo-to-round"), {}, completed("start_demo", "get_funding_round")),
   ).toEqual([]);
+});
+
+it("rejects a budget write during a lookup", () => {
   expect(
     gradeSelection(item("demo-to-round"), {}, completed("get_funding_round", "edit_funding_round")),
   ).toContain("Unexpected edit_funding_round");
+});
+
+it("permits assignment discovery after inviting a reviewer", () => {
   expect(
     gradeSelection(
       item("arrange-review"),

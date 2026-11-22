@@ -139,20 +139,19 @@ export const newContact = async (ctx: ScenarioContext, link: boolean): Promise<S
       }
     },
     verifyTrace: app
-      ? (trace) => {
-          const index = trace.findIndex(
+      ? async (trace) => {
+          const savedSam = (await profilesIn(ctx)).find((contact) => contact.email === sam.email);
+          assert(savedSam, "Expected Sam's saved contact");
+          const index = trace.findLastIndex(
             (call) =>
               call.name === "select_application_contact" &&
               call.outcome.kind === "success" &&
               call.arguments?.workspaceSlug === workspace.workspaceSlug &&
-              call.arguments.applicationId === app.address.applicationId,
+              call.arguments.applicationId === app.address.applicationId &&
+              call.arguments.contactId === savedSam.id,
           );
-          const link = trace[index];
-          assert(link, "Expected Sam to be linked to Lanterns");
-          const linked = observedAssociations(
-            trace.slice(index + 1),
-            z.string().parse(link.arguments?.contactId),
-          );
+          assert(index !== -1, "Expected Sam to be linked to Lanterns");
+          const linked = observedAssociations(trace.slice(index + 1), savedSam.id);
           const application = linked.find((row) => row.applicationId === app.address.applicationId);
           expect(
             application?.relationships,
@@ -252,11 +251,27 @@ export const contactApplications = async (ctx: ScenarioContext): Promise<Scenari
         ]),
       );
     },
+    manualReplyCriterion:
+      "Check that Jo is identified as the applicant contact on Lanterns and a past assessor on Library Nights.",
     verifyReply(reply) {
-      expect(reply).toMatch(/Lanterns/i);
-      expect(reply).toMatch(/Library Nights/i);
-      expect(reply).toMatch(/assess|review/i);
-      expect(reply).toMatch(/applicant|contact/i);
+      // Keep each application's role in its own clause. A comma can separate two title-role pairs.
+      const clauses = reply
+        .toLowerCase()
+        .split(/[.;!?\n]|\b(?:and|but|whereas|while)\b/i)
+        .flatMap((clause) =>
+          clause.includes("lanterns") && clause.includes("library nights")
+            ? clause.split(",")
+            : [clause],
+        );
+      for (const [title, role] of [
+        ["Lanterns", /applicant|contact/i],
+        ["Library Nights", /assess|review/i],
+      ] as const) {
+        expect(
+          clauses.some((clause) => clause.includes(title.toLowerCase()) && role.test(clause)),
+          `Explain Jo’s relationship to ${title}`,
+        ).toBe(true);
+      }
     },
   };
 };
@@ -314,7 +329,16 @@ export const blockedArchive = async (ctx: ScenarioContext): Promise<Scenario> =>
       ]);
     },
     verifyReply(reply) {
-      expect(reply).toMatch(/request|outstanding|review/i);
+      const text = reply.replace(/[*_`]/g, "");
+      expect(text, "Report the outstanding request").toMatch(
+        /\b(?:outstanding|open|pending) (?:review|request)|\b(?:review|request)[^.!?\n]{0,30}\b(?:outstanding|open|pending)\b/i,
+      );
+      expect(text, "Report that the archive did not succeed").toMatch(
+        /block|cannot|can['’]t|could not|couldn['’]t|unable|not archived|not be archived|still active|remains? active|refus|fail|did(?: not|n['’]t) work/i,
+      );
+      expect(text, "Do not claim a successful archive").not.toMatch(
+        /\b(?:Jo(?: Bell)? (?:is|was|has been)|I(?: have|['’]ve)?)\s+(?:successfully |now )?archived\b/i,
+      );
     },
   };
 };

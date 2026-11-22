@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { isDeepStrictEqual } from "node:util";
 
 import { assert } from "vite-plus/test";
 import { z } from "zod";
@@ -216,7 +217,13 @@ export const pages = async (
 ) => {
   const values: unknown[] = [];
   let input: Record<string, unknown> | null = start;
+  const requests: Record<string, unknown>[] = [];
   while (input) {
+    assert(
+      !requests.some((previous) => isDeepStrictEqual(previous, input)),
+      `Repeated page request for ${name}`,
+    );
+    requests.push(input);
     const result = await checked(call, name, input);
     values.push(...z.array(z.unknown()).parse(result[field]));
     input = z.record(z.string(), z.unknown()).nullable().parse(result.nextPage);

@@ -42,3 +42,26 @@ catalogTest(
     expect(server.trace.map((call) => call.name)).not.toContain("start_application_revision");
   },
 );
+
+catalogTest("grades the summary edit before the later material change", async ({ catalog }) => {
+  const { grade, scripted } = await catalog("intake-changes");
+  expect((await grade(await scripted())).reply.status).toBe("passed");
+  expect((await grade("Staff updated the material, then changed the summary.")).reply.status).toBe(
+    "failed",
+  );
+  expect(
+    (
+      await grade(
+        "Created with €2,000 requested. Staff edited the summary, then raised the amount to €2,400.",
+      )
+    ).reply.status,
+  ).toBe("passed");
+});
+
+catalogTest("rejects a denial of the current submission’s ready status", async ({ catalog }) => {
+  const { grade, scripted } = await catalog("current-material");
+  expect((await grade(await scripted())).reply.status).toBe("passed");
+  expect(
+    (await grade("Lanterns is not ready; its current submission is version 2.")).reply.status,
+  ).toBe("failed");
+});
