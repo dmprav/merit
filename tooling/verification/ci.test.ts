@@ -84,7 +84,7 @@ test("CI verify workflow covers every ready stage and sharded browser suite", as
       "vp run --no-cache @merit/app#test:workspace:all --shard=${{ matrix.shard }}",
     ],
     "ready:tooling": ["vp run --no-cache ready:tooling"],
-    "check:security": ["vp run --no-cache check:security"],
+    "check:security": ["vp run --no-cache check:secrets", "vp run --no-cache check:dependencies"],
   };
 
   expect(new Set(Object.keys(stageWorkflowChecks))).toEqual(new Set(stages));
@@ -94,6 +94,10 @@ test("CI verify workflow covers every ready stage and sharded browser suite", as
     }
   }
   expect(workflow).toContain("vp run --no-cache test:checks");
+  // Advisories block only changes to dependency files; elsewhere they are reported.
+  expect(workflow).toContain(
+    "continue-on-error: ${{ needs.changes.outputs.dependencies_changed != 'true' }}",
+  );
 
   // External actions and container images must remain pinned by digest/SHA,
   // including inside local composite actions.

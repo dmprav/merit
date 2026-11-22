@@ -440,6 +440,11 @@ that diffs against the PR base commit:
   `security-checks`, and use the workspace dependency graph to run `package-tests`,
   `storybook-vitest`, `integration`, `tooling-self-tests`, and the `browser-*`
   suites only for affected dependents.
+- `security-checks` always fails on secrets. The dependency audit fails it only
+  when the change edits a `package.json`, `pnpm-lock.yaml`, or `pnpm-workspace.yaml`,
+  when the diff is unknown, or on manual dispatch. Pushes and merge groups diff
+  against the previous commit for this decision. Other runs report advisories as a
+  warning in the job summary.
 
 The container-backed Playwright suites `browser-storybook`, `browser-demo`, and
 `browser-workspace` wait on both `build` and `static-checks` so lint, type, or
