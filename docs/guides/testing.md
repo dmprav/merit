@@ -83,20 +83,11 @@ unverified. Derive cases from the owning workflow and contract before reading th
 implementation. Focus independent review on authorization, money, audit history,
 concurrency, transactions, and changes to verification policy.
 
-The package test commands require 100% line, branch, function, and statement
-coverage for these source areas:
-
-| Package                                                          | Measured behavior                                                                  |
-| ---------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| `@merit/access`                                                  | Domain authorization policies and decisions                                        |
-| `@merit/audit`                                                   | Event attribution and target formats, bounded history query and result formats     |
-| `@merit/grantmaking`                                             | Domain rules, public API formats, example construction, and stored-record encoding |
-| `@merit/rounds`, `@merit/applications`, `@merit/recommendations` | Owned domain rules, public API formats, and stored-record encoding                 |
-| `@merit/reviews`                                                 | Review and participation rules and public API formats                              |
-| `@merit/organizations`                                           | Domain rules and browser-safe API definitions                                      |
-| `@merit/contacts`                                                | Domain validation and public command/query API formats                             |
-| `@merit/money`                                                   | Exact monetary values, parsing, arithmetic, and formatting                         |
-| `@merit/dates`                                                   | Calendar-date validation, parsing, and formatting                                  |
+Business packages and selected foundation libraries, such as money and
+dates, require 100% line, branch, function, and statement coverage for their
+measured source areas: domain rules, public API formats, and selected encoding.
+The [coverage probe tests](../../tooling/verification/checks.test.ts) list each
+measured package and source area.
 
 Run an affected package's full suite to check its coverage, for example:
 
@@ -110,11 +101,10 @@ checks do not require a second test run. For focused development, run
 full package command.
 
 The [shared coverage defaults](../../tooling/verification/coverage.ts) own the
-provider, reports, and four 100% thresholds. Each package’s `vite.config.ts`
-explicitly includes its measured source files,
-including files no test imports. Tests and fixtures stay outside the measurement;
-grantmaking also excludes its static example records while measuring example
-construction and its private stored-record encoding. Business operations,
+provider, reports, and four 100% thresholds. Each package’s `vite.config.ts`,
+usually through the [business preset](../../tooling/verification/business-test-config.ts),
+includes its measured source files, including files no test imports. Tests,
+fixtures, and static example records stay outside the measurement. Business operations,
 database queries and writes, UI, and application wiring remain verified by their
 existing suites without coverage thresholds. Keep the V8 coverage provider version aligned with Vite+'s
 Vitest version when upgrading the toolchain.

@@ -90,9 +90,6 @@ Personal navigation pins require reads, insertion, reordering, and removal. The
 [navigation integration tests](../../capabilities/grantmaking/business/tests/navigation.integration.ts)
 check these operations with restricted runtime grants.
 
-Review revisions live in `review_states`; recommendation revisions belong to
-`recommendation_versions`. Application cases own only their intake revision.
-
 Application and round creation receipts and reviewer command receipts do not carry
 audit payloads.
 Grant `INSERT` on `audit_events` for audited writes and `SELECT` for every history
@@ -110,12 +107,6 @@ have mutable completion state, while received assessments and recommendations
 append versions. Reads compose these records, so the runtime needs `SELECT` on
 all the listed grantmaking tables even for operations that write only one of them.
 
-Reviewer assignments retain private drafts with their application. Assignment events
-are append-only, and assessment authorship cannot be changed after creation. Email
-records retain pending, failed, or sender-accepted status; managers can resend
-invitations or retry a failed submission notification. Configure the existing
-email sender and application origin before inviting reviewers.
-
 Recorded material, criteria, assessment, and recommendation versions reject
 updates and direct deletion while their owner exists. Grant the runtime `SELECT` and `INSERT`, with
 no direct version deletion. Deleting an eligible case or empty round removes its
@@ -124,9 +115,7 @@ eligibility first. Case and round audit records remain after those deletions, an
 the runtime does not need to update or delete them. Operator cleanup separately
 owns deletion of disposable demo history.
 
-Contacts require profile reads and writes. Linked applications resolve the
-current profile when read. Material versions and case history retain their
-recorded details. The [contact and review integration tests](../../capabilities/grantmaking/business/tests/reviews.integration.ts)
+Contacts require profile reads and writes. The [contact and review integration tests](../../capabilities/grantmaking/business/tests/reviews.integration.ts)
 exercise those operations with restricted runtime grants.
 
 PostgreSQL row locks also require `UPDATE` privileges on the locked round, case,
