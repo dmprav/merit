@@ -22,6 +22,7 @@ the files a design-system artifact keeps under `project/`:
 | `components/bundle.css`            | Properties tokens.json cannot hold, the [reset](../../../foundation/ui/src/foundations/reset.css), document defaults and every CSS Module   |
 | `components/index.d.ts`            | Declarations TypeScript emits for the exported modules                                                                                      |
 | `components/<Card>/`, `README.md`  | The authored cards and brand book in [content](content)                                                                                     |
+| `fonts/*.woff2`, `type.fonts`      | The font files and `@font-face` rules `@merit/ui/styles.css` imports from packages (Instrument Sans)                                        |
 | `assets/Icons`, `assets/Logos`     | Icon's Lucide glyphs and Brand's mark, rendered with the shared size, stroke and colors                                                     |
 
 The export has no `tokens.css`: the design-system artifact generates it from `tokens.json`,

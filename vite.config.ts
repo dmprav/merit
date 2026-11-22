@@ -171,7 +171,8 @@ export default defineConfig({
       },
       "test:docs": { command: "vp test tooling/verification/docs.test.ts", cache: false },
       "test:design-system": {
-        command: "vp test tooling/storybook/design-system/tokens.test.ts",
+        command:
+          "vp test tooling/storybook/design-system/tokens.test.ts tooling/storybook/design-system/fonts.test.ts",
         cache: false,
       },
       "test:react-compiler": {

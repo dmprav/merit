@@ -30,7 +30,7 @@ Two themes share every meaning. **Site** is the public site and guides; **Produc
 
 ## Type
 
-One family: the platform sans (`-apple-system`, `BlinkMacSystemFont`, `Segoe UI`). No web fonts, no italics for emphasis; emphasis is weight 500 or 600.
+One family: Instrument Sans (the variable font, weights 400–700, files in `fonts/`), so Merit looks the same on every platform. Platform fonts (`-apple-system`, `BlinkMacSystemFont`, `Segoe UI`) are only the fallback while it loads. Let size and weight carry the hierarchy: emphasis is weight 500 or 600, never italics. Emails keep platform fonts, because mail clients don't load web fonts reliably.
 
 - Pages: `kicker` (uppercase, `muted`) above `page`; `page-compact` in compact headers and below 600px. `section` for headings within a page. `display` only on the public site.
 - Copy: `body` on the site. In the Product theme, interface copy, controls and labels drop to `detail` (13px): dense work reads in three steps, `caption` for metadata, `detail` for interface and copy, `reading` for prose.
@@ -70,4 +70,3 @@ The components are Merit's own React libraries (`@merit/ui`, `@merit/forms` and 
 ## Not synced
 
 - `--overlay` (a `color-mix()` value), `--measure-reading: 65ch`, the fluid `--text-display`, the `--text-*` size variables and `--motion-fast` / `--motion-medium` stay in `components/bundle.css`, since tokens.json cannot hold them. The type styles above carry the same sizes.
-- No font files: the system uses the platform sans.

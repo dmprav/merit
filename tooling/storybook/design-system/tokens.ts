@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import type { FontFace } from "./fonts";
+
 const familySchema = z.enum(["color", "spacing", "radius", "shadow", "size"]);
 
 const metaSchema = z.object({
@@ -132,7 +134,12 @@ const resolveStyle = (style: Record<string, unknown>, base: Declarations) =>
  * Builds the design system's tokens.json from tokens.css and its classification. Every custom
  * property in the base and theme blocks must be classified, so new tokens cannot be missed.
  */
-export const buildTokens = (css: string, meta: TokenMeta, provenance: Record<string, unknown>) => {
+export const buildTokens = (
+  css: string,
+  meta: TokenMeta,
+  provenance: Record<string, unknown>,
+  fonts: FontFace[] = [],
+) => {
   const blocks = readCustomProperties(css);
   const [baseTheme] = meta.themes;
   const base = blocks.get(baseTheme?.selector ?? "") ?? new Map<string, string>();
@@ -180,7 +187,7 @@ export const buildTokens = (css: string, meta: TokenMeta, provenance: Record<str
     meta: provenance,
     color: { themes: meta.themes.map(({ id, name }) => ({ id, name })), tokens: families.color },
     type: {
-      fonts: [],
+      fonts,
       families: Object.fromEntries(
         Object.entries(meta.type.families).map(([key, variable]) => [
           key,

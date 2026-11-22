@@ -5,6 +5,7 @@ import path from "node:path";
 
 import { buildIcons, buildMark } from "./assets";
 import { buildDeclarations, buildLibrary } from "./bundle";
+import { collectFonts } from "./fonts";
 import { buildTokens, cssOnlyProperties, parseTokenMeta } from "./tokens";
 
 const here = import.meta.dirname;
@@ -56,14 +57,24 @@ const main = async () => {
   const meta = parseTokenMeta(
     JSON.parse(await readFile(path.join(here, "tokens.meta.json"), "utf8")),
   );
-  const tokens = buildTokens(tokensCss, meta, {
-    source: "github",
-    repo: "dmprav/merit",
-    ref: `${git("rev-parse", "--abbrev-ref", "HEAD")}@${git("rev-parse", "--short", "HEAD")}`,
-    packages: ["foundation/ui", "foundation/forms", "foundation/tables"],
-    producer: "tooling/storybook/design-system",
-    synced: new Date().toISOString().slice(0, 10),
-  });
+  const fonts = await collectFonts();
+  await mkdir(path.join(project, "fonts"), { recursive: true });
+  for (const font of fonts) {
+    await cp(font.path, path.join(project, font.face.file));
+  }
+  const tokens = buildTokens(
+    tokensCss,
+    meta,
+    {
+      source: "github",
+      repo: "dmprav/merit",
+      ref: `${git("rev-parse", "--abbrev-ref", "HEAD")}@${git("rev-parse", "--short", "HEAD")}`,
+      packages: ["foundation/ui", "foundation/forms", "foundation/tables"],
+      producer: "tooling/storybook/design-system",
+      synced: new Date().toISOString().slice(0, 10),
+    },
+    fonts.map((font) => font.face),
+  );
   await writeFile(path.join(project, "tokens.json"), `${JSON.stringify(tokens, null, 2)}\n`);
 
   await cp(path.join(here, "content/README.md"), path.join(project, "README.md"));
