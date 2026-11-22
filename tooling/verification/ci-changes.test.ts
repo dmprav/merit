@@ -152,4 +152,26 @@ describe("ci-changes", () => {
     expect(webResult.run_storybook).toBe(true);
     expect(webResult.run_app).toBe(true);
   });
+  test.each([
+    ["pull_request", ["capabilities/grantmaking/business/src/index.ts"], false],
+    ["pull_request", ["docs/guides/verification.md"], false],
+    ["pull_request", ["pnpm-lock.yaml"], true],
+    ["pull_request", ["foundation/ui/package.json", "foundation/ui/src/index.ts"], true],
+    ["pull_request", ["pnpm-workspace.yaml"], true],
+    ["push", ["docs/README.md"], false],
+    ["push", ["package.json"], true],
+    ["push", null, true],
+    ["merge_group", null, true],
+    ["workflow_dispatch", ["docs/README.md"], true],
+  ] as const)(
+    "marks dependency changes for %s of %j as %s",
+    (eventName, changedFiles, expected) => {
+      const result = classifyChangedFiles({
+        eventName,
+        changedFiles: changedFiles === null ? null : [...changedFiles],
+        workspacePackages,
+      });
+      expect(result.dependencies_changed).toBe(expected);
+    },
+  );
 });
