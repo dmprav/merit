@@ -377,3 +377,31 @@ for (const theme of ["product", "site"]) {
     },
   );
 }
+
+test("the message box grows to eight lines, then scrolls", async ({ page }) => {
+  await page.goto("/iframe.html?id=patterns-message-box--long-text&viewMode=story");
+  await expect(page.locator("#storybook-root")).toHaveAttribute("data-story-ready", "true");
+
+  const input = page.getByRole("textbox", { name: "Message" });
+
+  const lines = (count: number) =>
+    Array.from({ length: count }, (_, index) => `Line ${index + 1}`).join("\n");
+
+  const height = async () => (await input.boundingBox())!.height;
+
+  await input.fill(lines(1));
+  const one = await height();
+  await input.fill(lines(4));
+  const four = await height();
+  await input.fill(lines(8));
+  const eight = await height();
+  await input.fill(lines(12));
+  const twelve = await height();
+
+  expect(four).toBeGreaterThan(one);
+  expect(eight).toBeGreaterThan(four);
+  expect(twelve).toBe(eight);
+  expect(await input.evaluate((node) => node.scrollHeight > node.clientHeight)).toBe(true);
+  await input.fill(lines(8));
+  expect(await input.evaluate((node) => node.scrollHeight <= node.clientHeight)).toBe(true);
+});

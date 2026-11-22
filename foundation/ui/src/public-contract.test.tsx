@@ -27,6 +27,7 @@ import * as inlineName from "@merit/ui/inline-name";
 import * as judgment from "@merit/ui/judgment";
 import * as layout from "@merit/ui/layout";
 import * as link from "@merit/ui/link";
+import * as messageBox from "@merit/ui/message-box";
 import * as moneyField from "@merit/ui/money-field";
 import * as notice from "@merit/ui/notice";
 import * as outcomeSummary from "@merit/ui/outcome-summary";
@@ -82,6 +83,7 @@ const publicModules = {
   "./judgment": judgment,
   "./layout": layout,
   "./link": link,
+  "./message-box": messageBox,
   "./money-field": moneyField,
   "./notice": notice,
   "./outcome-summary": outcomeSummary,

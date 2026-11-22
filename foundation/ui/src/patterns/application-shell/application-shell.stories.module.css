@@ -1,0 +1,20 @@
+.conversation {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: var(--space-4);
+  min-height: 100%;
+  padding-block: var(--space-3) var(--space-4);
+}
+
+.messages {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.reply {
+  color: var(--muted);
+}

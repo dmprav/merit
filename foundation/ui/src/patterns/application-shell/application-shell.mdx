@@ -74,6 +74,39 @@ Keep account controls available while account details load. The
 [account menu](?path=/story/patterns-application-shell--account-menu) examples show
 loading, available actions, and sign-out recovery.
 
+## Keep a companion beside the work
+
+Use the shell's `companion` for a task that runs alongside the page, such as an
+assistant, when the person needs to keep reading the page while they use it. Supply a
+`label`, which names the panel and is its visible title, whether it is open, and what
+closing does. Without a companion, or while it is closed, the shell is unchanged.
+
+<Canvas of={Shell.AssistantPanel} story={{ inline: false, height: "540px" }} />
+
+From 1400 pixels wide the open panel is a labelled region on the right edge. It
+scrolls on its own, and the page narrows to make room instead of being covered. Toasts
+stay centered on the page. Below 1400 pixels it opens as a modal sheet like a
+[side panel](?path=/docs/components-dialog--docs): the page is inert, focus stays inside,
+and Escape, the close button, or a click outside closes it. The sheet is 400 pixels wide,
+or the full width of a narrower screen. Crossing 1400 pixels while it is open changes
+the presentation and keeps it open.
+
+In the pushed presentation a separator on the panel's left edge resizes it between 400
+and 560 pixels, starting at `width` (416 by default). Dragging, or the arrow keys on the focused
+separator (16 pixels a step, Home and End for the limits), reports each committed width
+through `onWidthChange`. Pointer dragging has a non-drag path: pressing the separator
+without dragging toggles between the default 416 pixels and the 560 widest. The shell does not save it; the caller decides whether to.
+
+<Canvas of={Shell.AssistantPanelWidest} story={{ inline: false, height: "540px" }} />
+
+Opening moves focus into the panel: to the element the caller gives `autoFocus`, otherwise to
+the panel itself. Closing from inside the panel returns focus to the control that opened it,
+or to the main content when that control is gone. When the caller closes the pushed panel
+while focus is elsewhere on the page, such as from a shortcut, focus stays where it is. Escape inside the pushed panel closes it unless a menu or
+popup inside has already used it. The panel's content mounts only while it is open, and again
+when the screen crosses 1400 pixels, so keep drafts and history with the caller.
+Compose a conversation from a [message box](?path=/docs/patterns-message-box--docs).
+
 ## Recover within the available frame
 
 Keep usable navigation when a page fails inside an accessible workspace. Use

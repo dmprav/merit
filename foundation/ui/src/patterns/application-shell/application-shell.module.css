@@ -1,11 +1,13 @@
 /* The document holds the sidebar width so page-level overlays, such as toasts, can center beside it. */
 :root:has(.shell) {
   --sidebar-width: 210px;
+  /* The open companion panel sets its width here while it sits beside the page. */
+  --companion-width: 0px;
 }
 
 .shell {
   display: grid;
-  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr) var(--companion-width);
   min-height: 100dvh;
   background: var(--surface);
   font-size: var(--text-body);

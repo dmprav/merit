@@ -16,30 +16,9 @@
   padding-block: var(--space-1);
 }
 
-.chip[data-size="small"] {
-  max-width: 100%;
-  min-height: 1.5rem;
-  padding: 0 var(--space-1);
-  gap: var(--space-1);
-  font-weight: 400;
-  --button-quiet-foreground: var(--muted);
-}
-
-.chip span {
-  overflow-wrap: anywhere;
-  white-space: normal;
-  text-align: start;
-}
-
 .reset {
   border-top: 1px solid var(--border);
   padding-top: var(--space-1);
-}
-
-@media (pointer: coarse) {
-  .chip[data-size="small"] {
-    min-height: var(--target-touch);
-  }
 }
 
 .summary {

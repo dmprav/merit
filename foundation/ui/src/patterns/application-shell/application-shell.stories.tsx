@@ -1,26 +1,86 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, waitFor, within } from "storybook/test";
+import { useState } from "react";
+import { expect, fn, waitFor, within } from "storybook/test";
 
 import { Brand } from "../../components/brand/brand";
 import { Icon } from "../../components/icon/icon";
+import { MessageBox } from "../message-box/message-box";
 import { PageHeader } from "../page-header/page-header";
 import { StateMessage } from "../state-message/state-message";
+import { showToast } from "../toast/toast";
 import {
   ApplicationRecovery,
   ApplicationAccount,
   ApplicationContext,
   ApplicationContextOption,
+  ApplicationNavigationButton,
   ApplicationPage,
   ApplicationShell,
+  useCloseNavigation,
 } from "./application-shell";
 import styles from "./application-shell.module.css";
+import storyStyles from "./application-shell.stories.module.css";
 
-const meta = {
-  title: "Patterns/Application shell",
-  tags: ["!autodocs"],
-  parameters: { layout: "fullscreen" },
-  args: { name: "Alder Foundation", loading: false, signedIn: false },
-  render: ({ name, loading, signedIn }) => (
+/** The panel remounts its content when the screen crosses 1400 pixels, so the draft lives with the caller. */
+const AssistantConversation = ({
+  draft,
+  onDraftChange,
+}: {
+  draft: string;
+  onDraftChange: (draft: string) => void;
+}) => (
+  <div className={storyStyles.conversation}>
+    <ul className={storyStyles.messages}>
+      <li>Which applications in this round still need a second review?</li>
+      <li className={storyStyles.reply}>
+        Three applications have one review so far: Riverside Youth Arts, Harbour Learning Garden,
+        and Northside Repair Cafe.
+      </li>
+    </ul>
+    <MessageBox
+      label="Message"
+      isLabelHidden
+      placeholder="Ask about this round"
+      value={draft}
+      onChange={onDraftChange}
+      sendLabel="Send message"
+      onSend={() => onDraftChange("")}
+      stopLabel="Stop"
+      onStop={() => {}}
+      autoFocus
+    />
+  </div>
+);
+
+/** Closes the compact navigation drawer before opening the panel over the page. */
+const AssistantOpener = ({ onOpen }: { onOpen: () => void }) => {
+  const closeNavigation = useCloseNavigation();
+
+  return (
+    <ApplicationNavigationButton
+      icon="search"
+      label="Open assistant"
+      onPress={() => {
+        closeNavigation();
+        onOpen();
+      }}
+    />
+  );
+};
+
+type ShellExampleProps = {
+  name: string;
+  loading: boolean;
+  signedIn: boolean;
+  /** Shows the companion panel, opened or closed, with its opener in the navigation. */
+  companion?: { open: boolean; width?: number };
+};
+
+const ShellExample = ({ name, loading, signedIn, companion }: ShellExampleProps) => {
+  const [open, setOpen] = useState(companion?.open ?? false);
+  const [draft, setDraft] = useState("");
+
+  return (
     <ApplicationShell
       brand={
         <a href="#main">
@@ -56,7 +116,20 @@ const meta = {
             <Icon name="team" />
             Team
           </a>
+          {companion && <AssistantOpener onOpen={() => setOpen(true)} />}
         </>
+      }
+      companion={
+        companion && {
+          label: "Assistant",
+          isOpen: open,
+          onClose: () => setOpen(false),
+          closeLabel: "Close assistant",
+          resizeLabel: "Resize assistant",
+          width: companion.width,
+          onWidthChange: fn(),
+          children: <AssistantConversation draft={draft} onDraftChange={setDraft} />,
+        }
       }
       footer={
         <ApplicationAccount
@@ -86,8 +159,16 @@ const meta = {
         <PageHeader title="Funding rounds" description="Prepare grant work for review." />
       </ApplicationPage>
     </ApplicationShell>
-  ),
-} satisfies Meta<{ name: string; loading: boolean; signedIn: boolean }>;
+  );
+};
+
+const meta = {
+  title: "Patterns/Application shell",
+  tags: ["!autodocs"],
+  parameters: { layout: "fullscreen" },
+  args: { name: "Alder Foundation", loading: false, signedIn: false },
+  render: (args) => <ShellExample {...args} />,
+} satisfies Meta<ShellExampleProps>;
 
 export default meta;
 
@@ -137,6 +218,63 @@ export const WorkspaceSwitcherLongName: Story = {
       },
     },
   },
+};
+
+const companionPlay: Story["play"] = async ({ canvasElement }) => {
+  const body = within(canvasElement.ownerDocument.body);
+  // A labelled region beside the page from 1400 pixels, a modal sheet below.
+  const panel = await body.findByRole(
+    window.matchMedia("(min-width: 1400px)").matches ? "complementary" : "dialog",
+    { name: "Assistant" },
+  );
+  // The modal sheet fades in.
+  await waitFor(() => expect(panel).toBeVisible());
+  await waitFor(() =>
+    expect(within(panel).getByRole("textbox", { name: "Message" })).toHaveFocus(),
+  );
+};
+
+const companionDescription = (story: string) => ({
+  docs: { description: { story } },
+});
+
+export const AssistantPanel: Story = {
+  args: { companion: { open: true } },
+  parameters: companionDescription(
+    "The companion panel at its starting 416 pixels. From 1400 pixels wide it pushes the page content aside; below that it opens as a modal sheet.",
+  ),
+  play: companionPlay,
+};
+
+export const AssistantPanelWithToast: Story = {
+  args: { companion: { open: true } },
+  parameters: companionDescription(
+    "A toast stays centered on the page area beside the open panel instead of the whole window.",
+  ),
+  play: async (context) => {
+    await companionPlay?.(context);
+    showToast({ tone: "success", message: "Recommendation saved" });
+    const toast = await within(context.canvasElement.ownerDocument.body).findByRole("alertdialog", {
+      name: "Recommendation saved",
+    });
+    // The toast fades in.
+    await waitFor(() => expect(toast).toBeVisible());
+  },
+};
+
+export const AssistantPanelWidest: Story = {
+  args: { companion: { open: true, width: 560 } },
+  parameters: companionDescription(
+    "The widest the panel resizes to. In the modal sheet the width is fixed at 400 pixels.",
+  ),
+  play: companionPlay,
+};
+
+export const AssistantPanelClosed: Story = {
+  args: { companion: { open: false } },
+  parameters: companionDescription(
+    "Closed, the shell renders as without a panel. Opening it returns focus to this control when it closes.",
+  ),
 };
 
 export const LoadingAccount: Story = { args: { loading: true } };

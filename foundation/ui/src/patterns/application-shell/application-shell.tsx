@@ -20,6 +20,7 @@ import { IconBase, type IconName } from "../../components/icon/icon-base";
 import { Notice } from "../../components/notice/notice";
 import { PersonIdentity } from "../person-identity/person-identity";
 import styles from "./application-shell.module.css";
+import { CompanionPanel, type ApplicationCompanion } from "./companion-panel";
 
 const compactQuery = "(max-width: 600px)";
 
@@ -101,33 +102,24 @@ const NavigationDrawer = ({
   </ModalFrame>
 );
 
-/** Apps supply destinations and identity; the shell owns desktop and mobile navigation. */
-export const ApplicationShell = ({
-  brand,
-  identity,
-  contextLabel,
-  navigation,
+/** The compact top bar: the navigation drawer, the current context, and utilities. */
+const MobileHeader = ({
+  compact,
   navigationLabel,
-  footer,
-  utility,
-  skipLabel,
   openNavigationLabel,
   closeNavigationLabel,
+  contextLabel,
+  utility,
   children,
 }: {
-  brand: ReactNode;
-  identity?: ReactNode;
-  contextLabel: string;
-  navigation: ReactNode;
+  compact: boolean;
   navigationLabel: string;
-  footer?: ReactNode;
-  utility?: ReactNode;
-  skipLabel: string;
   openNavigationLabel: string;
   closeNavigationLabel: string;
+  contextLabel: string;
+  utility?: ReactNode;
   children: ReactNode;
 }) => {
-  const compact = useSyncExternalStore(subscribeViewport, isCompactViewport, () => false);
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -144,6 +136,61 @@ export const ApplicationShell = ({
     }
   };
 
+  return (
+    <header className={styles.mobileHeader}>
+      {compact && (
+        <NavigationDrawer
+          label={navigationLabel}
+          openLabel={openNavigationLabel}
+          closeLabel={closeNavigationLabel}
+          isOpen={open}
+          onOpenChange={setOpen}
+        >
+          {/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- Clicks bubble from real links, including keyboard activation; this wrapper is not a control. */}
+          <div className={styles.drawerContent} onClick={closeAfterLink}>
+            <CloseNavigationContext value={() => setOpen(false)}>{children}</CloseNavigationContext>
+          </div>
+        </NavigationDrawer>
+      )}
+      <span className={styles.mobileContext}>{contextLabel}</span>
+      {compact && utility}
+    </header>
+  );
+};
+
+/** Apps supply destinations and identity; the shell owns desktop and mobile navigation. */
+export const ApplicationShell = ({
+  brand,
+  identity,
+  contextLabel,
+  navigation,
+  navigationLabel,
+  footer,
+  utility,
+  skipLabel,
+  openNavigationLabel,
+  closeNavigationLabel,
+  companion,
+  children,
+}: {
+  brand: ReactNode;
+  identity?: ReactNode;
+  contextLabel: string;
+  navigation: ReactNode;
+  navigationLabel: string;
+  footer?: ReactNode;
+  utility?: ReactNode;
+  skipLabel: string;
+  openNavigationLabel: string;
+  closeNavigationLabel: string;
+  /**
+   * A panel beside the page: pushed in from the right at 1400 pixels and wider, a modal sheet
+   * below. Closed or absent, the shell renders without it.
+   */
+  companion?: ApplicationCompanion;
+  children: ReactNode;
+}) => {
+  const compact = useSyncExternalStore(subscribeViewport, isCompactViewport, () => false);
   const navigationContent = (
     <>
       <div>
@@ -165,28 +212,19 @@ export const ApplicationShell = ({
       <a href="#main" className={styles.skip}>
         {skipLabel}
       </a>
-      <header className={styles.mobileHeader}>
-        {compact && (
-          <NavigationDrawer
-            label={navigationLabel}
-            openLabel={openNavigationLabel}
-            closeLabel={closeNavigationLabel}
-            isOpen={open}
-            onOpenChange={setOpen}
-          >
-            {/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- Clicks bubble from real links, including keyboard activation; this wrapper is not a control. */}
-            <div className={styles.drawerContent} onClick={closeAfterLink}>
-              <CloseNavigationContext value={() => setOpen(false)}>
-                {navigationContent}
-              </CloseNavigationContext>
-            </div>
-          </NavigationDrawer>
-        )}
-        <span className={styles.mobileContext}>{contextLabel}</span>
-        {compact && utility}
-      </header>
+      <MobileHeader
+        compact={compact}
+        navigationLabel={navigationLabel}
+        openNavigationLabel={openNavigationLabel}
+        closeNavigationLabel={closeNavigationLabel}
+        contextLabel={contextLabel}
+        utility={utility}
+      >
+        {navigationContent}
+      </MobileHeader>
       {!compact && <aside className={styles.sidebar}>{navigationContent}</aside>}
       <div className={styles.stage}>{children}</div>
+      {companion && <CompanionPanel {...companion} />}
     </div>
   );
 };

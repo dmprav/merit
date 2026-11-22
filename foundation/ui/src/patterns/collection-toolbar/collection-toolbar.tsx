@@ -2,6 +2,7 @@ import { useRef, type ReactNode } from "react";
 import { Button as RowButton } from "react-aria-components/Button";
 
 import { ButtonBase } from "../../components/button/button-base";
+import { ChipBase } from "../../components/chip/chip-base";
 import { PickerPopover } from "../../components/dialog/dialog";
 import { SearchField } from "../../components/fields/search-field/search-field";
 import { Select, type SelectProps } from "../../components/fields/select/select";
@@ -62,36 +63,26 @@ export const CollectionToolbar = ({
         <FilterPanel filters={filters} search={search} reset={reset} />
       </PickerPopover>
       {chips.map((chip) => (
-        <ButtonBase
+        <ChipBase
           key={chip.id}
-          variant="quiet"
-          size="small"
-          className={styles.chip}
-          aria-label={chip.removeLabel}
-          onPress={() => {
+          label={chip.label}
+          removeLabel={chip.removeLabel}
+          onRemove={() => {
             chip.onRemove();
             filterTrigger.current?.focus();
           }}
-        >
-          <span>{chip.label}</span>
-          <IconBase name="close" />
-        </ButtonBase>
+        />
       ))}
       {search?.value && (
-        <ButtonBase
-          variant="quiet"
-          size="small"
-          className={styles.chip}
-          aria-label={`${search.clearLabel}: ${search.label}: ${search.value}`}
-          onPress={() => {
+        <ChipBase
+          icon="search"
+          label={search.value}
+          removeLabel={`${search.clearLabel}: ${search.label}: ${search.value}`}
+          onRemove={() => {
             search.onChange("");
             filterTrigger.current?.focus();
           }}
-        >
-          <IconBase name="search" />
-          <span>{search.value}</span>
-          <IconBase name="close" />
-        </ButtonBase>
+        />
       )}
       {summary != null && (
         <span className={styles.summary} role="status">

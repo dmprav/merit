@@ -1,9 +1,9 @@
-/* Centered over the page content, beside the application shell's sidebar when there is one. */
+/* Centered over the page content, between the application shell's sidebar and companion panel. */
 .region {
   position: fixed;
   z-index: 60;
   bottom: var(--space-4);
-  left: calc(50% + var(--sidebar-width, 0px) / 2);
+  left: calc(50% + (var(--sidebar-width, 0px) - var(--companion-width, 0px)) / 2);
   transform: translateX(-50%);
   display: flex;
   flex-direction: column-reverse;
@@ -11,7 +11,10 @@
   align-items: stretch;
   gap: var(--space-2);
   width: max-content;
-  max-width: min(28rem, calc(100vw - var(--sidebar-width, 0px) - 2 * var(--space-4)));
+  max-width: min(
+    28rem,
+    calc(100vw - var(--sidebar-width, 0px) - var(--companion-width, 0px) - 2 * var(--space-4))
+  );
   outline: none;
 }
 
