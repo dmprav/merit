@@ -7,8 +7,7 @@ Merit. [Strategy](strategy.md) defines product direction,
 engineering principles govern day-to-day technical judgment across all layers.
 
 Each principle names when it applies, where to keep it simple, and the sign that
-it was skipped. [AGENTS.md](../../AGENTS.md#engineering-principles) pairs them
-with what enforces each rule in code and CI.
+it was skipped. [AGENTS.md](../../AGENTS.md#engineering-principles) summarizes them.
 
 ## Design and structure
 
