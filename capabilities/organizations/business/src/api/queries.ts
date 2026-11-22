@@ -5,7 +5,7 @@ import { auditPageInput } from "@merit/audit/api";
 import type { Provenance } from "@merit/auth";
 
 import { workspaceSlugSchema } from "./identifiers";
-import type { Organization } from "./records";
+import type { AccessRequest, Organization } from "./records";
 
 /** Initial onboarding status, independent of the email sender's delivery outcome. */
 export const administratorInvitationState = (
@@ -54,6 +54,17 @@ export const workspacePageInput = z.strictObject({
   after: z.string().min(1).max(100).optional(),
   limit: z.number().int().min(1).max(50).default(20),
 });
+
+export const accessRequestPageInput = workspacePageInput.extend({
+  after: z.strictObject({ id: z.uuid(), reviewed: z.boolean() }).optional(),
+});
+
+export type AccessRequestCursor = NonNullable<z.infer<typeof accessRequestPageInput>["after"]>;
+
+export type AccessRequestPage = {
+  requests: AccessRequest[];
+  nextCursor: AccessRequestCursor | null;
+};
 
 export const teamPageInput = workspacePageInput.extend({
   workspaceSlug: workspaceSlugSchema,

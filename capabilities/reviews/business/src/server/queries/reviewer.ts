@@ -14,7 +14,6 @@ import {
   reviewerIdentityCurrent,
   reviewerWorkspace,
   reviewerOwns,
-  permittedReviewerWork,
   readReviewerRecord,
   listReviewerRecords,
   listManagerReviewerRecords,
@@ -25,18 +24,20 @@ import {
 } from "../persistence/reviewer-records";
 
 const reviewerSummary = (row: ReviewerRecord): ReviewerSummary => {
-  const basisComparison = compareReviewBasis(
-    {
-      applicationVersion: materialVersionSchema.parse(row.applicationVersion),
-      criteriaVersion: criteriaVersionSchema.parse(row.criteriaVersion),
-      criteria: reviewCriteriaSchema.parse(row.criteria),
-    },
-    {
-      applicationVersion: materialVersionSchema.parse(row.currentVersion),
-      criteriaVersion: criteriaVersionSchema.parse(row.currentCriteriaVersion),
-      criteria: reviewCriteriaSchema.nullable().parse(row.currentCriteria),
-    },
-  );
+  const basisComparison: ReviewerSummary["basisComparison"] = row.evidenceAvailable
+    ? compareReviewBasis(
+        {
+          applicationVersion: materialVersionSchema.parse(row.applicationVersion),
+          criteriaVersion: criteriaVersionSchema.parse(row.criteriaVersion),
+          criteria: reviewCriteriaSchema.parse(row.criteria),
+        },
+        {
+          applicationVersion: materialVersionSchema.parse(row.currentVersion),
+          criteriaVersion: criteriaVersionSchema.parse(row.currentCriteriaVersion),
+          criteria: reviewCriteriaSchema.nullable().parse(row.currentCriteria),
+        },
+      )
+    : { applicationVersion: "unknown", criteriaVersion: "unknown", criteriaContent: "unknown" };
   return {
     basisComparison,
     id: row.assignment.id,
@@ -98,7 +99,7 @@ export const readReviewerAssignment = (
   workspaceSlug?: string,
 ): ReturnType<ReviewerService["read"]> =>
   readScoped(db, assignmentScope(actor.userId, id, workspaceSlug), async (tx) => {
-    const record = await readReviewerRecord(tx, id);
+    const record = await readReviewerRecord(tx, id, actor.userId);
     if (
       !record ||
       (workspaceSlug !== undefined && record.slug !== workspaceSlug) ||
@@ -109,7 +110,7 @@ export const readReviewerAssignment = (
       return { status: "not_found" };
     }
     const assignment = reviewerSummary(record);
-    if (!(await permittedReviewerWork(tx, id, actor.userId))) {
+    if (!record.evidenceAvailable) {
       return {
         status: "ok",
         value: {

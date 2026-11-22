@@ -1,18 +1,52 @@
 import { AwsClient } from "aws4fetch";
 import { z } from "zod";
 
-import type { FileObjects } from "@merit/storage";
+import { fileByteLength, fileObjectKey, type FileObjects } from "@merit/storage";
 
 const settings = z.object({
   FILE_STORAGE_ENDPOINT: z.url({ protocol: /^https?$/u }),
   FILE_STORAGE_REGION: z.string().min(1),
-  FILE_STORAGE_BUCKET: z.string().regex(/^[a-z0-9][a-z0-9.-]+[a-z0-9]$/),
+  FILE_STORAGE_BUCKET: z
+    .string()
+    .regex(/^[a-z0-9][a-z0-9.-]+[a-z0-9]$/)
+    .refine((name) => !name.includes("..")),
   FILE_STORAGE_ACCESS_KEY_ID: z.string().min(1),
   FILE_STORAGE_SECRET_ACCESS_KEY: z.string().min(1),
 });
 
+const lengthMismatch = "Stored file length does not match its metadata.";
+
+const readFileBody = async (response: Response, byteLength: number) => {
+  const bytes = new Uint8Array(byteLength);
+  let offset = 0;
+  const reader = response.body?.getReader();
+  if (reader) {
+    try {
+      for (;;) {
+        const chunk = await reader.read();
+        if (chunk.done) {
+          break;
+        }
+        if (chunk.value.byteLength > byteLength - offset) {
+          await reader.cancel();
+          throw new Error(lengthMismatch);
+        }
+        bytes.set(chunk.value, offset);
+        offset += chunk.value.byteLength;
+      }
+    } finally {
+      reader.releaseLock();
+    }
+  }
+  if (offset !== byteLength) {
+    throw new Error(lengthMismatch);
+  }
+  return bytes;
+};
+
 export const createFileObjects = (env: NodeJS.ProcessEnv): FileObjects => {
   const request = async (key: string, init: RequestInit) => {
+    fileObjectKey.parse(key);
     const config = settings.safeParse(env);
     if (!config.success) {
       throw new Error("Private file storage is not configured.");
@@ -55,11 +89,16 @@ export const createFileObjects = (env: NodeJS.ProcessEnv): FileObjects => {
     async put(key, bytes, sha256) {
       await request(key, {
         method: "PUT",
-        headers: { "If-None-Match": "*", "x-amz-content-sha256": sha256 },
+        headers: {
+          "Content-Type": "application/octet-stream",
+          "If-None-Match": "*",
+          "x-amz-content-sha256": sha256,
+        },
         body: bytes,
       });
     },
     async get(key, byteLength) {
+      fileByteLength.parse(byteLength);
       const response = await request(key, {
         method: "GET",
         headers: { "Accept-Encoding": "identity" },
@@ -71,9 +110,9 @@ export const createFileObjects = (env: NodeJS.ProcessEnv): FileObjects => {
       }
       if (response.headers.get("content-length") !== String(byteLength)) {
         await response.body?.cancel();
-        throw new Error("Stored file length does not match its metadata.");
+        throw new Error(lengthMismatch);
       }
-      return new Uint8Array(await response.arrayBuffer());
+      return readFileBody(response, byteLength);
     },
   };
 };

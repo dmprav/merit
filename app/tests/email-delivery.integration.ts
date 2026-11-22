@@ -5,7 +5,7 @@ import { createEmailSender } from "../src/server/email-delivery.server";
 const message = {
   id: "invitation-id",
   to: "recipient@example.test",
-  subject: "A rendered subject",
+  subject: "A rendered\r\nsubject",
   text: "Rendered plain text",
   html: "<p>Rendered HTML</p>",
 };
@@ -38,7 +38,7 @@ it("sends supplied HTML and plain text to Mailpit over HTTP", async () => {
 
   expect(body).toMatchObject({
     To: [{ Email: message.to }],
-    Subject: message.subject,
+    Subject: "A rendered subject",
     Text: message.text,
     HTML: message.html,
   });
@@ -75,7 +75,7 @@ it.each([undefined, ""])(
     expect(JSON.parse(options.body)).toEqual({
       from: "invite@merit.example",
       to: [message.to],
-      subject: message.subject,
+      subject: "A rendered subject",
       text: message.text,
       html: message.html,
     });
@@ -96,6 +96,32 @@ const senders = [
     send: createEmailSender({ from: "invite@merit.example", resendKey: "test-only" }),
   },
 ];
+
+it.each(senders)("rejects redirects and discards response bodies for $name", async ({ send }) => {
+  const accepted = new Response("accepted");
+  const rejected = new Response("rejected", { status: 503 });
+  const fetch = vi
+    .fn<typeof globalThis.fetch>()
+    .mockResolvedValueOnce(accepted)
+    .mockResolvedValueOnce(rejected);
+  vi.stubGlobal("fetch", fetch);
+  vi.spyOn(console, "error").mockImplementation(() => {});
+  await send(message);
+  await expect(send(message)).rejects.toThrow("Email was not accepted by the sender.");
+  expect(fetch.mock.calls.map(([, options]) => options?.redirect)).toEqual(["error", "error"]);
+  expect(accepted.bodyUsed).toBe(true);
+  expect(rejected.bodyUsed).toBe(true);
+});
+
+it("preserves provider acceptance when discarding its response fails", async () => {
+  const body = new ReadableStream({
+    cancel() {
+      throw new Error("Connection closed");
+    },
+  });
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(body)));
+  await expect(senders[0]!.send(message)).resolves.toBeUndefined();
+});
 
 it.each(senders)(
   "reports $name rejection without exposing provider details",

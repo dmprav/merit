@@ -4,6 +4,8 @@ import { join, matchesGlob, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
+  MAX_INVARIANT_LENGTH,
+  MAX_INVARIANTS_PER_MECHANISM,
   MAX_SUMMARY_LENGTH,
   MECHANISMS,
   mechanismSchema,
@@ -101,6 +103,27 @@ const checkGlobPattern = (repoRoot: string, pattern: string): string | null => {
   return null;
 };
 
+const validateInvariants = (mech: Mechanism): string[] => {
+  const invariants = mech.invariants ?? [];
+  const errors: string[] = [];
+  if (invariants.length > MAX_INVARIANTS_PER_MECHANISM) {
+    errors.push(
+      `${mech.id}: ${invariants.length} invariants (max ${MAX_INVARIANTS_PER_MECHANISM})`,
+    );
+  }
+  for (const invariant of invariants) {
+    if (invariant.includes("\n")) {
+      errors.push(`${mech.id}: invariant must be a single line`);
+    }
+    if (invariant.length > MAX_INVARIANT_LENGTH) {
+      errors.push(
+        `${mech.id}: invariant is ${invariant.length} chars (max ${MAX_INVARIANT_LENGTH})`,
+      );
+    }
+  }
+  return errors;
+};
+
 export const validateMechanismMap = (
   mechanisms: readonly Mechanism[],
   repoRoot: string,
@@ -128,6 +151,8 @@ export const validateMechanismMap = (
         `${mech.id}: summary is ${mech.summary.length} chars (max ${MAX_SUMMARY_LENGTH})`,
       );
     }
+
+    errors.push(...validateInvariants(mech));
 
     for (const pattern of mech.contracts) {
       const issue = checkGlobPattern(repoRoot, pattern);
@@ -230,6 +255,12 @@ export const formatMechanismReport = (classification: MechanismClassification) =
     lines.push(`    docs: ${mechanism.docs.join(", ")}`);
     if (mechanism.decisions.length > 0) {
       lines.push(`    decisions: ${mechanism.decisions.join(", ")}`);
+    }
+    if (mechanism.invariants && mechanism.invariants.length > 0) {
+      lines.push("    invariants:");
+      for (const invariant of mechanism.invariants) {
+        lines.push(`      - ${invariant}`);
+      }
     }
   }
 

@@ -73,7 +73,8 @@ test("CI verify workflow covers every ready stage and sharded browser suite", as
       "vp run --no-cache --ignore-depends-on ready:static",
     ],
     "ready:tests": [
-      "${{ needs.changes.outputs.package_filters }} test",
+      "PACKAGE_FILTERS: ${{ needs.changes.outputs.package_filters }}",
+      '"${filters[@]}" test',
       "vp run --no-cache @merit/storybook#test",
     ],
     "ready:runtime": [

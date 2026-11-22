@@ -241,11 +241,14 @@ jobs:
       - name: Run package unit and component tests
         env:
           TMPDIR: ${{ runner.temp }}
-        run: >-
-          vp run --no-cache --parallel --concurrency-limit 2
-          ${{ needs.changes.outputs.package_filters }} test
-          --reporter=default --reporter=github-actions --reporter=json
-          --outputFile.json=.vitest-report.json
+          PACKAGE_FILTERS: ${{ needs.changes.outputs.package_filters }}
+        run: |
+          filter_lines=$(jq -er '.[] | "--filter", .' <<< "$PACKAGE_FILTERS")
+          readarray -t filters <<< "$filter_lines"
+          vp run --no-cache --parallel --concurrency-limit 2 \
+            "${filters[@]}" test \
+            --reporter=default --reporter=github-actions --reporter=json \
+            --outputFile.json=.vitest-report.json
 
       - name: Publish test summary
         if: always()
@@ -499,7 +502,7 @@ jobs:
     container: mcr.microsoft.com/playwright:v1.64.1-noble@sha256:2f05f8a734509a7b3f26a912639488ee08f58a7b292d14d62271bcff9038768f
     services:
       postgres:
-        image: postgres:17-alpine@sha256:526f86d93c6ea08fd3f1fe5605650cacc781b2c6013169a0ad8f42c7d3d84f32
+        image: postgres:17-alpine@sha256:f9cf3e1f0066f0eb0c48707d864f0ac5941e9ff454a072077d97a4d278d07d73
         env:
           POSTGRES_USER: merit
           POSTGRES_PASSWORD: merit
@@ -567,7 +570,7 @@ jobs:
     container: mcr.microsoft.com/playwright:v1.64.1-noble@sha256:2f05f8a734509a7b3f26a912639488ee08f58a7b292d14d62271bcff9038768f
     services:
       postgres:
-        image: postgres:17-alpine@sha256:526f86d93c6ea08fd3f1fe5605650cacc781b2c6013169a0ad8f42c7d3d84f32
+        image: postgres:17-alpine@sha256:f9cf3e1f0066f0eb0c48707d864f0ac5941e9ff454a072077d97a4d278d07d73
         env:
           POSTGRES_USER: merit
           POSTGRES_PASSWORD: merit

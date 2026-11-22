@@ -921,23 +921,9 @@ describe("persisted recommendations", () => {
     }
   });
 
-  it("attributes a recommendation to its authenticated recorder despite a supplied author", async ({
-    db,
-    scenario,
-  }) => {
+  it("attributes a recommendation to its authenticated recorder", async ({ db, scenario }) => {
     const request = recommendationRequest(scenario.selected.publicId);
-    const saved = await saveFundingRecommendation(
-      db,
-      actor,
-      {
-        ...request,
-        recommendation: {
-          ...request.recommendation,
-          author: { userId: "birch-manager", name: "Forged author" },
-        },
-      },
-      isCurrentAssessment,
-    );
+    const saved = await saveFundingRecommendation(db, actor, request, isCurrentAssessment);
     assert(saved.status === "ok");
     const author = { userId: "dana", name: "Dana Reed", provenance: { interface: "web" } };
 

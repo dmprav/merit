@@ -11,6 +11,8 @@ packages:
   - tooling/testing
 
 catalogMode: strict
+minimumReleaseAge: 4320
+trustPolicy: no-downgrade
 
 allowBuilds:
   core-js: false
@@ -107,7 +109,7 @@ overrides:
   vite@*: "catalog:"
   # Patch tooling dependencies until their parents adopt fixed versions.
   # https://github.com/advisories/GHSA-3g3m-2fjr-6pw4
-  "glob@>=9.0.0 <=14.0.1": 14.0.4
+  "glob@>=9.0.0 <=14.0.1": 14.0.6
   # https://github.com/advisories/GHSA-g3hv-75wg-m249
   "minimatch@>=7.0.0 <11.0.1": 11.0.5
   "@esbuild-kit/core-utils>esbuild": 0.28.2

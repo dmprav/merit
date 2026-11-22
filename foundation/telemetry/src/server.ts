@@ -16,8 +16,6 @@ import { FetchOtlpTraceExporter, parseOtlpHeaders, resolveTracesUrl } from "./ot
 import { describeHttpRoute } from "./route-label.ts";
 import { createTraceSampler, resolveTraceFilter } from "./sampler.ts";
 
-export { describeHttpRoute };
-
 export type ServerTelemetryConfig = {
   endpoint?: string;
   headers?: string;

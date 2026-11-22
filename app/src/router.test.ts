@@ -2,6 +2,10 @@ import { expect, it, vi } from "vite-plus/test";
 
 import { getRouter } from "./router";
 
+vi.mock("@tanstack/react-start", () => ({
+  getGlobalStartContext: () => ({ nonce: "request-nonce" }),
+}));
+
 vi.mock("./routeTree.gen", async () => {
   const { createRootRoute } = await import("@tanstack/react-router");
   return { routeTree: createRootRoute() };
@@ -10,6 +14,7 @@ vi.mock("./routeTree.gen", async () => {
 it("keeps private query data isolated between server-rendered requests", () => {
   const first = getRouter();
   const second = getRouter();
+  expect(first.options.ssr?.nonce).toBe("request-nonce");
   const firstCache = first.options.context!.queryClient;
   const secondCache = second.options.context!.queryClient;
   const key = ["private", "workspace", "alder"];

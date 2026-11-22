@@ -5,6 +5,7 @@ import { readTransaction, type Database } from "@merit/db";
 
 import { teamInput, organizationIdInput, invitationTokenInput } from "../../api/identifiers";
 import {
+  accessRequestPageInput,
   teamPageInput,
   teamHistoryInput,
   invitationPageInput,
@@ -30,10 +31,16 @@ export const createQueries = (
   const { run, canAdminister } = createExecution(dependencies);
   return {
     canAdminister,
-    accessRequests: (actor: Actor) =>
-      run(actor, true, () =>
-        dependencies.database((db) => readTransaction(db, (tx) => listAccessRequests(tx))),
-      ),
+    accessRequests: (actor: Actor, input: z.input<typeof accessRequestPageInput> = {}) =>
+      run(actor, true, () => {
+        const parsed = accessRequestPageInput.safeParse(input);
+        if (!parsed.success) {
+          return fail("invalid_input");
+        }
+        return dependencies.database((db) =>
+          readTransaction(db, (tx) => listAccessRequests(tx, parsed.data)),
+        );
+      }),
 
     list: async (actor: Actor) => {
       if (!(await canAdminister(actor))) {

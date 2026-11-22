@@ -391,7 +391,7 @@ export default defineConfig({
             "foundation/{money,dates}/src/**",
             "foundation/auth/src/{index,local-personas}.ts",
             "foundation/db/src/identifiers.ts",
-            "foundation/telemetry/src/errors.ts",
+            "foundation/telemetry/src/{errors,route-label}.ts",
             // Shared translation setup is safe for emails; the browser entry adds UI integration.
             "foundation/i18n/src/{core.ts,en.ts,server.tsx}",
           ],

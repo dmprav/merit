@@ -12,7 +12,8 @@ used by the application with fictional examples of each responsibility combinati
 
 Review public interest in **Administration → Access requests** at
 `/admin/access-requests`. The homepage form saves real requests to explore this
-portfolio prototype. Email addresses are unverified; review them before choosing
+portfolio prototype. Unreviewed requests appear first. Choose **Load more requests**
+to continue through older entries. Email addresses are unverified; review them before choosing
 whether to send an invitation. **Mark reviewed** records your review without
 sending email or granting access. To offer access, use the existing organization
 or team invitation workflow.

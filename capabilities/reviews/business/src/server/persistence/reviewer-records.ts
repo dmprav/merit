@@ -19,13 +19,38 @@ import {
 import { reviewerDraftSchema } from "../../domain/reviewer";
 import { reviewStateSchema } from "../../domain/reviews";
 import { readAssessmentRecord } from "./projections";
-import { reviewAssignments, reviewerDraftObservations, reviewerDrafts } from "./reviewer-schema";
+import {
+  reviewAssignments,
+  reviewerDraftObservations,
+  reviewerDrafts,
+  reviewerMessages,
+} from "./reviewer-schema";
 import { reviewRequests } from "./schema";
 
-const selectReviewerRows = (db: Database) =>
+const latestMessageOrder = sql`${desc(reviewerMessages.createdAt)}, ${desc(reviewerMessages.id)}`;
+
+export const latestReviewerMessage = async (
+  db: Database,
+  assignmentId: string,
+  kind: "invitation" | "submission",
+) =>
+  (
+    await db
+      .select()
+      .from(reviewerMessages)
+      .where(and(eq(reviewerMessages.assignmentId, assignmentId), eq(reviewerMessages.kind, kind)))
+      .orderBy(latestMessageOrder)
+      .limit(1)
+  )[0];
+
+const selectReviewerRows = (db: Database, reviewerId?: string) =>
   db
     .select({
       assignment: reviewAssignments,
+      evidenceAvailable:
+        reviewerId === undefined
+          ? sql<boolean>`true`
+          : sql<boolean>`${inArray(reviewAssignments.id, permittedAssignments(db, reviewerId))}`,
       reviewer: reviewRequests.reviewer,
       applicationVersion: reviewRequests.applicationVersion,
       criteriaVersion: reviewRequests.criteriaVersion,
@@ -39,10 +64,10 @@ const selectReviewerRows = (db: Database) =>
       slug: organizations.slug,
       delivery: sql<
         "pending" | "sent" | "failed"
-      >`coalesce((select status from reviewer_messages where assignment_id = ${reviewAssignments.id} and kind = 'invitation' order by created_at desc, id desc limit 1), 'pending')`,
+      >`coalesce((select status from reviewer_messages where assignment_id = ${reviewAssignments.id} and kind = 'invitation' order by ${latestMessageOrder} limit 1), 'pending')`,
       notification: sql<
         "pending" | "sent" | "failed" | null
-      >`(select status from reviewer_messages where assignment_id = ${reviewAssignments.id} and kind = 'submission' order by created_at desc, id desc limit 1)`,
+      >`(select status from reviewer_messages where assignment_id = ${reviewAssignments.id} and kind = 'submission' order by ${latestMessageOrder} limit 1)`,
     })
     .from(reviewAssignments)
     .innerJoin(organizations, eq(organizations.id, reviewAssignments.organizationId))
@@ -69,10 +94,12 @@ const attachCriteria = async (db: Database, rows: RawReviewerRow[]) => {
   if (rows.length === 0) {
     return [];
   }
-  const pairs = rows.flatMap((row) => [
-    { roundId: row.criteriaRoundId, version: row.criteriaVersion },
-    { roundId: row.criteriaRoundId, version: row.currentCriteriaVersion },
-  ]);
+  const pairs = rows
+    .filter((row) => row.evidenceAvailable)
+    .flatMap((row) => [
+      { roundId: row.criteriaRoundId, version: row.criteriaVersion },
+      { roundId: row.criteriaRoundId, version: row.currentCriteriaVersion },
+    ]);
   const criteriaMap: Map<string, CriterionRecord[]> = await readCriteriaByVersionsMap(db, pairs);
   return rows.map((row) => ({
     ...row,
@@ -82,8 +109,13 @@ const attachCriteria = async (db: Database, rows: RawReviewerRow[]) => {
   }));
 };
 
-export const readReviewerRecord = async (db: Database, id: string) =>
-  (await attachCriteria(db, await selectReviewerRows(db).where(eq(reviewAssignments.id, id))))[0];
+export const readReviewerRecord = async (db: Database, id: string, reviewerId?: string) =>
+  (
+    await attachCriteria(
+      db,
+      await selectReviewerRows(db, reviewerId).where(eq(reviewAssignments.id, id)),
+    )
+  )[0];
 
 export type ReviewerRecord = NonNullable<Awaited<ReturnType<typeof readReviewerRecord>>>;
 
@@ -136,8 +168,8 @@ export const reviewerIdentityCurrent = async (db: Database, id: string, userId: 
     )[0],
   );
 
-export const permittedReviewerWork = async (db: Database, assignmentId: string, userId: string) => {
-  const [row] = await db
+const permittedAssignments = (db: Database, userId: string, assignmentId?: string) =>
+  db
     .select({ id: reviewAssignments.id })
     .from(reviewAssignments)
     .innerJoin(organizations, eq(organizations.id, reviewAssignments.organizationId))
@@ -148,7 +180,7 @@ export const permittedReviewerWork = async (db: Database, assignmentId: string, 
     )
     .where(
       and(
-        eq(reviewAssignments.id, assignmentId),
+        assignmentId === undefined ? undefined : eq(reviewAssignments.id, assignmentId),
         activeOrganization,
         accessScope("work_on_review", {
           "subject.userId": appUsers.id,
@@ -162,8 +194,9 @@ export const permittedReviewerWork = async (db: Database, assignmentId: string, 
         }),
       ),
     );
-  return Boolean(row);
-};
+
+export const permittedReviewerWork = async (db: Database, assignmentId: string, userId: string) =>
+  (await permittedAssignments(db, userId, assignmentId)).length > 0;
 
 export const reviewerMembership = async (db: Database, organizationId: string, userId: string) =>
   (
@@ -215,7 +248,7 @@ export const reviewerWorkspace = async (db: Database, userId: string, slug: stri
 
 export const listReviewerRecords = async (db: Database, userId: string, workspaceSlug?: string) => {
   const workspace = authorizedWorkspaces(db, userId, "assess_grants", workspaceSlug);
-  const rows = await selectReviewerRows(db)
+  const rows = await selectReviewerRows(db, userId)
     .innerJoin(
       workspace,
       and(

@@ -1,84 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
-import {
-  normalizeError,
-  reportError,
-  sanitizeExtra,
-  setErrorReporter,
-  type ErrorReport,
-} from "./errors";
-
-describe("normalizeError", () => {
-  it("normalizes Error instances with name, message, and stack", () => {
-    const err = new TypeError("Invalid payload");
-    const normalized = normalizeError(err);
-
-    expect(normalized.name).toBe("TypeError");
-    expect(normalized.message).toBe("Invalid payload");
-    expect(normalized.stack).toContain("Invalid payload");
-  });
-
-  it("normalizes Error instances without name or stack", () => {
-    const err = new Error("No stack or name");
-    err.name = "";
-    delete err.stack;
-
-    expect(normalizeError(err)).toEqual({
-      name: "Error",
-      message: "No stack or name",
-    });
-  });
-
-  it("normalizes string and object errors", () => {
-    expect(normalizeError("boom")).toEqual({ name: "Error", message: "boom" });
-    expect(normalizeError({ name: "CustomError", message: "bad input" })).toEqual({
-      name: "CustomError",
-      message: "bad input",
-    });
-    expect(normalizeError({ message: 404 })).toEqual({ name: "Error", message: "404" });
-  });
-
-  it("normalizes primitive and nullish values", () => {
-    expect(normalizeError(null)).toEqual({ name: "Error", message: "null" });
-    expect(normalizeError(undefined)).toEqual({ name: "Error", message: "undefined" });
-    expect(normalizeError(42)).toEqual({ name: "Error", message: "42" });
-  });
-});
-
-describe("sanitizeExtra", () => {
-  it("returns undefined when extra is omitted", () => {
-    expect(sanitizeExtra(undefined)).toBeUndefined();
-  });
-
-  it("redacts sensitive keys recursively and handles circular references", () => {
-    const circular: Record<string, unknown> = { provider: "Resend", apiKey: "secret-key" };
-    circular.self = circular;
-
-    const sanitized = sanitizeExtra({
-      authorization: "Bearer abc",
-      nested: {
-        userEmail: "person@example.com",
-        status: 502,
-      },
-      items: [{ token: "tok_123", count: 2 }],
-      circular,
-    });
-
-    expect(sanitized).toEqual({
-      authorization: "[Redacted]",
-      nested: {
-        userEmail: "[Redacted]",
-        status: 502,
-      },
-      items: [{ token: "[Redacted]", count: 2 }],
-      circular: {
-        provider: "Resend",
-        apiKey: "[Redacted]",
-        self: "[Circular]",
-      },
-    });
-  });
-});
+import { reportError, setErrorReporter, type ErrorReport } from "./errors";
 
 describe("reportError and setErrorReporter", () => {
   afterEach(() => {
@@ -92,7 +14,7 @@ describe("reportError and setErrorReporter", () => {
     reportError(new Error("Connection failed"), {
       surface: "email",
       operation: "email.send",
-      tags: { provider: "Resend", omitted: undefined },
+      tags: { provider: "Resend", authorization: "private", omitted: undefined },
       extra: { status: 502, apiKey: "re_123" },
     });
 
@@ -106,7 +28,7 @@ describe("reportError and setErrorReporter", () => {
       operation: "email.send",
       errorType: "Error",
       tags: { provider: "Resend" },
-      extra: { status: 502, apiKey: "[Redacted]" },
+      extra: { status: 502 },
     });
   });
 
@@ -122,23 +44,41 @@ describe("reportError and setErrorReporter", () => {
       tags: { empty: undefined },
     });
 
-    expect(received[0]!.context).toEqual({
+    expect(received[0]).toEqual({
+      errorType: "Error",
       surface: "web",
       operation: "route.load",
-      tags: undefined,
     });
   });
 
-  it("falls back when JSON.stringify throws (e.g. BigInt in extra)", () => {
-    const log = vi.spyOn(console, "error").mockImplementation(() => {});
-
-    reportError(new TypeError("BigInt failure"), {
+  it("selects diagnostic fields without serializing untrusted exception names, URLs or extra values", () => {
+    const reporter = vi.fn();
+    setErrorReporter(reporter);
+    const error = new Error("private exception");
+    error.name = "private error name";
+    const extra = { amount: 10n, nested: { payload: error } };
+    reportError(error, {
       surface: "server",
       operation: "server.fetch",
-      extra: { amount: 10n },
+      tags: { route: "/invitations/private", method: "GET", status: 503, token: "private" },
+      extra,
     });
-
-    expect(log).toHaveBeenCalledWith("[merit:error]", "server", "server.fetch", "TypeError");
+    expect(reporter).toHaveBeenCalledWith({
+      surface: "server",
+      operation: "server.fetch",
+      errorType: "Error",
+      tags: { route: "/invitations/:token", method: "GET", status: 503 },
+    });
+    reportError(new TypeError("private"), {
+      surface: "server",
+      operation: "server.fetch",
+      tags: { method: "private", provider: "private" },
+    });
+    expect(reporter).toHaveBeenLastCalledWith({
+      surface: "server",
+      operation: "server.fetch",
+      errorType: "TypeError",
+    });
   });
 
   it("routes reports to a custom reporter and resets to default on null", () => {
@@ -151,12 +91,11 @@ describe("reportError and setErrorReporter", () => {
     reportError(original, { surface: "web", operation: "root.errorBoundary" });
 
     expect(received).toHaveLength(1);
-    expect(received[0]!.rawError).toBe(original);
-    expect(received[0]!.context).toEqual({
+    expect(received[0]).toEqual({
+      errorType: "Error",
       surface: "web",
       operation: "root.errorBoundary",
     });
-
     setErrorReporter(null);
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
     reportError("fallback", { surface: "server", operation: "server.fetch" });

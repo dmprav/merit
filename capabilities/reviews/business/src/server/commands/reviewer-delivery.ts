@@ -2,10 +2,10 @@ import type { Database } from "@merit/db";
 import { assignmentScope, readScoped } from "@merit/organizations/transactions";
 
 import type { ReviewerMessage } from "../../api/reviewer";
-import { pendingReviewerMessages, finishReviewerMessage } from "../persistence/commands/reviewer";
-import { readReviewerRecord } from "../persistence/reviewer-records";
+import { finishReviewerMessage } from "../persistence/commands/reviewer";
+import { latestReviewerMessage, readReviewerRecord } from "../persistence/reviewer-records";
 
-export const deliverReviewerMessages = async (
+export const deliverReviewerMessage = async (
   dependencies: {
     database: <T>(operation: (db: Database) => Promise<T>) => Promise<T>;
     send: (message: ReviewerMessage) => Promise<void>;
@@ -14,55 +14,55 @@ export const deliverReviewerMessages = async (
   },
   userId: string,
   id: string,
+  kind: ReviewerMessage["kind"],
+  submissionCommandId?: string,
 ) => {
   const scope = assignmentScope(userId, id);
   const data = await dependencies.database((db) =>
     readScoped(db, scope, async (tx) => ({
       record: await readReviewerRecord(tx, id),
-      messages: await pendingReviewerMessages(tx, id),
+      message: await latestReviewerMessage(tx, id, kind),
     })),
   );
-  if (!data.record) {
+  const { record, message } = data;
+  if (!record || !message || message.status === "sent") {
     return;
   }
-  const record = data.record;
-  const seen = new Set<string>();
-  for (const message of data.messages) {
-    if (seen.has(message.kind)) {
-      continue;
-    }
-    seen.add(message.kind);
-    if (
-      message.status === "sent" ||
-      (message.kind === "invitation" &&
-        (record.assignment.status !== "invited" || record.assignment.expiresAt <= new Date()))
-    ) {
-      continue;
-    }
-    let status: "sent" | "failed";
-    try {
-      await dependencies.send({
-        id: message.id,
-        to: message.recipient,
-        kind: message.kind,
-        organization: record.organization,
-        title: record.title,
-        applicant: record.applicant,
-        reviewer: record.reviewer,
-        manager: record.assignment.managerName,
-        managerEmail: record.assignment.managerEmail,
-        dueDate: record.assignment.dueDate,
-        url:
-          message.kind === "invitation"
-            ? dependencies.reviewerUrl(record.slug, id)
-            : dependencies.managerUrl(record.slug, record.assignment.caseId),
-      });
-      status = "sent";
-    } catch {
-      status = "failed";
-    }
-    await dependencies.database((db) =>
-      finishReviewerMessage(db, message.id, message.deliveryToken, status),
-    );
+  if (
+    submissionCommandId &&
+    (message.id !== submissionCommandId.toLowerCase() || message.status !== "pending")
+  ) {
+    return;
   }
+  if (
+    kind === "invitation" &&
+    (record.assignment.status !== "invited" || record.assignment.expiresAt <= new Date())
+  ) {
+    return;
+  }
+  let status: "sent" | "failed";
+  try {
+    await dependencies.send({
+      id: message.id,
+      to: message.recipient,
+      kind: message.kind,
+      organization: record.organization,
+      title: record.title,
+      applicant: record.applicant,
+      reviewer: record.reviewer,
+      manager: record.assignment.managerName,
+      managerEmail: record.assignment.managerEmail,
+      dueDate: record.assignment.dueDate,
+      url:
+        message.kind === "invitation"
+          ? dependencies.reviewerUrl(record.slug, id)
+          : dependencies.managerUrl(record.slug, record.assignment.caseId),
+    });
+    status = "sent";
+  } catch {
+    status = "failed";
+  }
+  await dependencies.database((db) =>
+    finishReviewerMessage(db, message.id, message.deliveryToken, status),
+  );
 };

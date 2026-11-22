@@ -1,4 +1,4 @@
-import { QueryClientProvider, useQuery } from "@tanstack/react-query";
+import { QueryClientProvider, useInfiniteQuery } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, expect, it, vi } from "vite-plus/test";
@@ -28,18 +28,21 @@ const reviewed = {
 
 beforeEach(() => {
   vi.resetAllMocks();
-  vi.mocked(readAccessRequests).mockResolvedValue({ status: "ok", value: [request] });
+  vi.mocked(readAccessRequests).mockResolvedValue({
+    status: "ok",
+    value: { requests: [request], nextCursor: null },
+  });
   vi.mocked(reviewAccessRequest).mockResolvedValue({ status: "ok", value: reviewed });
 });
 
 const setup = () => {
   const client = createQueryClient();
   client.setQueryData(accessRequestsOptions().queryKey, () => ({
-    status: "ok" as const,
-    value: [request],
+    pages: [{ status: "ok" as const, value: { requests: [request], nextCursor: null } }],
+    pageParams: [null],
   }));
   const hook = renderHook(
-    () => ({ query: useQuery(accessRequestsOptions()), data: useAccessRequestsData() }),
+    () => ({ query: useInfiniteQuery(accessRequestsOptions()), data: useAccessRequestsData() }),
     {
       wrapper: ({ children }: { children: ReactNode }) => (
         <QueryClientProvider client={client}>{children}</QueryClientProvider>
@@ -54,11 +57,17 @@ it("keeps the saved review and retries only the read after refresh failure", asy
   vi.mocked(readAccessRequests).mockRejectedValueOnce(new Error("Read failed"));
   await act(() => result.current.data.review(request.email));
 
-  expect(result.current.query.data).toEqual({ status: "ok", value: [reviewed] });
+  expect(result.current.query.data?.pages[0]).toEqual({
+    status: "ok",
+    value: { requests: [reviewed], nextCursor: null },
+  });
   expect(result.current.data.refreshFailed).toBe(true);
   expect(result.current.data.error).toBeNull();
 
-  vi.mocked(readAccessRequests).mockResolvedValue({ status: "ok", value: [reviewed] });
+  vi.mocked(readAccessRequests).mockResolvedValue({
+    status: "ok",
+    value: { requests: [reviewed], nextCursor: null },
+  });
   await act(() => result.current.data.refresh());
 
   expect(result.current.data.refreshFailed).toBe(false);
@@ -76,10 +85,16 @@ it("reports a committed review when updating the cache fails", async () => {
   expect(result.current.data.refreshFailed).toBe(true);
   expect(result.current.data.error).toBeNull();
 
-  vi.mocked(readAccessRequests).mockResolvedValue({ status: "ok", value: [reviewed] });
+  vi.mocked(readAccessRequests).mockResolvedValue({
+    status: "ok",
+    value: { requests: [reviewed], nextCursor: null },
+  });
   await act(() => result.current.data.refresh());
 
-  expect(result.current.query.data).toEqual({ status: "ok", value: [reviewed] });
+  expect(result.current.query.data?.pages[0]).toEqual({
+    status: "ok",
+    value: { requests: [reviewed], nextCursor: null },
+  });
   expect(result.current.data.refreshFailed).toBe(false);
   expect(reviewAccessRequest).toHaveBeenCalledOnce();
   client.clear();
@@ -102,11 +117,14 @@ it("exposes pending refresh progress while preserving the saved review", async (
   });
   await waitFor(() => expect(result.current.data.refreshing).toBe(true));
   expect(result.current.data.refreshFailed).toBe(true);
-  expect(result.current.query.data).toEqual({ status: "ok", value: [reviewed] });
+  expect(result.current.query.data?.pages[0]).toEqual({
+    status: "ok",
+    value: { requests: [reviewed], nextCursor: null },
+  });
   expect(reviewAccessRequest).toHaveBeenCalledOnce();
 
   await act(async () => {
-    finish({ status: "ok", value: [reviewed] });
+    finish({ status: "ok", value: { requests: [reviewed], nextCursor: null } });
     await pending;
   });
   await waitFor(() => expect(result.current.data.refreshing).toBe(false));
@@ -125,7 +143,10 @@ it.each(["rejected", "unavailable"])(
     }
     await act(() => result.current.data.review(request.email));
 
-    expect(result.current.query.data).toEqual({ status: "ok", value: [request] });
+    expect(result.current.query.data?.pages[0]).toEqual({
+      status: "ok",
+      value: { requests: [request], nextCursor: null },
+    });
     await waitFor(() =>
       expect(result.current.data.error?.status).toBe(
         failure === "rejected" ? "forbidden" : "unavailable",
@@ -133,11 +154,17 @@ it.each(["rejected", "unavailable"])(
     );
     expect(result.current.data.refreshFailed).toBe(false);
 
-    vi.mocked(readAccessRequests).mockResolvedValue({ status: "ok", value: [reviewed] });
+    vi.mocked(readAccessRequests).mockResolvedValue({
+      status: "ok",
+      value: { requests: [reviewed], nextCursor: null },
+    });
     await act(() => result.current.data.review(request.email));
     await waitFor(() => expect(result.current.data.error).toBeNull());
 
-    expect(result.current.query.data).toEqual({ status: "ok", value: [reviewed] });
+    expect(result.current.query.data?.pages[0]).toEqual({
+      status: "ok",
+      value: { requests: [reviewed], nextCursor: null },
+    });
     expect(reviewAccessRequest).toHaveBeenCalledTimes(2);
     client.clear();
   },

@@ -71,7 +71,10 @@ Keep short property forms in the space occupied by the values they edit.
 Use a [form dialog](?path=/docs/patterns-form-dialog--docs) for a bounded task
 that needs its own surface. For sustained writing, such as recording an
 assessment, use a [reference workspace](?path=/docs/patterns-reference-workspace--docs)
-so the author can consult the evidence with the editor open.
+so the author can consult the evidence with the editor open across close,
+resume, task switching, and keyboard return without losing draft or reading
+position. When editing a whole section, keep displayed values passive until the
+section edit action starts, without parallel row-level edit controls.
 
 Group the labelled Save and Close actions in reach of the fields and separate
 Discard from them. In a form, `FormActions` supplies this group. Closing a dialog
@@ -112,7 +115,10 @@ and handle these outcomes.
 
 When the saved record or its evidence has changed, keep the draft visible and
 offer a comparison with the latest version before the person chooses what to
-keep. If access ends while someone is writing, give them a way to copy their
+keep. Align matching records and fields on both sides, surface actual changed
+values before full snapshots, preserve exact historical or unknown basis, and
+keep staff interpretation separate from applicant responses in historical
+records. If access ends while someone is writing, give them a way to copy their
 draft. A successful save followed by a failed refresh calls for refreshing the
 view. The [feedback pattern](?path=/docs/patterns-feedback--docs) shows the
 different recovery actions.

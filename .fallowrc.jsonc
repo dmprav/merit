@@ -2,6 +2,8 @@
   "$schema": "./node_modules/fallow/schema.json",
   "minimumVersion": "3.41.0",
   "failOnParseError": true,
+  // Agent images ship the Docker daemon; tooling/scripts/start-services.ts starts it.
+  "ignoreBinaries": ["dockerd"],
   "health": {
     "maxCognitive": 15,
     "maxCyclomatic": 20,

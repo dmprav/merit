@@ -1,5 +1,6 @@
 import { createRouter } from "@tanstack/react-router";
 import { setupRouterSsrQueryIntegration } from "@tanstack/react-router-ssr-query";
+import { getGlobalStartContext } from "@tanstack/react-start";
 
 import { defaultLocale } from "@merit/i18n";
 import { createQueryClient } from "@merit/query";
@@ -10,6 +11,7 @@ export const getRouter = () => {
   const queryClient = createQueryClient();
   const router = createRouter({
     routeTree,
+    ssr: { nonce: getGlobalStartContext()?.nonce },
     context: { queryClient, locale: defaultLocale },
     defaultPreloadStaleTime: 0,
     scrollRestoration: true,

@@ -34,7 +34,7 @@ it("stores repeated public interest once under the normalized email", async ({ d
 
   expect(await operations.accessRequests(operator)).toMatchObject({
     status: "ok",
-    value: [{ email, reviewedAt: null, reviewedBy: null }],
+    value: { requests: [{ email, reviewedAt: null, reviewedBy: null }], nextCursor: null },
   });
 });
 
@@ -42,7 +42,10 @@ it("rejects an invalid email without storing a request", async ({ database }) =>
   const { operations } = service(database.connectionString);
 
   expect(await operations.requestAccess({ email: "invalid" })).toEqual({ status: "invalid_input" });
-  expect(await operations.accessRequests(operator)).toEqual({ status: "ok", value: [] });
+  expect(await operations.accessRequests(operator)).toEqual({
+    status: "ok",
+    value: { requests: [], nextCursor: null },
+  });
 });
 
 it("restricts reading and reviewing access requests to operators", async ({ database }) => {
@@ -56,7 +59,7 @@ it("restricts reading and reviewing access requests to operators", async ({ data
   });
   expect(await operations.accessRequests(operator)).toMatchObject({
     status: "ok",
-    value: [{ email, reviewedAt: null }],
+    value: { requests: [{ email, reviewedAt: null }], nextCursor: null },
   });
 });
 
@@ -75,7 +78,40 @@ it("records an operator's review once and keeps it when the person asks again", 
   expect(await operations.requestAccess({ email })).toEqual({ status: "ok" });
   expect(await operations.accessRequests(operator)).toEqual({
     status: "ok",
-    value: [reviewed.value],
+    value: { requests: [reviewed.value], nextCursor: null },
+  });
+});
+
+it("pages all requests with unreviewed first and breaks exact timestamp ties by email", async ({
+  database,
+}) => {
+  const { operations } = service(database.connectionString);
+  await database.client.query(`
+    INSERT INTO access_requests(email, requested_at, reviewed_at) VALUES
+      ('c@example.test', '2026-11-01T10:00:00.000001Z', NULL),
+      ('a@example.test', '2026-11-01T10:00:00.000002Z', NULL),
+      ('b@example.test', '2026-11-01T10:00:00.000002Z', NULL),
+      ('d@example.test', '2026-11-02T10:00:00Z', now())
+  `);
+  const emails = [];
+  let page = await operations.accessRequests(operator, { limit: 1 });
+  for (;;) {
+    assert(page.status === "ok");
+    expect(page.value.requests).toHaveLength(1);
+    emails.push(page.value.requests[0]?.email);
+    if (!page.value.nextCursor) {
+      break;
+    }
+    expect(emails.length).toBeLessThan(4);
+    page = await operations.accessRequests(operator, { limit: 1, after: page.value.nextCursor });
+  }
+  expect(emails).toEqual(["a@example.test", "b@example.test", "c@example.test", "d@example.test"]);
+});
+
+it("rejects a page size above the access-request limit", async ({ database }) => {
+  const { operations } = service(database.connectionString);
+  expect(await operations.accessRequests(operator, { limit: 51 })).toEqual({
+    status: "invalid_input",
   });
 });
 

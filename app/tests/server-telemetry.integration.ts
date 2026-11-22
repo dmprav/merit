@@ -26,6 +26,9 @@ it.each(["dev", "preview"] as const)(
       throw new Error("Expected a local collector port.");
     }
 
+    if (mode === "preview") {
+      vi.stubEnv("MERIT_LOCAL_PREVIEW", "1");
+    }
     vi.stubEnv("OTEL_EXPORTER_OTLP_ENDPOINT", `http://127.0.0.1:${address.port}`);
     vi.stubEnv("OTEL_TRACE_FILTER", "checkly");
     const binding = { host: "127.0.0.1", port: 0 };

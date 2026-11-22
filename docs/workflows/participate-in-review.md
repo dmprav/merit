@@ -43,7 +43,8 @@ is visible to managers. Sender acceptance does not prove delivery to the inbox.
 The application material and criteria are pinned to the request's original versions.
 Changed application versions and different criteria content are flagged using the
 shared [review freshness policy](review-applications.md#review-basis-and-freshness-policy),
-without replacing the assigned evidence. A later criteria version with matching
+while the reviewer can read the assigned evidence. Managers can still see changes
+when reviewer access pauses or ends. A later criteria version with matching
 content does not raise a content-change warning. The manager decides whether to
 request a follow-up. A reviewer sees their invited, in-progress, and submitted assignments in the
 workspace’s **My work**, with status and response date. Reviewers with no assignments
@@ -62,13 +63,19 @@ Submission requires an overall funding position and reasoning. **Fund** and
 **Fund with conditions** also require a positive proposed amount; explain any
 conditions in the reasoning. **Defer** and **Decline** need no allocation.
 Criterion notes are optional. Submission saves the authenticated author, original
-basis, and content atomically, completes the request, and notifies the manager.
-Delivery failure leaves the assessment saved and offers a notification retry.
+basis, and content atomically and completes the request.
 
 Managers cannot edit authenticated reviewer submissions or fulfil their assignment
 on the reviewer's behalf. The author can submit an amendment with an explanation;
 earlier submitted versions and attribution remain available. Completed work and its
 evidence remain readable until access is explicitly ended.
+
+Merit emails the requesting manager about submissions and amendments. It queues
+at most one submission email per assignment per minute and at most 100 per hour
+and 500 per day across the workspace. Invitations have a separate allowance.
+When a limit is reached, Merit skips that email entirely. The manager can read
+every submitted version in the application. If delivery of a queued email fails,
+a manager can retry it from the assignment.
 
 ## Handle conflicts and access changes
 

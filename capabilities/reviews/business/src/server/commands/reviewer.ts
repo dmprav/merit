@@ -602,7 +602,7 @@ const completeReviewerSubmission = async (
     revision: assignment.revision + 1,
   });
   await recordReviewerReceipt(tx, { assignmentId: assignment.id, commandId, revision });
-  await queueSubmissionMessage(tx, assignment.id, commandId, assignment.managerEmail);
+  await queueSubmissionMessage(tx, assignment, commandId);
   return { status: "ok", value: { revision } };
 };
 

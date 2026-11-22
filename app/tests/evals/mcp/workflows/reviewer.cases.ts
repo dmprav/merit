@@ -60,7 +60,8 @@ export const reviewerCases = defineWorkflow(
     "submit-amendment": {
       prepare: (steps, f) => steps.submitReview(f, true),
       prompt: "Submit my saved amendment to the River Gardens assessment.",
-      setup: "Prior submission and a changed draft with amendment reason.",
+      setup:
+        "Previous submission notice sent outside the cooldown. Changed draft with an amendment reason.",
       tools: ["submit_reviewer_assessment"],
       outcome:
         "Prior version retained; one new version with explanation and a manager notification.",
