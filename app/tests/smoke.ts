@@ -3,14 +3,16 @@ import assert from "node:assert/strict";
 const baseUrl = process.env.MERIT_BASE_URL ?? "http://localhost:3000";
 
 const publicHttps = new URL(baseUrl).protocol === "https:";
+
 const assertHeaders = (response: Response) => {
   assert.equal(response.headers.get("x-content-type-options"), "nosniff");
   const csp = response.headers.get("content-security-policy") ?? "";
   for (const directive of ["frame-ancestors 'none'", "object-src 'none'", "base-uri 'none'"]) {
     assert.ok(csp.includes(directive), directive);
   }
-  if (publicHttps)
+  if (publicHttps) {
     assert.match(response.headers.get("strict-transport-security") ?? "", /max-age=[1-9]\d*/);
+  }
 };
 
 const landing = await fetch(new URL("/", baseUrl));
@@ -81,8 +83,9 @@ for (const [path, recovery] of [
 for (const path of ["/admin/organizations", `/invitations/${"a".repeat(64)}`]) {
   const page = await fetch(new URL(path, baseUrl));
   assertHeaders(page);
-  if (path.startsWith("/invitations/"))
+  if (path.startsWith("/invitations/")) {
     assert.equal(page.headers.get("referrer-policy"), "no-referrer");
+  }
 }
 const protectedMcp = await fetch(new URL("/mcp/workspace", baseUrl), { method: "POST" });
 assert.ok(

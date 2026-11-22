@@ -9,7 +9,13 @@ const { clients, connectGate, mockDrizzle, handlerFetch, handleMcpMock, mcpResou
 
     const records: ClientRecord[] = [];
     const drizzleFn = vi.fn((client: unknown) => ({ client }));
-    const fetchFn = vi.fn();
+    const fetchFn =
+      vi.fn<
+        (
+          request: Request,
+          options: { context: ApplicationRequestContext & { nonce?: string } },
+        ) => Promise<Response>
+      >();
     const mcpFn = vi.fn();
     const metadataFn = vi.fn(() => new Response("metadata", { status: 200 }));
     // Holds new connections open until a test releases them.
@@ -179,6 +185,7 @@ it("protects HTML behind HTTPS termination while preserving stricter route heade
   ]) {
     expect(first.headers.get("Content-Security-Policy")).toContain(directive);
   }
+  expect(handlerFetch.mock.calls[0]?.[1].context.secureCookies).toBe(true);
   const nonce = handlerFetch.mock.calls[0]?.[1].context.nonce;
   expect(nonce).toMatch(/^[A-Za-z0-9+/]{22}==$/);
   expect(first.headers.get("Cache-Control")).toContain("no-store");

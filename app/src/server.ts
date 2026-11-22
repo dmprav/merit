@@ -122,7 +122,7 @@ const handleWebRequest = async (
     identity: identity.organizationIdentity,
   });
   const context: ApplicationRequestContext = {
-    secureCookies: origin.startsWith("https://"),
+    secureCookies: publicHttps,
     navigation: services.navigation,
     reviewer: services.reviewer,
     currentIdentity: identity.currentIdentity,

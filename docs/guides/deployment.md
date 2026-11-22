@@ -231,7 +231,9 @@ HTTPS HTML also carries a report-only CSP. The server generates a fresh nonce
 for TanStack's hydration scripts and includes the configured Clerk and analytics
 origins in the relevant directives. Before enforcing this policy, inspect
 browser CSP violations while loading a public page, completing Clerk sign-in,
-navigating a workspace, and delivering a staging PostHog event. Use the browser
+navigating a workspace, and delivering a staging PostHog event. Chromium reports
+string evaluation in the client schema bundle under this policy. Verify schema
+validation and its CSP-compatible fallback before enforcement. Use the browser
 developer tools or configure the `merit-csp` Reporting API group at ingress to
 send reports to an approved destination. Reports can include sensitive page URLs.
 Once those checks pass on the deployed origin, promote the verified candidate
