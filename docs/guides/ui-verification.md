@@ -33,7 +33,16 @@ the change complete.
 Read action labels together with their heading, fields, and nearby explanation.
 Remove repetition while keeping consequences clear before commitment. Check the
 action group at narrow widths, including pending labels. Preserve useful context
-in accessible names for repeated or icon-only controls.
+in accessible names for repeated or icon-only controls, and when compacting a
+header keep its primary next action visibly labeled and full destination context
+reachable via keyboard and touch without duplicate navigation.
+
+Check that navigation popups close on browser history changes, delayed saves
+preserve focus when the person has moved elsewhere, and disappearing controls
+move focus cleanly to a remaining target regardless of menu or popup teardown
+order. Verify that invitation, withdrawn, access-ended, and recovery states each
+present one clear outcome heading, a distinct preserved draft when needed, and
+one action hierarchy across desktop and narrow screens.
 
 Check that someone can complete the task and understand its consequences without
 opening optional help. Verify that supporting explanations are discoverable with

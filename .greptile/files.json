@@ -2,16 +2,39 @@
   "files": [
     {
       "path": ".agents/skills/build-feature/review.md",
-      "description": "Feature review rubric: the questions every product change is checked against for behavior, UI, reuse, architecture, code, and tests, plus known escapes."
+      "description": "Universal change review rubric: behavior, scope, reuse, architecture, mechanisms, tests, and UI checks.",
+      "scope": ["capabilities/**", "interfaces/**", "foundation/**", "app/**"]
     },
     {
       "path": "docs/foundations/architecture.md",
-      "description": "Architecture principles: where business rules live and how capabilities, interfaces, and shared foundations depend on each other."
+      "description": "Architecture principles: where business rules live and how capabilities, interfaces, and shared foundations depend on each other.",
+      "scope": ["capabilities/**", "interfaces/**", "foundation/**", "app/**"]
+    },
+    {
+      "path": "docs/guides/coding-conventions.md",
+      "description": "Coding conventions for abstraction level, function size, readability, and safety.",
+      "scope": ["**/*.ts", "**/*.tsx", "**/*.js", "**/*.mjs"]
     },
     {
       "path": "docs/guides/web-features.md",
       "description": "Which layer owns a web feature change: views, controllers, data adapters, interface server code.",
       "scope": ["capabilities/*/web/**", "interfaces/**"]
+    },
+    {
+      "path": "docs/guides/ui.md",
+      "description": "Shared components and patterns to reuse when composing screens.",
+      "scope": [
+        "capabilities/*/web/**",
+        "interfaces/**",
+        "foundation/ui/**",
+        "**/*.tsx",
+        "**/*.css"
+      ]
+    },
+    {
+      "path": "docs/guides/ui-verification.md",
+      "description": "UI parity, focus preservation, popup dismissal, compact header reachability, and narrow-screen verification.",
+      "scope": ["capabilities/*/web/**", "interfaces/**", "foundation/ui/**", "**/*.stories.tsx"]
     },
     {
       "path": "docs/guides/testing.md",
@@ -25,18 +48,31 @@
       ]
     },
     {
-      "path": "docs/guides/coding-conventions.md",
-      "description": "Coding conventions for abstraction level, function size, readability, and safety."
+      "path": "docs/guides/database.md",
+      "description": "PostgreSQL schema invariants: surrogate/public IDs, SQL CHECK constraints, covering FK indexes, and shared Drizzle builders.",
+      "scope": ["foundation/db/**", "**/persistence/schema.ts"]
     },
     {
-      "path": "docs/guides/ui.md",
-      "description": "Shared components and patterns to reuse when composing screens.",
+      "path": "capabilities/access/README.md",
+      "description": "Shared authorization policy, current server facts under locks, and tenant/workspace isolation.",
       "scope": [
-        "capabilities/*/web/**",
-        "interfaces/**",
-        "foundation/ui/**",
-        "**/*.tsx",
-        "**/*.css"
+        "capabilities/access/**",
+        "foundation/auth/**",
+        "capabilities/*/business/src/server/**"
+      ]
+    },
+    {
+      "path": "docs/guides/mcp.md",
+      "description": "Delegated MCP tool contracts, OAuth scopes, precondition parity with web, and error containment.",
+      "scope": ["interfaces/mcp/**", "capabilities/*/ai/**", "foundation/ai/**"]
+    },
+    {
+      "path": "foundation/ui/src/patterns/editing/editing.mdx",
+      "description": "Drafts, save/close/discard semantics, passive whole-section editing, reference workspace reading, and conflict alignment.",
+      "scope": [
+        "foundation/drafts/**",
+        "foundation/ui/src/patterns/editing/**",
+        "capabilities/*/web/src/controllers/**"
       ]
     }
   ]

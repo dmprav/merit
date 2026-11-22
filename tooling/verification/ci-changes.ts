@@ -219,7 +219,12 @@ export const classifyChangedFiles = ({
     run_storybook:
       affected.has("@merit/storybook") || files.some((f) => STORYBOOK_SOURCE_PATTERN.test(f)),
     run_tooling: files.some(
-      (f) => f.startsWith("tooling/") || f.startsWith(".agents/hooks/") || f.startsWith(".claude/"),
+      (f) =>
+        f.startsWith("tooling/") ||
+        f.startsWith(".agents/") ||
+        f.startsWith(".claude/") ||
+        f.startsWith(".greptile/") ||
+        f === ".coderabbit.yaml",
     ),
     run_package_tests: testablePackages.length > 0,
     package_filters: testablePackages.map((name) => `--filter '${name}'`).join(" "),

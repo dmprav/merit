@@ -184,13 +184,22 @@ describe("ci-changes", () => {
     expect(specifiers.filter((specifier) => !specifier?.startsWith("node:"))).toEqual([]);
   });
 
-  test("routes Claude hook changes to the tooling job", () => {
-    const result = classifyChangedFiles({
-      eventName: "pull_request",
-      changedFiles: [".agents/hooks/guard-git.mjs", ".claude/settings.json"],
-      workspacePackages,
-    });
-    expect(result.docs_only).toBe(false);
-    expect(result.run_tooling).toBe(true);
+  test("routes agent, hook, and review-config changes to the tooling job", () => {
+    for (const files of [
+      [".agents/hooks/guard-git.mjs"],
+      [".agents/skills/build-feature/review.md"],
+      [".claude/settings.json"],
+      [".claude/agents/feature-reviewer.md"],
+      [".greptile/files.json"],
+      [".coderabbit.yaml"],
+    ]) {
+      const result = classifyChangedFiles({
+        eventName: "pull_request",
+        changedFiles: files,
+        workspacePackages,
+      });
+      expect(result.docs_only).toBe(false);
+      expect(result.run_tooling).toBe(true);
+    }
   });
 });

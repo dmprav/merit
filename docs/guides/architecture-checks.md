@@ -214,16 +214,19 @@ trails, locks and transactions, drafts and recovery, exact money, delegated MCP,
 demo lifecycles, telemetry and analytics, and shared UI patterns) live in the
 [cross-cutting mechanisms registry](../../tooling/verification/architecture/mechanisms.config.ts).
 Each entry maps a mechanism's contract and adapter patterns to its owning
-documentation and active decision records without repeating those rules.
+documentation, active decision records, and up to three single-line review
+`invariants` (capped at 140 characters each).
 
 - Run `vpx tooling/verification/architecture/mechanisms.ts --paths <paths...>`
-  before planning or editing to list the guides and decisions that govern
-  candidate files.
+  before planning or editing to list the guides, decisions, and invariants that
+  govern candidate files.
 - Run `vpx tooling/verification/architecture/mechanisms.ts --base <ref>` on a
   branch to classify touched mechanisms as `extends` (changes to a mechanism's
-  contract) or `composes` (changes to an adapter or controller).
+  contract) or `composes` (changes to an adapter, view, schema, or controller)
+  and print their `invariants`.
 - `vp run architecture` runs `--check` to verify pattern matches, documentation
-  paths, heading anchors, summary limits, and active decision statuses.
+  paths, heading anchors, summary and invariant limits, and active decision
+  statuses.
 
 ## Change a guarantee deliberately
 
