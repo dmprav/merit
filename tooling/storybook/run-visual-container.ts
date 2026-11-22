@@ -36,9 +36,45 @@ const readExpectedPnpm = (): string => {
   return version;
 };
 
+const valueFlags = new Set([
+  "-c",
+  "--config",
+  "-g",
+  "--grep",
+  "--grep-invert",
+  "-j",
+  "--workers",
+  "--max-failures",
+  "--output",
+  "--project",
+  "--repeat-each",
+  "--reporter",
+  "--retries",
+  "--shard",
+  "--timeout",
+]);
+
+const hasSpecArg = (args: string[]) => {
+  let expectValue = false;
+  for (const arg of args) {
+    if (expectValue) {
+      expectValue = false;
+      continue;
+    }
+    if (valueFlags.has(arg)) {
+      expectValue = true;
+      continue;
+    }
+    if (!arg.startsWith("-")) {
+      return true;
+    }
+  }
+  return false;
+};
+
 const buildPlaywrightArgs = (rawArgs: string[]) => {
   const args = rawArgs.filter((arg) => arg !== "--");
-  const hasSpec = args.some((arg) => !arg.startsWith("-"));
+  const hasSpec = hasSpecArg(args);
   const hasProject = args.some((arg) => arg === "--project" || arg.startsWith("--project="));
   const hasWorkers = args.some(
     (arg) => arg === "--workers" || arg.startsWith("--workers=") || arg === "-j",
@@ -63,6 +99,8 @@ const buildContainerCommand = (
   const quotedArgs = playwrightArgs.map((arg) => `'${arg.replaceAll("'", "'\\''")}'`).join(" ");
   return [
     "set -euo pipefail",
+    "exec 9>/work/.run.lock",
+    "flock 9",
     "mkdir -p /work/.tools /work/tooling/storybook/snapshots",
     'if [ ! -x /work/.tools/node_modules/.bin/pnpm ] || [ "$(cat /work/.tools/pnpm-version 2>/dev/null || true)" != \'' +
       expectedPnpm +
@@ -71,7 +109,7 @@ const buildContainerCommand = (
     `  printf '%s' '${expectedPnpm}' > /work/.tools/pnpm-version`,
     "fi",
     'export PATH="/work/.tools/node_modules/.bin:$PATH"',
-    "rm -rf /work/tooling/storybook/snapshots/*",
+    "find /work -mindepth 1 -depth ! -path '/work/.run.lock' ! -path '/work/.tools' ! -path '/work/.tools/*' ! -path '/work/.deps-hash' ! -path '*/node_modules' ! -path '*/node_modules/*' -delete 2>/dev/null || true",
     "tar -C /src --exclude='./.git' --exclude='./node_modules' --exclude='*/node_modules' --exclude='./tooling/storybook/dist' --exclude='./tooling/storybook/node_modules/.cache' -cf - . | tar -C /work -xf -",
     "cd /work",
     "lock_hash=\"$( { sha256sum pnpm-lock.yaml pnpm-workspace.yaml; find . -maxdepth 4 -name package.json -not -path '*/node_modules/*' | sort | xargs sha256sum; } | sha256sum | awk '{print $1}' )\"",
