@@ -239,8 +239,8 @@ reasons are not edited.
 
 Application reads expose current material, readiness, unknown amounts, the
 separate shared working revision, and any withdrawal. Every intake write checks current
-program-manager access and, except for staff-summary and contact changes, the intake
-revision, and commits its audit record in the same transaction.
+program-manager access and, except for staff-summary edits and contact selection on its
+own, the intake revision, and commits its audit record in the same transaction.
 Recommendation saves also check the material version on which the judgment is based.
 
 The [intake presentation guide](../../capabilities/applications/web/src/views/intake/README.md)

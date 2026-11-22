@@ -85,7 +85,7 @@ project, not a live grant-management service. Visitors can ask to explore an
 invited workspace with sample data. A **Privacy notice** link opens `/privacy`
 in a new tab, preserving the form and any entered email. The notice explains
 what invitation requests store, their purpose, access, retention, and privacy
-choices.
+choices. Configure the project owner’s privacy contact email before publishing it.
 
 Submission saves a real request without creating an account, granting access, or
 sending email. Only Merit operators can read requests in **Administration → Access
