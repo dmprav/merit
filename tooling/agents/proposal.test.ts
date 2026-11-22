@@ -1,0 +1,177 @@
+import { describe, expect, test } from "vite-plus/test";
+
+import {
+  applyTier2OnlyOverride,
+  classifyProposalTier,
+  findDuplicateProposal,
+  isProposalCapReached,
+  proposalInputSchema,
+  renderProposalMarkdown,
+  type ProposalInput,
+} from "./proposal.ts";
+
+const sampleProposal = (overrides: Partial<ProposalInput> = {}): ProposalInput =>
+  proposalInputSchema.parse({
+    lens: "tests",
+    title: "Consolidate duplicate withdrawal assertions in reviews",
+    why: "Three integration specs repeat identical withdrawal preconditions without adding new coverage.",
+    evidence: "capabilities/reviews/business/tests/reviewer.integration.ts:110-180",
+    change: [
+      "Collapse the three repeated withdrawal cases into one table-driven test",
+      "Keep all existing outcome assertions intact",
+    ],
+    decision: "None — unambiguous test consolidation preserving every assertion.",
+    whyNot: "Keeping separate tests slightly eases reading each case in isolation.",
+    paths: ["capabilities/reviews/business/tests/reviewer.integration.ts"],
+    brief: {
+      behavior: ["Preserve every withdrawal precondition and error assertion."],
+      outOfScope: ["Do not change production review logic."],
+      precedents: ["capabilities/reviews/business/tests/reviewer.integration.ts"],
+      plan: [
+        "Consolidate duplicate cases in capabilities/reviews/business/tests/reviewer.integration.ts.",
+      ],
+      verification: ["vp run @merit/reviews#test"],
+    },
+    ...overrides,
+  });
+
+describe("proposal", () => {
+  test("classifies unambiguous docs and single-slice pure-test proposals as Tier 1", () => {
+    const docsResult = classifyProposalTier({
+      paths: ["docs/guides/testing.md", "capabilities/reviews/business/README.md"],
+      ambiguous: false,
+    });
+    expect(docsResult.tier).toBe(1);
+    expect(docsResult.targetLabel).toBe("agent:ready");
+
+    const singleSliceTestResult = classifyProposalTier({
+      paths: [
+        "capabilities/reviews/business/src/domain/reviewer.test.ts",
+        "capabilities/reviews/business/tests/reviewer.integration.ts",
+      ],
+      ambiguous: false,
+    });
+    expect(singleSliceTestResult.tier).toBe(1);
+    expect(singleSliceTestResult.targetLabel).toBe("agent:ready");
+  });
+
+  test("classifies production, multi-slice, extends-mechanism, protected, root/record docs, wildcard, or ambiguous proposals as Tier 2", () => {
+    for (const [paths, ambiguous] of [
+      [["capabilities/reviews/business/src/server/service.ts"], false],
+      [
+        [
+          "capabilities/reviews/business/src/domain/reviewer.test.ts",
+          "capabilities/rounds/business/src/domain/round.test.ts",
+        ],
+        false,
+      ],
+      // Single-slice pure test touching an `extends` mechanism contract must be Tier 2.
+      [["foundation/money/src/money.test.ts"], false],
+      [["docs/workflows/participate-in-review.md"], true],
+      [["tooling/verification/lint.ts"], false],
+      [["verifications/217.md"], false],
+      [[".remarkrc.mjs"], false],
+      [["AGENTS.md"], false],
+      [["docs/guides/*.md"], false],
+    ] as const) {
+      const result = classifyProposalTier({ paths: [...paths], ambiguous });
+      expect(result.tier, paths.join(",")).toBe(2);
+      expect(result.targetLabel, paths.join(",")).toBe("agent:proposed");
+    }
+  });
+
+  test("rejects workflow-controlled agent:* labels in extraLabels and enforces --tier2-only metadata consistency", () => {
+    expect(() => sampleProposal({ extraLabels: ["agent:ready"] })).toThrow(/agent:\*/);
+    expect(() => sampleProposal({ extraLabels: ["agent:allow-protected"] })).toThrow(/agent:\*/);
+
+    const proposal = sampleProposal();
+    const base = classifyProposalTier({ paths: proposal.paths, ambiguous: false });
+    expect(base.tier).toBe(1);
+
+    const overridden = applyTier2OnlyOverride(base, true);
+    expect(overridden.tier).toBe(2);
+    expect(overridden.targetLabel).toBe("agent:proposed");
+
+    const markdown = renderProposalMarkdown(proposal, overridden);
+    expect(markdown).toContain("`tier:2");
+    expect(markdown).toContain('"tier":2');
+    expect(markdown).not.toContain("allowProtectedPaths");
+  });
+
+  test("renders a compact above-the-fold Decision Card with collapsed Implementer Brief and metadata marker", () => {
+    const proposal = sampleProposal();
+    const classification = classifyProposalTier({
+      paths: proposal.paths,
+      ambiguous: proposal.ambiguous,
+    });
+    const markdown = renderProposalMarkdown(proposal, classification);
+    const aboveFold = markdown.split("<details>")[0]?.trimEnd().split("\n") ?? [];
+
+    expect(aboveFold.length).toBeLessThanOrEqual(12);
+    expect(markdown).toContain("<summary>Implementer brief (for builder & reviewer)</summary>");
+    expect(markdown).toContain("<!-- merit-proposal:");
+    expect(markdown).toContain('"tier":1');
+  });
+
+  test("deduplicates accurately without false positives on disjoint paths or short-token titles", () => {
+    const proposal = sampleProposal();
+
+    expect(
+      findDuplicateProposal(proposal, [
+        {
+          number: 99,
+          title: "Consolidate duplicate withdrawal assertions in reviews",
+          state: "CLOSED",
+          labels: ["wontfix"],
+        },
+      ]).duplicate,
+    ).toBe(true);
+
+    expect(
+      findDuplicateProposal(proposal, [
+        {
+          number: 105,
+          title: "Consolidate repeated withdrawal assertions in reviews",
+          state: "OPEN",
+          labels: ["agent:proposed"],
+          body: '<!-- merit-proposal: {"paths":["capabilities/reviews/business/tests/reviewer.integration.ts"]} -->',
+        },
+      ]).duplicate,
+    ).toBe(true);
+
+    // Same similarity, but disjoint proposal paths should not deduplicate.
+    expect(
+      findDuplicateProposal(proposal, [
+        {
+          number: 106,
+          title: "Consolidate repeated withdrawal assertions in reviews",
+          state: "OPEN",
+          labels: ["agent:proposed"],
+          body: '<!-- merit-proposal: {"paths":["capabilities/rounds/business/tests/round.integration.ts"]} -->',
+        },
+      ]).duplicate,
+    ).toBe(false);
+
+    // Short-word titles with zero >=3-char tokens must not falsely match.
+    expect(
+      findDuplicateProposal({ title: "UI DB", paths: ["docs/guides/ui.md"] }, [
+        { number: 107, title: "QA CI", state: "OPEN", labels: ["agent:proposed"] },
+      ]).duplicate,
+    ).toBe(false);
+
+    // Ordinary closed issues without wontfix/duplicate do not block re-filing.
+    expect(
+      findDuplicateProposal(proposal, [
+        {
+          number: 50,
+          title: "Consolidate duplicate withdrawal assertions in reviews",
+          state: "CLOSED",
+          labels: ["type:maintenance"],
+        },
+      ]).duplicate,
+    ).toBe(false);
+
+    expect(isProposalCapReached(4)).toBe(false);
+    expect(isProposalCapReached(5)).toBe(true);
+  });
+});

@@ -104,10 +104,14 @@ export default defineConfig({
           "vp run test:security",
           "vp run test:commits",
           "vp run test:hooks",
+          "vp run test:agents",
           "vp run test:ci",
         ],
         cache: false,
       },
+      "agent:scout": { command: "vpx tooling/agents/scout.ts", cache: false },
+      "agent:proposal": { command: "vpx tooling/agents/proposal.ts", cache: false },
+      "agent:queue": { command: "vpx tooling/agents/queue.ts", cache: false },
       "db:reset": { command: "vpx tooling/scripts/reset-db.ts", cache: false },
       "services:start": { command: "vpx tooling/scripts/start-services.ts", cache: false },
       "test:browser:tooling": "vp run @merit/test-support#test:browser",
@@ -132,9 +136,14 @@ export default defineConfig({
       "check:commit": { command: "commitlint --edit", cache: false },
       "test:commits": { command: "vp test tooling/verification/commits.test.ts", cache: false },
       "test:hooks": { command: "vp test tooling/verification/hooks.test.ts", cache: false },
+      "test:agents": {
+        command:
+          "vp test tooling/agents/proposal.test.ts tooling/agents/scout.test.ts tooling/agents/queue.test.ts",
+        cache: false,
+      },
       "test:ci": {
         command:
-          "vp test tooling/verification/ci.test.ts tooling/verification/ci-changes.test.ts tooling/verification/ci-summary.test.ts tooling/verification/ci-browser-history.test.ts tooling/verification/verification-record.test.ts",
+          "vp test tooling/verification/ci.test.ts tooling/verification/ci-changes.test.ts tooling/verification/ci-summary.test.ts tooling/verification/ci-browser-history.test.ts tooling/verification/verification-record.test.ts tooling/verification/agent-policy.test.ts",
         cache: false,
       },
       "ci:browser-history": {
