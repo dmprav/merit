@@ -19,6 +19,7 @@ export const Disclosure = ({
   count,
   headingLevel = 3,
   defaultExpanded = false,
+  isExpanded,
   onExpandedChange,
   children,
 }: {
@@ -27,12 +28,15 @@ export const Disclosure = ({
   count?: number;
   headingLevel?: 2 | 3 | 4;
   defaultExpanded?: boolean;
+  /** The caller owns the open state, such as a log entry that folds when its work is done. */
+  isExpanded?: boolean;
   onExpandedChange?: (expanded: boolean) => void;
   children: ReactNode;
 }) => (
   <AriaDisclosure
     className={styles.disclosure}
     defaultExpanded={defaultExpanded}
+    isExpanded={isExpanded}
     onExpandedChange={onExpandedChange}
   >
     <Heading level={headingLevel} className={styles.heading}>

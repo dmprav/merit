@@ -23,6 +23,7 @@ import ListFilter from "lucide-react/icons/list-filter";
 import LoaderCircle from "lucide-react/icons/loader-circle";
 import LogOut from "lucide-react/icons/log-out";
 import Menu from "lucide-react/icons/menu";
+import MessageSquare from "lucide-react/icons/message-square";
 import Pencil from "lucide-react/icons/pencil";
 import Pin from "lucide-react/icons/pin";
 import Plus from "lucide-react/icons/plus";
@@ -70,6 +71,7 @@ const icons = {
   reset: RotateCcw,
   close: X,
   send: ArrowUp,
+  chat: MessageSquare,
   search: Search,
   filter: ListFilter,
 } as const;

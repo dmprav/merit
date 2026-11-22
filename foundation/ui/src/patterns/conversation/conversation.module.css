@@ -1,0 +1,34 @@
+.thread {
+  display: grid;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.message {
+  min-width: 0;
+}
+
+.content {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+  font-size: var(--text-body);
+  line-height: var(--leading-reading);
+  overflow-wrap: anywhere;
+}
+
+.content p {
+  margin: 0;
+}
+
+.message[data-author="person"] .content {
+  inline-size: fit-content;
+  max-inline-size: 85%;
+  margin-inline-start: auto;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--panel-radius);
+  background: var(--surface-muted);
+  white-space: pre-wrap;
+}

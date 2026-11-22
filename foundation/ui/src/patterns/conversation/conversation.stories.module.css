@@ -1,0 +1,8 @@
+.frame {
+  max-width: 416px;
+  padding: var(--space-4);
+}
+
+.narrow {
+  max-width: 280px;
+}

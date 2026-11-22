@@ -15,6 +15,7 @@ import * as calendar from "@merit/ui/calendar";
 import * as choiceList from "@merit/ui/choice-list";
 import * as collectionToolbar from "@merit/ui/collection-toolbar";
 import * as confirmationDialog from "@merit/ui/confirmation-dialog";
+import * as conversation from "@merit/ui/conversation";
 import * as dateChoice from "@merit/ui/date-choice";
 import * as dateField from "@merit/ui/date-field";
 import * as descriptionList from "@merit/ui/description-list";
@@ -72,6 +73,7 @@ const publicModules = {
   "./choice-list": choiceList,
   "./collection-toolbar": collectionToolbar,
   "./confirmation-dialog": confirmationDialog,
+  "./conversation": conversation,
   "./date-choice": dateChoice,
   "./date-field": dateField,
   "./description-list": descriptionList,
