@@ -28,7 +28,9 @@ the caller's revision and authenticated authorship, rather than internal method
 names or call counts. The [MCP contract tests](../../interfaces/mcp/src/app/server.test.ts)
 and [persisted intake command tests](../../app/tests/mcp-intake.integration.ts) exercise
 these boundaries separately. Identity-unavailable checks that substitute all
-services belong in adapter suites and need no database setup.
+services belong in adapter suites and need no database setup. When authorization
+prerequisites change, update all affected integration fixtures across transport
+and cross-capability journeys to establish them.
 
 ## Choose the owning layer
 

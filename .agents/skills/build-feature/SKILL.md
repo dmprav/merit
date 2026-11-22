@@ -146,9 +146,10 @@ Triage each finding:
 - **Ask the requester** when a finding questions agreed behavior.
 
 A review with no findings counts only if it shows what it checked: the precedents
-it read, the screenshots it compared, and each rubric section. Otherwise run it
-again. After fixes beyond a few lines, start another fresh reviewer. Stop after
-two rounds and carry what remains to **Follow-ups**.
+it read, the `mechanisms.ts` output, the screenshots it compared, and each
+rubric section. Confirm `git status --porcelain` is unchanged after review.
+Otherwise run it again. After fixes beyond a few lines, start another fresh
+reviewer. Stop after two rounds and carry what remains to **Follow-ups**.
 
 ## 5. Hand off
 
@@ -171,17 +172,23 @@ states, and widths compared, as
 Attach side-by-side screenshots to the pull request where possible. Mark the
 pull request ready.
 
-Greptile reviews the pull request after it opens. Triage its comments like
-reviewer findings, and add the ones you reject to the record.
+Automated PR review (CodeRabbit and Greptile) runs after the pull request opens.
+Triage its comments like reviewer findings, and add any you reject to the
+record.
 
 ## 6. Learn from escapes
 
-When the requester finds a problem the review missed, fix it, then add a checkable
-item to **Known escapes** in [review.md](review.md) in the same pull request.
-**Known escapes** is capped at 10 items and 45 lines: when adding at the cap,
-graduate or retire an existing entry into a lint rule, Storybook assertion,
-test, or guide. Phrase it as a question a reviewer can answer from the code or
-a screenshot, and link the guide section it comes from. When a guide lacked the
-guidance, improve the guide and link it instead. When the cause was a weak brief
-or precedent choice, tighten [grounding](#1-ground-the-request) or the
-[brief](#2-grill-until-the-brief-is-approved) here instead.
+When the requester finds a problem the review missed, fix it and move prevention
+up the [rule-enforcement ladder](../../../docs/guides/verification-tooling.md#rule-enforcement)
+in the same pull request:
+
+- First prefer a static check, lint rule, Storybook assertion, or regression
+  test that catches the whole class.
+- When no automated check can decide it, tighten the owning guide and, for a
+  cross-cutting mechanism, add a single-line invariant in
+  [mechanisms.config.ts](../../../tooling/verification/architecture/mechanisms.config.ts)
+  (capped at 3 per mechanism). Keep [review.md](review.md) universal rather than
+  accumulating domain-specific escape lists.
+- When the cause was a weak brief or precedent choice, tighten
+  [grounding](#1-ground-the-request) or the
+  [brief](#2-grill-until-the-brief-is-approved) here instead.

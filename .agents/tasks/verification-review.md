@@ -64,13 +64,13 @@ above say otherwise; the next runs will show whether they recur.
 
 ## 4. Fix each problem where it belongs
 
-| Problem                                                    | Change                                                                                                                                                       |
-| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Agents can't run a check in their environment              | Fix [the agent environment setup](../install-environment.sh) when the fix is small and certain; otherwise open an issue naming the check and what blocks it. |
-| Agents skip or misjudge a check the guides cover           | Clarify the owning guide, following the documentation guide.                                                                                                 |
-| Automated review repeats findings that get dismissed       | Tighten [the Greptile rules](../../.greptile/rules.md) or [its context files](../../.greptile/files.json).                                                   |
-| The feature reviewer repeats findings that get dismissed   | Tighten the [feature review rubric](../skills/build-feature/review.md).                                                                                      |
-| A dismissal doesn't hold, or a check fails without a cause | Open an issue naming the pull requests and what the dismissal or failure left unchecked.                                                                     |
+| Problem                                                    | Change                                                                                                                                                                                 |
+| ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Agents can't run a check in their environment              | Fix [the agent environment setup](../install-environment.sh) when the fix is small and certain; otherwise open an issue naming the check and what blocks it.                           |
+| Agents skip or misjudge a check the guides cover           | Clarify the owning guide, following the documentation guide.                                                                                                                           |
+| Automated review repeats findings that get dismissed       | Tighten [CodeRabbit](../../.coderabbit.yaml), [Greptile rules](../../.greptile/rules.md), or [its context files](../../.greptile/files.json).                                          |
+| The feature reviewer repeats findings that get dismissed   | Tighten the [change review rubric](../skills/build-feature/review.md) or the owning mechanism in [mechanisms.config.ts](../../tooling/verification/architecture/mechanisms.config.ts). |
+| A dismissal doesn't hold, or a check fails without a cause | Open an issue naming the pull requests and what the dismissal or failure left unchecked.                                                                                               |
 
 Before opening an issue, search the open issues for the same problem. If one
 exists, add a comment naming the new records instead.

@@ -73,9 +73,11 @@ confirmations keep the revision seen when they opened, like deletion.
 Version and recorded-change comparisons open in **Changes**, showing changed fields
 and sections with labeled previous and recorded values. **Full record** replaces
 the comparison with the complete before and after records, including unchanged
-material. Use saved event snapshots for recorded changes; when a snapshot is
-absent, show the available record with an explanation instead of a diff. Keep
-reasons and attribution visible in either mode.
+material, using one consistent label/value treatment for metadata while keeping
+staff interpretation separate from applicant responses. Use saved event snapshots
+for recorded changes; when a snapshot is absent, show the available record with
+an explanation instead of a diff. Keep reasons and attribution visible in either
+mode.
 
 An intake conflict keeps the form mounted with the shared conflict banner above
 its fields; **View latest** shows that editor's latest saved values. Choosing a

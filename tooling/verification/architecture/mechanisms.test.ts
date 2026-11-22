@@ -7,7 +7,13 @@ import { fileURLToPath } from "node:url";
 import { expect, it } from "vite-plus/test";
 
 import { classifyChangedPaths, formatMechanismReport, validateMechanismMap } from "./mechanisms";
-import { MAX_SUMMARY_LENGTH, MECHANISMS, type Mechanism } from "./mechanisms.config";
+import {
+  MAX_INVARIANT_LENGTH,
+  MAX_INVARIANTS_PER_MECHANISM,
+  MAX_SUMMARY_LENGTH,
+  MECHANISMS,
+  type Mechanism,
+} from "./mechanisms.config";
 
 const repoRoot = fileURLToPath(new URL("../../..", import.meta.url));
 
@@ -32,6 +38,7 @@ const sampleMechanism = (overrides: Partial<Mechanism> = {}): Mechanism => ({
   adapters: ["interfaces/*/src/**/controllers/**"],
   docs: ["foundation/sample/README.md#overview"],
   decisions: ["docs/decisions/0001-sample.md"],
+  invariants: ["Preserve the sample invariant across every caller."],
   ...overrides,
 });
 
@@ -50,7 +57,7 @@ it("passes the CLI --check command on the repository", () => {
   expect(result.stdout).toContain("mechanisms ok");
 });
 
-it("rejects empty wildcard patterns, missing anchors, superseded decisions, and oversized summaries", () => {
+it("rejects empty wildcard patterns, missing anchors, superseded decisions, oversized summaries, and invalid invariants", () => {
   withTempRepo(
     {
       "foundation/sample/src/index.ts": "export const value = 1;\n",
@@ -65,6 +72,12 @@ it("rejects empty wildcard patterns, missing anchors, superseded decisions, and 
             contracts: ["foundation/*/src/missing.ts"],
             adapters: ["interfaces/*/src/**/controllers/**"],
             docs: ["foundation/sample/README.md#missing-anchor"],
+            invariants: [
+              "x".repeat(MAX_INVARIANT_LENGTH + 1),
+              "line one\nline two",
+              "third",
+              "fourth",
+            ],
           }),
           sampleMechanism({ id: "sample-mechanism", adapters: [] }),
         ],
@@ -75,6 +88,9 @@ it("rejects empty wildcard patterns, missing anchors, superseded decisions, and 
         expect.arrayContaining([
           expect.stringContaining("duplicate mechanism id: sample-mechanism"),
           expect.stringContaining(`max ${MAX_SUMMARY_LENGTH}`),
+          expect.stringContaining(`max ${MAX_INVARIANTS_PER_MECHANISM}`),
+          expect.stringContaining(`max ${MAX_INVARIANT_LENGTH}`),
+          expect.stringContaining("invariant must be a single line"),
           expect.stringContaining("pattern matches no files on disk: foundation/*/src/missing.ts"),
           expect.stringContaining(
             "pattern matches no files on disk: interfaces/*/src/**/controllers/**",
@@ -109,7 +125,10 @@ it("classifies contracts as extends, adapters (including zero-dir globstar) as c
     "interfaces/admin/src/features/orgs/controllers/example.ts",
     "interfaces/product/src/controllers/example.ts",
   ]);
-  expect(formatMechanismReport(directControllerEdit)).toContain("mechanisms: risk=composes");
+  const report = formatMechanismReport(directControllerEdit);
+  expect(report).toContain("mechanisms: risk=composes");
+  expect(report).toContain("invariants:");
+  expect(report).toContain("Preserve the sample invariant across every caller.");
 
   const unrelatedEdit = classifyChangedPaths({
     paths: ["README.md"],
@@ -117,4 +136,34 @@ it("classifies contracts as extends, adapters (including zero-dir globstar) as c
   });
   expect(unrelatedEdit.risk).toBe("none");
   expect(formatMechanismReport(unrelatedEdit)).toContain("mechanisms: risk=none");
+});
+
+it("routes feature views, stories, server commands, and schemas to their mechanisms as composes", () => {
+  const cases = [
+    [
+      "capabilities/reviews/web/src/views/reviewer/reviewer-screen.stories.tsx",
+      ["drafts-and-recovery", "shared-ui-patterns"],
+    ],
+    [
+      "capabilities/grantmaking/web/src/views/applications/application-view.tsx",
+      ["drafts-and-recovery", "shared-ui-patterns"],
+    ],
+    [
+      "capabilities/reviews/business/src/server/persistence/commands/reviewer.ts",
+      ["authorization-policy"],
+    ],
+    [
+      "capabilities/applications/business/src/server/persistence/schema.ts",
+      ["authorization-policy", "locks-and-transactions"],
+    ],
+  ] as const;
+
+  for (const [path, expectedIds] of cases) {
+    const result = classifyChangedPaths({ paths: [path] });
+    expect(result.risk, path).toBe("composes");
+    expect(
+      result.matched.map((entry) => entry.mechanism.id),
+      path,
+    ).toEqual([...expectedIds]);
+  }
 });

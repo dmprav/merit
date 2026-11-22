@@ -3,8 +3,9 @@
 language: en-US
 tone_instructions: >
   Be concise and direct. Ground feedback in repository precedents, guides, and
-  domain concepts, naming the concrete fix. Do not comment on formatting or
-  rules already enforced by oxlint, oxfmt, stylelint, remark, or fallow.
+  domain concepts, naming the concrete fix. Do not comment on formatting,
+  import boundaries, React Compiler rules, or checks enforced by oxlint, oxfmt,
+  stylelint, remark, fallow, or `vp run architecture`.
 
 reviews:
   profile: chill
@@ -42,45 +43,42 @@ reviews:
   path_instructions:
     - path: "capabilities/*/business/**"
       instructions: |
-        - Business rules, authorization checks, domain invariants, revision/conflict handling, and transaction/lock ordering belong here rather than in `web/`, `interfaces/`, or `app/`.
+        - Keep business rules, authorization predicates, domain invariants, revision/conflict handling, and transaction/lock ordering here rather than in `web/`, `interfaces/`, or `app/`.
         - Keep domain terminology consistent with `docs/domain/concepts.md` and the owning workflow in `docs/workflows/`.
-        - Verify persistence commands validate/decode stored JSON projections explicitly and record authorship/audit history together with state changes.
+        - Verify persistence commands validate/decode stored JSON projections explicitly and commit audit events inside the owning transaction.
         - Flag abstractions with a single use and no stated requirement, or helpers/fixtures that duplicate existing repository utilities.
 
     - path: "capabilities/access/**"
       instructions: |
-        - Business rules, authorization predicates, and invariants belong here rather than in `interfaces/` or `app/`.
-        - Verify authorization changes are enforced across all callers and transports, and check that tenant/workspace isolation cannot be bypassed.
+        - Verify authorization changes use current server facts under locks across web and MCP, and check that tenant/workspace isolation cannot be bypassed.
+        - After membership removal and restoration, verify pending invitations and accepted assignments remain inaccessible until explicitly reinstated.
 
     - path: "capabilities/*/web/**"
       instructions: |
-        - Enforce `docs/guides/web-features.md` layer ownership:
-          - `views/` present workflow state and invoke controller actions; flag record fetching, query cache mutations, or command/revision baseline construction inside views.
-          - `controllers/` own drafts (`@merit/drafts`), revision baselines, save commands, conflict/recovery state, and Undo; flag direct imports of concrete `data/` adapters, Start server functions, or `views/`.
-          - `data/` owns transport normalization, query keys, cancellation, and cache updates.
-        - Check React Compiler compatibility (`tooling/react-compiler.ts`): avoid dynamic hook calls (`obj.useHook()`), mutating values returned from hooks, `try ... finally` in components/hooks, and boilerplate `useMemo`/`useCallback`.
+        - Enforce `docs/guides/web-features.md` semantic ownership: views present state and invoke controller actions without fetching records or building save commands; controllers own drafts, revision baselines, conflict/recovery, and Undo; `data/` owns transport normalization and cache updates.
         - Flag duplicated components, hooks, styles, or helpers that already exist in `foundation/ui/` or the capability.
+        - Verify editing flows follow `foundation/ui/src/patterns/editing/editing.mdx` (passive whole-section editing, preserved reading position, aligned conflict comparisons).
 
     - path: "{interfaces,app}/**"
       instructions: |
         - Keep business rules out of routes, Start server functions, MCP handlers, and adapters; interfaces compose capabilities, validate transport inputs, resolve the authenticated actor, and bind typed navigation/transport.
-        - Ensure capability-owned error mapping, query/cache coordination, and auth/workspace isolation (including `app/local-workspace.config.ts`) remain intact.
+        - Ensure MCP tools preserve web capability preconditions, error containment, and auth/workspace isolation (including `app/local-workspace.config.ts`).
 
     - path: "foundation/**"
       instructions: |
-        - Treat changes here as shared contracts across capabilities and interfaces; check backward compatibility for consumers and keep capability-specific domain rules out of `foundation/`.
-        - For `foundation/ui/**`, verify accessibility, keyboard interaction, focus restoration, dismissal, and pending-state contracts remain consistent.
+        - Treat changes here as shared contracts across capabilities and interfaces; check backward compatibility and keep capability-specific domain rules out of `foundation/`.
+        - For `foundation/ui/**`, verify accessibility, keyboard interaction, popup dismissal on history changes, focus restoration, and compact header reachability.
 
     - path: "foundation/db/database/migrations/**"
       instructions: |
-        - Check that migrations preserve Merit's database invariants (public-ID functions, deferred foreign keys, content checks, outstanding-review index, audit immutability/authorship triggers, and EUR minor units for money).
+        - Check that migrations preserve Merit's database invariants (surrogate/public IDs, covering FK indexes, enum `CHECK` constraints, deferred foreign keys, audit immutability/authorship triggers, and EUR minor units for money).
         - Flag edits to already-applied migrations or unsafe locking/backfill patterns.
 
     - path: "**/*.{test,integration,spec}.{ts,tsx}"
       instructions: |
         - Verify tests live at the lowest layer that can observe the behavior (`docs/guides/testing.md`) and assert observable outcomes rather than internal helper calls or call counts.
-        - Flag scenarios duplicated at another layer without justification (boundary translation, representative journey, distinct failure mode, or severe regression guarantee like auth/tenant isolation/money/audit).
-        - If authorization or revision prerequisites changed, verify all affected integration fixtures (including MCP and cross-capability tests) establish them.
+        - Flag scenarios duplicated at another layer without justification, or weakened assertions/coverage policy.
+        - If authorization or revision prerequisites changed, verify all affected integration fixtures (including MCP and cross-capability journeys) establish them.
         - Flag arbitrary sleeps/waits where tests should wait on observable readiness.
 
     - path: "**/*.stories.tsx"
@@ -140,10 +138,20 @@ knowledge_base:
       - files: "docs/foundations/architecture.md"
         applyTo: "capabilities/**, interfaces/**, foundation/**, app/**"
       - files: "docs/guides/coding-conventions.md"
-        applyTo: "**/*.{ts,tsx,js,mjs}"
+        applyTo: "**/*.ts, **/*.tsx, **/*.js, **/*.mjs"
       - files: "docs/guides/web-features.md"
         applyTo: "capabilities/*/web/**, interfaces/**"
       - files: "docs/guides/ui.md"
         applyTo: "capabilities/*/web/**, interfaces/**, foundation/ui/**, **/*.tsx, **/*.css"
+      - files: "docs/guides/ui-verification.md"
+        applyTo: "capabilities/*/web/**, interfaces/**, foundation/ui/**, **/*.stories.tsx"
       - files: "docs/guides/testing.md"
         applyTo: "**/*.test.ts, **/*.test.tsx, **/*.integration.ts, **/*.spec.ts, **/*.stories.tsx"
+      - files: "docs/guides/database.md"
+        applyTo: "foundation/db/**, **/persistence/schema.ts"
+      - files: "capabilities/access/README.md"
+        applyTo: "capabilities/access/**, foundation/auth/**, capabilities/*/business/src/server/**"
+      - files: "docs/guides/mcp.md"
+        applyTo: "interfaces/mcp/**, capabilities/*/ai/**, foundation/ai/**"
+      - files: "foundation/ui/src/patterns/editing/editing.mdx"
+        applyTo: "foundation/drafts/**, foundation/ui/src/patterns/editing/**, capabilities/*/web/src/controllers/**"

@@ -75,16 +75,16 @@ For a fix beyond a few lines, or one in authorization, tenant scope, money, audi
 history, or persistence, start a fresh `feature-reviewer` subagent following
 [review.md](../build-feature/review.md). Pass the fix brief as the brief, the base
 branch, the reproduction command, and a screenshot directory, and nothing about
-how you found the cause. Tell it to read **Intended behavior** as the rubric's
-**Behavior**, to compare UI with the brief's **Precedents**, and to report any
-change beyond restoring the intended behavior as an unapproved departure. Ask it
-to also judge whether the fix addresses the first wrong step rather than a
-symptom. Triage its findings as
+how you found the cause. Tell it to compare UI with the brief's **Precedents**
+and report any change beyond restoring the intended behavior as an unapproved
+departure. Confirm `git status --porcelain` is unchanged after review, and triage
+its findings as
 [build-feature describes](../build-feature/SKILL.md#4-review-independently).
 
 For a smaller fix, reread the full diff from disk against the review rubric's
-**Architecture**, **Code**, and **Tests** sections, and say in the pull request
-that the review was not independent.
+**Behavior and scope**, **Reuse and simplification**, **Architecture and
+invariants**, and **Tests** sections, and say in the pull request that the review
+was not independent.
 
 ## 4. Hand off
 
@@ -101,12 +101,16 @@ with the reproduction command, its failing result without the fix and passing
 result with it, the other checks run, and any review findings rejected with their
 reasons. Mark the pull request ready.
 
+Automated PR review (CodeRabbit and Greptile) runs after the pull request opens.
+Triage its comments like reviewer findings, and add any you reject to the
+record.
+
 ## 5. Learn from the escape
 
 The regression test is the primary guard against recurrence. When the bug belongs
 to a class that has escaped before, apply
 [encode repeat fixes in structure](../../../docs/foundations/principles.md#encode-repeat-fixes-in-structure):
 propose a type, lint rule, or shared test helper that would have caught the whole
-class, and add a reviewer question to
-[Known escapes](../build-feature/review.md#known-escapes) only when no check can
-decide it.
+class, and tighten the owning guide or add a single-line invariant in
+[mechanisms.config.ts](../../../tooling/verification/architecture/mechanisms.config.ts)
+only when no automated check can decide it.
