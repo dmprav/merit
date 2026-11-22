@@ -221,8 +221,8 @@ Draft amounts are decimal EUR strings. `submit_reviewer_assessment` submits that
 revision. To amend, save a new draft with an explanation in `draft.note`, then
 submit it. Retain the same command ID and original revision on retries.
 Submission emails are subject to the [reviewer notification limits](../workflows/participate-in-review.md#read-draft-and-submit).
-The assignment’s `notification` field reports the latest queued submission email
-for that assignment, or `null` if none has been queued.
+Call `get_reviewer_assignment` to read `assignment.notification`, the delivery
+status of its latest queued submission email, or `null` if none was queued.
 
 Managers use `list_application_reviewers`, `invite_reviewer`, and
 `manage_reviewer_assignment`. Create a review request first, then invite its

@@ -19,8 +19,29 @@ import {
 import { reviewerDraftSchema } from "../../domain/reviewer";
 import { reviewStateSchema } from "../../domain/reviews";
 import { readAssessmentRecord } from "./projections";
-import { reviewAssignments, reviewerDraftObservations, reviewerDrafts } from "./reviewer-schema";
+import {
+  reviewAssignments,
+  reviewerDraftObservations,
+  reviewerDrafts,
+  reviewerMessages,
+} from "./reviewer-schema";
 import { reviewRequests } from "./schema";
+
+const latestMessageOrder = sql`${desc(reviewerMessages.createdAt)}, ${desc(reviewerMessages.id)}`;
+
+export const latestReviewerMessage = async (
+  db: Database,
+  assignmentId: string,
+  kind: "invitation" | "submission",
+) =>
+  (
+    await db
+      .select()
+      .from(reviewerMessages)
+      .where(and(eq(reviewerMessages.assignmentId, assignmentId), eq(reviewerMessages.kind, kind)))
+      .orderBy(latestMessageOrder)
+      .limit(1)
+  )[0];
 
 const selectReviewerRows = (db: Database) =>
   db
@@ -39,10 +60,10 @@ const selectReviewerRows = (db: Database) =>
       slug: organizations.slug,
       delivery: sql<
         "pending" | "sent" | "failed"
-      >`coalesce((select status from reviewer_messages where assignment_id = ${reviewAssignments.id} and kind = 'invitation' order by created_at desc, id desc limit 1), 'pending')`,
+      >`coalesce((select status from reviewer_messages where assignment_id = ${reviewAssignments.id} and kind = 'invitation' order by ${latestMessageOrder} limit 1), 'pending')`,
       notification: sql<
         "pending" | "sent" | "failed" | null
-      >`(select status from reviewer_messages where assignment_id = ${reviewAssignments.id} and kind = 'submission' order by created_at desc, id desc limit 1)`,
+      >`(select status from reviewer_messages where assignment_id = ${reviewAssignments.id} and kind = 'submission' order by ${latestMessageOrder} limit 1)`,
     })
     .from(reviewAssignments)
     .innerJoin(organizations, eq(organizations.id, reviewAssignments.organizationId))

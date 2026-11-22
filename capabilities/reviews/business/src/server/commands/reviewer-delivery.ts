@@ -2,8 +2,8 @@ import type { Database } from "@merit/db";
 import { assignmentScope, readScoped } from "@merit/organizations/transactions";
 
 import type { ReviewerMessage } from "../../api/reviewer";
-import { latestReviewerMessage, finishReviewerMessage } from "../persistence/commands/reviewer";
-import { readReviewerRecord } from "../persistence/reviewer-records";
+import { finishReviewerMessage } from "../persistence/commands/reviewer";
+import { latestReviewerMessage, readReviewerRecord } from "../persistence/reviewer-records";
 
 export const deliverReviewerMessage = async (
   dependencies: {

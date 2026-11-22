@@ -1,4 +1,4 @@
-import { and, eq, sql, desc } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 
 import { applicationCases } from "@merit/applications/schema";
 import { caseWithdrawn } from "@merit/applications/scope";
@@ -335,20 +335,6 @@ export const queueSubmissionMessage = async (
     createdAt: sql`statement_timestamp()`,
   });
 };
-
-export const latestReviewerMessage = async (
-  db: Database,
-  assignmentId: string,
-  kind: "invitation" | "submission",
-) =>
-  (
-    await db
-      .select()
-      .from(reviewerMessages)
-      .where(and(eq(reviewerMessages.assignmentId, assignmentId), eq(reviewerMessages.kind, kind)))
-      .orderBy(desc(reviewerMessages.createdAt), desc(reviewerMessages.id))
-      .limit(1)
-  )[0];
 
 export const finishReviewerMessage = (
   db: Database,
