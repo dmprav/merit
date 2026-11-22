@@ -1,12 +1,22 @@
 import "../../tests/local-request-cookies";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { WebMessagesProvider } from "./messages";
 import { WorkspaceAccount } from "./workspace-account";
 
+const clerk = vi.hoisted(() => ({
+  signOut: vi.fn(async (navigate: () => void) => navigate()),
+}));
+vi.mock("@clerk/tanstack-react-start", () => ({
+  useClerk: () => clerk,
+  useUser: () => ({ isLoaded: true, user: { fullName: "Robin Ellis" } }),
+}));
+
 afterEach(() => {
   vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
   document.cookie = "merit-local-person=; Path=/; Max-Age=0";
 });
 
@@ -43,5 +53,19 @@ describe("WorkspaceAccount", () => {
 
     const { container } = render(<WorkspaceAccount />, { wrapper: WebMessagesProvider });
     expect(container).toBeEmptyDOMElement();
+  });
+
+  it("signs out with a fresh load of the public site", async () => {
+    vi.stubEnv("MERIT_LOCAL_WORKSPACE", "");
+    vi.stubEnv("VITE_CLERK_PUBLISHABLE_KEY", "pk_test_example");
+    const assign = vi.fn();
+    vi.stubGlobal("location", { assign });
+    const user = userEvent.setup();
+
+    render(<WorkspaceAccount />, { wrapper: WebMessagesProvider });
+    await user.click(screen.getByRole("button", { name: "Robin Ellis: Account menu" }));
+    await user.click(screen.getByRole("menuitem", { name: "Sign out" }));
+
+    await waitFor(() => expect(assign).toHaveBeenCalledWith("/"));
   });
 });

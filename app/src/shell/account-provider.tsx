@@ -6,18 +6,27 @@ import { useAnalytics } from "@merit/analytics";
 import { clearDrafts } from "@merit/drafts";
 import { productLinks } from "@merit/product/links";
 
-const AccountSession = ({ children }: { children: ReactNode }) => {
+/** The account this page session started with, or null until authentication first loads. */
+type KnownAccount = { id: string | null } | null;
+
+const AccountSession = ({
+  known,
+  onKnown,
+  children,
+}: {
+  known: KnownAccount;
+  onKnown: (account: KnownAccount) => void;
+  children: ReactNode;
+}) => {
   const { userId, isLoaded } = useAuth();
-  const [initialAccount, setInitialAccount] = useState<{ id: string | null } | null>(
-    isLoaded ? { id: userId ?? null } : null,
-  );
   const client = useQueryClient();
   const analytics = useAnalytics();
-  const changed = isLoaded && initialAccount !== null && initialAccount.id !== (userId ?? null);
+  const id = userId ?? null;
+  const changed = isLoaded && known !== null && known.id !== id;
 
   useEffect(() => {
-    if (isLoaded && initialAccount === null) {
-      setInitialAccount({ id: userId ?? null });
+    if (isLoaded && known === null) {
+      onKnown({ id });
     }
     if (!changed) {
       return;
@@ -29,22 +38,36 @@ const AccountSession = ({ children }: { children: ReactNode }) => {
       client.clear();
       globalThis.location.reload();
     });
-  }, [analytics, changed, client, isLoaded, userId, initialAccount]);
+  }, [analytics, changed, client, id, isLoaded, known, onKnown]);
 
   return changed ? null : children;
 };
 
-export const AccountProvider = ({ children }: { children: ReactNode }) => {
+/**
+ * Provides the signed-in account to application pages. Public site pages render without it, so
+ * their HTML carries no account state; the known account outlives them to catch switches made
+ * while one was open.
+ */
+export const AccountProvider = ({
+  enabled,
+  children,
+}: {
+  enabled: boolean;
+  children: ReactNode;
+}) => {
+  const [known, setKnown] = useState<KnownAccount>(null);
   const publishableKey: unknown =
     !import.meta.env.MERIT_LOCAL_WORKSPACE && import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
-  return typeof publishableKey === "string" && publishableKey ? (
+  return enabled && typeof publishableKey === "string" && publishableKey ? (
     <ClerkProvider
       publishableKey={publishableKey}
       signInUrl={productLinks.signIn}
       afterSignOutUrl="/"
     >
-      <AccountSession>{children}</AccountSession>
+      <AccountSession known={known} onKnown={setKnown}>
+        {children}
+      </AccountSession>
     </ClerkProvider>
   ) : (
     children

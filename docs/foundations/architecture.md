@@ -267,6 +267,9 @@ same prohibition on importing application or interface source.
 
 The application keeps its server, Start, and router entry points in `app/src/`.
 `shell/` owns the root document, account-session lifecycle, styles, and messages.
+Only product and administration pages mount the account session; public site
+pages render the same document for every visitor, and sign-out returns to them
+with a fresh page load.
 `server/` owns request identity, capability assembly, MCP authentication wiring,
 demo orchestration, and external adapters. `development/` contains the local
 identity fixtures and development tools, excluded from production builds.

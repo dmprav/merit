@@ -10,12 +10,17 @@ const assertWebProtection = (response: Response) => {
 const landing = await fetch(new URL("/", baseUrl));
 assert.equal(landing.status, 200);
 assertWebProtection(landing);
-assert.ok((await landing.text()).includes("Bring your grantmaking together."));
+const landingPage = await landing.text();
+assert.ok(landingPage.includes("Bring your grantmaking together."));
 const mcpGuide = await fetch(new URL("/docs/mcp", baseUrl));
 assert.equal(mcpGuide.status, 200);
 assert.match(mcpGuide.headers.get("content-type") ?? "", /text\/html/);
 assertWebProtection(mcpGuide);
-assert.ok((await mcpGuide.text()).includes("/mcp/workspace"));
+const mcpGuidePage = await mcpGuide.text();
+assert.ok(mcpGuidePage.includes("/mcp/workspace"));
+for (const page of [landingPage, mcpGuidePage]) {
+  assert.ok(!page.includes("__clerk_init_state"), "Public site pages carry no account state");
+}
 const signIn = await fetch(new URL("/app/sign-in", baseUrl));
 assert.equal(signIn.status, 200);
 assertWebProtection(signIn);

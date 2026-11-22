@@ -68,8 +68,9 @@ const PageError = ({ error }: ErrorComponentProps) => {
 
 const Root = ({ children }: { children: ReactNode }) => {
   const { locale } = Route.useRouteContext();
-  // Theme the document from the server render onward so portaled controls inherit the page palette.
-  const productTheme = useRouterState({
+  // Decided from the server render onward: portaled controls inherit the application palette,
+  // and only application pages carry account state, leaving public site pages identical for all.
+  const inApplication = useRouterState({
     select: (state) =>
       state.matches.some(
         (match) => match.routeId === "/_product" || match.routeId === "/_administration",
@@ -77,14 +78,14 @@ const Root = ({ children }: { children: ReactNode }) => {
   });
 
   return (
-    <html lang={locale.language} dir="ltr" data-product-theme={productTheme ? "" : undefined}>
+    <html lang={locale.language} dir="ltr" data-product-theme={inApplication ? "" : undefined}>
       <head>
         <HeadContent />
       </head>
       <body>
         <MessagesProvider messages={appMessages} locale={locale}>
           <ShellAnalyticsProvider>
-            <AccountProvider>{children}</AccountProvider>
+            <AccountProvider enabled={inApplication}>{children}</AccountProvider>
           </ShellAnalyticsProvider>
           <Toasts />
           {DevelopmentTools && (

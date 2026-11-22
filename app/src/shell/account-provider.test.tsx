@@ -16,7 +16,9 @@ const auth = vi.hoisted(() => ({
   userId: "account-a" as string | null | undefined,
 }));
 vi.mock("@clerk/tanstack-react-start", () => ({
-  ClerkProvider: ({ children }: { children: ReactNode }) => children,
+  ClerkProvider: ({ children }: { children: ReactNode }) => (
+    <div data-testid="clerk-provider">{children}</div>
+  ),
   useAuth: () => auth,
 }));
 const reload = vi.fn();
@@ -48,7 +50,7 @@ it.each(["account-b", null])(
     const view = () => (
       <AnalyticsProvider client={analytics}>
         <QueryClientProvider client={client}>
-          <AccountProvider>
+          <AccountProvider enabled>
             <p>Private workspace</p>
           </AccountProvider>
         </QueryClientProvider>
@@ -78,7 +80,7 @@ it("waits for initial authentication without reloading in a loop", async () => {
 
   const view = () => (
     <QueryClientProvider client={client}>
-      <AccountProvider>
+      <AccountProvider enabled>
         <p>Workspace</p>
       </AccountProvider>
     </QueryClientProvider>
@@ -94,6 +96,39 @@ it("waits for initial authentication without reloading in a loop", async () => {
 
   auth.userId = "account-b";
   rendered.rerender(view());
+
+  await waitFor(() => expect(reload).toHaveBeenCalledTimes(1));
+});
+
+it("renders public site pages without account state", () => {
+  render(
+    <QueryClientProvider client={createQueryClient()}>
+      <AccountProvider enabled={false}>
+        <p>Landing page</p>
+      </AccountProvider>
+    </QueryClientProvider>,
+  );
+
+  expect(screen.getByText("Landing page")).toBeVisible();
+  expect(screen.queryByTestId("clerk-provider")).not.toBeInTheDocument();
+});
+
+it("notices an account switch made while a public site page was open", async () => {
+  const client = createQueryClient();
+
+  const view = (enabled: boolean) => (
+    <QueryClientProvider client={client}>
+      <AccountProvider enabled={enabled}>
+        <p>Page</p>
+      </AccountProvider>
+    </QueryClientProvider>
+  );
+
+  const rendered = render(view(true));
+  await waitFor(() => expect(screen.getByText("Page")).toBeVisible());
+  rendered.rerender(view(false));
+  auth.userId = "account-b";
+  rendered.rerender(view(true));
 
   await waitFor(() => expect(reload).toHaveBeenCalledTimes(1));
 });

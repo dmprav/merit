@@ -32,7 +32,8 @@ const AuthenticatedAccount = () => {
         errorMessage: t("signOutError"),
         run: async () => {
           await clearDrafts();
-          await clerk.signOut({ redirectUrl: "/" });
+          // A fresh load: site pages lack the account provider that discards this session's state.
+          await clerk.signOut(() => globalThis.location.assign("/"));
         },
       }}
     />
