@@ -1,5 +1,13 @@
 import { test, expect } from "@merit/test-support/browser";
 
+test.beforeEach(() => {
+  if (process.platform === "darwin" && !process.env.MERIT_ALLOW_DARWIN_VISUAL) {
+    throw new Error(
+      "Visual baselines are standardized on Linux CI snapshots. Run: vp run test:browser:stories:container",
+    );
+  }
+});
+
 for (const theme of ["product", "site"]) {
   test(`control focus appearance in ${theme}`, async ({ page }) => {
     await page.goto(
