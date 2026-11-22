@@ -276,7 +276,7 @@ it("completes an independently authored review with reviewer membership and no s
   expect(JSON.stringify(managerBefore?.application.reviews)).not.toContain("PRIVATE DRAFT");
   const submission = {
     assignmentId: s.assignmentId,
-    commandId: randomUUID(),
+    commandId: "AA90F6BE-8026-4489-8EB5-5C05610807DA",
     expectedDraftRevision: 1,
   };
   expect(await s.service.submit(sam, submission)).toEqual({ status: "ok", value: { revision: 2 } });

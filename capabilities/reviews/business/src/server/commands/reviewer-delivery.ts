@@ -28,7 +28,10 @@ export const deliverReviewerMessage = async (
   if (!record || !message || message.status === "sent") {
     return;
   }
-  if (submissionCommandId && (message.id !== submissionCommandId || message.status !== "pending")) {
+  if (
+    submissionCommandId &&
+    (message.id !== submissionCommandId.toLowerCase() || message.status !== "pending")
+  ) {
     return;
   }
   if (
