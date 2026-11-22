@@ -7,8 +7,6 @@ import {
 
 import { RoutedLink } from "../../shared/routed-link";
 
-export type { Contact } from "@merit/contacts-web/contracts";
-
 export const ContactPicker = (props: ComponentProps<typeof Picker>) => <Picker {...props} />;
 
 export const ContactsDirectory = (
