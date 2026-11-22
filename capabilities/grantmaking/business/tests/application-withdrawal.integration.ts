@@ -475,14 +475,6 @@ it("rejects a withdrawal dated after today on the server's clock", async ({ scen
   expect(await s.read()).toEqual(before);
 });
 
-it("rejects withdrawing an application that is already withdrawn", async ({ scenario: s }) => {
-  expect(await s.edit(withdrawal())).toMatchObject({ status: "ok" });
-  const withdrawn = await s.read();
-
-  expect(await s.edit(withdrawal())).toEqual({ status: "invalid", error: "application_withdrawn" });
-  expect(await s.read()).toEqual(withdrawn);
-});
-
 it("rejects every write to a withdrawn case on every capability, while reads stay whole", async ({
   db,
   scenario: s,
@@ -504,6 +496,7 @@ it("rejects every write to a withdrawn case on every capability, while reads sta
     { action: "discard_revision" },
     { action: "delete" },
     { action: "save_content", content: { title: "Changed" }, contactId: randomUUID() },
+    withdrawal("Withdrawn a second time."),
   ] satisfies IntakeChange[]) {
     expect(await s.edit(change), JSON.stringify(change)).toEqual(withdrawnError);
   }

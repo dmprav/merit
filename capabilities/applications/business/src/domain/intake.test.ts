@@ -16,6 +16,7 @@ import {
   prepareIntakeChange as prepareIntakeCommand,
   canDeleteApplication as canDeleteCase,
   canEditIntakeContent,
+  canStartIntakeRevision,
   isWithdrawn,
   latestWithdrawalDate,
   type IntakeApplication,
@@ -698,7 +699,7 @@ describe("withdrawal", () => {
       author,
     );
 
-    expect(result).toMatchObject({
+    expect(result).toEqual({
       ok: true,
       action: "reinstate",
       reason: "The applicant returned.",
@@ -749,6 +750,16 @@ describe("withdrawal", () => {
     expect(canEditIntakeContent(preparing, working)).toBe(true);
     expect(canDeleteCase(withdrawn.application, usage(withdrawn.application))).toBe(false);
     expect(canEditIntakeContent(withdrawn.application, working)).toBe(false);
+  });
+
+  it("offers no revision of ready material while withdrawn", () => {
+    const withdrawn = prepareIntakeChange(ready(), null, withdraw, author);
+    if (!withdrawn.ok) {
+      throw new Error("Expected a withdrawal");
+    }
+
+    expect(canStartIntakeRevision(ready(), null)).toBe(true);
+    expect(canStartIntakeRevision(withdrawn.application, null)).toBe(false);
   });
 });
 
