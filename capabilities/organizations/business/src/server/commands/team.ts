@@ -10,14 +10,12 @@ import type { Dependencies } from "../dependencies";
 import { recordOrganizationEvent } from "../persistence/commands/events";
 import type { Invitation } from "../persistence/commands/invitations";
 import * as persistence from "../persistence/commands/team";
-import { missingTeamWorkspace } from "../persistence/team";
 import { writeWorkspace } from "../persistence/tenant";
 import { fail } from "../result";
 import { issueInvitation } from "./issue-invitation";
 
 const workspace = async (tx: Transaction, slug: string, actor: string) => {
-  const organization =
-    (await persistence.lockWorkspace(tx, slug)) ?? fail(await missingTeamWorkspace(tx));
+  const organization = (await persistence.lockWorkspace(tx, slug)) ?? fail("not_found");
   const member = (await persistence.readSubject(tx, organization.id, actor)) ?? fail("forbidden");
   return { organization, member };
 };

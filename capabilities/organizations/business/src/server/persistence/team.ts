@@ -1,4 +1,4 @@
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 
 import { appUsers } from "@merit/auth/schema";
 import type { Transaction } from "@merit/db";
@@ -32,10 +32,3 @@ export const pending = (organizationId: string) =>
     isNull(invitations.revokedAt),
     isNull(invitations.acceptedAt),
   );
-
-export const missingTeamWorkspace = async (tx: Transaction) => {
-  const result = await tx.execute<{ present: boolean }>(
-    sql`select merit_team_workspace_exists() as present`,
-  );
-  return result.rows[0]?.present ? "forbidden" : "not_found";
-};
