@@ -11,7 +11,11 @@ const sendRequest = (provider: "Mailpit" | "Resend", url: string | URL, options:
     async (span) => {
       let response: Response;
       try {
-        response = await fetch(url, { ...options, signal: AbortSignal.timeout(10000) });
+        response = await fetch(url, {
+          ...options,
+          redirect: "error",
+          signal: AbortSignal.timeout(10000),
+        });
       } catch (error) {
         span.setStatus({ code: SpanStatusCode.ERROR, message: "EmailDeliveryNetworkError" });
         reportError(error, {
@@ -22,6 +26,8 @@ const sendRequest = (provider: "Mailpit" | "Resend", url: string | URL, options:
         throw new Error("Email delivery request failed.");
       }
 
+      // Delivery is decided by the response status even if discarding its body fails.
+      await response.body?.cancel().catch(() => undefined);
       span.setAttribute("http.response.status_code", response.status);
       if (!response.ok) {
         span.setStatus({ code: SpanStatusCode.ERROR, message: `HTTP ${response.status}` });
@@ -111,7 +117,9 @@ export const createEmailSender = ({
   from: string;
   resendKey: string;
   mailpitUrl?: string;
-}): EmailSender =>
-  mailpitUrl
+}): EmailSender => {
+  const send = mailpitUrl
     ? createMailpitSender({ from, url: mailpitUrl })
     : createResendSender({ from, key: resendKey });
+  return (message) => send({ ...message, subject: message.subject.replace(/[\r\n]+/g, " ") });
+};
