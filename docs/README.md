@@ -16,6 +16,8 @@ and examples maintained beside the code.
 - **Deploy or provision access:** [deployment](guides/deployment.md) and
   [organization operations](guides/organizations.md).
 - **Use agent workflows:** [feature building](../.agents/skills/build-feature/SKILL.md),
+  [bug fixing](../.agents/skills/fix-bug/SKILL.md), with their shared
+  [grilling](../.agents/skills/grill/SKILL.md) and [diagnosis](../.agents/skills/diagnose/SKILL.md) steps,
   [documentation review](../.agents/tasks/documentation-review.md),
   [test review](../.agents/tasks/test-review.md), and
   [verification review](../.agents/tasks/verification-review.md).
