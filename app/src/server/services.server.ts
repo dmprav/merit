@@ -16,6 +16,7 @@ import { createReviewerService } from "@merit/reviews/server";
 import {
   applicationReviewWork,
   contactReviewWork,
+  isCurrentAssessment,
   revokeMembershipReviews,
 } from "@merit/reviews/server/integrations";
 import { createRoundsService } from "@merit/rounds/server";
@@ -52,7 +53,7 @@ export const createApplicationServices = ({
   );
   const recommendations = instrumentService(
     "recommendations",
-    createRecommendationsService({ database }),
+    createRecommendationsService({ database, isCurrentAssessment }),
   );
   const reviews = instrumentService("reviews", createReviewService({ database }));
 

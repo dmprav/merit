@@ -10,6 +10,7 @@ import { actor } from "@merit/organizations/testing/workspace";
 import { saveFundingRecommendation } from "@merit/recommendations/server";
 import { reviewRevisionSchema, type ReviewChange } from "@merit/reviews/domain";
 import { createReviewerService, saveApplicationReview } from "@merit/reviews/server";
+import { isCurrentAssessment } from "@merit/reviews/server/integrations";
 import { criteriaVersionSchema } from "@merit/rounds/domain";
 
 import {
@@ -575,16 +576,21 @@ it("rejects every write to a withdrawn case on every capability, while reads sta
     }),
   ).toEqual({ status: "invalid", error: "application_withdrawn" });
   expect(
-    await saveFundingRecommendation(db, actor, {
-      ...s.address,
-      expectedRevision: withdrawn.recommendationVersion,
-      expectedApplicationVersion: withdrawn.application.version,
-      recommendation: {
-        position: "Fund",
-        allocation: { currency: "EUR", minorUnits: "100" },
-        reasoning: "Changed after withdrawal",
+    await saveFundingRecommendation(
+      db,
+      actor,
+      {
+        ...s.address,
+        expectedRevision: withdrawn.recommendationVersion,
+        expectedApplicationVersion: withdrawn.application.version,
+        recommendation: {
+          position: "Fund",
+          allocation: { currency: "EUR", minorUnits: "100" },
+          reasoning: "Changed after withdrawal",
+        },
       },
-    }),
+      isCurrentAssessment,
+    ),
   ).toEqual(withdrawnError);
 
   // Nothing changed, and the whole case remains readable.
@@ -801,16 +807,21 @@ it("excludes withdrawn applications from every total and discloses how many", as
     withdrawnApplications: 2,
   });
   expect(
-    await saveFundingRecommendation(db, actor, {
-      ...s.sibling,
-      expectedRevision: siblingPage.recommendationVersion,
-      expectedApplicationVersion: siblingPage.application.version,
-      recommendation: {
-        position: "Fund",
-        allocation: { currency: "EUR", minorUnits: "9500" },
-        reasoning: "Uses the budget the withdrawn application released.",
+    await saveFundingRecommendation(
+      db,
+      actor,
+      {
+        ...s.sibling,
+        expectedRevision: siblingPage.recommendationVersion,
+        expectedApplicationVersion: siblingPage.application.version,
+        recommendation: {
+          position: "Fund",
+          allocation: { currency: "EUR", minorUnits: "9500" },
+          reasoning: "Uses the budget the withdrawn application released.",
+        },
       },
-    }),
+      isCurrentAssessment,
+    ),
   ).toMatchObject({
     status: "ok",
     totals: { proposed: fromMinorUnits(9500n), withdrawnApplications: 2 },

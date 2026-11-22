@@ -35,7 +35,11 @@ const reviewerSummarySchema = z.object({
   materialChanged: z.boolean(),
   criteriaChanged: z.boolean(),
   conflict: z.string(),
-  delivery: z.enum(["pending", "sent", "failed"]),
+  delivery: z
+    .enum(["pending", "sent", "failed"])
+    .describe(
+      "Invitation email status. 'sent' means the email sender accepted the message. Inbox receipt is unverified.",
+    ),
   notification: z.enum(["pending", "sent", "failed"]).nullable(),
   expiresAt: z.string(),
 });
@@ -46,7 +50,6 @@ export const reviewerSavedSchema = z.object({
 export const reviewerListSchema = z.object({
   status: z.literal("ok"),
   assignments: z.array(reviewerSummarySchema),
-  nextCursor: z.string().nullable(),
 });
 export const reviewerPageSchema = z.object({
   status: z.literal("ok"),
@@ -69,17 +72,18 @@ export const pageInput = z.strictObject({
 });
 
 /** Existing authorized services return complete lists; paginate their visible results. */
-export const pageItems = <T>(
+export const pageAssignments = <T extends { id: string }, Input extends z.infer<typeof pageInput>>(
   items: T[],
-  input: z.infer<typeof pageInput>,
-  key: (item: T) => string,
+  input: Input,
 ) => {
   const sorted = items
-    .filter((item) => input.after === undefined || key(item) > input.after)
-    .sort((a, b) => (key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0));
+    .filter((item) => input.after === undefined || item.id > input.after)
+    .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   const page = sorted.slice(0, input.limit);
+  const last = page.at(-1);
   return {
-    items: page,
-    nextCursor: sorted.length > input.limit ? key(page[page.length - 1]!) : null,
+    assignments: page,
+    nextPage:
+      sorted.length > input.limit && last !== undefined ? { ...input, after: last.id } : null,
   };
 };

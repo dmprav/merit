@@ -20,6 +20,7 @@ import { readWorkspace } from "@merit/organizations/transactions";
 import { saveFundingRecommendation } from "@merit/recommendations/server";
 import { reviewRevisionSchema } from "@merit/reviews/domain";
 import { saveApplicationReview } from "@merit/reviews/server";
+import { isCurrentAssessment } from "@merit/reviews/server/integrations";
 import { criteriaVersionSchema } from "@merit/rounds/domain";
 import type { RoundChange } from "@merit/rounds/domain";
 import { createFundingRound, editFundingRound, deleteFundingRound } from "@merit/rounds/server";
@@ -724,12 +725,17 @@ describe("funding-round preparation", () => {
     const address = await create(db);
     const applicationAddress = await createReadyApplication(db, address.publicId);
     await addManager(db);
-    const saved = await saveFundingRecommendation(db, actor, {
-      ...applicationAddress,
-      expectedRevision: 0,
-      expectedApplicationVersion: 1,
-      recommendation,
-    });
+    const saved = await saveFundingRecommendation(
+      db,
+      actor,
+      {
+        ...applicationAddress,
+        expectedRevision: 0,
+        expectedApplicationVersion: 1,
+        recommendation,
+      },
+      isCurrentAssessment,
+    );
     assert(saved.status === "ok");
 
     expect(
@@ -871,6 +877,9 @@ describe("funding-round preparation", () => {
     });
     expect(toDecimal(page.round.budget!)).toBe("0.00");
     expect(page.preparation.revision).toBe(0);
+    expect(page.preparation.budgetHistory).toMatchObject([
+      { action: "round.created", reason: null, before: null, after: { minorUnits: "0" } },
+    ]);
   });
 
   it("retains IDs through renaming and reordering criteria with duplicate titles", async ({

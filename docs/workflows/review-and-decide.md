@@ -104,7 +104,7 @@ same transaction as its grant-work change, so a rejected or
 conflicting write leaves none and a failure to record it leaves the change unsaved.
 
 Activity loads 50 entries at a time and loads the next page as the reader approaches
-the end, with a manual loading control also available (MCP: follow `nextCursor`).
+the end, with a manual loading control also available (MCP: follow `nextPage`).
 A failed read keeps loaded entries visible and offers a retry. The **Round** filter matches the round and its
 applications, including their review requests, reviewer responses, assessments, and
 recommendations; **Person** matches the

@@ -7,6 +7,12 @@ revisions, and record changes atomically through [Audit](../../audit/business/RE
 Creation receipts survive deletion in their own table. The explicit `budgetEstablished`
 flag preserves budget-change rules without relying on retained history.
 
+[History readers](src/server/persistence/queries/history.ts) project the original
+budget and subsequent changes from the recorded round snapshots. They return
+exact before and after amounts and the recorded reason. A round created without
+a budget enters the budget timeline when its first amount is set. Grantmaking
+authorizes access before composing the timeline or the full preparation history.
+
 `@merit/rounds/api` is browser-safe. `@merit/rounds/server` supplies the service
 factory and authorized operations. `/schema`, `/scope`, and `/readers`
 serve approved server readers; `/locks` exposes only the round lock. `/server/demo`

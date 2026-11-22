@@ -22,12 +22,13 @@ const lifecycle = [
   ],
   [
     "save_application_revision",
-    "Save the requested working revision. Retain the original intakeRevision and explanation. Preserve questionId for existing sections; assign new UUIDs only to new sections.",
+    "Save edits to the open correction or revision as a draft. The existing recorded material stays current. A request to save the draft is complete after this call. Use the intakeRevision the edits were based on. Include the user's reason for the change and retain the existing explanation if none is supplied. Preserve questionId for existing sections and assign new UUIDs only to new sections.",
     intakeChanges.saveRevision,
+    "draft_saved",
   ],
   [
     "publish_application_revision",
-    "Publish the working intake revision, preserving the previous evidence. This is not a funding decision or public release.",
+    "Replace the current recorded material with the saved draft. Use this to make a correction or revision current when requested. Keeping the recorded version current means keeping the existing material in place: stop after saving the draft. If the intended version is unclear, ask before replacing it. Earlier versions remain available as evidence. Publication is internal to application intake.",
     intakeChanges.publishRevision,
   ],
   [
@@ -89,10 +90,17 @@ export const createApplicationTools = (actor: Actor, applications: ApplicationsS
     {
       errorSchema: writeErrorSchema,
       description:
-        "Save changed intake fields or staff summary. Supply expectedIntakeRevision for intake content; staff summary applies directly. Omitted content fields stay unchanged. Preserve questionId across edits and reordering; new sections need new UUIDs. Create shared contacts with contact tools and select their contactId. Suggestions remain unsaved until saving is requested.",
+        "Save application intake edits when requested. Leave suggested edits unsaved. The details action replaces the shared staff summary. Use it only when the user asks to edit that summary. A pending review belongs in request_review and requires a named reviewer. If the reviewer is undecided, ask who should review the application and stop before writing. Supply expectedIntakeRevision for intake content. Omitted content fields stay unchanged. Preserve questionId across edits and reordering; new sections need new UUIDs. Create shared contacts with contact tools and select their contactId.",
       inputSchema: applicationReadInput.extend({
         expectedIntakeRevision: revision.optional(),
-        change: z.discriminatedUnion("action", [intakeChanges.saveContent, intakeChanges.details]),
+        change: z.discriminatedUnion("action", [
+          intakeChanges.saveContent,
+          intakeChanges.details.extend({
+            summary: intakeChanges.details.shape.summary.describe(
+              "Replacement text for an explicitly requested staff summary edit. Review tracking belongs to review requests.",
+            ),
+          }),
+        ]),
       }),
       outputSchema: applicationSavedSchema,
     },
@@ -114,7 +122,7 @@ export const createApplicationTools = (actor: Actor, applications: ApplicationsS
     {
       errorSchema: writeErrorSchema,
       description:
-        "Associate or clear the shared applicant contact directly. Contact details remain owned by the contact.",
+        "Set or clear the shared applicant contact on one application. Contact details remain owned by the contact. If the user also asks which applications the person is linked to, call list_contact_applications with their contactId after saving the link.",
       inputSchema: selectContactRequestSchema
         .omit({ publicId: true, expectedRevision: true })
         .extend({ applicationId: publicIdSchema, expectedIntakeRevision: revision.optional() }),
@@ -137,7 +145,7 @@ const createIntakeLifecycleTools = (
   actor: Actor,
   applications: Pick<ApplicationsService, "editApplication">,
 ) => {
-  return lifecycle.map(([name, description, change]) => {
+  return lifecycle.map(([name, description, change, materialEffect]) => {
     const { action, ...fieldsSchema } = change.shape;
     return defineActorTool(
       actor,
@@ -146,7 +154,9 @@ const createIntakeLifecycleTools = (
         errorSchema: writeErrorSchema,
         description,
         inputSchema: intakeBase.extend(fieldsSchema),
-        outputSchema: applicationSavedSchema,
+        outputSchema: materialEffect
+          ? applicationSavedSchema.extend({ materialEffect: z.literal(materialEffect) })
+          : applicationSavedSchema,
       },
       async ({ applicationId, expectedIntakeRevision, workspaceSlug, ...fields }) => {
         const command = editApplicationRequestSchema.parse({
@@ -157,7 +167,12 @@ const createIntakeLifecycleTools = (
         });
         const result = await applications.editApplication(actor, command);
         return result.status === "ok"
-          ? { status: "ok" as const, applicationId, intakeRevision: result.revision }
+          ? {
+              status: "ok" as const,
+              applicationId,
+              intakeRevision: result.revision,
+              ...(materialEffect && { materialEffect }),
+            }
           : result;
       },
     );

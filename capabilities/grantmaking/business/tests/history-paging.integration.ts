@@ -7,6 +7,7 @@ import type { Database } from "@merit/db";
 import {
   applicationAuditHistory,
   getFundingApplicationPage,
+  listFundingRoundHistory,
   roundBudgetHistory,
 } from "@merit/grantmaking/server";
 import { actor, workspaceTest as it, workspaceSlug } from "@merit/organizations/testing/workspace";
@@ -138,6 +139,73 @@ it("pages a round's budget changes without its other events", async ({ db }) => 
     { action: "round.budget_changed", reason: "Updated funding", before: null, after: "100000" },
   ]);
   expect(older.nextCursor).toBeNull();
+});
+
+it("pages the original budget and its reason after later changes and a creation retry", async ({
+  db,
+}) => {
+  const request = {
+    workspaceSlug,
+    requestId: randomUUID(),
+    title: "Local grants",
+    budget: "0",
+    budgetReason: "Awaiting donor approval",
+  };
+  const created = await createFundingRound(db, actor, request);
+  assert(created.status === "ok");
+  const roundId = created.publicId;
+  await changeBudgets(db, roundId, 1);
+  expect(
+    await createFundingRound(db, actor, {
+      ...request,
+      budget: "400",
+      budgetReason: "Changed retry",
+    }),
+  ).toEqual(created);
+
+  const preparation = await listFundingRoundHistory(db, actor, { workspaceSlug, roundId });
+  expect(preparation).toMatchObject({
+    status: "ok",
+    entries: [
+      {
+        revision: 0,
+        budgetChange: {
+          before: null,
+          after: { currency: "EUR", minorUnits: "0" },
+          reason: "Awaiting donor approval",
+        },
+      },
+      {
+        revision: 1,
+        budgetChange: {
+          before: { currency: "EUR", minorUnits: "0" },
+          after: { currency: "EUR", minorUnits: "100000" },
+          reason: "Updated funding",
+        },
+      },
+    ],
+  });
+  const current = await roundBudgetHistory(db, actor, { workspaceSlug, roundId, limit: 1 });
+  assert(current.status === "ok" && current.nextCursor);
+  expect(current.entries).toMatchObject([
+    { revision: 1, before: { minorUnits: "0" }, after: { minorUnits: "100000" } },
+  ]);
+  expect(
+    await roundBudgetHistory(db, actor, { workspaceSlug, roundId, after: current.nextCursor }),
+  ).toMatchObject({
+    status: "ok",
+    entries: [
+      {
+        action: "round.created",
+        revision: 0,
+        actor: "Dana Reed",
+        reason: request.budgetReason,
+        before: null,
+        after: { currency: "EUR", minorUnits: "0" },
+      },
+    ],
+    nextCursor: null,
+  });
 });
 
 it("hides application and budget histories outside the reader's workspace", async ({ db }) => {

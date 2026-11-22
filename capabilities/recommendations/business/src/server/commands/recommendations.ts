@@ -1,7 +1,7 @@
 import { lockApplicationCase } from "@merit/applications/locks";
 import { recordAuditEvent } from "@merit/audit/server/record";
 import { actorProvenance, type Actor } from "@merit/auth";
-import type { Database } from "@merit/db";
+import type { Database, Transaction } from "@merit/db";
 import { compare } from "@merit/money";
 import { writeWorkspace } from "@merit/organizations/transactions";
 
@@ -16,6 +16,12 @@ import {
   writeRecommendation,
 } from "../persistence/commands/recommendations";
 
+export type IsCurrentAssessment = (
+  tx: Transaction,
+  caseId: string,
+  expected: NonNullable<SaveRecommendationRequest["expectedCurrentAssessment"]>,
+) => Promise<boolean>;
+
 const decodeOrNull = (input: SaveRecommendationRequest["recommendation"]) => {
   try {
     return decodeRecommendation(input);
@@ -28,6 +34,7 @@ export const saveFundingRecommendation = async (
   db: Database,
   actor: Actor,
   input: SaveRecommendationRequest,
+  isCurrentAssessment: IsCurrentAssessment,
 ) => {
   const parsed = saveRecommendationRequestSchema.safeParse(input);
   if (!parsed.success) {
@@ -54,7 +61,9 @@ export const saveFundingRecommendation = async (
     const { application, round } = row;
     if (
       row.recommendationVersion !== request.expectedRevision ||
-      application.version !== request.expectedApplicationVersion
+      application.version !== request.expectedApplicationVersion ||
+      (request.expectedCurrentAssessment &&
+        !(await isCurrentAssessment(tx, request.publicId, request.expectedCurrentAssessment)))
     ) {
       return { status: "conflict" } as const;
     }
@@ -64,12 +73,8 @@ export const saveFundingRecommendation = async (
       return { status: "invalid", error: "invalid_recommendation" } as const;
     }
 
-    const result = prepareRecommendation(
-      round,
-      application,
-      recommendation,
-      new Date().toISOString().slice(0, 10),
-    );
+    const recordedOn = new Date().toISOString().slice(0, 10);
+    const result = prepareRecommendation(round, application, recommendation, recordedOn);
     if (!result.ok) {
       return { status: "invalid", error: result.error } as const;
     }
@@ -82,15 +87,17 @@ export const saveFundingRecommendation = async (
 
     const previous = application.managerRecommendation;
     const next = result.recommendation;
-    const unchanged = sameRecommendation(previous, next);
-    if (previous && unchanged) {
+    const summary = {
+      status: "ok" as const,
+      budget: round.budget,
+      totals: { ...result.totals, withdrawnApplications: round.totals.withdrawnApplications },
+    };
+    if (previous && sameRecommendation(previous, next)) {
       return {
-        status: "ok",
+        ...summary,
         recommendation: previous,
         recommendationVersion: row.recommendationVersion,
-        budget: round.budget,
-        totals: { ...result.totals, withdrawnApplications: round.totals.withdrawnApplications },
-      } as const;
+      };
     }
 
     const saved = await writeRecommendation(tx, {
@@ -107,17 +114,15 @@ export const saveFundingRecommendation = async (
     await recordRecommendationEvent(tx, { identity, actor, row, request, next });
 
     return {
-      status: "ok",
-      recommendation: result.recommendation,
+      ...summary,
+      recommendation: next,
       recommendationVersion: row.recommendationVersion + 1,
-      budget: round.budget,
-      totals: { ...result.totals, withdrawnApplications: round.totals.withdrawnApplications },
-    } as const;
+    };
   });
 };
 
 const recordRecommendationEvent = async (
-  tx: Parameters<Parameters<Database["transaction"]>[0]>[0],
+  tx: Transaction,
   {
     identity,
     actor,

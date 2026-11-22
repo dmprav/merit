@@ -230,7 +230,7 @@ describe("workspace MCP contracts", () => {
       expect(
         (await client.callTool("list_funding_rounds", { workspaceSlug: "alder" }))
           .structuredContent,
-      ).toEqual(outcome);
+      ).toEqual(outcome.status === "ok" ? { status: "ok", rounds: [], nextPage: null } : outcome);
     } finally {
       await client.close();
     }
@@ -309,7 +309,13 @@ describe("workspace MCP contracts", () => {
           },
         ],
         people: [{ id: "private-person", name: "Private Person" }],
-        nextCursor: "cursor",
+        nextPage: {
+          workspaceSlug: "alder",
+          roundId: id,
+          personId: "dana",
+          after: "cursor",
+          limit: 3,
+        },
       });
     } finally {
       await client.close();

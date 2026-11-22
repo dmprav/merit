@@ -54,6 +54,7 @@ it("reads authorized case context and material by application ID without round i
       criteriaVersion: 1,
       roundPreparationRevision: 0,
       requested: { minorUnits: "2501", currency: "EUR" },
+      requestedDisplay: "€25.01",
     },
   });
   const material = await getFundingApplicationContent(db, actor, {

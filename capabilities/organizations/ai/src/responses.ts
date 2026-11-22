@@ -1,6 +1,7 @@
 import { z } from "zod";
 
-import { workspaceSlugSchema } from "@merit/organizations/api";
+import { cursorPage } from "@merit/ai/contracts";
+import { teamPageInput, workspacePageInput, workspaceSlugSchema } from "@merit/organizations/api";
 
 import type { WorkspaceOperations } from "./operations";
 
@@ -21,7 +22,7 @@ export const memberPageSchema = z.object({
       version: z.number().int().nonnegative(),
     }),
   ),
-  nextCursor: z.string().nullable(),
+  nextPage: teamPageInput.required({ after: true }).nullable(),
 });
 
 export const workspaceListSchema = z.object({
@@ -40,25 +41,27 @@ export const workspaceListSchema = z.object({
       url: z.url(),
     }),
   ),
-  nextCursor: z.string().nullable(),
+  nextPage: workspacePageInput.required({ after: true }).nullable(),
 });
 
 export const presentWorkspaces = (
+  input: z.output<typeof workspacePageInput>,
   result: Awaited<ReturnType<WorkspaceOperations["workspacesPage"]>>,
   workspaceHomeUrl: WorkspaceOperations["workspaceHomeUrl"],
-) => ({
-  status: "ok" as const,
-  workspaces: result.value.map((workspace) => ({
-    id: workspace.id,
-    name: workspace.name,
-    slug: workspace.slug,
-    kind: workspace.kind,
-    demoExpiresAt: workspace.demoExpiresAt,
-    role: workspace.role,
-    administration: workspace.administration,
-    canWorkOnGrants: workspace.canWorkOnGrants,
-    canViewTeam: workspace.canViewTeam,
-    url: workspaceHomeUrl(workspace),
-  })),
-  nextCursor: result.nextCursor,
-});
+) =>
+  cursorPage(input, {
+    status: "ok" as const,
+    workspaces: result.value.map((workspace) => ({
+      id: workspace.id,
+      name: workspace.name,
+      slug: workspace.slug,
+      kind: workspace.kind,
+      demoExpiresAt: workspace.demoExpiresAt,
+      role: workspace.role,
+      administration: workspace.administration,
+      canWorkOnGrants: workspace.canWorkOnGrants,
+      canViewTeam: workspace.canViewTeam,
+      url: workspaceHomeUrl(workspace),
+    })),
+    nextCursor: result.nextCursor,
+  });

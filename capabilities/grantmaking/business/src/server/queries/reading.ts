@@ -5,6 +5,7 @@ import type { Database } from "@merit/db";
 import { decodeMoney, encodeMoney, fromMinorUnits, subtract } from "@merit/money";
 import { readWorkspace } from "@merit/organizations/transactions";
 import { compareReviewBasis, reviewCriteriaSchema, reviewFreshness } from "@merit/reviews/domain";
+import { readRoundPreparationHistory } from "@merit/rounds/readers";
 
 import {
   reviewListInput,
@@ -46,10 +47,11 @@ export const listFundingRoundSummaries = async (
     }
     const rows = await reads.readRoundSummaries(tx, actor.userId, request);
     const items = rows.slice(0, request.limit).map((row) => roundSummarySchema.parse(row));
+    const last = items.at(-1);
     return {
       status: "ok",
       rounds: items,
-      nextCursor: rows.length > request.limit ? items.at(-1)!.roundId : null,
+      nextCursor: rows.length > request.limit && last ? last.roundId : null,
     } as const;
   });
 };
@@ -231,17 +233,15 @@ export const listFundingRoundHistory = async (
     if (!access?.allowed) {
       return { status: "not_found" } as const;
     }
-    const rows = await reads.readGrantHistory(tx, actor.userId, {
-      ...request,
-      history: "preparation",
-    });
+    const rows = await readRoundPreparationHistory(tx, access.organizationId, request);
     const entries = rows
       .slice(0, request.limit)
       .map((row) => ({ ...row, recordedAt: row.recordedAt.toISOString() }));
+    const last = entries.at(-1);
     return {
       status: "ok",
       entries,
-      nextRevision: rows.length > request.limit ? entries.at(-1)!.revision : null,
+      nextRevision: rows.length > request.limit && last ? last.revision : null,
     } as const;
   });
 };
@@ -261,7 +261,7 @@ export const listFundingApplicationHistory = async (
     if (!access?.allowed) {
       return { status: "not_found" } as const;
     }
-    const rows = await reads.readGrantHistory(tx, actor.userId, request);
+    const rows = await reads.readApplicationHistorySummaries(tx, actor.userId, request);
     const entries = rows
       .slice(0, request.limit)
       .map((row) => ({ ...row, recordedAt: row.recordedAt.toISOString() }));

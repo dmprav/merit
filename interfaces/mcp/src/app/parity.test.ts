@@ -55,6 +55,14 @@ type DispatchCase = {
 };
 
 const roundId = "b8q3w5j7c2df";
+const listedRound = {
+  roundId,
+  title: "Community grants",
+  preparationRevision: 0,
+  criteriaVersion: 1,
+  budget: null,
+  applicationCount: 0,
+};
 const recommendation = {
   position: "Fund",
   allocation: { minorUnits: "4050", currency: "EUR" },
@@ -76,7 +84,7 @@ const dispatchCases: DispatchCase[] = [
     fn: (o) => o.reviewer.list,
     input: undefined,
     result: { status: "ok", value: [] },
-    response: { status: "ok", assignments: [], nextCursor: null },
+    response: { status: "ok", assignments: [], nextPage: null },
   },
   {
     name: "get_reviewer_assignment",
@@ -90,7 +98,7 @@ const dispatchCases: DispatchCase[] = [
     fn: (o) => o.reviewer.forApplication,
     input: { workspaceSlug: "alder", publicId: applicationId },
     result: { status: "ok", value: [] },
-    response: { status: "ok", assignments: [], nextCursor: null },
+    response: { status: "ok", assignments: [], nextPage: null },
   },
   {
     name: "invite_reviewer",
@@ -156,7 +164,7 @@ const dispatchCases: DispatchCase[] = [
     fn: (o) => o.organizations.membersPage,
     input: { workspaceSlug: "alder", limit: 20 },
     result: { status: "ok", value: { members: [], nextCursor: null } },
-    response: { status: "ok", members: [], nextCursor: null },
+    response: { status: "ok", members: [], nextPage: null },
   },
   {
     name: "start_demo",
@@ -229,6 +237,7 @@ const dispatchCases: DispatchCase[] = [
       ...address,
       expectedRecommendationRevision: 2,
       expectedApplicationVersion: 1,
+      expectedCurrentAssessment: { id: "5c9c099c-fb4f-426c-81a0-5fa354b5bd0a", version: 2 },
       recommendation,
     },
     fn: (o) => o.recommendations.saveRecommendation,
@@ -237,6 +246,7 @@ const dispatchCases: DispatchCase[] = [
       publicId: applicationId,
       expectedRevision: 2,
       expectedApplicationVersion: 1,
+      expectedCurrentAssessment: { id: "5c9c099c-fb4f-426c-81a0-5fa354b5bd0a", version: 2 },
       recommendation,
     },
     result: { status: "conflict" },
@@ -256,7 +266,7 @@ const dispatchCases: DispatchCase[] = [
     response: {
       status: "ok",
       entries: [{ action: "accepted", actor: "Sam", at: summary.expiresAt, note: "" }],
-      nextCursor: null,
+      nextPage: null,
     },
   },
   {
@@ -264,7 +274,12 @@ const dispatchCases: DispatchCase[] = [
     args: { workspaceSlug: "alder", archived: false },
     fn: (o) => o.contacts.listContactSummaries,
     input: { workspaceSlug: "alder", archived: false, limit: 20 },
-    result: { status: "ok", contacts: [contact], nextCursor: null },
+    result: { status: "ok", contacts: [contact], nextCursor: contactId },
+    response: {
+      status: "ok",
+      contacts: [contact],
+      nextPage: { workspaceSlug: "alder", archived: false, limit: 20, after: contactId },
+    },
   },
   {
     name: "get_contact",
@@ -278,6 +293,37 @@ const dispatchCases: DispatchCase[] = [
     fn: (o) => o.grantmaking.listReviews,
     input: { ...address, limit: 20 },
     result: { status: "ok", reviews: [], nextCursor: null },
+    response: { status: "ok", reviews: [], nextPage: null },
+  },
+  {
+    name: "list_funding_rounds",
+    args: { workspaceSlug: "alder", limit: 1 },
+    fn: (o) => o.grantmaking.listRoundSummaries,
+    result: { status: "ok", rounds: [listedRound], nextCursor: roundId },
+    response: {
+      status: "ok",
+      rounds: [listedRound],
+      nextPage: { workspaceSlug: "alder", limit: 1, after: roundId },
+    },
+  },
+  {
+    name: "list_funding_round_history",
+    args: { workspaceSlug: "alder", roundId, limit: 1 },
+    fn: (o) => o.grantmaking.roundHistory,
+    result: {
+      status: "ok",
+      entries: [
+        { revision: 0, action: "round.created", recordedAt: summary.expiresAt, budgetChange: null },
+      ],
+      nextRevision: 0,
+    },
+    response: {
+      status: "ok",
+      entries: [
+        { revision: 0, action: "round.created", recordedAt: summary.expiresAt, budgetChange: null },
+      ],
+      nextPage: { workspaceSlug: "alder", roundId, limit: 1, afterRevision: 0 },
+    },
   },
   {
     name: "list_funding_round_history",
@@ -286,8 +332,37 @@ const dispatchCases: DispatchCase[] = [
     input: { workspaceSlug: "alder", roundId, limit: 20 },
     result: {
       status: "ok",
-      entries: [{ revision: 1, action: "round.budget_changed", recordedAt: summary.expiresAt }],
+      entries: [
+        {
+          revision: 1,
+          action: "round.budget_changed",
+          recordedAt: summary.expiresAt,
+          budgetChange: {
+            before: null,
+            after: { currency: "EUR", minorUnits: "105025" },
+            reason: "New grant",
+          },
+        },
+      ],
       nextRevision: null,
+    },
+    response: {
+      status: "ok",
+      entries: [
+        {
+          revision: 1,
+          action: "round.budget_changed",
+          recordedAt: summary.expiresAt,
+          budgetChange: {
+            before: null,
+            beforeDisplay: null,
+            after: { currency: "EUR", minorUnits: "105025" },
+            afterDisplay: "€1,050.25",
+            reason: "New grant",
+          },
+        },
+      ],
+      nextPage: null,
     },
   },
   {
@@ -329,6 +404,26 @@ it.each(dispatchCases)(
   },
 );
 
+it.each([
+  { author: { name: "Another manager" } },
+  { recorded: { date: "1999-04-05", applicationVersion: 1 } },
+])("rejects server-assigned recommendation fields %j before saving", async (fields) => {
+  const operations = testOperations();
+  const client = await connect(operations);
+  try {
+    const result = await client.callTool("save_recommendation", {
+      ...address,
+      expectedRecommendationRevision: 0,
+      expectedApplicationVersion: 1,
+      recommendation: { ...recommendation, ...fields },
+    });
+    expect(result.isError).toBe(true);
+    expect(operations.recommendations.saveRecommendation).not.toHaveBeenCalled();
+  } finally {
+    await client.close();
+  }
+});
+
 it("returns the reviewer's complete validated page and strips uncontracted fields", async () => {
   const operations = testOperations();
   const page = {
@@ -367,12 +462,12 @@ it("paginates visible assignments in stable ID order", async () => {
     expect((await client.callTool("list_my_reviews", { limit: 1 })).structuredContent).toEqual({
       status: "ok",
       assignments: [summary],
-      nextCursor: assignmentId,
+      nextPage: { limit: 1, after: assignmentId },
     });
     expect(
       (await client.callTool("list_my_reviews", { limit: 1, after: assignmentId }))
         .structuredContent,
-    ).toEqual({ status: "ok", assignments: [{ ...summary, id: commandId }], nextCursor: null });
+    ).toEqual({ status: "ok", assignments: [{ ...summary, id: commandId }], nextPage: null });
   } finally {
     await client.close();
   }

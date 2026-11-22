@@ -18,5 +18,4 @@ export const reviewerHistorySchema = z.object({
       note: z.string(),
     }),
   ),
-  nextCursor: z.string().nullable(),
 });

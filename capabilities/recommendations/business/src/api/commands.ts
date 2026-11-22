@@ -10,6 +10,9 @@ export const saveRecommendationRequestSchema = z.strictObject({
   publicId: publicIdSchema,
   expectedRevision: z.number().int().nonnegative(),
   expectedApplicationVersion: z.number().int().positive(),
+  expectedCurrentAssessment: z
+    .strictObject({ id: z.uuid(), version: z.number().int().positive() })
+    .optional(),
   recommendation: recommendationDataSchema,
 });
 

@@ -68,7 +68,7 @@ it("lists only the signed-in reviewer's assignments without workspace or MCP ser
 
   const results = await Promise.all([assignments("sam"), assignments("jules")]);
   expect(results).toEqual([
-    { status: "ok", assignments: [sam], nextCursor: null },
-    { status: "ok", assignments: [jules], nextCursor: null },
+    { status: "ok", assignments: [sam], nextPage: null },
+    { status: "ok", assignments: [jules], nextPage: null },
   ]);
 });
