@@ -46,6 +46,19 @@ keep its compact controls while leaving room for touch targets, longer translati
 and enlarged text. The [page composition guide](?path=/docs/patterns-page-composition--docs)
 applies these choices to whole screens.
 
+## Typeface
+
+**Use one typeface and let size and weight carry the hierarchy.** Merit sets all
+interface and reading text in Instrument Sans, through `--font-sans`. Its
+slightly narrow shapes keep long applicant names and recommendation labels on
+one line in dense tables, and it stays even at the 12–13px sizes used for
+captions and detail text. Emphasize with weight 500 or 600, not italics.
+Use tabular numerals for amounts and counts so columns line up.
+
+The package `@fontsource-variable/instrument-sans` serves the font from Merit
+itself. Platform fonts remain in the stack as the fallback while it loads.
+Emails keep platform fonts, because mail clients do not load web fonts reliably.
+
 ## Interaction cues
 
 **Keep focus visible alongside the control's existing state.** Tab through the
