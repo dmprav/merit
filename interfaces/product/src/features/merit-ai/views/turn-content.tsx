@@ -21,11 +21,13 @@ export type TurnActions = {
   isLive: boolean;
   /** This turn is the latest and nothing is running. */
   isSettled: boolean;
-  isResolving: boolean;
+  /** The proposal still waiting for a decision, or for one to be recorded. */
+  openProposal: string | undefined;
+  /** The choice being recorded, while it is. */
+  recording: "approved" | "declined" | null;
   decisionFailed: boolean;
   onApprove: () => void;
   onDecline: () => void;
-  onRetryDecision: () => void;
   onChoose: (question: string) => void;
 };
 
@@ -68,12 +70,11 @@ const PartView = ({ part, actions }: { part: MeritAiPart; actions: TurnActions }
       return part.name === askApplicantName && proposal.success ? (
         <Proposal
           proposal={proposal.data}
-          decision={decisionOf(part)}
-          isResolving={actions.isResolving}
+          decision={part.id === actions.openProposal ? "awaiting" : decisionOf(part)}
+          recording={part.id === actions.openProposal ? actions.recording : null}
           hasFailed={actions.decisionFailed}
           onApprove={actions.onApprove}
           onDecline={actions.onDecline}
-          onRetry={actions.onRetryDecision}
         />
       ) : null;
     }

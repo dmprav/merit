@@ -3,7 +3,8 @@ import { useTranslation } from "react-i18next";
 
 import { useLocaleSettings } from "@merit/i18n";
 import { Disclosure } from "@merit/ui/disclosure";
-import { Icon } from "@merit/ui/icon";
+import { Icon, LoadingIcon } from "@merit/ui/icon";
+import { VisuallyHidden } from "@merit/ui/visually-hidden";
 
 import type { StepContent } from "../contracts";
 import styles from "./merit-ai.module.css";
@@ -15,18 +16,15 @@ const summarize = (steps: readonly StepContent[], language: string) => {
   return sentence.charAt(0).toLocaleUpperCase(language) + sentence.slice(1);
 };
 
-const StepIcon = ({ status, isLive }: { status: StepContent["status"]; isLive: boolean }) => {
-  if (status === "done") {
+/** A step still running when the run is no longer live was cut short. */
+const stateOf = (status: StepContent["status"], isLive: boolean) =>
+  status === "done" ? "done" : isLive ? "running" : "cutShort";
+
+const StepIcon = ({ state }: { state: ReturnType<typeof stateOf> }) => {
+  if (state === "done") {
     return <Icon name="check" />;
   }
-  // A step still running when the run is no longer live was cut short.
-  return isLive ? (
-    <span className={styles.spinner}>
-      <Icon name="loading" />
-    </span>
-  ) : (
-    <Icon name="warning" />
-  );
+  return state === "running" ? <LoadingIcon /> : <Icon name="warning" />;
 };
 
 /**
@@ -47,20 +45,29 @@ export const ActivitySteps = ({
   const { t } = useTranslation("meritAi");
   const { language } = useLocaleSettings();
   const [chosen, setChosen] = useState<boolean>();
+  // Only finished work is summarized; a step cut short is not something Merit AI did.
+  const finished = steps.filter((step) => step.status === "done");
+  const summary = finished.length > 0 ? summarize(finished, language) : t("activity.stopped");
 
   return (
     <Disclosure
-      title={isWorking ? t("activity.working") : summarize(steps, language)}
+      title={isWorking ? t("activity.working") : summary}
       isExpanded={chosen ?? isWorking}
       onExpandedChange={setChosen}
     >
       <ul className={styles.steps}>
-        {steps.map((step) => (
-          <li key={step.label} className={styles.step}>
-            <StepIcon status={step.status} isLive={isLive} />
-            <span>{step.label}</span>
-          </li>
-        ))}
+        {steps.map((step) => {
+          const state = stateOf(step.status, isLive);
+          return (
+            <li key={step.label} className={styles.step}>
+              <StepIcon state={state} />
+              <span>
+                {step.label}
+                <VisuallyHidden> ({t(`activity.step.${state}`)})</VisuallyHidden>
+              </span>
+            </li>
+          );
+        })}
       </ul>
     </Disclosure>
   );

@@ -4,7 +4,6 @@ export const en = {
   close: "Close Merit AI",
   resize: "Resize Merit AI",
   conversation: "Conversation with Merit AI",
-  messages: "Messages",
   authors: { person: "You", assistant: "Merit AI" },
   message: {
     label: "Message to Merit AI",
@@ -18,7 +17,11 @@ export const en = {
     changes: "What changed in version 2, and do the reviews cover it?",
     venue: "Draft a question to the applicant about the venue",
   },
-  activity: { working: "Working…" },
+  activity: {
+    working: "Working…",
+    stopped: "Stopped before finishing",
+    step: { running: "in progress", done: "done", cutShort: "not finished" },
+  },
   proposal: {
     needsApproval: "Needs approval",
     recipient: "To",
@@ -27,6 +30,7 @@ export const en = {
     approve: "Approve",
     approving: "Approving…",
     decline: "Decline",
+    declining: "Declining…",
     approved: "Approved",
     declined: "Declined. Nothing was changed.",
     demoNotice: "Demo preview: nothing was sent.",

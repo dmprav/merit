@@ -19,7 +19,11 @@ export const Suggestions = ({
     <Stack as="ul" gap={2} aria-label={t("suggestions.label")}>
       {scripts.map((script) => (
         <li key={script}>
-          <Button variant="secondary" onPress={() => onChoose(t(`suggestions.${script}`))}>
+          <Button
+            variant="secondary"
+            alignment="fill"
+            onPress={() => onChoose(t(`suggestions.${script}`))}
+          >
             {t(`suggestions.${script}`)}
           </Button>
         </li>

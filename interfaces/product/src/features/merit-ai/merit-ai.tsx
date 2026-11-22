@@ -1,11 +1,19 @@
 import type { ConnectConnectionAdapter } from "@tanstack/ai-client";
 import { useQuery } from "@tanstack/react-query";
-import { createContext, useContext, useState, type ComponentProps, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useRef,
+  useState,
+  type ComponentProps,
+  type ReactNode,
+} from "react";
 import { useTranslation } from "react-i18next";
 
 import type { ApplicationShell } from "@merit/ui/application-shell";
 
 import { demoOptions } from "../demo/data/demo";
+import { publicIdFromRef } from "../grantmaking/contracts/resource-url";
 import { useShortcut } from "../navigation/search-shortcut";
 import type { PageContext, ScriptId } from "./contracts";
 import { useMeritAiChat } from "./controllers/use-merit-ai-chat";
@@ -13,7 +21,7 @@ import { useMeritAiPanel } from "./controllers/use-merit-ai-panel";
 import { askApplicant } from "./data/ask-applicant";
 import { panelWidthStorage } from "./data/panel-width";
 import { createScriptedConnection } from "./data/scripts";
-import { MeritAiConversation } from "./views/merit-ai-conversation";
+import { MeritAiComposer, MeritAiConversation } from "./views/merit-ai-conversation";
 
 type Companion = NonNullable<ComponentProps<typeof ApplicationShell>["companion"]>;
 
@@ -63,15 +71,28 @@ export const MeritAi = ({
     demo.data?.status === "ready" && demo.data.workspaceSlug === workspaceSlug
       ? demo.data.applicationRef
       : undefined;
+  // The page's reference is canonical (`<slug>-<id>`) and the demo's is the bare public ID.
+  const examplePublicId = exampleRef === undefined ? null : publicIdFromRef(exampleRef);
   const context: PageContext | undefined =
     panel.attachedApplicationRef === undefined
       ? undefined
       : {
           applicationRef: panel.attachedApplicationRef,
-          isExample: panel.attachedApplicationRef === exampleRef,
+          isExample:
+            examplePublicId !== null &&
+            publicIdFromRef(panel.attachedApplicationRef) === examplePublicId,
         };
   const chat = useMeritAiChat({ connection, tools: [askApplicant], context });
   useShortcut("j", panel.toggle);
+  const box = useRef<HTMLDivElement>(null);
+  const chip =
+    panel.chipTitle === undefined ? undefined : { title: panel.chipTitle, onRemove: panel.detach };
+
+  const ask = (question: string) => {
+    chat.send(question);
+    // The control that asked may leave with the question; the box is where the person carries on.
+    box.current?.querySelector("textarea")?.focus();
+  };
 
   const shell: MeritAiShell = {
     open: panel.open,
@@ -84,16 +105,9 @@ export const MeritAi = ({
       width: panel.width,
       onWidthChange: panel.saveWidth,
       children: (
-        <MeritAiConversation
-          chat={chat}
-          chip={
-            panel.chipTitle === undefined
-              ? undefined
-              : { title: panel.chipTitle, onRemove: panel.detach }
-          }
-          canSuggest={context?.isExample === true}
-        />
+        <MeritAiConversation chat={chat} canSuggest={context?.isExample === true} onAsk={ask} />
       ),
+      footer: <MeritAiComposer chat={chat} chip={chip} onSend={ask} boxRef={box} />,
     },
   };
 

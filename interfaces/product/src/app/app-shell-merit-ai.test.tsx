@@ -35,7 +35,10 @@ const demo: ShellWorkspace = {
 const standard: ShellWorkspace = { ...demo, kind: "standard", canViewTeam: true };
 
 const instant: Pace = { start: 0, word: 0, step: 0 };
-const exampleHome = "/app/alder/applications/workshop-example";
+// Real references: the demo hands out the bare public ID, and the application page's own
+// reference is the canonical `<slug>-<id>`.
+const workshopId = "k3m9p2x7t4wq";
+const exampleHome = `/app/alder/applications/workshop-saturdays-${workshopId}`;
 const question = "What changed in version 2, and do the reviews cover it?";
 
 const show = async ({
@@ -43,7 +46,14 @@ const show = async ({
   path = exampleHome,
   pace = instant,
   open = false,
-}: { workspace?: ShellWorkspace; path?: string; pace?: Pace; open?: boolean } = {}) => {
+  failDecisions = 0,
+}: {
+  workspace?: ShellWorkspace;
+  path?: string;
+  pace?: Pace;
+  open?: boolean;
+  failDecisions?: number;
+} = {}) => {
   const current: ShellContext = { kind: "workspace", workspace };
   const root = createRootRoute({
     component: () => (
@@ -76,7 +86,8 @@ const show = async ({
   render(
     <MeritAiSetup
       value={{
-        createConnection: (questions) => createScriptedConnection({ questions, pace }),
+        createConnection: (questions) =>
+          createScriptedConnection({ questions, pace, failDecisions }),
         isInitiallyOpen: open,
       }}
     >
@@ -92,8 +103,11 @@ const show = async ({
 
 let platform: MockInstance<() => string>;
 
-const wide = (matches: boolean) =>
-  Object.defineProperty(window, "matchMedia", {
+let isWide = false;
+
+const wide = (matches: boolean) => {
+  isWide = matches;
+  return Object.defineProperty(window, "matchMedia", {
     configurable: true,
     value: (query: string) => ({
       matches: matches && query === "(min-width: 1400px)",
@@ -104,6 +118,7 @@ const wide = (matches: boolean) =>
       removeListener: () => {},
     }),
   });
+};
 
 beforeEach(() => {
   platform = vi.spyOn(window.navigator, "platform", "get");
@@ -113,7 +128,7 @@ beforeEach(() => {
     status: "ready",
     workspaceSlug: "alder",
     expiresAt: "2027-01-25T12:00:00.000Z",
-    applicationRef: "workshop-example",
+    applicationRef: workshopId,
     roundRef: "local-connections-example",
   });
 });
@@ -133,10 +148,21 @@ const pressJ = (init: KeyboardEventInit, target: Element = document.body) => {
   return event;
 };
 
+/** The panel's scrolling content. */
 const panel = () => screen.findByRole("region", { name: "Merit AI" });
 
+/** The whole panel: its content and the footer below it, beside the page or as a sheet over it. */
+const surface = () => screen.findByRole(isWide ? "complementary" : "dialog", { name: "Merit AI" });
+
+/** Everything the panel's status regions are saying to assistive technology. */
+const spoken = (panel: { getAllByRole: (role: string) => HTMLElement[] }) =>
+  panel
+    .getAllByRole("status")
+    .map((region) => region.textContent)
+    .join("");
+
 const messageBox = async () =>
-  within(await panel()).getByRole("textbox", { name: "Message to Merit AI" });
+  within(await surface()).getByRole("textbox", { name: "Message to Merit AI" });
 
 /** Types a question and waits for it to be sent and answered. */
 const ask = async (user: Awaited<ReturnType<typeof show>>["user"], text: string) => {
@@ -303,7 +329,7 @@ describe("the panel's width", () => {
 describe("page context", () => {
   it("attaches the page's title as one removable chip until the page changes", async () => {
     const { user, router } = await show({ open: true });
-    const body = within(await panel());
+    const body = within(await surface());
     expect(body.getByText("Workshop Saturdays")).toBeVisible();
 
     await user.click(
@@ -325,7 +351,7 @@ describe("page context", () => {
 
   it("shows no chip on pages without a record", async () => {
     await show({ open: true, path: "/app/alder/rounds" });
-    const body = within(await panel());
+    const body = within(await surface());
 
     expect(body.queryByRole("button", { name: /Remove/ })).not.toBeInTheDocument();
     expect(
@@ -334,27 +360,43 @@ describe("page context", () => {
   });
 });
 
-describe("the conversation", () => {
-  it("suggests the recorded questions on the example, and asks one as written", async () => {
+describe("the example page", () => {
+  it("is recognised by its public ID, whatever slug its reference carries", async () => {
     const { user } = await show({ open: true });
-    const body = within(await panel());
+    const body = within(await surface());
 
     await user.click(await body.findByRole("button", { name: question }));
 
     expect(
       await body.findByText(/Version 2 raises the request from €18,000 to €22,000/),
     ).toBeVisible();
-    expect(body.getByText(/Jules Patel's review of version 2 is still outstanding/)).toBeVisible();
     expect(
       body.getByRole("button", { name: "Read 2 submissions and checked 2 review requests" }),
     ).toHaveAttribute("aria-expanded", "false");
-    expect(body.getByText("You")).toBeInTheDocument();
-    expect(body.getByText("Merit AI")).toBeInTheDocument();
+    const log = within(body.getByRole("log", { name: "Conversation with Merit AI" }));
+    expect(log.getByText("You")).toBeInTheDocument();
+    expect(log.getByText("Merit AI")).toBeInTheDocument();
   });
 
-  it("does not suggest questions on another application", async () => {
-    await show({ open: true, path: "/app/alder/applications/boat-repairs" });
-    const body = within(await panel());
+  it("is recognised when the demo's reference is itself canonical", async () => {
+    vi.mocked(readDemo).mockResolvedValue({
+      status: "ready",
+      workspaceSlug: "alder",
+      expiresAt: "2027-01-25T12:00:00.000Z",
+      applicationRef: `workshop-saturdays-${workshopId}`,
+      roundRef: "local-connections-example",
+    });
+    await show({ open: true, path: `/app/alder/applications/renamed-${workshopId}` });
+
+    expect(await within(await surface()).findByRole("button", { name: question })).toBeVisible();
+  });
+
+  it("is not another application, even one whose reference ends alike", async () => {
+    await show({
+      open: true,
+      path: "/app/alder/applications/boat-repairs-b8d5f1h6j2nr",
+    });
+    const body = within(await surface());
     await body.findByText("Workshop Saturdays");
 
     expect(
@@ -362,73 +404,110 @@ describe("the conversation", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("answers an unrecorded question with the demo note, then offers the suggestions", async () => {
-    const { user } = await show({ open: true });
-    await ask(user, "Who is the applicant?");
-    const body = within(await panel());
+  it("is not recognised from a reference without a public ID", async () => {
+    await show({ open: true, path: "/app/alder/applications/workshop-example" });
+    const body = within(await surface());
+    await body.findByText("Workshop Saturdays");
 
     expect(
-      await body.findByText(
-        "In this demo, Merit AI answers suggested questions with recorded examples.",
-      ),
-    ).toBeVisible();
-    expect(await body.findByRole("button", { name: question })).toBeVisible();
+      body.queryByRole("button", { name: /What changed in version 2/ }),
+    ).not.toBeInTheDocument();
   });
 
-  it("says where to find the examples when the example page is not attached", async () => {
+  it("says where to find the recorded examples when the page is not the example", async () => {
     const { user } = await show({ open: true, path: "/app/alder/rounds" });
     await ask(user, question);
-    const body = within(await panel());
+    const body = within(await surface());
 
     expect(
       await body.findByText(/Open the Workshop Saturdays application to try them\./),
     ).toBeVisible();
     expect(body.queryByRole("button", { name: question })).not.toBeInTheDocument();
   });
+});
 
-  it("stops an answer, keeps what streamed, and says it may be incomplete", async () => {
-    const { user } = await show({ open: true, pace: { start: 0, word: 20, step: 0 } });
-    const body = within(await panel());
+describe.each([
+  { name: "pushed beside the page", pushed: true },
+  { name: "as a sheet over the page", pushed: false },
+])("focus and announcements $name", ({ pushed }) => {
+  beforeEach(() => wide(pushed));
+
+  it("keeps focus in the message box when a suggestion is chosen", async () => {
+    const { user } = await show({ open: true });
+    const body = within(await surface());
+
     await user.click(await body.findByRole("button", { name: question }));
-    await body.findByText(/Version 2/);
+    await body.findByText(/Version 2 raises the request/);
 
-    await user.click(body.getByRole("button", { name: "Stop" }));
-
-    expect(await body.findByText("Stopped. This answer may be incomplete.")).toBeVisible();
-    expect(body.queryByText(/outstanding/)).not.toBeInTheDocument();
-    expect(body.getByRole("button", { name: "Send message" })).toBeVisible();
+    expect(body.getByRole("textbox", { name: "Message to Merit AI" })).toHaveFocus();
   });
 
   it.each([
-    { choice: "Approve", result: "Approved", notice: true },
-    { choice: "Decline", result: "Declined. Nothing was changed.", notice: false },
-  ])("folds the proposal after $choice", async ({ choice, result, notice }) => {
+    { choice: "Approve", result: "Approved", spoken: "Approved. Demo preview: nothing was sent." },
+    { choice: "Decline", result: "Declined", spoken: "Declined. Nothing was changed." },
+  ])("moves focus to the folded proposal after $choice and says the outcome", async (step) => {
     const { user } = await show({ open: true });
-    const body = within(await panel());
+    const body = within(await surface());
     await user.click(
       await body.findByRole("button", { name: /Draft a question to the applicant/ }),
     );
-    expect(await body.findByText("Needs approval")).toBeVisible();
-    expect(body.getByText("Maya Thompson, Saturday Repair Collective")).toBeVisible();
+    await user.click(await body.findByRole("button", { name: step.choice }));
 
-    await user.click(body.getByRole("button", { name: choice }));
-
-    expect(await body.findByText(result)).toBeVisible();
-    expect(body.queryByRole("button", { name: "Approve" })).not.toBeInTheDocument();
-    expect(Boolean(body.queryByText("Demo preview: nothing was sent."))).toBe(notice);
+    await body.findByText(new RegExp(step.result));
+    await waitFor(() =>
+      expect(document.activeElement).toHaveTextContent("Ask Maya Thompson to confirm the venue"),
+    );
+    expect(await surface()).toContainElement(document.activeElement as HTMLElement);
+    await waitFor(() => expect(spoken(body)).toContain(step.spoken));
   });
+});
 
-  it("declines a waiting proposal when a new question is asked", async () => {
-    const { user } = await show({ open: true });
-    const body = within(await panel());
+describe("a decision that cannot be recorded", () => {
+  it("shows the failure beside both choices, and records the next one chosen", async () => {
+    const { user } = await show({ open: true, failDecisions: 1 });
+    const body = within(await surface());
     await user.click(
       await body.findByRole("button", { name: /Draft a question to the applicant/ }),
     );
-    await body.findByText("Needs approval");
+    await user.click(await body.findByRole("button", { name: "Approve" }));
 
-    await user.type(await messageBox(), `${question}{Enter}`);
+    expect(await body.findByText("Couldn't record your decision. Try again.")).toBeVisible();
+    expect(body.getByRole("button", { name: "Approve" })).not.toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+    expect(body.getByRole("button", { name: "Decline" })).not.toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+
+    await user.click(body.getByRole("button", { name: "Decline" }));
 
     expect(await body.findByText("Declined. Nothing was changed.")).toBeVisible();
-    expect(await body.findByText(/Version 2 raises the request/)).toBeVisible();
+    expect(body.queryByText("Couldn't record your decision. Try again.")).not.toBeInTheDocument();
+  });
+});
+
+describe("announcements", () => {
+  const proposalAnswer =
+    "The replacement venue isn't booked yet. Here's a question for Maya Thompson:";
+
+  it("says each finished answer once, not again when the panel is reopened", async () => {
+    const { user } = await show({ open: true });
+    const body = within(await surface());
+    await user.click(
+      await body.findByRole("button", { name: /Draft a question to the applicant/ }),
+    );
+    await waitFor(() => expect(spoken(body)).toContain(proposalAnswer));
+
+    await user.keyboard("{Control>}j{/Control}");
+    await waitFor(() => expect(screen.queryByRole("region", { name: "Merit AI" })).toBeNull());
+    await user.keyboard("{Control>}j{/Control}");
+    const reopened = within(await surface());
+    await reopened.findByText(proposalAnswer);
+
+    // The panel's own announcement takes 100 milliseconds to arrive.
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(spoken(reopened)).toBe("");
   });
 });

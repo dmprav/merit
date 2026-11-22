@@ -24,11 +24,14 @@ const workspace = {
   canViewTeam: true,
 };
 
+// The demo hands out the bare public ID; the application page's reference adds the title's slug.
+const workshopId = "k3m9p2x7t4wq";
+
 const ready = {
   status: "ready" as const,
   workspaceSlug: workspace.slug,
   expiresAt: workspace.demoExpiresAt,
-  applicationRef: "workshop-example",
+  applicationRef: workshopId,
   roundRef: "local-connections-example",
 };
 
@@ -38,9 +41,52 @@ const unhurried: Pace = { start: 0, word: 40, step: 0 };
 type Connect = (questions: Record<ScriptId, string>) => ConnectConnectionAdapter;
 
 const scripted =
-  (pace: Pace): Connect =>
+  (pace: Pace, failDecisions = 0): Connect =>
   (questions) =>
-    createScriptedConnection({ questions, pace });
+    createScriptedConnection({ questions, pace, failDecisions });
+
+/** An answer that arrives a paragraph at a time and then ends, long enough to scroll the panel. */
+const paragraphs = Array.from(
+  { length: 12 },
+  (_, index) =>
+    `Paragraph ${index + 1}. The recorded review covers the first submission and relies on the venue that was free then, so the assessment of the budget and of the plan for the workshops has to be read with that in mind.`,
+);
+
+const longAnswer: Connect = () =>
+  stream(async function* (_messages, _data, signal, input) {
+    yield {
+      type: EventType.RUN_STARTED,
+      runId: input.runId,
+      threadId: input.threadId,
+      timestamp: Date.now(),
+    };
+    yield {
+      type: EventType.TEXT_MESSAGE_START,
+      messageId: "long",
+      role: "assistant",
+      timestamp: Date.now(),
+    };
+    for (const paragraph of paragraphs) {
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      if (signal?.aborted) {
+        return;
+      }
+      yield {
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        messageId: "long",
+        delta: `${paragraph}\n\n`,
+        timestamp: Date.now(),
+      };
+    }
+    yield { type: EventType.TEXT_MESSAGE_END, messageId: "long", timestamp: Date.now() };
+    yield {
+      type: EventType.RUN_FINISHED,
+      runId: input.runId,
+      threadId: input.threadId,
+      timestamp: Date.now(),
+      outcome: { type: "success" },
+    };
+  });
 
 /** A run that sends these chunks and then waits, so a story can rest in the middle of an answer. */
 const pausedAfter =
@@ -96,7 +142,7 @@ const text = (delta: string): StreamChunk[] => [
 const Preview = ({
   connect,
   isInitiallyOpen = true,
-  path = "/app/demo-example/applications/workshop-example",
+  path = `/app/demo-example/applications/workshop-saturdays-${workshopId}`,
   routePath = "/app/$workspaceSlug/applications/$applicationRef",
   title = "Workshop Saturdays",
 }: {
@@ -147,15 +193,22 @@ export default meta;
 
 type Story = StoryObj<typeof meta>;
 
-const panel = (canvasElement: HTMLElement) =>
-  within(canvasElement.ownerDocument.body).findByRole("region", { name: "Merit AI" });
+const page = (canvasElement: HTMLElement) => within(canvasElement.ownerDocument.body);
+
+/** The panel's body, which scrolls the thread, once the sheet has faded in below 1400 pixels. */
+const panel = async (canvasElement: HTMLElement) => {
+  const region = await page(canvasElement).findByRole("region", { name: "Merit AI" });
+  await waitFor(() => expect(region).toBeVisible());
+  return region;
+};
 
 const ask = async (
   canvasElement: HTMLElement,
   userEvent: { type: (element: Element, text: string) => Promise<void> },
   question: string,
 ) => {
-  const body = within(await panel(canvasElement));
+  const body = page(canvasElement);
+  await panel(canvasElement);
   await userEvent.type(
     body.getByRole("textbox", { name: "Message to Merit AI" }),
     `${question}{enter}`,
@@ -165,14 +218,17 @@ const ask = async (
 
 export const EmptyWithSuggestions: Story = {
   play: async ({ canvasElement }) => {
-    const body = within(await panel(canvasElement));
+    const body = page(canvasElement);
+    await panel(canvasElement);
     await expect(
       await body.findByRole("button", { name: /What changed in version 2/ }),
     ).toBeVisible();
     await expect(
       body.getByRole("button", { name: /Draft a question to the applicant/ }),
     ).toBeVisible();
-    await expect(body.getByText("Workshop Saturdays")).toBeVisible();
+    await expect(
+      body.getByRole("button", { name: "Remove Workshop Saturdays from the question" }),
+    ).toBeVisible();
     await expect(body.getByText("Demo preview: answers are recorded examples.")).toBeVisible();
   },
 };
@@ -180,7 +236,8 @@ export const EmptyWithSuggestions: Story = {
 export const EmptyWithoutSuggestions: Story = {
   args: { path: "/app/demo-example/rounds", routePath: "/app/$workspaceSlug/rounds", title: "" },
   play: async ({ canvasElement }) => {
-    const body = within(await panel(canvasElement));
+    const body = page(canvasElement);
+    await panel(canvasElement);
     await expect(body.queryByRole("button", { name: /What changed/ })).toBeNull();
     await expect(body.getByRole("textbox", { name: "Message to Merit AI" })).toHaveFocus();
   },
@@ -229,7 +286,18 @@ export const Stopped: Story = {
     await body.findByText(/Version 2/);
     await userEvent.click(body.getByRole("button", { name: "Stop" }));
     await expect(await body.findByText("Stopped. This answer may be incomplete.")).toBeVisible();
-    await expect(body.queryByText(/outstanding/)).toBeNull();
+  },
+};
+
+export const StoppedWhileWorking: Story = {
+  args: { connect: pausedAfter([step("s1", "running")]) },
+  play: async ({ canvasElement, userEvent }) => {
+    const body = await ask(canvasElement, userEvent, "What changed in version 2?");
+    await userEvent.click(await body.findByRole("button", { name: "Stop" }));
+    await expect(await body.findByText("Stopped. This answer may be incomplete.")).toBeVisible();
+    await expect(body.getByRole("button", { name: "Stopped before finishing" })).toBeVisible();
+    await userEvent.click(body.getByRole("button", { name: "Stopped before finishing" }));
+    await expect(body.getByText("(not finished)")).toBeInTheDocument();
   },
 };
 
@@ -244,15 +312,14 @@ export const Failure: Story = {
 
 export const SuggestedQuestionAnswered: Story = {
   play: async ({ canvasElement, userEvent }) => {
-    const body = within(await panel(canvasElement));
+    await panel(canvasElement);
+    const body = page(canvasElement);
     await userEvent.click(await body.findByRole("button", { name: /What changed in version 2/ }));
     await expect(await body.findByText(/Version 2 raises the request/)).toBeVisible();
     await expect(
       body.getByRole("button", { name: "Read 2 submissions and checked 2 review requests" }),
     ).toBeVisible();
-    await expect(
-      body.getByText(/Jules Patel's review of version 2 is still outstanding/),
-    ).toBeVisible();
+    await expect(body.getByRole("textbox", { name: "Message to Merit AI" })).toHaveFocus();
   },
 };
 
@@ -260,7 +327,8 @@ const proposed = async (
   canvasElement: HTMLElement,
   userEvent: Parameters<NonNullable<Story["play"]>>[0]["userEvent"],
 ) => {
-  const body = within(await panel(canvasElement));
+  await panel(canvasElement);
+  const body = page(canvasElement);
   await userEvent.click(
     await body.findByRole("button", { name: /Draft a question to the applicant/ }),
   );
@@ -285,7 +353,6 @@ export const ProposalApproved: Story = {
     await userEvent.click(body.getByRole("button", { name: "Approve" }));
     await expect(await body.findByText("Approved")).toBeVisible();
     await expect(body.getByText("Demo preview: nothing was sent.")).toBeVisible();
-    await expect(body.queryByRole("button", { name: "Approve" })).toBeNull();
   },
 };
 
@@ -294,7 +361,40 @@ export const ProposalDeclined: Story = {
     const body = await proposed(canvasElement, userEvent);
     await userEvent.click(body.getByRole("button", { name: "Decline" }));
     await expect(await body.findByText("Declined. Nothing was changed.")).toBeVisible();
-    await expect(body.queryByText("Demo preview: nothing was sent.")).toBeNull();
+  },
+};
+
+export const ProposalRecording: Story = {
+  args: { connect: scripted({ ...instant, decision: 600_000 }) },
+  play: async ({ canvasElement, userEvent }) => {
+    const body = await proposed(canvasElement, userEvent);
+    await userEvent.click(body.getByRole("button", { name: "Approve" }));
+    // The choice stays where it was pressed, busy, while the other waits.
+    const approving = await body.findByRole("button", { name: "Approving…" });
+    await expect(approving).toHaveFocus();
+    await expect(approving).toHaveAttribute("aria-disabled", "true");
+    await expect(body.getByRole("button", { name: "Decline" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+  },
+};
+
+export const ProposalDecisionFailed: Story = {
+  args: { connect: scripted(instant, 1) },
+  play: async ({ canvasElement, userEvent }) => {
+    const body = await proposed(canvasElement, userEvent);
+    await userEvent.click(body.getByRole("button", { name: "Approve" }));
+    await expect(await body.findByText("Couldn't record your decision. Try again.")).toBeVisible();
+    // Both choices stay available; choosing again tries again.
+    await expect(body.getByRole("button", { name: "Approve" })).not.toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+    await expect(body.getByRole("button", { name: "Decline" })).not.toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
   },
 };
 
@@ -309,6 +409,81 @@ export const FreeTextReply: Story = {
     await waitFor(() =>
       expect(body.getByRole("button", { name: /Draft a question to the applicant/ })).toBeVisible(),
     );
+  },
+};
+
+/** Whether the element lies within the scrolling panel's visible area. */
+const isInView = (element: HTMLElement, scroller: HTMLElement) => {
+  const inner = element.getBoundingClientRect();
+  const outer = scroller.getBoundingClientRect();
+  return inner.top >= outer.top - 1 && inner.bottom <= outer.bottom + 1;
+};
+
+const distanceFromEnd = (scroller: HTMLElement) =>
+  scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
+
+export const FollowsStreamingToTheEnd: Story = {
+  args: { connect: longAnswer },
+  play: async ({ canvasElement, userEvent }) => {
+    const body = await ask(canvasElement, userEvent, "What changed in version 2?");
+    const scroller = await panel(canvasElement);
+
+    const last = await body.findByText(/Paragraph 12\./, undefined, { timeout: 5000 });
+    await waitFor(() => expect(isInView(last, scroller)).toBe(true));
+    await expect(scroller.scrollHeight).toBeGreaterThan(scroller.clientHeight);
+    await expect(distanceFromEnd(scroller)).toBeLessThan(24);
+  },
+};
+
+export const LeavesTheScrollWhereThePersonPutIt: Story = {
+  args: { connect: longAnswer },
+  play: async ({ canvasElement, userEvent }) => {
+    const body = await ask(canvasElement, userEvent, "What changed in version 2?");
+    const scroller = await panel(canvasElement);
+
+    await waitFor(
+      () => expect(scroller.scrollHeight).toBeGreaterThan(scroller.clientHeight + 100),
+      { timeout: 5000 },
+    );
+    scroller.scrollTop = 0;
+    await body.findByText(/Paragraph 12\./, undefined, { timeout: 5000 });
+    await expect(scroller.scrollTop).toBeLessThan(24);
+    await expect(distanceFromEnd(scroller)).toBeGreaterThan(100);
+
+    // Asking again follows the thread to its end once more.
+    await userEvent.type(
+      body.getByRole("textbox", { name: "Message to Merit AI" }),
+      "And the venue?{enter}",
+    );
+    await waitFor(() => expect(distanceFromEnd(scroller)).toBeLessThan(24));
+  },
+};
+
+export const FollowsWhatAppearsWhenTheRunSettles: Story = {
+  play: async ({ canvasElement, userEvent }) => {
+    await panel(canvasElement);
+    const body = page(canvasElement);
+    const box = await body.findByRole("textbox", { name: "Message to Merit AI" });
+    // Two recorded answers fill the panel; the free-text reply and its suggestions follow them.
+    const changes = "What changed in version 2, and do the reviews cover it?";
+    const turns = [
+      { question: changes, reply: /Jules Patel's review/, count: 1 },
+      { question: changes, reply: /Jules Patel's review/, count: 2 },
+      { question: "Who is the applicant?", reply: /answers suggested questions/, count: 1 },
+    ];
+    for (const { question, reply, count } of turns) {
+      await userEvent.type(box, `${question}{enter}`);
+      await waitFor(() => expect(body.getAllByText(reply)).toHaveLength(count));
+      await body.findByRole("button", { name: "Send message" });
+    }
+
+    const scroller = await panel(canvasElement);
+    // The suggestions arrive as the run settles, with no new message to scroll to.
+    const suggestion = await body.findByRole("button", {
+      name: /Draft a question to the applicant/,
+    });
+    await expect(scroller.scrollHeight).toBeGreaterThan(scroller.clientHeight);
+    await waitFor(() => expect(isInView(suggestion, scroller)).toBe(true));
   },
 };
 

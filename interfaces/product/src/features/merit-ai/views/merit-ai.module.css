@@ -1,24 +1,8 @@
-.conversation {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  min-height: 0;
-}
-
-/* The thread scrolls on its own so the message box stays in reach. */
-.scroller {
-  flex: 1;
+/* The panel's body scrolls the thread, so the thread only needs room around it. */
+.thread {
   display: grid;
-  align-content: start;
   gap: var(--space-4);
-  min-height: 0;
   padding-block: var(--space-4);
-  overflow-y: auto;
-  overscroll-behavior-y: contain;
-}
-
-.composer {
-  padding-block: var(--space-3) var(--space-4);
 }
 
 .steps {
@@ -35,19 +19,7 @@
   gap: var(--space-2);
 }
 
-.spinner {
-  display: inline-flex;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .spinner {
-    animation: none;
-  }
+/* A decided proposal takes focus from the choice that folded away. */
+.decided {
+  outline-offset: var(--space-1);
 }

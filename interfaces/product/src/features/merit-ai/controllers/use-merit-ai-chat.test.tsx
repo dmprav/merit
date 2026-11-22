@@ -10,13 +10,16 @@ import { useMeritAiChat } from "./use-merit-ai-chat";
 
 const instant: Pace = { start: 0, word: 0, step: 0 };
 const questions = { changes: en.suggestions.changes, venue: en.suggestions.venue };
-const example: PageContext = { applicationRef: "workshop-example", isExample: true };
-const elsewhere: PageContext = { applicationRef: "boat-repairs", isExample: false };
+const example: PageContext = {
+  applicationRef: "workshop-saturdays-k3m9p2x7t4wq",
+  isExample: true,
+};
+const elsewhere: PageContext = { applicationRef: "boat-repairs-b8d5f1h6j2nr", isExample: false };
 
-const setup = (context: PageContext | undefined, pace: Pace = instant) =>
+const setup = (context: PageContext | undefined, pace: Pace = instant, failDecisions = 0) =>
   renderHook(() =>
     useMeritAiChat({
-      connection: createScriptedConnection({ questions, pace }),
+      connection: createScriptedConnection({ questions, pace, failDecisions }),
       tools: [askApplicant],
       context,
     }),
@@ -170,4 +173,53 @@ it("stops mid-answer, keeps what streamed, and remembers where it stopped", asyn
 
   act(() => result.current.send("Who is the applicant?"));
   expect(result.current.stoppedAt).toBeNull();
+});
+
+it("announces each finished answer, and the outcome of a decision once it is recorded", async () => {
+  const { result } = setup(example);
+
+  await ask(result, en.suggestions.venue);
+  expect(result.current.announcement).toMatchObject({
+    sequence: 1,
+    kind: "answer",
+    turnId: result.current.turns[1]?.id,
+  });
+
+  act(() => result.current.approve());
+  await waitFor(() => expect(result.current.announcement).toMatchObject({ sequence: 2 }));
+  expect(result.current.announcement?.kind).toBe("approved");
+
+  // The next question is answered, not decided: the declined outcome of the replaced proposal is
+  // not announced over it.
+  await ask(result, en.suggestions.changes);
+  expect(result.current.announcement).toMatchObject({ kind: "answer", sequence: 3 });
+});
+
+it("announces a declined proposal as declined", async () => {
+  const { result } = setup(example);
+  await ask(result, en.suggestions.venue);
+
+  act(() => result.current.decline());
+
+  await waitFor(() => expect(result.current.announcement?.kind).toBe("declined"));
+});
+
+it("keeps the proposal open when its decision cannot be recorded, and records a second choice", async () => {
+  const { result } = setup(example, instant, 1);
+  await ask(result, en.suggestions.venue);
+  const proposal = proposalOf(result.current.turns[1]);
+
+  act(() => result.current.approve());
+  await waitFor(() => expect(result.current.decisionFailed).toBe(true));
+  await waitFor(() => expect(result.current.isBusy).toBe(false));
+
+  expect(result.current.openProposal).toBe(proposal?.id);
+  expect(result.current.recording).toBeNull();
+  expect(result.current.announcement).toMatchObject({ sequence: 1, kind: "answer" });
+
+  act(() => result.current.decline());
+  await waitFor(() => expect(result.current.decisionFailed).toBe(false));
+  await waitFor(() => expect(result.current.announcement?.kind).toBe("declined"));
+  expect(result.current.openProposal).toBeUndefined();
+  expect(proposalOf(result.current.turns[1])).toMatchObject({ approval: { approved: false } });
 });

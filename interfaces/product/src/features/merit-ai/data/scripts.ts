@@ -15,9 +15,15 @@ import {
 import { askApplicantName, type AskApplicantInput } from "../contracts";
 
 /** How long each part of a recorded run takes, in milliseconds. */
-export type Pace = { start: number; word: number; step: number };
+export type Pace = {
+  start: number;
+  word: number;
+  step: number;
+  /** How long recording the person's decision takes; none when left out. */
+  decision?: number;
+};
 
-const demoPace: Pace = { start: 400, word: 45, step: 900 };
+const demoPace: Pace = { start: 400, word: 45, step: 900, decision: 500 };
 
 type Beat = { chunk: StreamChunk; wait: number };
 
@@ -259,7 +265,7 @@ const fallbackRun = (run: Run, pace: Pace, context: PageContext | undefined): Be
 };
 
 /** The run that follows the person's decision on the proposal. */
-const resumedRun = (run: Run, approved: boolean): Beat[] => [
+const resumedRun = (run: Run, approved: boolean, pace: Pace): Beat[] => [
   started(run),
   ...(approved
     ? [
@@ -275,7 +281,43 @@ const resumedRun = (run: Run, approved: boolean): Beat[] => [
         } satisfies Beat,
       ]
     : []),
-  finished(run),
+  { ...finished(run), wait: pace.decision ?? 0 },
+];
+
+/** The run that ends in an error because the server could not record the person's decision. */
+const failedResumeRun = (
+  run: Run,
+  interruptedRunId: string | undefined,
+  resume: ReadonlyArray<{ interruptId: string }>,
+  pace: Pace,
+): Beat[] => [
+  started(run),
+  {
+    wait: pace.decision ?? 0,
+    chunk: {
+      type: EventType.RUN_ERROR,
+      runId: run.runId,
+      message: "The decision could not be recorded.",
+      timestamp: now(),
+      metadata: {
+        tanstack: {
+          interruptErrors: [
+            {
+              scope: "batch",
+              code: "transport",
+              message: "The decision could not be recorded.",
+              retryable: true,
+              threadId: run.threadId,
+              interruptedRunId: interruptedRunId ?? "",
+              generation: 0,
+              interruptIds: resume.map((item) => item.interruptId),
+              source: "transport",
+            },
+          ],
+        },
+      },
+    },
+  },
 ];
 
 const normalize = (text: string) =>
@@ -357,14 +399,22 @@ const approvedIn = (resume: ReadonlyArray<{ payload?: unknown }>) =>
 export const createScriptedConnection = ({
   questions,
   pace = demoPace,
+  failDecisions = 0,
 }: {
   questions: Record<ScriptId, string>;
   pace?: Pace;
-}) =>
-  stream((messages, _data, signal, input) => {
+  /** How many decisions fail to record before one succeeds; previews and tests rehearse the failure. */
+  failDecisions?: number;
+}) => {
+  let failures = failDecisions;
+  return stream((messages, _data, signal, input) => {
     const run = { runId: input.runId, threadId: input.threadId };
     if (input.resume) {
-      return replay(resumedRun(run, approvedIn(input.resume)), signal);
+      if (failures > 0) {
+        failures -= 1;
+        return replay(failedResumeRun(run, input.parentRunId, input.resume, pace), signal);
+      }
+      return replay(resumedRun(run, approvedIn(input.resume), pace), signal);
     }
     const context = readContext(input.forwardedProps);
     const script = matchScript(lastQuestion(messages), questions, context);
@@ -376,3 +426,4 @@ export const createScriptedConnection = ({
           : fallbackRun(run, pace, context);
     return replay(beats, signal);
   });
+};
