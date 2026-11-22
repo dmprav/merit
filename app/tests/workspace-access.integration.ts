@@ -18,6 +18,7 @@ import {
 import { loadWorkspace } from "@merit/product/workspace";
 import { type SaveRecommendationRequest } from "@merit/recommendations/api";
 import { saveFundingRecommendation } from "@merit/recommendations/server";
+import { isCurrentAssessment } from "@merit/reviews/server/integrations";
 
 import { transportTest as it, endpoint } from "./fixtures/transport-test";
 
@@ -237,7 +238,7 @@ it("returns an empty authorized workspace consistently through both interfaces",
   expect(
     (await callMcp(actor.userId, { workspaceSlug: "alder" }, "list_funding_rounds"))
       .structuredContent,
-  ).toEqual({ status: "ok", rounds: [], nextCursor: null });
+  ).toEqual({ status: "ok", rounds: [], nextPage: null });
 });
 
 it("denies round discovery to a reviewer even in an empty workspace", async ({
@@ -398,7 +399,7 @@ it.for(["administrator", "owner"])(
         })
       ).isError,
     ).toBe(true);
-    expect(await saveFundingRecommendation(db, actor, request)).toEqual({
+    expect(await saveFundingRecommendation(db, actor, request, isCurrentAssessment)).toEqual({
       status: "not_found",
     });
     expect(await loadWorkspace(services, "alder")).toMatchObject({

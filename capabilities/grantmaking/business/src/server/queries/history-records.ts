@@ -1,7 +1,6 @@
 import { applicationHistorySchema } from "@merit/applications/history";
 import { readAuditHistory } from "@merit/audit/server/read";
 import type { Database } from "@merit/db";
-import { moneyDataSchema } from "@merit/money";
 
 const fields = (entry: Awaited<ReturnType<typeof readAuditHistory>>["entries"][number]) => ({
   revision: entry.targetRevision ?? 0,
@@ -37,35 +36,6 @@ export const readApplicationHistory = async (
       ...fields(entry),
       before: historical(entry.details.before),
       after: historical(entry.details.after),
-    })),
-  };
-};
-
-export const readRoundHistory = async (
-  db: Database,
-  organizationId: string,
-  publicId: string,
-  page: Page = {},
-) => {
-  const result = await readAuditHistory(db, {
-    ...page,
-    organizationId,
-    targetTypes: ["round"],
-    targetId: publicId,
-    action: "round.budget_changed",
-  });
-
-  const budget = (value: unknown) =>
-    moneyDataSchema
-      .nullable()
-      .parse(value && typeof value === "object" && "budget" in value ? value.budget : null);
-
-  return {
-    ...result,
-    entries: result.entries.map((entry) => ({
-      ...fields(entry),
-      before: budget(entry.details.before),
-      after: budget(entry.details.after),
     })),
   };
 };

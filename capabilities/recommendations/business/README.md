@@ -12,6 +12,9 @@ stored version defines the current revision; Applications holds no recommendatio
 counter. The command calls `recordAuditEvent` from
 [Audit](../../audit/business/README.md) directly in that transaction, so the
 recommendation version and audit event commit or roll back together.
+For a save conditional on an assessment, assembly supplies the Reviews freshness
+check. The command runs it under the same round and application locks before
+writing the proposal.
 
 `/api` contains browser-safe inputs, outcomes, and public JSON encoding. `/server`
 exposes the service factory and authorized save. `/server/integrations` implements

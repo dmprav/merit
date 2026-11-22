@@ -8,7 +8,7 @@ import { readWorkspace } from "@merit/organizations/transactions";
 import { reviewProgress } from "@merit/reviews/domain";
 import type { PreparationState } from "@merit/rounds/api";
 import { decodeRound } from "@merit/rounds/domain";
-import { readManagerCandidates } from "@merit/rounds/readers";
+import { readManagerCandidates, readRoundBudgetHistory } from "@merit/rounds/readers";
 
 import {
   applicationRequestSchema,
@@ -26,7 +26,7 @@ import {
   listRoundSummaries,
 } from "../persistence/queries/pages";
 import { readRoundPageTotals } from "../persistence/queries/round-totals";
-import { readApplicationHistory, readRoundHistory } from "./history-records";
+import { readApplicationHistory } from "./history-records";
 
 export const listFundingRounds = async (db: Database, actor: Actor, workspaceSlug: string) => {
   return readWorkspace(db, actor.userId, workspaceSlug, async (tx) => {
@@ -82,7 +82,7 @@ export const getFundingRoundPage = async (
     };
     const [managers, history] = await Promise.all([
       readManagerCandidates(tx, row.organizationId),
-      readRoundHistory(tx, row.organizationId, round.id),
+      readRoundBudgetHistory(tx, row.organizationId, round.id),
     ]);
 
     return {

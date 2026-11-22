@@ -8,7 +8,7 @@ import { workspaceSlugSchema } from "@merit/organizations/api";
 import { reviewIdSchema, reviewRevisionSchema } from "@merit/reviews/domain";
 import { reviewBasisComparisonSchema } from "@merit/reviews/domain";
 import { reviewerStatuses } from "@merit/reviews/domain";
-import { criteriaVersionSchema } from "@merit/rounds/domain";
+import { criteriaVersionSchema, roundBudgetChangeSchema } from "@merit/rounds/domain";
 
 export const roundReadInput = z.strictObject({
   workspaceSlug: workspaceSlugSchema,
@@ -53,8 +53,17 @@ export const applicationContentInput = applicationReadInput.extend({
     "recommendation_change",
   ]),
   entryId: reviewIdSchema.optional(),
-  materialVersion: materialVersionSchema.optional(),
-  revision: z.number().int().nonnegative().optional(),
+  materialVersion: materialVersionSchema
+    .optional()
+    .describe(
+      "Required for section material. The first snapshot is 1. Read later versions in ascending order to find when wording first appeared.",
+    ),
+  revision: z
+    .number()
+    .int()
+    .nonnegative()
+    .optional()
+    .describe("Audit revision for intake_change or recommendation_change."),
   ...contentRange,
 });
 export const roundHistoryInput = roundReadInput.extend({
@@ -74,6 +83,11 @@ export const roundSummarySchema = z.object({
   criteriaVersion: criteriaVersionSchema,
   budget: moneyDataSchema.nullable(),
   applicationCount: z.number().int().nonnegative(),
+});
+export const roundListPageSchema = z.object({
+  status: z.literal("ok"),
+  rounds: z.array(roundSummarySchema),
+  nextCursor: publicIdSchema.nullable(),
 });
 export const applicationSummarySchema = z.object({
   applicationId: publicIdSchema,
@@ -107,6 +121,7 @@ export const roundOverviewSchema = roundSummarySchema.extend({
   }),
 });
 export const applicationContextSchema = applicationSummarySchema.extend({
+  requestedDisplay: z.string().nullable(),
   criteriaVersion: criteriaVersionSchema,
   roundPreparationRevision: z.number().int().nonnegative(),
   lastIntakeRevision: z.number().int().nonnegative(),
@@ -115,16 +130,24 @@ export const applicationContextSchema = applicationSummarySchema.extend({
 export const contentChunkSchema = z.object({
   status: z.literal("ok"),
   format: z.literal("json"),
-  content: z.string().max(16000),
   fingerprint: z.string(),
   offset: z.number().int().nonnegative(),
   nextOffset: z.number().int().nonnegative().nullable(),
   totalCharacters: z.number().int().nonnegative(),
+  content: z.string().max(16000),
 });
 export const historySummarySchema = z.object({
   revision: z.number().int().nonnegative(),
   action: z.string(),
   recordedAt: z.string(),
+});
+export const roundHistorySummarySchema = historySummarySchema.extend({
+  budgetChange: roundBudgetChangeSchema.nullable(),
+});
+export const roundHistoryPageSchema = z.object({
+  status: z.literal("ok"),
+  entries: z.array(roundHistorySummarySchema),
+  nextRevision: z.number().int().nonnegative().nullable(),
 });
 export const readingErrorSchema = z.object({
   status: z.enum(["not_found", "forbidden", "conflict", "invalid_range", "invalid"]),
@@ -150,6 +173,7 @@ export const reviewSummarySchema = z.object({
   applicationVersion: materialVersionSchema,
   criteriaVersion: criteriaVersionSchema,
   reviewRevision: reviewRevisionSchema,
+  assessmentVersion: z.number().int().positive().nullable(),
   recordedApplicationVersion: materialVersionSchema.nullable(),
   recordedCriteriaVersion: criteriaVersionSchema.nullable(),
   freshness: z.enum(["current", "outdated", "outstanding", "unknown"]),

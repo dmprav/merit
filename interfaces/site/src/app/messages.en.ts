@@ -72,7 +72,7 @@ export const en = {
     browserTitle: "Privacy notice · Merit",
     description: "How Merit handles invitation requests and product analytics.",
     introduction:
-      "Merit is a portfolio project. This notice covers the information you share when you request an invitation and how Merit measures public site and demo usage.",
+      "Merit is a portfolio project. This notice covers the information you share when you request an invitation and how Merit measures use of the website, demo, invited workspaces, and connected assistants.",
     contact: {
       title: "Who is responsible",
       // TODO: Set up and verify merit@dmprav.com, then add it here before publishing.
@@ -80,17 +80,17 @@ export const en = {
     },
     collection: {
       title: "What is collected",
-      body: "When you request an invitation, Merit saves your email address, the time of your request, and its review date and reviewer. To prevent repeated submissions, it also stores a temporary code derived from your network address, rather than the address itself. When product analytics is enabled, Merit records visited route patterns (with workspace names, record IDs, and invitation tokens removed) and basic demo milestones such as starting or resetting the demo, without tracking cookies, session replay, or personal profiles.",
+      body: "When you request an invitation, Merit saves your email address, the time of your request, and its review date and reviewer. To prevent repeated submissions, it also stores a temporary code derived from your network address, rather than the address itself. When product analytics is enabled, Merit records visited route patterns (with workspace names, record IDs, and invitation tokens removed) and basic milestones such as starting the demo or requesting an invitation. It also counts grant actions completed on the web or through a connected assistant, and records assistant tool names and outcomes. Invited workspaces have a stable analytics code so repeat use can be measured. Demo grant actions are counted separately. These events exclude grant content, tool arguments, and individual profiles. Browser analytics uses no tracking cookies or session replay.",
     },
     purpose: {
       title: "Why it is used",
-      body: "Your email is used to review your request and contact you about access, not for newsletters or advertising. Aggregate usage events are used to understand how visitors explore the site, documentation, and demo. The purposes and legitimate interests for this processing are responding to your request, protecting the form from abuse, and improving the prototype.",
+      body: "Your email is used to review your request and contact you about access, not for newsletters or advertising. Aggregate usage events are used to understand which workflows teams use, whether invited workspaces return, and where assistant tools encounter difficulties. The purposes and legitimate interests for this processing are responding to your request, protecting the form from abuse, and improving the prototype.",
       optional:
         "Providing your email is optional, but needed to request an invitation. You can use the public demo without submitting this form. Requests are reviewed by a person; submission does not automatically create an account or grant access.",
     },
     access: {
       title: "Who can access it",
-      body: "Authorized Merit project operators can read invitation requests and aggregate analytics. Hosting, database, and analytics providers (including PostHog when enabled) process the information to run and measure the service. Requests are not visible to other visitors or workspace members.",
+      body: "Authorized Merit project operators can read invitation requests, usage events, and counts, including repeat activity in an invited workspace. Hosting, database, and analytics providers (including PostHog when enabled) process the information to run and measure the service. Requests are not visible to other visitors or workspace members.",
     },
     retention: {
       title: "How long it is kept",

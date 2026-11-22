@@ -138,7 +138,7 @@ export const buildLibrary = async (outDir: string, components: string[]) => {
     name: namespace,
     outDir,
     fileName: "bundle.js",
-    plugins: [reactFromGlobals(Object.keys(globals)), react({ compiler: reactCompilerOptions })],
+    plugins: [reactFromGlobals([...globals.keys()]), react({ compiler: reactCompilerOptions })],
   });
   const bundlePath = path.join(outDir, "bundle.js");
   const bundle = await readFile(bundlePath, "utf8");

@@ -5,6 +5,7 @@ import type { Database } from "@merit/db";
 import { decodeMoney, encodeMoney, fromMinorUnits, subtract } from "@merit/money";
 import { readWorkspace } from "@merit/organizations/transactions";
 import { compareReviewBasis, reviewCriteriaSchema, reviewFreshness } from "@merit/reviews/domain";
+import { readRoundPreparationHistory } from "@merit/rounds/readers";
 
 import {
   reviewListInput,
@@ -233,10 +234,7 @@ export const listFundingRoundHistory = async (
     if (!access?.allowed) {
       return { status: "not_found" } as const;
     }
-    const rows = await reads.readGrantHistory(tx, actor.userId, {
-      ...request,
-      history: "preparation",
-    });
+    const rows = await readRoundPreparationHistory(tx, access.organizationId, request);
     const entries = rows
       .slice(0, request.limit)
       .map((row) => ({ ...row, recordedAt: row.recordedAt.toISOString() }));
@@ -264,7 +262,7 @@ export const listFundingApplicationHistory = async (
     if (!access?.allowed) {
       return { status: "not_found" } as const;
     }
-    const rows = await reads.readGrantHistory(tx, actor.userId, request);
+    const rows = await reads.readApplicationHistorySummaries(tx, actor.userId, request);
     const entries = rows
       .slice(0, request.limit)
       .map((row) => ({ ...row, recordedAt: row.recordedAt.toISOString() }));

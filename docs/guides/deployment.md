@@ -176,9 +176,18 @@ Use the same publishable key as `VITE_CLERK_PUBLISHABLE_KEY` when building the w
 application. Configure the deployed `/mcp/workspace` URL in Clerk using the
 [MCP authentication setup](mcp-operations.md#configure-workspace-authentication).
 
-To enable optional PostHog analytics in the built web bundle, set `VITE_POSTHOG_KEY`
-and (when using EU or a custom ingest endpoint) `VITE_POSTHOG_HOST` during the build.
-Leaving `VITE_POSTHOG_KEY` empty keeps analytics disabled.
+To enable browser and server product analytics, set `VITE_POSTHOG_KEY` to the
+PostHog project token during the build. The ingest host defaults to the EU. Set
+`VITE_POSTHOG_HOST` for a US or custom endpoint. A blank key disables both
+adapters. Use the staging project token for a staging build.
+
+After configuring a token, save a changed recommendation in a test workspace
+through the web, then save another change through MCP. In PostHog, look for two
+`funding_recommendation_saved` events with different surfaces. An invited
+workspace should have the same `workspace_key` on both. A demo should have
+`workspace_kind = demo` and omit the key. A rejected recommendation call should
+produce only `mcp_tool_finished`. The [analytics contract](../../foundation/analytics/README.md)
+defines the events and how to count repeat use.
 
 ## Verify a future deployment
 

@@ -16,6 +16,7 @@ export const roundPreparationLimits = {
   budgetReasonLength: 2000,
 } as const;
 
+export const budgetReasonSchema = z.string().trim().max(roundPreparationLimits.budgetReasonLength);
 export const roundTitleSchema = z.string().trim().min(1).max(roundPreparationLimits.titleLength);
 export const roundChangeSchema = z.discriminatedUnion("section", [
   z
@@ -55,7 +56,7 @@ export const roundChangeSchema = z.discriminatedUnion("section", [
   z.strictObject({
     section: z.literal("budget"),
     amount: z.string().max(roundPreparationLimits.amountLength),
-    reason: z.string().trim().max(roundPreparationLimits.budgetReasonLength),
+    reason: budgetReasonSchema,
   }),
   z.strictObject({ section: z.literal("manager"), userId: z.string().min(1).max(100) }),
 ]);

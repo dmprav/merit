@@ -6,6 +6,7 @@ import { createFundingApplication, editFundingApplication } from "@merit/applica
 import { type PublicRoundRequest } from "@merit/grantmaking/api";
 import { actor, workspaceTest } from "@merit/organizations/testing/workspace";
 import { saveFundingRecommendation } from "@merit/recommendations/server";
+import { isCurrentAssessment } from "@merit/reviews/server/integrations";
 import { createFundingRound } from "@merit/rounds/server";
 
 import { applicationWork } from "./application-work";
@@ -71,16 +72,21 @@ export const roundTest = workspaceTest.extend("rounds", { auto: true }, async ({
       applicationWork,
     );
     assert(ready.status === "ok", "Could not mark the application fixture ready");
-    const recommended = await saveFundingRecommendation(db, actor, {
-      ...address,
-      expectedRevision: 0,
-      expectedApplicationVersion: 1,
-      recommendation: {
-        position: "Fund",
-        allocation: { currency: "EUR", minorUnits },
-        reasoning: "Support the community activities.",
+    const recommended = await saveFundingRecommendation(
+      db,
+      actor,
+      {
+        ...address,
+        expectedRevision: 0,
+        expectedApplicationVersion: 1,
+        recommendation: {
+          position: "Fund",
+          allocation: { currency: "EUR", minorUnits },
+          reasoning: "Support the community activities.",
+        },
       },
-    });
+      isCurrentAssessment,
+    );
     assert(recommended.status === "ok", "Could not recommend the application fixture");
   };
 

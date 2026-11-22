@@ -36,6 +36,7 @@ import {
 } from "@merit/organizations/server/demo";
 import { seedWorkspace } from "@merit/organizations/testing";
 import { saveFundingRecommendation } from "@merit/recommendations/server";
+import { isCurrentAssessment } from "@merit/reviews/server/integrations";
 import { databaseTest } from "@merit/test-support/database";
 
 import { createAccountDemoServices } from "../src/server/demo-workspace.server";
@@ -326,6 +327,7 @@ test("cleanup removes expired guest data while preserving account and sample aut
           reasoning: "Recorded in the disposable demo.",
         },
       },
+      isCurrentAssessment,
     ),
   ).toMatchObject({ status: "ok" });
   expect(

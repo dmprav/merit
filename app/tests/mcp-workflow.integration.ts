@@ -150,7 +150,6 @@ it("completes grant work through MCP with shared web state, safe retries, and ve
       position: "Fund",
       allocation: { minorUnits: "40000", currency: "EUR" },
       reasoning: "Support the shared meals",
-      author: { name: "Spoofed", provenance: { interface: "web" } },
     },
   });
   page = (await getFundingApplicationPage(db, actor, webApplicationAddress))!;
@@ -249,7 +248,7 @@ it("completes grant work through MCP with shared web state, safe retries, and ve
 
   // The same events, newest first, are what a program manager catches up on.
   const activity = await saved("list_workspace_activity", { workspaceSlug: "alder" });
-  expect(activity.nextCursor).toBeNull();
+  expect(activity.nextPage).toBeNull();
   expect(activity.entries).toMatchObject([
     { action: "application_working_revision.started" },
     {

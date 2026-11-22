@@ -9,7 +9,7 @@ type DemoState =
       applicationRef?: string;
       roundRef?: string;
     }
-  | { status: "empty" | "expired" | "unavailable" | "limited" };
+  | { status: "expired" | "unavailable" | "limited" };
 
 export interface DemoOperations {
   start: (actor: Actor, input: { fresh: boolean }) => Promise<DemoState>;

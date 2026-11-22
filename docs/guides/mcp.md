@@ -56,12 +56,12 @@ person's identity in tool arguments does not grant workspace access.
 
 ## Read the context you need
 
-Lists default to 20 records and accept a `limit` from 1 to 50. Follow `nextCursor`
-by passing it as `after` until it is `null`. Record lists use stable identifier
-order, not title or date order.
-Histories and workspace activity are newest first; round and application
-histories instead list ascending revisions, paged by passing `nextRevision` as
-`afterRevision`.
+For every paginated list and history, pass the returned `nextPage` object directly
+to the same tool. It contains the original filters, page size, and continuation.
+A `null` value marks the last page. Lists accept a `limit` from 1 to 50.
+
+Record lists use stable identifier order. Round and application histories use
+ascending revision order. Other histories and workspace activity are newest first.
 These are live reads: changing a title does not move a
 record between pages, but records inserted before a cursor require restarting
 the list to discover them. Each request rechecks access. Pagination is not a
@@ -93,11 +93,10 @@ and order. Current program managers only.
 
 To catch up on recent changes across a workspace, call `list_workspace_activity`.
 It returns who changed shared grant work, newest first, in pages of up to 50
-entries; pass `nextCursor` as `after` until it is `null`. Optional `roundId` (the round and
+entries. Optional `roundId` (the round and
 its applications, including their review requests, reviewer responses, assessments,
 and recommendations) and `personId` filters
-narrow the list, as on the web; take person IDs from the returned `people`, and keep
-the same filters while following a cursor. Each entry carries the
+narrow the list, as on the web. Take person IDs from the returned `people`. Each entry carries the
 recorded person's name, web or MCP-client provenance, a stored action name, and the
 record's current title and browser link, or a null record that no longer exists.
 Only current program managers can read it. The
@@ -149,6 +148,13 @@ Read before editing. Preserve the original preconditions for strict checks until
 | Recommendation                                                                     | `expectedRecommendationRevision` and `expectedApplicationVersion`                                       |
 | Review request, cancellation, assessment recording, or correction                  | Target-scoped check using `expectedAssessmentVersion` or review/application/criteria preconditions      |
 | Contact profile update vs archive/restore                                          | `expectedContactRevision` required for archive/restore (optional LWW for profile update)                |
+
+When a recommendation depends on an assessment still using current evidence, select a current
+assessment in `list_application_reviews` and include `expectedCurrentAssessment: { id, version }`
+in `save_recommendation`. Use the selected summary’s `id` and `assessmentVersion`. Merit checks
+that the same assessment version is still current when saving. A correction, superseding
+assessment, or change to its evidence basis returns `conflict`. Recheck the assessment before
+deciding whether to retry.
 
 Application preconditions come from `get_application`. If strict
 preconditions change before the write, the operation rejects the stale request with `conflict`.
@@ -207,7 +213,7 @@ email on your account. Keep `assignment.revision` as `expectedRevision` and reus
 
 `list_application_reviewers` returns assignment summaries. Managers use
 `list_reviewer_history` for an assignment's lifecycle and submitted-assessment
-events, newest first, following `nextCursor` as `after`. Both reads check current
+events, newest first, following `nextPage`. Both reads check current
 access and exclude private drafts.
 
 `save_reviewer_draft` saves against `draft.revision` as `expectedDraftRevision`.
@@ -242,6 +248,9 @@ Round and application reads, recommendation allocations, and recorded assessment
 use exact values such as `{ "minorUnits": "12345", "currency": "EUR" }` for €123.45.
 Use that object when recording or correcting an assessment, or `null` for an unstated
 amount. The assignment read returns the same format for submitted versions.
+In round preparation history, `budgetChange.before` and `budgetChange.after`
+use this exact form. The `beforeDisplay` and `afterDisplay` fields give formatted
+amounts for a reply.
 Round budget and application intake inputs, and reviewer drafts on both reads and
 writes, use decimal EUR strings such as `"123.45"`.
 

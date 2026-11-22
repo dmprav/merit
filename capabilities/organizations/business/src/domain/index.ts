@@ -1,5 +1,13 @@
 import { evaluateMemberAccess, type OrganizationSubject } from "@merit/access";
 
+export type WorkspaceChange = {
+  workspaceId: string;
+  workspaceKind: "standard" | "demo";
+  surface: "web" | "mcp";
+};
+
+export type WorkspaceChangeObserver = (change: WorkspaceChange) => void;
+
 export const revokesIssuedInvitations = (
   before: OrganizationSubject["administration"],
   after: OrganizationSubject["administration"] | null,

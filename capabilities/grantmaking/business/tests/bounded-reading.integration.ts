@@ -383,7 +383,7 @@ it("returns the same review freshness as shared web reads without loading histor
       contactId: sam,
       requestId: null,
       previousId,
-      content,
+      content: { ...content, amount: { minorUnits: "3000000", currency: "EUR" } },
     },
     {
       action: "record",
@@ -469,7 +469,15 @@ it("returns the same review freshness as shared web reads without loading histor
   expect(JSON.parse(assessment.content)).toMatchObject({
     id: ids.current,
     reviewer: "Sam",
-    versions: [{ content: { reasoning: "Practical plan." } }],
+    versions: [
+      {
+        content: {
+          reasoning: "Practical plan.",
+          amount: { minorUnits: "3000000", currency: "EUR" },
+        },
+        proposedAmountDisplay: "€30,000",
+      },
+    ],
   });
 });
 

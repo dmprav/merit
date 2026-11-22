@@ -9,7 +9,9 @@ opportunity or open applicant-facing intake.
 A program manager creates a round from the workspace's Funding rounds list. Only
 its name is required; purpose, budget, and committee date are optional.
 Creation saves these together, assigns responsibility to the creator, and records
-who created it and when. Repeating a creation request returns the same round.
+who created it and when. An initial budget appears in budget history with any
+reason supplied through MCP. Repeating the creation request returns the same
+round and preserves the original budget entry.
 
 Creation follows the shared [editing pattern](../../foundation/ui/src/patterns/editing/editing.mdx).
 **Resume funding round** reopens unfinished input. Failed creation retains its

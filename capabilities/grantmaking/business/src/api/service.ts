@@ -25,7 +25,8 @@ import type {
   applicationContentInput,
   roundHistoryInput,
   applicationHistoryInput,
-  roundSummarySchema,
+  roundListPageSchema,
+  roundHistoryPageSchema,
   applicationSummarySchema,
   roundOverviewSchema,
   applicationContextSchema,
@@ -133,11 +134,7 @@ export interface GrantmakingQueries {
   listRoundSummaries: (
     actor: Actor,
     input: z.input<typeof roundListInput>,
-  ) => Promise<
-    | { status: "ok"; rounds: z.output<typeof roundSummarySchema>[]; nextCursor: string | null }
-    | NotFound
-    | { status: "forbidden" }
-  >;
+  ) => Promise<z.output<typeof roundListPageSchema> | NotFound | { status: "forbidden" }>;
   readRound: (
     actor: Actor,
     input: z.input<typeof roundReadInput>,
@@ -155,7 +152,10 @@ export interface GrantmakingQueries {
     actor: Actor,
     input: z.input<typeof applicationContentInput>,
   ) => Promise<ContentResult>;
-  roundHistory: (actor: Actor, input: z.input<typeof roundHistoryInput>) => Promise<HistoryResult>;
+  roundHistory: (
+    actor: Actor,
+    input: z.input<typeof roundHistoryInput>,
+  ) => Promise<z.output<typeof roundHistoryPageSchema> | NotFound>;
   applicationHistory: (
     actor: Actor,
     input: z.input<typeof applicationHistoryInput>,

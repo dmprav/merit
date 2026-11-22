@@ -1,7 +1,7 @@
 import { desc, sql } from "drizzle-orm";
 
-import { decodeActivityCursor, encodeActivityCursor } from "../../../domain/activity";
-import { auditEvents } from "../schema";
+import { decodeActivityCursor, encodeActivityCursor } from "../../domain/activity";
+import { auditEvents } from "./schema";
 
 export const auditOrder = [desc(auditEvents.recordedAt), desc(auditEvents.id)];
 

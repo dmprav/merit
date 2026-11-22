@@ -71,3 +71,7 @@ export const publication = {
   update_contact: write,
   withdraw_application: write,
 } satisfies Record<WorkspaceToolName, { scope: McpScope; annotations: typeof readAnnotations }>;
+
+export const readOnlyToolNames = Object.entries(publication)
+  .filter(([, policy]) => policy.annotations.readOnlyHint)
+  .map(([name]) => name);

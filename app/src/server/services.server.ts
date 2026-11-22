@@ -1,3 +1,4 @@
+import type { GrantOutcome, ServerAnalytics } from "@merit/analytics/server";
 import { createApplicationsService } from "@merit/applications/server";
 import {
   contactApplicationWork,
@@ -7,6 +8,7 @@ import { createContactService } from "@merit/contacts/server";
 import type { Database } from "@merit/db";
 import { renderReviewerEmail } from "@merit/emails/reviewer";
 import { createGrantmakingService, createNavigationService } from "@merit/grantmaking/server";
+import type { WorkspaceChangeObserver } from "@merit/organizations/domain";
 import { createOrganizationService } from "@merit/organizations/server";
 import { productLinks } from "@merit/product/links";
 import { createRecommendationsService } from "@merit/recommendations/server";
@@ -16,6 +18,7 @@ import { createReviewerService } from "@merit/reviews/server";
 import {
   applicationReviewWork,
   contactReviewWork,
+  isCurrentAssessment,
   revokeMembershipReviews,
 } from "@merit/reviews/server/integrations";
 import { createRoundsService } from "@merit/rounds/server";
@@ -25,34 +28,46 @@ import type { EmailSender } from "./email-delivery.server";
 import type { OrganizationIdentity } from "./identity.server";
 import { sendInvitationEmail } from "./invitation-email.server";
 
-export const createApplicationServices = ({
-  database,
-  identity,
-  invitationOrigin,
-  networkAddress,
-  sendEmail,
-}: {
+type Dependencies = {
   database: <T>(operation: (db: Database) => Promise<T>) => Promise<T>;
+  analytics?: ServerAnalytics;
   identity: OrganizationIdentity;
   invitationOrigin: string;
   networkAddress?: string;
   sendEmail: EmailSender;
-}) => {
+};
+
+export const createApplicationServices = ({
+  database,
+  analytics,
+  identity,
+  invitationOrigin,
+  networkAddress,
+  sendEmail,
+}: Dependencies) => {
+  const observe = (event: GrantOutcome["event"]): WorkspaceChangeObserver | undefined =>
+    analytics && ((workspace) => analytics.captureGrantOutcome({ event, ...workspace }));
+
   const grantmaking = instrumentService("grantmaking", createGrantmakingService({ database }));
   const rounds = instrumentService(
     "rounds",
-    createRoundsService({ database, roundHasApplications }),
+    createRoundsService({ database, roundHasApplications, onCreated: observe("round_created") }),
   );
   const applications = instrumentService(
     "applications",
     createApplicationsService({
       database,
+      onCreated: observe("application_recorded"),
       work: { reviews: applicationReviewWork, recommendations: applicationRecommendationWork },
     }),
   );
   const recommendations = instrumentService(
     "recommendations",
-    createRecommendationsService({ database }),
+    createRecommendationsService({
+      database,
+      isCurrentAssessment,
+      onSaved: observe("funding_recommendation_saved"),
+    }),
   );
   const reviews = instrumentService("reviews", createReviewService({ database }));
 
@@ -61,6 +76,7 @@ export const createApplicationServices = ({
     "reviewer",
     createReviewerService({
       database,
+      onSubmitted: observe("assessment_submitted"),
       reviewerUrl: (slug, id) => new URL(productLinks.review(slug, id), invitationOrigin).href,
       managerUrl: (slug, id) =>
         new URL(productLinks.application(slug, id, { tab: "reviews" }), invitationOrigin).href,

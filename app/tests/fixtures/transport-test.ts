@@ -26,6 +26,7 @@ export const createTransport = (
     displayName: async () => null,
   },
   sendEmail: Parameters<typeof createApplicationServices>[0]["sendEmail"] = async () => {},
+  analytics?: Parameters<typeof createApplicationServices>[0]["analytics"],
 ) => {
   const {
     grantmaking,
@@ -39,6 +40,7 @@ export const createTransport = (
   } = createApplicationServices({
     database: async (operation) => operation(db),
     identity,
+    analytics,
     invitationOrigin: "http://localhost:3000",
     sendEmail,
     networkAddress: "integration",

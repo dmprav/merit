@@ -24,12 +24,14 @@ export {
   applicationContentInput,
   roundHistoryInput,
   applicationHistoryInput,
-  roundSummarySchema,
+  roundListPageSchema,
+  roundHistoryPageSchema,
   applicationSummarySchema,
   roundOverviewSchema,
   applicationContextSchema,
   contentChunkSchema,
   historySummarySchema,
+  roundHistorySummarySchema,
   readingErrorSchema,
 } from "./queries/reading";
 

@@ -18,6 +18,7 @@ import {
 } from "@merit/applications/scope";
 import { auditEvents } from "@merit/audit/schema";
 import type { Database } from "@merit/db";
+import { decodeMoney, formatMoney, type MoneyData } from "@merit/money";
 import { authorizedWorkspaces } from "@merit/organizations/scope";
 import { recommendationVersions } from "@merit/recommendations/schema";
 import {
@@ -44,6 +45,24 @@ import {
 } from "@merit/rounds/scope";
 
 import { roundFinancialTotals } from "./round-totals";
+
+const displayMoney = (value: MoneyData | null) =>
+  value === null ? null : formatMoney(decodeMoney(value), "en-IE");
+
+const withRequestedDisplay = <T extends { requested: MoneyData | null }>(record: T) => ({
+  ...record,
+  requestedDisplay: displayMoney(record.requested),
+});
+
+const withAssessmentAmounts = (
+  assessment: NonNullable<Awaited<ReturnType<typeof readAssessmentRecord>>>,
+) => ({
+  ...assessment,
+  versions: assessment.versions.map((version) => ({
+    ...version,
+    proposedAmountDisplay: displayMoney(version.content.amount),
+  })),
+});
 
 const roundFields = {
   roundId: fundingRounds.id,
@@ -251,7 +270,7 @@ export const readApplicationContext = async (
     )
     .innerJoin(workspace, eq(workspace.id, applicationCases.organizationId))
     .where(eq(applicationCases.id, input.applicationId));
-  return row ? withRequestedMoney(row) : undefined;
+  return row ? withRequestedDisplay(withRequestedMoney(row)) : undefined;
 };
 
 // Slicing serialized sections by Unicode code points bounds payloads at the server boundary,
@@ -460,7 +479,7 @@ const readCurrentDetailsOrSubmission = async (
     found: true,
     value:
       section === "details"
-        ? assembleApplicationDetails(caseRow, materialRow)
+        ? withRequestedDisplay(assembleApplicationDetails(caseRow, materialRow))
         : await readCurrentSubmissionPayload(db, caseRow, materialRow),
   };
 };
@@ -496,14 +515,20 @@ const sectionReaders: Partial<Record<ApplicationContentInput["section"], Section
   material: async (db, caseRow, input) =>
     optionalResult(await readMaterialVersionRecord(db, caseRow.id, input.materialVersion ?? -1)),
   evidence: (db, caseRow) => readEvidenceSection(db, caseRow),
-  reviews: async (db, caseRow) => ({
-    found: true,
-    value: (await readReviewsByCasesMap(db, [caseRow.id])).get(caseRow.id),
-  }),
-  assessment: async (db, caseRow, input) =>
-    input.entryId
-      ? optionalResult(await readAssessmentRecord(db, caseRow.id, input.entryId))
-      : { found: false },
+  reviews: async (db, caseRow) => {
+    const reviews = (await readReviewsByCasesMap(db, [caseRow.id])).get(caseRow.id);
+    return {
+      found: true,
+      value: reviews && { ...reviews, assessments: reviews.assessments.map(withAssessmentAmounts) },
+    };
+  },
+  assessment: async (db, caseRow, input) => {
+    if (!input.entryId) {
+      return { found: false };
+    }
+    const assessment = await readAssessmentRecord(db, caseRow.id, input.entryId);
+    return optionalResult(assessment && withAssessmentAmounts(assessment));
+  },
   review_request: async (db, caseRow, input) =>
     input.entryId
       ? optionalResult(await readReviewRequestRecord(db, caseRow.id, input.entryId))
@@ -568,14 +593,13 @@ export const readApplicationContent = async (
   return sliceJsonValue(resolved.value, input.offset, input.length);
 };
 
-export const readGrantHistory = (
+export const readApplicationHistorySummaries = (
   db: Database,
   actor: string,
   input: {
     workspaceSlug: string;
-    roundId?: string;
-    applicationId?: string;
-    history: "preparation" | "intake" | "recommendation";
+    applicationId: string;
+    history: "intake" | "recommendation";
     afterRevision?: number;
     limit: number;
   },
@@ -585,9 +609,6 @@ export const readGrantHistory = (
   // authorization is joined to the history owner's organization on every call.
   const history = auditEvents;
   if (input.history === "recommendation") {
-    if (!input.applicationId) {
-      return [];
-    }
     return db
       .select({
         revision: recommendationVersions.revision,
@@ -608,10 +629,6 @@ export const readGrantHistory = (
       .orderBy(recommendationVersions.revision)
       .limit(input.limit + 1);
   }
-  const targetId = input.roundId ?? input.applicationId;
-  if (!targetId) {
-    return [];
-  }
   return db
     .select({
       revision: sql<number>`${history.targetRevision}`,
@@ -622,8 +639,8 @@ export const readGrantHistory = (
     .innerJoin(workspace, eq(workspace.id, history.organizationId))
     .where(
       and(
-        eq(history.targetId, targetId),
-        eq(history.targetType, input.history === "preparation" ? "round" : "application"),
+        eq(history.targetId, input.applicationId),
+        eq(history.targetType, "application"),
         input.afterRevision === undefined
           ? undefined
           : gt(history.targetRevision, input.afterRevision),

@@ -25,6 +25,7 @@ import { encodeRecommendation } from "@merit/recommendations/api";
 import { saveFundingRecommendation } from "@merit/recommendations/server";
 import { reviewRevisionSchema, type ReviewChange } from "@merit/reviews/domain";
 import { saveApplicationReview } from "@merit/reviews/server";
+import { isCurrentAssessment } from "@merit/reviews/server/integrations";
 import { createFundingRound, deleteFundingRound } from "@merit/rounds/server";
 
 import { applicationWork } from "./application-work";
@@ -281,16 +282,21 @@ const recommend = async (
   position: "Fund" | "Defer" = "Fund",
 ) => {
   const page = await scenario.read();
-  return saveFundingRecommendation(db, actor, {
-    ...scenario.address,
-    expectedRevision: page.recommendationVersion,
-    expectedApplicationVersion: page.application.version,
-    recommendation: encodeRecommendation({
-      position,
-      allocation: fromMinorUnits(position === "Fund" ? 2400000n : 0n),
-      reasoning: "Consider the current request.",
-    }),
-  });
+  return saveFundingRecommendation(
+    db,
+    actor,
+    {
+      ...scenario.address,
+      expectedRevision: page.recommendationVersion,
+      expectedApplicationVersion: page.application.version,
+      recommendation: encodeRecommendation({
+        position,
+        allocation: fromMinorUnits(position === "Fund" ? 2400000n : 0n),
+        reasoning: "Consider the current request.",
+      }),
+    },
+    isCurrentAssessment,
+  );
 };
 
 const review = async (

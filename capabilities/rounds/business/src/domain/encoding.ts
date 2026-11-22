@@ -1,4 +1,4 @@
-import { type z } from "zod";
+import { z } from "zod";
 
 import { encodeMoney, decodeMoney, moneyDataSchema } from "@merit/money";
 
@@ -6,6 +6,12 @@ import { fundingRoundSchema, type FundingRound } from "./model";
 
 export const fundingRoundDataSchema = fundingRoundSchema.extend({
   budget: moneyDataSchema.nullable(),
+});
+
+export const roundBudgetChangeSchema = z.object({
+  before: moneyDataSchema.nullable(),
+  after: moneyDataSchema.nullable(),
+  reason: z.string().nullable(),
 });
 
 export type FundingRoundData = z.infer<typeof fundingRoundDataSchema>;

@@ -11,13 +11,17 @@ import {
 
 import {
   pageInput,
-  pageItems,
+  pageAssignments,
   reviewerErrorSchema,
   reviewerSavedSchema,
   reviewerListSchema,
   reviewerPageSchema,
   reviewerRevisionSchema,
 } from "./assignments";
+
+const myReviewsInput = pageInput.extend({
+  workspaceSlug: reviewerApplicationSchema.shape.workspaceSlug.optional(),
+});
 
 const reviewerReads = (actor: Actor, reviewer: Pick<ReviewerService, "list" | "read">) =>
   [
@@ -26,12 +30,12 @@ const reviewerReads = (actor: Actor, reviewer: Pick<ReviewerService, "list" | "r
       "list_my_reviews",
       {
         errorSchema: reviewerErrorSchema,
-        inputSchema: pageInput.extend({
-          workspaceSlug: reviewerApplicationSchema.shape.workspaceSlug.optional(),
+        inputSchema: myReviewsInput,
+        outputSchema: reviewerListSchema.extend({
+          nextPage: myReviewsInput.required({ after: true }).nullable(),
         }),
-        outputSchema: reviewerListSchema,
         description:
-          "List your own review assignments in current qualifying workspace memberships. Pass workspaceSlug for My work in one workspace; omit it for the existing cross-workspace listing. Follow nextCursor as after.",
+          "List your own review assignments in current qualifying workspace memberships. Pass workspaceSlug for My work in one workspace; omit it for the existing cross-workspace listing. Pass nextPage to this tool.",
       },
       async (input) => {
         const result = input.workspaceSlug
@@ -40,12 +44,7 @@ const reviewerReads = (actor: Actor, reviewer: Pick<ReviewerService, "list" | "r
         if (result.status !== "ok") {
           return result;
         }
-        const { items: assignments, nextCursor } = pageItems(
-          result.value,
-          input,
-          (item) => item.id,
-        );
-        return { status: "ok" as const, assignments, nextCursor };
+        return { status: "ok" as const, ...pageAssignments(result.value, input) };
       },
     ),
     defineActorTool(

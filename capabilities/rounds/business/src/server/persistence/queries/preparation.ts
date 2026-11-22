@@ -5,6 +5,8 @@ import type { Database } from "@merit/db";
 import { memberships } from "@merit/organizations/schema";
 import { membershipScope } from "@merit/organizations/scope";
 
+export { readRoundBudgetHistory, readRoundPreparationHistory } from "./history";
+
 export const readManagerCandidates = (db: Database, organizationId: string) =>
   db
     .select({ userId: appUsers.id, name: appUsers.name, email: memberships.email })

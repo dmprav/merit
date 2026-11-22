@@ -1,7 +1,8 @@
 import { type Actor } from "@merit/auth";
 import { allocatePublicId, type Database } from "@merit/db";
+import type { WorkspaceChangeObserver } from "@merit/organizations/domain";
 import { lockGrantWorkspace } from "@merit/organizations/locks";
-import { writeWorkspace } from "@merit/organizations/transactions";
+import { writeObservedWorkspace, writeWorkspace } from "@merit/organizations/transactions";
 
 import {
   createRoundRequestSchema,
@@ -24,14 +25,19 @@ import {
   lockManagerCandidate,
 } from "../persistence/commands/preparation";
 
-export const createFundingRound = async (db: Database, actor: Actor, input: CreateRoundRequest) => {
+export const createFundingRound = async (
+  db: Database,
+  actor: Actor,
+  input: CreateRoundRequest,
+  onCommitted?: WorkspaceChangeObserver,
+) => {
   const parsed = createRoundRequestSchema.safeParse(input);
   if (!parsed.success) {
     return { status: "invalid", error: "invalid_round" } as const;
   }
 
   const request = parsed.data;
-  return writeWorkspace(db, actor.userId, request.workspaceSlug, async (tx) => {
+  return writeObservedWorkspace(db, actor, request, onCommitted, async (tx, changed) => {
     const access = await lockGrantWorkspace(tx, actor.userId, request.workspaceSlug, "update");
     if (!access) {
       return { status: "not_found" } as const;
@@ -57,7 +63,9 @@ export const createFundingRound = async (db: Database, actor: Actor, input: Crea
       round,
       actor,
       request.requestId,
+      request.budgetReason,
     );
+    changed(access.organization.id, access.organization.kind);
     return { status: "ok", publicId } as const;
   });
 };

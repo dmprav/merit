@@ -80,6 +80,10 @@ The builder is the brief's reader. Write it in this shape:
 
 **Outcome:** <one sentence: who can now do what, and why it matters>
 
+**Evidence:** <what product decision could change after release, which existing
+metric, new signal, or observation would inform it, and who will revisit it
+when>
+
 **Behavior:** <agreed rules, states, edge cases, and interface effects, as
 checkable bullets>
 

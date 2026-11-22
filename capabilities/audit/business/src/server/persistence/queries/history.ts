@@ -3,8 +3,8 @@ import { and, eq, inArray } from "drizzle-orm";
 import type { Database } from "@merit/db";
 
 import { auditPageInput } from "../../../domain/activity";
+import { auditBefore, auditOrder, auditPage } from "../paging";
 import { auditEvents } from "../schema";
-import { auditBefore, auditOrder, auditPage } from "./paging";
 
 /** Caller authorizes the workspace and subjects in the same read transaction. */
 export const readAuditHistory = async (
