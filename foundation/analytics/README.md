@@ -11,10 +11,12 @@ records page views as route patterns, such as `/app/:workspace/rounds/:round`.
 It loads `posthog-js` only when configured and uses in-memory identity.
 Autocapture, session recording, surveys, and person profiles are disabled.
 
-Before an event leaves the browser, every property `posthog-js` derives from the
-location, including the session's entry URL and referrer, is reduced to a known
-route pattern without its query string or fragment. Paths outside the known
-routes are recorded as `/*other`, and page titles and IP addresses are dropped.
+Before an event leaves the browser, every URL, path, and referrer property
+`posthog-js` adds, including the session's entry URL and referrer, is reduced to
+a known route pattern without its query string or fragment. Paths outside the
+known routes are recorded as `/*other`. Page titles, IP addresses, and search
+terms from a search engine referrer are dropped. Campaign parameters such as
+`utm_source` are still recorded from the query string.
 Add each new page to the patterns in [`index.tsx`](src/index.tsx); the shell's
 [analytics test](../../app/src/shell/analytics.test.tsx) fails to typecheck
 until every route in the route tree has one.

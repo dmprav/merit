@@ -78,10 +78,15 @@ it.each([
 it.each([
   ["/Invitations/0123abcdef", "/invitations/:token"],
   ["/APP/Alder/Rounds/Round-1/", "/app/:workspace/rounds/:round"],
-  ["/invitations", "/*other"],
-  ["/app/alder/contacts/contact-7", "/*other"],
-  ["/app/alder/unknown", "/*other"],
-  ["/alder-foundation?token=123", "/*other"],
-])("matches routes regardless of case and records %s as %s", (path, expected) => {
+])("matches routes regardless of case, recording %s as %s", (path, expected) => {
   expect(sanitizeAnalyticsPath(path)).toBe(expected);
+});
+
+it.each([
+  ["/invitations"],
+  ["/app/alder/contacts/contact-7"],
+  ["/app/alder/unknown"],
+  ["/alder-foundation?token=123"],
+])("records the unrecognized path %s as /*other", (path) => {
+  expect(sanitizeAnalyticsPath(path)).toBe("/*other");
 });

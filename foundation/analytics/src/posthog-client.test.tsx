@@ -158,18 +158,23 @@ it("keeps the redacted route in same-origin URLs before sending", () => {
   });
 });
 
-it("sends no invitation token, workspace slug, or query string from the real PostHog client", async () => {
+const loadRealPostHog = async () => {
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("{}")));
-  const token = "0123456789abcdef0123456789abcdef";
-  window.history.replaceState(null, "", `/invitations/${token}?source=email#accept`);
-  vi.spyOn(document, "referrer", "get").mockReturnValue(
-    "http://localhost:3000/app/alder/applications/app-9",
-  );
   const posthog = new PostHogClient();
   const client = createPostHogAnalytics({ apiKey: "phc_test_key", load: async () => posthog });
   await vi.waitFor(() => expect(posthog.__loaded).toBe(true));
   const sent: unknown[] = [];
   posthog.on("eventCaptured", (event) => sent.push(event));
+  return { client, sent };
+};
+
+it("sends no invitation token, workspace slug, or query string from the real PostHog client", async () => {
+  const token = "0123456789abcdef0123456789abcdef";
+  window.history.replaceState(null, "", `/invitations/${token}?source=email#accept`);
+  vi.spyOn(document, "referrer", "get").mockReturnValue(
+    "http://localhost:3000/app/alder/applications/app-9",
+  );
+  const { client, sent } = await loadRealPostHog();
 
   client.pageView();
   window.history.replaceState(null, "", "/app/alder/rounds/round-1?guide=workshop");
@@ -191,4 +196,17 @@ it("sends no invitation token, workspace slug, or query string from the real Pos
   ]) {
     expect(payload).not.toContain(secret);
   }
+});
+
+it("sends no search terms from a search engine referrer", async () => {
+  vi.spyOn(document, "referrer", "get").mockReturnValue(
+    "https://www.bing.com/search?q=alder+foundation+grant",
+  );
+  const { client, sent } = await loadRealPostHog();
+
+  client.pageView("/demo");
+  client.track("demo_reset");
+
+  expect(sent).toHaveLength(2);
+  expect(JSON.stringify(sent)).not.toContain("alder foundation grant");
 });

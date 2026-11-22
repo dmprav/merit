@@ -21,6 +21,10 @@ const directTraffic = "$direct";
 /** Page context posthog-js adds that names a visitor or shows grant content. */
 const droppedProperties = ["$ip", "title"];
 
+// posthog-js reads search terms from a search engine referrer into `ph_keyword`
+// and `$session_entry_ph_keyword`.
+const isDropped = (key: string) => droppedProperties.includes(key) || key.endsWith("ph_keyword");
+
 const sanitizeUrl = (value: unknown) => {
   if (typeof value !== "string" || !value || value === directTraffic) {
     return value;
@@ -52,7 +56,7 @@ const sanitizeProperty = (key: string, value: unknown) => {
 export const sanitizePostHogCapture = (result: CaptureResult): CaptureResult => {
   const properties = Object.fromEntries(
     Object.entries(result.properties)
-      .filter(([key]) => !droppedProperties.includes(key))
+      .filter(([key]) => !isDropped(key))
       .map(([key, value]) => [key, sanitizeProperty(key, value)]),
   );
 
