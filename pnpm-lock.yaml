@@ -179,6 +179,9 @@ catalogs:
     '@commitlint/config-conventional':
       specifier: ^21.2.4
       version: 21.2.4
+    '@fontsource-variable/instrument-sans':
+      specifier: ^5.2.8
+      version: 5.3.0
     '@internationalized/date':
       specifier: 3.12.4
       version: 3.12.4
@@ -2297,6 +2300,9 @@ importers:
 
   foundation/ui:
     dependencies:
+      '@fontsource-variable/instrument-sans':
+        specifier: 'catalog:'
+        version: 5.3.0
       '@merit/dates':
         specifier: workspace:*
         version: link:../dates
@@ -3674,6 +3680,9 @@ packages:
 
   '@floating-ui/utils@0.2.12':
     resolution: {integrity: sha512-HpCo8tmWzLVad5s2d19EhAz5zqrrQ6s69qd6moPMQvkOuSwDT1YgRfWSVuc4ennqrgv3OHppiOGMQ7oC13yIww==}
+
+  '@fontsource-variable/instrument-sans@5.3.0':
+    resolution: {integrity: sha512-u4gKbDBTNFGkg997tfQn3eHOhHuquWUFTRT/rwzuKtrxX5P2ekfs2x+LgBPP4P32+cC+vUwF1Cr+IdRoPQbrGw==}
 
   '@humanfs/core@0.19.2':
     resolution: {integrity: sha512-UhXNm+CFMWcbChXywFwkmhqjs3PRCmcSa/hfBgLIb7oQ5HNb1wS0icWsGtSAUNgefHeI+eBrA8I1fxmbHsGdvA==}
@@ -9800,6 +9809,8 @@ snapshots:
       '@floating-ui/utils': 0.2.12
 
   '@floating-ui/utils@0.2.12': {}
+
+  '@fontsource-variable/instrument-sans@5.3.0': {}
 
   '@humanfs/core@0.19.2':
     dependencies:
