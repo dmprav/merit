@@ -101,6 +101,7 @@ describe("intake command requests", () => {
 
   it("leaves an omitted requested amount unknown and normalizes a supplied one", () => {
     expect(createApplicationRequestSchema.parse(creation).requested).toBeUndefined();
+    expect(createApplicationRequestSchema.parse({ ...creation, requested: "" }).requested).toBe("");
     expect(createApplicationRequestSchema.parse({ ...creation, requested: "12.3" }).requested).toBe(
       "12.30",
     );
@@ -125,6 +126,9 @@ describe("intake command requests", () => {
     expect(editApplicationRequestSchema.safeParse({ ...edit, expectedRevision: -1 }).success).toBe(
       false,
     );
+    expect(editApplicationRequestSchema.safeParse({ ...edit, expectedRevision: 0.5 }).success).toBe(
+      false,
+    );
     expect(
       editApplicationRequestSchema.safeParse({ ...address, change: { action: "mark_ready" } })
         .success,
@@ -143,6 +147,9 @@ describe("intake command requests", () => {
     expect(
       selectContactRequestSchema.parse({ ...selection, contactId: null }).contactId,
     ).toBeNull();
+    expect(
+      selectContactRequestSchema.parse({ ...selection, contactId: creation.requestId }).contactId,
+    ).toBe(creation.requestId);
     expect(selectContactRequestSchema.safeParse({ ...selection, contactId: "" }).success).toBe(
       false,
     );
