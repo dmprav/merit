@@ -214,12 +214,18 @@ Trace export is disabled when `OTEL_EXPORTER_OTLP_ENDPOINT` is empty. To export
 OpenTelemetry spans from Node.js to Checkly (or another OTLP/HTTP collector),
 set these server environment variables:
 
-| Setting                       | Value                                                                                   |
-| ----------------------------- | --------------------------------------------------------------------------------------- |
-| `OTEL_SERVICE_NAME`           | Service identifier recorded on spans (defaults to `merit`).                             |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | Collector base URL (for example Checkly's regional OTLP ingestion URL).                 |
-| `OTEL_EXPORTER_OTLP_HEADERS`  | Server secret with comma-separated `key=value` headers (for example API auth).          |
-| `OTEL_TRACE_FILTER`           | `checkly` (default, exports only Checkly-traced runs) or `all` (exports every request). |
+| Setting                       | Value                                                                               |
+| ----------------------------- | ----------------------------------------------------------------------------------- |
+| `OTEL_SERVICE_NAME`           | Service identifier recorded on spans (defaults to `merit`).                         |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | Collector HTTPS URL (HTTP is accepted on loopback). Use the final ingestion URL.    |
+| `OTEL_EXPORTER_OTLP_HEADERS`  | Server secret with comma-separated `key=value` headers (for example API auth).      |
+| `OTEL_TRACE_FILTER`           | `checkly` (default, caps Checkly-marked requests) or `all` (exports every request). |
+
+In `checkly` mode, each server process samples up to ten marked requests in a
+rolling minute. The marker is a correlation hint anyone can send. Requests
+share the budget across routes and callers, so a busy minute can leave a check
+without a trace. Child spans follow their request's decision. The exporter
+rejects redirects.
 
 Synthetic checks live in [`tooling/checkly`](../../tooling/checkly/README.md). Set
 `MERIT_BASE_URL` to your target origin and run `vp run @merit/checkly#test:synthetic` to

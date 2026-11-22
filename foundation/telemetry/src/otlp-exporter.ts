@@ -30,7 +30,12 @@ export const resolveTracesUrl = (endpoint?: string): string | null => {
   }
 
   const parsed = URL.parse(trimmed);
-  if (!parsed || (parsed.protocol !== "http:" && parsed.protocol !== "https:")) {
+  if (!parsed) {
+    return null;
+  }
+  const localHttp =
+    parsed.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(parsed.hostname);
+  if (parsed.protocol !== "https:" && !localHttp) {
     return null;
   }
 
@@ -92,6 +97,7 @@ export class FetchOtlpTraceExporter implements SpanExporter {
     try {
       const response = await this.fetchFn(this.url, {
         method: "POST",
+        redirect: "error",
         headers: {
           ...this.headers,
           "content-type": "application/json",

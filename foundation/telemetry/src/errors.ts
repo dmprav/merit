@@ -1,136 +1,72 @@
+import { describeHttpRoute } from "./route-label.ts";
+
 export type ErrorSurface = "server" | "web" | "mcp" | "auth" | "email" | "demo" | "admin";
 
-export type ErrorTagValue = string | number | boolean;
+type DiagnosticTags = {
+  provider?: "Mailpit" | "Resend";
+  status?: number;
+  route?: string;
+  method?: string;
+};
 
 export type ErrorReportContext = {
   surface: ErrorSurface;
   operation: string;
-  tags?: Record<string, ErrorTagValue | undefined>;
+  tags?: Record<string, string | number | boolean | undefined>;
   extra?: Record<string, unknown>;
 };
 
-export type NormalizedError = {
-  name: string;
-  message: string;
-  stack?: string;
-};
-
 export type ErrorReport = {
-  error: NormalizedError;
-  rawError: unknown;
-  context: {
-    surface: ErrorSurface;
-    operation: string;
-    tags?: Record<string, ErrorTagValue>;
-    extra?: Record<string, unknown>;
-  };
+  surface: ErrorSurface;
+  operation: string;
+  errorType: string;
+  tags?: DiagnosticTags;
+  extra?: { status: number };
 };
 
 export type ErrorReporter = (report: ErrorReport) => void;
 
-const SENSITIVE_KEYS = [
-  "authorization",
-  "cookie",
-  "set-cookie",
-  "token",
-  "secret",
-  "password",
-  "apikey",
-  "api_key",
-  "email",
-  "body",
-  "html",
-  "text",
-  "payload",
-];
+const errorTypes = new Set([
+  "Error",
+  "TypeError",
+  "RangeError",
+  "ReferenceError",
+  "SyntaxError",
+  "URIError",
+  "EvalError",
+  "AggregateError",
+]);
+const httpMethods = new Set([
+  "GET",
+  "HEAD",
+  "POST",
+  "PUT",
+  "PATCH",
+  "DELETE",
+  "OPTIONS",
+  "CONNECT",
+  "TRACE",
+]);
 
-const isSensitiveKey = (key: string) => {
-  const lower = key.toLowerCase();
-  return SENSITIVE_KEYS.some((sensitive) => lower.includes(sensitive));
-};
-
-const sanitizeValue = (value: unknown, seen: WeakSet<object>): unknown => {
-  if (value === null || typeof value !== "object") {
-    return value;
+const pickTags = (tags: NonNullable<ErrorReportContext["tags"]>): DiagnosticTags => {
+  const allowed: DiagnosticTags = {};
+  if (tags.provider === "Mailpit" || tags.provider === "Resend") {
+    allowed.provider = tags.provider;
   }
-  if (seen.has(value)) {
-    return "[Circular]";
+  if (typeof tags.status === "number") {
+    allowed.status = tags.status;
   }
-  seen.add(value);
-  if (Array.isArray(value)) {
-    return value.map((item) => sanitizeValue(item, seen));
+  if (typeof tags.route === "string") {
+    allowed.route = describeHttpRoute(tags.route).route;
   }
-  return sanitizeRecord(value, seen);
-};
-
-const sanitizeRecord = (record: object, seen: WeakSet<object>): Record<string, unknown> => {
-  const sanitized: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(record)) {
-    sanitized[key] = isSensitiveKey(key) ? "[Redacted]" : sanitizeValue(value, seen);
+  if (typeof tags.method === "string" && httpMethods.has(tags.method)) {
+    allowed.method = tags.method;
   }
-  return sanitized;
-};
-
-export const sanitizeExtra = (
-  extra: Record<string, unknown> | undefined,
-): Record<string, unknown> | undefined => {
-  if (!extra) {
-    return undefined;
-  }
-  return sanitizeRecord(extra, new WeakSet());
-};
-
-const compactTags = (
-  tags: Record<string, ErrorTagValue | undefined>,
-): Record<string, ErrorTagValue> | undefined => {
-  const result: Record<string, ErrorTagValue> = {};
-  for (const [key, value] of Object.entries(tags)) {
-    if (value !== undefined) {
-      result[key] = value;
-    }
-  }
-  return Object.keys(result).length > 0 ? result : undefined;
-};
-
-export const normalizeError = (error: unknown): NormalizedError => {
-  if (error instanceof Error) {
-    return {
-      name: error.name || "Error",
-      message: error.message,
-      ...(error.stack ? { stack: error.stack } : {}),
-    };
-  }
-  if (typeof error === "string") {
-    return { name: "Error", message: error };
-  }
-  if (error && typeof error === "object" && "message" in error) {
-    const record = error as { name?: unknown; message?: unknown };
-    return {
-      name: typeof record.name === "string" && record.name ? record.name : "Error",
-      message: String(record.message),
-    };
-  }
-  return { name: "Error", message: String(error) };
+  return allowed;
 };
 
 const consoleErrorReporter: ErrorReporter = (report) => {
-  const payload = {
-    surface: report.context.surface,
-    operation: report.context.operation,
-    errorType: report.error.name,
-    ...(report.context.tags ? { tags: report.context.tags } : {}),
-    ...(report.context.extra ? { extra: report.context.extra } : {}),
-  };
-  try {
-    console.error("[merit:error]", JSON.stringify(payload));
-  } catch {
-    console.error(
-      "[merit:error]",
-      report.context.surface,
-      report.context.operation,
-      report.error.name,
-    );
-  }
+  console.error("[merit:error]", JSON.stringify(report));
 };
 
 let activeReporter: ErrorReporter = consoleErrorReporter;
@@ -140,17 +76,16 @@ export const setErrorReporter = (reporter: ErrorReporter | null): void => {
 };
 
 export const reportError = (error: unknown, context: ErrorReportContext): void => {
+  const tags = context.tags && pickTags(context.tags);
   const report: ErrorReport = {
-    error: normalizeError(error),
-    rawError: error,
-    context: {
-      surface: context.surface,
-      operation: context.operation,
-      ...(context.tags ? { tags: compactTags(context.tags) } : {}),
-      ...(context.extra ? { extra: sanitizeExtra(context.extra) } : {}),
-    },
+    surface: context.surface,
+    operation: context.operation,
+    errorType: error instanceof Error && errorTypes.has(error.name) ? error.name : "Error",
+    ...(tags && Object.keys(tags).length ? { tags } : {}),
+    ...(typeof context.extra?.status === "number"
+      ? { extra: { status: context.extra.status } }
+      : {}),
   };
-
   try {
     activeReporter(report);
   } catch {
