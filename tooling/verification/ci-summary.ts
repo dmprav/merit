@@ -287,7 +287,10 @@ const findFilesByName = (rootDir: string, targetName: string): string[] => {
   const stack = [rootDir];
 
   while (stack.length > 0) {
-    const current = stack.pop()!;
+    const current = stack.pop();
+    if (!current) {
+      continue;
+    }
     let entries: Dirent[];
     try {
       entries = readdirSync(current, { withFileTypes: true });
@@ -349,7 +352,10 @@ const runCli = () => {
   const positional: string[] = [];
 
   for (let index = 0; index < args.length; index += 1) {
-    const arg = args[index]!;
+    const arg = args[index];
+    if (arg === undefined) {
+      continue;
+    }
     if (arg === "--scan-vitest" && args[index + 1]) {
       scanVitestFilename = args[index + 1];
       index += 1;

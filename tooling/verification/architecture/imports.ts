@@ -401,6 +401,7 @@ export const imports = {
       files: [
         "**/foundation/analytics/src/posthog.ts",
         "**/foundation/analytics/src/posthog.test.ts",
+        "**/foundation/analytics/src/posthog-client.test.tsx",
       ],
       rules: importRules(allowImports(posthogImports)),
     },

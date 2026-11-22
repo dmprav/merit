@@ -45,6 +45,7 @@ export const handleMcp = (
   });
 
   return handleWorkspaceMcp(request, config.resource, {
+    captureMcpToolFinished: dependencies.analytics?.captureMcpToolFinished,
     authenticate: () => authenticateMcp(request, config, dependencies.database),
     rounds: services.rounds,
     applications: services.applications,

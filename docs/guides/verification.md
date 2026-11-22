@@ -194,7 +194,12 @@ individually and record exceptions as exact values in
 provider rules enabled and avoid excluding entire source or test directories.
 
 The dependency audit includes production and development dependencies. High and
-critical advisories fail the check; registry failures also fail it. Run
+critical advisories fail the check; registry failures also fail it. Because new
+advisories appear without any change to the repository, CI enforces the audit only
+for changes to dependency files and reports other findings as warnings; the
+[pull-request verification](development.md#pull-request-verification) section lists
+when it blocks. `vp run check:security` and `vp run ready` still fail on any
+finding locally. Run
 `pnpm audit` to review lower-severity findings. Prefer a supported dependency
 update or a targeted override, verify affected behavior, and document any
 accepted advisory exception with its scope and reason. The audit does not apply

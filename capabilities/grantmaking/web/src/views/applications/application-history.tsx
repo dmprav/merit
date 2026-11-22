@@ -53,14 +53,14 @@ export const ApplicationHistory = ({
   const { t } = useTranslation(["fundingRounds", "common"]);
   const missing = hasMore ? missingHistoryMessages.partial : missingHistoryMessages.complete;
   const snapshots = applicationHistorySnapshots(application, history);
-  const last = snapshots.at(-1)!;
+  const last = snapshots.at(-1);
 
   const [selection, setSelection] = useState(() => ({
     from:
-      initialFromVersion !== undefined && initialFromVersion !== last.version
+      initialFromVersion !== undefined && initialFromVersion !== last?.version
         ? initialFromVersion
         : (snapshots.at(-2)?.version ?? application.version),
-    to: last.version,
+    to: last?.version ?? application.version,
   }));
 
   const before = snapshots.find((snapshot) => snapshot.version === selection.from);
@@ -401,28 +401,33 @@ const RecordedUpdates = ({ entries }: { entries: readonly ApplicationHistoryEntr
   const { t } = useTranslation("fundingRounds");
   return (
     <Timeline label={t("history.recordedUpdates")}>
-      {entries.map((entry) => (
-        <TimelineEntry
-          key={entry.revision}
-          title={t("history.update", {
-            from: entry.before!.version,
-            to: entry.after!.version,
-          })}
-          attribution={
-            <Attribution
-              actor={entry.actor}
-              provenance={entry.provenance}
-              recordedAt={entry.recordedAt}
-            />
-          }
-        >
-          {entry.reason && (
-            <Reading as="p" prose={false}>
-              {entry.reason}
-            </Reading>
-          )}
-        </TimelineEntry>
-      ))}
+      {entries.flatMap((entry) => {
+        if (!entry.before || !entry.after) {
+          return [];
+        }
+        return (
+          <TimelineEntry
+            key={entry.revision}
+            title={t("history.update", {
+              from: entry.before.version,
+              to: entry.after.version,
+            })}
+            attribution={
+              <Attribution
+                actor={entry.actor}
+                provenance={entry.provenance}
+                recordedAt={entry.recordedAt}
+              />
+            }
+          >
+            {entry.reason && (
+              <Reading as="p" prose={false}>
+                {entry.reason}
+              </Reading>
+            )}
+          </TimelineEntry>
+        );
+      })}
     </Timeline>
   );
 };

@@ -10,6 +10,7 @@ import type {
 } from "../../contracts/preparation";
 import { usePreparationDrafts } from "./drafts";
 import {
+  buildPreparationDraft,
   draftChange,
   preparationDraft,
   hasPreparationDraft,
@@ -80,7 +81,7 @@ const loadLatestPreparationDraft = ({
     void Promise.resolve(resolveConflict(draftKey, "use_stored")).then(onResolved);
     return;
   }
-  updateDraft(preparationDraft(section, round, revision) as PreparationDraft);
+  updateDraft(buildPreparationDraft(section, round, revision));
   onResolved();
 };
 
@@ -240,14 +241,16 @@ export const useRoundPreparation = ({
 
   const key = (section: PreparationSection) => `${data.draftKey}/${section}`;
 
-  const draftFor = <S extends PreparationSection>(section: S) =>
-    edits[key(section)] as Extract<PreparationDraft, { section: S }> | undefined;
+  const draftFor = (section: PreparationSection) => {
+    const entry = edits[key(section)];
+    return entry?.section === section ? entry : undefined;
+  };
 
   useEffect(() => {
     if (ready && editing && !edits[`${data.draftKey}/${editing}`]) {
       setEdit(
         `${data.draftKey}/${editing}`,
-        preparationDraft(editing, round, data.state.revision) as PreparationDraft,
+        buildPreparationDraft(editing, round, data.state.revision),
       );
     }
   }, [ready, editing, edits, setEdit, data.draftKey, round, data.state.revision]);
@@ -273,7 +276,7 @@ export const useRoundPreparation = ({
 
     const draft = draftFor(section);
     if (ready && (!draft || !hasPreparationDraft(draft))) {
-      updateDraft(preparationDraft(section, round, data.state.revision) as PreparationDraft);
+      updateDraft(buildPreparationDraft(section, round, data.state.revision));
     }
     setError(null);
     setEditing(section);
@@ -312,7 +315,7 @@ export const useRoundPreparation = ({
       mode === "quick" && revision !== draft.revision
         ? {
             revision,
-            draft: preparationDraft(draft.section, round, data.state.revision) as PreparationDraft,
+            draft: buildPreparationDraft(draft.section, round, data.state.revision),
           }
         : null,
     );
@@ -466,23 +469,22 @@ export const useRoundPreparation = ({
     saveDraft: (draft: PreparationDraft) => save(draft),
     renameRound: (title: string) =>
       save({ ...preparationDraft("title", round, data.state.revision), value: { title } }, "quick"),
-    changeMeetingDate: (meetingDate: string | null) =>
-      save(
-        {
-          ...(draftFor("meetingDate") ??
-            preparationDraft("meetingDate", round, data.state.revision)),
-          value: { meetingDate: meetingDate ?? "" },
-        },
-        "quick",
-      ),
-    assignManager: (userId: string) =>
-      save(
-        {
-          ...(draftFor("manager") ?? preparationDraft("manager", round, data.state.revision)),
-          value: { userId },
-        },
-        "quick",
-      ),
+    changeMeetingDate: (meetingDate: string | null) => {
+      const existing = draftFor("meetingDate");
+      const base =
+        existing?.section === "meetingDate"
+          ? existing
+          : preparationDraft("meetingDate", round, data.state.revision);
+      return save({ ...base, value: { meetingDate: meetingDate ?? "" } }, "quick");
+    },
+    assignManager: (userId: string) => {
+      const existing = draftFor("manager");
+      const base =
+        existing?.section === "manager"
+          ? existing
+          : preparationDraft("manager", round, data.state.revision);
+      return save({ ...base, value: { userId } }, "quick");
+    },
 
     refresh,
     undoSave: () =>

@@ -26,7 +26,9 @@ test("retired CI shortcuts and deferred workflow are removed", async () => {
 
   const browserConfig = await readFile(`${repoRoot}/tooling/testing/browser/config.ts`, "utf8");
   expect(browserConfig).not.toContain("MERIT_BROWSER_RETRIES");
-  expect(browserConfig).toContain("retries: 0");
+  // One CI retry labels flaky tests; failing on them keeps the gate as strict as no retries.
+  expect(browserConfig).toContain("retries: process.env.CI ? 1 : 0");
+  expect(browserConfig).toContain("failOnFlakyTests: Boolean(process.env.CI)");
 });
 
 test("ready:tests caps package concurrency cleanly", async () => {
@@ -38,7 +40,7 @@ test("ready:tests caps package concurrency cleanly", async () => {
   });
 });
 
-test("CI verify workflow covers every ready stage and sharded browser suite without retries", async () => {
+test("CI verify workflow covers every ready stage and sharded browser suite", async () => {
   const tasks = await loadTasks();
   const ready = tasks.ready;
   assert(ready && typeof ready === "object" && !Array.isArray(ready) && ready.dependsOn);
@@ -82,7 +84,7 @@ test("CI verify workflow covers every ready stage and sharded browser suite with
       "vp run --no-cache @merit/app#test:workspace:all --shard=${{ matrix.shard }}",
     ],
     "ready:tooling": ["vp run --no-cache ready:tooling"],
-    "check:security": ["vp run --no-cache check:security"],
+    "check:security": ["vp run --no-cache check:secrets", "vp run --no-cache check:dependencies"],
   };
 
   expect(new Set(Object.keys(stageWorkflowChecks))).toEqual(new Set(stages));
@@ -92,6 +94,10 @@ test("CI verify workflow covers every ready stage and sharded browser suite with
     }
   }
   expect(workflow).toContain("vp run --no-cache test:checks");
+  // Advisories block only changes to dependency files; elsewhere they are reported.
+  expect(workflow).toContain(
+    "continue-on-error: ${{ needs.changes.outputs.dependencies_changed != 'true' }}",
+  );
 
   // External actions and container images must remain pinned by digest/SHA,
   // including inside local composite actions.
@@ -122,6 +128,13 @@ test("CI verify workflow covers every ready stage and sharded browser suite with
     assert(image);
     expect(image).toMatch(/@sha256:[0-9a-f]{64}$/);
   }
+  const storybookImage = /browser-storybook:[\s\S]*?^\s+container:\s+(\S+)/m.exec(workflow)?.[1];
+  assert(storybookImage);
+  const visualContainerScript = await readFile(
+    `${repoRoot}/tooling/storybook/run-visual-container.ts`,
+    "utf8",
+  );
+  expect(visualContainerScript).toContain(storybookImage);
 
   // Extract top-level job IDs under `jobs:` and ensure the `verify` aggregator awaits all others.
   const jobsBlock = workflow.split(/^jobs:\r?\n/m)[1] ?? "";
@@ -131,4 +144,23 @@ test("CI verify workflow covers every ready stage and sharded browser suite with
   const verifyBlock = jobsBlock.split(/^  verify:\r?$/m)[1] ?? "";
   const neededJobs = [...verifyBlock.matchAll(/^\s+-\s+([a-z0-9-]+)\r?$/gm)].map(([, id]) => id);
   expect(neededJobs).toEqual(jobIds.filter((id) => id !== "verify"));
+});
+
+test("CI uploads package Vitest reports from each workspace package without walking node_modules", async () => {
+  const workflow = await readFile(`${repoRoot}/.github/workflows/verify.yml`, "utf8");
+  const workspace = await readFile(`${repoRoot}/pnpm-workspace.yaml`, "utf8");
+
+  // upload-artifact reads the whole tree for a `**` pattern, including node_modules, and hangs.
+  const uploadPaths = [...workflow.matchAll(/^\s+path:\s*(?:\|\r?\n((?:\s{12}.*\r?\n)+)|(.+))/gm)]
+    .flatMap(([, block, single]) => (block ?? single ?? "").split(/\r?\n/))
+    .map((path) => path.trim().replace(/^"|"$/g, ""))
+    .filter(Boolean);
+  expect(uploadPaths.filter((path) => path.startsWith("**"))).toEqual([]);
+
+  const packagesBlock = workspace.match(/^packages:\r?\n((?: {2}- .*\r?\n)+)/m)?.[1] ?? "";
+  const packageGlobs = [...packagesBlock.matchAll(/^ {2}- (\S+)/gm)]
+    .map(([, glob]) => glob)
+    .filter((glob): glob is string => glob !== undefined);
+  const reportPaths = uploadPaths.filter((path) => path.endsWith("/.vitest-report.json"));
+  expect(reportPaths).toEqual(packageGlobs.map((glob) => `${glob}/.vitest-report.json`));
 });

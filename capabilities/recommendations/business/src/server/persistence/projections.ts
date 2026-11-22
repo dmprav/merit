@@ -22,6 +22,13 @@ const decodeProvenanceColumns = (
   return undefined;
 };
 
+const euroCurrency = (currency: string): "EUR" => {
+  if (currency !== "EUR") {
+    throw new Error(`Unsupported currency: ${currency}`);
+  }
+  return currency;
+};
+
 const assembleRecommendationRecord = (row: RecommendationRow) => {
   const provenance = decodeProvenanceColumns(
     row.authorProvenanceInterface,
@@ -31,7 +38,7 @@ const assembleRecommendationRecord = (row: RecommendationRow) => {
     position: row.position,
     allocation: {
       minorUnits: row.allocationMinorUnits,
-      currency: row.allocationCurrency as "EUR",
+      currency: euroCurrency(row.allocationCurrency),
     },
     reasoning: row.reasoning,
     ...(row.authorName !== null
@@ -124,7 +131,7 @@ export const readRoundAllocations = async (
     .orderBy(recommendationVersions.caseId, desc(recommendationVersions.revision));
   return rows.map((row) => ({
     minorUnits: row.minorUnits,
-    currency: row.currency as "EUR",
+    currency: euroCurrency(row.currency),
   }));
 };
 

@@ -42,6 +42,29 @@ test("counts first failures and explicit passes of the same browser test on late
   });
 });
 
+test("counts a browser test once per run and marks it recovered when its retry passes", () => {
+  const attempt = (mark: string, title: string, retry = "") =>
+    `2026-11-22T10:08:11.0Z   ${mark}    3 [webkit] › tests/navigation.spec.ts:3:1 › ${title}${retry} (9.2s)`;
+
+  const log = [
+    attempt("✘", "focus"),
+    attempt("✘", "scroll"),
+    attempt("✓", "focus", " (retry #1)"),
+    attempt("✘", "scroll", " (retry #1)"),
+  ].join("\n");
+
+  const results = browserFailures(
+    100,
+    [{ id: 1, name: "browser-storybook (5/5)", run_attempt: 1, conclusion: "failure" }],
+    () => log,
+  );
+
+  expect(Object.fromEntries(results)).toEqual({
+    "browser-storybook [webkit] tests/navigation.spec.ts › focus": true,
+    "browser-storybook [webkit] tests/navigation.spec.ts › scroll": false,
+  });
+});
+
 const failedJob = { id: 1, name: "browser-storybook (5/5)", run_attempt: 1, conclusion: "failure" };
 
 test.each([404, 410])("skips the whole run when a rerun log is unavailable (HTTP %i)", (status) => {

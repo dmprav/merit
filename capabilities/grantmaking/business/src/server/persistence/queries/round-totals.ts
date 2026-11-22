@@ -100,5 +100,8 @@ export const readRoundPageTotals = async (
     })
     .from(applications)
     .crossJoinLateral(reviews);
-  return totals!;
+  if (!totals) {
+    throw new Error("Round totals query returned no row.");
+  }
+  return totals;
 };

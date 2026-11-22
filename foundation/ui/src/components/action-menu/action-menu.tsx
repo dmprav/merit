@@ -25,6 +25,7 @@ const keepContextMenuOnLink = (event: KeyboardEvent) => {
 const ContextTrigger = ({ trigger }: { trigger: ComponentProps<typeof Pressable>["children"] }) => (
   <Pressable>
     {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- cloneElement widens the element type constructor beyond Pressable's string element type.
       cloneElement(trigger, {
         onKeyDown: (event) => {
           keepContextMenuOnLink(event);

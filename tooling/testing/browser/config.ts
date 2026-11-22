@@ -54,7 +54,10 @@ export const browserReporter = (): PlaywrightTestConfig["reporter"] => {
 
 export const browserConfig = defineConfig({
   forbidOnly: true,
-  retries: 0,
+  // CI retries a failed test once so its report separates flaky tests, with the failed
+  // attempt's trace, from consistent failures. A flaky test still fails the run.
+  retries: process.env.CI ? 1 : 0,
+  failOnFlakyTests: Boolean(process.env.CI),
   testDir: ".",
   outputDir: join(tmpdir(), "merit-browser-results"),
   fullyParallel: true,

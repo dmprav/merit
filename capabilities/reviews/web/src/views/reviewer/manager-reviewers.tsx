@@ -610,18 +610,22 @@ const ClearConflictDialog = ({
   );
 };
 
-const eventLabels = {
-  "review_assignment.invited": "invite",
-  "review_assignment.invitation_renewed": "resend",
-  "review_assignment.accepted": "accept",
-  "review_assignment.declined": "decline",
-  "review_assignment.withdrawn": "withdrawn",
-  "review_assignment.conflict_reported": "report_conflict",
-  "review_assignment.conflict_cleared": "clear_conflict",
-  "review_assignment.access_ended": "cancel",
-  "review_assignment.reinstated": "reinstate",
-  "assessment.submitted": "submit",
-  "assessment.amended": "amend",
-} as const;
+const eventLabelEntries = [
+  ["review_assignment.invited", "invite"],
+  ["review_assignment.invitation_renewed", "resend"],
+  ["review_assignment.accepted", "accept"],
+  ["review_assignment.declined", "decline"],
+  ["review_assignment.withdrawn", "withdrawn"],
+  ["review_assignment.conflict_reported", "report_conflict"],
+  ["review_assignment.conflict_cleared", "clear_conflict"],
+  ["review_assignment.access_ended", "cancel"],
+  ["review_assignment.reinstated", "reinstate"],
+  ["assessment.submitted", "submit"],
+  ["assessment.amended", "amend"],
+] as const;
 
-const eventLabel = (action: string) => eventLabels[action as keyof typeof eventLabels] ?? "changed";
+const eventLabels: ReadonlyMap<string, (typeof eventLabelEntries)[number][1]> = new Map(
+  eventLabelEntries,
+);
+
+const eventLabel = (action: string) => eventLabels.get(action) ?? "changed";

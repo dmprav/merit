@@ -225,7 +225,7 @@ const newReviewDraft = (
 ): ReviewDraft => {
   const assessment = application.reviews.assessments.find((item) => item.id === id);
   const request = pending.find((item) => item.contactId === contactId);
-  const content: AssessmentInput = assessment?.versions.at(-1)!.content ?? {
+  const content: AssessmentInput = assessment?.versions.at(-1)?.content ?? {
     applicationVersion: request?.applicationVersion ?? null,
     criteriaVersion: request?.criteriaVersion ?? null,
     date: null,

@@ -11,21 +11,33 @@ const root = path.resolve(import.meta.dirname, "../../..");
 const uiPackage = path.join(root, "foundation/ui");
 
 /** React stays outside the library bundle so previews and consumers share one copy. */
-const globals = {
-  react: "React",
-  "react-dom": "ReactDOM",
-  "react-dom/client": "ReactDOM",
-  "react/jsx-runtime": "ReactJSXRuntime",
-};
+const globals = new Map<string, string>([
+  ["react", "React"],
+  ["react-dom", "ReactDOM"],
+  ["react-dom/client", "ReactDOM"],
+  ["react/jsx-runtime", "ReactJSXRuntime"],
+]);
 
 const namespace = "Merit";
 
 const uiEntries = async () => {
-  const manifest = JSON.parse(await readFile(path.join(uiPackage, "package.json"), "utf8")) as {
-    exports: Record<string, string>;
-  };
+  const manifest: unknown = JSON.parse(
+    await readFile(path.join(uiPackage, "package.json"), "utf8"),
+  );
+  if (
+    typeof manifest !== "object" ||
+    manifest === null ||
+    !("exports" in manifest) ||
+    typeof manifest.exports !== "object" ||
+    manifest.exports === null
+  ) {
+    throw new Error("Unexpected foundation/ui package.json exports shape.");
+  }
   return Object.entries(manifest.exports)
-    .filter(([, file]) => file.endsWith(".tsx"))
+    .filter(
+      (entry): entry is [string, string] =>
+        typeof entry[1] === "string" && entry[1].endsWith(".tsx"),
+    )
     .map(([subpath, file]) => ({ specifier: `@merit/ui${subpath.slice(1)}`, file }));
 };
 
@@ -91,9 +103,8 @@ const reactFromGlobals = (modules: string[]): Plugin => ({
   resolveId: (source) => (modules.includes(source) ? `\0global:${source}` : undefined),
   load: (id) => {
     const source = id.startsWith("\0global:") ? id.slice("\0global:".length) : undefined;
-    return source === undefined
-      ? undefined
-      : `module.exports = window.${globals[source as keyof typeof globals]};`;
+    const target = source === undefined ? undefined : globals.get(source);
+    return target === undefined ? undefined : `module.exports = window.${target};`;
   },
 });
 
@@ -127,7 +138,7 @@ export const buildLibrary = async (outDir: string, components: string[]) => {
     name: namespace,
     outDir,
     fileName: "bundle.js",
-    plugins: [reactFromGlobals(Object.keys(globals)), react({ compiler: reactCompilerOptions })],
+    plugins: [reactFromGlobals([...globals.keys()]), react({ compiler: reactCompilerOptions })],
   });
   const bundlePath = path.join(outDir, "bundle.js");
   const bundle = await readFile(bundlePath, "utf8");

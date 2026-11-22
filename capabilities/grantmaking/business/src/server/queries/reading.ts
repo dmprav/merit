@@ -104,10 +104,11 @@ export const listFundingApplications = async (
     }
     const rows = await reads.readApplicationSummaries(tx, actor.userId, request);
     const items = rows.slice(0, request.limit).map((row) => applicationSummarySchema.parse(row));
+    const last = items.at(-1);
     return {
       status: "ok",
       applications: items,
-      nextCursor: rows.length > request.limit ? items.at(-1)!.applicationId : null,
+      nextCursor: rows.length > request.limit && last ? last.applicationId : null,
     } as const;
   });
 };
@@ -265,10 +266,11 @@ export const listFundingApplicationHistory = async (
     const entries = rows
       .slice(0, request.limit)
       .map((row) => ({ ...row, recordedAt: row.recordedAt.toISOString() }));
+    const last = entries.at(-1);
     return {
       status: "ok",
       entries,
-      nextRevision: rows.length > request.limit ? entries.at(-1)!.revision : null,
+      nextRevision: rows.length > request.limit && last ? last.revision : null,
     } as const;
   });
 };
@@ -299,10 +301,11 @@ export const listContactApplications = async (
         ],
       }),
     );
+    const last = applications.at(-1);
     return {
       status: "ok",
       applications,
-      nextCursor: rows.length > request.limit ? applications.at(-1)!.applicationId : null,
+      nextCursor: rows.length > request.limit && last ? last.applicationId : null,
     } as const;
   });
 };
@@ -343,11 +346,11 @@ export const listApplicationReviewSummaries = async (
       const freshness = value.kind === "request" ? "outstanding" : reviewFreshness(basisComparison);
       return reviewSummarySchema.parse({ ...value, basisComparison, freshness });
     });
+    const last = reviews.at(-1);
     return {
       status: "ok",
       reviews,
-      nextCursor:
-        rows.length > request.limit ? `${reviews.at(-1)!.kind}:${reviews.at(-1)!.id}` : null,
+      nextCursor: rows.length > request.limit && last ? `${last.kind}:${last.id}` : null,
     } as const;
   });
 };

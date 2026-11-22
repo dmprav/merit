@@ -1,7 +1,8 @@
 import { type Actor } from "@merit/auth";
 import { lockContactProfile } from "@merit/contacts/locks";
 import { allocatePublicId, type Database, type Transaction } from "@merit/db";
-import { writeWorkspace } from "@merit/organizations/transactions";
+import type { WorkspaceChangeObserver } from "@merit/organizations/domain";
+import { writeObservedWorkspace, writeWorkspace } from "@merit/organizations/transactions";
 import { lockPreparationRoundAccess } from "@merit/rounds/locks";
 
 import {
@@ -55,6 +56,7 @@ export const createFundingApplication = async (
   db: Database,
   actor: Actor,
   input: CreateApplicationRequest,
+  onCommitted?: WorkspaceChangeObserver,
 ) => {
   const parsed = createApplicationRequestSchema.safeParse(input);
   if (!parsed.success) {
@@ -62,7 +64,7 @@ export const createFundingApplication = async (
   }
 
   const request = parsed.data;
-  return writeWorkspace(db, actor.userId, request.workspaceSlug, async (tx) => {
+  return writeObservedWorkspace(db, actor, request, onCommitted, async (tx, changed) => {
     const round = await lockPreparationRoundAccess(tx, actor.userId, request);
     if (!round) {
       return { status: "not_found" } as const;
@@ -95,9 +97,11 @@ export const createFundingApplication = async (
     );
     // Same-round retries saw the receipt above while holding the round lock.
     // A conflict here means a different round committed this request ID first.
-    return publicId
-      ? ({ status: "ok", publicId } as const)
-      : ({ status: "invalid", error: "application_deleted" } as const);
+    if (!publicId) {
+      return { status: "invalid", error: "application_deleted" } as const;
+    }
+    changed(round.organizationId, round.organizationKind);
+    return { status: "ok", publicId } as const;
   });
 };
 

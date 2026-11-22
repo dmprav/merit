@@ -36,6 +36,9 @@ const iconModules = async () => {
   return entries;
 };
 
+const isGlyphComponent = (value: unknown): value is ComponentType<LucideProps> =>
+  typeof value === "function" || (typeof value === "object" && value !== null);
+
 /**
  * Renders each Icon's Lucide glyph with IconBase's size, stroke and fill as a standalone SVG. The
  * stroke is baked in as `ink` because an <img> cannot inherit the surrounding text color.
@@ -44,9 +47,14 @@ export const buildIcons = async (ink: string) =>
   Promise.all(
     (await iconModules()).map(async ({ name, module }) => {
       const url = pathToFileURL(requireFromUi.resolve(`lucide-react/dist/esm/icons/${module}.mjs`));
-      const { default: Glyph } = (await import(url.href)) as {
-        default: ComponentType<LucideProps>;
-      };
+      const imported: unknown = await import(url.href);
+      const Glyph =
+        typeof imported === "object" && imported !== null && "default" in imported
+          ? imported.default
+          : undefined;
+      if (!isGlyphComponent(Glyph)) {
+        throw new Error(`Icon module ${module} did not export a default component.`);
+      }
       const pinned = name === "pinned";
       const svg = renderToStaticMarkup(
         createElement(Glyph, {

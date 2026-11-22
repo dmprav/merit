@@ -29,6 +29,7 @@ jobs:
       run_tooling: ${{ steps.filter.outputs.run_tooling }}
       run_package_tests: ${{ steps.filter.outputs.run_package_tests }}
       package_filters: ${{ steps.filter.outputs.package_filters }}
+      dependencies_changed: ${{ steps.filter.outputs.dependencies_changed }}
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -50,6 +51,8 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BEFORE_SHA: ${{ github.event.before || github.event.merge_group.base_sha }}
+          HEAD_SHA: ${{ github.sha }}
         run: node tooling/verification/ci-changes.ts
 
   verification-record:
@@ -138,10 +141,27 @@ jobs:
       - name: Set up workspace
         uses: ./.github/actions/setup-workspace
 
-      - name: Run security checks
+      - name: Scan for secrets
         env:
           TMPDIR: ${{ runner.temp }}
-        run: vp run --no-cache check:security
+        run: vp run --no-cache check:secrets
+
+      # The advisory registry changes on its own, so an advisory only blocks changes that
+      # choose dependency versions; elsewhere it is reported without failing unrelated work.
+      - name: Audit dependencies
+        id: audit
+        continue-on-error: ${{ needs.changes.outputs.dependencies_changed != 'true' }}
+        env:
+          TMPDIR: ${{ runner.temp }}
+        run: vp run --no-cache check:dependencies
+
+      - name: Report advisories outside dependency changes
+        if: steps.audit.outcome == 'failure'
+        run: |
+          message="Dependency audit found high or critical advisories. They do not block this change because it leaves dependencies unchanged; see the Audit dependencies step."
+          echo "::warning title=Dependency advisories::$message"
+          echo "### Dependency advisories" >> "$GITHUB_STEP_SUMMARY"
+          echo "$message" >> "$GITHUB_STEP_SUMMARY"
 
   build:
     needs: changes
@@ -239,7 +259,18 @@ jobs:
           retention-days: 7
           include-hidden-files: true
           if-no-files-found: ignore
-          path: "**/.vitest-report.json"
+          # One entry per pnpm-workspace.yaml package: a `**` pattern walks node_modules and hangs.
+          path: |
+            app/.vitest-report.json
+            capabilities/access/.vitest-report.json
+            interfaces/*/.vitest-report.json
+            foundation/*/.vitest-report.json
+            capabilities/*/ai/.vitest-report.json
+            capabilities/*/business/.vitest-report.json
+            capabilities/*/web/.vitest-report.json
+            tooling/checkly/.vitest-report.json
+            tooling/storybook/.vitest-report.json
+            tooling/testing/.vitest-report.json
 
   storybook-vitest:
     needs: changes

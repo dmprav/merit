@@ -24,7 +24,10 @@ const Example = () => {
   );
   const [round, setRound] = useState<RoundView>(getExampleRound);
   const [draft, setDraft] = useState<RecommendationDraft>();
-  const application = round.applications.find((item) => item.id === "A1")!;
+  const application = round.applications.find((item) => item.id === "A1") ?? round.applications[0];
+  if (!application) {
+    return null;
+  }
 
   return (
     <RecommendationEditor

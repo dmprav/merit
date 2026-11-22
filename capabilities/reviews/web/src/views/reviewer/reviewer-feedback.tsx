@@ -7,17 +7,6 @@ import type { useReviewer } from "../../controllers/reviewer/use-reviewer";
 
 export type ReviewerWork = ReturnType<typeof useReviewer>;
 
-export type ReviewerErrorKey =
-  | "unavailable"
-  | "accessLost"
-  | "saveConflict"
-  | "stale"
-  | "expired"
-  | "applicationWithdrawn"
-  | "draftInvalid"
-  | "submissionInvalid"
-  | "submissionSaved";
-
 /**
  * Reports a failed request with a refresh where reloading the assignment can help. Pass
  * offerRefresh=false where a retry beside it already offers the recovery.
@@ -30,7 +19,7 @@ export const ReviewerFeedback = ({
   offerRefresh?: boolean;
 }) => {
   const { t } = useTranslation("reviewer");
-  const error = work.error as ReviewerErrorKey | null;
+  const error = work.error;
   const status = work.page.assignment.status;
   const accessExplained = ["cancelled", "declined", "conflict"].includes(status);
   if (!error || work.conflict || (error === "accessLost" && accessExplained)) {

@@ -1,6 +1,6 @@
 import { Dexie, type Table } from "dexie";
 
-export type StoredDraft = {
+type StoredDraft = {
   scope: string;
   kind: string;
   key: string;
@@ -9,13 +9,19 @@ export type StoredDraft = {
   value?: unknown;
 };
 
-export type DraftScope = { scope: string; epoch: string };
+type DraftScope = { scope: string; epoch: string };
+
+class DraftDatabase extends Dexie {
+  declare drafts: Table<StoredDraft, [string, string, string]>;
+  declare scopes: Table<DraftScope, string>;
+
+  constructor() {
+    super("merit-drafts");
+  }
+}
 
 // Constructing the database does not open IndexedDB, including during server rendering.
-export const database = new Dexie("merit-drafts") as Dexie & {
-  drafts: Table<StoredDraft, [string, string, string]>;
-  scopes: Table<DraftScope, string>;
-};
+export const database = new DraftDatabase();
 
 database.version(1).stores({
   drafts: "[scope+kind+key], scope, [scope+kind]",

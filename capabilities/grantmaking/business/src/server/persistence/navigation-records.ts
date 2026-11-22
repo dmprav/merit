@@ -29,12 +29,18 @@ export const storedPins = (db: Database, userId: string) =>
     .where(eq(navigationPins.userId, userId))
     .orderBy(navigationPins.position, navigationPins.id);
 
-const storedPinTarget = (pin: typeof navigationPins.$inferSelect): NavigationTarget =>
-  pin.roundId
-    ? { kind: "round", id: pin.roundId }
-    : pin.applicationId
-      ? { kind: "application", id: pin.applicationId }
-      : { kind: "review", id: pin.assignmentId! };
+const storedPinTarget = (pin: typeof navigationPins.$inferSelect): NavigationTarget => {
+  if (pin.roundId) {
+    return { kind: "round", id: pin.roundId };
+  }
+  if (pin.applicationId) {
+    return { kind: "application", id: pin.applicationId };
+  }
+  if (pin.assignmentId) {
+    return { kind: "review", id: pin.assignmentId };
+  }
+  throw new Error(`Navigation pin ${pin.id} is missing a target.`);
+};
 
 const roundTargets = (db: Database, userId: string, ids: string[]) => {
   const workspace = authorizedWorkspaces(db, userId, "work_on_grants");

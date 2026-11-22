@@ -55,7 +55,11 @@ export const readMemberPage = (
     const { organization } = await workspace(tx, input.workspaceSlug, actor);
     const rows = await persistence.readMembers(tx, organization.id, input);
     const members = rows.slice(0, input.limit);
-    return { members, nextCursor: rows.length > input.limit ? members.at(-1)!.membershipId : null };
+    const last = members.at(-1);
+    return {
+      members,
+      nextCursor: rows.length > input.limit && last ? last.membershipId : null,
+    };
   });
 
 export const readInvitationPage = (
@@ -72,7 +76,8 @@ export const readInvitationPage = (
     const invitations = rows
       .slice(0, input.limit)
       .map((row) => ({ ...row, expiresAt: row.expiresAt.toISOString() }));
-    return { invitations, nextCursor: rows.length > input.limit ? invitations.at(-1)!.id : null };
+    const last = invitations.at(-1);
+    return { invitations, nextCursor: rows.length > input.limit && last ? last.id : null };
   });
 
 export const readHistoryPage = (

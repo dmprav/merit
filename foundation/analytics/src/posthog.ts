@@ -1,11 +1,7 @@
 import type { CaptureResult, PostHog, PostHogConfig } from "posthog-js";
 
-import {
-  noopAnalytics,
-  sanitizeAnalyticsPath,
-  type AnalyticsClient,
-  type AnalyticsProperties,
-} from "./index";
+import { noopAnalytics, sanitizeAnalyticsPath, type AnalyticsClient } from "./index";
+import { defaultPostHogHost } from "./posthog-host";
 
 export type PostHogAnalyticsOptions = {
   apiKey?: string;
@@ -15,14 +11,22 @@ export type PostHogAnalyticsOptions = {
 
 type QueuedAction =
   | { type: "pageView"; path?: string }
-  | { type: "track"; event: string; properties?: AnalyticsProperties }
+  | { type: "track"; args: Parameters<AnalyticsClient["track"]> }
   | { type: "reset" };
 
-const defaultPostHogHost = "https://eu.i.posthog.com";
 const maxQueuedActions = 50;
 
+const directTraffic = "$direct";
+
+/** Page context posthog-js adds that names a visitor or shows grant content. */
+const droppedProperties = ["$ip", "title"];
+
+// posthog-js reads search terms from a search engine referrer into `ph_keyword`
+// and `$session_entry_ph_keyword`.
+const isDropped = (key: string) => droppedProperties.includes(key) || key.endsWith("ph_keyword");
+
 const sanitizeUrl = (value: unknown) => {
-  if (typeof value !== "string" || !value) {
+  if (typeof value !== "string" || !value || value === directTraffic) {
     return value;
   }
   try {
@@ -37,22 +41,24 @@ const sanitizeUrl = (value: unknown) => {
   }
 };
 
-export const sanitizePostHogCapture = (result: CaptureResult): CaptureResult => {
-  const properties = { ...result.properties };
+// posthog-js copies the location into several properties, such as `$current_url`
+// and `$session_entry_url`, so redaction follows the key's suffix, not a fixed list.
+const sanitizeProperty = (key: string, value: unknown) => {
+  if (key.endsWith("pathname")) {
+    return typeof value === "string" ? sanitizeAnalyticsPath(value) : value;
+  }
+  if (key.endsWith("_url") || key.endsWith("referrer")) {
+    return sanitizeUrl(value);
+  }
+  return value;
+};
 
-  if (typeof properties.$pathname === "string") {
-    properties.$pathname = sanitizeAnalyticsPath(properties.$pathname);
-  }
-  if (typeof properties.$prev_pageview_pathname === "string") {
-    properties.$prev_pageview_pathname = sanitizeAnalyticsPath(properties.$prev_pageview_pathname);
-  }
-  if ("$current_url" in properties) {
-    properties.$current_url = sanitizeUrl(properties.$current_url);
-  }
-  if ("$referrer" in properties) {
-    properties.$referrer = sanitizeUrl(properties.$referrer);
-  }
-  delete properties.$ip;
+export const sanitizePostHogCapture = (result: CaptureResult): CaptureResult => {
+  const properties = Object.fromEntries(
+    Object.entries(result.properties)
+      .filter(([key]) => !isDropped(key))
+      .map(([key, value]) => [key, sanitizeProperty(key, value)]),
+  );
 
   return { ...result, properties };
 };
@@ -68,7 +74,7 @@ export const createPostHogConfig = (host: string): Partial<PostHogConfig> => ({
   disable_session_recording: true,
   disable_surveys: true,
   disable_external_dependency_loading: true,
-  property_denylist: ["$ip"],
+  property_denylist: droppedProperties,
   before_send: sanitizePostHogCapture,
 });
 
@@ -83,7 +89,8 @@ const emitToPostHog = (instance: PostHog, action: QueuedAction) => {
     return;
   }
   if (action.type === "track") {
-    instance.capture(action.event, action.properties);
+    const [event, properties] = action.args;
+    instance.capture(event, properties && { guided: properties.guided, fresh: properties.fresh });
     return;
   }
 
@@ -143,7 +150,7 @@ export const createPostHogAnalytics = ({
 
   return {
     pageView: (path) => enqueueOrEmit({ type: "pageView", path }),
-    track: (event, properties) => enqueueOrEmit({ type: "track", event, properties }),
+    track: (...args) => enqueueOrEmit({ type: "track", args }),
     reset: () => enqueueOrEmit({ type: "reset" }),
   };
 };
