@@ -111,22 +111,24 @@ runs remain in Chromium.
 
 The [visual suite](../../tooling/storybook/tests/browser/visual.spec.ts) compares a small set of
 focus, dialog, field, table, recommendation, and open workspace-switcher screenshots.
-Baselines live in `tooling/storybook/snapshots` and include the platform and viewport
-in their names. macOS baselines support local development; Linux baselines support
-the Ubuntu 24.04 PR workflow. Run comparisons on the same platform with the locked
-browser version, and review both sets when an intentional visual change affects them.
-To accept an intentional change:
+Baselines live in `tooling/storybook/snapshots` and standardize on Linux snapshots
+matching the Ubuntu 24.04 PR workflow. Run visual comparisons and baseline updates
+inside the pinned Playwright container so macOS and Linux development environments
+produce identical pixels:
 
 ```sh
-vp run test:browser:stories visual.spec.ts --update-snapshots
-vp run test:browser:stories visual.spec.ts
+vp run test:browser:stories:container
 ```
 
-Use `test:browser:stories:all visual.spec.ts --project desktop --project mobile`
-to check both Chromium viewports. On Ubuntu 24.04, install browsers with
-`pnpm --filter @merit/test-support exec playwright install --with-deps chromium firefox webkit`
-before generating or comparing Linux baselines. Append `--update-snapshots` only
-when preparing an intentional baseline update, then rerun without it.
+To accept an intentional visual change, update the Linux baselines through the container
+and rerun the comparison cleanly:
+
+```sh
+vp run test:browser:stories:container -- --update-snapshots
+vp run test:browser:stories:container
+```
+
+On native Ubuntu 24.04 hosts with the locked browser version installed (`pnpm --filter @merit/test-support exec playwright install --with-deps chromium firefox webkit`), `vp run test:browser:stories:all visual.spec.ts --project desktop --project mobile` also runs directly without Docker. Append `--update-snapshots` only when preparing an intentional baseline update, then rerun without it.
 
 Review a new baseline against the established reference before accepting it;
 screenshots detect later changes but cannot judge whether the initial design fits.

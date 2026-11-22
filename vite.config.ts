@@ -118,6 +118,10 @@ export default defineConfig({
         command: "vp run @merit/storybook#test:browser:all",
         cache: false,
       },
+      "test:browser:stories:container": {
+        command: "vpx tooling/storybook/run-visual-container.ts",
+        cache: false,
+      },
       "check:code": { command: "vp check --deny-warnings", cache: { output: [] } },
       "check:react-compiler": {
         command: "vpx tooling/verification/react-compiler.ts",

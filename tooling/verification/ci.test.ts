@@ -122,6 +122,13 @@ test("CI verify workflow covers every ready stage and sharded browser suite with
     assert(image);
     expect(image).toMatch(/@sha256:[0-9a-f]{64}$/);
   }
+  const storybookImage = /browser-storybook:[\s\S]*?^\s+container:\s+(\S+)/m.exec(workflow)?.[1];
+  assert(storybookImage);
+  const visualContainerScript = await readFile(
+    `${repoRoot}/tooling/storybook/run-visual-container.ts`,
+    "utf8",
+  );
+  expect(visualContainerScript).toContain(storybookImage);
 
   // Extract top-level job IDs under `jobs:` and ensure the `verify` aggregator awaits all others.
   const jobsBlock = workflow.split(/^jobs:\r?\n/m)[1] ?? "";
