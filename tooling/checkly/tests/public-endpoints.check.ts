@@ -5,7 +5,7 @@ import { resolveTargetBaseUrl } from "./target";
 const baseUrl = resolveTargetBaseUrl();
 
 new ApiCheck("landing-page", {
-  name: "Landing page serves framed response",
+  name: "Landing page is unframed and uncached",
   frequency: Frequency.EVERY_10M,
   tags: ["public", "site"],
   request: {
@@ -14,6 +14,7 @@ new ApiCheck("landing-page", {
     assertions: [
       AssertionBuilder.statusCode().equals(200),
       AssertionBuilder.headers("content-security-policy").contains("frame-ancestors 'none'"),
+      AssertionBuilder.headers("cache-control").contains("no-store"),
       AssertionBuilder.textBody().contains("Bring your grantmaking together."),
     ],
   },
@@ -50,7 +51,7 @@ new ApiCheck("demo-entry-page", {
 });
 
 new ApiCheck("sign-in-page", {
-  name: "Sign-in route renders with framing protection",
+  name: "Sign-in route renders unframed, uncached, and without referrers",
   frequency: Frequency.EVERY_15M,
   tags: ["public", "auth"],
   request: {
@@ -59,6 +60,8 @@ new ApiCheck("sign-in-page", {
     assertions: [
       AssertionBuilder.statusCode().equals(200),
       AssertionBuilder.headers("content-security-policy").contains("frame-ancestors 'none'"),
+      AssertionBuilder.headers("cache-control").contains("no-store"),
+      AssertionBuilder.headers("referrer-policy").equals("no-referrer"),
       AssertionBuilder.textBody().contains("Sign in"),
     ],
   },

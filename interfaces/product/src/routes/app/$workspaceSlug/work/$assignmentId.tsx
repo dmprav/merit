@@ -12,7 +12,7 @@ const Page = () => <ReviewerAssignmentPage {...Route.useParams()} />;
 export const Route = createFileRoute("/_product/app/$workspaceSlug/work/$assignmentId")({
   loader: ({ params, context }) =>
     context.queryClient.fetchQuery(reviewerPageOptions(params.assignmentId, params.workspaceSlug)),
-  headers: () => ({ "Cache-Control": "private, no-store", "Referrer-Policy": "no-referrer" }),
+  headers: () => ({ "Referrer-Policy": "no-referrer" }),
   head: ({ loaderData, match: { context } }) => {
     const t = webTranslator(context.locale);
     return {

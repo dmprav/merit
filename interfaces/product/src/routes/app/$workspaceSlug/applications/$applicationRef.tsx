@@ -77,7 +77,6 @@ export const Route = createFileRoute("/_product/app/$workspaceSlug/applications/
   },
   staleTime: 0,
   gcTime: 0,
-  headers: () => ({ "Cache-Control": "private, no-store" }),
   head: ({ loaderData, match: { context } }) => {
     const t = webTranslator(context.locale);
     return {

@@ -153,6 +153,16 @@ it("prevents web responses from being framed", async () => {
   expect(response.headers.get("Content-Security-Policy")).toBe("frame-ancestors 'none'");
 });
 
+it("keeps every web response out of shared caches, including public pages", async () => {
+  handlerFetch.mockResolvedValueOnce(
+    new Response("page", { status: 200, headers: { "Cache-Control": "public, max-age=60" } }),
+  );
+
+  const response = await fetchRequest("https://merit.example/");
+
+  expect(response.headers.get("Cache-Control")).toBe("private, no-store");
+});
+
 it("waits for in-flight database calls and releases their pooled clients before reporting a web handler failure", async () => {
   let releaseConnection!: () => void;
   connectGate.current = new Promise<void>((resolve) => {

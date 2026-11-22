@@ -72,7 +72,6 @@ export const Route = createFileRoute("/_product/app/$workspaceSlug/rounds/")({
   },
   staleTime: 0,
   gcTime: 0,
-  headers: () => ({ "Cache-Control": "private, no-store" }),
   head: ({ match: { context } }) => {
     const t = webTranslator(context.locale);
     return { meta: [{ title: t("common:pageTitle", { title: t("navigation.rounds") }) }] };

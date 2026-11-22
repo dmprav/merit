@@ -16,7 +16,6 @@ export const Route = createFileRoute("/_administration/admin/organizations/")({
   },
   staleTime: 0,
   gcTime: 0,
-  headers: () => ({ "Cache-Control": "private, no-store" }),
   head: ({ match: { context } }) => ({
     meta: [{ title: adminTranslator(context.locale)("page.organizations") }],
   }),

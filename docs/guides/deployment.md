@@ -149,7 +149,7 @@ credential-free author. Ordinary grant/history privileges also cover demo seedin
 Web and MCP share an allowance of forty demo starts or resets per network address
 per hour, stored in short-lived hashed buckets. Both return `unavailable` when the
 production adapter supplies no address. Resume reads do not consume this allowance.
-Keep application responses private and uncached. Cookie possession establishes
+Application responses are private and uncached. Cookie possession establishes
 identity, while membership and expiry checks
 continue to protect every operation.
 
@@ -200,9 +200,14 @@ launch, verify through that ingress that two distinct client addresses receive
 separate allowances and that changing a client-supplied forwarding header leaves
 the allowance unchanged.
 
+Every web page renders the visitor's account state, so the server marks each web
+response `Cache-Control: private, no-store`, public pages included. Keep any CDN
+or proxy from caching application responses or rewriting that header; serve
+only the built client assets from a shared cache.
+
 Set `MERIT_BASE_URL` to the deployed origin and run `vp run @merit/app#smoke`.
-It checks public pages, 404 recovery, and workspace MCP authentication. It also verifies
-that signed-out requests expose no workspace data. Check live Clerk sign-in and protected MCP separately with a
+It checks public pages, 404 recovery, workspace MCP authentication, and the
+framing and cache headers. It also verifies that signed-out requests expose no workspace data. Check live Clerk sign-in and protected MCP separately with a
 provisioned user: the permitted workspace should load and other organizations
 should remain inaccessible. In a workspace with fictional data, save a manager
 recommendation and reload the page to verify that the change persists through

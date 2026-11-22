@@ -138,6 +138,8 @@ export const Route = createFileRoute("/_product/app/sign-in")({
         ? search.returnTo
         : undefined,
   }),
+  // An invitation return address carries its token.
+  headers: () => ({ "Referrer-Policy": "no-referrer" }),
   head: ({ match: { context } }) => {
     const t = webTranslator(context.locale);
     return { meta: [{ title: t("page.signIn") }] };

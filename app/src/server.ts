@@ -139,12 +139,14 @@ const handleWebRequest = async (
     ...options,
     context: { ...options?.context, ...context },
   });
-  return preventFraming(response);
+  return protectWebResponse(response);
 };
 
-const preventFraming = (response: Response) => {
+// The account provider renders identity into every page, so no web response is shareable.
+const protectWebResponse = (response: Response) => {
   const headers = new Headers(response.headers);
   headers.append("Content-Security-Policy", "frame-ancestors 'none'");
+  headers.set("Cache-Control", "private, no-store");
 
   return new Response(response.body, {
     status: response.status,

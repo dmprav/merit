@@ -36,12 +36,10 @@ export const Route = createFileRoute("/_product/app/")({
     throw redirect({
       ...workspaceHomeLocation(workspace),
       replace: true,
-      headers: { "Cache-Control": "private, no-store" },
     });
   },
   staleTime: 0,
   gcTime: 0,
-  headers: () => ({ "Cache-Control": "private, no-store" }),
   head: ({ match: { context } }) => {
     const t = webTranslator(context.locale);
     return { meta: [{ title: t("page.workspace") }] };

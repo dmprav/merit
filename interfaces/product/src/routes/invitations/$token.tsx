@@ -44,7 +44,7 @@ export const Route = createFileRoute("/_product/invitations/$token")({
   },
   staleTime: 0,
   gcTime: 0,
-  headers: () => ({ "Cache-Control": "private, no-store", "Referrer-Policy": "no-referrer" }),
+  headers: () => ({ "Referrer-Policy": "no-referrer" }),
   head: ({ match: { context } }) => {
     const t = webTranslator(context.locale);
     return {

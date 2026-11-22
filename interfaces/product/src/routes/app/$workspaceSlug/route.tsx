@@ -78,7 +78,6 @@ export const Route = createFileRoute("/_product/app/$workspaceSlug")({
   },
   staleTime: 0,
   gcTime: 0,
-  headers: () => ({ "Cache-Control": "private, no-store" }),
   errorComponent: () => <WorkspaceRecovery status="unavailable" />,
   component: WorkspaceLayout,
 });

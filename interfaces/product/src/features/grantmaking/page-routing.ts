@@ -63,7 +63,6 @@ export const loadPublicPage = async (
       search,
       replace: true,
       statusCode: 302,
-      headers: { "Cache-Control": "private, no-store" },
     });
   }
 
@@ -96,7 +95,6 @@ export const loadApplicationPage = async (
       search,
       replace: true,
       statusCode: 302,
-      headers: { "Cache-Control": "private, no-store" },
     });
   }
 

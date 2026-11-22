@@ -2,25 +2,29 @@ import assert from "node:assert/strict";
 
 const baseUrl = process.env.MERIT_BASE_URL ?? "http://localhost:3000";
 
-const assertFramingProtection = (response: Response) =>
+const assertWebProtection = (response: Response) => {
   assert.match(response.headers.get("content-security-policy") ?? "", /frame-ancestors 'none'/);
+  assert.equal(response.headers.get("cache-control"), "private, no-store");
+};
 
 const landing = await fetch(new URL("/", baseUrl));
 assert.equal(landing.status, 200);
-assertFramingProtection(landing);
+assertWebProtection(landing);
 assert.ok((await landing.text()).includes("Bring your grantmaking together."));
 const mcpGuide = await fetch(new URL("/docs/mcp", baseUrl));
 assert.equal(mcpGuide.status, 200);
 assert.match(mcpGuide.headers.get("content-type") ?? "", /text\/html/);
+assertWebProtection(mcpGuide);
 assert.ok((await mcpGuide.text()).includes("/mcp/workspace"));
 const signIn = await fetch(new URL("/app/sign-in", baseUrl));
 assert.equal(signIn.status, 200);
-assertFramingProtection(signIn);
+assertWebProtection(signIn);
+assert.equal(signIn.headers.get("referrer-policy"), "no-referrer");
 assert.ok((await signIn.text()).includes("Sign in"));
 for (const path of ["/demo", "/demo/workshop-saturdays"]) {
   const response = await fetch(new URL(path, baseUrl));
   assert.equal(response.status, 200);
-  assert.match(response.headers.get("cache-control") ?? "", /no-store/);
+  assertWebProtection(response);
   const introduction = await response.text();
   assert.ok(introduction.includes("Explore the example"));
   assert.ok(introduction.includes("Browse the workspace"));
@@ -33,7 +37,7 @@ for (const path of ["/demo", "/demo/workshop-saturdays"]) {
 
 const missing = await fetch(new URL("/not-a-route", baseUrl));
 assert.equal(missing.status, 404);
-assertFramingProtection(missing);
+assertWebProtection(missing);
 assert.ok((await missing.text()).includes("Back to Merit"));
 for (const [path, recovery] of [
   ["/app", "Workspace could not be loaded"],
@@ -41,8 +45,7 @@ for (const [path, recovery] of [
   ["/app/alder/applications/workshop-saturdays-b8q3w5j7c2df", "Application could not be loaded"],
 ] as const) {
   const protectedPage = await fetch(new URL(path, baseUrl));
-  assertFramingProtection(protectedPage);
-  assert.match(protectedPage.headers.get("cache-control") ?? "", /no-store/);
+  assertWebProtection(protectedPage);
   const page = await protectedPage.text();
   // Missing auth configuration renders a recovery page; scoped loaders report service failure.
   assert.equal(
@@ -60,7 +63,7 @@ for (const [path, recovery] of [
 }
 for (const path of ["/admin/organizations", `/invitations/${"a".repeat(64)}`]) {
   const page = await fetch(new URL(path, baseUrl));
-  assertFramingProtection(page);
+  assertWebProtection(page);
 }
 const protectedMcp = await fetch(new URL("/mcp/workspace", baseUrl), { method: "POST" });
 assert.ok(

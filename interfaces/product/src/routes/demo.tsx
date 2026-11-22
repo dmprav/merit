@@ -9,6 +9,5 @@ export const Route = createFileRoute("/_product/demo")({
   loader: () => readDemo(),
   staleTime: 0,
   gcTime: 0,
-  headers: () => ({ "Cache-Control": "private, no-store" }),
   component: DemoPage,
 });
