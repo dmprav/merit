@@ -17,6 +17,15 @@ technology hears who wrote it.
 
 <Canvas of={Conversation.Turns} />
 
+Inside a scrolling container the thread follows its end: it keeps the latest text in view while the
+person is reading the end, whether words stream in or notices appear when an answer settles, and it
+leaves the scroll where the person put it once they scroll up. Pass `followKey`, a value that changes
+with each question, so asking again follows the end once more.
+
+<Canvas of={Conversation.FollowsStreaming} />
+
+<Canvas of={Conversation.LeavesTheScrollWherePut} />
+
 The thread is a labelled log that stays silent while text streams in. Announce each finished answer
 once with [StatusMessage](?path=/docs/patterns-status-message--docs) rather than every streamed word.
 The panel's content mounts again when the screen crosses 1400 pixels or the panel reopens, so keep

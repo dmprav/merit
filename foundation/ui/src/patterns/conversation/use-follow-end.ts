@@ -19,10 +19,10 @@ const scrollToEnd = (scroller: HTMLElement) => {
 /**
  * Keeps a growing thread scrolled to its end while the person is reading the end, and leaves it
  * where they scrolled to once they move up. Whatever makes the thread taller follows, whether
- * words streaming in or notices and suggestions that appear when a run settles. Asking a new
- * question follows again; pass a key that changes with each question.
+ * words streaming in or notices that appear when a run settles. The thread scrolls in its nearest
+ * scrolling ancestor. Asking a new question follows again; pass a key that changes with each one.
  */
-export const useFollowEnd = (questionKey: string | undefined) => {
+export const useFollowEnd = (followKey: string | undefined) => {
   const content = useRef<HTMLDivElement>(null);
   const following = useRef(true);
 
@@ -71,7 +71,7 @@ export const useFollowEnd = (questionKey: string | undefined) => {
     if (scroller) {
       scrollToEnd(scroller);
     }
-  }, [questionKey]);
+  }, [followKey]);
 
   return content;
 };

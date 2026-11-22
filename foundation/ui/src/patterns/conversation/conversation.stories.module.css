@@ -6,3 +6,9 @@
 .narrow {
   max-width: 280px;
 }
+
+/* A panel body that scrolls its thread, as the companion panel does. */
+.scroller {
+  block-size: 320px;
+  overflow-y: auto;
+}
