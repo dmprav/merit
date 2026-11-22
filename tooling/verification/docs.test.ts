@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -119,4 +119,24 @@ it.each([
   expect(result.output).toContain(file);
   expect(result.output).toContain("1:1");
   expect(result.output).toContain(rule);
+});
+
+it("keeps AGENTS.md within its concise routing-map budget", () => {
+  const contents = readFileSync(join(root, "AGENTS.md"), "utf8");
+  const lines = contents.trimEnd().split(/\r?\n/);
+
+  expect(lines.length).toBeLessThanOrEqual(50);
+  expect(Buffer.byteLength(contents, "utf8")).toBeLessThanOrEqual(4096);
+});
+
+it("keeps Known escapes in review.md capped and crisp", () => {
+  const contents = readFileSync(join(root, ".agents/skills/build-feature/review.md"), "utf8");
+  const section = contents.split(/^## Known escapes\r?\n/m)[1]?.split(/^## /m)[0] ?? "";
+  const lines = section.trimEnd().split(/\r?\n/);
+  const items = section.match(/^- /gm) ?? [];
+
+  expect(items.length).toBeGreaterThan(0);
+  expect(items.length).toBeLessThanOrEqual(10);
+  expect(lines.length).toBeLessThanOrEqual(45);
+  expect(Buffer.byteLength(section, "utf8")).toBeLessThanOrEqual(3600);
 });

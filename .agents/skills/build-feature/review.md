@@ -123,51 +123,34 @@ Standard: [testing](../../../docs/guides/testing.md).
   them?
 - Is any scenario repeated at another layer without the justification the testing
   guide requires?
+- Do tests wait for observable readiness before acting on restored drafts or
+  animated scroll instead of fixed delays, while keeping exact assertions?
 - Do the tests follow the precedent's structure, fixtures, and helpers?
 
 ## Known escapes
 
-Problems that reached the requester despite review. Check each one. Add to this
-list as described in [the skill](SKILL.md#6-learn-from-escapes).
+Problems that reached the requester despite review (capped at 10 items / 45 lines
+per [the skill](SKILL.md#6-learn-from-escapes)). Check each one; Phase 2 UI
+verification probes will automate remaining layout and focus checks.
 
-- When authorization prerequisites change, do all integration fixtures that call
-  the affected operations establish those prerequisites, including transport and
-  cross-capability journeys? See [test behavior](../../../docs/guides/testing.md#test-behavior).
-- After removing and restoring membership, do pending invitations and accepted
-  assignments remain inaccessible until explicitly reinstated? See
-  [review participation](../../../docs/workflows/participate-in-review.md).
-- Do navigation popups close on browser history changes, and do delayed saves
-  preserve focus when the user has moved to another page or control? Check both
-  before resolving the save and before any scheduled focus callback runs. When a
-  control disappears, does focus reach its remaining target regardless of menu
-  or popup teardown order? See
-  [UI verification](../../../docs/guides/ui-verification.md#verification).
-- For work that uses reference material, can the person read that material while
-  editing in the established workspace? Check close, resume, switching tasks,
-  and keyboard return without losing either draft or reading position.
-- Do conflict comparisons align the same record and fields on both sides, and
-  does history identify actual changed values before showing complete snapshots?
-  Check the exact historical basis and unknown values remain available.
-- Does each invitation, withdrawn, access-ended, and recovery state have one
-  clear outcome heading, a distinct preserved draft when needed, and one action
-  hierarchy? Compare the complete desktop and narrow screen, not isolated controls.
-- Do isolated stories use the connected screen’s task placement, and are synthetic
-  test controls visibly outside the product frame? See
-  [Storybook states](../../../docs/guides/storybook.md#develop-states-in-storybook).
-- Do judgments give outcomes, qualifications, and attribution distinct emphasis,
-  with historical basis visible before someone acts? Check normal names, baseline
-  alignment, and supporting-detail navigation across assessments and recommendations.
-  See [give emphasis a reason](../../../docs/foundations/experience.md#give-emphasis-a-reason).
-- Does compacting a header preserve its visibly labeled next workflow action,
-  remove duplicate navigation, and keep full destination context accessible with
-  keyboard and touch? See [design for repeated use](../../../docs/foundations/experience.md#design-for-repeated-use).
-- When editing a whole section, do its values remain passive until the section edit
-  action is used, without parallel row-level edit controls? Check preparation and
-  recorded states against [editing scope](../../../foundation/ui/src/patterns/editing/editing.mdx).
-- Do complete historical records use one consistent label/value treatment for their
-  metadata, keeping staff interpretation separate from applicant responses? See
-  [evidence and interpretation](../../../docs/foundations/experience.md#make-evidence-and-assistance-inspectable).
-- Do capability and connected-route tests wait for observable readiness before
-  interacting with restored drafts or capturing an animated scroll position,
-  while retaining their draft, recovery, focus, and exact restoration assertions? See [test behavior](../../../docs/guides/testing.md#test-behavior)
-  and [UI verification](../../../docs/guides/ui-verification.md#verification).
+- Do integration fixtures establish updated authorization prerequisites across
+  transport and cross-capability journeys? See [test behavior](../../../docs/guides/testing.md#test-behavior).
+- After membership removal and restoration, do pending invitations and accepted
+  assignments stay inaccessible until reinstated? See [review participation](../../../docs/workflows/participate-in-review.md).
+- Do navigation popups close on history changes, delayed saves preserve moved
+  focus, and disappearing controls move focus cleanly? See [UI verification](../../../docs/guides/ui-verification.md#verification).
+- Can reference material stay readable while editing (close, resume, task switch,
+  keyboard return) without losing draft or scroll position?
+- Do conflict and history views align matching records on both sides, surface
+  actual changed values first, and preserve unknown/historical basis?
+- Does each invitation, withdrawn, access-ended, and recovery state show one clear
+  outcome heading, preserved draft, and one action hierarchy on desktop and mobile?
+- Do isolated stories match the connected screen's task placement, keeping
+  synthetic test controls outside the product frame? See [Storybook states](../../../docs/guides/storybook.md#develop-states-in-storybook).
+- Do assessments and recommendations distinguish outcomes, qualifications,
+  attribution, and prior basis before acting? See [give emphasis a reason](../../../docs/foundations/experience.md#give-emphasis-a-reason).
+- When compacting a header, does full destination context remain reachable via
+  keyboard and touch without duplicate navigation? See [design for repeated use](../../../docs/foundations/experience.md#design-for-repeated-use).
+- Do section edits keep values passive until section edit begins without row-level
+  edit controls, and separate staff interpretation from applicant responses in
+  historical records? See [editing scope](../../../foundation/ui/src/patterns/editing/editing.mdx).

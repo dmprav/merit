@@ -103,6 +103,7 @@ export default defineConfig({
           "vp run test:architecture",
           "vp run test:security",
           "vp run test:commits",
+          "vp run test:hooks",
           "vp run test:ci",
         ],
         cache: false,
@@ -129,6 +130,7 @@ export default defineConfig({
       },
       "check:commit": { command: "commitlint --edit", cache: false },
       "test:commits": { command: "vp test tooling/verification/commits.test.ts", cache: false },
+      "test:hooks": { command: "vp test tooling/verification/hooks.test.ts", cache: false },
       "test:ci": {
         command:
           "vp test tooling/verification/ci.test.ts tooling/verification/ci-changes.test.ts tooling/verification/ci-summary.test.ts tooling/verification/ci-browser-history.test.ts tooling/verification/verification-record.test.ts",

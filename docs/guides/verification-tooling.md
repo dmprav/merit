@@ -180,3 +180,26 @@ is included in `test:browser:all` and `ready`.
 
 Follow the [browser fixture contract](testing.md#browser-fixtures) when changing
 error handling, context creation, or cleanup.
+
+## Rule enforcement
+
+When the same mistake recurs, move enforcement up the ladder (**architecture ->
+types -> lint or CI -> tests -> documentation**) and prove a new static or test
+check fails on the past mistake. Rules still marked prose/review below are the
+next candidates for tooling.
+
+| Rule                                            | Enforcer                                                                                                                                 |
+| ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Capability, role, and browser/server seams      | `vp run architecture` ([architecture config](../../tooling/verification/architecture/config.ts))                                         |
+| Dead code, unused exports, package cycles       | `vp run code-health` & `vp run architecture` ([Fallow config](../../.fallowrc.jsonc))                                                    |
+| Function length, complexity, unsafe `any`       | `vp run check:code` & `vp run check:complexity` ([lint rules](../../tooling/verification/lint.ts))                                       |
+| No `!`, unsafe `as`, or unreasoned suppressions | `vp run check:code` ([lint rules](../../tooling/verification/lint.ts))                                                                   |
+| Business core branch coverage                   | `vp run <package>#test` ([probe tests](../../tooling/verification/checks.test.ts))                                                       |
+| Shared components expose no escape hatches      | `vp run @merit/ui#test`, `@merit/forms#test`, `@merit/tables#test` ([public contract](../../foundation/ui/src/public-contract.test.tsx)) |
+| Notice controls sit in its `actions`            | `vp run test:stories` ([Storybook preview](../../tooling/storybook/.storybook/preview.tsx))                                              |
+| One labelled action per page header             | `vp run test:stories` ([Storybook preview](../../tooling/storybook/.storybook/preview.tsx))                                              |
+| Feature CSS leaves type and color to the UI     | `vp run check:css` ([stylelint config](../../stylelint.config.mjs), [probe tests](../../tooling/verification/checks.test.ts))            |
+| Documentation links, headings, agent budgets    | `vp run check:docs`, `vp run test:docs`, `vp run test:ci` ([verification record](../../tooling/verification/verification-record.ts))     |
+| Secret scanning and dependency advisories       | `vp run check:security` ([secrets config](../../tooling/verification/secrets.config.ts))                                                 |
+| Applied migrations & destructive git guards     | [Claude harness hooks](../../.claude/settings.json) & `vp run test:hooks`                                                                |
+| Single-behavior tests, UI parity, benchmarks    | Prose/review ([testing](testing.md), [UI verification](ui-verification.md), [verification](verification.md))                             |

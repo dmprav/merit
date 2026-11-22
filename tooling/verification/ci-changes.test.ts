@@ -183,4 +183,14 @@ describe("ci-changes", () => {
     expect(specifiers.length).toBeGreaterThan(0);
     expect(specifiers.filter((specifier) => !specifier?.startsWith("node:"))).toEqual([]);
   });
+
+  test("routes Claude hook changes to the tooling job", () => {
+    const result = classifyChangedFiles({
+      eventName: "pull_request",
+      changedFiles: [".agents/hooks/guard-git.mjs", ".claude/settings.json"],
+      workspacePackages,
+    });
+    expect(result.docs_only).toBe(false);
+    expect(result.run_tooling).toBe(true);
+  });
 });

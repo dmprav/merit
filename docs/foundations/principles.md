@@ -7,7 +7,7 @@ Merit. [Strategy](strategy.md) defines product direction,
 engineering principles govern day-to-day technical judgment across all layers.
 
 Each principle names when it applies, where to keep it simple, and the sign that
-it was skipped. [AGENTS.md](../../AGENTS.md#engineering-principles) summarizes them.
+it was skipped. Start from [AGENTS.md](../../AGENTS.md) when planning work.
 
 ## Design and structure
 
@@ -175,4 +175,4 @@ them.
 - **When:** A contributor or review repeats the same mistake class twice.
 - **Don’t force it:** Visual hierarchy, copy tone, and domain modeling judgment that static checks cannot decide.
 - **Sign you skipped it:** Adding another paragraph to a review checklist or fixing the same test or documentation defect in repeated cleanup PRs.
-- **Details:** [Rule enforcement](../../AGENTS.md#rule-enforcement).
+- **Details:** [Rule enforcement](../guides/verification-tooling.md#rule-enforcement).
