@@ -269,7 +269,7 @@ export const docs = {
           position:
             "Choose a Funding position and give your Overall reasoning. Fund and Fund with conditions require a proposed amount above zero; explain any conditions in your reasoning. Defer and Decline need no amount. Notes against individual criteria are optional.",
           submit:
-            "Choose Submit assessment. This shares your judgment with program managers and notifies the requesting manager. Passing the requested response date does not prevent submission.",
+            "Choose Submit assessment. This shares your judgment with program managers. Merit emails the requesting manager when notification limits allow. Passing the requested response date does not prevent submission.",
         },
         confirmation:
           "If the page says the assessment was saved but could not be loaded, refresh to see the submitted version. A failed email notification does not undo your submission.",

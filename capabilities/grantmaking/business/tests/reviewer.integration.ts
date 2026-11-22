@@ -48,21 +48,27 @@ const it = roundTest.extend("reviewerScenario", async ({ db, database, rounds })
     contactWork,
   );
   assert(created.status === "ok");
-  const requestId = randomUUID();
-  expect(
-    await saveApplicationReview(db, actor, {
-      ...address,
-      expectedRevision: reviewRevisionSchema.parse(0),
-      expectedApplicationVersion: materialVersionSchema.parse(1),
-      expectedCriteriaVersion: criteriaVersionSchema.parse(1),
-      change: {
-        action: "request",
-        id: requestId,
-        contactId: created.contact.id,
-        replacesId: null,
-      },
-    }),
-  ).toMatchObject({ status: "ok" });
+
+  const requestReview = async (application: typeof address) => {
+    const requestId = randomUUID();
+    expect(
+      await saveApplicationReview(db, actor, {
+        ...application,
+        expectedRevision: reviewRevisionSchema.parse(0),
+        expectedApplicationVersion: materialVersionSchema.parse(1),
+        expectedCriteriaVersion: criteriaVersionSchema.parse(1),
+        change: {
+          action: "request",
+          id: requestId,
+          contactId: created.contact.id,
+          replacesId: null,
+        },
+      }),
+    ).toMatchObject({ status: "ok" });
+    return requestId;
+  };
+
+  const requestId = await requestReview(address);
   const messages: ReviewerMessage[] = [];
   let failDelivery = false;
   const service = createReviewerService({
@@ -147,6 +153,7 @@ const it = roundTest.extend("reviewerScenario", async ({ db, database, rounds })
     save,
     submit,
     requestId,
+    requestReview,
     setDeliveryFailure: (value: boolean) => {
       failDelivery = value;
     },
@@ -269,7 +276,7 @@ it("completes an independently authored review with reviewer membership and no s
   expect(JSON.stringify(managerBefore?.application.reviews)).not.toContain("PRIVATE DRAFT");
   const submission = {
     assignmentId: s.assignmentId,
-    commandId: randomUUID(),
+    commandId: "AA90F6BE-8026-4489-8EB5-5C05610807DA",
     expectedDraftRevision: 1,
   };
   expect(await s.service.submit(sam, submission)).toEqual({ status: "ok", value: { revision: 2 } });
@@ -334,7 +341,7 @@ it("completes an independently authored review with reviewer membership and no s
   // The manager's rejected edit of the reviewer's assessment recorded nothing.
   expect(await recordedEvents(database.client, "action = 'assessment.recorded'")).toEqual([]);
   expect((await s.read()).assessment?.versions).toHaveLength(2);
-  expect(s.messages.filter((message) => message.kind === "submission")).toHaveLength(2);
+  expect(s.messages.filter((message) => message.kind === "submission")).toHaveLength(1);
 });
 
 it("rejects a draft amount with more than two decimal places and leaves the draft unchanged", async ({
@@ -530,6 +537,69 @@ it("keeps the assigned evidence and criteria when newer versions arrive", async 
   });
 });
 
+it("sends an amendment notice after the assignment cooldown expires", async ({
+  database,
+  reviewerScenario: s,
+}) => {
+  await s.respond("accept");
+  await s.save();
+  await s.submit();
+  await database.client.query(
+    "UPDATE reviewer_messages SET created_at = now() - interval '61 seconds' WHERE assignment_id = $1 AND kind = 'submission'",
+    [s.assignmentId],
+  );
+
+  await s.save("Updated assessment", "Corrected reasoning");
+  expect(await s.submit()).toMatchObject({ status: "ok" });
+  expect(s.messages.filter((message) => message.kind === "submission")).toHaveLength(2);
+});
+
+it.for([
+  { kind: "submission", count: 99, age: "5 minutes", expected: 1 },
+  { kind: "submission", count: 100, age: "5 minutes", expected: 0 },
+  { kind: "submission", count: 499, age: "2 hours", expected: 1 },
+  { kind: "submission", count: 500, age: "2 hours", expected: 0 },
+  { kind: "submission", count: 500, age: "25 hours", expected: 1 },
+  { kind: "invitation", count: 500, age: "5 minutes", expected: 1 },
+])(
+  "saves the assessment and queues $expected notices with $count $kind emails aged $age on another assignment",
+  async ({ kind, count, age, expected }, { database, reviewerScenario: s, rounds }) => {
+    await database.client.query(
+      "UPDATE reviewer_messages SET created_at = now() - interval '2 minutes' WHERE id = $1",
+      [s.invitation.commandId],
+    );
+    const other = await rounds.createApplication("Another review");
+    const requestId = await s.requestReview(other);
+    const invite = await s.service.invite(actor, {
+      ...other,
+      requestId,
+      commandId: randomUUID(),
+      dueDate: null,
+    });
+    assert(invite.status === "ok");
+    await database.client.query(
+      `INSERT INTO reviewer_messages (id, assignment_id, kind, recipient, status, created_at)
+     SELECT gen_random_uuid(), $1, $2, 'manager@example.test', 'sent', now() - $3::interval
+     FROM generate_series(1, $4::int)`,
+      [invite.value.id, kind, age, count],
+    );
+
+    await s.respond("accept");
+    await s.save();
+    expect(await s.submit()).toMatchObject({ status: "ok" });
+    expect((await s.read()).assessment?.versions).toHaveLength(1);
+    expect(s.messages.filter((message) => message.kind === "submission")).toHaveLength(expected);
+    expect(
+      (
+        await database.client.query(
+          "SELECT id FROM reviewer_messages WHERE assignment_id = $1 AND kind = 'submission'",
+          [s.assignmentId],
+        )
+      ).rows,
+    ).toHaveLength(expected);
+  },
+);
+
 it("preserves successful submission when delivery fails and retries only the notification", async ({
   reviewerScenario: s,
 }) => {
@@ -542,6 +612,25 @@ it("preserves successful submission when delivery fails and retries only the not
   await s.manage("retry_notification");
   expect((await s.read()).assignment.notification).toBe("sent");
   expect((await s.read()).assessment?.versions).toHaveLength(1);
+});
+
+it("keeps a failed notice available for the manager when an amendment email is suppressed", async ({
+  reviewerScenario: s,
+}) => {
+  await s.respond("accept");
+  await s.save();
+  s.setDeliveryFailure(true);
+  expect(await s.submit()).toMatchObject({ status: "ok" });
+
+  s.setDeliveryFailure(false);
+  await s.save("Updated reasoning", "Clarified the evidence");
+  expect(await s.submit()).toMatchObject({ status: "ok" });
+  expect((await s.read()).assignment.notification).toBe("failed");
+  expect(s.messages.filter((message) => message.kind === "submission")).toHaveLength(0);
+
+  await s.manage("retry_notification");
+  expect(s.messages.filter((message) => message.kind === "submission")).toHaveLength(1);
+  expect((await s.read()).assessment?.versions).toHaveLength(2);
 });
 
 it("records an accepted reviewer message after the sender loses workspace access", async ({

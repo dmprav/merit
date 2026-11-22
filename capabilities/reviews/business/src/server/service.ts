@@ -17,7 +17,7 @@ import {
   saveReviewerDraft,
   submitReviewerAssessment,
 } from "./commands/reviewer";
-import { deliverReviewerMessages } from "./commands/reviewer-delivery";
+import { deliverReviewerMessage } from "./commands/reviewer-delivery";
 import { saveApplicationReview } from "./commands/reviews";
 import {
   listReviewerAssignments,
@@ -85,7 +85,7 @@ export const createReviewerService = (dependencies: ReviewerDependencies): Revie
       if (result.status !== "ok") {
         return result;
       }
-      await deliverReviewerMessages(dependencies, actor.userId, result.id);
+      await deliverReviewerMessage(dependencies, actor.userId, result.id, "invitation");
       return managerAssignment(actor, input, result.id);
     },
     manage: async (actor, input) => {
@@ -94,7 +94,12 @@ export const createReviewerService = (dependencies: ReviewerDependencies): Revie
         return result;
       }
       if (input.action === "resend" || input.action === "retry_notification") {
-        await deliverReviewerMessages(dependencies, actor.userId, result.id);
+        await deliverReviewerMessage(
+          dependencies,
+          actor.userId,
+          result.id,
+          input.action === "resend" ? "invitation" : "submission",
+        );
       }
       return managerAssignment(actor, input, result.id);
     },
@@ -112,7 +117,13 @@ export const createReviewerService = (dependencies: ReviewerDependencies): Revie
         submitReviewerAssessment(db, actor, input, dependencies.onSubmitted),
       );
       if (result.status === "ok") {
-        await deliverReviewerMessages(dependencies, actor.userId, input.assignmentId);
+        await deliverReviewerMessage(
+          dependencies,
+          actor.userId,
+          input.assignmentId,
+          "submission",
+          input.commandId,
+        );
       }
       return result;
     },

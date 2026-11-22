@@ -100,7 +100,7 @@ export const en = {
   submittedOn: "Submitted by {{name}} on {{date}}",
   history: "Earlier submitted versions",
   version: "Version {{version}}",
-  amendmentHelp: "Your amendment preserves the earlier assessment and notifies the manager.",
+  amendmentHelp: "The manager can read your amendment and all earlier versions.",
   conflictTitle: "Draft changed on another device",
   saveConflict: "This draft changed on another device. Review the saved version or keep your text.",
   serverDraft: "Saved on the other device",

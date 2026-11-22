@@ -203,6 +203,10 @@ export const submitReview = async (f: ReviewFixture, amend: boolean): Promise<Sc
     return { control, verifyEffects: () => submitted(f, a, [expectedVersion]) };
   }
   await a.submit();
+  await f.ctx.sql.query(
+    "update reviewer_messages set created_at=now()-interval '2 minutes' where assignment_id=$1 and kind='submission'",
+    [a.assigned.assignmentId],
+  );
   const previous = (await f.reviews()).assessments[0]?.versions[0];
   const note = "Updated the amount after correcting the budget.";
   await a.save({ ...draft, amount: "210.50", note });
