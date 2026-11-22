@@ -217,6 +217,8 @@ const ResizeSeparator = ({
     event.preventDefault();
     const clamped = clampWidth(next);
     if (clamped !== width) {
+      // A drag still in progress commits from here, not from where the pointer left it.
+      latest.current = clamped;
       onResize(clamped);
       onCommit(clamped);
     }

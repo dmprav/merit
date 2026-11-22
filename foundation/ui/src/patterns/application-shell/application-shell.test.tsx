@@ -573,6 +573,28 @@ it("resizes by dragging the separator and reports the width when the pointer is 
   expect(onWidthChange).toHaveBeenCalledExactlyOnceWith(560);
 });
 
+it("commits the width a key set during a drag when the pointer is released", async () => {
+  compact = false;
+  wide = true;
+  const onWidthChange = vi.fn();
+  const user = userEvent.setup();
+  render(<Companion onWidthChange={onWidthChange} />);
+  await user.click(screen.getByRole("button", { name: "Open assistant" }));
+  const separator = screen.getByRole("separator");
+
+  await user.pointer([
+    { keys: "[MouseLeft>]", target: separator, coords: { clientX: 1000 } },
+    { coords: { clientX: 940 } },
+  ]);
+  await user.keyboard("{ArrowLeft}");
+
+  expect(separator).toHaveAttribute("aria-valuenow", "492");
+
+  await user.pointer([{ keys: "[/MouseLeft]" }]);
+
+  expect(onWidthChange).toHaveBeenLastCalledWith(492);
+});
+
 it("toggles between the default and widest width when the separator is pressed without dragging", async () => {
   compact = false;
   wide = true;

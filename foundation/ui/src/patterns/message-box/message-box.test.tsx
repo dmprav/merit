@@ -189,13 +189,18 @@ it("shows the full text of a cut-off chip label when the chip is focused", async
 
 it("shows no tooltip for a chip label that fits", async () => {
   stubChipWidth(80, 120);
-  const user = userEvent.setup();
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
   render(<Example initialChips={["Riverside Youth Arts"]} />);
   await user.tab();
-  await act(() => new Promise((resolve) => setTimeout(resolve, 450)));
+  // Past the tooltip's open delay, so an enabled tooltip would have appeared.
+  act(() => {
+    vi.advanceTimersByTime(350);
+  });
 
   expect(screen.getByRole("button", { name: "Remove Riverside Youth Arts" })).toHaveFocus();
   expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
