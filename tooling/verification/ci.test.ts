@@ -26,7 +26,9 @@ test("retired CI shortcuts and deferred workflow are removed", async () => {
 
   const browserConfig = await readFile(`${repoRoot}/tooling/testing/browser/config.ts`, "utf8");
   expect(browserConfig).not.toContain("MERIT_BROWSER_RETRIES");
-  expect(browserConfig).toContain("retries: 0");
+  // One CI retry labels flaky tests; failing on them keeps the gate as strict as no retries.
+  expect(browserConfig).toContain("retries: process.env.CI ? 1 : 0");
+  expect(browserConfig).toContain("failOnFlakyTests: Boolean(process.env.CI)");
 });
 
 test("ready:tests caps package concurrency cleanly", async () => {
@@ -38,7 +40,7 @@ test("ready:tests caps package concurrency cleanly", async () => {
   });
 });
 
-test("CI verify workflow covers every ready stage and sharded browser suite without retries", async () => {
+test("CI verify workflow covers every ready stage and sharded browser suite", async () => {
   const tasks = await loadTasks();
   const ready = tasks.ready;
   assert(ready && typeof ready === "object" && !Array.isArray(ready) && ready.dependsOn);
