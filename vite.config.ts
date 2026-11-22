@@ -109,6 +109,7 @@ export default defineConfig({
         cache: false,
       },
       "db:reset": { command: "vpx tooling/scripts/reset-db.ts", cache: false },
+      "services:start": { command: "vpx tooling/scripts/start-services.ts", cache: false },
       "test:browser:tooling": "vp run @merit/test-support#test:browser",
       "test:browser:tooling:all": "vp run @merit/test-support#test:browser:all",
       "test:browser:stories": {
@@ -177,7 +178,8 @@ export default defineConfig({
         cache: false,
       },
       "test:checks": {
-        command: "vp test tooling/verification/checks.test.ts tooling/scripts/reset-db.test.ts",
+        command:
+          "vp test tooling/verification/checks.test.ts tooling/scripts/reset-db.test.ts tooling/scripts/start-services.test.ts",
         cache: false,
       },
       "test:docs": { command: "vp test tooling/verification/docs.test.ts", cache: false },

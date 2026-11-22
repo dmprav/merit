@@ -2,7 +2,8 @@
 # Prepares a cloud agent VM. When the image's Node.js or pnpm differs from the
 # versions the repository pins, the pinned ones are installed under the home
 # directory. The global Vite+ CLI, which only adds runtime management, is not
-# installed; the workspace's vite-plus dependency supplies `vp`.
+# installed; the workspace's vite-plus dependency supplies `vp`. The Compose
+# services are started, with the Docker daemon if none is running.
 #
 # Flags:
 #   --doctor        Print environment diagnostic summary without modifying setup.
@@ -49,7 +50,7 @@ browser_status() {
 }
 
 run_doctor() {
-  local actual_node actual_pnpm expected_pnpm hooks_path cache_dir pg_status docker_status mailpit_status
+  local actual_node actual_pnpm expected_pnpm hooks_path cache_dir pg_status docker_status mailpit_status services_status
   actual_node="$(node --version 2>/dev/null || echo missing)"
   actual_pnpm="$(pnpm --version 2>/dev/null || echo missing)"
   expected_pnpm="$(read_expected_pnpm)"
@@ -74,6 +75,12 @@ run_doctor() {
     docker_status="missing"
   fi
 
+  services_status="not running (run: vp run services:start)"
+  if [[ "$docker_status" == running* ]]; then
+    services_status="$(docker compose ps --format '{{.Service}} {{.Health}}' 2>/dev/null | paste -sd, - | sed 's/,/, /g')"
+    services_status="${services_status:-not running (run: vp run services:start)}"
+  fi
+
   if command -v mailpit > /dev/null 2>&1; then
     mailpit_status="installed on PATH"
   elif command -v docker > /dev/null 2>&1 && docker info > /dev/null 2>&1; then
@@ -94,6 +101,7 @@ run_doctor() {
   echo "postgres:           $pg_status"
   echo "docker:             $docker_status"
   echo "mailpit:            $mailpit_status"
+  echo "compose services:   $services_status"
   echo "playwright dir:     $cache_dir"
   echo "playwright bins:    $(browser_status "$cache_dir" 'chromium-*' 'chromium'), $(browser_status "$cache_dir" 'firefox-*' 'firefox'), $(browser_status "$cache_dir" 'webkit-*' 'webkit')"
 }
@@ -144,6 +152,12 @@ if [ "$all_browsers" = true ]; then
   pnpm --filter @merit/test-support exec playwright install chromium firefox webkit
 else
   pnpm --filter @merit/test-support exec playwright install chromium
+fi
+
+# Database, workspace, and email checks need the Compose services. Cloud images
+# ship Docker without a running daemon; the script starts one when it can.
+if ! ./node_modules/.bin/vpx tooling/scripts/start-services.ts; then
+  echo "Warning: Compose services are not running; database and browser checks will fail." >&2
 fi
 
 # Strip any interactive-only early return so non-interactive shells load the PATH.
