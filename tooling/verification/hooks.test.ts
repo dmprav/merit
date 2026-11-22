@@ -129,6 +129,8 @@ it("blocks destructive git commands unless explicitly overridden", () => {
       "git push --force origin HEAD",
       "git push origin +HEAD",
       "git push --force",
+      "git checkout feat/safe -- README.md && git push --force origin",
+      "git switch definitely-missing || git push --force origin",
     ]) {
       const blocked = runHook("guard-git.mjs", { tool_input: { command } }, { cwd: repo });
       expect(blocked.status, command).toBe(2);

@@ -216,19 +216,28 @@ const extractSwitchedBranch = (subcommand, subArgs) => {
     return null;
   }
   const valueFlags = new Set(["-b", "-B", "-c", "-C", "--orphan"]);
+  const hasCreateFlag = subArgs.some((token) => valueFlags.has(token));
+  if (subArgs.includes("--") && !hasCreateFlag) {
+    return null;
+  }
+  /** @type {string | null} */
+  let seenPositional = null;
   for (let i = 0; i < subArgs.length; i += 1) {
     const token = subArgs[i] ?? "";
     if (token === "--") {
-      return null;
+      return seenPositional;
     }
     if (valueFlags.has(token)) {
       return subArgs[i + 1] ?? null;
     }
     if (!token.startsWith("-")) {
-      return token;
+      if (seenPositional !== null) {
+        return null;
+      }
+      seenPositional = token;
     }
   }
-  return null;
+  return seenPositional;
 };
 
 /**
@@ -323,18 +332,18 @@ const parseGitInvocation = (tokens, cwd) => {
 /**
  * @param {string[]} tokens
  * @param {string} cwd
- * @param {Map<string, string>} branchOverrides
+ * @param {Set<string>} mayBeOnMain
  * @returns {string | null}
  */
-const checkSegment = (tokens, cwd, branchOverrides) => {
+const checkSegment = (tokens, cwd, mayBeOnMain) => {
   const parsed = parseGitInvocation(tokens, cwd);
   if (!parsed) {
     return null;
   }
   const { subcommand, subArgs, targetCwd } = parsed;
   const switchedBranch = extractSwitchedBranch(subcommand, subArgs);
-  if (switchedBranch) {
-    branchOverrides.set(targetCwd, switchedBranch);
+  if (switchedBranch === "main") {
+    mayBeOnMain.add(targetCwd);
   }
   if (subcommand === "reset" && subArgs.includes("--hard")) {
     return "git reset --hard";
@@ -351,7 +360,7 @@ const checkSegment = (tokens, cwd, branchOverrides) => {
     if (hasForceFlag && hasAllOrBranches) {
       return "git push --force to main";
     }
-    const branchName = branchOverrides.get(targetCwd) ?? currentBranch(targetCwd);
+    const branchName = mayBeOnMain.has(targetCwd) ? "main" : currentBranch(targetCwd);
     const refspecs = extractPushPositionals(subArgs).slice(1);
     const hasForcedMainRefspec = refspecs.some(
       (spec) => spec.startsWith("+") && refspecTargetsMain(spec, branchName),
@@ -374,10 +383,10 @@ const main = () => {
 
   const cwd = eventCwd || process.cwd();
   const segments = tokenizeSegments(command);
-  /** @type {Map<string, string>} */
-  const branchOverrides = new Map();
+  /** @type {Set<string>} */
+  const mayBeOnMain = new Set();
   for (const tokens of segments) {
-    const blocked = checkSegment(tokens, cwd, branchOverrides);
+    const blocked = checkSegment(tokens, cwd, mayBeOnMain);
     if (blocked) {
       process.stderr.write(
         `Blocked destructive git command (${blocked}). Set MERIT_ALLOW_DESTRUCTIVE_GIT=1 to override intentionally.\n`,
