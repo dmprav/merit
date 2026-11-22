@@ -57,6 +57,11 @@ export type ReviewThreadSummary = {
   body: string;
 };
 
+export type FailedVerifyRun = {
+  databaseId: number;
+  attempt: number;
+};
+
 export type OpenAgentPr = {
   number: number;
   title: string;
@@ -68,6 +73,7 @@ export type OpenAgentPr = {
   checks: PrCheckStatus[];
   unresolvedThreads: ReviewThreadSummary[];
   state: AgentPrState;
+  failedVerifyRun?: FailedVerifyRun | null;
 };
 
 export type ReadyIssueCandidate = {
@@ -81,6 +87,7 @@ export type QueueWorkOrder =
   | {
       kind: "rerun_flake";
       prNumber: number;
+      runId: number;
       headRefName: string;
       headSha: string;
       failedChecks: string[];
@@ -175,6 +182,15 @@ export const parseAgentPrState = (comments: readonly IssueCommentRecord[]): Agen
   return latest;
 };
 
+export const mergeAgentPrState = (
+  previous: AgentPrState,
+  updates: Partial<AgentPrState>,
+): AgentPrState =>
+  agentPrStateSchema.parse({
+    ...previous,
+    ...updates,
+  });
+
 export const formatAgentPrStateComment = (state: AgentPrState): string =>
   `Agent status: shepherd rounds ${state.shepherdRounds}/${MAX_SHEPHERD_ROUNDS}.\n\n<!-- merit-agent: ${JSON.stringify(state)} -->`;
 
@@ -237,10 +253,18 @@ export const selectNextWork = ({
       continue;
     }
 
-    if (onlyBrowserFailures && pr.unresolvedThreads.length === 0 && pr.state.flakeReruns < 1) {
+    const canRerunFlake =
+      onlyBrowserFailures &&
+      pr.unresolvedThreads.length === 0 &&
+      pr.state.flakeReruns < 1 &&
+      pr.failedVerifyRun != null &&
+      pr.failedVerifyRun.attempt <= 1;
+
+    if (canRerunFlake && pr.failedVerifyRun) {
       return {
         kind: "rerun_flake",
         prNumber: pr.number,
+        runId: pr.failedVerifyRun.databaseId,
         headRefName: pr.headRefName,
         headSha: pr.headSha,
         failedChecks,
@@ -367,6 +391,7 @@ const ghReadyIssuesSchema = z.array(
 const ghRunsSchema = z.array(
   z.object({
     databaseId: z.number(),
+    attempt: z.number().int().positive(),
     conclusion: z.string().nullable(),
   }),
 );
@@ -502,6 +527,27 @@ const resolveReviewThread = (repoRoot: string, threadId: string) => {
   ).trim();
 };
 
+const fetchLatestFailedVerifyRun = (repoRoot: string, headSha: string): FailedVerifyRun | null => {
+  const raw = execFileSync(
+    "gh",
+    [
+      "run",
+      "list",
+      "--workflow",
+      "verify.yml",
+      "--commit",
+      headSha,
+      "--limit",
+      "5",
+      "--json",
+      "databaseId,attempt,conclusion",
+    ],
+    { cwd: repoRoot, encoding: "utf8" },
+  );
+  const failedRun = ghRunsSchema.parse(JSON.parse(raw)).find((run) => run.conclusion === "failure");
+  return failedRun ? { databaseId: failedRun.databaseId, attempt: failedRun.attempt } : null;
+};
+
 const fetchOpenAgentPrs = (repoRoot: string, repo: RepoIdentity): OpenAgentPr[] => {
   const raw = execFileSync(
     "gh",
@@ -520,18 +566,27 @@ const fetchOpenAgentPrs = (repoRoot: string, repo: RepoIdentity): OpenAgentPr[] 
     { cwd: repoRoot, encoding: "utf8" },
   );
   const prs = ghPrListSchema.parse(JSON.parse(raw));
-  return prs.map((pr) => ({
-    number: pr.number,
-    title: pr.title,
-    body: pr.body,
-    headRefName: pr.headRefName,
-    headSha: pr.headRefOid,
-    isDraft: pr.isDraft,
-    labels: pr.labels.map((label) => label.name),
-    checks: normalizeStatusCheckRollup(pr.statusCheckRollup),
-    unresolvedThreads: fetchUnresolvedThreads(repoRoot, repo, pr.number),
-    state: parseAgentPrState(pr.comments),
-  }));
+  return prs.map((pr) => {
+    const checks = normalizeStatusCheckRollup(pr.statusCheckRollup);
+    const { hasPending, onlyBrowserFailures } = inspectPrChecks(checks);
+    const failedVerifyRun =
+      !hasPending && onlyBrowserFailures
+        ? fetchLatestFailedVerifyRun(repoRoot, pr.headRefOid)
+        : null;
+    return {
+      number: pr.number,
+      title: pr.title,
+      body: pr.body,
+      headRefName: pr.headRefName,
+      headSha: pr.headRefOid,
+      isDraft: pr.isDraft,
+      labels: pr.labels.map((label) => label.name),
+      checks,
+      unresolvedThreads: fetchUnresolvedThreads(repoRoot, repo, pr.number),
+      state: parseAgentPrState(pr.comments),
+      failedVerifyRun,
+    };
+  });
 };
 
 const fetchReadyIssues = (repoRoot: string): ReadyIssueCandidate[] => {
@@ -559,32 +614,13 @@ const fetchReadyIssues = (repoRoot: string): ReadyIssueCandidate[] => {
   }));
 };
 
-const rerunFailedVerifyForCommit = (repoRoot: string, headSha: string): number | null => {
-  const raw = execFileSync(
-    "gh",
-    [
-      "run",
-      "list",
-      "--workflow",
-      "verify.yml",
-      "--commit",
-      headSha,
-      "--limit",
-      "5",
-      "--json",
-      "databaseId,conclusion",
-    ],
-    { cwd: repoRoot, encoding: "utf8" },
-  );
-  const failedRun = ghRunsSchema.parse(JSON.parse(raw)).find((run) => run.conclusion === "failure");
-  if (!failedRun) {
-    return null;
-  }
-  execFileSync("gh", ["run", "rerun", String(failedRun.databaseId), "--failed"], {
+const fetchCurrentAgentPrState = (repoRoot: string, prNumber: number): AgentPrState => {
+  const raw = execFileSync("gh", ["pr", "view", String(prNumber), "--json", "comments"], {
     cwd: repoRoot,
     encoding: "utf8",
   });
-  return failedRun.databaseId;
+  const parsed = z.object({ comments: z.array(ghCommentSchema) }).parse(JSON.parse(raw));
+  return parseAgentPrState(parsed.comments);
 };
 
 const readFlagValue = (args: readonly string[], flag: string): string | null => {
@@ -609,19 +645,19 @@ const applyQueueOrder = (repoRoot: string, order: QueueWorkOrder) => {
     return;
   }
   if (order.kind === "rerun_flake") {
-    const runId = rerunFailedVerifyForCommit(repoRoot, order.headSha);
-    if (runId !== null) {
-      const nextState = agentPrStateSchema.parse({
-        ...order.state,
-        lastHeadSha: order.headSha,
-        flakeReruns: order.state.flakeReruns + 1,
-      });
-      execFileSync(
-        "gh",
-        ["pr", "comment", String(order.prNumber), "--body", formatAgentPrStateComment(nextState)],
-        { cwd: repoRoot, encoding: "utf8" },
-      );
-    }
+    execFileSync("gh", ["run", "rerun", String(order.runId), "--failed"], {
+      cwd: repoRoot,
+      encoding: "utf8",
+    });
+    const nextState = mergeAgentPrState(order.state, {
+      lastHeadSha: order.headSha,
+      flakeReruns: order.state.flakeReruns + 1,
+    });
+    execFileSync(
+      "gh",
+      ["pr", "comment", String(order.prNumber), "--body", formatAgentPrStateComment(nextState)],
+      { cwd: repoRoot, encoding: "utf8" },
+    );
   }
 };
 
@@ -674,9 +710,10 @@ const runCli = () => {
         "Usage: queue.ts record-shepherd <pr-number> --round <n> [--sha <sha>] [--issue <n>] [--flake-reruns <n>]",
       );
     }
-    const state = agentPrStateSchema.parse({
+    const previous = fetchCurrentAgentPrState(repoRoot, prNumber);
+    const state = mergeAgentPrState(previous, {
       shepherdRounds: round,
-      flakeReruns: flakeRaw !== null ? Number.parseInt(flakeRaw, 10) : 0,
+      ...(flakeRaw !== null ? { flakeReruns: Number.parseInt(flakeRaw, 10) } : {}),
       ...(sha ? { lastHeadSha: sha } : {}),
       ...(issueRaw !== null ? { issueNumber: Number.parseInt(issueRaw, 10) } : {}),
     });

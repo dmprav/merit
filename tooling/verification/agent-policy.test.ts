@@ -107,6 +107,7 @@ describe("agent-policy", () => {
       changedFiles: [
         { status: "modified", path: "tooling/verification/lint.ts" },
         { status: "modified", path: ".claude/.settings-extra" },
+        { status: "modified", path: ".github/workflows/verify.yml" },
         { status: "added", path: "foundation/db/database/migrations/0015_add_index.sql" },
       ],
       linkedIssues: [
@@ -118,6 +119,7 @@ describe("agent-policy", () => {
             maintainerApprovalComment([
               "tooling/verification/lint.ts",
               ".claude/**",
+              ".github/*/**",
               "foundation/db/database/migrations/**",
             ]),
           ],

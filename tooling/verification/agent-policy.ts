@@ -209,7 +209,10 @@ const matchesApprovedPattern = (filePath: string, pattern: string): boolean => {
     return true;
   }
   if (pattern.endsWith("/**")) {
-    return filePath.startsWith(pattern.slice(0, -2));
+    const prefix = pattern.slice(0, -2);
+    if (!/[*?{}[\]]/.test(prefix)) {
+      return filePath.startsWith(prefix);
+    }
   }
   return matchesGlob(filePath, pattern);
 };

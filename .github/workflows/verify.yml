@@ -77,15 +77,6 @@ jobs:
           cache: false
           run-install: false
 
-      - name: Check verification record
-        shell: bash
-        env:
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
-          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: node tooling/verification/verification-record.ts
-
       - name: Check autonomous agent policy
         shell: bash
         env:
@@ -106,6 +97,15 @@ jobs:
           else
             node tooling/verification/agent-policy.ts
           fi
+
+      - name: Check verification record
+        shell: bash
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node tooling/verification/verification-record.ts
 
   renovate:
     needs: changes

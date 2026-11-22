@@ -4,6 +4,7 @@ import {
   formatAgentPrStateComment,
   formatClaimComment,
   hasActiveClaim,
+  mergeAgentPrState,
   normalizeStatusCheckRollup,
   parseAgentPrState,
   selectNextWork,
@@ -25,6 +26,7 @@ const basePr = (overrides: Partial<OpenAgentPr> = {}): OpenAgentPr => ({
   ],
   unresolvedThreads: [],
   state: { shepherdRounds: 0, flakeReruns: 0 },
+  failedVerifyRun: null,
   ...overrides,
 });
 
@@ -76,7 +78,7 @@ describe("queue", () => {
     ]);
   });
 
-  test("requests a zero-LLM rerun once for isolated browser failures, then falls through to shepherd", () => {
+  test("requests a zero-LLM rerun once for attempt-1 browser failures, then falls through to shepherd", () => {
     const browserFailChecks = [
       { name: "browser-demo (2/3)", status: "COMPLETED", conclusion: "FAILURE" },
       { name: "verify", status: "COMPLETED", conclusion: "FAILURE" },
@@ -85,19 +87,64 @@ describe("queue", () => {
 
     const first = selectNextWork({
       openAgentPrs: [
-        basePr({ checks: browserFailChecks, state: { shepherdRounds: 0, flakeReruns: 0 } }),
+        basePr({
+          checks: browserFailChecks,
+          state: { shepherdRounds: 0, flakeReruns: 0 },
+          failedVerifyRun: { databaseId: 9001, attempt: 1 },
+        }),
       ],
       readyIssues: [baseIssue()],
     });
     expect(first.kind).toBe("rerun_flake");
+    if (first.kind === "rerun_flake") {
+      expect(first.runId).toBe(9001);
+    }
 
-    const afterRerun = selectNextWork({
+    // Already attempted rerun on GitHub (attempt 2), even if state comment wasn't written: advance to shepherd.
+    const alreadyRetriedOnGithub = selectNextWork({
       openAgentPrs: [
-        basePr({ checks: browserFailChecks, state: { shepherdRounds: 0, flakeReruns: 1 } }),
+        basePr({
+          checks: browserFailChecks,
+          state: { shepherdRounds: 0, flakeReruns: 0 },
+          failedVerifyRun: { databaseId: 9001, attempt: 2 },
+        }),
       ],
       readyIssues: [baseIssue()],
     });
-    expect(afterRerun.kind).toBe("shepherd");
+    expect(alreadyRetriedOnGithub.kind).toBe("shepherd");
+
+    // No matching failed verify.yml run found: do not wedge on rerun_flake, advance to shepherd.
+    const noMatchingRun = selectNextWork({
+      openAgentPrs: [
+        basePr({
+          checks: browserFailChecks,
+          state: { shepherdRounds: 0, flakeReruns: 0 },
+          failedVerifyRun: null,
+        }),
+      ],
+      readyIssues: [baseIssue()],
+    });
+    expect(noMatchingRun.kind).toBe("shepherd");
+
+    const afterRecordedRerun = selectNextWork({
+      openAgentPrs: [
+        basePr({
+          checks: browserFailChecks,
+          state: { shepherdRounds: 0, flakeReruns: 1 },
+          failedVerifyRun: { databaseId: 9001, attempt: 1 },
+        }),
+      ],
+      readyIssues: [baseIssue()],
+    });
+    expect(afterRecordedRerun.kind).toBe("shepherd");
+
+    // Preserving flakeReruns when recording a shepherd round without --flake-reruns.
+    expect(
+      mergeAgentPrState(
+        { issueNumber: 120, shepherdRounds: 0, flakeReruns: 1 },
+        { shepherdRounds: 1, lastHeadSha: "abcdef1" },
+      ),
+    ).toEqual({ issueNumber: 120, shepherdRounds: 1, lastHeadSha: "abcdef1", flakeReruns: 1 });
 
     // Mixed browser + package-tests failure must shepherd immediately, not rerun as flake.
     const mixed = selectNextWork({
@@ -108,6 +155,7 @@ describe("queue", () => {
             { name: "package-tests", status: "COMPLETED", conclusion: "FAILURE" },
           ],
           state: { shepherdRounds: 0, flakeReruns: 0 },
+          failedVerifyRun: { databaseId: 9001, attempt: 1 },
         }),
       ],
       readyIssues: [baseIssue()],
