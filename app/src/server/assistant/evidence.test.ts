@@ -41,6 +41,34 @@ it("reopens a citation whose tool result has fallen outside the provider history
   );
 });
 
+it("retrieves every original result that contributed to the same citation", () => {
+  const state = initialState();
+  const input = { observation: "E1", section: "result", cursor: 0 };
+  for (const page of [1, 2]) {
+    recordReceipt(
+      state,
+      "get_application_content",
+      { page },
+      {
+        result: { status: "ok", page },
+        dependencies: [],
+        citations: [submission("A", "1")],
+      },
+    );
+    recordReceipt(state, "read_observation", input, readObservation(state.messages, input));
+  }
+  const first = readObservation(state.messages, input);
+  expect(first.result).toMatchObject({ nextOccurrence: 1, text: '{"status":"ok","page":1}' });
+  const second = readObservation(state.messages, {
+    ...input,
+    occurrence: first.result.nextOccurrence,
+  });
+  expect(second.result).toMatchObject({ nextOccurrence: null, text: '{"status":"ok","page":2}' });
+  expect(readObservation(state.messages, { ...input, occurrence: 2 }).result.status).toBe(
+    "invalid_input",
+  );
+});
+
 it("requires a citation from a newly inspected version when an older key cites the same record", () => {
   const state = initialState();
   recordReceipt(
