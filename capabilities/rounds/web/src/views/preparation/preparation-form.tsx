@@ -2,7 +2,14 @@ import type { ReactNode, ComponentProps } from "react";
 import { useTranslation } from "react-i18next";
 import { z } from "zod";
 
-import { Form, FormActions, FormTextField, useForm, useTranslatedSchema } from "@merit/forms";
+import {
+  Form,
+  FormActions,
+  FormMoneyField,
+  FormTextField,
+  useForm,
+  useTranslatedSchema,
+} from "@merit/forms";
 import { useFormat } from "@merit/i18n/format";
 import { parseMoneyInput } from "@merit/money/input";
 import {
@@ -243,15 +250,15 @@ const BudgetForm = (props: SectionProps<"budget">) => {
         </p>
         <form.Field name="amount">
           {(field) => (
-            <FormTextField
+            <FormMoneyField
               field={field}
+              precisionMessage={t("validation.amountPrecision")}
               label={t("preparation.amount")}
               prefix={{
                 text: "€",
                 label: t("common:euros"),
                 isHidden: !field.state.value.trim(),
               }}
-              inputMode="decimal"
               autoFocus
               isReadOnly={submission.isSubmitting || props.isPending}
               placeholder={t("preparation.notSet")}

@@ -17,5 +17,6 @@ export const en = {
   },
   validation: {
     amountFormat: "Enter an amount with no more than two decimal places, such as 24000.50.",
+    amountPrecision: "Amount unchanged. Use up to two decimal places.",
   },
 } as const;
