@@ -2,10 +2,14 @@ import { describe, expect, test } from "vite-plus/test";
 
 import { SCOUT_LENSES } from "./proposal.ts";
 import {
+  ARCHITECTURE_AXES,
   AUTO_LENS_PRIORITY,
+  buildCapabilitySymmetry,
   buildCommitQueryArgs,
   buildScoutContext,
+  buildTrackedPathsIndex,
   collectUnreadVerifications,
+  extractLatestTrustedRejectionReason,
   formatScoutStateBody,
   LENS_TARGET_INTERVAL_DAYS,
   listDocAreas,
@@ -14,9 +18,13 @@ import {
   parseCommitLog,
   parseContextLensFlag,
   parseScoutState,
-  pickRotationItem,
+  pickNextRotationItem,
   resolveRotationTarget,
   selectAutoLens,
+  SIMPLIFICATION_LAYERS,
+  summarizeEntryWeights,
+  summarizeFallowDupes,
+  summarizeFallowHealth,
 } from "./scout.ts";
 
 describe("scout", () => {
@@ -28,6 +36,7 @@ describe("scout", () => {
       tests: {
         lastCommitSha: "c7e4efa123",
         lastCommitDate: "2026-11-22T22:26:16Z",
+        lastRotationTarget: "capabilities/reviews",
         lastRunAt: "2026-11-22T23:00:00Z",
       },
     });
@@ -35,6 +44,7 @@ describe("scout", () => {
       tests: {
         lastCommitSha: "c7e4efa123",
         lastCommitDate: "2026-11-22T22:26:16Z",
+        lastRotationTarget: "capabilities/reviews",
         lastRunAt: "2026-11-22T23:00:00Z",
       },
     });
@@ -78,7 +88,7 @@ describe("scout", () => {
     expect(freshArgs).toContain("--since=2026-11-15T00:00:00Z");
   });
 
-  test("computes deterministic doc areas, package slices, rotation target, and unread verifications", () => {
+  test("computes doc areas, package slices including app, unread verifications, and round-robin rotation", () => {
     const tracked = [
       "README.md",
       "docs/README.md",
@@ -88,6 +98,7 @@ describe("scout", () => {
       "verifications/208.md",
       "verifications/216.md",
       "verifications/217.md",
+      "app/src/server/identity.ts",
       "capabilities/reviews/business/src/index.ts",
       "foundation/ui/README.md",
       "tooling/testing/browser/config.ts",
@@ -95,6 +106,7 @@ describe("scout", () => {
 
     expect(listDocAreas(tracked)).toEqual([".", "docs/guides", "foundation/ui"]);
     expect(listPackageSlices(tracked)).toEqual([
+      "app",
       "capabilities/reviews",
       "foundation/ui",
       "tooling/testing",
@@ -104,19 +116,17 @@ describe("scout", () => {
       { prNumber: 217, path: "verifications/217.md" },
     ]);
 
-    const day0 = new Date(Date.UTC(2026, 10, 13, 12, 0, 0));
-    const day1 = new Date(Date.UTC(2026, 10, 14, 12, 0, 0));
-    const preEpoch = new Date(Date.UTC(2026, 10, 12, 12, 0, 0));
-    expect(pickRotationItem([], day0)).toBeNull();
-    expect(pickRotationItem(["b", "a", "c"], day0)).toBe("a");
-    expect(pickRotationItem(["b", "a", "c"], day1)).toBe("b");
-    expect(pickRotationItem(["b", "a", "c"], preEpoch)).toBe("c");
-    expect(pickRotationItem(["b", "a", "c"], day0, 2)).toBe("c");
+    expect(pickNextRotationItem([], undefined)).toBeNull();
+    expect(pickNextRotationItem(["axis-a", "axis-b", "axis-c"], undefined)).toBe("axis-a");
+    expect(pickNextRotationItem(["axis-a", "axis-b", "axis-c"], "axis-a")).toBe("axis-b");
+    expect(pickNextRotationItem(["axis-a", "axis-b", "axis-c"], "axis-c")).toBe("axis-a");
+    expect(pickNextRotationItem(["axis-a", "axis-b", "axis-c"], "removed-axis")).toBe("axis-a");
   });
 
-  test("resolves domain-scoped offset rotation targets for every lens", () => {
+  test("visits every horizontal architecture axis, simplification layer, and domain-scoped slice without aliasing", () => {
     const tracked = [
       "docs/guides/testing.md",
+      "app/src/server/middleware.ts",
       "capabilities/reviews/business/src/server/service.ts",
       "capabilities/rounds/ai/src/tools.ts",
       "foundation/auth/src/index.ts",
@@ -124,36 +134,201 @@ describe("scout", () => {
       "foundation/db/src/schema.ts",
       "interfaces/mcp/src/server.ts",
     ];
-    const day0 = new Date(Date.UTC(2026, 10, 13, 12, 0, 0));
 
-    expect(resolveRotationTarget("verification-flakes", tracked, day0)).toBeNull();
-    expect(resolveRotationTarget("docs", tracked, day0)).toBe("docs/guides");
+    expect(resolveRotationTarget("verification-flakes", tracked, undefined)).toEqual({
+      target: null,
+      axis: null,
+    });
+    expect(resolveRotationTarget("docs", tracked, undefined).target).toBe("docs/guides");
 
-    // security excludes pure utility foundation slices like foundation/dates.
-    const securityTargets = new Set(
-      Array.from({ length: 10 }, (_, d) =>
-        resolveRotationTarget("security", tracked, new Date(Date.UTC(2026, 10, 13 + d, 12, 0, 0))),
-      ),
+    let lastArch: string | undefined;
+    const seenArch: string[] = [];
+    for (let i = 0; i < ARCHITECTURE_AXES.length; i += 1) {
+      const next = resolveRotationTarget("architecture", tracked, lastArch);
+      expect(next.axis?.id).toBe(next.target);
+      if (next.target) {
+        seenArch.push(next.target);
+        lastArch = next.target;
+      }
+    }
+    expect(seenArch).toEqual(ARCHITECTURE_AXES.map((axis) => axis.id));
+    expect(resolveRotationTarget("architecture", tracked, lastArch).target).toBe(
+      ARCHITECTURE_AXES[0]?.id,
     );
-    expect(securityTargets.has("foundation/dates")).toBe(false);
+
+    let lastSimp: string | undefined;
+    const seenSimp: string[] = [];
+    for (let i = 0; i < SIMPLIFICATION_LAYERS.length; i += 1) {
+      const next = resolveRotationTarget("simplification", tracked, lastSimp);
+      expect(next.axis?.id).toBe(next.target);
+      if (next.target) {
+        seenSimp.push(next.target);
+        lastSimp = next.target;
+      }
+    }
+    expect(seenSimp).toEqual(SIMPLIFICATION_LAYERS.map((layer) => layer.id));
+
+    let lastSec: string | undefined;
+    const securityTargets = new Set<string>();
+    for (let i = 0; i < 10; i += 1) {
+      const next = resolveRotationTarget("security", tracked, lastSec);
+      if (next.target) {
+        securityTargets.add(next.target);
+        lastSec = next.target;
+      }
+    }
+    expect(securityTargets.has("app")).toBe(true);
     expect(securityTargets.has("foundation/auth")).toBe(true);
-    expect(securityTargets.has("capabilities/reviews")).toBe(true);
+    expect(securityTargets.has("foundation/dates")).toBe(false);
 
-    // mcp-db rotates only across MCP, DB, and server-bearing capability slices.
-    const mcpDbTargets = new Set(
-      Array.from({ length: 10 }, (_, d) =>
-        resolveRotationTarget("mcp-db", tracked, new Date(Date.UTC(2026, 10, 13 + d, 12, 0, 0))),
-      ),
-    );
+    let lastMcp: string | undefined;
+    const mcpDbTargets = new Set<string>();
+    for (let i = 0; i < 6; i += 1) {
+      const next = resolveRotationTarget("mcp-db", tracked, lastMcp);
+      if (next.target) {
+        mcpDbTargets.add(next.target);
+        lastMcp = next.target;
+      }
+    }
     expect(mcpDbTargets).toEqual(
       new Set(["capabilities/reviews", "capabilities/rounds", "foundation/db", "interfaces/mcp"]),
     );
+  });
 
-    // architecture, simplification, and tests use distinct offsets on the same day.
-    const archTarget = resolveRotationTarget("architecture", tracked, day0);
-    const simpTarget = resolveRotationTarget("simplification", tracked, day0);
-    const testsTarget = resolveRotationTarget("tests", tracked, day0);
-    expect(new Set([archTarget, simpTarget, testsTarget]).size).toBe(3);
+  test("summarizes fallow telemetry, excludes test/fixture files, tags trackedBy issues, and extracts trusted wontfix reasons", () => {
+    const trackedPaths = buildTrackedPathsIndex([
+      {
+        number: 240,
+        body: '<!-- merit-proposal: {"kind":"design","lens":"architecture","paths":["capabilities/reviews/web/src/views/reviews/editable-review-work.tsx","app/src/router.tsx"]} -->',
+      },
+    ]);
+
+    const health = summarizeFallowHealth({
+      rawHealth: {
+        file_scores: [
+          {
+            path: "interfaces/product/src/features/grantmaking/testing/intake.story-fixtures.tsx",
+            fan_in: 0,
+            fan_out: 40,
+            lines: 900,
+            function_count: 20,
+            total_cyclomatic: 99,
+            total_cognitive: 50,
+          },
+          {
+            path: "capabilities/reviews/web/src/views/reviews/editable-review-work.tsx",
+            fan_in: 1,
+            fan_out: 31,
+            lines: 725,
+            function_count: 51,
+            total_cyclomatic: 132,
+            total_cognitive: 80,
+          },
+        ],
+        hotspots: [
+          {
+            path: "capabilities/reviews/web/src/views/reviews/editable-review-work.tsx",
+            score: 71.26,
+            commits: 6,
+            trend: "heating",
+          },
+        ],
+        threshold_overrides: [
+          {
+            status: "active",
+            path: "capabilities/reviews/web/src/controllers/reviewer/use-reviewer.ts",
+            function: "useReviewer",
+            line: 127,
+            metrics: { cognitive: 20, line_count: 302 },
+            reason: "Shared session closures.",
+          },
+        ],
+      },
+      pathPatterns: ["capabilities/*/web/src/**"],
+      trackedPathsByIssue: trackedPaths,
+    });
+
+    expect(health.topFiles).toHaveLength(1);
+    expect(health.topFiles[0]).toMatchObject({
+      path: "capabilities/reviews/web/src/views/reviews/editable-review-work.tsx",
+      inAxis: true,
+      trackedBy: [240],
+    });
+    expect(health.hotspots[0]?.trackedBy).toEqual([240]);
+    expect(health.thresholdOverrides[0]?.function).toBe("useReviewer");
+
+    const dupes = summarizeFallowDupes({
+      rawDupes: {
+        clone_groups: [
+          {
+            line_count: 20,
+            instances: [
+              { file: "capabilities/rounds/vite.config.ts", start_line: 1, end_line: 20 },
+              { file: "capabilities/reviews/vite.config.ts", start_line: 1, end_line: 20 },
+            ],
+          },
+          {
+            line_count: 14,
+            suggested_name: "applicationCases",
+            instances: [
+              {
+                file: "capabilities/applications/business/src/server/persistence/commands/intake.ts",
+                start_line: 10,
+                end_line: 24,
+              },
+              {
+                file: "capabilities/reviews/business/src/server/persistence/commands/reviews.ts",
+                start_line: 30,
+                end_line: 44,
+              },
+            ],
+          },
+        ],
+      },
+      pathPatterns: ["capabilities/*/business/src/server/**"],
+      trackedPathsByIssue: trackedPaths,
+    });
+    expect(dupes).toHaveLength(1);
+    expect(dupes[0]?.inAxis).toBe(true);
+
+    const weights = summarizeEntryWeights({
+      rawEntryWeight: {
+        entry_weight: {
+          entries: [
+            {
+              path: "app/src/router.tsx",
+              source: "tanstack-router",
+              eager_modules: 634,
+              eager_bytes: 1_711_104,
+              deferred_modules: 2,
+            },
+          ],
+        },
+      },
+      trackedPathsByIssue: trackedPaths,
+    });
+    expect(weights[0]).toMatchObject({
+      path: "app/src/router.tsx",
+      eagerModules: 634,
+      eagerKb: 1671,
+      trackedBy: [240],
+    });
+
+    expect(
+      buildCapabilitySymmetry([
+        "capabilities/rounds/business/src/domain/round.ts",
+        "capabilities/rounds/business/src/domain/round.test.ts",
+        "capabilities/rounds/business/src/server/service.ts",
+        "capabilities/rounds/ai/src/tools.ts",
+      ]),
+    ).toEqual([{ capability: "rounds", domain: 1, server: 1, web: 0, ai: 1 }]);
+
+    expect(
+      extractLatestTrustedRejectionReason([
+        { authorAssociation: "OWNER", body: "Keep cents only, block >2 decimals on input." },
+        { authorAssociation: "NONE", body: "Untrusted follow-up ignored." },
+      ]),
+    ).toBe("Keep cents only, block >2 decimals on input.");
   });
 
   test("halts at the open agent:proposed cap boundary (4 ready vs 5 cap_reached)", () => {

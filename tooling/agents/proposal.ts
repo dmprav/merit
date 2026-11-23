@@ -28,11 +28,13 @@ export const SCOUT_LENSES = [
 export type ScoutLens = (typeof SCOUT_LENSES)[number];
 
 export const MAX_OPEN_PROPOSALS = 5;
+export const DESIGN_PROPOSAL_LABEL = "agent:design";
 
 const TEST_FILE_PATTERN = /\.(?:test|spec|integration)\.tsx?$/;
 const TIER1_DOC_PATTERN =
   /^(?:docs\/.+\.(?:md|mdx)$|(?:capabilities|foundation|interfaces|app|tooling)\/.+\/README\.md$)/;
 const GLOB_CHAR_PATTERN = /[*?{}[\]]/;
+const PROPOSAL_MARKER_PATTERN = /<!--\s*merit-proposal:\s*(\{[\s\S]*?\})\s*-->/;
 
 const singleLine = (max: number) =>
   z
@@ -52,7 +54,7 @@ const nonAgentLabelSchema = singleLine(40)
     "extraLabels cannot contain workflow-controlled agent:* labels",
   );
 
-export const proposalInputSchema = z.object({
+const baseProposalFields = {
   lens: z.enum(SCOUT_LENSES),
   title: singleLine(100),
   why: singleLine(220),
@@ -63,6 +65,11 @@ export const proposalInputSchema = z.object({
   paths: z.array(singleLine(200)).min(1),
   ambiguous: z.boolean().default(false),
   extraLabels: z.array(nonAgentLabelSchema).default([]),
+};
+
+const prProposalSchema = z.object({
+  ...baseProposalFields,
+  kind: z.literal("pr"),
   brief: z.object({
     behavior: z.array(singleLine(200)).min(1),
     outOfScope: z.array(singleLine(200)).default([]),
@@ -72,7 +79,28 @@ export const proposalInputSchema = z.object({
   }),
 });
 
-export type ProposalInput = z.infer<typeof proposalInputSchema>;
+const designProposalSchema = z.object({
+  ...baseProposalFields,
+  kind: z.literal("design"),
+  design: z.object({
+    options: z.array(singleLine(200)).min(2).max(3),
+    recommendation: singleLine(200),
+    prSequence: z.array(singleLine(200)).min(2).max(4),
+    openQuestions: z.array(singleLine(200)).min(1).max(4),
+  }),
+});
+
+export const proposalInputSchema = z.preprocess(
+  (raw) =>
+    raw && typeof raw === "object" && !Array.isArray(raw) && !("kind" in raw)
+      ? { ...raw, kind: "pr" }
+      : raw,
+  z.discriminatedUnion("kind", [prProposalSchema, designProposalSchema]),
+);
+
+export type ProposalInput = z.output<typeof proposalInputSchema>;
+
+export type ProposalKind = ProposalInput["kind"];
 
 export type ProposalTierClassification = {
   tier: 1 | 2;
@@ -120,9 +148,11 @@ export const isProposalCapReached = (openProposedCount: number): boolean =>
 export const classifyProposalTier = ({
   paths,
   ambiguous,
+  kind = "pr",
 }: {
   paths: readonly string[];
   ambiguous: boolean;
+  kind?: ProposalKind;
 }): ProposalTierClassification => {
   const normalizedPaths = [...new Set(paths.map(normalizePath))];
   const protectedPaths = findProtectedPaths(normalizedPaths);
@@ -136,6 +166,9 @@ export const classifyProposalTier = ({
     normalizedPaths.every((filePath) => TEST_FILE_PATTERN.test(filePath));
 
   const reasons: string[] = [];
+  if (kind === "design") {
+    reasons.push(`architecture design or multi-PR proposal (${DESIGN_PROPOSAL_LABEL})`);
+  }
   if (ambiguous) {
     reasons.push("proposal marks an unresolved ambiguity or product decision");
   }
@@ -206,8 +239,32 @@ const jaccard = (left: Set<string>, right: Set<string>): number => {
   return union === 0 ? 0 : intersection / union;
 };
 
+const proposalMarkerMetaSchema = z.object({
+  lens: z.string().optional(),
+  kind: z.string().optional(),
+});
+
+const parseProposalMarkerMeta = (
+  body: string,
+): { paths: string[]; lens?: string; kind?: string } => {
+  const paths = (parseProposalMarker(body)?.paths ?? []).map(normalizePath);
+  const match = PROPOSAL_MARKER_PATTERN.exec(body);
+  if (!match?.[1]) {
+    return { paths };
+  }
+  try {
+    const parsed = proposalMarkerMetaSchema.safeParse(JSON.parse(match[1]));
+    if (parsed.success) {
+      return { paths, lens: parsed.data.lens, kind: parsed.data.kind };
+    }
+  } catch {
+    return { paths };
+  }
+  return { paths };
+};
+
 export const findDuplicateProposal = (
-  proposal: Pick<ProposalInput, "title" | "paths">,
+  proposal: Pick<ProposalInput, "title" | "paths"> & { lens?: ScoutLens },
   existingIssues: readonly ExistingIssueSummary[],
 ): DuplicateCheckResult => {
   const normalizedTitle = proposal.title.trim().toLowerCase();
@@ -231,13 +288,26 @@ export const findDuplicateProposal = (
     }
 
     const similarity = jaccard(titleTokens, tokenize(issue.title));
-    const existingPaths = issue.body ? (parseProposalMarker(issue.body)?.paths ?? []) : [];
-    const sharesPath = existingPaths.some((filePath) => proposalPaths.has(filePath));
+    const markerMeta = issue.body ? parseProposalMarkerMeta(issue.body) : { paths: [] };
+    const existingPaths = markerMeta.paths;
+    const sharedPathCount = existingPaths.filter((filePath) => proposalPaths.has(filePath)).length;
+    const sharesPath = sharedPathCount > 0;
     if (similarity >= 0.6 && (sharesPath || existingPaths.length === 0)) {
       return {
         duplicate: true,
         matchedIssue: issue,
         reason: `high title similarity (${similarity.toFixed(2)}) with #${issue.number}`,
+      };
+    }
+
+    const minPathCount = Math.min(proposalPaths.size, existingPaths.length);
+    const pathOverlap = minPathCount > 0 ? sharedPathCount / minPathCount : 0;
+    const sameLens = !proposal.lens || !markerMeta.lens || markerMeta.lens === proposal.lens;
+    if (sameLens && pathOverlap >= 0.7 && similarity >= 0.25) {
+      return {
+        duplicate: true,
+        matchedIssue: issue,
+        reason: `high path overlap (${Math.round(pathOverlap * 100)}%) and related title (${similarity.toFixed(2)}) with #${issue.number}`,
       };
     }
   }
@@ -258,9 +328,11 @@ export const renderProposalMarkdown = (
     classification.protectedPaths.length > 0
       ? ` · protected (needs \`${ALLOW_PROTECTED_LABEL}\`): ${classification.protectedPaths.join(", ")}`
       : "";
-  const blastRadius = `tier:${classification.tier} · lens:${proposal.lens} · ~${normalizedPaths.length} file(s) · slices: ${classification.slices.join(", ")} · mechanisms: ${mechanismSummary}${protectedNote}`;
+  const kindBadge = proposal.kind === "design" ? " · design" : "";
+  const blastRadius = `tier:${classification.tier}${kindBadge} · lens:${proposal.lens} · ~${normalizedPaths.length} file(s) · slices: ${classification.slices.join(", ")} · mechanisms: ${mechanismSummary}${protectedNote}`;
 
   const metadata = JSON.stringify({
+    kind: proposal.kind,
     lens: proposal.lens,
     tier: classification.tier,
     paths: normalizedPaths,
@@ -268,6 +340,47 @@ export const renderProposalMarkdown = (
 
   const renderBullets = (items: readonly string[]) =>
     items.length > 0 ? items.map((item) => `- ${item}`).join("\n") : "- None.";
+
+  const detailsLines =
+    proposal.kind === "design"
+      ? [
+          "<details>",
+          "<summary>Architecture design & sequencing (not auto-executed)</summary>",
+          "",
+          "**Options:**",
+          renderBullets(proposal.design.options),
+          "",
+          `**Recommendation:** ${proposal.design.recommendation}`,
+          "",
+          "**PR sequence:**",
+          ...proposal.design.prSequence.map((step, index) => `${index + 1}. ${step}`),
+          "",
+          "**Open questions:**",
+          renderBullets(proposal.design.openQuestions),
+          "",
+          "</details>",
+        ]
+      : [
+          "<details>",
+          "<summary>Implementer brief (for builder & reviewer)</summary>",
+          "",
+          "**Behavior:**",
+          renderBullets(proposal.brief.behavior),
+          "",
+          "**Out of scope:**",
+          renderBullets(proposal.brief.outOfScope),
+          "",
+          "**Precedents:**",
+          renderBullets(proposal.brief.precedents),
+          "",
+          "**Plan:**",
+          renderBullets(proposal.brief.plan),
+          "",
+          "**Verification:**",
+          renderBullets(proposal.brief.verification),
+          "",
+          "</details>",
+        ];
 
   return [
     `**${proposal.title}**`,
@@ -280,25 +393,7 @@ export const renderProposalMarkdown = (
     `**Decision / catch:** ${proposal.decision}`,
     `**Why NOT:** ${proposal.whyNot}`,
     "",
-    "<details>",
-    "<summary>Implementer brief (for builder & reviewer)</summary>",
-    "",
-    "**Behavior:**",
-    renderBullets(proposal.brief.behavior),
-    "",
-    "**Out of scope:**",
-    renderBullets(proposal.brief.outOfScope),
-    "",
-    "**Precedents:**",
-    renderBullets(proposal.brief.precedents),
-    "",
-    "**Plan:**",
-    renderBullets(proposal.brief.plan),
-    "",
-    "**Verification:**",
-    renderBullets(proposal.brief.verification),
-    "",
-    "</details>",
+    ...detailsLines,
     "",
     `<!-- merit-proposal: ${metadata} -->`,
     "",
@@ -387,17 +482,28 @@ const runCli = () => {
   const baseClassification = classifyProposalTier({
     paths: proposal.paths,
     ambiguous: proposal.ambiguous,
+    kind: proposal.kind,
   });
   const classification = applyTier2OnlyOverride(baseClassification, tier2Only);
   const markdown = renderProposalMarkdown(proposal, classification);
+  const labels = [
+    ...new Set([
+      classification.targetLabel,
+      ...(proposal.kind === "design" ? [DESIGN_PROPOSAL_LABEL] : []),
+      "type:maintenance",
+      ...proposal.extraLabels,
+    ]),
+  ];
 
   if (dryRun) {
     console.log(
       JSON.stringify(
         {
           status: "dry_run",
+          kind: proposal.kind,
           tier: classification.tier,
           targetLabel: classification.targetLabel,
+          labels,
           reasons: classification.reasons,
           markdown,
         },
@@ -435,9 +541,6 @@ const runCli = () => {
     return;
   }
 
-  const labels = [
-    ...new Set([classification.targetLabel, "type:maintenance", ...proposal.extraLabels]),
-  ];
   const ghArgs = ["issue", "create", "--title", proposal.title, "--body", markdown];
   for (const label of labels) {
     ghArgs.push("--label", label);
@@ -447,8 +550,10 @@ const runCli = () => {
     JSON.stringify({
       status: "created",
       url,
+      kind: proposal.kind,
       tier: classification.tier,
       targetLabel: classification.targetLabel,
+      labels,
     }),
   );
 };

@@ -11,6 +11,7 @@ import {
   TRUSTED_AUTHOR_ASSOCIATIONS,
   type IssueCommentRecord,
 } from "../verification/agent-policy.ts";
+import { DESIGN_PROPOSAL_LABEL } from "./proposal.ts";
 
 export const MAX_OPEN_AGENT_PRS = 2;
 export const MAX_SHEPHERD_ROUNDS = 2;
@@ -538,6 +539,7 @@ export const selectNextWork = ({
     .filter(
       (issue) =>
         !issue.labels.includes("agent:needs-human") &&
+        !issue.labels.includes(DESIGN_PROPOSAL_LABEL) &&
         !linkedIssueNumbers.has(issue.number) &&
         !hasActiveClaim(issue.comments, nowMs),
     );
