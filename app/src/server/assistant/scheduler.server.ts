@@ -10,7 +10,7 @@ export const createAssistantWorker = (
 ) => {
   const active = new Set<string>();
   const capacity = 4;
-  let scanning = false;
+  let pendingScan: symbol | undefined;
   let cursor: string | undefined;
   let timer: ReturnType<typeof setInterval> | undefined;
 
@@ -30,12 +30,16 @@ export const createAssistantWorker = (
   };
 
   const scan = async () => {
-    if (scanning || active.size >= capacity) {
+    if (pendingScan || active.size >= capacity) {
       return;
     }
-    scanning = true;
+    const scanId = Symbol();
+    pendingScan = scanId;
     try {
       const rows = await running(capacity, cursor);
+      if (pendingScan !== scanId) {
+        return;
+      }
       for (const row of rows) {
         if (active.size >= capacity) {
           break;
@@ -52,7 +56,9 @@ export const createAssistantWorker = (
         operation: "assistant.scan",
       });
     } finally {
-      scanning = false;
+      if (pendingScan === scanId) {
+        pendingScan = undefined;
+      }
     }
   };
 
@@ -67,6 +73,7 @@ export const createAssistantWorker = (
       void scan();
     },
     close() {
+      pendingScan = undefined;
       clearInterval(timer);
       timer = undefined;
     },

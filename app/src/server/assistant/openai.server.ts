@@ -136,14 +136,13 @@ export const createOpenAiAssistantModel =
     }
     const [choice] = completion.parse(await readReply(response)).choices;
     if (choice?.message.tool_calls) {
-      const [first] = choice.message.tool_calls;
-      if (
-        choice.message.tool_calls.length === 1 &&
-        first?.function.name === clarificationTool.function.name
-      ) {
+      const clarification = choice.message.tool_calls.find(
+        (call) => call.function.name === clarificationTool.function.name,
+      );
+      if (clarification) {
         const { question } = z
           .strictObject({ question: z.string().trim().min(1) })
-          .parse(JSON.parse(first.function.arguments));
+          .parse(JSON.parse(clarification.function.arguments));
         return { kind: "clarification", text: question };
       }
       const calls = choice.message.tool_calls.map(({ function: fn }) => ({

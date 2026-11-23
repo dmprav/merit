@@ -116,7 +116,7 @@ export const providerHistory = (messages: Message[]): WireMessage[] => {
     result.unshift({
       role: "system",
       content:
-        "Some earlier history or large tool outputs were omitted from this request. Use read_observation with the supplied observation number to read omitted details or evidence keys. Saved evidence keys identify the original versions.",
+        "Some earlier history or large tool outputs were omitted from this request. Use read_observation with the observation number or a saved citation key (for example E1) to read omitted details or evidence keys. Saved evidence keys identify the original versions.",
     });
   }
   return result;

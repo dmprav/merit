@@ -57,6 +57,7 @@ const commands = (deps: TurnDependencies, args: Address) => {
         if (item.status === "waiting") {
           item.status = approved ? "approved" : "declined";
           if (!approved) {
+            state.partialFailure = true;
             recordReceipt(state, item.preview.name, item.preview.input, {
               result: { status: "declined" },
               dependencies: [],
@@ -68,7 +69,10 @@ const commands = (deps: TurnDependencies, args: Address) => {
       const stillPending = state.groups.some((item) =>
         item.actions.some((action) => action.status === "waiting"),
       );
-      return change(state, approved ? "running" : stillPending ? "awaiting_approval" : "completed");
+      if (!approved && stillPending) {
+        return change(state, "awaiting_approval");
+      }
+      return change(state, approved || state.deferred.length ? "running" : "completed");
     });
 
   const retry = (previewId: string, actionId: string) =>

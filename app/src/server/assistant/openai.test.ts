@@ -43,9 +43,9 @@ it("forwards the configured model and evidence history with provider storage dis
       [{ name: "inspect", description: "Inspect", inputSchema: { type: "object" }, write: false }],
     ),
   ).resolves.toEqual({ kind: "calls", calls: [{ name: "inspect", input: { id: "A" } }] });
-  const [, request] = fetch.mock.calls[0]!;
-  assert(typeof request?.body === "string");
-  expect(JSON.parse(request.body)).toMatchObject({
+  const body = fetch.mock.calls[0]?.[1]?.body;
+  assert(typeof body === "string");
+  expect(JSON.parse(body)).toMatchObject({
     model: "merit-test",
     store: false,
     messages: [
@@ -54,6 +54,34 @@ it("forwards the configured model and evidence history with provider storage dis
       { role: "tool", tool_call_id: "merit_0" },
     ],
   });
+});
+
+it("pauses for clarification when a parallel reply also requests a workspace tool", async () => {
+  const question = "Which round do you mean?";
+  const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValueOnce(
+    Response.json({
+      choices: [
+        {
+          finish_reason: "tool_calls",
+          message: {
+            content: null,
+            tool_calls: [
+              { type: "function", function: { name: "inspect", arguments: '{"input":{}}' } },
+              {
+                type: "function",
+                function: {
+                  name: "ask_for_clarification",
+                  arguments: JSON.stringify({ question }),
+                },
+              },
+            ],
+          },
+        },
+      ],
+    }),
+  );
+  vi.stubGlobal("fetch", fetch);
+  await expect(model([], [])).resolves.toEqual({ kind: "clarification", text: question });
 });
 
 it("keeps the current request, citations and recent action outcomes within a bounded history", async () => {

@@ -274,7 +274,17 @@ it("defers dependent calls and halts them when the prerequisite fails", async ()
     "failed",
     "succeeded",
   ]);
-  expect(ctx.model).toHaveBeenCalledTimes(1);
+  const final = ctx.model.mock.calls.at(-1);
+  assert.isDefined(final);
+  expect(final[0]).toContainEqual(
+    expect.objectContaining({
+      name: "invite",
+      input: { to: "one" },
+      result: { status: "failed", phase: "execution" },
+    }),
+  );
+  expect(final[1].map((tool) => tool.name)).toEqual(["read_observation"]);
+  expect(ctx.catalog.preview).toHaveBeenCalledTimes(2);
 });
 
 it("prevents execution after deletion or withdrawal of provider consent", async () => {
@@ -350,6 +360,55 @@ it("previews follow-on work after its own prerequisite succeeds despite an unrel
     "after A",
   ]);
 });
+
+it.each(["failed", "declined"] as const)(
+  "answers from independent deferred reads when another action is %s",
+  async (outcome) => {
+    const ctx = await fixture();
+    ctx.model
+      .mockResolvedValueOnce({
+        kind: "calls",
+        calls: [
+          { name: "invite", input: { to: "A" } },
+          { name: "invite", input: { to: "B" } },
+          { name: "inspect", input: { to: "A" }, dependsOn: [0] },
+          { name: "inspect", input: { to: "B" }, dependsOn: [1] },
+        ],
+      })
+      .mockResolvedValueOnce(calls("invite", "A"))
+      .mockResolvedValueOnce(answer("B's assessment is ready [E1]."));
+    ctx.catalog.execute.mockResolvedValueOnce({
+      ...ok,
+      result: { status: outcome === "declined" ? "stale" : "invalid" },
+    });
+    ctx.catalog.read.mockResolvedValue({
+      ...ok,
+      citations: [{ kind: "assessment", recordId: "B", version: "1", label: "Assessment" }],
+    });
+    await ctx.run();
+    const group = (await ctx.open())?.groups[0];
+    assert.isDefined(group);
+    await ctx.turns.approve(...address, { previewId: group.id });
+    await ctx.run();
+    if (outcome === "declined") {
+      const replacement = (await ctx.open())?.groups[1];
+      assert.isDefined(replacement);
+      await ctx.turns.decline(...address, { previewId: replacement.id });
+      await ctx.run();
+    }
+    const chat = await ctx.open();
+    expect(ctx.catalog.read.mock.calls).toEqual([["inspect", { to: "B" }]]);
+    expect(chat?.progress).toContainEqual(
+      expect.objectContaining({ name: "inspect", status: "blocked" }),
+    );
+    expect(chat?.status).toBe("completed");
+    expect(chat?.messages.at(-1)).toMatchObject({ text: "B's assessment is ready [E1]." });
+    expect(chat?.groups.flatMap(({ actions }) => actions.map(({ status }) => status))).toEqual(
+      outcome === "failed" ? ["failed", "succeeded"] : ["stale", "succeeded", "declined"],
+    );
+    expect(ctx.catalog.execute).toHaveBeenCalledTimes(2);
+  },
+);
 
 it("returns the saved observations for a citation until access to the chat is lost", async () => {
   const ctx = await fixture();
@@ -468,6 +527,7 @@ it("pages a large saved private draft through provider calls and cites the origi
 
   const fetch = vi
     .spyOn(globalThis, "fetch")
+    .mockRejectedValue(new Error("Unexpected provider request"))
     .mockResolvedValueOnce(toolCall("get_reviewer_assignment", { assignmentId: "assignment" }))
     .mockImplementationOnce(async (_url, request) => {
       const { result } = lastResult(request);
@@ -529,4 +589,8 @@ it("rechecks access before using a saved observation for the next model request"
   await ctx.run();
   expect(ctx.model).toHaveBeenCalledTimes(2);
   expect(await ctx.open()).toBeNull();
+  expect(await ctx.store.read(...address)).toMatchObject({
+    status: "unavailable",
+    state: { messages: [{ role: "user" }, { role: "tool", name: "inspect" }] },
+  });
 });

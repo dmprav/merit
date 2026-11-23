@@ -24,14 +24,17 @@ const runModel = async (access: Access, row: Stored, model: AssistantModel) => {
           "This turn reached its investigation limit. Ask a follow-up question to continue.";
         return change(state, "failed");
       }
-      const tools = await catalog.list();
+      const tools = state.partialFailure ? [] : await catalog.list();
       state.steps++;
       state.modelAttempt = { id, until: Date.now() + 120_000 };
       // Authorize and dispatch under the same lock, then release it during inference.
       work.reply = model(
         state.messages,
         [...tools, observationTool],
-        state.error,
+        state.error ??
+          (state.partialFailure
+            ? "Summarize the saved outcomes and independent results."
+            : undefined),
         beginModelRequest(row.id, id),
       );
       void work.reply.catch(() => undefined);

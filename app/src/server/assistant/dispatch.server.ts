@@ -21,7 +21,7 @@ const progress = (state: ConversationState) => {
   if (actions.some((item) => item.status === "waiting")) {
     return "awaiting_approval";
   }
-  return state.partialFailure && !state.deferred.length ? "completed" : "running";
+  return "running";
 };
 
 type PendingCall = ConversationState["deferred"][number];
@@ -134,24 +134,19 @@ export const prepareDeferred = async (
   return change(state, progress(state));
 };
 
-export const applyDecision = async (
+const prepareBatch = async (
   state: ConversationState,
   catalog: AssistantRuntimeCatalog,
-  decision: AssistantDecision,
+  calls: Extract<AssistantDecision, { kind: "calls" }>["calls"],
 ) => {
-  delete state.modelAttempt;
-  delete state.error;
-  if (decision.kind !== "calls") {
-    if (recordAnswer(state, decision.text, decision.kind === "clarification")) {
-      return change(state, "completed");
-    }
-    state.error = "Use the supplied evidence keys to cite the records that support the answer.";
+  if (state.partialFailure && calls.some((call) => call.name !== observationTool.name)) {
+    state.error = "Summarize the saved outcomes. Only read_observation is available.";
     return change(state, "running");
   }
-  const tools = await catalog.list();
-  const ids = decision.calls.map(() => randomUUID());
+  const tools = state.partialFailure ? [] : await catalog.list();
+  const ids = calls.map(() => randomUUID());
   const actions: Action[] = [];
-  for (const [index, call] of decision.calls.entries()) {
+  for (const [index, call] of calls.entries()) {
     const id = ids[index];
     if (!id) {
       throw new Error("Assistant call has no identity.");
@@ -196,6 +191,24 @@ export const applyDecision = async (
     state.groups.push({ id: randomUUID(), actions });
   }
   return change(state, progress(state));
+};
+
+export const applyDecision = async (
+  state: ConversationState,
+  catalog: AssistantRuntimeCatalog,
+  decision: AssistantDecision,
+) => {
+  delete state.modelAttempt;
+  delete state.error;
+  if (decision.kind !== "calls") {
+    if (recordAnswer(state, decision.text, decision.kind === "clarification")) {
+      return change(state, "completed");
+    }
+    state.error =
+      "Cite the supplied evidence key for the version you observed. To cite a historical version, reopen its key with read_observation.";
+    return change(state, "running");
+  }
+  return prepareBatch(state, catalog, decision.calls);
 };
 
 export const disposition = (
@@ -264,6 +277,11 @@ export const failNext = (state: ConversationState) => {
   const { action, group } = next;
   action.status = "failed";
   action.result = { status: "failed" };
+  recordReceipt(state, action.preview.name, action.preview.input, {
+    result: { status: "failed", phase: "execution" },
+    dependencies: [],
+    citations: [],
+  });
   if (!action.delivery) {
     action.retry = action.preview;
   }

@@ -151,8 +151,13 @@ const dispatch = async (
     case "open":
     case "stop":
       return show(await turns[input.action](actor, workspace, input.id));
-    case "decline":
-      return show(await turns.decline(actor, workspace, input.id, input));
+    case "decline": {
+      const snapshot = await turns.decline(actor, workspace, input.id, input);
+      if (snapshot?.status === "running" && backend.configured) {
+        backend.worker.schedule({ userId: actor.userId, workspaceSlug: workspace, id: input.id });
+      }
+      return show(snapshot);
+    }
     default:
       return enqueue(backend, actor, workspace, input);
   }

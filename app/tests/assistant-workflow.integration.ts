@@ -346,6 +346,12 @@ it(
     expect(await invitationRows()).toEqual([]);
     expect(attempts).toEqual([]);
 
+    fetchModel.mockImplementationOnce(async (...args) => {
+      const keys = (await receipts(...args)).flatMap((receipt) =>
+        receipt.evidence.map((item) => `[${item.key}]`),
+      );
+      return answer(`Two invitations were delivered and one delivery failed. ${keys.join(" ")}`);
+    });
     const tab = new AbortController();
     expect(
       (
@@ -360,6 +366,8 @@ it(
     tab.abort();
     await vi.waitFor(() => expect(attempts).toHaveLength(3), { timeout: 10_000 });
     const returned = await untilSettled();
+    expect(returned.status).toBe("completed");
+    expect(returned.messages.at(-1)?.text).toContain("one delivery failed");
     expect(returned.groups[0]?.actions.map((item) => item.status)).toEqual([
       "succeeded",
       "failed",

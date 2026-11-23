@@ -121,14 +121,23 @@ export const recordReceipt = (
   state.messages.push({ role: "tool", callId, name, input, result: receipt.result, citations });
 };
 
+const recordIdentity = (item: z.infer<typeof source>) => JSON.stringify([item.kind, item.recordId]);
+
 export const recordAnswer = (state: ConversationState, text: string, clarification = false) => {
   const keys = new Set(Array.from(text.matchAll(/\[(E\d+)\]/g), (match) => match[1]));
   const citations = state.sources.filter((item) => keys.has(item.key));
   const since = state.messages.findLastIndex((entry) => entry.role === "user");
-  const hasEvidence = state.messages
-    .slice(since)
-    .some((entry) => entry.role === "tool" && entry.citations.length > 0);
-  if (keys.size !== citations.length || (!clarification && hasEvidence && !keys.size)) {
+  const observed = state.messages
+    .slice(since + 1)
+    .flatMap((entry) => (entry.role === "tool" ? entry.citations : []));
+  if (keys.size !== citations.length || (!clarification && observed.length > 0 && !keys.size)) {
+    return false;
+  }
+  // A historical citation can stand alone unless this turn inspected another version
+  // of the same record. Comparing versions or explicitly reopening the old one supports it.
+  const supported = new Set(observed.filter((item) => keys.has(item.key)).map(recordIdentity));
+  const unconfirmed = new Set(citations.map(recordIdentity).filter((id) => !supported.has(id)));
+  if (observed.some((item) => unconfirmed.has(recordIdentity(item)))) {
     return false;
   }
   state.messages.push({ role: "assistant", text, citations });
