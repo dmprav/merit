@@ -114,9 +114,44 @@ test("CI verify workflow covers every ready stage and sharded browser suite", as
     `${repoRoot}/.github/workflows/prune-verifications.yml`,
     "utf8",
   );
-  expect(pruneWorkflow).toContain("permissions: {}");
-  expect(pruneWorkflow).toContain("persist-credentials: false");
-  expect(pruneWorkflow).toContain("fetch-depth: 0");
+  const pruneLines = pruneWorkflow.split(/\r?\n/).map((line) => line.replace(/#.*$/, "").trimEnd());
+  // Top-level permissions must be explicitly empty (`permissions: {}` at column 0).
+  const topLevelPermissions = pruneLines.filter((line) => line.startsWith("permissions:"));
+  expect(topLevelPermissions).toEqual(["permissions: {}"]);
+  // Locate the checkout step under `jobs.prune.steps` and validate its `with:` keys directly.
+  const checkoutIdx = pruneLines.findIndex((line) =>
+    /^\s+(?:-\s+)?uses:\s+actions\/checkout@[0-9a-f]{40}$/.test(line),
+  );
+  expect(checkoutIdx).toBeGreaterThan(-1);
+  const checkoutIndent = pruneLines[checkoutIdx]?.search(/\S/) ?? 0;
+  const checkoutWith = new Map<string, string>();
+  let inWithBlock = false;
+  let withIndent = -1;
+  for (const line of pruneLines.slice(checkoutIdx + 1)) {
+    if (!line.trim()) {
+      continue;
+    }
+    const indent = line.search(/\S/);
+    if (indent < checkoutIndent || (indent <= checkoutIndent && /^\s*-\s+/.test(line))) {
+      break;
+    }
+    if (!inWithBlock) {
+      if (indent === checkoutIndent && /^\s*with:\s*$/.test(line)) {
+        inWithBlock = true;
+        withIndent = indent;
+      }
+      continue;
+    }
+    if (indent <= withIndent) {
+      break;
+    }
+    const kv = /^\s*([a-z0-9-]+):\s*(\S.*)$/.exec(line);
+    if (kv?.[1] && kv[2]) {
+      checkoutWith.set(kv[1], kv[2].trim());
+    }
+  }
+  expect(checkoutWith.get("persist-credentials")).toBe("false");
+  expect(checkoutWith.get("fetch-depth")).toBe("0");
   const setupWorkspaceAction = await readFile(
     `${repoRoot}/.github/actions/setup-workspace/action.yml`,
     "utf8",

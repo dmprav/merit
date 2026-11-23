@@ -91,12 +91,20 @@ review threads (`order.prNumber`, `order.headRefName`, `order.nextRound`).
 
 Start a new `agent:ready` issue (`order.issueNumber`) while under the WIP limit.
 
-1. **Claim the issue first:**
-   Run `vpx tooling/agents/queue.ts claim <order.issueNumber>` to post a 2-hour
-   `<!-- merit-claim: ... -->` marker and prevent concurrent runs from picking
-   the same issue.
-2. **Execute the implementation skill:**
+1. **Claim and verify ownership first:**
+   Run `vpx tooling/agents/queue.ts claim <order.issueNumber>`. `queue.ts claim`
+   posts a 2-hour `<!-- merit-claim: ... -->` marker and re-reads the issue
+   comments to verify its `runId` is the earliest active trusted claim. Proceed
+   **only** when the JSON output has `"status": "claimed"` (if `"status"` is
+   `"already_claimed"` or `"lost_race"`, exit cleanly without implementing).
+   Save `claim.runId`.
+2. **Execute the implementation skill (renewing if long-running):**
    Follow [implement-proposal](../skills/implement-proposal/SKILL.md)
-   end-to-end for `#<order.issueNumber>`.
+   end-to-end for `#<order.issueNumber>`. If work approaches 90 minutes before a
+   draft PR is opened, renew ownership via
+   `vpx tooling/agents/queue.ts claim <order.issueNumber> --renew <runId>` and
+   confirm `"status": "renewed"`. Once the draft PR referencing
+   `Closes #<order.issueNumber>` exists, `queue.ts` tracks ownership through the
+   open PR link.
 3. Exit cleanly once the pull request is marked ready (or the issue is
    escalated to `agent:needs-human`).

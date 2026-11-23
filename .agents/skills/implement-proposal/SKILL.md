@@ -29,11 +29,12 @@ the exact blocker on the issue, and exit without opening a pull request.
    - Applied SQL migrations under `foundation/db/database/migrations/*.sql` can
      never be modified or deleted by an autonomous PR.
    - Any other protected path requires **both** the `agent:allow-protected` label
-     on the open `agent:ready` issue **and** a comment authored by a trusted
-     maintainer (`authorAssociation` in `OWNER`, `MEMBER`, or `COLLABORATOR`)
-     containing `<!-- merit-approve-protected: {"paths":[...]} -->` with narrow
-     patterns (no catch-all or first-segment wildcards) covering every touched
-     protected path.
+     on the open `agent:ready` issue **and** the **latest** comment authored by
+     a trusted maintainer (`authorAssociation` in `OWNER`, `MEMBER`, or
+     `COLLABORATOR`) containing `<!-- merit-approve-protected: {"paths":[...]} -->`
+     with narrow patterns (no catch-all or first-segment wildcards) covering
+     every touched protected path (`agent-policy.ts` evaluates only the latest
+     trusted approval).
    - If required approval is missing, escalate to `agent:needs-human` and stop.
 
 ## 2. Prepare a clean branch
@@ -50,6 +51,11 @@ with **only**:
 - the issue's **Implementer brief** (plus its `paths` scope and issue number),
 - the base branch (`origin/main`), and
 - an external screenshot directory outside the repository when the change touches UI.
+
+If implementation approaches 90 minutes before a draft pull request exists,
+renew issue ownership with
+`vpx tooling/agents/queue.ts claim <issue-number> --renew <runId>` so the 2-hour
+claim stays active until the draft PR is opened.
 
 If the builder stops with an unresolved ambiguity, an unplanned departure, or a
 request that requires lowering coverage thresholds or skipping a test
@@ -116,6 +122,10 @@ the PR description and verification record that the review was not independent.
    `Did not verify`, `Dismissed review findings`). Commit and push.
 4. Initialize autonomous PR state:
    `vpx tooling/agents/queue.ts record-shepherd <pr-number> --round 0 --sha $(git rev-parse HEAD) --issue <issue-number>`.
-5. Mark the pull request ready (`gh pr ready <pr-number>`).
+5. Mark the pull request ready (`gh pr ready <pr-number>`). If an error
+   interrupts steps 3–5 after creating the draft PR, add `agent:needs-human` and
+   comment with the failure on the draft PR before exiting (any stranded draft
+   left unready for more than 2 hours is also automatically escalated by
+   [queue.ts](../../../tooling/agents/queue.ts)).
 6. Exit cleanly. Automated review (CodeRabbit and Greptile) and CI follow-up are
    handled in subsequent runs by [queue-worker.md](../../../.agents/tasks/queue-worker.md).
