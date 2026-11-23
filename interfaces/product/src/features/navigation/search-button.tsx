@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { ApplicationNavigationButton, useCloseNavigation } from "@merit/ui/application-shell";
 
-import { useShortcutPlatform } from "./search-shortcut";
+import { shortcutHint, shortcutKeys, useShortcutPlatform } from "./search-shortcut";
 
 /** Opens workspace search, showing the shortcut that does the same from anywhere. */
 export const SearchButton = ({
@@ -17,13 +17,11 @@ export const SearchButton = ({
   const platform = useShortcutPlatform();
   const closeNavigation = useCloseNavigation();
 
-  const shortcut = platform === "unknown" ? undefined : platform === "apple" ? "⌘ K" : "Ctrl K";
-
   return (
     <ApplicationNavigationButton
       icon="search"
       label={t("navigation.search")}
-      shortcut={shortcut}
+      shortcut={shortcutHint(platform, "k")}
       onPress={() => {
         // The drawer closes before the search box opens over the page.
         closeNavigation();
@@ -34,10 +32,11 @@ export const SearchButton = ({
         if (buttonRef) {
           buttonRef.current = button;
         }
-        if (platform === "unknown") {
-          button?.removeAttribute("aria-keyshortcuts");
+        const keys = shortcutKeys(platform, "k");
+        if (keys) {
+          button?.setAttribute("aria-keyshortcuts", keys);
         } else {
-          button?.setAttribute("aria-keyshortcuts", platform === "apple" ? "Meta+K" : "Control+K");
+          button?.removeAttribute("aria-keyshortcuts");
         }
       }}
     />

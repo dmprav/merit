@@ -106,6 +106,23 @@ export const AlignedWithContent: Story = {
     </section>
   ),
 };
+export const FillingWidth: Story = {
+  args: { variant: "secondary", alignment: "fill" },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "A choice in a list takes the full width and starts its label at the leading edge, so a long label wraps like text instead of centering.",
+      },
+    },
+  },
+  render: (args) => (
+    <div className={`${localStyles.narrow} ${localStyles.stack}`}>
+      <Button {...args}>Draft a question to the applicant about the venue</Button>
+      <Button {...args}>What changed in version 2, and do the reviews cover it?</Button>
+    </div>
+  ),
+};
 export const InlineCommand: Story = {
   args: { variant: "inline", children: "request access" },
   parameters: {

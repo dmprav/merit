@@ -21,7 +21,9 @@ Enter sends and Shift+Enter starts a new line. Enter that confirms an IME compos
 never sends. Send is an icon button, inactive while the text is empty or only whitespace.
 Pass `isBusy` while the caller works on the last message: Send becomes a visible Stop
 button that calls `onStop`. The input stays editable so the next message can be drafted, but
-Enter does not send until the caller is ready.
+Enter does not send until the caller is ready. When the work ends while Stop has focus, focus moves
+to the input. Pass `isSendDisabled` for work the person cannot stop: Send stays inactive and Stop is
+not offered.
 
 <Canvas of={MessageBox.Busy} />
 

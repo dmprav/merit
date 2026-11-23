@@ -25,6 +25,8 @@ import { Icon } from "@merit/ui/icon";
 import { DemoTools } from "../features/demo/demo-tools";
 import { workspaceRoundsLocation } from "../features/grantmaking/page-routing";
 import { WorkspaceSearch } from "../features/grantmaking/workspace-search";
+import { MeritAi, useMeritAiShell } from "../features/merit-ai/merit-ai";
+import { AskMeritAiButton } from "../features/merit-ai/views/ask-merit-ai-button";
 import {
   NavigationPinsStatus,
   NavigationSection,
@@ -77,8 +79,22 @@ const useSearchBox = (available: boolean) => {
 /** Every grant-work role uses the same workspace context. */
 export type ShellContext = { kind: "workspace"; workspace: ShellWorkspace };
 
-export const AppShell = ({ current, children }: { current: ShellContext; children: ReactNode }) => {
+export const AppShell = (props: { current: ShellContext; children: ReactNode }) => {
+  const { workspace } = props.current;
+
+  // Merit AI is only offered in demo workspaces, where its answers are recorded examples.
+  return workspace.kind === "demo" ? (
+    <MeritAi key={workspace.id} workspaceSlug={workspace.slug}>
+      <Shell {...props} />
+    </MeritAi>
+  ) : (
+    <Shell {...props} />
+  );
+};
+
+const Shell = ({ current, children }: { current: ShellContext; children: ReactNode }) => {
   const { t } = useTranslation(["common", "reviewer"]);
+  const meritAi = useMeritAiShell();
   const workspace = current.workspace;
   const name = workspace.name;
   // Search covers grant work, so it follows the same access as the Applications overview.
@@ -92,6 +108,7 @@ export const AppShell = ({ current, children }: { current: ShellContext; childre
         openNavigationLabel={t("openNavigation")}
         closeNavigationLabel={t("closeNavigation")}
         utility={workspace?.kind === "demo" ? <DemoTools workspace={workspace} /> : undefined}
+        companion={meritAi?.companion}
         skipLabel={t("skipToContent")}
         navigationLabel={t("mainNavigation")}
         brand={
@@ -105,6 +122,7 @@ export const AppShell = ({ current, children }: { current: ShellContext; childre
             workspace={workspace}
             onSearch={search.open}
             searchButton={search.searchButton}
+            assistant={meritAi && <AskMeritAiButton onPress={meritAi.open} />}
           />
         }
         footer={
@@ -177,9 +195,12 @@ const AppNavigation = ({
   workspace,
   onSearch,
   searchButton,
+  assistant,
 }: {
   workspace: ShellWorkspace;
   onSearch?: () => void;
+  /** The opener for Merit AI, offered after Search where the workspace has it. */
+  assistant?: ReactNode;
   searchButton: RefObject<HTMLButtonElement | null>;
 }) => {
   const { t } = useTranslation(["web", "common", "reviewer"]);
@@ -194,6 +215,7 @@ const AppNavigation = ({
   return (
     <>
       {grantWork && onSearch && <SearchButton onPress={onSearch} buttonRef={searchButton} />}
+      {assistant}
       <PinnedSection workspaceSlug={workspace.slug} kinds={pinKinds} />
       {grantWork && (
         <>

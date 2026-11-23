@@ -121,6 +121,12 @@
   margin-inline-start: calc(-1 * (var(--space-2) + 3px));
 }
 
+.button[data-alignment="fill"] {
+  width: 100%;
+  justify-content: flex-start;
+  text-align: start;
+}
+
 .button[data-icon-only] {
   width: var(--control-height-small);
   padding: 0;
@@ -174,23 +180,9 @@
   cursor: wait;
 }
 
-.spinner {
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .button {
     transition: none;
-  }
-
-  .spinner {
-    animation: none;
   }
 }
 

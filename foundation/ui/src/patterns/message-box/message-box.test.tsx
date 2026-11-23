@@ -8,6 +8,7 @@ import { MessageBox } from "./message-box";
 const Example = ({
   initialValue = "",
   isBusy = false,
+  isSendDisabled = false,
   initialChips = [],
   description,
   onSend = () => {},
@@ -15,6 +16,7 @@ const Example = ({
 }: {
   initialValue?: string;
   isBusy?: boolean;
+  isSendDisabled?: boolean;
   initialChips?: string[];
   description?: string;
   onSend?: (text: string) => void;
@@ -36,6 +38,7 @@ const Example = ({
           setValue("");
         }}
         isBusy={isBusy}
+        isSendDisabled={isSendDisabled}
         stopLabel="Stop"
         onStop={onStop}
         chips={chips.map((chip) => ({
@@ -142,6 +145,47 @@ it("replaces Send with Stop while busy and keeps the input editable", async () =
   await user.click(screen.getByRole("button", { name: "Stop" }));
 
   expect(onStop).toHaveBeenCalledOnce();
+});
+
+it("moves focus to the input when Stop leaves while it has focus", () => {
+  const { rerender } = render(<Example isBusy />);
+  screen.getByRole("button", { name: "Stop" }).focus();
+
+  rerender(<Example />);
+
+  expect(screen.getByRole("textbox", { name: "Message" })).toHaveFocus();
+});
+
+it("leaves focus alone when Stop ends while something else has it", () => {
+  const { rerender } = render(
+    <>
+      <button type="button">Elsewhere</button>
+      <Example isBusy />
+    </>,
+  );
+  screen.getByRole("button", { name: "Elsewhere" }).focus();
+
+  rerender(
+    <>
+      <button type="button">Elsewhere</button>
+      <Example />
+    </>,
+  );
+
+  expect(screen.getByRole("button", { name: "Elsewhere" })).toHaveFocus();
+});
+
+it("keeps Send inactive without offering Stop while sending is disabled", async () => {
+  const user = userEvent.setup();
+  const onSend = vi.fn();
+  render(<Example isSendDisabled initialValue="Next question" onSend={onSend} />);
+
+  expect(screen.queryByRole("button", { name: "Stop" })).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Send message" })).toBeDisabled();
+
+  await user.type(screen.getByRole("textbox", { name: "Message" }), "{Enter}");
+
+  expect(onSend).not.toHaveBeenCalled();
 });
 
 it("shows no chip row without chips", () => {

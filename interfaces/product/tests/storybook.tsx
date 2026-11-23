@@ -28,7 +28,7 @@ export const StoryEnvironment = ({
   children: ReactNode;
   path?: string;
   routePath?: string;
-  loaderData?: { applicationId: string };
+  loaderData?: { applicationId?: string; title?: string };
   prepare?: (client: QueryClient) => void;
 }) => {
   const [environment] = useState(() => {

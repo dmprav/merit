@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
 import { Button } from "../button/button";
-import { Icon } from "./icon";
+import { Icon, LoadingIcon } from "./icon";
 import localStyles from "./icon.stories.module.css";
 
 const meta = {
@@ -67,5 +67,22 @@ export const InControls: Story = {
         Saving…
       </Button>
     </div>
+  ),
+};
+
+export const Loading: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "LoadingIcon is the shared spinner for work in progress. It turns steadily and holds still when the person asks for reduced motion. Say what is loading in text beside it.",
+      },
+    },
+  },
+  render: () => (
+    <p className={localStyles.actions}>
+      <LoadingIcon />
+      Reading the submission
+    </p>
   ),
 };

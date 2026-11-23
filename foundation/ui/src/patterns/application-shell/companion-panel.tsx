@@ -53,6 +53,11 @@ export type ApplicationCompanion = {
    * so keep its state with the caller. Focus moves to an element with `autoFocus`, else to the panel.
    */
   children: ReactNode;
+  /**
+   * Stays below the scrolling content, in view however far it scrolls, such as the box a person
+   * asks in. It mounts and remounts with the content.
+   */
+  footer?: ReactNode;
 };
 
 const restoreFocus = (opener: Element | null) => {
@@ -242,6 +247,73 @@ const ResizeSeparator = ({
   );
 };
 
+/** The scrolling content under the header, with the footer that stays below it. */
+const PanelBody = ({
+  label,
+  footer,
+  children,
+}: Pick<ApplicationCompanion, "footer" | "children"> & { label: string }) => (
+  <>
+    <div
+      role="region"
+      aria-label={label}
+      tabIndex={0}
+      className={`${styles.body} ${scrollStyles.scrollArea}`}
+    >
+      {children}
+    </div>
+    {footer && <div className={styles.footer}>{footer}</div>}
+  </>
+);
+
+/** Escape reaches the panel only when no menu or popup inside it has used it. */
+const closeOnEscape = (onClose: () => void) => (event: KeyboardEvent<HTMLElement>) => {
+  // Escape that cancels an IME composition belongs to the composition, as in the modal sheet.
+  if (event.key === "Escape" && !event.nativeEvent.isComposing) {
+    onClose();
+  }
+};
+
+/** Below 1400 pixels the panel is a modal sheet, like a side panel. */
+const CompanionSheet = ({
+  isOpen,
+  onClose,
+  opener,
+  label,
+  closeLabel,
+  footer,
+  children,
+}: Pick<ApplicationCompanion, "isOpen" | "onClose" | "closeLabel" | "footer" | "children"> & {
+  opener: Element | null;
+  label: string;
+}) => (
+  <ModalFrame
+    isOpen={isOpen}
+    isDismissable
+    onOpenChange={(open) => {
+      if (!open) {
+        onClose();
+      }
+    }}
+    classNames={{
+      overlay: `${framedStyles.sidePanelOverlay} ${styles.sheetOverlay}`,
+      modal: `${framedStyles.sidePanel} ${styles.sheet}`,
+      dialog: framedStyles.dialog,
+    }}
+    frame="end"
+  >
+    {(close) => (
+      <>
+        <ReturnFocusWhenSheetUnmounts opener={opener} />
+        <FramedHeader title={label} closeLabel={closeLabel} close={close} />
+        <PanelBody label={label} footer={footer}>
+          {children}
+        </PanelBody>
+      </>
+    )}
+  </ModalFrame>
+);
+
 /** Pushes page content aside from 1400 pixels, and slides over it as a modal sheet below. */
 export const CompanionPanel = ({
   label,
@@ -251,7 +323,7 @@ export const CompanionPanel = ({
   resizeLabel,
   width: startingWidth = companionWidthLimits.default,
   onWidthChange,
-  children,
+  ...content
 }: ApplicationCompanion) => {
   const push = useSyncExternalStore(subscribeViewport, isPushViewport, () => false);
   const [width, setWidth] = useState(() => clampWidth(startingWidth));
@@ -277,14 +349,6 @@ export const CompanionPanel = ({
     }
   }, [isOpen, push]);
 
-  // Escape reaches here only when no menu or popup inside the panel has used it.
-  const closeOnEscape = (event: KeyboardEvent<HTMLElement>) => {
-    // Escape that cancels an IME composition belongs to the composition, as in the modal sheet.
-    if (event.key === "Escape" && !event.nativeEvent.isComposing) {
-      onClose();
-    }
-  };
-
   if (push && !isOpen) {
     return null;
   }
@@ -297,7 +361,7 @@ export const CompanionPanel = ({
       aria-labelledby={titleId}
       tabIndex={-1}
       className={styles.panel}
-      onKeyDown={closeOnEscape}
+      onKeyDown={closeOnEscape(onClose)}
     >
       <ResizeSeparator
         label={resizeLabel}
@@ -307,45 +371,16 @@ export const CompanionPanel = ({
         onCommit={(committed) => onWidthChange?.(committed)}
       />
       <FramedHeader title={label} titleId={titleId} closeLabel={closeLabel} close={onClose} />
-      <div
-        role="region"
-        aria-label={label}
-        tabIndex={0}
-        className={`${styles.body} ${scrollStyles.scrollArea}`}
-      >
-        {children}
-      </div>
+      <PanelBody label={label} {...content} />
     </aside>
   ) : (
-    <ModalFrame
+    <CompanionSheet
       isOpen={isOpen}
-      isDismissable
-      onOpenChange={(open) => {
-        if (!open) {
-          onClose();
-        }
-      }}
-      classNames={{
-        overlay: `${framedStyles.sidePanelOverlay} ${styles.sheetOverlay}`,
-        modal: `${framedStyles.sidePanel} ${styles.sheet}`,
-        dialog: framedStyles.dialog,
-      }}
-      frame="end"
-    >
-      {(close) => (
-        <>
-          <ReturnFocusWhenSheetUnmounts opener={opener} />
-          <FramedHeader title={label} closeLabel={closeLabel} close={close} />
-          <div
-            role="region"
-            aria-label={label}
-            tabIndex={0}
-            className={`${styles.body} ${scrollStyles.scrollArea}`}
-          >
-            {children}
-          </div>
-        </>
-      )}
-    </ModalFrame>
+      onClose={onClose}
+      opener={opener}
+      label={label}
+      closeLabel={closeLabel}
+      {...content}
+    />
   );
 };

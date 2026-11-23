@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { useState, type ComponentProps } from "react";
 import { expect } from "storybook/test";
 
 import { Disclosure } from "./disclosure";
@@ -28,3 +29,29 @@ export const Collapsed: Story = {
 };
 
 export const Expanded: Story = { args: { defaultExpanded: true } };
+
+const ControlledExample = (args: ComponentProps<typeof Disclosure>) => {
+  const [expanded, setExpanded] = useState(true);
+
+  return (
+    <>
+      <Disclosure {...args} isExpanded={expanded} onExpandedChange={setExpanded} />
+      <button type="button" onClick={() => setExpanded(false)}>
+        Fold
+      </button>
+    </>
+  );
+};
+
+/** The caller owns the open state, so it can fold the content when its work is done. */
+export const Controlled: Story = {
+  render: (args) => <ControlledExample {...args} />,
+  play: async ({ canvas, userEvent }) => {
+    const trigger = canvas.getByRole("button", { name: "Earlier versions 2" });
+    await expect(trigger).toHaveAttribute("aria-expanded", "true");
+    await userEvent.click(canvas.getByRole("button", { name: "Fold" }));
+    await expect(trigger).toHaveAttribute("aria-expanded", "false");
+    await userEvent.click(trigger);
+    await expect(trigger).toHaveAttribute("aria-expanded", "true");
+  },
+};

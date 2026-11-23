@@ -7,6 +7,7 @@
   "exports": {
     "./status-indicator": "./src/patterns/status-indicator/status-indicator.tsx",
     "./timestamp": "./src/patterns/timestamp/timestamp.tsx",
+    "./conversation": "./src/patterns/conversation/conversation.tsx",
     "./message-box": "./src/patterns/message-box/message-box.tsx",
     "./collection-toolbar": "./src/patterns/collection-toolbar/collection-toolbar.tsx",
     "./action-menu": "./src/components/action-menu/action-menu.tsx",

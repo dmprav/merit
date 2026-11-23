@@ -5,10 +5,11 @@ import { grantmakingMessages } from "@merit/grantmaking-web/messages";
 import { createMessages, MessagesProvider, type LocaleSettings } from "@merit/i18n";
 import { en as team } from "@merit/organizations-web/messages";
 
+import { en as meritAi } from "../features/merit-ai/messages.en";
 import { en as onboarding } from "../features/workspace/onboarding-messages.en";
 import { en as web } from "./messages.en";
 
-export const webMessages = { web, ...grantmakingMessages, onboarding, team, contacts };
+export const webMessages = { web, ...grantmakingMessages, onboarding, meritAi, team, contacts };
 
 export const webTranslator = (locale: LocaleSettings) =>
   createMessages(webMessages, locale).getFixedT(locale.language, [
@@ -17,12 +18,14 @@ export const webTranslator = (locale: LocaleSettings) =>
     "team",
     "contacts",
     "onboarding",
+    "meritAi",
   ]);
 
 declare module "@merit/i18n/core" {
   interface Messages {
     web: typeof web;
     onboarding: typeof onboarding;
+    meritAi: typeof meritAi;
   }
 }
 

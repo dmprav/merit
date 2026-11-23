@@ -39,6 +39,25 @@ has removed example records, retain a route to explore their workspace.
 [guide stories](../../interfaces/product/src/features/demo/demo-tools.stories.tsx)
 show its task suggestions, workspace actions, and recovery states.
 
+## Try Merit AI beside a page
+
+Demo workspaces offer **Ask Merit AI** after Search, and ⌘J (Ctrl+J elsewhere)
+opens or closes the panel beside any page. Other workspaces do not show it. The
+panel stays open as the visitor moves between pages, and its conversation and
+open state last until the tab reloads; only its width is remembered in the browser.
+Pages that name a record, such as an application, attach it as a removable
+context chip.
+
+Merit AI is a preview of the design, not a model: it answers two suggested
+questions about the Workshop Saturdays example with recorded replies, shows the
+steps it took, and proposes one message to the applicant for the visitor to
+approve or decline. The proposal says beside its actions that nothing is sent in
+the demo, and the panel confirms it after approval. Any other
+question is answered with a note that the demo only has recorded examples.
+Recorded replies describe the example as provided, not the visitor's later
+edits. The [Merit AI stories](../../interfaces/product/src/features/merit-ai/merit-ai.stories.tsx)
+show each state.
+
 ## Keep the visitor's progress
 
 Each account or anonymous browser gets one isolated demo workspace. Guided journeys

@@ -31,6 +31,8 @@ type MessageBoxProps = {
   onSend: (text: string) => void;
   /** Replaces Send with Stop while the caller is working on the last message. */
   isBusy?: boolean;
+  /** Keeps Send inactive without offering Stop, for work the person cannot stop. */
+  isSendDisabled?: boolean;
   stopLabel: string;
   onStop: () => void;
   /** Removable items attached to the message, shown above the input. */
@@ -74,6 +76,36 @@ const MessageBoxChips = ({
   ) : null;
 };
 
+/** Stop hands its focus to the input when it leaves because the work ended without it. */
+const StopButton = ({
+  label,
+  input,
+  onPress,
+}: {
+  label: string;
+  input: RefObject<HTMLTextAreaElement | null>;
+  onPress: () => void;
+}) => {
+  const button = useRef<HTMLButtonElement>(null);
+
+  // A cleanup runs before the button leaves the page, while focus can still be read.
+  useLayoutEffect(() => {
+    const element = button.current;
+    const field = input.current;
+    return () => {
+      if (element && document.activeElement === element) {
+        field?.focus();
+      }
+    };
+  }, [input]);
+
+  return (
+    <ButtonBase ref={button} variant="secondary" size="small" onPress={onPress}>
+      {label}
+    </ButtonBase>
+  );
+};
+
 /**
  * Compose a message to send, with a growing input, Enter to send, optional attachments, and a
  * Stop control while the caller is busy. The caller supplies all copy, sends the text, and clears
@@ -89,6 +121,7 @@ export const MessageBox = ({
   sendLabel,
   onSend,
   isBusy = false,
+  isSendDisabled = false,
   stopLabel,
   onStop,
   chips,
@@ -96,7 +129,7 @@ export const MessageBox = ({
 }: MessageBoxProps) => {
   const descriptionId = useId();
   const input = useGrowingHeight(value);
-  const canSend = value.trim() !== "";
+  const canSend = value.trim() !== "" && !isSendDisabled;
 
   const send = () => {
     if (canSend && !isBusy) {
@@ -136,16 +169,14 @@ export const MessageBox = ({
             className={`${inputStyles.input} ${styles.input}`}
           />
           {isBusy ? (
-            <ButtonBase
-              variant="secondary"
-              size="small"
+            <StopButton
+              label={stopLabel}
+              input={input}
               onPress={() => {
                 onStop();
                 input.current?.focus();
               }}
-            >
-              {stopLabel}
-            </ButtonBase>
+            />
           ) : (
             <ButtonBase
               variant="primary"

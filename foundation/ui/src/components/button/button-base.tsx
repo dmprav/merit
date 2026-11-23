@@ -5,7 +5,7 @@ import {
 } from "react-aria-components/Button";
 import { composeRenderProps } from "react-aria-components/composeRenderProps";
 
-import { IconBase } from "../icon/icon-base";
+import { LoadingIconBase } from "../icon/loading-icon-base";
 import styles from "./button.module.css";
 
 export type ButtonBaseProps = AriaButtonProps & {
@@ -14,8 +14,12 @@ export type ButtonBaseProps = AriaButtonProps & {
   variant?: "primary" | "secondary" | "quiet" | "destructive" | "inline";
   size?: "small" | "medium" | "large";
   iconOnly?: boolean;
-  /** Align a quiet action's content with surrounding text, retaining its padded target and own width. */
-  alignment?: "default" | "start";
+  /**
+   * start aligns a quiet action's content with surrounding text, retaining its padded target and
+   * own width. fill takes the full width with the label starting at the leading edge, for a
+   * choice in a list whose text may wrap.
+   */
+  alignment?: "default" | "start" | "fill";
   ref?: Ref<HTMLButtonElement>;
 };
 
@@ -50,7 +54,7 @@ export const ButtonBase = ({
       // A command within copy takes its size from the surrounding text.
       data-size={variant === "inline" ? undefined : size}
       data-icon-only={iconOnly || undefined}
-      data-alignment={alignment === "start" ? alignment : undefined}
+      data-alignment={alignment === "default" ? undefined : alignment}
       className={composeRenderProps(
         className,
         (className) => `${styles.button} ${className ?? ""}`,
@@ -58,7 +62,7 @@ export const ButtonBase = ({
     >
       {composeRenderProps(children, (children, { isPending }) => (
         <>
-          {(isPending || busy) && <IconBase name="loading" className={styles.spinner} />}
+          {(isPending || busy) && <LoadingIconBase />}
           {!((isPending || busy) && iconOnly) && children}
         </>
       ))}

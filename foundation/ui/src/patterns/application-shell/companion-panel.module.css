@@ -76,6 +76,12 @@
   scroll-timeline: --dialog-body block;
 }
 
+/* Below the scrolling body, on the panel's own surface. */
+.footer {
+  flex-shrink: 0;
+  padding: var(--space-3) var(--dialog-gutter) var(--space-4);
+}
+
 /* Modal mode: the sheet keeps the side panel's frame at a fixed width. */
 .sheetOverlay .sheet {
   width: 400px;

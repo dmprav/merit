@@ -1,4 +1,5 @@
 import { IconBase, type IconName } from "./icon-base";
+import { LoadingIconBase } from "./loading-icon-base";
 
 /**
  * Use Icon for interface symbols. Its Lucide glyphs share a 16 px size, 1.75 stroke width, normal
@@ -11,3 +12,10 @@ import { IconBase, type IconName } from "./icon-base";
  * meaning in text as well.
  */
 export const Icon = ({ name }: { name: IconName }) => <IconBase name={name} />;
+
+/**
+ * The spinner for work in progress. It turns steadily and holds still for people who ask for
+ * reduced motion. Like Icon it is hidden from assistive technology, so say what is loading in
+ * text; the control around it places it.
+ */
+export const LoadingIcon = () => <LoadingIconBase />;
