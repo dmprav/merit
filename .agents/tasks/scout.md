@@ -12,22 +12,26 @@ running.
 
 ## Run protocol
 
-Every scheduled run targets **one lens** (`--lens <lens>`):
-`docs`, `tests`, `verification-flakes`, `architecture`, `simplification`,
-`security`, or `mcp-db`.
+Every scheduled run targets **one lens** — either `--lens auto` (recommended for
+scheduled runs; picks the most overdue lens from `#219` cursors) or an explicit
+`--lens <lens>`: `docs`, `tests`, `verification-flakes`, `architecture`,
+`simplification`, `security`, or `mcp-db`.
 
 1. **Load deterministic context:**
-   Run `vpx tooling/agents/scout.ts context --lens <lens>`.
-   Inspect `status` (`"ready"` or `"cap_reached"`), `openProposedCount`, and
-   `maxOpenProposals`. When `status` is `"ready"`, record `scanTipSha`,
-   `commits`, `changedFiles`, `matchedMechanisms`, `rotationTarget`,
-   `unreadVerifications`, `openIssues`, and `wontfixIssues`.
+   Run `vpx tooling/agents/scout.ts context --lens auto` (or pass a specific
+   `--lens <lens>`). Inspect `status` (`"ready"`, `"idle"`, or `"cap_reached"`):
+   - If `status` is `"idle"` (`all_lenses_fresh`), exit cleanly without
+     advancing any cursor.
+   - If `status` is `"cap_reached"`, exit cleanly without advancing any cursor.
+   - When `status` is `"ready"`, record the emitted `lens`, `scanTipSha`,
+     `commits`, `changedFiles`, `matchedMechanisms`, `rotationTarget`,
+     `unreadVerifications`, `openIssues`, and `wontfixIssues`.
 2. **Respect the proposal cap:**
    While running in calibration mode (`--tier2-only`), every proposal lands in
-   `agent:proposed` (capped at 5 open issues). If `scout.ts context` returns
-   `status: "cap_reached"`, exit cleanly **without** advancing the cursor so
-   findings wait until the maintainer triages open proposals.
-3. **Inspect the codebase using the lens rules below:**
+   `agent:proposed` (capped at 5 open issues). Leaving the cursor untouched on
+   `cap_reached` ensures findings wait until the maintainer triages open
+   proposals.
+3. **Inspect the codebase using the emitted `lens` rules below:**
    - Do not repeat work already covered by `openIssues` or rejected in
      `wontfixIssues`.
    - File at most **2 high-signal proposals per run**. Prefer zero proposals over
@@ -58,8 +62,9 @@ Every scheduled run targets **one lens** (`--lens <lens>`):
 
 5. **Advance the lens cursor:**
    Only after finishing inspection — and **not** if `scout.ts context` returned
-   `status: "cap_reached"` or `proposal.ts` returned `status: "cap_reached"` for
-   an unfiled finding — run:
+   `status: "idle"` / `status: "cap_reached"` or `proposal.ts` returned
+   `status: "cap_reached"` for an unfiled finding — run with the **explicit**
+   emitted `lens` (never `--lens auto`):
    `vpx tooling/agents/scout.ts advance --lens <lens> --commit <scanTipSha>`
    For `verification-flakes`, also pass `--pr <highestUnreadPrNumber>` when
    `unreadVerifications` was non-empty.
@@ -208,7 +213,14 @@ propose modifying or deleting applied SQL migrations under
 
 ## Suggested schedule
 
-- **Incremental lenses (`docs`, `tests`, `verification-flakes`):** 2–3 times per
-  week on staggered days.
-- **Repo-wide lenses (`architecture`, `simplification`, `security`, `mcp-db`):**
-  1 lens per run, rotating weekly.
+Run **one** recurring scheduled task **twice daily** (e.g., `08:00` and `20:00`)
+passing `--lens auto`. [scout.ts](../../tooling/agents/scout.ts) selects the
+most overdue lens from `#219` cursors (~15 runs/week total) and exits `idle` if
+every lens is still fresh:
+
+| Lens                                   | Target interval |
+| -------------------------------------- | --------------- |
+| `docs`, `tests`                        | Every 2 days    |
+| `verification-flakes`                  | Every 3 days    |
+| `architecture`                         | Every 4 days    |
+| `simplification`, `security`, `mcp-db` | Every 5 days    |

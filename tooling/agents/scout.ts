@@ -37,6 +37,95 @@ export type VerificationFileEntry = {
 
 const lensNameSchema = z.enum(SCOUT_LENSES);
 
+export const LENS_TARGET_INTERVAL_DAYS: Record<ScoutLens, number> = {
+  docs: 2,
+  tests: 2,
+  "verification-flakes": 3,
+  architecture: 4,
+  simplification: 5,
+  security: 5,
+  "mcp-db": 5,
+};
+
+export type AutoLensSelection =
+  | {
+      due: true;
+      lens: ScoutLens;
+      targetIntervalDays: number;
+      lastRunAt: string | null;
+    }
+  | {
+      due: false;
+      nextLens: ScoutLens;
+      nextDueInHours: number;
+    };
+
+/** Picks the most overdue lens relative to its target cadence, or reports the next due lens when all are fresh. */
+export const selectAutoLens = ({
+  state,
+  nowMs,
+}: {
+  state: ScoutState;
+  nowMs: number;
+}): AutoLensSelection => {
+  let mostOverdue: {
+    lens: ScoutLens;
+    overdueRatio: number;
+    targetIntervalDays: number;
+    lastRunAt: string | null;
+  } | null = null;
+  let soonestUpcoming: { lens: ScoutLens; remainingMs: number } | null = null;
+
+  for (const lens of SCOUT_LENSES) {
+    const targetIntervalDays = LENS_TARGET_INTERVAL_DAYS[lens];
+    const targetMs = targetIntervalDays * MS_PER_DAY;
+    const cursor = state[lens];
+    const lastRunMs = cursor ? Date.parse(cursor.lastRunAt) : Number.NaN;
+
+    if (!cursor || Number.isNaN(lastRunMs)) {
+      return {
+        due: true,
+        lens,
+        targetIntervalDays,
+        lastRunAt: null,
+      };
+    }
+
+    const ageMs = Math.max(0, nowMs - lastRunMs);
+    const overdueRatio = ageMs / targetMs;
+    if (overdueRatio >= 1 && (!mostOverdue || overdueRatio > mostOverdue.overdueRatio)) {
+      mostOverdue = {
+        lens,
+        overdueRatio,
+        targetIntervalDays,
+        lastRunAt: cursor.lastRunAt,
+      };
+    }
+
+    const remainingMs = Math.max(0, lastRunMs + targetMs - nowMs);
+    if (!soonestUpcoming || remainingMs < soonestUpcoming.remainingMs) {
+      soonestUpcoming = { lens, remainingMs };
+    }
+  }
+
+  if (mostOverdue) {
+    return {
+      due: true,
+      lens: mostOverdue.lens,
+      targetIntervalDays: mostOverdue.targetIntervalDays,
+      lastRunAt: mostOverdue.lastRunAt,
+    };
+  }
+
+  const nextLens = soonestUpcoming?.lens ?? SCOUT_LENSES[0];
+  const nextDueInHours = Math.ceil((soonestUpcoming?.remainingMs ?? 0) / (60 * 60 * 1000));
+  return {
+    due: false,
+    nextLens,
+    nextDueInHours,
+  };
+};
+
 /** Parses each lens cursor independently so one corrupt entry cannot wipe sibling lenses. */
 export const parseScoutState = (issueBody: string): ScoutState => {
   const match = STATE_MARKER_PATTERN.exec(issueBody);
@@ -270,12 +359,50 @@ const readFlagValue = (args: readonly string[], flag: string): string | null => 
   return args[index + 1] ?? null;
 };
 
-const parseLensFlag = (args: readonly string[]): ScoutLens =>
-  lensNameSchema.parse(readFlagValue(args, "--lens"));
+export const parseContextLensFlag = (args: readonly string[]): ScoutLens | "auto" => {
+  const raw = readFlagValue(args, "--lens");
+  if (raw === "auto") {
+    return "auto";
+  }
+  return lensNameSchema.parse(raw);
+};
 
-const runContextCommand = (repoRoot: string, lens: ScoutLens) => {
+export const parseAdvanceLensFlag = (args: readonly string[]): ScoutLens => {
+  const raw = readFlagValue(args, "--lens");
+  if (raw === "auto") {
+    throw new Error(
+      'Cannot pass "--lens auto" to advance. Pass the explicit lens emitted by "scout.ts context".',
+    );
+  }
+  return lensNameSchema.parse(raw);
+};
+
+const runContextCommand = (repoRoot: string, requestedLens: ScoutLens | "auto") => {
   const stateIssue = fetchScoutStateIssue(repoRoot);
   const state = parseScoutState(stateIssue.body);
+  const now = new Date();
+  let lens: ScoutLens;
+  if (requestedLens === "auto") {
+    const selection = selectAutoLens({ state, nowMs: now.getTime() });
+    if (!selection.due) {
+      console.log(
+        JSON.stringify(
+          {
+            status: "idle",
+            reason: "all_lenses_fresh",
+            nextLens: selection.nextLens,
+            nextDueInHours: selection.nextDueInHours,
+          },
+          null,
+          2,
+        ),
+      );
+      return;
+    }
+    lens = selection.lens;
+  } else {
+    lens = requestedLens;
+  }
   const cursor = state[lens];
 
   const openProposedCount = ghIssueSummarySchema.parse(
@@ -338,7 +465,6 @@ const runContextCommand = (repoRoot: string, lens: ScoutLens) => {
     )
     .map(({ number, title }) => ({ number, title }));
 
-  const now = new Date();
   const fallbackSinceIso = new Date(now.getTime() - 7 * MS_PER_DAY).toISOString();
   const scanTipSha = execFileSync("git", ["rev-parse", "origin/main"], {
     cwd: repoRoot,
@@ -444,14 +570,13 @@ const runAdvanceCommand = (repoRoot: string, lens: ScoutLens, args: readonly str
 const runCli = () => {
   const repoRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
   const [command, ...rest] = process.argv.slice(2);
-  const lens = parseLensFlag(rest);
 
   if (command === "context") {
-    runContextCommand(repoRoot, lens);
+    runContextCommand(repoRoot, parseContextLensFlag(rest));
     return;
   }
   if (command === "advance") {
-    runAdvanceCommand(repoRoot, lens, rest);
+    runAdvanceCommand(repoRoot, parseAdvanceLensFlag(rest), rest);
     return;
   }
   throw new Error(`Unknown scout command "${command ?? ""}". Expected "context" or "advance".`);
