@@ -470,7 +470,13 @@ test("application list preserves search, filter, sort, and position when returni
   await scrollBy(page, roundRegions, 80);
   // Keyboard focus brings a row partly beneath the sticky toolbar and table head fully into view.
   const row = page.getByRole("link", { name: "Workshop Saturdays", exact: true });
-  await row.focus();
+  // Tab on from the sort control the person just used until the row's link takes focus.
+  for (let presses = 0; presses < 8; presses++) {
+    if (await row.evaluate((link) => link === document.activeElement)) {
+      break;
+    }
+    await page.keyboard.press("Tab");
+  }
   await expect(row).toBeFocused();
   if (!testInfo.project.use.isMobile) {
     const head = (await page.getByRole("columnheader", { name: "Requested" }).boundingBox())!;
