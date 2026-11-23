@@ -257,7 +257,7 @@ const snapshotFacts = (
   titleField: snapshot.title,
   summary: snapshot.summary ?? null,
   summaryAuthor: snapshot.summaryAuthor
-    ? `${snapshot.summaryAuthor.name} · ${timestamp(snapshot.summaryAuthor.recordedAt)}`
+    ? `${snapshot.summaryAuthor.name}, ${timestamp(snapshot.summaryAuthor.recordedAt)}`
     : null,
   intakeStatus: snapshot.intakeStatus ?? null,
   applicant: snapshot.submission?.organization ?? null,

@@ -17,7 +17,7 @@ import {
   type PreparationDraft,
   type PreparationSession,
 } from "@merit/rounds-web/preparation";
-import { ApplicationPage } from "@merit/ui/application-shell";
+import { ApplicationPage, ApplicationStage } from "@merit/ui/application-shell";
 import { PageHeader } from "@merit/ui/page-header";
 
 import { StoryEnvironment } from "../../../../../tests/storybook";
@@ -134,14 +134,17 @@ const RoundManagementPreview = ({
   return (
     <StoryEnvironment path="/app/alder/rounds/community">
       <GrantmakingDrafts>
-        <ApplicationPage
-          locationKey="round"
-          breadcrumb={null}
-          breadcrumbLabel="Breadcrumb"
-          width="full"
-        >
-          {conflict ? <ConflictEditor /> : <RoundSession round={round} onDeleted={onDeleted} />}
-        </ApplicationPage>
+        <ApplicationStage>
+          <ApplicationPage
+            locationKey="round"
+            breadcrumb={null}
+            breadcrumbLabel="Breadcrumb"
+            width="full"
+            contained
+          >
+            {conflict ? <ConflictEditor /> : <RoundSession round={round} onDeleted={onDeleted} />}
+          </ApplicationPage>
+        </ApplicationStage>
       </GrantmakingDrafts>
     </StoryEnvironment>
   );
@@ -271,6 +274,12 @@ export const BudgetReasonRequired: Story = {
       "aria-invalid",
       "true",
     );
+    // The draft status sits in the footer beside Discard, never above the fields.
+    const status = dialog.getByRole("status");
+    await expect(status).toHaveTextContent("Draft kept in this tab");
+    await expect(status.closest("[data-dialog-footer]")).toContainElement(
+      dialog.getByRole("button", { name: "Discard changes" }),
+    );
   },
 };
 export const ConcurrentEdits: Story = { args: { conflict: true } };
@@ -308,29 +317,26 @@ export const DeleteFailure: Story = {
 
 const returnToList = fn<PreparationSession["onDeleted"]>();
 
-export const RoundDeletedReturnToListFailed: Story = {
-  name: "Round deleted, return to list failed",
+/** A committed deletion confirms itself in a toast and returns to the rounds list. */
+export const RoundDeleted: Story = {
+  name: "Round deleted",
   args: { empty: true, onDeleted: returnToList },
   beforeEach: () => {
     mocked(deleteRound).mockResolvedValue({ status: "ok" });
-    returnToList
-      .mockReset()
-      .mockRejectedValueOnce(new Error("Navigation failed"))
-      .mockResolvedValue(undefined);
+    returnToList.mockReset().mockResolvedValue(undefined);
   },
   play: async ({ canvas, canvasElement, userEvent }) => {
     await userEvent.click(canvas.getByRole("button", { name: "More actions" }));
     const body = within(canvasElement.ownerDocument.body);
     await userEvent.click(body.getByRole("menuitem", { name: "Delete round" }));
     await userEvent.click(body.getByRole("button", { name: "Delete round" }));
-    await expect(await canvas.findByRole("status")).toHaveTextContent("Round deleted.");
-    await expect(await canvas.findByRole("alert")).toHaveTextContent(
-      "We couldn’t open the rounds list",
-    );
-    await waitFor(() =>
-      expect(canvas.getByRole("button", { name: "Return to funding rounds" })).toHaveFocus(),
-    );
+    const toast = await body.findByRole("alertdialog", { name: "Round deleted" });
+    await waitFor(() => expect(toast).toBeVisible());
+    await waitFor(() => expect(returnToList).toHaveBeenCalledOnce());
     await expect(deleteRound).toHaveBeenCalledOnce();
+    await waitFor(() =>
+      expect(body.queryByRole("dialog", { name: "Delete this empty round?" })).toBeNull(),
+    );
   },
 };
 

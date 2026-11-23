@@ -1,16 +1,28 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { Component, type ReactNode } from "react";
 import { expect, it, vi } from "vite-plus/test";
 
 import { roundView } from "@merit/grantmaking/api";
 import { makeRound } from "@merit/grantmaking/testing/fixtures";
 import { createQueryClient } from "@merit/query";
 import type { PreparationData } from "@merit/rounds-web/contracts";
+import { Toasts } from "@merit/ui/toast";
 
 import { GrantmakingMessagesProvider } from "../../messages";
 import { FundingRoundPreview as FundingRoundView } from "../../testing/application-list-preview";
 import { GrantmakingDrafts } from "../drafts";
+
+class RouteErrorBoundary extends Component<{ children: ReactNode }, { error: unknown }> {
+  override state: { error: unknown } = { error: null };
+  static getDerivedStateFromError(error: unknown) {
+    return { error };
+  }
+  override render() {
+    return this.state.error ? <p>Route error</p> : this.props.children;
+  }
+}
 
 const setup = () => {
   const data: PreparationData = {
@@ -26,7 +38,10 @@ const setup = () => {
     wrapper: ({ children }) => (
       <QueryClientProvider client={createQueryClient()}>
         <GrantmakingMessagesProvider>
-          <GrantmakingDrafts>{children}</GrantmakingDrafts>
+          <GrantmakingDrafts>
+            <RouteErrorBoundary>{children}</RouteErrorBoundary>
+            <Toasts />
+          </GrantmakingDrafts>
         </GrantmakingMessagesProvider>
       </QueryClientProvider>
     ),
@@ -40,25 +55,28 @@ const confirmDeletion = async (user: ReturnType<typeof userEvent.setup>) => {
   await user.click(screen.getByRole("button", { name: "Delete round" }));
 };
 
-it("preserves committed deletion and retries only navigation when returning to rounds fails", async () => {
+it("confirms a committed deletion and leaves for the rounds without an in-between screen", async () => {
+  const { data, onDeleted, user } = setup();
+  await confirmDeletion(user);
+
+  expect(await screen.findByRole("alertdialog", { name: "Round deleted" })).toBeVisible();
+  await waitFor(() => expect(onDeleted).toHaveBeenCalledOnce());
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  expect(data.delete).toHaveBeenCalledOnce();
+  expect(vi.mocked(data.delete).mock.calls[0]?.[0]).toBe(1);
+  expect(data.refreshCurrent).not.toHaveBeenCalled();
+});
+
+it("hands a failed departure to the route's error handling without repeating deletion", async () => {
+  const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
   const { data, onDeleted, user } = setup();
   onDeleted.mockRejectedValueOnce(new Error("Navigation failed"));
   await confirmDeletion(user);
 
-  expect(await screen.findByRole("status")).toHaveTextContent("Round deleted.");
-  expect(screen.getByRole("alert")).toHaveTextContent("We couldn’t open the rounds list");
-  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: "Edit purpose" })).not.toBeInTheDocument();
+  expect(await screen.findByText("Route error")).toBeVisible();
+  expect(onDeleted).toHaveBeenCalledOnce();
   expect(data.delete).toHaveBeenCalledOnce();
-  expect(vi.mocked(data.delete).mock.calls[0]?.[0]).toBe(1);
-
-  const back = screen.getByRole("button", { name: "Return to funding rounds" });
-  await waitFor(() => expect(back).toHaveFocus());
-  await user.click(back);
-  await waitFor(() => expect(onDeleted).toHaveBeenCalledTimes(2));
-  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-  expect(data.delete).toHaveBeenCalledOnce();
-  expect(data.refreshCurrent).not.toHaveBeenCalled();
+  consoleError.mockRestore();
 });
 
 it("keeps a failed deletion available for retry without claiming the round was deleted", async () => {
@@ -67,10 +85,10 @@ it("keeps a failed deletion available for retry without claiming the round was d
   await confirmDeletion(user);
 
   expect(screen.getByRole("dialog")).toHaveTextContent("We couldn’t confirm deletion");
-  expect(screen.queryByText("Round deleted.")).not.toBeInTheDocument();
+  expect(screen.queryByText("Round deleted")).not.toBeInTheDocument();
   expect(onDeleted).not.toHaveBeenCalled();
   await user.click(screen.getByRole("button", { name: "Delete round" }));
   await waitFor(() => expect(onDeleted).toHaveBeenCalledOnce());
   expect(data.delete).toHaveBeenCalledTimes(2);
-  expect(screen.getByRole("status")).toHaveTextContent("Round deleted.");
+  expect(await screen.findByRole("alertdialog", { name: "Round deleted" })).toBeVisible();
 });

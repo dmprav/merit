@@ -45,7 +45,7 @@ export const Keyboard: Story = {
 export const ContextMenu: Story = {
   args: {
     activation: "contextMenu",
-    tooltip: "Community grants · Alder Foundation",
+    tooltip: "Community grants, Alder Foundation",
     trigger: <a href="#community-grants">Community grants</a>,
     items: [
       { id: "up", label: "Move up" },

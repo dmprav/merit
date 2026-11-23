@@ -100,7 +100,7 @@ small {
 }
 
 strong {
-  font-weight: bolder;
+  font-weight: var(--weight-emphasis);
 }
 
 [hidden]:not([hidden="until-found"]) {

@@ -67,7 +67,7 @@ const Preview = ({ read }: { read: Read }) => {
   return (
     <QueryClientProvider client={client}>
       <GrantmakingMessagesProvider>
-        <Button size="medium" variant="secondary" onPress={() => setIsOpen(true)}>
+        <Button variant="secondary" onPress={() => setIsOpen(true)}>
           Search
         </Button>
         <WorkspaceSearchDialog

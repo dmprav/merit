@@ -5,7 +5,8 @@ import styles from "./state-message.module.css";
 /**
  * A centered message in place of content that is missing, empty, loading, or failed.
  * `page` fills a page with its own h1. `compact` sits inside a surface such as a dialog
- * or search box: its title is not a heading, and a small icon replaces an illustration.
+ * or search box: its title is not a heading, a small icon replaces an illustration, and its
+ * actions are quiet so the message, not the recovery, leads.
  */
 export const StateMessage = ({
   title,
@@ -34,7 +35,11 @@ export const StateMessage = ({
         <Title className={styles.title}>{title}</Title>
         {description != null && <p className={styles.description}>{description}</p>}
       </div>
-      {actions != null && <div className={styles.actions}>{actions}</div>}
+      {actions != null && (
+        <div className={styles.actions} data-compact-actions={size === "compact" || undefined}>
+          {actions}
+        </div>
+      )}
     </div>
   );
 };

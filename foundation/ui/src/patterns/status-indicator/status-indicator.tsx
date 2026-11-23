@@ -28,7 +28,6 @@ export const StatusIndicator = ({
         <Tooltip content={explanation} isDisabled={isOpen}>
           <ButtonBase
             variant="quiet"
-            size="small"
             iconOnly
             className={styles.indicator}
             data-tone={tone}

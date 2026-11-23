@@ -5,16 +5,21 @@ import styles from "./section-header.module.css";
 
 /**
  * A section's heading with an optional count and aside, such as the section's action. Like
- * PageHeader, it owns the space before the section's content. Levels 3 to 5 head nested
+ * PageHeader, it owns the space before the section's content, and its actions are secondary or
+ * quiet: filled buttons commit work in the content below. Levels 3 to 5 head nested
  * subsections, such as questions within a submission, keeping the document outline. quiet
  * suits the summary sections of a supporting pane, where the content matters more than the
- * headings. headingRef lets a feature return focus to the heading after navigation within the page.
+ * headings, and keeps its row one control tall so headings line up whether or not they carry an
+ * action. meta is one supporting line directly under the heading, such as a status summary of the
+ * content below. headingRef lets a feature return focus to the heading after navigation within the
+ * page.
  */
 export const SectionHeader = ({
   title,
   id,
   count,
   aside,
+  meta,
   level = 2,
   emphasis = "default",
   headingRef,
@@ -23,6 +28,7 @@ export const SectionHeader = ({
   id?: string;
   count?: ReactNode;
   aside?: ReactNode;
+  meta?: ReactNode;
   level?: 2 | 3 | 4 | 5;
   emphasis?: "default" | "quiet";
   headingRef?: Ref<HTMLHeadingElement>;
@@ -35,7 +41,12 @@ export const SectionHeader = ({
         title,
         count != null && <span className={styles.count}> {count}</span>,
       )}
-      {aside}
+      {aside != null && (
+        <div className={styles.aside} data-header-actions>
+          {aside}
+        </div>
+      )}
     </Inline>
+    {meta != null && <div className={styles.meta}>{meta}</div>}
   </div>
 );

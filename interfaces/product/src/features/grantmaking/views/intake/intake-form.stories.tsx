@@ -131,9 +131,7 @@ const IntakeSession = ({
       {intake.section ? (
         <IntakeForm editor={{ ...intake.editor, latest }} onClose={intake.close} />
       ) : (
-        <Button size="medium" onPress={() => intake.open(section)}>
-          Edit
-        </Button>
+        <Button onPress={() => intake.open(section)}>Edit</Button>
       )}
     </section>
   );

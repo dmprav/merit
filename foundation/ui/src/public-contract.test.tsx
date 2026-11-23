@@ -35,6 +35,7 @@ import * as outcomeSummary from "@merit/ui/outcome-summary";
 import * as pageHeader from "@merit/ui/page-header";
 import * as pagedContent from "@merit/ui/paged-content";
 import * as panel from "@merit/ui/panel";
+import * as panelSection from "@merit/ui/panel-section";
 import * as personIdentity from "@merit/ui/person-identity";
 import * as propertiesLayout from "@merit/ui/properties-layout";
 import * as propertyButton from "@merit/ui/property-button";
@@ -96,6 +97,7 @@ const publicModules = {
   "./reference-workspace": referenceWorkspace,
   "./search-field": searchField,
   "./search-palette": searchPalette,
+  "./panel-section": panelSection,
   "./section-header": sectionHeader,
   "./select": select,
   "./sort-button": sortButton,

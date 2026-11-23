@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, waitFor, within } from "storybook/test";
 
-import { PopoverDialog } from "../../components/dialog/dialog";
+import { PickerPopover } from "../../components/dialog/dialog";
 import { PersonIdentity } from "../person-identity/person-identity";
 import { ChoiceList } from "./choice-list";
 import { PropertyButton } from "./property-button";
@@ -41,9 +41,9 @@ const PersonExample = () => {
   const [name, setName] = useState("Dana Reed");
   const [open, setOpen] = useState(false);
   return (
-    <PopoverDialog
+    <PickerPopover
       title="Change contact"
-      closeLabel="Close contact picker"
+      placement="bottom start"
       isOpen={open}
       onOpenChange={setOpen}
       trigger={
@@ -66,7 +66,7 @@ const PersonExample = () => {
           setOpen(false);
         }}
       />
-    </PopoverDialog>
+    </PickerPopover>
   );
 };
 

@@ -80,6 +80,12 @@ Group the labelled Save and Close actions in reach of the fields and separate
 Discard from them. In a form, `FormActions` supplies this group. Closing a dialog
 or inline editor has the same effect on the draft.
 
+Show an editor's draft or save status, such as **Draft saved** or **Draft kept in
+this tab**, at the leading side of its footer beside Discard, never at the top of
+the body. Pass it as `FormActions.status`, which announces changes politely; an
+editor without `FormActions` keeps the same placement and a `role="status"`
+region. Conflicts and errors remain notices with their recovery actions.
+
 Beside headings, use a pencil icon to edit or resume, with an accessible action
 name and tooltip. Set `data-draft` on the shared `Button` for a visible draft dot
 and change the name and tooltip to **Resume…**. Existing creation actions change

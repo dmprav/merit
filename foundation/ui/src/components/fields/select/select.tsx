@@ -34,7 +34,8 @@ export type SelectProps<Id extends string> = Pick<
     defaultSelectedKey?: Id;
     onSelectionChange?: (id: Id) => void;
     /** Related commands below the options, such as adding a missing choice. */
-    actions?: readonly { id: string; label: string; icon?: IconName; onAction: () => void }[];
+    /** Commands beside the options, such as adding one; the icon sets them apart at a glance. */
+    actions?: readonly { id: string; label: string; icon: IconName; onAction: () => void }[];
   };
 
 /**
@@ -42,7 +43,7 @@ export type SelectProps<Id extends string> = Pick<
  * is saved. Give unfamiliar options a short description so people can compare meanings before
  * selecting; the closed control retains just the label. Options use the shared list row: the
  * selected one shows a checkmark and keyboard focus the shared side marker. Long menus scroll with
- * related actions, each with an optional leading icon, in a separate footer. Use real links for destinations and ActionMenu for commands. See
+ * related actions, each with a leading icon, in a separate footer. Use real links for destinations and ActionMenu for commands. See
  * [control selection](?path=/docs/overview--docs#choose-controls-by-outcome) for the related
  * patterns.
  */
@@ -113,7 +114,7 @@ export const Select = <Id extends string>({
               ))}
             </ListBox>
             {actions && actions.length > 0 && (
-              <div className={styles.actions}>
+              <div className={rowStyles.actionGroup}>
                 {actions.map((action) => (
                   // Opt out of the select's trigger context; this is a separate command.
                   <RowButton
@@ -126,11 +127,9 @@ export const Select = <Id extends string>({
                       action.onAction();
                     }}
                   >
-                    {action.icon && (
-                      <span className={rowStyles.leading}>
-                        <IconBase name={action.icon} />
-                      </span>
-                    )}
+                    <span className={rowStyles.leading}>
+                      <IconBase name={action.icon} />
+                    </span>
                     <span className={rowStyles.copy}>{action.label}</span>
                   </RowButton>
                 ))}

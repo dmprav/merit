@@ -15,7 +15,7 @@ const meta = {
     docs: {
       description: {
         component:
-          "Use Link for destinations: native anchors directly, and router links through an adapter such as TanStack Router's createLink. The default inline variant underlines links within prose; standalone suits separate destinations with optional icons and 44px touch targets. Use primary, secondary, or quiet to match adjacent buttons, size small for compact labels, or size large for prominent site entry points. Links share Button's hover, press, and focus treatments. Keep labels specific to their destination and announce when a link opens a new tab.",
+          "Use Link for destinations: native anchors directly, and router links through an adapter such as TanStack Router's createLink. The default inline variant underlines links within prose; standalone suits separate destinations with optional icons and 44px touch targets. Use primary, secondary, or quiet to match adjacent buttons, or size large for prominent site entry points. Links share Button's hover, press, and focus treatments. Keep labels specific to their destination and announce when a link opens a new tab.",
       },
     },
   },
@@ -70,7 +70,7 @@ export const Overview: Story = {
           <Stack gap={3}>
             <h2 className={localStyles.label}>Alongside actions</h2>
             <Inline>
-              <Button size="medium">Add evidence</Button>
+              <Button>Add evidence</Button>
               <Link variant="secondary" href="#evidence">
                 View evidence <Icon name="forward" />
               </Link>
@@ -110,19 +110,17 @@ export const ButtonAppearance: Story = {
         <Link variant="primary" href="#round">
           Open funding round
         </Link>
-        <Button size="medium">Create funding round</Button>
+        <Button>Create funding round</Button>
       </Inline>
       <Inline>
         <Link variant="secondary" href="#evidence">
           Read supporting evidence
           <Icon name="forward" />
         </Link>
-        <Button size="medium" variant="secondary">
-          Add evidence
-        </Button>
+        <Button variant="secondary">Add evidence</Button>
       </Inline>
       <Inline>
-        <Link variant="secondary" size="small" href="#guide">
+        <Link variant="secondary" href="#guide">
           Read the guide
         </Link>
         <Button variant="secondary">Copy address</Button>
@@ -138,7 +136,7 @@ export const ButtonAppearance: Story = {
           <Icon name="exit" />
           Leave workspace
         </Link>
-        <Button size="medium" variant="quiet">
+        <Button variant="quiet">
           <Icon name="reset" />
           Reset example
         </Button>

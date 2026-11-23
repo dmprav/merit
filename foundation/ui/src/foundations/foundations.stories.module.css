@@ -31,7 +31,7 @@
 
 .amounts caption {
   text-align: start;
-  font-weight: 600;
+  font-weight: var(--weight-heading);
 }
 
 .amounts :is(th, td) {
@@ -41,7 +41,7 @@
 }
 
 .amounts tbody th {
-  font-weight: 400;
+  font-weight: var(--weight-regular);
 }
 
 .amounts tr > :last-child {

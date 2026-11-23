@@ -58,7 +58,7 @@ export const FundingRoundView = ({
             title={content.title}
             actions={content.actions ?? (readOnly && <Badge>{t("mode.readOnly")}</Badge>)}
           />
-          {content.feedback}
+          <div className={localStyles.feedback}>{content.feedback}</div>
           <PropertiesLayout
             propertiesLabel={t("round.properties")}
             stackedPlacement={activeSection === "applications" ? "after" : "before"}
@@ -71,7 +71,7 @@ export const FundingRoundView = ({
           >
             <Tabs
               label={t("round.sections")}
-              actions={activeSection === "applications" ? applicationAction : undefined}
+              scrollPanels
               selectedKey={activeSection}
               onSelectionChange={(next) => {
                 setLocalSection(next);
@@ -101,6 +101,7 @@ export const FundingRoundView = ({
                       columns={columns}
                       emptyScope="round"
                       stickyHeader
+                      action={applicationAction}
                     />
                   ),
                 },

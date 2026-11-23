@@ -14,6 +14,23 @@
   line-height: 1.55;
 }
 
+/* The companion's column opens from the edge, pushing the page aside, and clips the panel meanwhile. */
+.shell:has(> [data-companion-panel]) {
+  overflow-x: clip;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .shell:has(> [data-companion-panel][data-opening]) {
+    animation: companion-open var(--motion-medium) ease-out;
+  }
+}
+
+@keyframes companion-open {
+  from {
+    grid-template-columns: var(--sidebar-width) minmax(0, 1fr) 0px;
+  }
+}
+
 .skip {
   position: fixed;
   top: -5rem;
@@ -50,7 +67,7 @@
 .brand {
   padding: 0 10px;
   font-size: 20px;
-  font-weight: 600;
+  font-weight: var(--weight-heading);
   line-height: 24px;
   letter-spacing: -0.8px;
 }
@@ -78,7 +95,7 @@ button.contextTrigger {
   background: var(--surface);
   color: var(--action);
   font-size: 10px;
-  font-weight: 600;
+  font-weight: var(--weight-heading);
 }
 
 .workspaceCopy {
@@ -90,7 +107,7 @@ button.contextTrigger {
   overflow: hidden;
   overflow-wrap: anywhere;
   font-size: var(--text-caption);
-  font-weight: 600;
+  font-weight: var(--weight-heading);
   line-height: 1.4;
 }
 
@@ -133,7 +150,7 @@ button.contextTrigger {
 .contextLinks a[aria-current]:not([aria-current="false"]) {
   background: var(--action-subtle);
   color: var(--action);
-  font-weight: 500;
+  font-weight: var(--weight-medium);
 }
 
 .contextLinks a:focus-visible {
@@ -187,6 +204,15 @@ button.contextTrigger {
   font-size: var(--text-detail);
 }
 
+:is(.nav, .navigationList) :is(a, .navigationItem) > svg {
+  flex-shrink: 0;
+  color: var(--muted);
+}
+
+:is(.nav, .navigationList) :is(a[aria-current="page"], a:hover, .navigationItem:hover) > svg {
+  color: inherit;
+}
+
 :is(.nav, .navigationList) :is(a, .navigationItem):hover,
 .nav .navigationItem[data-hovered] {
   background: var(--surface);
@@ -198,7 +224,7 @@ button.contextTrigger {
   border: 0;
   background: none;
   color: inherit;
-  font-weight: 400;
+  font-weight: var(--weight-regular);
   cursor: pointer;
 }
 
@@ -209,7 +235,7 @@ button.contextTrigger {
 :is(.nav, .navigationList) a[aria-current="page"] {
   background: var(--action-subtle);
   color: var(--action);
-  font-weight: 600;
+  font-weight: var(--weight-medium);
 }
 
 .navigationRow {
@@ -237,11 +263,11 @@ button.contextTrigger {
   flex: 1;
   min-width: 0;
   background: transparent;
-  font-weight: 400;
+  font-weight: var(--weight-regular);
 }
 
 :is(.nav, .navigationList) .navigationRow > a[aria-current="page"] {
-  font-weight: 500;
+  font-weight: var(--weight-medium);
 }
 
 .navigationAction {
@@ -431,7 +457,7 @@ button.accountTrigger,
   min-width: 0;
   font-size: var(--text-detail);
   line-height: 1.4;
-  font-weight: 600;
+  font-weight: var(--weight-heading);
   letter-spacing: -0.025em;
 }
 
@@ -479,12 +505,12 @@ button.accountTrigger,
 }
 
 .topbar {
-  min-height: 56px;
+  min-height: var(--bar-height);
   border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  padding: var(--space-3) var(--page-gutter);
+  padding: var(--space-1) var(--page-gutter);
   font-size: var(--text-caption);
 }
 
@@ -561,7 +587,7 @@ button.accountTrigger,
     min-width: 0;
     flex: 1;
     font-size: var(--text-detail);
-    font-weight: 600;
+    font-weight: var(--weight-heading);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -581,16 +607,41 @@ button.accountTrigger,
   }
 }
 
-/* Keep desktop detail work inside the viewport; compact screens retain document scrolling. */
+.scroller {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/*
+ * On desktop the shell fills the viewport: the sidebar and top bar stay put and the page scrolls in
+ * one region below them, with its scrollbar at the window edge. A contained page keeps that region
+ * still and scrolls its own panes. Compact screens retain document scrolling.
+ */
 @media (min-width: 901px) and (min-height: 600px) {
-  .shell:has(.contained) {
+  .shell {
     height: 100dvh;
     min-height: 0;
     overflow: hidden;
   }
 
-  .shell:has(.contained) .stage {
+  .stage {
     min-height: 0;
+  }
+
+  .topbar {
+    flex-shrink: 0;
+  }
+
+  .scroller {
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+  }
+
+  .scroller[data-contained] {
+    overflow: hidden;
   }
 
   .contained {
@@ -600,10 +651,6 @@ button.accountTrigger,
     max-width: none;
     padding-inline: 0;
     padding-bottom: 0;
-  }
-
-  .shell:has(.contained) .topbar {
-    flex-shrink: 0;
   }
 }
 
@@ -675,7 +722,7 @@ button.accountTrigger,
 .recoveryBrand {
   font-size: 28px;
   line-height: 1;
-  font-weight: 600;
+  font-weight: var(--weight-heading);
   letter-spacing: -1px;
 }
 

@@ -145,7 +145,7 @@ export const DialogContent = ({
     >
       <DialogFrameContext value={unframed}>
         <div
-          className={`${styles.body} ${scrollStyles.scrollArea}`}
+          className={`${styles.body}`}
           data-dialog-body
           data-reading={reading || undefined}
           tabIndex={0}

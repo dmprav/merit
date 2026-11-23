@@ -7,8 +7,75 @@
   max-width: 280px;
 }
 
-/* A panel body that scrolls its thread, as the companion panel does. */
+/*
+ * A panel body that scrolls its thread, as the companion panel does. Its padding keeps the last line
+ * off the edge, and text passing under an edge fades into it. The fade is as deep as the padding,
+ * so at rest it only covers empty space; where scroll-driven animation is supported it appears only
+ * while text continues past that edge.
+ */
 .scroller {
+  --scroller-fade: var(--space-6);
+  --scroller-fade-start: var(--scroller-fade);
+  --scroller-fade-end: var(--scroller-fade);
   block-size: 320px;
+  padding-block: var(--scroller-fade);
   overflow-y: auto;
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    var(--foreground) var(--scroller-fade-start),
+    var(--foreground) calc(100% - var(--scroller-fade-end)),
+    transparent
+  );
+}
+
+/* A keyboard focus ring on the scroller stays whole. */
+.scroller:focus-visible {
+  mask-image: none;
+}
+
+@supports (animation-timeline: scroll()) {
+  .scroller {
+    --scroller-fade-start: 0px;
+    --scroller-fade-end: 0px;
+    animation:
+      scroller-fade-start linear both,
+      scroller-fade-end linear both;
+    animation-timeline: scroll(self), scroll(self);
+    animation-range:
+      0 var(--scroller-fade),
+      calc(100% - var(--scroller-fade)) 100%;
+  }
+}
+
+@keyframes scroller-fade-start {
+  from {
+    --scroller-fade-start: 0px;
+  }
+
+  to {
+    --scroller-fade-start: var(--scroller-fade);
+  }
+}
+
+@keyframes scroller-fade-end {
+  from {
+    --scroller-fade-end: var(--scroller-fade);
+  }
+
+  to {
+    --scroller-fade-end: 0px;
+  }
+}
+
+@property --scroller-fade-start {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+@property --scroller-fade-end {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
 }

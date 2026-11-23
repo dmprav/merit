@@ -24,7 +24,7 @@
 
 .table th {
   font-size: var(--text-caption);
-  font-weight: 500;
+  font-weight: var(--weight-medium);
   color: var(--muted);
   text-align: left;
   padding: var(--space-2) var(--space-4) var(--space-2) 0;
@@ -57,6 +57,25 @@
     box-shadow: 0 1px 0 var(--border);
   }
 
+  /* A page-sticky head settles below the sticky page header and collection toolbar. */
+  .table[data-sticky="page"] thead th {
+    top: calc(var(--page-header-height, 0px) + var(--collection-toolbar-height, 0px));
+  }
+
+  /*
+   * A row scrolled or focused into view stops below a page-sticky head rather than under it. A
+   * table-mode head scrolls with its own region, which the rows already start below.
+   */
+  .table[data-sticky="page"] tbody :is(tr, a, button, input, select, textarea, [tabindex]) {
+    scroll-margin-top: calc(
+      var(
+          --table-head-top,
+          calc(var(--page-header-height, 0px) + var(--collection-toolbar-height, 0px))
+        ) +
+        var(--table-head-height, 0px)
+    );
+  }
+
   .table [data-wrap="false"],
   .table [data-row-actions] {
     white-space: nowrap;
@@ -77,7 +96,7 @@
 }
 
 .table [data-primary] a {
-  font-weight: 500;
+  font-weight: var(--weight-medium);
   text-underline-offset: 3px;
 }
 

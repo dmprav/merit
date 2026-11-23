@@ -18,16 +18,18 @@ even when `isLabelHidden` hides it visually because a heading already names the 
 ## Send and stop
 
 Enter sends and Shift+Enter starts a new line. Enter that confirms an IME composition
-never sends. Send is an icon button, inactive while the text is empty or only whitespace.
-Pass `isBusy` while the caller works on the last message: Send becomes a visible Stop
-button that calls `onStop`. The input stays editable so the next message can be drafted, but
+never sends. Send is a quiet icon button beside the text: muted and inactive while the text is
+empty or only whitespace, and tinted in the action colour once there is something to send. Pass
+`isBusy` while the caller works on the last message: Send becomes a Stop button in the same place,
+a solid square on a soft tinted fill named by `stopLabel`, that calls `onStop`. The input stays editable so the next message can be drafted, but
 Enter does not send until the caller is ready. When the work ends while Stop has focus, focus moves
 to the input. Pass `isSendDisabled` for work the person cannot stop: Send stays inactive and Stop is
 not offered.
 
 <Canvas of={MessageBox.Busy} />
 
-The input grows with its text up to eight lines, then scrolls.
+The input grows with its text up to eight lines, then scrolls. While text continues past an edge,
+the lines there fade into it rather than being cut.
 
 <Canvas of={MessageBox.LongText} />
 

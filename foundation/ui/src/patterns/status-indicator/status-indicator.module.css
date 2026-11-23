@@ -1,4 +1,4 @@
-.indicator[data-size="small"][data-icon-only] {
+.indicator[data-icon-only][data-icon-only] {
   width: 1.5rem;
   min-height: 1.5rem;
   vertical-align: middle;
@@ -34,7 +34,7 @@
 }
 
 @media (pointer: coarse) {
-  .indicator[data-size="small"][data-icon-only] {
+  .indicator[data-icon-only][data-icon-only] {
     width: var(--target-touch);
     min-height: var(--target-touch);
   }

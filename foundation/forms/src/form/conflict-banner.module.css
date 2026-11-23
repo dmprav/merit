@@ -23,7 +23,7 @@
 
 .latestHeading {
   font-size: var(--text-caption);
-  font-weight: 600;
+  font-weight: var(--weight-heading);
   color: var(--muted);
 }
 
@@ -36,7 +36,7 @@
 
 .savedLabel {
   color: var(--warning);
-  font-weight: 500;
+  font-weight: var(--weight-medium);
 }
 
 .retainedContent {

@@ -2,17 +2,35 @@
   margin-bottom: var(--space-3);
 }
 
+/* A quiet header row stays one control tall, with or without an action beside the heading. */
+.header[data-emphasis="quiet"] > :first-child {
+  min-height: var(--button-height);
+}
+
+@media (pointer: coarse) {
+  .header[data-emphasis="quiet"] > :first-child {
+    min-height: var(--target-touch);
+  }
+}
+
+.meta {
+  margin-top: var(--space-1);
+  color: var(--muted);
+  font-size: var(--text-caption);
+  line-height: 1.5;
+}
+
 .title {
   min-width: 0;
   overflow-wrap: anywhere;
   font-size: var(--text-section);
-  font-weight: 600;
+  font-weight: var(--weight-heading);
 }
 
 .header[data-emphasis="quiet"] .title {
   color: var(--muted);
   font-size: var(--text-detail);
-  font-weight: 500;
+  font-weight: var(--weight-medium);
 }
 
 .title:focus:not(:focus-visible) {
@@ -38,5 +56,10 @@
   font-variant-numeric: tabular-nums;
   color: var(--muted);
   font-size: var(--text-caption);
-  font-weight: 400;
+  font-weight: var(--weight-regular);
+}
+
+/* The aside keeps its own layout inside the header row. */
+.aside {
+  display: contents;
 }

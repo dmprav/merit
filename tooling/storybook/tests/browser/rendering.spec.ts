@@ -3,7 +3,6 @@ import { test, expect, checkPage } from "@merit/test-support/browser";
 for (const story of [
   { id: "components-button--keyboard-focus", ready: "button" },
   { id: "components-button--pending", ready: "button[data-pending]" },
-  { id: "components-button--small", ready: "button" },
   { id: "components-button--icon-only", ready: "button" },
   { id: "components-button--overview", ready: "button" },
   { id: "components-button--pending-icon-only", ready: "button[data-pending]" },

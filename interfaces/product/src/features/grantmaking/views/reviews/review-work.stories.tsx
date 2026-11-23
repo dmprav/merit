@@ -261,6 +261,22 @@ export default meta;
 
 type Story = StoryObj<typeof meta>;
 
+type Context = Parameters<NonNullable<Story["play"]>>[0];
+
+/** Records an assessment from the review section's Add menu. */
+const recordAssessment = async ({
+  canvas,
+  canvasElement,
+  userEvent,
+}: Pick<Context, "canvas" | "canvasElement" | "userEvent">) => {
+  await userEvent.click(canvas.getByRole("button", { name: "Add" }));
+  await userEvent.click(
+    await within(canvasElement.ownerDocument.body).findByRole("menuitem", {
+      name: "Record assessment",
+    }),
+  );
+};
+
 export const ChangedApplication: Story = {
   play: async ({ canvas }) => {
     await expect(canvas.getByRole("article", { name: "Assessment by Sam Morgan" })).toBeVisible();
@@ -274,7 +290,7 @@ export const ChangedApplication: Story = {
 };
 export const RecordingAssessment: Story = {
   play: async ({ canvas, canvasElement, userEvent }) => {
-    await userEvent.click(canvas.getAllByRole("button", { name: "Record assessment" })[0]!);
+    await recordAssessment({ canvas, canvasElement, userEvent });
     const dialog = within(canvasElement.ownerDocument.body).getByRole("form", {
       name: "Record assessment",
     });
@@ -289,7 +305,7 @@ export const RecordingAssessment: Story = {
 export const DraftRecovery: Story = {
   play: async ({ canvas, canvasElement, userEvent }) => {
     const page = within(canvasElement.ownerDocument.body);
-    await userEvent.click(canvas.getAllByRole("button", { name: "Record assessment" })[0]!);
+    await recordAssessment({ canvas, canvasElement, userEvent });
     await userEvent.type(
       within(page.getByRole("form")).getByRole("textbox", { name: "Assessment text" }),
       "The venue costs need clarification.",
@@ -309,9 +325,14 @@ export const DraftRecovery: Story = {
 
 export const AddingRequest: Story = {
   play: async ({ canvas, canvasElement, userEvent }) => {
-    await userEvent.click(canvas.getByRole("button", { name: "Add review request" }));
-    const dialog = within(canvasElement.ownerDocument.body).getByRole("dialog", {
-      name: "Add review request",
+    await userEvent.click(canvas.getByRole("button", { name: "Add" }));
+    await userEvent.click(
+      await within(canvasElement.ownerDocument.body).findByRole("menuitem", {
+        name: "Request review",
+      }),
+    );
+    const dialog = await within(canvasElement.ownerDocument.body).findByRole("dialog", {
+      name: "Request review",
     });
 
     await waitFor(() =>
@@ -358,7 +379,7 @@ export const AssessmentDetails: Story = {
 
 export const CreateReviewer: Story = {
   play: async ({ canvas, canvasElement, userEvent }) => {
-    await userEvent.click(canvas.getAllByRole("button", { name: "Record assessment" })[0]!);
+    await recordAssessment({ canvas, canvasElement, userEvent });
     const page = within(canvasElement.ownerDocument.body);
     const form = within(page.getByRole("form", { name: "Record assessment" }));
 
@@ -421,8 +442,6 @@ export const ReplacingReviewer: Story = {
     );
   },
 };
-
-type Context = Parameters<NonNullable<Story["play"]>>[0];
 
 const correctAssessment = async ({ canvas, canvasElement, userEvent }: Context) => {
   const page = within(canvasElement.ownerDocument.body);

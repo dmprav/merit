@@ -4,9 +4,9 @@ import { IconBase } from "../icon/icon-base";
 import styles from "./notice.module.css";
 
 const icons = {
-  danger: "warning",
-  warning: "warning",
-  success: "check",
+  danger: "failure",
+  warning: "attention",
+  success: "success",
   neutral: "info",
 } as const;
 
@@ -18,7 +18,8 @@ const icons = {
  * message sits on a light tinted surface so it stands apart from nearby content; use
  * appearance=inline for quiet icon-and-text feedback inside a task surface. Use title and actions
  * for structured recovery feedback, as="div" for paragraphs, or as="ul" for a list. Put every
- * button in actions, never in the message, so all notices place their controls the same way.
+ * button in actions, never in the message, so all notices place their controls the same way, and
+ * keep them quiet: the tinted surface already draws the eye, and its tone tints their hover.
  * Notice spaces direct blocks; use Inline for a wrapping action group. Tone controls appearance
  * only: callers choose role and aria-live when an update needs announcing. Use showToast for an
  * action's outcome.
@@ -63,7 +64,11 @@ export const Notice = ({
             {children}
           </Content>
         </div>
-        {actions && <div className={styles.actions}>{actions}</div>}
+        {actions && (
+          <div className={styles.actions} data-notice-actions>
+            {actions}
+          </div>
+        )}
       </div>
     </div>
   );

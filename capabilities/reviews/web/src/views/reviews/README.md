@@ -22,9 +22,11 @@ include long titles, unknown review bases and withdrawn applications.
 
 ## Request a review
 
-**Add review request** opens the searchable [request picker](request-picker.tsx).
-Explain there that choosing a reviewer records the request immediately and sends
-no message. Replacement
+The review section's quiet **Add** menu offers **Request review** and **Record
+assessment**. **Request review** opens the searchable [request picker](request-picker.tsx)
+on the same trigger and returns focus there when it closes. Explain above the
+choice that choosing a reviewer records the request immediately and sends no
+message. Replacement
 uses the same picker; a follow-up request for a known reviewer acts directly.
 Keep contact creation available inside the picker. Requests commit from the picker;
 only recorded assessments and corrections have resumable drafts.

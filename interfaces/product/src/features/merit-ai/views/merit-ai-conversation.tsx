@@ -3,9 +3,11 @@ import { useTranslation } from "react-i18next";
 
 import { Button } from "@merit/ui/button";
 import { Conversation, ConversationMessage } from "@merit/ui/conversation";
+import { Icon } from "@merit/ui/icon";
 import { MessageBox } from "@merit/ui/message-box";
 import { Notice } from "@merit/ui/notice";
 import { StatusMessage } from "@merit/ui/status-message";
+import { Text } from "@merit/ui/text";
 
 import { scriptIds } from "../contracts";
 import type { Turn } from "../controllers/turns";
@@ -56,13 +58,18 @@ const Notices = ({
 
   return (
     <>
-      {isStopped && <Notice tone="neutral">{t("stopped")}</Notice>}
+      {isStopped && (
+        <Notice tone="neutral" appearance="inline">
+          {t("stopped")}
+        </Notice>
+      )}
       {hasFailed && (
         <Notice
           tone="danger"
+          appearance="inline"
           role="alert"
           actions={
-            <Button variant="secondary" onPress={onRetry}>
+            <Button variant="quiet" onPress={onRetry}>
               {t("retry")}
             </Button>
           }
@@ -128,6 +135,21 @@ const Thread = ({
   );
 };
 
+const Greeting = () => {
+  const { t } = useTranslation("meritAi");
+
+  return (
+    <div className={styles.greeting}>
+      <Text variant="supporting">
+        <Icon name="assistant" />
+      </Text>
+      <Text as="p" variant="supporting">
+        {t("empty")}
+      </Text>
+    </div>
+  );
+};
+
 /** The panel's footer: the box to ask in, with the page attached as context. */
 export const MeritAiComposer = ({
   chat,
@@ -177,7 +199,8 @@ export const MeritAiComposer = ({
 
 /**
  * The panel's content: the thread and the suggestions that apply. The panel's body scrolls it, so
- * the box to ask in can stay below in the footer.
+ * the box to ask in can stay below in the footer. Before the first question a short greeting sits
+ * in the middle and the suggestions wait at the bottom, just above the box.
  */
 export const MeritAiConversation = ({
   chat,
@@ -205,13 +228,13 @@ export const MeritAiConversation = ({
     onChoose: onAsk,
   };
   const spoken = useSpokenText(chat);
+  const isEmpty = chat.turns.length === 0;
 
   return (
-    <div className={styles.thread}>
+    <div className={styles.thread} data-empty={isEmpty || undefined}>
       <Thread chat={chat} actions={actions} followKey={lastQuestion?.id} onRetry={onRetry} />
-      {chat.turns.length === 0 && canSuggest && (
-        <Suggestions scripts={scriptIds} onChoose={onAsk} />
-      )}
+      {isEmpty && <Greeting />}
+      {isEmpty && canSuggest && <Suggestions scripts={scriptIds} onChoose={onAsk} />}
       <StatusMessage message={spoken} eventId={chat.announcement?.sequence ?? 0} />
     </div>
   );

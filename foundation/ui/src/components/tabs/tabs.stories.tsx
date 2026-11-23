@@ -3,7 +3,6 @@ import { useState, type ComponentProps } from "react";
 import { I18nProvider } from "react-aria-components/I18nProvider";
 import { expect, fn, mocked, waitFor } from "storybook/test";
 
-import { Button } from "../button/button";
 import { Tabs } from "./tabs";
 import localStyles from "./tabs.stories.module.css";
 
@@ -339,32 +338,4 @@ export const OverflowInteractionsRightToLeft: Story = {
       </I18nProvider>
     ),
   ],
-};
-
-export const WithAction: Story = {
-  args: {
-    items: [{ ...items[0], count: 12 }, { ...items[1], count: 3 }, items[2]],
-    actions: <Button variant="secondary">Add application</Button>,
-  },
-  play: async ({ canvas, userEvent }) => {
-    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-
-    canvas.getByRole("tab", { name: "Evidence 12" }).focus();
-    await userEvent.keyboard("{ArrowRight}");
-
-    await expect(canvas.getByRole("tab", { name: "Reviews 3" })).toHaveFocus();
-
-    await userEvent.tab();
-    const backward = canvas.queryByRole("button", { name: scrollLabels.scrollBackwardLabel });
-    if (backward) {
-      await expect(backward).toHaveFocus();
-      await userEvent.tab();
-      await expect(
-        canvas.getByRole("button", { name: scrollLabels.scrollForwardLabel }),
-      ).toHaveFocus();
-      await userEvent.tab();
-    }
-
-    await expect(canvas.getByRole("button", { name: "Add application" })).toHaveFocus();
-  },
 };

@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, mocked, waitFor, within } from "storybook/test";
 
-import { ApplicationPage } from "@merit/ui/application-shell";
+import { ApplicationPage, ApplicationStage } from "@merit/ui/application-shell";
 
 import { StoryEnvironment } from "../../../tests/storybook";
 import { AccessRequests } from "./access-requests";
@@ -36,14 +36,16 @@ const meta = {
   decorators: [
     (Story) => (
       <StoryEnvironment path="/admin/access-requests">
-        <ApplicationPage
-          width="full"
-          locationKey="access-requests"
-          breadcrumb={null}
-          breadcrumbLabel="Breadcrumb"
-        >
-          <Story />
-        </ApplicationPage>
+        <ApplicationStage>
+          <ApplicationPage
+            width="full"
+            locationKey="access-requests"
+            breadcrumb={null}
+            breadcrumbLabel="Breadcrumb"
+          >
+            <Story />
+          </ApplicationPage>
+        </ApplicationStage>
       </StoryEnvironment>
     ),
   ],

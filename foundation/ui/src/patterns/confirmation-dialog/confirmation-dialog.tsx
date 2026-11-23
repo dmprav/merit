@@ -120,7 +120,6 @@ const ConfirmAction = ({
   return (
     <>
       <ButtonBase
-        size="small"
         variant={intent === "destructive" ? "destructive" : "primary"}
         aria-busy={pending}
         aria-disabled={pending}

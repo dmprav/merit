@@ -3,7 +3,7 @@ import { useState, type ComponentProps } from "react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import type { TableSort } from "@merit/tables";
-import { ApplicationPage } from "@merit/ui/application-shell";
+import { ApplicationPage, ApplicationStage } from "@merit/ui/application-shell";
 
 import { GrantmakingMessagesProvider } from "../../messages";
 import { ApplicationsOverviewPreview as ApplicationsOverview } from "../../testing/application-list-preview";
@@ -81,16 +81,18 @@ const meta = {
   },
   decorators: [
     (Story) => (
-      <ApplicationPage
-        locationKey="applications"
-        breadcrumb={null}
-        breadcrumbLabel="Breadcrumb"
-        width="full"
-      >
-        <GrantmakingMessagesProvider>
-          <Story />
-        </GrantmakingMessagesProvider>
-      </ApplicationPage>
+      <ApplicationStage>
+        <ApplicationPage
+          locationKey="applications"
+          breadcrumb={null}
+          breadcrumbLabel="Breadcrumb"
+          width="full"
+        >
+          <GrantmakingMessagesProvider>
+            <Story />
+          </GrantmakingMessagesProvider>
+        </ApplicationPage>
+      </ApplicationStage>
     ),
   ],
 } satisfies Meta<typeof Preview>;

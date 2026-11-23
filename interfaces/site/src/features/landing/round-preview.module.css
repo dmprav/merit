@@ -37,7 +37,7 @@
 
 .roundHeading h2 {
   font-size: 1.375rem;
-  font-weight: 600;
+  font-weight: var(--weight-heading);
   letter-spacing: -0.025em;
 }
 
@@ -81,14 +81,14 @@
 .totals dd {
   margin-top: var(--space-1);
   font-size: 1.25rem;
-  font-weight: 500;
+  font-weight: var(--weight-medium);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
 .proposedTotal dd {
   font-size: 1.75rem;
-  font-weight: 600;
+  font-weight: var(--weight-heading);
   letter-spacing: -0.025em;
 }
 
@@ -108,11 +108,11 @@
   padding-top: 0;
   color: var(--muted);
   font-size: var(--text-detail);
-  font-weight: 400;
+  font-weight: var(--weight-regular);
 }
 
 .applications tbody th {
-  font-weight: 500;
+  font-weight: var(--weight-medium);
 }
 
 .applications th:last-child,
@@ -248,14 +248,14 @@
     align-self: center;
     margin-left: auto;
     text-align: right;
-    font-weight: 500;
+    font-weight: var(--weight-medium);
   }
 
   .tableLabel {
     display: inline;
     color: var(--muted);
     font-size: var(--text-caption);
-    font-weight: 400;
+    font-weight: var(--weight-regular);
   }
 
   .recommendationCell .tableLabel {

@@ -3,12 +3,15 @@
  * divider above the results and the shared focus bar along that divider.
  */
 .search {
+  /* Run edge to edge across the popover, whatever its inset, so the divider spans it. */
+  --inset: var(--popover-inset, 0px);
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  min-height: var(--control-height);
+  min-height: 2.5rem;
+  margin: calc(-1 * var(--inset)) calc(-1 * var(--inset)) var(--space-1);
   border-bottom: 1px solid var(--border);
-  padding-inline: var(--space-2);
+  padding-inline: calc(var(--inset) + var(--space-2));
   color: var(--muted);
 }
 

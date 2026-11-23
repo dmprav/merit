@@ -200,7 +200,7 @@ test("an invited reviewer independently accepts, saves, submits and amends @cros
       await context.setOffline(false);
     }
     await reviewer.getByRole("button", { name: "Try again", exact: true }).click();
-    await expect(reviewer.getByText("Draft saved", { exact: true })).toBeVisible();
+    await expect(reviewer.getByText(/^Draft saved/)).toBeVisible();
     await reviewer
       .getByRole("navigation", { name: "Breadcrumb" })
       .getByRole("link", { name: "My work", exact: true })

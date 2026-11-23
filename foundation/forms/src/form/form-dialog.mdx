@@ -50,7 +50,9 @@ form body beside the action they explain.
 announces save errors. `FormActions` presents the primary commit action, Close,
 and optional Discard. Supply task-specific labels and callbacks; the optional
 `discard` action pairs its label with its callback. Closing preserves
-unfinished work; discarding removes it. Features own draft persistence, business
+unfinished work; discarding removes it. Pass the draft or save status as
+`status`; it is announced and shown beside Discard at the footer's leading side,
+not above the fields. Pass `null` while there is nothing to report. Features own draft persistence, business
 validation, saving, and the outcome after commitment, as described by the
 [editing pattern](?path=/docs/patterns-editing--docs).
 

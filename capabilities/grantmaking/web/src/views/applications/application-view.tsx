@@ -17,6 +17,7 @@ import { Button } from "@merit/ui/button";
 import { Icon } from "@merit/ui/icon";
 import { PageHeader } from "@merit/ui/page-header";
 import { PagedContent } from "@merit/ui/paged-content";
+import { PanelSections } from "@merit/ui/panel-section";
 import {
   ReferencePane,
   ReferenceSwitcher,
@@ -346,7 +347,7 @@ const ApplicationWorkOverview = ({
   recommendationAction?: ReactNode;
   onInspectVersion: (version: number) => void;
 }) => (
-  <div className={styles.context}>
+  <PanelSections>
     {overview}
     {application.intakeStatus !== "in_preparation" || application.managerRecommendation ? (
       <ApplicationRecommendationSummary
@@ -367,7 +368,7 @@ const ApplicationWorkOverview = ({
       !application.managerRecommendation &&
       !readOnly &&
       recommendationAction}
-  </div>
+  </PanelSections>
 );
 
 const ApplicationHistoryContent = (props: ComponentProps<typeof ApplicationHistory>) => {

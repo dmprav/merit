@@ -31,8 +31,8 @@
   min-width: 0;
   max-width: 100%;
   padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3);
-  border: 1px solid var(--border);
-  border-radius: var(--control-radius);
+  border: 1px solid var(--border-raised);
+  border-radius: var(--panel-radius);
   background: var(--surface);
   box-shadow: var(--popover-shadow);
   color: var(--foreground);
@@ -55,8 +55,30 @@
   color: var(--success);
 }
 
+/*
+ * Every tone takes its own faint surface and edge as well as its glyph, so the outcome reads before
+ * its words do; success is the lightest of them.
+ */
+.toast[data-tone="success"] {
+  --button-quiet-background: color-mix(in srgb, var(--success) 10%, var(--surface));
+  border-color: color-mix(in srgb, var(--success) 22%, var(--border-raised));
+  background: var(--success-subtle);
+}
+
+.toast[data-tone="warning"] {
+  --button-quiet-background: color-mix(in srgb, var(--warning) 12%, var(--surface));
+  border-color: color-mix(in srgb, var(--warning) 30%, var(--border-raised));
+  background: var(--warning-subtle);
+}
+
 .toast[data-tone="warning"] .icon {
   color: var(--warning);
+}
+
+.toast[data-tone="danger"] {
+  --button-quiet-background: color-mix(in srgb, var(--danger) 12%, var(--surface));
+  border-color: color-mix(in srgb, var(--danger) 30%, var(--border-raised));
+  background: var(--danger-subtle);
 }
 
 .toast[data-tone="danger"] .icon {

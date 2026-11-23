@@ -81,12 +81,14 @@ test.describe("conversation pattern scrolling", () => {
     await settledAfterShrink(page, scroller, heightBefore);
     expect(await scrollTop(scroller)).toBeLessThan(nearEnd);
 
-    // Asking again follows the end once more. The control sits outside the scroller, so pressing it
-    // cannot bring the thread near its end: only the new question can.
+    // Asking again follows the end once more. The answer's action is reached from the keyboard
+    // without scrolling to it, so pressing it cannot bring the thread near its end: only the new
+    // question can.
     const askAgain = page.getByRole("button", { name: "Ask again" });
     await expect(askAgain).toBeVisible();
+    await askAgain.evaluate((node) => node.focus({ preventScroll: true }));
     expect(await distanceFromEnd(scroller)).toBeGreaterThan(nearEnd);
-    await askAgain.click();
+    await page.keyboard.press("Enter");
     await expect(page.getByText(/Paragraph 10\./)).toBeVisible();
     await expect.poll(() => distanceFromEnd(scroller)).toBeLessThan(nearEnd);
   });

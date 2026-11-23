@@ -28,7 +28,9 @@ short screens stack the panes and link between them.
   the same labels for the same destinations. Keep each choice mounted with
   `hidden` so reading positions and unfinished input survive switching.
 - `WorkPane` holds the task. A `title` gives it a pane header for state actions,
-  such as closing an editor or starting an amendment. `footer` keeps status and
+  such as closing an editor or starting an amendment. `titleMeta` keeps compact
+  facts about the task beside the title, such as a due-date `Badge` and an info
+  control whose popover explains who asked and who can read the work. `footer` keeps status and
   the commitment action visible; on stacked screens it stays at the bottom of the
   viewport. Choose `fill` when the child, such as a `Form`, owns its own scrolling
   body and footer.
@@ -36,6 +38,9 @@ short screens stack the panes and link between them.
 Use `as="section"` for a work pane that is the page's main task, and the default
 `aside` when it supports the reference. Supply a `WorkPane` alone when sustained
 work needs this frame without reference material; it then uses the full width.
+
+<Canvas of={Workspace.WorkOnly} story={{ inline: false, height: "420px" }} />
+
 When no task is open, the work pane can summarize facts and progress without
 repeating the reference material. Opening sustained editing replaces that overview
 with one task. Keep its controller and draft above this presentation choice, and
@@ -44,8 +49,6 @@ actions that need their own focused surface.
 
 For a short entry task, such as accepting an invitation, use a bounded page
 composition sized to its content instead of reserving a full-height workspace.
-
-<Canvas of={Workspace.WorkOnly} story={{ inline: false, height: "320px" }} />
 
 ## Keep reading position and focus
 

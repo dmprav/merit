@@ -2,15 +2,15 @@
   display: inline-flex;
   min-width: 0;
   max-width: 100%;
-  min-height: var(--control-height-small);
+  min-height: var(--button-height);
   align-items: center;
   justify-content: center;
-  gap: var(--space-2);
+  gap: 6px;
   border: 1px solid transparent;
   border-radius: var(--control-radius);
-  padding: var(--space-1) var(--space-3);
+  padding: var(--space-1) calc(var(--space-2) + 2px);
   font-size: var(--text-control);
-  font-weight: 500;
+  font-weight: var(--weight-medium);
   line-height: 1.5;
   text-align: center;
   overflow-wrap: anywhere;
@@ -71,6 +71,15 @@
   color: var(--foreground);
 }
 
+/* Icons in chrome recede until someone reaches for them; a toggled-on one takes the action tone. */
+.button[data-variant="quiet"][data-icon-only] {
+  color: var(--button-quiet-foreground, var(--muted));
+}
+
+.button[data-variant="quiet"][aria-pressed="true"]:where(:not([data-focus-visible])) {
+  color: var(--action);
+}
+
 /* A command within copy shares the inline link's text treatment. */
 .button[data-variant="inline"] {
   display: inline;
@@ -106,18 +115,9 @@
   background: var(--border);
 }
 
-.button[data-size="small"] {
-  min-height: var(--control-height-small);
-  padding: var(--space-1) calc(var(--space-2) + 2px);
-}
-
 .button[data-variant="quiet"][data-alignment="start"] {
   /* Keep the action's own width in a vertical flow, such as a Stack. */
   justify-self: start;
-  margin-inline-start: calc(-1 * (var(--space-3) + 1px));
-}
-
-.button[data-variant="quiet"][data-alignment="start"][data-size="small"] {
   margin-inline-start: calc(-1 * (var(--space-2) + 3px));
 }
 
@@ -128,7 +128,7 @@
 }
 
 .button[data-icon-only] {
-  width: var(--control-height-small);
+  width: var(--button-height);
   padding: 0;
   flex-shrink: 0;
 }
@@ -187,8 +187,7 @@
 }
 
 @media (pointer: coarse) {
-  .button:not([data-variant="inline"]),
-  .button[data-size="small"]:not([data-variant="inline"]) {
+  .button:not([data-variant="inline"]) {
     min-height: var(--target-touch);
   }
 

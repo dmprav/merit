@@ -11,7 +11,6 @@ export const RouteRetry = ({ children }: { children: ReactNode }) => {
 
   return (
     <Button
-      size="medium"
       isDisabled={!hydrated}
       isPending={pending}
       onPress={() => {

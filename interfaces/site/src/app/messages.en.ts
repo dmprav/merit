@@ -9,7 +9,7 @@ export const en = {
       "Merit is a personal project built to demonstrate product design and development. It isn’t offered as a live grant-management service.",
     description:
       "A shared workspace for funding rounds, applications, reviews, and recommendations.",
-    demoNote: "Fictional workspace · No account needed",
+    demoNote: "Fictional workspace, no account needed",
   },
   overview: {
     progress: {

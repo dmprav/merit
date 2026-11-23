@@ -24,7 +24,7 @@ const renderLists = (onClick?: (event: MouseEvent) => void) => {
               key={id}
               reorderKey={id}
               action={
-                <Button size="medium">
+                <Button>
                   Unpin {list} {id}
                 </Button>
               }

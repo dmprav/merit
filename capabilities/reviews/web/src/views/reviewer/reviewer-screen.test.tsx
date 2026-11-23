@@ -40,20 +40,25 @@ const renderReviewer = (
 
 const dialog = (name: string) => screen.getByRole("dialog", { name });
 
-it("shows the private draft while a reviewer is writing", () => {
-  renderReviewer();
+it("shows the private draft while a reviewer is writing", async () => {
+  const { user } = renderReviewer();
 
   expect(screen.getByRole("textbox", { name: "Overall reasoning" })).toHaveValue(
     reviewerPage().draft!.content.reasoning,
   );
+  expect(screen.getByText("Draft saved, private until you submit")).toBeVisible();
+  const assessment = within(screen.getByRole("region", { name: "Your assessment" }));
+  expect(assessment.getByText(/^Due /)).toBeVisible();
+
+  await user.click(assessment.getByRole("button", { name: "About this request" }));
+  const details = within(dialog("About this request"));
+  expect(details.getByText("Requested by Dana Reed")).toBeVisible();
+  expect(details.getByText(/Response requested by/)).toBeVisible();
   expect(
-    screen.getByText(
+    details.getByText(
       "Your draft is private. The manager can read your assessment after you submit it.",
     ),
   ).toBeVisible();
-  const assessment = within(screen.getByRole("region", { name: "Your assessment" }));
-  expect(assessment.getByText("Requested by Dana Reed")).toBeVisible();
-  expect(assessment.getByText(/Response requested by/)).toBeVisible();
   expect(screen.queryByRole("link", { name: "Ask a question by email" })).not.toBeInTheDocument();
 });
 
@@ -121,7 +126,7 @@ it("retries a failed save without losing the unsaved sentence", async () => {
   expect(await screen.findByRole("alert")).toHaveTextContent("Your text is still here");
   await user.click(screen.getByRole("button", { name: "Try again" }));
 
-  expect(await screen.findByText("Draft saved", { exact: true })).toBeVisible();
+  expect(await screen.findByText("Draft saved, private until you submit")).toBeVisible();
   expect(reasoning).toHaveValue(
     `${reviewerPage().draft!.content.reasoning} Keep this unsaved sentence.`,
   );
@@ -134,7 +139,7 @@ it("reloads a clean assignment after a failed read", async () => {
   await user.click(screen.getByRole("button", { name: "Refresh" }));
 
   await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
-  expect(screen.getByText("Draft saved", { exact: true })).toBeVisible();
+  expect(screen.getByText("Draft saved, private until you submit")).toBeVisible();
 });
 
 it("shows both drafts and holds submission until the reviewer chooses one", async () => {
@@ -230,6 +235,10 @@ it("resumes an unfinished amendment and can discard it for the submitted assessm
   await user.click(screen.getByRole("button", { name: "Resume amendment" }));
   const reasoning = screen.getByRole("textbox", { name: "Overall reasoning" });
   expect(reasoning).toHaveValue("Unfinished amendment: the venue is confirmed.");
+  // Without opening the request details: the consequence sits beside Submit amendment.
+  expect(
+    screen.getByText("The manager can read your amendment and all earlier versions."),
+  ).toBeVisible();
   await user.type(reasoning, " Updated.");
   expect(await screen.findByText("Draft saved", { exact: true })).toBeVisible();
 

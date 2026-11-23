@@ -6,7 +6,7 @@ import {
   type ColumnDef,
   type SortingState,
 } from "@tanstack/react-table";
-import type { CSSProperties, ReactNode } from "react";
+import { useLayoutEffect, useRef, type CSSProperties, type ReactNode } from "react";
 
 import styles from "./data-table.module.css";
 import { MobileSortControl } from "./mobile-sort-control";
@@ -42,6 +42,76 @@ const TableScrollArea = ({
     {children}
   </div>
 );
+
+/**
+ * A page-sticky header stays over the rows it scrolls past, so a row that scrolls or takes focus
+ * has to stop below it. The header publishes its height on the table as --table-head-height for
+ * the rows' scroll margins.
+ */
+const useStickyHeadOffset = (enabled: boolean, top: CSSProperties["top"]) => {
+  const headRef = useRef<HTMLTableSectionElement>(null);
+  useLayoutEffect(() => {
+    const head = headRef.current;
+    const element = head?.parentElement;
+    if (!enabled || !element || !head || typeof ResizeObserver === "undefined") {
+      return;
+    }
+
+    const publish = () =>
+      element.style.setProperty("--table-head-height", `${head.getBoundingClientRect().height}px`);
+
+    // A custom sticky top moves the head, so rows stop below it there too.
+    if (top !== undefined) {
+      element.style.setProperty("--table-head-top", typeof top === "number" ? `${top}px` : top);
+    }
+
+    publish();
+    const observer = new ResizeObserver(publish);
+    observer.observe(head);
+    return () => {
+      observer.disconnect();
+      element.style.removeProperty("--table-head-height");
+      element.style.removeProperty("--table-head-top");
+    };
+  }, [enabled, top]);
+  return headRef;
+};
+
+/** The header row: one sortable header per column, sticky with the table when it asks to be. */
+const DataTableHead = <T extends object>({
+  columns,
+  activeSort,
+  stickyHeader,
+  showSorting,
+  sorting,
+  onSort,
+}: {
+  columns: readonly TableColumn<T>[];
+  activeSort: TableSorting["value"] | null;
+  stickyHeader?: StickyHeader;
+  /** Whether headers offer sorting now; an empty, locally sorted table does not. */
+  showSorting: boolean | undefined;
+  sorting?: TableSorting;
+  onSort: (columnId: string) => void;
+}) => {
+  const page = stickyHeader?.mode === "page" ? stickyHeader : undefined;
+  const head = useStickyHeadOffset(page !== undefined, page?.top);
+  return (
+    <thead ref={head}>
+      <tr>
+        {columns.map((column) => (
+          <TableColumnHeader
+            key={column.id}
+            column={column}
+            direction={activeSort?.columnId === column.id ? activeSort.direction : undefined}
+            top={stickyHeader?.mode === "page" ? stickyHeader.top : undefined}
+            onSort={showSorting && sorting && column.sort ? () => onSort(column.id) : undefined}
+          />
+        ))}
+      </tr>
+    </thead>
+  );
+};
 
 type DataTableProps<T extends object> = {
   /** Desktop row spacing. Mobile keeps room for touch interaction. */
@@ -127,27 +197,18 @@ export const DataTable = <T extends object>({
         <table
           className={styles.table}
           data-density={density}
-          data-sticky={stickyHeader ? true : undefined}
+          data-sticky={stickyHeader?.mode}
           aria-label={label}
           aria-busy={state?.type === "loading" || undefined}
         >
-          <thead>
-            <tr>
-              {columns.map((column) => (
-                <TableColumnHeader
-                  key={column.id}
-                  column={column}
-                  direction={activeSort?.columnId === column.id ? activeSort.direction : undefined}
-                  top={stickyHeader?.mode === "page" ? stickyHeader.top : undefined}
-                  onSort={
-                    showSorting && sorting && column.sort
-                      ? () => table.getColumn(column.id)?.toggleSorting()
-                      : undefined
-                  }
-                />
-              ))}
-            </tr>
-          </thead>
+          <DataTableHead
+            columns={columns}
+            activeSort={activeSort}
+            stickyHeader={stickyHeader}
+            showSorting={showSorting}
+            sorting={sorting}
+            onSort={(columnId) => table.getColumn(columnId)?.toggleSorting()}
+          />
           <tbody>
             {!state && data.length === 0 && (
               <tr className={styles.emptyRow}>

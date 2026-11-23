@@ -51,6 +51,6 @@ export const applicationsMessages = {
     none: "No reviewers assigned.",
     title: "Reviewer assessments",
     reviewer: "Reviewer",
-    version: "{{date}} · v{{version}}",
+    version: "{{date}}, v{{version}}",
   },
 } as const;

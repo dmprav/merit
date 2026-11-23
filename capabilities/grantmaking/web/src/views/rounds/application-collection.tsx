@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ComponentProps } from "react";
+import { useEffect, useRef, type ComponentProps, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import { workspaceApplicationsPageSize, type ApplicationOverview } from "@merit/grantmaking/api";
@@ -17,13 +17,16 @@ export const ApplicationCollection = ({
   columns,
   round,
   emptyScope,
-  stickyHeader = false,
+  stickyHeader = true,
+  action,
 }: {
   list: ApplicationList;
   columns: TableColumn<ApplicationOverview>[];
   round?: ComponentProps<typeof ApplicationFilters>["round"];
   emptyScope: "round" | "workspace";
   stickyHeader?: boolean;
+  /** Adds to the collection, at the end of its toolbar. */
+  action?: ReactNode;
 }) => {
   const { t } = useTranslation("fundingRounds");
   const { applications, pagination, query, filter, sorting } = list;
@@ -43,8 +46,15 @@ export const ApplicationCollection = ({
           list.onFilterChange(filter);
         }}
         summary={<OverviewSummary pagination={pagination} />}
+        action={action}
       />
-      <div ref={tableStart} tabIndex={-1} role="group" aria-label={t("applications.title")}>
+      <div
+        ref={tableStart}
+        className={styles.tableStart}
+        tabIndex={-1}
+        role="group"
+        aria-label={t("applications.title")}
+      >
         <DataTable
           data={applications}
           density="compact"

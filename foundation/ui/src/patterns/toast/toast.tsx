@@ -13,9 +13,9 @@ import styles from "./toast.module.css";
 
 const icons = {
   neutral: "info",
-  success: "check",
-  warning: "warning",
-  danger: "warning",
+  success: "success",
+  warning: "attention",
+  danger: "failure",
 } as const;
 
 export type ToastMessage = {
@@ -108,8 +108,8 @@ export const useToastWhile = (toast: ToastMessage | null) => {
 
 /**
  * The page's single toast region, a landmark named Notifications that F6 reaches. Render it once
- * at the document root; it centers beside the application shell's sidebar. Unmounting it discards
- * its toasts.
+ * at the document root; it centers over the page content, between the application shell's sidebar and companion panel.
+ * Unmounting it discards its toasts.
  */
 export const Toasts = () => {
   // Content mounted beside the region may show a toast before this effect runs, so only unmounting
@@ -127,7 +127,6 @@ export const Toasts = () => {
           {toast.content.action && (
             <ButtonBase
               variant="quiet"
-              size="small"
               onPress={() => {
                 queue.close(toast.key);
                 toast.content.action?.onPress();
@@ -138,13 +137,7 @@ export const Toasts = () => {
           )}
           {toast.timeout === undefined && (
             // React Aria names the close slot in the reader's language.
-            <ButtonBase
-              slot="close"
-              variant="quiet"
-              size="small"
-              iconOnly
-              onPress={toast.content.onDismiss}
-            >
+            <ButtonBase slot="close" variant="quiet" iconOnly onPress={toast.content.onDismiss}>
               <IconBase name="close" />
             </ButtonBase>
           )}

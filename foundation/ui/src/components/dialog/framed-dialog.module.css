@@ -21,6 +21,11 @@
   max-width: 28rem;
 }
 
+/* A confirmation that asks for details, such as a reason, gets room to write them. */
+.narrow:has(textarea, input:not([type="checkbox"], [type="radio"])) {
+  max-width: 36rem;
+}
+
 .sidePanelOverlay {
   display: flex;
   align-items: stretch;
@@ -94,9 +99,10 @@
 
 .title {
   min-width: 0;
-  font-size: var(--text-body);
+  /* A step above the body, so the task's name leads the dialog rather than blending into fields. */
+  font-size: var(--text-reading);
   line-height: 1.4;
-  font-weight: 600;
+  font-weight: var(--weight-heading);
   overflow-wrap: anywhere;
 }
 
@@ -148,4 +154,25 @@
   to {
     transform: translateX(0);
   }
+}
+
+/*
+ * A side panel is a tall surface beside the page, so its header is a fixed bar the height of the
+ * application's top bar, ruled off from the content, rather than a title that floats away.
+ */
+.dialog[data-modal-dialog="end"] > [data-dialog-header] {
+  /* The rule is part of the bar; only the scroll shade appears below it. */
+  box-shadow: 0 10px 12px -12px var(--edge-shade);
+  align-items: center;
+  min-height: var(--bar-height);
+  padding-block: var(--space-2);
+  border-block-end: 1px solid var(--border);
+}
+
+.dialog[data-modal-dialog="end"] > [data-dialog-header] .heading {
+  min-height: 0;
+}
+
+.dialog[data-modal-dialog="end"] [data-framed] > [data-dialog-body] {
+  padding-top: var(--space-5);
 }

@@ -49,7 +49,7 @@ const AccountSignIn = ({ returnTo }: { returnTo: string }) => {
         {t("switchAccountHelp")}
       </Text>
       {error && <p role="alert">{error}</p>}
-      <Button size="medium" isPending={pending} onPress={signOut}>
+      <Button isPending={pending} onPress={signOut}>
         {t("switchAccount")}
       </Button>
       <Link variant="standalone" href={returnTo}>
@@ -95,9 +95,7 @@ const SignInPage = () => {
           description={t("signIn.unavailable.description")}
           actions={
             <>
-              <Button size="medium" onPress={() => window.location.reload()}>
-                {t("common:tryAgain")}
-              </Button>
+              <Button onPress={() => window.location.reload()}>{t("common:tryAgain")}</Button>
               <RoutedLink variant="secondary" to="/demo">
                 {t("signIn.tryDemo")}
               </RoutedLink>

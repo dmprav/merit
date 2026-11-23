@@ -230,6 +230,7 @@ export const IntakeControls = ({ intake, headingActions }: IntakeControlsProps) 
               {!editingContent &&
                 (preparing ? (
                   <Button
+                    variant="secondary"
                     isDisabled={
                       !intake.ready || intake.pending || missing.length > 0 || unsavedContent
                     }
@@ -240,6 +241,7 @@ export const IntakeControls = ({ intake, headingActions }: IntakeControlsProps) 
                 ) : (
                   working && (
                     <Button
+                      variant="secondary"
                       isDisabled={!intake.ready || intake.pending || unsavedContent}
                       onPress={() => void intake.publishRevision()}
                     >

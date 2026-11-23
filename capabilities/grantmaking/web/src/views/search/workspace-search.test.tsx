@@ -293,12 +293,12 @@ describe("results", () => {
     );
 
     const boat = within(applications).getByRole("option", { name: /Boat repairs/ });
-    expect(boat).toHaveTextContent("Trust for the Harbour · Harbour fund");
+    expect(boat).toHaveTextContent("Trust for the Harbour, Harbour fund");
     expect(boat).not.toHaveTextContent("In preparation");
     expect(boat).not.toHaveTextContent("Withdrawn");
     expect(boat).toHaveAttribute("href", "/applications/b8q3w5j7c2df");
     expect(within(applications).getByRole("option", { name: /Quayside lights/ })).toHaveTextContent(
-      "Applicant not known · Harbour fund",
+      "Applicant not known, Harbour fund",
     );
     expect(within(applications).getByRole("option", { name: /Quayside lights/ })).toHaveTextContent(
       "In preparation",

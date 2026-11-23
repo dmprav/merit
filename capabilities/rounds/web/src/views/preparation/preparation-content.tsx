@@ -3,14 +3,13 @@ import { useTranslation } from "react-i18next";
 
 import { useFormat } from "@merit/i18n/format";
 import { Badge } from "@merit/ui/badge";
-import { Button } from "@merit/ui/button";
 import { DescriptionList, DescriptionListItem } from "@merit/ui/description-list";
 import { Reading } from "@merit/ui/layout";
 import { PersonIdentity } from "@merit/ui/person-identity";
 import { SectionHeader } from "@merit/ui/section-header";
-import { StateMessage } from "@merit/ui/state-message";
 import { StatusIndicator } from "@merit/ui/status-indicator";
 import { Text } from "@merit/ui/text";
+import { showToast } from "@merit/ui/toast";
 
 import type { PreparationData, PreparationRound } from "../../contracts/preparation";
 import styles from "./preparation-content.module.css";
@@ -53,28 +52,14 @@ export const RoundPreparation = (props: Props) =>
 
 const EditablePreparation = (props: Props & { session: PreparationSession }) => {
   const { t } = useTranslation("roundPreparation");
-  const preparation = usePreparationEditing({ round: props.round, ...props.session });
-  if (preparation.deleted) {
-    return (
-      <div className={styles.deleted}>
-        <StateMessage
-          title={<span role="status">{t("preparation.deleted")}</span>}
-          description={
-            preparation.navigationFailed ? (
-              <span role="alert">{t("preparation.navigationFailed")}</span>
-            ) : undefined
-          }
-          actions={
-            !preparation.pending && (
-              <Button size="medium" autoFocus onPress={preparation.returnToRounds}>
-                {t("preparation.returnToRounds")}
-              </Button>
-            )
-          }
-        />
-      </div>
-    );
-  }
+  const preparation = usePreparationEditing({
+    round: props.round,
+    data: props.session.data,
+    onDeleted: () => {
+      showToast({ tone: "success", message: t("preparation.deleted") });
+      return props.session.onDeleted();
+    },
+  });
   return <PreparationPresentation {...props} preparation={preparation} />;
 };
 

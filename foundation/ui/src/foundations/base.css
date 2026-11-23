@@ -2,6 +2,23 @@
   color-scheme: light;
 }
 
+/*
+ * One slim, quiet scrollbar for every region that scrolls. Only the standard properties are used:
+ * the ::-webkit-scrollbar pseudo-elements opt WebKit and macOS Chromium out of overlay scrollbars
+ * and reserve a permanent track in every scrolling region, whereas these leave overlay scrollbars
+ * to the platform, so content keeps its width, and give classic scrollbars a thin, faint thumb.
+ */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--foreground) 24%, transparent) transparent;
+}
+
+@media (forced-colors: active) {
+  * {
+    scrollbar-color: auto;
+  }
+}
+
 html {
   line-height: 1.5;
 }
@@ -25,6 +42,16 @@ a {
 :focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
+}
+
+/*
+ * A heading or region that receives focus only so a screen reader starts there, after navigation or
+ * a step back, is not a control; it keeps its own look instead of a focus ring.
+ */
+:where(
+  :is(h1, h2, h3, h4, h5, h6, section, article, [role="group"], [role="region"])[tabindex="-1"]
+):focus-visible {
+  outline: none;
 }
 
 a:focus-visible,

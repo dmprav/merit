@@ -122,22 +122,27 @@ const HistoricalChange = ({
 }) => {
   const { t } = useTranslation(["fundingRounds", "common"]);
   return (
-    <section ref={rootRef} className={styles.history} aria-label={t("intake.history")}>
-      <Button variant="quiet" alignment="start" onPress={onBack}>
-        <Icon name="left" />
-        {t("history.backEvents")}
-      </Button>
-      <SectionHeader title={t(historyLabel(entry.action))} headingRef={headingRef} />
-      <Attribution
-        actor={entry.actor}
-        provenance={entry.provenance}
-        recordedAt={entry.recordedAt}
-      />
-      {entry.reason && (
-        <Reading as="p" prose={false}>
-          {entry.reason}
-        </Reading>
-      )}
+    <section ref={rootRef} className={styles.change} aria-label={t("intake.history")}>
+      {/* The way back, what happened, who recorded it, and why read as one heading group. */}
+      <div className={styles.changeHeader}>
+        <Button variant="quiet" alignment="start" onPress={onBack}>
+          <Icon name="left" />
+          {t("history.backEvents")}
+        </Button>
+        <div>
+          <SectionHeader title={t(historyLabel(entry.action))} headingRef={headingRef} />
+          <Attribution
+            actor={entry.actor}
+            provenance={entry.provenance}
+            recordedAt={entry.recordedAt}
+          />
+        </div>
+        {entry.reason && (
+          <Reading as="p" prose={false}>
+            {entry.reason}
+          </Reading>
+        )}
+      </div>
       {entry.before && entry.after ? (
         <SnapshotComparison
           before={historySnapshot(entry.before)}

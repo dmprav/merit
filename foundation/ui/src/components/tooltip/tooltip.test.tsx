@@ -11,9 +11,7 @@ it("describes a focused control, dismisses with Escape, and preserves the action
   const onPress = vi.fn();
   render(
     <Tooltip content="Set the position, proposed allocation, and reasoning.">
-      <Button size="medium" onPress={onPress}>
-        Edit recommendation
-      </Button>
+      <Button onPress={onPress}>Edit recommendation</Button>
     </Tooltip>,
   );
   const button = screen.getByRole("button", { name: "Edit recommendation" });
@@ -55,13 +53,9 @@ it("dismisses an external tooltip when focus enters a popover dialog so Escape c
     render(
       <div>
         <Tooltip content="External control hint">
-          <Button size="medium">External trigger</Button>
+          <Button>External trigger</Button>
         </Tooltip>
-        <PopoverDialog
-          title="Overflow items"
-          closeLabel="Close"
-          trigger={<Button size="medium">Open</Button>}
-        >
+        <PopoverDialog title="Overflow items" closeLabel="Close" trigger={<Button>Open</Button>}>
           <p>Inside dialog</p>
         </PopoverDialog>
       </div>,

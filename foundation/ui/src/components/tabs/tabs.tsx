@@ -1,15 +1,12 @@
 import { useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Tab, TabList, TabPanel, Tabs as AriaTabs } from "react-aria-components/Tabs";
 
-import scrollStyles from "../../foundations/scroll-area.module.css";
 import { ButtonBase } from "../button/button-base";
 import { IconBase } from "../icon/icon-base";
 import styles from "./tabs.module.css";
 
 type TabsProps<Id extends string> = {
   label: string;
-  /** Panel actions, outside arrow-key navigation; wrap below the strip when space is limited. */
-  actions?: ReactNode;
   scrollPanels?: boolean;
   scrollBackwardLabel: string;
   scrollForwardLabel: string;
@@ -161,7 +158,6 @@ const useTabStrip = <Id extends string>({
  */
 export const Tabs = <Id extends string>({
   label,
-  actions,
   scrollPanels = false,
   scrollBackwardLabel,
   scrollForwardLabel,
@@ -215,7 +211,6 @@ export const Tabs = <Id extends string>({
           <div ref={controls} className={styles.controls} hidden={!scroll.overflow}>
             <ButtonBase
               variant="quiet"
-              size="small"
               iconOnly
               aria-label={scrollBackwardLabel}
               aria-disabled={!scroll.backward}
@@ -225,7 +220,6 @@ export const Tabs = <Id extends string>({
             </ButtonBase>
             <ButtonBase
               variant="quiet"
-              size="small"
               iconOnly
               aria-label={scrollForwardLabel}
               aria-disabled={!scroll.forward}
@@ -235,13 +229,12 @@ export const Tabs = <Id extends string>({
             </ButtonBase>
           </div>
         </div>
-        {actions && <div className={styles.actions}>{actions}</div>}
       </div>
       {items.map((item) => (
         <TabPanel
           key={item.id}
           id={item.id}
-          className={`${styles.panel} ${scrollPanels ? scrollStyles.scrollArea : ""}`}
+          className={styles.panel}
           ref={(node) => {
             if (node && scrollPanels) {
               node.scrollTop = panelScroll.current.get(item.id) ?? 0;

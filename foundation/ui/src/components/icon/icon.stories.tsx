@@ -52,20 +52,18 @@ export const Catalog: Story = {
 export const InControls: Story = {
   render: () => (
     <div className={localStyles.actions}>
-      <Button size="medium" variant="secondary">
+      <Button variant="secondary">
         <Icon name="edit" />
         Edit recommendation
       </Button>
-      <Button size="medium" variant="quiet" aria-label="Next application">
+      <Button variant="quiet" aria-label="Next application">
         <Icon name="right" />
       </Button>
-      <Button size="medium" variant="secondary" isDisabled>
+      <Button variant="secondary" isDisabled>
         <Icon name="edit" />
         Edit recommendation
       </Button>
-      <Button size="medium" isPending>
-        Saving…
-      </Button>
+      <Button isPending>Saving…</Button>
     </div>
   ),
 };

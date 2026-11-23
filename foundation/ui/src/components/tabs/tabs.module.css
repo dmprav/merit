@@ -6,16 +6,7 @@
   margin-bottom: var(--space-6);
 }
 
-.actions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin-inline-start: auto;
-  padding-block: 2px;
-}
-
 .rail {
-  /* Keep a readable strip when panel actions need to wrap onto another row. */
   flex: 1 1 12rem;
   display: flex;
   min-width: 0;
@@ -50,7 +41,7 @@
   border-bottom: 2px solid transparent;
   padding: 2px var(--space-1) var(--space-1);
   font-size: var(--text-detail);
-  font-weight: 500;
+  font-weight: var(--weight-medium);
   color: var(--muted);
   outline: none;
 }
@@ -95,7 +86,7 @@
   background: var(--surface-muted);
   color: var(--muted);
   font-size: var(--text-caption);
-  font-weight: 500;
+  font-weight: var(--weight-medium);
   line-height: 1.25rem;
   text-align: center;
   font-variant-numeric: tabular-nums;
@@ -167,10 +158,18 @@
   .scrollPanels > .panel {
     flex: 1;
     min-height: 0;
-    overflow-y: auto;
+    /* A layout that scrolls the tabs along with their surroundings sets --tabs-panel-overflow. */
+    overflow-y: var(--tabs-panel-overflow, auto);
     overscroll-behavior-y: contain;
     scrollbar-gutter: stable;
-    padding: var(--space-6) max(8px, var(--tabs-panel-inset, 0px)) var(--space-6)
+    padding: 0 max(8px, var(--tabs-panel-inset, 0px)) var(--space-6)
       max(2px, var(--tabs-panel-inset, 0px));
+  }
+
+  /* The space above the content scrolls away, so sticky content, such as a toolbar, meets the edge. */
+  .scrollPanels > .panel::before {
+    content: "";
+    display: block;
+    height: var(--space-6);
   }
 }

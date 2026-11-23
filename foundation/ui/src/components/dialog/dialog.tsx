@@ -83,7 +83,7 @@ const FloatingDialog = ({
       {trigger}
       <Popover
         // Pickers can open nested overlays before their entrance finishes, so they only fade.
-        className={`${styles.popover} ${scrollStyles.scrollArea} ${motion.fadeOut} ${picker ? motion.fadeIn : ""}`}
+        className={`${styles.popover} ${motion.fadeOut} ${picker ? motion.fadeIn : ""}`}
         data-appearance={appearance}
         data-has-footer={footer ? true : undefined}
         placement={compact ? "bottom end" : (placement ?? "right bottom")}
@@ -104,7 +104,6 @@ const FloatingDialog = ({
                   <ButtonBase
                     slot={null}
                     variant="quiet"
-                    size="small"
                     iconOnly
                     aria-label={closeLabel ?? t("closeDialog")}
                     onPress={close}

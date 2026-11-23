@@ -29,6 +29,26 @@ test(
   },
 );
 
+test("paging scrolls the first row to just below the sticky toolbar and table head", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    Boolean(testInfo.project.use.isMobile),
+    "Compact screens stack rows with no table head.",
+  );
+  await page.goto("/iframe.html?id=features-applications-all-applications--paged&viewMode=story");
+  await expect(page.locator("#storybook-root")).toHaveAttribute("data-story-ready", "true");
+  // The last page is short; going back lands on a long page that must scroll to its first row.
+  await page.getByRole("button", { name: "Previous", exact: true }).click();
+  const first = page.getByRole("link", { name: "Community project 01", exact: true });
+  await expect(first).toBeInViewport();
+  await expect(page.getByRole("group", { name: "Applications" })).toBeFocused();
+  const head = (await page.getByRole("columnheader").first().boundingBox())!;
+  const row = (await first.boundingBox())!;
+  expect(row.y).toBeGreaterThanOrEqual(head.y + head.height - 1);
+  await checkPage(page);
+});
+
 test(
   "activity drawer preserves long evidence and returns focus to its event",
   { tag: "@cross-browser" },

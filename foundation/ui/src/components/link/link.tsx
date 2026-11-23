@@ -32,8 +32,8 @@ type LinkProps = Pick<
    * supporting lines stacked. primary, secondary, and quiet match the adjacent buttons.
    */
   variant?: "inline" | "standalone" | "row" | "primary" | "secondary" | "quiet";
-  /** Button-shaped links only: small for compact labels, large for prominent site entry points. */
-  size?: "small" | "medium" | "large";
+  /** Button-shaped links only: large for a prominent entry point on a public page. */
+  size?: "regular" | "large";
 };
 
 /**
@@ -41,7 +41,7 @@ type LinkProps = Pick<
  * adapter, such as TanStack Router's createLink. Links share Button's hover, press, and focus
  * treatments. Keep labels specific to their destination and announce when a link opens a new tab.
  */
-export const Link = ({ variant = "inline", size = "medium", children, ...props }: LinkProps) => {
+export const Link = ({ variant = "inline", size = "regular", children, ...props }: LinkProps) => {
   if (variant === "row") {
     return (
       <a {...props} className={styles.row}>
@@ -62,7 +62,12 @@ export const Link = ({ variant = "inline", size = "medium", children, ...props }
   }
 
   return (
-    <a {...props} className={styles.button} data-variant={variant} data-size={size}>
+    <a
+      {...props}
+      className={styles.button}
+      data-variant={variant}
+      data-size={size === "large" ? size : undefined}
+    >
       {children}
     </a>
   );

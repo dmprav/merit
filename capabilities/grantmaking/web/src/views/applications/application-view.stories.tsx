@@ -145,10 +145,10 @@ const ExternalReferencePreview = (props: PreviewProps) => {
       <section aria-label="Story controls">
         <h2>Story controls: external navigation</h2>
         <Inline>
-          <Button size="medium" variant="quiet" onPress={() => setTab("evidence")}>
+          <Button variant="quiet" onPress={() => setTab("evidence")}>
             Open submission externally
           </Button>
-          <Button size="medium" variant="quiet" onPress={() => setTab("reviews")}>
+          <Button variant="quiet" onPress={() => setTab("reviews")}>
             Open assessments externally
           </Button>
         </Inline>

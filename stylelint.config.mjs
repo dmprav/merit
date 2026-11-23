@@ -69,6 +69,11 @@ export default {
         ignore: ["after-comment", "blockless-after-same-name-blockless"],
       },
     ],
+    // Weights come from the three-step scale in tokens.css, so emphasis stays consistent.
+    "declaration-property-value-allowed-list": [
+      { "font-weight": ["/^var\\(--weight-[a-z]+\\)$/", "inherit"] },
+      { message: () => 'Use a "--weight-*" token for font-weight' },
+    ],
     // Colors come from semantic tokens; color-mix() may derive shades from them.
     "color-no-hex": true,
     "color-named": "never",

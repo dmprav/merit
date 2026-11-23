@@ -24,9 +24,7 @@ const Example = ({ message }: { message: string | null }) => {
   return (
     <div className={styles.example}>
       <p>Use a screen reader to hear the message. Repeat the event to announce it again.</p>
-      <Button size="medium" onPress={() => setEvent((value) => value + 1)}>
-        Repeat event
-      </Button>
+      <Button onPress={() => setEvent((value) => value + 1)}>Repeat event</Button>
       <StatusMessage message={message} eventId={event} />
     </div>
   );

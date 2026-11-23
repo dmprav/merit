@@ -50,7 +50,6 @@ export const DemoToolsView = ({
                 {t("fundingRounds:demo.exit")}
               </RoutedLink>
               <Button
-                size="medium"
                 variant="quiet"
                 onPress={() => {
                   reset.open();
@@ -171,7 +170,7 @@ const DemoGuide = ({
               <>
                 <p role="status">{t("demoWorkspace.tasksError")}</p>
                 <Inline>
-                  <Button size="medium" variant="secondary" onPress={retry}>
+                  <Button variant="secondary" onPress={retry}>
                     {t("common:tryAgain")}
                   </Button>
                 </Inline>

@@ -130,7 +130,7 @@ it("shows an assessment and its basis with only review facts and no draft or que
     screen.getByRole("article", { name: `Assessment by ${assessment.reviewer}` }),
   ).toBeVisible();
   expect(screen.getByText("Based on an earlier submission")).toBeVisible();
-  expect(screen.queryByRole("button", { name: "Record assessment" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Add" })).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: /Assessment actions/ })).not.toBeInTheDocument();
 });
 
@@ -199,7 +199,7 @@ it("keeps request and assessment actions disabled until a retained draft is disc
   await user.click(form.getByRole("button", { name: "Close" }));
 
   await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-  expect(screen.queryByRole("button", { name: "Add review request" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Add" })).not.toBeInTheDocument();
   expect(
     pending.getByRole("button", { name: `Request actions for ${request.reviewer}` }),
   ).toBeDisabled();
@@ -218,7 +218,7 @@ it("keeps request and assessment actions disabled until a retained draft is disc
 
   await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   expect(screen.queryByRole("button", { name: "Resume editing" })).not.toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Add review request" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Add" })).toBeEnabled();
   expect(
     pending.getByRole("button", { name: `Request actions for ${request.reviewer}` }),
   ).toBeEnabled();
@@ -244,10 +244,7 @@ it("disables all review actions during a request cancellation and restores them 
   );
   await user.click(screen.getByRole("menuitem", { name: "Cancel request" }));
 
-  expect(screen.getByRole("button", { name: "Add review request" })).toBeDisabled();
-  for (const record of screen.getAllByRole("button", { name: "Record assessment" })) {
-    expect(record).toBeDisabled();
-  }
+  expect(screen.getByRole("button", { name: "Add" })).toBeDisabled();
   expect(
     screen.getByRole("button", { name: `Request actions for ${request.reviewer}` }),
   ).toBeDisabled();
@@ -258,10 +255,7 @@ it("disables all review actions during a request cancellation and restores them 
   await act(async () => finishSave({ status: "unavailable" }));
 
   expect(await screen.findByRole("alert")).toHaveTextContent("Could not save");
-  expect(screen.getByRole("button", { name: "Add review request" })).toBeEnabled();
-  for (const record of screen.getAllByRole("button", { name: "Record assessment" })) {
-    expect(record).toBeEnabled();
-  }
+  expect(screen.getByRole("button", { name: "Add" })).toBeEnabled();
   expect(
     screen.getByRole("button", { name: `Request actions for ${request.reviewer}` }),
   ).toBeEnabled();
@@ -799,6 +793,57 @@ it("truthfully identifies missing saved assessment when viewing latest for an un
   expect(latest).toHaveTextContent("No saved assessment or outstanding request for this reviewer.");
   expect(latest).not.toHaveTextContent(assessment.reviewer);
   expect(data.save).not.toHaveBeenCalled();
+});
+
+it("requests a review from the Add menu and returns focus to Add when the picker closes", async () => {
+  const source: ContactsSource = {
+    scope: (workspace) => [workspace],
+    read: vi.fn().mockResolvedValue({ status: "ok", workspaceName: "Alder", contacts: [] }),
+    save: vi.fn(),
+  };
+  const { user } = renderReview({}, "dana", source);
+  const add = await screen.findByRole("button", { name: "Add" });
+  await user.click(add);
+  await user.click(await screen.findByRole("menuitem", { name: "Request review" }));
+
+  const picker = within(await screen.findByRole("dialog", { name: "Request review" }));
+  expect(
+    picker.getByText("Choose a reviewer to record a request. No message is sent."),
+  ).toBeVisible();
+  await user.keyboard("{Escape}");
+
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  await waitFor(() => expect(screen.getByRole("button", { name: "Add" })).toHaveFocus());
+});
+
+it("returns focus to Add after a reviewer is chosen and the request is saved", async () => {
+  const source: ContactsSource = {
+    scope: (workspace) => [workspace],
+    read: vi.fn().mockResolvedValue({
+      status: "ok",
+      workspaceName: "Alder",
+      contacts: [
+        {
+          id: "sam",
+          name: "Sam Morgan",
+          email: "sam@example.test",
+          affiliation: "",
+          archived: false,
+          revision: 0,
+          applicationTitles: [],
+        },
+      ],
+    }),
+    save: vi.fn(),
+  };
+  const { user, data } = renderReview({}, "dana", source);
+  await user.click(await screen.findByRole("button", { name: "Add" }));
+  await user.click(await screen.findByRole("menuitem", { name: "Request review" }));
+  await user.click(await screen.findByRole("option", { name: /Sam Morgan/ }));
+
+  await waitFor(() => expect(data.save).toHaveBeenCalled());
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  await waitFor(() => expect(screen.getByRole("button", { name: "Add" })).toHaveFocus());
 });
 
 it("keeps reference focus when delayed assessment save completes", async () => {

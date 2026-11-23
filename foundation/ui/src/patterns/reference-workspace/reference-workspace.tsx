@@ -15,7 +15,6 @@ import {
 import { ActionMenu } from "../../components/action-menu/action-menu";
 import { Button } from "../../components/button/button";
 import { Icon } from "../../components/icon/icon";
-import scrollStyles from "../../foundations/scroll-area.module.css";
 import styles from "./reference-workspace.module.css";
 
 /** Matches the stylesheet breakpoint where the panes stack and the document scrolls. */
@@ -101,7 +100,7 @@ export const ReferencePane = ({
       <div className={styles.reference} id={`${id}-reference`}>
         {toolbar && <div className={styles.toolbar}>{toolbar}</div>}
         <div
-          className={`${styles.content} ${scrollStyles.scrollArea}`}
+          className={styles.content}
           ref={viewport}
           data-reading-viewport
           tabIndex={0}
@@ -125,6 +124,7 @@ export const WorkPane = ({
   as: Element = "aside",
   title,
   titleRef,
+  titleMeta,
   titleActions,
   footer,
   fill = false,
@@ -135,6 +135,8 @@ export const WorkPane = ({
   as?: "aside" | "section";
   title?: ReactNode;
   titleRef?: Ref<HTMLHeadingElement>;
+  /** Compact status beside the title, such as a due-date badge and a control that explains it. */
+  titleMeta?: ReactNode;
   titleActions?: ReactNode;
   footer?: ReactNode;
   fill?: boolean;
@@ -153,16 +155,19 @@ export const WorkPane = ({
         )}
         {title && (
           <div className={styles.toolbar} data-title>
-            <h2 ref={titleRef} tabIndex={-1}>
-              {title}
-            </h2>
+            <div className={styles.title}>
+              <h2 ref={titleRef} tabIndex={-1}>
+                {title}
+              </h2>
+              {titleMeta}
+            </div>
             {titleActions}
           </div>
         )}
         <div
           ref={viewport}
           data-reading-viewport
-          className={`${styles.content} ${scrollStyles.scrollArea}`}
+          className={styles.content}
           data-fill={fill || undefined}
           tabIndex={fill ? undefined : 0}
           role="group"
@@ -170,7 +175,7 @@ export const WorkPane = ({
         >
           {children}
         </div>
-        {footer && <div className={`${styles.footer} ${scrollStyles.scrollArea}`}>{footer}</div>}
+        {footer && <div className={styles.footer}>{footer}</div>}
       </Element>
     </ReadingViewportContext>
   );

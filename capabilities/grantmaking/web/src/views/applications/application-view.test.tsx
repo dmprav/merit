@@ -547,7 +547,7 @@ describe("application workspace", () => {
 
       expect(reference().getByRole("article", { name: "Assessment by Sam Morgan" })).toBeVisible();
       expect(screen.queryByRole("button", { name: /Assessment actions/ })).not.toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: "Record assessment" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Add" })).not.toBeInTheDocument();
     },
   );
 
@@ -574,7 +574,7 @@ describe("application workspace", () => {
     );
     expect(screen.getByRole("button", { name: "Edit recommendation" })).toBeVisible();
     await user.click(workspace().getByRole("button", { name: "All assessments" }));
-    expect(screen.getByRole("button", { name: "Add review request" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Add" })).toBeVisible();
     view.unmount();
 
     render(
@@ -598,7 +598,7 @@ describe("application workspace", () => {
 
     expect(screen.queryByRole("button", { name: "Edit recommendation" })).not.toBeInTheDocument();
     await user.click(workspace().getByRole("button", { name: "All assessments" }));
-    expect(screen.queryByRole("button", { name: "Add review request" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Add" })).not.toBeInTheDocument();
     expect(workspace().getByRole("region", { name: "Manager recommendation" })).toBeVisible();
     expect(workspace().getByText("Await the revised assessment.")).toBeVisible();
     await user.click(workspace().getByRole("button", { name: /Sam Morgan/ }));

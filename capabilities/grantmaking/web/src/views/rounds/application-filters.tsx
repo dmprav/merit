@@ -24,6 +24,7 @@ type Props = {
   filter: ApplicationFilter;
   onChange: (value: { query: string; filter: ApplicationFilter }) => void;
   summary: ReactNode;
+  action?: ReactNode;
   round?: {
     choices: readonly { id: string; title: string }[];
     value: string;
@@ -32,7 +33,7 @@ type Props = {
 };
 
 /** Round and workspace lists share the same independent application criteria. */
-export const ApplicationFilters = ({ query, filter, onChange, summary, round }: Props) => {
+export const ApplicationFilters = ({ query, filter, onChange, summary, action, round }: Props) => {
   const { t } = useTranslation("fundingRounds");
   const selected = criteria.filter((key) => filter[key]);
 
@@ -50,6 +51,7 @@ export const ApplicationFilters = ({ query, filter, onChange, summary, round }: 
       filterLabel={t("applications.filter")}
       filterTitle={t("applications.filterTitle")}
       summary={summary}
+      action={action}
       search={{
         label: t("applications.search"),
         clearLabel: t("applications.clearSearch"),

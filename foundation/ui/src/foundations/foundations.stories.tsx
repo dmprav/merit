@@ -66,7 +66,7 @@ export const ReadingAndComparison: Story = {
     <Stack gap={6}>
       <Stack gap={2}>
         <Text as="p" variant="caption">
-          Workshop Saturdays · Applicant submission v2
+          Workshop Saturdays, Applicant submission v2
         </Text>
         <Reading as="p">
           We plan to run twelve Saturday workshops at the community centre. The venue is providing
@@ -113,17 +113,11 @@ export const FocusComparison: Story = {
         <section aria-label="Actions" className={focusStyles.stack}>
           <h2>Actions</h2>
           <div className={focusStyles.actions}>
-            <Button size="medium">Save recommendation</Button>
-            <Button size="medium" variant="secondary">
-              Cancel
-            </Button>
-            <Button size="medium" variant="quiet">
-              View details
-            </Button>
-            <Button size="medium" variant="destructive">
-              Delete draft
-            </Button>
-            <Button size="medium" variant="quiet" iconOnly aria-label="More actions">
+            <Button>Save recommendation</Button>
+            <Button variant="secondary">Cancel</Button>
+            <Button variant="quiet">View details</Button>
+            <Button variant="destructive">Delete draft</Button>
+            <Button variant="quiet" iconOnly aria-label="More actions">
               <Icon name="more" />
             </Button>
           </div>
@@ -135,9 +129,7 @@ export const FocusComparison: Story = {
               Browse rounds
             </Link>
           </div>
-          <Button size="medium" isDisabled>
-            Unavailable action
-          </Button>
+          <Button isDisabled>Unavailable action</Button>
         </section>
         <section aria-label="Fields" className={focusStyles.stack}>
           <h2>Fields</h2>

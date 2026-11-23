@@ -490,21 +490,31 @@ export const ApplicationPage = ({
           {breadcrumbAction}
         </div>
       )}
-      <main
-        id="main"
-        ref={main}
-        tabIndex={-1}
-        className={[
-          styles.content,
-          width === "full" && styles.wide,
-          centered && styles.centered,
-          contained && styles.contained,
-        ]
-          .filter(Boolean)
-          .join(" ")}
+      {/*
+        The page's one scrolling region below the fixed top bar. A contained page keeps it still and
+        scrolls its own regions instead, so its header, tabs, and side panels stay in place.
+      */}
+      <div
+        className={styles.scroller}
+        data-scroll-restoration-id="main"
+        data-contained={contained || undefined}
       >
-        {children}
-      </main>
+        <main
+          id="main"
+          ref={main}
+          tabIndex={-1}
+          className={[
+            styles.content,
+            width === "full" && styles.wide,
+            centered && styles.centered,
+            contained && styles.contained,
+          ]
+            .filter(Boolean)
+            .join(" ")}
+        >
+          {children}
+        </main>
+      </div>
     </>
   );
 };

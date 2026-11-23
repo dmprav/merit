@@ -10,7 +10,6 @@ import {
   roundPreparationLimits,
   type FundingRound,
 } from "@merit/rounds/domain";
-import { Text } from "@merit/ui/text";
 
 import {
   hasPreparationChanges,
@@ -62,6 +61,15 @@ const usePreparationForm = <S extends FormSection>(
   });
 };
 
+// Purpose shows no draft status. Other sections keep the status region mounted (null) so the
+// hint is announced when a change makes it appear.
+const draftStatus = (section: FormProps["draft"]["section"], changed: boolean, hint: string) => {
+  if (section === "purpose") {
+    return undefined;
+  }
+  return changed ? hint : null;
+};
+
 const PreparationFrame = ({
   draft,
   submission,
@@ -96,6 +104,7 @@ const PreparationFrame = ({
                 ? { label: t("preparation.discard"), onPress: onDiscard }
                 : undefined
             }
+            status={draftStatus(draft.section, changed, t("preparation.draftHint"))}
             onCancel={onCancel}
             cancelLabel={t(onDiscard || !changed ? "preparation.close" : "preparation.discard")}
             submitLabel={t(
@@ -107,11 +116,6 @@ const PreparationFrame = ({
         }
       >
         {beforeFields}
-        {draft.section !== "purpose" && changed && (
-          <Text as="p" variant="caption">
-            {t("preparation.draftHint")}
-          </Text>
-        )}
         <div className={styles.fields}>{children}</div>
         {afterFields}
       </Form>
@@ -236,16 +240,14 @@ const BudgetForm = (props: SectionProps<"budget">) => {
   return (
     <PreparationFrame {...props} submission={submission}>
       <>
-        <p>
-          {t("preparation.currentBudget", {
-            amount: round.budget === null ? t("preparation.notSet") : money(round.budget),
-          })}
-        </p>
         <form.Field name="amount">
           {(field) => (
             <FormTextField
               field={field}
               label={t("preparation.amount")}
+              description={t("preparation.currentBudget", {
+                amount: round.budget === null ? t("preparation.notSet") : money(round.budget),
+              })}
               prefix={{
                 text: "€",
                 label: t("common:euros"),

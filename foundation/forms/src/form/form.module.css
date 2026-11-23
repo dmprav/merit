@@ -42,8 +42,19 @@
   min-height: 0;
 }
 
-.discard {
+/* Draft status and Discard share the leading side, apart from Close and the commit action. */
+.leading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  position: relative;
   margin-right: auto;
+}
+
+/* An empty live region stays in the accessibility tree without taking a gap. */
+.status:empty {
+  position: absolute;
 }
 
 .form[data-layout="inline"] {

@@ -155,11 +155,29 @@ const preview: Preview = {
       throw new Error("Place Notice buttons in its actions, not its message.");
     }
 
+    // Feedback leads with its message: a notice's tint or a compact state's line, not a button.
+    if (
+      doc.querySelector(
+        ":is([data-notice-actions], [data-compact-actions]) :is(button, a)[data-variant]:not([data-variant='quiet'])",
+      )
+    ) {
+      throw new Error("Keep Notice and compact StateMessage actions quiet; the message leads.");
+    }
+
     // A page header offers one labelled action; further commands go in a "More actions" menu.
     for (const actions of doc.querySelectorAll("[data-page-actions]")) {
       if (actions.querySelectorAll(":is(button, a):not([data-icon-only])").length > 1) {
         throw new Error("Give a page header one labelled action and move the rest into a menu.");
       }
+    }
+
+    // Headers orient; a filled button there would outweigh the work it heads.
+    if (
+      doc.querySelector(
+        ":is([data-page-actions], [data-header-actions]) :is(button, a):is([data-variant='primary'], [data-variant='destructive'])",
+      )
+    ) {
+      throw new Error("Give page and section header actions the secondary or quiet variant.");
     }
   },
   parameters: {

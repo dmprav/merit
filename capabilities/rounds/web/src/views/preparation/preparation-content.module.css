@@ -2,12 +2,6 @@
   max-width: 760px;
 }
 
-.deleted {
-  display: flex;
-  justify-content: center;
-  padding: var(--space-7) var(--space-5);
-}
-
 .detailSection + .detailSection {
   margin-top: var(--space-7);
 }

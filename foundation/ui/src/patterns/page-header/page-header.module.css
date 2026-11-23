@@ -36,7 +36,7 @@
   font-size: var(--text-page);
   line-height: 1.3;
   letter-spacing: -0.025em;
-  font-weight: 600;
+  font-weight: var(--weight-heading);
 }
 
 .kicker {
@@ -69,4 +69,45 @@
 
 .title:has([data-inline-name-editor]) {
   flex: 1;
+}
+
+/* A contained page keeps its header in place above the regions that scroll. */
+@media (min-width: 901px) and (min-height: 600px) {
+  :where([data-contained]) > :where(main) > .header {
+    flex-shrink: 0;
+    padding-inline: var(--page-gutter);
+  }
+}
+
+/*
+ * On desktop the header stays in view at the top of the page's scrolling region; a hairline and
+ * soft shade appear once content scrolls beneath it.
+ */
+@media (min-width: 901px) and (min-height: 600px) {
+  :where([data-scroll-restoration-id="main"]:not([data-contained])) .header {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    margin-top: calc(-1 * var(--space-4));
+    padding-top: var(--space-4);
+    background: var(--background);
+  }
+
+  @supports (animation-timeline: scroll()) {
+    :where([data-scroll-restoration-id="main"]:not([data-contained])) .header {
+      animation: header-edge linear both;
+      animation-timeline: scroll(nearest block);
+      animation-range: 0 var(--space-4);
+    }
+  }
+}
+
+@keyframes header-edge {
+  from {
+    box-shadow: 0 1px 0 transparent;
+  }
+
+  to {
+    box-shadow: 0 1px 0 var(--border);
+  }
 }

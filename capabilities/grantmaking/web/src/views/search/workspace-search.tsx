@@ -297,7 +297,7 @@ const searchItems = (
       label: (
         <>
           {t("search.application")}
-          {label && <> · {label}</>}
+          {label && <>, {label}</>}
         </>
       ),
     };

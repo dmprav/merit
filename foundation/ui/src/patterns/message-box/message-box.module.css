@@ -1,9 +1,13 @@
-/* The group supplies the field's border and focus treatment; the input inside stays borderless. */
+/*
+ * One rounded box holds the attachments, the input, and Send. The group supplies the field's
+ * border and focus treatment; the input inside stays borderless.
+ */
 div.box {
   flex-direction: column;
   align-items: stretch;
-  gap: var(--space-1);
-  padding: var(--space-1);
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border-radius: var(--panel-radius);
 }
 
 /* Only the input takes the field's focus treatment; a chip or the send button keeps its own ring. */
@@ -26,21 +30,111 @@ div.box:focus-within:not(:has(.input[data-focused])) {
   gap: var(--space-2);
 }
 
+/*
+ * Send and Stop stay quiet beside the text. A command that can run is tinted in the action colour,
+ * with a soft fill on hover; Send with nothing to send keeps the muted, unavailable look.
+ */
+.command:not([data-disabled]) {
+  --button-quiet-foreground: var(--action);
+  --button-quiet-background: var(--action-subtle);
+}
+
+div.compose button.command:is([data-hovered], [data-pressed]):not([data-disabled]) {
+  color: var(--action-hover);
+}
+
+div.compose button.command[data-pressed]:not([data-disabled]) {
+  background: color-mix(in srgb, var(--action) 14%, var(--surface));
+}
+
+/* Stop marks work in progress, so it keeps its soft fill at rest. */
+div.compose button.stopping {
+  background: var(--action-subtle);
+}
+
+/* The solid square reads heavier than an outline glyph, so it sits smaller in the same button. */
+.stop {
+  scale: 0.75;
+}
+
 .box textarea.input {
   flex: 1;
   /* Eight lines of text, then the input scrolls. */
   --message-lines: 8;
-  min-height: calc(var(--control-height-small) - 2px);
+  min-height: var(--button-height);
   max-height: calc(var(--message-lines) * 1lh + 2 * var(--space-1));
-  padding: var(--space-1) var(--space-2);
+  padding: var(--space-1);
   overflow-y: auto;
   resize: none;
-  font-size: var(--text-reading);
-  line-height: var(--leading-reading);
+  font-size: var(--text-body);
+  line-height: 1.5;
+  /* Once the text scrolls, lines soften into the edge they pass under instead of being cut. */
+  --message-fade: calc(var(--space-4) + var(--space-1));
+  --message-fade-start: var(--space-1);
+  --message-fade-end: var(--space-1);
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    var(--foreground) var(--message-fade-start),
+    var(--foreground) calc(100% - var(--message-fade-end)),
+    transparent
+  );
+}
+
+/*
+ * Each edge fades only while text continues past it, following the input's own scroll. A box too
+ * short to scroll has no timeline and keeps crisp edges. The fade tracks the scroll position rather
+ * than playing over time, so it holds still under reduced motion too.
+ */
+@supports (animation-timeline: scroll()) {
+  .box textarea.input {
+    --message-fade-start: 0px;
+    --message-fade-end: 0px;
+    animation:
+      message-fade-start linear both,
+      message-fade-end linear both;
+    animation-timeline: scroll(self), scroll(self);
+    animation-range:
+      0 var(--message-fade),
+      calc(100% - var(--message-fade)) 100%;
+  }
+}
+
+@keyframes message-fade-start {
+  from {
+    --message-fade-start: 0px;
+  }
+
+  to {
+    --message-fade-start: var(--message-fade);
+  }
+}
+
+@keyframes message-fade-end {
+  from {
+    --message-fade-end: var(--message-fade);
+  }
+
+  to {
+    --message-fade-end: 0px;
+  }
+}
+
+@property --message-fade-start {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+@property --message-fade-end {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
 }
 
 @media (pointer: coarse) {
   .box textarea.input {
+    min-height: var(--target-touch);
     font-size: 1rem;
   }
 }

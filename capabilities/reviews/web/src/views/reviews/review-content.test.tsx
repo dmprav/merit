@@ -347,7 +347,7 @@ describe("selected review", () => {
     const pending = within(screen.getByRole("article", { name: "Jules Patel" }));
 
     expect(pending.getByText("Awaiting assessment")).toBeVisible();
-    expect(pending.getByText("Submission v2 · Criteria v1")).toBeVisible();
+    expect(pending.getByText("Submission v2, Criteria v1")).toBeVisible();
     expect(pending.getByRole("button", { name: "Record requested assessment" })).toBeVisible();
     expect(screen.queryByText("Sam Morgan")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Request history/ })).not.toBeInTheDocument();
@@ -400,7 +400,7 @@ it("keeps request basis, actors, and event times readable in the history", async
   );
   await userEvent.setup().click(screen.getByRole("button", { name: /Request history/ }));
 
-  expect(screen.getByText("Submission v2 · Criteria v1")).toBeVisible();
+  expect(screen.getByText("Submission v2, Criteria v1")).toBeVisible();
   expect(screen.getByText("Added by Dana Reed")).toBeVisible();
   expect(screen.getByText("Cancelled by Leah Morris")).toBeVisible();
   expect(screen.getByText("18 Jan 2027, 14:30 UTC")).toHaveAttribute(

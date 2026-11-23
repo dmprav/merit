@@ -6,12 +6,15 @@ import * as PageLayout from "./page-layout.stories";
 
 # Compose a page
 
-Start with the person's task and put its title, context, status, and primary action
+Start with the person's task and put its title, context, status, and main action
 in a `PageHeader`. Keep domain content and page layout in the feature. Status sits
 beside the title so it remains distinct from the heading's accessible name.
 
-`Tabs` accepts actions outside the tablist so common list actions can share the
-tab row without joining its arrow-key navigation.
+Headers orient rather than commit: a page or section header's action is secondary
+or quiet, with further commands in a **More actions** menu. Filled primary buttons
+belong to the work itself, such as a form or dialog footer. Tabs only switch views;
+an action for a tab's collection, such as adding to it, sits at the end of that
+collection's toolbar.
 
 <Canvas of={Pages.Overview} story={{ inline: false, height: "340px" }} />
 
@@ -30,6 +33,7 @@ Keep a layout decision with the behavior that would make it change.
 | Fields, validation feedback, and editing actions        | The shared `Form` and editing components    |
 | Sustained work beside reference material                | `ReferenceWorkspace`                        |
 | A record's work beside a panel of its properties        | `PropertiesLayout`                          |
+| Sections of a supporting side panel                     | `PanelSections` and `PanelSection`          |
 | Rules between entries and bordered groups               | `Stack` `divided`, `Divider`, and `Panel`   |
 | Recorded events beside a rail                           | `Timeline`                                  |
 | Comparison columns and other feature-specific scrolling | The feature's CSS Module                    |

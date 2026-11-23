@@ -51,12 +51,27 @@ applies these choices to whole screens.
 **Use one typeface and let size and weight carry the hierarchy.** Merit sets all
 interface and reading text in Instrument Sans, through `--font-sans`, so the
 product looks the same on every platform. It stays even at the 12–13px sizes
-used for captions and detail text. Emphasize with weight 500 or 600, not italics.
+used for captions and detail text. Weight comes in three steps, set only through
+tokens: `--weight-regular` for copy, `--weight-medium` for labels, controls, and
+emphasis within a line, and `--weight-heading` for titles. `<strong>` uses
+`--weight-emphasis`, which is medium in the product and heading weight in public
+prose. Emphasize with weight, not italics; stylelint rejects raw values.
 Use tabular numerals for amounts and counts so columns line up.
 
 The package `@fontsource-variable/instrument-sans` serves the font from Merit
 itself. Platform fonts remain in the stack as the fallback while it loads.
 Emails keep platform fonts, because mail clients do not load web fonts reliably.
+
+## Surfaces and density
+
+One button height (`--button-height`) serves every product surface; the variant,
+not the size, carries weight. Anything raised over content, such as a popover,
+menu, or toast, takes `--border-raised` and `--popover-shadow` so it separates
+from a white page. Tooltips use the same raised surface, so a hint looks the same
+whether it opens on hover or on press. Every scrolling region shares one scrollbar from
+`base.css`: the platform's thin scrollbar with a faint thumb on a clear track. Where the
+platform overlays scrollbars, they stay overlaid and reserve no gutter. Components never
+style their own.
 
 ## Interaction cues
 

@@ -27,7 +27,7 @@ export const en = {
   assessments: {
     amountNotStated: "Proposed amount: Not stated",
     positionNotStated: "Funding position: Not stated",
-    version: "{{date}} · v{{version}}",
+    version: "{{date}}, v{{version}}",
   },
   validation: {
     amountRequired: "Enter an amount.",

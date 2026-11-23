@@ -1,10 +1,19 @@
-.chip[data-size="small"] {
+/* A removable value reads as a held token, not loose text: a quiet fill with a hairline. */
+.chip[data-variant][data-variant] {
   max-width: 100%;
   min-height: 1.5rem;
-  padding: 0 var(--space-1);
+  border-color: var(--border);
+  border-radius: var(--control-radius);
+  padding: 0 var(--space-1) 0 var(--space-2);
   gap: var(--space-1);
-  font-weight: 400;
-  --button-quiet-foreground: var(--muted);
+  font-weight: var(--weight-regular);
+  --button-quiet-foreground: var(--foreground);
+  --button-quiet-background: var(--border);
+}
+
+/* At rest only; hover and press keep the shared quiet treatment. */
+.chip[data-variant]:not([data-hovered], [data-pressed], [data-focus-visible]) {
+  background: var(--surface-muted);
 }
 
 .chip span {
@@ -22,7 +31,7 @@
 }
 
 @media (pointer: coarse) {
-  .chip[data-size="small"] {
+  .chip[data-variant][data-variant] {
     min-height: var(--target-touch);
   }
 }

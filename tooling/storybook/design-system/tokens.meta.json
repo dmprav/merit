@@ -41,6 +41,10 @@
       "family": "color",
       "usage": "Edge of an editable field (3.3:1 on surface). Mixed toward border for a secondary button's quieter edge."
     },
+    "border-raised": {
+      "family": "color",
+      "usage": "Edge of a surface raised over content: popovers, menus, toasts."
+    },
     "action": {
       "family": "color",
       "usage": "The one interactive colour: primary buttons, links, the selected tab rule, the brand mark. Text on background or surface (6.8:1)."
@@ -201,6 +205,26 @@
       "family": "css",
       "reason": "Type scale step; the type styles carry its size."
     },
+    "weight-regular": {
+      "family": "css",
+      "reason": "Type weight step; the type styles carry its weight."
+    },
+    "weight-medium": {
+      "family": "css",
+      "reason": "Type weight step; the type styles carry its weight."
+    },
+    "weight-heading": {
+      "family": "css",
+      "reason": "Type weight step; the type styles carry its weight."
+    },
+    "weight-emphasis": {
+      "family": "css",
+      "reason": "Type weight step; the type styles carry its weight."
+    },
+    "weight-brand": {
+      "family": "css",
+      "reason": "The wordmark only; the type styles do not use it."
+    },
     "control-height": {
       "family": "size",
       "usage": "Tabs and regular-height controls."
@@ -208,6 +232,14 @@
     "control-height-small": {
       "family": "size",
       "usage": "Default button and field height."
+    },
+    "button-height": {
+      "family": "css",
+      "reason": "Changes in the product theme, which slims buttons to 1.75rem for dense work."
+    },
+    "bar-height": {
+      "family": "size",
+      "usage": "The application top bar, and the headers of panels beside it that line up with it."
     },
     "avatar-compact-size": {
       "family": "size",

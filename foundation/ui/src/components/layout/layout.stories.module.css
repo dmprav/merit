@@ -4,7 +4,7 @@
 
 .heading {
   font-size: var(--text-section);
-  font-weight: 600;
+  font-weight: var(--weight-heading);
 }
 
 .steps {

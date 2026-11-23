@@ -2,6 +2,7 @@ import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "../../components/button/button";
+import { LoadingIconBase } from "../../components/icon/loading-icon-base";
 import { Notice } from "../../components/notice/notice";
 import { useToastWhile } from "../toast/toast";
 import styles from "./paged-content.module.css";
@@ -17,9 +18,9 @@ export const useCollectionRecovery = (failed: boolean, fetching: boolean) => {
 
 /**
  * Recovers a collection read. While earlier entries stay on screen, a failed page is a toast
- * with Retry, the entries remain usable, and a retry in progress shows as a status line. When
- * nothing could be shown, place it beside the page controls so recovery stays where the request
- * started.
+ * with Retry, the entries remain usable. A retry in progress is a quiet status line, never a
+ * failure: the request is working again. When nothing could be shown, place it beside the page
+ * controls so recovery stays where the request started.
  */
 export const CollectionRecovery = ({
   message,
@@ -54,10 +55,15 @@ export const CollectionRecovery = ({
 
   if (showsEntries) {
     if (isPending) {
-      return <p role="status">{message}</p>;
+      return (
+        <p role="status" className={styles.pending}>
+          <LoadingIconBase />
+          {message}
+        </p>
+      );
     }
     return dismissed && onRetry ? (
-      <Button size="medium" variant="quiet" onPress={() => void onRetry()}>
+      <Button variant="quiet" onPress={() => void onRetry()}>
         {retryLabel}
       </Button>
     ) : null;
@@ -66,11 +72,12 @@ export const CollectionRecovery = ({
   return (
     <div className={styles.recovery}>
       <Notice
-        tone="danger"
+        // The pressed Retry keeps focus while it works; the notice turns neutral meanwhile.
+        tone={isPending ? "neutral" : "danger"}
         role={isPending ? "status" : "alert"}
         actions={
           onRetry && (
-            <Button variant="secondary" isPending={isPending} onPress={() => void onRetry()}>
+            <Button variant="quiet" isPending={isPending} onPress={() => void onRetry()}>
               {retryLabel}
             </Button>
           )
@@ -140,7 +147,7 @@ export const PagedContent = <T,>({
         />
       )}
       {hasMore && !recovering && (
-        <Button size="medium" variant="quiet" isPending={fetching} onPress={() => void more?.()}>
+        <Button variant="quiet" isPending={fetching} onPress={() => void more?.()}>
           {moreLabel}
         </Button>
       )}

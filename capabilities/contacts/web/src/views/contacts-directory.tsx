@@ -254,7 +254,8 @@ export const ContactsDirectory = ({
       <PageHeader
         title={t("contacts")}
         actions={
-          <Button size="medium" id={`${directoryId}-add`} onPress={() => setEditing("new")}>
+          <Button id={`${directoryId}-add`} variant="secondary" onPress={() => setEditing("new")}>
+            <Icon name="add" />
             {t(draftStore.has(workspaceSlug) ? "resumeNew" : "addContact")}
           </Button>
         }

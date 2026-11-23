@@ -2,7 +2,9 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState, type ReactNode } from "react";
 import { expect, within } from "storybook/test";
 
+import { Brand } from "../../components/brand/brand";
 import { Button } from "../../components/button/button";
+import { Icon } from "../../components/icon/icon";
 import { Stack } from "../../components/layout/layout";
 import { ApplicationPage, ApplicationShell } from "../application-shell/application-shell";
 import { PageHeader } from "../page-header/page-header";
@@ -16,14 +18,25 @@ import {
 
 const Frame = ({ children }: { children: ReactNode }) => (
   <ApplicationShell
-    brand="Merit"
-    contextLabel="Example workspace"
+    brand={
+      <a href="#main">
+        <Brand />
+      </a>
+    }
+    contextLabel="Alder Foundation"
     openNavigationLabel="Open navigation"
     closeNavigationLabel="Close navigation"
     navigation={
-      <a href="#main" aria-current="page">
-        Documents
-      </a>
+      <>
+        <a href="#main">
+          <Icon name="layers" />
+          Funding rounds
+        </a>
+        <a href="#main" aria-current="page">
+          <Icon name="application" />
+          Applications
+        </a>
+      </>
     }
     navigationLabel="Main navigation"
     skipLabel="Skip to content"
@@ -31,7 +44,7 @@ const Frame = ({ children }: { children: ReactNode }) => (
     <ApplicationPage
       contained
       locationKey="reference-workspace"
-      breadcrumb={["Documents", "Annual report"]}
+      breadcrumb={["Applications", "Neighbour Table"]}
       breadcrumbLabel="Breadcrumb"
     >
       {children}
@@ -40,7 +53,11 @@ const Frame = ({ children }: { children: ReactNode }) => (
 );
 
 const header = (
-  <PageHeader density="compact" title="Annual report" description="Version 3 · Updated 4 March" />
+  <PageHeader
+    density="compact"
+    title="Neighbour Table"
+    description="Neighbourhood Kitchen, version 3 submitted 4 March"
+  />
 );
 
 const paragraphs = (topic: string, count: number) =>
@@ -51,20 +68,38 @@ const paragraphs = (topic: string, count: number) =>
     </p>
   ));
 
-type Reference = "document" | "guidelines";
+type Reference = "submission" | "criteria";
+
+const AssessmentPane = () => {
+  const [saved, setSaved] = useState(false);
+  return (
+    <WorkPane
+      as="section"
+      label="Your assessment"
+      title="Your assessment"
+      footer={
+        <>
+          <p role="status">{saved ? "Saved" : "Not saved"}</p>
+          <Button onPress={() => setSaved(true)}>Save assessment</Button>
+        </>
+      }
+    >
+      <Stack>{paragraphs("Assessment note", 10)}</Stack>
+    </WorkPane>
+  );
+};
 
 const Example = () => {
   const { reference, referenceViewport, moveReference } =
-    useReferenceViewport<Reference>("document");
-  const [saved, setSaved] = useState(false);
+    useReferenceViewport<Reference>("submission");
   const labels: Record<Reference, string> = {
-    document: "Document",
-    guidelines: "Writing guidelines",
+    submission: "Applicant submission",
+    criteria: "Assessment criteria",
   };
   return (
     <ReferenceWorkspace
       header={header}
-      toWorkLabel="Go to your notes"
+      toWorkLabel="Go to your assessment"
       toReferenceLabel="Browse reference material"
     >
       <ReferencePane
@@ -80,30 +115,16 @@ const Example = () => {
           />
         }
       >
-        <Stack as="section" aria-label={labels.document} hidden={reference !== "document"}>
-          <h2>{labels.document}</h2>
-          {paragraphs("Document", 14)}
+        <Stack as="section" aria-label={labels.submission} hidden={reference !== "submission"}>
+          <h2>{labels.submission}</h2>
+          {paragraphs("Submission", 14)}
         </Stack>
-        <Stack as="section" aria-label={labels.guidelines} hidden={reference !== "guidelines"}>
-          <h2>{labels.guidelines}</h2>
-          {paragraphs("Guideline", 4)}
+        <Stack as="section" aria-label={labels.criteria} hidden={reference !== "criteria"}>
+          <h2>{labels.criteria}</h2>
+          {paragraphs("Criterion", 4)}
         </Stack>
       </ReferencePane>
-      <WorkPane
-        as="section"
-        label="Notes"
-        title="Notes"
-        footer={
-          <>
-            <p role="status">{saved ? "Saved" : "Not saved"}</p>
-            <Button size="medium" onPress={() => setSaved(true)}>
-              Save notes
-            </Button>
-          </>
-        }
-      >
-        <Stack>{paragraphs("Working note", 10)}</Stack>
-      </WorkPane>
+      <AssessmentPane />
     </ReferenceWorkspace>
   );
 };
@@ -129,30 +150,25 @@ export const WorkBesideReference: Story = {
     </Frame>
   ),
   play: async ({ canvas, canvasElement, userEvent }) => {
-    await userEvent.click(canvas.getByRole("button", { name: "Reference material: Document" }));
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Reference material: Applicant submission" }),
+    );
     await userEvent.click(
       await within(canvasElement.ownerDocument.body).findByRole("menuitem", {
-        name: "Writing guidelines",
+        name: "Assessment criteria",
       }),
     );
-    await expect(canvas.getByRole("region", { name: "Writing guidelines" })).toBeVisible();
-    await expect(canvas.getByRole("button", { name: "Save notes" })).toBeVisible();
+    await expect(canvas.getByRole("region", { name: "Assessment criteria" })).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Save assessment" })).toBeVisible();
   },
 };
 
-/** Without reference material, the work pane uses the full width. */
+/** Without reference material, such as when nothing has been submitted yet, the work takes the full width. */
 export const WorkOnly: Story = {
   render: () => (
     <Frame>
       <ReferenceWorkspace header={header}>
-        <WorkPane as="section" label="Request access">
-          <Stack>
-            <p>Request access to read the document and add your notes.</p>
-            <div>
-              <Button size="medium">Request access</Button>
-            </div>
-          </Stack>
-        </WorkPane>
+        <AssessmentPane />
       </ReferenceWorkspace>
     </Frame>
   ),

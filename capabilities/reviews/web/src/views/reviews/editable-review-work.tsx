@@ -1,5 +1,5 @@
 import type { TFunction } from "i18next";
-import { useEffect, useRef, useState, type Ref } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
 
 import { calendarDateSchema } from "@merit/dates";
@@ -302,7 +302,7 @@ const ReviewActions = ({
 }: {
   onStart: ReturnType<typeof useReview>["start"];
   onResume: () => void;
-  actionRef: Ref<HTMLButtonElement>;
+  actionRef: RefObject<HTMLButtonElement | null>;
   work: ReturnType<typeof useReview>;
   workspaceSlug: string;
   disabled: boolean;
@@ -310,9 +310,17 @@ const ReviewActions = ({
 }) => {
   const { t } = useTranslation("reviews");
   const { draft, editing, pending, saving, beginRequest } = work;
+  // Choosing to request a review swaps the menu for the request picker on the same trigger.
+  const [requesting, setRequesting] = useState(false);
+  const add = (
+    <Button ref={actionRef} variant="quiet" isDisabled={disabled || saving}>
+      <Icon name="add" />
+      {t("add")}
+    </Button>
+  );
 
   return (
-    <Inline>
+    <Inline gap={1}>
       {draft ? (
         !editing && (
           <Button
@@ -325,27 +333,35 @@ const ReviewActions = ({
             {t("resume")}
           </Button>
         )
+      ) : requesting ? (
+        <RequestPicker
+          initiallyOpen
+          workspaceSlug={workspaceSlug}
+          disabledContactIds={pending.map((request) => request.contactId)}
+          trigger={add}
+          onBegin={beginRequest}
+          onClose={() => {
+            setRequesting(false);
+            // The menu's trigger replaces the picker's, so keep focus on the Add control.
+            requestAnimationFrame(() => actionRef.current?.focus());
+          }}
+        />
       ) : (
-        <>
-          <RequestPicker
-            workspaceSlug={workspaceSlug}
-            disabledContactIds={pending.map((request) => request.contactId)}
-            trigger={
-              <Button variant="quiet" isDisabled={disabled || saving}>
-                {t("request")}
-              </Button>
+        <ActionMenu
+          label={t("addMenu")}
+          trigger={add}
+          items={[
+            { id: "request", label: t("request"), icon: "team" },
+            { id: "record", label: t("record"), icon: "edit" },
+          ]}
+          onAction={(action) => {
+            if (action === "request") {
+              setRequesting(true);
+            } else {
+              onStart("record");
             }
-            onBegin={beginRequest}
-          />
-          <Button
-            variant="secondary"
-            ref={actionRef}
-            isDisabled={disabled || saving}
-            onPress={() => onStart("record")}
-          >
-            {t("record")}
-          </Button>
-        </>
+          }}
+        />
       )}
       {onManage && (
         <Button variant="quiet" isDisabled={disabled || editing || saving} onPress={onManage}>
@@ -583,14 +599,14 @@ const ReviewConflictBanner = ({
       attribution={
         recorder ? (
           <>
-            {t("recordedBy", { name: recorder.name })} ·{" "}
+            {t("recordedBy", { name: recorder.name })},{" "}
             <time dateTime={recorder.recordedAt}>
               {timestamp(recorder.recordedAt, { timeZone: "UTC" })} UTC
             </time>
             {recorder.provenance?.interface === "mcp" && (
               <>
-                {" "}
-                · <ActionProvenance value={recorder.provenance} />
+                {", "}
+                <ActionProvenance value={recorder.provenance} />
               </>
             )}
           </>

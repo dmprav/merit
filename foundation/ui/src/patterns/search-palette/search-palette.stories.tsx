@@ -30,9 +30,9 @@ const applications: SearchPaletteGroup = {
   id: "applications",
   heading: "Applications",
   items: [
-    row("application-1", "Boat repairs", "Trust for the Harbour · Harbour fund"),
-    row("application-2", "Quayside lights", "Dock committee · Harbour fund", "In preparation"),
-    row("application-3", "Old slipway", "Harbour society · Spring grants", "Withdrawn"),
+    row("application-1", "Boat repairs", "Trust for the Harbour, Harbour fund"),
+    row("application-2", "Quayside lights", "Dock committee, Harbour fund", "In preparation"),
+    row("application-3", "Old slipway", "Harbour society, Spring grants", "Withdrawn"),
   ],
 };
 
@@ -149,7 +149,7 @@ export const Failure: Story = {
         title="Search isn’t available right now."
         description="Your search is kept. Try again in a moment."
         actions={
-          <Button variant="secondary">
+          <Button variant="quiet">
             <Icon name="reset" />
             Try again
           </Button>

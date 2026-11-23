@@ -20,7 +20,14 @@ export const getRouter = () => {
       /\/(?:rounds\/[^/]+|applications)\/?$/.test(location.pathname)
         ? location.href
         : (location.state.__TSR_key ?? location.href),
-    scrollToTopSelectors: ['#main [role="tabpanel"]'],
+    // On desktop the page scrolls in the shell's main region rather than the window, and a contained
+    // record scrolls its layout, side panel, or tab panel, depending on width.
+    scrollToTopSelectors: [
+      '[data-scroll-restoration-id="main"]',
+      '[data-scroll-restoration-id="properties-layout"]',
+      '[data-scroll-restoration-id="properties"]',
+      '#main [role="tabpanel"]',
+    ],
   });
   setupRouterSsrQueryIntegration({ router, queryClient });
   return router;

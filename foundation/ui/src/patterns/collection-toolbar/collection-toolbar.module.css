@@ -1,9 +1,21 @@
+/* The criteria stay in reach while the collection scrolls beneath them. */
 .toolbar {
+  position: sticky;
+  /* Below a page header that stays in view, when there is one. */
+  top: var(--page-header-height, 0px);
+  z-index: 2;
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: var(--space-2);
-  margin-bottom: var(--space-3);
+  /* Its own padding, not a margin, so nothing shows between it and a sticky table header. */
+  padding-block: var(--space-2) var(--space-3);
+  background: var(--background);
+}
+
+/* The filter glyph lines up with the collection's leading edge, as text would. */
+.toolbar > :first-child {
+  margin-inline-start: calc((16px - var(--button-height)) / 2);
 }
 
 .filters {
@@ -25,4 +37,13 @@
   margin-inline-start: auto;
   color: var(--muted);
   font-size: var(--text-caption);
+}
+
+.action {
+  display: flex;
+}
+
+/* Without a summary, the command still sits at the toolbar's end. */
+.toolbar:not(:has(.summary)) .action {
+  margin-inline-start: auto;
 }

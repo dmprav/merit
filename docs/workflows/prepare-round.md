@@ -74,9 +74,9 @@ and the loss of preparation details. The server checks the current revision and
 that the round is still empty. Change history survives deletion. Rounds containing
 applications cannot be deleted through this workflow.
 
-Once deletion commits, the browser replaces editing controls with a deleted
-confirmation. If returning to the rounds list fails, **Return to funding rounds**
-retries navigation without repeating deletion.
+Once deletion commits, a toast confirms it and the browser returns to the rounds
+list without an intermediate screen. If that navigation fails, the page's ordinary
+error handling takes over; deletion is never repeated.
 
 ## Find and compare applications
 

@@ -18,7 +18,7 @@ describe("ConflictBanner", () => {
         <ConflictBanner
           title="Round changed"
           message="Someone saved newer changes while you were editing."
-          attribution="Updated by Alex · 2m ago"
+          attribution="Updated by Alex, 2m ago"
           keepMine={{ label: "Keep my changes", onPress: keepMine }}
           useSaved={{ label: "Discard & load latest", onPress: useSaved }}
           latest={{
@@ -33,7 +33,7 @@ describe("ConflictBanner", () => {
 
     const alert = screen.getByRole("alert");
     expect(alert).toHaveTextContent("Round changed");
-    expect(alert).toHaveTextContent("Updated by Alex · 2m ago");
+    expect(alert).toHaveTextContent("Updated by Alex, 2m ago");
     expect(screen.queryByText("Latest saved text")).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "View latest" }));

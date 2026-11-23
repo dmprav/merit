@@ -30,12 +30,8 @@ const meta = {
           </Stack>
         </div>
         <Inline role="group" aria-label="Recommendation actions">
-          <Button size="medium" variant="secondary">
-            Read the revised submission
-          </Button>
-          <Button size="medium" variant="secondary">
-            Compare reviewer assessments
-          </Button>
+          <Button variant="secondary">Read the revised submission</Button>
+          <Button variant="secondary">Compare reviewer assessments</Button>
         </Inline>
       </Stack>
     </div>
@@ -69,10 +65,8 @@ export const ReadingWidth: Story = {
         below can use the width of their container.
       </Reading>
       <Inline justify="between">
-        <Button size="medium" variant="secondary">
-          Read submission
-        </Button>
-        <Button size="medium">Prepare recommendation</Button>
+        <Button variant="secondary">Read submission</Button>
+        <Button>Prepare recommendation</Button>
       </Inline>
     </Stack>
   ),
@@ -125,9 +119,7 @@ export const Alignment: Story = {
               </p>
             </Stack>
           </div>
-          <Button size="medium" variant="secondary">
-            Read submission
-          </Button>
+          <Button variant="secondary">Read submission</Button>
         </Inline>
         <Inline align="baseline">
           <span className={styles.heading}>£42,000</span>
@@ -136,10 +128,8 @@ export const Alignment: Story = {
           </Text>
         </Inline>
         <Inline gap={3} justify="end" role="group" aria-label="Recommendation actions">
-          <Button size="medium" variant="secondary">
-            Close
-          </Button>
-          <Button size="medium">Save recommendation</Button>
+          <Button variant="secondary">Close</Button>
+          <Button>Save recommendation</Button>
         </Inline>
       </Stack>
     </div>

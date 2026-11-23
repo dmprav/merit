@@ -108,7 +108,6 @@ const ReadyOwnerEditor = ({
           <form.Subscribe selector={(state) => state.values.email}>
             {(email) => (
               <Button
-                size="medium"
                 ref={actionRef}
                 type="submit"
                 isPending={submission.isSubmitting}
@@ -118,10 +117,10 @@ const ReadyOwnerEditor = ({
               </Button>
             )}
           </form.Subscribe>
-          <Button size="medium" variant="secondary" onPress={editor.close}>
+          <Button variant="secondary" onPress={editor.close}>
             {t("closeEditor")}
           </Button>
-          <Button size="medium" variant="quiet" onPress={editor.discard}>
+          <Button variant="quiet" onPress={editor.discard}>
             {t("discard")}
           </Button>
         </div>

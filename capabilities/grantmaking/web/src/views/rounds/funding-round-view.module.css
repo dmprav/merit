@@ -33,3 +33,10 @@
   -webkit-line-clamp: 2;
   overflow: hidden;
 }
+
+/* In the contained page, feedback sits in the page gutter like the header above it. */
+@media (min-width: 901px) and (min-height: 600px) {
+  :where([data-contained]) .feedback {
+    padding-inline: var(--page-gutter);
+  }
+}

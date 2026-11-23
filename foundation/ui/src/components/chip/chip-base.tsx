@@ -48,7 +48,6 @@ export const ChipBase = ({
   const chip = (
     <ButtonBase
       variant="quiet"
-      size="small"
       className={styles.chip}
       aria-label={removeLabel}
       data-chip=""

@@ -4,7 +4,7 @@ import { expect, userEvent, within, waitFor } from "storybook/test";
 
 import type { ActivityEntry } from "@merit/grantmaking/api";
 import { formatTimestamp } from "@merit/i18n/format";
-import { ApplicationPage } from "@merit/ui/application-shell";
+import { ApplicationPage, ApplicationStage } from "@merit/ui/application-shell";
 
 import { GrantmakingMessagesProvider } from "../../messages";
 import { WorkspaceActivity, type ActivityFilters } from "./workspace-activity";
@@ -129,16 +129,18 @@ const meta = {
   },
   decorators: [
     (Story) => (
-      <ApplicationPage
-        locationKey="activity"
-        breadcrumb={null}
-        breadcrumbLabel="Breadcrumb"
-        width="full"
-      >
-        <GrantmakingMessagesProvider>
-          <Story />
-        </GrantmakingMessagesProvider>
-      </ApplicationPage>
+      <ApplicationStage>
+        <ApplicationPage
+          locationKey="activity"
+          breadcrumb={null}
+          breadcrumbLabel="Breadcrumb"
+          width="full"
+        >
+          <GrantmakingMessagesProvider>
+            <Story />
+          </GrantmakingMessagesProvider>
+        </ApplicationPage>
+      </ApplicationStage>
     ),
   ],
 } satisfies Meta<typeof Preview>;

@@ -215,9 +215,7 @@ const ValidatedForm = () => {
         }
         description="Use the name your colleagues recognize."
       />
-      <Button size="medium" type="submit">
-        Save preview
-      </Button>
+      <Button type="submit">Save preview</Button>
       <p role="status" className={localStyles.status}>
         {saved ? `Preview saved for ${saved}.` : ""}
       </p>
