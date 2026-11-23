@@ -495,6 +495,40 @@ describe.each([
   });
 });
 
+describe("focus once a decision is recorded", () => {
+  beforeEach(() => wide(true));
+
+  const decideSlowly = async (move: boolean) => {
+    const { user } = await show({ open: true, pace: { ...instant, decision: 200 } });
+    const body = within(await surface());
+    await user.click(
+      await body.findByRole("button", { name: /Draft a question to the applicant/ }),
+    );
+    await user.click(await body.findByRole("button", { name: "Approve" }));
+    const box = body.getByRole("textbox", { name: "Message to Merit AI" });
+    if (move) {
+      box.focus();
+    }
+    await body.findByText("Approved");
+    return box;
+  };
+
+  it("leaves the focus in the message box when the person moved there meanwhile", async () => {
+    const box = await decideSlowly(true);
+
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(box).toHaveFocus();
+  });
+
+  it("gives the focus to the outcome when the person stayed on the choice", async () => {
+    await decideSlowly(false);
+
+    await waitFor(() =>
+      expect(document.activeElement).toHaveTextContent("Send a message to Maya Thompson"),
+    );
+  });
+});
+
 describe("a decision that cannot be recorded", () => {
   it("shows the failure beside both choices, and records the next one chosen", async () => {
     const { user } = await show({ open: true, failDecisions: 1 });

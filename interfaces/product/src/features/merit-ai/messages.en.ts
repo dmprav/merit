@@ -25,7 +25,7 @@ export const en = {
   },
   proposal: {
     title: "Send a message to {{name}}",
-    consequence: "{{name}} gets this message by email.",
+    consequence: "{{name}} would get this message by email. In this demo, nothing is sent.",
     needsApproval: "Needs approval",
     recipient: "To",
     recipientValue: "{{name}}, {{organization}}",

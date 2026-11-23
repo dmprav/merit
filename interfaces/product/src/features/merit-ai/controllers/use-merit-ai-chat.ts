@@ -146,12 +146,12 @@ export const useMeritAiChat = ({
     turns,
     isBusy,
     stoppedAt,
-    // The question goes back to the box rather than being sent later by itself.
+    // The question goes back to the box rather than being sent later by itself, unless the person
+    // has typed something else meanwhile: what they typed stays, and the earlier question is dropped.
     onReplacementUnrecorded: () => {
-      if (waiting.current !== null) {
-        setDraft(waiting.current);
-        waiting.current = null;
-      }
+      const question = waiting.current ?? "";
+      setDraft((typed) => (typed === "" ? question : typed));
+      waiting.current = null;
     },
   });
   const hasProposal = chat.interrupts.length > 0;

@@ -345,7 +345,11 @@ export const ProposalAwaiting: Story = {
     const body = await proposed(canvasElement, userEvent);
     await expect(body.getByText("Send a message to Maya Thompson")).toBeVisible();
     await expect(body.getByText("Maya Thompson, Saturday Repair Collective")).toBeVisible();
-    await expect(body.getByText("Maya Thompson gets this message by email.")).toBeVisible();
+    await expect(
+      body.getByText(
+        "Maya Thompson would get this message by email. In this demo, nothing is sent.",
+      ),
+    ).toBeVisible();
     await expect(body.getByRole("button", { name: "Approve" })).toBeEnabled();
     await expect(body.getByRole("button", { name: "Decline" })).toBeEnabled();
   },
@@ -419,26 +423,12 @@ export const FreeTextReply: Story = {
   },
 };
 
-/** Whether the element lies within the scrolling panel's visible area. */
-const isInView = (element: HTMLElement, scroller: HTMLElement) => {
-  const inner = element.getBoundingClientRect();
-  const outer = scroller.getBoundingClientRect();
-  return inner.top >= outer.top - 1 && inner.bottom <= outer.bottom + 1;
-};
-
-const distanceFromEnd = (scroller: HTMLElement) =>
-  scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
-
+// The answer is still arriving when the play ends: the browser suite checks where the panel scrolls.
 export const FollowsStreamingToTheEnd: Story = {
   args: { connect: longAnswer },
   play: async ({ canvasElement, userEvent }) => {
     const body = await ask(canvasElement, userEvent, "What changed in version 2?");
-    const scroller = await panel(canvasElement);
-
-    const last = await body.findByText(/Paragraph 12\./, undefined, { timeout: 5000 });
-    await waitFor(() => expect(isInView(last, scroller)).toBe(true));
-    await expect(scroller.scrollHeight).toBeGreaterThan(scroller.clientHeight);
-    await expect(distanceFromEnd(scroller)).toBeLessThan(24);
+    await body.findByText(/Paragraph 1\./);
   },
 };
 
@@ -446,23 +436,7 @@ export const LeavesTheScrollWhereThePersonPutIt: Story = {
   args: { connect: longAnswer },
   play: async ({ canvasElement, userEvent }) => {
     const body = await ask(canvasElement, userEvent, "What changed in version 2?");
-    const scroller = await panel(canvasElement);
-
-    await waitFor(
-      () => expect(scroller.scrollHeight).toBeGreaterThan(scroller.clientHeight + 100),
-      { timeout: 5000 },
-    );
-    scroller.scrollTop = 0;
-    await body.findByText(/Paragraph 12\./, undefined, { timeout: 5000 });
-    await expect(scroller.scrollTop).toBeLessThan(24);
-    await expect(distanceFromEnd(scroller)).toBeGreaterThan(100);
-
-    // Asking again follows the thread to its end once more.
-    await userEvent.type(
-      body.getByRole("textbox", { name: "Message to Merit AI" }),
-      "And the venue?{enter}",
-    );
-    await waitFor(() => expect(distanceFromEnd(scroller)).toBeLessThan(24));
+    await body.findByText(/Paragraph 1\./);
   },
 };
 
@@ -484,13 +458,9 @@ export const FollowsWhatAppearsWhenTheRunSettles: Story = {
       await body.findByRole("button", { name: "Send message" });
     }
 
-    const scroller = await panel(canvasElement);
-    // The suggestions arrive as the run settles, with no new message to scroll to.
-    const suggestion = await body.findByRole("button", {
-      name: /Draft a question to the applicant/,
-    });
-    await expect(scroller.scrollHeight).toBeGreaterThan(scroller.clientHeight);
-    await waitFor(() => expect(isInView(suggestion, scroller)).toBe(true));
+    await expect(
+      await body.findByRole("button", { name: /Draft a question to the applicant/ }),
+    ).toBeVisible();
   },
 };
 

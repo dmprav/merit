@@ -29,7 +29,14 @@ type Beat = { chunk: StreamChunk; wait: number };
 
 type Run = { runId: string; threadId: string };
 
-const venueCall = "call-venue";
+/** Each run that proposes the message gets a call of its own, so a repeated question is a new proposal. */
+const venueCallOf = (run: Run) => `${run.runId}-venue`;
+
+const approvalIdOf = (callId: string) => `approval_${callId}`;
+
+/** The call a decision answers, read back from the interrupt it resumes. */
+const callOfResume = (resume: ReadonlyArray<{ interruptId: string }>) =>
+  resume[0]?.interruptId.replace(/^approval_/, "") ?? "";
 
 const venueProposal: AskApplicantInput = {
   recipient: { name: "Maya Thompson", organization: "Saturday Repair Collective" },
@@ -143,11 +150,11 @@ const suggestionBeats = (run: Run): Beat[] => [
  * The tool-approval interrupt a server sends for a call, recorded from `chat()` with this tool.
  * Its schema hashes tie it to the client's registered tool; the tests catch a drift.
  */
-const approvalInterrupt = (runId: string, input: AskApplicantInput): Interrupt => ({
-  id: `approval_${venueCall}`,
+const approvalInterrupt = (run: Run, callId: string, input: AskApplicantInput): Interrupt => ({
+  id: approvalIdOf(callId),
   reason: "tool_call",
   message: `Approval required to run ${askApplicantName}`,
-  toolCallId: venueCall,
+  toolCallId: callId,
   responseSchema: {
     oneOf: [
       {
@@ -186,14 +193,14 @@ const approvalInterrupt = (runId: string, input: AskApplicantInput): Interrupt =
     "tanstack:interruptBinding": {
       v: 1,
       kind: "tool-approval",
-      interruptId: `approval_${venueCall}`,
+      interruptId: approvalIdOf(callId),
       toolName: askApplicantName,
-      toolCallId: venueCall,
+      toolCallId: callId,
       originalArgs: input,
       inputSchemaHash: "sha256:001ce77ce09b7ab0ff43ac0bb43e42b62cf808125207518824bd87430842ab34",
       approvalSchemaHash: "sha256:22f76d9a1c618a3cfaa891208a14f6e5e6ab1be4ff1c38cc8a8cd1e8fd0c0e4e",
       responseSchemaHash: "sha256:583dfbf499bf88daa100da26eb216241bd4fd5f14ef718d5de5f49f9949066e2",
-      interruptedRunId: runId,
+      interruptedRunId: run.runId,
       generation: 0,
     },
   },
@@ -211,6 +218,7 @@ const changesRun = (run: Run, pace: Pace): Beat[] => [
 
 const venueRun = (run: Run, pace: Pace): Beat[] => {
   const args = JSON.stringify(venueProposal);
+  const callId = venueCallOf(run);
   return [
     started(run),
     ...stepsOf(run, steps.venue, pace),
@@ -219,7 +227,7 @@ const venueRun = (run: Run, pace: Pace): Beat[] => {
       wait: pace.step,
       chunk: {
         type: EventType.TOOL_CALL_START,
-        toolCallId: venueCall,
+        toolCallId: callId,
         toolCallName: askApplicantName,
         timestamp: now(),
       },
@@ -228,7 +236,7 @@ const venueRun = (run: Run, pace: Pace): Beat[] => {
       wait: pace.word,
       chunk: {
         type: EventType.TOOL_CALL_ARGS,
-        toolCallId: venueCall,
+        toolCallId: callId,
         delta: args,
         timestamp: now(),
       },
@@ -237,12 +245,12 @@ const venueRun = (run: Run, pace: Pace): Beat[] => {
       wait: 0,
       chunk: {
         type: EventType.TOOL_CALL_END,
-        toolCallId: venueCall,
+        toolCallId: callId,
         input: venueProposal,
         timestamp: now(),
       },
     },
-    finished(run, [approvalInterrupt(run.runId, venueProposal)]),
+    finished(run, [approvalInterrupt(run, callId, venueProposal)]),
   ];
 };
 
@@ -261,7 +269,7 @@ const fallbackRun = (run: Run, pace: Pace, context: PageContext | undefined): Be
 };
 
 /** The run that follows the person's decision on the proposal. */
-const resumedRun = (run: Run, approved: boolean, pace: Pace): Beat[] => [
+const resumedRun = (run: Run, callId: string, approved: boolean, pace: Pace): Beat[] => [
   started(run),
   ...(approved
     ? [
@@ -270,7 +278,7 @@ const resumedRun = (run: Run, approved: boolean, pace: Pace): Beat[] => [
           chunk: {
             type: EventType.TOOL_CALL_RESULT,
             messageId: `${run.runId}-result`,
-            toolCallId: venueCall,
+            toolCallId: callId,
             content: JSON.stringify({ sent: false }),
             timestamp: now(),
           },
@@ -410,7 +418,10 @@ export const createScriptedConnection = ({
         failures -= 1;
         return replay(failedResumeRun(run, input.parentRunId, input.resume, pace), signal);
       }
-      return replay(resumedRun(run, approvedIn(input.resume), pace), signal);
+      return replay(
+        resumedRun(run, callOfResume(input.resume), approvedIn(input.resume), pace),
+        signal,
+      );
     }
     const context = readContext(input.forwardedProps);
     const script = matchScript(lastQuestion(messages), questions, context);

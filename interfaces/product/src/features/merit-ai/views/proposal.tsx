@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, type Ref } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, type Ref } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Badge } from "@merit/ui/badge";
@@ -49,12 +49,31 @@ const Choices = ({
   recording,
   onApprove,
   onDecline,
+  onFold,
 }: {
   recording: Recording;
   onApprove: () => void;
   onDecline: () => void;
+  /** The choices are folding away, and whether one of them held the focus as they went. */
+  onFold: (hadFocus: boolean) => void;
 }) => {
   const { t } = useTranslation("meritAi");
+  const approve = useRef<HTMLButtonElement>(null);
+  const decline = useRef<HTMLButtonElement>(null);
+  const fold = useRef(onFold);
+  useLayoutEffect(() => {
+    fold.current = onFold;
+  });
+  // The layout cleanup runs before the buttons leave the page, while the focus is still known.
+  useLayoutEffect(
+    () => () => {
+      const focused = document.activeElement;
+      fold.current(
+        focused !== null && (focused === approve.current || focused === decline.current),
+      );
+    },
+    [],
+  );
   const pendingLabel =
     recording === null
       ? null
@@ -64,6 +83,7 @@ const Choices = ({
     <>
       <Inline gap={2}>
         <Button
+          ref={approve}
           variant="primary"
           aria-busy={recording === "approved"}
           aria-disabled={recording !== null}
@@ -72,6 +92,7 @@ const Choices = ({
           {recording === "approved" ? pendingLabel : t("proposal.approve")}
         </Button>
         <Button
+          ref={decline}
           variant="quiet"
           aria-busy={recording === "declined"}
           aria-disabled={recording !== null}
@@ -112,19 +133,19 @@ export const Proposal = ({
   const { t } = useTranslation("meritAi");
   const titleId = useId();
   const decided = useRef<HTMLDivElement>(null);
-  const hasChosen = useRef(false);
+  const choiceHadFocus = useRef(false);
 
-  // The choice that was focused is gone once the proposal folds; its outcome takes the focus.
+  // The choice that was focused is gone once the proposal folds; its outcome takes the focus, but
+  // not from where the person moved it while the decision was being recorded.
   useEffect(() => {
-    if (decision !== "awaiting" && hasChosen.current) {
-      hasChosen.current = false;
+    if (decision !== "awaiting" && choiceHadFocus.current) {
+      choiceHadFocus.current = false;
       decided.current?.focus();
     }
   }, [decision]);
 
   const choose = (choice: () => void) => () => {
     if (recording === null) {
-      hasChosen.current = true;
       choice();
     }
   };
@@ -164,6 +185,9 @@ export const Proposal = ({
           recording={recording}
           onApprove={choose(onApprove)}
           onDecline={choose(onDecline)}
+          onFold={(hadFocus) => {
+            choiceHadFocus.current = hadFocus;
+          }}
         />
       </Stack>
     </Panel>

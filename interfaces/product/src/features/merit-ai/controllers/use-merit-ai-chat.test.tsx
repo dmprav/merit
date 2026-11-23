@@ -305,6 +305,36 @@ it("returns a question to the box when declining the proposal it replaced is not
   expect(result.current.draft).toBe("Who is the applicant?");
 });
 
+it("keeps what the person typed while declining the replaced proposal is pending", async () => {
+  const { result } = setup(example, { ...instant, decision: 150 }, 1);
+  await ask(result, en.suggestions.venue);
+
+  act(() => result.current.send("Who is the applicant?"));
+  act(() => result.current.setDraft("Another question"));
+  await waitFor(() => expect(result.current.isBusy).toBe(false));
+
+  expect(result.current.draft).toBe("Another question");
+  expect(result.current.openProposal).toBeDefined();
+  expect(result.current.turns).toHaveLength(2);
+});
+
+it("gives each proposal a call of its own when the question is asked again", async () => {
+  const { result } = setup(example);
+  await ask(result, en.suggestions.venue);
+  const first = proposalOf(result.current.turns[1]);
+
+  act(() => result.current.approve());
+  await waitFor(() => expect(result.current.announcement?.kind).toBe("approved"));
+  await ask(result, en.suggestions.venue);
+
+  const second = proposalOf(result.current.turns[3]);
+  expect(second?.id).not.toBe(first?.id);
+  expect(second).toMatchObject({ state: "approval-requested" });
+  expect(proposalOf(result.current.turns[1])).toMatchObject({ approval: { approved: true } });
+  expect(result.current.openProposal).toBe(second?.id);
+  expect(askApplicantInput.safeParse(second?.input).success).toBe(true);
+});
+
 it("offers no Stop while a decision is being recorded, and ignores it", async () => {
   const { result } = setup(example, { ...instant, decision: 150 });
   await ask(result, en.suggestions.venue);
