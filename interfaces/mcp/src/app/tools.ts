@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import type { defineActorTool } from "@merit/ai";
 import { createApplicationTools } from "@merit/applications-ai";
+import type { Actor } from "@merit/auth";
 import { createContactTools } from "@merit/contacts-ai";
 import { createGrantmakingTools } from "@merit/grantmaking-ai";
 import { createWorkspaceTools } from "@merit/organizations-ai";
@@ -15,7 +16,11 @@ import type { McpActor } from "../contracts";
 import type { McpOperations } from "./operations";
 import { publication } from "./publication";
 
-const workspaceCatalog = (actor: McpActor, ops: McpOperations, origin: string) => [
+export const workspaceCatalog = (
+  actor: Actor,
+  ops: Omit<McpOperations, "demo">,
+  origin: string,
+) => [
   ...createWorkspaceTools(actor, ops.organizations),
   ...createGrantmakingTools(actor, ops.grantmaking, origin),
   ...createRoundTools(actor, ops.rounds),
@@ -24,10 +29,9 @@ const workspaceCatalog = (actor: McpActor, ops: McpOperations, origin: string) =
   ...createReviewerTools(actor, ops.reviewer),
   ...createRecommendationTools(actor, ops.recommendations),
   ...createContactTools(actor, ops.contacts),
-  ...createDemoTools(actor, ops.demo, ops.organizations.workspaceHomeUrl),
 ];
 
-export type WorkspaceToolName = ReturnType<typeof workspaceCatalog>[number]["name"];
+export type WorkspaceToolName = ReturnType<typeof workspaceCatalog>[number]["name"] | "start_demo";
 
 type WorkspaceListing = Extract<
   ReturnType<typeof workspaceCatalog>[number],
@@ -56,7 +60,10 @@ const withClientScopes = (tool: WorkspaceListing, scopes: readonly string[]) => 
 };
 
 export const createMcpCatalog = (actor: McpActor, ops: McpOperations, origin: string) =>
-  workspaceCatalog(actor, ops, origin).map((definition) => {
+  [
+    ...workspaceCatalog(actor, ops, origin),
+    ...createDemoTools(actor, ops.demo, ops.organizations.workspaceHomeUrl),
+  ].map((definition) => {
     const { scope, annotations } = publication[definition.name];
     const tool: ReturnType<typeof defineActorTool> =
       definition.name === "list_workspaces"

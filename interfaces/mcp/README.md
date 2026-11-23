@@ -84,3 +84,13 @@ names a preparer, supplies the prompt and expected outcomes, and lists related
 tools. Held-out wording variants share the original preparer and grants. The
 [inventory](../../app/tests/evals/mcp/registry.ts) combines the workflows for
 selection and reporting.
+
+## Use workspace tools in a Merit AI conversation
+
+The [assistant catalog](src/assistant/catalog.ts) binds the signed-in actor and
+workspace on the server. Discovery returns that workspace, and reviewer lookups
+use its slug even when the model omits it. Account-level demo provisioning is
+available only through onboarding and MCP. The catalog keeps the permissions
+used by each result and includes record and version references for evidence.
+The turn runtime stores write previews and presents them for approval. Execute
+rebuilds the preview from current records before invoking the capability command.
