@@ -190,8 +190,9 @@ mutations identify the affected record; edits return the resulting revision wher
 applicable. Review invitations send email after commit. Inspect delivery status
 and use resend to recover a failed email. Review requests only track work.
 
-Requested edits save directly, including budget changes with their required reason.
-There is no additional web-confirmation step. Ask for suggestions when no save is
+Requested edits save directly. The first budget amount saves without a reason; a reason
+is required only for a later change, a clear, or an amount set after a clear. There is no
+additional web-confirmation step. Ask for suggestions when no save is
 intended; client conversations are outside Merit's verification boundary. Saving a
 recommendation does not commit funding. Publishing a working intake revision makes that correction or revision current;
 public publication and funding decision recording are not implemented in either interface.
