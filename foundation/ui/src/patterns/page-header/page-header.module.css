@@ -84,7 +84,7 @@
  * soft shade appear once content scrolls beneath it.
  */
 @media (min-width: 901px) and (min-height: 600px) {
-  :where([data-scroll-restoration-id]:not([data-contained])) .header {
+  :where([data-scroll-restoration-id="main"]:not([data-contained])) .header {
     position: sticky;
     top: 0;
     z-index: 3;
@@ -94,7 +94,7 @@
   }
 
   @supports (animation-timeline: scroll()) {
-    :where([data-scroll-restoration-id]:not([data-contained])) .header {
+    :where([data-scroll-restoration-id="main"]:not([data-contained])) .header {
       animation: header-edge linear both;
       animation-timeline: scroll(nearest block);
       animation-range: 0 var(--space-4);

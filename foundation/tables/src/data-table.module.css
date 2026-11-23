@@ -58,10 +58,16 @@
     box-shadow: 0 1px 0 var(--border);
   }
 
-  /* A row scrolled or focused into view stops below the sticky stack rather than under it. */
-  .table[data-sticky] tbody :is(tr, a, button, input, select, textarea, [tabindex]) {
+  /*
+   * A row scrolled or focused into view stops below a page-sticky head rather than under it. A
+   * table-mode head scrolls with its own region, which the rows already start below.
+   */
+  .table[data-sticky="page"] tbody :is(tr, a, button, input, select, textarea, [tabindex]) {
     scroll-margin-top: calc(
-      var(--page-header-height, 0px) + var(--collection-toolbar-height, 0px) +
+      var(
+          --table-head-top,
+          calc(var(--page-header-height, 0px) + var(--collection-toolbar-height, 0px))
+        ) +
         var(--table-head-height, 0px)
     );
   }

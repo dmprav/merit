@@ -48,7 +48,7 @@ const TableScrollArea = ({
  * has to stop below it. The header publishes its height on the table as --table-head-height for
  * the rows' scroll margins.
  */
-const useStickyHeadOffset = (enabled: boolean) => {
+const useStickyHeadOffset = (enabled: boolean, top: CSSProperties["top"]) => {
   const headRef = useRef<HTMLTableSectionElement>(null);
   useLayoutEffect(() => {
     const head = headRef.current;
@@ -60,14 +60,20 @@ const useStickyHeadOffset = (enabled: boolean) => {
     const publish = () =>
       element.style.setProperty("--table-head-height", `${head.getBoundingClientRect().height}px`);
 
+    // A custom sticky top moves the head, so rows stop below it there too.
+    if (top !== undefined) {
+      element.style.setProperty("--table-head-top", typeof top === "number" ? `${top}px` : top);
+    }
+
     publish();
     const observer = new ResizeObserver(publish);
     observer.observe(head);
     return () => {
       observer.disconnect();
       element.style.removeProperty("--table-head-height");
+      element.style.removeProperty("--table-head-top");
     };
-  }, [enabled]);
+  }, [enabled, top]);
   return headRef;
 };
 
@@ -88,7 +94,8 @@ const DataTableHead = <T extends object>({
   sorting?: TableSorting;
   onSort: (columnId: string) => void;
 }) => {
-  const head = useStickyHeadOffset(stickyHeader?.mode === "page");
+  const page = stickyHeader?.mode === "page" ? stickyHeader : undefined;
+  const head = useStickyHeadOffset(page !== undefined, page?.top);
   return (
     <thead ref={head}>
       <tr>
@@ -190,7 +197,7 @@ export const DataTable = <T extends object>({
         <table
           className={styles.table}
           data-density={density}
-          data-sticky={stickyHeader ? true : undefined}
+          data-sticky={stickyHeader?.mode}
           aria-label={label}
           aria-busy={state?.type === "loading" || undefined}
         >

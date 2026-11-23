@@ -69,8 +69,9 @@ not the size, carries weight. Anything raised over content, such as a popover,
 menu, or toast, takes `--border-raised` and `--popover-shadow` so it separates
 from a white page. Tooltips use the same raised surface, so a hint looks the same
 whether it opens on hover or on press. Every scrolling region shares one scrollbar from
-`base.css`: a slim, rounded thumb inset on a clear track, faint at rest and clearer
-while the region is hovered. Components never style their own.
+`base.css`: the platform's thin scrollbar with a faint thumb on a clear track. Where the
+platform overlays scrollbars, they stay overlaid and reserve no gutter. Components never
+style their own.
 
 ## Interaction cues
 
