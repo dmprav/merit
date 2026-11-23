@@ -19,7 +19,7 @@ export const assistantConsents = pgTable("assistant_consents", {
     .references(() => organizations.id, { onDelete: "cascade" }),
 });
 
-export const assistantStatuses = [
+const assistantStatuses = [
   "idle",
   "running",
   "awaiting_approval",

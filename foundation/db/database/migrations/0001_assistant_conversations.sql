@@ -56,3 +56,66 @@ LANGUAGE sql STABLE STRICT SECURITY DEFINER SET search_path = pg_catalog, pg_tem
   ORDER BY c.id LIMIT greatest(0, least(batch_size, 100))
 $$;
 REVOKE ALL ON FUNCTION merit_running_assistant_conversations(integer, text) FROM PUBLIC;
+--> statement-breakpoint
+-- Invalidate at the permission transition. A later reinstatement cannot reopen old previews.
+CREATE FUNCTION merit_invalidate_member_chats() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+BEGIN
+  UPDATE public.assistant_conversations c
+  SET status = 'unavailable', revision = revision + 1, updated_at = clock_timestamp()
+  WHERE c.organization_id = OLD.organization_id AND c.user_id = OLD.user_id
+    AND c.membership_id = OLD.id AND c.status <> 'unavailable'
+    AND (TG_OP = 'DELETE'
+      OR (NEW.role <> 'program_manager' AND c.state->'dependencies' @> '[{"kind":"grants"}]')
+      OR (NEW.role NOT IN ('program_manager','reviewer') AND c.state->'dependencies' @> '[{"kind":"reviewer"}]')
+      OR (NEW.role = 'reviewer' AND NEW.administration = 'none' AND c.state->'dependencies' @> '[{"kind":"team"}]'));
+  RETURN NULL;
+END
+$$;
+REVOKE ALL ON FUNCTION merit_invalidate_member_chats() FROM PUBLIC;
+CREATE TRIGGER assistant_membership_revoked AFTER UPDATE OF administration, role OR DELETE ON memberships
+FOR EACH ROW EXECUTE FUNCTION merit_invalidate_member_chats();
+--> statement-breakpoint
+CREATE FUNCTION merit_invalidate_assignment_chats() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+DECLARE
+  dependency jsonb := jsonb_build_object('kind', 'assignment', 'assignmentId', OLD.id::text);
+  loses_record boolean := true;
+  loses_active boolean := false;
+  loses_evidence boolean := false;
+BEGIN
+  IF TG_OP = 'UPDATE' AND OLD.membership_id = NEW.membership_id
+    AND (OLD.reviewer_user_id IS NULL OR OLD.reviewer_user_id IS NOT DISTINCT FROM NEW.reviewer_user_id) THEN
+    loses_record := false;
+    loses_active := OLD.status IN ('invited','accepted','submitted') AND NEW.status NOT IN ('invited','accepted','submitted');
+    loses_evidence := OLD.status IN ('accepted','submitted') AND NEW.status NOT IN ('accepted','submitted');
+    IF NOT (loses_active OR loses_evidence) THEN
+      RETURN NULL;
+    END IF;
+  END IF;
+  UPDATE public.assistant_conversations c
+  SET status = 'unavailable', revision = revision + 1, updated_at = clock_timestamp()
+  WHERE c.organization_id = OLD.organization_id AND c.membership_id = OLD.membership_id
+    AND c.status <> 'unavailable' AND (
+      (loses_record AND c.state->'dependencies' @> jsonb_build_array(dependency)) OR
+      (loses_active AND c.state->'dependencies' @> jsonb_build_array(dependency || '{"active":true}'::jsonb)) OR
+      (loses_evidence AND c.state->'dependencies' @> jsonb_build_array(dependency || '{"evidence":true}'::jsonb))
+    );
+  RETURN NULL;
+END
+$$;
+REVOKE ALL ON FUNCTION merit_invalidate_assignment_chats() FROM PUBLIC;
+CREATE TRIGGER assistant_assignment_revoked AFTER UPDATE OF status, membership_id, reviewer_user_id OR DELETE ON review_assignments
+FOR EACH ROW EXECUTE FUNCTION merit_invalidate_assignment_chats();
+--> statement-breakpoint
+CREATE FUNCTION merit_invalidate_disabled_user_chats() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+BEGIN
+  UPDATE public.assistant_conversations SET status = 'unavailable', revision = revision + 1,
+    updated_at = clock_timestamp() WHERE user_id = OLD.id AND status <> 'unavailable';
+  RETURN NULL;
+END
+$$;
+REVOKE ALL ON FUNCTION merit_invalidate_disabled_user_chats() FROM PUBLIC;
+CREATE TRIGGER assistant_owner_disabled AFTER UPDATE OF active ON app_users FOR EACH ROW
+WHEN (OLD.active AND NOT NEW.active) EXECUTE FUNCTION merit_invalidate_disabled_user_chats();

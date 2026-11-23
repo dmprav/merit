@@ -13,7 +13,7 @@ import { assistantConversations as conversations } from "./assistant-schema";
 
 type Row = typeof conversations.$inferSelect;
 
-export type AssistantStatus = Row["status"];
+type AssistantStatus = Row["status"];
 
 export type AssistantCheckpoint = { state: unknown; status: AssistantStatus };
 
@@ -27,7 +27,7 @@ const storedConversation = (row: Row, workspaceSlug: string) => ({
   updatedAt: row.updatedAt.toISOString(),
 });
 
-export type StoredConversation = ReturnType<typeof storedConversation>;
+type StoredConversation = ReturnType<typeof storedConversation>;
 
 const owned = (userId: string, membership: { organizationId: string; membershipId: string }) =>
   and(
@@ -106,7 +106,7 @@ export const updateConversation = async (
     eq(conversations.revision, revision),
   );
   const [current] = await tx.select().from(conversations).where(address).for("update");
-  if (!current) {
+  if (!current || current.status === "unavailable") {
     return null;
   }
   const checkpoint =
@@ -124,6 +124,20 @@ export const updateConversation = async (
     .where(address)
     .returning();
   if (!row) {
+    // A confirmed grant command can itself revoke the chat's access.
+    const [revoked] = await tx
+      .select()
+      .from(conversations)
+      .where(
+        and(
+          owned(owner.userId, member),
+          eq(conversations.id, id),
+          eq(conversations.status, "unavailable"),
+        ),
+      );
+    if (revoked) {
+      return storedConversation(revoked, owner.slug);
+    }
     throw new Error("Lost locked assistant conversation");
   }
   return storedConversation(row, owner.slug);

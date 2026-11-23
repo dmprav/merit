@@ -19,5 +19,6 @@ operating choices. Records receive a stable sequential ID when added.
 | 0012 | [Centralize telemetry and Checkly](0012-opentelemetry-checkly.md)   | Correlate server spans cleanly without leaking data or vendor lock-in.      |
 | 0013 | [Shared error-reporting boundary](0013-error-reporting-boundary.md) | Prepare for Sentry while keeping current operations simple.                 |
 | 0014 | [Purpose of analytics collection](0014-posthog-analytics.md)        | Understand product use while protecting confidential grant work.            |
+| 0015 | [Merit AI assistant](0015-merit-ai-assistant.md)                    | Investigate grant work and preview writes under workspace authority.        |
 
 [All documentation](../README.md)

@@ -13,8 +13,9 @@ import { createOrganizationService } from "@merit/organizations/server";
 import { productLinks } from "@merit/product/links";
 import { createRecommendationsService } from "@merit/recommendations/server";
 import { applicationRecommendationWork } from "@merit/recommendations/server/integrations";
+import type { ReviewerMessage } from "@merit/reviews/api";
 import { createReviewService } from "@merit/reviews/server";
-import { createReviewerService } from "@merit/reviews/server";
+import { createReviewerService, type ReviewerDelivery } from "@merit/reviews/server";
 import {
   applicationReviewWork,
   contactReviewWork,
@@ -35,7 +36,22 @@ type Dependencies = {
   invitationOrigin: string;
   networkAddress?: string;
   sendEmail: EmailSender;
+  deferReviewerDelivery?: (delivery: ReviewerDelivery) => void;
 };
+
+export const reviewerDelivery = ({
+  database,
+  invitationOrigin,
+  sendEmail,
+}: Pick<Dependencies, "database" | "invitationOrigin" | "sendEmail">) => ({
+  database,
+  reviewerUrl: (slug: string, id: string) =>
+    new URL(productLinks.review(slug, id), invitationOrigin).href,
+  managerUrl: (slug: string, id: string) =>
+    new URL(productLinks.application(slug, id, { tab: "reviews" }), invitationOrigin).href,
+  send: async (message: ReviewerMessage) =>
+    sendEmail({ id: message.id, to: message.to, ...(await renderReviewerEmail(message)) }),
+});
 
 export const createApplicationServices = ({
   database,
@@ -44,6 +60,7 @@ export const createApplicationServices = ({
   invitationOrigin,
   networkAddress,
   sendEmail,
+  deferReviewerDelivery,
 }: Dependencies) => {
   const observe = (event: GrantOutcome["event"]): WorkspaceChangeObserver | undefined =>
     analytics && ((workspace) => analytics.captureGrantOutcome({ event, ...workspace }));
@@ -75,13 +92,9 @@ export const createApplicationServices = ({
   const reviewer = instrumentService(
     "reviewer",
     createReviewerService({
-      database,
+      ...reviewerDelivery({ database, invitationOrigin, sendEmail }),
+      deferDelivery: deferReviewerDelivery,
       onSubmitted: observe("assessment_submitted"),
-      reviewerUrl: (slug, id) => new URL(productLinks.review(slug, id), invitationOrigin).href,
-      managerUrl: (slug, id) =>
-        new URL(productLinks.application(slug, id, { tab: "reviews" }), invitationOrigin).href,
-      send: async (message) =>
-        sendEmail({ id: message.id, to: message.to, ...(await renderReviewerEmail(message)) }),
     }),
   );
   const contacts = instrumentService(

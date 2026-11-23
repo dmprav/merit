@@ -100,6 +100,7 @@ const calls = (...tools: Array<[string, Record<string, unknown>]>) =>
       },
     ],
   });
+
 const answer = (content: string) =>
   Response.json({ choices: [{ finish_reason: "stop", message: { content } }] });
 
@@ -109,8 +110,9 @@ const source = z.object({
   version: z.string(),
   key: z.string(),
 });
+
 const receipts = async (url: RequestInfo | URL, init?: RequestInit) => {
-  const body = await new Request(url, init).json();
+  const body: unknown = await new Request(url, init).json();
   const { messages } = z
     .object({ messages: z.array(z.object({ role: z.string(), content: z.string().nullable() })) })
     .parse(body);
@@ -155,16 +157,22 @@ it(
   async ({ database, rounds, committee: { applicationId, assessmentId, reviewers } }) => {
     const fetchModel = vi.fn<typeof fetch>();
     vi.stubGlobal("fetch", fetchModel);
-    onTestFinished(() => vi.unstubAllGlobals());
+    onTestFinished(() => {
+      vi.unstubAllGlobals();
+    });
     const attempts: Array<{ id: string; to: string }> = [];
     const delivered: string[] = [];
     const failedEmail = "sam@example.test";
+
     const sendEmail: EmailSender = async ({ id, to }) => {
       const firstAttempt = !attempts.some((attempt) => attempt.to === to);
       attempts.push({ id, to });
-      if (to === failedEmail && firstAttempt) throw new Error("Temporary mail failure");
+      if (to === failedEmail && firstAttempt) {
+        throw new Error("Temporary mail failure");
+      }
       delivered.push(to);
     };
+
     const runtime = await database.createRuntimeConnection();
     const host = createAssistantHost(
       {
@@ -175,12 +183,14 @@ it(
       { apiKey: "test", model: "scripted" },
     );
     onTestFinished(() => host.close());
+
     const command = (
       input: AssistantCommand,
       who = actor,
       workspace = workspaceSlug,
       signal = new AbortController().signal,
     ) => host.command(who, workspace, input, signal);
+
     const admin = { userId: "birch-manager" };
     expect((await command({ action: "set_consent", enabled: true })).status).toBe(403);
     expect((await command({ action: "set_consent", enabled: true }, admin, "birch")).status).toBe(
@@ -195,7 +205,9 @@ it(
     const created = await command({ action: "create" });
     expect(created.status).toBe(201);
     const { id } = snapshot.parse(await created.json());
+
     const open = async () => snapshot.parse(await (await command({ action: "open", id })).json());
+
     const untilSettled = async () => {
       return vi.waitFor(
         async () => {
@@ -299,18 +311,25 @@ it(
     const [group] = waiting.groups;
     assert(group);
     expect(group.actions).toMatchObject(
-      reviewers.map(({ requestId, contactId, email, name }) => ({
+      reviewers.map(({ requestId, email }) => ({
         status: "waiting",
         preview: {
           name: "invite_reviewer",
           input: { applicationId, requestId },
           effects: [`Send invitation email to ${email}.`],
-          targets: expect.arrayContaining([
-            expect.objectContaining({ kind: "contact", id: contactId, label: name }),
-          ]),
         },
       })),
     );
+    for (const [index, reviewer] of reviewers.entries()) {
+      expect(group.actions[index]?.preview.targets).toContainEqual(
+        expect.objectContaining({
+          kind: "contact",
+          id: reviewer.contactId,
+          label: reviewer.name,
+        }),
+      );
+    }
+
     const invitationRows = async () =>
       (
         await database.client.query<{
@@ -323,6 +342,7 @@ it(
           [applicationId],
         )
       ).rows;
+
     expect(await invitationRows()).toEqual([]);
     expect(attempts).toEqual([]);
 

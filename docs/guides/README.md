@@ -33,6 +33,7 @@ repository root unless a guide says otherwise.
 | To…                                                           | Read…                               |
 | ------------------------------------------------------------- | ----------------------------------- |
 | Connect an authenticated client to workspace data and actions | [MCP connections](mcp.md)           |
+| Configure a provider and use the workspace assistant backend  | [Merit AI](merit-ai.md)             |
 | Configure MCP authentication and verify delegated access      | [MCP operations](mcp-operations.md) |
 | Configure hosting, preview, and publish the application       | [Deployment](deployment.md)         |
 | Write and maintain useful documentation                       | [Documentation](documentation.md)   |

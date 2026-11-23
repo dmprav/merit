@@ -20,11 +20,7 @@ import {
 import { readWorkspace, writeWorkspace } from "./persistence/tenant";
 
 export { AssistantStoreError } from "./persistence/assistant-access";
-export type {
-  AssistantCheckpoint,
-  AssistantStatus,
-  StoredConversation,
-} from "./persistence/assistant-conversations";
+export type { AssistantCheckpoint } from "./persistence/assistant-conversations";
 
 export const createAssistantStore = (database: DatabaseRunner) => {
   const scoped = <T>(

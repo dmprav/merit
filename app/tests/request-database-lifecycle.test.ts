@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, expect, it, vi } from "vite-plus/test";
 
+import type * as Services from "../src/server/services.server";
+
 const { clients, connectGate, mockDrizzle, handlerFetch, handleMcpMock, mcpResourceMetadataMock } =
   vi.hoisted(() => {
     type ClientRecord = {
@@ -72,7 +74,8 @@ vi.mock("../src/server/mcp.server", () => ({
   handleMcp: handleMcpMock,
 }));
 
-vi.mock("../src/server/services.server", () => ({
+vi.mock("../src/server/services.server", async (original) => ({
+  ...(await original<typeof Services>()),
   createApplicationServices: ({
     database,
   }: {

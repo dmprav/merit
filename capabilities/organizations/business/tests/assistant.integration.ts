@@ -17,6 +17,28 @@ const it = workspaceTest
     createAssistantStore((op) => withDatabase(runtimeUrl, op)),
   );
 
+it("permanently invalidates only conversations which used a removed role", async ({
+  db,
+  store,
+}) => {
+  await store.setConsent(admin, "birch", true);
+  const used = await store.create(admin, "birch", {
+    status: "awaiting_approval",
+    state: { dependencies: [{ kind: "grants" }] },
+  });
+  const empty = await store.create(admin, "birch");
+  const member = eq(memberships.userId, admin.userId);
+  await db.update(memberships).set({ role: "reviewer" }).where(member);
+  await db.update(memberships).set({ role: "program_manager" }).where(member);
+  expect(await store.read(admin, "birch", used.id)).toMatchObject({
+    status: "unavailable",
+    revision: 1,
+  });
+  expect(await store.read(admin, "birch", empty.id)).toMatchObject({ status: "idle" });
+  expect(await store.save(admin, "birch", used.id, 0, { status: "running", state: {} })).toBeNull();
+  expect(await store.save(admin, "birch", used.id, 1, { status: "running", state: {} })).toBeNull();
+});
+
 it("requires administrator consent for the specific workspace", async ({
   db,
   store,
