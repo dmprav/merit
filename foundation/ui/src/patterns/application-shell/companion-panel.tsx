@@ -308,6 +308,16 @@ const CompanionSheet = ({
   </ModalFrame>
 );
 
+// A panel the person opens moves into place; one already open as the page loads stays still.
+// Returns the panel's data-opening value: true once the panel has been closed, otherwise absent.
+const useOpening = (isOpen: boolean) => {
+  const [hasBeenClosed, setHasBeenClosed] = useState(!isOpen);
+  if (!isOpen && !hasBeenClosed) {
+    setHasBeenClosed(true);
+  }
+  return hasBeenClosed || undefined;
+};
+
 /** Pushes page content aside from 1400 pixels, and slides over it as a modal sheet below. */
 export const CompanionPanel = ({
   label,
@@ -325,11 +335,7 @@ export const CompanionPanel = ({
   const panelId = useId();
   const titleId = useId();
   const opener = useFocusReturn(isOpen);
-  // A panel the person opens moves into place; one already open as the page loads stays still.
-  const [hasBeenClosed, setHasBeenClosed] = useState(!isOpen);
-  if (!isOpen && !hasBeenClosed) {
-    setHasBeenClosed(true);
-  }
+  const opening = useOpening(isOpen);
 
   // The document holds the width so page-level overlays, such as toasts, center beside the panel.
   useLayoutEffect(() => {
@@ -362,7 +368,7 @@ export const CompanionPanel = ({
       className={styles.panel}
       // The shell opens the panel's column with it.
       data-companion-panel=""
-      data-opening={hasBeenClosed || undefined}
+      data-opening={opening}
       onKeyDown={closeOnEscape(onClose)}
     >
       <ResizeSeparator

@@ -61,6 +61,15 @@ const usePreparationForm = <S extends FormSection>(
   });
 };
 
+// Purpose shows no draft status. Other sections keep the status region mounted (null) so the
+// hint is announced when a change makes it appear.
+const draftStatus = (section: FormProps["draft"]["section"], changed: boolean, hint: string) => {
+  if (section === "purpose") {
+    return undefined;
+  }
+  return changed ? hint : null;
+};
+
 const PreparationFrame = ({
   draft,
   submission,
@@ -95,9 +104,7 @@ const PreparationFrame = ({
                 ? { label: t("preparation.discard"), onPress: onDiscard }
                 : undefined
             }
-            status={
-              draft.section === "purpose" ? undefined : changed ? t("preparation.draftHint") : null
-            }
+            status={draftStatus(draft.section, changed, t("preparation.draftHint"))}
             onCancel={onCancel}
             cancelLabel={t(onDiscard || !changed ? "preparation.close" : "preparation.discard")}
             submitLabel={t(
