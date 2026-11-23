@@ -82,3 +82,14 @@
   inherits: false;
   initial-value: transparent;
 }
+
+/* Forced colors drop shadows, so each edge keeps a system-colored rule instead. */
+@media (forced-colors: active) {
+  .dividerAfterStart {
+    border-bottom: 1px solid CanvasText;
+  }
+
+  .dividerUntilEnd {
+    border-top: 1px solid CanvasText;
+  }
+}

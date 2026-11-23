@@ -468,10 +468,17 @@ test("application list preserves search, filter, sort, and position when returni
   await expect(page.getByRole("status").filter({ hasText: "1 of 3 applications" })).toBeVisible();
 
   await scrollBy(page, roundRegions, 80);
+  // Keyboard focus brings a row partly beneath the sticky toolbar and table head fully into view.
+  const row = page.getByRole("link", { name: "Workshop Saturdays", exact: true });
+  await row.focus();
+  await expect(row).toBeFocused();
+  if (!testInfo.project.use.isMobile) {
+    const head = (await page.getByRole("columnheader", { name: "Requested" }).boundingBox())!;
+    expect((await row.boundingBox())!.y).toBeGreaterThanOrEqual(head.y + head.height - 1);
+  }
   const listPosition = await scrollPosition(page, roundRegions);
   expect(listPosition).toBeGreaterThan(0);
-  // The row is part-hidden beneath the sticky toolbar and table head, so activate it directly.
-  await page.getByRole("link", { name: "Workshop Saturdays", exact: true }).dispatchEvent("click");
+  await page.keyboard.press("Enter");
 
   await expect(page.getByRole("main")).toBeFocused();
 

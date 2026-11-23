@@ -119,8 +119,11 @@ const Streaming = ({ asks }: { asks: number }) => {
                   icon={copied ? "check" : "copy"}
                   label={copied ? "Copied" : "Copy"}
                   onPress={() => {
-                    void navigator.clipboard?.writeText(paragraphs.join("\n\n"));
-                    setCopied(true);
+                    // Confirm only a completed copy; an unavailable or refused clipboard stays on Copy.
+                    navigator.clipboard
+                      ?.writeText(paragraphs.join("\n\n"))
+                      .then(() => setCopied(true))
+                      .catch(() => setCopied(false));
                   }}
                 />
                 <ConversationAction

@@ -235,6 +235,10 @@ it("resumes an unfinished amendment and can discard it for the submitted assessm
   await user.click(screen.getByRole("button", { name: "Resume amendment" }));
   const reasoning = screen.getByRole("textbox", { name: "Overall reasoning" });
   expect(reasoning).toHaveValue("Unfinished amendment: the venue is confirmed.");
+  // Without opening the request details: the consequence sits beside Submit amendment.
+  expect(
+    screen.getByText("The manager can read your amendment and all earlier versions."),
+  ).toBeVisible();
   await user.type(reasoning, " Updated.");
   expect(await screen.findByText("Draft saved", { exact: true })).toBeVisible();
 

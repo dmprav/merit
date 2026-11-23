@@ -550,6 +550,12 @@ const ReviewerSubmitActions = ({
           </Notice>
         )}
         <ReviewerFeedback work={work} offerRefresh={!canRetry} />
+        {/* Who reads an amendment stays beside the command that sends it. */}
+        {amending && (
+          <Text as="p" variant="supporting">
+            {t("amendmentHelp")}
+          </Text>
+        )}
       </div>
       {/* One row: whether the draft is saved, then the commands that act on it. */}
       <DraftSaveStatus busy={work.busy} dirty={work.dirty} amending={amending} />
