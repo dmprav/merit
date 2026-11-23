@@ -2,7 +2,13 @@ import { randomUUID } from "node:crypto";
 
 import { change, type Access, type Stored } from "./access.server";
 import { deliverNext } from "./delivery.server";
-import { applyDecision, executeNext, failNext, nextAction } from "./dispatch.server";
+import {
+  applyDecision,
+  executeNext,
+  failNext,
+  nextAction,
+  prepareDeferred,
+} from "./dispatch.server";
 import { beginModelRequest, endModelRequest } from "./model-request.server";
 import type { AssistantModel } from "./openai.server";
 import { conversationState } from "./state";
@@ -48,41 +54,40 @@ const runModel = async (access: Access, row: Stored, model: AssistantModel) => {
   }
 };
 
+const step = async (access: Access, row: Stored, model: AssistantModel) => {
+  const state = conversationState.parse(row.state);
+  if (state.modelAttempt && state.modelAttempt.until > Date.now()) {
+    return false;
+  }
+  const next = nextAction(state);
+  if (!next) {
+    if (state.deferred.length) {
+      return Boolean(await access.locked(row, prepareDeferred));
+    }
+    return runModel(access, row, model);
+  }
+  if (next.action.status === "delivering") {
+    if (next.action.deliveryAttempt && next.action.deliveryAttempt.until > Date.now()) {
+      return false;
+    }
+    return deliverNext(access, row);
+  }
+  try {
+    return Boolean(await access.locked(row, executeNext));
+  } catch {
+    // The command and outcome shared a transaction. A committed delivery has its own ticket.
+    return Boolean(await access.locked(row, failNext));
+  }
+};
+
 export const runTurn = async (access: Access, model: AssistantModel) => {
   for (;;) {
     const row = await access.read();
     if (!row || row.status !== "running" || !(await access.consent())) {
       return;
     }
-    const state = conversationState.parse(row.state);
-    if (state.modelAttempt && state.modelAttempt.until > Date.now()) {
+    if (!(await step(access, row, model))) {
       return;
-    }
-    const next = nextAction(state);
-    if (!next) {
-      if (!(await runModel(access, row, model))) {
-        return;
-      }
-      continue;
-    }
-    if (next.action.status === "delivering") {
-      if (next.action.deliveryAttempt && next.action.deliveryAttempt.until > Date.now()) {
-        return;
-      }
-      if (!(await deliverNext(access, row))) {
-        return;
-      }
-      continue;
-    }
-    try {
-      if (!(await access.locked(row, executeNext))) {
-        return;
-      }
-    } catch {
-      // The command and outcome shared a transaction. A delivery already committed has its own ticket.
-      if (!(await access.locked(row, failNext))) {
-        return;
-      }
     }
   }
 };

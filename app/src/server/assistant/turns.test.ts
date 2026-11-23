@@ -296,3 +296,84 @@ it("prevents execution after deletion or withdrawal of provider consent", async 
   expect(await ctx.open()).toBeNull();
   expect(ctx.catalog.execute).not.toHaveBeenCalled();
 });
+
+it("asks for missing information after inspecting records without inventing a claim", async () => {
+  const ctx = await fixture();
+  ctx.catalog.read.mockResolvedValueOnce({
+    ...ok,
+    citations: [{ kind: "submission", recordId: "A", version: "1", label: "Report" }],
+  });
+  ctx.model
+    .mockResolvedValueOnce(calls("inspect", "A"))
+    .mockResolvedValueOnce({ kind: "clarification", text: "Which committee meeting do you mean?" });
+  await ctx.run();
+  expect((await ctx.open())?.messages.at(-1)).toMatchObject({
+    role: "assistant",
+    text: "Which committee meeting do you mean?",
+    citations: [],
+  });
+});
+
+it("previews follow-on work after its own prerequisite succeeds despite an unrelated failure", async () => {
+  const ctx = await fixture();
+  ctx.model.mockResolvedValueOnce({
+    kind: "calls",
+    calls: [
+      { name: "invite", input: { to: "A" } },
+      { name: "invite", input: { to: "B" } },
+      { name: "invite", input: { to: "after A" }, dependsOn: [0] },
+      { name: "invite", input: { to: "after B" }, dependsOn: [1] },
+    ],
+  });
+  ctx.catalog.execute
+    .mockResolvedValueOnce(ok)
+    .mockResolvedValueOnce({ ...ok, result: { status: "invalid" } });
+  await ctx.run();
+  const first = (await ctx.open())?.groups[0];
+  assert.isDefined(first);
+  await ctx.turns.approve(...address, { previewId: first.id });
+  await ctx.run();
+  const chat = await ctx.open();
+  expect(chat?.status).toBe("awaiting_approval");
+  const second = chat?.groups[1];
+  assert.isDefined(second);
+  expect(second.actions.map((item) => item.preview.input.to)).toEqual(["after A"]);
+  expect(chat?.progress.some((item) => item.status === "blocked")).toBe(true);
+  expect(ctx.catalog.execute).toHaveBeenCalledTimes(2);
+  await ctx.turns.approve(...address, { previewId: second.id });
+  await ctx.run();
+  expect((await ctx.open())?.status).toBe("completed");
+  expect(ctx.catalog.execute.mock.calls.map(([item]) => item.input.to)).toEqual([
+    "A",
+    "B",
+    "after A",
+  ]);
+});
+
+it("returns the saved observations for a citation until access to the chat is lost", async () => {
+  const ctx = await fixture();
+  const citations = [{ kind: "submission", recordId: "A", version: "2", label: "Report" }];
+  ctx.catalog.read
+    .mockResolvedValueOnce({ ...ok, result: { status: "ok", summary: "Original" }, citations })
+    .mockResolvedValueOnce({
+      ...ok,
+      result: { status: "ok", title: "Submission details" },
+      citations,
+    });
+  ctx.model
+    .mockResolvedValueOnce(calls("find", "A"))
+    .mockResolvedValueOnce(calls("inspect", "A"))
+    .mockResolvedValueOnce(answer("Report [E1]."));
+  await ctx.run();
+  await ctx.open();
+  expect(await ctx.turns.evidence(...address, "E1")).toMatchObject({
+    citation: { recordId: "A", version: "2" },
+    observations: [
+      { name: "find", result: { summary: "Original" } },
+      { name: "inspect", result: { title: "Submission details" } },
+    ],
+  });
+  expect(await ctx.turns.evidence(...address, "E9")).toBeNull();
+  ctx.catalog.permits.mockResolvedValue(false);
+  expect(await ctx.turns.evidence(...address, "E1")).toBeNull();
+});

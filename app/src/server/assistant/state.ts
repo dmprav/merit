@@ -16,13 +16,14 @@ const message = z.discriminatedUnion("role", [
   z.object({ role: z.literal("assistant"), text: z.string(), citations: z.array(source) }),
   z.object({
     role: z.literal("tool"),
+    callId: z.string().optional(),
     name: z.string(),
     input: fields,
     result: fields,
     citations: z.array(source),
   }),
 ]);
-export const deliveryTicket = z.object({
+const deliveryTicket = z.object({
   assignmentId: z.string(),
   kind: z.enum(["invitation", "submission"]),
   messageId: z.string(),
@@ -54,6 +55,12 @@ export const conversationState = z.object({
   sources: z.array(source),
   dependencies: z.array(assistantDependencySchema),
   groups: z.array(group),
+  deferred: z
+    .array(
+      z.object({ id: z.string(), name: z.string(), input: fields, after: z.array(z.string()) }),
+    )
+    .default([]),
+  partialFailure: z.boolean().default(false),
   steps: z.number().int().nonnegative(),
   error: z.string().optional(),
   modelAttempt: z.object({ id: z.string(), until: z.number() }).optional(),
@@ -70,11 +77,13 @@ export const initialState = (): ConversationState => ({
   sources: [],
   dependencies: [],
   groups: [],
+  deferred: [],
+  partialFailure: false,
   steps: 0,
 });
 
-export const newAction = (preview: Action["preview"]): Action => ({
-  id: randomUUID(),
+export const newAction = (preview: Action["preview"], id: string = randomUUID()): Action => ({
+  id,
   preview,
   status: "waiting",
 });
@@ -84,6 +93,7 @@ export const recordReceipt = (
   name: string,
   input: Record<string, unknown>,
   receipt: AssistantReceipt,
+  callId?: string,
 ) => {
   for (const requirement of receipt.dependencies) {
     if (
@@ -108,21 +118,34 @@ export const recordReceipt = (
     state.sources.push(item);
     return item;
   });
-  state.messages.push({ role: "tool", name, input, result: receipt.result, citations });
+  state.messages.push({ role: "tool", callId, name, input, result: receipt.result, citations });
 };
 
-export const recordAnswer = (state: ConversationState, text: string) => {
+export const recordAnswer = (state: ConversationState, text: string, clarification = false) => {
   const keys = new Set(Array.from(text.matchAll(/\[(E\d+)\]/g), (match) => match[1]));
   const citations = state.sources.filter((item) => keys.has(item.key));
   const since = state.messages.findLastIndex((entry) => entry.role === "user");
   const hasEvidence = state.messages
     .slice(since)
     .some((entry) => entry.role === "tool" && entry.citations.length > 0);
-  if (keys.size !== citations.length || (hasEvidence && !keys.size)) {
+  if (keys.size !== citations.length || (!clarification && hasEvidence && !keys.size)) {
     return false;
   }
   state.messages.push({ role: "assistant", text, citations });
   return true;
+};
+
+export const savedEvidence = (state: ConversationState, key: string) => {
+  const citation = state.sources.find((source) => source.key === key);
+  if (!citation) {
+    return null;
+  }
+  const observations = state.messages.flatMap((item) =>
+    item.role === "tool" && item.citations.some((source) => source.key === key)
+      ? [{ name: item.name, input: item.input, result: item.result }]
+      : [],
+  );
+  return { citation, observations };
 };
 
 export const publicState = (state: ConversationState) => ({

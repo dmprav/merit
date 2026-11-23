@@ -11,11 +11,17 @@ import {
   type TurnDependencies,
 } from "./access.server";
 import { endModelRequest } from "./model-request.server";
-import { conversationState, initialState, newAction, recordReceipt } from "./state";
+import {
+  conversationState,
+  initialState,
+  newAction,
+  recordReceipt,
+  savedEvidence,
+  type ConversationState,
+} from "./state";
 import { runTurn } from "./worker.server";
 
 export { AssistantTurnConflict, type AssistantRuntimeCatalog } from "./access.server";
-export type { DeliveryTicket } from "./state";
 
 type Address = [actor: Actor, workspace: string, id: string];
 
@@ -94,6 +100,18 @@ const commands = (deps: TurnDependencies, args: Address) => {
   return { update, decide, retry };
 };
 
+const stopActions = (state: ConversationState) => {
+  state.deferred = [];
+  for (const action of state.groups.flatMap((item) => item.actions)) {
+    if (action.deliveryAttempt) {
+      action.result = { ...action.result, delivery: "unconfirmed" };
+    }
+    if (["approved", "waiting", "delivering"].includes(action.status)) {
+      action.status = "stopped";
+    }
+  }
+};
+
 const stopTurn = async (deps: TurnDependencies, args: Address) => {
   const access = conversationAccess(deps, ...args);
   // A competing worker can finish one step while Stop obtains the chat lock.
@@ -105,14 +123,7 @@ const stopTurn = async (deps: TurnDependencies, args: Address) => {
     const state = conversationState.parse(row.state);
     const attempt = state.modelAttempt?.id;
     delete state.modelAttempt;
-    for (const action of state.groups.flatMap((item) => item.actions)) {
-      if (action.deliveryAttempt) {
-        action.result = { ...action.result, delivery: "unconfirmed" };
-      }
-      if (["approved", "waiting", "delivering"].includes(action.status)) {
-        action.status = "stopped";
-      }
-    }
+    stopActions(state);
     const stopped = await deps.store.save(...args, row.revision, change(state, "stopped"));
     if (stopped) {
       if (attempt) {
@@ -144,6 +155,10 @@ export const createAssistantTurns = (deps: TurnDependencies) => {
       return result;
     },
     open,
+    evidence: async (actor: Actor, workspace: string, id: string, key: string) => {
+      const row = await conversationAccess(deps, actor, workspace, id).read();
+      return row ? savedEvidence(conversationState.parse(row.state), key) : null;
+    },
     remove: async (...args: Address) => {
       const removed = await deps.store.remove(...args);
       if (removed) {
@@ -163,6 +178,8 @@ export const createAssistantTurns = (deps: TurnDependencies) => {
           return conflict();
         }
         state.steps = 0;
+        state.partialFailure = false;
+        state.deferred = [];
         delete state.error;
         delete state.modelAttempt;
         state.messages.push({ role: "user", text: input.message, page: input.page });

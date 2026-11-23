@@ -6,36 +6,42 @@ import { conversationState, recordReceipt } from "./state";
 
 type DeliveryOutcome = Awaited<ReturnType<AssistantRuntimeCatalog["deliver"]>>;
 
+const deliveryOutcome = (row: Stored, attemptId: string, status: DeliveryOutcome) => {
+  const state = conversationState.parse(row.state);
+  const group = state.groups.find((item) =>
+    item.actions.some((action) => action.deliveryAttempt?.id === attemptId),
+  );
+  const action = group?.actions.find((item) => item.deliveryAttempt?.id === attemptId);
+  if (!group || !action) {
+    return null;
+  }
+  const wasPending = action.status === "delivering";
+  delete action.deliveryAttempt;
+  action.result = { ...action.result, delivery: status };
+  action.status = status === "sent" ? "succeeded" : "failed";
+  if (status === "unavailable") {
+    delete action.delivery;
+  }
+  recordReceipt(state, action.preview.name, action.preview.input, {
+    result: { status: action.status, delivery: status },
+    dependencies: [],
+    citations: [],
+  });
+  return wasPending && row.status === "running"
+    ? disposition(state, group)
+    : change(state, row.status);
+};
+
 const recordDelivery = async (access: Access, attemptId: string, status: DeliveryOutcome) => {
   for (;;) {
     const row = await access.read();
     if (!row) {
       return false;
     }
-    const state = conversationState.parse(row.state);
-    const group = state.groups.find((item) =>
-      item.actions.some((action) => action.deliveryAttempt?.id === attemptId),
-    );
-    const action = group?.actions.find((item) => item.deliveryAttempt?.id === attemptId);
-    if (!group || !action) {
+    const outcome = deliveryOutcome(row, attemptId, status);
+    if (!outcome) {
       return false;
     }
-    const wasPending = action.status === "delivering";
-    delete action.deliveryAttempt;
-    action.result = { ...action.result, delivery: status };
-    action.status = status === "sent" ? "succeeded" : "failed";
-    if (status === "unavailable") {
-      delete action.delivery;
-    }
-    recordReceipt(state, action.preview.name, action.preview.input, {
-      result: { status: action.status, delivery: status },
-      dependencies: [],
-      citations: [],
-    });
-    const outcome =
-      wasPending && row.status === "running"
-        ? disposition(state, group)
-        : change(state, row.status);
     if (await access.locked(row, () => outcome)) {
       return true;
     }
