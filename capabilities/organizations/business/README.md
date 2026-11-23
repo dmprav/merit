@@ -66,3 +66,13 @@ write ownership.
 commands and queries cannot call it. Demo seeds and removal callbacks execute
 inside the lifecycle transaction so capability content and workspace records
 commit or roll back together.
+
+`@merit/organizations/server/assistant` owns administrator opt-in and storage
+for a member’s private conversations. The assistant runtime owns the contents
+of each checkpoint and checks the permissions needed to disclose those contents.
+Storage rechecks workspace membership, its original identity, and conversation
+ownership. A locked callback rechecks consent and commits the checkpoint with
+the business operation. A competing or stale revision cannot execute that
+callback. The worker discovers running conversation addresses through a bounded
+database function and opens each conversation under its owner’s current scope.
+Workspace deletion cascades to conversations and consent.

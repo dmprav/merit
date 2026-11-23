@@ -9,6 +9,7 @@ import type { ReviewerService, ReviewService } from "@merit/reviews/api";
 import type { RoundsService } from "@merit/rounds/api";
 
 export interface ApplicationRequestContext {
+  assistant: (request: Request, workspaceSlug: string) => Promise<Response>;
   navigation: NavigationService;
   reviewer: ReviewerService;
   demo: DemoServices;

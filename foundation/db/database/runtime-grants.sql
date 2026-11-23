@@ -19,3 +19,6 @@ GRANT UPDATE (revoked_at, accepted_at, accepted_by, delivery) ON organization_in
 GRANT UPDATE (reviewed_at, reviewed_by) ON access_requests TO :"runtime_role";
 GRANT DELETE ON memberships, access_request_limits, grant_navigation_pins, funding_rounds,
   application_cases, material_drafts, material_draft_answers, reviewer_draft_observations TO :"runtime_role";
+GRANT SELECT, INSERT, DELETE ON assistant_consents, assistant_conversations TO :"runtime_role";
+GRANT UPDATE (status, state, revision, updated_at) ON assistant_conversations TO :"runtime_role";
+GRANT EXECUTE ON FUNCTION public.merit_running_assistant_conversations(integer, text) TO :"runtime_role";

@@ -7,7 +7,6 @@ import {
   reviewerListInput,
   reviewerApplicationSchema,
   type ReviewerService,
-  type ReviewerMessage,
 } from "../api/reviewer";
 import type { ReviewService } from "../api/service";
 import {
@@ -17,7 +16,10 @@ import {
   saveReviewerDraft,
   submitReviewerAssessment,
 } from "./commands/reviewer";
-import { deliverReviewerMessage } from "./commands/reviewer-delivery";
+import {
+  deliverReviewerMessage,
+  type ReviewerDeliveryDependencies,
+} from "./commands/reviewer-delivery";
 import { saveApplicationReview } from "./commands/reviews";
 import {
   listReviewerAssignments,
@@ -28,11 +30,8 @@ import {
 
 type Dependencies = { database: <T>(operation: (db: Database) => Promise<T>) => Promise<T> };
 
-type ReviewerDependencies = Dependencies & {
+type ReviewerDependencies = ReviewerDeliveryDependencies & {
   onSubmitted?: WorkspaceChangeObserver;
-  send: (message: ReviewerMessage) => Promise<void>;
-  reviewerUrl: (slug: string, id: string) => string;
-  managerUrl: (slug: string, applicationId: string) => string;
 };
 
 const reviewerReads = ({ database }: Dependencies): Pick<ReviewerService, "read" | "list"> => ({
@@ -85,7 +84,9 @@ export const createReviewerService = (dependencies: ReviewerDependencies): Revie
       if (result.status !== "ok") {
         return result;
       }
-      await deliverReviewerMessage(dependencies, actor.userId, result.id, "invitation");
+      await deliverReviewerMessage(dependencies, actor.userId, result.id, "invitation", {
+        workspaceSlug: input.workspaceSlug,
+      });
       return managerAssignment(actor, input, result.id);
     },
     manage: async (actor, input) => {
@@ -99,6 +100,7 @@ export const createReviewerService = (dependencies: ReviewerDependencies): Revie
           actor.userId,
           result.id,
           input.action === "resend" ? "invitation" : "submission",
+          { workspaceSlug: input.workspaceSlug },
         );
       }
       return managerAssignment(actor, input, result.id);
@@ -108,7 +110,10 @@ export const createReviewerService = (dependencies: ReviewerDependencies): Revie
       if (result.status !== "ok") {
         return result;
       }
-      const page = await read(actor, { assignmentId: result.id });
+      const page = await read(actor, {
+        assignmentId: result.id,
+        workspaceSlug: input.workspaceSlug,
+      });
       return page.status === "ok" ? { status: "ok", value: page.value.assignment } : page;
     },
     saveDraft: (actor, input) => database((db) => saveReviewerDraft(db, actor, input)),
@@ -117,13 +122,10 @@ export const createReviewerService = (dependencies: ReviewerDependencies): Revie
         submitReviewerAssessment(db, actor, input, dependencies.onSubmitted),
       );
       if (result.status === "ok") {
-        await deliverReviewerMessage(
-          dependencies,
-          actor.userId,
-          input.assignmentId,
-          "submission",
-          input.commandId,
-        );
+        await deliverReviewerMessage(dependencies, actor.userId, input.assignmentId, "submission", {
+          workspaceSlug: input.workspaceSlug,
+          submissionCommandId: input.commandId,
+        });
       }
       return result;
     },

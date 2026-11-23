@@ -156,6 +156,16 @@ const serverImports: DependenciesPolicy[] = [
     "@merit/*/server",
     anyBusiness("assembly"),
   ),
+  permitServer(
+    { file: { path: "app/src/server/assistant/host.server.ts" } },
+    "@merit/reviews/server",
+    business("reviews", "assembly"),
+  ),
+  permitServer(
+    { file: { path: "app/src/server/assistant/{host,access}.server.ts" } },
+    "@merit/organizations/server/assistant",
+    { file: { path: "capabilities/organizations/business/src/server/assistant.ts" } },
+  ),
   // Lifecycle work comes from the capability that owns the records; composition supplies none.
   permitServer(
     { file: { path: "app/src/server/services.server.ts" } },

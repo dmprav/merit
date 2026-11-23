@@ -11,6 +11,8 @@ import { traceServerRequest } from "@merit/telemetry/server";
 
 import { readAnalyticsConfig } from "./analytics-config";
 import type { ApplicationRequestContext } from "./request-context";
+import { createAssistantHost } from "./server/assistant/host.server";
+import { handleAssistantHttp } from "./server/assistant/http.server";
 import { createDemoServices, demoCookie } from "./server/demo.server";
 import { createEmailSender } from "./server/email-delivery.server";
 import { applySecurityHeaders, createDocumentPolicy } from "./server/http-headers.server";
@@ -39,6 +41,19 @@ const sendEmail = createEmailSender({
   resendKey: env.RESEND_API_KEY ?? "",
   mailpitUrl: import.meta.env.DEV ? (env.MAILPIT_URL ?? "http://127.0.0.1:8025") : undefined,
 });
+
+// Detached turns check out connections from the process pool after their HTTP request ends.
+const assistant = createAssistantHost(
+  { database, analytics, sendEmail, invitationOrigin: origin },
+  {
+    apiKey: env.OPENAI_API_KEY ?? "",
+    model: env.MERIT_AI_MODEL ?? "",
+  },
+);
+assistant.start();
+if (import.meta.hot) {
+  import.meta.hot.dispose(assistant.close);
+}
 
 // TanStack's Vite adapter supplies the socket peer on the request.
 const peerAddress = (request: Request) =>
@@ -122,6 +137,14 @@ const handleWebRequest = async (
     identity: identity.organizationIdentity,
   });
   const context: ApplicationRequestContext = {
+    assistant: (request, workspace) =>
+      handleAssistantHttp(
+        request,
+        workspace,
+        readAppOrigin(request),
+        identity.currentIdentity,
+        assistant.command,
+      ),
     secureCookies: publicHttps,
     navigation: services.navigation,
     reviewer: services.reviewer,

@@ -64,10 +64,12 @@ tenant-scoped joins from sequential-scanning child tables.
 **Import column and constraint helpers from `@merit/db/schema` rather than
 redefining local builders inside each capability.**
 
-Keep `jsonb` limited to audit event payloads and provenance
-(`details`, `provenance`) backed by domain schemas; use
-relational columns for any attribute filtered, sorted, joined, or constrained in
-queries.
+Use relational columns for attributes used to filter, sort, join, or constrain
+queries. Audit event payloads and provenance use `jsonb` backed by domain
+schemas. A private assistant conversation also stores its runtime checkpoint in
+`jsonb` so its ordered turns, permission receipts, and pending approvals can
+advance in one revision. Workspace, owner, membership lifetime, status, and
+revision are indexed or constrained relational columns.
 
 Automated schema checks in
 [database schema tests](../../app/tests/database-schema.integration.ts) inspect a
