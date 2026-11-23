@@ -3,46 +3,19 @@
 }
 
 /*
- * One scrollbar for every region that scrolls: a slim, rounded thumb inset from the edge on a clear
- * track, faint at rest and clearer while the region is hovered. Browsers that style scrollbars only
- * through the standard properties get the same slim, quiet bar.
+ * One slim, quiet scrollbar for every region that scrolls. Only the standard properties are used:
+ * the ::-webkit-scrollbar pseudo-elements opt WebKit and macOS Chromium out of overlay scrollbars
+ * and reserve a permanent track in every scrolling region, whereas these leave overlay scrollbars
+ * to the platform, so content keeps its width, and give classic scrollbars a thin, faint thumb.
  */
-::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-  background: transparent;
-}
-
-::-webkit-scrollbar-track,
-::-webkit-scrollbar-corner {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  border: 3px solid transparent;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--foreground) 10%, transparent) padding-box;
-}
-
-:hover::-webkit-scrollbar-thumb {
-  background-color: color-mix(in srgb, var(--foreground) 22%, transparent);
-}
-
-::-webkit-scrollbar-thumb:hover,
-::-webkit-scrollbar-thumb:active {
-  background-color: color-mix(in srgb, var(--foreground) 36%, transparent);
-}
-
-@supports not selector(::-webkit-scrollbar) {
-  * {
-    scrollbar-width: thin;
-    scrollbar-color: color-mix(in srgb, var(--foreground) 22%, transparent) transparent;
-  }
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--foreground) 24%, transparent) transparent;
 }
 
 @media (forced-colors: active) {
-  ::-webkit-scrollbar-thumb {
-    background: CanvasText padding-box;
+  * {
+    scrollbar-color: auto;
   }
 }
 
