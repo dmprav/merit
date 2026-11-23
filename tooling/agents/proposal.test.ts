@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
 import { describe, expect, test } from "vite-plus/test";
 
 import {
@@ -7,6 +10,8 @@ import {
   isProposalCapReached,
   proposalInputSchema,
   renderProposalMarkdown,
+  resolveScoutGhEnv,
+  SCOUT_GH_TOKEN_ENV,
   type ProposalInput,
 } from "./proposal.ts";
 
@@ -174,5 +179,34 @@ describe("proposal", () => {
 
     expect(isProposalCapReached(4)).toBe(false);
     expect(isProposalCapReached(5)).toBe(true);
+  });
+
+  test("prefers MERIT_SCOUT_GH_TOKEN over injected GH_TOKEN without mutating input env", () => {
+    const baseEnv = { GH_TOKEN: "injected-integration-token", PATH: "/usr/bin" };
+    expect(resolveScoutGhEnv(baseEnv)).toBe(baseEnv);
+    expect(resolveScoutGhEnv({ ...baseEnv, [SCOUT_GH_TOKEN_ENV]: "   " })).toEqual({
+      ...baseEnv,
+      [SCOUT_GH_TOKEN_ENV]: "   ",
+    });
+
+    const withScoutToken = {
+      ...baseEnv,
+      [SCOUT_GH_TOKEN_ENV]: "  scout-token-fixture  ",
+    };
+    const resolved = resolveScoutGhEnv(withScoutToken);
+    expect(resolved.GH_TOKEN).toBe("scout-token-fixture");
+    expect(resolved.PATH).toBe("/usr/bin");
+    expect(withScoutToken.GH_TOKEN).toBe("injected-integration-token");
+  });
+
+  test("routes every gh CLI invocation in proposal.ts and scout.ts through runScoutGh", () => {
+    const proposalSource = readFileSync(
+      fileURLToPath(new URL("./proposal.ts", import.meta.url)),
+      "utf8",
+    );
+    const scoutSource = readFileSync(fileURLToPath(new URL("./scout.ts", import.meta.url)), "utf8");
+
+    expect(proposalSource.match(/execFileSync\("gh"/g)).toHaveLength(1);
+    expect(scoutSource).not.toMatch(/execFileSync\("gh"/);
   });
 });
