@@ -68,6 +68,20 @@ const failingOnce = (inner: ConnectConnectionAdapter): ConnectConnectionAdapter 
   };
 };
 
+/** Holds each resumed run, which records a decision, until the gate settles. */
+const holdingDecisions = (
+  inner: ConnectConnectionAdapter,
+  gate: Promise<void>,
+): ConnectConnectionAdapter => ({
+  ...inner,
+  connect: async function* (messages, data, signal, input) {
+    if (input?.resume) {
+      await gate;
+    }
+    yield* inner.connect(messages, data, signal, input);
+  },
+});
+
 const show = async ({
   workspace = demo,
   path = exampleHome,
@@ -75,6 +89,7 @@ const show = async ({
   open = false,
   failDecisions = 0,
   failFirstRun = false,
+  decisionGate,
 }: {
   workspace?: ShellWorkspace;
   path?: string;
@@ -83,6 +98,8 @@ const show = async ({
   failDecisions?: number;
   /** The first answer ends in an error; the next ones are scripted. */
   failFirstRun?: boolean;
+  /** Recording a decision starts only once this settles. */
+  decisionGate?: Promise<void>;
 } = {}) => {
   const current: ShellContext = { kind: "workspace", workspace };
   const root = createRootRoute({
@@ -118,7 +135,8 @@ const show = async ({
       value={{
         createConnection: (questions) => {
           const scripted = createScriptedConnection({ questions, pace, failDecisions });
-          return failFirstRun ? failingOnce(scripted) : scripted;
+          const connection = failFirstRun ? failingOnce(scripted) : scripted;
+          return decisionGate ? holdingDecisions(connection, decisionGate) : connection;
         },
         isInitiallyOpen: open,
       }}
@@ -498,34 +516,42 @@ describe.each([
 describe("focus once a decision is recorded", () => {
   beforeEach(() => wide(true));
 
-  const decideSlowly = async (move: boolean) => {
-    const { user } = await show({ open: true, pace: { ...instant, decision: 200 } });
+  const decideHeld = async (move: boolean) => {
+    let release = () => {};
+
+    const decisionGate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const { user } = await show({ open: true, decisionGate });
     const body = within(await surface());
     await user.click(
       await body.findByRole("button", { name: /Draft a question to the applicant/ }),
     );
     await user.click(await body.findByRole("button", { name: "Approve" }));
+    await waitFor(() =>
+      expect(body.getByRole("button", { name: /Approving/ })).toHaveAttribute("aria-busy", "true"),
+    );
     const box = body.getByRole("textbox", { name: "Message to Merit AI" });
     if (move) {
       box.focus();
     }
+    expect(body.queryByText("Approved")).not.toBeInTheDocument();
+    release();
     await body.findByText("Approved");
+    await act(async () => {});
     return box;
   };
 
   it("leaves the focus in the message box when the person moved there meanwhile", async () => {
-    const box = await decideSlowly(true);
+    const box = await decideHeld(true);
 
-    await new Promise((resolve) => setTimeout(resolve, 50));
     expect(box).toHaveFocus();
   });
 
   it("gives the focus to the outcome when the person stayed on the choice", async () => {
-    await decideSlowly(false);
+    await decideHeld(false);
 
-    await waitFor(() =>
-      expect(document.activeElement).toHaveTextContent("Send a message to Maya Thompson"),
-    );
+    expect(document.activeElement).toHaveTextContent("Send a message to Maya Thompson");
   });
 });
 

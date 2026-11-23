@@ -18,6 +18,22 @@ const scrollTop = (scroller: Locator) => scroller.evaluate((node) => node.scroll
 const hasOverflow = (scroller: Locator, extra = 0) =>
   scroller.evaluate((node, margin) => node.scrollHeight > node.clientHeight + margin, extra);
 
+const clientHeight = (scroller: Locator) => scroller.evaluate((node) => node.clientHeight);
+
+/**
+ * Waits until a resize has reached the scroller and been laid out: its height has dropped below
+ * what it was before the resize, then two frames have passed so observers and scroll handlers ran.
+ */
+const settledAfterShrink = async (page: Page, scroller: Locator, heightBefore: number) => {
+  await expect.poll(() => clientHeight(scroller)).toBeLessThan(heightBefore);
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+      }),
+  );
+};
+
 /** Whether the element lies within the scrolling panel's visible area. */
 const isInView = async (element: Locator, scroller: Locator) => {
   const inner = (await element.boundingBox())!;
@@ -60,12 +76,17 @@ test.describe("conversation pattern scrolling", () => {
     expect(await scrollTop(scroller)).toBeLessThan(nearEnd);
     expect(await distanceFromEnd(scroller)).toBeGreaterThan(100);
 
+    const heightBefore = await clientHeight(scroller);
     await shorten(scroller);
-    await page.waitForTimeout(200);
+    await settledAfterShrink(page, scroller, heightBefore);
     expect(await scrollTop(scroller)).toBeLessThan(nearEnd);
 
-    // Asking again follows the end once more.
-    await page.getByRole("button", { name: "Ask again" }).click();
+    // Asking again follows the end once more. The control sits outside the scroller, so pressing it
+    // cannot bring the thread near its end: only the new question can.
+    const askAgain = page.getByRole("button", { name: "Ask again" });
+    await expect(askAgain).toBeVisible();
+    expect(await distanceFromEnd(scroller)).toBeGreaterThan(nearEnd);
+    await askAgain.click();
     await expect(page.getByText(/Paragraph 10\./)).toBeVisible();
     await expect.poll(() => distanceFromEnd(scroller)).toBeLessThan(nearEnd);
   });
@@ -109,8 +130,9 @@ test.describe("Merit AI conversation scrolling", () => {
     expect(await scrollTop(scroller)).toBeLessThan(nearEnd);
     expect(await distanceFromEnd(scroller)).toBeGreaterThan(100);
 
+    const heightBefore = await clientHeight(scroller);
     await page.setViewportSize({ width: 1440, height: 360 });
-    await page.waitForTimeout(200);
+    await settledAfterShrink(page, scroller, heightBefore);
     expect(await scrollTop(scroller)).toBeLessThan(nearEnd);
 
     await page.getByRole("textbox", { name: "Message to Merit AI" }).fill("And the venue?");

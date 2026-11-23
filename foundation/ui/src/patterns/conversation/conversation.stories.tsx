@@ -94,36 +94,40 @@ const Streaming = ({ asks }: { asks: number }) => {
     return () => clearTimeout(timer);
   }, [shown]);
 
+  // The control stays outside the scroller, as story controls stay outside the product frame, so
+  // pressing it cannot scroll the thread.
   return (
-    <div
-      className={styles.scroller}
-      data-testid="scroller"
-      role="region"
-      aria-label="Panel"
-      tabIndex={0}
-    >
-      <Conversation label="Conversation" followKey={String(questions)}>
-        <ConversationMessage author="person" authorLabel="You">
-          <p>Question {questions}</p>
-        </ConversationMessage>
-        <ConversationMessage author="assistant" authorLabel="Assistant">
-          {paragraphs.slice(0, shown).map((paragraph) => (
-            <p key={paragraph}>{paragraph}</p>
-          ))}
-          {shown >= paragraphs.length && asks > 0 && (
-            <Button
-              variant="secondary"
-              onPress={() => {
-                setQuestions(questions + 1);
-                setShown(0);
-              }}
-            >
-              Ask again
-            </Button>
-          )}
-        </ConversationMessage>
-      </Conversation>
-    </div>
+    <>
+      <div
+        className={styles.scroller}
+        data-testid="scroller"
+        role="region"
+        aria-label="Panel"
+        tabIndex={0}
+      >
+        <Conversation label="Conversation" followKey={String(questions)}>
+          <ConversationMessage author="person" authorLabel="You">
+            <p>Question {questions}</p>
+          </ConversationMessage>
+          <ConversationMessage author="assistant" authorLabel="Assistant">
+            {paragraphs.slice(0, shown).map((paragraph) => (
+              <p key={paragraph}>{paragraph}</p>
+            ))}
+          </ConversationMessage>
+        </Conversation>
+      </div>
+      {shown >= paragraphs.length && asks > 0 && (
+        <Button
+          variant="secondary"
+          onPress={() => {
+            setQuestions(questions + 1);
+            setShown(0);
+          }}
+        >
+          Ask again
+        </Button>
+      )}
+    </>
   );
 };
 
