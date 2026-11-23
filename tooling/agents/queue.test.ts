@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vite-plus/test";
 
 import {
+  findEarliestActiveClaimRunId,
   formatAgentPrStateComment,
   formatClaimComment,
   hasActiveClaim,
@@ -284,6 +285,118 @@ describe("queue", () => {
       shepherdRounds: 2,
       lastHeadSha: "abcdef1",
       flakeReruns: 1,
+    });
+  });
+
+  test("resolves earliest active trusted claim winner across concurrent claims and renewals", () => {
+    const now = Date.UTC(2026, 10, 22, 12, 0, 0);
+    const expiredFirst = {
+      authorAssociation: "OWNER",
+      body: formatClaimComment({
+        runId: "run-expired",
+        claimedAt: new Date(now - 3 * 60 * 60 * 1000).toISOString(),
+        expiresAt: new Date(now - 60 * 60 * 1000).toISOString(),
+      }),
+    };
+    const untrustedFirst = {
+      authorAssociation: "NONE",
+      body: formatClaimComment({
+        runId: "run-untrusted",
+        claimedAt: new Date(now - 10 * 60 * 1000).toISOString(),
+        expiresAt: new Date(now + 110 * 60 * 1000).toISOString(),
+      }),
+    };
+    const winnerClaim = {
+      authorAssociation: "OWNER",
+      body: formatClaimComment({
+        runId: "run-winner",
+        claimedAt: new Date(now - 5 * 60 * 1000).toISOString(),
+        expiresAt: new Date(now + 115 * 60 * 1000).toISOString(),
+      }),
+    };
+    const loserClaim = {
+      authorAssociation: "COLLABORATOR",
+      body: formatClaimComment({
+        runId: "run-loser",
+        claimedAt: new Date(now - 4 * 60 * 1000).toISOString(),
+        expiresAt: new Date(now + 116 * 60 * 1000).toISOString(),
+      }),
+    };
+    const renewedWinner = {
+      authorAssociation: "OWNER",
+      body: formatClaimComment({
+        runId: "run-winner",
+        claimedAt: new Date(now + 90 * 60 * 1000).toISOString(),
+        expiresAt: new Date(now + 210 * 60 * 1000).toISOString(),
+      }),
+    };
+
+    expect(
+      findEarliestActiveClaimRunId([expiredFirst, untrustedFirst, winnerClaim, loserClaim], now),
+    ).toBe("run-winner");
+    // Between original winner expiry (+115m) and losing claim expiry (+116m), the renewed winner stays ahead.
+    expect(
+      findEarliestActiveClaimRunId(
+        [winnerClaim, loserClaim, renewedWinner],
+        now + 115.5 * 60 * 1000,
+      ),
+    ).toBe("run-winner");
+    // After the original 2h claim expires, the same run's renewal remains active.
+    expect(
+      findEarliestActiveClaimRunId([winnerClaim, loserClaim, renewedWinner], now + 150 * 60 * 1000),
+    ).toBe("run-winner");
+    // Once every lease for the prior winner expires, a subsequent claimant takes over.
+    const nextClaimant = {
+      authorAssociation: "OWNER",
+      body: formatClaimComment({
+        runId: "run-next",
+        claimedAt: new Date(now + 220 * 60 * 1000).toISOString(),
+        expiresAt: new Date(now + 340 * 60 * 1000).toISOString(),
+      }),
+    };
+    expect(
+      findEarliestActiveClaimRunId(
+        [winnerClaim, loserClaim, renewedWinner, nextClaimant],
+        now + 225 * 60 * 1000,
+      ),
+    ).toBe("run-next");
+  });
+
+  test("escalates stale draft agent PRs older than 2 hours while skipping fresh or already-escalated drafts", () => {
+    const now = Date.UTC(2026, 10, 22, 12, 0, 0);
+    const freshDraft = basePr({
+      number: 221,
+      isDraft: true,
+      updatedAt: new Date(now - 30 * 60 * 1000).toISOString(),
+    });
+    const staleDraft = basePr({
+      number: 222,
+      isDraft: true,
+      updatedAt: new Date(now - 125 * 60 * 1000).toISOString(),
+    });
+    const escalatedDraft = basePr({
+      number: 223,
+      isDraft: true,
+      labels: ["agent:pr", "agent:needs-human"],
+      updatedAt: new Date(now - 240 * 60 * 1000).toISOString(),
+    });
+
+    expect(
+      selectNextWork({
+        openAgentPrs: [freshDraft, escalatedDraft],
+        readyIssues: [],
+        nowMs: now,
+      }).kind,
+    ).toBe("idle");
+
+    const order = selectNextWork({
+      openAgentPrs: [freshDraft, staleDraft, escalatedDraft],
+      readyIssues: [],
+      nowMs: now,
+    });
+    expect(order).toMatchObject({
+      kind: "escalate",
+      prNumber: 222,
     });
   });
 });

@@ -69,6 +69,7 @@ export type OpenAgentPr = {
   headRefName: string;
   headSha: string;
   isDraft: boolean;
+  updatedAt?: string;
   labels: string[];
   checks: PrCheckStatus[];
   unresolvedThreads: ReviewThreadSummary[];
@@ -138,9 +139,12 @@ export const parseClaimMarker = (commentBody: string): ClaimMarker | null => {
 export const formatClaimComment = (claim: ClaimMarker): string =>
   `Claimed for autonomous implementation until ${claim.expiresAt}.\n\n<!-- merit-claim: ${JSON.stringify(claim)} -->`;
 
-/** Checks for an active claim from a trusted repo author, clamping TTL to `claimedAt + CLAIM_TTL_MS`. */
-export const hasActiveClaim = (comments: readonly IssueCommentRecord[], nowMs: number): boolean => {
-  let latestEffectiveExpiryMs = 0;
+/** Returns the runId of the earliest active claim from a trusted repo author, clamping TTL to `claimedAt + CLAIM_TTL_MS`. */
+export const findEarliestActiveClaimRunId = (
+  comments: readonly IssueCommentRecord[],
+  nowMs: number,
+): string | null => {
+  const latestExpiryByRunId = new Map<string, number>();
   for (const comment of comments) {
     if (!TRUSTED_AUTHOR_ASSOCIATIONS.has(comment.authorAssociation)) {
       continue;
@@ -155,11 +159,30 @@ export const hasActiveClaim = (comments: readonly IssueCommentRecord[], nowMs: n
       continue;
     }
     const clampedExpiryMs = Math.min(expiresMs, claimedMs + CLAIM_TTL_MS);
-    if (clampedExpiryMs > latestEffectiveExpiryMs) {
-      latestEffectiveExpiryMs = clampedExpiryMs;
+    const previous = latestExpiryByRunId.get(marker.runId) ?? 0;
+    if (clampedExpiryMs > previous) {
+      latestExpiryByRunId.set(marker.runId, clampedExpiryMs);
     }
   }
-  return latestEffectiveExpiryMs > nowMs;
+  for (const [runId, expiryMs] of latestExpiryByRunId) {
+    if (expiryMs > nowMs) {
+      return runId;
+    }
+  }
+  return null;
+};
+
+/** Checks for an active claim from a trusted repo author, clamping TTL to `claimedAt + CLAIM_TTL_MS`. */
+export const hasActiveClaim = (comments: readonly IssueCommentRecord[], nowMs: number): boolean =>
+  findEarliestActiveClaimRunId(comments, nowMs) !== null;
+
+/** Returns true when a draft `agent:pr` has been stranded longer than `CLAIM_TTL_MS`. */
+export const isStaleDraftPr = (pr: OpenAgentPr, nowMs: number): boolean => {
+  if (!pr.isDraft || pr.labels.includes("agent:needs-human") || !pr.updatedAt) {
+    return false;
+  }
+  const updatedMs = Date.parse(pr.updatedAt);
+  return Number.isFinite(updatedMs) && nowMs - updatedMs >= CLAIM_TTL_MS;
 };
 
 /** Parses the latest agent state comment authored by a trusted repository writer. */
@@ -244,7 +267,21 @@ export const selectNextWork = ({
   let waitingForChecks = false;
 
   for (const pr of sortedPrs) {
-    if (pr.isDraft || pr.labels.includes("agent:needs-human")) {
+    if (pr.labels.includes("agent:needs-human")) {
+      continue;
+    }
+    if (pr.isDraft) {
+      if (isStaleDraftPr(pr, nowMs)) {
+        return {
+          kind: "escalate",
+          prNumber: pr.number,
+          headRefName: pr.headRefName,
+          reason:
+            "Draft agent PR was not marked ready within 2 hours; needs human check or cleanup.",
+          failedChecks: [],
+          unresolvedThreadCount: 0,
+        };
+      }
       continue;
     }
     const { hasPending, failedChecks, onlyBrowserFailures } = inspectPrChecks(pr.checks);
@@ -362,6 +399,7 @@ const ghPrListSchema = z.array(
     headRefName: z.string(),
     headRefOid: z.string(),
     isDraft: z.boolean(),
+    updatedAt: z.string(),
     labels: z.array(z.object({ name: z.string() })),
     comments: z.array(ghCommentSchema),
     statusCheckRollup: z
@@ -561,7 +599,7 @@ const fetchOpenAgentPrs = (repoRoot: string, repo: RepoIdentity): OpenAgentPr[] 
       "--limit",
       "50",
       "--json",
-      "number,title,body,headRefName,headRefOid,isDraft,labels,comments,statusCheckRollup",
+      "number,title,body,headRefName,headRefOid,isDraft,updatedAt,labels,comments,statusCheckRollup",
     ],
     { cwd: repoRoot, encoding: "utf8" },
   );
@@ -580,6 +618,7 @@ const fetchOpenAgentPrs = (repoRoot: string, repo: RepoIdentity): OpenAgentPr[] 
       headRefName: pr.headRefName,
       headSha: pr.headRefOid,
       isDraft: pr.isDraft,
+      updatedAt: pr.updatedAt,
       labels: pr.labels.map((label) => label.name),
       checks,
       unresolvedThreads: fetchUnresolvedThreads(repoRoot, repo, pr.number),
@@ -612,6 +651,15 @@ const fetchReadyIssues = (repoRoot: string): ReadyIssueCandidate[] => {
     labels: issue.labels.map((label) => label.name),
     comments: issue.comments,
   }));
+};
+
+const fetchIssueComments = (repoRoot: string, issueNumber: number): IssueCommentRecord[] => {
+  const raw = execFileSync("gh", ["issue", "view", String(issueNumber), "--json", "comments"], {
+    cwd: repoRoot,
+    encoding: "utf8",
+  });
+  const parsed = z.object({ comments: z.array(ghCommentSchema) }).parse(JSON.parse(raw));
+  return parsed.comments;
 };
 
 const fetchCurrentAgentPrState = (repoRoot: string, prNumber: number): AgentPrState => {
@@ -681,12 +729,34 @@ const runCli = () => {
 
   if (command === "claim") {
     const issueNumber = Number.parseInt(rest[0] ?? "", 10);
+    const renewRunId = readFlagValue(rest, "--renew");
     if (!Number.isInteger(issueNumber) || issueNumber <= 0) {
-      throw new Error("Usage: queue.ts claim <issue-number>");
+      throw new Error("Usage: queue.ts claim <issue-number> [--renew <runId>]");
     }
     const now = Date.now();
+    const existingOwner = findEarliestActiveClaimRunId(
+      fetchIssueComments(repoRoot, issueNumber),
+      now,
+    );
+    if (renewRunId !== null) {
+      if (!renewRunId.trim()) {
+        throw new Error("--renew requires a non-empty runId.");
+      }
+      if (existingOwner !== null && existingOwner !== renewRunId) {
+        console.log(
+          JSON.stringify({ status: "lost_race", issueNumber, winningRunId: existingOwner }),
+        );
+        return;
+      }
+    } else if (existingOwner !== null) {
+      console.log(
+        JSON.stringify({ status: "already_claimed", issueNumber, winningRunId: existingOwner }),
+      );
+      return;
+    }
+
     const claim = claimMarkerSchema.parse({
-      runId: randomUUID(),
+      runId: renewRunId ?? randomUUID(),
       claimedAt: new Date(now).toISOString(),
       expiresAt: new Date(now + CLAIM_TTL_MS).toISOString(),
     });
@@ -695,7 +765,24 @@ const runCli = () => {
       ["issue", "comment", String(issueNumber), "--body", formatClaimComment(claim)],
       { cwd: repoRoot, encoding: "utf8" },
     );
-    console.log(JSON.stringify({ status: "claimed", issueNumber, claim }));
+
+    const winnerAfterWrite = findEarliestActiveClaimRunId(
+      fetchIssueComments(repoRoot, issueNumber),
+      Date.now(),
+    );
+    if (winnerAfterWrite !== claim.runId) {
+      console.log(
+        JSON.stringify({ status: "lost_race", issueNumber, claim, winningRunId: winnerAfterWrite }),
+      );
+      return;
+    }
+    console.log(
+      JSON.stringify({
+        status: renewRunId !== null ? "renewed" : "claimed",
+        issueNumber,
+        claim,
+      }),
+    );
     return;
   }
 

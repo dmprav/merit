@@ -112,6 +112,10 @@ export default defineConfig({
       "agent:scout": { command: "vpx tooling/agents/scout.ts", cache: false },
       "agent:proposal": { command: "vpx tooling/agents/proposal.ts", cache: false },
       "agent:queue": { command: "vpx tooling/agents/queue.ts", cache: false },
+      "agent:prune-verifications": {
+        command: "node tooling/agents/prune-verifications.ts",
+        cache: false,
+      },
       "db:reset": { command: "vpx tooling/scripts/reset-db.ts", cache: false },
       "services:start": { command: "vpx tooling/scripts/start-services.ts", cache: false },
       "test:browser:tooling": "vp run @merit/test-support#test:browser",
@@ -138,7 +142,7 @@ export default defineConfig({
       "test:hooks": { command: "vp test tooling/verification/hooks.test.ts", cache: false },
       "test:agents": {
         command:
-          "vp test tooling/agents/proposal.test.ts tooling/agents/scout.test.ts tooling/agents/queue.test.ts",
+          "vp test tooling/agents/proposal.test.ts tooling/agents/scout.test.ts tooling/agents/queue.test.ts tooling/agents/prune-verifications.test.ts",
         cache: false,
       },
       "test:ci": {

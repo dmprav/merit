@@ -7,7 +7,7 @@ Build coherent capabilities that help people understand evidence and carry out g
 - **Domain & precedents:** Follow [domain-driven design](docs/foundations/architecture.md#model-grant-work-explicitly). Before substantive edits, name your reference implementation, what you will reuse or extend, and which behavior stays consistent.
 - **Principles:** Read the matching card in [engineering principles](docs/foundations/principles.md) when triggered; cite a principle only when it changed a decision.
 - **Enforcement ladder:** Escalate recurring mistakes up **architecture -> types -> lint or CI -> tests -> documentation**. Check [rule enforcement](docs/guides/verification-tooling.md#rule-enforcement) for static checks (`check:code`, `architecture`, `code-health`, `test:stories`, `check:css`, `check:docs`, `check:security`) and prose rules.
-- **Workflow skills:** Read and follow the matching skill in `.agents/skills/` (`build-feature`, `fix-bug`, `diagnose`, `grill`).
+- **Workflow skills:** Read and follow the matching skill in `.agents/skills/` (`build-feature`, `fix-bug`, `diagnose`, `grill`, `implement-proposal`).
 
 ## Complete the change
 
