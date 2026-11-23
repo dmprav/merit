@@ -210,3 +210,43 @@ it("sends no search terms from a search engine referrer", async () => {
   expect(sent).toHaveLength(2);
   expect(JSON.stringify(sent)).not.toContain("alder foundation grant");
 });
+
+it("records utm_source from the page query while redacting the URL properties", async () => {
+  window.history.replaceState(
+    null,
+    "",
+    "/app/alder/rounds/round-1?utm_source=newsletter&guide=workshop#accept",
+  );
+  vi.spyOn(document, "referrer", "get").mockReturnValue(
+    "http://localhost:3000/app/alder/applications/app-9?ref=private#notes",
+  );
+  const { client, sent } = await loadRealPostHog();
+
+  // posthog-js keeps the first referrer and entry URL it sees in memory shared by every client.
+  client.reset();
+  client.pageView();
+
+  expect(sent).toHaveLength(1);
+  expect(sent[0]).toMatchObject({
+    event: "$pageview",
+    properties: {
+      utm_source: "newsletter",
+      $current_url: "http://localhost:3000/app/:workspace/rounds/:round",
+      $pathname: "/app/:workspace/rounds/:round",
+      $referrer: "http://localhost:3000/app/:workspace/applications/:application",
+    },
+  });
+  const payload = JSON.stringify(sent);
+  for (const secret of [
+    "alder",
+    "round-1",
+    "app-9",
+    "utm_source=newsletter",
+    "guide=workshop",
+    "ref=private",
+    "#accept",
+    "#notes",
+  ]) {
+    expect(payload).not.toContain(secret);
+  }
+});
