@@ -49,10 +49,10 @@ const TableScrollArea = ({
  * the rows' scroll margins.
  */
 const useStickyHeadOffset = (enabled: boolean) => {
-  const table = useRef<HTMLTableElement>(null);
+  const headRef = useRef<HTMLTableSectionElement>(null);
   useLayoutEffect(() => {
-    const element = table.current;
-    const head = element?.tHead;
+    const head = headRef.current;
+    const element = head?.parentElement;
     if (!enabled || !element || !head || typeof ResizeObserver === "undefined") {
       return;
     }
@@ -68,7 +68,42 @@ const useStickyHeadOffset = (enabled: boolean) => {
       element.style.removeProperty("--table-head-height");
     };
   }, [enabled]);
-  return table;
+  return headRef;
+};
+
+/** The header row: one sortable header per column, sticky with the table when it asks to be. */
+const DataTableHead = <T extends object>({
+  columns,
+  activeSort,
+  stickyHeader,
+  showSorting,
+  sorting,
+  onSort,
+}: {
+  columns: readonly TableColumn<T>[];
+  activeSort: TableSorting["value"] | null;
+  stickyHeader?: StickyHeader;
+  /** Whether headers offer sorting now; an empty, locally sorted table does not. */
+  showSorting: boolean | undefined;
+  sorting?: TableSorting;
+  onSort: (columnId: string) => void;
+}) => {
+  const head = useStickyHeadOffset(stickyHeader?.mode === "page");
+  return (
+    <thead ref={head}>
+      <tr>
+        {columns.map((column) => (
+          <TableColumnHeader
+            key={column.id}
+            column={column}
+            direction={activeSort?.columnId === column.id ? activeSort.direction : undefined}
+            top={stickyHeader?.mode === "page" ? stickyHeader.top : undefined}
+            onSort={showSorting && sorting && column.sort ? () => onSort(column.id) : undefined}
+          />
+        ))}
+      </tr>
+    </thead>
+  );
 };
 
 type DataTableProps<T extends object> = {
@@ -128,7 +163,6 @@ export const DataTable = <T extends object>({
       enableSorting: Boolean(sorting && sort),
     };
   });
-  const headOffset = useStickyHeadOffset(stickyHeader?.mode === "page");
   const table = useTable({
     features,
     data,
@@ -154,30 +188,20 @@ export const DataTable = <T extends object>({
       )}
       <TableScrollArea stickyHeader={stickyHeader} label={label}>
         <table
-          ref={headOffset}
           className={styles.table}
           data-density={density}
           data-sticky={stickyHeader ? true : undefined}
           aria-label={label}
           aria-busy={state?.type === "loading" || undefined}
         >
-          <thead>
-            <tr>
-              {columns.map((column) => (
-                <TableColumnHeader
-                  key={column.id}
-                  column={column}
-                  direction={activeSort?.columnId === column.id ? activeSort.direction : undefined}
-                  top={stickyHeader?.mode === "page" ? stickyHeader.top : undefined}
-                  onSort={
-                    showSorting && sorting && column.sort
-                      ? () => table.getColumn(column.id)?.toggleSorting()
-                      : undefined
-                  }
-                />
-              ))}
-            </tr>
-          </thead>
+          <DataTableHead
+            columns={columns}
+            activeSort={activeSort}
+            stickyHeader={stickyHeader}
+            showSorting={showSorting}
+            sorting={sorting}
+            onSort={(columnId) => table.getColumn(columnId)?.toggleSorting()}
+          />
           <tbody>
             {!state && data.length === 0 && (
               <tr className={styles.emptyRow}>
