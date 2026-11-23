@@ -57,7 +57,7 @@ export const proposalInputSchema = z.object({
   title: singleLine(100),
   why: singleLine(220),
   evidence: singleLine(200),
-  change: z.array(singleLine(140)).min(1).max(3),
+  change: z.array(singleLine(140)).min(1).max(5),
   decision: singleLine(200),
   whyNot: singleLine(200),
   paths: z.array(singleLine(200)).min(1),

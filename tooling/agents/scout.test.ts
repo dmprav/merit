@@ -1,6 +1,8 @@
 import { describe, expect, test } from "vite-plus/test";
 
+import { SCOUT_LENSES } from "./proposal.ts";
 import {
+  AUTO_LENS_PRIORITY,
   buildCommitQueryArgs,
   buildScoutContext,
   collectUnreadVerifications,
@@ -13,6 +15,7 @@ import {
   parseContextLensFlag,
   parseScoutState,
   pickRotationItem,
+  resolveRotationTarget,
   selectAutoLens,
 } from "./scout.ts";
 
@@ -108,6 +111,49 @@ describe("scout", () => {
     expect(pickRotationItem(["b", "a", "c"], day0)).toBe("a");
     expect(pickRotationItem(["b", "a", "c"], day1)).toBe("b");
     expect(pickRotationItem(["b", "a", "c"], preEpoch)).toBe("c");
+    expect(pickRotationItem(["b", "a", "c"], day0, 2)).toBe("c");
+  });
+
+  test("resolves domain-scoped offset rotation targets for every lens", () => {
+    const tracked = [
+      "docs/guides/testing.md",
+      "capabilities/reviews/business/src/server/service.ts",
+      "capabilities/rounds/ai/src/tools.ts",
+      "foundation/auth/src/index.ts",
+      "foundation/dates/src/index.ts",
+      "foundation/db/src/schema.ts",
+      "interfaces/mcp/src/server.ts",
+    ];
+    const day0 = new Date(Date.UTC(2026, 10, 13, 12, 0, 0));
+
+    expect(resolveRotationTarget("verification-flakes", tracked, day0)).toBeNull();
+    expect(resolveRotationTarget("docs", tracked, day0)).toBe("docs/guides");
+
+    // security excludes pure utility foundation slices like foundation/dates.
+    const securityTargets = new Set(
+      Array.from({ length: 10 }, (_, d) =>
+        resolveRotationTarget("security", tracked, new Date(Date.UTC(2026, 10, 13 + d, 12, 0, 0))),
+      ),
+    );
+    expect(securityTargets.has("foundation/dates")).toBe(false);
+    expect(securityTargets.has("foundation/auth")).toBe(true);
+    expect(securityTargets.has("capabilities/reviews")).toBe(true);
+
+    // mcp-db rotates only across MCP, DB, and server-bearing capability slices.
+    const mcpDbTargets = new Set(
+      Array.from({ length: 10 }, (_, d) =>
+        resolveRotationTarget("mcp-db", tracked, new Date(Date.UTC(2026, 10, 13 + d, 12, 0, 0))),
+      ),
+    );
+    expect(mcpDbTargets).toEqual(
+      new Set(["capabilities/reviews", "capabilities/rounds", "foundation/db", "interfaces/mcp"]),
+    );
+
+    // architecture, simplification, and tests use distinct offsets on the same day.
+    const archTarget = resolveRotationTarget("architecture", tracked, day0);
+    const simpTarget = resolveRotationTarget("simplification", tracked, day0);
+    const testsTarget = resolveRotationTarget("tests", tracked, day0);
+    expect(new Set([archTarget, simpTarget, testsTarget]).size).toBe(3);
   });
 
   test("halts at the open agent:proposed cap boundary (4 ready vs 5 cap_reached)", () => {
@@ -144,7 +190,9 @@ describe("scout", () => {
     expect(cappedAtFive.status).toBe("cap_reached");
   });
 
-  test("bootstraps never-run lenses in canonical SCOUT_LENSES order", () => {
+  test("bootstraps never-run lenses in high-impact AUTO_LENS_PRIORITY order covering every lens", () => {
+    expect([...AUTO_LENS_PRIORITY].sort()).toEqual([...SCOUT_LENSES].sort());
+
     const dayMs = 24 * 60 * 60 * 1000;
     const nowMs = Date.UTC(2026, 10, 23, 8, 0, 0);
 
@@ -152,14 +200,14 @@ describe("scout", () => {
 
     expect(selectAutoLens({ state: {}, nowMs })).toEqual({
       due: true,
-      lens: "docs",
-      targetIntervalDays: LENS_TARGET_INTERVAL_DAYS.docs,
+      lens: "architecture",
+      targetIntervalDays: LENS_TARGET_INTERVAL_DAYS.architecture,
       lastRunAt: null,
     });
-    expect(selectAutoLens({ state: { docs: ago(0.5) }, nowMs })).toEqual({
+    expect(selectAutoLens({ state: { architecture: ago(0.5) }, nowMs })).toEqual({
       due: true,
-      lens: "tests",
-      targetIntervalDays: LENS_TARGET_INTERVAL_DAYS.tests,
+      lens: "simplification",
+      targetIntervalDays: LENS_TARGET_INTERVAL_DAYS.simplification,
       lastRunAt: null,
     });
   });
@@ -170,24 +218,24 @@ describe("scout", () => {
 
     const ago = (days: number) => ({ lastRunAt: new Date(nowMs - days * dayMs).toISOString() });
 
-    // architecture: 6d / 4d = 1.50; simplification: 7d / 5d = 1.40; docs: 2.5d / 2d = 1.25.
+    // security: 4.5d / 3d = 1.50; architecture: 2.8d / 2d = 1.40; docs: 5d / 4d = 1.25.
     expect(
       selectAutoLens({
         state: {
-          docs: ago(2.5),
-          tests: ago(1),
+          architecture: ago(2.8),
+          simplification: ago(1),
+          security: ago(4.5),
+          "mcp-db": ago(2),
+          tests: ago(2),
+          docs: ago(5),
           "verification-flakes": ago(2),
-          architecture: ago(6),
-          simplification: ago(7),
-          security: ago(4),
-          "mcp-db": ago(4),
         },
         nowMs,
       }),
     ).toMatchObject({
       due: true,
-      lens: "architecture",
-      targetIntervalDays: 4,
+      lens: "security",
+      targetIntervalDays: 3,
     });
   });
 
@@ -197,43 +245,43 @@ describe("scout", () => {
 
     const ago = (days: number) => ({ lastRunAt: new Date(nowMs - days * dayMs).toISOString() });
 
-    // docs has 0.5d (12h) remaining vs security having 1d (24h) remaining.
+    // architecture (2d target) has 0.5d (12h) remaining vs security (3d target) having 1d (24h) remaining.
     expect(
       selectAutoLens({
         state: {
-          docs: ago(1.5),
-          tests: ago(1),
-          "verification-flakes": ago(1),
-          architecture: ago(2),
-          simplification: ago(2),
-          security: ago(4),
+          architecture: ago(1.5),
+          simplification: ago(1),
+          security: ago(2),
           "mcp-db": ago(1),
+          tests: ago(1),
+          docs: ago(1),
+          "verification-flakes": ago(1),
         },
         nowMs,
       }),
     ).toEqual({
       due: false,
-      nextLens: "docs",
+      nextLens: "architecture",
       nextDueInHours: 12,
     });
 
-    // A future timestamp on docs (due in 72h) ranks behind tests (due in 48h).
+    // A future timestamp on architecture (due in 72h) ranks behind simplification (due in 48h).
     expect(
       selectAutoLens({
         state: {
-          docs: ago(-1),
-          tests: ago(0),
-          "verification-flakes": ago(0),
-          architecture: ago(0),
+          architecture: ago(-1),
           simplification: ago(0),
           security: ago(0),
           "mcp-db": ago(0),
+          tests: ago(0),
+          docs: ago(0),
+          "verification-flakes": ago(0),
         },
         nowMs,
       }),
     ).toEqual({
       due: false,
-      nextLens: "tests",
+      nextLens: "simplification",
       nextDueInHours: 48,
     });
   });

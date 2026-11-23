@@ -34,22 +34,32 @@ scheduled runs; picks the most overdue lens from `#219` cursors) or an explicit
 3. **Inspect the codebase using the emitted `lens` rules below:**
    - Do not repeat work already covered by `openIssues` or rejected in
      `wontfixIssues`.
-   - File at most **2 high-signal proposals per run**. Prefer zero proposals over
-     speculative churn.
+   - **Worth-a-PR bar:** Every proposal goes through human triage, a full
+     implementation + review cycle, and a full CI run. **Do not file
+     micro-proposals** (a 1–2 line wording tweak, a single missing test
+     assertion, or an isolated style nit).
+   - **Bundle within the audited slice:** When a slice sweep uncovers multiple
+     concrete issues of the same lens (e.g., several doc/tool-description
+     mismatches in one capability, or duplicate tests + missing assertions
+     across one package), bundle them into **one cohesive slice-level
+     proposal** worth a real PR. If a sweep only turns up 1–2 trivial nits,
+     **file zero proposals** and advance the cursor.
+   - File at most **2 high-signal proposals per run**. Prefer zero proposals
+     over low-leverage churn.
    - Read every target file and its named precedent in full before proposing a
      change.
 4. **Emit proposals through `proposal.ts`:**
    Pipe one JSON object per finding into:
    `vpx tooling/agents/proposal.ts --tier2-only`
 
-   > **Calibration mode:** Keep `--tier2-only` enabled until two clean cycles
-   > confirm Tier 1 precision, then drop `--tier2-only` so unambiguous Tier 1
-   > `docs` and single-slice `tests` proposals land directly in `agent:ready`.
+   > **Human-gated proposals:** Keep `--tier2-only` enabled so every
+   > substantive proposal lands in `agent:proposed` for maintainer triage before
+   > implementation.
 
    Every JSON payload must satisfy `proposalInputSchema` in
    [proposal.ts](../../tooling/agents/proposal.ts):
    - **Review summary (compact for human scanning):** `why` (≤220 chars),
-     `evidence` (≤200 chars, file paths + lines or PR numbers), `change` (1–3
+     `evidence` (≤200 chars, file paths + lines or PR numbers), `change` (1–5
      single-line bullets ≤140 chars), `decision` (≤200 chars, why this approach),
      `whyNot` (≤200 chars, main alternative rejected).
    - **Scope & flags:** explicit `paths` (avoid globs unless truly multi-file),
@@ -69,34 +79,85 @@ scheduled runs; picks the most overdue lens from `#219` cursors) or an explicit
    For `verification-flakes`, also pass `--pr <highestUnreadPrNumber>` when
    `unreadVerifications` was non-empty.
 
-## Incremental and rotation lenses
+## Lens audit protocols
 
-### `docs`
+### `architecture`
 
-Read [documentation guide](../../docs/guides/documentation.md) and
-[docs/README.md](../../docs/README.md).
+Read [architecture](../../docs/foundations/architecture.md),
+[mechanisms.config.ts](../../tooling/verification/architecture/mechanisms.config.ts),
+and [rule enforcement](../../docs/guides/verification-tooling.md#rule-enforcement).
 
-- **Recent-merge impact:** From `commits` and `changedFiles`, inspect:
-  1. every `.md`/`.mdx` changed by those commits (excluding `verifications/`),
-  2. docs that link to or name any changed path, and
-  3. the `README.md` or `.mdx` beside changed code.
-     Reread each affected doc in full, stopping around ~15 docs per run.
-- **Rotation area sweep:** Read every document in `rotationTarget` in full
-  alongside linked docs and the code they describe. Bias toward **shrinking and
-  pruning**:
-  - content superseded by a later decision, workflow, or implementation;
-  - explanations duplicated from their primary home (replace with a link);
-  - descriptions of code, commands, screens, or options that no longer exist;
-  - documents without a distinct reader task (merge into the owning page);
-  - detail that types, config, stories, or examples already explain;
-  - empty or redundant docs (propose removal + inbound link updates).
-- **Guardrails:** Every proposal must cite a concrete rule in
-  [documentation guide](../../docs/guides/documentation.md). Prefer removal or
-  shortening over rewriting prose. When code and docs disagree and intended
-  behavior is unclear, set `ambiguous: true` rather than guessing.
-- **Brief verification:** Include `vp run check:docs` (plus public-doc checks in
-  `interfaces/site/src/features/docs/README.md` when `interfaces/site` docs
-  change).
+- **Scope:** Audit `rotationTarget` alongside at least one sibling slice
+  (`capabilities/*`, `foundation/*`, `interfaces/*`), plus any `changedFiles`
+  matching cross-cutting mechanisms (`matchedMechanisms`).
+- **What to hunt for (high leverage):**
+  1. **Boundary leaks:** Capabilities reaching across internal modules, UI
+     owning domain rules, or adapters bypassing shared contracts.
+  2. **Mechanism drift:** Implementations diverging from a contract or
+     invariant in `mechanisms.config.ts` (auth/RBAC, money, audit trail,
+     delegated MCP, query/mutation boundaries, etc.).
+  3. **Escalating prose rules up the enforcement ladder:** Recurring rules in
+     `AGENTS.md`, `review.md`, or guides that can be enforced automatically via
+     a static check, lint rule, TypeScript boundary test, or architecture test.
+  4. **Missing shared contracts:** The same non-trivial pattern implemented
+     independently across ≥2 sibling capabilities that should move into a
+     single shared contract.
+
+### `simplification`
+
+Read [coding conventions](../../docs/guides/coding-conventions.md) and
+[engineering principles](../../docs/foundations/principles.md).
+
+- **Scope:** Audit `rotationTarget` end-to-end (business, web, AI/MCP) alongside
+  its closest sibling slice and any recently touched modules in `changedFiles`.
+- **What to hunt for (high leverage):**
+  1. **Duplicated slice logic:** Repeated services, repositories, validation
+     pipelines, React hooks/controllers, or table/form wiring that can reuse an
+     existing shared `foundation/*` or sibling abstraction.
+  2. **Dead indirection:** Pass-through wrappers, single-caller abstractions,
+     or over-fragmented files that add cognitive load without protecting a real
+     boundary.
+  3. **Oversized or tangled modules:** Large files or functions mixing domain
+     rules, persistence, and presentation that can be simplified cleanly
+     without changing external behavior.
+  4. **Guardrail:** Never propose speculative rewrites or stylistic churn;
+     every simplification must measurably delete complexity or duplicate code
+     while preserving exact external behavior.
+
+### `security`
+
+Audit `rotationTarget` and recent `changedFiles` end-to-end across web, server,
+MCP, and database boundaries.
+
+- **What to hunt for (high leverage):**
+  1. **Authorization & RBAC gaps:** Missing or inconsistent permission checks
+     (`capabilities/access/`) across server actions, loaders, API routes, and
+     MCP tools — including IDOR / horizontal privilege escalation.
+  2. **Tenant & organization isolation:** Queries, mutations, file-storage
+     keys, or cache entries that fail to scope strictly by organization/tenant
+     or allow cross-tenant references via caller-supplied IDs.
+  3. **Boundary validation & injection hygiene:** Weak or unvalidated external
+     inputs, unsafe HTML/URL/iframe/redirect handling, error messages leaking
+     internal state/secrets, or missing rate/size bounds.
+  4. **Supply-chain & CI hygiene:** Unpinned GitHub Actions, overly broad
+     workflow permissions, or unsafe secret handling.
+
+### `mcp-db`
+
+Audit `rotationTarget` and recent `changedFiles` across MCP tools
+(`capabilities/*/ai`, `interfaces/mcp`, `app/tests/evals/mcp`) and database
+layers (`foundation/db/`, capability repositories).
+
+- **What to hunt for (high leverage):**
+  1. **MCP contract & eval gaps:** Missing or weak MCP evals for real tool
+     behaviors, schema/permission mismatches between MCP tools and domain
+     services, or tool contracts that make agents misuse mutations.
+  2. **Query & index performance:** N+1 query loops, unbounded `SELECT`s on
+     growing tables, or hot filter/join columns missing Drizzle indexes.
+  3. **Write integrity:** Multi-step mutations missing transactions,
+     optimistic-concurrency/revision checks, or idempotency guards.
+  4. **Guardrail:** Never propose modifying or deleting applied SQL migrations
+     under `foundation/db/database/migrations/*.sql`.
 
 ### `tests`
 
@@ -106,12 +167,10 @@ Read [testing guide](../../docs/guides/testing.md) and
 - **Owner-feedback mining:** Inspect recent merged PRs from `commits` for owner
   review comments asking to change, move, merge, or remove tests. Treat each
   request as a defect pattern and scan the entire slice for the same pattern.
-- **Whole-slice multi-layer audit:** Map changed files (including `app/tests`
-  mapping back to owning capability/interface slices) to slices
-  (`capabilities/<name>`, `foundation/<name>`, `interfaces/<name>`,
-  `tooling/testing`), capped around ~3 slices per run plus `rotationTarget`.
-  Read all tests in the slice across all layers side-by-side and evaluate all
-  seven dimensions of [testing guide](../../docs/guides/testing.md):
+- **Whole-slice multi-layer audit:** Audit `rotationTarget` plus up to ~2
+  recently changed slices (mapping `app/tests` back to their owning slice)
+  across all layers side-by-side against all seven dimensions of
+  [testing guide](../../docs/guides/testing.md):
   1. **Owning layer:** verified at the lowest layer that can observe it?
   2. **Overlap:** repeats another layer without justification in
      [justify overlapping coverage](../../docs/guides/testing.md#justify-overlapping-coverage)?
@@ -125,10 +184,10 @@ Read [testing guide](../../docs/guides/testing.md) and
      rather than demo records picked by position?
   7. **Cohesion:** consistent naming/fixtures; no near-duplicates differing only
      in incidental input?
-- **Rotation cleanup slice:** Shrink `rotationTarget` by removing unjustified
-  cross-layer duplicates, collapsing near-duplicates, dropping framework/constant
-  tests, and deleting unused test helpers/fixtures — only where every guarantee
-  remains covered.
+- **Bundle slice-wide improvements:** Combine all concrete test cleanup and
+  consequential coverage gaps found in the audited slice into **one cohesive
+  slice-level proposal**. Do not file a standalone issue for a single missing
+  assertion unless it guards a critical security or money/data-loss invariant.
 - **Guardrails:** Never propose removing the only test of a guarantee, lowering
   coverage thresholds, narrowing measured scope, adding coverage-ignore
   directives, or skipping a test without `ambiguous: true` and explicit owner
@@ -138,6 +197,33 @@ Read [testing guide](../../docs/guides/testing.md) and
 - **Brief verification:** Include the owning package's full test command
   (`vp run @merit/<pkg>#test`) so coverage thresholds execute, plus any touched
   integration, component, or browser suites.
+
+### `docs`
+
+Read [documentation guide](../../docs/guides/documentation.md) and
+[docs/README.md](../../docs/README.md).
+
+- **Recent-merge impact & rotation area sweep:** Inspect docs affected by
+  recent `commits` plus every document in `rotationTarget` in full alongside
+  linked docs and the code they describe. Bias toward **shrinking, pruning, and
+  fixing real behavioral contradictions**:
+  - content superseded by a later decision, workflow, or implementation;
+  - explanations duplicated from their primary home (replace with a link);
+  - descriptions of code, commands, screens, or options that no longer exist;
+  - documents without a distinct reader task (merge into the owning page);
+  - detail that types, config, stories, or examples already explain;
+  - empty or redundant docs (propose removal + inbound link updates).
+- **Bundle slice-wide cleanups:** Bundle all concrete doc drift, duplication,
+  and pruning in the audited area into **one cohesive proposal**. Skip if only
+  a 1–2 line wording tweak was found unless it actively misleads callers into
+  bugs.
+- **Guardrails:** Every proposal must cite a concrete rule in
+  [documentation guide](../../docs/guides/documentation.md). Prefer removal or
+  shortening over rewriting prose. When code and docs disagree and intended
+  behavior is unclear, set `ambiguous: true` rather than guessing.
+- **Brief verification:** Include `vp run check:docs` (plus public-doc checks in
+  `interfaces/site/src/features/docs/README.md` when `interfaces/site` docs
+  change).
 
 ### `verification-flakes`
 
@@ -176,54 +262,20 @@ Read [verification guide](../../docs/guides/verification.md) and
   deterministically by `.github/workflows/prune-verifications.yml` once records
   are older than 30 days and `prNumber <= cursor.lastPrNumber`.
 
-## Repo-wide lenses
-
-### `architecture`
-
-Check [architecture](../../docs/foundations/architecture.md),
-[mechanisms.config.ts](../../tooling/verification/architecture/mechanisms.config.ts),
-and [rule enforcement](../../docs/guides/verification-tooling.md#rule-enforcement).
-Look for boundary leaks across capabilities/interfaces/foundation, drift between
-mechanism contracts/invariants and actual adapters, and recurring prose rules
-that can move up the enforcement ladder into a static check, lint rule, or
-architecture test.
-
-### `simplification`
-
-Read [coding conventions](../../docs/guides/coding-conventions.md) and
-[engineering principles](../../docs/foundations/principles.md). Look for
-duplicated helpers, controllers, queries, or UI wiring that can reuse an
-existing shared contract, dead indirection, or oversized modules that can be
-simplified without changing external behavior.
-
-### `security`
-
-Audit authorization and RBAC boundaries (`capabilities/access/`), tenant and
-organization isolation across queries and commands, input validation at server
-and API boundaries, HTML/URL/iframe hygiene, secret/config handling, and GitHub
-Actions SHA pinning and least-privilege permissions.
-
-### `mcp-db`
-
-Audit MCP tool schemas, descriptions, permissions, and eval coverage
-(`capabilities/*/ai`, `app/tests/evals/mcp`), alongside database queries,
-indexes, N+1 patterns, and Drizzle schema discipline (`foundation/db/`). Never
-propose modifying or deleting applied SQL migrations under
-`foundation/db/database/migrations/*.sql`.
-
 ## Suggested schedule
 
-Run **one** recurring scheduled task **twice daily** (e.g., `08:00` and `20:00`)
-passing `--lens auto`. [scout.ts](../../tooling/agents/scout.ts) selects the
-most overdue lens from `#219` cursors (~15 runs/week total) and exits `idle` if
-every lens is still fresh:
+Run **one** recurring scheduled task **2–3 times daily** passing `--lens auto`
+with a strong reasoning model. [scout.ts](../../tooling/agents/scout.ts)
+prioritizes high-leverage engineering lenses and selects the most overdue lens
+from `#219` cursors (~17 runs/week total), exiting `idle` if every lens is
+still fresh:
 
-| Lens                                   | Target interval |
-| -------------------------------------- | --------------- |
-| `docs`, `tests`                        | Every 2 days    |
-| `verification-flakes`                  | Every 3 days    |
-| `architecture`                         | Every 4 days    |
-| `simplification`, `security`, `mcp-db` | Every 5 days    |
+| Lens                             | Target interval |
+| -------------------------------- | --------------- |
+| `architecture`, `simplification` | Every 2 days    |
+| `security`, `mcp-db`, `tests`    | Every 3 days    |
+| `docs`                           | Every 4 days    |
+| `verification-flakes`            | Every 5 days    |
 
 In cloud runners whose default GitHub App token lacks `issues:write` (such as
 Cursor Cloud Agents), configure a fine-grained PAT scoped to `dmprav/merit` with
