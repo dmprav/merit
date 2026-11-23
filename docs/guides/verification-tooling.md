@@ -14,6 +14,7 @@ Keep tooling with the responsibility it supports:
 | `tooling/verification` | Repository checks and their regression tests; architecture policy and its resolver live together in `architecture/`. |
 | `tooling/testing`      | The `@merit/test-support` package, with explicit database, component setup, and browser exports.                     |
 | `tooling/storybook`    | Preview configuration, story execution, browser suites grouped by behavior, and visual baselines.                    |
+| `tooling/agents`       | Stateless maintenance CLIs (`scout.ts`, `proposal.ts`, `queue.ts`) and their unit tests.                             |
 | `tooling/scripts`      | Repository operations such as resetting the local Compose database.                                                  |
 
 The root [Vite configuration](../../vite.config.ts) owns command orchestration
@@ -202,4 +203,5 @@ next candidates for tooling.
 | Documentation links, headings, agent budgets, review-config alignment | `vp run check:docs`, `vp run test:docs`, `vp run test:ci` ([verification record](../../tooling/verification/verification-record.ts))     |
 | Secret scanning and dependency advisories                             | `vp run check:security` ([secrets config](../../tooling/verification/secrets.config.ts))                                                 |
 | Applied migrations & destructive git guards                           | [Claude harness hooks](../../.claude/settings.json) & `vp run test:hooks`                                                                |
+| Autonomous `agent:pr` protected-path & migration policy               | `node tooling/verification/agent-policy.ts` ([CI check](../../tooling/verification/agent-policy.ts)) & `vp run test:ci`                  |
 | Single-behavior tests, UI parity, benchmarks                          | Prose/review ([testing](testing.md), [UI verification](ui-verification.md), [verification](verification.md))                             |

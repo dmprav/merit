@@ -59,6 +59,10 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -72,6 +76,27 @@ jobs:
           node-version-file: .node-version
           cache: false
           run-install: false
+
+      - name: Check autonomous agent policy
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MERIT_REPO_ROOT: ${{ github.workspace }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_LABELS_JSON: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          if git cat-file -e "${PR_BASE_SHA}:tooling/verification/agent-policy.ts" 2>/dev/null; then
+            trusted_dir="$(mktemp -d)"
+            trap 'rm -rf "$trusted_dir"' EXIT
+            git show "${PR_BASE_SHA}:tooling/verification/verification-record.ts" > "$trusted_dir/verification-record.ts"
+            git show "${PR_BASE_SHA}:tooling/verification/agent-policy.ts" > "$trusted_dir/agent-policy.ts"
+            node "$trusted_dir/agent-policy.ts"
+          else
+            node tooling/verification/agent-policy.ts
+          fi
 
       - name: Check verification record
         shell: bash

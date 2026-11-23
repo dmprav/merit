@@ -6,5 +6,11 @@
     "allowJs": true,
     "checkJs": true
   },
-  "include": ["*.ts", "verification/**/*.ts", "scripts/**/*.ts", "../.agents/hooks/*.mjs"]
+  "include": [
+    "*.ts",
+    "agents/**/*.ts",
+    "verification/**/*.ts",
+    "scripts/**/*.ts",
+    "../.agents/hooks/*.mjs"
+  ]
 }
