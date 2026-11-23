@@ -205,6 +205,7 @@ it("keeps a restored invalid creation amount until it is corrected", async () =>
   await user.click(save());
   expect(amount).toHaveAttribute("aria-invalid", "true");
   expect(onSave).not.toHaveBeenCalled();
+  await waitFor(() => expect(amount).toHaveFocus());
 
   await user.clear(amount);
   await user.type(amount, "123.45");

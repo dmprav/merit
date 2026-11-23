@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { expect, it, vi } from "vite-plus/test";
@@ -136,4 +136,14 @@ it("keeps the budget read-only while the parent is pending", () => {
   renderBudget({ round: unsetRound, onSave: vi.fn(), isPending: true });
 
   expect(screen.getByRole("textbox", { name: "Round budget" })).toHaveAttribute("readonly");
+});
+
+it("keeps the budget read-only while its own submission is pending", async () => {
+  const onSave = vi.fn(() => new Promise<string | null>(() => undefined));
+  const { user, amount, save } = renderBudget({ round: unsetRound, onSave });
+
+  await user.type(amount, "1");
+  await user.click(save());
+
+  await waitFor(() => expect(amount).toHaveAttribute("readonly"));
 });

@@ -261,6 +261,7 @@ const BudgetForm = (props: SectionProps<"budget">) => {
               }}
               autoFocus
               isReadOnly={submission.isSubmitting || props.isPending}
+              maxLength={roundPreparationLimits.amountLength}
               placeholder={t("preparation.notSet")}
             />
           )}
