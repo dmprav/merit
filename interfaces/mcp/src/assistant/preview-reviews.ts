@@ -74,15 +74,15 @@ export const assignmentPreview = async (
   }
   const { assignment, draft, material, assessment } = page.value;
   const usesEvidence = name !== "respond_to_review";
+  if (usesEvidence && (!draft || !material)) {
+    throw new PreviewProblem("forbidden");
+  }
   dependencies.push({
     kind: "assignment",
     assignmentId,
     evidence: usesEvidence,
     ...(activeAssignment(assignment.status) && { active: true }),
   });
-  if (usesEvidence && (!draft || !material)) {
-    throw new PreviewProblem("forbidden");
-  }
   if (draft && usesEvidence) {
     bindRevision(ctx, input, "expectedDraftRevision", draft.revision);
     preview.targets.push(
@@ -91,6 +91,19 @@ export const assignmentPreview = async (
   }
   if (name === "respond_to_review") {
     bindRevision(ctx, input, "expectedRevision", assignment.revision);
+    if (input.action === "decline") {
+      preview.targets.push(
+        target(
+          "review_request",
+          assignment.requestId,
+          assignment.applicationTitle,
+          `assignment revision ${assignment.revision}`,
+        ),
+      );
+      preview.effects.push(
+        "Cancel the linked review request and update the application's review revision.",
+      );
+    }
   }
   preview.targets.push(
     target("assignment", assignmentId, assignment.applicationTitle, assignment.revision),

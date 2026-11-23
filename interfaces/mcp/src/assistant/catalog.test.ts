@@ -402,3 +402,75 @@ it("distinguishes a proposed round from the public record id assigned on creatio
     roundId: applicationId,
   });
 });
+
+it.each(["invited", "accepted"])(
+  "previews cancellation of the linked review request for a %s assignment",
+  async (status) => {
+    const { catalog, ops } = setup();
+    vi.mocked(ops.reviewer.read).mockImplementation(
+      vi.fn().mockResolvedValue({
+        status: "ok",
+        value: {
+          assignment: {
+            workspaceSlug,
+            status,
+            requestId,
+            applicationTitle: "Gardens",
+            revision: 2,
+          },
+          material: null,
+          draft: null,
+        },
+      }),
+    );
+    const answer = await catalog.preview("respond_to_review", {
+      assignmentId: commandId,
+      commandId,
+      expectedRevision: 2,
+      action: "decline",
+      note: "",
+    });
+    expect(answer.preview?.targets).toContainEqual({
+      kind: "review_request",
+      id: requestId,
+      label: "Gardens",
+      version: "assignment revision 2",
+    });
+    expect(answer.preview?.effects).toContain(
+      "Cancel the linked review request and update the application's review revision.",
+    );
+    expect(ops.reviewer.respond).not.toHaveBeenCalled();
+  },
+);
+
+it("keeps a refused draft operation from invalidating the reviewer's conversation", async () => {
+  const { catalog, ops } = setup();
+  vi.mocked(ops.reviewer.read).mockImplementation(
+    vi.fn().mockResolvedValue({
+      status: "ok",
+      value: {
+        assignment: { workspaceSlug, status: "invited", requestId, revision: 0 },
+        material: null,
+        draft: null,
+      },
+    }),
+  );
+  const refused = await catalog.preview("submit_reviewer_assessment", {
+    assignmentId: commandId,
+    commandId,
+    expectedDraftRevision: 0,
+  });
+  expect(refused.result.status).toBe("forbidden");
+  expect(await catalog.permits(refused.dependencies)).toBe(true);
+  expect(
+    (
+      await catalog.preview("respond_to_review", {
+        assignmentId: commandId,
+        commandId,
+        expectedRevision: 0,
+        action: "accept",
+        note: "",
+      })
+    ).preview,
+  ).toBeDefined();
+});
