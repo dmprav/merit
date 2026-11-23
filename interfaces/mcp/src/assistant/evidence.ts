@@ -14,8 +14,21 @@ const objects = (value: unknown) => z.array(object).safeParse(value).data ?? [];
 
 const itemOrList = (one: unknown, many: unknown) => (one == null ? objects(many) : [fields(one)]);
 
-const snapshot = (value: unknown) =>
-  createHash("sha256").update(JSON.stringify(value)).digest("hex");
+// JSONB does not preserve object-key order. Arrays retain their domain ordering.
+const snapshot = (value: unknown) => {
+  const json = JSON.stringify(value, (_key, child: unknown) => {
+    if (child === null || typeof child !== "object" || Array.isArray(child)) {
+      return child;
+    }
+    const record = fields(child);
+    return Object.fromEntries(
+      Object.keys(record)
+        .sort()
+        .map((key) => [key, record[key]]),
+    );
+  });
+  return createHash("sha256").update(json).digest("hex");
+};
 
 type Cite = (kind: unknown, id: unknown, version: unknown, label: unknown) => void;
 
@@ -134,6 +147,26 @@ export const describeResult = (
     }
   };
 
+  // Current financial totals, relationships, search matches and basis comparisons
+  // may advance independently of the displayed owner's revision.
+  if (
+    result.status === "ok" &&
+    !result.fingerprint &&
+    (name.startsWith("list_") || name.startsWith("get_") || name === "search_workspace")
+  ) {
+    const id =
+      input.assignmentId ??
+      input.applicationId ??
+      input.roundId ??
+      input.contactId ??
+      input.workspaceSlug;
+    cite(
+      "observation",
+      id,
+      snapshot({ name, input, result }),
+      name.replaceAll("_", " ") + " (observed result)",
+    );
+  }
   assignedEvidence(result, receipt, access === "reviewer", cite);
   recordEvidence(result, cite);
   contentEvidence(input, result, cite);

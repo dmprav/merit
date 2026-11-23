@@ -24,7 +24,17 @@ const targetSchema = z.strictObject({
 export const assistantPreviewSchema = z.strictObject({
   name: z.string(),
   input: z.record(z.string(), z.unknown()),
-  targets: z.array(targetSchema),
+  targets: z.array(
+    z.union([
+      targetSchema,
+      z.strictObject({
+        kind: z.enum(["application", "round"]),
+        requestId: z.uuid(),
+        label: z.string(),
+        version: z.literal("proposed"),
+      }),
+    ]),
+  ),
   effects: z.array(z.string()),
   changes: z.record(z.string(), z.unknown()).optional(),
 });

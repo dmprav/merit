@@ -13,11 +13,11 @@ import {
   type AssistantPreview,
   type AssistantReceipt,
 } from "./contracts";
+import { describeResult, fields } from "./evidence";
 import type { AssistantContext, AssistantOperations } from "./operations";
+import { prepareWrite } from "./preview";
 
 export type { AssistantOperations } from "./operations";
-import { describeResult, fields } from "./evidence";
-import { prepareWrite } from "./preview";
 
 export {
   assistantDependencySchema,
@@ -203,7 +203,7 @@ export const createAssistantCatalog = (
       }
       return describeResult(
         resolved.tool.name,
-        resolved.input,
+        { ...resolved.input, workspaceSlug },
         await resolved.tool.execute(resolved.input),
       );
     },

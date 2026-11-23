@@ -150,7 +150,7 @@ it("uses the version supplied by the source for material and assessment citation
         ],
       },
     ).citations,
-  ).toEqual([{ kind: "assessment", recordId: requestId, label: "Jo", version: "3" }]);
+  ).toContainEqual({ kind: "assessment", recordId: requestId, label: "Jo", version: "3" });
 });
 
 it("binds an invitation to its exact recipient and refuses a changed contact", async () => {
@@ -280,4 +280,125 @@ it("prevents an unrelated optional selector from relabeling a source citation", 
   expect(observed.citations).toEqual([
     { kind: "submission", label: "submission", recordId: applicationId, version: "a".repeat(32) },
   ]);
+});
+
+it("shows the review requests and assignments that an application withdrawal will close", async () => {
+  const { catalog, ops } = setup();
+  vi.mocked(ops.grantmaking.readApplication).mockImplementation(
+    vi.fn().mockResolvedValue({
+      status: "ok",
+      application: { applicationId, title: "Meals", intakeRevision: 5 },
+    }),
+  );
+  vi.mocked(ops.grantmaking.listReviews).mockImplementation(
+    vi.fn().mockResolvedValue({
+      status: "ok",
+      reviews: [{ kind: "request", id: requestId, reviewer: "Jo", reviewRevision: 2 }],
+      nextCursor: null,
+    }),
+  );
+  vi.mocked(ops.reviewer.forApplication).mockImplementation(
+    vi.fn().mockResolvedValue({
+      status: "ok",
+      value: [{ id: commandId, requestId, reviewer: "Jo", revision: 4 }],
+    }),
+  );
+  const { preview } = await catalog.preview("withdraw_application", {
+    applicationId,
+    expectedIntakeRevision: 5,
+    withdrawnOn: "2026-10-01",
+    reason: "Applicant asked to withdraw",
+  });
+  assert(preview);
+  expect(preview.targets).toEqual([
+    { kind: "application", id: applicationId, label: "Meals", version: "5" },
+    { kind: "review_request", id: requestId, label: "Jo", version: "2" },
+    { kind: "assignment", id: commandId, label: "Jo", version: "4" },
+  ]);
+  expect(preview.effects).toContain(
+    "Close every outstanding review request and end access for its reviewers.",
+  );
+  expect(ops.applications.editApplication).not.toHaveBeenCalled();
+});
+
+it("loses an active invitation dependency when the business read still returns a cancelled summary", async () => {
+  const { catalog, ops } = setup();
+  const original = describeResult(
+    "list_my_reviews",
+    {},
+    {
+      status: "ok",
+      assignments: [
+        {
+          id: commandId,
+          status: "invited",
+          revision: 1,
+          basisComparison: { applicationVersion: "unknown" },
+        },
+      ],
+    },
+  );
+  const summary = {
+    workspaceSlug,
+    status: "cancelled",
+  };
+  vi.mocked(ops.reviewer.read).mockImplementation(
+    vi.fn().mockResolvedValue({
+      status: "ok",
+      value: { assignment: summary, material: null },
+    }),
+  );
+  expect(await catalog.permits(original.dependencies)).toBe(false);
+});
+
+it("gives changed aggregate facts a new evidence reference while preserving the round revision", () => {
+  const cite = (round: Record<string, unknown>) =>
+    describeResult(
+      "get_funding_round",
+      { roundId: applicationId },
+      {
+        status: "ok",
+        round,
+      },
+    ).citations;
+
+  const one = {
+    roundId: applicationId,
+    preparationRevision: 3,
+    title: "Spring",
+    applicationCount: 1,
+    totals: { requested: "10", proposed: "5" },
+  };
+  const two = { ...one, applicationCount: 2, totals: { requested: "20", proposed: "5" } };
+  const reordered = {
+    totals: { proposed: "5", requested: "20" },
+    title: "Spring",
+    applicationCount: 2,
+    preparationRevision: 3,
+    roundId: applicationId,
+  };
+  const first = cite(one);
+  const second = cite(two);
+  expect(first.find((item) => item.kind === "round")).toEqual(
+    second.find((item) => item.kind === "round"),
+  );
+  expect(first.find((item) => item.kind === "observation")?.version).toMatch(/^[a-f0-9]{64}$/);
+  expect(second.find((item) => item.kind === "observation")?.version).not.toBe(
+    first.find((item) => item.kind === "observation")?.version,
+  );
+  expect(cite(reordered)).toEqual(second);
+});
+
+it("distinguishes a proposed round from the public record id assigned on creation", async () => {
+  const { catalog, ops } = setup();
+  const prepared = await catalog.preview("create_funding_round", { requestId, title: "Spring" });
+  assert(prepared.preview);
+  expect(prepared.preview.targets).toEqual([
+    { kind: "round", requestId, label: "Spring", version: "proposed" },
+  ]);
+  vi.mocked(ops.rounds.createRound).mockResolvedValue({ status: "ok", publicId: applicationId });
+  expect((await catalog.execute(prepared.preview)).result).toEqual({
+    status: "ok",
+    roundId: applicationId,
+  });
 });
