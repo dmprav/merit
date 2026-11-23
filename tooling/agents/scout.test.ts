@@ -5,11 +5,15 @@ import {
   buildScoutContext,
   collectUnreadVerifications,
   formatScoutStateBody,
+  LENS_TARGET_INTERVAL_DAYS,
   listDocAreas,
   listPackageSlices,
+  parseAdvanceLensFlag,
   parseCommitLog,
+  parseContextLensFlag,
   parseScoutState,
   pickRotationItem,
+  selectAutoLens,
 } from "./scout.ts";
 
 describe("scout", () => {
@@ -138,5 +142,74 @@ describe("scout", () => {
       wontfixIssues: [],
     });
     expect(cappedAtFive.status).toBe("cap_reached");
+  });
+
+  test("selects the most overdue lens for --lens auto, handles idle when all lenses are fresh, and rejects auto on advance", () => {
+    const dayMs = 24 * 60 * 60 * 1000;
+    const nowMs = Date.UTC(2026, 10, 23, 8, 0, 0);
+
+    const ago = (days: number) => ({ lastRunAt: new Date(nowMs - days * dayMs).toISOString() });
+
+    // Never-run lenses bootstrap in canonical SCOUT_LENSES order.
+    expect(selectAutoLens({ state: {}, nowMs })).toEqual({
+      due: true,
+      lens: "docs",
+      targetIntervalDays: LENS_TARGET_INTERVAL_DAYS.docs,
+      lastRunAt: null,
+    });
+    expect(selectAutoLens({ state: { docs: ago(0.5) }, nowMs })).toEqual({
+      due: true,
+      lens: "tests",
+      targetIntervalDays: LENS_TARGET_INTERVAL_DAYS.tests,
+      lastRunAt: null,
+    });
+
+    // When all lenses have run, picks the highest overdue ratio (>= 1), not just largest raw age.
+    // architecture: 6d / 4d = 1.50; simplification: 7d / 5d = 1.40; docs: 2.5d / 2d = 1.25.
+    expect(
+      selectAutoLens({
+        state: {
+          docs: ago(2.5),
+          tests: ago(1),
+          "verification-flakes": ago(2),
+          architecture: ago(6),
+          simplification: ago(7),
+          security: ago(4),
+          "mcp-db": ago(4),
+        },
+        nowMs,
+      }),
+    ).toMatchObject({
+      due: true,
+      lens: "architecture",
+      targetIntervalDays: 4,
+    });
+
+    // When all lenses are fresh (< targetInterval), returns due: false with the soonest upcoming lens.
+    // docs has 0.5d (12h) remaining vs security having 1d (24h) remaining.
+    expect(
+      selectAutoLens({
+        state: {
+          docs: ago(1.5),
+          tests: ago(1),
+          "verification-flakes": ago(1),
+          architecture: ago(2),
+          simplification: ago(2),
+          security: ago(4),
+          "mcp-db": ago(1),
+        },
+        nowMs,
+      }),
+    ).toEqual({
+      due: false,
+      nextLens: "docs",
+      nextDueInHours: 12,
+    });
+
+    // CLI flag parsing allows --lens auto for context, rejects it for advance.
+    expect(parseContextLensFlag(["--lens", "auto"])).toBe("auto");
+    expect(parseContextLensFlag(["--lens", "security"])).toBe("security");
+    expect(parseAdvanceLensFlag(["--lens", "security"])).toBe("security");
+    expect(() => parseAdvanceLensFlag(["--lens", "auto"])).toThrow(/Cannot pass "--lens auto"/);
   });
 });
