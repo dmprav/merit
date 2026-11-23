@@ -530,9 +530,48 @@ describe("queue", () => {
         path: "tooling/agents/scout.ts",
         line: 12,
         author: "dmprav",
-        body: "Rename helper.",
+        body: "Rename helper.\n\n---\n\nFollow-up (dmprav): Actually also update the test name.",
       },
     ]);
+  });
+
+  test("keeps newly opened uninitialized non-draft PRs out of shepherd selection until state is recorded, escalating after 2h", () => {
+    const now = Date.UTC(2026, 10, 22, 12, 0, 0);
+    const freshUninitialized = basePr({
+      number: 231,
+      isDraft: false,
+      stateInitialized: false,
+      updatedAt: new Date(now - 5 * 60 * 1000).toISOString(),
+      checks: [
+        { name: "verify", status: "COMPLETED", conclusion: "FAILURE" },
+        { name: "verification-record", status: "COMPLETED", conclusion: "FAILURE" },
+      ],
+    });
+    const staleUninitialized = basePr({
+      number: 232,
+      isDraft: false,
+      stateInitialized: false,
+      updatedAt: new Date(now - 125 * 60 * 1000).toISOString(),
+    });
+
+    expect(
+      selectNextWork({
+        openAgentPrs: [freshUninitialized],
+        readyIssues: [],
+        nowMs: now,
+      }).kind,
+    ).toBe("idle");
+
+    expect(
+      selectNextWork({
+        openAgentPrs: [freshUninitialized, staleUninitialized],
+        readyIssues: [],
+        nowMs: now,
+      }),
+    ).toMatchObject({
+      kind: "escalate",
+      prNumber: 232,
+    });
   });
 
   test("uses only GitHub REST endpoints so Claude Code cloud proxy never rejects GraphQL calls", () => {

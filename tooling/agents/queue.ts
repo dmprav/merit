@@ -94,6 +94,7 @@ export type OpenAgentPr = {
   headRefName: string;
   headSha: string;
   isDraft: boolean;
+  stateInitialized?: boolean;
   updatedAt?: string;
   labels: string[];
   checks: PrCheckStatus[];
@@ -232,13 +233,34 @@ export const findEarliestActiveClaimRunId = (
 export const hasActiveClaim = (comments: readonly IssueCommentRecord[], nowMs: number): boolean =>
   findEarliestActiveClaimRunId(comments, nowMs) !== null;
 
-/** Returns true when a draft `agent:pr` has been stranded longer than `CLAIM_TTL_MS`. */
+/** Returns true when a draft or uninitialized `agent:pr` has been stranded longer than `CLAIM_TTL_MS`. */
 export const isStaleDraftPr = (pr: OpenAgentPr, nowMs: number): boolean => {
-  if (!pr.isDraft || pr.labels.includes("agent:needs-human") || !pr.updatedAt) {
+  const pendingInit = pr.isDraft || pr.stateInitialized === false;
+  if (!pendingInit || pr.labels.includes("agent:needs-human") || !pr.updatedAt) {
     return false;
   }
   const updatedMs = Date.parse(pr.updatedAt);
   return Number.isFinite(updatedMs) && nowMs - updatedMs >= CLAIM_TTL_MS;
+};
+
+/** Returns true when a PR has at least one valid `merit-agent` state comment from a trusted writer. */
+export const hasAgentPrState = (comments: readonly IssueCommentRecord[]): boolean => {
+  for (const comment of comments) {
+    if (!TRUSTED_AUTHOR_ASSOCIATIONS.has(comment.authorAssociation)) {
+      continue;
+    }
+    const match = AGENT_PR_MARKER_PATTERN.exec(comment.body);
+    if (!match?.[1]) {
+      continue;
+    }
+    try {
+      agentPrStateSchema.parse(JSON.parse(match[1]));
+      return true;
+    } catch {
+      continue;
+    }
+  }
+  return false;
 };
 
 /** Parses the latest agent state comment authored by a trusted repository writer. */
@@ -341,22 +363,39 @@ export const extractUnaddressedReviewThreads = (
   const unaddressed: ReviewThreadSummary[] = [];
   for (const thread of threadsByRootId.values()) {
     const root = thread[0];
-    const latest = thread.at(-1);
-    if (!root || !latest) {
+    if (!root) {
       continue;
     }
-    const isTrustedAddressed =
-      TRUSTED_AUTHOR_ASSOCIATIONS.has(latest.author_association) &&
-      latest.body.includes(ADDRESSED_THREAD_MARKER);
-    if (isTrustedAddressed) {
+    let lastAddressedIndex = -1;
+    for (let index = 0; index < thread.length; index += 1) {
+      const comment = thread[index];
+      if (
+        comment &&
+        TRUSTED_AUTHOR_ASSOCIATIONS.has(comment.author_association) &&
+        comment.body.includes(ADDRESSED_THREAD_MARKER)
+      ) {
+        lastAddressedIndex = index;
+      }
+    }
+    if (lastAddressedIndex === thread.length - 1) {
       continue;
     }
+    const followUps = lastAddressedIndex >= 0 ? thread.slice(lastAddressedIndex + 1) : [];
+    const body =
+      followUps.length > 0
+        ? [
+            root.body,
+            ...followUps.map(
+              (comment) => `Follow-up (${comment.user?.login ?? "unknown"}): ${comment.body}`,
+            ),
+          ].join("\n\n---\n\n")
+        : root.body;
     unaddressed.push({
       id: String(root.id),
       path: root.path,
       line: root.line ?? root.original_line ?? null,
       author: root.user?.login ?? "unknown",
-      body: root.body,
+      body,
     });
   }
   return unaddressed;
@@ -399,14 +438,15 @@ export const selectNextWork = ({
     if (pr.labels.includes("agent:needs-human")) {
       continue;
     }
-    if (pr.isDraft) {
+    if (pr.isDraft || pr.stateInitialized === false) {
       if (isStaleDraftPr(pr, nowMs)) {
         return {
           kind: "escalate",
           prNumber: pr.number,
           headRefName: pr.headRefName,
-          reason:
-            "Draft agent PR was not marked ready within 2 hours; needs human check or cleanup.",
+          reason: pr.isDraft
+            ? "Draft agent PR was not marked ready within 2 hours; needs human check or cleanup."
+            : "Agent PR was not initialized with initial state within 2 hours; needs human check or cleanup.",
           failedChecks: [],
           unresolvedThreadCount: 0,
         };
@@ -664,10 +704,17 @@ const fetchCommitChecks = (
       ]),
     );
   const checkRuns = checkPages.flatMap((page) => page.check_runs);
-  const statusResponse = restCommitStatusSchema.parse(
-    ghApiJson(repoRoot, [`repos/${repo.owner}/${repo.name}/commits/${headSha}/status`]),
-  );
-  return normalizeRestChecks({ checkRuns, statuses: statusResponse.statuses });
+  const statusPages = z
+    .array(restCommitStatusSchema)
+    .parse(
+      ghApiJson(repoRoot, [
+        "--paginate",
+        "--slurp",
+        `repos/${repo.owner}/${repo.name}/commits/${headSha}/status?per_page=100`,
+      ]),
+    );
+  const statuses = statusPages.flatMap((page) => page.statuses);
+  return normalizeRestChecks({ checkRuns, statuses });
 };
 
 const fetchLatestFailedVerifyRun = (
@@ -710,6 +757,7 @@ const fetchOpenAgentPrs = (repoRoot: string, repo: RepoIdentity): OpenAgentPr[] 
       headRefName: pr.head.ref,
       headSha: pr.head.sha,
       isDraft: pr.draft,
+      stateInitialized: hasAgentPrState(comments),
       updatedAt: pr.updated_at,
       labels: pr.labels.map((label) => label.name),
       checks,
@@ -900,28 +948,49 @@ const runCli = () => {
         "Usage: queue.ts open-pr --title <title> --head <branch> [--base main] (--body-file <path> | --body <text>)",
       );
     }
-    const created = restCreatedPrSchema.parse(
-      ghApiJson(repoRoot, [
-        `repos/${repo.owner}/${repo.name}/pulls`,
-        "-X",
-        "POST",
-        "-f",
-        `title=${title}`,
-        "-f",
-        `head=${head}`,
-        "-f",
-        `base=${base}`,
-        "-f",
-        `body=${body}`,
-      ]),
-    );
-    addIssueLabels(repoRoot, repo, created.number, ["agent:pr"]);
+    const existingPrs = z
+      .array(restCreatedPrSchema)
+      .parse(
+        ghApiJson(repoRoot, [
+          `repos/${repo.owner}/${repo.name}/pulls?state=open&head=${encodeURIComponent(`${repo.owner}:${head}`)}&base=${encodeURIComponent(base)}&per_page=10`,
+        ]),
+      );
+    const pr =
+      existingPrs[0] ??
+      restCreatedPrSchema.parse(
+        ghApiJson(repoRoot, [
+          `repos/${repo.owner}/${repo.name}/pulls`,
+          "-X",
+          "POST",
+          "-f",
+          `title=${title}`,
+          "-f",
+          `head=${head}`,
+          "-f",
+          `base=${base}`,
+          "-f",
+          `body=${body}`,
+        ]),
+      );
+    try {
+      addIssueLabels(repoRoot, repo, pr.number, ["agent:pr"]);
+    } catch (error) {
+      console.error(
+        JSON.stringify({
+          status: "created_unlabeled",
+          number: pr.number,
+          url: pr.html_url,
+          headRefName: pr.head.ref,
+        }),
+      );
+      throw error;
+    }
     console.log(
       JSON.stringify({
-        status: "created",
-        number: created.number,
-        url: created.html_url,
-        headRefName: created.head.ref,
+        status: existingPrs[0] ? "reused" : "created",
+        number: pr.number,
+        url: pr.html_url,
+        headRefName: pr.head.ref,
       }),
     );
     return;

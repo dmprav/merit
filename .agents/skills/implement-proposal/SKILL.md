@@ -133,10 +133,13 @@ the PR description and verification record that the review was not independent.
    [record verification](../../../docs/guides/verification.md#record-verification)
    with all four required H2 headings (`Checks run`, `Could not verify`,
    `Did not verify`, `Dismissed review findings`). Commit and push.
-5. Initialize autonomous PR state:
+5. Initialize autonomous PR state (until this marker is recorded,
+   [queue.ts](../../../tooling/agents/queue.ts) holds the PR out of shepherd
+   selection for up to 2 hours so concurrent runs cannot race the builder):
    `vpx tooling/agents/queue.ts record-shepherd <pr-number> --round 0 --sha $(git rev-parse HEAD) --issue <issue-number>`.
    If an error interrupts steps 4–5 after opening the PR, call
    `vpx tooling/agents/queue.ts escalate <pr-number> --reason "<failure>"`
-   before exiting.
+   before exiting (any uninitialized PR left stranded for more than 2 hours is
+   also automatically escalated by `queue.ts`).
 6. Exit cleanly. Automated review (CodeRabbit and Greptile) and CI follow-up are
    handled in subsequent runs by [queue-worker.md](../../../.agents/tasks/queue-worker.md).
