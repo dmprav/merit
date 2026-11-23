@@ -102,7 +102,7 @@ export const selectAutoLens = ({
       };
     }
 
-    const remainingMs = Math.max(0, targetMs - ageMs);
+    const remainingMs = Math.max(0, lastRunMs + targetMs - nowMs);
     if (!soonestUpcoming || remainingMs < soonestUpcoming.remainingMs) {
       soonestUpcoming = { lens, remainingMs };
     }

@@ -144,13 +144,12 @@ describe("scout", () => {
     expect(cappedAtFive.status).toBe("cap_reached");
   });
 
-  test("selects the most overdue lens for --lens auto, handles idle when all lenses are fresh, and rejects auto on advance", () => {
+  test("bootstraps never-run lenses in canonical SCOUT_LENSES order", () => {
     const dayMs = 24 * 60 * 60 * 1000;
     const nowMs = Date.UTC(2026, 10, 23, 8, 0, 0);
 
     const ago = (days: number) => ({ lastRunAt: new Date(nowMs - days * dayMs).toISOString() });
 
-    // Never-run lenses bootstrap in canonical SCOUT_LENSES order.
     expect(selectAutoLens({ state: {}, nowMs })).toEqual({
       due: true,
       lens: "docs",
@@ -163,8 +162,14 @@ describe("scout", () => {
       targetIntervalDays: LENS_TARGET_INTERVAL_DAYS.tests,
       lastRunAt: null,
     });
+  });
 
-    // When all lenses have run, picks the highest overdue ratio (>= 1), not just largest raw age.
+  test("picks the lens with the highest overdue ratio once every lens has run", () => {
+    const dayMs = 24 * 60 * 60 * 1000;
+    const nowMs = Date.UTC(2026, 10, 23, 8, 0, 0);
+
+    const ago = (days: number) => ({ lastRunAt: new Date(nowMs - days * dayMs).toISOString() });
+
     // architecture: 6d / 4d = 1.50; simplification: 7d / 5d = 1.40; docs: 2.5d / 2d = 1.25.
     expect(
       selectAutoLens({
@@ -184,8 +189,14 @@ describe("scout", () => {
       lens: "architecture",
       targetIntervalDays: 4,
     });
+  });
 
-    // When all lenses are fresh (< targetInterval), returns due: false with the soonest upcoming lens.
+  test("returns idle with the soonest upcoming lens when all lenses are fresh, including future timestamps", () => {
+    const dayMs = 24 * 60 * 60 * 1000;
+    const nowMs = Date.UTC(2026, 10, 23, 8, 0, 0);
+
+    const ago = (days: number) => ({ lastRunAt: new Date(nowMs - days * dayMs).toISOString() });
+
     // docs has 0.5d (12h) remaining vs security having 1d (24h) remaining.
     expect(
       selectAutoLens({
@@ -206,7 +217,28 @@ describe("scout", () => {
       nextDueInHours: 12,
     });
 
-    // CLI flag parsing allows --lens auto for context, rejects it for advance.
+    // A future timestamp on docs (due in 72h) ranks behind tests (due in 48h).
+    expect(
+      selectAutoLens({
+        state: {
+          docs: ago(-1),
+          tests: ago(0),
+          "verification-flakes": ago(0),
+          architecture: ago(0),
+          simplification: ago(0),
+          security: ago(0),
+          "mcp-db": ago(0),
+        },
+        nowMs,
+      }),
+    ).toEqual({
+      due: false,
+      nextLens: "tests",
+      nextDueInHours: 48,
+    });
+  });
+
+  test("allows --lens auto for context and rejects --lens auto for advance", () => {
     expect(parseContextLensFlag(["--lens", "auto"])).toBe("auto");
     expect(parseContextLensFlag(["--lens", "security"])).toBe("security");
     expect(parseAdvanceLensFlag(["--lens", "security"])).toBe("security");
