@@ -88,12 +88,7 @@ export const OrganizationDetailsView = ({ data }: { data: OrganizationData }) =>
             tone="danger"
             role="alert"
             actions={
-              <Button
-                ref={refreshAction}
-                variant="secondary"
-                isPending={refreshing}
-                onPress={refresh}
-              >
+              <Button ref={refreshAction} variant="quiet" isPending={refreshing} onPress={refresh}>
                 {t("refresh")}
               </Button>
             }
@@ -341,7 +336,6 @@ const InvitationActions = ({
         {work.active ? (
           <>
             <Button
-              size="medium"
               ref={actionRef}
               variant={invitationNeedsAttention(work.record, false) ? "primary" : "secondary"}
               isDisabled={disabled || !work.ready}
@@ -350,12 +344,12 @@ const InvitationActions = ({
             >
               {t(work.sending ? "sending" : "resend")}
             </Button>
-            <Button size="medium" variant="quiet" isDisabled={disabled} onPress={work.open}>
+            <Button variant="quiet" isDisabled={disabled} onPress={work.open}>
               {t(work.hasDraft ? "resumeInvitation" : "replace")}
             </Button>
           </>
         ) : (
-          <Button size="medium" ref={actionRef} isDisabled={disabled} onPress={work.open}>
+          <Button ref={actionRef} isDisabled={disabled} onPress={work.open}>
             {t(work.hasDraft ? "resumeInvitation" : "inviteOwner")}
           </Button>
         )}

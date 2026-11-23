@@ -55,12 +55,12 @@ export const ConflictBanner = ({
           (keepMine || useSaved || latest) && (
             <Inline>
               {keepMine && (
-                <Button variant="secondary" isDisabled={isDisabled} onPress={keepMine.onPress}>
+                <Button variant="quiet" isDisabled={isDisabled} onPress={keepMine.onPress}>
                   {keepMine.label}
                 </Button>
               )}
               {useSaved && (
-                <Button variant="secondary" isDisabled={isDisabled} onPress={useSaved.onPress}>
+                <Button variant="quiet" isDisabled={isDisabled} onPress={useSaved.onPress}>
                   {useSaved.label}
                 </Button>
               )}
@@ -118,7 +118,7 @@ const RetainedDraftActions = ({
   onDiscard?: () => void;
 }) => (
   <Inline>
-    <Button variant="secondary" isDisabled={isDisabled || copying} onPress={onCopy}>
+    <Button variant="quiet" isDisabled={isDisabled || copying} onPress={onCopy}>
       {copying ? copyingLabel : copyLabel}
     </Button>
     {onDiscard && (

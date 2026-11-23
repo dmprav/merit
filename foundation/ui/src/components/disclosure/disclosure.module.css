@@ -11,14 +11,14 @@
 .trigger {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-1);
-  min-height: var(--control-height-small);
+  gap: 6px;
+  min-height: var(--button-height);
   margin-inline-start: calc(-1 * var(--space-2));
   border-radius: var(--control-radius);
   padding-inline: var(--space-2);
   color: var(--muted);
   font-size: var(--text-control);
-  font-weight: 500;
+  font-weight: var(--weight-medium);
   cursor: pointer;
   outline: none;
   transition:
@@ -40,7 +40,17 @@
 }
 
 .chevron {
-  transition: transform var(--motion-fast);
+  width: 14px;
+  height: 14px;
+  color: var(--muted);
+  opacity: 0.8;
+  transition:
+    transform var(--motion-fast),
+    opacity var(--motion-fast);
+}
+
+.trigger[data-hovered] .chevron {
+  opacity: 1;
 }
 
 .disclosure[data-expanded] .chevron {
@@ -49,11 +59,12 @@
 
 .count {
   color: var(--muted);
-  font-weight: 400;
+  font-weight: var(--weight-regular);
+  font-variant-numeric: tabular-nums;
 }
 
 .panel[aria-hidden="false"] {
-  padding-top: var(--space-3);
+  padding-top: var(--space-2);
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -41,10 +41,11 @@ export const Disclosure = ({
   >
     <Heading level={headingLevel} className={styles.heading}>
       <Button slot="trigger" className={styles.trigger}>
-        <IconBase name="right" className={styles.chevron} />
         <span>{title}</span>
         {/* The space keeps the title and count separate words in the accessible name. */}
         {count !== undefined && <span className={styles.count}> {count}</span>}
+        {/* After the label, as a quiet cue that the section opens, rather than a bullet before it. */}
+        <IconBase name="right" className={styles.chevron} />
       </Button>
     </Heading>
     <DisclosurePanel className={styles.panel}>{children}</DisclosurePanel>

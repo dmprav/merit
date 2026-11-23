@@ -42,7 +42,7 @@
   max-width: 100%;
   min-height: var(--control-height-small);
   font-size: var(--text-control);
-  font-weight: 500;
+  font-weight: var(--weight-medium);
 }
 
 @media (pointer: coarse) {
@@ -68,7 +68,7 @@
   border-radius: calc(var(--control-radius) - 2px);
   color: var(--foreground);
   font-size: var(--text-control);
-  font-weight: 400;
+  font-weight: var(--weight-regular);
   text-decoration: none;
   overflow-wrap: anywhere;
 }

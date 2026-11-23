@@ -108,7 +108,7 @@ export const LongList: Story = {
       label: `Community grants ${2026 - index}`,
     })),
     defaultSelectedKey: "round-0",
-    actions: [{ id: "add", label: "Add funding round", onAction: fn() }],
+    actions: [{ id: "add", label: "Add funding round", icon: "add", onAction: fn() }],
   },
   play: async ({ canvas, canvasElement, userEvent }) => {
     await userEvent.click(canvas.getByRole("button", { name: /Funding round/ }));
@@ -132,7 +132,7 @@ const ControlledSelect = () => {
 };
 
 export const WithAction: Story = {
-  args: { actions: [{ id: "add", label: "Add another option", onAction: fn() }] },
+  args: { actions: [{ id: "add", label: "Add another option", icon: "add", onAction: fn() }] },
   play: async ({ canvas, canvasElement, userEvent, args }) => {
     await userEvent.click(canvas.getByRole("button", { name: /Recommendation/ }));
     await userEvent.click(

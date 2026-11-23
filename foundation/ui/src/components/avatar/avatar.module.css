@@ -8,7 +8,7 @@
   background: var(--action-subtle);
   color: var(--action);
   font-size: var(--text-meta);
-  font-weight: 500;
+  font-weight: var(--weight-medium);
   line-height: 1;
 }
 

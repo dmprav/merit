@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, waitFor, within } from "storybook/test";
 
 import type { ContactApplication } from "@merit/contacts-web/contracts";
-import { ApplicationPage } from "@merit/ui/application-shell";
+import { ApplicationPage, ApplicationStage } from "@merit/ui/application-shell";
 
 import { StoryEnvironment } from "../../../tests/storybook";
 import { ContactsDirectory } from "./contacts";
@@ -56,14 +56,16 @@ const meta = {
   decorators: [
     (Story) => (
       <StoryEnvironment>
-        <ApplicationPage
-          width="full"
-          locationKey="contacts"
-          breadcrumb={null}
-          breadcrumbLabel="Breadcrumb"
-        >
-          <Story />
-        </ApplicationPage>
+        <ApplicationStage>
+          <ApplicationPage
+            width="full"
+            locationKey="contacts"
+            breadcrumb={null}
+            breadcrumbLabel="Breadcrumb"
+          >
+            <Story />
+          </ApplicationPage>
+        </ApplicationStage>
       </StoryEnvironment>
     ),
   ],

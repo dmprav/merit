@@ -83,7 +83,8 @@ test("contacts and reviews preserve judgments across application and criteria ch
 
   await page.getByRole("button", { name: /^Reference material:/ }).click();
   await page.getByRole("menuitem", { name: "Reviewer assessments", exact: true }).click();
-  await page.getByRole("button", { name: "Record assessment", exact: true }).click();
+  await page.getByRole("button", { name: "Add", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Record assessment", exact: true }).click();
   await page
     .getByRole("form", { name: "Record assessment" })
     .getByRole("button", { name: "Close", exact: true })
@@ -92,8 +93,9 @@ test("contacts and reviews preserve judgments across application and criteria ch
   await expect(page.getByRole("button", { name: "Resume editing", exact: true })).toHaveCount(0);
 
   for (const name of [sam, jules]) {
-    await page.getByRole("button", { name: "Add review request", exact: true }).click();
-    const picker = page.getByRole("dialog", { name: "Add review request" });
+    await page.getByRole("button", { name: "Add", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Request review", exact: true }).click();
+    const picker = page.getByRole("dialog", { name: "Request review" });
     await picker.getByRole("textbox", { name: "Find a contact" }).fill(name);
     await picker.getByRole("option", { name: new RegExp(name) }).click();
 

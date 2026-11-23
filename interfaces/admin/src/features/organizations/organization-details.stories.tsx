@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, waitFor, mocked, within } from "storybook/test";
 
-import { ApplicationPage } from "@merit/ui/application-shell";
+import { ApplicationPage, ApplicationStage } from "@merit/ui/application-shell";
 
 import { StoryEnvironment } from "../../../tests/storybook";
 import { AdminPageState } from "../../shared/admin-page-state";
@@ -42,13 +42,15 @@ const OrganizationDetailsPreview = ({
 }) => (
   <StoryEnvironment path="/admin/organizations/org-1">
     <AdminDrafts>
-      <ApplicationPage locationKey="organization" breadcrumb={null} breadcrumbLabel="Breadcrumb">
-        {status ? (
-          <AdminPageState status={status} returnTo="/admin/organizations" />
-        ) : (
-          <OrganizationDetails result={{ status: "ok", value: record }} />
-        )}
-      </ApplicationPage>
+      <ApplicationStage>
+        <ApplicationPage locationKey="organization" breadcrumb={null} breadcrumbLabel="Breadcrumb">
+          {status ? (
+            <AdminPageState status={status} returnTo="/admin/organizations" />
+          ) : (
+            <OrganizationDetails result={{ status: "ok", value: record }} />
+          )}
+        </ApplicationPage>
+      </ApplicationStage>
     </AdminDrafts>
   </StoryEnvironment>
 );

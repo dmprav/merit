@@ -4,6 +4,7 @@ import { expect, fn, waitFor, within } from "storybook/test";
 
 import { Brand } from "../../components/brand/brand";
 import { Icon } from "../../components/icon/icon";
+import { Conversation, ConversationMessage } from "../conversation/conversation";
 import { MessageBox } from "../message-box/message-box";
 import { PageHeader } from "../page-header/page-header";
 import { StateMessage } from "../state-message/state-message";
@@ -19,22 +20,28 @@ import {
   useCloseNavigation,
 } from "./application-shell";
 import styles from "./application-shell.module.css";
-import storyStyles from "./application-shell.stories.module.css";
 
 /** The thread scrolls in the panel's body; the message box stays below it in the footer. */
 const AssistantThread = ({ count }: { count: number }) => (
-  <ul className={storyStyles.messages}>
-    <li>Which applications in this round still need a second review?</li>
-    <li className={storyStyles.reply}>
-      Three applications have one review so far: Riverside Youth Arts, Harbour Learning Garden, and
-      Northside Repair Cafe.
-    </li>
-    {Array.from({ length: count }, (_, index) => (
-      <li key={index} className={storyStyles.reply}>
-        Earlier question {index + 1} and its answer.
-      </li>
-    ))}
-  </ul>
+  <Conversation label="Conversation">
+    {Array.from({ length: count }, (_, index) => [
+      <ConversationMessage key={`question-${index}`} author="person" authorLabel="You">
+        <p>Earlier question {index + 1}</p>
+      </ConversationMessage>,
+      <ConversationMessage key={`answer-${index}`} author="assistant" authorLabel="Assistant">
+        <p>The answer to earlier question {index + 1}.</p>
+      </ConversationMessage>,
+    ])}
+    <ConversationMessage author="person" authorLabel="You">
+      <p>Which applications in this round still need a second review?</p>
+    </ConversationMessage>
+    <ConversationMessage author="assistant" authorLabel="Assistant">
+      <p>
+        Three applications have one review so far: Riverside Youth Arts, Harbour Learning Garden,
+        and Northside Repair Cafe.
+      </p>
+    </ConversationMessage>
+  </Conversation>
 );
 
 const AssistantMessageBox = ({
@@ -64,7 +71,7 @@ const AssistantOpener = ({ onOpen }: { onOpen: () => void }) => {
 
   return (
     <ApplicationNavigationButton
-      icon="search"
+      icon="assistant"
       label="Open assistant"
       onPress={() => {
         closeNavigation();

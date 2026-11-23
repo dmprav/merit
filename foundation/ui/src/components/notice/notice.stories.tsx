@@ -46,10 +46,10 @@ export const WithRecovery: Story = {
     children: "Your draft is still here. Compare it with the saved version before continuing.",
     actions: (
       <Inline>
-        <Button size="medium" variant="secondary" onPress={fn()}>
+        <Button variant="quiet" onPress={fn()}>
           Use saved version
         </Button>
-        <Button size="medium" variant="secondary" onPress={fn()}>
+        <Button variant="quiet" onPress={fn()}>
           Keep my draft
         </Button>
       </Inline>

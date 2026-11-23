@@ -9,14 +9,13 @@ import { useFormat } from "@merit/i18n/format";
 import { ActionProvenance } from "@merit/ui/action-provenance";
 import { Button } from "@merit/ui/button";
 import { Judgment } from "@merit/ui/judgment";
-import { Reading } from "@merit/ui/layout";
-import { SectionHeader } from "@merit/ui/section-header";
+import { Reading, Stack } from "@merit/ui/layout";
+import { PanelSection } from "@merit/ui/panel-section";
 import { Text } from "@merit/ui/text";
 import { useEventToast } from "@merit/ui/toast";
 
 import type { RecommendationData } from "../../contracts/recommendations";
 import { useRecommendation } from "../../controllers/recommendations/use-recommendation";
-import styles from "../application-recommendation.module.css";
 import { recommendationPositionKeys } from "./messages";
 import { RecommendationEditor } from "./recommendation-editor";
 
@@ -84,65 +83,66 @@ export const ApplicationRecommendationSummary = ({
   }
 
   return (
-    <section className={styles.recommendationSummary} aria-label={t("applications.recommendation")}>
-      <SectionHeader title={t("applications.recommendation")} emphasis="quiet" />
-      <Judgment
-        author={recommendation?.author?.name ?? manager}
-        meta={
-          recommendation && (
-            <>
-              {recommendation.recorded && calendarDate(recommendation.recorded.date)}
-              {recommendation.author?.provenance && (
-                <ActionProvenance value={recommendation.author.provenance} />
-              )}
-            </>
-          )
-        }
-        action={action}
-        summary={
-          recommendation && (
-            <>
-              <strong>{t(recommendationPositionKeys[recommendation.position])}</strong>
-              {recommendation.position !== "Defer" && (
+    <PanelSection title={t("applications.recommendation")}>
+      <Stack gap={1}>
+        <Judgment
+          author={recommendation?.author?.name ?? manager}
+          meta={
+            recommendation && (
+              <>
+                {recommendation.recorded && calendarDate(recommendation.recorded.date)}
+                {recommendation.author?.provenance && (
+                  <ActionProvenance value={recommendation.author.provenance} />
+                )}
+              </>
+            )
+          }
+          action={action}
+          summary={
+            recommendation && (
+              <>
+                <strong>{t(recommendationPositionKeys[recommendation.position])}</strong>
+                {recommendation.position !== "Defer" && (
+                  <span>
+                    {t("applications.proposedAmount", { amount: money(recommendation.allocation) })}
+                  </span>
+                )}
+              </>
+            )
+          }
+          basis={
+            // The current version needs no note; an earlier or unknown basis qualifies the position.
+            recommendation &&
+            basis !== application.version && (
+              <>
                 <span>
-                  {t("applications.proposedAmount", { amount: money(recommendation.allocation) })}
+                  {basis == null
+                    ? t("workspace.basisUnknown")
+                    : t("workspace.earlierBasis", { version: basis })}
                 </span>
-              )}
-            </>
-          )
-        }
-        basis={
-          // The current version needs no note; an earlier or unknown basis qualifies the position.
-          recommendation &&
-          basis !== application.version && (
+                {basis != null && onInspectVersion && (
+                  <Button variant="quiet" onPress={() => onInspectVersion(basis)}>
+                    {t("workspace.compareChanges")}
+                  </Button>
+                )}
+              </>
+            )
+          }
+        >
+          {recommendation && (
             <>
-              <span>
-                {basis == null
-                  ? t("workspace.basisUnknown")
-                  : t("workspace.earlierBasis", { version: basis })}
-              </span>
-              {basis != null && onInspectVersion && (
-                <Button variant="quiet" onPress={() => onInspectVersion(basis)}>
-                  {t("workspace.compareChanges")}
-                </Button>
-              )}
+              <Reading prose={false} as="p">
+                {recommendation.reasoning}
+              </Reading>
             </>
-          )
-        }
-      >
-        {recommendation && (
-          <>
-            <Reading prose={false} as="p">
-              {recommendation.reasoning}
-            </Reading>
-          </>
+          )}
+        </Judgment>
+        {!recommendation && (
+          <Text as="p" variant="missing">
+            {t("applications.notRecommended")}
+          </Text>
         )}
-      </Judgment>
-      {!recommendation && (
-        <Text as="p" variant="missing">
-          {t("applications.notRecommended")}
-        </Text>
-      )}
-    </section>
+      </Stack>
+    </PanelSection>
   );
 };

@@ -47,8 +47,16 @@
 /* Pane titles stay quieter than the content headings beneath them. */
 .toolbar[data-title] h2 {
   font-size: var(--text-detail);
-  font-weight: 500;
+  font-weight: var(--weight-medium);
   letter-spacing: -0.01em;
+}
+
+.title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  min-width: 0;
 }
 
 .toolbar[data-title] h2:focus {
@@ -175,8 +183,9 @@
     overflow: hidden;
   }
 
+  /* The child owns its scrolling body; its footer still keeps a gutter from the viewport edge. */
   .work > .content[data-fill] {
-    --pane-padding-block-end: 0px;
+    --pane-padding-block-end: var(--space-4);
   }
 }
 

@@ -10,6 +10,8 @@ import ChevronDown from "lucide-react/icons/chevron-down";
 import ChevronLeft from "lucide-react/icons/chevron-left";
 import ChevronRight from "lucide-react/icons/chevron-right";
 import CircleAlert from "lucide-react/icons/circle-alert";
+import CircleCheck from "lucide-react/icons/circle-check";
+import CircleX from "lucide-react/icons/circle-x";
 import Clock from "lucide-react/icons/clock";
 import Compass from "lucide-react/icons/compass";
 import Copy from "lucide-react/icons/copy";
@@ -30,7 +32,10 @@ import Plus from "lucide-react/icons/plus";
 import RotateCcw from "lucide-react/icons/rotate-ccw";
 import Search from "lucide-react/icons/search";
 import Settings from "lucide-react/icons/settings";
+import Sparkles from "lucide-react/icons/sparkles";
+import Square from "lucide-react/icons/square";
 import Trash2 from "lucide-react/icons/trash-2";
+import TriangleAlert from "lucide-react/icons/triangle-alert";
 import Users from "lucide-react/icons/users";
 import X from "lucide-react/icons/x";
 
@@ -38,6 +43,11 @@ import styles from "./icon.module.css";
 
 const icons = {
   warning: CircleAlert,
+  // Feedback tones: each status keeps its own shape, so tone never rests on color alone.
+  success: CircleCheck,
+  attention: TriangleAlert,
+  failure: CircleX,
+  assistant: Sparkles,
   clock: Clock,
   info: Info,
   pin: Pin,
@@ -71,6 +81,7 @@ const icons = {
   reset: RotateCcw,
   close: X,
   send: ArrowUp,
+  stop: Square,
   chat: MessageSquare,
   search: Search,
   filter: ListFilter,
@@ -90,7 +101,9 @@ export const IconBase = ({ name, className }: { name: IconName; className?: stri
       aria-hidden="true"
       size={16}
       strokeWidth={name === "pinned" ? 1.25 : 1.75}
-      fill={name === "pinned" ? "currentColor" : "none"}
+      // Solid glyphs mark a state by shape as well as tone: a pinned item, and the square that stops
+      // work in progress. Everything else is drawn in outline.
+      fill={name === "pinned" || name === "stop" ? "currentColor" : "none"}
       className={`${styles.icon} ${className ?? ""}`}
     />
   );

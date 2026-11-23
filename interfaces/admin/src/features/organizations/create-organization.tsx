@@ -6,6 +6,7 @@ import { FormDialog } from "@merit/forms";
 import { Button } from "@merit/ui/button";
 import { DialogContent } from "@merit/ui/dialog";
 import { EditorLoading } from "@merit/ui/editor-loading";
+import { Icon } from "@merit/ui/icon";
 import { Notice } from "@merit/ui/notice";
 
 import { RoutedLink } from "../../shared/routed-link";
@@ -49,7 +50,10 @@ export const CreateOrganization = () => {
       }}
       isDismissDisabled={pending}
       trigger={
-        <Button isDisabled={!hydrated}>{t(drafts.creation ? "resumeCreation" : "create")}</Button>
+        <Button variant="secondary" isDisabled={!hydrated}>
+          {!drafts.creation && <Icon name="add" />}
+          {t(drafts.creation ? "resumeCreation" : "create")}
+        </Button>
       }
     >
       {open &&

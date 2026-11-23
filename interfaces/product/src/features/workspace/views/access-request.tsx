@@ -26,7 +26,7 @@ export const AccessRequestDialog = ({
     <FormDialog
       title={t("request.title")}
       trigger={
-        <Button size="medium" variant="inline" isDisabled={!hydrated}>
+        <Button variant="inline" isDisabled={!hydrated}>
           {t(hasDraft ? "request.resume" : "request.title")}
         </Button>
       }

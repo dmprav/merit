@@ -43,11 +43,11 @@ const meta = {
         description="Prepare the evidence and recommendations for committee."
         actions={
           <>
-            <Button size="medium">Review round</Button>
+            <Button variant="secondary">Review round</Button>
             <ActionMenu
               label="More actions"
               trigger={
-                <Button size="medium" variant="quiet" iconOnly aria-label="More actions">
+                <Button variant="quiet" iconOnly aria-label="More actions">
                   <Icon name="more" />
                 </Button>
               }

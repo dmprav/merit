@@ -38,8 +38,8 @@ const groups: SearchPaletteGroup[] = [
     id: "applications",
     heading: "Applications",
     items: [
-      item("a1", "Boat repairs", "Trust · Harbour fund", "In preparation"),
-      item("a2", "Lights", "Dock · Harbour fund"),
+      item("a1", "Boat repairs", "Trust, Harbour fund", "In preparation"),
+      item("a2", "Lights", "Dock, Harbour fund"),
     ],
     note: "Showing 2 of 43 applications. Type more to narrow.",
   },

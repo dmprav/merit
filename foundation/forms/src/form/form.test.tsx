@@ -214,3 +214,52 @@ it("keeps a person's new focus when a save fails", async () => {
 
   expect(other).toHaveFocus();
 });
+
+it("announces draft status in the footer beside Discard, not in the fields", async () => {
+  const StatusExample = () => {
+    const { form, submission } = useForm({
+      defaultValues: { title: "" },
+      schema: z.object({ title: z.string() }),
+      onSubmit: () => null,
+      submitErrorMessage: "Could not save. Try again.",
+    });
+    return (
+      <form.Subscribe selector={(state) => state.isDirty}>
+        {(dirty) => (
+          <Form
+            label="Status example"
+            scrollFields
+            submission={submission}
+            actions={
+              <FormActions
+                submission={submission}
+                status={dirty ? "Draft kept in this tab" : null}
+                discard={{ label: "Discard changes", onPress: () => {} }}
+                onCancel={() => {}}
+                cancelLabel="Close"
+                submitLabel="Save"
+                submittingLabel="Saving…"
+              />
+            }
+          >
+            <form.Field name="title">
+              {(field) => <FormTextField field={field} label="Title" />}
+            </form.Field>
+          </Form>
+        )}
+      </form.Subscribe>
+    );
+  };
+
+  const user = userEvent.setup();
+  render(<StatusExample />);
+  const status = screen.getByRole("status");
+  expect(status).toBeEmptyDOMElement();
+
+  await user.type(screen.getByLabelText("Title"), "A grant");
+
+  expect(status).toHaveTextContent("Draft kept in this tab");
+  const footer = status.closest("[data-dialog-footer]");
+  expect(footer).toContainElement(screen.getByRole("button", { name: "Discard changes" }));
+  expect(screen.getByRole("group", { name: "Status example" })).not.toContainElement(status);
+});

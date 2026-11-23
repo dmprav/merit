@@ -20,7 +20,7 @@ const meta = {
   args: {
     title: "Workspace unavailable",
     description: "We couldn’t load your workspace. Please try again.",
-    actions: <Button size="medium">Try again</Button>,
+    actions: <Button>Try again</Button>,
   },
 } satisfies Meta<typeof StateMessage>;
 

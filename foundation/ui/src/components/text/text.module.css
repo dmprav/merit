@@ -15,10 +15,10 @@
 }
 
 .text[data-variant="emphasis"] {
-  font-weight: 500;
+  font-weight: var(--weight-medium);
 }
 
 .text[data-variant="attention"] {
   color: var(--warning);
-  font-weight: 500;
+  font-weight: var(--weight-medium);
 }

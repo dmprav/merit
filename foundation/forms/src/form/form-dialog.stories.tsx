@@ -61,7 +61,7 @@ const FormDialogExample = ({
         isOpen={open}
         onOpenChange={setOpen}
         isDismissDisabled={submission.isSubmitting}
-        trigger={<Button size="medium">Write a note</Button>}
+        trigger={<Button>Write a note</Button>}
       >
         {preparing ? (
           <DialogContent label="Note">

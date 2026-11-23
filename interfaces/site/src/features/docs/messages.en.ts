@@ -331,7 +331,7 @@ export const docs = {
         title: "Request and record reviews",
         steps: {
           request:
-            "In a workspace application, open Manage reviews and choose Add review request. Select or add the reviewer as a contact; choosing them immediately records a request against the current application and criteria.",
+            "In a workspace application, open Manage reviews and choose Add, then Request review. Select or add the reviewer as a contact; choosing them immediately records a request against the current application and criteria.",
           arrange:
             "Arrange the review through your usual email or other channels. Tracking a request in Merit sends no message and gives the contact no account or workspace access.",
           record:

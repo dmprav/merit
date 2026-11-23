@@ -76,7 +76,11 @@ const MessageBoxChips = ({
   ) : null;
 };
 
-/** Stop hands its focus to the input when it leaves because the work ended without it. */
+/**
+ * Takes Send's place while the caller works, as a solid square in the same spot, tinted on a soft
+ * fill so the work in progress reads at a glance without a loud button. Stop hands its focus to the
+ * input when it leaves because the work ended without it.
+ */
 const StopButton = ({
   label,
   input,
@@ -100,8 +104,15 @@ const StopButton = ({
   }, [input]);
 
   return (
-    <ButtonBase ref={button} variant="secondary" size="small" onPress={onPress}>
-      {label}
+    <ButtonBase
+      ref={button}
+      variant="quiet"
+      iconOnly
+      aria-label={label}
+      className={`${styles.command} ${styles.stopping}`}
+      onPress={onPress}
+    >
+      <IconBase name="stop" className={styles.stop} />
     </ButtonBase>
   );
 };
@@ -179,9 +190,11 @@ export const MessageBox = ({
             />
           ) : (
             <ButtonBase
-              variant="primary"
-              size="small"
+              // Quiet beside the text: tinted in the action colour once there is something to send,
+              // and muted while there is not.
+              variant="quiet"
               iconOnly
+              className={styles.command}
               aria-label={sendLabel}
               isDisabled={!canSend}
               onPress={() => {

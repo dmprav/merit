@@ -3,7 +3,6 @@ import { test, expect, checkPage } from "@merit/test-support/browser";
 for (const story of [
   { id: "components-button--keyboard-focus", ready: "button" },
   { id: "components-button--pending", ready: "button[data-pending]" },
-  { id: "components-button--small", ready: "button" },
   { id: "components-button--icon-only", ready: "button" },
   { id: "components-button--overview", ready: "button" },
   { id: "components-button--pending-icon-only", ready: "button[data-pending]" },
@@ -77,10 +76,10 @@ for (const story of [
 
       const bounds = (await toast.boundingBox())!;
       const workspace = (await page.locator("#main").boundingBox())!;
+      const layoutWidth = await page.evaluate(() => document.documentElement.clientWidth);
 
-      expect(
-        Math.abs(bounds.x + bounds.width / 2 - (workspace.x + workspace.width / 2)),
-      ).toBeLessThan(1);
+      // Bottom right of the workspace, inset from the viewport edge.
+      expect(Math.abs(bounds.x + bounds.width - (layoutWidth - 16))).toBeLessThan(1);
       expect(bounds.width).toBeLessThanOrEqual(workspace.width - 32);
       await page.screenshot({ path: testInfo.outputPath(`${story.id}.png`) });
     }

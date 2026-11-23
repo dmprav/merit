@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, waitFor, mocked, within } from "storybook/test";
 
-import { ApplicationPage } from "@merit/ui/application-shell";
+import { ApplicationPage, ApplicationStage } from "@merit/ui/application-shell";
 
 import { StoryEnvironment } from "../../../tests/storybook";
 import { AdminDrafts } from "./controllers/drafts";
@@ -18,13 +18,15 @@ const meta = {
     (Story) => (
       <StoryEnvironment path="/admin/organizations">
         <AdminDrafts>
-          <ApplicationPage
-            locationKey="organizations"
-            breadcrumb={null}
-            breadcrumbLabel="Breadcrumb"
-          >
-            <Story />
-          </ApplicationPage>
+          <ApplicationStage>
+            <ApplicationPage
+              locationKey="organizations"
+              breadcrumb={null}
+              breadcrumbLabel="Breadcrumb"
+            >
+              <Story />
+            </ApplicationPage>
+          </ApplicationStage>
         </AdminDrafts>
       </StoryEnvironment>
     ),

@@ -15,7 +15,7 @@ const ContextMenuLink = ({
   <ActionMenu
     label="Pin actions"
     activation="contextMenu"
-    tooltip="Round · Workspace"
+    tooltip="Round, Workspace"
     trigger={
       <a href="/round" onClick={onClick}>
         Round

@@ -34,9 +34,7 @@ const guidanceWithActions = ({ close }: { close: () => void }) => (
   <DialogContent
     footer={
       <Inline justify="end">
-        <Button size="medium" onPress={close}>
-          Done
-        </Button>
+        <Button onPress={close}>Done</Button>
       </Inline>
     }
   >
@@ -54,11 +52,7 @@ const meta = {
   args: {
     title: "Review guidance",
     closeLabel: "Close dialog",
-    trigger: (
-      <Button size="medium" variant="secondary">
-        Open dialog
-      </Button>
-    ),
+    trigger: <Button variant="secondary">Open dialog</Button>,
     children: (
       <DialogContent>
         <p className={localStyles.description}>
@@ -136,9 +130,7 @@ export const CenteredReading: Story = {
         reading
         footer={
           <Inline justify="end">
-            <Button size="medium" onPress={close}>
-              Done
-            </Button>
+            <Button onPress={close}>Done</Button>
           </Inline>
         }
       >
@@ -205,11 +197,7 @@ const PickerExample = () => {
       placement="bottom start"
       isOpen={open}
       onOpenChange={setOpen}
-      trigger={
-        <Button size="medium" variant="secondary">
-          Status: {status}
-        </Button>
-      }
+      trigger={<Button variant="secondary">Status: {status}</Button>}
     >
       <ChoiceList
         label="Status"

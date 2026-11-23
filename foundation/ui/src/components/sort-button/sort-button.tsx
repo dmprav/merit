@@ -23,7 +23,6 @@ export const SortButton = ({
 }) => (
   <ButtonBase
     variant="quiet"
-    size="small"
     className={styles.sortButton}
     data-direction={direction}
     data-align={align}

@@ -44,3 +44,41 @@
     border-top: 1px solid var(--border);
   }
 }
+
+/*
+ * In a contained page the layout fills the space below the header: the properties stay beside the
+ * work and scroll on their own, and the work hands its scrolling to the region inside it, such as
+ * a tab panel. Stacked, the whole layout scrolls as one.
+ */
+@media (min-width: 901px) and (min-height: 600px) {
+  :where([data-contained]) > :where(main) > .layout {
+    flex: 1;
+    min-height: 0;
+    padding-inline: var(--page-gutter);
+  }
+}
+
+@media (min-width: 1351px) and (min-height: 600px) {
+  :where([data-contained]) > :where(main) > .layout {
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  :where([data-contained]) > :where(main) > .layout > .main {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  :where([data-contained]) > :where(main) > .layout > .properties {
+    align-self: stretch;
+    overflow-y: auto;
+    padding-bottom: var(--space-6);
+  }
+}
+
+@media (min-width: 901px) and (max-width: 1350px) and (min-height: 600px) {
+  :where([data-contained]) > :where(main) > .layout {
+    overflow-y: auto;
+    padding-bottom: var(--space-6);
+  }
+}

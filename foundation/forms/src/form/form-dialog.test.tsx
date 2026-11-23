@@ -27,7 +27,7 @@ const Example = ({
     <FormDialog
       title="Write a review"
       closeLabel="Close editor"
-      trigger={<Button size="medium">Write</Button>}
+      trigger={<Button>Write</Button>}
       isDismissDisabled={submission.isSubmitting}
     >
       <Form
@@ -113,17 +113,13 @@ it("keeps a portaled child form's layout and submission separate from its parent
       <ModalDialog
         title="Contact"
         closeLabel="Close contact"
-        trigger={<Button size="medium">Edit contact</Button>}
+        trigger={<Button>Edit contact</Button>}
       >
         <Form
           label="Contact"
           submission={{ submit: saveContact, isSubmitting: false, error: null }}
           submitOnModEnter
-          actions={
-            <Button size="medium" type="submit">
-              Save contact
-            </Button>
-          }
+          actions={<Button type="submit">Save contact</Button>}
         >
           <label>
             Name

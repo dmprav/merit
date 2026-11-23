@@ -8,8 +8,10 @@ import { decodeMoney } from "@merit/money";
 import type { ReviewerPage } from "@merit/reviews/api";
 import type { ReviewerSubmissionProblem } from "@merit/reviews/domain";
 import { Attribution } from "@merit/ui/attribution";
+import { Badge } from "@merit/ui/badge";
 import { Button } from "@merit/ui/button";
 import { DescriptionList, DescriptionListItem } from "@merit/ui/description-list";
+import { PickerPopover } from "@merit/ui/dialog";
 import { Disclosure } from "@merit/ui/disclosure";
 import { Divider } from "@merit/ui/divider";
 import { Icon } from "@merit/ui/icon";
@@ -56,6 +58,12 @@ export const ReviewerAssessment = ({ work }: { work: ReviewerWork }) => {
       as="section"
       label={t("assessment")}
       title={t("assessment")}
+      titleMeta={
+        <AssessmentRequest
+          assignment={page.assignment}
+          note={writing ? t(page.assessment ? "amendmentHelp" : "privacy") : undefined}
+        />
+      }
       titleActions={!writing && page.assessment && <AmendmentTrigger work={work} />}
       footer={
         writing && (
@@ -66,10 +74,6 @@ export const ReviewerAssessment = ({ work }: { work: ReviewerWork }) => {
       <SubmissionConfirmation page={page} />
       <div ref={form}>
         <Stack gap={5}>
-          <AssessmentRequest
-            assignment={page.assignment}
-            note={writing ? t(page.assessment ? "amendmentHelp" : "privacy") : undefined}
-          />
           {writing ? <ReviewerDraftForm work={work} /> : <SubmittedAssessment work={work} />}
           <EarlierVersions page={page} />
         </Stack>
@@ -78,7 +82,10 @@ export const ReviewerAssessment = ({ work }: { work: ReviewerWork }) => {
   );
 };
 
-/** Who asked, by when, and while writing, who can read the draft. */
+/**
+ * When the response is due beside the pane title, and on request who asked, by when, and while
+ * writing, who can read the draft.
+ */
 const AssessmentRequest = ({
   assignment,
   note,
@@ -88,18 +95,33 @@ const AssessmentRequest = ({
 }) => {
   const { t } = useTranslation("reviewer");
   const format = useFormat();
+  const due = assignment.dueDate && format.calendarDate(assignment.dueDate);
+  const [open, setOpen] = useState(false);
   return (
-    <Text as="div" variant="supporting">
-      <Stack gap={1}>
-        <p>{t("requestedBy", { name: assignment.managerName })}</p>
-        <p className={styles.responseDate}>
-          {assignment.dueDate
-            ? t("dueOn", { date: format.calendarDate(assignment.dueDate) })
-            : t("noDue")}
-        </p>
-        {note && <p>{note}</p>}
-      </Stack>
-    </Text>
+    <>
+      {due && <Badge>{t("dueBadge", { date: due })}</Badge>}
+      <PickerPopover
+        title={t("requestDetails")}
+        placement="bottom start"
+        isOpen={open}
+        onOpenChange={setOpen}
+        trigger={
+          <Tooltip content={t("requestDetails")} isDisabled={open}>
+            <Button variant="quiet" iconOnly aria-label={t("requestDetails")}>
+              <Icon name="info" />
+            </Button>
+          </Tooltip>
+        }
+      >
+        <Text as="div" variant="supporting">
+          <Stack gap={2}>
+            <p>{t("requestedBy", { name: assignment.managerName })}</p>
+            <p>{due ? t("dueOn", { date: due }) : t("noDue")}</p>
+            {note && <p>{note}</p>}
+          </Stack>
+        </Text>
+      </PickerPopover>
+    </>
   );
 };
 
@@ -488,12 +510,21 @@ export const RetainedDraft = ({ work }: { work: ReviewerWork }) => {
   );
 };
 
-const DraftSaveStatus = ({ busy, dirty }: { busy: boolean; dirty: boolean }) => {
+const DraftSaveStatus = ({
+  busy,
+  dirty,
+  amending,
+}: {
+  busy: boolean;
+  dirty: boolean;
+  amending: boolean;
+}) => {
   const { t } = useTranslation("reviewer");
   return (
     <div role="status">
       <Text as="p" variant="supporting">
-        {t(busy ? "saving" : dirty ? "unsaved" : "saved")}
+        {/* An amendment is read with the earlier versions, so only a first draft is private. */}
+        {t(busy ? "saving" : dirty ? "unsaved" : amending ? "saved" : "savedPrivate")}
       </Text>
     </div>
   );
@@ -521,11 +552,10 @@ const ReviewerSubmitActions = ({
         <ReviewerFeedback work={work} offerRefresh={!canRetry} />
       </div>
       {/* One row: whether the draft is saved, then the commands that act on it. */}
-      <DraftSaveStatus busy={work.busy} dirty={work.dirty} />
+      <DraftSaveStatus busy={work.busy} dirty={work.dirty} amending={amending} />
       <Inline align="center">
         {amending && (
           <Button
-            size="medium"
             variant="quiet"
             isDisabled={work.busy || work.submissionPending}
             onPress={work.discardAmendment}
@@ -534,18 +564,12 @@ const ReviewerSubmitActions = ({
           </Button>
         )}
         {canRetry && (
-          <Button
-            size="medium"
-            variant="secondary"
-            isDisabled={work.busy}
-            onPress={() => void work.save()}
-          >
+          <Button variant="secondary" isDisabled={work.busy} onPress={() => void work.save()}>
             {t("retry")}
           </Button>
         )}
         {amending && (
           <Button
-            size="medium"
             variant="secondary"
             isDisabled={work.submissionPending}
             onPress={work.closeAmendment}
@@ -554,7 +578,6 @@ const ReviewerSubmitActions = ({
           </Button>
         )}
         <Button
-          size="medium"
           isDisabled={work.busy || Boolean(work.conflict)}
           onPress={async () => {
             if ((await work.submit()) === "invalid") {

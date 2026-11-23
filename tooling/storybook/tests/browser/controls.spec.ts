@@ -339,8 +339,9 @@ for (const theme of ["product", "site"]) {
           icon: node.querySelector("svg")!.getBoundingClientRect().toJSON() as DOMRect,
         }));
         expect(bounds.width).toBe(bounds.height);
+        // One button height: 28px in the dense product, 32px on the site, 44px for touch.
         expect(bounds.width).toBeGreaterThanOrEqual(
-          testInfo.project.name.includes("mobile") ? 44 : 32,
+          testInfo.project.name.includes("mobile") ? 44 : theme === "product" ? 28 : 32,
         );
         expect(Math.abs(icon.x + icon.width / 2 - bounds.x - bounds.width / 2)).toBeLessThan(1);
         expect(Math.abs(icon.y + icon.height / 2 - bounds.y - bounds.height / 2)).toBeLessThan(1);

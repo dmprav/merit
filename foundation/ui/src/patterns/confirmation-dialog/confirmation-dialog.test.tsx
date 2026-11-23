@@ -20,7 +20,7 @@ const Example = ({ confirm }: { confirm: () => Promise<string | null> }) => {
       confirmLabel="Revoke invitation"
       pendingLabel="Revoking invitation…"
       intent="destructive"
-      trigger={<Button size="medium">Review revocation</Button>}
+      trigger={<Button>Review revocation</Button>}
       isOpen={open}
       onOpenChange={setOpen}
       isPending={pending}

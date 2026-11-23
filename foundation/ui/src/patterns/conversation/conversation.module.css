@@ -1,6 +1,7 @@
+/* Turns sit further apart than the blocks inside one, so each message reads as one. */
 .thread {
   display: grid;
-  gap: var(--space-4);
+  gap: var(--space-5);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -14,6 +15,7 @@
   display: grid;
   gap: var(--space-3);
   min-width: 0;
+  color: var(--foreground);
   font-size: var(--text-body);
   line-height: var(--leading-reading);
   overflow-wrap: anywhere;
@@ -23,6 +25,7 @@
   margin: 0;
 }
 
+/* The person's message is a filled bubble at the end; the answer stays unframed prose. */
 .message[data-author="person"] .content {
   inline-size: fit-content;
   max-inline-size: 85%;
@@ -30,5 +33,42 @@
   padding: var(--space-2) var(--space-3);
   border-radius: var(--panel-radius);
   background: var(--surface-muted);
+  line-height: 1.5;
   white-space: pre-wrap;
+}
+
+/*
+ * An answer's actions sit just under it, their icons lined up with the text. The latest message
+ * keeps them in view; earlier ones show theirs while hovered or holding focus, so the thread reads
+ * as prose. Touch screens cannot hover, so they keep every row in view.
+ */
+.actions {
+  display: flex;
+  gap: var(--space-1);
+  margin-block-start: var(--space-1);
+  margin-inline-start: calc((1rem - var(--button-height)) / 2);
+  --button-quiet-foreground: var(--muted);
+  transition: opacity var(--motion-fast);
+}
+
+.message:not(:last-child):not(:hover, :focus-within) .actions {
+  opacity: 0;
+}
+
+@media (hover: none), (pointer: coarse) {
+  .message:not(:last-child):not(:hover, :focus-within) .actions {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .actions {
+    transition: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .message[data-author="person"] .content {
+    border: 1px solid CanvasText;
+  }
 }

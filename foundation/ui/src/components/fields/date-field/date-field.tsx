@@ -95,7 +95,6 @@ export const DateField = ({
                   <Tooltip content={calendarLabel}>
                     <ButtonBase
                       variant="quiet"
-                      size="small"
                       iconOnly
                       className={styles.trigger}
                       aria-label={calendarLabel}

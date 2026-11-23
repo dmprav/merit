@@ -1,0 +1,26 @@
+import { Canvas, Meta } from "@storybook/addon-docs/blocks";
+import * as PanelSection from "./panel-section.stories";
+
+<Meta of={PanelSection} />
+
+# Arrange a side panel's sections
+
+Use `PanelSections` and `PanelSection` for the summaries in a supporting pane, such
+as an application's details, staff summary, recommendation, and reviews beside the
+material being read. The sections share one rhythm, so a panel assembled from
+several features still reads as one list of facts.
+
+<Canvas of={PanelSection.SidePanel} />
+
+- **Space between sections** is equal and owned by `PanelSections`; features do not
+  add their own margins, padding, or dividers between sections.
+- **The header row** holds the label, an optional count, and the section's quiet
+  actions at the end, such as an edit button, an **Add** menu, or a link to the full
+  list. The row stays one control tall with or without actions.
+- **A supporting line** under the header, such as a status summary of the content,
+  goes in `meta` rather than between the header and the content's actions.
+- **Content** starts flush with the label. Only a person's row, such as a
+  `Judgment`, indents its body under the avatar.
+
+Each section is a region named by its heading. Use `SectionHeader` directly for the
+sections of a main page or document, where headings carry more weight.

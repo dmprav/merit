@@ -3,7 +3,7 @@
   align-items: center;
   gap: 0.3em;
   vertical-align: middle;
-  font-weight: 700;
+  font-weight: var(--weight-brand);
   letter-spacing: -0.05em;
   line-height: 1.2;
   white-space: nowrap;

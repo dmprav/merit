@@ -41,7 +41,9 @@ test.describe("companion panel layout", () => {
     expect(scrolled.height).toBe(160);
   });
 
-  test("centres a toast on the page area beside the open panel", async ({ page }) => {
+  test("places a toast at the bottom right of the page area beside the open panel", async ({
+    page,
+  }) => {
     await page.setViewportSize({ width: 1440, height: 800 });
     await open(page, "patterns-application-shell--assistant-panel-with-toast");
 
@@ -51,8 +53,8 @@ test.describe("companion panel layout", () => {
     const main = (await page.locator("#main").boundingBox())!;
     const panel = (await page.getByRole("complementary", { name: "Assistant" }).boundingBox())!;
 
-    expect(Math.abs(bounds.x + bounds.width / 2 - (main.x + main.width / 2))).toBeLessThan(1);
-    expect(bounds.x + bounds.width).toBeLessThanOrEqual(panel.x);
+    expect(Math.abs(bounds.x + bounds.width - (panel.x - 16))).toBeLessThan(1);
+    expect(bounds.x).toBeGreaterThanOrEqual(main.x);
   });
 
   for (const [width, sheetWidth] of [

@@ -12,14 +12,14 @@
 
 .article h1 {
   font-size: clamp(1.875rem, 3vw, 2.5rem);
-  font-weight: 600;
+  font-weight: var(--weight-heading);
   letter-spacing: -0.035em;
   line-height: 1.2;
 }
 
 .article h2 {
   font-size: 1.25rem;
-  font-weight: 600;
+  font-weight: var(--weight-heading);
   line-height: 1.4;
 }
 

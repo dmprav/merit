@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, within } from "storybook/test";
 
-import { ApplicationPage } from "@merit/ui/application-shell";
+import { ApplicationPage, ApplicationStage } from "@merit/ui/application-shell";
 import { PageHeader } from "@merit/ui/page-header";
 
 import { teamFixture } from "../../tests/team.fixtures";
@@ -18,15 +18,17 @@ const meta = {
   decorators: [
     (Story) => (
       <OrganizationMessagesProvider>
-        <ApplicationPage
-          width="full"
-          locationKey="team-members"
-          breadcrumb={null}
-          breadcrumbLabel="Breadcrumb"
-        >
-          <PageHeader title="Team" />
-          <Story />
-        </ApplicationPage>
+        <ApplicationStage>
+          <ApplicationPage
+            width="full"
+            locationKey="team-members"
+            breadcrumb={null}
+            breadcrumbLabel="Breadcrumb"
+          >
+            <PageHeader title="Team" />
+            <Story />
+          </ApplicationPage>
+        </ApplicationStage>
       </OrganizationMessagesProvider>
     ),
   ],

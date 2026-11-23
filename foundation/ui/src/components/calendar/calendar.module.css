@@ -14,7 +14,7 @@
 
 .heading {
   font-size: var(--text-body);
-  font-weight: 600;
+  font-weight: var(--weight-heading);
   min-width: 0;
 }
 
@@ -41,7 +41,7 @@
 
 .grid th {
   font-size: var(--text-caption);
-  font-weight: 400;
+  font-weight: var(--weight-regular);
   color: var(--muted);
   padding-block: var(--space-2);
 }

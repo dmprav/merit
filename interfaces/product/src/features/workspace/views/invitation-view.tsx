@@ -119,7 +119,7 @@ const InvitationDetails = ({
             {error}
           </Notice>
         )}
-        <Button size="medium" isPending={pending} onPress={onAccept}>
+        <Button isPending={pending} onPress={onAccept}>
           {t(pending ? "accepting" : invitation.accepted ? "continue" : "accept")}
         </Button>
       </Stack>

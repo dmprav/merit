@@ -3,8 +3,8 @@ import { useTranslation } from "react-i18next";
 
 import type { ApplicationView as Application } from "@merit/grantmaking/api";
 import { Attribution } from "@merit/ui/attribution";
-import { Divider } from "@merit/ui/divider";
 import { Reading, Stack } from "@merit/ui/layout";
+import { PanelSection } from "@merit/ui/panel-section";
 import { SectionHeader } from "@merit/ui/section-header";
 import { Text } from "@merit/ui/text";
 
@@ -162,66 +162,61 @@ const IntakeMetadata = ({ application, intakeEditing, onClose, triggerRef }: Sec
       isDisabled={Boolean(intakeEditing?.pending)}
     />
   ) : (
-    <section>
-      <SectionHeader
-        title={t("workspace.details")}
-        emphasis="quiet"
-        aside={
-          intakeEditing && (
-            <IntakeSectionEditButton
-              intake={intakeEditing}
-              hasSummary={Boolean(application.summary)}
-              section="metadata"
-              triggerRef={triggerRef}
-            />
-          )
-        }
-      />
+    <PanelSection
+      title={t("workspace.details")}
+      actions={
+        intakeEditing && (
+          <IntakeSectionEditButton
+            intake={intakeEditing}
+            hasSummary={Boolean(application.summary)}
+            section="metadata"
+            triggerRef={triggerRef}
+          />
+        )
+      }
+    >
       {intakeEditing?.section === "metadata" ? (
         <IntakeForm editor={intakeEditing.editor} onClose={onClose} />
       ) : (
         <ApplicationDetails application={application} />
       )}
-    </section>
+    </PanelSection>
   );
 };
 
 const StaffSummary = ({ application, intakeEditing, onClose, triggerRef }: SectionProps) => {
   const { t } = useTranslation("applicationIntake");
 
-  return application.summary || intakeEditing?.section === "details" ? (
-    <Stack as="section" gap={5} aria-label={t("intake.staffSummary")}>
-      <Divider />
-      {intakeEditing?.section === "details" ? (
-        <IntakeForm editor={intakeEditing.editor} onClose={onClose} />
-      ) : (
-        <div>
-          <SectionHeader
-            title={t("intake.staffSummary")}
-            emphasis="quiet"
-            aside={
-              intakeEditing && (
-                <IntakeSectionEditButton
-                  intake={intakeEditing}
-                  hasSummary={Boolean(application.summary)}
-                  section="details"
-                  triggerRef={triggerRef}
-                />
-              )
-            }
+  return intakeEditing?.section === "details" ? (
+    <section aria-label={t("intake.staffSummary")}>
+      <IntakeForm editor={intakeEditing.editor} onClose={onClose} />
+    </section>
+  ) : application.summary ? (
+    <PanelSection
+      title={t("intake.staffSummary")}
+      actions={
+        intakeEditing && (
+          <IntakeSectionEditButton
+            intake={intakeEditing}
+            hasSummary
+            section="details"
+            triggerRef={triggerRef}
           />
-          <Stack gap={3}>
-            <Reading as="p">{application.summary}</Reading>
-            {application.summaryAuthor && <Attribution actor={application.summaryAuthor.name} />}
-          </Stack>
-        </div>
-      )}
-    </Stack>
+        )
+      }
+    >
+      <Stack gap={3}>
+        <Reading as="p" prose={false}>
+          {application.summary}
+        </Reading>
+        {application.summaryAuthor && <Attribution actor={application.summaryAuthor.name} />}
+      </Stack>
+    </PanelSection>
   ) : (
     intakeEditing && (
       <IntakeSectionEditButton
         intake={intakeEditing}
-        hasSummary={Boolean(application.summary)}
+        hasSummary={false}
         section="details"
         triggerRef={triggerRef}
       />

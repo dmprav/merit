@@ -40,6 +40,7 @@
     "./editor-loading": "./src/patterns/editing/editor-loading.tsx",
     "./state-message": "./src/patterns/state-message/state-message.tsx",
     "./section-header": "./src/patterns/section-header/section-header.tsx",
+    "./panel-section": "./src/patterns/panel-section/panel-section.tsx",
     "./notice": "./src/components/notice/notice.tsx",
     "./status-message": "./src/patterns/status-message/status-message.tsx",
     "./toast": "./src/patterns/toast/toast.tsx",

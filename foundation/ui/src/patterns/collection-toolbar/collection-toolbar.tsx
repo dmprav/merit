@@ -1,4 +1,4 @@
-import { useRef, type ReactNode } from "react";
+import { useLayoutEffect, useRef, type ReactNode } from "react";
 import { Button as RowButton } from "react-aria-components/Button";
 
 import { ButtonBase } from "../../components/button/button-base";
@@ -7,6 +7,7 @@ import { PickerPopover } from "../../components/dialog/dialog";
 import { SearchField } from "../../components/fields/search-field/search-field";
 import { Select, type SelectProps } from "../../components/fields/select/select";
 import { IconBase } from "../../components/icon/icon-base";
+import { Tooltip } from "../../components/tooltip/tooltip";
 import rowStyles from "../../foundations/list-row.module.css";
 import styles from "./collection-toolbar.module.css";
 
@@ -26,6 +27,8 @@ type CollectionToolbarProps = {
     onChange: (value: string) => void;
   };
   summary?: ReactNode;
+  /** One command that adds to the collection, at the toolbar's end, such as Add application. */
+  action?: ReactNode;
 };
 
 /** An immediately applied collection criterion using the shared select interaction. */
@@ -45,19 +48,22 @@ export const CollectionToolbar = ({
   reset,
   search,
   summary,
+  action,
 }: CollectionToolbarProps) => {
   const filterTrigger = useRef<HTMLButtonElement>(null);
+  const toolbar = useStickyOffset();
 
   return (
-    <div className={styles.toolbar}>
+    <div ref={toolbar} className={styles.toolbar}>
       <PickerPopover
         title={filterTitle}
         placement="bottom start"
         trigger={
-          <ButtonBase ref={filterTrigger} variant="quiet" size="small">
-            <IconBase name="filter" />
-            {filterLabel}
-          </ButtonBase>
+          <Tooltip content={filterLabel}>
+            <ButtonBase ref={filterTrigger} variant="quiet" iconOnly aria-label={filterLabel}>
+              <IconBase name="filter" />
+            </ButtonBase>
+          </Tooltip>
         }
       >
         <FilterPanel filters={filters} search={search} reset={reset} />
@@ -89,6 +95,7 @@ export const CollectionToolbar = ({
           {summary}
         </span>
       )}
+      {action != null && <div className={styles.action}>{action}</div>}
     </div>
   );
 };
@@ -122,4 +129,35 @@ const FilterPanel = ({
       )}
     </div>
   );
+};
+
+/**
+ * The toolbar stays in view, below a page header that also stays, while its collection scrolls. It
+ * publishes its height to the surrounding content as --collection-toolbar-height, so a sticky table
+ * header settles below both.
+ */
+const useStickyOffset = () => {
+  const toolbar = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const element = toolbar.current;
+    const container = element?.parentElement;
+    if (!element || !container || typeof ResizeObserver === "undefined") {
+      return;
+    }
+
+    const publish = () =>
+      container.style.setProperty(
+        "--collection-toolbar-height",
+        `${element.getBoundingClientRect().height}px`,
+      );
+
+    publish();
+    const observer = new ResizeObserver(publish);
+    observer.observe(element);
+    return () => {
+      observer.disconnect();
+      container.style.removeProperty("--collection-toolbar-height");
+    };
+  }, []);
+  return toolbar;
 };

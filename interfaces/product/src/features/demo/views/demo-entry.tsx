@@ -57,11 +57,10 @@ export const DemoEntryView = ({
               {t("demoWorkspace.introduction.lifetime")}
             </Text>
             <Inline gap={3}>
-              <Button size="medium" isDisabled={!hydrated} onPress={() => void start(false, true)}>
+              <Button isDisabled={!hydrated} onPress={() => void start(false, true)}>
                 {t("demoWorkspace.introduction.exploreExample")}
               </Button>
               <Button
-                size="medium"
                 variant="secondary"
                 isDisabled={!hydrated}
                 onPress={() => void start(false, false)}
@@ -83,7 +82,6 @@ export const DemoEntryView = ({
         actions={
           pending ? undefined : (
             <Button
-              size="medium"
               isDisabled={!hydrated}
               onPress={() => {
                 void start(state.status === "expired");

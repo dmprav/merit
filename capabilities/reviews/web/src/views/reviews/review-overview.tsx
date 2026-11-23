@@ -6,8 +6,7 @@ import { useFormat } from "@merit/i18n/format";
 import { summarizeAssessments } from "@merit/reviews/domain";
 import { Button } from "@merit/ui/button";
 import { JudgmentChoice } from "@merit/ui/judgment";
-import { SectionHeader } from "@merit/ui/section-header";
-import { Text } from "@merit/ui/text";
+import { PanelSection } from "@merit/ui/panel-section";
 
 import styles from "../review-overview.module.css";
 import { reviewPositionKeys } from "./assessment-outcome";
@@ -38,20 +37,18 @@ export const ReviewOverview = ({
   }
 
   return (
-    <section aria-label={t("assessments.shortTitle")}>
-      <SectionHeader
-        emphasis="quiet"
-        title={t("assessments.shortTitle")}
-        aside={
+    <PanelSection
+      title={t("assessments.shortTitle")}
+      meta={status || undefined}
+      actions={
+        <>
+          {actions}
           <Button variant="quiet" onPress={onShowAll}>
             {t("reviews:allAssessments")}
           </Button>
-        }
-      />
-      <Text as="p" variant="caption">
-        {status}
-      </Text>
-      {actions}
+        </>
+      }
+    >
       <div className={styles.reviewList}>
         {application.assessments.map((assessment) => {
           const reviewed = assessment.submission;
@@ -83,7 +80,7 @@ export const ReviewOverview = ({
           );
         })}
       </div>
-    </section>
+    </PanelSection>
   );
 };
 

@@ -147,11 +147,14 @@ const useRoundDeletion = ({
   const deleteMutation = useMutation({ mutationFn: onDelete });
   const [deleteRevision, setDeleteRevision] = useState<number | null>(null);
   const [deleteError, setDeleteError] = useState<PreparationProblem | null>(null);
-  const [deleted, setDeleted] = useState(false);
-  const [navigationFailed, setNavigationFailed] = useState(false);
+  const [leaveFailure, setLeaveFailure] = useState<{ error: unknown } | null>(null);
+  if (leaveFailure) {
+    // Leaving the deleted round failed: the route's error boundary handles it like any page error.
+    throw leaveFailure.error;
+  }
 
   const setDeleting = (open: boolean) => {
-    if (busyRef.current || deleted) {
+    if (busyRef.current) {
       return;
     }
     setDeleteRevision(open ? revision : null);
@@ -161,57 +164,43 @@ const useRoundDeletion = ({
     }
   };
 
-  const leaveDeletedRound = async () => {
-    setNavigationFailed(false);
-    try {
-      await onDeleted();
-    } catch {
-      setNavigationFailed(true);
-    }
-  };
-
-  const returnToRounds = async () => {
-    if (busyRef.current || !deleted) {
-      return;
-    }
-    busyRef.current = true;
-    setPending(true);
-    await leaveDeletedRound();
-    busyRef.current = false;
-    setPending(false);
-  };
-
   const confirmDelete = async () => {
-    if (busyRef.current || !ready || deleted || deleteRevision === null) {
+    if (busyRef.current || !ready || deleteRevision === null) {
       return;
     }
     busyRef.current = true;
     setPending(true);
     setDeleteError(null);
+    let deleted = false;
     try {
       const result = await deleteMutation.mutateAsync(deleteRevision);
       if (result.status !== "ok") {
         setDeleteError(result);
         await refresh("read");
       } else {
-        setDeleted(true);
-        setDeleteRevision(null);
-        onCommitted();
-        await leaveDeletedRound();
+        deleted = true;
       }
     } catch {
       setDeleteError({ status: "unavailable" });
     }
-    busyRef.current = false;
-    setPending(false);
+    if (!deleted) {
+      busyRef.current = false;
+      setPending(false);
+      return;
+    }
+    // The round is gone: stay busy so nothing edits it while the person leaves.
+    setDeleteRevision(null);
+    onCommitted();
+    try {
+      await onDeleted();
+    } catch (error) {
+      setLeaveFailure({ error });
+    }
   };
 
   return {
     deleting: deleteRevision !== null,
     deleteError,
-    deleted,
-    navigationFailed,
-    returnToRounds,
     setDeleting,
     confirmDelete,
   };

@@ -7,6 +7,8 @@
   --muted: #62685f;
   --border: #e0e3dc;
   --border-control: #899184;
+  /* The edge of a surface raised over content: popovers, menus, toasts. */
+  --border-raised: #d6d9d1;
   --action: #455779;
   --action-hover: #354563;
   --on-action: #ffffff;
@@ -58,9 +60,25 @@
   --text-control: var(--text-body);
   --text-label: var(--text-body);
 
+  /*
+   * Three weights: regular for copy, medium for labels, controls, and emphasis within a line,
+   * heading for titles. Emphasis is the weight of <strong>: heavier in public prose, medium in
+   * dense product work where a full step would shout.
+   */
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-heading: 600;
+  --weight-emphasis: var(--weight-heading);
+  /* The wordmark only. */
+  --weight-brand: 700;
+
   /* Shared control and identity sizes */
   --control-height: 2.25rem;
   --control-height-small: 2rem;
+  /* One button height; dense product surfaces use a slimmer one. */
+  --button-height: var(--control-height-small);
+  /* The application top bar, and the headers of panels beside it that line up with it. */
+  --bar-height: 3.5rem;
   --avatar-compact-size: 24px;
   --avatar-regular-size: 28px;
   --target-touch: 2.75rem;
@@ -69,7 +87,7 @@
   --motion-fast: 120ms;
   --motion-medium: 160ms;
   --dialog-shadow: 0 16px 64px #20283926;
-  --popover-shadow: 0 4px 12px #20283914, 0 1px 3px #20283914;
+  --popover-shadow: 0 1px 2px #2028390f, 0 10px 28px -6px #2028392e;
 }
 
 [data-product-theme] {
@@ -77,6 +95,8 @@
   --text-body: var(--text-detail);
   --text-control: var(--text-detail);
   --text-label: var(--text-detail);
+  --weight-emphasis: var(--weight-medium);
+  --button-height: 1.75rem;
   --background: #ffffff;
   --surface-muted: #f6f6f3;
   --success: #3d644a;

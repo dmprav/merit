@@ -10,7 +10,6 @@ import {
   roundPreparationLimits,
   type FundingRound,
 } from "@merit/rounds/domain";
-import { Text } from "@merit/ui/text";
 
 import {
   hasPreparationChanges,
@@ -96,6 +95,9 @@ const PreparationFrame = ({
                 ? { label: t("preparation.discard"), onPress: onDiscard }
                 : undefined
             }
+            status={
+              draft.section === "purpose" ? undefined : changed ? t("preparation.draftHint") : null
+            }
             onCancel={onCancel}
             cancelLabel={t(onDiscard || !changed ? "preparation.close" : "preparation.discard")}
             submitLabel={t(
@@ -107,11 +109,6 @@ const PreparationFrame = ({
         }
       >
         {beforeFields}
-        {draft.section !== "purpose" && changed && (
-          <Text as="p" variant="caption">
-            {t("preparation.draftHint")}
-          </Text>
-        )}
         <div className={styles.fields}>{children}</div>
         {afterFields}
       </Form>
@@ -236,16 +233,14 @@ const BudgetForm = (props: SectionProps<"budget">) => {
   return (
     <PreparationFrame {...props} submission={submission}>
       <>
-        <p>
-          {t("preparation.currentBudget", {
-            amount: round.budget === null ? t("preparation.notSet") : money(round.budget),
-          })}
-        </p>
         <form.Field name="amount">
           {(field) => (
             <FormTextField
               field={field}
               label={t("preparation.amount")}
+              description={t("preparation.currentBudget", {
+                amount: round.budget === null ? t("preparation.notSet") : money(round.budget),
+              })}
               prefix={{
                 text: "€",
                 label: t("common:euros"),

@@ -53,7 +53,7 @@
 
 .title {
   margin-bottom: var(--space-1);
-  font-weight: 600;
+  font-weight: var(--weight-heading);
 }
 
 .content:where(div) > * + * {
@@ -75,9 +75,10 @@
 }
 
 .actions {
+  --button-quiet-background: color-mix(in srgb, var(--notice-accent) 12%, transparent);
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-2);
+  gap: var(--space-1);
 }
 
 /* With actions, the icon and first line center on the controls beside them. */

@@ -18,7 +18,7 @@ export const searchMessages = {
     applications: "Applications",
     notScheduled: "Not scheduled",
     applicantUnknown: "Applicant not known",
-    applicantInRound: "{{applicant}} · {{round}}",
+    applicantInRound: "{{applicant}}, {{round}}",
     moreRounds: "Showing {{shown}} of {{total}} funding rounds. Type more to narrow.",
     moreApplications: "Showing {{shown}} of {{total}} applications. Type more to narrow.",
     announce: {

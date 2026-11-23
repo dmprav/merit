@@ -13,7 +13,7 @@ const meta = {
   args: {
     content: "Copy address",
     children: (
-      <Button size="medium" variant="quiet" iconOnly aria-label="Copy address">
+      <Button variant="quiet" iconOnly aria-label="Copy address">
         <Icon name="copy" />
       </Button>
     ),
@@ -74,7 +74,7 @@ export const LongContent: Story = {
     content:
       "Resume editing the position, proposed allocation, and reasoning for this recommendation.",
     children: (
-      <Button size="medium" variant="quiet" iconOnly aria-label="Resume recommendation">
+      <Button variant="quiet" iconOnly aria-label="Resume recommendation">
         <Icon name="edit" />
       </Button>
     ),
@@ -93,9 +93,7 @@ export const Placements: Story = {
     <Inline gap={4}>
       {(["top", "bottom", "left", "right"] as const).map((placement) => (
         <Tooltip key={placement} {...args} content="Copy address" placement={placement}>
-          <Button size="medium" variant="secondary">
-            {placement}
-          </Button>
+          <Button variant="secondary">{placement}</Button>
         </Tooltip>
       ))}
     </Inline>

@@ -1,11 +1,15 @@
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@merit/ui/button";
-import { Stack } from "@merit/ui/layout";
+import { Icon } from "@merit/ui/icon";
 
 import type { ScriptId } from "../contracts";
+import styles from "./merit-ai.module.css";
 
-/** Questions Merit AI can answer with a recorded example; choosing one asks it as written. */
+/**
+ * Questions Merit AI can answer with a recorded example, as quiet rows; choosing one asks it as
+ * written.
+ */
 export const Suggestions = ({
   scripts,
   onChoose,
@@ -16,18 +20,19 @@ export const Suggestions = ({
   const { t } = useTranslation("meritAi");
 
   return (
-    <Stack as="ul" gap={2} aria-label={t("suggestions.label")}>
+    <ul className={styles.suggestions} aria-label={t("suggestions.label")}>
       {scripts.map((script) => (
         <li key={script}>
           <Button
-            variant="secondary"
+            variant="quiet"
             alignment="fill"
             onPress={() => onChoose(t(`suggestions.${script}`))}
           >
+            <Icon name="forward" />
             {t(`suggestions.${script}`)}
           </Button>
         </li>
       ))}
-    </Stack>
+    </ul>
   );
 };

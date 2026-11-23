@@ -40,9 +40,22 @@ const TooltipOverlayGuard = () => {
 
     const trigger = triggerRef?.current ?? null;
 
-    if (isInExternalOverlay(document.activeElement, trigger)) {
+    // A trigger that opens its own menu or popover hands over to it; the hint has done its job.
+    if (
+      isInExternalOverlay(document.activeElement, trigger) ||
+      trigger?.getAttribute("aria-expanded") === "true"
+    ) {
       state.close(true);
       return;
+    }
+
+    const expanded = new MutationObserver(() => {
+      if (trigger?.getAttribute("aria-expanded") === "true") {
+        state.close(true);
+      }
+    });
+    if (trigger) {
+      expanded.observe(trigger, { attributes: true, attributeFilter: ["aria-expanded"] });
     }
 
     const onFocusIn = (event: FocusEvent) => {
@@ -52,7 +65,10 @@ const TooltipOverlayGuard = () => {
     };
 
     document.addEventListener("focusin", onFocusIn, true);
-    return () => document.removeEventListener("focusin", onFocusIn, true);
+    return () => {
+      expanded.disconnect();
+      document.removeEventListener("focusin", onFocusIn, true);
+    };
   }, [isOpen, state, triggerRef]);
 
   return null;

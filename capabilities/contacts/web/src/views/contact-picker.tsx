@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { FormDialog } from "@merit/forms";
 import { Button } from "@merit/ui/button";
 import { ChoiceList } from "@merit/ui/choice-list";
-import { Inline, Stack } from "@merit/ui/layout";
+import { Stack } from "@merit/ui/layout";
 import { Notice } from "@merit/ui/notice";
 import { Select } from "@merit/ui/select";
 
@@ -97,17 +97,6 @@ export const ContactPicker = ({
           {t("loadError")}
         </Notice>
       )}
-      {selection.direct && (
-        <Inline>
-          <Button
-            variant="quiet"
-            isDisabled={selection.isDisabled}
-            onPress={() => changeEditor(true)}
-          >
-            {addContactLabel}
-          </Button>
-        </Inline>
-      )}
       <FormDialog
         isDismissDisabled={pending}
         title={t("addContact")}
@@ -167,7 +156,6 @@ const ContactSelection = ({
   const { items, selectedKey } = contactChoices({
     contacts,
     value,
-    direct,
     archivedLabel: t("archived"),
     canSelect,
     isRequired,
@@ -186,6 +174,7 @@ const ContactSelection = ({
         isDisabled={isDisabled}
         items={items}
         onChoose={choose}
+        actions={[{ id: "add", label: addContactLabel, icon: "add", onAction: onCreate }]}
       />
     );
   }
@@ -210,39 +199,23 @@ const ContactSelection = ({
   );
 };
 
-const contactOption = (contact: Contact, direct: boolean, archivedLabel: string) => {
-  if (direct) {
-    return {
-      id: contact.id,
-      label: contact.name || contact.email,
-      description: [
-        contact.name ? contact.email : "",
-        contact.affiliation,
-        contact.archived ? archivedLabel : "",
-      ]
-        .filter(Boolean)
-        .join(", "),
-    };
-  }
-
-  return {
-    id: contact.id,
-    label: [
-      contact.name,
-      contact.email,
-      contact.affiliation,
-      contact.applicationTitles?.join(", "),
-      contact.archived ? archivedLabel : "",
-    ]
-      .filter(Boolean)
-      .join(", "),
-  };
-};
+/** Both presentations show the same option: the name, then what tells similar contacts apart. */
+const contactOption = (contact: Contact, archivedLabel: string) => ({
+  id: contact.id,
+  label: contact.name || contact.email,
+  description: [
+    contact.name ? contact.email : "",
+    contact.affiliation,
+    contact.applicationTitles?.join(", "),
+    contact.archived ? archivedLabel : "",
+  ]
+    .filter(Boolean)
+    .join(", "),
+});
 
 const contactChoices = ({
   contacts,
   value,
-  direct,
   archivedLabel,
   canSelect,
   isRequired,
@@ -250,7 +223,6 @@ const contactChoices = ({
 }: {
   contacts: Contact[];
   value: string | null;
-  direct: boolean;
   archivedLabel: string;
   canSelect: (contact: Contact) => boolean;
   isRequired: boolean;
@@ -259,7 +231,7 @@ const contactChoices = ({
   const items = contacts
     .filter((contact) => !contact.archived || contact.id === value)
     .map((contact) => ({
-      ...contactOption(contact, direct, archivedLabel),
+      ...contactOption(contact, archivedLabel),
       isDisabled: !canSelect(contact),
     }));
   if (isRequired) {

@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, mocked, waitFor, within } from "storybook/test";
 
 import { teamFixture } from "@merit/organizations-web/testing";
-import { ApplicationPage } from "@merit/ui/application-shell";
+import { ApplicationPage, ApplicationStage } from "@merit/ui/application-shell";
 
 import { StoryEnvironment } from "../../../tests/storybook";
 import {
@@ -24,14 +24,16 @@ const meta = {
   decorators: [
     (Story) => (
       <StoryEnvironment path="/app/alder/settings/members">
-        <ApplicationPage
-          width="full"
-          locationKey="team"
-          breadcrumb={null}
-          breadcrumbLabel="Breadcrumb"
-        >
-          <Story />
-        </ApplicationPage>
+        <ApplicationStage>
+          <ApplicationPage
+            width="full"
+            locationKey="team"
+            breadcrumb={null}
+            breadcrumbLabel="Breadcrumb"
+          >
+            <Story />
+          </ApplicationPage>
+        </ApplicationStage>
       </StoryEnvironment>
     ),
   ],

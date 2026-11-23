@@ -13,6 +13,7 @@ export const en = {
     stop: "Stop",
     removeContext: "Remove {{title}} from the question",
   },
+  empty: "What would you like to know?",
   suggestions: {
     label: "Suggested questions",
     changes: "What changed in version 2, and do the reviews cover it?",

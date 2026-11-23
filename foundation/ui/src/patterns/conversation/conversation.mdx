@@ -12,10 +12,22 @@ thread, and pair it with the [message box](?path=/docs/patterns-message-box--doc
 
 A person's message sits right-aligned on a muted fill, at most 85% of the width. An assistant's answer
 is plain content at reading line height; compose its blocks (paragraphs, steps, proposals, notices)
-inside the message and they are spaced apart. Pass `authorLabel` for every message so assistive
-technology hears who wrote it.
+inside the message and they are spaced apart. Keep the answer's own status quiet: show an answer
+that stopped or failed as an inline [Notice](?path=/docs/components-notice--docs) inside the message,
+and decided proposals as a line, not another boxed surface. Pass `authorLabel` for every message so
+assistive technology hears who wrote it.
 
 <Canvas of={Conversation.Turns} />
+
+## Act on an answer
+
+Pass `actions` to an answer's `ConversationMessage` for commands about the answer itself, such as
+copying it or asking again. Build each with `ConversationAction`: a quiet icon button whose `label`
+names it for assistive technology and shows in a tooltip. The row sits just under the answer with
+its icons lined up with the text. The latest message keeps it in view; earlier messages show theirs
+while hovered or holding focus, so every action stays reachable from the keyboard, and touch
+screens keep every row in view. Keep decisions the answer asks for, like approving a proposal, in
+the answer's content instead.
 
 Inside a scrolling container the thread follows its end: it keeps the latest text in view while the
 person is reading the end, whether words stream in or notices appear when an answer settles, and it
@@ -23,6 +35,9 @@ leaves the scroll where the person put it once they scroll up. Pass `followKey`,
 with each question, so asking again follows the end once more.
 
 <Canvas of={Conversation.FollowsStreaming} />
+
+Give the scrolling container padding at its ends, so the last line never sits on the edge, as the
+companion panel's body does. The story's container also fades text passing under its edges.
 
 <Canvas of={Conversation.LeavesTheScrollWherePut} />
 

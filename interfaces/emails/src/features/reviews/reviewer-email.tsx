@@ -23,7 +23,7 @@ const ReviewerEmail = ({ message }: { message: ReviewerMessage }) => {
     >
       <Heading>{t(`${message.kind}Title`)}</Heading>
       <Text>
-        {message.organization} · {message.title}
+        {message.organization}, {message.title}
       </Text>
       <Text>{message.applicant}</Text>
       {message.kind === "invitation" ? (

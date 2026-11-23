@@ -41,7 +41,7 @@ const Picker = ({ baseline, save }: { baseline: ReviewBaseline; save: ReviewData
       workspaceSlug="alder"
       disabledContactIds={["jules"]}
       onBegin={beginRequest}
-      trigger={<Button size="medium">Add review request</Button>}
+      trigger={<Button>Add review request</Button>}
     />
   );
 };
@@ -113,6 +113,16 @@ const showPicker = async (save: ReviewData["save"]) => {
       view.rerender(<Picker baseline={baseline} save={save} />),
   };
 };
+
+it("explains the request before the reviewer choice", async () => {
+  const { picker } = await showPicker(vi.fn<ReviewData["save"]>());
+  const hint = picker.getByText("Choose a reviewer to record a request. No message is sent.");
+
+  expect(
+    hint.compareDocumentPosition(picker.getByRole("textbox", { name: "Find a contact" })) &
+      Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy();
+});
 
 it("offers only named contacts who have not already been requested", async () => {
   const { picker } = await showPicker(vi.fn<ReviewData["save"]>());

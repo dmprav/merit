@@ -62,7 +62,6 @@ export const SearchField = ({
         {value && (
           <ButtonBase
             variant="quiet"
-            size="small"
             iconOnly
             aria-label={clearLabel}
             isDisabled={isDisabled}

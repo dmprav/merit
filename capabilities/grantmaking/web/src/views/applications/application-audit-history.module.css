@@ -4,3 +4,16 @@
   margin-top: var(--space-6);
   container-type: inline-size;
 }
+
+/* One recorded change: a compact heading group, then the comparison it introduces. */
+.change {
+  display: grid;
+  gap: var(--space-6);
+  margin-top: var(--space-4);
+  container-type: inline-size;
+}
+
+.changeHeader {
+  display: grid;
+  gap: var(--space-2);
+}

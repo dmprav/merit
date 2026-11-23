@@ -149,7 +149,7 @@ for (const useSaved of [false, true]) {
         ? "Saved on my other device: confirm the attendance evidence before recommending funding."
         : local,
     );
-    await expect(page.getByText("Draft saved", { exact: true })).toBeVisible();
+    await expect(page.getByText(/^Draft saved/)).toBeVisible();
     await expect(
       page.getByRole("button", { name: "Submit assessment", exact: true }),
     ).toBeEnabled();
@@ -162,7 +162,7 @@ test("reviewer save failure can recover without losing text @cross-browser", asy
   const reasoning = page.getByRole("textbox", { name: "Overall reasoning" });
   const value = await reasoning.inputValue();
   await page.getByRole("button", { name: "Try again", exact: true }).click();
-  await expect(page.getByText("Draft saved", { exact: true })).toBeVisible();
+  await expect(page.getByText(/^Draft saved/)).toBeVisible();
   await expect(reasoning).toHaveValue(value);
   await expect(page.getByRole("alert")).toHaveCount(0);
 });

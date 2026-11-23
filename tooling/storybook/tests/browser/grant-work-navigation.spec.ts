@@ -233,10 +233,11 @@ test(
       "/iframe.html?id=features-applications-manage-reviews--changed-application&viewMode=story",
     );
     await expect(page.locator("#storybook-root")).toHaveAttribute("data-story-ready", "true");
-    const add = page.getByRole("button", { name: "Add review request", exact: true });
+    const add = page.getByRole("button", { name: "Add", exact: true });
     await add.focus();
     await add.press("Enter");
-    const picker = page.getByRole("dialog", { name: "Add review request", exact: true });
+    await page.getByRole("menuitem", { name: "Request review", exact: true }).press("Enter");
+    const picker = page.getByRole("dialog", { name: "Request review", exact: true });
     await expect(picker).toBeVisible();
     await page.keyboard.press("Escape");
 
@@ -273,10 +274,11 @@ test(
       "/iframe.html?id=features-applications-manage-reviews--changed-application&viewMode=story",
     );
     await expect(page.locator("#storybook-root")).toHaveAttribute("data-story-ready", "true");
-    const add = page.getByRole("button", { name: "Add review request", exact: true });
+    const add = page.getByRole("button", { name: "Add", exact: true });
     await add.focus();
     await add.press("Enter");
-    const picker = page.getByRole("dialog", { name: "Add review request", exact: true });
+    await page.getByRole("menuitem", { name: "Request review", exact: true }).press("Enter");
+    const picker = page.getByRole("dialog", { name: "Request review", exact: true });
     const surface = page.locator('[data-appearance="picker"]').filter({ has: picker });
     const search = picker.getByRole("textbox", { name: "Find a contact" });
     await expect(search).toBeFocused();
@@ -333,22 +335,18 @@ test(
 );
 
 test(
-  "deleted round recovery remains accessible and retries returning to the list",
+  "deleting a round confirms it in a toast and leaves without an in-between screen",
   { tag: "@cross-browser" },
   async ({ page }, testInfo) => {
     await page.goto(
-      "/iframe.html?id=features-funding-rounds-manage-round--round-deleted-return-to-list-failed&viewMode=story",
+      "/iframe.html?id=features-funding-rounds-manage-round--round-deleted&viewMode=story",
     );
+    // The story's play deletes the round and checks that it returned to the rounds list.
     await expect(page.locator("#storybook-root")).toHaveAttribute("data-story-ready", "true");
-    const back = page.getByRole("button", { name: "Return to funding rounds" });
-    await expect(page.getByRole("status")).toHaveText("Round deleted.");
-    await expect(back).toBeFocused();
-    await expect(back).toBeInViewport();
+    await expect(page.getByRole("alertdialog", { name: "Round deleted" })).toBeVisible();
+    await expect(page.getByRole("dialog", { name: "Delete this empty round?" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Return to funding rounds" })).toHaveCount(0);
     await checkPage(page);
-    await page.screenshot({ path: testInfo.outputPath("deleted-round-recovery.png") });
-    await back.press("Enter");
-    await expect(page.getByRole("alert")).toHaveCount(0);
-    await expect(page.getByRole("status")).toHaveText("Round deleted.");
-    await expect(back).toBeFocused();
+    await page.screenshot({ path: testInfo.outputPath("deleted-round-toast.png") });
   },
 );

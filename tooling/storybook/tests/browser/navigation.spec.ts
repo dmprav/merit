@@ -67,18 +67,16 @@ for (const story of ["overflow-interactions", "overflow-interactions-right-to-le
 
 for (const theme of ["product", "site"]) {
   test(
-    `tabs align selection and actions with the divider in ${theme}`,
+    `tabs align the selection with the divider in ${theme}`,
     { tag: "@cross-browser" },
     async ({ page }, testInfo) => {
       await page.goto(
-        `/iframe.html?id=components-tabs--with-action&viewMode=story&globals=theme:${theme}`,
+        `/iframe.html?id=components-tabs--default&viewMode=story&globals=theme:${theme}`,
       );
       await expect(page.locator("#storybook-root")).toHaveAttribute("data-story-ready", "true");
 
-      const reviews = page.getByRole("tab", { name: "Reviews 3" });
-      const action = page.getByRole("button", { name: "Add application" });
-      await expect(reviews).toHaveAttribute("aria-selected", "true");
-      await expect(action).toBeFocused();
+      const selectedTab = page.getByRole("tab", { selected: true });
+      await expect(selectedTab).toBeVisible();
 
       for (const fontSize of ["100%", "200%"]) {
         await page.evaluate((size) => {
@@ -98,8 +96,7 @@ for (const theme of ["product", "site"]) {
           )
           .toBeLessThanOrEqual(1);
         // Scrollport edges can clip a fraction of a CSS pixel after layout rounding.
-        await expect(reviews).toBeInViewport({ ratio: 0.99 });
-        await expect(action).toBeInViewport({ ratio: 1 });
+        await expect(selectedTab).toBeInViewport({ ratio: 0.99 });
         await checkPage(page);
         await page.screenshot({ path: testInfo.outputPath(`tabs-${theme}-${fontSize}.png`) });
       }

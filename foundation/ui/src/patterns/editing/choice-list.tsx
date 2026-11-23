@@ -1,8 +1,10 @@
 import { useState } from "react";
+import { Button as RowButton } from "react-aria-components/Button";
 import { ListBox, ListBoxItem } from "react-aria-components/ListBox";
 import { Input, TextField } from "react-aria-components/TextField";
 
 import { Icon } from "../../components/icon/icon";
+import type { IconName } from "../../components/icon/icon-base";
 import rowStyles from "../../foundations/list-row.module.css";
 import searchStyles from "../../foundations/popover-search.module.css";
 import styles from "./choice-list.module.css";
@@ -10,6 +12,7 @@ import styles from "./choice-list.module.css";
 /**
  * A searchable single choice for pickers: the search sits in the picker's own header, separated
  * from results by a divider, and each result uses the shared list row with a trailing check.
+ * Commands such as adding a missing choice follow the results as in Select, with a leading icon.
  */
 export const ChoiceList = ({
   label,
@@ -18,6 +21,7 @@ export const ChoiceList = ({
   items,
   selectedKey,
   onChoose,
+  actions,
   isDisabled = false,
 }: {
   label: string;
@@ -27,6 +31,7 @@ export const ChoiceList = ({
   items: readonly { id: string; label: string; description?: string; isDisabled?: boolean }[];
   selectedKey: string | null;
   onChoose: (id: string) => void;
+  actions?: readonly { id: string; label: string; icon: IconName; onAction: () => void }[];
   isDisabled?: boolean;
 }) => {
   const [search, setSearch] = useState("");
@@ -86,6 +91,23 @@ export const ChoiceList = ({
           </ListBoxItem>
         )}
       </ListBox>
+      {actions && actions.length > 0 && (
+        <div className={rowStyles.actionGroup}>
+          {actions.map((action) => (
+            <RowButton
+              key={action.id}
+              className={rowStyles.row}
+              isDisabled={isDisabled}
+              onPress={action.onAction}
+            >
+              <span className={rowStyles.leading}>
+                <Icon name={action.icon} />
+              </span>
+              <span className={rowStyles.copy}>{action.label}</span>
+            </RowButton>
+          ))}
+        </div>
+      )}
     </div>
   );
 };

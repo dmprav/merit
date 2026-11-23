@@ -82,7 +82,7 @@ export const SaveConflict: Story = {
   args: {
     title: "This round changed while you were editing",
     message: "Review the latest saved wording or save your edits over it.",
-    attribution: "Updated by Alex · 2m ago",
+    attribution: "Updated by Alex, 2m ago",
     keepMine: { label: "Save my changes over latest", onPress: () => {} },
     useSaved: { label: "Discard & load latest", onPress: () => {} },
   },

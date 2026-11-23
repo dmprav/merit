@@ -66,7 +66,8 @@ const setup = () => {
 
 it("opens the review pane while recovering and retains the recovered assessment and baseline", async () => {
   const { user, setReviewEdit, finish } = setup();
-  await user.click(screen.getByRole("button", { name: "Record assessment" }));
+  await user.click(screen.getByRole("button", { name: "Add" }));
+  await user.click(await screen.findByRole("menuitem", { name: "Record assessment" }));
   expect(screen.getByRole("region", { name: "Record assessment" })).toBeVisible();
   expect(screen.getByText("Preparing editor…")).toBeVisible();
   expect(screen.queryByRole("form")).not.toBeInTheDocument();
@@ -80,7 +81,8 @@ it("opens the review pane while recovering and retains the recovered assessment 
 
 it("closing review recovery leaves restored writing available without opening or changing it", async () => {
   const { user, setReviewEdit, finish } = setup();
-  await user.click(screen.getByRole("button", { name: "Record assessment" }));
+  await user.click(screen.getByRole("button", { name: "Add" }));
+  await user.click(await screen.findByRole("menuitem", { name: "Record assessment" }));
   await user.click(screen.getByRole("button", { name: "Close review task" }));
   finish(recovered);
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();

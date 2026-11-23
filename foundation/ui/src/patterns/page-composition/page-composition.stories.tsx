@@ -158,9 +158,7 @@ const AwardAmendmentExample = () => {
               setApproved(true);
               setOpen(false);
             }}
-            trigger={
-              <Button size="medium">{approved ? "Review example again" : "Review approval"}</Button>
-            }
+            trigger={<Button>{approved ? "Review example again" : "Review approval"}</Button>}
           />
         </aside>
       </div>

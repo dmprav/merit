@@ -12,7 +12,7 @@ export const AskMeritAiButton = ({ onPress }: { onPress: () => void }) => {
 
   return (
     <ApplicationNavigationButton
-      icon="chat"
+      icon="assistant"
       label={t("open")}
       shortcut={shortcutHint(platform, "j")}
       onPress={() => {

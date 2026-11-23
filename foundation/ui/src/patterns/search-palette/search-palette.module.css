@@ -155,7 +155,7 @@
   padding: var(--space-2) var(--space-2) var(--space-1);
   color: var(--muted);
   font-size: var(--text-meta);
-  font-weight: 600;
+  font-weight: var(--weight-heading);
 }
 
 .option {

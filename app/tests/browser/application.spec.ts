@@ -200,7 +200,7 @@ test(
       "Bring your grantmaking together.",
     );
     await expect(page).toHaveTitle("Merit · Bring your grantmaking together.");
-    await expect(page.getByText("Fictional workspace · No account needed")).toBeVisible();
+    await expect(page.getByText("Fictional workspace, no account needed")).toBeVisible();
 
     const applications = page.getByRole("table", { name: "Applications", exact: true });
 

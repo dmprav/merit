@@ -38,7 +38,7 @@ export const AdminPageState = ({
             {t("signIn")}
           </RoutedLink>
         ) : status === "unavailable" ? (
-          <Button size="medium" isDisabled={!hydrated} onPress={() => void router.invalidate()}>
+          <Button isDisabled={!hydrated} onPress={() => void router.invalidate()}>
             {t("tryAgain")}
           </Button>
         ) : undefined

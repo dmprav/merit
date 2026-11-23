@@ -191,7 +191,6 @@ const InlineNameActions = ({
   <span className={styles.actions}>
     <Tooltip content={saveLabel}>
       <ButtonBase
-        size="small"
         variant="quiet"
         iconOnly
         aria-label={saveLabel}
@@ -203,7 +202,6 @@ const InlineNameActions = ({
     </Tooltip>
     <Tooltip content={cancelLabel}>
       <ButtonBase
-        size="small"
         variant="quiet"
         iconOnly
         aria-label={cancelLabel}

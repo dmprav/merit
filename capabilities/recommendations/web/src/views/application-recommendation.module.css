@@ -1,5 +1,0 @@
-.recommendationSummary {
-  display: grid;
-  gap: var(--space-1);
-  padding-block: var(--space-4);
-}

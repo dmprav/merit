@@ -145,13 +145,3 @@
     min-height: var(--target-touch);
   }
 }
-
-.actions {
-  display: flex;
-  flex-direction: column;
-  flex-shrink: 0;
-  gap: var(--space-1);
-  border-top: 1px solid var(--border);
-  margin-top: var(--space-1);
-  padding-top: var(--space-1);
-}

@@ -48,22 +48,10 @@ export const Calendar = ({
       <div className={styles.header}>
         <Heading className={styles.heading} />
         <div className={styles.navigation}>
-          <ButtonBase
-            slot="previous"
-            variant="quiet"
-            size="small"
-            iconOnly
-            aria-label={t("date.previousMonth")}
-          >
+          <ButtonBase slot="previous" variant="quiet" iconOnly aria-label={t("date.previousMonth")}>
             <Icon name="left" />
           </ButtonBase>
-          <ButtonBase
-            slot="next"
-            variant="quiet"
-            size="small"
-            iconOnly
-            aria-label={t("date.nextMonth")}
-          >
+          <ButtonBase slot="next" variant="quiet" iconOnly aria-label={t("date.nextMonth")}>
             <Icon name="right" />
           </ButtonBase>
           {headerActions}

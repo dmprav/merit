@@ -47,7 +47,13 @@ export const RequestPicker = ({
       isDismissDisabled={pending || editingContact}
       onOpenChange={changeOpen}
     >
-      <div className={styles.form} aria-busy={pending}>
+      <div className={styles.picker} aria-busy={pending}>
+        {/* Explains the choice before it is made. */}
+        <div className={styles.pickerHint}>
+          <Text as="p" variant="caption">
+            {t("quickRequestHint")}
+          </Text>
+        </div>
         <ContactPicker
           isEligible={isEligibleReviewer}
           direct
@@ -60,9 +66,6 @@ export const RequestPicker = ({
           disabledContactIds={disabledContactIds}
           onEditorOpenChange={setEditingContact}
         />
-        <Text as="p" variant="caption">
-          {t("quickRequestHint")}
-        </Text>
         {pending && (
           <div role="status">
             <Text as="p" variant="supporting">

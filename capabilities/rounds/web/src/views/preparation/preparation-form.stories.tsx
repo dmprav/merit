@@ -96,7 +96,7 @@ export const UnsetBudget: Story = {
   play: async ({ canvas, userEvent }) => {
     const amount = canvas.getByRole("textbox", { name: "Round budget" });
 
-    await expect(amount).toHaveAccessibleDescription("Euros");
+    await expect(amount).toHaveAccessibleDescription("Euros Current budget: Not set");
     await expect(amount).toHaveAttribute("placeholder", "Not set");
     await expect(canvas.getByText("€", { exact: true })).not.toBeVisible();
 

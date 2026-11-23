@@ -135,3 +135,17 @@
   display: grid;
   gap: var(--space-5);
 }
+
+/* The picker's list runs to its edges; notes around it line up with the list's text. */
+.picker {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.pickerHint {
+  padding: var(--space-1) var(--space-2) var(--space-2);
+}
+
+.picker > :nth-child(n + 3) {
+  padding: 0 var(--space-2) var(--space-2);
+}

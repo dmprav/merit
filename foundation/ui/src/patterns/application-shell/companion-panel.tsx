@@ -14,7 +14,6 @@ import {
 import framedStyles from "../../components/dialog/framed-dialog.module.css";
 import { FramedHeader } from "../../components/dialog/framed-header";
 import { ModalFrame } from "../../components/dialog/modal-frame";
-import scrollStyles from "../../foundations/scroll-area.module.css";
 import styles from "./companion-panel.module.css";
 
 const pushQuery = "(min-width: 1400px)";
@@ -254,12 +253,7 @@ const PanelBody = ({
   children,
 }: Pick<ApplicationCompanion, "footer" | "children"> & { label: string }) => (
   <>
-    <div
-      role="region"
-      aria-label={label}
-      tabIndex={0}
-      className={`${styles.body} ${scrollStyles.scrollArea}`}
-    >
+    <div role="region" aria-label={label} tabIndex={0} className={styles.body}>
       {children}
     </div>
     {footer && <div className={styles.footer}>{footer}</div>}
@@ -331,6 +325,11 @@ export const CompanionPanel = ({
   const panelId = useId();
   const titleId = useId();
   const opener = useFocusReturn(isOpen);
+  // A panel the person opens moves into place; one already open as the page loads stays still.
+  const [hasBeenClosed, setHasBeenClosed] = useState(!isOpen);
+  if (!isOpen && !hasBeenClosed) {
+    setHasBeenClosed(true);
+  }
 
   // The document holds the width so page-level overlays, such as toasts, center beside the panel.
   useLayoutEffect(() => {
@@ -361,6 +360,9 @@ export const CompanionPanel = ({
       aria-labelledby={titleId}
       tabIndex={-1}
       className={styles.panel}
+      // The shell opens the panel's column with it.
+      data-companion-panel=""
+      data-opening={hasBeenClosed || undefined}
       onKeyDown={closeOnEscape(onClose)}
     >
       <ResizeSeparator

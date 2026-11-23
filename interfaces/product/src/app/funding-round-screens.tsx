@@ -23,6 +23,7 @@ export const FundingRoundScreen = (props: ComponentProps<typeof FundingRoundWork
   return (
     <AppPage
       width="full"
+      contained
       breadcrumbAction={
         <PinButton
           target={{ kind: "round", id: props.data.round.id }}

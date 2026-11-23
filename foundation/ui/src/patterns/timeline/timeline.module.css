@@ -51,7 +51,7 @@
 .title {
   min-width: 0;
   font-size: inherit;
-  font-weight: 500;
+  font-weight: var(--weight-medium);
   overflow-wrap: anywhere;
 }
 

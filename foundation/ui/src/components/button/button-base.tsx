@@ -12,7 +12,8 @@ export type ButtonBaseProps = AriaButtonProps & {
   "aria-busy"?: boolean;
   /** inline presents a command within copy, such as opening a dialog; use Link for destinations. */
   variant?: "primary" | "secondary" | "quiet" | "destructive" | "inline";
-  size?: "small" | "medium" | "large";
+  /** One size serves product work; large is for a prominent entry point on a public page. */
+  size?: "regular" | "large";
   iconOnly?: boolean;
   /**
    * start aligns a quiet action's content with surrounding text, retaining its padded target and
@@ -29,7 +30,7 @@ export type ButtonBaseProps = AriaButtonProps & {
  */
 export const ButtonBase = ({
   variant = "primary",
-  size = "medium",
+  size = "regular",
   iconOnly = false,
   alignment = "default",
   className,
@@ -52,7 +53,7 @@ export const ButtonBase = ({
       }
       data-variant={variant}
       // A command within copy takes its size from the surrounding text.
-      data-size={variant === "inline" ? undefined : size}
+      data-size={variant !== "inline" && size === "large" ? size : undefined}
       data-icon-only={iconOnly || undefined}
       data-alignment={alignment === "default" ? undefined : alignment}
       className={composeRenderProps(

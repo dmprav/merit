@@ -89,7 +89,6 @@ const SearchAction = ({ onSearch }: { onSearch: () => void }) => {
   const closeNavigation = useCloseNavigation();
   return (
     <Button
-      size="medium"
       onPress={() => {
         closeNavigation();
         onSearch();
@@ -493,7 +492,7 @@ it("lets an open menu in the panel use Escape before the panel does", async () =
       panelContent={
         <ActionMenu
           label="Conversation actions"
-          trigger={<Button size="medium">Actions</Button>}
+          trigger={<Button>Actions</Button>}
           items={[{ id: "clear", label: "Clear conversation" }]}
           onAction={() => {}}
         />

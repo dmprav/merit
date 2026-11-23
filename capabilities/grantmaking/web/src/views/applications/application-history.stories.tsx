@@ -5,7 +5,7 @@ import { materialVersionSchema } from "@merit/applications/domain";
 import { encodeApplicationDetail } from "@merit/grantmaking/api";
 import { getExampleRound } from "@merit/grantmaking/examples";
 import { fromMinorUnits } from "@merit/money";
-import { ApplicationPage } from "@merit/ui/application-shell";
+import { ApplicationPage, ApplicationStage } from "@merit/ui/application-shell";
 import { PageHeader } from "@merit/ui/page-header";
 
 import { GrantmakingMessagesProvider } from "../../messages";
@@ -70,20 +70,24 @@ const HistoryPreview = ({
   scenario: "versions" | "missing" | "empty" | "audit" | "missingEvent";
 }) => (
   <GrantmakingMessagesProvider>
-    <ApplicationPage locationKey="history" breadcrumb={null} breadcrumbLabel="Breadcrumb">
-      <PageHeader title="Version history" />
-      {scenario === "audit" || scenario === "missingEvent" ? (
-        <ApplicationAuditHistory
-          history={scenario === "missingEvent" ? [{ ...history[0], before: null }] : history}
-        />
-      ) : (
-        <ApplicationHistory
-          application={third}
-          history={scenario === "empty" ? [] : scenario === "missing" ? history.slice(1) : history}
-          initialFromVersion={scenario === "empty" ? undefined : 1}
-        />
-      )}
-    </ApplicationPage>
+    <ApplicationStage>
+      <ApplicationPage locationKey="history" breadcrumb={null} breadcrumbLabel="Breadcrumb">
+        <PageHeader title="Version history" />
+        {scenario === "audit" || scenario === "missingEvent" ? (
+          <ApplicationAuditHistory
+            history={scenario === "missingEvent" ? [{ ...history[0], before: null }] : history}
+          />
+        ) : (
+          <ApplicationHistory
+            application={third}
+            history={
+              scenario === "empty" ? [] : scenario === "missing" ? history.slice(1) : history
+            }
+            initialFromVersion={scenario === "empty" ? undefined : 1}
+          />
+        )}
+      </ApplicationPage>
+    </ApplicationStage>
   </GrantmakingMessagesProvider>
 );
 

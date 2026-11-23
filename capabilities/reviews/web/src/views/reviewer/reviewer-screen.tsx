@@ -164,10 +164,12 @@ const ReviewerReference = ({
         />
         {assignment.criteriaChanged && <Notice tone="warning">{t("changed")}</Notice>}
         {page.criteria?.map((criterion, index) => (
-          <section key={index}>
-            <h3>{criterion.title}</h3>
+          <Stack as="section" gap={1} key={index}>
+            <h3>
+              <Text variant="emphasis">{criterion.title}</Text>
+            </h3>
             <p>{criterion.description}</p>
-          </section>
+          </Stack>
         ))}
       </Stack>
     </ReferencePane>
@@ -353,19 +355,15 @@ const ParticipationActions = ({
     <Stack gap={4}>
       <Divider />
       <Inline>
-        <Button
-          size="medium"
-          isDisabled={work.busy}
-          onPress={() => void work.respond("accept", "")}
-        >
+        <Button isDisabled={work.busy} onPress={() => void work.respond("accept", "")}>
           {t("accept")}
         </Button>
         {canDecline && (
-          <Button size="medium" variant="secondary" isDisabled={work.busy} onPress={onDecline}>
+          <Button variant="secondary" isDisabled={work.busy} onPress={onDecline}>
             {t("decline")}
           </Button>
         )}
-        <Button size="medium" variant="quiet" isDisabled={work.busy} onPress={onConflict}>
+        <Button variant="quiet" isDisabled={work.busy} onPress={onConflict}>
           {t("conflict")}
         </Button>
       </Inline>

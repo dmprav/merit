@@ -9,6 +9,7 @@ import {
 import { Button } from "@merit/ui/button";
 import { DialogContent, ModalDialog } from "@merit/ui/dialog";
 import { Notice } from "@merit/ui/notice";
+import { Text } from "@merit/ui/text";
 
 import localStyles from "./form.module.css";
 import { FormPendingContext } from "./pending-context";
@@ -171,6 +172,7 @@ export const FormActions = ({
   submittingLabel,
   isSubmitDisabled = false,
   discard,
+  status,
 }: {
   submission: Submission;
   onCancel: () => void;
@@ -179,14 +181,26 @@ export const FormActions = ({
   submittingLabel: string;
   isSubmitDisabled?: boolean;
   discard?: { label: string; onPress: () => void };
+  /**
+   * The draft or save state, announced politely at the footer's leading side beside Discard.
+   * Pass `null` while there is nothing to report so later states are announced.
+   */
+  status?: ReactNode;
 }) => (
   <div className={localStyles.actions}>
-    {discard && (
-      <span className={localStyles.discard}>
-        <Button variant="quiet" isDisabled={submission.isSubmitting} onPress={discard.onPress}>
-          {discard.label}
-        </Button>
-      </span>
+    {(status !== undefined || discard) && (
+      <div className={localStyles.leading}>
+        {status !== undefined && (
+          <span role="status" className={localStyles.status}>
+            {status && <Text variant="supporting">{status}</Text>}
+          </span>
+        )}
+        {discard && (
+          <Button variant="quiet" isDisabled={submission.isSubmitting} onPress={discard.onPress}>
+            {discard.label}
+          </Button>
+        )}
+      </div>
     )}
     <Button variant="secondary" isDisabled={submission.isSubmitting} onPress={onCancel}>
       {cancelLabel}

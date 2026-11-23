@@ -71,3 +71,25 @@
     outline-offset: -2px;
   }
 }
+
+/*
+ * Commands after the choices, such as adding a missing one: set apart by a divider and the action
+ * color, with a leading icon, so they read as actions rather than further options.
+ */
+.actionGroup {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  gap: 2px;
+  margin-top: var(--space-1);
+  border-top: 1px solid var(--border);
+  padding-top: var(--space-1);
+}
+
+.actionGroup > .row {
+  color: var(--action);
+}
+
+.actionGroup .leading {
+  color: currentColor;
+}

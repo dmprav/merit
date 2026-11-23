@@ -59,7 +59,7 @@
 .brand {
   font-size: 1.875rem;
   line-height: 2.25rem;
-  font-weight: 700;
+  font-weight: var(--weight-brand);
   letter-spacing: -0.05em;
 }
 
@@ -70,7 +70,7 @@
   gap: var(--space-6);
   font-size: var(--text-body);
   line-height: 1.25rem;
-  font-weight: 500;
+  font-weight: var(--weight-medium);
 }
 
 .navigationLink {
@@ -139,7 +139,7 @@
 
 .footerBrand {
   font-size: 1.375rem;
-  font-weight: 700;
+  font-weight: var(--weight-brand);
   letter-spacing: -0.05em;
 }
 
@@ -174,7 +174,7 @@
   border-left: 1px solid var(--border);
   padding-left: var(--space-6);
   font-size: var(--text-body);
-  font-weight: 600;
+  font-weight: var(--weight-heading);
 }
 
 .docsShell .headerContent {

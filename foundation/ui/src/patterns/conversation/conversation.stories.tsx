@@ -2,8 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useEffect, useState } from "react";
 import { expect } from "storybook/test";
 
-import { Button } from "../../components/button/button";
-import { Conversation, ConversationMessage } from "./conversation";
+import { Conversation, ConversationAction, ConversationMessage } from "./conversation";
 import styles from "./conversation.stories.module.css";
 
 const meta = {
@@ -85,6 +84,7 @@ const paragraphs = Array.from(
 const Streaming = ({ asks }: { asks: number }) => {
   const [shown, setShown] = useState(0);
   const [questions, setQuestions] = useState(1);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (shown >= paragraphs.length) {
@@ -94,40 +94,54 @@ const Streaming = ({ asks }: { asks: number }) => {
     return () => clearTimeout(timer);
   }, [shown]);
 
-  // The control stays outside the scroller, as story controls stay outside the product frame, so
-  // pressing it cannot scroll the thread.
+  const isFinished = shown >= paragraphs.length;
+
   return (
-    <>
-      <div
-        className={styles.scroller}
-        data-testid="scroller"
-        role="region"
-        aria-label="Panel"
-        tabIndex={0}
-      >
-        <Conversation label="Conversation" followKey={String(questions)}>
-          <ConversationMessage author="person" authorLabel="You">
-            <p>Question {questions}</p>
-          </ConversationMessage>
-          <ConversationMessage author="assistant" authorLabel="Assistant">
-            {paragraphs.slice(0, shown).map((paragraph) => (
-              <p key={paragraph}>{paragraph}</p>
-            ))}
-          </ConversationMessage>
-        </Conversation>
-      </div>
-      {shown >= paragraphs.length && asks > 0 && (
-        <Button
-          variant="secondary"
-          onPress={() => {
-            setQuestions(questions + 1);
-            setShown(0);
-          }}
+    <div
+      className={styles.scroller}
+      data-testid="scroller"
+      role="region"
+      aria-label="Panel"
+      tabIndex={0}
+    >
+      <Conversation label="Conversation" followKey={String(questions)}>
+        <ConversationMessage author="person" authorLabel="You">
+          <p>Question {questions}</p>
+        </ConversationMessage>
+        <ConversationMessage
+          author="assistant"
+          authorLabel="Assistant"
+          actions={
+            isFinished &&
+            asks > 0 && (
+              <>
+                <ConversationAction
+                  icon={copied ? "check" : "copy"}
+                  label={copied ? "Copied" : "Copy"}
+                  onPress={() => {
+                    void navigator.clipboard?.writeText(paragraphs.join("\n\n"));
+                    setCopied(true);
+                  }}
+                />
+                <ConversationAction
+                  icon="reset"
+                  label="Ask again"
+                  onPress={() => {
+                    setQuestions(questions + 1);
+                    setShown(0);
+                    setCopied(false);
+                  }}
+                />
+              </>
+            )
+          }
         >
-          Ask again
-        </Button>
-      )}
-    </>
+          {paragraphs.slice(0, shown).map((paragraph) => (
+            <p key={paragraph}>{paragraph}</p>
+          ))}
+        </ConversationMessage>
+      </Conversation>
+    </div>
   );
 };
 

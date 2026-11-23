@@ -3,7 +3,7 @@ import type { ComponentProps } from "react";
 
 import { encodeRoundSummary, decodeRoundSummary } from "@merit/grantmaking/api";
 import { getExampleRound } from "@merit/grantmaking/examples";
-import { ApplicationPage } from "@merit/ui/application-shell";
+import { ApplicationPage, ApplicationStage } from "@merit/ui/application-shell";
 
 import { GrantmakingMessagesProvider } from "../../messages";
 import { FundingRoundsView } from "./funding-rounds-view";
@@ -45,16 +45,18 @@ const meta = {
   },
   decorators: [
     (Story) => (
-      <ApplicationPage
-        width="full"
-        locationKey="rounds"
-        breadcrumb={null}
-        breadcrumbLabel="Breadcrumb"
-      >
-        <GrantmakingMessagesProvider>
-          <Story />
-        </GrantmakingMessagesProvider>
-      </ApplicationPage>
+      <ApplicationStage>
+        <ApplicationPage
+          width="full"
+          locationKey="rounds"
+          breadcrumb={null}
+          breadcrumbLabel="Breadcrumb"
+        >
+          <GrantmakingMessagesProvider>
+            <Story />
+          </GrantmakingMessagesProvider>
+        </ApplicationPage>
+      </ApplicationStage>
     ),
   ],
 } satisfies Meta<typeof FundingRoundsPreview>;

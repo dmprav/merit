@@ -36,7 +36,7 @@ export const Reviewer: Story = {
     nameAs: "h3",
     description: (
       <>
-        <span>4 November 2026 · Application v1</span>
+        <span>4 November 2026, Application v1</span>
         <Badge tone="warning">Outdated</Badge>
       </>
     ),

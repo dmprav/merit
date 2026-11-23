@@ -17,6 +17,7 @@ export type ProposalDecision = "awaiting" | "approved" | "declined";
 
 type Recording = "approved" | "declined" | null;
 
+/** Once decided, the card folds to its title and the outcome as a quiet status line. */
 const Decided = ({
   proposal,
   decision,
@@ -30,16 +31,18 @@ const Decided = ({
 
   return (
     <div ref={ref} tabIndex={-1} className={styles.decided}>
-      <Stack gap={2}>
-        <Inline gap={2} align="baseline">
-          <Text as="strong" variant="emphasis">
-            {t("proposal.title", proposal.recipient)}
+      <Stack gap={1}>
+        <Text as="strong" variant="emphasis">
+          {t("proposal.title", proposal.recipient)}
+        </Text>
+        <Notice appearance="inline" tone={decision === "approved" ? "success" : "neutral"}>
+          {decision === "approved" ? t("proposal.approved") : t("proposal.declined")}
+        </Notice>
+        {decision === "approved" && (
+          <Text as="p" variant="supporting">
+            {t("proposal.demoNotice")}
           </Text>
-          <Text variant="supporting">
-            {decision === "approved" ? t("proposal.approved") : t("proposal.declined")}
-          </Text>
-        </Inline>
-        {decision === "approved" && <Notice tone="neutral">{t("proposal.demoNotice")}</Notice>}
+        )}
       </Stack>
     </div>
   );
@@ -81,7 +84,17 @@ const Choices = ({
 
   return (
     <>
-      <Inline gap={2}>
+      {/* Declining comes first and approving, which commits, closes the row, as in a confirmation. */}
+      <Inline gap={2} justify="end">
+        <Button
+          ref={decline}
+          variant="secondary"
+          aria-busy={recording === "declined"}
+          aria-disabled={recording !== null}
+          onPress={onDecline}
+        >
+          {recording === "declined" ? pendingLabel : t("proposal.decline")}
+        </Button>
         <Button
           ref={approve}
           variant="primary"
@@ -90,15 +103,6 @@ const Choices = ({
           onPress={onApprove}
         >
           {recording === "approved" ? pendingLabel : t("proposal.approve")}
-        </Button>
-        <Button
-          ref={decline}
-          variant="quiet"
-          aria-busy={recording === "declined"}
-          aria-disabled={recording !== null}
-          onPress={onDecline}
-        >
-          {recording === "declined" ? pendingLabel : t("proposal.decline")}
         </Button>
       </Inline>
       {/* A local announcement goes with the buttons when they fold away, as in a confirmation. */}

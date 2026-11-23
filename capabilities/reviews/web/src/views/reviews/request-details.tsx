@@ -47,7 +47,7 @@ export const RequestDetails = ({ request }: { request: Request }) => {
           {request.applicationVersion === null
             ? t("applicationBasisUnknown")
             : t("requestSubmission", { version: request.applicationVersion })}
-          {" · "}
+          {", "}
           {request.criteriaVersion === null
             ? t("criteriaBasisUnknown")
             : t("requestCriteria", { version: request.criteriaVersion })}

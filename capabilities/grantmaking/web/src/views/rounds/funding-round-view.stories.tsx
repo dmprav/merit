@@ -8,7 +8,7 @@ import { roundView, updateRecommendation } from "@merit/grantmaking/api";
 import { getExampleRound } from "@merit/grantmaking/examples";
 import { fromMinorUnits } from "@merit/money";
 import { emptyReviews } from "@merit/reviews/domain";
-import { ApplicationPage } from "@merit/ui/application-shell";
+import { ApplicationPage, ApplicationStage } from "@merit/ui/application-shell";
 
 import { GrantmakingMessagesProvider } from "../../messages";
 import { FundingRoundPreview as FundingRoundView } from "../../testing/application-list-preview";
@@ -38,16 +38,19 @@ const meta = {
   args: { round: encodeRoundOverview(example) },
   decorators: [
     (Story) => (
-      <ApplicationPage
-        width="full"
-        locationKey="round"
-        breadcrumb={null}
-        breadcrumbLabel="Breadcrumb"
-      >
-        <GrantmakingMessagesProvider>
-          <Story />
-        </GrantmakingMessagesProvider>
-      </ApplicationPage>
+      <ApplicationStage>
+        <ApplicationPage
+          width="full"
+          contained
+          locationKey="round"
+          breadcrumb={null}
+          breadcrumbLabel="Breadcrumb"
+        >
+          <GrantmakingMessagesProvider>
+            <Story />
+          </GrantmakingMessagesProvider>
+        </ApplicationPage>
+      </ApplicationStage>
     ),
   ],
 } satisfies Meta<typeof FundingRoundPreview>;

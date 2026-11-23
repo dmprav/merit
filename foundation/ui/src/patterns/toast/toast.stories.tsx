@@ -23,16 +23,14 @@ const examples = {
 
 const Triggers = () => (
   <Inline>
-    <Button size="medium" onPress={() => showToast(examples.saved)}>
-      Save
-    </Button>
-    <Button variant="secondary" size="medium" onPress={() => showToast(examples.undo)}>
+    <Button onPress={() => showToast(examples.saved)}>Save</Button>
+    <Button variant="secondary" onPress={() => showToast(examples.undo)}>
       Remove criterion
     </Button>
-    <Button variant="secondary" size="medium" onPress={() => showToast(examples.refreshFailed)}>
+    <Button variant="secondary" onPress={() => showToast(examples.refreshFailed)}>
       Save with a failed refresh
     </Button>
-    <Button variant="secondary" size="medium" onPress={() => showToast(examples.failed)}>
+    <Button variant="secondary" onPress={() => showToast(examples.failed)}>
       Copy address
     </Button>
   </Inline>

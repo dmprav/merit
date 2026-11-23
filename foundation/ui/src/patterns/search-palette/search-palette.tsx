@@ -200,7 +200,7 @@ const SearchResults = ({
       )}
       aria-label={label}
       selectionMode="none"
-      className={`${styles.list} ${scrollStyles.scrollArea}`}
+      className={`${styles.list}`}
     >
       {groups.flatMap((group) =>
         group.heading !== undefined
@@ -342,7 +342,6 @@ export const SearchPaletteDialog = ({
         <>
           <ButtonBase
             variant="quiet"
-            size="small"
             iconOnly
             aria-label={closeLabel ?? t("closeDialog")}
             isDisabled={isDismissDisabled}

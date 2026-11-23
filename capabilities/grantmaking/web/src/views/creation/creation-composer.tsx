@@ -5,6 +5,7 @@ import { FormDialog } from "@merit/forms";
 import { Button } from "@merit/ui/button";
 import { DialogContent } from "@merit/ui/dialog";
 import { EditorLoading } from "@merit/ui/editor-loading";
+import { Icon } from "@merit/ui/icon";
 import { useEventToast, useToastWhile } from "@merit/ui/toast";
 
 import type { CreationData } from "../../contracts/creation";
@@ -130,12 +131,8 @@ const CreationTrigger = ({
   const { target, resumable, openEditor } = creation;
 
   return (
-    <Button
-      id={id}
-      size={target.kind === "application" ? "small" : "medium"}
-      variant={target.kind === "application" ? "secondary" : "primary"}
-      onPress={openEditor}
-    >
+    <Button id={id} variant="secondary" onPress={openEditor}>
+      {!resumable && <Icon name="add" />}
       {resumable
         ? t(target.kind === "round" ? "creation.resumeRound" : "creation.resumeApplication")
         : label}

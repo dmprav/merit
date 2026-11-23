@@ -1,6 +1,11 @@
+/* The picker's list runs to its edges; feedback below it lines up with the list's text. */
 .form {
   display: grid;
-  gap: var(--space-4);
+  gap: var(--space-1);
+}
+
+.form > :not(:first-child) {
+  padding: 0 var(--space-2) var(--space-2);
 }
 
 .actions {

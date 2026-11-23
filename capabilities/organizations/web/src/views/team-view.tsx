@@ -9,6 +9,7 @@ import { Button } from "@merit/ui/button";
 import { ConfirmationDialog } from "@merit/ui/confirmation-dialog";
 import { DialogContent } from "@merit/ui/dialog";
 import { EditorLoading } from "@merit/ui/editor-loading";
+import { Icon } from "@merit/ui/icon";
 import { Stack } from "@merit/ui/layout";
 import { Notice } from "@merit/ui/notice";
 import { PageHeader } from "@merit/ui/page-header";
@@ -149,7 +150,8 @@ const TeamHeader = ({
       title={t("title")}
       actions={
         canInvite && (
-          <Button size="medium" isDisabled={isDisabled} onPress={onInvite}>
+          <Button variant="secondary" isDisabled={isDisabled} onPress={onInvite}>
+            <Icon name="add" />
             {t(resume ? "resumeInvite" : "invite")}
           </Button>
         )
@@ -188,7 +190,7 @@ const TeamFeedback = ({
           role="alert"
           title={t("teamChangedTitle")}
           actions={
-            <Button ref={recoveryRef} variant="secondary" isDisabled={busy} onPress={onRefresh}>
+            <Button ref={recoveryRef} variant="quiet" isDisabled={busy} onPress={onRefresh}>
               {t("refresh")}
             </Button>
           }

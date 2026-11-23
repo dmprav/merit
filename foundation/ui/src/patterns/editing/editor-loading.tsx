@@ -40,7 +40,6 @@ export const EditorClose = ({
   <ButtonBase
     autoFocus={autoFocus}
     isDisabled={isDisabled}
-    size="small"
     variant="quiet"
     iconOnly={iconOnly}
     aria-label={label}
