@@ -377,3 +377,39 @@ it("returns the saved observations for a citation until access to the chat is lo
   ctx.catalog.permits.mockResolvedValue(false);
   expect(await ctx.turns.evidence(...address, "E1")).toBeNull();
 });
+
+it("records a delivery already in flight when Stop cancels the rest of the group", async () => {
+  const ctx = await fixture();
+  ctx.model.mockResolvedValueOnce(calls("invite", "first", "second"));
+  ctx.catalog.execute.mockImplementation(async (preview) => ({
+    ...ok,
+    delivery: { kind: "invitation", assignmentId: "A", messageId: String(preview.input.to) },
+  }));
+
+  let release = () => {};
+
+  let announce = () => {};
+
+  const started = new Promise<void>((resolve) => {
+    announce = resolve;
+  });
+  ctx.catalog.deliver.mockImplementationOnce(() => {
+    announce();
+    return new Promise((resolve) => {
+      release = () => resolve("sent");
+    });
+  });
+  await ctx.run();
+  const group = (await ctx.open())?.groups[0];
+  assert.isDefined(group);
+  await ctx.turns.approve(...address, { previewId: group.id });
+  const running = ctx.run();
+  await started;
+  await ctx.turns.stop(...address);
+  release();
+  await running;
+  const chat = await ctx.open();
+  expect(chat?.status).toBe("stopped");
+  expect(chat?.groups[0]?.actions.map((item) => item.status)).toEqual(["succeeded", "stopped"]);
+  expect(ctx.catalog.deliver).toHaveBeenCalledTimes(1);
+});

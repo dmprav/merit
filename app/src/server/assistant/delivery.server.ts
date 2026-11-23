@@ -64,17 +64,22 @@ export const deliverNext = async (access: Access, row: Stored) => {
   if (!claimed) {
     return false;
   }
-  const live = await access.read();
-  if (live?.revision !== claimed.revision || !(await access.consent())) {
+  const sent: { outcome?: Promise<DeliveryOutcome> } = {};
+  // A concurrent Stop or Delete can invalidate the durable claim before mail dispatch.
+  // Start the pool-backed outbox operation under this last gate, then release the chat lock.
+  const dispatched = await access.locked(claimed, (state) => {
+    const next = nextAction(state);
+    if (!next?.action.delivery || next.action.deliveryAttempt?.id !== id) {
+      throw new Error("No claimed delivery.");
+    }
+    sent.outcome = access
+      .catalog()
+      .deliver(next.action.delivery)
+      .catch(() => "failed" as const);
+    return change(state, "running");
+  });
+  if (!dispatched || !sent.outcome) {
     return false;
   }
-  const ticket = nextAction(conversationState.parse(live.state))?.action.delivery;
-  if (!ticket) {
-    return false;
-  }
-  const status = await access
-    .catalog()
-    .deliver(ticket)
-    .catch(() => "failed" as const);
-  return recordDelivery(access, id, status);
+  return recordDelivery(access, id, await sent.outcome);
 };

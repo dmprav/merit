@@ -129,7 +129,8 @@ const stopTurn = async (deps: TurnDependencies, args: Address) => {
       if (attempt) {
         endModelRequest(row.id, attempt);
       }
-      return view(stopped);
+      const current = await access.read();
+      return current ? view(current) : null;
     }
   }
 };
