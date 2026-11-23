@@ -1,3 +1,4 @@
+import { observationTool } from "./observation.server";
 import type { Message } from "./state";
 
 type WireMessage =
@@ -43,12 +44,18 @@ const wire = (item: Message, index: number): WireMessage[] => {
     {
       role: "tool",
       tool_call_id: id,
-      content: JSON.stringify({ result: item.result, evidence: item.citations }),
+      content: JSON.stringify({
+        result: item.result,
+        evidence:
+          item.name === observationTool.name
+            ? item.citations.map(({ key }) => key)
+            : item.citations,
+      }),
     },
   ];
 };
 
-const compact = (item: Extract<Message, { role: "tool" }>) => ({
+const compact = (item: Extract<Message, { role: "tool" }>, observation: number) => ({
   ...item,
   input: Buffer.byteLength(JSON.stringify(item.input)) <= 2048 ? item.input : { omitted: true },
   result: {
@@ -56,8 +63,10 @@ const compact = (item: Extract<Message, { role: "tool" }>) => ({
     phase: item.result.phase,
     delivery: item.result.delivery,
     detailsOmitted: true,
+    observation,
+    evidenceKeys: item.citations.slice(0, 16).map(({ key }) => key),
   },
-  citations: item.citations.slice(0, 16),
+  citations: [],
 });
 
 export const providerHistory = (messages: Message[]): WireMessage[] => {
@@ -73,7 +82,7 @@ export const providerHistory = (messages: Message[]): WireMessage[] => {
     let entries = wire(item, index);
     let size = Buffer.byteLength(JSON.stringify(entries));
     if (item.role === "tool" && size > Math.min(remaining, 32 * 1024)) {
-      entries = wire(compact(item), index);
+      entries = wire(compact(item, index), index);
       size = Buffer.byteLength(JSON.stringify(entries));
       shortened = true;
     }
@@ -84,6 +93,7 @@ export const providerHistory = (messages: Message[]): WireMessage[] => {
   };
 
   add(messages.findLastIndex((item) => item.role === "user"));
+  add(messages.length - 1);
   // Retain recent committed outcomes even when a large evidence read follows them.
   let outcomes = 0;
   for (let index = messages.length - 1; index >= 0 && outcomes < 8; index--) {
@@ -106,7 +116,7 @@ export const providerHistory = (messages: Message[]): WireMessage[] => {
     result.unshift({
       role: "system",
       content:
-        "Some earlier history or large tool outputs were omitted from this request. Read relevant workspace records again before relying on missing facts. Saved evidence keys identify the original versions.",
+        "Some earlier history or large tool outputs were omitted from this request. Use read_observation with the supplied observation number to read omitted details or evidence keys. Saved evidence keys identify the original versions.",
     });
   }
   return result;

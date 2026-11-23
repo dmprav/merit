@@ -10,6 +10,7 @@ import {
   prepareDeferred,
 } from "./dispatch.server";
 import { beginModelRequest, endModelRequest } from "./model-request.server";
+import { observationTool } from "./observation.server";
 import type { AssistantModel } from "./openai.server";
 import { conversationState } from "./state";
 
@@ -27,7 +28,12 @@ const runModel = async (access: Access, row: Stored, model: AssistantModel) => {
       state.steps++;
       state.modelAttempt = { id, until: Date.now() + 120_000 };
       // Authorize and dispatch under the same lock, then release it during inference.
-      work.reply = model(state.messages, tools, state.error, beginModelRequest(row.id, id));
+      work.reply = model(
+        state.messages,
+        [...tools, observationTool],
+        state.error,
+        beginModelRequest(row.id, id),
+      );
       void work.reply.catch(() => undefined);
       return change(state, "running");
     });

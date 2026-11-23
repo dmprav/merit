@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import type { AssistantCatalog } from "@merit/mcp/assistant";
 
 import { change, type AssistantRuntimeCatalog } from "./access.server";
+import { observationTool, readObservation } from "./observation.server";
 import type { AssistantDecision } from "./openai.server";
 import {
   newAction,
@@ -34,6 +35,16 @@ const prepareCall = async (
   call: PendingCall,
   actions: Action[],
 ) => {
+  if (call.name === observationTool.name) {
+    recordReceipt(
+      state,
+      call.name,
+      call.input,
+      readObservation(state.messages, call.input),
+      call.id,
+    );
+    return;
+  }
   const tool = tools.find((item) => item.name === call.name);
   if (!tool) {
     recordReceipt(

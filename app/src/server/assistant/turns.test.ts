@@ -1,10 +1,11 @@
 import { assert, expect, it, vi } from "vite-plus/test";
+import { z } from "zod";
 
 import type { Transaction } from "@merit/db";
 import type { AssistantPreview, AssistantReceipt } from "@merit/mcp/assistant";
 
 import type { Stored, TurnDependencies } from "./access.server";
-import type { AssistantDecision } from "./openai.server";
+import { createOpenAiAssistantModel, type AssistantDecision } from "./openai.server";
 import { AssistantTurnConflict, createAssistantTurns } from "./turns.server";
 
 const actor = { userId: "manager" };
@@ -71,7 +72,7 @@ const fixture = async () => {
   };
   const catalog = {
     list: async () =>
-      ["find", "inspect", "invite"].map((name) => ({
+      ["find", "inspect", "invite", "get_reviewer_assignment"].map((name) => ({
         name,
         description: name,
         inputSchema: {},
@@ -412,4 +413,120 @@ it("records a delivery already in flight when Stop cancels the rest of the group
   expect(chat?.status).toBe("stopped");
   expect(chat?.groups[0]?.actions.map((item) => item.status)).toEqual(["succeeded", "stopped"]);
   expect(ctx.catalog.deliver).toHaveBeenCalledTimes(1);
+});
+
+it("pages a large saved private draft through provider calls and cites the original observation", async () => {
+  const ctx = await fixture();
+  const conclusion = "The matching grant was withdrawn.";
+  ctx.catalog.read.mockResolvedValueOnce({
+    ...ok,
+    result: {
+      status: "ok",
+      draft: { reasoning: "a".repeat(4250) + conclusion + "b".repeat(35000) },
+    },
+    citations: [{ kind: "observation", recordId: "assignment", label: "Review", version: "v3" }],
+  });
+
+  const toolCall = (name: string, input: Record<string, unknown>) =>
+    Response.json({
+      choices: [
+        {
+          finish_reason: "tool_calls",
+          message: {
+            content: null,
+            tool_calls: [
+              { type: "function", function: { name, arguments: JSON.stringify({ input }) } },
+            ],
+          },
+        },
+      ],
+    });
+
+  const lastResult = (request?: RequestInit) => {
+    assert(typeof request?.body === "string");
+    expect(Buffer.byteLength(request.body)).toBeLessThan(32 * 1024);
+    const body = z
+      .object({
+        messages: z.array(z.object({ content: z.string().nullable() })),
+        tools: z.array(z.object({ function: z.object({ name: z.string() }) })),
+      })
+      .parse(JSON.parse(request.body));
+    expect(body.tools.map((tool) => tool.function.name)).toContain("read_observation");
+    const content = body.messages.at(-1)?.content;
+    assert(typeof content === "string");
+    return z
+      .object({
+        result: z.object({
+          observation: z.number(),
+          text: z.string().optional(),
+          nextCursor: z.number().nullable().optional(),
+        }),
+        evidence: z.array(z.string()),
+      })
+      .parse(JSON.parse(content));
+  };
+
+  const fetch = vi
+    .spyOn(globalThis, "fetch")
+    .mockResolvedValueOnce(toolCall("get_reviewer_assignment", { assignmentId: "assignment" }))
+    .mockImplementationOnce(async (_url, request) => {
+      const { result } = lastResult(request);
+      return toolCall("read_observation", {
+        observation: result.observation,
+        section: "result",
+        cursor: 0,
+      });
+    })
+    .mockImplementationOnce(async (_url, request) => {
+      const { result } = lastResult(request);
+      expect(result.text).toContain("reasoning");
+      expect(result.text).not.toContain(conclusion);
+      return toolCall("read_observation", {
+        observation: result.observation,
+        section: "result",
+        cursor: result.nextCursor,
+      });
+    })
+    .mockImplementationOnce(async (_url, request) => {
+      const { result, evidence } = lastResult(request);
+      expect(result.text).toContain(conclusion);
+      return Response.json({
+        choices: [
+          { finish_reason: "stop", message: { content: conclusion + " [" + evidence[0] + "]" } },
+        ],
+      });
+    });
+  try {
+    ctx.model.mockImplementation(
+      createOpenAiAssistantModel({ apiKey: "test-only", model: "merit-test" }),
+    );
+    await ctx.run();
+    expect(await ctx.open()).toMatchObject({
+      status: "completed",
+      messages: [{ role: "user" }, { text: conclusion + " [E1]", citations: [{ version: "v3" }] }],
+    });
+    expect(ctx.catalog.read).toHaveBeenCalledTimes(1);
+  } finally {
+    fetch.mockRestore();
+  }
+});
+
+it("rechecks access before using a saved observation for the next model request", async () => {
+  const ctx = await fixture();
+  ctx.model
+    .mockResolvedValueOnce(calls("inspect", "assignment"))
+    .mockImplementationOnce(async () => {
+      ctx.catalog.permits.mockImplementation(
+        async (deps) => !deps.some((dep) => dep.kind === "grants"),
+      );
+      return {
+        kind: "calls",
+        calls: [
+          { name: "read_observation", input: { observation: 1, section: "result", cursor: 0 } },
+        ],
+      };
+    });
+  await ctx.run();
+  expect(ctx.model).toHaveBeenCalledTimes(2);
+  expect(await ctx.open()).toBeNull();
 });
