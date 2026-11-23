@@ -69,11 +69,16 @@ const useStickyHeaderOffset = () => {
         `${getComputedStyle(element).position === "sticky" ? element.getBoundingClientRect().height : 0}px`,
       );
 
+    // The header sticks only on tall, wide screens, so crossing that threshold changes the offset
+    // even when the header itself keeps its size.
+    const sticky = window.matchMedia("(min-width: 901px) and (min-height: 600px)");
     publish();
     const observer = new ResizeObserver(publish);
     observer.observe(element);
+    sticky.addEventListener("change", publish);
     return () => {
       observer.disconnect();
+      sticky.removeEventListener("change", publish);
       container.style.removeProperty("--page-header-height");
     };
   }, []);
