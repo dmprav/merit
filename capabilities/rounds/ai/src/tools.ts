@@ -35,7 +35,7 @@ export const createRoundTools = (actor: Actor, rounds: RoundsService) => [
     {
       errorSchema: writeErrorSchema,
       description:
-        "Edit round preparation. Supply expectedPreparationRevision for purpose, criteria, and budget; title, meetingDate, and manager apply directly. Preserve criterion IDs across edits and reordering; new criteria need new UUIDs. Send only changed details fields; omitted fields stay unchanged. Budget changes require a reason. Saves directly.",
+        "Edit round preparation. Supply expectedPreparationRevision for purpose, criteria, and budget; title, meetingDate, and manager apply directly. Preserve criterion IDs across edits and reordering; new criteria need new UUIDs. Send only changed details fields; omitted fields stay unchanged. The first budget amount needs no reason; a later change, a clear, or an amount set after a clear requires one. Saves directly.",
       inputSchema: editRoundInputSchema
         .omit({ publicId: true, expectedRevision: true })
         .extend({ roundId: publicIdSchema, expectedPreparationRevision: revision.optional() }),
