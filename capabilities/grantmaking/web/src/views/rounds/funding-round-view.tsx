@@ -9,9 +9,9 @@ import { RoundPreparation, type PreparationSession } from "@merit/rounds-web/wor
 import { type TableColumn } from "@merit/tables";
 import { Badge } from "@merit/ui/badge";
 import { DescriptionList, DescriptionListItem } from "@merit/ui/description-list";
-import { Divider } from "@merit/ui/divider";
 import { Stack } from "@merit/ui/layout";
 import { PageHeader } from "@merit/ui/page-header";
+import { PanelSection, PanelSections } from "@merit/ui/panel-section";
 import { PropertiesLayout } from "@merit/ui/properties-layout";
 import { StatusIndicator, StatusIndicatorSpace } from "@merit/ui/status-indicator";
 import { Tabs } from "@merit/ui/tabs";
@@ -63,10 +63,10 @@ export const FundingRoundView = ({
             propertiesLabel={t("round.properties")}
             stackedPlacement={activeSection === "applications" ? "after" : "before"}
             properties={
-              <>
+              <PanelSections>
                 {content.properties}
                 {activeSection === "applications" && <RoundBudget round={round} />}
-              </>
+              </PanelSections>
             }
           >
             <Tabs
@@ -121,9 +121,8 @@ const RoundBudget = ({ round }: { round: RoundPage }) => {
   const over = remaining !== null && isNegative(remaining);
 
   return (
-    <div className={localStyles.budget}>
-      <Stack as="section" gap={4} aria-label={t("round.summary")}>
-        <Divider />
+    <PanelSection title={t("round.summary")}>
+      <div className={localStyles.budget}>
         <Stack gap={2}>
           <div className={localStyles.budgetScope}>
             <Text variant="caption">{t("applications.wholeRound")}</Text>
@@ -186,8 +185,8 @@ const RoundBudget = ({ round }: { round: RoundPage }) => {
             </DescriptionListItem>
           </DescriptionList>
         </Stack>
-      </Stack>
-    </div>
+      </div>
+    </PanelSection>
   );
 };
 

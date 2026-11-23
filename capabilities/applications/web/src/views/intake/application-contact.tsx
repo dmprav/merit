@@ -7,9 +7,9 @@ import { Button } from "@merit/ui/button";
 import { PickerPopover } from "@merit/ui/dialog";
 import { Inline } from "@merit/ui/layout";
 import { Notice } from "@merit/ui/notice";
+import { PanelSection } from "@merit/ui/panel-section";
 import { PersonIdentity } from "@merit/ui/person-identity";
 import { PropertyButton } from "@merit/ui/property-button";
-import { SectionHeader } from "@merit/ui/section-header";
 import { useEventToast, useToastWhile } from "@merit/ui/toast";
 
 import type { ApplicationContactData } from "../../contracts/intake";
@@ -56,21 +56,19 @@ export const ApplicationContact = (props: ContactSectionProps) => {
   };
 
   return (
-    <section aria-label={t("workspace.details")}>
-      <SectionHeader
-        title={t("workspace.details")}
-        emphasis="quiet"
-        aside={
-          !editing && (
-            <IntakeEditButton
-              label={t("intake.editMetadata")}
-              isDisabled={editingDisabled}
-              onPress={() => setEditing(true)}
-              triggerRef={sectionTrigger}
-            />
-          )
-        }
-      />
+    <PanelSection
+      title={t("workspace.details")}
+      actions={
+        editing ? undefined : (
+          <IntakeEditButton
+            label={t("intake.editMetadata")}
+            isDisabled={editingDisabled}
+            onPress={() => setEditing(true)}
+            triggerRef={sectionTrigger}
+          />
+        )
+      }
+    >
       <div
         role="group"
         aria-label={editing ? t("intake.editMetadata") : undefined}
@@ -109,7 +107,7 @@ export const ApplicationContact = (props: ContactSectionProps) => {
           onClose={close}
         />
       </div>
-    </section>
+    </PanelSection>
   );
 };
 

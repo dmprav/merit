@@ -4,7 +4,13 @@
 
 /* A quiet header row stays one control tall, with or without an action beside the heading. */
 .header[data-emphasis="quiet"] > :first-child {
-  min-height: var(--control-height-small);
+  min-height: var(--button-height);
+}
+
+@media (pointer: coarse) {
+  .header[data-emphasis="quiet"] > :first-child {
+    min-height: var(--target-touch);
+  }
 }
 
 .meta {
