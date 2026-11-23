@@ -26,7 +26,9 @@ const it = databaseTest
   .extend("scenario", async ({ db, runtime }) => {
     await seedExampleRounds(db);
     await seedExampleReviewer(db);
+
     const run: DatabaseRunner = (operation) => withDatabase(runtime, operation);
+
     const store = createAssistantStore(run);
     await store.setConsent(manager, workspaceSlug, true);
     const service = reviews(run);
@@ -37,11 +39,13 @@ const it = databaseTest
     const assignment = list.value.find((row) => row.email === "reviewer@example.test");
     assert(assignment?.status === "invited");
     const assignmentId = assignment.id;
+
     const chat = (evidence: boolean) =>
       store.create(reviewer, workspaceSlug, {
         status: "awaiting_approval",
         state: { dependencies: [{ kind: "assignment", assignmentId, active: true, evidence }] },
       });
+
     const manage = (action: "cancel" | "reinstate" | "clear_conflict", expectedRevision: number) =>
       service.manage(manager, {
         ...address,
@@ -51,6 +55,7 @@ const it = databaseTest
         commandId: randomUUID(),
         note: "Participation reviewed by the manager",
       });
+
     const respond = (
       action: "accept" | "report_conflict",
       expectedRevision: number,
@@ -64,6 +69,7 @@ const it = databaseTest
         commandId: randomUUID(),
         note: action === "report_conflict" ? "I work with the applicant" : "",
       });
+
     return { store, chat, manage, respond, service, assignmentId };
   });
 
