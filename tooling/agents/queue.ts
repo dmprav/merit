@@ -95,6 +95,7 @@ export type OpenAgentPr = {
   headSha: string;
   isDraft: boolean;
   stateInitialized?: boolean;
+  createdAt?: string;
   updatedAt?: string;
   labels: string[];
   checks: PrCheckStatus[];
@@ -236,11 +237,15 @@ export const hasActiveClaim = (comments: readonly IssueCommentRecord[], nowMs: n
 /** Returns true when a draft or uninitialized `agent:pr` has been stranded longer than `CLAIM_TTL_MS`. */
 export const isStaleDraftPr = (pr: OpenAgentPr, nowMs: number): boolean => {
   const pendingInit = pr.isDraft || pr.stateInitialized === false;
-  if (!pendingInit || pr.labels.includes("agent:needs-human") || !pr.updatedAt) {
+  if (!pendingInit || pr.labels.includes("agent:needs-human")) {
     return false;
   }
-  const updatedMs = Date.parse(pr.updatedAt);
-  return Number.isFinite(updatedMs) && nowMs - updatedMs >= CLAIM_TTL_MS;
+  const referenceTimestamp = pr.isDraft ? pr.updatedAt : (pr.createdAt ?? pr.updatedAt);
+  if (!referenceTimestamp) {
+    return false;
+  }
+  const referenceMs = Date.parse(referenceTimestamp);
+  return Number.isFinite(referenceMs) && nowMs - referenceMs >= CLAIM_TTL_MS;
 };
 
 /** Returns true when a PR has at least one valid `merit-agent` state comment from a trusted writer. */
@@ -290,6 +295,10 @@ export const mergeAgentPrState = (
   agentPrStateSchema.parse({
     ...previous,
     ...updates,
+    shepherdRounds: Math.max(
+      previous.shepherdRounds,
+      updates.shepherdRounds ?? previous.shepherdRounds,
+    ),
   });
 
 export const formatAgentPrStateComment = (state: AgentPrState): string =>
@@ -572,6 +581,7 @@ const restPullDetailSchema = z.object({
   title: z.string(),
   body: z.string().nullable().default(""),
   draft: z.boolean().default(false),
+  created_at: z.string(),
   updated_at: z.string(),
   labels: z.array(restLabelSchema),
   head: z.object({
@@ -758,6 +768,7 @@ const fetchOpenAgentPrs = (repoRoot: string, repo: RepoIdentity): OpenAgentPr[] 
       headSha: pr.head.sha,
       isDraft: pr.draft,
       stateInitialized: hasAgentPrState(comments),
+      createdAt: pr.created_at,
       updatedAt: pr.updated_at,
       labels: pr.labels.map((label) => label.name),
       checks,
@@ -1014,12 +1025,18 @@ const runCli = () => {
     const sha = readFlagValue(rest, "--sha") ?? undefined;
     const issueRaw = readFlagValue(rest, "--issue");
     const flakeRaw = readFlagValue(rest, "--flake-reruns");
+    const ifUninitialized = rest.includes("--if-uninitialized");
     if (!Number.isInteger(prNumber) || prNumber <= 0) {
       throw new Error(
-        "Usage: queue.ts record-shepherd <pr-number> --round <n> [--sha <sha>] [--issue <n>] [--flake-reruns <n>]",
+        "Usage: queue.ts record-shepherd <pr-number> --round <n> [--sha <sha>] [--issue <n>] [--flake-reruns <n>] [--if-uninitialized]",
       );
     }
-    const previous = parseAgentPrState(fetchIssueComments(repoRoot, repo, prNumber));
+    const comments = fetchIssueComments(repoRoot, repo, prNumber);
+    const previous = parseAgentPrState(comments);
+    if (ifUninitialized && hasAgentPrState(comments)) {
+      console.log(JSON.stringify({ status: "already_initialized", prNumber, state: previous }));
+      return;
+    }
     const state = mergeAgentPrState(previous, {
       shepherdRounds: round,
       ...(flakeRaw !== null ? { flakeReruns: Number.parseInt(flakeRaw, 10) } : {}),

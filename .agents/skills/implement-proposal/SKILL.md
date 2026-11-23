@@ -133,10 +133,12 @@ the PR description and verification record that the review was not independent.
    [record verification](../../../docs/guides/verification.md#record-verification)
    with all four required H2 headings (`Checks run`, `Could not verify`,
    `Did not verify`, `Dismissed review findings`). Commit and push.
-5. Initialize autonomous PR state (until this marker is recorded,
-   [queue.ts](../../../tooling/agents/queue.ts) holds the PR out of shepherd
-   selection for up to 2 hours so concurrent runs cannot race the builder):
-   `vpx tooling/agents/queue.ts record-shepherd <pr-number> --round 0 --sha $(git rev-parse HEAD) --issue <issue-number>`.
+5. Initialize autonomous PR state if not already set (until this marker is
+   recorded, [queue.ts](../../../tooling/agents/queue.ts) holds the PR out of
+   shepherd selection for up to 2 hours from creation so concurrent runs cannot
+   race the builder; `--if-uninitialized` preserves existing shepherd rounds if
+   `open-pr` reused an already-initialized PR):
+   `vpx tooling/agents/queue.ts record-shepherd <pr-number> --round 0 --sha $(git rev-parse HEAD) --issue <issue-number> --if-uninitialized`.
    If an error interrupts steps 4–5 after opening the PR, call
    `vpx tooling/agents/queue.ts escalate <pr-number> --reason "<failure>"`
    before exiting (any uninitialized PR left stranded for more than 2 hours is

@@ -535,23 +535,25 @@ describe("queue", () => {
     ]);
   });
 
-  test("keeps newly opened uninitialized non-draft PRs out of shepherd selection until state is recorded, escalating after 2h", () => {
+  test("keeps newly opened uninitialized non-draft PRs out of shepherd selection until state is recorded, escalating 2h after creation", () => {
     const now = Date.UTC(2026, 10, 22, 12, 0, 0);
     const freshUninitialized = basePr({
       number: 231,
       isDraft: false,
       stateInitialized: false,
+      createdAt: new Date(now - 5 * 60 * 1000).toISOString(),
       updatedAt: new Date(now - 5 * 60 * 1000).toISOString(),
       checks: [
         { name: "verify", status: "COMPLETED", conclusion: "FAILURE" },
         { name: "verification-record", status: "COMPLETED", conclusion: "FAILURE" },
       ],
     });
-    const staleUninitialized = basePr({
+    const staleUninitializedWithRecentComment = basePr({
       number: 232,
       isDraft: false,
       stateInitialized: false,
-      updatedAt: new Date(now - 125 * 60 * 1000).toISOString(),
+      createdAt: new Date(now - 125 * 60 * 1000).toISOString(),
+      updatedAt: new Date(now - 5 * 60 * 1000).toISOString(),
     });
 
     expect(
@@ -564,13 +566,25 @@ describe("queue", () => {
 
     expect(
       selectNextWork({
-        openAgentPrs: [freshUninitialized, staleUninitialized],
+        openAgentPrs: [freshUninitialized, staleUninitializedWithRecentComment],
         readyIssues: [],
         nowMs: now,
       }),
     ).toMatchObject({
       kind: "escalate",
       prNumber: 232,
+    });
+
+    expect(
+      mergeAgentPrState(
+        { issueNumber: 120, shepherdRounds: 2, flakeReruns: 1 },
+        { shepherdRounds: 0, lastHeadSha: "abcdef2" },
+      ),
+    ).toEqual({
+      issueNumber: 120,
+      shepherdRounds: 2,
+      flakeReruns: 1,
+      lastHeadSha: "abcdef2",
     });
   });
 
