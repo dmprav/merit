@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
@@ -101,14 +101,33 @@ test("CI verify workflow covers every ready stage and sharded browser suite", as
   );
 
   // External actions and container images must remain pinned by digest/SHA,
-  // including inside local composite actions.
-  const actionFiles = [
-    workflow,
-    await readFile(`${repoRoot}/.github/actions/setup-workspace/action.yml`, "utf8"),
-    await readFile(`${repoRoot}/.github/actions/forward-service-ports/action.yml`, "utf8"),
-  ];
+  // across every workflow and local composite action.
+  const workflowFiles = readdirSync(`${repoRoot}/.github/workflows`)
+    .filter((name) => name.endsWith(".yml") || name.endsWith(".yaml"))
+    .sort();
+  expect(workflowFiles).toContain("verify.yml");
+  expect(workflowFiles).toContain("prune-verifications.yml");
+  const workflowContents = await Promise.all(
+    workflowFiles.map((name) => readFile(`${repoRoot}/.github/workflows/${name}`, "utf8")),
+  );
+  const pruneWorkflow = await readFile(
+    `${repoRoot}/.github/workflows/prune-verifications.yml`,
+    "utf8",
+  );
+  expect(pruneWorkflow).toContain("permissions: {}");
+  expect(pruneWorkflow).toContain("persist-credentials: false");
+  expect(pruneWorkflow).toContain("fetch-depth: 0");
+  const setupWorkspaceAction = await readFile(
+    `${repoRoot}/.github/actions/setup-workspace/action.yml`,
+    "utf8",
+  );
+  const forwardPortsAction = await readFile(
+    `${repoRoot}/.github/actions/forward-service-ports/action.yml`,
+    "utf8",
+  );
+  const actionFiles = [...workflowContents, setupWorkspaceAction, forwardPortsAction];
   for (const contents of actionFiles) {
-    for (const [, ref] of contents.matchAll(/^\s+uses:\s+(\S+)/gm)) {
+    for (const [, ref] of contents.matchAll(/^[ \t]+(?:-\s+)?uses:[ \t]+["']?([^"'\s#]+)["']?/gm)) {
       assert(ref);
       if (ref.startsWith("./.github/actions/")) {
         expect(existsSync(`${repoRoot}/${ref.slice(2)}/action.yml`)).toBe(true);
@@ -118,17 +137,15 @@ test("CI verify workflow covers every ready stage and sharded browser suite", as
         expect(ref).toMatch(/@[0-9a-f]{40}$/);
       }
     }
+    for (const [, image] of contents.matchAll(
+      /^[ \t]+(?:container|image):[ \t]+["']?([^"'\s#]+)["']?/gm,
+    )) {
+      assert(image);
+      expect(image).toMatch(/@sha256:[0-9a-f]{64}$/);
+    }
   }
-  const forwardPortsAction = await readFile(
-    `${repoRoot}/.github/actions/forward-service-ports/action.yml`,
-    "utf8",
-  );
-  expect(actionFiles[1]).toContain("download-build:");
+  expect(setupWorkspaceAction).toContain("download-build:");
   expect(forwardPortsAction).toContain("forwards:");
-  for (const [, image] of workflow.matchAll(/^\s+(?:container|image):\s+(\S+)/gm)) {
-    assert(image);
-    expect(image).toMatch(/@sha256:[0-9a-f]{64}$/);
-  }
   const storybookImage = /browser-storybook:[\s\S]*?^\s+container:\s+(\S+)/m.exec(workflow)?.[1];
   assert(storybookImage);
   const visualContainerScript = await readFile(

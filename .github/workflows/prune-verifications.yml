@@ -1,0 +1,84 @@
+name: Prune Verification Records
+
+on:
+  schedule:
+    - cron: "0 6 1 * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: prune-verifications
+  cancel-in-progress: false
+
+jobs:
+  prune:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: read
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: voidzero-dev/setup-vp@cab1ab9eaff52d4857875f4f2c016e36af8f2c76 # v1.22.0
+        with:
+          node-version-file: .node-version
+          cache: false
+          run-install: false
+
+      - name: Prune scouted verification records older than 30 days
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # Capture stdout directly so a script error aborts under `set -e` (process substitution hides exit codes).
+          output="$(node tooling/agents/prune-verifications.ts --paths --ref origin/main)"
+          files=()
+          if [ -n "$output" ]; then
+            mapfile -t files <<< "$output"
+          fi
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "No verification records eligible for pruning."
+            exit 0
+          fi
+
+          branch="chore/prune-verifications"
+          gh auth setup-git
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$branch" origin/main
+          git rm -- "${files[@]}"
+
+          if git diff --cached --quiet; then
+            echo "No staged changes after pruning."
+            exit 0
+          fi
+
+          git commit -m "chore(verifications): prune old verification records"
+          git fetch origin "refs/heads/$branch:refs/remotes/origin/$branch" 2>/dev/null || true
+          git push --force-with-lease origin "HEAD:$branch"
+
+          count="${#files[@]}"
+          first="${files[0]}"
+          last="${files[$((count - 1))]}"
+          # GitHub suppresses `pull_request` workflows for `GITHUB_TOKEN`-created PRs; note the manual trigger in the PR body.
+          body=$(printf '## Why\n\nRemove %d verification record(s) already read by the `verification-flakes` scout and older than 30 days.\n\n## What changed\n\n- Deleted %d verification record(s) (`%s` through `%s`).\n\n> Note: Because this PR was opened with `GITHUB_TOKEN`, close and reopen it (or push a commit) to trigger the required `verify` check.\n' "$count" "$count" "$first" "$last")
+
+          existing_pr=$(gh pr list --head "$branch" --base main --state open --json number --jq '.[0].number // empty')
+          if [ -n "$existing_pr" ]; then
+            gh pr edit "$existing_pr" --body "$body"
+          else
+            gh pr create \
+              --base main \
+              --head "$branch" \
+              --title "chore(verifications): prune old verification records" \
+              --body "$body"
+          fi

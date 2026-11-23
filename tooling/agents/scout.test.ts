@@ -77,7 +77,7 @@ describe("scout", () => {
       "docs/README.md",
       "docs/guides/testing.md",
       ".github/pull_request_template.md",
-      ".agents/tasks/test-review.md",
+      ".agents/tasks/scout.md",
       "verifications/208.md",
       "verifications/216.md",
       "verifications/217.md",

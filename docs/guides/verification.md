@@ -157,8 +157,11 @@ Write "None." in a section with nothing to report. Record facts about this chang
 in the past tense. Advice for future work belongs in the pull request's
 **Follow-ups**, where it can become an issue or a guide change.
 
-A recurring [verification review](../../.agents/tasks/verification-review.md) reads
-the merged records, fixes the problems that recur, and removes the records it read.
+The `verification-flakes` lens in the
+[maintenance scout](../../.agents/tasks/scout.md#verification-flakes) reads new
+records and proposes fixes for recurring blockers or dismissals; a monthly
+[pruning workflow](../../.github/workflows/prune-verifications.yml) removes
+scouted records older than 30 days.
 
 ## Security checks
 
