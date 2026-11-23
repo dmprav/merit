@@ -56,7 +56,10 @@ export const useFollowEnd = (followKey: string | undefined) => {
 
     scroller.addEventListener("scroll", track, { passive: true });
     const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(toEnd);
+    // The thread grows with its content; the scroller shrinks when the panel body does, and both
+    // move the end out of view. Neither moves someone who scrolled up: `toEnd` only follows.
     observer?.observe(element);
+    observer?.observe(scroller);
     toEnd();
     return () => {
       scroller.removeEventListener("scroll", track);
