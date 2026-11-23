@@ -816,6 +816,36 @@ it("requests a review from the Add menu and returns focus to Add when the picker
   await waitFor(() => expect(screen.getByRole("button", { name: "Add" })).toHaveFocus());
 });
 
+it("returns focus to Add after a reviewer is chosen and the request is saved", async () => {
+  const source: ContactsSource = {
+    scope: (workspace) => [workspace],
+    read: vi.fn().mockResolvedValue({
+      status: "ok",
+      workspaceName: "Alder",
+      contacts: [
+        {
+          id: "sam",
+          name: "Sam Morgan",
+          email: "sam@example.test",
+          affiliation: "",
+          archived: false,
+          revision: 0,
+          applicationTitles: [],
+        },
+      ],
+    }),
+    save: vi.fn(),
+  };
+  const { user, data } = renderReview({}, "dana", source);
+  await user.click(await screen.findByRole("button", { name: "Add" }));
+  await user.click(await screen.findByRole("menuitem", { name: "Request review" }));
+  await user.click(await screen.findByRole("option", { name: /Sam Morgan/ }));
+
+  await waitFor(() => expect(data.save).toHaveBeenCalled());
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  await waitFor(() => expect(screen.getByRole("button", { name: "Add" })).toHaveFocus());
+});
+
 it("keeps reference focus when delayed assessment save completes", async () => {
   const { user, data } = renderReview();
   let finish!: (result: Awaited<ReturnType<ReviewData["save"]>>) => void;
