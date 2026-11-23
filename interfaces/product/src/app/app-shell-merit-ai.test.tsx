@@ -205,6 +205,10 @@ const panel = () => screen.findByRole("region", { name: "Merit AI" });
 const surface = () => screen.findByRole(isWide ? "complementary" : "dialog", { name: "Merit AI" });
 
 /** Everything the panel's status regions are saying to assistive technology. */
+/** The folded proposal, which takes focus once its choices are gone. */
+const foldedProposal = (body: { getByText: (text: string) => HTMLElement }) =>
+  body.getByText("Send a message to Maya Thompson").closest<HTMLElement>("[tabindex='-1']");
+
 const spoken = (panel: { getAllByRole: (role: string) => HTMLElement[] }) =>
   panel
     .getAllByRole("status")
@@ -505,10 +509,7 @@ describe.each([
     await user.click(await body.findByRole("button", { name: step.choice }));
 
     await body.findByText(new RegExp(step.result));
-    await waitFor(() =>
-      expect(document.activeElement).toHaveTextContent("Send a message to Maya Thompson"),
-    );
-    expect(await surface()).toContainElement(document.activeElement as HTMLElement);
+    await waitFor(() => expect(foldedProposal(body)).toHaveFocus());
     await waitFor(() => expect(spoken(body)).toContain(step.spoken));
   });
 });
@@ -551,7 +552,7 @@ describe("focus once a decision is recorded", () => {
   it("gives the focus to the outcome when the person stayed on the choice", async () => {
     await decideHeld(false);
 
-    expect(document.activeElement).toHaveTextContent("Send a message to Maya Thompson");
+    expect(foldedProposal(within(await surface()))).toHaveFocus();
   });
 });
 
