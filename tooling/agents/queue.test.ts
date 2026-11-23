@@ -334,10 +334,32 @@ describe("queue", () => {
     expect(
       findEarliestActiveClaimRunId([expiredFirst, untrustedFirst, winnerClaim, loserClaim], now),
     ).toBe("run-winner");
+    // Between original winner expiry (+115m) and losing claim expiry (+116m), the renewed winner stays ahead.
+    expect(
+      findEarliestActiveClaimRunId(
+        [winnerClaim, loserClaim, renewedWinner],
+        now + 115.5 * 60 * 1000,
+      ),
+    ).toBe("run-winner");
     // After the original 2h claim expires, the same run's renewal remains active.
-    expect(findEarliestActiveClaimRunId([winnerClaim, renewedWinner], now + 150 * 60 * 1000)).toBe(
-      "run-winner",
-    );
+    expect(
+      findEarliestActiveClaimRunId([winnerClaim, loserClaim, renewedWinner], now + 150 * 60 * 1000),
+    ).toBe("run-winner");
+    // Once every lease for the prior winner expires, a subsequent claimant takes over.
+    const nextClaimant = {
+      authorAssociation: "OWNER",
+      body: formatClaimComment({
+        runId: "run-next",
+        claimedAt: new Date(now + 220 * 60 * 1000).toISOString(),
+        expiresAt: new Date(now + 340 * 60 * 1000).toISOString(),
+      }),
+    };
+    expect(
+      findEarliestActiveClaimRunId(
+        [winnerClaim, loserClaim, renewedWinner, nextClaimant],
+        now + 225 * 60 * 1000,
+      ),
+    ).toBe("run-next");
   });
 
   test("escalates stale draft agent PRs older than 2 hours while skipping fresh or already-escalated drafts", () => {

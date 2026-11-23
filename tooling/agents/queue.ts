@@ -144,6 +144,7 @@ export const findEarliestActiveClaimRunId = (
   comments: readonly IssueCommentRecord[],
   nowMs: number,
 ): string | null => {
+  const latestExpiryByRunId = new Map<string, number>();
   for (const comment of comments) {
     if (!TRUSTED_AUTHOR_ASSOCIATIONS.has(comment.authorAssociation)) {
       continue;
@@ -158,8 +159,14 @@ export const findEarliestActiveClaimRunId = (
       continue;
     }
     const clampedExpiryMs = Math.min(expiresMs, claimedMs + CLAIM_TTL_MS);
-    if (clampedExpiryMs > nowMs) {
-      return marker.runId;
+    const previous = latestExpiryByRunId.get(marker.runId) ?? 0;
+    if (clampedExpiryMs > previous) {
+      latestExpiryByRunId.set(marker.runId, clampedExpiryMs);
+    }
+  }
+  for (const [runId, expiryMs] of latestExpiryByRunId) {
+    if (expiryMs > nowMs) {
+      return runId;
     }
   }
   return null;
