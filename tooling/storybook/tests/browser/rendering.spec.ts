@@ -76,10 +76,10 @@ for (const story of [
 
       const bounds = (await toast.boundingBox())!;
       const workspace = (await page.locator("#main").boundingBox())!;
-      const layoutWidth = await page.evaluate(() => document.documentElement.clientWidth);
 
-      // Bottom right of the workspace, inset from the viewport edge.
-      expect(Math.abs(bounds.x + bounds.width - (layoutWidth - 16))).toBeLessThan(1);
+      expect(
+        Math.abs(bounds.x + bounds.width / 2 - (workspace.x + workspace.width / 2)),
+      ).toBeLessThan(1);
       expect(bounds.width).toBeLessThanOrEqual(workspace.width - 32);
       await page.screenshot({ path: testInfo.outputPath(`${story.id}.png`) });
     }

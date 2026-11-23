@@ -108,8 +108,8 @@ export const useToastWhile = (toast: ToastMessage | null) => {
 
 /**
  * The page's single toast region, a landmark named Notifications that F6 reaches. Render it once
- * at the document root; it sits at the bottom right of the page content, clear of the companion panel. Unmounting it discards
- * its toasts.
+ * at the document root; it centers over the page content, between the application shell's sidebar and companion panel.
+ * Unmounting it discards its toasts.
  */
 export const Toasts = () => {
   // Content mounted beside the region may show a toast before this effect runs, so only unmounting

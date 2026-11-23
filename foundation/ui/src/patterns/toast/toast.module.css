@@ -1,9 +1,10 @@
-/* At the bottom right of the page content, clear of the work and of the companion panel. */
+/* Centered over the page content, between the application shell's sidebar and companion panel. */
 .region {
   position: fixed;
   z-index: 60;
   bottom: var(--space-4);
-  right: calc(var(--companion-width, 0px) + var(--space-4));
+  left: calc(50% + (var(--sidebar-width, 0px) - var(--companion-width, 0px)) / 2);
+  transform: translateX(-50%);
   display: flex;
   flex-direction: column-reverse;
   /* Stacked toasts share the widest one's width so their edges align. */
