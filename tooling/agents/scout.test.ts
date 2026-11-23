@@ -201,6 +201,14 @@ describe("scout", () => {
         number: 240,
         body: '<!-- merit-proposal: {"kind":"design","lens":"architecture","paths":["capabilities/reviews/web/src/views/reviews/editable-review-work.tsx","app/src/router.tsx"]} -->',
       },
+      {
+        number: 242,
+        body: '<!-- merit-proposal: {"kind":"design","lens":"architecture","paths":["capabilities/*/web/src/views/**"]} -->',
+      },
+      {
+        number: 243,
+        body: '<!-- merit-proposal: {"kind":"design","lens":"architecture","paths":["app/src"]} -->',
+      },
     ]);
 
     const health = summarizeFallowHealth({
@@ -252,9 +260,9 @@ describe("scout", () => {
     expect(health.topFiles[0]).toMatchObject({
       path: "capabilities/reviews/web/src/views/reviews/editable-review-work.tsx",
       inAxis: true,
-      trackedBy: [240],
+      trackedBy: [240, 242],
     });
-    expect(health.hotspots[0]?.trackedBy).toEqual([240]);
+    expect(health.hotspots[0]?.trackedBy).toEqual([240, 242]);
     expect(health.thresholdOverrides[0]?.function).toBe("useReviewer");
 
     const dupes = summarizeFallowDupes({
@@ -311,7 +319,7 @@ describe("scout", () => {
       path: "app/src/router.tsx",
       eagerModules: 634,
       eagerKb: 1671,
-      trackedBy: [240],
+      trackedBy: [240, 243],
     });
 
     expect(

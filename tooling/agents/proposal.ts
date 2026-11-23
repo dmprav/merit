@@ -34,7 +34,6 @@ const TEST_FILE_PATTERN = /\.(?:test|spec|integration)\.tsx?$/;
 const TIER1_DOC_PATTERN =
   /^(?:docs\/.+\.(?:md|mdx)$|(?:capabilities|foundation|interfaces|app|tooling)\/.+\/README\.md$)/;
 const GLOB_CHAR_PATTERN = /[*?{}[\]]/;
-const PROPOSAL_MARKER_PATTERN = /<!--\s*merit-proposal:\s*(\{[\s\S]*?\})\s*-->/;
 
 const singleLine = (max: number) =>
   z
@@ -239,30 +238,6 @@ const jaccard = (left: Set<string>, right: Set<string>): number => {
   return union === 0 ? 0 : intersection / union;
 };
 
-const proposalMarkerMetaSchema = z.object({
-  lens: z.string().optional(),
-  kind: z.string().optional(),
-});
-
-const parseProposalMarkerMeta = (
-  body: string,
-): { paths: string[]; lens?: string; kind?: string } => {
-  const paths = (parseProposalMarker(body)?.paths ?? []).map(normalizePath);
-  const match = PROPOSAL_MARKER_PATTERN.exec(body);
-  if (!match?.[1]) {
-    return { paths };
-  }
-  try {
-    const parsed = proposalMarkerMetaSchema.safeParse(JSON.parse(match[1]));
-    if (parsed.success) {
-      return { paths, lens: parsed.data.lens, kind: parsed.data.kind };
-    }
-  } catch {
-    return { paths };
-  }
-  return { paths };
-};
-
 export const findDuplicateProposal = (
   proposal: Pick<ProposalInput, "title" | "paths"> & { lens?: ScoutLens },
   existingIssues: readonly ExistingIssueSummary[],
@@ -288,8 +263,8 @@ export const findDuplicateProposal = (
     }
 
     const similarity = jaccard(titleTokens, tokenize(issue.title));
-    const markerMeta = issue.body ? parseProposalMarkerMeta(issue.body) : { paths: [] };
-    const existingPaths = markerMeta.paths;
+    const markerMeta = issue.body ? parseProposalMarker(issue.body) : null;
+    const existingPaths = (markerMeta?.paths ?? []).map(normalizePath);
     const sharedPathCount = existingPaths.filter((filePath) => proposalPaths.has(filePath)).length;
     const sharesPath = sharedPathCount > 0;
     if (similarity >= 0.6 && (sharesPath || existingPaths.length === 0)) {
@@ -302,7 +277,7 @@ export const findDuplicateProposal = (
 
     const minPathCount = Math.min(proposalPaths.size, existingPaths.length);
     const pathOverlap = minPathCount > 0 ? sharedPathCount / minPathCount : 0;
-    const sameLens = !proposal.lens || !markerMeta.lens || markerMeta.lens === proposal.lens;
+    const sameLens = !proposal.lens || !markerMeta?.lens || markerMeta.lens === proposal.lens;
     if (sameLens && pathOverlap >= 0.7 && similarity >= 0.25) {
       return {
         duplicate: true,

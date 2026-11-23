@@ -300,5 +300,29 @@ describe("proposal", () => {
         existing,
       ).duplicate,
     ).toBe(false);
+
+    // When an issue body contains multiple markers, lens and paths come from the same last valid marker.
+    const multiMarkerIssue = [
+      {
+        number: 241,
+        title: "Audit review editor permissions",
+        state: "OPEN" as const,
+        labels: ["agent:proposed"],
+        body: [
+          '<!-- merit-proposal: {"lens":"architecture","paths":["capabilities/reviews/web/src/views/reviews/old.tsx"]} -->',
+          '<!-- merit-proposal: {"lens":"security","paths":["capabilities/reviews/web/src/views/reviews/editable-review-work.tsx"]} -->',
+        ].join("\n"),
+      },
+    ];
+    expect(
+      findDuplicateProposal(
+        {
+          lens: "architecture",
+          title: "Decompose review editor layout",
+          paths: ["capabilities/reviews/web/src/views/reviews/editable-review-work.tsx"],
+        },
+        multiMarkerIssue,
+      ).duplicate,
+    ).toBe(false);
   });
 });

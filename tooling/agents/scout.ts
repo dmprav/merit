@@ -690,14 +690,36 @@ type StructuralTelemetry = {
   fallowErrors?: string[];
 };
 
+const matchesTrackedMarkerPath = (filePath: string, markerPath: string): boolean => {
+  if (filePath === markerPath) {
+    return true;
+  }
+  if (/[*?{}[\]]/.test(markerPath)) {
+    return matchesGlob(filePath, markerPath);
+  }
+  const dirPrefix = markerPath.endsWith("/") ? markerPath : `${markerPath}/`;
+  return filePath.startsWith(dirPrefix);
+};
+
 const trackedByForPaths = (
   paths: readonly string[],
   trackedPathsByIssue: ReadonlyMap<string, number[]>,
 ): number[] => {
   const issues = new Set<number>();
-  for (const filePath of paths) {
-    for (const issueNumber of trackedPathsByIssue.get(normalizeRepoPath(filePath)) ?? []) {
+  for (const rawPath of paths) {
+    const normalized = normalizeRepoPath(rawPath);
+    for (const issueNumber of trackedPathsByIssue.get(normalized) ?? []) {
       issues.add(issueNumber);
+    }
+    for (const [markerPath, issueNumbers] of trackedPathsByIssue) {
+      if (markerPath === normalized) {
+        continue;
+      }
+      if (matchesTrackedMarkerPath(normalized, markerPath)) {
+        for (const issueNumber of issueNumbers) {
+          issues.add(issueNumber);
+        }
+      }
     }
   }
   return [...issues].sort((a, b) => a - b);
@@ -923,12 +945,23 @@ const collectSuppressionLedger = (
 
 const runFallowJson = (repoRoot: string, args: readonly string[]): unknown => {
   const fallowBin = resolve(repoRoot, "node_modules/.bin/fallow");
-  const raw = execFileSync(fallowBin, args, {
-    cwd: repoRoot,
-    encoding: "utf8",
-    timeout: FALLOW_TIMEOUT_MS,
-    maxBuffer: 16 * 1024 * 1024,
-  });
+  let raw: string;
+  try {
+    raw = execFileSync(fallowBin, args, {
+      cwd: repoRoot,
+      encoding: "utf8",
+      timeout: FALLOW_TIMEOUT_MS,
+      maxBuffer: 16 * 1024 * 1024,
+    });
+  } catch (error) {
+    // Exit code 1 indicates an enforced fallow gate finding; valid JSON is still emitted on stdout.
+    const status = error instanceof Error && "status" in error ? error.status : undefined;
+    const stdout = error instanceof Error && "stdout" in error ? error.stdout : undefined;
+    if (status !== 1 || typeof stdout !== "string" || !stdout.trim()) {
+      throw error;
+    }
+    raw = stdout;
+  }
   return JSON.parse(raw);
 };
 
@@ -991,8 +1024,6 @@ const collectStructuralTelemetry = ({
       "--production",
       "--skip-local",
       "--no-fragments",
-      "--top",
-      "12",
       "--no-cache",
       "--quiet",
       "--format",
