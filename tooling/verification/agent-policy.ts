@@ -30,6 +30,8 @@ const CATCH_ALL_PATTERN = /^\*+(?:\/\*+)*$/;
 
 export type ProposalMarkerData = {
   paths: string[];
+  lens?: string;
+  kind?: string;
 };
 
 export type IssueCommentRecord = {
@@ -166,7 +168,13 @@ const parseLastPathsMarker = (markdown: string, pattern: RegExp): ProposalMarker
       const paths = rawPaths
         .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
         .map(normalizePath);
-      lastValid = { paths };
+      const lens = "lens" in parsed && typeof parsed.lens === "string" ? parsed.lens : undefined;
+      const kind = "kind" in parsed && typeof parsed.kind === "string" ? parsed.kind : undefined;
+      lastValid = {
+        paths,
+        ...(lens ? { lens } : {}),
+        ...(kind ? { kind } : {}),
+      };
     } catch {
       continue;
     }

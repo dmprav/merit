@@ -247,6 +247,11 @@ describe("queue", () => {
           title: "Paused issue",
           labels: ["agent:ready", "agent:needs-human"],
         }),
+        baseIssue({
+          number: 119,
+          title: "Architecture design RFC",
+          labels: ["agent:ready", "agent:design"],
+        }),
         baseIssue({ number: 120, title: "Already has PR" }),
         baseIssue({ number: 125, title: "Actively claimed", comments: [activeClaim] }),
         baseIssue({ number: 127, title: "Spoofed untrusted claim", comments: [untrustedClaim] }),

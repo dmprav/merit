@@ -15,8 +15,10 @@ import {
   type ProposalInput,
 } from "./proposal.ts";
 
-const sampleProposal = (overrides: Partial<ProposalInput> = {}): ProposalInput =>
-  proposalInputSchema.parse({
+type PrProposalInput = Extract<ProposalInput, { kind: "pr" }>;
+
+const sampleProposal = (overrides: Partial<PrProposalInput> = {}): PrProposalInput => {
+  const parsed = proposalInputSchema.parse({
     lens: "tests",
     title: "Consolidate duplicate withdrawal assertions in reviews",
     why: "Three integration specs repeat identical withdrawal preconditions without adding new coverage.",
@@ -39,6 +41,11 @@ const sampleProposal = (overrides: Partial<ProposalInput> = {}): ProposalInput =
     },
     ...overrides,
   });
+  if (parsed.kind !== "pr") {
+    throw new Error("Expected pr proposal fixture.");
+  }
+  return parsed;
+};
 
 describe("proposal", () => {
   test("classifies unambiguous docs and single-slice pure-test proposals as Tier 1", () => {
@@ -208,5 +215,114 @@ describe("proposal", () => {
 
     expect(proposalSource.match(/execFileSync\("gh"/g)).toHaveLength(1);
     expect(scoutSource).not.toMatch(/execFileSync\("gh"/);
+  });
+
+  test("classifies design proposals as Tier 2 and renders structured sequencing details instead of an implementer brief", () => {
+    const designProposal = proposalInputSchema.parse({
+      kind: "design",
+      lens: "architecture",
+      title: "Defer product route bundles behind lazy route loaders",
+      why: "app/src/router.tsx eagerly pulls 634 modules (~1,671 KB) across all product routes.",
+      evidence: "fallow entry-weight: app/src/router.tsx 634 eager modules, 2 deferred",
+      change: [
+        "Split heavy product capability routes onto lazy route imports",
+        "Keep shared workspace shell synchronous while deferring leaf editors",
+      ],
+      decision: "Needs agreement on route-split boundaries before touching 15+ route modules.",
+      whyNot: "Keeping all routes eager slows initial page load for every user.",
+      paths: ["docs/foundations/architecture.md"],
+      design: {
+        options: [
+          "Option A: TanStack Router lazy route files per product feature",
+          "Option B: Split only heavy review/intake editors via dynamic import",
+        ],
+        recommendation: "Option A aligns with TanStack Router code-splitting conventions.",
+        prSequence: [
+          "PR 1: Split review and intake editor routes and add entry-weight check",
+          "PR 2: Migrate remaining product workspace routes",
+        ],
+        openQuestions: ["Should admin routes split in the same sequence or separately?"],
+      },
+    });
+    expect(designProposal.kind).toBe("design");
+
+    // Even docs-only paths stay Tier 2 when kind is "design".
+    const classification = classifyProposalTier({
+      paths: designProposal.paths,
+      ambiguous: false,
+      kind: designProposal.kind,
+    });
+    expect(classification.tier).toBe(2);
+    expect(classification.targetLabel).toBe("agent:proposed");
+
+    const markdown = renderProposalMarkdown(designProposal, classification);
+    expect(markdown).toContain("tier:2 · design · lens:architecture");
+    expect(markdown).toContain(
+      "<summary>Architecture design & sequencing (not auto-executed)</summary>",
+    );
+    expect(markdown).not.toContain("Implementer brief");
+    expect(markdown).toContain('"kind":"design"');
+  });
+
+  test("deduplicates rephrased same-lens proposals targeting the same hotspot paths without false positives on unrelated work", () => {
+    const existing = [
+      {
+        number: 240,
+        title: "Decompose editable-review-work into controller and focused views",
+        state: "OPEN" as const,
+        labels: ["agent:proposed", "agent:design"],
+        body: '<!-- merit-proposal: {"kind":"design","lens":"architecture","paths":["capabilities/reviews/web/src/views/reviews/editable-review-work.tsx","capabilities/reviews/web/src/views/reviews/review-content.tsx"]} -->',
+      },
+    ];
+
+    expect(
+      findDuplicateProposal(
+        {
+          lens: "architecture",
+          title: "Split editable-review-work view orchestration and rendering",
+          paths: [
+            "capabilities/reviews/web/src/views/reviews/editable-review-work.tsx",
+            "capabilities/reviews/web/src/views/reviews/review-content.tsx",
+          ],
+        },
+        existing,
+      ).duplicate,
+    ).toBe(true);
+
+    // Unrelated change on the same files under a different topic does not falsely deduplicate.
+    expect(
+      findDuplicateProposal(
+        {
+          lens: "security",
+          title: "Sanitize external links rendered in review comments",
+          paths: ["capabilities/reviews/web/src/views/reviews/editable-review-work.tsx"],
+        },
+        existing,
+      ).duplicate,
+    ).toBe(false);
+
+    // When an issue body contains multiple markers, lens and paths come from the same last valid marker.
+    const multiMarkerIssue = [
+      {
+        number: 241,
+        title: "Audit review editor permissions",
+        state: "OPEN" as const,
+        labels: ["agent:proposed"],
+        body: [
+          '<!-- merit-proposal: {"lens":"architecture","paths":["capabilities/reviews/web/src/views/reviews/old.tsx"]} -->',
+          '<!-- merit-proposal: {"lens":"security","paths":["capabilities/reviews/web/src/views/reviews/editable-review-work.tsx"]} -->',
+        ].join("\n"),
+      },
+    ];
+    expect(
+      findDuplicateProposal(
+        {
+          lens: "architecture",
+          title: "Decompose review editor layout",
+          paths: ["capabilities/reviews/web/src/views/reviews/editable-review-work.tsx"],
+        },
+        multiMarkerIssue,
+      ).duplicate,
+    ).toBe(false);
   });
 });

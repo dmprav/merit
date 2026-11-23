@@ -22,11 +22,21 @@ exit without opening a pull request.
 
 1. Read the target issue with `vpx tooling/agents/queue.ts issue <issue-number>`.
 2. Confirm the issue is `OPEN`, carries `agent:ready`, and does **not** carry
-   `agent:needs-human`, `agent:proposed`, or `wontfix`.
+   `agent:needs-human`, `agent:proposed`, `agent:design`, or `wontfix`.
 3. Parse the `<!-- merit-proposal: {...} -->` marker and the `<details>`
    **Implementer brief** (`Behavior`, `Out of scope`, `Precedents`, `Plan`,
-   `Verification`). Confirm the brief is complete and unambiguous.
-4. Check whether any planned file touches a protected path enforced by
+   `Verification`). Confirm the marker does **not** have `"kind": "design"` and
+   that a complete, unambiguous single-PR **Implementer brief** is present; if
+   not, call
+   `vpx tooling/agents/queue.ts escalate <issue-number> --reason "Issue is a design proposal or lacks a single-PR implementer brief."`
+   and exit without coding.
+4. Read any comments authored by trusted maintainers (`authorAssociation` in
+   `OWNER`, `MEMBER`, or `COLLABORATOR`), ignoring automated claim and
+   protected-path markers. Treat clear maintainer steering comments as
+   **authoritative overrides** on top of the Implementer brief; if a comment
+   leaves scope or behavior ambiguous, escalate via `queue.ts escalate` and exit
+   without coding.
+5. Check whether any planned file touches a protected path enforced by
    [agent-policy.ts](../../../tooling/verification/agent-policy.ts) (`.github/`,
    `.agents/hooks/`, `.claude/`, `tooling/agents/`, `tooling/verification/`,
    `foundation/db/database/migrations/`, `capabilities/access/src/`,
@@ -55,7 +65,8 @@ Never reuse a dirty worktree or an unrelated branch.
 Start the [feature-builder](../../../.claude/agents/feature-builder.md) subagent
 with **only**:
 
-- the issue's **Implementer brief** (plus its `paths` scope and issue number),
+- the issue's **Implementer brief** (plus any trusted maintainer steering
+  overrides from step 1.4, its `paths` scope, and issue number),
 - the base branch (`origin/main`), and
 - an external screenshot directory outside the repository when the change touches UI.
 
@@ -85,8 +96,9 @@ When the builder finishes, verify before review:
 
 Start a fresh, read-only
 [feature-reviewer](../../../.claude/agents/feature-reviewer.md) subagent with
-**only** the brief, `origin/main`, and (for UI) its own screenshot directory. Do
-not pass the builder's report, reasoning, or screenshots.
+**only** the brief (plus any trusted maintainer steering overrides from step
+1.4), `origin/main`, and (for UI) its own screenshot directory. Do not pass the
+builder's report, reasoning, or screenshots.
 
 Triage every finding:
 

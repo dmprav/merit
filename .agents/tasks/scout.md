@@ -25,25 +25,35 @@ scheduled runs; picks the most overdue lens from `#219` cursors) or an explicit
    - If `status` is `"cap_reached"`, exit cleanly without advancing any cursor.
    - When `status` is `"ready"`, record the emitted `lens`, `scanTipSha`,
      `commits`, `changedFiles`, `matchedMechanisms`, `rotationTarget`,
-     `unreadVerifications`, `openIssues`, and `wontfixIssues`.
+     `rotationAxis` (for `architecture`/`simplification`), `telemetry` (for
+     `architecture`/`simplification`), `unreadVerifications`, `openIssues`, and
+     `wontfixIssues` (including each maintainer rejection `reason`, when
+     present).
 2. **Respect the proposal cap:**
-   While running in calibration mode (`--tier2-only`), every proposal lands in
+   While running in human-gated mode (`--tier2-only`), every proposal lands in
    `agent:proposed` (capped at 5 open issues). Leaving the cursor untouched on
    `cap_reached` ensures findings wait until the maintainer triages open
    proposals.
 3. **Inspect the codebase using the emitted `lens` rules below:**
    - Do not repeat work already covered by `openIssues` or rejected in
-     `wontfixIssues`.
+     `wontfixIssues` (read `wontfixIssues[].reason` to honor maintainer taste).
+   - Respect `trackedBy` on `telemetry` hotspots and clone groups: skip files
+     already tracked by an open or `wontfix` issue unless you have a clearly
+     distinct root cause.
    - **Worth-a-PR bar:** Every proposal goes through human triage, a full
      implementation + review cycle, and a full CI run. **Do not file
      micro-proposals** (a 1–2 line wording tweak, a single missing test
      assertion, or an isolated style nit).
-   - **Bundle within the audited slice:** When a slice sweep uncovers multiple
+   - **Bundle within the audited scope:** When a sweep uncovers multiple
      concrete issues of the same lens (e.g., several doc/tool-description
-     mismatches in one capability, or duplicate tests + missing assertions
-     across one package), bundle them into **one cohesive slice-level
-     proposal** worth a real PR. If a sweep only turns up 1–2 trivial nits,
-     **file zero proposals** and advance the cursor.
+     mismatches in one area, or duplicate tests + missing assertions across one
+     slice), bundle them into **one cohesive proposal** worth a real PR. If a
+     sweep only turns up 1–2 trivial nits, **file zero proposals** and advance
+     the cursor.
+   - **Bounded reading budget:** On horizontal lenses (`architecture`,
+     `simplification`), read `rotationAxis.anchorDocs` plus 3–5 axis-matched
+     `telemetry` hotspots/clones or 2–3 contrasting sibling implementations in
+     full — never skim an entire layer superficially.
    - File at most **2 high-signal proposals per run**. Prefer zero proposals
      over low-leverage churn.
    - Read every target file and its named precedent in full before proposing a
@@ -56,28 +66,41 @@ scheduled runs; picks the most overdue lens from `#219` cursors) or an explicit
    > substantive proposal lands in `agent:proposed` for maintainer triage before
    > implementation.
 
-   Every JSON payload must satisfy `proposalInputSchema` in
-   [proposal.ts](../../tooling/agents/proposal.ts):
+   Choose the proposal `kind` deliberately (`proposalInputSchema` in
+   [proposal.ts](../../tooling/agents/proposal.ts)):
+   - **`"kind": "pr"` (default):** Single-PR changes, including PR 1 of a
+     clearly settled multi-PR refactor (listing PR 2..N in `brief.outOfScope`).
+     Must include a self-contained `brief` (`behavior`, `outOfScope`,
+     `precedents`, `plan`, `verification`) so
+     [implement-proposal](../skills/implement-proposal/SKILL.md) can execute
+     without interactive grilling.
+   - **`"kind": "design"`:** Systemic architectural findings that require a
+     maintainer design decision or multi-PR sequencing too large for one PR.
+     `proposal.ts` automatically attaches `agent:design` (preventing Queue
+     Worker auto-dispatch) and renders bounded `design` fields (`options` 2–3,
+     `recommendation`, `prSequence` 2–4 ordered PRs where PR 1 ships standalone,
+     `openQuestions` 1–4). Never write essays — keep every field a crisp single
+     line.
+
+   Every JSON payload must also include:
    - **Review summary (compact for human scanning):** `why` (≤220 chars),
-     `evidence` (≤200 chars, file paths + lines or PR numbers), `change` (1–5
-     single-line bullets ≤140 chars), `decision` (≤200 chars, why this approach),
-     `whyNot` (≤200 chars, main alternative rejected).
+     `evidence` (≤200 chars, ≥2 concrete `file:line` citations or exact
+     telemetry metrics), `change` (1–5 single-line bullets ≤140 chars),
+     `decision` (≤200 chars, why this approach), `whyNot` (≤200 chars, main
+     alternative rejected).
    - **Scope & flags:** explicit `paths` (avoid globs unless truly multi-file),
      `ambiguous: true` whenever intended behavior, policy, or trade-offs are
      unsettled. Never pass `agent:*` labels in `extraLabels`.
-   - **Self-contained `brief`:** `behavior`, `outOfScope`, `precedents`, `plan`,
-     and `verification` commands so
-     [implement-proposal](../skills/implement-proposal/SKILL.md) can execute
-     without interactive grilling.
 
 5. **Advance the lens cursor:**
    Only after finishing inspection — and **not** if `scout.ts context` returned
    `status: "idle"` / `status: "cap_reached"` or `proposal.ts` returned
    `status: "cap_reached"` for an unfiled finding — run with the **explicit**
-   emitted `lens` (never `--lens auto`):
-   `vpx tooling/agents/scout.ts advance --lens <lens> --commit <scanTipSha>`
-   For `verification-flakes`, also pass `--pr <highestUnreadPrNumber>` when
-   `unreadVerifications` was non-empty.
+   emitted `lens` (never `--lens auto`) and `--target <rotationTarget>` (when
+   `rotationTarget` is non-null):
+   `vpx tooling/agents/scout.ts advance --lens <lens> --commit <scanTipSha> --target <rotationTarget>`
+   For `verification-flakes`, omit `--target` and pass
+   `--pr <highestUnreadPrNumber>` when `unreadVerifications` was non-empty.
 
 ## Lens audit protocols
 
@@ -87,42 +110,56 @@ Read [architecture](../../docs/foundations/architecture.md),
 [mechanisms.config.ts](../../tooling/verification/architecture/mechanisms.config.ts),
 and [rule enforcement](../../docs/guides/verification-tooling.md#rule-enforcement).
 
-- **Scope:** Audit `rotationTarget` alongside at least one sibling slice
-  (`capabilities/*`, `foundation/*`, `interfaces/*`), plus any `changedFiles`
-  matching cross-cutting mechanisms (`matchedMechanisms`).
-- **What to hunt for (high leverage):**
-  1. **Boundary leaks:** Capabilities reaching across internal modules, UI
-     owning domain rules, or adapters bypassing shared contracts.
-  2. **Mechanism drift:** Implementations diverging from a contract or
-     invariant in `mechanisms.config.ts` (auth/RBAC, money, audit trail,
-     delegated MCP, query/mutation boundaries, etc.).
-  3. **Escalating prose rules up the enforcement ladder:** Recurring rules in
-     `AGENTS.md`, `review.md`, or guides that can be enforced automatically via
-     a static check, lint rule, TypeScript boundary test, or architecture test.
-  4. **Missing shared contracts:** The same non-trivial pattern implemented
-     independently across ≥2 sibling capabilities that should move into a
-     single shared contract.
+- **Horizontal axis scope:** `scout.ts context` rotates round-robin across six
+  Merit-specific horizontal axes (`rotationAxis.id`, `anchorDocs`,
+  `pathPatterns`, `focus`):
+  1. `capability-ownership-and-boundaries`
+  2. `web-layering-and-draft-recovery`
+  3. `interface-transport-and-routing`
+  4. `shared-ui-and-design-system-contracts`
+  5. `audit-demo-and-observability-mechanisms`
+  6. `enforcement-ladder-and-verification-gaps`
+- **Telemetry-guided reading:** Start from `rotationAxis.anchorDocs`,
+  `telemetry.topFiles`, `telemetry.cloneGroups`, `telemetry.thresholdOverrides`,
+  `telemetry.entryWeights` (on `interface-transport-and-routing`),
+  `telemetry.suppressions`, and `telemetry.capabilitySymmetry`, plus any
+  `changedFiles` matching `matchedMechanisms`.
+- **Handoff boundaries:** `architecture` owns cross-capability boundaries,
+  ownership, mechanism invariants, route/bundle architecture, and
+  enforcement-ladder rules. Leave auth/RBAC/tenant/secret bugs to `security`,
+  MCP tool contracts/SQL indexes/command transactions to `mcp-db`, and
+  boundary-preserving clone/complexity deletion to `simplification`.
+- **Guardrail:** Honor
+  [design boundaries around behavior](../../docs/foundations/architecture.md#design-boundaries-around-behavior)
+  — _"Neither implementation size nor the number of layers establishes its
+  quality."_ Never propose splitting a file purely because of LOC or density
+  metrics; every proposal must fix a real coupling, ownership, bundle,
+  invariant, or enforcement problem. Use `"kind": "design"` when the fix spans
+  multiple PRs or requires a maintainer architecture choice.
 
 ### `simplification`
 
 Read [coding conventions](../../docs/guides/coding-conventions.md) and
 [engineering principles](../../docs/foundations/principles.md).
 
-- **Scope:** Audit `rotationTarget` end-to-end (business, web, AI/MCP) alongside
-  its closest sibling slice and any recently touched modules in `changedFiles`.
+- **Coarse layer scope:** `scout.ts context` rotates round-robin across four
+  layers (`business-server`, `web-views-and-controllers`,
+  `interfaces-and-routes`, `foundation-and-tooling`) anchored to
+  `telemetry.cloneGroups` and `telemetry.topFiles`.
 - **What to hunt for (high leverage):**
-  1. **Duplicated slice logic:** Repeated services, repositories, validation
-     pipelines, React hooks/controllers, or table/form wiring that can reuse an
-     existing shared `foundation/*` or sibling abstraction.
+  1. **Cross-file production clones:** Duplicated services, queries,
+     controllers, route shells, or UI/form/table wiring highlighted by
+     `telemetry.cloneGroups` that can collapse onto an existing shared contract.
   2. **Dead indirection:** Pass-through wrappers, single-caller abstractions,
-     or over-fragmented files that add cognitive load without protecting a real
+     or redundant adapter glue that add cognitive load without protecting a real
      boundary.
-  3. **Oversized or tangled modules:** Large files or functions mixing domain
-     rules, persistence, and presentation that can be simplified cleanly
-     without changing external behavior.
-  4. **Guardrail:** Never propose speculative rewrites or stylistic churn;
-     every simplification must measurably delete complexity or duplicate code
-     while preserving exact external behavior.
+  3. **Tangled modules:** Oversized modules mixing unrelated responsibilities
+     that can be simplified cleanly without changing capability boundaries or
+     external behavior.
+- **Guardrail:** Never propose speculative rewrites, stylistic churn, or pure
+  LOC-driven splitting. Every simplification must measurably delete complexity
+  or duplicate code while preserving exact external behavior; hand boundary
+  redesigns to `architecture`.
 
 ### `security`
 
