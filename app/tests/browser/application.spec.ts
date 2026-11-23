@@ -656,8 +656,9 @@ test("split editor keeps the draft and reference available without moving save a
     await page.getByRole("menuitem", { name, exact: true }).click();
   };
 
+  // Short enough that the submission scrolls now that its column no longer gives up width to a scrollbar track.
   if (!mobile) {
-    await page.setViewportSize({ width: 1724, height: 988 });
+    await page.setViewportSize({ width: 1724, height: 900 });
   }
   const overviewBounds = (await workspace.boundingBox())!;
   await edit.click();
