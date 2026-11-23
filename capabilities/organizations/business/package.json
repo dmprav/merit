@@ -14,6 +14,7 @@
     "./testing": "./tests/seed-workspace.ts",
     "./testing/workspace": "./tests/workspace-test.ts",
     "./api": "./src/api/index.ts",
+    "./server/assistant": "./src/server/assistant.ts",
     "./server/demo": "./src/server/demo.ts"
   },
   "dependencies": {

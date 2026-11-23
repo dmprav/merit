@@ -66,6 +66,7 @@ const policies = {
   assess_grants: [
     [...workspace, { attribute: "subject.role", values: ["reviewer", "program_manager"] }],
   ],
+  configure_assistant: [[...workspace, administrators]],
   manage_members: [[...workspace, administrators]],
   manage_administrators: [[...workspace, owner]],
   work_on_grants: [[...workspace, { attribute: "subject.role", values: ["program_manager"] }]],

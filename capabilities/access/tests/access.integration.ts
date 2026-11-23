@@ -38,6 +38,7 @@ it("SQL filtering and in-memory decisions agree across attributes, tenants, and 
     "read_workspace",
     "read_team",
     "assess_grants",
+    "configure_assistant",
     "manage_members",
     "manage_administrators",
     "work_on_grants",

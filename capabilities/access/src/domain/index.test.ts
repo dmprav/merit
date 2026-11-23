@@ -78,6 +78,7 @@ describe("workspace access", () => {
       const subject = { ...member, administration, role };
       const expected = {
         read_workspace: true,
+        configure_assistant: members,
         manage_members: members,
         manage_administrators: administrators,
         work_on_grants: grants,
