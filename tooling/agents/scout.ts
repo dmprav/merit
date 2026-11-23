@@ -37,14 +37,24 @@ export type VerificationFileEntry = {
 
 const lensNameSchema = z.enum(SCOUT_LENSES);
 
+export const AUTO_LENS_PRIORITY: readonly ScoutLens[] = [
+  "architecture",
+  "simplification",
+  "security",
+  "mcp-db",
+  "tests",
+  "docs",
+  "verification-flakes",
+];
+
 export const LENS_TARGET_INTERVAL_DAYS: Record<ScoutLens, number> = {
-  docs: 2,
-  tests: 2,
-  "verification-flakes": 3,
-  architecture: 4,
-  simplification: 5,
-  security: 5,
-  "mcp-db": 5,
+  architecture: 2,
+  simplification: 2,
+  security: 3,
+  "mcp-db": 3,
+  tests: 3,
+  docs: 4,
+  "verification-flakes": 5,
 };
 
 export type AutoLensSelection =
@@ -76,7 +86,7 @@ export const selectAutoLens = ({
   } | null = null;
   let soonestUpcoming: { lens: ScoutLens; remainingMs: number } | null = null;
 
-  for (const lens of SCOUT_LENSES) {
+  for (const lens of AUTO_LENS_PRIORITY) {
     const targetIntervalDays = LENS_TARGET_INTERVAL_DAYS[lens];
     const targetMs = targetIntervalDays * MS_PER_DAY;
     const cursor = state[lens];
@@ -117,7 +127,7 @@ export const selectAutoLens = ({
     };
   }
 
-  const nextLens = soonestUpcoming?.lens ?? SCOUT_LENSES[0];
+  const nextLens = soonestUpcoming?.lens ?? AUTO_LENS_PRIORITY[0] ?? SCOUT_LENSES[0];
   const nextDueInHours = Math.ceil((soonestUpcoming?.remainingMs ?? 0) / (60 * 60 * 1000));
   return {
     due: false,
@@ -160,14 +170,35 @@ export const formatScoutStateBody = (existingBody: string, state: ScoutState): s
   return `${trimmed}\n\n${marker}\n`;
 };
 
-export const pickRotationItem = (items: readonly string[], now: Date): string | null => {
+const LENS_ROTATION_OFFSET: Record<ScoutLens, number> = {
+  docs: 0,
+  tests: 0,
+  architecture: 5,
+  simplification: 10,
+  security: 3,
+  "mcp-db": 7,
+  "verification-flakes": 0,
+};
+
+const SECURITY_FOUNDATION_SLICES = new Set([
+  "foundation/ai",
+  "foundation/auth",
+  "foundation/db",
+  "foundation/storage",
+]);
+
+export const pickRotationItem = (
+  items: readonly string[],
+  now: Date,
+  offset = 0,
+): string | null => {
   const sorted = [...new Set(items)].sort();
   if (sorted.length === 0) {
     return null;
   }
   const todayUtcMs = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
   const days = Math.floor((todayUtcMs - ROTATION_EPOCH_UTC_MS) / MS_PER_DAY);
-  const index = ((days % sorted.length) + sorted.length) % sorted.length;
+  const index = (((days + offset) % sorted.length) + sorted.length) % sorted.length;
   return sorted[index] ?? null;
 };
 
@@ -204,6 +235,68 @@ export const listPackageSlices = (trackedFiles: readonly string[]): string[] => 
     }
   }
   return [...slices].sort();
+};
+
+const listSecuritySlices = (trackedFiles: readonly string[]): string[] => {
+  const slices = new Set<string>();
+  for (const filePath of trackedFiles) {
+    const parts = filePath.split("/");
+    const slice = parts[0] && parts[1] ? `${parts[0]}/${parts[1]}` : null;
+    if (!slice) {
+      continue;
+    }
+    if (
+      parts[0] === "capabilities" ||
+      parts[0] === "interfaces" ||
+      (parts[0] === "foundation" &&
+        (SECURITY_FOUNDATION_SLICES.has(slice) || filePath.includes("/server/")))
+    ) {
+      slices.add(slice);
+    }
+  }
+  return [...slices].sort();
+};
+
+const listMcpDbSlices = (trackedFiles: readonly string[]): string[] => {
+  const slices = new Set<string>();
+  for (const filePath of trackedFiles) {
+    const parts = filePath.split("/");
+    const slice = parts[0] && parts[1] ? `${parts[0]}/${parts[1]}` : null;
+    if (!slice) {
+      continue;
+    }
+    if (
+      (parts[0] === "capabilities" && (parts[2] === "ai" || filePath.includes("/src/server/"))) ||
+      slice === "foundation/db" ||
+      slice === "foundation/ai" ||
+      slice === "interfaces/mcp"
+    ) {
+      slices.add(slice);
+    }
+  }
+  return [...slices].sort();
+};
+
+/** Selects a deterministic per-lens rotating target slice so every lens audits real surface area even on quiet commit days. */
+export const resolveRotationTarget = (
+  lens: ScoutLens,
+  trackedFiles: readonly string[],
+  now: Date,
+): string | null => {
+  const offset = LENS_ROTATION_OFFSET[lens];
+  if (lens === "verification-flakes") {
+    return null;
+  }
+  if (lens === "docs") {
+    return pickRotationItem(listDocAreas(trackedFiles), now, offset);
+  }
+  if (lens === "security") {
+    return pickRotationItem(listSecuritySlices(trackedFiles), now, offset);
+  }
+  if (lens === "mcp-db") {
+    return pickRotationItem(listMcpDbSlices(trackedFiles), now, offset);
+  }
+  return pickRotationItem(listPackageSlices(trackedFiles), now, offset);
 };
 
 export const collectUnreadVerifications = (
@@ -504,12 +597,7 @@ const runContextCommand = (repoRoot: string, requestedLens: ScoutLens | "auto") 
   })
     .split(/\r?\n/)
     .filter(Boolean);
-  const rotationTarget =
-    lens === "docs"
-      ? pickRotationItem(listDocAreas(trackedFiles), now)
-      : lens === "tests"
-        ? pickRotationItem(listPackageSlices(trackedFiles), now)
-        : null;
+  const rotationTarget = resolveRotationTarget(lens, trackedFiles, now);
   const unreadVerifications =
     lens === "verification-flakes"
       ? collectUnreadVerifications(trackedFiles, cursor?.lastPrNumber)
