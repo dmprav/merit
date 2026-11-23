@@ -224,3 +224,10 @@ every lens is still fresh:
 | `verification-flakes`                  | Every 3 days    |
 | `architecture`                         | Every 4 days    |
 | `simplification`, `security`, `mcp-db` | Every 5 days    |
+
+In cloud runners whose default GitHub App token lacks `issues:write` (such as
+Cursor Cloud Agents), configure a fine-grained PAT scoped to `dmprav/merit` with
+`Issues: Read and write` in the `MERIT_SCOUT_GH_TOKEN` secret. Both
+[scout.ts](../../tooling/agents/scout.ts) and
+[proposal.ts](../../tooling/agents/proposal.ts) prefer `MERIT_SCOUT_GH_TOKEN`
+automatically when invoking `gh`.

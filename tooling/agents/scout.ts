@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { z } from "zod";
 
 import { classifyChangedPaths } from "../verification/architecture/mechanisms.ts";
-import { MAX_OPEN_PROPOSALS, SCOUT_LENSES, type ScoutLens } from "./proposal.ts";
+import { MAX_OPEN_PROPOSALS, runScoutGh, SCOUT_LENSES, type ScoutLens } from "./proposal.ts";
 
 export const SCOUT_STATE_ISSUE_NUMBER = 219;
 export const SCOUT_STATE_ISSUE_TITLE = "chore: agent scout state";
@@ -325,11 +325,13 @@ const ghIssueSummarySchema = z.array(
 );
 
 const fetchScoutStateIssue = (repoRoot: string) => {
-  const raw = execFileSync(
-    "gh",
-    ["issue", "view", String(SCOUT_STATE_ISSUE_NUMBER), "--json", "number,state,title,body"],
-    { cwd: repoRoot, encoding: "utf8" },
-  );
+  const raw = runScoutGh(repoRoot, [
+    "issue",
+    "view",
+    String(SCOUT_STATE_ISSUE_NUMBER),
+    "--json",
+    "number,state,title,body",
+  ]);
   const issue = ghStateIssueSchema.parse(JSON.parse(raw));
   if (issue.state !== "OPEN" || issue.title !== SCOUT_STATE_ISSUE_TITLE) {
     throw new Error(
@@ -407,33 +409,34 @@ const runContextCommand = (repoRoot: string, requestedLens: ScoutLens | "auto") 
 
   const openProposedCount = ghIssueSummarySchema.parse(
     JSON.parse(
-      execFileSync(
-        "gh",
-        [
-          "issue",
-          "list",
-          "--state",
-          "open",
-          "--label",
-          "agent:proposed",
-          "--limit",
-          "200",
-          "--json",
-          "number,title,labels",
-        ],
-        { cwd: repoRoot, encoding: "utf8" },
-      ),
+      runScoutGh(repoRoot, [
+        "issue",
+        "list",
+        "--state",
+        "open",
+        "--label",
+        "agent:proposed",
+        "--limit",
+        "200",
+        "--json",
+        "number,title,labels",
+      ]),
     ),
   ).length;
 
   const openIssues = ghIssueSummarySchema
     .parse(
       JSON.parse(
-        execFileSync(
-          "gh",
-          ["issue", "list", "--state", "open", "--limit", "200", "--json", "number,title,labels"],
-          { cwd: repoRoot, encoding: "utf8" },
-        ),
+        runScoutGh(repoRoot, [
+          "issue",
+          "list",
+          "--state",
+          "open",
+          "--limit",
+          "200",
+          "--json",
+          "number,title,labels",
+        ]),
       ),
     )
     .map((issue) => ({
@@ -445,22 +448,18 @@ const runContextCommand = (repoRoot: string, requestedLens: ScoutLens | "auto") 
   const wontfixIssues = ghIssueSummarySchema
     .parse(
       JSON.parse(
-        execFileSync(
-          "gh",
-          [
-            "issue",
-            "list",
-            "--state",
-            "closed",
-            "--label",
-            "wontfix",
-            "--limit",
-            "200",
-            "--json",
-            "number,title,labels",
-          ],
-          { cwd: repoRoot, encoding: "utf8" },
-        ),
+        runScoutGh(repoRoot, [
+          "issue",
+          "list",
+          "--state",
+          "closed",
+          "--label",
+          "wontfix",
+          "--limit",
+          "200",
+          "--json",
+          "number,title,labels",
+        ]),
       ),
     )
     .map(({ number, title }) => ({ number, title }));
@@ -560,10 +559,7 @@ const runAdvanceCommand = (repoRoot: string, lens: ScoutLens, args: readonly str
   const nextState: ScoutState = { ...state, [lens]: nextCursor };
   const nextBody = formatScoutStateBody(stateIssue.body, nextState);
 
-  execFileSync("gh", ["issue", "edit", String(stateIssue.number), "--body", nextBody], {
-    cwd: repoRoot,
-    encoding: "utf8",
-  });
+  runScoutGh(repoRoot, ["issue", "edit", String(stateIssue.number), "--body", nextBody]);
   console.log(JSON.stringify({ status: "advanced", lens, cursor: nextCursor }));
 };
 

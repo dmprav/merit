@@ -315,12 +315,33 @@ const ghIssuesSchema = z.array(
   }),
 );
 
+export const SCOUT_GH_TOKEN_ENV = "MERIT_SCOUT_GH_TOKEN";
+
+/** Prefers `MERIT_SCOUT_GH_TOKEN` over injected integration tokens (such as Cursor's `GH_TOKEN`) when running `gh`. */
+export const resolveScoutGhEnv = (env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv => {
+  const scoutToken = env[SCOUT_GH_TOKEN_ENV]?.trim();
+  if (!scoutToken) {
+    return env;
+  }
+  return {
+    ...env,
+    GH_TOKEN: scoutToken,
+  };
+};
+
+export const runScoutGh = (repoRoot: string, args: readonly string[]): string =>
+  execFileSync("gh", args, { cwd: repoRoot, encoding: "utf8", env: resolveScoutGhEnv() });
+
 const queryIssues = (repoRoot: string, extraArgs: readonly string[]): ExistingIssueSummary[] => {
-  const raw = execFileSync(
-    "gh",
-    ["issue", "list", "--limit", "200", "--json", "number,title,state,labels,body", ...extraArgs],
-    { cwd: repoRoot, encoding: "utf8" },
-  );
+  const raw = runScoutGh(repoRoot, [
+    "issue",
+    "list",
+    "--limit",
+    "200",
+    "--json",
+    "number,title,state,labels,body",
+    ...extraArgs,
+  ]);
   return ghIssuesSchema.parse(JSON.parse(raw)).map((issue) => ({
     number: issue.number,
     title: issue.title,
@@ -421,7 +442,7 @@ const runCli = () => {
   for (const label of labels) {
     ghArgs.push("--label", label);
   }
-  const url = execFileSync("gh", ghArgs, { cwd: repoRoot, encoding: "utf8" }).trim();
+  const url = runScoutGh(repoRoot, ghArgs).trim();
   console.log(
     JSON.stringify({
       status: "created",
