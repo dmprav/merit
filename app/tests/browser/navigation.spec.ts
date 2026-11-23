@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 
 import AxeBuilder from "@axe-core/playwright";
+import type { Page } from "@playwright/test";
+import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 
 import { createFundingApplication } from "@merit/applications/server";
@@ -10,6 +12,75 @@ import { settleAnimations } from "@merit/test-support/browser";
 import { openNavigation, closeNavigation } from "@merit/test-support/browser/navigation";
 
 import { test, expect } from "./workspace-test.ts";
+
+/**
+ * The position of the element that scrolls the page at this viewport: the first named region that
+ * overflows on a wide screen, the window when the layout is compact.
+ */
+const scrollPosition = (page: Page, regions: readonly string[]) =>
+  page.evaluate((selectors) => {
+    for (const selector of selectors) {
+      const element = document.querySelector(selector);
+      if (
+        element &&
+        element.scrollHeight > element.clientHeight &&
+        /auto|scroll/.test(getComputedStyle(element).overflowY)
+      ) {
+        return element.scrollTop;
+      }
+    }
+    return window.scrollY;
+  }, regions);
+
+const scrollBy = (page: Page, regions: readonly string[], top: number) =>
+  page.evaluate(
+    ({ selectors, top }) => {
+      for (const selector of selectors) {
+        const element = document.querySelector(selector);
+        if (
+          element &&
+          element.scrollHeight > element.clientHeight &&
+          /auto|scroll/.test(getComputedStyle(element).overflowY)
+        ) {
+          element.scrollTop = top;
+          return;
+        }
+      }
+      window.scrollTo(0, top);
+    },
+    { selectors: regions, top },
+  );
+
+const mainRegion = ['[data-scroll-restoration-id="main"]'];
+const roundRegions = [
+  '[data-scroll-restoration-id="properties-layout"]',
+  '[data-scroll-restoration-id="properties"]',
+  '#main [role="tabpanel"]',
+];
+
+/** Enough applications that a list overflows a desktop viewport, sorted ahead of the others. */
+const addPrecedingApplications = async (
+  db: Parameters<typeof createFundingApplication>[0],
+  roundTitle: string,
+  count: number,
+) => {
+  const [round] = await db
+    .execute<{ id: string }>(sql`select id from funding_rounds where title = ${roundTitle}`)
+    .then((result) => result.rows);
+  for (let index = 0; index < count; index += 1) {
+    const created = await createFundingApplication(
+      db,
+      { userId: "dana" },
+      {
+        workspaceSlug: "alder",
+        publicId: round!.id,
+        requestId: randomUUID(),
+        title: `Zinnia ${String(index + 1).padStart(2, "0")}`,
+      },
+    );
+    expect(created.status).toBe("ok");
+  }
+};
 
 test("deleting preparation returns to the workspace applications list", async ({
   page,
@@ -80,12 +151,18 @@ test(
       requestId: randomUUID(),
       title: "Next year's meals",
     });
+    const preceding = 25;
+    await addPrecedingApplications(db, "Local Connections 2027", preceding);
     await page.goto("/app/alder/rounds");
     await expect(page.getByRole("main")).toBeFocused();
     const navigation = await openNavigation(page);
     await navigation.getByRole("link", { name: "Applications", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Applications", exact: true })).toBeVisible();
-    await expect(page.getByRole("status").filter({ hasText: "4 of 4 applications" })).toBeVisible();
+    await expect(
+      page
+        .getByRole("status")
+        .filter({ hasText: `${4 + preceding} of ${4 + preceding} applications` }),
+    ).toBeVisible();
     await expect(page.getByRole("link", { name: "Next year's meals", exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Add application", exact: true })).toBeDisabled();
     await page.getByRole("button", { name: "Filter", exact: true }).click();
@@ -93,7 +170,11 @@ test(
     await page.getByRole("option", { name: "Local Connections 2027", exact: true }).click();
     await expect(page.getByRole("button", { name: "Round Local Connections 2027" })).toBeFocused();
     await page.keyboard.press("Escape");
-    await expect(page.getByRole("status").filter({ hasText: "3 of 4 applications" })).toBeVisible();
+    await expect(
+      page
+        .getByRole("status")
+        .filter({ hasText: `${3 + preceding} of ${4 + preceding} applications` }),
+    ).toBeVisible();
     if (testInfo.project.use.isMobile) {
       await page.getByRole("button", { name: /Sort applications/ }).click();
       await page.getByRole("option", { name: "Application (descending)", exact: true }).click();
@@ -103,7 +184,8 @@ test(
     }
     const listUrl = page.url();
     await page.getByRole("link", { name: "Neighbour Table", exact: true }).scrollIntoViewIfNeeded();
-    const position = await page.evaluate(() => window.scrollY);
+    const position = await scrollPosition(page, mainRegion);
+    expect(position).toBeGreaterThan(0);
     await page.getByRole("link", { name: "Neighbour Table", exact: true }).click();
     await expect(page.getByRole("main")).toBeFocused();
     await page.getByRole("button", { name: "Manage reviews", exact: true }).click();
@@ -112,10 +194,17 @@ test(
       .getByRole("link", { name: "Applications", exact: true })
       .click();
     await expect(page).toHaveURL(listUrl);
-    await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(position);
+    await expect.poll(() => scrollPosition(page, mainRegion)).toBe(position);
     await expect(page.getByRole("main")).toBeFocused();
-    await expect(page.getByRole("status").filter({ hasText: "3 of 4 applications" })).toBeVisible();
-    await page.evaluate(() => window.scrollTo(0, 0));
+    await expect(
+      page
+        .getByRole("status")
+        .filter({ hasText: `${3 + preceding} of ${4 + preceding} applications` }),
+    ).toBeVisible();
+    await page.evaluate(() => {
+      window.scrollTo(0, 0);
+      document.querySelector('[data-scroll-restoration-id="main"]')?.scrollTo(0, 0);
+    });
     await page.screenshot({
       path: testInfo.outputPath("workspace-applications.png"),
       fullPage: true,
@@ -144,7 +233,11 @@ test(
       .getByRole("link", { name: "Applications", exact: true })
       .click();
     await expect(page).toHaveURL(listUrl);
-    await expect(page.getByRole("status").filter({ hasText: "3 of 5 applications" })).toBeVisible();
+    await expect(
+      page
+        .getByRole("status")
+        .filter({ hasText: `${3 + preceding} of ${5 + preceding} applications` }),
+    ).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(
       true,
     );
@@ -348,6 +441,10 @@ test(
 test("application list preserves search, filter, sort, and position when returning from an application", async ({
   page,
 }, testInfo) => {
+  // At this height and width the round scrolls as one region beneath its header, as on a laptop.
+  if (!testInfo.project.use.isMobile) {
+    await page.setViewportSize({ width: 1280, height: 600 });
+  }
   await page.goto("/app/alder/rounds");
 
   await expect(page.getByRole("main")).toBeFocused();
@@ -370,11 +467,11 @@ test("application list preserves search, filter, sort, and position when returni
 
   await expect(page.getByRole("status").filter({ hasText: "1 of 3 applications" })).toBeVisible();
 
-  await page
-    .getByRole("link", { name: "Workshop Saturdays", exact: true })
-    .scrollIntoViewIfNeeded();
-  const listPosition = await page.evaluate(() => window.scrollY);
-  await page.getByRole("link", { name: "Workshop Saturdays", exact: true }).click();
+  await scrollBy(page, roundRegions, 80);
+  const listPosition = await scrollPosition(page, roundRegions);
+  expect(listPosition).toBeGreaterThan(0);
+  // The row is part-hidden beneath the sticky toolbar and table head, so activate it directly.
+  await page.getByRole("link", { name: "Workshop Saturdays", exact: true }).dispatchEvent("click");
 
   await expect(page.getByRole("main")).toBeFocused();
 
@@ -384,7 +481,7 @@ test("application list preserves search, filter, sort, and position when returni
     .click();
 
   await expect(page).toHaveURL(/section=applications/);
-  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(listPosition);
+  await expect.poll(() => scrollPosition(page, roundRegions)).toBe(listPosition);
   await page.getByRole("button", { name: "Filter", exact: true }).click();
   await expect(page.getByRole("searchbox")).toHaveValue("repair");
   await expect(page.getByRole("button", { name: "Reviews Awaiting reviews" })).toBeVisible();
@@ -419,6 +516,61 @@ test("application list preserves search, filter, sort, and position when returni
     (await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze())
       .violations,
   ).toEqual([]);
+});
+
+test("opening another round starts at its top instead of carrying the scroll position over", async ({
+  page,
+  workspaceDatabase,
+}, testInfo) => {
+  // Compact screens scroll the window, which the router resets on its own.
+  test.skip(Boolean(testInfo.project.use.isMobile), "The window scrolls on compact screens.");
+  const created = await createFundingRound(
+    drizzle(workspaceDatabase),
+    { userId: "dana" },
+    { workspaceSlug: "alder", requestId: randomUUID(), title: "Community grants 2028" },
+  );
+  expect(created.status).toBe("ok");
+  // At this width the round scrolls as one region beneath its fixed header.
+  await page.setViewportSize({ width: 1280, height: 600 });
+  await page.goto("/app/alder/rounds");
+  await expect(page.getByRole("main")).toBeFocused();
+
+  // A pin reaches the second round directly, so the page keeps the first round's scrolling regions.
+  await page.getByRole("link", { name: "Community grants 2028", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Pin Community grants 2028 to sidebar", exact: true })
+    .click();
+  const pinned = (await openNavigation(page))
+    .getByRole("list", { name: "Pinned funding rounds", exact: true })
+    .getByRole("link", { name: "Community grants 2028", exact: true });
+  await expect(pinned).toBeVisible();
+
+  await page
+    .getByRole("navigation", { name: "Breadcrumb" })
+    .getByRole("link", { name: "Funding rounds", exact: true })
+    .click();
+  await page.getByRole("link", { name: "Local Connections 2027", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Local Connections 2027" })).toBeVisible();
+  await scrollBy(page, roundRegions, 15);
+  expect(await scrollPosition(page, roundRegions)).toBeGreaterThan(0);
+
+  await pinned.click();
+  await expect(page.getByRole("heading", { name: "Community grants 2028" })).toBeVisible();
+
+  // The second round could scroll that far, so landing at its top is the router's doing.
+  const room = await page.evaluate(
+    (selectors) =>
+      Math.max(
+        0,
+        ...selectors.map((selector) => {
+          const element = document.querySelector(selector);
+          return element ? element.scrollHeight - element.clientHeight : 0;
+        }),
+      ),
+    roundRegions,
+  );
+  expect(room).toBeGreaterThanOrEqual(15);
+  await expect.poll(() => scrollPosition(page, roundRegions)).toBe(0);
 });
 
 test("personal pins stay under their object type and survive reloads @cross-browser", async ({

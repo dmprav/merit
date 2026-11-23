@@ -158,7 +158,8 @@
   .scrollPanels > .panel {
     flex: 1;
     min-height: 0;
-    overflow-y: auto;
+    /* A layout that scrolls the tabs along with their surroundings sets --tabs-panel-overflow. */
+    overflow-y: var(--tabs-panel-overflow, auto);
     overscroll-behavior-y: contain;
     scrollbar-gutter: stable;
     padding: 0 max(8px, var(--tabs-panel-inset, 0px)) var(--space-6)

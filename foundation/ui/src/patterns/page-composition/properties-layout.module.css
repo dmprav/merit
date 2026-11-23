@@ -78,6 +78,8 @@
 
 @media (min-width: 901px) and (max-width: 1350px) and (min-height: 600px) {
   :where([data-contained]) > :where(main) > .layout {
+    /* The layout scrolls as one, so tabs inside it leave scrolling to it and sticky content sticks to it. */
+    --tabs-panel-overflow: visible;
     overflow-y: auto;
     padding-bottom: var(--space-6);
   }
