@@ -24,3 +24,8 @@
   -webkit-line-clamp: 2;
   overflow: hidden;
 }
+
+/* Paging scrolls the table to the top of its region, below any sticky page header and toolbar. */
+.tableStart {
+  scroll-margin-top: calc(var(--page-header-height, 0px) + var(--collection-toolbar-height, 0px));
+}

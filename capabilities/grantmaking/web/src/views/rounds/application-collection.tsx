@@ -48,7 +48,13 @@ export const ApplicationCollection = ({
         summary={<OverviewSummary pagination={pagination} />}
         action={action}
       />
-      <div ref={tableStart} tabIndex={-1} role="group" aria-label={t("applications.title")}>
+      <div
+        ref={tableStart}
+        className={styles.tableStart}
+        tabIndex={-1}
+        role="group"
+        aria-label={t("applications.title")}
+      >
         <DataTable
           data={applications}
           density="compact"

@@ -6,7 +6,7 @@ import {
   type ColumnDef,
   type SortingState,
 } from "@tanstack/react-table";
-import type { CSSProperties, ReactNode } from "react";
+import { useLayoutEffect, useRef, type CSSProperties, type ReactNode } from "react";
 
 import styles from "./data-table.module.css";
 import { MobileSortControl } from "./mobile-sort-control";
@@ -42,6 +42,34 @@ const TableScrollArea = ({
     {children}
   </div>
 );
+
+/**
+ * A page-sticky header stays over the rows it scrolls past, so a row that scrolls or takes focus
+ * has to stop below it. The header publishes its height on the table as --table-head-height for
+ * the rows' scroll margins.
+ */
+const useStickyHeadOffset = (enabled: boolean) => {
+  const table = useRef<HTMLTableElement>(null);
+  useLayoutEffect(() => {
+    const element = table.current;
+    const head = element?.tHead;
+    if (!enabled || !element || !head || typeof ResizeObserver === "undefined") {
+      return;
+    }
+
+    const publish = () =>
+      element.style.setProperty("--table-head-height", `${head.getBoundingClientRect().height}px`);
+
+    publish();
+    const observer = new ResizeObserver(publish);
+    observer.observe(head);
+    return () => {
+      observer.disconnect();
+      element.style.removeProperty("--table-head-height");
+    };
+  }, [enabled]);
+  return table;
+};
 
 type DataTableProps<T extends object> = {
   /** Desktop row spacing. Mobile keeps room for touch interaction. */
@@ -100,6 +128,7 @@ export const DataTable = <T extends object>({
       enableSorting: Boolean(sorting && sort),
     };
   });
+  const headOffset = useStickyHeadOffset(stickyHeader?.mode === "page");
   const table = useTable({
     features,
     data,
@@ -125,6 +154,7 @@ export const DataTable = <T extends object>({
       )}
       <TableScrollArea stickyHeader={stickyHeader} label={label}>
         <table
+          ref={headOffset}
           className={styles.table}
           data-density={density}
           data-sticky={stickyHeader ? true : undefined}
