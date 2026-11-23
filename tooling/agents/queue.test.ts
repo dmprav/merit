@@ -1,13 +1,21 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
 import { describe, expect, test } from "vite-plus/test";
 
 import {
+  ADDRESSED_THREAD_MARKER,
+  extractUnaddressedReviewThreads,
   findEarliestActiveClaimRunId,
+  formatAddressedReplyBody,
   formatAgentPrStateComment,
   formatClaimComment,
   hasActiveClaim,
   mergeAgentPrState,
+  normalizeRestChecks,
   normalizeStatusCheckRollup,
   parseAgentPrState,
+  parseGitHubRemote,
   selectNextWork,
   type OpenAgentPr,
   type ReadyIssueCandidate,
@@ -398,5 +406,191 @@ describe("queue", () => {
       kind: "escalate",
       prNumber: 222,
     });
+  });
+
+  test("parses GitHub owner/repo from SSH, HTTPS, and cloud proxy remote URLs", () => {
+    expect(parseGitHubRemote("git@github.com:dmprav/merit.git")).toEqual({
+      owner: "dmprav",
+      name: "merit",
+    });
+    expect(parseGitHubRemote("https://github.com/dmprav/merit.git")).toEqual({
+      owner: "dmprav",
+      name: "merit",
+    });
+    expect(parseGitHubRemote("http://local_proxy@127.0.0.1:41234/git/dmprav/merit")).toEqual({
+      owner: "dmprav",
+      name: "merit",
+    });
+    expect(parseGitHubRemote("https://example.com/not-a-repo")).toBeNull();
+  });
+
+  test("deduplicates REST check runs by latest id per name and merges commit statuses", () => {
+    const normalized = normalizeRestChecks({
+      checkRuns: [
+        { id: 100, name: "browser-storybook (4/5)", status: "completed", conclusion: "failure" },
+        { id: 200, name: "browser-storybook (4/5)", status: "completed", conclusion: "success" },
+        { id: 205, name: "verify", status: "completed", conclusion: "success" },
+      ],
+      statuses: [{ context: "CodeRabbit", state: "pending" }],
+    });
+
+    expect(normalized).toEqual([
+      { name: "browser-storybook (4/5)", status: "COMPLETED", conclusion: "SUCCESS" },
+      { name: "verify", status: "COMPLETED", conclusion: "SUCCESS" },
+      { name: "CodeRabbit", status: "IN_PROGRESS", conclusion: null },
+    ]);
+  });
+
+  test("extracts unaddressed REST review threads, honors trusted addressed markers, and reopens on follow-ups", () => {
+    const addressedReply = formatAddressedReplyBody("Fixed in abc1234.");
+    expect(addressedReply).toContain(ADDRESSED_THREAD_MARKER);
+    expect(formatAddressedReplyBody(addressedReply)).toBe(addressedReply);
+
+    const threads = extractUnaddressedReviewThreads([
+      // Thread 10: bot comment addressed by trusted OWNER -> excluded
+      {
+        id: 10,
+        in_reply_to_id: null,
+        path: "tooling/agents/queue.ts",
+        line: 50,
+        author_association: "NONE",
+        user: { login: "coderabbitai[bot]" },
+        body: "Fix timeout handling.",
+      },
+      {
+        id: 11,
+        in_reply_to_id: 10,
+        path: "tooling/agents/queue.ts",
+        line: 50,
+        author_association: "OWNER",
+        user: { login: "dmprav" },
+        body: addressedReply,
+      },
+      // Thread 20: bot comment silenced by untrusted user -> STILL unaddressed
+      {
+        id: 20,
+        in_reply_to_id: null,
+        path: "tooling/agents/queue.ts",
+        line: null,
+        original_line: 88,
+        author_association: "NONE",
+        user: { login: "coderabbitai[bot]" },
+        body: "Validate token.",
+      },
+      {
+        id: 21,
+        in_reply_to_id: 20,
+        path: "tooling/agents/queue.ts",
+        line: null,
+        original_line: 88,
+        author_association: "NONE",
+        user: { login: "external-user" },
+        body: addressedReply,
+      },
+      // Thread 30: addressed once, then maintainer follows up -> reopened
+      {
+        id: 30,
+        in_reply_to_id: null,
+        path: "tooling/agents/scout.ts",
+        line: 12,
+        author_association: "OWNER",
+        user: { login: "dmprav" },
+        body: "Rename helper.",
+      },
+      {
+        id: 31,
+        in_reply_to_id: 30,
+        path: "tooling/agents/scout.ts",
+        line: 12,
+        author_association: "OWNER",
+        user: { login: "dmprav" },
+        body: addressedReply,
+      },
+      {
+        id: 32,
+        in_reply_to_id: 30,
+        path: "tooling/agents/scout.ts",
+        line: 12,
+        author_association: "OWNER",
+        user: { login: "dmprav" },
+        body: "Actually also update the test name.",
+      },
+    ]);
+
+    expect(threads).toEqual([
+      {
+        id: "20",
+        path: "tooling/agents/queue.ts",
+        line: 88,
+        author: "coderabbitai[bot]",
+        body: "Validate token.",
+      },
+      {
+        id: "30",
+        path: "tooling/agents/scout.ts",
+        line: 12,
+        author: "dmprav",
+        body: "Rename helper.\n\n---\n\nFollow-up (dmprav): Actually also update the test name.",
+      },
+    ]);
+  });
+
+  test("keeps newly opened uninitialized non-draft PRs out of shepherd selection until state is recorded, escalating 2h after creation", () => {
+    const now = Date.UTC(2026, 10, 22, 12, 0, 0);
+    const freshUninitialized = basePr({
+      number: 231,
+      isDraft: false,
+      stateInitialized: false,
+      createdAt: new Date(now - 5 * 60 * 1000).toISOString(),
+      updatedAt: new Date(now - 5 * 60 * 1000).toISOString(),
+      checks: [
+        { name: "verify", status: "COMPLETED", conclusion: "FAILURE" },
+        { name: "verification-record", status: "COMPLETED", conclusion: "FAILURE" },
+      ],
+    });
+    const staleUninitializedWithRecentComment = basePr({
+      number: 232,
+      isDraft: false,
+      stateInitialized: false,
+      createdAt: new Date(now - 125 * 60 * 1000).toISOString(),
+      updatedAt: new Date(now - 5 * 60 * 1000).toISOString(),
+    });
+
+    expect(
+      selectNextWork({
+        openAgentPrs: [freshUninitialized],
+        readyIssues: [],
+        nowMs: now,
+      }).kind,
+    ).toBe("idle");
+
+    expect(
+      selectNextWork({
+        openAgentPrs: [freshUninitialized, staleUninitializedWithRecentComment],
+        readyIssues: [],
+        nowMs: now,
+      }),
+    ).toMatchObject({
+      kind: "escalate",
+      prNumber: 232,
+    });
+
+    expect(
+      mergeAgentPrState(
+        { issueNumber: 120, shepherdRounds: 2, flakeReruns: 1 },
+        { shepherdRounds: 0, lastHeadSha: "abcdef2" },
+      ),
+    ).toEqual({
+      issueNumber: 120,
+      shepherdRounds: 2,
+      flakeReruns: 1,
+      lastHeadSha: "abcdef2",
+    });
+  });
+
+  test("uses only GitHub REST endpoints so Claude Code cloud proxy never rejects GraphQL calls", () => {
+    const source = readFileSync(fileURLToPath(new URL("./queue.ts", import.meta.url)), "utf8");
+    expect(source).not.toMatch(/execFileSync\("gh",\s*\[\s*"(?:pr|issue|repo)"/);
+    expect(source).not.toContain('"graphql"');
   });
 });

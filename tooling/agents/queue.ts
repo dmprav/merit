@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -14,6 +15,7 @@ import {
 export const MAX_OPEN_AGENT_PRS = 2;
 export const MAX_SHEPHERD_ROUNDS = 2;
 export const CLAIM_TTL_MS = 2 * 60 * 60 * 1000;
+export const ADDRESSED_THREAD_MARKER = "<!-- merit-addressed -->";
 
 const CLAIM_MARKER_PATTERN = /<!--\s*merit-claim:\s*(\{[\s\S]*?\})\s*-->/;
 const AGENT_PR_MARKER_PATTERN = /<!--\s*merit-agent:\s*(\{[\s\S]*?\})\s*-->/;
@@ -49,6 +51,29 @@ export type RawStatusCheckEntry = {
   conclusion?: string | null;
 };
 
+export type RestCheckRun = {
+  id: number;
+  name: string;
+  status: string;
+  conclusion: string | null;
+};
+
+export type RestCommitStatus = {
+  context: string;
+  state: string;
+};
+
+export type RestPullReviewComment = {
+  id: number;
+  in_reply_to_id?: number | null;
+  path: string;
+  line?: number | null;
+  original_line?: number | null;
+  author_association: string;
+  user: { login: string } | null;
+  body: string;
+};
+
 export type ReviewThreadSummary = {
   id: string;
   path: string;
@@ -69,6 +94,8 @@ export type OpenAgentPr = {
   headRefName: string;
   headSha: string;
   isDraft: boolean;
+  stateInitialized?: boolean;
+  createdAt?: string;
   updatedAt?: string;
   labels: string[];
   checks: PrCheckStatus[];
@@ -82,6 +109,11 @@ export type ReadyIssueCandidate = {
   title: string;
   labels: string[];
   comments: IssueCommentRecord[];
+};
+
+export type RepoIdentity = {
+  owner: string;
+  name: string;
 };
 
 export type QueueWorkOrder =
@@ -124,6 +156,24 @@ export type QueueWorkOrder =
       openAgentPrCount: number;
     };
 
+/** Parses GitHub owner/repo from HTTPS, SSH, or cloud-proxy git remote URLs without invoking GraphQL. */
+export const parseGitHubRemote = (remoteUrl: string): RepoIdentity | null => {
+  const trimmed = remoteUrl.trim().replace(/\.git$/, "");
+  const sshMatch = /^git@github\.com:([^/]+)\/([^/]+)$/.exec(trimmed);
+  if (sshMatch?.[1] && sshMatch[2]) {
+    return { owner: sshMatch[1], name: sshMatch[2] };
+  }
+  const httpsMatch = /^https?:\/\/(?:[^@]+@)?github\.com\/([^/]+)\/([^/]+)$/.exec(trimmed);
+  if (httpsMatch?.[1] && httpsMatch[2]) {
+    return { owner: httpsMatch[1], name: httpsMatch[2] };
+  }
+  const proxyMatch = /^https?:\/\/[^/]+\/git\/([^/]+)\/([^/]+)$/.exec(trimmed);
+  if (proxyMatch?.[1] && proxyMatch[2]) {
+    return { owner: proxyMatch[1], name: proxyMatch[2] };
+  }
+  return null;
+};
+
 export const parseClaimMarker = (commentBody: string): ClaimMarker | null => {
   const match = CLAIM_MARKER_PATTERN.exec(commentBody);
   if (!match?.[1]) {
@@ -138,6 +188,14 @@ export const parseClaimMarker = (commentBody: string): ClaimMarker | null => {
 
 export const formatClaimComment = (claim: ClaimMarker): string =>
   `Claimed for autonomous implementation until ${claim.expiresAt}.\n\n<!-- merit-claim: ${JSON.stringify(claim)} -->`;
+
+export const formatAddressedReplyBody = (summary: string): string => {
+  const trimmed = summary.trim();
+  if (trimmed.includes(ADDRESSED_THREAD_MARKER)) {
+    return trimmed;
+  }
+  return `${trimmed}\n\n${ADDRESSED_THREAD_MARKER}`;
+};
 
 /** Returns the runId of the earliest active claim from a trusted repo author, clamping TTL to `claimedAt + CLAIM_TTL_MS`. */
 export const findEarliestActiveClaimRunId = (
@@ -176,13 +234,38 @@ export const findEarliestActiveClaimRunId = (
 export const hasActiveClaim = (comments: readonly IssueCommentRecord[], nowMs: number): boolean =>
   findEarliestActiveClaimRunId(comments, nowMs) !== null;
 
-/** Returns true when a draft `agent:pr` has been stranded longer than `CLAIM_TTL_MS`. */
+/** Returns true when a draft or uninitialized `agent:pr` has been stranded longer than `CLAIM_TTL_MS`. */
 export const isStaleDraftPr = (pr: OpenAgentPr, nowMs: number): boolean => {
-  if (!pr.isDraft || pr.labels.includes("agent:needs-human") || !pr.updatedAt) {
+  const pendingInit = pr.isDraft || pr.stateInitialized === false;
+  if (!pendingInit || pr.labels.includes("agent:needs-human")) {
     return false;
   }
-  const updatedMs = Date.parse(pr.updatedAt);
-  return Number.isFinite(updatedMs) && nowMs - updatedMs >= CLAIM_TTL_MS;
+  const referenceTimestamp = pr.isDraft ? pr.updatedAt : (pr.createdAt ?? pr.updatedAt);
+  if (!referenceTimestamp) {
+    return false;
+  }
+  const referenceMs = Date.parse(referenceTimestamp);
+  return Number.isFinite(referenceMs) && nowMs - referenceMs >= CLAIM_TTL_MS;
+};
+
+/** Returns true when a PR has at least one valid `merit-agent` state comment from a trusted writer. */
+export const hasAgentPrState = (comments: readonly IssueCommentRecord[]): boolean => {
+  for (const comment of comments) {
+    if (!TRUSTED_AUTHOR_ASSOCIATIONS.has(comment.authorAssociation)) {
+      continue;
+    }
+    const match = AGENT_PR_MARKER_PATTERN.exec(comment.body);
+    if (!match?.[1]) {
+      continue;
+    }
+    try {
+      agentPrStateSchema.parse(JSON.parse(match[1]));
+      return true;
+    } catch {
+      continue;
+    }
+  }
+  return false;
 };
 
 /** Parses the latest agent state comment authored by a trusted repository writer. */
@@ -212,6 +295,10 @@ export const mergeAgentPrState = (
   agentPrStateSchema.parse({
     ...previous,
     ...updates,
+    shepherdRounds: Math.max(
+      previous.shepherdRounds,
+      updates.shepherdRounds ?? previous.shepherdRounds,
+    ),
   });
 
 export const formatAgentPrStateComment = (state: AgentPrState): string =>
@@ -223,15 +310,105 @@ export const normalizeStatusCheckRollup = (
   (rollup ?? []).map((check) => {
     const name = check.name ?? check.context ?? "unknown";
     if (check.status) {
-      return { name, status: check.status, conclusion: check.conclusion ?? null };
+      return {
+        name,
+        status: check.status.toUpperCase(),
+        conclusion: check.conclusion ? check.conclusion.toUpperCase() : null,
+      };
     }
-    const isPendingContext = check.state === "PENDING" || check.state === "EXPECTED";
+    const normalizedState = check.state?.toUpperCase();
+    const isPendingContext = normalizedState === "PENDING" || normalizedState === "EXPECTED";
     return {
       name,
       status: isPendingContext ? "IN_PROGRESS" : "COMPLETED",
-      conclusion: isPendingContext ? null : (check.conclusion ?? check.state ?? null),
+      conclusion: isPendingContext
+        ? null
+        : (check.conclusion?.toUpperCase() ?? normalizedState ?? null),
     };
   });
+
+/** Normalizes GitHub REST check-runs (keeping the latest rerun per name) and combined commit statuses. */
+export const normalizeRestChecks = ({
+  checkRuns,
+  statuses,
+}: {
+  checkRuns: readonly RestCheckRun[];
+  statuses: readonly RestCommitStatus[];
+}): PrCheckStatus[] => {
+  const latestByName = new Map<string, RestCheckRun>();
+  for (const run of checkRuns) {
+    const existing = latestByName.get(run.name);
+    if (!existing || run.id > existing.id) {
+      latestByName.set(run.name, run);
+    }
+  }
+  const entries: RawStatusCheckEntry[] = [
+    ...[...latestByName.values()].map((run) => ({
+      name: run.name,
+      status: run.status,
+      conclusion: run.conclusion,
+    })),
+    ...statuses.map((status) => ({
+      context: status.context,
+      state: status.state,
+    })),
+  ];
+  return normalizeStatusCheckRollup(entries);
+};
+
+/** Extracts PR inline review threads whose latest comment is not a trusted `<!-- merit-addressed -->` reply. */
+export const extractUnaddressedReviewThreads = (
+  comments: readonly RestPullReviewComment[],
+): ReviewThreadSummary[] => {
+  const threadsByRootId = new Map<number, RestPullReviewComment[]>();
+  const sorted = [...comments].sort((a, b) => a.id - b.id);
+  for (const comment of sorted) {
+    const rootId = comment.in_reply_to_id ?? comment.id;
+    const thread = threadsByRootId.get(rootId) ?? [];
+    thread.push(comment);
+    threadsByRootId.set(rootId, thread);
+  }
+
+  const unaddressed: ReviewThreadSummary[] = [];
+  for (const thread of threadsByRootId.values()) {
+    const root = thread[0];
+    if (!root) {
+      continue;
+    }
+    let lastAddressedIndex = -1;
+    for (let index = 0; index < thread.length; index += 1) {
+      const comment = thread[index];
+      if (
+        comment &&
+        TRUSTED_AUTHOR_ASSOCIATIONS.has(comment.author_association) &&
+        comment.body.includes(ADDRESSED_THREAD_MARKER)
+      ) {
+        lastAddressedIndex = index;
+      }
+    }
+    if (lastAddressedIndex === thread.length - 1) {
+      continue;
+    }
+    const followUps = lastAddressedIndex >= 0 ? thread.slice(lastAddressedIndex + 1) : [];
+    const body =
+      followUps.length > 0
+        ? [
+            root.body,
+            ...followUps.map(
+              (comment) => `Follow-up (${comment.user?.login ?? "unknown"}): ${comment.body}`,
+            ),
+          ].join("\n\n---\n\n")
+        : root.body;
+    unaddressed.push({
+      id: String(root.id),
+      path: root.path,
+      line: root.line ?? root.original_line ?? null,
+      author: root.user?.login ?? "unknown",
+      body,
+    });
+  }
+  return unaddressed;
+};
 
 const isPassingConclusion = (conclusion: string | null) =>
   conclusion === "SUCCESS" || conclusion === "SKIPPED" || conclusion === "NEUTRAL";
@@ -270,14 +447,15 @@ export const selectNextWork = ({
     if (pr.labels.includes("agent:needs-human")) {
       continue;
     }
-    if (pr.isDraft) {
+    if (pr.isDraft || pr.stateInitialized === false) {
       if (isStaleDraftPr(pr, nowMs)) {
         return {
           kind: "escalate",
           prNumber: pr.number,
           headRefName: pr.headRefName,
-          reason:
-            "Draft agent PR was not marked ready within 2 hours; needs human check or cleanup.",
+          reason: pr.isDraft
+            ? "Draft agent PR was not marked ready within 2 hours; needs human check or cleanup."
+            : "Agent PR was not initialized with initial state within 2 hours; needs human check or cleanup.",
           failedChecks: [],
           unresolvedThreadCount: 0,
         };
@@ -381,294 +559,265 @@ export const selectNextWork = ({
   };
 };
 
-const ghRepoSchema = z.object({
-  owner: z.object({ login: z.string() }),
-  name: z.string(),
+const restLabelSchema = z.object({ name: z.string() });
+
+const restCommentSchema = z.object({
+  body: z.string().nullable().default(""),
+  author_association: z.string().default(""),
 });
 
-const ghCommentSchema = z.object({
-  body: z.string(),
-  authorAssociation: z.string().default(""),
+const restIssueItemSchema = z.object({
+  number: z.number(),
+  state: z.string(),
+  title: z.string(),
+  body: z.string().nullable().default(""),
+  labels: z.array(restLabelSchema),
+  comments: z.number().default(0),
+  pull_request: z.unknown().optional(),
 });
 
-const ghPrListSchema = z.array(
-  z.object({
-    number: z.number(),
-    title: z.string(),
-    body: z.string(),
-    headRefName: z.string(),
-    headRefOid: z.string(),
-    isDraft: z.boolean(),
-    updatedAt: z.string(),
-    labels: z.array(z.object({ name: z.string() })),
-    comments: z.array(ghCommentSchema),
-    statusCheckRollup: z
-      .array(
-        z.object({
-          name: z.string().optional(),
-          context: z.string().optional(),
-          status: z.string().optional(),
-          state: z.string().optional(),
-          conclusion: z.string().nullable().optional(),
-        }),
-      )
-      .nullable()
-      .optional(),
+const restPullDetailSchema = z.object({
+  number: z.number(),
+  title: z.string(),
+  body: z.string().nullable().default(""),
+  draft: z.boolean().default(false),
+  created_at: z.string(),
+  updated_at: z.string(),
+  labels: z.array(restLabelSchema),
+  head: z.object({
+    ref: z.string(),
+    sha: z.string(),
   }),
-);
+});
 
-const ghReadyIssuesSchema = z.array(
-  z.object({
-    number: z.number(),
-    title: z.string(),
-    labels: z.array(z.object({ name: z.string() })),
-    comments: z.array(ghCommentSchema),
-  }),
-);
-
-const ghRunsSchema = z.array(
-  z.object({
-    databaseId: z.number(),
-    attempt: z.number().int().positive(),
-    conclusion: z.string().nullable(),
-  }),
-);
-
-const ghThreadsResponseSchema = z.object({
-  data: z.object({
-    repository: z.object({
-      pullRequest: z.object({
-        reviewThreads: z.object({
-          pageInfo: z.object({
-            hasNextPage: z.boolean(),
-            endCursor: z.string().nullable(),
-          }),
-          nodes: z.array(
-            z.object({
-              id: z.string(),
-              isResolved: z.boolean(),
-              path: z.string(),
-              line: z.number().nullable(),
-              comments: z.object({
-                nodes: z.array(
-                  z.object({
-                    author: z.object({ login: z.string() }).nullable(),
-                    body: z.string(),
-                  }),
-                ),
-              }),
-            }),
-          ),
-        }),
-      }),
+const restCheckRunsPageSchema = z.object({
+  check_runs: z.array(
+    z.object({
+      id: z.number(),
+      name: z.string(),
+      status: z.string(),
+      conclusion: z.string().nullable(),
     }),
-  }),
+  ),
 });
 
-type RepoIdentity = { owner: string; name: string };
+const restCommitStatusSchema = z.object({
+  statuses: z.array(
+    z.object({
+      context: z.string(),
+      state: z.string(),
+    }),
+  ),
+});
 
-const getRepoIdentity = (repoRoot: string): RepoIdentity => {
-  const raw = execFileSync("gh", ["repo", "view", "--json", "owner,name"], {
-    cwd: repoRoot,
-    encoding: "utf8",
-  });
-  const parsed = ghRepoSchema.parse(JSON.parse(raw));
-  return { owner: parsed.owner.login, name: parsed.name };
+const restPullReviewCommentSchema = z.object({
+  id: z.number(),
+  in_reply_to_id: z.number().nullable().optional(),
+  path: z.string(),
+  line: z.number().nullable().optional(),
+  original_line: z.number().nullable().optional(),
+  author_association: z.string().default(""),
+  user: z.object({ login: z.string() }).nullable(),
+  body: z.string(),
+});
+
+const restWorkflowRunsSchema = z.object({
+  workflow_runs: z.array(
+    z.object({
+      id: z.number(),
+      run_attempt: z.number().int().positive(),
+      conclusion: z.string().nullable(),
+    }),
+  ),
+});
+
+const restCreatedPrSchema = z.object({
+  number: z.number(),
+  html_url: z.string(),
+  head: z.object({ ref: z.string() }),
+});
+
+const ghApiJson = (repoRoot: string, args: readonly string[]): unknown => {
+  const raw = execFileSync("gh", ["api", ...args], { cwd: repoRoot, encoding: "utf8" });
+  return raw.trim() ? JSON.parse(raw) : null;
 };
 
-const fetchUnresolvedThreads = (
+const ghApiPaginatedArray = <T>(
+  repoRoot: string,
+  endpoint: string,
+  itemSchema: z.ZodType<T>,
+): T[] => {
+  const pages = z
+    .array(z.array(itemSchema))
+    .parse(ghApiJson(repoRoot, ["--paginate", "--slurp", endpoint]));
+  return pages.flat();
+};
+
+const getRepoIdentity = (repoRoot: string): RepoIdentity => {
+  const envRepo = process.env.GITHUB_REPOSITORY;
+  if (envRepo && /^[^/]+\/[^/]+$/.test(envRepo)) {
+    const [owner, name] = envRepo.split("/");
+    if (owner && name) {
+      return { owner, name };
+    }
+  }
+  const remoteUrl = execFileSync("git", ["remote", "get-url", "origin"], {
+    cwd: repoRoot,
+    encoding: "utf8",
+  }).trim();
+  const parsed = parseGitHubRemote(remoteUrl);
+  if (!parsed) {
+    throw new Error(`Could not determine GitHub owner/repo from origin remote "${remoteUrl}".`);
+  }
+  return parsed;
+};
+
+const fetchIssueComments = (
+  repoRoot: string,
+  repo: RepoIdentity,
+  number: number,
+): IssueCommentRecord[] =>
+  ghApiPaginatedArray(
+    repoRoot,
+    `repos/${repo.owner}/${repo.name}/issues/${number}/comments?per_page=100`,
+    restCommentSchema,
+  ).map((comment) => ({
+    body: comment.body ?? "",
+    authorAssociation: comment.author_association,
+  }));
+
+const fetchUnaddressedThreads = (
   repoRoot: string,
   repo: RepoIdentity,
   prNumber: number,
 ): ReviewThreadSummary[] => {
-  const query = `query($owner: String!, $name: String!, $number: Int!, $after: String) {
-    repository(owner: $owner, name: $name) {
-      pullRequest(number: $number) {
-        reviewThreads(first: 100, after: $after) {
-          pageInfo {
-            hasNextPage
-            endCursor
-          }
-          nodes {
-            id
-            isResolved
-            path
-            line
-            comments(first: 10) {
-              nodes {
-                author { login }
-                body
-              }
-            }
-          }
-        }
-      }
-    }
-  }`;
-
-  const unresolved: ReviewThreadSummary[] = [];
-  let cursor: string | null = null;
-
-  for (;;) {
-    const args = [
-      "api",
-      "graphql",
-      "-f",
-      `query=${query}`,
-      "-F",
-      `owner=${repo.owner}`,
-      "-F",
-      `name=${repo.name}`,
-      "-F",
-      `number=${prNumber}`,
-    ];
-    if (cursor) {
-      args.push("-F", `after=${cursor}`);
-    }
-    const raw = execFileSync("gh", args, { cwd: repoRoot, encoding: "utf8" });
-    const connection = ghThreadsResponseSchema.parse(JSON.parse(raw)).data.repository.pullRequest
-      .reviewThreads;
-
-    for (const thread of connection.nodes) {
-      if (thread.isResolved) {
-        continue;
-      }
-      const first = thread.comments.nodes[0];
-      unresolved.push({
-        id: thread.id,
-        path: thread.path,
-        line: thread.line,
-        author: first?.author?.login ?? "unknown",
-        body: first?.body ?? "",
-      });
-    }
-
-    if (!connection.pageInfo.hasNextPage || !connection.pageInfo.endCursor) {
-      break;
-    }
-    cursor = connection.pageInfo.endCursor;
-  }
-
-  return unresolved;
-};
-
-const resolveReviewThread = (repoRoot: string, threadId: string) => {
-  const mutation = `mutation($threadId: ID!) {
-    resolveReviewThread(input: { threadId: $threadId }) {
-      thread { id isResolved }
-    }
-  }`;
-  return execFileSync(
-    "gh",
-    ["api", "graphql", "-f", `query=${mutation}`, "-F", `threadId=${threadId}`],
-    { cwd: repoRoot, encoding: "utf8" },
-  ).trim();
-};
-
-const fetchLatestFailedVerifyRun = (repoRoot: string, headSha: string): FailedVerifyRun | null => {
-  const raw = execFileSync(
-    "gh",
-    [
-      "run",
-      "list",
-      "--workflow",
-      "verify.yml",
-      "--commit",
-      headSha,
-      "--limit",
-      "5",
-      "--json",
-      "databaseId,attempt,conclusion",
-    ],
-    { cwd: repoRoot, encoding: "utf8" },
+  const comments = ghApiPaginatedArray(
+    repoRoot,
+    `repos/${repo.owner}/${repo.name}/pulls/${prNumber}/comments?per_page=100`,
+    restPullReviewCommentSchema,
   );
-  const failedRun = ghRunsSchema.parse(JSON.parse(raw)).find((run) => run.conclusion === "failure");
-  return failedRun ? { databaseId: failedRun.databaseId, attempt: failedRun.attempt } : null;
+  return extractUnaddressedReviewThreads(comments);
+};
+
+const fetchCommitChecks = (
+  repoRoot: string,
+  repo: RepoIdentity,
+  headSha: string,
+): PrCheckStatus[] => {
+  const checkPages = z
+    .array(restCheckRunsPageSchema)
+    .parse(
+      ghApiJson(repoRoot, [
+        "--paginate",
+        "--slurp",
+        `repos/${repo.owner}/${repo.name}/commits/${headSha}/check-runs?per_page=100`,
+      ]),
+    );
+  const checkRuns = checkPages.flatMap((page) => page.check_runs);
+  const statusPages = z
+    .array(restCommitStatusSchema)
+    .parse(
+      ghApiJson(repoRoot, [
+        "--paginate",
+        "--slurp",
+        `repos/${repo.owner}/${repo.name}/commits/${headSha}/status?per_page=100`,
+      ]),
+    );
+  const statuses = statusPages.flatMap((page) => page.statuses);
+  return normalizeRestChecks({ checkRuns, statuses });
+};
+
+const fetchLatestFailedVerifyRun = (
+  repoRoot: string,
+  repo: RepoIdentity,
+  headSha: string,
+): FailedVerifyRun | null => {
+  const parsed = restWorkflowRunsSchema.parse(
+    ghApiJson(repoRoot, [
+      `repos/${repo.owner}/${repo.name}/actions/workflows/verify.yml/runs?head_sha=${encodeURIComponent(headSha)}&per_page=10`,
+    ]),
+  );
+  const failedRun = parsed.workflow_runs.find((run) => run.conclusion === "failure");
+  return failedRun ? { databaseId: failedRun.id, attempt: failedRun.run_attempt } : null;
 };
 
 const fetchOpenAgentPrs = (repoRoot: string, repo: RepoIdentity): OpenAgentPr[] => {
-  const raw = execFileSync(
-    "gh",
-    [
-      "pr",
-      "list",
-      "--state",
-      "open",
-      "--label",
-      "agent:pr",
-      "--limit",
-      "50",
-      "--json",
-      "number,title,body,headRefName,headRefOid,isDraft,updatedAt,labels,comments,statusCheckRollup",
-    ],
-    { cwd: repoRoot, encoding: "utf8" },
+  const labeledItems = ghApiPaginatedArray(
+    repoRoot,
+    `repos/${repo.owner}/${repo.name}/issues?state=open&labels=agent:pr&per_page=100`,
+    restIssueItemSchema,
   );
-  const prs = ghPrListSchema.parse(JSON.parse(raw));
-  return prs.map((pr) => {
-    const checks = normalizeStatusCheckRollup(pr.statusCheckRollup);
+  const prItems = labeledItems.filter((item) => item.pull_request !== undefined);
+
+  return prItems.map((item) => {
+    const pr = restPullDetailSchema.parse(
+      ghApiJson(repoRoot, [`repos/${repo.owner}/${repo.name}/pulls/${item.number}`]),
+    );
+    const comments = fetchIssueComments(repoRoot, repo, pr.number);
+    const checks = fetchCommitChecks(repoRoot, repo, pr.head.sha);
     const { hasPending, onlyBrowserFailures } = inspectPrChecks(checks);
     const failedVerifyRun =
       !hasPending && onlyBrowserFailures
-        ? fetchLatestFailedVerifyRun(repoRoot, pr.headRefOid)
+        ? fetchLatestFailedVerifyRun(repoRoot, repo, pr.head.sha)
         : null;
     return {
       number: pr.number,
       title: pr.title,
-      body: pr.body,
-      headRefName: pr.headRefName,
-      headSha: pr.headRefOid,
-      isDraft: pr.isDraft,
-      updatedAt: pr.updatedAt,
+      body: pr.body ?? "",
+      headRefName: pr.head.ref,
+      headSha: pr.head.sha,
+      isDraft: pr.draft,
+      stateInitialized: hasAgentPrState(comments),
+      createdAt: pr.created_at,
+      updatedAt: pr.updated_at,
       labels: pr.labels.map((label) => label.name),
       checks,
-      unresolvedThreads: fetchUnresolvedThreads(repoRoot, repo, pr.number),
-      state: parseAgentPrState(pr.comments),
+      unresolvedThreads: fetchUnaddressedThreads(repoRoot, repo, pr.number),
+      state: parseAgentPrState(comments),
       failedVerifyRun,
     };
   });
 };
 
-const fetchReadyIssues = (repoRoot: string): ReadyIssueCandidate[] => {
-  const raw = execFileSync(
-    "gh",
-    [
-      "issue",
-      "list",
-      "--state",
-      "open",
-      "--label",
-      "agent:ready",
-      "--limit",
-      "200",
-      "--json",
-      "number,title,labels,comments",
-    ],
-    { cwd: repoRoot, encoding: "utf8" },
+const fetchReadyIssues = (repoRoot: string, repo: RepoIdentity): ReadyIssueCandidate[] => {
+  const items = ghApiPaginatedArray(
+    repoRoot,
+    `repos/${repo.owner}/${repo.name}/issues?state=open&labels=agent:ready&per_page=100`,
+    restIssueItemSchema,
   );
-  return ghReadyIssuesSchema.parse(JSON.parse(raw)).map((issue) => ({
-    number: issue.number,
-    title: issue.title,
-    labels: issue.labels.map((label) => label.name),
-    comments: issue.comments,
-  }));
+  return items
+    .filter((item) => item.pull_request === undefined)
+    .map((item) => ({
+      number: item.number,
+      title: item.title,
+      labels: item.labels.map((label) => label.name),
+      comments: item.comments > 0 ? fetchIssueComments(repoRoot, repo, item.number) : [],
+    }));
 };
 
-const fetchIssueComments = (repoRoot: string, issueNumber: number): IssueCommentRecord[] => {
-  const raw = execFileSync("gh", ["issue", "view", String(issueNumber), "--json", "comments"], {
-    cwd: repoRoot,
-    encoding: "utf8",
-  });
-  const parsed = z.object({ comments: z.array(ghCommentSchema) }).parse(JSON.parse(raw));
-  return parsed.comments;
+const postIssueComment = (repoRoot: string, repo: RepoIdentity, number: number, body: string) => {
+  ghApiJson(repoRoot, [
+    `repos/${repo.owner}/${repo.name}/issues/${number}/comments`,
+    "-X",
+    "POST",
+    "-f",
+    `body=${body}`,
+  ]);
 };
 
-const fetchCurrentAgentPrState = (repoRoot: string, prNumber: number): AgentPrState => {
-  const raw = execFileSync("gh", ["pr", "view", String(prNumber), "--json", "comments"], {
-    cwd: repoRoot,
-    encoding: "utf8",
-  });
-  const parsed = z.object({ comments: z.array(ghCommentSchema) }).parse(JSON.parse(raw));
-  return parseAgentPrState(parsed.comments);
+const addIssueLabels = (
+  repoRoot: string,
+  repo: RepoIdentity,
+  number: number,
+  labels: readonly string[],
+) => {
+  const labelArgs = labels.flatMap((label) => ["-f", `labels[]=${label}`]);
+  ghApiJson(repoRoot, [
+    `repos/${repo.owner}/${repo.name}/issues/${number}/labels`,
+    "-X",
+    "POST",
+    ...labelArgs,
+  ]);
 };
 
 const readFlagValue = (args: readonly string[], flag: string): string | null => {
@@ -679,51 +828,67 @@ const readFlagValue = (args: readonly string[], flag: string): string | null => 
   return args[index + 1] ?? null;
 };
 
-const applyQueueOrder = (repoRoot: string, order: QueueWorkOrder) => {
+const applyQueueOrder = (repoRoot: string, repo: RepoIdentity, order: QueueWorkOrder) => {
   if (order.kind === "escalate") {
-    execFileSync("gh", ["pr", "edit", String(order.prNumber), "--add-label", "agent:needs-human"], {
-      cwd: repoRoot,
-      encoding: "utf8",
-    });
-    execFileSync(
-      "gh",
-      ["pr", "comment", String(order.prNumber), "--body", `Escalating to human: ${order.reason}`],
-      { cwd: repoRoot, encoding: "utf8" },
-    );
+    addIssueLabels(repoRoot, repo, order.prNumber, ["agent:needs-human"]);
+    postIssueComment(repoRoot, repo, order.prNumber, `Escalating to human: ${order.reason}`);
     return;
   }
   if (order.kind === "rerun_flake") {
-    execFileSync("gh", ["run", "rerun", String(order.runId), "--failed"], {
-      cwd: repoRoot,
-      encoding: "utf8",
-    });
+    ghApiJson(repoRoot, [
+      `repos/${repo.owner}/${repo.name}/actions/runs/${order.runId}/rerun-failed-jobs`,
+      "-X",
+      "POST",
+    ]);
     const nextState = mergeAgentPrState(order.state, {
       lastHeadSha: order.headSha,
       flakeReruns: order.state.flakeReruns + 1,
     });
-    execFileSync(
-      "gh",
-      ["pr", "comment", String(order.prNumber), "--body", formatAgentPrStateComment(nextState)],
-      { cwd: repoRoot, encoding: "utf8" },
-    );
+    postIssueComment(repoRoot, repo, order.prNumber, formatAgentPrStateComment(nextState));
   }
 };
 
 const runCli = () => {
   const repoRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
   const [command, ...rest] = process.argv.slice(2);
+  const repo = getRepoIdentity(repoRoot);
 
   if (command === "next") {
     const apply = rest.includes("--apply");
-    const repo = getRepoIdentity(repoRoot);
     const order = selectNextWork({
       openAgentPrs: fetchOpenAgentPrs(repoRoot, repo),
-      readyIssues: fetchReadyIssues(repoRoot),
+      readyIssues: fetchReadyIssues(repoRoot, repo),
     });
     if (apply) {
-      applyQueueOrder(repoRoot, order);
+      applyQueueOrder(repoRoot, repo, order);
     }
     console.log(JSON.stringify(order, null, 2));
+    return;
+  }
+
+  if (command === "issue") {
+    const issueNumber = Number.parseInt(rest[0] ?? "", 10);
+    if (!Number.isInteger(issueNumber) || issueNumber <= 0) {
+      throw new Error("Usage: queue.ts issue <issue-number>");
+    }
+    const issue = restIssueItemSchema.parse(
+      ghApiJson(repoRoot, [`repos/${repo.owner}/${repo.name}/issues/${issueNumber}`]),
+    );
+    const comments = issue.comments > 0 ? fetchIssueComments(repoRoot, repo, issueNumber) : [];
+    console.log(
+      JSON.stringify(
+        {
+          number: issue.number,
+          state: issue.state.toUpperCase(),
+          title: issue.title,
+          body: issue.body ?? "",
+          labels: issue.labels.map((label) => label.name),
+          comments,
+        },
+        null,
+        2,
+      ),
+    );
     return;
   }
 
@@ -735,7 +900,7 @@ const runCli = () => {
     }
     const now = Date.now();
     const existingOwner = findEarliestActiveClaimRunId(
-      fetchIssueComments(repoRoot, issueNumber),
+      fetchIssueComments(repoRoot, repo, issueNumber),
       now,
     );
     if (renewRunId !== null) {
@@ -760,14 +925,10 @@ const runCli = () => {
       claimedAt: new Date(now).toISOString(),
       expiresAt: new Date(now + CLAIM_TTL_MS).toISOString(),
     });
-    execFileSync(
-      "gh",
-      ["issue", "comment", String(issueNumber), "--body", formatClaimComment(claim)],
-      { cwd: repoRoot, encoding: "utf8" },
-    );
+    postIssueComment(repoRoot, repo, issueNumber, formatClaimComment(claim));
 
     const winnerAfterWrite = findEarliestActiveClaimRunId(
-      fetchIssueComments(repoRoot, issueNumber),
+      fetchIssueComments(repoRoot, repo, issueNumber),
       Date.now(),
     );
     if (winnerAfterWrite !== claim.runId) {
@@ -786,29 +947,103 @@ const runCli = () => {
     return;
   }
 
+  if (command === "open-pr") {
+    const title = readFlagValue(rest, "--title");
+    const head = readFlagValue(rest, "--head");
+    const base = readFlagValue(rest, "--base") ?? "main";
+    const bodyFile = readFlagValue(rest, "--body-file");
+    const bodyInline = readFlagValue(rest, "--body");
+    const body = bodyFile ? readFileSync(bodyFile, "utf8") : (bodyInline ?? "");
+    if (!title || !head) {
+      throw new Error(
+        "Usage: queue.ts open-pr --title <title> --head <branch> [--base main] (--body-file <path> | --body <text>)",
+      );
+    }
+    const existingPrs = z
+      .array(restCreatedPrSchema)
+      .parse(
+        ghApiJson(repoRoot, [
+          `repos/${repo.owner}/${repo.name}/pulls?state=open&head=${encodeURIComponent(`${repo.owner}:${head}`)}&base=${encodeURIComponent(base)}&per_page=10`,
+        ]),
+      );
+    const pr =
+      existingPrs[0] ??
+      restCreatedPrSchema.parse(
+        ghApiJson(repoRoot, [
+          `repos/${repo.owner}/${repo.name}/pulls`,
+          "-X",
+          "POST",
+          "-f",
+          `title=${title}`,
+          "-f",
+          `head=${head}`,
+          "-f",
+          `base=${base}`,
+          "-f",
+          `body=${body}`,
+        ]),
+      );
+    try {
+      addIssueLabels(repoRoot, repo, pr.number, ["agent:pr"]);
+    } catch (error) {
+      console.error(
+        JSON.stringify({
+          status: "created_unlabeled",
+          number: pr.number,
+          url: pr.html_url,
+          headRefName: pr.head.ref,
+        }),
+      );
+      throw error;
+    }
+    console.log(
+      JSON.stringify({
+        status: existingPrs[0] ? "reused" : "created",
+        number: pr.number,
+        url: pr.html_url,
+        headRefName: pr.head.ref,
+      }),
+    );
+    return;
+  }
+
+  if (command === "escalate") {
+    const targetNumber = Number.parseInt(rest[0] ?? "", 10);
+    const reason = readFlagValue(rest, "--reason");
+    if (!Number.isInteger(targetNumber) || targetNumber <= 0 || !reason?.trim()) {
+      throw new Error("Usage: queue.ts escalate <issue-or-pr-number> --reason <text>");
+    }
+    addIssueLabels(repoRoot, repo, targetNumber, ["agent:needs-human"]);
+    postIssueComment(repoRoot, repo, targetNumber, `Escalating to human: ${reason.trim()}`);
+    console.log(JSON.stringify({ status: "escalated", number: targetNumber }));
+    return;
+  }
+
   if (command === "record-shepherd") {
     const prNumber = Number.parseInt(rest[0] ?? "", 10);
     const round = Number.parseInt(readFlagValue(rest, "--round") ?? "", 10);
     const sha = readFlagValue(rest, "--sha") ?? undefined;
     const issueRaw = readFlagValue(rest, "--issue");
     const flakeRaw = readFlagValue(rest, "--flake-reruns");
+    const ifUninitialized = rest.includes("--if-uninitialized");
     if (!Number.isInteger(prNumber) || prNumber <= 0) {
       throw new Error(
-        "Usage: queue.ts record-shepherd <pr-number> --round <n> [--sha <sha>] [--issue <n>] [--flake-reruns <n>]",
+        "Usage: queue.ts record-shepherd <pr-number> --round <n> [--sha <sha>] [--issue <n>] [--flake-reruns <n>] [--if-uninitialized]",
       );
     }
-    const previous = fetchCurrentAgentPrState(repoRoot, prNumber);
+    const comments = fetchIssueComments(repoRoot, repo, prNumber);
+    const previous = parseAgentPrState(comments);
+    if (ifUninitialized && hasAgentPrState(comments)) {
+      console.log(JSON.stringify({ status: "already_initialized", prNumber, state: previous }));
+      return;
+    }
     const state = mergeAgentPrState(previous, {
       shepherdRounds: round,
       ...(flakeRaw !== null ? { flakeReruns: Number.parseInt(flakeRaw, 10) } : {}),
       ...(sha ? { lastHeadSha: sha } : {}),
       ...(issueRaw !== null ? { issueNumber: Number.parseInt(issueRaw, 10) } : {}),
     });
-    execFileSync(
-      "gh",
-      ["pr", "comment", String(prNumber), "--body", formatAgentPrStateComment(state)],
-      { cwd: repoRoot, encoding: "utf8" },
-    );
+    postIssueComment(repoRoot, repo, prNumber, formatAgentPrStateComment(state));
     console.log(JSON.stringify({ status: "recorded", prNumber, state }));
     return;
   }
@@ -818,22 +1053,37 @@ const runCli = () => {
     if (!Number.isInteger(prNumber) || prNumber <= 0) {
       throw new Error("Usage: queue.ts threads <pr-number>");
     }
-    const repo = getRepoIdentity(repoRoot);
-    console.log(JSON.stringify(fetchUnresolvedThreads(repoRoot, repo, prNumber), null, 2));
+    console.log(JSON.stringify(fetchUnaddressedThreads(repoRoot, repo, prNumber), null, 2));
     return;
   }
 
-  if (command === "resolve-thread") {
-    const threadId = rest[0];
-    if (!threadId) {
-      throw new Error("Usage: queue.ts resolve-thread <thread-id>");
+  if (command === "reply-thread") {
+    const prNumber = Number.parseInt(rest[0] ?? "", 10);
+    const commentId = Number.parseInt(rest[1] ?? "", 10);
+    const body = readFlagValue(rest, "--body");
+    if (
+      !Number.isInteger(prNumber) ||
+      prNumber <= 0 ||
+      !Number.isInteger(commentId) ||
+      commentId <= 0 ||
+      !body?.trim()
+    ) {
+      throw new Error("Usage: queue.ts reply-thread <pr-number> <comment-id> --body <summary>");
     }
-    console.log(resolveReviewThread(repoRoot, threadId));
+    const replyBody = formatAddressedReplyBody(body);
+    ghApiJson(repoRoot, [
+      `repos/${repo.owner}/${repo.name}/pulls/${prNumber}/comments/${commentId}/replies`,
+      "-X",
+      "POST",
+      "-f",
+      `body=${replyBody}`,
+    ]);
+    console.log(JSON.stringify({ status: "replied", prNumber, commentId }));
     return;
   }
 
   throw new Error(
-    `Unknown queue command "${command ?? ""}". Expected "next", "claim", "record-shepherd", "threads", or "resolve-thread".`,
+    `Unknown queue command "${command ?? ""}". Expected "next", "issue", "claim", "open-pr", "escalate", "record-shepherd", "threads", or "reply-thread".`,
   );
 };
 
