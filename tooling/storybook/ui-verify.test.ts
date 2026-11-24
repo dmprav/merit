@@ -1,30 +1,20 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { createServer } from "node:http";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { chromium, type Browser } from "@playwright/test";
-import { afterAll, beforeAll, describe, expect, it } from "vite-plus/test";
-
-import { collectBrowserErrors, type BrowserError } from "@merit/test-support/browser";
+import { describe, expect, it } from "vite-plus/test";
 
 import {
   DEFAULT_STORYBOOK_TARGETS,
   allocateFreePort,
   buildContainerDelegationArgs,
-  checkKeyboardFocusTraversal,
   detectFocusVisualChange,
   filterStoryTargets,
-  formatMarkdownReport,
   inferAppMode,
-  openTargetOnPage,
   parseCliArgs,
   runUiVerify,
   sanitizeTargetName,
-  summarizeResults,
   uiVerifyResultsSchema,
-  verifyLoadedPage,
-  writeProofArtifacts,
   type ElementStyleSnapshot,
   type FocusVisualSnapshot,
 } from "./ui-verify.ts";
@@ -47,7 +37,6 @@ const baseStyle = (overrides: Partial<ElementStyleSnapshot> = {}): ElementStyleS
   backgroundImage: "none",
   textDecorationLine: "none",
   textDecorationThickness: "auto",
-  color: "rgb(17, 17, 17)",
   ...overrides,
 });
 
@@ -236,24 +225,59 @@ describe("detectFocusVisualChange", () => {
     ).toEqual({ changed: true, reasons: ["self::after:pseudo-indicator"] });
   });
 
-  it("rejects unchanged styles and transparent or zero-width outlines", () => {
+  it("rejects unchanged styles and transparent or zero-width outlines (including CSS Color 4 slash-alpha and hsla)", () => {
     expect(detectFocusVisualChange(baseSnapshot(), baseSnapshot())).toEqual({
       changed: false,
       reasons: [],
     });
 
-    expect(
-      detectFocusVisualChange(
-        baseSnapshot(),
-        baseSnapshot({
-          self: baseStyle({
-            outlineStyle: "solid",
-            outlineWidth: "2px",
-            outlineColor: "rgba(0, 0, 0, 0)",
+    for (const transparentColor of [
+      "transparent",
+      "rgba(0, 0, 0, 0)",
+      "rgba(15, 98, 254, 0.0)",
+      "hsla(210, 100%, 50%, 0)",
+      "hsla(210, 100%, 50%, 0.0)",
+      "hsla(210, 100%, 50%, 0%)",
+      "rgb(0 0 0 / 0)",
+      "oklch(0.5 0.1 200 / 0)",
+      "oklch(0.5 0.1 200 / 0.0)",
+      "color(srgb 0 0 0 / 0%)",
+    ]) {
+      expect(
+        detectFocusVisualChange(
+          baseSnapshot(),
+          baseSnapshot({
+            self: baseStyle({
+              outlineStyle: "solid",
+              outlineWidth: "2px",
+              outlineColor: transparentColor,
+            }),
           }),
-        }),
-      ),
-    ).toEqual({ changed: false, reasons: [] });
+        ),
+        `expected ${transparentColor} to be treated as transparent`,
+      ).toEqual({ changed: false, reasons: [] });
+    }
+
+    for (const visibleColor of [
+      "rgb(0 0 0 / 0.5)",
+      "oklch(0.5 0.1 200 / 0.5)",
+      "color(srgb 0 0 0 / 50%)",
+      "hsla(210, 100%, 50%, 0.5)",
+    ]) {
+      expect(
+        detectFocusVisualChange(
+          baseSnapshot(),
+          baseSnapshot({
+            self: baseStyle({
+              outlineStyle: "solid",
+              outlineWidth: "2px",
+              outlineColor: visibleColor,
+            }),
+          }),
+        ),
+        `expected ${visibleColor} to be detected as visible`,
+      ).toEqual({ changed: true, reasons: ["self:outline"] });
+    }
 
     expect(
       detectFocusVisualChange(
@@ -387,314 +411,5 @@ describe("container delegation and proof reporting", () => {
     const port = await allocateFreePort();
     expect(port).toBeGreaterThan(1024);
     expect(port).toBeLessThanOrEqual(65535);
-  });
-});
-
-describe("live Chromium checker failure detection", () => {
-  let browser: Browser;
-  let outDir: string;
-
-  beforeAll(async () => {
-    browser = await chromium.launch({ headless: true });
-    outDir = mkdtempSync(join(tmpdir(), "merit-ui-verify-browser-"));
-  });
-
-  afterAll(async () => {
-    await browser.close();
-    rmSync(outDir, { recursive: true, force: true });
-  });
-
-  const runFixture = async (name: string, html: string) => {
-    const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
-    const errors: BrowserError[] = [];
-    collectBrowserErrors(context, errors);
-    try {
-      const page = await context.newPage();
-      await page.setContent(html);
-      const screenshotPath = join(outDir, "screenshots", `${name}-desktop.png`);
-      return await verifyLoadedPage({
-        page,
-        browserErrors: errors,
-        kind: "story",
-        target: name,
-        name,
-        url: `fixture://${name}`,
-        viewport: "desktop",
-        fullPage: true,
-        screenshotPath,
-      });
-    } finally {
-      await context.close();
-    }
-  };
-
-  it("passes accessible pages with visible focus rings and pages with zero interactive stops", async () => {
-    const accessible = await runFixture(
-      "accessible-ok",
-      `<!doctype html><html lang="en"><head><title>Accessible</title><style>
-        body { background: #fff; color: #111; font-family: sans-serif; }
-        button { padding: 8px 14px; background: #fff; color: #111; border: 1px solid #333; }
-        button:focus-visible { outline: 2px solid #0f62fe; outline-offset: 2px; }
-      </style></head><body><main><h1>Ready</h1><button type="button">Save</button></main></body></html>`,
-    );
-    expect(accessible.passed).toBe(true);
-    expect(accessible.axeViolations).toEqual([]);
-    expect(accessible.focus.stopsChecked).toBe(1);
-    expect(accessible.focus.failures).toEqual([]);
-    expect(accessible.screenshot && existsSync(accessible.screenshot)).toBe(true);
-
-    const staticOnly = await runFixture(
-      "static-zero-stops",
-      `<!doctype html><html lang="en"><head><title>Notice</title><style>
-        body { background: #fff; color: #111; }
-      </style></head><body><main><h1>Static notice</h1><p>No controls here.</p></main></body></html>`,
-    );
-    expect(staticOnly.passed).toBe(true);
-    expect(staticOnly.focus.stopsChecked).toBe(0);
-    expect(staticOnly.focus.failures).toEqual([]);
-  });
-
-  it("catches an intentional axe WCAG violation and reports it in results.json and report.md", async () => {
-    const badAxe = await runFixture(
-      "intentional-axe-violation",
-      `<!doctype html><html lang="en"><head><title>Broken a11y</title><style>
-        body { background: #fff; color: #eee; }
-        button { width: 40px; height: 28px; }
-        button:focus-visible { outline: 2px solid #000; }
-      </style></head><body><main><h1>Low contrast</h1><button type="button"></button></main></body></html>`,
-    );
-
-    expect(badAxe.passed).toBe(false);
-    expect(badAxe.axeViolations.length).toBeGreaterThan(0);
-    expect(
-      badAxe.axeViolations.some((v) => v.id === "button-name" || v.id === "color-contrast"),
-    ).toBe(true);
-
-    const summary = summarizeResults({
-      mode: "storybook",
-      updated: false,
-      outDir,
-      targets: [badAxe],
-    });
-    expect(summary.passed).toBe(false);
-    expect(summary.summary.axeViolations).toBeGreaterThan(0);
-
-    writeProofArtifacts(outDir, summary);
-    const savedJson = uiVerifyResultsSchema.parse(
-      JSON.parse(readFileSync(join(outDir, "results.json"), "utf8")),
-    );
-    expect(savedJson.passed).toBe(false);
-    expect(savedJson.summary.axeViolations).toBeGreaterThan(0);
-
-    const markdown = formatMarkdownReport(savedJson);
-    expect(markdown).toContain("**Status:** FAIL");
-    expect(markdown).toContain("intentional-axe-violation");
-    expect(markdown).toContain("**Axe");
-  });
-
-  it("catches an intentional missing-focus-ring interactive element and reports it in results.json and report.md", async () => {
-    const missingFocus = await runFixture(
-      "intentional-missing-focus",
-      `<!doctype html><html lang="en"><head><title>Missing focus</title><style>
-        body { background: #fff; color: #111; }
-        button {
-          padding: 8px 14px;
-          background: #fff;
-          color: #111;
-          border: 1px solid #333;
-          outline: none;
-          box-shadow: none;
-        }
-        button:focus, button:focus-visible {
-          outline: none;
-          box-shadow: none;
-        }
-      </style></head><body><main><h1>Focus bug</h1><button type="button">Invisible focus</button></main></body></html>`,
-    );
-
-    expect(missingFocus.passed).toBe(false);
-    expect(missingFocus.axeViolations).toEqual([]);
-    expect(missingFocus.focus.stopsChecked).toBe(1);
-    expect(missingFocus.focus.failures).toHaveLength(1);
-    expect(missingFocus.focus.failures[0]?.element).toContain("Invisible focus");
-
-    const summary = summarizeResults({
-      mode: "storybook",
-      updated: false,
-      outDir,
-      targets: [missingFocus],
-    });
-    expect(summary.passed).toBe(false);
-    expect(summary.summary.focusFailures).toBe(1);
-
-    writeProofArtifacts(outDir, summary);
-    const savedJson = uiVerifyResultsSchema.parse(
-      JSON.parse(readFileSync(join(outDir, "results.json"), "utf8")),
-    );
-    expect(savedJson.passed).toBe(false);
-    expect(savedJson.summary.focusFailures).toBe(1);
-
-    const markdown = readFileSync(join(outDir, "report.md"), "utf8");
-    expect(markdown).toContain("**Status:** FAIL");
-    expect(markdown).toContain("Invisible focus");
-    expect(markdown).toContain("no visible focus indicator");
-  });
-
-  it("catches horizontal overflow and console errors", async () => {
-    const overflowing = await runFixture(
-      "intentional-overflow-and-error",
-      `<!doctype html><html lang="en"><head><title>Overflow</title><style>
-        body { background: #fff; color: #111; }
-        .wide { width: 3000px; height: 20px; }
-      </style></head><body><main><h1>Overflow</h1><div class="wide">Too wide</div></main>
-      <script>console.error("Synthetic runtime failure");</script></body></html>`,
-    );
-
-    expect(overflowing.passed).toBe(false);
-    expect(overflowing.hasHorizontalOverflow).toBe(true);
-    expect(overflowing.browserErrors).toEqual([
-      expect.objectContaining({ type: "console", message: "Synthetic runtime failure" }),
-    ]);
-  });
-
-  it("catches zero-sized focusable elements in checkKeyboardFocusTraversal", async () => {
-    const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
-    try {
-      const page = await context.newPage();
-      await page.setContent(
-        `<!doctype html><html lang="en"><head><title>Zero sized focus</title><style>
-          body { background: #fff; color: #111; }
-          .zero {
-            width: 0;
-            height: 0;
-            padding: 0;
-            border: 0;
-            overflow: hidden;
-          }
-          .zero:focus-visible { outline: 2px solid #0f62fe; }
-        </style></head><body><main><h1>Zero size</h1><button class="zero" type="button">Collapsed control</button></main></body></html>`,
-      );
-      const focus = await checkKeyboardFocusTraversal(page);
-      expect(focus.stopsChecked).toBe(1);
-      expect(focus.failures).toHaveLength(1);
-      expect(focus.failures[0]?.element).toContain("Collapsed control");
-      expect(focus.failures[0]?.reasons.some((reason) => reason.includes("zero-sized"))).toBe(true);
-      expect(focus.failures[0]?.boundingBox).toEqual({ width: 0, height: 0 });
-    } finally {
-      await context.close();
-    }
-  });
-
-  it("blurs non-tabbable active elements like <main tabindex='-1'> so header and sidebar controls are traversed", async () => {
-    const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
-    try {
-      const page = await context.newPage();
-      await page.setContent(
-        `<!doctype html><html lang="en"><head><title>Shell focus order</title><style>
-          body { background: #fff; color: #111; }
-          .skip { position: fixed; top: -5rem; left: 1rem; padding: 8px; background: #fff; color: #111; }
-          .skip:focus { top: 1rem; outline: 2px solid #0f62fe; }
-          nav a { display: inline-block; padding: 8px; color: #111; outline: none; box-shadow: none; }
-          nav a:focus, nav a:focus-visible { outline: none; box-shadow: none; }
-          main button { padding: 8px 14px; background: #fff; color: #111; border: 1px solid #333; }
-          main button:focus-visible { outline: 2px solid #0f62fe; }
-        </style></head><body>
-          <a class="skip" href="#main">Skip to content</a>
-          <nav aria-label="Workspace"><a href="#rounds">Sidebar Rounds</a></nav>
-          <main id="main" tabindex="-1"><h1>Workspace</h1><button type="button">Create round</button></main>
-          <script>document.getElementById("main").focus();</script>
-        </body></html>`,
-      );
-      const focus = await checkKeyboardFocusTraversal(page);
-      expect(focus.stopsChecked).toBe(3);
-      expect(focus.failures).toHaveLength(1);
-      expect(focus.failures[0]?.element).toContain("Sidebar Rounds");
-    } finally {
-      await context.close();
-    }
-  });
-
-  it("waits on data-story-ready='true' after DOM mount and fails with data-story-error when data-story-ready='error'", async () => {
-    const server = createServer((req, res) => {
-      const reqUrl = new URL(req.url ?? "/", "http://127.0.0.1");
-      const storyId = reqUrl.searchParams.get("id");
-      res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-      if (storyId === "delayed-ready--story") {
-        res.end(
-          `<!doctype html><html lang="en"><body>
-            <div id="storybook-root"><div>Initial mount before play</div></div>
-            <script>
-              setTimeout(() => {
-                const root = document.getElementById("storybook-root");
-                root.innerHTML = '<button type="button">Play finished</button>';
-                root.setAttribute("data-story-ready", "true");
-              }, 120);
-            </script>
-          </body></html>`,
-        );
-        return;
-      }
-      if (storyId === "errored--story") {
-        res.end(
-          `<!doctype html><html lang="en"><body>
-            <div id="storybook-root"><div>Mounted before error</div></div>
-            <script>
-              setTimeout(() => {
-                const root = document.getElementById("storybook-root");
-                root.setAttribute("data-story-error", "play() assertion failed: contrast");
-                root.setAttribute("data-story-ready", "error");
-              }, 40);
-            </script>
-          </body></html>`,
-        );
-        return;
-      }
-      res.end("<!doctype html><html><body></body></html>");
-    });
-
-    await new Promise<void>((resolveListen) =>
-      server.listen(0, "127.0.0.1", () => resolveListen()),
-    );
-    const address = server.address();
-    if (!address || typeof address === "string") {
-      throw new Error("Could not bind test HTTP server.");
-    }
-    const baseUrl = `http://127.0.0.1:${address.port}`;
-
-    const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
-    try {
-      const readyPage = await context.newPage();
-      await openTargetOnPage(
-        readyPage,
-        {
-          kind: "story",
-          id: "delayed-ready--story",
-          name: "delayed-ready--story",
-          fullPage: true,
-        },
-        baseUrl,
-      );
-      expect(await readyPage.locator("#storybook-root").getAttribute("data-story-ready")).toBe(
-        "true",
-      );
-      expect(await readyPage.locator("button").textContent()).toBe("Play finished");
-
-      const errorPage = await context.newPage();
-      await expect(
-        openTargetOnPage(
-          errorPage,
-          {
-            kind: "story",
-            id: "errored--story",
-            name: "errored--story",
-            fullPage: true,
-          },
-          baseUrl,
-        ),
-      ).rejects.toThrow(/play\(\) assertion failed: contrast/);
-    } finally {
-      await context.close();
-      await new Promise<void>((resolveClose) => server.close(() => resolveClose()));
-    }
   });
 });

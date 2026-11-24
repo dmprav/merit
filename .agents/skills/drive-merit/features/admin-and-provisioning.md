@@ -36,7 +36,7 @@ and [Organization provisioning guide](../../../../docs/guides/organizations.md).
 - **Organization detail (`/admin/organizations/$organizationId`):**
   - Heading matches created organization name; email delivery state shows
     `Email accepted by sender` when Mailpit accepts the owner invitation.
-- **Access-denied state (non-operator personas such as `recipient` or `dana`):**
+- **Access-denied state (non-operator personas such as `recipient` or `manager`):**
   - Shows text `Your account doesn’t have access to Merit administration.` with no
     `complementary` admin sidebar.
 - **DevTools & Mailpit:**

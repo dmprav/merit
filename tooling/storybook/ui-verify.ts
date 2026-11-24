@@ -86,7 +86,6 @@ export type ElementStyleSnapshot = {
   backgroundImage: string;
   textDecorationLine: string;
   textDecorationThickness: string;
-  color: string;
   content?: string;
   opacity?: string;
 };
@@ -536,9 +535,8 @@ const isTransparentColor = (color: string): boolean => {
   const normalized = color.replace(/\s+/g, "").toLowerCase();
   return (
     normalized === "transparent" ||
-    normalized === "rgba(0,0,0,0)" ||
-    normalized === "hsla(0,0%,0%,0)" ||
-    /^rgba\([^)]+,0(?:\.0+)?\)$/.test(normalized)
+    /^(?:rgba|hsla)\([^)]+,(?:0+(?:\.0+)?|\.0+)%?\)$/.test(normalized) ||
+    /^[a-z]+\([^)]+\/(?:0+(?:\.0+)?|\.0+)%?\)$/.test(normalized)
   );
 };
 
@@ -995,7 +993,6 @@ export const checkKeyboardFocusTraversal = async (
       backgroundImage: style.backgroundImage,
       textDecorationLine: style.textDecorationLine,
       textDecorationThickness: style.textDecorationThickness,
-      color: style.color,
       ...(pseudo ? { content: style.content, opacity: style.opacity } : {}),
     });
 
@@ -1067,11 +1064,13 @@ export const checkKeyboardFocusTraversal = async (
   const stops: CapturedStop[] = [];
   let reachedCap = false;
 
-  // Record an initially focused naturally-tabbable control (e.g. autofocused dialog input or story button).
-  const initialStop = await page.evaluate(() => {
+  // Reset focus to document top when the initially focused element is non-tabbable
+  // (e.g. `<main tabindex="-1">`) or sits outside an open dialog, so Tab traversal
+  // always inspects earlier controls from the start of the document.
+  const initialState = await page.evaluate(() => {
     const tracker = window.__meritFocusTracker;
     if (!tracker) {
-      return null;
+      return { resetFocus: false, initialStop: null };
     }
     const active = tracker.deepActiveElement();
     if (
@@ -1080,11 +1079,10 @@ export const checkKeyboardFocusTraversal = async (
       active === document.documentElement ||
       !(active instanceof HTMLElement || active instanceof SVGElement)
     ) {
-      return null;
+      return { resetFocus: false, initialStop: null };
     }
-    const tabIndex =
-      active instanceof HTMLElement || active instanceof SVGElement ? active.tabIndex : -1;
-    if (tabIndex < 0) {
+    const isInsideOpenDialog = Boolean(active.closest('[role="dialog"], dialog[open]'));
+    if (active.tabIndex < 0 || !isInsideOpenDialog) {
       active.blur();
       // Calling blur() alone leaves Chromium's sequential focus navigation starting point
       // at the blurred element; briefly focusing document.body resets Tab order to the top.
@@ -1099,20 +1097,26 @@ export const checkKeyboardFocusTraversal = async (
           document.body.setAttribute("tabindex", previousBodyTabIndex);
         }
       }
-      return null;
+      return { resetFocus: true, initialStop: null };
     }
     const rect = active.getBoundingClientRect();
     tracker.stops.push(active);
     return {
-      index: 0,
-      element: tracker.describeElement(active),
-      boundingBox: { width: rect.width, height: rect.height },
-      focused: tracker.captureSnapshot(active),
+      resetFocus: false,
+      initialStop: {
+        index: 0,
+        element: tracker.describeElement(active),
+        boundingBox: { width: rect.width, height: rect.height },
+        focused: tracker.captureSnapshot(active),
+      },
     };
   });
 
-  if (initialStop) {
-    stops.push(initialStop);
+  if (initialState.resetFocus) {
+    await settleAnimations(page);
+  }
+  if (initialState.initialStop) {
+    stops.push(initialState.initialStop);
   }
 
   for (let step = 0; step < maxStops; step += 1) {
@@ -1186,14 +1190,29 @@ export const checkKeyboardFocusTraversal = async (
   if (finalStop && !finalStop.unfocused) {
     await page.keyboard.press("Tab");
     await settleAnimations(page);
+    const blurred = await page.evaluate((targetIndex: number) => {
+      const tracker = window.__meritFocusTracker;
+      const el = tracker?.stops[targetIndex];
+      if (!tracker || !el || !el.isConnected) {
+        return false;
+      }
+      if (
+        tracker.deepActiveElement() === el &&
+        (el instanceof HTMLElement || el instanceof SVGElement)
+      ) {
+        el.blur();
+        return true;
+      }
+      return false;
+    }, finalStop.index);
+    if (blurred) {
+      await settleAnimations(page);
+    }
     const finalUnfocused = await page.evaluate((targetIndex: number) => {
       const tracker = window.__meritFocusTracker;
       const el = tracker?.stops[targetIndex];
       if (!tracker || !el || !el.isConnected) {
         return undefined;
-      }
-      if (tracker.deepActiveElement() === el && el instanceof HTMLElement) {
-        el.blur();
       }
       return tracker.captureSnapshot(el);
     }, finalStop.index);
@@ -1560,7 +1579,7 @@ const readStorybookIndex = (repoRoot: string): StorybookIndexEntry[] => {
   return Object.values(parsed.entries ?? parsed.stories ?? {});
 };
 
-const runTargetsInBrowser = async ({
+export const runTargetsInBrowser = async ({
   browser,
   targets,
   baseUrl,
@@ -1596,6 +1615,8 @@ const runTargetsInBrowser = async ({
       );
       const targetId = target.kind === "story" ? target.id : target.route;
       let resolvedUrl = resolveTargetUrl(target, baseUrl);
+
+      rmSync(screenshotFile, { force: true });
 
       try {
         context = await browser.newContext(contextOptions);
