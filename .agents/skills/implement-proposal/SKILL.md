@@ -58,7 +58,12 @@ exit without opening a pull request.
 
 Start from latest `origin/main` on a clean branch (use the cloud session's
 assigned `claude/*` branch if provided, otherwise `claude/issue-<issue-number>`).
-Never reuse a dirty worktree or an unrelated branch.
+When isolating from an active checkout or running concurrent sessions, create a
+dedicated worktree with
+`vp run worktree:create issue-<issue-number> --branch claude/issue-<issue-number>`
+(use `vp run worktree:list` to inspect active worktrees and
+`vp run worktree:clean issue-<issue-number>` after the PR is pushed). Never reuse
+a dirty worktree or an unrelated branch.
 
 ## 3. Delegate the build
 

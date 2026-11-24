@@ -10,6 +10,7 @@ import {
   continueDemoEntry,
   openGuidedDemo,
 } from "./demo-navigation.ts";
+import { appOrigin } from "./ports.ts";
 
 const expectBudgetPreview = async (preview: Locator, label: string, amount: string) => {
   await expect(preview.getByRole("term")).toHaveText(label);
@@ -1092,7 +1093,7 @@ test(
     await launcher.click();
     await guide.getByRole("link", { name: "Exit demo" }).click();
 
-    await expect(page).toHaveURL("http://localhost:3001/");
+    await expect(page).toHaveURL(`${appOrigin}/`);
     await expect(page.locator("html")).not.toHaveAttribute("data-product-theme");
 
     await checkPage(page);
@@ -1510,7 +1511,7 @@ test("MCP URL copy confirms success and explains clipboard failure", async ({ pa
   await expect(page.getByRole("status")).toHaveText("URL copied");
   expect(
     await page.evaluate(() => (window as Window & { copiedDocsUrl?: string }).copiedDocsUrl),
-  ).toBe("http://localhost:3001/mcp/workspace");
+  ).toBe(`${appOrigin}/mcp/workspace`);
   await expect(page).toHaveTitle("Connect through MCP · Merit");
 
   await page.screenshot({ path: testInfo.outputPath("mcp-guide.png"), fullPage: true });

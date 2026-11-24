@@ -1,12 +1,33 @@
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
+
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite-plus";
 
 import { reactCompilerOptions } from "../react-compiler";
 
+const rootEnvFile = resolve(import.meta.dirname, "../../.env.local");
+if (existsSync(rootEnvFile)) {
+  process.loadEnvFile(rootEnvFile);
+}
+
+const readPort = (value: string | undefined, fallback: number): number => {
+  if (!value) {
+    return fallback;
+  }
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 65535) {
+    throw new Error(`Invalid port value: ${value}`);
+  }
+  return parsed;
+};
+
+const storybookDevPort = readPort(process.env.MERIT_STORYBOOK_DEV_PORT, 6006);
+
 export default defineConfig({
   run: {
     tasks: {
-      dev: { command: "storybook dev -p 6006", cache: false },
+      dev: { command: `storybook dev -p ${storybookDevPort}`, cache: false },
       test: "vp test --run --config vitest.config.ts",
       "test:watch": {
         command: "vp test --watch --config vitest.config.ts",

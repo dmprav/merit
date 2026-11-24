@@ -69,8 +69,11 @@ that assumption directly.
 ## 5. Prove and clean up
 
 1. Run the reproduction and confirm it passes.
-2. Confirm it fails without the fix: set aside only the non-test changes, run the
-   reproduction, and see the assertion fail on the wrong value. Restore the fix.
+2. Confirm it fails without the fix: either run the reproduction in an isolated
+   worktree (`vp run worktree:create <slug>`, run the check, then
+   `vp run worktree:clean <slug>`) or set aside only the non-test changes, run
+   the reproduction, and see the assertion fail on the wrong value before
+   restoring the fix. Use `vp run worktree:list` to inspect active worktrees.
    This is the [focused mutation check](../../../docs/guides/testing.md#focused-mutation-checks)
    applied to the fix itself.
 3. Search for the tag (`git grep -n 'DEBUG-a4f2'`) and remove every instrumented

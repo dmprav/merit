@@ -1,6 +1,8 @@
 import { expect, type APIRequestContext } from "@playwright/test";
 import { z } from "zod";
 
+import { workspacePort } from "./ports.ts";
+
 const inboxSchema = z.object({
   messages: z.array(
     z.object({
@@ -36,7 +38,10 @@ export const invitationLink = async (
       const detail = await request.get(`http://127.0.0.1:8025/api/v1/message/${message.ID}`);
       expect(detail.ok()).toBe(true);
       const { Text } = messageSchema.parse(await detail.json());
-      link = Text.match(/http:\/\/127\.0\.0\.1:3002\/invitations\/[a-f0-9]{64}/)?.[0];
+      const invitationPattern = new RegExp(
+        `http://127\\.0\\.0\\.1:${workspacePort}/invitations/[a-f0-9]{64}`,
+      );
+      link = Text.match(invitationPattern)?.[0];
       return Boolean(link);
     })
     .toBe(true);

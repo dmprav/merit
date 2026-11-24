@@ -8,6 +8,10 @@ import { migrate } from "@merit/db/migrate";
 import { seedExampleRounds } from "@merit/grantmaking/testing";
 import { createTestDatabase } from "@merit/test-support/test-database";
 
+import { loadRepoEnvLocal } from "./browser/ports.ts";
+
+loadRepoEnvLocal();
+
 const database = await createTestDatabase();
 const output = join(
   tmpdir(),

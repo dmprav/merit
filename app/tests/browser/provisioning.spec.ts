@@ -3,6 +3,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { openNavigation, closeNavigation } from "@merit/test-support/browser/navigation";
 
 import { invitationLink } from "./mailpit.ts";
+import { workspaceOrigin } from "./ports.ts";
 import { test, expect } from "./workspace-test.ts";
 
 test(
@@ -10,7 +11,7 @@ test(
   { tag: "@cross-browser" },
   async ({ page, context }, testInfo) => {
     await context.addCookies([
-      { name: "merit-local-person", value: "operator", url: "http://127.0.0.1:3002" },
+      { name: "merit-local-person", value: "operator", url: workspaceOrigin },
     ]);
     await page.goto("/admin/organizations");
     await page.getByRole("button", { name: "Create organization", exact: true }).click();
@@ -75,7 +76,7 @@ test("operator provisions through Mailpit, recipient joins and selects multiple 
       {
         name: "merit-local-person",
         value: person,
-        url: "http://127.0.0.1:3002",
+        url: workspaceOrigin,
         sameSite: "Strict",
       },
     ]);
@@ -332,7 +333,7 @@ test("joined organization presents its current owner and inline record actions",
   context,
 }, testInfo) => {
   await context.addCookies([
-    { name: "merit-local-person", value: "operator", url: "http://127.0.0.1:3002" },
+    { name: "merit-local-person", value: "operator", url: workspaceOrigin },
   ]);
   await page.goto("/admin/organizations/alder");
 

@@ -6,6 +6,8 @@ import { defineConfig } from "@playwright/test";
 
 import { browserConfig } from "@merit/test-support/browser/config";
 
+import { workspaceOrigin, workspacePort } from "./ports.ts";
+
 const host = fileURLToPath(new URL("../..", import.meta.url));
 
 export default defineConfig(browserConfig, {
@@ -20,15 +22,15 @@ export default defineConfig(browserConfig, {
     "reviews.spec.ts",
     "reviewer.spec.ts",
   ],
-  outputDir: join(tmpdir(), "merit-workspace-browser-results"),
+  outputDir: join(tmpdir(), `merit-workspace-browser-results-${workspacePort}`),
   timeout: 60_000,
   // Each test resets the isolated database used by the shared host.
   workers: 1,
-  use: { baseURL: "http://127.0.0.1:3002" },
+  use: { baseURL: workspaceOrigin },
   webServer: {
-    command: "../node_modules/.bin/vp run @merit/app#dev:workspace --port 3002",
+    command: `../node_modules/.bin/vp run @merit/app#dev:workspace --port ${workspacePort}`,
     cwd: host,
-    url: "http://127.0.0.1:3002/app",
+    url: `${workspaceOrigin}/app`,
     reuseExistingServer: false,
     timeout: 120_000,
     env: {

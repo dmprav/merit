@@ -5,6 +5,10 @@ import { join } from "node:path";
 import { migrate } from "@merit/db/migrate";
 import { createTestDatabase } from "@merit/test-support/test-database";
 
+import { loadRepoEnvLocal } from "./browser/ports.ts";
+
+loadRepoEnvLocal();
+
 const database = await createTestDatabase();
 try {
   await migrate(database.client);

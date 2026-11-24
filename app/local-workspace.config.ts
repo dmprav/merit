@@ -19,6 +19,13 @@ const loadLocalEnvironment = (root: string) => {
   if (existsSync(file)) {
     process.loadEnvFile(file);
   }
+  const workspaceRoot = resolve(root, "..");
+  if (existsSync(resolve(workspaceRoot, "pnpm-workspace.yaml"))) {
+    const rootFile = resolve(workspaceRoot, ".env.local");
+    if (existsSync(rootFile)) {
+      process.loadEnvFile(rootFile);
+    }
+  }
 };
 
 // Select the fixture adapter only in the dev server; builds always use real authentication.

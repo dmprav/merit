@@ -1,5 +1,13 @@
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
+
 import { withDatabase } from "@merit/db";
 import { seedExampleRounds, seedExampleReviewer } from "@merit/grantmaking/testing";
+
+const rootEnvFile = resolve(import.meta.dirname, "../..", ".env.local");
+if (existsSync(rootEnvFile)) {
+  process.loadEnvFile(rootEnvFile);
+}
 
 const [clerkUserId] = process.argv.slice(2);
 const connectionString = process.env.DATABASE_URL ?? "postgres://merit:merit@127.0.0.1:55432/merit";
