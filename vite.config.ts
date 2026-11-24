@@ -135,6 +135,7 @@ export default defineConfig({
         command: "vpx tooling/storybook/run-visual-container.ts",
         cache: false,
       },
+      "ui:verify": { command: "vpx tooling/storybook/ui-verify.ts", cache: false },
       "check:code": { command: "vp check --deny-warnings", cache: { output: [] } },
       "check:react-compiler": {
         command: "vpx tooling/verification/react-compiler.ts",
@@ -145,7 +146,7 @@ export default defineConfig({
       "test:hooks": { command: "vp test tooling/verification/hooks.test.ts", cache: false },
       "test:agents": {
         command:
-          "vp test tooling/agents/proposal.test.ts tooling/agents/scout.test.ts tooling/agents/queue.test.ts tooling/agents/prune-verifications.test.ts tooling/agents/worktree.test.ts",
+          "vp test tooling/agents/proposal.test.ts tooling/agents/scout.test.ts tooling/agents/queue.test.ts tooling/agents/prune-verifications.test.ts tooling/agents/worktree.test.ts tooling/storybook/ui-verify.test.ts",
         cache: false,
       },
       "test:ci": {

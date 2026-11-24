@@ -52,18 +52,21 @@ uncommitted but in place.
 
 ## Compare the UI
 
-For UI changes, follow [UI verification](../../../docs/guides/ui-verification.md#verification).
-Screenshot the new UI and its precedent in the same states, at the same viewport
-and theme, at desktop and narrow widths, into the directory you were given. With
-Storybook running (`vp run storybook`):
+For UI changes, follow [UI verification](../../../docs/guides/ui-verification.md#verification)
+and [drive-merit](../drive-merit/SKILL.md). Capture the new UI and its precedent in the same
+states across desktop (`1440x1000`) and mobile (`390x844`) into the directory you were given
+with `vp run ui:verify` (which manages isolated Storybook or app servers, axe/overflow/error
+checks, keyboard focus traversal, and proof artifacts):
 
 ```sh
-pnpm --filter @merit/test-support exec playwright screenshot --viewport-size=1280,800 \
-  "http://localhost:6006/iframe.html?id=<story-id>&viewMode=story" <dir>/<name>-desktop.png
+vp run ui:verify --story <story-id>,<precedent-story-id> --out <dir>
+# Or verify live app routes (starts an isolated app server + ephemeral DB automatically):
+vp run ui:verify --route <route> --out <dir>
 ```
 
-Look at each pair and correct every difference the brief does not explain before
-reporting. Screenshots you did not inspect do not count as verification.
+Inspect `<dir>/report.md` and every captured pair under `<dir>/screenshots/`, and correct
+every difference the brief does not explain before reporting. Screenshots you did not inspect
+do not count as verification.
 
 ## Report
 

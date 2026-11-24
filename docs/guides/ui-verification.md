@@ -70,6 +70,7 @@ Choose checks for the behavior you changed:
 | Storybook layout, docs, and visual regression           | `vp run test:browser:stories`                       |
 | Application navigation and browser behavior             | `vp run test:browser:app`                           |
 | Shared browser checks, Storybook, and application flows | `vp run test:browser`                               |
+| Deterministic UI sweep, a11y, focus, and screenshots    | `vp run ui:verify`                                  |
 | Storybook configuration or packaging                    | `vp run @merit/storybook#build`                     |
 
 Run the suite belonging to the changed code. Capability component tests and
@@ -116,6 +117,32 @@ full suites and visual baselines; the `:all` commands also run representative
 `@cross-browser` checks in Firefox and desktop and mobile WebKit. Story test-addon
 runs remain in Chromium.
 
+### Deterministic CLI verification (`ui:verify`)
+
+For repeatable screenshot, accessibility, overflow, error, and keyboard focus checks on
+Storybook stories or live routes without managing servers manually, run `vp run ui:verify`
+(see the [drive-merit skill](../../.agents/skills/drive-merit/SKILL.md) for user-POV feature
+maps and persona workflows):
+
+```sh
+# Curated Storybook sweep (desktop 1440x1000 + mobile 390x844, Postgres-free)
+vp run ui:verify
+
+# Targeted stories (substring, glob, or /regex/)
+vp run ui:verify --story components-button--overview,patterns-form-dialog--with-context
+
+# Live app routes (isolated ephemeral database + app server, auto-infers demo vs workspace)
+vp run ui:verify --route /demo,/app/alder/rounds --viewport both --json
+```
+
+Every run starts isolated servers on ephemeral ports, checks zero WCAG 2 A/AA/2.1AA
+violations, zero horizontal overflow, zero console/page errors, and visible keyboard `Tab`
+focus changes, then writes deterministic proof artifacts to `.tmp/ui-verify/` (override with
+`--out <dir>`): `report.md`, Zod-validated `results.json`, and `screenshots/*.png`. Servers
+and ephemeral databases are torn down automatically on exit or failure. Pass `--update` to
+refresh output screenshots cleanly (or `--container --update` to refresh Linux visual
+baselines).
+
 ### Review visual changes
 
 The [visual suite](../../tooling/storybook/tests/browser/visual.spec.ts) compares a small set of
@@ -126,6 +153,8 @@ inside the pinned Playwright container so macOS and Linux development environmen
 produce identical pixels:
 
 ```sh
+vp run ui:verify --container
+# Equivalent direct container runner:
 vp run test:browser:stories:container
 ```
 
@@ -133,8 +162,8 @@ To accept an intentional visual change, update the Linux baselines through the c
 and rerun the comparison cleanly:
 
 ```sh
-vp run test:browser:stories:container -- --update-snapshots
-vp run test:browser:stories:container
+vp run ui:verify --container --update
+vp run ui:verify --container
 ```
 
 On native Ubuntu 24.04 hosts with the locked browser version installed (`pnpm --filter @merit/test-support exec playwright install --with-deps chromium firefox webkit`), `vp run test:browser:stories:all visual.spec.ts --project desktop --project mobile` also runs directly without Docker. Append `--update-snapshots` only when preparing an intentional baseline update, then rerun without it.
