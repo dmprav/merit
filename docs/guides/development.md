@@ -213,13 +213,15 @@ store, and activates `.vite-hooks` via `vp config --no-agent`. Pass `--base`,
 `--branch`, `--dir`, `--with-db`, `--no-db`, `--doctor`, or `--json` as needed.
 In default auto mode, database creation is skipped with a warning if Compose
 PostgreSQL is not running; start services with `vp run services:start` and pass
-`--with-db` when a database is required. Once services are running, run
-`vp run @merit/db#db:migrate` and `vp run @merit/app#db:seed` (or
-`vp run db:reset`, which also creates the database if it was skipped) inside the
-worktree to initialize its schema and seed data. `worktree:clean` idempotently
-removes the worktree, drops its dedicated database (refusing to touch `merit` or
-`postgres`), prunes stale worktrees, and deletes the worktree branch unless
-`--keep-branch` is passed.
+`--with-db` when a database is required. If database creation was skipped, run
+`vp run db:reset` inside the worktree once Compose is running to create,
+migrate, and seed its database—`db:migrate` connects to the target database and
+does not create it. When the database was created during `worktree:create`, run
+`vp run db:reset` or `vp run @merit/db#db:migrate` followed by
+`vp run @merit/app#db:seed` inside the worktree to initialize its schema and
+seed data. `worktree:clean` idempotently removes the worktree, drops its
+dedicated database (refusing to touch `merit` or `postgres`), prunes stale
+worktrees, and deletes the worktree branch unless `--keep-branch` is passed.
 
 ## Schema changes
 
