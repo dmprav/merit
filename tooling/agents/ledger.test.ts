@@ -396,6 +396,104 @@ describe("ledger lifecycle, resume markers, and validation", () => {
     expect(existsSync(untouched)).toBe(false);
   });
 
+  test("rejects corrupt 7-column TSV rows with file path, line number, and field name without modifying the file", async () => {
+    const repo = makeTempDir();
+    const validRow =
+      "2026-11-24T10:00:00.000Z\trun-1\tbuild\tvalid decision\tvalid why\tevidence\tok";
+
+    const cases: Array<{ name: string; badRow: string; field: string; messagePattern: RegExp }> = [
+      {
+        name: "empty-required-decision.tsv",
+        badRow: "2026-11-24T10:05:00.000Z\trun-1\tbuild\t\tvalid why\tevidence\tok",
+        field: "decision",
+        messagePattern: /non-empty/,
+      },
+      {
+        name: "whitespace-required-why.tsv",
+        badRow: "2026-11-24T10:05:00.000Z\trun-1\tbuild\tvalid decision\t   \tevidence\tok",
+        field: "why",
+        messagePattern: /non-empty/,
+      },
+      {
+        name: "whitespace-optional-result.tsv",
+        badRow: "2026-11-24T10:05:00.000Z\trun-1\tbuild\tvalid decision\tvalid why\tevidence\t   ",
+        field: "result",
+        messagePattern: /whitespace-only/,
+      },
+      {
+        name: "invalid-ts.tsv",
+        badRow: "not-a-timestamp\trun-1\tbuild\tvalid decision\tvalid why\tevidence\tok",
+        field: "ts",
+        messagePattern: /ISO-8601 timestamp/,
+      },
+      {
+        name: "control-char-null-evidence.tsv",
+        badRow:
+          "2026-11-24T10:05:00.000Z\trun-1\tbuild\tvalid decision\tvalid why\tbad\x00cell\tok",
+        field: "evidence",
+        messagePattern: /control characters/,
+      },
+      {
+        name: "control-char-cr-why.tsv",
+        badRow: "2026-11-24T10:05:00.000Z\trun-1\tbuild\tvalid decision\tbad\rwhy\tevidence\tok",
+        field: "why",
+        messagePattern: /control characters/,
+      },
+      {
+        name: "control-char-del-phase.tsv",
+        badRow:
+          "2026-11-24T10:05:00.000Z\trun-1\tbuild\x7f\tvalid decision\tvalid why\tevidence\tok",
+        field: "phase",
+        messagePattern: /control characters/,
+      },
+    ];
+
+    for (const testCase of cases) {
+      const filePath = join(repo, testCase.name);
+      const content = `${LEDGER_HEADER}\n${validRow}\n${testCase.badRow}\n`;
+      writeFileSync(filePath, content, "utf8");
+
+      const assertMalformedError = (error: unknown) => {
+        expect(error, testCase.name).toBeInstanceOf(Error);
+        const message = (error as Error).message;
+        expect(message, testCase.name).toContain(filePath);
+        expect(message, testCase.name).toContain("line 3");
+        expect(message, testCase.name).toContain(`(${testCase.field})`);
+        expect(message, testCase.name).toMatch(testCase.messagePattern);
+      };
+
+      for (const readAttempt of [
+        () => parseLedgerTsv(content, filePath),
+        () => tailLedger({ file: filePath }),
+        () => summarizeLedger({ file: filePath }),
+      ]) {
+        let caught: unknown;
+        try {
+          readAttempt();
+        } catch (error) {
+          caught = error;
+        }
+        assertMalformedError(caught);
+      }
+
+      let appendCaught: unknown;
+      try {
+        await appendLedgerEntry({
+          file: filePath,
+          runId: "run-1",
+          phase: "build",
+          decision: "new decision",
+          why: "should fail before write",
+          ts: "2026-11-24T10:10:00.000Z",
+        });
+      } catch (error) {
+        appendCaught = error;
+      }
+      assertMalformedError(appendCaught);
+      expect(readFileSync(filePath, "utf8"), testCase.name).toBe(content);
+    }
+  });
+
   test("handles missing ledgers cleanly in read-only mode and produces deterministic tail and summary outputs", async () => {
     const repo = makeTempDir();
 

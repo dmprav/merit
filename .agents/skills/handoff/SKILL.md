@@ -108,8 +108,6 @@ at `.tmp/handoffs/<slug>.md` using this template:
    ```
 ````
 
-```
-
 ## 4. Autonomous `agent:ready` proposal issues
 
 When handing off or pausing work on an `agent:ready` GitHub issue (see
@@ -142,4 +140,3 @@ When starting from a handoff:
 3. Choose a new `--run-id` for the new session. Your first
    `vp run agent:ledger -- log` call with that `run_id` automatically appends a
    `resume` / `start` marker linking back to the previous `run_id`.
-```

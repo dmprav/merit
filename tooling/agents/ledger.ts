@@ -1,21 +1,18 @@
 import { randomUUID } from "node:crypto";
 import {
   appendFileSync,
-  closeSync,
-  constants as fsConstants,
   existsSync,
   mkdirSync,
-  openSync,
   readFileSync,
   renameSync,
-  statSync,
-  unlinkSync,
   writeFileSync,
 } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { z } from "zod";
+
+import { type FileLockOptions, getErrnoCode, withFileLock } from "./file-lock.ts";
 
 export const LEDGER_SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 export const MAX_LEDGER_SLUG_LENGTH = 64;
@@ -40,11 +37,8 @@ const ISO_TIMESTAMP_PATTERN =
   /^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2}))?$/;
 const POSITIVE_INT_PATTERN = /^\d+$/;
 
-const DEFAULT_LOCK_TIMEOUT_MS = 15_000;
-const DEFAULT_LOCK_STALE_MS = 30_000;
-const DEFAULT_LOCK_INITIAL_DELAY_MS = 15;
-const DEFAULT_LOCK_MAX_DELAY_MS = 150;
-const LOCK_WRITE_GRACE_MS = 1_000;
+const DEFAULT_LEDGER_LOCK_INITIAL_DELAY_MS = 15;
+const DEFAULT_LEDGER_LOCK_MAX_DELAY_MS = 150;
 
 const KNOWN_CLI_FLAGS = new Set([
   "--slug",
@@ -62,20 +56,62 @@ const KNOWN_CLI_FLAGS = new Set([
   "-h",
 ]);
 
-const lockMetadataSchema = z.object({
-  pid: z.number().int().positive(),
-  token: z.string().min(1),
-  createdAt: z.number().int().nonnegative(),
+const isControlCharCode = (code: number): boolean =>
+  code <= 0x1f || code === 0x7f || code === 0x2028 || code === 0x2029;
+
+const hasControlChars = (value: string): boolean => {
+  for (let index = 0; index < value.length; index += 1) {
+    if (isControlCharCode(value.charCodeAt(index))) {
+      return true;
+    }
+  }
+  return false;
+};
+
+const isValidIsoTimestamp = (value: string): boolean =>
+  ISO_TIMESTAMP_PATTERN.test(value) && Number.isFinite(Date.parse(value));
+
+const requiredLedgerCellSchema = z.string().superRefine((value, ctx) => {
+  if (hasControlChars(value)) {
+    ctx.addIssue({ code: "custom", message: "must not contain control characters" });
+    return;
+  }
+  if (value.trim().length === 0) {
+    ctx.addIssue({ code: "custom", message: "must be non-empty" });
+  }
+});
+
+const optionalLedgerCellSchema = z.string().superRefine((value, ctx) => {
+  if (hasControlChars(value)) {
+    ctx.addIssue({ code: "custom", message: "must not contain control characters" });
+    return;
+  }
+  if (value.length > 0 && value.trim().length === 0) {
+    ctx.addIssue({ code: "custom", message: "must not be whitespace-only" });
+  }
+});
+
+const ledgerTimestampSchema = z.string().superRefine((value, ctx) => {
+  if (hasControlChars(value)) {
+    ctx.addIssue({ code: "custom", message: "must not contain control characters" });
+    return;
+  }
+  if (!isValidIsoTimestamp(value)) {
+    ctx.addIssue({
+      code: "custom",
+      message: 'must be a valid ISO-8601 timestamp (e.g. "2026-11-24T22:00:00.000Z")',
+    });
+  }
 });
 
 export const ledgerEntrySchema = z.object({
-  ts: z.string().min(1),
-  run_id: z.string().min(1),
-  phase: z.string().min(1),
-  decision: z.string().min(1),
-  why: z.string().min(1),
-  evidence: z.string(),
-  result: z.string(),
+  ts: ledgerTimestampSchema,
+  run_id: requiredLedgerCellSchema,
+  phase: requiredLedgerCellSchema,
+  decision: requiredLedgerCellSchema,
+  why: requiredLedgerCellSchema,
+  evidence: optionalLedgerCellSchema,
+  result: optionalLedgerCellSchema,
 });
 
 export type LedgerEntry = z.infer<typeof ledgerEntrySchema>;
@@ -122,12 +158,10 @@ export const ledgerSummarySchema = z.object({
 
 export type LedgerSummary = z.infer<typeof ledgerSummarySchema>;
 
-export type LedgerLockOptions = {
-  timeoutMs?: number;
-  staleMs?: number;
-  initialDelayMs?: number;
-  maxDelayMs?: number;
-};
+export type LedgerLockOptions = Pick<
+  FileLockOptions,
+  "timeoutMs" | "staleMs" | "initialDelayMs" | "maxDelayMs"
+>;
 
 export type LedgerLogInput = {
   slug?: string;
@@ -213,9 +247,7 @@ export const ledgerLockPathForFile = (filePath: string): string => `${filePath}.
 const replaceControlCharsWithSpace = (value: string): string => {
   let result = "";
   for (let index = 0; index < value.length; index += 1) {
-    const code = value.charCodeAt(index);
-    const isControl = code <= 0x1f || code === 0x7f || code === 0x2028 || code === 0x2029;
-    result += isControl ? " " : value[index];
+    result += isControlCharCode(value.charCodeAt(index)) ? " " : value[index];
   }
   return result;
 };
@@ -242,7 +274,7 @@ const requireSanitizedCell = (fieldName: string, rawValue: string): string => {
 
 const validateTimestamp = (rawTs: string): string => {
   const trimmed = rawTs.trim();
-  if (!ISO_TIMESTAMP_PATTERN.test(trimmed) || !Number.isFinite(Date.parse(trimmed))) {
+  if (!isValidIsoTimestamp(trimmed)) {
     throw new Error(
       `Invalid --ts value "${rawTs}". Expected an ISO-8601 timestamp (e.g. "2026-11-24T22:00:00.000Z").`,
     );
@@ -293,7 +325,20 @@ export const parseLedgerTsv = (content: string, filePath: string): LedgerEntry[]
       result: cols[6],
     });
     if (!parsed.success) {
-      const detail = parsed.error.issues.map((issue) => issue.message).join("; ");
+      const issues = parsed.error.issues;
+      if (issues.length === 1 && issues[0]) {
+        const column = issues[0].path.map(String).join(".");
+        const fieldSuffix = column ? ` (${column})` : "";
+        throw new Error(
+          `Malformed decision ledger at "${filePath}" line ${lineNumber}${fieldSuffix}: ${issues[0].message}.`,
+        );
+      }
+      const detail = issues
+        .map((issue) => {
+          const column = issue.path.map(String).join(".");
+          return column ? `${column}: ${issue.message}` : issue.message;
+        })
+        .join("; ");
       throw new Error(`Malformed decision ledger at "${filePath}" line ${lineNumber}: ${detail}.`);
     }
     entries.push(parsed.data);
@@ -302,138 +347,18 @@ export const parseLedgerTsv = (content: string, filePath: string): LedgerEntry[]
   return entries;
 };
 
-const getErrnoCode = (error: unknown): string | undefined => {
-  if (typeof error === "object" && error !== null && "code" in error) {
-    const { code } = error;
-    return typeof code === "string" ? code : undefined;
-  }
-  return undefined;
-};
-
-const isProcessAlive = (pid: number): boolean => {
-  if (!Number.isInteger(pid) || pid <= 0) {
-    return false;
-  }
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error) {
-    return getErrnoCode(error) === "EPERM";
-  }
-};
-
-const tryClearStaleLock = (lockPath: string, staleMs: number): boolean => {
-  let raw: string;
-  let mtimeMs: number;
-  try {
-    const stat = statSync(lockPath);
-    mtimeMs = stat.mtimeMs;
-    raw = readFileSync(lockPath, "utf8");
-  } catch {
-    return false;
-  }
-
-  const ageMs = Date.now() - mtimeMs;
-  const corruptGraceMs = Math.min(staleMs, LOCK_WRITE_GRACE_MS);
-  let stale = false;
-  if (raw.trim().length > 0) {
-    try {
-      const parsed = lockMetadataSchema.safeParse(JSON.parse(raw));
-      if (parsed.success) {
-        // Never expire valid lock metadata solely by age while its owner process is still alive.
-        stale = !isProcessAlive(parsed.data.pid);
-      } else {
-        stale = ageMs >= corruptGraceMs;
-      }
-    } catch {
-      stale = ageMs >= corruptGraceMs;
-    }
-  } else {
-    stale = ageMs >= corruptGraceMs;
-  }
-
-  if (!stale) {
-    return false;
-  }
-
-  try {
-    if (readFileSync(lockPath, "utf8") === raw) {
-      unlinkSync(lockPath);
-      return true;
-    }
-  } catch {
-    // Another process already removed or replaced it.
-  }
-  return false;
-};
-
-const sleep = (ms: number): Promise<void> =>
-  new Promise((resolveSleep) => {
-    setTimeout(resolveSleep, ms);
-  });
-
 export const withLedgerLock = async <T>(
   filePath: string,
   operation: () => Promise<T> | T,
   options: LedgerLockOptions = {},
-): Promise<T> => {
-  const timeoutMs = options.timeoutMs ?? DEFAULT_LOCK_TIMEOUT_MS;
-  const staleMs = options.staleMs ?? DEFAULT_LOCK_STALE_MS;
-  const initialDelayMs = options.initialDelayMs ?? DEFAULT_LOCK_INITIAL_DELAY_MS;
-  const maxDelayMs = options.maxDelayMs ?? DEFAULT_LOCK_MAX_DELAY_MS;
-
-  const lockPath = ledgerLockPathForFile(filePath);
-  mkdirSync(dirname(lockPath), { recursive: true });
-
-  const token = randomUUID();
-  const payload = `${JSON.stringify({ pid: process.pid, token, createdAt: Date.now() })}\n`;
-  const deadline = Date.now() + timeoutMs;
-  let delayMs = initialDelayMs;
-  let acquired = false;
-
-  while (!acquired) {
-    try {
-      const fd = openSync(
-        lockPath,
-        fsConstants.O_CREAT | fsConstants.O_EXCL | fsConstants.O_WRONLY,
-        0o600,
-      );
-      try {
-        writeFileSync(fd, payload, "utf8");
-      } finally {
-        closeSync(fd);
-      }
-      acquired = true;
-    } catch (error) {
-      if (getErrnoCode(error) !== "EEXIST") {
-        throw error;
-      }
-      if (tryClearStaleLock(lockPath, staleMs)) {
-        continue;
-      }
-      const remainingMs = deadline - Date.now();
-      if (remainingMs <= 0) {
-        throw new Error(
-          `Timed out waiting for decision ledger lock at "${lockPath}" after ${timeoutMs}ms.`,
-        );
-      }
-      await sleep(Math.min(delayMs, remainingMs));
-      delayMs = Math.min(delayMs * 2, maxDelayMs);
-    }
-  }
-
-  try {
-    return await operation();
-  } finally {
-    try {
-      if (readFileSync(lockPath, "utf8") === payload) {
-        unlinkSync(lockPath);
-      }
-    } catch {
-      // Lock file already removed.
-    }
-  }
-};
+): Promise<T> =>
+  withFileLock(ledgerLockPathForFile(filePath), operation, {
+    label: "decision ledger",
+    timeoutMs: options.timeoutMs,
+    staleMs: options.staleMs,
+    initialDelayMs: options.initialDelayMs ?? DEFAULT_LEDGER_LOCK_INITIAL_DELAY_MS,
+    maxDelayMs: options.maxDelayMs ?? DEFAULT_LEDGER_LOCK_MAX_DELAY_MS,
+  });
 
 const isResumeStartRow = (entry: LedgerEntry): boolean => entry.decision.toLowerCase() === "start";
 
