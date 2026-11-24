@@ -338,7 +338,7 @@ test("create and continue preparing a round and application", async ({ page }, t
 
   await expect(dialog.getByRole("textbox", { name: "Budget" })).toBeFocused();
 
-  await page.keyboard.type("50,000.00");
+  await page.keyboard.insertText("50,000.00");
 
   await expect(dialog.getByText("€", { exact: true })).toBeVisible();
 
@@ -364,7 +364,7 @@ test("create and continue preparing a round and application", async ({ page }, t
   await expect(dialog.getByRole("textbox", { name: "Purpose" })).toHaveValue(
     "Support neighbourhood projects that bring people together.",
   );
-  await expect(dialog.getByRole("textbox", { name: "Budget" })).toHaveValue("50,000.00");
+  await expect(dialog.getByRole("textbox", { name: "Budget" })).toHaveValue("50000.00");
 
   await dialog.screenshot({ path: testInfo.outputPath("round-creation.png") });
   await dialog.getByRole("textbox", { name: "Purpose" }).fill("Long grant evidence. ".repeat(400));

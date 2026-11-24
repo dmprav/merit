@@ -7,6 +7,7 @@ import {
   Form,
   FormActions,
   FormDateField,
+  FormMoneyField,
   FormTextField,
   useForm,
   useTranslatedSchema,
@@ -95,10 +96,10 @@ export const CreationForm = ({
           )}
           <form.Field name="amount">
             {(field) => (
-              <FormTextField
+              <FormMoneyField
                 field={field}
+                precisionMessage={t("validation.amountPrecision")}
                 label={t(isRound ? "creation.budget" : "intake.requested")}
-                inputMode="decimal"
                 maxLength={limits.amount}
                 placeholder={t(isRound ? "preparation.notSet" : "intake.notKnown")}
                 prefix={{

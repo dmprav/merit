@@ -277,18 +277,25 @@ it("opens the saved application and clears the draft for the next creation", asy
   );
 });
 
-it("rejects a negative requested amount before saving and focuses the amount", async () => {
+it("rejects a negative sign in the requested amount as it is typed and shows the precision status", async () => {
   const user = setup(true);
   await user.click(screen.getByRole("button", { name: "Add application" }));
+  const amount = screen.getByRole("textbox", { name: "Requested amount" });
+  await user.type(amount, "-");
+
+  expect(amount).toHaveValue("");
+  expect(screen.getByRole("status")).toHaveTextContent(
+    "Enter no more than two decimal places. The amount was not changed.",
+  );
+
+  await user.type(amount, "1");
   await user.type(screen.getByRole("textbox", { name: "Project title" }), "Draft");
-  await user.type(screen.getByRole("textbox", { name: "Requested amount" }), "-1");
   await user.keyboard("{Control>}{Enter}{/Control}");
 
-  expect(createApplication).not.toHaveBeenCalled();
-  expect(screen.getByRole("alert")).toHaveTextContent(
-    "Enter an amount with no more than two decimal places, such as 24000.50.",
+  const requested: unknown = expect.objectContaining({ requested: "1.00" });
+  await waitFor(() =>
+    expect(createApplication).toHaveBeenCalledExactlyOnceWith({ data: requested }),
   );
-  expect(screen.getByRole("textbox", { name: "Requested amount" })).toHaveFocus();
 });
 
 it("discards an application draft explicitly so the next creation starts empty", async () => {

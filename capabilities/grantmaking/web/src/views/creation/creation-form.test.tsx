@@ -112,3 +112,103 @@ it.each([
     );
   },
 );
+
+const renderAmount = (kind: "round" | "application", amount = "") => {
+  const onSave = vi.fn().mockResolvedValue(null);
+  render(
+    <MessagesProvider messages={grantmakingMessages}>
+      <CreationForm
+        target={
+          kind === "round"
+            ? { kind: "round", workspaceSlug: "alder", workspaceName: "Alder" }
+            : {
+                kind: "application",
+                workspaceSlug: "alder",
+                roundPublicId: "k7m2p9x4n6rt",
+                roundTitle: "Spring grants",
+              }
+        }
+        draft={{
+          requestId: crypto.randomUUID(),
+          title: "Community grants",
+          body: "",
+          amount,
+          meetingDate: "",
+          applicant: "",
+        }}
+        onChange={vi.fn()}
+        onDiscard={vi.fn()}
+        onClose={vi.fn()}
+        onSave={onSave}
+      />
+    </MessagesProvider>,
+  );
+  return {
+    onSave,
+    user: userEvent.setup(),
+    amount: screen.getByRole("textbox", {
+      name: kind === "round" ? "Budget" : "Requested amount",
+    }),
+    save: () =>
+      screen.getByRole("button", {
+        name:
+          kind === "round"
+            ? grantmakingMessages.fundingRounds.preparation.create
+            : grantmakingMessages.fundingRounds.intake.add,
+      }),
+  };
+};
+
+it.each(["round", "application"] as const)(
+  "rejects a third decimal typed or pasted into the %s creation amount",
+  async (kind) => {
+    const { user, amount } = renderAmount(kind);
+
+    await user.type(amount, "12.345");
+    expect(amount).toHaveValue("12.34");
+    expect(screen.getByRole("status")).toHaveTextContent(
+      grantmakingMessages.fundingRounds.validation.amountPrecision,
+    );
+
+    await user.clear(amount);
+    await user.paste("99.999");
+    expect(amount).toHaveValue("");
+    expect(screen.getByRole("status")).toHaveTextContent(
+      grantmakingMessages.fundingRounds.validation.amountPrecision,
+    );
+  },
+);
+
+it.each(["round", "application"] as const)(
+  "normalizes an unfinished %s creation amount on blur and keeps an empty amount unset",
+  async (kind) => {
+    const { user, amount, save, onSave } = renderAmount(kind);
+
+    await user.type(amount, "12.");
+    await user.tab();
+    expect(amount).toHaveValue("12.00");
+
+    await user.clear(amount);
+    await user.click(save());
+
+    expect(onSave).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ amount: "" }));
+  },
+);
+
+it("keeps a restored invalid creation amount until it is corrected", async () => {
+  const { user, amount, save, onSave } = renderAmount("round", "123.456");
+
+  await user.click(amount);
+  await user.tab();
+  expect(amount).toHaveValue("123.456");
+
+  await user.click(save());
+  expect(amount).toHaveAttribute("aria-invalid", "true");
+  expect(onSave).not.toHaveBeenCalled();
+  await waitFor(() => expect(amount).toHaveFocus());
+
+  await user.clear(amount);
+  await user.type(amount, "123.45");
+  await user.click(save());
+  expect(onSave).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ amount: "123.45" }));
+});
