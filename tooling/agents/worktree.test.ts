@@ -6,6 +6,7 @@ import {
   readFileSync,
   realpathSync,
   rmSync,
+  utimesSync,
   writeFileSync,
 } from "node:fs";
 import { createServer } from "node:net";
@@ -30,8 +31,10 @@ import {
   parseGitWorktreePorcelain,
   parseListArgs,
   readWorktreeRegistry,
+  registryLockPathForRepo,
   resolvePrimaryRepoRoot,
   validateWorktreeSlug,
+  withWorktreeRegistryLock,
   WORKTREE_PORT_BASES,
   writeWorktreeRegistry,
 } from "./worktree.ts";
@@ -420,6 +423,7 @@ describe("worktree lifecycle in temp git repos", () => {
     ).rejects.toThrow(/pnpm install failed/);
     expect(existsSync(join(repo, ".tmp/worktrees/broken-install"))).toBe(false);
     expect(git(repo, ["branch", "--list", "worktree/broken-install"])).toBe("");
+    expect(readWorktreeRegistry(repo).worktrees["broken-install"]).toBeUndefined();
 
     // Succeeds against local `main` when origin/main does not exist.
     const created = await createWorktree(
@@ -478,5 +482,239 @@ describe("worktree lifecycle in temp git repos", () => {
     );
     expect(cleaned.branchDeleted).toBe(false);
     expect(git(repo, ["branch", "--list", "main"])).toContain("main");
+  });
+
+  test("serializes concurrent createWorktree calls to assign disjoint ports and preserve all registry records", async () => {
+    const repo = initTempRepo(false);
+    const createdDbs: string[] = [];
+
+    const delay = (ms: number) =>
+      new Promise<void>((resolveDelay) => {
+        setTimeout(resolveDelay, ms);
+      });
+
+    const deps = {
+      execCommand: async (command: string) => {
+        if (command === "pnpm") {
+          await delay(60);
+        }
+      },
+      checkPortAvailable: async () => {
+        await delay(10);
+        return true;
+      },
+      isPostgresReachable: async () => true,
+      ensureDatabase: async (name: string) => {
+        await delay(20);
+        createdDbs.push(name);
+        return { created: true };
+      },
+    };
+
+    const [alpha, beta] = await Promise.all([
+      createWorktree(
+        {
+          slug: "alpha",
+          dbMode: "required",
+          doctor: false,
+          json: true,
+          primaryRepoRoot: repo,
+        },
+        deps,
+      ),
+      createWorktree(
+        {
+          slug: "beta",
+          dbMode: "required",
+          doctor: false,
+          json: true,
+          primaryRepoRoot: repo,
+        },
+        deps,
+      ),
+    ]);
+
+    const alphaPorts = new Set(Object.values(alpha.ports));
+    for (const port of Object.values(beta.ports)) {
+      expect(alphaPorts.has(port)).toBe(false);
+    }
+
+    const registry = readWorktreeRegistry(repo);
+    expect(Object.keys(registry.worktrees).sort()).toEqual(["alpha", "beta"]);
+    expect(registry.worktrees.alpha?.ports).toEqual(alpha.ports);
+    expect(registry.worktrees.beta?.ports).toEqual(beta.ports);
+    expect(registry.worktrees.alpha?.databaseCreated).toBe(true);
+    expect(registry.worktrees.beta?.databaseCreated).toBe(true);
+    expect(createdDbs.sort()).toEqual(["merit_alpha", "merit_beta"]);
+    expect(existsSync(registryLockPathForRepo(repo))).toBe(false);
+  });
+
+  test("cleanWorktree re-reads .registry.json under lock and preserves a sibling registered mid-clean", async () => {
+    const repo = initTempRepo(false);
+    const baseDeps = {
+      execCommand: () => {},
+      checkPortAvailable: async () => true,
+      isPostgresReachable: async () => true,
+      ensureDatabase: async () => ({ created: true }),
+    };
+
+    await createWorktree(
+      {
+        slug: "alpha",
+        dbMode: "auto",
+        doctor: false,
+        json: true,
+        primaryRepoRoot: repo,
+      },
+      baseDeps,
+    );
+
+    const cleaned = await cleanWorktree(
+      { slug: "alpha", keepBranch: false, json: true, primaryRepoRoot: repo },
+      {
+        isPostgresReachable: async () => true,
+        dropDatabase: async () => {
+          // Register sibling worktree while alpha is mid-clean.
+          await createWorktree(
+            {
+              slug: "beta",
+              dbMode: "skip",
+              doctor: false,
+              json: true,
+              primaryRepoRoot: repo,
+            },
+            baseDeps,
+          );
+        },
+      },
+    );
+
+    expect(cleaned.registryRemoved).toBe(true);
+    const registry = readWorktreeRegistry(repo);
+    expect(registry.worktrees.alpha).toBeUndefined();
+    expect(registry.worktrees.beta).toBeDefined();
+    expect(listWorktrees({ primaryRepoRoot: repo }).map((entry) => entry.slug)).toEqual(["beta"]);
+  });
+
+  test("recovers stale registry lock files before acquiring the lock", async () => {
+    const repo = initTempRepo(false);
+    const lockPath = registryLockPathForRepo(repo);
+    mkdirSync(join(repo, ".tmp/worktrees"), { recursive: true });
+    writeFileSync(
+      lockPath,
+      `${JSON.stringify({ pid: process.pid, token: "stale-token", createdAt: 0 })}\n`,
+      "utf8",
+    );
+    const expired = new Date(Date.now() - 60_000);
+    utimesSync(lockPath, expired, expired);
+
+    const value = await withWorktreeRegistryLock(repo, () => "acquired", {
+      staleMs: 5_000,
+      timeoutMs: 2_000,
+    });
+    expect(value).toBe("acquired");
+    expect(existsSync(lockPath)).toBe(false);
+  });
+
+  test("cleanWorktree prunes stale git metadata and cleans DB, registry, and branch when the directory was already removed", async () => {
+    const repo = initTempRepo(false);
+    const droppedDbs: string[] = [];
+
+    const created = await createWorktree(
+      {
+        slug: "gone-dir",
+        dbMode: "auto",
+        doctor: false,
+        json: true,
+        primaryRepoRoot: repo,
+      },
+      {
+        execCommand: () => {},
+        checkPortAvailable: async () => true,
+        isPostgresReachable: async () => true,
+        ensureDatabase: async () => ({ created: true }),
+      },
+    );
+
+    // Manually delete the worktree directory so git marks it prunable.
+    rmSync(created.path, { recursive: true, force: true });
+    expect(existsSync(created.path)).toBe(false);
+    expect(git(repo, ["worktree", "list", "--porcelain"])).toContain(created.path);
+
+    const cleaned = await cleanWorktree(
+      { slug: "gone-dir", keepBranch: false, json: true, primaryRepoRoot: repo },
+      {
+        isPostgresReachable: async () => true,
+        dropDatabase: async (name) => {
+          droppedDbs.push(name);
+        },
+      },
+    );
+
+    expect(cleaned).toMatchObject({
+      slug: "gone-dir",
+      worktreeRemoved: true,
+      databaseName: "merit_gone_dir",
+      databaseDropped: true,
+      branchDeleted: true,
+      registryRemoved: true,
+    });
+    expect(droppedDbs).toEqual(["merit_gone_dir"]);
+    expect(git(repo, ["worktree", "list", "--porcelain"])).not.toContain(created.path);
+    expect(git(repo, ["branch", "--list", "worktree/gone-dir"])).toBe("");
+    expect(readWorktreeRegistry(repo).worktrees["gone-dir"]).toBeUndefined();
+  });
+
+  test("rolls back database, worktree, branch, and .registry.json when --doctor fails after DB creation", async () => {
+    const repo = initTempRepo(false);
+    const droppedDbs: string[] = [];
+
+    // Seed an unrelated sibling worktree to ensure rollback only removes the failed slug.
+    await createWorktree(
+      {
+        slug: "sibling",
+        dbMode: "skip",
+        doctor: false,
+        json: true,
+        primaryRepoRoot: repo,
+      },
+      {
+        execCommand: () => {},
+        checkPortAvailable: async () => true,
+      },
+    );
+
+    await expect(
+      createWorktree(
+        {
+          slug: "doctor-fail",
+          dbMode: "required",
+          doctor: true,
+          json: true,
+          primaryRepoRoot: repo,
+        },
+        {
+          execCommand: (_command, args) => {
+            if (args.includes("--doctor")) {
+              throw new Error("doctor check failed");
+            }
+          },
+          checkPortAvailable: async () => true,
+          isPostgresReachable: async () => true,
+          ensureDatabase: async () => ({ created: true }),
+          dropDatabase: async (name) => {
+            droppedDbs.push(name);
+          },
+        },
+      ),
+    ).rejects.toThrow(/doctor check failed/);
+
+    expect(droppedDbs).toEqual(["merit_doctor_fail"]);
+    expect(existsSync(join(repo, ".tmp/worktrees/doctor-fail"))).toBe(false);
+    expect(git(repo, ["worktree", "list", "--porcelain"])).not.toContain("doctor-fail");
+    expect(git(repo, ["branch", "--list", "worktree/doctor-fail"])).toBe("");
+    const registry = readWorktreeRegistry(repo);
+    expect(registry.worktrees["doctor-fail"]).toBeUndefined();
+    expect(registry.worktrees.sibling).toBeDefined();
   });
 });

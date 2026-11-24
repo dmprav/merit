@@ -1,12 +1,17 @@
 import { execFileSync, type ExecFileSyncOptions } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import {
+  closeSync,
+  constants as fsConstants,
   existsSync,
   mkdirSync,
+  openSync,
   readFileSync,
   realpathSync,
   renameSync,
   rmSync,
+  statSync,
+  unlinkSync,
   writeFileSync,
 } from "node:fs";
 import { createServer } from "node:net";
@@ -145,18 +150,26 @@ export type GitWorktreeEntry = {
   branch?: string;
 };
 
+export type RegistryLockOptions = {
+  timeoutMs?: number;
+  staleMs?: number;
+  initialDelayMs?: number;
+  maxDelayMs?: number;
+};
+
 export type WorktreeDeps = {
   execGit?: (cwd: string, args: readonly string[]) => string;
   execCommand?: (
     command: string,
     args: readonly string[],
     options: { cwd: string; quiet: boolean },
-  ) => void;
+  ) => void | Promise<void>;
   checkPortAvailable?: (port: number) => Promise<boolean>;
   isPostgresReachable?: () => Promise<boolean>;
   ensureDatabase?: (databaseName: string) => Promise<{ created: boolean }>;
   dropDatabase?: (databaseName: string) => Promise<void>;
   now?: () => Date;
+  lockOptions?: RegistryLockOptions;
 };
 
 export const validateWorktreeSlug = (slug: string): string => {
@@ -388,6 +401,154 @@ export const resolvePrimaryRepoRoot = (
 export const registryPathForRepo = (primaryRepoRoot: string): string =>
   join(primaryRepoRoot, ".tmp", "worktrees", ".registry.json");
 
+export const registryLockPathForRepo = (primaryRepoRoot: string): string =>
+  join(primaryRepoRoot, ".tmp", "worktrees", ".registry.lock");
+
+const DEFAULT_LOCK_TIMEOUT_MS = 15_000;
+const DEFAULT_LOCK_STALE_MS = 30_000;
+const DEFAULT_LOCK_INITIAL_DELAY_MS = 25;
+const DEFAULT_LOCK_MAX_DELAY_MS = 250;
+const LOCK_WRITE_GRACE_MS = 1_000;
+
+const lockMetadataSchema = z.object({
+  pid: z.number().int().positive(),
+  token: z.string().min(1),
+  createdAt: z.number().int().nonnegative(),
+});
+
+const getErrnoCode = (error: unknown): string | undefined => {
+  if (typeof error === "object" && error !== null && "code" in error) {
+    const { code } = error;
+    return typeof code === "string" ? code : undefined;
+  }
+  return undefined;
+};
+
+const isProcessAlive = (pid: number): boolean => {
+  if (!Number.isInteger(pid) || pid <= 0) {
+    return false;
+  }
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return getErrnoCode(error) === "EPERM";
+  }
+};
+
+const tryClearStaleLock = (lockPath: string, staleMs: number): boolean => {
+  let raw: string;
+  let mtimeMs: number;
+  try {
+    const stat = statSync(lockPath);
+    mtimeMs = stat.mtimeMs;
+    raw = readFileSync(lockPath, "utf8");
+  } catch {
+    return false;
+  }
+
+  const ageMs = Date.now() - mtimeMs;
+  let stale = ageMs >= staleMs;
+  if (!stale && raw.trim().length > 0) {
+    try {
+      const parsed = lockMetadataSchema.safeParse(JSON.parse(raw));
+      if (parsed.success && !isProcessAlive(parsed.data.pid)) {
+        stale = true;
+      } else if (!parsed.success && ageMs >= LOCK_WRITE_GRACE_MS) {
+        stale = true;
+      }
+    } catch {
+      if (ageMs >= LOCK_WRITE_GRACE_MS) {
+        stale = true;
+      }
+    }
+  } else if (!stale && ageMs >= LOCK_WRITE_GRACE_MS) {
+    stale = true;
+  }
+
+  if (!stale) {
+    return false;
+  }
+
+  try {
+    if (readFileSync(lockPath, "utf8") === raw) {
+      unlinkSync(lockPath);
+      return true;
+    }
+  } catch {
+    // Another process already removed or replaced it.
+  }
+  return false;
+};
+
+const sleep = (ms: number): Promise<void> =>
+  new Promise((resolveSleep) => {
+    setTimeout(resolveSleep, ms);
+  });
+
+export const withWorktreeRegistryLock = async <T>(
+  primaryRepoRoot: string,
+  operation: () => Promise<T> | T,
+  options: RegistryLockOptions = {},
+): Promise<T> => {
+  const timeoutMs = options.timeoutMs ?? DEFAULT_LOCK_TIMEOUT_MS;
+  const staleMs = options.staleMs ?? DEFAULT_LOCK_STALE_MS;
+  const initialDelayMs = options.initialDelayMs ?? DEFAULT_LOCK_INITIAL_DELAY_MS;
+  const maxDelayMs = options.maxDelayMs ?? DEFAULT_LOCK_MAX_DELAY_MS;
+
+  const lockPath = registryLockPathForRepo(primaryRepoRoot);
+  mkdirSync(dirname(lockPath), { recursive: true });
+
+  const token = randomUUID();
+  const payload = `${JSON.stringify({ pid: process.pid, token, createdAt: Date.now() })}\n`;
+  const deadline = Date.now() + timeoutMs;
+  let delayMs = initialDelayMs;
+  let acquired = false;
+
+  while (!acquired) {
+    try {
+      const fd = openSync(
+        lockPath,
+        fsConstants.O_CREAT | fsConstants.O_EXCL | fsConstants.O_WRONLY,
+        0o600,
+      );
+      try {
+        writeFileSync(fd, payload, "utf8");
+      } finally {
+        closeSync(fd);
+      }
+      acquired = true;
+    } catch (error) {
+      if (getErrnoCode(error) !== "EEXIST") {
+        throw error;
+      }
+      if (tryClearStaleLock(lockPath, staleMs)) {
+        continue;
+      }
+      const remainingMs = deadline - Date.now();
+      if (remainingMs <= 0) {
+        throw new Error(
+          `Timed out waiting for worktree registry lock at "${lockPath}" after ${timeoutMs}ms.`,
+        );
+      }
+      await sleep(Math.min(delayMs, remainingMs));
+      delayMs = Math.min(delayMs * 2, maxDelayMs);
+    }
+  }
+
+  try {
+    return await operation();
+  } finally {
+    try {
+      if (readFileSync(lockPath, "utf8") === payload) {
+        unlinkSync(lockPath);
+      }
+    } catch {
+      // Lock file already removed.
+    }
+  }
+};
+
 export const readWorktreeRegistry = (primaryRepoRoot: string): WorktreeRegistry => {
   const path = registryPathForRepo(primaryRepoRoot);
   if (!existsSync(path)) {
@@ -610,27 +771,6 @@ export const createWorktree = async (
     throw new Error(`Refusing to use protected branch name "${branch}" for a worktree.`);
   }
 
-  const registry = readWorktreeRegistry(primaryRepoRoot);
-  const gitWorktrees = getActiveGitWorktrees(primaryRepoRoot, execGit);
-  const activePaths = new Set(gitWorktrees.map((entry) => canonicalPath(entry.path)));
-
-  const existingRecord = registry.worktrees[slug];
-  if (existingRecord && activePaths.has(canonicalPath(existingRecord.path))) {
-    throw new Error(
-      `Worktree "${slug}" already exists at ${existingRecord.path}. Run \`vp run worktree:clean ${slug}\` first.`,
-    );
-  }
-  if (existsSync(targetDir)) {
-    throw new Error(
-      `Target directory "${targetDir}" already exists. Choose a different --dir or clean it up first.`,
-    );
-  }
-  if (gitRefExists(primaryRepoRoot, `refs/heads/${branch}`, execGit)) {
-    throw new Error(
-      `Branch "${branch}" already exists. Choose a different --branch or delete the existing branch first.`,
-    );
-  }
-
   const baseRef = resolveBaseRef(primaryRepoRoot, options.base, execGit);
   const databaseName = databaseNameForSlug(slug);
   const databaseUrl = buildLocalDatabaseUrl(databaseName);
@@ -646,31 +786,75 @@ export const createWorktree = async (
     }
   }
 
-  const reservedPorts = collectReservedPorts(registry, activePaths);
-  const ports = await allocateWorktreePorts({ reservedPorts, checkPortAvailable });
-
-  mkdirSync(dirname(targetDir), { recursive: true });
-
   let worktreeAdded = false;
+  let registryReserved = false;
   let databaseCreated = false;
+  let resolvedTargetDir = targetDir;
   try {
-    execGit(primaryRepoRoot, ["worktree", "add", "-b", branch, targetDir, baseRef]);
-    worktreeAdded = true;
+    const { ports } = await withWorktreeRegistryLock(
+      primaryRepoRoot,
+      async () => {
+        const registry = readWorktreeRegistry(primaryRepoRoot);
+        const gitWorktrees = getActiveGitWorktrees(primaryRepoRoot, execGit);
+        const activePaths = new Set(gitWorktrees.map((entry) => canonicalPath(entry.path)));
 
-    const resolvedTargetDir = canonicalPath(targetDir);
+        const existingRecord = registry.worktrees[slug];
+        if (existingRecord && activePaths.has(canonicalPath(existingRecord.path))) {
+          throw new Error(
+            `Worktree "${slug}" already exists at ${existingRecord.path}. Run \`vp run worktree:clean ${slug}\` first.`,
+          );
+        }
+        if (existsSync(targetDir)) {
+          throw new Error(
+            `Target directory "${targetDir}" already exists. Choose a different --dir or clean it up first.`,
+          );
+        }
+        if (gitRefExists(primaryRepoRoot, `refs/heads/${branch}`, execGit)) {
+          throw new Error(
+            `Branch "${branch}" already exists. Choose a different --branch or delete the existing branch first.`,
+          );
+        }
+
+        const reservedPorts = collectReservedPorts(registry, activePaths);
+        const allocatedPorts = await allocateWorktreePorts({ reservedPorts, checkPortAvailable });
+
+        mkdirSync(dirname(targetDir), { recursive: true });
+        execGit(primaryRepoRoot, ["worktree", "add", "-b", branch, targetDir, baseRef]);
+        worktreeAdded = true;
+
+        resolvedTargetDir = canonicalPath(targetDir);
+        registry.worktrees[slug] = {
+          slug,
+          path: resolvedTargetDir,
+          branch,
+          baseRef,
+          databaseName,
+          databaseUrl,
+          databaseCreated: false,
+          ports: allocatedPorts,
+          createdAt: now().toISOString(),
+        };
+        writeWorktreeRegistry(primaryRepoRoot, registry);
+        registryReserved = true;
+
+        return { ports: allocatedPorts };
+      },
+      deps.lockOptions,
+    );
+
     writeFileSync(
       join(resolvedTargetDir, ".env.local"),
       formatWorktreeEnvFile({ slug, databaseUrl, ports }),
       "utf8",
     );
 
-    execCommand("pnpm", ["install", "--frozen-lockfile", "--prefer-offline"], {
+    await execCommand("pnpm", ["install", "--frozen-lockfile", "--prefer-offline"], {
       cwd: resolvedTargetDir,
       quiet: options.json,
     });
 
     const localVp = join(resolvedTargetDir, "node_modules/.bin/vp");
-    execCommand(existsSync(localVp) ? localVp : "vp", ["config", "--no-agent"], {
+    await execCommand(existsSync(localVp) ? localVp : "vp", ["config", "--no-agent"], {
       cwd: resolvedTargetDir,
       quiet: options.json,
     });
@@ -686,24 +870,25 @@ export const createWorktree = async (
       }
     }
 
-    const updatedRegistry = readWorktreeRegistry(primaryRepoRoot);
-    updatedRegistry.worktrees[slug] = {
-      slug,
-      path: resolvedTargetDir,
-      branch,
-      baseRef,
-      databaseName,
-      databaseUrl,
-      databaseCreated,
-      ports,
-      createdAt: now().toISOString(),
-    };
-    writeWorktreeRegistry(primaryRepoRoot, updatedRegistry);
+    if (databaseCreated) {
+      await withWorktreeRegistryLock(
+        primaryRepoRoot,
+        () => {
+          const updatedRegistry = readWorktreeRegistry(primaryRepoRoot);
+          const current = updatedRegistry.worktrees[slug];
+          if (current) {
+            updatedRegistry.worktrees[slug] = { ...current, databaseCreated: true };
+            writeWorktreeRegistry(primaryRepoRoot, updatedRegistry);
+          }
+        },
+        deps.lockOptions,
+      );
+    }
 
     if (options.doctor) {
       const doctorScript = join(resolvedTargetDir, ".agents/install-environment.sh");
       if (existsSync(doctorScript)) {
-        execCommand("bash", [doctorScript, "--doctor"], {
+        await execCommand("bash", [doctorScript, "--doctor"], {
           cwd: resolvedTargetDir,
           quiet: options.json,
         });
@@ -729,10 +914,15 @@ export const createWorktree = async (
       }
     }
     if (worktreeAdded) {
-      try {
-        execGit(primaryRepoRoot, ["worktree", "remove", "--force", targetDir]);
-      } catch {
-        rmSync(targetDir, { recursive: true, force: true });
+      if (existsSync(resolvedTargetDir)) {
+        try {
+          execGit(primaryRepoRoot, ["worktree", "remove", "--force", resolvedTargetDir]);
+        } catch {
+          rmSync(resolvedTargetDir, { recursive: true, force: true });
+        }
+      }
+      if (existsSync(resolvedTargetDir)) {
+        rmSync(resolvedTargetDir, { recursive: true, force: true });
       }
       try {
         execGit(primaryRepoRoot, ["worktree", "prune"]);
@@ -741,6 +931,24 @@ export const createWorktree = async (
       }
       try {
         execGit(primaryRepoRoot, ["branch", "-D", branch]);
+      } catch {
+        // Best-effort rollback.
+      }
+    }
+    if (registryReserved) {
+      try {
+        await withWorktreeRegistryLock(
+          primaryRepoRoot,
+          () => {
+            const latestRegistry = readWorktreeRegistry(primaryRepoRoot);
+            const current = latestRegistry.worktrees[slug];
+            if (current && canonicalPath(current.path) === resolvedTargetDir) {
+              delete latestRegistry.worktrees[slug];
+              writeWorktreeRegistry(primaryRepoRoot, latestRegistry);
+            }
+          },
+          deps.lockOptions,
+        );
       } catch {
         // Best-effort rollback.
       }
@@ -781,7 +989,7 @@ export const listWorktrees = (
 
 export const cleanWorktree = async (
   options: CleanCliOptions & { primaryRepoRoot: string },
-  deps: Pick<WorktreeDeps, "execGit" | "isPostgresReachable" | "dropDatabase"> = {},
+  deps: Pick<WorktreeDeps, "execGit" | "isPostgresReachable" | "dropDatabase" | "lockOptions"> = {},
 ): Promise<WorktreeCleanResult> => {
   const execGit = deps.execGit ?? defaultExecGit;
   const checkPostgres = deps.isPostgresReachable ?? (() => isLocalPostgresReachable());
@@ -789,8 +997,8 @@ export const cleanWorktree = async (
 
   const slug = validateWorktreeSlug(options.slug);
   const root = canonicalPath(options.primaryRepoRoot);
-  const registry = readWorktreeRegistry(root);
-  const record = registry.worktrees[slug];
+  const initialRegistry = readWorktreeRegistry(root);
+  const record = initialRegistry.worktrees[slug];
 
   const worktreePath = record?.path ?? join(root, ".tmp", "worktrees", slug);
   const normalizedPath = canonicalPath(worktreePath);
@@ -809,7 +1017,13 @@ export const cleanWorktree = async (
 
   let worktreeRemoved = false;
   if (registeredInGit) {
-    execGit(root, ["worktree", "remove", "--force", worktreePath]);
+    if (existsSync(worktreePath)) {
+      try {
+        execGit(root, ["worktree", "remove", "--force", worktreePath]);
+      } catch {
+        rmSync(worktreePath, { recursive: true, force: true });
+      }
+    }
     worktreeRemoved = true;
   }
   if (existsSync(worktreePath)) {
@@ -828,12 +1042,19 @@ export const cleanWorktree = async (
     );
   }
 
-  let registryRemoved = false;
-  if (slug in registry.worktrees) {
-    delete registry.worktrees[slug];
-    writeWorktreeRegistry(root, registry);
-    registryRemoved = true;
-  }
+  const registryRemoved = await withWorktreeRegistryLock(
+    root,
+    () => {
+      const latestRegistry = readWorktreeRegistry(root);
+      if (!(slug in latestRegistry.worktrees)) {
+        return false;
+      }
+      delete latestRegistry.worktrees[slug];
+      writeWorktreeRegistry(root, latestRegistry);
+      return true;
+    },
+    deps.lockOptions,
+  );
 
   let branchDeleted = false;
   const primaryBranch = currentBranchName(root, execGit);
