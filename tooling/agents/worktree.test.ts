@@ -11,7 +11,7 @@ import {
 } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 import { afterEach, describe, expect, test, vi } from "vite-plus/test";
 
@@ -716,5 +716,89 @@ describe("worktree lifecycle in temp git repos", () => {
     const registry = readWorktreeRegistry(repo);
     expect(registry.worktrees["doctor-fail"]).toBeUndefined();
     expect(registry.worktrees.sibling).toBeDefined();
+  });
+
+  test("cleanWorktree refuses to delete an ancestor directory of the primary repository root", async () => {
+    const outerDir = realpathSync(mkdtempSync(join(tmpdir(), "merit-worktree-outer-")));
+    tempDirs.push(outerDir);
+    const repo = join(outerDir, "repo");
+    mkdirSync(repo, { recursive: true });
+    git(repo, ["init", "-b", "main"]);
+    git(repo, ["config", "user.name", "Test"]);
+    git(repo, ["config", "user.email", "test@example.test"]);
+    writeFileSync(join(repo, "README.md"), "# Temp\n");
+    git(repo, ["add", "."]);
+    git(repo, ["commit", "-m", "chore: init"]);
+
+    const dropDatabase = vi.fn();
+    writeWorktreeRegistry(repo, {
+      version: 1,
+      worktrees: {
+        ancestor: {
+          slug: "ancestor",
+          path: dirname(repo),
+          branch: "worktree/ancestor",
+          baseRef: "main",
+          databaseName: "merit_ancestor",
+          databaseUrl: buildLocalDatabaseUrl("merit_ancestor"),
+          databaseCreated: false,
+          ports: WORKTREE_PORT_BASES,
+          createdAt: "2026-11-24T00:00:00.000Z",
+        },
+      },
+    });
+
+    await expect(
+      cleanWorktree(
+        { slug: "ancestor", keepBranch: false, json: true, primaryRepoRoot: repo },
+        { isPostgresReachable: async () => true, dropDatabase },
+      ),
+    ).rejects.toThrow(/primary repository root or ancestor directory/);
+
+    expect(dropDatabase).not.toHaveBeenCalled();
+    expect(existsSync(outerDir)).toBe(true);
+    expect(existsSync(repo)).toBe(true);
+  });
+
+  test("cleanWorktree skips deleting a branch that is checked out in another active worktree", async () => {
+    const repo = initTempRepo(false);
+    const active = await createWorktree(
+      {
+        slug: "active-peer",
+        branch: "feat/shared-branch",
+        dbMode: "skip",
+        doctor: false,
+        json: true,
+        primaryRepoRoot: repo,
+      },
+      {
+        execCommand: () => {},
+        checkPortAvailable: async () => true,
+      },
+    );
+
+    const registry = readWorktreeRegistry(repo);
+    registry.worktrees.stale = {
+      slug: "stale",
+      path: join(repo, ".tmp/worktrees/stale"),
+      branch: active.branch,
+      baseRef: "main",
+      databaseName: "merit_stale",
+      databaseUrl: buildLocalDatabaseUrl("merit_stale"),
+      databaseCreated: false,
+      ports: WORKTREE_PORT_BASES,
+      createdAt: "2026-11-24T00:00:00.000Z",
+    };
+    writeWorktreeRegistry(repo, registry);
+
+    const cleaned = await cleanWorktree(
+      { slug: "stale", keepBranch: false, json: true, primaryRepoRoot: repo },
+      { isPostgresReachable: async () => false },
+    );
+
+    expect(cleaned.branchDeleted).toBe(false);
+    expect(cleaned.registryRemoved).toBe(true);
+    expect(git(repo, ["branch", "--list", "feat/shared-branch"])).toContain("feat/shared-branch");
+    expect(existsSync(active.path)).toBe(true);
   });
 });

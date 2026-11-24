@@ -2,9 +2,9 @@ import { execFileSync, type ExecFileSyncOptions } from "node:child_process";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { loadRepoEnvLocal } from "../env.ts";
 import {
   DEFAULT_COMPOSE_DATABASE_URL,
-  loadRootEnvLocal,
   parseLocalComposeDatabase,
   recreateLocalDatabase,
   type LocalComposeDatabase,
@@ -70,7 +70,7 @@ export const resetLocalDatabase = async ({
 
 const runCli = async () => {
   const repoRoot = resolve(fileURLToPath(new URL("../../", import.meta.url)));
-  loadRootEnvLocal(repoRoot);
+  loadRepoEnvLocal(repoRoot);
   await resetLocalDatabase({ cwd: new URL("../../", import.meta.url), env: process.env });
 };
 

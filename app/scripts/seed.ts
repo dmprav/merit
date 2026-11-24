@@ -1,8 +1,13 @@
+import { resolve } from "node:path";
+
 import { withDatabase } from "@merit/db";
 import { seedExampleRounds, seedExampleReviewer } from "@merit/grantmaking/testing";
-import { loadRepoEnvLocal } from "@merit/test-support/env";
+import { loadEnvLocalFiles } from "@merit/test-support/env";
 
-loadRepoEnvLocal();
+loadEnvLocalFiles([
+  resolve(import.meta.dirname, "../.env.local"),
+  resolve(import.meta.dirname, "../../.env.local"),
+]);
 
 const [clerkUserId] = process.argv.slice(2);
 const connectionString = process.env.DATABASE_URL ?? "postgres://merit:merit@127.0.0.1:55432/merit";

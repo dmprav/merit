@@ -1,12 +1,15 @@
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 
 import { migrate } from "@merit/db/migrate";
-import { loadRepoEnvLocal } from "@merit/test-support/env";
+import { loadEnvLocalFiles } from "@merit/test-support/env";
 import { createTestDatabase } from "@merit/test-support/test-database";
 
-loadRepoEnvLocal();
+loadEnvLocalFiles([
+  resolve(import.meta.dirname, "../.env.local"),
+  resolve(import.meta.dirname, "../../.env.local"),
+]);
 
 const database = await createTestDatabase();
 try {

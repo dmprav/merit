@@ -1,6 +1,11 @@
-import { loadRepoEnvLocal, readPort } from "@merit/test-support/env";
+import { resolve } from "node:path";
 
-loadRepoEnvLocal();
+import { loadEnvLocalFiles, readPort } from "@merit/test-support/env";
+
+loadEnvLocalFiles([
+  resolve(import.meta.dirname, "../../.env.local"),
+  resolve(import.meta.dirname, "../../../.env.local"),
+]);
 
 export const appPort = readPort(process.env.MERIT_APP_PORT, 3001);
 export const appOrigin = `http://localhost:${appPort}`;

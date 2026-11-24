@@ -15,7 +15,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { createServer } from "node:net";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { z } from "zod";
@@ -1002,8 +1002,11 @@ export const cleanWorktree = async (
 
   const worktreePath = record?.path ?? join(root, ".tmp", "worktrees", slug);
   const normalizedPath = canonicalPath(worktreePath);
-  if (normalizedPath === root) {
-    throw new Error("Refusing to remove the primary repository root.");
+  const prefix = normalizedPath.endsWith(sep) ? normalizedPath : `${normalizedPath}${sep}`;
+  if (normalizedPath === root || root.startsWith(prefix)) {
+    throw new Error(
+      `Refusing to remove primary repository root or ancestor directory "${normalizedPath}".`,
+    );
   }
 
   const branch = record?.branch ?? `worktree/${slug}`;
@@ -1058,10 +1061,16 @@ export const cleanWorktree = async (
 
   let branchDeleted = false;
   const primaryBranch = currentBranchName(root, execGit);
+  const checkedOutBranches = new Set(
+    getActiveGitWorktrees(root, execGit)
+      .map((entry) => entry.branch)
+      .filter((entryBranch): entryBranch is string => Boolean(entryBranch)),
+  );
   if (
     !options.keepBranch &&
     !PROTECTED_BRANCH_NAMES.has(branch) &&
     branch !== primaryBranch &&
+    !checkedOutBranches.has(branch) &&
     gitRefExists(root, `refs/heads/${branch}`, execGit)
   ) {
     execGit(root, ["branch", "-D", branch]);
