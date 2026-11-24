@@ -24,22 +24,25 @@ test(
 );
 
 test(
-  "auditPage waits for native open dialog elements to become visible",
+  "auditPage waits for native open dialogs and alertdialogs to become visible while ignoring closed dialogs",
   { tag: "@cross-browser" },
   async ({ page }) => {
     await page.setContent(`
       <html lang="en">
         <head><title>Native dialog</title><style>
           body { background: white; color: black; }
-          dialog { opacity: 0; background: white; color: black; }
-          dialog.visible { opacity: 1; }
+          dialog[open], [role="alertdialog"] { visibility: hidden; opacity: 0; background: white; color: black; }
+          dialog[open].visible, [role="alertdialog"].visible { visibility: visible; opacity: 1; }
         </style></head>
         <body>
           <main><h1>Page</h1></main>
+          <dialog aria-label="Closed notice"><p>Closed dialog</p></dialog>
           <dialog open aria-label="Notice"><p>Dialog ready</p></dialog>
+          <div role="alertdialog" aria-label="Status alert"><p>Alert ready</p></div>
           <script>
             setTimeout(() => {
-              document.querySelector("dialog")?.classList.add("visible");
+              document.querySelector("dialog[open]")?.classList.add("visible");
+              document.querySelector('[role="alertdialog"]')?.classList.add("visible");
             }, 150);
           </script>
         </body>
@@ -49,6 +52,33 @@ test(
     const result = await auditPage(page);
 
     expect(result.dialogsVisible).toBe(true);
+    expect(result.axeViolations).toEqual([]);
+  },
+);
+
+test(
+  "auditPage ignores paused finite animations without hanging",
+  { tag: "@cross-browser" },
+  async ({ page }) => {
+    await page.setContent(`
+      <html lang="en">
+        <head><title>Paused animation</title><style>
+          body { background: white; color: black; }
+          .paused {
+            animation: slide 10s linear;
+            animation-play-state: paused;
+          }
+          @keyframes slide { from { transform: translateX(0); } to { transform: translateX(10px); } }
+        </style></head>
+        <body><main><h1 class="paused">Paused</h1></main></body>
+      </html>
+    `);
+
+    const startedAt = Date.now();
+    const result = await auditPage(page);
+
+    expect(Date.now() - startedAt).toBeLessThan(4_000);
+    expect(result.bodyVisible).toBe(true);
     expect(result.axeViolations).toEqual([]);
   },
 );

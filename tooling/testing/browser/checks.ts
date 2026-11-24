@@ -7,23 +7,43 @@ import {
   type Page,
 } from "@playwright/test";
 
+const SETTLE_ANIMATIONS_TIMEOUT_MS = 5_000;
+
 /**
- * Waits for running time-based animations, such as overlay entrances, to finish. Infinite
- * and scroll-linked animations never finish, so they are skipped.
+ * Waits for running time-based animations, such as overlay entrances, to finish. Paused,
+ * infinite, and scroll-linked animations never finish, so they are skipped, and the wait is
+ * bounded so a stalled animation cannot hang page checks.
  */
-export const settleAnimations = (page: Page) =>
-  page.evaluate(async () => {
-    await Promise.allSettled(
-      document
-        .getAnimations()
-        .filter(
-          (animation) =>
-            animation.timeline === document.timeline &&
-            animation.effect?.getTiming().iterations !== Infinity,
-        )
-        .map((animation) => animation.finished),
-    );
-  });
+export const settleAnimations = (page: Page, timeoutMs = SETTLE_ANIMATIONS_TIMEOUT_MS) =>
+  page.evaluate(async (maxWaitMs: number) => {
+    const running = document
+      .getAnimations()
+      .filter(
+        (animation) =>
+          animation.playState === "running" &&
+          animation.timeline === document.timeline &&
+          animation.effect?.getTiming().iterations !== Infinity,
+      )
+      .map((animation) => animation.finished);
+
+    if (running.length === 0) {
+      return;
+    }
+
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        Promise.allSettled(running),
+        new Promise<void>((resolve) => {
+          timer = setTimeout(resolve, maxWaitMs);
+        }),
+      ]);
+    } finally {
+      if (timer !== undefined) {
+        clearTimeout(timer);
+      }
+    }
+  }, timeoutMs);
 
 const WCAG_TAGS = ["wcag2a", "wcag2aa", "wcag21aa"] as const;
 
@@ -55,7 +75,9 @@ export type PageAuditResult = {
 const measureHorizontalOverflow = (page: Page) =>
   page.evaluate(() => ({
     scrollWidth: document.documentElement.scrollWidth,
-    innerWidth: window.innerWidth,
+    // Mobile Chromium expands window.innerWidth when content overflows horizontally;
+    // documentElement.clientWidth stays pinned to the layout viewport width.
+    innerWidth: document.documentElement.clientWidth || window.innerWidth,
   }));
 
 const runAxeAudit = async (page: Page): Promise<AxeViolationSummary[]> => {
@@ -74,11 +96,14 @@ const runAxeAudit = async (page: Page): Promise<AxeViolationSummary[]> => {
 };
 
 const areDialogsVisible = (page: Page): Promise<boolean> =>
-  page
-    .getByRole("dialog")
-    .evaluateAll((dialogs) =>
-      dialogs.every((dialog) => dialog.checkVisibility({ opacityProperty: true })),
+  page.evaluate(() => {
+    const dialogs = Array.from(
+      document.querySelectorAll('dialog[open], [role="dialog"], [role="alertdialog"]'),
+    ).filter((element) => !(element.tagName === "DIALOG" && !element.hasAttribute("open")));
+    return dialogs.every((dialog) =>
+      dialog.checkVisibility({ opacityProperty: true, visibilityProperty: true }),
     );
+  });
 
 /**
  * Runs Merit's standard page health, layout overflow, and WCAG 2 A/AA/2.1AA checks without

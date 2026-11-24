@@ -94,8 +94,10 @@ When the builder finishes, verify before review:
   approved `paths` (plus the verification record added in step 5).
 - Every command in the brief's **Verification** passes (including full package
   test commands so coverage thresholds execute).
-- For UI changes, run `vp run ui:verify` (see [drive-merit](../drive-merit/SKILL.md))
-  and inspect `<out>/report.md` and screenshots beside the named precedent per
+- For UI changes, run `vp run ui:verify` with `--story` or `--route` selecting
+  both the changed UI and its named precedent (not only the unfiltered default
+  curated sweep; see [drive-merit](../drive-merit/SKILL.md)), then inspect
+  `<out>/report.md` and screenshots beside the precedent per
   [UI verification](../../../docs/guides/ui-verification.md#verification).
 
 ## 4. Review independently

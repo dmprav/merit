@@ -131,8 +131,9 @@ vp run ui:verify
 # Targeted stories (substring, glob, or /regex/)
 vp run ui:verify --story components-button--overview,patterns-form-dialog--with-context
 
-# Live app routes (isolated ephemeral database + app server, auto-infers demo vs workspace)
-vp run ui:verify --route /demo,/app/alder/rounds --viewport both --json
+# Live app routes (isolated ephemeral database + app server; one mode per run)
+vp run ui:verify --route /demo --viewport both --json
+vp run ui:verify --route /app/alder/rounds --viewport both --json
 ```
 
 Every run starts isolated servers on ephemeral ports, checks zero WCAG 2 A/AA/2.1AA

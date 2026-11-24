@@ -1,4 +1,5 @@
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
+import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { dirname, join, relative, resolve } from "node:path";
@@ -261,7 +262,7 @@ Options:
   --mode demo|workspace        App server mode for --route (auto-inferred when omitted)
   --viewport desktop|mobile|both
                                Viewports to check (default: both)
-  --update                     Refresh reference/output artifacts (or pass --update-snapshots with --container)
+  --update                     Refresh output artifacts (use --container --update to update Linux visual baselines)
   --container                  Delegate pixel-exact Linux visual baseline check/update to Docker Playwright
   --out <dir>                  Output directory for report.md, results.json, screenshots/ (default: .tmp/ui-verify)
   --json                       Print structured JSON summary to stdout
@@ -272,6 +273,53 @@ const splitCommaValues = (raw: string): string[] =>
     .split(",")
     .map((part) => part.trim())
     .filter((part) => part.length > 0);
+
+const splitStoryPatterns = (raw: string): string[] => {
+  const parts: string[] = [];
+  let current = "";
+  let inRegex = false;
+  let inCharClass = false;
+  let escaped = false;
+
+  for (let index = 0; index < raw.length; index += 1) {
+    const ch = raw[index] ?? "";
+    if (inRegex) {
+      current += ch;
+      if (escaped) {
+        escaped = false;
+      } else if (ch === "\\") {
+        escaped = true;
+      } else if (ch === "[") {
+        inCharClass = true;
+      } else if (ch === "]" && inCharClass) {
+        inCharClass = false;
+      } else if (ch === "/" && !inCharClass) {
+        inRegex = false;
+      }
+      continue;
+    }
+
+    if (ch === ",") {
+      const trimmed = current.trim();
+      if (trimmed.length > 0) {
+        parts.push(trimmed);
+      }
+      current = "";
+      continue;
+    }
+
+    if (ch === "/" && current.trim().length === 0) {
+      inRegex = true;
+    }
+    current += ch;
+  }
+
+  const trimmed = current.trim();
+  if (trimmed.length > 0) {
+    parts.push(trimmed);
+  }
+  return parts;
+};
 
 const readFlagValue = (
   args: readonly string[],
@@ -299,6 +347,26 @@ export const normalizeRoutePattern = (raw: string): string => {
   if (!trimmed.startsWith("/")) {
     throw new Error(`Invalid route "${raw}". Routes must start with "/".`);
   }
+  if (trimmed.startsWith("//") || trimmed.startsWith("/\\")) {
+    throw new Error(`Invalid route "${raw}". Protocol-relative routes are not allowed.`);
+  }
+  if (
+    Array.from(trimmed).some((ch) => {
+      const code = ch.charCodeAt(0);
+      return code <= 0x1f || code === 0x7f;
+    })
+  ) {
+    throw new Error(`Invalid route "${raw}". Routes must not contain control characters.`);
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed, "http://127.0.0.1");
+  } catch {
+    throw new Error(`Invalid route "${raw}". Could not parse as a URL path.`);
+  }
+  if (parsed.origin !== "http://127.0.0.1") {
+    throw new Error(`Invalid route "${raw}". Routes must stay on the local origin.`);
+  }
   return trimmed;
 };
 
@@ -322,7 +390,7 @@ export const parseCliArgs = (rawArgs: readonly string[]): UiVerifyCliOptions => 
     }
     if (arg === "--story" || arg.startsWith("--story=")) {
       const { value, nextIndex } = readFlagValue(args, index, "--story");
-      stories.push(...splitCommaValues(value));
+      stories.push(...splitStoryPatterns(value));
       index = nextIndex;
       continue;
     }
@@ -383,10 +451,11 @@ export const parseCliArgs = (rawArgs: readonly string[]): UiVerifyCliOptions => 
 };
 
 export const inferAppMode = (routes: readonly string[], explicitMode?: AppMode): AppMode => {
+  const normalizedRoutes = routes.map(normalizeRoutePattern);
   if (explicitMode) {
     return explicitMode;
   }
-  const needsWorkspace = routes.some((route) => {
+  const needsWorkspace = normalizedRoutes.some((route) => {
     const pathname = new URL(route, "http://127.0.0.1").pathname;
     return (
       pathname === "/app" ||
@@ -488,6 +557,32 @@ export const sanitizeTargetName = (value: string): string => {
   return `${prefix}${sanitized || "target"}`;
 };
 
+export const buildUniqueTargetStems = (names: readonly string[]): string[] => {
+  const baseStems = names.map((name) => sanitizeTargetName(name));
+  const counts = new Map<string, number>();
+  for (const stem of baseStems) {
+    counts.set(stem, (counts.get(stem) ?? 0) + 1);
+  }
+
+  const used = new Set<string>();
+  return names.map((name, index) => {
+    const base = baseStems[index] ?? "target";
+    if ((counts.get(base) ?? 0) <= 1 && !used.has(base)) {
+      used.add(base);
+      return base;
+    }
+    const hash = createHash("sha256").update(name).digest("hex").slice(0, 8);
+    let candidate = `${base}-${hash}`;
+    let suffix = 2;
+    while (used.has(candidate)) {
+      candidate = `${base}-${hash}-${suffix}`;
+      suffix += 1;
+    }
+    used.add(candidate);
+    return candidate;
+  });
+};
+
 const CONTAINER_FOCUS_STORY_PATTERNS: Readonly<Record<string, string>> = {
   "focus-product": "control focus appearance in product",
   "focus-site": "control focus appearance in site",
@@ -510,22 +605,48 @@ export const buildContainerDelegationArgs = (options: UiVerifyCliOptions): strin
     args.push("--project", "mobile");
   }
   if (options.stories.length > 0) {
-    const pattern = options.stories
-      .map((story) => {
-        const mappedFocusPattern = CONTAINER_FOCUS_STORY_PATTERNS[story.toLowerCase()];
-        if (mappedFocusPattern) {
-          return escapeRegex(mappedFocusPattern);
-        }
-        const regexLiteral = /^\/(.+)\/[gimsuy]*$/.exec(story);
-        if (regexLiteral?.[1]) {
-          return regexLiteral[1];
-        }
-        return story
+    const parsedStories = options.stories.map((story) => {
+      const mappedFocusPattern = CONTAINER_FOCUS_STORY_PATTERNS[story.toLowerCase()];
+      if (mappedFocusPattern) {
+        return {
+          body: escapeRegex(mappedFocusPattern),
+          isRegexLiteral: false,
+          caseInsensitive: true,
+        };
+      }
+      const regexLiteral = /^\/(.+)\/([gimsuy]*)$/.exec(story);
+      if (regexLiteral?.[1]) {
+        const flags = regexLiteral[2] ?? "";
+        return {
+          body: regexLiteral[1],
+          isRegexLiteral: true,
+          caseInsensitive: flags.includes("i"),
+        };
+      }
+      return {
+        body: story
           .split("")
           .map((char) => (char === "*" ? ".*" : char === "?" ? "." : escapeRegex(char)))
-          .join("");
-      })
-      .join("|");
+          .join(""),
+        isRegexLiteral: false,
+        caseInsensitive: true,
+      };
+    });
+
+    const hasRegexLiteral = parsedStories.some((item) => item.isRegexLiteral);
+    const anyCaseInsensitive = parsedStories.some((item) => item.caseInsensitive);
+    const joinedBody =
+      parsedStories.length === 1
+        ? (parsedStories[0]?.body ?? "")
+        : parsedStories
+            .map((item) => (item.body.includes("|") ? `(?:${item.body})` : item.body))
+            .join("|");
+
+    // Playwright CLI's forceRegExp accepts `/pattern/[gi]*` (preserving case sensitivity or `i`),
+    // while bare patterns compile with `"gi"`.
+    const pattern = hasRegexLiteral
+      ? `/${joinedBody}/${anyCaseInsensitive ? "i" : ""}`
+      : joinedBody;
     args.push("--grep", pattern);
   }
   return args;
@@ -535,9 +656,59 @@ const isTransparentColor = (color: string): boolean => {
   const normalized = color.replace(/\s+/g, "").toLowerCase();
   return (
     normalized === "transparent" ||
-    /^(?:rgba|hsla)\([^)]+,(?:0+(?:\.0+)?|\.0+)%?\)$/.test(normalized) ||
-    /^[a-z]+\([^)]+\/(?:0+(?:\.0+)?|\.0+)%?\)$/.test(normalized)
+    /^#(?:[0-9a-f]{3}0|[0-9a-f]{6}00)$/.test(normalized) ||
+    /^(?:rgba?|hsla?)\([^,)]+,[^,)]+,[^,)]+,(?:0+(?:\.0+)?|\.0+)%?\)$/.test(normalized) ||
+    /^[a-z][a-z0-9-]*\([^)]+\/(?:0+(?:\.0+)?|\.0+)%?\)$/.test(normalized)
   );
+};
+
+const splitTopLevelCommas = (value: string): string[] => {
+  const parts: string[] = [];
+  let depth = 0;
+  let current = "";
+
+  for (const ch of value) {
+    if (ch === "(") {
+      depth += 1;
+      current += ch;
+    } else if (ch === ")") {
+      depth = Math.max(0, depth - 1);
+      current += ch;
+    } else if (ch === "," && depth === 0) {
+      const trimmed = current.trim();
+      if (trimmed.length > 0) {
+        parts.push(trimmed);
+      }
+      current = "";
+    } else {
+      current += ch;
+    }
+  }
+
+  const trimmed = current.trim();
+  if (trimmed.length > 0) {
+    parts.push(trimmed);
+  }
+  return parts;
+};
+
+const isShadowLayerVisible = (layer: string): boolean => {
+  const colorTokens = [
+    ...layer.matchAll(/\b[a-z][a-z0-9-]*\([^)]*\)|#[0-9a-f]{3,8}\b|\btransparent\b/gi),
+  ].map((match) => match[0]);
+
+  if (colorTokens.length === 0) {
+    return true;
+  }
+  return colorTokens.some((token) => !isTransparentColor(token));
+};
+
+const hasVisibleBoxShadow = (boxShadow: string): boolean => {
+  const trimmed = boxShadow.trim();
+  if (!trimmed || trimmed.toLowerCase() === "none") {
+    return false;
+  }
+  return splitTopLevelCommas(trimmed).some(isShadowLayerVisible);
 };
 
 const hasVisibleOutline = (style: ElementStyleSnapshot): boolean =>
@@ -561,7 +732,7 @@ const compareStyleSnapshots = (
   ) {
     reasons.push(`${scope}:outline`);
   }
-  if (focused.boxShadow !== unfocused.boxShadow && focused.boxShadow !== "none") {
+  if (focused.boxShadow !== unfocused.boxShadow && hasVisibleBoxShadow(focused.boxShadow)) {
     reasons.push(`${scope}:box-shadow`);
   }
   const borderChanged =
@@ -662,18 +833,32 @@ const waitForHttpReady = async (
   timeoutMs: number,
   child: ChildProcess,
   getLogs: () => string,
+  getSpawnError?: () => Error | undefined,
 ): Promise<void> => {
   const deadline = Date.now() + timeoutMs;
   let lastError = "";
 
   while (Date.now() < deadline) {
+    const spawnError = getSpawnError?.();
+    if (spawnError) {
+      throw new Error(
+        `Server failed to start while waiting for ${url}: ${spawnError.message}\n${getLogs()}`,
+      );
+    }
     if (child.exitCode !== null) {
       throw new Error(
         `Server exited early with code ${child.exitCode} while waiting for ${url}.\n${getLogs()}`,
       );
     }
+    const remainingMs = deadline - Date.now();
+    if (remainingMs <= 0) {
+      break;
+    }
     try {
-      const response = await fetch(url, { redirect: "manual" });
+      const response = await fetch(url, {
+        redirect: "manual",
+        signal: AbortSignal.timeout(remainingMs),
+      });
       if (response.status >= 200 && response.status < 400) {
         return;
       }
@@ -681,7 +866,17 @@ const waitForHttpReady = async (
     } catch (error) {
       lastError = error instanceof Error ? error.message : String(error);
     }
-    await delay(250);
+    const sleepMs = Math.min(250, Math.max(0, deadline - Date.now()));
+    if (sleepMs > 0) {
+      await delay(sleepMs);
+    }
+  }
+
+  const spawnError = getSpawnError?.();
+  if (spawnError) {
+    throw new Error(
+      `Server failed to start while waiting for ${url}: ${spawnError.message}\n${getLogs()}`,
+    );
   }
 
   throw new Error(
@@ -735,13 +930,19 @@ const spawnManagedProcess = (
   command: string,
   args: readonly string[],
   options: { cwd: string; env?: NodeJS.ProcessEnv },
-): { child: ChildProcess; getLogs: () => string } => {
+): { child: ChildProcess; getLogs: () => string; getSpawnError: () => Error | undefined } => {
   const outputChunks: string[] = [];
+  let spawnError: Error | undefined;
   const child = spawn(command, args, {
     cwd: options.cwd,
     env: options.env ?? process.env,
     detached: true,
     stdio: ["ignore", "pipe", "pipe"],
+  });
+
+  child.once("error", (error) => {
+    spawnError = error;
+    outputChunks.push(`Spawn error: ${error.message}\n`);
   });
 
   const append = (chunk: Buffer) => {
@@ -754,7 +955,11 @@ const spawnManagedProcess = (
   child.stdout?.on("data", append);
   child.stderr?.on("data", append);
 
-  return { child, getLogs: () => outputChunks.join("").slice(-4000) };
+  return {
+    child,
+    getLogs: () => outputChunks.join("").slice(-4000),
+    getSpawnError: () => spawnError,
+  };
 };
 
 const runCommandAsync = async (
@@ -834,7 +1039,7 @@ const startStorybookServer = async (
   const port = await allocateFreePort();
   const baseUrl = `http://127.0.0.1:${port}`;
   log(`Starting isolated Storybook preview server on ${baseUrl}...`);
-  const { child, getLogs } = spawnManagedProcess(
+  const { child, getLogs, getSpawnError } = spawnManagedProcess(
     "vp",
     ["preview", "--host", "127.0.0.1", "--port", String(port), "--strictPort"],
     { cwd: storybookDir },
@@ -842,7 +1047,13 @@ const startStorybookServer = async (
   const stopServer = registerCleanup(() => stopChildProcess(child));
 
   try {
-    await waitForHttpReady(`${baseUrl}/index.json`, STORYBOOK_READY_TIMEOUT_MS, child, getLogs);
+    await waitForHttpReady(
+      `${baseUrl}/index.json`,
+      STORYBOOK_READY_TIMEOUT_MS,
+      child,
+      getLogs,
+      getSpawnError,
+    );
   } catch (error) {
     await stopServer();
     throw error;
@@ -926,6 +1137,7 @@ const startAppServer = async (
       SERVER_READY_TIMEOUT_MS,
       child,
       spawned.getLogs,
+      spawned.getSpawnError,
     );
 
     const stop = stopServer;
@@ -1081,7 +1293,9 @@ export const checkKeyboardFocusTraversal = async (
     ) {
       return { resetFocus: false, initialStop: null };
     }
-    const isInsideOpenDialog = Boolean(active.closest('[role="dialog"], dialog[open]'));
+    const isInsideOpenDialog = Boolean(
+      active.closest('[role="dialog"], [role="alertdialog"], dialog[open]'),
+    );
     if (active.tabIndex < 0 || !isInsideOpenDialog) {
       active.blur();
       // Calling blur() alone leaves Chromium's sequential focus navigation starting point
@@ -1234,7 +1448,10 @@ export const checkKeyboardFocusTraversal = async (
       if (!diff.changed) {
         reasons.push("no visible focus indicator change compared to unfocused state");
       }
-    } else if (!hasVisibleOutline(stop.focused.self) && stop.focused.self.boxShadow === "none") {
+    } else if (
+      !hasVisibleOutline(stop.focused.self) &&
+      !hasVisibleBoxShadow(stop.focused.self.boxShadow)
+    ) {
       reasons.push("no visible focus indicator detected");
     }
 
@@ -1339,7 +1556,10 @@ export const openTargetOnPage = async (
 ): Promise<string> => {
   const url = resolveTargetUrl(target, baseUrl);
   if (target.kind === "story") {
-    await page.goto(url, { waitUntil: "load" });
+    const response = await page.goto(url, { waitUntil: "load" });
+    if (response && response.status() >= 400) {
+      throw new Error(`Story "${target.id}" returned HTTP ${response.status()} at ${url}.`);
+    }
     await page.waitForFunction(
       () => {
         const status = document.querySelector("#storybook-root")?.getAttribute("data-story-ready");
@@ -1362,7 +1582,10 @@ export const openTargetOnPage = async (
     return url;
   }
 
-  await page.goto(url, { waitUntil: "domcontentloaded" });
+  const response = await page.goto(url, { waitUntil: "domcontentloaded" });
+  if (response && response.status() >= 400) {
+    throw new Error(`Route "${target.route}" returned HTTP ${response.status()} at ${url}.`);
+  }
   await page.waitForLoadState("networkidle", { timeout: 15_000 }).catch(() => undefined);
   await page
     .waitForFunction(() => document.body && document.body.innerText.trim().length > 0, undefined, {
@@ -1585,6 +1808,7 @@ export const runTargetsInBrowser = async ({
   baseUrl,
   viewports,
   screenshotsDir,
+  screenshotStems,
   log,
 }: {
   browser: Browser;
@@ -1592,9 +1816,11 @@ export const runTargetsInBrowser = async ({
   baseUrl: string;
   viewports: readonly ViewportName[];
   screenshotsDir: string;
+  screenshotStems?: readonly string[];
   log: (line: string) => void;
 }): Promise<TargetCheckResult[]> => {
   const results: TargetCheckResult[] = [];
+  const stems = screenshotStems ?? buildUniqueTargetStems(targets.map((target) => target.name));
 
   for (const viewport of viewports) {
     const contextOptions =
@@ -1606,19 +1832,22 @@ export const runTargetsInBrowser = async ({
             hasTouch: mobileOptions.hasTouch,
           };
 
-    for (const target of targets) {
+    for (let targetIndex = 0; targetIndex < targets.length; targetIndex += 1) {
+      const target = targets[targetIndex];
+      if (!target) {
+        continue;
+      }
       let context: BrowserContext | undefined;
       const browserErrors: BrowserError[] = [];
-      const screenshotFile = join(
-        screenshotsDir,
-        `${sanitizeTargetName(target.name)}-${viewport}.png`,
-      );
+      const stem = stems[targetIndex] ?? sanitizeTargetName(target.name);
+      const screenshotFile = join(screenshotsDir, `${stem}-${viewport}.png`);
       const targetId = target.kind === "story" ? target.id : target.route;
       let resolvedUrl = resolveTargetUrl(target, baseUrl);
-
-      rmSync(screenshotFile, { force: true });
+      let screenshotCleaned = false;
 
       try {
+        rmSync(screenshotFile, { force: true });
+        screenshotCleaned = true;
         context = await browser.newContext(contextOptions);
         collectBrowserErrors(context, browserErrors);
         const page = await context.newPage();
@@ -1647,7 +1876,7 @@ export const runTargetsInBrowser = async ({
           url: resolvedUrl,
           viewport,
           passed: false,
-          screenshot: existsSync(screenshotFile) ? screenshotFile : null,
+          screenshot: screenshotCleaned && existsSync(screenshotFile) ? screenshotFile : null,
           viteErrorOverlayCount: 0,
           bodyVisible: false,
           dialogsVisible: false,
@@ -1744,8 +1973,8 @@ export const runUiVerify = async (
   const runApp = options.routes.length > 0;
   const mode: UiVerifyResults["mode"] =
     runStorybook && runApp ? "mixed" : runApp ? "app" : "storybook";
-  const appMode = runApp ? inferAppMode(options.routes, options.mode) : undefined;
   const viewports = resolveViewports(options.viewport);
+  let appMode: AppMode | undefined;
 
   const cleanups: Array<() => Promise<void>> = [];
   let cleaningUp = false;
@@ -1797,6 +2026,9 @@ export const runUiVerify = async (
   let browser: Browser | undefined;
 
   try {
+    const normalizedRoutes = options.routes.map(normalizeRoutePattern);
+    appMode = runApp ? inferAppMode(normalizedRoutes, options.mode) : undefined;
+
     let storybookServer: ManagedServer | undefined;
     let storyTargets: StoryTarget[] = [];
 
@@ -1817,7 +2049,7 @@ export const runUiVerify = async (
     }
 
     let appServer: ManagedServer | undefined;
-    const routeTargets: RouteTarget[] = options.routes.map((route) => ({
+    const routeTargets: RouteTarget[] = normalizedRoutes.map((route) => ({
       kind: "route",
       route,
       name: route,
@@ -1832,6 +2064,13 @@ export const runUiVerify = async (
     const launchedBrowser = browser;
     registerCleanup(() => launchedBrowser.close());
 
+    const combinedStems = buildUniqueTargetStems([
+      ...storyTargets.map((target) => target.name),
+      ...routeTargets.map((target) => target.name),
+    ]);
+    const storyStems = combinedStems.slice(0, storyTargets.length);
+    const routeStems = combinedStems.slice(storyTargets.length);
+
     if (storybookServer && storyTargets.length > 0) {
       const storyChecks = await runTargetsInBrowser({
         browser: launchedBrowser,
@@ -1839,6 +2078,7 @@ export const runUiVerify = async (
         baseUrl: storybookServer.baseUrl,
         viewports,
         screenshotsDir,
+        screenshotStems: storyStems,
         log,
       });
       targetResults.push(...storyChecks);
@@ -1851,6 +2091,7 @@ export const runUiVerify = async (
         baseUrl: appServer.baseUrl,
         viewports,
         screenshotsDir,
+        screenshotStems: routeStems,
         log,
       });
       targetResults.push(...routeChecks);

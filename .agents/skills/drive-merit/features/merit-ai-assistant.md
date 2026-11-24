@@ -15,8 +15,9 @@ and [Merit AI assistant decision](../../../../docs/decisions/0015-merit-ai-assis
 
 ## How to reach it (user POV)
 
-- **Demo workspace companion panel:** open the demo workspace (`/demo` or
-  `/demo/workshop-saturdays`), then click **Ask Merit AI** in the shell or press `Cmd/Ctrl+J`.
+- **Demo workspace companion panel:** visit `/demo` and click **Browse the workspace**, or
+  visit `/demo/workshop-saturdays` and click **Explore the example**, then click
+  **Ask Merit AI** in the shell or press `Cmd/Ctrl+J`.
 - **Storybook stories:** run `vp run ui:verify --story features-merit-ai-conversation` to check
   the companion panel states in isolation across desktop and mobile viewports.
 - **Live workspace backend API:** send authenticated `POST /api/assistant/<workspaceSlug>` JSON

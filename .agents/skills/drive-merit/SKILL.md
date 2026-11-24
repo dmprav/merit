@@ -60,8 +60,11 @@ vp run ui:verify
 # Targeted stories into a custom proof directory
 vp run ui:verify --story patterns-form-dialog--with-context --out /tmp/ui-proof
 
-# Live demo or workspace routes with structured JSON output
-vp run ui:verify --route /demo,/app/alder/rounds --viewport both --json
+# Live demo route with structured JSON output (auto-infers demo mode)
+vp run ui:verify --route /demo --viewport both --json
+
+# Live workspace route with structured JSON output (auto-infers workspace mode)
+vp run ui:verify --route /app/alder/rounds --viewport both --json
 
 # Pixel-exact Linux visual baseline comparison or update in Docker Playwright
 vp run ui:verify --container

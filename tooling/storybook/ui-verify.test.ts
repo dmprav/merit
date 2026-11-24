@@ -8,6 +8,7 @@ import {
   DEFAULT_STORYBOOK_TARGETS,
   allocateFreePort,
   buildContainerDelegationArgs,
+  buildUniqueTargetStems,
   detectFocusVisualChange,
   filterStoryTargets,
   inferAppMode,
@@ -92,12 +93,34 @@ describe("parseCliArgs", () => {
     });
   });
 
+  it("preserves commas inside /regex/ literals while splitting comma-separated --story patterns", () => {
+    expect(parseCliArgs(["--story", "/^components-button.{1,30}$/"]).stories).toEqual([
+      "/^components-button.{1,30}$/",
+    ]);
+    expect(parseCliArgs(["--story", "/^components-button.{1,30}$/i,dialog"]).stories).toEqual([
+      "/^components-button.{1,30}$/i",
+      "dialog",
+    ]);
+    expect(parseCliArgs(["--story", "button,/foo[,/]bar{1,2}/,text-field"]).stories).toEqual([
+      "button",
+      "/foo[,/]bar{1,2}/",
+      "text-field",
+    ]);
+  });
+
   it("rejects invalid flags, modes, viewports, routes, and container+route combinations", () => {
     expect(() => parseCliArgs(["--unknown"])).toThrow(/Unknown option/);
     expect(() => parseCliArgs(["--story"])).toThrow(/--story requires a value/);
     expect(() => parseCliArgs(["--mode", "prod"])).toThrow(/Invalid --mode/);
     expect(() => parseCliArgs(["--viewport", "tablet"])).toThrow(/Invalid --viewport/);
     expect(() => parseCliArgs(["--route", "demo"])).toThrow(/Routes must start with "\/"/);
+    expect(() => parseCliArgs(["--route", "//evil.test/app"])).toThrow(
+      /Protocol-relative routes are not allowed/,
+    );
+    expect(() => parseCliArgs(["--route", "/\\evil.test/app"])).toThrow(
+      /Protocol-relative routes are not allowed/,
+    );
+    expect(() => parseCliArgs(["--route", "/app\nfoo"])).toThrow(/control characters/);
     expect(() => parseCliArgs(["--container", "--route", "/demo"])).toThrow(
       /--container delegates Storybook visual baselines/,
     );
@@ -168,12 +191,30 @@ describe("filterStoryTargets and sanitizeTargetName", () => {
     ).toBe(false);
   });
 
-  it("sanitizes story and route target names deterministically", () => {
+  it("sanitizes story and route target names deterministically and disambiguates collisions", () => {
     expect(sanitizeTargetName("/")).toBe("route-root");
     expect(sanitizeTargetName("/app/alder/rounds")).toBe("route-app-alder-rounds");
     expect(sanitizeTargetName("patterns-form-dialog--with-context")).toBe(
       "patterns-form-dialog--with-context",
     );
+
+    expect(
+      buildUniqueTargetStems(["components-button--overview", "patterns-form-dialog--with-context"]),
+    ).toEqual(["components-button--overview", "patterns-form-dialog--with-context"]);
+
+    const collided = buildUniqueTargetStems([
+      "/app/alder/rounds",
+      "/app/alder-rounds",
+      "components-button--overview",
+    ]);
+    expect(collided[2]).toBe("components-button--overview");
+    expect(collided[0]).toMatch(/^route-app-alder-rounds-[0-9a-f]{8}$/);
+    expect(collided[1]).toMatch(/^route-app-alder-rounds-[0-9a-f]{8}$/);
+    expect(collided[0]).not.toBe(collided[1]);
+    expect(buildUniqueTargetStems(["/app/alder/rounds", "/app/alder-rounds"])).toEqual([
+      collided[0],
+      collided[1],
+    ]);
   });
 });
 
@@ -292,6 +333,39 @@ describe("detectFocusVisualChange", () => {
       ),
     ).toEqual({ changed: false, reasons: [] });
   });
+
+  it("rejects purely transparent box-shadow values while accepting opaque and translucent shadows", () => {
+    for (const transparentShadow of [
+      "rgba(0, 0, 0, 0) 0px 0px 0px 2px",
+      "rgb(0 0 0 / 0) 0 0 0 2px",
+      "hsla(210, 100%, 50%, 0) 0px 0px 0px 2px",
+      "0px 0px 0px 2px transparent",
+      "rgba(0, 0, 0, 0) 0px 0px 0px 2px, rgb(0 0 0 / 0) 0px 0px 0px 4px",
+    ]) {
+      expect(
+        detectFocusVisualChange(
+          baseSnapshot(),
+          baseSnapshot({ self: baseStyle({ boxShadow: transparentShadow }) }),
+        ),
+        `expected ${transparentShadow} to be rejected as transparent`,
+      ).toEqual({ changed: false, reasons: [] });
+    }
+
+    for (const visibleShadow of [
+      "rgb(15, 98, 254) 0px 0px 0px 2px",
+      "rgba(15, 98, 254, 0.4) 0px 0px 0px 2px",
+      "rgb(15 98 254 / 0.5) 0 0 0 2px",
+      "rgba(0, 0, 0, 0) 0px 0px 0px 2px, rgb(15, 98, 254) 0px 0px 0px 4px",
+    ]) {
+      expect(
+        detectFocusVisualChange(
+          baseSnapshot(),
+          baseSnapshot({ self: baseStyle({ boxShadow: visibleShadow }) }),
+        ),
+        `expected ${visibleShadow} to be accepted as visible`,
+      ).toEqual({ changed: true, reasons: ["self:box-shadow"] });
+    }
+  });
 });
 
 describe("container delegation and proof reporting", () => {
@@ -316,7 +390,59 @@ describe("container delegation and proof reporting", () => {
       ),
     ).toEqual(["--grep", "control focus appearance in"]);
 
+    expect(
+      buildContainerDelegationArgs(parseCliArgs(["--container", "--story", "/Button/i"])),
+    ).toEqual(["--grep", "/Button/i"]);
+
+    expect(
+      buildContainerDelegationArgs(parseCliArgs(["--container", "--story", "/Button/"])),
+    ).toEqual(["--grep", "/Button/"]);
+
+    expect(
+      buildContainerDelegationArgs(parseCliArgs(["--container", "--story", "/Button/i,dialog"])),
+    ).toEqual(["--grep", "/Button|dialog/i"]);
+
     expect(buildContainerDelegationArgs(parseCliArgs(["--container"]))).toEqual([]);
+  });
+
+  it("writes failed results.json and report.md when route validation fails inside runUiVerify", async () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "merit-ui-verify-route-fail-"));
+    const outDir = join(tempDir, "out");
+    try {
+      const results = await runUiVerify(
+        {
+          stories: [],
+          routes: ["//evil.test/app"],
+          mode: undefined,
+          viewport: "desktop",
+          update: false,
+          container: false,
+          outDir,
+          json: false,
+          help: false,
+        },
+        {
+          repoRoot: tempDir,
+          log: () => undefined,
+        },
+      );
+
+      expect(results.passed).toBe(false);
+      expect(results.error).toMatch(/Protocol-relative routes are not allowed/);
+
+      const savedJson = uiVerifyResultsSchema.parse(
+        JSON.parse(readFileSync(join(outDir, "results.json"), "utf8")),
+      );
+      expect(savedJson.passed).toBe(false);
+      expect(savedJson.error).toMatch(/Protocol-relative routes are not allowed/);
+
+      const report = readFileSync(join(outDir, "report.md"), "utf8");
+      expect(report).toContain("**Status:** FAIL");
+      expect(report).toContain("## Error");
+      expect(report).toContain("//evil.test/app");
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
   });
 
   it("writes failed results.json and report.md when --story matches no stories", async () => {

@@ -56,12 +56,18 @@ For UI changes, follow [UI verification](../../../docs/guides/ui-verification.md
 and [drive-merit](../drive-merit/SKILL.md). Capture the new UI and its precedent in the same
 states across desktop (`1440x1000`) and mobile (`390x844`) into the directory you were given
 with `vp run ui:verify` (which manages isolated Storybook or app servers, axe/overflow/error
-checks, keyboard focus traversal, and proof artifacts):
+checks, keyboard focus traversal, and proof artifacts). For interaction-dependent states
+(open menus, dialogs, validation, editing), capture Storybook stories whose `play()` function
+renders that state or drive the flow interactively via `drive-merit` rather than relying on
+idle initial renders:
 
 ```sh
 vp run ui:verify --story <story-id>,<precedent-story-id> --out <dir>
-# Or verify live app routes (starts an isolated app server + ephemeral DB automatically):
-vp run ui:verify --route <route> --out <dir>
+# Or verify a changed route and its precedent in the same app mode:
+vp run ui:verify --route <changed-route>,<precedent-route> --out <dir>
+# When routes use different modes (demo vs workspace), capture each into its own --out dir:
+vp run ui:verify --route <changed-route> --out <dir>/changed
+vp run ui:verify --route <precedent-route> --out <dir>/precedent
 ```
 
 Inspect `<dir>/report.md` and every captured pair under `<dir>/screenshots/`, and correct

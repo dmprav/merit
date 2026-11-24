@@ -3,13 +3,12 @@ import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { expect, test, type Browser } from "@playwright/test";
+import type { Browser, BrowserContext } from "@playwright/test";
 
-import { collectBrowserErrors, type BrowserError } from "@merit/test-support/browser";
+import { collectBrowserErrors, expect, test, type BrowserError } from "@merit/test-support/browser";
 
 import {
   checkKeyboardFocusTraversal,
-  formatMarkdownReport,
   openTargetOnPage,
   runTargetsInBrowser,
   summarizeResults,
@@ -17,6 +16,10 @@ import {
   verifyLoadedPage,
   writeProofArtifacts,
 } from "../../ui-verify.ts";
+
+const VIEWPORT_META = '<meta name="viewport" content="width=device-width, initial-scale=1">';
+
+type CreateContext = (options?: Parameters<Browser["newContext"]>[0]) => Promise<BrowserContext>;
 
 const withTempDir = async <T>(run: (dir: string) => Promise<T>): Promise<T> => {
   const dir = mkdtempSync(join(tmpdir(), "merit-ui-verify-browser-"));
@@ -27,8 +30,14 @@ const withTempDir = async <T>(run: (dir: string) => Promise<T>): Promise<T> => {
   }
 };
 
-const runFixture = async (browser: Browser, outDir: string, name: string, html: string) => {
-  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+const runFixture = async (
+  createContext: CreateContext,
+  outDir: string,
+  name: string,
+  html: string,
+  { closeContext = false }: { closeContext?: boolean } = {},
+) => {
+  const context = await createContext({ viewport: { width: 1280, height: 800 } });
   const errors: BrowserError[] = [];
   collectBrowserErrors(context, errors);
   try {
@@ -47,20 +56,22 @@ const runFixture = async (browser: Browser, outDir: string, name: string, html: 
       screenshotPath,
     });
   } finally {
-    await context.close();
+    if (closeContext) {
+      await context.close();
+    }
   }
 };
 
 test.describe("live Chromium checker failure detection", () => {
   test("passes accessible pages with visible focus rings and pages with zero interactive stops", async ({
-    browser,
+    newContext,
   }) => {
     await withTempDir(async (outDir) => {
       const accessible = await runFixture(
-        browser,
+        newContext,
         outDir,
         "accessible-ok",
-        `<!doctype html><html lang="en"><head><title>Accessible</title><style>
+        `<!doctype html><html lang="en"><head>${VIEWPORT_META}<title>Accessible</title><style>
           body { background: #fff; color: #111; font-family: sans-serif; }
           button { padding: 8px 14px; background: #fff; color: #111; border: 1px solid #333; }
           button:focus-visible { outline: 2px solid #0f62fe; outline-offset: 2px; }
@@ -73,10 +84,10 @@ test.describe("live Chromium checker failure detection", () => {
       expect(accessible.screenshot && existsSync(accessible.screenshot)).toBe(true);
 
       const staticOnly = await runFixture(
-        browser,
+        newContext,
         outDir,
         "static-zero-stops",
-        `<!doctype html><html lang="en"><head><title>Notice</title><style>
+        `<!doctype html><html lang="en"><head>${VIEWPORT_META}<title>Notice</title><style>
           body { background: #fff; color: #111; }
         </style></head><body><main><h1>Static notice</h1><p>No controls here.</p></main></body></html>`,
       );
@@ -87,14 +98,14 @@ test.describe("live Chromium checker failure detection", () => {
   });
 
   test("catches an intentional axe WCAG violation and reports it in results.json and report.md", async ({
-    browser,
+    newContext,
   }) => {
     await withTempDir(async (outDir) => {
       const badAxe = await runFixture(
-        browser,
+        newContext,
         outDir,
         "intentional-axe-violation",
-        `<!doctype html><html lang="en"><head><title>Broken a11y</title><style>
+        `<!doctype html><html lang="en"><head>${VIEWPORT_META}<title>Broken a11y</title><style>
           body { background: #fff; color: #eee; }
           button { width: 40px; height: 28px; }
           button:focus-visible { outline: 2px solid #000; }
@@ -123,22 +134,23 @@ test.describe("live Chromium checker failure detection", () => {
       expect(savedJson.passed).toBe(false);
       expect(savedJson.summary.axeViolations).toBeGreaterThan(0);
 
-      const markdown = formatMarkdownReport(savedJson);
+      const markdown = readFileSync(join(outDir, "report.md"), "utf8");
       expect(markdown).toContain("**Status:** FAIL");
       expect(markdown).toContain("intentional-axe-violation");
       expect(markdown).toContain("**Axe");
+      expect(markdown).toMatch(/`(?:button-name|color-contrast)`/);
     });
   });
 
   test("catches an intentional missing-focus-ring interactive element and reports it in results.json and report.md", async ({
-    browser,
+    newContext,
   }) => {
     await withTempDir(async (outDir) => {
       const missingFocus = await runFixture(
-        browser,
+        newContext,
         outDir,
         "intentional-missing-focus",
-        `<!doctype html><html lang="en"><head><title>Missing focus</title><style>
+        `<!doctype html><html lang="en"><head>${VIEWPORT_META}<title>Missing focus</title><style>
           body { background: #fff; color: #111; }
           button {
             padding: 8px 14px;
@@ -186,15 +198,18 @@ test.describe("live Chromium checker failure detection", () => {
 
   test("catches horizontal overflow and console errors", async ({ browser }) => {
     await withTempDir(async (outDir) => {
+      // Raw browser.newContext isolates the intentional console.error probe from the shared
+      // browserErrors teardown assertion.
       const overflowing = await runFixture(
-        browser,
+        (options) => browser.newContext(options),
         outDir,
         "intentional-overflow-and-error",
-        `<!doctype html><html lang="en"><head><title>Overflow</title><style>
+        `<!doctype html><html lang="en"><head>${VIEWPORT_META}<title>Overflow</title><style>
           body { background: #fff; color: #111; }
           .wide { width: 3000px; height: 20px; }
         </style></head><body><main><h1>Overflow</h1><div class="wide">Too wide</div></main>
         <script>console.error("Synthetic runtime failure");</script></body></html>`,
+        { closeContext: true },
       );
 
       expect(overflowing.passed).toBe(false);
@@ -206,201 +221,200 @@ test.describe("live Chromium checker failure detection", () => {
   });
 
   test("catches zero-sized focusable elements in checkKeyboardFocusTraversal", async ({
-    browser,
+    newContext,
   }) => {
-    const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
-    try {
-      const page = await context.newPage();
-      await page.setContent(
-        `<!doctype html><html lang="en"><head><title>Zero sized focus</title><style>
-          body { background: #fff; color: #111; }
-          .zero {
-            width: 0;
-            height: 0;
-            padding: 0;
-            border: 0;
-            overflow: hidden;
-          }
-          .zero:focus-visible { outline: 2px solid #0f62fe; }
-        </style></head><body><main><h1>Zero size</h1><button class="zero" type="button">Collapsed control</button></main></body></html>`,
-      );
-      const focus = await checkKeyboardFocusTraversal(page);
-      expect(focus.stopsChecked).toBe(1);
-      expect(focus.failures).toHaveLength(1);
-      expect(focus.failures[0]?.element).toContain("Collapsed control");
-      expect(focus.failures[0]?.reasons.some((reason) => reason.includes("zero-sized"))).toBe(true);
-      expect(focus.failures[0]?.boundingBox).toEqual({ width: 0, height: 0 });
-    } finally {
-      await context.close();
-    }
+    const context = await newContext({ viewport: { width: 1280, height: 800 } });
+    const page = await context.newPage();
+    await page.setContent(
+      `<!doctype html><html lang="en"><head>${VIEWPORT_META}<title>Zero sized focus</title><style>
+        body { background: #fff; color: #111; }
+        .zero {
+          width: 0;
+          height: 0;
+          padding: 0;
+          border: 0;
+          overflow: hidden;
+        }
+        .zero:focus-visible { outline: 2px solid #0f62fe; }
+      </style></head><body><main><h1>Zero size</h1><button class="zero" type="button">Collapsed control</button></main></body></html>`,
+    );
+    const focus = await checkKeyboardFocusTraversal(page);
+    expect(focus.stopsChecked).toBe(1);
+    expect(focus.failures).toHaveLength(1);
+    expect(focus.failures[0]?.element).toContain("Collapsed control");
+    expect(focus.failures[0]?.reasons.some((reason) => reason.includes("zero-sized"))).toBe(true);
+    expect(focus.failures[0]?.boundingBox).toEqual({ width: 0, height: 0 });
   });
 
   test("blurs non-tabbable active elements like <main tabindex='-1'> so header and sidebar controls are traversed", async ({
-    browser,
+    newContext,
   }) => {
-    const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
-    try {
-      const page = await context.newPage();
-      await page.setContent(
-        `<!doctype html><html lang="en"><head><title>Shell focus order</title><style>
-          body { background: #fff; color: #111; }
-          .skip { position: fixed; top: -5rem; left: 1rem; padding: 8px; background: #fff; color: #111; }
-          .skip:focus { top: 1rem; outline: 2px solid #0f62fe; }
-          nav a { display: inline-block; padding: 8px; color: #111; outline: none; box-shadow: none; }
-          nav a:focus, nav a:focus-visible { outline: none; box-shadow: none; }
-          main button { padding: 8px 14px; background: #fff; color: #111; border: 1px solid #333; }
-          main button:focus-visible { outline: 2px solid #0f62fe; }
-        </style></head><body>
-          <a class="skip" href="#main">Skip to content</a>
-          <nav aria-label="Workspace"><a href="#rounds">Sidebar Rounds</a></nav>
-          <main id="main" tabindex="-1"><h1>Workspace</h1><button type="button">Create round</button></main>
-          <script>document.getElementById("main").focus();</script>
-        </body></html>`,
-      );
-      const focus = await checkKeyboardFocusTraversal(page);
-      expect(focus.stopsChecked).toBe(3);
-      expect(focus.failures).toHaveLength(1);
-      expect(focus.failures[0]?.element).toContain("Sidebar Rounds");
-    } finally {
-      await context.close();
-    }
+    const context = await newContext({ viewport: { width: 1280, height: 800 } });
+    const page = await context.newPage();
+    await page.setContent(
+      `<!doctype html><html lang="en"><head>${VIEWPORT_META}<title>Shell focus order</title><style>
+        body { background: #fff; color: #111; }
+        .skip { position: fixed; top: -5rem; left: 1rem; padding: 8px; background: #fff; color: #111; }
+        .skip:focus { top: 1rem; outline: 2px solid #0f62fe; }
+        nav a { display: inline-block; padding: 8px; color: #111; outline: none; box-shadow: none; }
+        nav a:focus, nav a:focus-visible { outline: none; box-shadow: none; }
+        main button { padding: 8px 14px; background: #fff; color: #111; border: 1px solid #333; }
+        main button:focus-visible { outline: 2px solid #0f62fe; }
+      </style></head><body>
+        <a class="skip" href="#main">Skip to content</a>
+        <nav aria-label="Workspace"><a href="#rounds">Sidebar Rounds</a></nav>
+        <main id="main" tabindex="-1"><h1>Workspace</h1><button type="button">Create round</button></main>
+        <script>document.getElementById("main").focus();</script>
+      </body></html>`,
+    );
+    const focus = await checkKeyboardFocusTraversal(page);
+    expect(focus.stopsChecked).toBe(3);
+    expect(focus.failures).toHaveLength(1);
+    expect(focus.failures[0]?.element).toContain("Sidebar Rounds");
   });
 
   test("resets focus on non-dialog pages with an autofocused later button so earlier missing focus rings are caught", async ({
-    browser,
+    newContext,
   }) => {
-    const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
-    try {
-      const page = await context.newPage();
-      await page.setContent(
-        `<!doctype html><html lang="en"><head><title>Autofocused later button</title><style>
-          body { background: #fff; color: #111; }
-          .broken {
-            padding: 8px 14px;
-            background: #fff;
-            color: #111;
-            border: 1px solid #333;
-            outline: none;
-            box-shadow: none;
-          }
-          .broken:focus, .broken:focus-visible {
-            outline: none;
-            box-shadow: none;
-          }
-          .ok {
-            padding: 8px 14px;
-            background: #fff;
-            color: #111;
-            border: 1px solid #333;
-          }
-          .ok:focus-visible {
-            outline: 2px solid #0f62fe;
-            outline-offset: 2px;
-          }
-        </style></head><body><main>
-          <h1>Non-dialog autofocus</h1>
-          <button class="broken" type="button">Earlier broken button</button>
-          <button id="later" class="ok" type="button" autofocus>Later focused button</button>
-          <script>document.getElementById("later").focus();</script>
-        </main></body></html>`,
-      );
-      const focus = await checkKeyboardFocusTraversal(page);
-      expect(focus.stopsChecked).toBe(2);
-      expect(focus.failures).toHaveLength(1);
-      expect(focus.failures[0]?.element).toContain("Earlier broken button");
-    } finally {
-      await context.close();
-    }
+    const context = await newContext({ viewport: { width: 1280, height: 800 } });
+    const page = await context.newPage();
+    await page.setContent(
+      `<!doctype html><html lang="en"><head>${VIEWPORT_META}<title>Autofocused later button</title><style>
+        body { background: #fff; color: #111; }
+        .broken {
+          padding: 8px 14px;
+          background: #fff;
+          color: #111;
+          border: 1px solid #333;
+          outline: none;
+          box-shadow: none;
+        }
+        .broken:focus, .broken:focus-visible {
+          outline: none;
+          box-shadow: none;
+        }
+        .ok {
+          padding: 8px 14px;
+          background: #fff;
+          color: #111;
+          border: 1px solid #333;
+        }
+        .ok:focus-visible {
+          outline: 2px solid #0f62fe;
+          outline-offset: 2px;
+        }
+      </style></head><body><main>
+        <h1>Non-dialog autofocus</h1>
+        <button class="broken" type="button">Earlier broken button</button>
+        <button id="later" class="ok" type="button" autofocus>Later focused button</button>
+        <script>document.getElementById("later").focus();</script>
+      </main></body></html>`,
+    );
+    const focus = await checkKeyboardFocusTraversal(page);
+    expect(focus.stopsChecked).toBe(2);
+    expect(focus.failures).toHaveLength(1);
+    expect(focus.failures[0]?.element).toContain("Earlier broken button");
   });
 
   test("settles focus-blur CSS transitions on a single focus-trapped control (HTML and SVG)", async ({
-    browser,
+    newContext,
   }) => {
-    const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
-    try {
-      const htmlPage = await context.newPage();
-      await htmlPage.setContent(
-        `<!doctype html><html lang="en"><head><title>Trapped transitioning button</title><style>
-          body { background: #fff; color: #111; }
-          button {
-            padding: 8px 14px;
-            background: #fff;
-            color: #111;
-            border: 1px solid #333;
-            outline: none;
-            box-shadow: 0 0 0 0 rgba(15, 98, 254, 0);
-            transition: box-shadow 220ms linear;
-          }
-          button:focus, button:focus-visible {
-            box-shadow: 0 0 0 3px rgb(15, 98, 254);
-          }
-        </style></head><body>
-          <dialog open aria-label="Single action">
-            <button id="only" type="button">Acknowledge</button>
-          </dialog>
-          <script>
-            const only = document.getElementById("only");
-            only.focus();
-            document.addEventListener("keydown", (event) => {
-              if (event.key === "Tab") {
-                event.preventDefault();
-                only.focus();
-              }
-            });
-          </script>
-        </body></html>`,
-      );
-      const htmlFocus = await checkKeyboardFocusTraversal(htmlPage);
-      expect(htmlFocus.stopsChecked).toBe(1);
-      expect(htmlFocus.failures).toEqual([]);
+    const context = await newContext({ viewport: { width: 1280, height: 800 } });
+    const htmlPage = await context.newPage();
+    await htmlPage.setContent(
+      `<!doctype html><html lang="en"><head>${VIEWPORT_META}<title>Trapped transitioning button</title><style>
+        body { background: #fff; color: #111; }
+        button {
+          padding: 8px 14px;
+          background: #fff;
+          color: #111;
+          border: 1px solid #333;
+          outline: none;
+          box-shadow: 0 0 0 0 rgba(15, 98, 254, 0);
+          transition: box-shadow 220ms linear;
+        }
+        button:focus, button:focus-visible {
+          box-shadow: 0 0 0 3px rgb(15, 98, 254);
+        }
+      </style></head><body>
+        <dialog open aria-label="Single action">
+          <button id="only" type="button">Acknowledge</button>
+        </dialog>
+        <script>
+          const only = document.getElementById("only");
+          only.focus();
+          document.addEventListener("keydown", (event) => {
+            if (event.key === "Tab") {
+              event.preventDefault();
+              only.focus();
+            }
+          });
+        </script>
+      </body></html>`,
+    );
+    const htmlFocus = await checkKeyboardFocusTraversal(htmlPage);
+    expect(htmlFocus.stopsChecked).toBe(1);
+    expect(htmlFocus.failures).toEqual([]);
 
-      const svgPage = await context.newPage();
-      await svgPage.setContent(
-        `<!doctype html><html lang="en"><head><title>Trapped transitioning SVG</title><style>
-          body { background: #fff; color: #111; }
-          svg {
-            outline: 2px solid transparent;
-            transition: outline-color 220ms linear;
-          }
-          svg:focus, svg:focus-visible {
-            outline: 2px solid rgb(15, 98, 254);
-          }
-        </style></head><body>
-          <dialog open aria-label="Graphic control">
-            <svg id="svg-btn" tabindex="0" role="button" aria-label="Close graphic" width="32" height="32" viewBox="0 0 32 32">
-              <rect width="32" height="32" fill="#222"></rect>
-            </svg>
-          </dialog>
-          <script>
-            const svgBtn = document.getElementById("svg-btn");
-            svgBtn.focus();
-            document.addEventListener("keydown", (event) => {
-              if (event.key === "Tab") {
-                event.preventDefault();
-                svgBtn.focus();
-              }
-            });
-          </script>
-        </body></html>`,
-      );
-      const svgFocus = await checkKeyboardFocusTraversal(svgPage);
-      expect(svgFocus.stopsChecked).toBe(1);
-      expect(svgFocus.failures).toEqual([]);
-    } finally {
-      await context.close();
-    }
+    const svgPage = await context.newPage();
+    await svgPage.setContent(
+      `<!doctype html><html lang="en"><head>${VIEWPORT_META}<title>Trapped transitioning SVG</title><style>
+        body { background: #fff; color: #111; }
+        svg {
+          outline: 2px solid transparent;
+          transition: outline-color 220ms linear;
+        }
+        svg:focus, svg:focus-visible {
+          outline: 2px solid rgb(15, 98, 254);
+        }
+      </style></head><body>
+        <dialog open aria-label="Graphic control">
+          <svg id="svg-btn" tabindex="0" role="button" aria-label="Close graphic" width="32" height="32" viewBox="0 0 32 32">
+            <rect width="32" height="32" fill="#222"></rect>
+          </svg>
+        </dialog>
+        <script>
+          const svgBtn = document.getElementById("svg-btn");
+          svgBtn.focus();
+          document.addEventListener("keydown", (event) => {
+            if (event.key === "Tab") {
+              event.preventDefault();
+              svgBtn.focus();
+            }
+          });
+        </script>
+      </body></html>`,
+    );
+    const svgFocus = await checkKeyboardFocusTraversal(svgPage);
+    expect(svgFocus.stopsChecked).toBe(1);
+    expect(svgFocus.failures).toEqual([]);
   });
 
-  test("waits on data-story-ready='true' after DOM mount, fails with data-story-error, and never attaches a stale screenshot on failure", async ({
+  test("waits on data-story-ready='true' after DOM mount, fails with data-story-error or HTTP >=400, and never attaches a stale screenshot on failure", async ({
     browser,
+    newContext,
   }) => {
     const server = createServer((req, res) => {
       const reqUrl = new URL(req.url ?? "/", "http://127.0.0.1");
+      if (reqUrl.pathname === "/missing-route") {
+        res.writeHead(404, { "content-type": "text/html; charset=utf-8" });
+        res.end(
+          `<!doctype html><html lang="en"><head>${VIEWPORT_META}</head><body><main><h1>Not found</h1></main></body></html>`,
+        );
+        return;
+      }
+      if (reqUrl.pathname === "/server-error") {
+        res.writeHead(500, { "content-type": "text/html; charset=utf-8" });
+        res.end(
+          `<!doctype html><html lang="en"><head>${VIEWPORT_META}</head><body><main><h1>Error</h1></main></body></html>`,
+        );
+        return;
+      }
       const storyId = reqUrl.searchParams.get("id");
       res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
       if (storyId === "delayed-ready--story") {
         res.end(
-          `<!doctype html><html lang="en"><body>
+          `<!doctype html><html lang="en"><head>${VIEWPORT_META}</head><body>
             <div id="storybook-root"><div>Initial mount before play</div></div>
             <script>
               setTimeout(() => {
@@ -415,7 +429,7 @@ test.describe("live Chromium checker failure detection", () => {
       }
       if (storyId === "errored--story") {
         res.end(
-          `<!doctype html><html lang="en"><body>
+          `<!doctype html><html lang="en"><head>${VIEWPORT_META}</head><body>
             <div id="storybook-root"><div>Mounted before error</div></div>
             <script>
               setTimeout(() => {
@@ -428,7 +442,7 @@ test.describe("live Chromium checker failure detection", () => {
         );
         return;
       }
-      res.end("<!doctype html><html><body></body></html>");
+      res.end(`<!doctype html><html><head>${VIEWPORT_META}</head><body></body></html>`);
     });
 
     await new Promise<void>((resolveListen) =>
@@ -440,8 +454,8 @@ test.describe("live Chromium checker failure detection", () => {
     }
     const baseUrl = `http://127.0.0.1:${address.port}`;
 
-    const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
     try {
+      const context = await newContext({ viewport: { width: 1280, height: 800 } });
       const readyPage = await context.newPage();
       await openTargetOnPage(
         readyPage,
@@ -472,6 +486,31 @@ test.describe("live Chromium checker failure detection", () => {
         ),
       ).rejects.toThrow(/play\(\) assertion failed: contrast/);
 
+      // Raw context isolates Chromium's automatic "Failed to load resource: 404/500" console
+      // errors when verifying HTTP error status rejection.
+      const httpErrorContext = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+      try {
+        const notFoundPage = await httpErrorContext.newPage();
+        await expect(
+          openTargetOnPage(
+            notFoundPage,
+            { kind: "route", route: "/missing-route", name: "/missing-route", fullPage: true },
+            baseUrl,
+          ),
+        ).rejects.toThrow(/HTTP 404/);
+
+        const serverErrorPage = await httpErrorContext.newPage();
+        await expect(
+          openTargetOnPage(
+            serverErrorPage,
+            { kind: "route", route: "/server-error", name: "/server-error", fullPage: true },
+            baseUrl,
+          ),
+        ).rejects.toThrow(/HTTP 500/);
+      } finally {
+        await httpErrorContext.close();
+      }
+
       await withTempDir(async (outDir) => {
         const screenshotsDir = join(outDir, "screenshots");
         mkdirSync(screenshotsDir, { recursive: true });
@@ -487,6 +526,12 @@ test.describe("live Chromium checker failure detection", () => {
               name: "errored--story",
               fullPage: true,
             },
+            {
+              kind: "route",
+              route: "/missing-route",
+              name: "/missing-route",
+              fullPage: true,
+            },
           ],
           baseUrl,
           viewports: ["desktop"],
@@ -494,14 +539,17 @@ test.describe("live Chromium checker failure detection", () => {
           log: () => undefined,
         });
 
-        expect(targetResults).toHaveLength(1);
+        expect(targetResults).toHaveLength(2);
         expect(targetResults[0]?.passed).toBe(false);
         expect(targetResults[0]?.error).toContain("play() assertion failed: contrast");
         expect(targetResults[0]?.screenshot).toBeNull();
         expect(existsSync(stalePath)).toBe(false);
+
+        expect(targetResults[1]?.passed).toBe(false);
+        expect(targetResults[1]?.error).toContain("HTTP 404");
+        expect(targetResults[1]?.screenshot).toBeNull();
       });
     } finally {
-      await context.close();
       await new Promise<void>((resolveClose) => server.close(() => resolveClose()));
     }
   });
