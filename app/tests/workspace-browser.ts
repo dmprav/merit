@@ -6,9 +6,8 @@ import { drizzle } from "drizzle-orm/node-postgres";
 
 import { migrate } from "@merit/db/migrate";
 import { seedExampleRounds } from "@merit/grantmaking/testing";
+import { loadRepoEnvLocal } from "@merit/test-support/env";
 import { createTestDatabase } from "@merit/test-support/test-database";
-
-import { loadRepoEnvLocal } from "./browser/ports.ts";
 
 loadRepoEnvLocal();
 

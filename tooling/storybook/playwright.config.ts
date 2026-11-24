@@ -1,27 +1,13 @@
-import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { defineConfig } from "@playwright/test";
 
 import { browserConfig } from "@merit/test-support/browser/config";
+import { loadRepoEnvLocal, readPort } from "@merit/test-support/env";
 
-const rootEnvFile = resolve(import.meta.dirname, "../../.env.local");
-if (existsSync(rootEnvFile)) {
-  process.loadEnvFile(rootEnvFile);
-}
-
-const readPort = (value: string | undefined, fallback: number): number => {
-  if (!value) {
-    return fallback;
-  }
-  const parsed = Number(value);
-  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 65535) {
-    throw new Error(`Invalid port value: ${value}`);
-  }
-  return parsed;
-};
+loadRepoEnvLocal();
 
 const storybookPort = readPort(process.env.MERIT_STORYBOOK_PORT, 6007);
 const baseURL = `http://localhost:${storybookPort}`;

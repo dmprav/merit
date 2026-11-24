@@ -1,6 +1,6 @@
-import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
-import { join } from "node:path";
+
+import { loadRepoEnvLocal } from "../env.ts";
 
 export const DEFAULT_COMPOSE_DATABASE_URL = "postgres://merit:merit@127.0.0.1:55432/merit";
 const PROTECTED_DATABASE_NAMES = new Set(["merit", "postgres", "template0", "template1"]);
@@ -30,10 +30,7 @@ export type LocalComposeDatabase = {
 
 /** Loads `<rootDir>/.env.local` into `process.env` without overriding variables already set in the environment. */
 export const loadRootEnvLocal = (rootDir: string): void => {
-  const envFile = join(rootDir, ".env.local");
-  if (existsSync(envFile)) {
-    process.loadEnvFile(envFile);
-  }
+  loadRepoEnvLocal(rootDir);
 };
 
 export const assertSafeManagedDatabaseName = (databaseName: string): void => {

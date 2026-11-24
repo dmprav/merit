@@ -3,6 +3,8 @@ import { resolve } from "node:path";
 
 import type { Plugin } from "vite-plus";
 
+import { loadEnvLocalFiles } from "@merit/test-support/env";
+
 export const assertLocalWorkspaceDatabase = (connectionString: string) => {
   const url = new URL(connectionString);
   if (
@@ -15,17 +17,12 @@ export const assertLocalWorkspaceDatabase = (connectionString: string) => {
 };
 
 const loadLocalEnvironment = (root: string) => {
-  const file = resolve(root, ".env.local");
-  if (existsSync(file)) {
-    process.loadEnvFile(file);
-  }
+  const files = [resolve(root, ".env.local")];
   const workspaceRoot = resolve(root, "..");
   if (existsSync(resolve(workspaceRoot, "pnpm-workspace.yaml"))) {
-    const rootFile = resolve(workspaceRoot, ".env.local");
-    if (existsSync(rootFile)) {
-      process.loadEnvFile(rootFile);
-    }
+    files.push(resolve(workspaceRoot, ".env.local"));
   }
+  loadEnvLocalFiles(files);
 };
 
 // Select the fixture adapter only in the dev server; builds always use real authentication.

@@ -1,24 +1,4 @@
-import { existsSync } from "node:fs";
-import { resolve } from "node:path";
-
-const rootEnvFile = resolve(import.meta.dirname, "../../..", ".env.local");
-
-export const loadRepoEnvLocal = (): void => {
-  if (existsSync(rootEnvFile)) {
-    process.loadEnvFile(rootEnvFile);
-  }
-};
-
-const readPort = (value: string | undefined, fallback: number): number => {
-  if (!value) {
-    return fallback;
-  }
-  const parsed = Number(value);
-  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 65535) {
-    throw new Error(`Invalid port value: ${value}`);
-  }
-  return parsed;
-};
+import { loadRepoEnvLocal, readPort } from "@merit/test-support/env";
 
 loadRepoEnvLocal();
 

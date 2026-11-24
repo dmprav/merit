@@ -1,17 +1,13 @@
 import { randomUUID } from "node:crypto";
-import { existsSync } from "node:fs";
-import { resolve } from "node:path";
 
 import { Client } from "pg";
 
 import { grantRuntimePrivileges } from "@merit/db/runtime-grants";
 
-const rootEnvFile = resolve(import.meta.dirname, "../../..", ".env.local");
+import { loadRepoEnvLocal } from "../env.ts";
 
 export const createTestDatabase = async () => {
-  if (existsSync(rootEnvFile)) {
-    process.loadEnvFile(rootEnvFile);
-  }
+  loadRepoEnvLocal();
   const url = new URL(
     process.env.TEST_DATABASE_URL ?? "postgres://merit:merit@127.0.0.1:55432/merit",
   );

@@ -3,9 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { migrate } from "@merit/db/migrate";
+import { loadRepoEnvLocal } from "@merit/test-support/env";
 import { createTestDatabase } from "@merit/test-support/test-database";
-
-import { loadRepoEnvLocal } from "./browser/ports.ts";
 
 loadRepoEnvLocal();
 

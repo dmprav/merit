@@ -1,29 +1,19 @@
-import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig, lazyPlugins, type ViteDevServer } from "vite-plus";
 
+import { loadEnvLocalFiles, readPort } from "@merit/test-support/env";
+
 import { reactCompilerOptions } from "../tooling/react-compiler";
 import { localWorkspace } from "./local-workspace.config";
 import { routes } from "./routes";
 
-const rootEnvFile = resolve(import.meta.dirname, "../.env.local");
-if (existsSync(rootEnvFile)) {
-  process.loadEnvFile(rootEnvFile);
-}
-
-const readPort = (value: string | undefined, fallback: number): number => {
-  if (!value) {
-    return fallback;
-  }
-  const parsed = Number(value);
-  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 65535) {
-    throw new Error(`Invalid port value: ${value}`);
-  }
-  return parsed;
-};
+loadEnvLocalFiles([
+  resolve(import.meta.dirname, ".env.local"),
+  resolve(import.meta.dirname, "../.env.local"),
+]);
 
 const devPort = readPort(process.env.MERIT_DEV_PORT, 3000);
 

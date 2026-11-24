@@ -1,26 +1,11 @@
-import { existsSync } from "node:fs";
-import { resolve } from "node:path";
-
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite-plus";
 
+import { loadRepoEnvLocal, readPort } from "@merit/test-support/env";
+
 import { reactCompilerOptions } from "../react-compiler";
 
-const rootEnvFile = resolve(import.meta.dirname, "../../.env.local");
-if (existsSync(rootEnvFile)) {
-  process.loadEnvFile(rootEnvFile);
-}
-
-const readPort = (value: string | undefined, fallback: number): number => {
-  if (!value) {
-    return fallback;
-  }
-  const parsed = Number(value);
-  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 65535) {
-    throw new Error(`Invalid port value: ${value}`);
-  }
-  return parsed;
-};
+loadRepoEnvLocal();
 
 const storybookDevPort = readPort(process.env.MERIT_STORYBOOK_DEV_PORT, 6006);
 

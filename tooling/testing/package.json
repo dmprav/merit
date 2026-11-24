@@ -6,6 +6,7 @@
   "type": "module",
   "exports": {
     "./database": "./database/database-test.ts",
+    "./env": "./env.ts",
     "./test-database": "./database/test-database.ts",
     "./browser": "./browser/checks.ts",
     "./browser/config": "./browser/config.ts",
