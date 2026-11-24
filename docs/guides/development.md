@@ -211,9 +211,15 @@ a dedicated `merit_<slug>` database on the shared Compose PostgreSQL instance,
 writes `.env.local` in the worktree, installs dependencies from the local pnpm
 store, and activates `.vite-hooks` via `vp config --no-agent`. Pass `--base`,
 `--branch`, `--dir`, `--with-db`, `--no-db`, `--doctor`, or `--json` as needed.
-`worktree:clean` idempotently removes the worktree, drops its dedicated database
-(refusing to touch `merit` or `postgres`), prunes stale worktrees, and deletes
-the worktree branch unless `--keep-branch` is passed.
+In default auto mode, database creation is skipped with a warning if Compose
+PostgreSQL is not running; start services with `vp run services:start` and pass
+`--with-db` when a database is required. Once services are running, run
+`vp run @merit/db#db:migrate` and `vp run @merit/app#db:seed` (or
+`vp run db:reset`, which also creates the database if it was skipped) inside the
+worktree to initialize its schema and seed data. `worktree:clean` idempotently
+removes the worktree, drops its dedicated database (refusing to touch `merit` or
+`postgres`), prunes stale worktrees, and deletes the worktree branch unless
+`--keep-branch` is passed.
 
 ## Schema changes
 
@@ -252,14 +258,19 @@ To replace the disposable local Compose database, stop the development server an
 vp run db:reset
 ```
 
-This deletes all stored Compose data, restarts the Compose services, waits for
-readiness, applies migrations, and seeds fresh Alder and Birch workspaces. When
-`DATABASE_URL` points to a non-default database on the local Compose PostgreSQL
-instance (`127.0.0.1:55432` or `localhost:55432`, such as a worktree's
-`merit_<slug>` database from `.env.local`), `db:reset` drops, recreates,
-migrates, and seeds only that database without restarting Compose or touching
-other worktrees' data. Non-local `DATABASE_URL` values are always ignored so
-remote databases are never modified. The command stops if any step fails.
+In the primary checkout (when `DATABASE_URL` is unset or targets the default
+`merit` database), `db:reset` removes the local Compose PostgreSQL and SeaweedFS
+volumes—deleting any sibling worktree databases on the same Compose
+project—restarts the Compose services, waits for readiness, applies migrations,
+and seeds fresh Alder and Birch workspaces. When `DATABASE_URL` is validated as
+a non-default database on the local Compose PostgreSQL instance
+(`127.0.0.1:55432` or `localhost:55432`, such as a worktree's `merit_<slug>`
+database from `.env.local`), `db:reset` drops, recreates, migrates, and seeds
+only that single database without restarting Compose or removing volumes.
+Non-local `DATABASE_URL` values are never modified: the primary checkout ignores
+them and resets the local Compose volumes, while a linked worktree stops with an
+error instead of falling back to volume deletion. The command stops if any step
+fails.
 
 Restart the development server afterward. Repeat the
 [Clerk user-linking step](#configure-real-sign-in) if using real sign-in;

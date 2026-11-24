@@ -1,4 +1,5 @@
 import { execFileSync, type ExecFileSyncOptions } from "node:child_process";
+import { statSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -14,10 +15,30 @@ export type ResetTarget =
   | { mode: "compose"; databaseUrl: string }
   | { mode: "worktree"; database: LocalComposeDatabase };
 
-export const resolveResetTarget = (env: NodeJS.ProcessEnv): ResetTarget => {
+export const isLinkedGitWorktree = (repoRoot: URL | string): boolean => {
+  const rootPath = repoRoot instanceof URL ? fileURLToPath(repoRoot) : repoRoot;
+  try {
+    return statSync(resolve(rootPath, ".git")).isFile();
+  } catch {
+    return false;
+  }
+};
+
+export const resolveResetTarget = (
+  env: NodeJS.ProcessEnv,
+  { isLinkedWorktree = false }: { isLinkedWorktree?: boolean } = {},
+): ResetTarget => {
   const local = parseLocalComposeDatabase(env.DATABASE_URL);
   if (local && !local.isProtected) {
     return { mode: "worktree", database: local };
+  }
+  if (isLinkedWorktree) {
+    const reason = env.DATABASE_URL?.trim()
+      ? "DATABASE_URL does not target a non-protected local Compose worktree database on 127.0.0.1:55432 or localhost:55432"
+      : "DATABASE_URL is not set";
+    throw new Error(
+      `Refusing to run Compose volume reset from a linked worktree (${reason}). Restore this worktree's .env.local or unset overriding DATABASE_URL variables so sibling worktree databases are not deleted.`,
+    );
   }
   return { mode: "compose", databaseUrl: DEFAULT_COMPOSE_DATABASE_URL };
 };
@@ -25,6 +46,7 @@ export const resolveResetTarget = (env: NodeJS.ProcessEnv): ResetTarget => {
 export const resetLocalDatabase = async ({
   cwd = new URL("../../", import.meta.url),
   env = process.env,
+  isLinkedWorktree = isLinkedGitWorktree(cwd),
   exec = (command: string, args: readonly string[], options: ExecFileSyncOptions) => {
     execFileSync(command, args, options);
   },
@@ -32,10 +54,11 @@ export const resetLocalDatabase = async ({
 }: {
   cwd?: URL | string;
   env?: NodeJS.ProcessEnv;
+  isLinkedWorktree?: boolean;
   exec?: (command: string, args: readonly string[], options: ExecFileSyncOptions) => void;
   recreate?: (databaseName: string, adminUrl: string) => Promise<void>;
 } = {}): Promise<ResetTarget> => {
-  const target = resolveResetTarget(env);
+  const target = resolveResetTarget(env, { isLinkedWorktree });
 
   if (target.mode === "worktree") {
     const { database } = target;

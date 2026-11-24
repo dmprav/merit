@@ -1,10 +1,13 @@
+import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
+import { join } from "node:path";
 
 export const DEFAULT_COMPOSE_DATABASE_URL = "postgres://merit:merit@127.0.0.1:55432/merit";
 const PROTECTED_DATABASE_NAMES = new Set(["merit", "postgres", "template0", "template1"]);
 
 const LOCAL_COMPOSE_HOSTS = new Set(["127.0.0.1", "localhost"]);
 const LOCAL_COMPOSE_PORT = "55432";
+const FORBIDDEN_CONNECTION_PARAMS = new Set(["host", "hostaddr", "port", "user"]);
 const VALID_DATABASE_NAME = /^[a-z][a-z0-9_]{0,62}$/;
 
 type PgClient = {
@@ -49,9 +52,15 @@ export const buildLocalDatabaseUrl = (
   return url.href;
 };
 
+const hasForbiddenConnectionParam = (url: URL): boolean =>
+  Array.from(url.searchParams.keys()).some((key) =>
+    FORBIDDEN_CONNECTION_PARAMS.has(key.toLowerCase()),
+  );
+
 /**
  * Parses a `DATABASE_URL` targeting the local loopback Compose Postgres (`127.0.0.1:55432` or `localhost:55432`).
- * Returns `null` for remote URLs, Unix-socket overrides, non-Compose ports, or malformed values.
+ * Returns `null` for remote URLs, query-string connection overrides (`host`, `hostaddr`, `port`, `user`),
+ * non-Compose ports, or malformed values.
  */
 export const parseLocalComposeDatabase = (
   connectionString: string | undefined,
@@ -63,7 +72,7 @@ export const parseLocalComposeDatabase = (
   if (
     !parsed ||
     (parsed.protocol !== "postgres:" && parsed.protocol !== "postgresql:") ||
-    parsed.searchParams.has("host") ||
+    hasForbiddenConnectionParam(parsed) ||
     !LOCAL_COMPOSE_HOSTS.has(parsed.hostname) ||
     parsed.port !== LOCAL_COMPOSE_PORT
   ) {
@@ -99,13 +108,43 @@ export const parseLocalComposeDatabase = (
 const isPgClientConstructor = (value: unknown): value is PgClientConstructor =>
   typeof value === "function";
 
-const loadPgClient = (): PgClientConstructor => {
-  const requireFromDb = createRequire(new URL("../../foundation/db/package.json", import.meta.url));
-  const pg: unknown = requireFromDb("pg");
-  if (typeof pg === "object" && pg !== null && "Client" in pg && isPgClientConstructor(pg.Client)) {
-    return pg.Client;
+let cachedPgClient: PgClientConstructor | null = null;
+
+export const loadPgClient = (repoRoot?: string): PgClientConstructor => {
+  const candidates: Array<string | URL> = [];
+  if (repoRoot) {
+    const repoDbPackage = join(repoRoot, "foundation", "db", "package.json");
+    if (existsSync(repoDbPackage)) {
+      candidates.push(repoDbPackage);
+    }
   }
-  throw new Error('Could not load "Client" export from "pg".');
+  candidates.push(new URL("../../foundation/db/package.json", import.meta.url));
+
+  let lastError: unknown;
+  for (const candidate of candidates) {
+    try {
+      const requireFromDb = createRequire(candidate);
+      const pg: unknown = requireFromDb("pg");
+      if (
+        typeof pg === "object" &&
+        pg !== null &&
+        "Client" in pg &&
+        isPgClientConstructor(pg.Client)
+      ) {
+        cachedPgClient = pg.Client;
+        return pg.Client;
+      }
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  if (cachedPgClient) {
+    return cachedPgClient;
+  }
+  throw lastError instanceof Error
+    ? lastError
+    : new Error('Could not load "Client" export from "pg".');
 };
 
 const defaultAdminUrl = () => buildLocalDatabaseUrl("postgres");
@@ -114,8 +153,9 @@ const withAdminClient = async <T>(
   adminUrl: string,
   timeoutMs: number,
   operation: (client: PgClient) => Promise<T>,
+  repoRoot?: string,
 ): Promise<T> => {
-  const Client = loadPgClient();
+  const Client = loadPgClient(repoRoot);
   const client = new Client({ connectionString: adminUrl, connectionTimeoutMillis: timeoutMs });
   await client.connect();
   try {
@@ -125,11 +165,19 @@ const withAdminClient = async <T>(
   }
 };
 
-export const isLocalPostgresReachable = async (adminUrl = defaultAdminUrl()): Promise<boolean> => {
+export const isLocalPostgresReachable = async (
+  adminUrl = defaultAdminUrl(),
+  repoRoot?: string,
+): Promise<boolean> => {
   try {
-    await withAdminClient(adminUrl, 2000, async (client) => {
-      await client.query("SELECT 1");
-    });
+    await withAdminClient(
+      adminUrl,
+      2000,
+      async (client) => {
+        await client.query("SELECT 1");
+      },
+      repoRoot,
+    );
     return true;
   } catch {
     return false;
@@ -139,37 +187,55 @@ export const isLocalPostgresReachable = async (adminUrl = defaultAdminUrl()): Pr
 export const ensureLocalDatabase = async (
   databaseName: string,
   adminUrl = defaultAdminUrl(),
+  repoRoot?: string,
 ): Promise<{ created: boolean }> => {
   assertSafeManagedDatabaseName(databaseName);
-  return withAdminClient(adminUrl, 5000, async (client) => {
-    const existing = await client.query("SELECT 1 FROM pg_database WHERE datname = $1", [
-      databaseName,
-    ]);
-    if (existing.rows.length > 0) {
-      return { created: false };
-    }
-    await client.query(`CREATE DATABASE "${databaseName}"`);
-    return { created: true };
-  });
+  return withAdminClient(
+    adminUrl,
+    5000,
+    async (client) => {
+      const existing = await client.query("SELECT 1 FROM pg_database WHERE datname = $1", [
+        databaseName,
+      ]);
+      if (existing.rows.length > 0) {
+        return { created: false };
+      }
+      await client.query(`CREATE DATABASE "${databaseName}"`);
+      return { created: true };
+    },
+    repoRoot,
+  );
 };
 
 export const dropLocalDatabase = async (
   databaseName: string,
   adminUrl = defaultAdminUrl(),
+  repoRoot?: string,
 ): Promise<void> => {
   assertSafeManagedDatabaseName(databaseName);
-  await withAdminClient(adminUrl, 5000, async (client) => {
-    await client.query(`DROP DATABASE IF EXISTS "${databaseName}" WITH (FORCE)`);
-  });
+  await withAdminClient(
+    adminUrl,
+    5000,
+    async (client) => {
+      await client.query(`DROP DATABASE IF EXISTS "${databaseName}" WITH (FORCE)`);
+    },
+    repoRoot,
+  );
 };
 
 export const recreateLocalDatabase = async (
   databaseName: string,
   adminUrl = defaultAdminUrl(),
+  repoRoot?: string,
 ): Promise<void> => {
   assertSafeManagedDatabaseName(databaseName);
-  await withAdminClient(adminUrl, 5000, async (client) => {
-    await client.query(`DROP DATABASE IF EXISTS "${databaseName}" WITH (FORCE)`);
-    await client.query(`CREATE DATABASE "${databaseName}"`);
-  });
+  await withAdminClient(
+    adminUrl,
+    5000,
+    async (client) => {
+      await client.query(`DROP DATABASE IF EXISTS "${databaseName}" WITH (FORCE)`);
+      await client.query(`CREATE DATABASE "${databaseName}"`);
+    },
+    repoRoot,
+  );
 };

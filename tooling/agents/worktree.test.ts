@@ -1,5 +1,6 @@
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import {
+  chmodSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -13,7 +14,7 @@ import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
-import { afterEach, describe, expect, test, vi } from "vite-plus/test";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vite-plus/test";
 
 import { buildLocalDatabaseUrl, DEFAULT_COMPOSE_DATABASE_URL } from "../scripts/local-postgres.ts";
 import {
@@ -32,6 +33,7 @@ import {
   parseListArgs,
   readWorktreeRegistry,
   registryLockPathForRepo,
+  registryPathForRepo,
   resolvePrimaryRepoRoot,
   validateWorktreeSlug,
   withWorktreeRegistryLock,
@@ -41,8 +43,28 @@ import {
 
 const tempDirs: string[] = [];
 
+const isolatedGitEnv = (): NodeJS.ProcessEnv => ({
+  ...process.env,
+  GIT_CONFIG_GLOBAL: "/dev/null",
+  GIT_CONFIG_NOSYSTEM: "1",
+});
+
 const git = (cwd: string, args: readonly string[]) =>
-  execFileSync("git", args, { cwd, encoding: "utf8" }).trim();
+  execFileSync("git", ["-c", "commit.gpgsign=false", ...args], {
+    cwd,
+    encoding: "utf8",
+    env: isolatedGitEnv(),
+  }).trim();
+
+const createDeferred = <T = void>() => {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+};
 
 const initTempRepo = (withOriginMain = false) => {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), "merit-worktree-test-")));
@@ -69,7 +91,13 @@ const initTempRepo = (withOriginMain = false) => {
   return dir;
 };
 
+beforeEach(() => {
+  vi.stubEnv("GIT_CONFIG_GLOBAL", "/dev/null");
+  vi.stubEnv("GIT_CONFIG_NOSYSTEM", "1");
+});
+
 afterEach(() => {
+  vi.unstubAllEnvs();
   vi.restoreAllMocks();
   for (const dir of tempDirs.splice(0)) {
     rmSync(dir, { recursive: true, force: true });
@@ -204,22 +232,29 @@ describe("worktree helpers", () => {
     expect(envText).toContain("MERIT_STORYBOOK_PORT=6107");
   });
 
-  test("parses git worktree porcelain output and collects only active reserved ports", () => {
+  test("parses git worktree porcelain -z output preserving trailing spaces and locked state, and collects reserved ports", () => {
     const parsed = parseGitWorktreePorcelain(
       [
         "worktree /repo",
         "HEAD abcdef1234",
         "branch refs/heads/main",
         "",
-        "worktree /repo/.tmp/worktrees/alpha",
+        "worktree /repo/.tmp/worktrees/trailing space ",
         "HEAD 1234567890",
         "branch refs/heads/worktree/alpha",
+        "locked reason here",
         "",
-      ].join("\n"),
+        "",
+      ].join("\0"),
     );
     expect(parsed).toEqual([
       { path: "/repo", head: "abcdef1234", branch: "main" },
-      { path: "/repo/.tmp/worktrees/alpha", head: "1234567890", branch: "worktree/alpha" },
+      {
+        path: "/repo/.tmp/worktrees/trailing space ",
+        head: "1234567890",
+        branch: "worktree/alpha",
+        locked: true,
+      },
     ]);
 
     const reserved = collectReservedPorts(
@@ -484,56 +519,84 @@ describe("worktree lifecycle in temp git repos", () => {
     expect(git(repo, ["branch", "--list", "main"])).toContain("main");
   });
 
-  test("serializes concurrent createWorktree calls to assign disjoint ports and preserve all registry records", async () => {
+  test("serializes concurrent createWorktree calls via deterministic lock contention barrier", async () => {
     const repo = initTempRepo(false);
     const createdDbs: string[] = [];
 
-    const delay = (ms: number) =>
-      new Promise<void>((resolveDelay) => {
-        setTimeout(resolveDelay, ms);
-      });
+    const alphaEnteredLock = createDeferred<void>();
+    const releaseAlphaLock = createDeferred<void>();
+    const betaReadyForLock = createDeferred<void>();
+    let alphaFirstProbe = true;
+    let betaEnteredCriticalSection = false;
 
-    const deps = {
-      execCommand: async (command: string) => {
-        if (command === "pnpm") {
-          await delay(60);
-        }
-      },
-      checkPortAvailable: async () => {
-        await delay(10);
-        return true;
-      },
-      isPostgresReachable: async () => true,
-      ensureDatabase: async (name: string) => {
-        await delay(20);
-        createdDbs.push(name);
-        return { created: true };
-      },
-    };
+    const lockOptions = { initialDelayMs: 5, maxDelayMs: 15, timeoutMs: 5_000 };
 
-    const [alpha, beta] = await Promise.all([
-      createWorktree(
-        {
-          slug: "alpha",
-          dbMode: "required",
-          doctor: false,
-          json: true,
-          primaryRepoRoot: repo,
+    const alphaPromise = createWorktree(
+      {
+        slug: "alpha",
+        dbMode: "required",
+        doctor: false,
+        json: true,
+        primaryRepoRoot: repo,
+      },
+      {
+        execCommand: () => {},
+        checkPortAvailable: async () => {
+          if (alphaFirstProbe) {
+            alphaFirstProbe = false;
+            alphaEnteredLock.resolve();
+            await releaseAlphaLock.promise;
+          }
+          return true;
         },
-        deps,
-      ),
-      createWorktree(
-        {
-          slug: "beta",
-          dbMode: "required",
-          doctor: false,
-          json: true,
-          primaryRepoRoot: repo,
+        isPostgresReachable: async () => true,
+        ensureDatabase: async (name: string) => {
+          createdDbs.push(name);
+          return { created: true };
         },
-        deps,
-      ),
-    ]);
+        lockOptions,
+      },
+    );
 
+    await alphaEnteredLock.promise;
+    expect(existsSync(registryLockPathForRepo(repo))).toBe(true);
+
+    const betaPromise = createWorktree(
+      {
+        slug: "beta",
+        dbMode: "required",
+        doctor: false,
+        json: true,
+        primaryRepoRoot: repo,
+      },
+      {
+        execCommand: () => {},
+        checkPortAvailable: async () => {
+          betaEnteredCriticalSection = true;
+          return true;
+        },
+        isPostgresReachable: async () => {
+          betaReadyForLock.resolve();
+          return true;
+        },
+        ensureDatabase: async (name: string) => {
+          createdDbs.push(name);
+          return { created: true };
+        },
+        lockOptions,
+      },
+    );
+
+    await betaReadyForLock.promise;
+    // Allow beta to reach withWorktreeRegistryLock and hit EEXIST while alpha holds the lock.
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(betaEnteredCriticalSection).toBe(false);
+
+    releaseAlphaLock.resolve();
+    const [alpha, beta] = await Promise.all([alphaPromise, betaPromise]);
+
+    expect(betaEnteredCriticalSection).toBe(true);
     const alphaPorts = new Set(Object.values(alpha.ports));
     for (const port of Object.values(beta.ports)) {
       expect(alphaPorts.has(port)).toBe(false);
@@ -596,23 +659,50 @@ describe("worktree lifecycle in temp git repos", () => {
     expect(listWorktrees({ primaryRepoRoot: repo }).map((entry) => entry.slug)).toEqual(["beta"]);
   });
 
-  test("recovers stale registry lock files before acquiring the lock", async () => {
+  test("preserves valid lock files held by a live PID regardless of age, and recovers dead-PID or corrupt locks", async () => {
     const repo = initTempRepo(false);
     const lockPath = registryLockPathForRepo(repo);
     mkdirSync(join(repo, ".tmp/worktrees"), { recursive: true });
-    writeFileSync(
-      lockPath,
-      `${JSON.stringify({ pid: process.pid, token: "stale-token", createdAt: 0 })}\n`,
-      "utf8",
-    );
+
+    // A valid lock owned by a live PID must never be expired solely by age.
+    const livePayload = `${JSON.stringify({ pid: process.pid, token: "live-token", createdAt: 0 })}\n`;
+    writeFileSync(lockPath, livePayload, "utf8");
     const expired = new Date(Date.now() - 60_000);
     utimesSync(lockPath, expired, expired);
 
-    const value = await withWorktreeRegistryLock(repo, () => "acquired", {
+    await expect(
+      withWorktreeRegistryLock(repo, () => "should-not-acquire", {
+        staleMs: 5_000,
+        timeoutMs: 60,
+        initialDelayMs: 10,
+        maxDelayMs: 20,
+      }),
+    ).rejects.toThrow(/Timed out waiting for worktree registry lock/);
+    expect(readFileSync(lockPath, "utf8")).toBe(livePayload);
+
+    // A valid lock owned by a dead PID is recovered immediately even with a fresh mtime.
+    const exited = spawnSync(process.execPath, ["-e", ""]);
+    expect(exited.pid).toBeGreaterThan(0);
+    writeFileSync(
+      lockPath,
+      `${JSON.stringify({ pid: exited.pid, token: "dead-token", createdAt: Date.now() })}\n`,
+      "utf8",
+    );
+    const fromDeadPid = await withWorktreeRegistryLock(repo, () => "acquired-dead", {
+      staleMs: 30_000,
+      timeoutMs: 2_000,
+    });
+    expect(fromDeadPid).toBe("acquired-dead");
+    expect(existsSync(lockPath)).toBe(false);
+
+    // An unreadable/corrupt lock file is recovered once past the write-grace period.
+    writeFileSync(lockPath, "{truncated", "utf8");
+    utimesSync(lockPath, expired, expired);
+    const fromCorrupt = await withWorktreeRegistryLock(repo, () => "acquired-corrupt", {
       staleMs: 5_000,
       timeoutMs: 2_000,
     });
-    expect(value).toBe("acquired");
+    expect(fromCorrupt).toBe("acquired-corrupt");
     expect(existsSync(lockPath)).toBe(false);
   });
 
@@ -800,5 +890,220 @@ describe("worktree lifecycle in temp git repos", () => {
     expect(cleaned.registryRemoved).toBe(true);
     expect(git(repo, ["branch", "--list", "feat/shared-branch"])).toContain("feat/shared-branch");
     expect(existsSync(active.path)).toBe(true);
+  });
+
+  test("throws a clear error on corrupt .registry.json instead of treating it as empty", async () => {
+    const repo = initTempRepo(false);
+    const regPath = registryPathForRepo(repo);
+    mkdirSync(dirname(regPath), { recursive: true });
+    writeFileSync(regPath, "{not valid json", "utf8");
+
+    expect(() => readWorktreeRegistry(repo)).toThrow(
+      new RegExp(
+        `Corrupt or invalid worktree registry at "${regPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"`,
+      ),
+    );
+
+    await expect(
+      createWorktree(
+        {
+          slug: "fresh",
+          dbMode: "skip",
+          doctor: false,
+          json: true,
+          primaryRepoRoot: repo,
+        },
+        {
+          execCommand: () => {},
+          checkPortAvailable: async () => true,
+        },
+      ),
+    ).rejects.toThrow(/Corrupt or invalid worktree registry/);
+    // Ensure the corrupt file was NOT silently overwritten.
+    expect(readFileSync(regPath, "utf8")).toBe("{not valid json");
+  });
+
+  test("cleans up partial checkout and newly created branch when git worktree add fails in a hook", async () => {
+    const repo = initTempRepo(false);
+    const hookPath = join(repo, ".git", "hooks", "post-checkout");
+    writeFileSync(hookPath, "#!/usr/bin/env sh\nexit 1\n", "utf8");
+    chmodSync(hookPath, 0o755);
+
+    await expect(
+      createWorktree(
+        {
+          slug: "hook-fail",
+          dbMode: "skip",
+          doctor: false,
+          json: true,
+          primaryRepoRoot: repo,
+        },
+        {
+          execCommand: () => {},
+          checkPortAvailable: async () => true,
+        },
+      ),
+    ).rejects.toThrow();
+
+    expect(existsSync(join(repo, ".tmp/worktrees/hook-fail"))).toBe(false);
+    expect(git(repo, ["worktree", "list", "--porcelain", "-z"])).not.toContain("hook-fail");
+    expect(git(repo, ["branch", "--list", "worktree/hook-fail"])).toBe("");
+    expect(readWorktreeRegistry(repo).worktrees["hook-fail"]).toBeUndefined();
+  });
+
+  test("cleanWorktree blocks concurrent create for the same slug while cleaning and keeps registry entry on branch-delete failure for retry", async () => {
+    const repo = initTempRepo(false);
+    const baseDeps = {
+      execCommand: () => {},
+      checkPortAvailable: async () => true,
+      isPostgresReachable: async () => true,
+      ensureDatabase: async () => ({ created: true }),
+    };
+
+    await createWorktree(
+      {
+        slug: "gamma",
+        branch: "feat/custom-gamma",
+        dbMode: "auto",
+        doctor: false,
+        json: true,
+        primaryRepoRoot: repo,
+      },
+      baseDeps,
+    );
+
+    let failBranchDelete = true;
+    let createDuringCleanError: Error | undefined;
+
+    const realGit = (dir: string, args: readonly string[]) =>
+      execFileSync("git", ["-c", "commit.gpgsign=false", ...args], {
+        cwd: dir,
+        encoding: "utf8",
+        env: isolatedGitEnv(),
+      });
+
+    await expect(
+      cleanWorktree(
+        { slug: "gamma", keepBranch: false, json: true, primaryRepoRoot: repo },
+        {
+          execGit: (dir, args) => {
+            if (failBranchDelete && args[0] === "branch" && args[1] === "-D") {
+              throw new Error("simulated branch delete failure");
+            }
+            return realGit(dir, args);
+          },
+          isPostgresReachable: async () => true,
+          dropDatabase: async () => {
+            // While gamma is marked "cleaning", creating the same slug must be refused.
+            try {
+              await createWorktree(
+                {
+                  slug: "gamma",
+                  dbMode: "skip",
+                  doctor: false,
+                  json: true,
+                  primaryRepoRoot: repo,
+                },
+                baseDeps,
+              );
+            } catch (error) {
+              createDuringCleanError = error as Error;
+            }
+          },
+        },
+      ),
+    ).rejects.toThrow(/simulated branch delete failure/);
+
+    expect(createDuringCleanError?.message).toMatch(/currently being cleaned/);
+
+    // Registry record must still exist with status "cleaning" and custom branch preserved.
+    const pendingRegistry = readWorktreeRegistry(repo);
+    expect(pendingRegistry.worktrees.gamma).toMatchObject({
+      slug: "gamma",
+      branch: "feat/custom-gamma",
+      status: "cleaning",
+    });
+    expect(git(repo, ["branch", "--list", "feat/custom-gamma"])).toContain("feat/custom-gamma");
+
+    // Retrying clean succeeds, deletes the custom branch, and removes the registry entry.
+    failBranchDelete = false;
+    const retried = await cleanWorktree(
+      { slug: "gamma", keepBranch: false, json: true, primaryRepoRoot: repo },
+      {
+        isPostgresReachable: async () => true,
+        dropDatabase: async () => {},
+      },
+    );
+    expect(retried).toMatchObject({
+      slug: "gamma",
+      branch: "feat/custom-gamma",
+      branchDeleted: true,
+      registryRemoved: true,
+    });
+    expect(git(repo, ["branch", "--list", "feat/custom-gamma"])).toBe("");
+    expect(readWorktreeRegistry(repo).worktrees.gamma).toBeUndefined();
+  });
+
+  test("cleanWorktree refuses to rmSync an unowned custom directory or a locked Git worktree", async () => {
+    const repo = initTempRepo(false);
+    const unownedDir = realpathSync(mkdtempSync(join(tmpdir(), "merit-unowned-dir-")));
+    tempDirs.push(unownedDir);
+    writeFileSync(join(unownedDir, "important.txt"), "do not delete\n", "utf8");
+
+    const dropDatabase = vi.fn();
+    writeWorktreeRegistry(repo, {
+      version: 1,
+      worktrees: {
+        unowned: {
+          slug: "unowned",
+          path: unownedDir,
+          branch: "worktree/unowned",
+          baseRef: "main",
+          databaseName: "merit_unowned",
+          databaseUrl: buildLocalDatabaseUrl("merit_unowned"),
+          databaseCreated: false,
+          ports: WORKTREE_PORT_BASES,
+          createdAt: "2026-11-24T00:00:00.000Z",
+        },
+      },
+    });
+
+    await expect(
+      cleanWorktree(
+        { slug: "unowned", keepBranch: false, json: true, primaryRepoRoot: repo },
+        { isPostgresReachable: async () => true, dropDatabase },
+      ),
+    ).rejects.toThrow(/not a recognized Git worktree/);
+    expect(existsSync(join(unownedDir, "important.txt"))).toBe(true);
+    expect(dropDatabase).not.toHaveBeenCalled();
+
+    // A locked Git worktree must surface Git's error and never be rmSync'd.
+    const lockedParent = realpathSync(mkdtempSync(join(tmpdir(), "merit-locked-wt-")));
+    tempDirs.push(lockedParent);
+    const lockedDir = join(lockedParent, "locked-wt");
+    const created = await createWorktree(
+      {
+        slug: "locked-slug",
+        dir: lockedDir,
+        dbMode: "skip",
+        doctor: false,
+        json: true,
+        primaryRepoRoot: repo,
+      },
+      {
+        execCommand: () => {},
+        checkPortAvailable: async () => true,
+      },
+    );
+    git(repo, ["worktree", "lock", created.path]);
+
+    await expect(
+      cleanWorktree(
+        { slug: "locked-slug", keepBranch: false, json: true, primaryRepoRoot: repo },
+        { isPostgresReachable: async () => true, dropDatabase },
+      ),
+    ).rejects.toThrow();
+    expect(existsSync(created.path)).toBe(true);
+    expect(dropDatabase).not.toHaveBeenCalled();
   });
 });

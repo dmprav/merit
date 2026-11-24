@@ -27,6 +27,7 @@ import {
   dropLocalDatabase,
   ensureLocalDatabase,
   isLocalPostgresReachable,
+  loadPgClient,
 } from "../scripts/local-postgres.ts";
 
 export const WORKTREE_SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -82,6 +83,7 @@ export const worktreeRecordSchema = z.object({
   databaseCreated: z.boolean(),
   ports: worktreePortsSchema,
   createdAt: z.string().min(10),
+  status: z.enum(["active", "cleaning"]).optional(),
 });
 
 export type WorktreeRecord = z.infer<typeof worktreeRecordSchema>;
@@ -148,6 +150,8 @@ export type GitWorktreeEntry = {
   path: string;
   head?: string;
   branch?: string;
+  locked?: boolean;
+  prunable?: boolean;
 };
 
 export type RegistryLockOptions = {
@@ -339,10 +343,10 @@ const canonicalPath = (targetPath: string): string => {
 export const parseGitWorktreePorcelain = (output: string): GitWorktreeEntry[] => {
   const entries: GitWorktreeEntry[] = [];
   let current: GitWorktreeEntry | null = null;
+  const lines = output.includes("\0") ? output.split("\0") : output.split(/\r?\n/);
 
-  for (const rawLine of output.split(/\r?\n/)) {
-    const line = rawLine.trim();
-    if (!line) {
+  for (const line of lines) {
+    if (line === "") {
       if (current) {
         entries.push(current);
         current = null;
@@ -353,17 +357,21 @@ export const parseGitWorktreePorcelain = (output: string): GitWorktreeEntry[] =>
       if (current) {
         entries.push(current);
       }
-      current = { path: line.slice("worktree ".length).trim() };
+      current = { path: line.slice("worktree ".length) };
       continue;
     }
     if (!current) {
       continue;
     }
     if (line.startsWith("HEAD ")) {
-      current.head = line.slice("HEAD ".length).trim();
+      current.head = line.slice("HEAD ".length);
     } else if (line.startsWith("branch ")) {
-      const ref = line.slice("branch ".length).trim();
+      const ref = line.slice("branch ".length);
       current.branch = ref.startsWith("refs/heads/") ? ref.slice("refs/heads/".length) : ref;
+    } else if (line === "locked" || line.startsWith("locked ")) {
+      current.locked = true;
+    } else if (line === "prunable" || line.startsWith("prunable ")) {
+      current.prunable = true;
     }
   }
   if (current) {
@@ -448,22 +456,22 @@ const tryClearStaleLock = (lockPath: string, staleMs: number): boolean => {
   }
 
   const ageMs = Date.now() - mtimeMs;
-  let stale = ageMs >= staleMs;
-  if (!stale && raw.trim().length > 0) {
+  const corruptGraceMs = Math.min(staleMs, LOCK_WRITE_GRACE_MS);
+  let stale = false;
+  if (raw.trim().length > 0) {
     try {
       const parsed = lockMetadataSchema.safeParse(JSON.parse(raw));
-      if (parsed.success && !isProcessAlive(parsed.data.pid)) {
-        stale = true;
-      } else if (!parsed.success && ageMs >= LOCK_WRITE_GRACE_MS) {
-        stale = true;
+      if (parsed.success) {
+        // Never expire valid lock metadata solely by age while its owner process is still alive.
+        stale = !isProcessAlive(parsed.data.pid);
+      } else {
+        stale = ageMs >= corruptGraceMs;
       }
     } catch {
-      if (ageMs >= LOCK_WRITE_GRACE_MS) {
-        stale = true;
-      }
+      stale = ageMs >= corruptGraceMs;
     }
-  } else if (!stale && ageMs >= LOCK_WRITE_GRACE_MS) {
-    stale = true;
+  } else {
+    stale = ageMs >= corruptGraceMs;
   }
 
   if (!stale) {
@@ -551,14 +559,26 @@ export const withWorktreeRegistryLock = async <T>(
 
 export const readWorktreeRegistry = (primaryRepoRoot: string): WorktreeRegistry => {
   const path = registryPathForRepo(primaryRepoRoot);
-  if (!existsSync(path)) {
-    return { version: 1, worktrees: {} };
-  }
+  let text: string;
   try {
-    const raw = JSON.parse(readFileSync(path, "utf8")) as unknown;
+    text = readFileSync(path, "utf8");
+  } catch (error) {
+    if (getErrnoCode(error) === "ENOENT") {
+      return { version: 1, worktrees: {} };
+    }
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new Error(`Failed to read worktree registry at "${path}": ${detail}`, { cause: error });
+  }
+
+  try {
+    const raw = JSON.parse(text) as unknown;
     return worktreeRegistrySchema.parse(raw);
-  } catch {
-    return { version: 1, worktrees: {} };
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `Corrupt or invalid worktree registry at "${path}": ${detail}. Repair or remove it after verifying active worktrees.`,
+      { cause: error },
+    );
   }
 };
 
@@ -611,7 +631,11 @@ export const collectReservedPorts = (
 ): Set<number> => {
   const reserved = new Set<number>(Object.values(DEFAULT_PORTS));
   for (const record of Object.values(registry.worktrees)) {
-    if (activeWorktreePaths && !activeWorktreePaths.has(canonicalPath(record.path))) {
+    if (
+      activeWorktreePaths &&
+      record.status !== "cleaning" &&
+      !activeWorktreePaths.has(canonicalPath(record.path))
+    ) {
       continue;
     }
     for (const port of Object.values(record.ports)) {
@@ -729,7 +753,56 @@ const getActiveGitWorktrees = (
   primaryRepoRoot: string,
   execGit: (dir: string, args: readonly string[]) => string,
 ): GitWorktreeEntry[] =>
-  parseGitWorktreePorcelain(execGit(primaryRepoRoot, ["worktree", "list", "--porcelain"]));
+  parseGitWorktreePorcelain(execGit(primaryRepoRoot, ["worktree", "list", "--porcelain", "-z"]));
+
+const resolveCommonGitDir = (
+  primaryRepoRoot: string,
+  execGit: (dir: string, args: readonly string[]) => string,
+): string =>
+  canonicalPath(
+    resolve(primaryRepoRoot, execGit(primaryRepoRoot, ["rev-parse", "--git-common-dir"]).trim()),
+  );
+
+const isInsideDirectory = (targetPath: string, parentDir: string): boolean => {
+  const normalizedTarget = canonicalPath(targetPath);
+  const normalizedParent = canonicalPath(parentDir);
+  const prefix = normalizedParent.endsWith(sep) ? normalizedParent : `${normalizedParent}${sep}`;
+  return normalizedTarget.startsWith(prefix);
+};
+
+const hasOwnedWorktreeGitFile = (worktreePath: string, commonGitDir: string): boolean => {
+  const dotGitPath = join(worktreePath, ".git");
+  try {
+    if (!statSync(dotGitPath).isFile()) {
+      return false;
+    }
+    const content = readFileSync(dotGitPath, "utf8").trim();
+    const match = /^gitdir:\s*(.+)$/.exec(content);
+    if (!match?.[1]) {
+      return false;
+    }
+    const referencedGitDir = canonicalPath(resolve(worktreePath, match[1].trim()));
+    return isInsideDirectory(referencedGitDir, join(commonGitDir, "worktrees"));
+  } catch {
+    return false;
+  }
+};
+
+const describeExecError = (error: unknown): string => {
+  const parts: string[] = [];
+  if (error instanceof Error && error.message) {
+    parts.push(error.message);
+  }
+  if (typeof error === "object" && error !== null && "stderr" in error) {
+    const { stderr } = error;
+    if (typeof stderr === "string") {
+      parts.push(stderr);
+    } else if (Buffer.isBuffer(stderr)) {
+      parts.push(stderr.toString("utf8"));
+    }
+  }
+  return parts.join("\n");
+};
 
 const currentBranchName = (
   repoDir: string,
@@ -750,13 +823,16 @@ export const createWorktree = async (
   const execGit = deps.execGit ?? defaultExecGit;
   const execCommand = deps.execCommand ?? defaultExecCommand;
   const checkPortAvailable = deps.checkPortAvailable ?? isPortAvailable;
-  const checkPostgres = deps.isPostgresReachable ?? (() => isLocalPostgresReachable());
-  const createDb = deps.ensureDatabase ?? ((name) => ensureLocalDatabase(name));
-  const dropDb = deps.dropDatabase ?? ((name) => dropLocalDatabase(name));
   const now = deps.now ?? (() => new Date());
 
   const slug = validateWorktreeSlug(options.slug);
   const primaryRepoRoot = canonicalPath(options.primaryRepoRoot);
+  const checkPostgres =
+    deps.isPostgresReachable ?? (() => isLocalPostgresReachable(undefined, primaryRepoRoot));
+  const createDb =
+    deps.ensureDatabase ?? ((name) => ensureLocalDatabase(name, undefined, primaryRepoRoot));
+  const dropDb =
+    deps.dropDatabase ?? ((name) => dropLocalDatabase(name, undefined, primaryRepoRoot));
   const invokeCwd = options.cwd ? resolve(options.cwd) : primaryRepoRoot;
   const targetDir = options.dir
     ? resolve(invokeCwd, options.dir)
@@ -786,6 +862,9 @@ export const createWorktree = async (
     }
   }
 
+  let targetExistedBefore = false;
+  let branchExistedBefore = false;
+  let worktreeAddAttempted = false;
   let worktreeAdded = false;
   let registryReserved = false;
   let databaseCreated = false;
@@ -799,17 +878,24 @@ export const createWorktree = async (
         const activePaths = new Set(gitWorktrees.map((entry) => canonicalPath(entry.path)));
 
         const existingRecord = registry.worktrees[slug];
-        if (existingRecord && activePaths.has(canonicalPath(existingRecord.path))) {
+        if (existingRecord) {
+          if (existingRecord.status === "cleaning") {
+            throw new Error(
+              `Worktree "${slug}" is currently being cleaned. Wait for cleanup to finish or re-run \`vp run worktree:clean ${slug}\`.`,
+            );
+          }
           throw new Error(
             `Worktree "${slug}" already exists at ${existingRecord.path}. Run \`vp run worktree:clean ${slug}\` first.`,
           );
         }
-        if (existsSync(targetDir)) {
+        targetExistedBefore = existsSync(targetDir);
+        if (targetExistedBefore) {
           throw new Error(
             `Target directory "${targetDir}" already exists. Choose a different --dir or clean it up first.`,
           );
         }
-        if (gitRefExists(primaryRepoRoot, `refs/heads/${branch}`, execGit)) {
+        branchExistedBefore = gitRefExists(primaryRepoRoot, `refs/heads/${branch}`, execGit);
+        if (branchExistedBefore) {
           throw new Error(
             `Branch "${branch}" already exists. Choose a different --branch or delete the existing branch first.`,
           );
@@ -819,6 +905,7 @@ export const createWorktree = async (
         const allocatedPorts = await allocateWorktreePorts({ reservedPorts, checkPortAvailable });
 
         mkdirSync(dirname(targetDir), { recursive: true });
+        worktreeAddAttempted = true;
         execGit(primaryRepoRoot, ["worktree", "add", "-b", branch, targetDir, baseRef]);
         worktreeAdded = true;
 
@@ -833,6 +920,7 @@ export const createWorktree = async (
           databaseCreated: false,
           ports: allocatedPorts,
           createdAt: now().toISOString(),
+          status: "active",
         };
         writeWorktreeRegistry(primaryRepoRoot, registry);
         registryReserved = true;
@@ -913,26 +1001,33 @@ export const createWorktree = async (
         // Best-effort rollback.
       }
     }
-    if (worktreeAdded) {
-      if (existsSync(resolvedTargetDir)) {
+    if (worktreeAdded || worktreeAddAttempted) {
+      const cleanupDir = existsSync(resolvedTargetDir)
+        ? canonicalPath(resolvedTargetDir)
+        : resolvedTargetDir;
+      if (!targetExistedBefore) {
+        if (existsSync(cleanupDir)) {
+          try {
+            execGit(primaryRepoRoot, ["worktree", "remove", "--force", cleanupDir]);
+          } catch {
+            rmSync(cleanupDir, { recursive: true, force: true });
+          }
+        }
+        if (existsSync(cleanupDir)) {
+          rmSync(cleanupDir, { recursive: true, force: true });
+        }
         try {
-          execGit(primaryRepoRoot, ["worktree", "remove", "--force", resolvedTargetDir]);
+          execGit(primaryRepoRoot, ["worktree", "prune"]);
         } catch {
-          rmSync(resolvedTargetDir, { recursive: true, force: true });
+          // Best-effort rollback.
         }
       }
-      if (existsSync(resolvedTargetDir)) {
-        rmSync(resolvedTargetDir, { recursive: true, force: true });
-      }
-      try {
-        execGit(primaryRepoRoot, ["worktree", "prune"]);
-      } catch {
-        // Best-effort rollback.
-      }
-      try {
-        execGit(primaryRepoRoot, ["branch", "-D", branch]);
-      } catch {
-        // Best-effort rollback.
+      if (!branchExistedBefore && gitRefExists(primaryRepoRoot, `refs/heads/${branch}`, execGit)) {
+        try {
+          execGit(primaryRepoRoot, ["branch", "-D", branch]);
+        } catch {
+          // Best-effort rollback.
+        }
       }
     }
     if (registryReserved) {
@@ -969,6 +1064,9 @@ export const listWorktrees = (
 
   return Object.values(registry.worktrees)
     .filter((record) => {
+      if (record.status === "cleaning") {
+        return false;
+      }
       const normalized = canonicalPath(record.path);
       return activeByPath.has(normalized) && existsSync(normalized);
     })
@@ -992,44 +1090,86 @@ export const cleanWorktree = async (
   deps: Pick<WorktreeDeps, "execGit" | "isPostgresReachable" | "dropDatabase" | "lockOptions"> = {},
 ): Promise<WorktreeCleanResult> => {
   const execGit = deps.execGit ?? defaultExecGit;
-  const checkPostgres = deps.isPostgresReachable ?? (() => isLocalPostgresReachable());
-  const dropDb = deps.dropDatabase ?? ((name) => dropLocalDatabase(name));
-
   const slug = validateWorktreeSlug(options.slug);
   const root = canonicalPath(options.primaryRepoRoot);
-  const initialRegistry = readWorktreeRegistry(root);
-  const record = initialRegistry.worktrees[slug];
+  const checkPostgres =
+    deps.isPostgresReachable ?? (() => isLocalPostgresReachable(undefined, root));
+  const dropDb = deps.dropDatabase ?? ((name) => dropLocalDatabase(name, undefined, root));
 
-  const worktreePath = record?.path ?? join(root, ".tmp", "worktrees", slug);
-  const normalizedPath = canonicalPath(worktreePath);
-  const prefix = normalizedPath.endsWith(sep) ? normalizedPath : `${normalizedPath}${sep}`;
-  if (normalizedPath === root || root.startsWith(prefix)) {
-    throw new Error(
-      `Refusing to remove primary repository root or ancestor directory "${normalizedPath}".`,
-    );
-  }
+  const { worktreePath, normalizedPath, branch, databaseName } = await withWorktreeRegistryLock(
+    root,
+    () => {
+      const registry = readWorktreeRegistry(root);
+      const record = registry.worktrees[slug];
+      const resolvedWorktreePath = record?.path ?? join(root, ".tmp", "worktrees", slug);
+      const canonicalWorktreePath = canonicalPath(resolvedWorktreePath);
+      const prefix = canonicalWorktreePath.endsWith(sep)
+        ? canonicalWorktreePath
+        : `${canonicalWorktreePath}${sep}`;
+      if (canonicalWorktreePath === root || root.startsWith(prefix)) {
+        throw new Error(
+          `Refusing to remove primary repository root or ancestor directory "${canonicalWorktreePath}".`,
+        );
+      }
 
-  const branch = record?.branch ?? `worktree/${slug}`;
-  const databaseName = record?.databaseName ?? databaseNameForSlug(slug);
-  assertSafeManagedDatabaseName(databaseName);
+      const resolvedBranch = record?.branch ?? `worktree/${slug}`;
+      const resolvedDatabaseName = record?.databaseName ?? databaseNameForSlug(slug);
+      assertSafeManagedDatabaseName(resolvedDatabaseName);
 
-  const gitWorktrees = getActiveGitWorktrees(root, execGit);
-  const registeredInGit = gitWorktrees.some(
-    (entry) => canonicalPath(entry.path) === normalizedPath,
+      if (record && record.status !== "cleaning") {
+        registry.worktrees[slug] = { ...record, status: "cleaning" };
+        writeWorktreeRegistry(root, registry);
+      }
+
+      return {
+        worktreePath: resolvedWorktreePath,
+        normalizedPath: canonicalWorktreePath,
+        branch: resolvedBranch,
+        databaseName: resolvedDatabaseName,
+      };
+    },
+    deps.lockOptions,
   );
 
+  // Preload pg from primaryRepoRoot before removing worktreePath so cleaning from inside the
+  // worktree being deleted still drops its database cleanly.
+  if (!deps.isPostgresReachable || !deps.dropDatabase) {
+    try {
+      loadPgClient(root);
+    } catch {
+      // Handled when checking/dropping the database below.
+    }
+  }
+
+  const gitWorktrees = getActiveGitWorktrees(root, execGit);
+  const gitEntry = gitWorktrees.find((entry) => canonicalPath(entry.path) === normalizedPath);
+  const commonGitDir = resolveCommonGitDir(root, execGit);
+  const managedWorktreesRoot = join(root, ".tmp", "worktrees");
+
+  const isOwnedDirectory = () =>
+    isInsideDirectory(normalizedPath, managedWorktreesRoot) ||
+    hasOwnedWorktreeGitFile(worktreePath, commonGitDir);
+
   let worktreeRemoved = false;
-  if (registeredInGit) {
+  if (gitEntry) {
     if (existsSync(worktreePath)) {
       try {
         execGit(root, ["worktree", "remove", "--force", worktreePath]);
-      } catch {
+      } catch (gitError) {
+        const lockedError = gitEntry.locked || /\blocked\b/i.test(describeExecError(gitError));
+        if (lockedError || !isOwnedDirectory()) {
+          throw gitError;
+        }
         rmSync(worktreePath, { recursive: true, force: true });
       }
     }
     worktreeRemoved = true;
-  }
-  if (existsSync(worktreePath)) {
+  } else if (existsSync(worktreePath)) {
+    if (!isOwnedDirectory()) {
+      throw new Error(
+        `Refusing to remove directory "${normalizedPath}": it is not a recognized Git worktree for this repository and is outside ".tmp/worktrees/".`,
+      );
+    }
     rmSync(worktreePath, { recursive: true, force: true });
     worktreeRemoved = true;
   }
@@ -1044,20 +1184,6 @@ export const cleanWorktree = async (
       `Warning: PostgreSQL at 127.0.0.1:55432 is not reachable; skipped dropping database "${databaseName}".`,
     );
   }
-
-  const registryRemoved = await withWorktreeRegistryLock(
-    root,
-    () => {
-      const latestRegistry = readWorktreeRegistry(root);
-      if (!(slug in latestRegistry.worktrees)) {
-        return false;
-      }
-      delete latestRegistry.worktrees[slug];
-      writeWorktreeRegistry(root, latestRegistry);
-      return true;
-    },
-    deps.lockOptions,
-  );
 
   let branchDeleted = false;
   const primaryBranch = currentBranchName(root, execGit);
@@ -1076,6 +1202,20 @@ export const cleanWorktree = async (
     execGit(root, ["branch", "-D", branch]);
     branchDeleted = true;
   }
+
+  const registryRemoved = await withWorktreeRegistryLock(
+    root,
+    () => {
+      const latestRegistry = readWorktreeRegistry(root);
+      if (!(slug in latestRegistry.worktrees)) {
+        return false;
+      }
+      delete latestRegistry.worktrees[slug];
+      writeWorktreeRegistry(root, latestRegistry);
+      return true;
+    },
+    deps.lockOptions,
+  );
 
   return {
     slug,

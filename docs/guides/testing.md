@@ -162,10 +162,13 @@ Use a small mutation experiment when reviewing a consequential rule or evaluatin
 assertion strength. Work in an isolated worktree (`vp run worktree:create <slug>`,
 inspect with `vp run worktree:list`, and remove afterward with
 `vp run worktree:clean <slug>`) so production sources, ports, databases, and
-concurrent work remain intact. Establish a passing baseline, deliberately change
-one rule, and run its focused suite without coverage thresholds. Confirm that an
-assertion about the changed behavior fails; a compilation error, timeout, or
-coverage failure does not establish that the test detected the incorrect outcome.
+concurrent work remain intact. Because `worktree:create` branches from committed
+state (defaulting to `origin/main`), commit the implementation and tests first
+and pass `--base HEAD` when creating the mutation worktree so it includes the
+change under review. Establish a passing baseline, deliberately change one rule,
+and run its focused suite without coverage thresholds. Confirm that an assertion
+about the changed behavior fails; a compilation error, timeout, or coverage
+failure does not establish that the test detected the incorrect outcome.
 
 Useful examples include changing all required authorization facts to any one fact,
 reversing tenant equality, accepting amounts outside the supported monetary range,

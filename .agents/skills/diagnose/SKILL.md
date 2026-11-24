@@ -69,8 +69,10 @@ that assumption directly.
 ## 5. Prove and clean up
 
 1. Run the reproduction and confirm it passes.
-2. Confirm it fails without the fix: either run the reproduction in an isolated
-   worktree (`vp run worktree:create <slug>`, run the check, then
+2. Confirm it fails without the fix: either test in an isolated worktree
+   (`vp run worktree:create <slug>` checks out the committed base ref, so
+   uncommitted files are not included; copy only the reproduction test into the
+   worktree, not the fix, run the check, then run
    `vp run worktree:clean <slug>`) or set aside only the non-test changes, run
    the reproduction, and see the assertion fail on the wrong value before
    restoring the fix. Use `vp run worktree:list` to inspect active worktrees.
