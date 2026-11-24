@@ -73,21 +73,26 @@ const runAxeAudit = async (page: Page): Promise<AxeViolationSummary[]> => {
   }));
 };
 
+const areDialogsVisible = (page: Page): Promise<boolean> =>
+  page
+    .getByRole("dialog")
+    .evaluateAll((dialogs) =>
+      dialogs.every((dialog) => dialog.checkVisibility({ opacityProperty: true })),
+    );
+
 /**
  * Runs Merit's standard page health, layout overflow, and WCAG 2 A/AA/2.1AA checks without
  * relying on Playwright Test's assertion runner, returning structured results for CLI tooling.
  */
 export const auditPage = async (page: Page, timeoutMs = 10_000): Promise<PageAuditResult> => {
-  await page
-    .waitForFunction(
-      () => {
-        const dialogs = Array.from(document.querySelectorAll('[role="dialog"]'));
-        return dialogs.every((dialog) => dialog.checkVisibility({ opacityProperty: true }));
-      },
-      undefined,
-      { timeout: timeoutMs },
-    )
-    .catch(() => undefined);
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const visible = await areDialogsVisible(page).catch(() => false);
+    if (visible) {
+      break;
+    }
+    await page.waitForTimeout(50);
+  }
 
   await settleAnimations(page);
 
@@ -104,11 +109,7 @@ export const auditPage = async (page: Page, timeoutMs = 10_000): Promise<PageAud
     .locator("body")
     .isVisible()
     .catch(() => false);
-  const dialogsVisible = await page
-    .getByRole("dialog")
-    .evaluateAll((dialogs) =>
-      dialogs.every((dialog) => dialog.checkVisibility({ opacityProperty: true })),
-    );
+  const dialogsVisible = await areDialogsVisible(page);
   const enteringOrExitingCount = await page.locator("[data-entering], [data-exiting]").count();
   const { scrollWidth, innerWidth } = await measureHorizontalOverflow(page);
   const axeViolations = await runAxeAudit(page);
@@ -129,15 +130,7 @@ export const checkPage = async (page: Page) => {
   await expect(page.locator("vite-error-overlay")).toHaveCount(0);
   await expect(page.locator("body")).toBeVisible();
   // React Aria mounts a transparent dialog before its entrance animation begins.
-  await expect
-    .poll(() =>
-      page
-        .getByRole("dialog")
-        .evaluateAll((dialogs) =>
-          dialogs.every((dialog) => dialog.checkVisibility({ opacityProperty: true })),
-        ),
-    )
-    .toBe(true);
+  await expect.poll(() => areDialogsVisible(page)).toBe(true);
   await settleAnimations(page);
   await expect(page.locator("[data-entering], [data-exiting]")).toHaveCount(0);
   const { scrollWidth, innerWidth } = await measureHorizontalOverflow(page);

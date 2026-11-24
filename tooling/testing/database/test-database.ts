@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { Client } from "pg";
 
+import { migrate as migrateDatabase } from "@merit/db/migrate";
 import { grantRuntimePrivileges } from "@merit/db/runtime-grants";
 
 import { loadRepoEnvLocal } from "../env.ts";
@@ -28,6 +29,8 @@ export const createTestDatabase = async () => {
   const role = name + "_runtime";
   let runtimeCreated = false;
 
+  const migrate = () => migrateDatabase(client);
+
   const createRuntimeConnection = async () => {
     const password = randomUUID();
     await client.query(`CREATE ROLE "${role}" LOGIN NOBYPASSRLS PASSWORD '${password}'`);
@@ -53,7 +56,7 @@ export const createTestDatabase = async () => {
 
   try {
     await client.connect();
-    return { client, connectionString: url.href, createRuntimeConnection, dispose };
+    return { client, connectionString: url.href, migrate, createRuntimeConnection, dispose };
   } catch (error) {
     await dispose();
     throw error;

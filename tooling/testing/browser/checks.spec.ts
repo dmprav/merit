@@ -1,4 +1,4 @@
-import { test, expect, checkPage } from "./checks";
+import { auditPage, checkPage, expect, test } from "./checks";
 
 test(
   "page checks wait for finite animations before measuring contrast",
@@ -20,6 +20,36 @@ test(
     expect(await page.getByRole("main").evaluate((node) => getComputedStyle(node).opacity)).toBe(
       "1",
     );
+  },
+);
+
+test(
+  "auditPage waits for native open dialog elements to become visible",
+  { tag: "@cross-browser" },
+  async ({ page }) => {
+    await page.setContent(`
+      <html lang="en">
+        <head><title>Native dialog</title><style>
+          body { background: white; color: black; }
+          dialog { opacity: 0; background: white; color: black; }
+          dialog.visible { opacity: 1; }
+        </style></head>
+        <body>
+          <main><h1>Page</h1></main>
+          <dialog open aria-label="Notice"><p>Dialog ready</p></dialog>
+          <script>
+            setTimeout(() => {
+              document.querySelector("dialog")?.classList.add("visible");
+            }, 150);
+          </script>
+        </body>
+      </html>
+    `);
+
+    const result = await auditPage(page);
+
+    expect(result.dialogsVisible).toBe(true);
+    expect(result.axeViolations).toEqual([]);
   },
 );
 

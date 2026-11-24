@@ -1,10 +1,4 @@
-import {
-  execFileSync,
-  spawn,
-  spawnSync,
-  type ChildProcess,
-  type ExecFileSyncOptions,
-} from "node:child_process";
+import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { dirname, join, relative, resolve } from "node:path";
@@ -170,6 +164,7 @@ export const uiVerifyResultsSchema = z.object({
   updated: z.boolean(),
   outDir: z.string().min(1),
   passed: z.boolean(),
+  error: z.string().optional(),
   summary: z.object({
     total: z.number().int().nonnegative(),
     passed: z.number().int().nonnegative(),
@@ -392,13 +387,15 @@ export const inferAppMode = (routes: readonly string[], explicitMode?: AppMode):
   if (explicitMode) {
     return explicitMode;
   }
-  const needsWorkspace = routes.some(
-    (route) =>
-      route === "/app" ||
-      route.startsWith("/app/") ||
-      route === "/admin" ||
-      route.startsWith("/admin/"),
-  );
+  const needsWorkspace = routes.some((route) => {
+    const pathname = new URL(route, "http://127.0.0.1").pathname;
+    return (
+      pathname === "/app" ||
+      pathname.startsWith("/app/") ||
+      pathname === "/admin" ||
+      pathname.startsWith("/admin/")
+    );
+  });
   return needsWorkspace ? "workspace" : "demo";
 };
 
@@ -492,6 +489,12 @@ export const sanitizeTargetName = (value: string): string => {
   return `${prefix}${sanitized || "target"}`;
 };
 
+const CONTAINER_FOCUS_STORY_PATTERNS: Readonly<Record<string, string>> = {
+  "focus-product": "control focus appearance in product",
+  "focus-site": "control focus appearance in site",
+  "design-language--focus-comparison": "control focus appearance in",
+};
+
 export const buildContainerDelegationArgs = (options: UiVerifyCliOptions): string[] => {
   if (options.routes.length > 0) {
     throw new Error(
@@ -510,6 +513,10 @@ export const buildContainerDelegationArgs = (options: UiVerifyCliOptions): strin
   if (options.stories.length > 0) {
     const pattern = options.stories
       .map((story) => {
+        const mappedFocusPattern = CONTAINER_FOCUS_STORY_PATTERNS[story.toLowerCase()];
+        if (mappedFocusPattern) {
+          return escapeRegex(mappedFocusPattern);
+        }
         const regexLiteral = /^\/(.+)\/[gimsuy]*$/.exec(story);
         if (regexLiteral?.[1]) {
           return regexLiteral[1];
@@ -724,6 +731,8 @@ type ManagedServer = {
   stop: () => Promise<void>;
 };
 
+type RegisterCleanup = (cleanup: () => Promise<void>) => () => Promise<void>;
+
 const spawnManagedProcess = (
   command: string,
   args: readonly string[],
@@ -750,26 +759,80 @@ const spawnManagedProcess = (
   return { child, getLogs: () => outputChunks.join("").slice(-4000) };
 };
 
+const runCommandAsync = async (
+  command: string,
+  args: readonly string[],
+  options: {
+    cwd: string;
+    env?: NodeJS.ProcessEnv;
+    label: string;
+    registerCleanup: RegisterCleanup;
+  },
+): Promise<void> => {
+  const stdoutChunks: string[] = [];
+  const stderrChunks: string[] = [];
+  const child = spawn(command, args, {
+    cwd: options.cwd,
+    env: options.env ?? process.env,
+    detached: true,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+
+  const stop = options.registerCleanup(() => stopChildProcess(child));
+
+  child.stdout?.on("data", (chunk: Buffer) => {
+    stdoutChunks.push(chunk.toString("utf8"));
+  });
+  child.stderr?.on("data", (chunk: Buffer) => {
+    stderrChunks.push(chunk.toString("utf8"));
+  });
+
+  try {
+    await new Promise<void>((resolveRun, rejectRun) => {
+      child.once("error", (error) => {
+        rejectRun(new Error(`${options.label} failed to start: ${error.message}`));
+      });
+      child.once("exit", (code, signal) => {
+        if (code === 0) {
+          resolveRun();
+          return;
+        }
+        const stderr = stderrChunks.join("").trim();
+        const stdout = stdoutChunks.join("").trim();
+        const detail = stderr || stdout;
+        const reason = signal ? `terminated by ${signal}` : `exited with code ${code ?? "unknown"}`;
+        rejectRun(new Error(`${options.label} failed (${reason}).${detail ? `\n${detail}` : ""}`));
+      });
+    });
+  } finally {
+    if (child.exitCode === null) {
+      await stop().catch(() => undefined);
+    }
+  }
+};
+
+const buildStorybookIfNeeded = async (
+  repoRoot: string,
+  log: (line: string) => void,
+  registerCleanup: RegisterCleanup,
+): Promise<void> => {
+  if (process.env.MERIT_STORYBOOK_PREBUILT === "1") {
+    return;
+  }
+  log("Building static Storybook (cached via Vite Task)...");
+  await runCommandAsync("vp", ["run", "@merit/storybook#build"], {
+    cwd: repoRoot,
+    label: "Storybook build",
+    registerCleanup,
+  });
+};
+
 const startStorybookServer = async (
   repoRoot: string,
   log: (line: string) => void,
+  registerCleanup: RegisterCleanup,
 ): Promise<ManagedServer> => {
   const storybookDir = join(repoRoot, "tooling/storybook");
-  if (process.env.MERIT_STORYBOOK_PREBUILT !== "1") {
-    log("Building static Storybook (cached via Vite Task)...");
-    const execOptions: ExecFileSyncOptions = {
-      cwd: repoRoot,
-      stdio: ["ignore", "pipe", "pipe"],
-    };
-    try {
-      execFileSync("vp", ["run", "@merit/storybook#build"], execOptions);
-    } catch (error) {
-      const stderr =
-        error && typeof error === "object" && "stderr" in error ? String(error.stderr) : "";
-      throw new Error(`Storybook build failed.\n${stderr}`);
-    }
-  }
-
   const port = await allocateFreePort();
   const baseUrl = `http://127.0.0.1:${port}`;
   log(`Starting isolated Storybook preview server on ${baseUrl}...`);
@@ -778,17 +841,18 @@ const startStorybookServer = async (
     ["preview", "--host", "127.0.0.1", "--port", String(port), "--strictPort"],
     { cwd: storybookDir },
   );
+  const stopServer = registerCleanup(() => stopChildProcess(child));
 
   try {
     await waitForHttpReady(`${baseUrl}/index.json`, STORYBOOK_READY_TIMEOUT_MS, child, getLogs);
   } catch (error) {
-    await stopChildProcess(child);
+    await stopServer();
     throw error;
   }
 
   return {
     baseUrl,
-    stop: () => stopChildProcess(child),
+    stop: stopServer,
   };
 };
 
@@ -796,24 +860,23 @@ const startAppServer = async (
   repoRoot: string,
   mode: AppMode,
   log: (line: string) => void,
+  registerCleanup: RegisterCleanup,
 ): Promise<ManagedServer> => {
   loadEnvLocalFiles([join(repoRoot, "app/.env.local"), join(repoRoot, ".env.local")]);
   log(`Creating ephemeral test database for ${mode} mode...`);
   const database = await createTestDatabase();
+  const disposeDatabase = registerCleanup(() => database.dispose());
 
-  let child: ChildProcess | undefined;
+  let stopServer: (() => Promise<void>) | undefined;
   try {
-    const dbEnv = { ...process.env, DATABASE_URL: database.connectionString };
-    execFileSync("vp", ["run", "@merit/db#db:migrate"], {
-      cwd: repoRoot,
-      env: dbEnv,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
+    await database.migrate();
     if (mode === "workspace") {
-      execFileSync("vp", ["run", "@merit/app#db:seed"], {
+      const dbEnv = { ...process.env, DATABASE_URL: database.connectionString };
+      await runCommandAsync("vp", ["run", "@merit/app#db:seed"], {
         cwd: repoRoot,
         env: dbEnv,
-        stdio: ["ignore", "pipe", "pipe"],
+        label: "Workspace seed",
+        registerCleanup,
       });
     }
     const runtimeConnection = await database.createRuntimeConnection();
@@ -856,7 +919,8 @@ const startAppServer = async (
       cwd: join(repoRoot, "app"),
       env: appEnv,
     });
-    child = spawned.child;
+    const child = spawned.child;
+    stopServer = registerCleanup(() => stopChildProcess(child));
 
     const readinessPath = mode === "workspace" ? "/app" : "/";
     await waitForHttpReady(
@@ -866,20 +930,19 @@ const startAppServer = async (
       spawned.getLogs,
     );
 
+    const stop = stopServer;
     return {
       baseUrl,
       stop: async () => {
-        if (child) {
-          await stopChildProcess(child);
-        }
-        await database.dispose();
+        await stop();
+        await disposeDatabase();
       },
     };
   } catch (error) {
-    if (child) {
-      await stopChildProcess(child);
+    if (stopServer) {
+      await stopServer();
     }
-    await database.dispose();
+    await disposeDatabase();
     throw error;
   }
 };
@@ -1019,8 +1082,23 @@ export const checkKeyboardFocusTraversal = async (
     ) {
       return null;
     }
-    const tabIndex = active instanceof HTMLElement ? active.tabIndex : -1;
+    const tabIndex =
+      active instanceof HTMLElement || active instanceof SVGElement ? active.tabIndex : -1;
     if (tabIndex < 0) {
+      active.blur();
+      // Calling blur() alone leaves Chromium's sequential focus navigation starting point
+      // at the blurred element; briefly focusing document.body resets Tab order to the top.
+      if (document.body) {
+        const previousBodyTabIndex = document.body.getAttribute("tabindex");
+        document.body.setAttribute("tabindex", "-1");
+        document.body.focus({ preventScroll: true });
+        document.body.blur();
+        if (previousBodyTabIndex === null) {
+          document.body.removeAttribute("tabindex");
+        } else {
+          document.body.setAttribute("tabindex", previousBodyTabIndex);
+        }
+      }
       return null;
     }
     const rect = active.getBoundingClientRect();
@@ -1227,26 +1305,44 @@ export const verifyLoadedPage = async ({
   };
 };
 
-const openTargetOnPage = async (
+const resolveTargetUrl = (target: VerifyTarget, baseUrl: string): string => {
+  if (target.kind === "story") {
+    const globalsQuery = target.globals ? `&globals=${encodeURIComponent(target.globals)}` : "";
+    return `${baseUrl}/iframe.html?id=${encodeURIComponent(target.id)}&viewMode=story${globalsQuery}`;
+  }
+  return `${baseUrl}${target.route}`;
+};
+
+export const openTargetOnPage = async (
   page: Page,
   target: VerifyTarget,
   baseUrl: string,
 ): Promise<string> => {
+  const url = resolveTargetUrl(target, baseUrl);
   if (target.kind === "story") {
-    const globalsQuery = target.globals ? `&globals=${encodeURIComponent(target.globals)}` : "";
-    const url = `${baseUrl}/iframe.html?id=${encodeURIComponent(target.id)}&viewMode=story${globalsQuery}`;
     await page.goto(url, { waitUntil: "load" });
     await page.waitForFunction(
-      () =>
-        document.querySelector("#storybook-root")?.getAttribute("data-story-ready") === "true" ||
-        (document.querySelector("#storybook-root")?.childElementCount ?? 0) > 0,
+      () => {
+        const status = document.querySelector("#storybook-root")?.getAttribute("data-story-ready");
+        return status === "true" || status === "error";
+      },
       undefined,
       { timeout: 30_000 },
     );
+    const storyReadyState = await page.evaluate(() => {
+      const root = document.querySelector("#storybook-root");
+      return {
+        status: root?.getAttribute("data-story-ready") ?? null,
+        error: root?.getAttribute("data-story-error") ?? null,
+      };
+    });
+    if (storyReadyState.status === "error") {
+      const detail = storyReadyState.error?.trim() || 'Storybook reported data-story-ready="error"';
+      throw new Error(`Story "${target.id}" failed to become ready: ${detail}`);
+    }
     return url;
   }
 
-  const url = `${baseUrl}${target.route}`;
   await page.goto(url, { waitUntil: "domcontentloaded" });
   await page.waitForLoadState("networkidle", { timeout: 15_000 }).catch(() => undefined);
   await page
@@ -1264,6 +1360,7 @@ export const summarizeResults = ({
   outDir,
   targets,
   containerExitCode,
+  error,
   generatedAt = new Date().toISOString(),
 }: {
   mode: UiVerifyResults["mode"];
@@ -1272,6 +1369,7 @@ export const summarizeResults = ({
   outDir: string;
   targets: TargetCheckResult[];
   containerExitCode?: number;
+  error?: string;
   generatedAt?: string;
 }): UiVerifyResults => {
   const passedCount = targets.filter((item) => item.passed).length;
@@ -1281,8 +1379,11 @@ export const summarizeResults = ({
   const browserErrors = targets.reduce((sum, item) => sum + item.browserErrors.length, 0);
   const focusFailures = targets.reduce((sum, item) => sum + item.focus.failures.length, 0);
 
-  const passed =
-    mode === "container" ? containerExitCode === 0 : failedCount === 0 && targets.length > 0;
+  const passed = error
+    ? false
+    : mode === "container"
+      ? containerExitCode === 0
+      : failedCount === 0 && targets.length > 0;
 
   return uiVerifyResultsSchema.parse({
     version: 1,
@@ -1292,6 +1393,7 @@ export const summarizeResults = ({
     updated,
     outDir,
     passed,
+    ...(error ? { error } : {}),
     summary: {
       total: targets.length,
       passed: passedCount,
@@ -1317,6 +1419,10 @@ export const formatMarkdownReport = (results: UiVerifyResults): string => {
     `- **Updated:** ${results.updated ? "yes" : "no"}`,
     "",
   ];
+
+  if (results.error) {
+    lines.push("## Error", "", results.error, "");
+  }
 
   if (results.mode === "container") {
     lines.push(
@@ -1489,7 +1595,7 @@ const runTargetsInBrowser = async ({
         `${sanitizeTargetName(target.name)}-${viewport}.png`,
       );
       const targetId = target.kind === "story" ? target.id : target.route;
-      let resolvedUrl = baseUrl;
+      let resolvedUrl = resolveTargetUrl(target, baseUrl);
 
       try {
         context = await browser.newContext(contextOptions);
@@ -1555,7 +1661,7 @@ export const runUiVerify = async (
         [join(repoRoot, "tooling/storybook/run-visual-container.ts"), ...containerArgs],
         {
           cwd: repoRoot,
-          stdio: "inherit",
+          stdio: options.json ? ["inherit", process.stderr, "inherit"] : "inherit",
         },
       ).status ?? 1,
     log = (line: string) => {
@@ -1575,18 +1681,33 @@ export const runUiVerify = async (
   const screenshotsDir = join(outDir, "screenshots");
 
   if (options.container) {
-    const containerArgs = buildContainerDelegationArgs(options);
-    log(`Delegating to visual container: run-visual-container.ts ${containerArgs.join(" ")}`);
-    const exitCode = runContainer(containerArgs);
-    const results = summarizeResults({
-      mode: "container",
-      updated: options.update,
-      outDir,
-      targets: [],
-      containerExitCode: exitCode,
-    });
-    writeProofArtifacts(outDir, results);
-    return results;
+    try {
+      const containerArgs = buildContainerDelegationArgs(options);
+      log(`Delegating to visual container: run-visual-container.ts ${containerArgs.join(" ")}`);
+      const exitCode = runContainer(containerArgs);
+      const results = summarizeResults({
+        mode: "container",
+        updated: options.update,
+        outDir,
+        targets: [],
+        containerExitCode: exitCode,
+      });
+      writeProofArtifacts(outDir, results);
+      return results;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      log(`FAIL: ${message}`);
+      const results = summarizeResults({
+        mode: "container",
+        updated: options.update,
+        outDir,
+        targets: [],
+        containerExitCode: 1,
+        error: message,
+      });
+      writeProofArtifacts(outDir, results);
+      return results;
+    }
   }
 
   if (options.update && existsSync(screenshotsDir)) {
@@ -1600,20 +1721,45 @@ export const runUiVerify = async (
 
   const runStorybook = options.stories.length > 0 || options.routes.length === 0;
   const runApp = options.routes.length > 0;
+  const mode: UiVerifyResults["mode"] =
+    runStorybook && runApp ? "mixed" : runApp ? "app" : "storybook";
   const appMode = runApp ? inferAppMode(options.routes, options.mode) : undefined;
   const viewports = resolveViewports(options.viewport);
 
   const cleanups: Array<() => Promise<void>> = [];
   let cleaningUp = false;
+  let cleanupPromise: Promise<void> | undefined;
 
-  const runCleanups = async () => {
+  const registerCleanup: RegisterCleanup = (cleanup) => {
+    let pending: Promise<void> | undefined;
+
+    const idempotent = () => {
+      pending ??= cleanup();
+      return pending;
+    };
+
     if (cleaningUp) {
-      return;
+      void idempotent().catch(() => undefined);
+      return idempotent;
+    }
+    cleanups.push(idempotent);
+    return idempotent;
+  };
+
+  const runCleanups = (): Promise<void> => {
+    if (cleanupPromise) {
+      return cleanupPromise;
     }
     cleaningUp = true;
-    for (const cleanup of [...cleanups].reverse()) {
-      await cleanup().catch(() => undefined);
-    }
+    cleanupPromise = (async () => {
+      while (cleanups.length > 0) {
+        const cleanup = cleanups.pop();
+        if (cleanup) {
+          await cleanup().catch(() => undefined);
+        }
+      }
+    })();
+    return cleanupPromise;
   };
 
   const onSignal = (signal: NodeJS.Signals) => {
@@ -1634,8 +1780,7 @@ export const runUiVerify = async (
     let storyTargets: StoryTarget[] = [];
 
     if (runStorybook) {
-      storybookServer = await startStorybookServer(repoRoot, log);
-      cleanups.push(storybookServer.stop);
+      await buildStorybookIfNeeded(repoRoot, log, registerCleanup);
       if (options.stories.length > 0) {
         const indexEntries = readStorybookIndex(repoRoot);
         storyTargets = filterStoryTargets(options.stories, indexEntries);
@@ -1647,6 +1792,7 @@ export const runUiVerify = async (
       } else {
         storyTargets = [...DEFAULT_STORYBOOK_TARGETS];
       }
+      storybookServer = await startStorybookServer(repoRoot, log, registerCleanup);
     }
 
     let appServer: ManagedServer | undefined;
@@ -1658,13 +1804,12 @@ export const runUiVerify = async (
     }));
 
     if (runApp && appMode) {
-      appServer = await startAppServer(repoRoot, appMode, log);
-      cleanups.push(appServer.stop);
+      appServer = await startAppServer(repoRoot, appMode, log, registerCleanup);
     }
 
     browser = await chromium.launch({ headless: true });
     const launchedBrowser = browser;
-    cleanups.push(() => launchedBrowser.close());
+    registerCleanup(() => launchedBrowser.close());
 
     if (storybookServer && storyTargets.length > 0) {
       const storyChecks = await runTargetsInBrowser({
@@ -1690,15 +1835,25 @@ export const runUiVerify = async (
       targetResults.push(...routeChecks);
     }
 
-    const mode: UiVerifyResults["mode"] =
-      runStorybook && runApp ? "mixed" : runApp ? "app" : "storybook";
-
     const results = summarizeResults({
       mode,
       appMode,
       updated: options.update,
       outDir,
       targets: targetResults,
+    });
+    writeProofArtifacts(outDir, results);
+    return results;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    log(`FAIL: ${message}`);
+    const results = summarizeResults({
+      mode,
+      appMode,
+      updated: options.update,
+      outDir,
+      targets: targetResults,
+      error: message,
     });
     writeProofArtifacts(outDir, results);
     return results;
@@ -1719,6 +1874,10 @@ const main = async () => {
   const results = await runUiVerify(options);
   if (options.json) {
     process.stdout.write(`${JSON.stringify(results, null, 2)}\n`);
+  } else if (results.error) {
+    process.stderr.write(
+      `\nUI verification FAILED: ${results.error}\nProof written to ${results.outDir}/report.md and ${results.outDir}/results.json.\n`,
+    );
   } else {
     process.stdout.write(
       `\nUI verification ${results.passed ? "PASSED" : "FAILED"} (${results.summary.passed}/${results.summary.total} targets passed). Proof written to ${results.outDir}/report.md and ${results.outDir}/results.json.\n`,

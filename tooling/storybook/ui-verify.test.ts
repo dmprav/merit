@@ -1,4 +1,5 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -11,10 +12,12 @@ import {
   DEFAULT_STORYBOOK_TARGETS,
   allocateFreePort,
   buildContainerDelegationArgs,
+  checkKeyboardFocusTraversal,
   detectFocusVisualChange,
   filterStoryTargets,
   formatMarkdownReport,
   inferAppMode,
+  openTargetOnPage,
   parseCliArgs,
   runUiVerify,
   sanitizeTargetName,
@@ -113,11 +116,14 @@ describe("parseCliArgs", () => {
 });
 
 describe("inferAppMode", () => {
-  it("infers workspace for /app and /admin routes and demo otherwise", () => {
+  it("infers workspace for /app and /admin routes (including query strings) and demo otherwise", () => {
     expect(inferAppMode(["/", "/demo", "/docs/rounds"])).toBe("demo");
     expect(inferAppMode(["/app"])).toBe("workspace");
     expect(inferAppMode(["/app/alder/rounds"])).toBe("workspace");
     expect(inferAppMode(["/admin/organizations"])).toBe("workspace");
+    expect(inferAppMode(["/app?foo=1", "/admin?bar=2"])).toBe("workspace");
+    expect(inferAppMode(["/app?foo=1"])).toBe("workspace");
+    expect(inferAppMode(["/admin?bar=2"])).toBe("workspace");
     expect(inferAppMode(["/demo", "/app/alder/rounds"])).toBe("workspace");
     expect(inferAppMode(["/app/alder/rounds"], "demo")).toBe("demo");
     expect(inferAppMode(["/"], "workspace")).toBe("workspace");
@@ -272,7 +278,78 @@ describe("container delegation and proof reporting", () => {
       ),
     ).toEqual(["--update-snapshots", "--project", "mobile", "--grep", "button"]);
 
+    expect(
+      buildContainerDelegationArgs(parseCliArgs(["--container", "--story", "focus-product"])),
+    ).toEqual(["--grep", "control focus appearance in product"]);
+
+    expect(
+      buildContainerDelegationArgs(parseCliArgs(["--container", "--story", "focus-site"])),
+    ).toEqual(["--grep", "control focus appearance in site"]);
+
+    expect(
+      buildContainerDelegationArgs(
+        parseCliArgs(["--container", "--story", "design-language--focus-comparison"]),
+      ),
+    ).toEqual(["--grep", "control focus appearance in"]);
+
     expect(buildContainerDelegationArgs(parseCliArgs(["--container"]))).toEqual([]);
+  });
+
+  it("writes failed results.json and report.md when --story matches no stories", async () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "merit-ui-verify-filter-fail-"));
+    const outDir = join(tempDir, "out");
+    const previousPrebuilt = process.env.MERIT_STORYBOOK_PREBUILT;
+    try {
+      mkdirSync(join(tempDir, "tooling/storybook/dist"), { recursive: true });
+      writeFileSync(
+        join(tempDir, "tooling/storybook/dist/index.json"),
+        JSON.stringify({
+          entries: {
+            "components-button--overview": {
+              id: "components-button--overview",
+              title: "Components/Button",
+              name: "Overview",
+              type: "story",
+            },
+          },
+        }),
+        "utf8",
+      );
+      // Seed a stale passing report to confirm failure overwrites it.
+      mkdirSync(outDir, { recursive: true });
+      writeFileSync(join(outDir, "results.json"), JSON.stringify({ passed: true }), "utf8");
+      writeFileSync(join(outDir, "report.md"), "# Stale PASS\n", "utf8");
+
+      process.env.MERIT_STORYBOOK_PREBUILT = "1";
+      const results = await runUiVerify(
+        parseCliArgs(["--story", "does-not-exist", "--out", outDir]),
+        {
+          repoRoot: tempDir,
+          log: () => undefined,
+        },
+      );
+
+      expect(results.passed).toBe(false);
+      expect(results.error).toContain("does-not-exist");
+
+      const savedJson = uiVerifyResultsSchema.parse(
+        JSON.parse(readFileSync(join(outDir, "results.json"), "utf8")),
+      );
+      expect(savedJson.passed).toBe(false);
+      expect(savedJson.error).toContain("does-not-exist");
+
+      const report = readFileSync(join(outDir, "report.md"), "utf8");
+      expect(report).toContain("**Status:** FAIL");
+      expect(report).toContain("## Error");
+      expect(report).toContain("does-not-exist");
+    } finally {
+      if (previousPrebuilt === undefined) {
+        delete process.env.MERIT_STORYBOOK_PREBUILT;
+      } else {
+        process.env.MERIT_STORYBOOK_PREBUILT = previousPrebuilt;
+      }
+      rmSync(tempDir, { recursive: true, force: true });
+    }
   });
 
   it("delegates --container runs and writes Zod-validated results.json and report.md", async () => {
@@ -478,5 +555,146 @@ describe("live Chromium checker failure detection", () => {
     expect(overflowing.browserErrors).toEqual([
       expect.objectContaining({ type: "console", message: "Synthetic runtime failure" }),
     ]);
+  });
+
+  it("catches zero-sized focusable elements in checkKeyboardFocusTraversal", async () => {
+    const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    try {
+      const page = await context.newPage();
+      await page.setContent(
+        `<!doctype html><html lang="en"><head><title>Zero sized focus</title><style>
+          body { background: #fff; color: #111; }
+          .zero {
+            width: 0;
+            height: 0;
+            padding: 0;
+            border: 0;
+            overflow: hidden;
+          }
+          .zero:focus-visible { outline: 2px solid #0f62fe; }
+        </style></head><body><main><h1>Zero size</h1><button class="zero" type="button">Collapsed control</button></main></body></html>`,
+      );
+      const focus = await checkKeyboardFocusTraversal(page);
+      expect(focus.stopsChecked).toBe(1);
+      expect(focus.failures).toHaveLength(1);
+      expect(focus.failures[0]?.element).toContain("Collapsed control");
+      expect(focus.failures[0]?.reasons.some((reason) => reason.includes("zero-sized"))).toBe(true);
+      expect(focus.failures[0]?.boundingBox).toEqual({ width: 0, height: 0 });
+    } finally {
+      await context.close();
+    }
+  });
+
+  it("blurs non-tabbable active elements like <main tabindex='-1'> so header and sidebar controls are traversed", async () => {
+    const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    try {
+      const page = await context.newPage();
+      await page.setContent(
+        `<!doctype html><html lang="en"><head><title>Shell focus order</title><style>
+          body { background: #fff; color: #111; }
+          .skip { position: fixed; top: -5rem; left: 1rem; padding: 8px; background: #fff; color: #111; }
+          .skip:focus { top: 1rem; outline: 2px solid #0f62fe; }
+          nav a { display: inline-block; padding: 8px; color: #111; outline: none; box-shadow: none; }
+          nav a:focus, nav a:focus-visible { outline: none; box-shadow: none; }
+          main button { padding: 8px 14px; background: #fff; color: #111; border: 1px solid #333; }
+          main button:focus-visible { outline: 2px solid #0f62fe; }
+        </style></head><body>
+          <a class="skip" href="#main">Skip to content</a>
+          <nav aria-label="Workspace"><a href="#rounds">Sidebar Rounds</a></nav>
+          <main id="main" tabindex="-1"><h1>Workspace</h1><button type="button">Create round</button></main>
+          <script>document.getElementById("main").focus();</script>
+        </body></html>`,
+      );
+      const focus = await checkKeyboardFocusTraversal(page);
+      expect(focus.stopsChecked).toBe(3);
+      expect(focus.failures).toHaveLength(1);
+      expect(focus.failures[0]?.element).toContain("Sidebar Rounds");
+    } finally {
+      await context.close();
+    }
+  });
+
+  it("waits on data-story-ready='true' after DOM mount and fails with data-story-error when data-story-ready='error'", async () => {
+    const server = createServer((req, res) => {
+      const reqUrl = new URL(req.url ?? "/", "http://127.0.0.1");
+      const storyId = reqUrl.searchParams.get("id");
+      res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+      if (storyId === "delayed-ready--story") {
+        res.end(
+          `<!doctype html><html lang="en"><body>
+            <div id="storybook-root"><div>Initial mount before play</div></div>
+            <script>
+              setTimeout(() => {
+                const root = document.getElementById("storybook-root");
+                root.innerHTML = '<button type="button">Play finished</button>';
+                root.setAttribute("data-story-ready", "true");
+              }, 120);
+            </script>
+          </body></html>`,
+        );
+        return;
+      }
+      if (storyId === "errored--story") {
+        res.end(
+          `<!doctype html><html lang="en"><body>
+            <div id="storybook-root"><div>Mounted before error</div></div>
+            <script>
+              setTimeout(() => {
+                const root = document.getElementById("storybook-root");
+                root.setAttribute("data-story-error", "play() assertion failed: contrast");
+                root.setAttribute("data-story-ready", "error");
+              }, 40);
+            </script>
+          </body></html>`,
+        );
+        return;
+      }
+      res.end("<!doctype html><html><body></body></html>");
+    });
+
+    await new Promise<void>((resolveListen) =>
+      server.listen(0, "127.0.0.1", () => resolveListen()),
+    );
+    const address = server.address();
+    if (!address || typeof address === "string") {
+      throw new Error("Could not bind test HTTP server.");
+    }
+    const baseUrl = `http://127.0.0.1:${address.port}`;
+
+    const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    try {
+      const readyPage = await context.newPage();
+      await openTargetOnPage(
+        readyPage,
+        {
+          kind: "story",
+          id: "delayed-ready--story",
+          name: "delayed-ready--story",
+          fullPage: true,
+        },
+        baseUrl,
+      );
+      expect(await readyPage.locator("#storybook-root").getAttribute("data-story-ready")).toBe(
+        "true",
+      );
+      expect(await readyPage.locator("button").textContent()).toBe("Play finished");
+
+      const errorPage = await context.newPage();
+      await expect(
+        openTargetOnPage(
+          errorPage,
+          {
+            kind: "story",
+            id: "errored--story",
+            name: "errored--story",
+            fullPage: true,
+          },
+          baseUrl,
+        ),
+      ).rejects.toThrow(/play\(\) assertion failed: contrast/);
+    } finally {
+      await context.close();
+      await new Promise<void>((resolveClose) => server.close(() => resolveClose()));
+    }
   });
 });
