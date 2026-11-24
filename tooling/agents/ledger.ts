@@ -33,8 +33,7 @@ export const LEDGER_HEADER = LEDGER_COLUMNS.join("\t");
 
 const DEFAULT_REPO_ROOT = resolve(fileURLToPath(new URL("../../", import.meta.url)));
 const FORMULA_PREFIX_PATTERN = /^[=+\-@"]/;
-const ISO_TIMESTAMP_PATTERN =
-  /^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2}))?$/;
+const isoTimestampSchema = z.union([z.iso.datetime({ offset: true }), z.iso.date()]);
 const POSITIVE_INT_PATTERN = /^\d+$/;
 
 const DEFAULT_LEDGER_LOCK_INITIAL_DELAY_MS = 15;
@@ -68,8 +67,7 @@ const hasControlChars = (value: string): boolean => {
   return false;
 };
 
-const isValidIsoTimestamp = (value: string): boolean =>
-  ISO_TIMESTAMP_PATTERN.test(value) && Number.isFinite(Date.parse(value));
+const isValidIsoTimestamp = (value: string): boolean => isoTimestampSchema.safeParse(value).success;
 
 const requiredLedgerCellSchema = z.string().superRefine((value, ctx) => {
   if (hasControlChars(value)) {
@@ -360,7 +358,8 @@ export const withLedgerLock = async <T>(
     maxDelayMs: options.maxDelayMs ?? DEFAULT_LEDGER_LOCK_MAX_DELAY_MS,
   });
 
-const isResumeStartRow = (entry: LedgerEntry): boolean => entry.decision.toLowerCase() === "start";
+const isResumeStartRow = (entry: LedgerEntry): boolean =>
+  entry.phase.toLowerCase() === "resume" && entry.decision.toLowerCase() === "start";
 
 export const appendLedgerEntry = async (input: LedgerLogInput): Promise<LedgerLogResult> => {
   const filePath = resolveLedgerFilePath({
@@ -544,7 +543,7 @@ export const summarizeLedger = ({
       resultCountsMap.set(entry.result, (resultCountsMap.get(entry.result) ?? 0) + 1);
     }
 
-    if (!(entry.phase === "resume" && entry.decision === "start")) {
+    if (!isResumeStartRow(entry)) {
       decisions.push(formatDecisionBullet(entry));
     }
   }
@@ -564,6 +563,14 @@ export const summarizeLedger = ({
 const stripLeadingSeparator = (args: readonly string[]): string[] =>
   args[0] === "--" ? args.slice(1) : [...args];
 
+const splitFlagToken = (token: string): { flag: string; inlineValue?: string } => {
+  const eqIndex = token.indexOf("=");
+  if (eqIndex === -1) {
+    return { flag: token };
+  }
+  return { flag: token.slice(0, eqIndex), inlineValue: token.slice(eqIndex + 1) };
+};
+
 const readOptionValue = (
   args: readonly string[],
   index: number,
@@ -574,18 +581,10 @@ const readOptionValue = (
     return { value: inlineValue, nextIndex: index };
   }
   const value = args[index + 1];
-  if (value === undefined || KNOWN_CLI_FLAGS.has(value)) {
+  if (value === undefined || KNOWN_CLI_FLAGS.has(splitFlagToken(value).flag)) {
     throw new Error(`${flag} requires a value.`);
   }
   return { value, nextIndex: index + 1 };
-};
-
-const splitFlagToken = (token: string): { flag: string; inlineValue?: string } => {
-  const eqIndex = token.indexOf("=");
-  if (eqIndex === -1) {
-    return { flag: token };
-  }
-  return { flag: token.slice(0, eqIndex), inlineValue: token.slice(eqIndex + 1) };
 };
 
 export const parseLogArgs = (rawArgs: readonly string[]): LedgerLogCliOptions => {

@@ -191,6 +191,25 @@ describe("ledger helpers", () => {
     expect(() => parseLogArgs(["--slug", "feat-one", "--run-id", "--phase", "build"])).toThrow(
       /--run-id requires a value/,
     );
+    expect(() => parseLogArgs(["--slug", "feat-one", "--run-id", "--phase=build"])).toThrow(
+      /--run-id requires a value/,
+    );
+    expect(() =>
+      parseLogArgs([
+        "--slug",
+        "feat-one",
+        "--run-id",
+        "r1",
+        "--phase",
+        "build",
+        "--decision",
+        "x",
+        "--why",
+        "y",
+        "--evidence",
+        "--result=ok",
+      ]),
+    ).toThrow(/--evidence requires a value/);
     expect(() => parseLogArgs(["--slug", "feat-one", "--bogus", "1"])).toThrow(/Unknown argument/);
     expect(() => parseLogArgs(["--slug", "feat-one", "--json=true"])).toThrow(
       /--json does not accept a value/,
@@ -306,12 +325,12 @@ describe("ledger lifecycle, resume markers, and validation", () => {
       },
     ]);
 
-    // When a new run_id explicitly logs a `start` row, do NOT insert a duplicate start row.
+    // When a new run_id explicitly logs a `resume`/`start` row (case-insensitive), do NOT insert a duplicate start row.
     const fourth = await appendLedgerEntry({
       slug: "auth-migration",
       runId: "run-3",
       phase: "resume",
-      decision: "start",
+      decision: "START",
       why: "Picked up from handoff artifact",
       evidence: ".tmp/handoffs/auth-migration.md",
       result: "started",
@@ -323,13 +342,46 @@ describe("ledger lifecycle, resume markers, and validation", () => {
     expect(fourth.appended).toHaveLength(1);
     expect(fourth.appended[0]?.why).toBe("Picked up from handoff artifact");
 
+    // An ordinary decision named "start" in a non-resume phase still prepends the automatic resume/start row.
+    const fifth = await appendLedgerEntry({
+      slug: "auth-migration",
+      runId: "run-4",
+      phase: "build",
+      decision: "start",
+      why: "Start implementation slice",
+      evidence: "slice-1",
+      result: "in-progress",
+      ts: "2026-11-24T13:00:00.000Z",
+      repoRoot: repo,
+    });
+    expect(fifth.resumed).toBe(true);
+    expect(fifth.previousRunId).toBe("run-3");
+    expect(fifth.appended).toHaveLength(2);
+    expect(fifth.appended[0]).toMatchObject({
+      run_id: "run-4",
+      phase: "resume",
+      decision: "start",
+      evidence: "run-3",
+    });
+    expect(fifth.appended[1]).toMatchObject({
+      run_id: "run-4",
+      phase: "build",
+      decision: "start",
+    });
+
+    const summary = summarizeLedger({ slug: "auth-migration", repoRoot: repo });
+    expect(summary.decisions.some((line) => line.includes("Picked up from handoff artifact"))).toBe(
+      false,
+    );
+    expect(summary.decisions.some((line) => line.includes("[build] start"))).toBe(true);
+
     const all = readLedgerEntries(first.file);
     expect(all.exists).toBe(true);
-    expect(all.entries).toHaveLength(5);
+    expect(all.entries).toHaveLength(7);
 
     // Every physical line in the file has strictly 7 tab-separated columns.
     const physicalLines = readFileSync(first.file, "utf8").trimEnd().split("\n");
-    expect(physicalLines).toHaveLength(6); // 1 header + 5 entries
+    expect(physicalLines).toHaveLength(8); // 1 header + 7 entries
     for (const line of physicalLines) {
       expect(line.split("\t")).toHaveLength(7);
     }
@@ -372,7 +424,7 @@ describe("ledger lifecycle, resume markers, and validation", () => {
     expect(() => summarizeLedger({ file: badColsFile })).toThrow(/line 2/);
     expect(readFileSync(badColsFile, "utf8")).toBe(badColsContent);
 
-    // Rejects invalid --ts or whitespace-only required fields before touching disk.
+    // Rejects invalid --ts (including impossible calendar dates) or whitespace-only required fields before touching disk.
     const untouched = join(repo, "untouched.tsv");
     await expect(
       appendLedgerEntry({
@@ -391,6 +443,16 @@ describe("ledger lifecycle, resume markers, and validation", () => {
         decision: "valid",
         why: "valid",
         ts: "not-a-timestamp",
+      }),
+    ).rejects.toThrow(/Invalid --ts/);
+    await expect(
+      appendLedgerEntry({
+        file: untouched,
+        runId: "run-1",
+        phase: "build",
+        decision: "valid",
+        why: "valid",
+        ts: "2026-02-30T10:00:00.000Z",
       }),
     ).rejects.toThrow(/Invalid --ts/);
     expect(existsSync(untouched)).toBe(false);
@@ -423,6 +485,12 @@ describe("ledger lifecycle, resume markers, and validation", () => {
       {
         name: "invalid-ts.tsv",
         badRow: "not-a-timestamp\trun-1\tbuild\tvalid decision\tvalid why\tevidence\tok",
+        field: "ts",
+        messagePattern: /ISO-8601 timestamp/,
+      },
+      {
+        name: "impossible-calendar-date-ts.tsv",
+        badRow: "2026-02-30T10:00:00.000Z\trun-1\tbuild\tvalid decision\tvalid why\tevidence\tok",
         field: "ts",
         messagePattern: /ISO-8601 timestamp/,
       },
