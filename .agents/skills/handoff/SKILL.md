@@ -1,0 +1,145 @@
+---
+name: handoff
+description: Compact an in-progress Merit session into a self-contained local handoff artifact under `.tmp/handoffs/<slug>.md` using the decision ledger (`vp run agent:ledger`), git and worktree state, and verification status so a fresh session or agent can resume cleanly without losing decisions or polluting git history. Use when work approaches a context-window limit, pauses between sessions, or transfers between agents.
+---
+
+# Hand off in-progress work
+
+Transfer multi-session or long-running work to a fresh agent or context window
+without repeating ruled-out approaches or losing approved decisions. Keep raw
+TSV ledgers (`.tmp/ledgers/<slug>.tsv`) and local handoff files
+(`.tmp/handoffs/<slug>.md`) untracked and gitignored — never commit them.
+
+Follow [AGENTS.md](../../../AGENTS.md). Pair this skill with
+[`tooling/agents/ledger.ts`](../../../tooling/agents/ledger.ts),
+[build-feature](../build-feature/SKILL.md), and
+[implement-proposal](../implement-proposal/SKILL.md).
+
+## 1. Compact the decision ledger
+
+Inspect and summarize the task's local decision ledger before writing the
+handoff note:
+
+```sh
+vp run agent:ledger -- summary --slug <slug>
+vp run agent:ledger -- tail --slug <slug> --limit 10
+```
+
+If important rulings or dead ends from the current session have not been logged
+yet, record them first so the next run inherits a complete timeline:
+
+```sh
+vp run agent:ledger -- log \
+  --slug <slug> \
+  --run-id <current-run-id> \
+  --phase handoff \
+  --decision "Pause at <checkpoint>" \
+  --why "<context limit or transfer reason>" \
+  --evidence "<commit or check output>" \
+  --result handed-off
+```
+
+## 2. Capture repository, worktree, and verification state
+
+Collect exact, verifiable workspace facts rather than prose from memory:
+
+```sh
+git branch --show-current
+git rev-parse --short HEAD
+git status -sb
+vp run worktree:list
+```
+
+Record:
+
+- current branch, base branch, and `HEAD` SHA;
+- whether changes are committed, staged, or unstaged (commit clean checkpoints
+  or note exact modified files if intentionally uncommitted);
+- active worktree slug, path, and ports from `vp run worktree:list` (when
+  working in an isolated worktree);
+- exact verification commands run with pass/fail outcomes, and which required
+  checks from [verification](../../../docs/guides/verification.md#verification)
+  remain unverified.
+
+## 3. Write `.tmp/handoffs/<slug>.md`
+
+Create `.tmp/handoffs/` if needed and write a self-contained handoff document
+at `.tmp/handoffs/<slug>.md` using this template:
+
+````markdown
+# Handoff: <slug>
+
+- **Branch:** `<branch>` (base: `<base-branch>`, `HEAD`: `<sha>`)
+- **Worktree:** `<slug and path, or "primary checkout">`
+- **Ledger:** `.tmp/ledgers/<slug>.tsv` (last `run_id`: `<current-run-id>`)
+
+## Outcome & current state
+
+<1–3 sentences stating the approved goal, what is already implemented, and where work stopped.>
+
+## Key decisions (from ledger)
+
+<Paste concise decision bullets from `vp run agent:ledger -- summary --slug <slug>`.>
+
+## Verified vs unverified
+
+- **Verified:**
+  - `<command>` — passed (`<scope or count>`)
+- **Unverified / remaining:**
+  - `<command>` — not yet run (reason)
+
+## Remaining checklist
+
+- [ ] <concrete next step with file path>
+- [ ] <remaining test, check, or review step>
+
+## Open questions / blockers
+
+- <Unresolved product, architecture, or environment question — or "None.">
+
+## How to resume
+
+1. Read `.tmp/handoffs/<slug>.md` and run `vp run agent:ledger -- summary --slug <slug>`.
+2. Start a fresh `run_id` (e.g. `<slug>-run-<n+1>`); the next `agent:ledger -- log` call automatically records a `resume`/`start` row pointing to `<current-run-id>`.
+3. Exact next command:
+
+   ```sh
+   <exact command to inspect state or run the next step>
+   ```
+````
+
+```
+
+## 4. Autonomous `agent:ready` proposal issues
+
+When handing off or pausing work on an `agent:ready` GitHub issue (see
+[implement-proposal](../implement-proposal/SKILL.md) and
+[`queue.ts`](../../../tooling/agents/queue.ts)):
+
+- **Keep raw TSV ledgers local:** never paste raw `.tmp/ledgers/<slug>.tsv`
+  contents or commit `.tmp/` artifacts. Post only the compacted Markdown
+  handoff summary.
+- **Use GitHub REST only** (never `gh issue` or `gh api graphql`, which cloud
+  sessions block with HTTP 403):
+  - If another run will resume under the same ownership window, renew the claim
+    first if approaching 90 minutes:
+    `vpx tooling/agents/queue.ts claim <issue-number> --renew <runId>`
+  - Post the compacted handoff summary as an issue comment via REST:
+    `gh api repos/<owner>/<repo>/issues/<issue-number>/comments -X POST -F body=@.tmp/handoffs/<slug>.md`
+  - If blocked on an unsettled product, protected-path, or coverage-policy
+    decision, do **not** hand off silently — escalate via:
+    `vpx tooling/agents/queue.ts escalate <issue-number> --reason "<concise blocker from handoff>"`
+
+## 5. Resume in the next session
+
+When starting from a handoff:
+
+1. Read `.tmp/handoffs/<slug>.md` and run
+   `vp run agent:ledger -- summary --slug <slug>` and
+   `vp run agent:ledger -- tail --slug <slug>`.
+2. Confirm `git branch --show-current`, `git rev-parse --short HEAD`, and
+   `vp run worktree:list` match the handoff before editing.
+3. Choose a new `--run-id` for the new session. Your first
+   `vp run agent:ledger -- log` call with that `run_id` automatically appends a
+   `resume` / `start` marker linking back to the previous `run_id`.
+```

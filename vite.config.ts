@@ -112,6 +112,7 @@ export default defineConfig({
       "agent:scout": { command: "vpx tooling/agents/scout.ts", cache: false },
       "agent:proposal": { command: "vpx tooling/agents/proposal.ts", cache: false },
       "agent:queue": { command: "vpx tooling/agents/queue.ts", cache: false },
+      "agent:ledger": { command: "vpx tooling/agents/ledger.ts", cache: false },
       "agent:prune-verifications": {
         command: "node tooling/agents/prune-verifications.ts",
         cache: false,
@@ -146,7 +147,7 @@ export default defineConfig({
       "test:hooks": { command: "vp test tooling/verification/hooks.test.ts", cache: false },
       "test:agents": {
         command:
-          "vp test tooling/agents/proposal.test.ts tooling/agents/scout.test.ts tooling/agents/queue.test.ts tooling/agents/prune-verifications.test.ts tooling/agents/worktree.test.ts tooling/storybook/ui-verify.test.ts",
+          "vp test tooling/agents/proposal.test.ts tooling/agents/scout.test.ts tooling/agents/queue.test.ts tooling/agents/ledger.test.ts tooling/agents/prune-verifications.test.ts tooling/agents/worktree.test.ts tooling/storybook/ui-verify.test.ts",
         cache: false,
       },
       "test:ci": {
