@@ -246,6 +246,34 @@ test.describe("live Chromium checker failure detection", () => {
     expect(focus.failures[0]?.boundingBox).toEqual({ width: 0, height: 0 });
   });
 
+  test("fails focus stops that cannot paint because the control or an ancestor has opacity 0", async ({
+    newContext,
+  }) => {
+    const context = await newContext({ viewport: { width: 1280, height: 800 } });
+    const page = await context.newPage();
+    await page.setContent(
+      `<!doctype html><html lang="en"><head>${VIEWPORT_META}<title>Transparent focus</title><style>
+        body { background: #fff; color: #111; }
+        button { padding: 8px 14px; background: #fff; color: #111; border: 1px solid #333; }
+        button:focus-visible { outline: 2px solid #0f62fe; outline-offset: 2px; }
+        .transparent, .transparent-panel { opacity: 0; }
+      </style></head><body><main><h1>Transparent focus</h1>
+        <button type="button">Visible control</button>
+        <button class="transparent" type="button">Transparent control</button>
+        <div class="transparent-panel"><div><button type="button">Inside transparent panel</button></div></div>
+      </main></body></html>`,
+    );
+    const focus = await checkKeyboardFocusTraversal(page);
+    expect(focus.stopsChecked).toBe(3);
+    expect(focus.failures.map((failure) => failure.element)).toEqual([
+      'button "Transparent control"',
+      'button "Inside transparent panel"',
+    ]);
+    for (const failure of focus.failures) {
+      expect(failure.reasons).toEqual(["not painted: the control or an ancestor has opacity 0"]);
+    }
+  });
+
   test("blurs non-tabbable active elements like <main tabindex='-1'> so header and sidebar controls are traversed", async ({
     newContext,
   }) => {

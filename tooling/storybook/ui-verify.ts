@@ -1195,6 +1195,8 @@ type CapturedStop = {
   index: number;
   element: string;
   boundingBox: { width: number; height: number };
+  /** False when the control or an ancestor has `opacity: 0`, so no focus cue on it can paint. */
+  painted: boolean;
   focused: FocusVisualSnapshot;
   /** Captured after Tab moves on, so the next stop may have focus. */
   unfocused?: FocusVisualSnapshot;
@@ -1209,6 +1211,7 @@ type MeritFocusTracker = {
   deepActiveElement: () => Element | null;
   isFocusable: (el: Element) => el is HTMLElement | SVGElement;
   isOpaqueFrame: (el: Element) => boolean;
+  isPainted: (el: Element) => boolean;
   resetFocusToDocumentStart: () => void;
 };
 
@@ -1292,6 +1295,11 @@ export const checkKeyboardFocusTraversal = async (
     };
 
     const isOpaqueFrame = (el: Element): boolean => isFrame(el) && frameDocument(el) === null;
+
+    // A control with positive size still paints nothing, its outline included, when it or an
+    // ancestor is fully transparent.
+    const isPainted = (el: Element): boolean =>
+      el.checkVisibility({ opacityProperty: true, visibilityProperty: true });
 
     // Frame content belongs to another realm, so check against that document's constructors.
     const isFocusable = (el: Element): el is HTMLElement | SVGElement => {
@@ -1381,6 +1389,7 @@ export const checkKeyboardFocusTraversal = async (
       deepActiveElement,
       isFocusable,
       isOpaqueFrame,
+      isPainted,
       resetFocusToDocumentStart,
     };
   });
@@ -1421,6 +1430,7 @@ export const checkKeyboardFocusTraversal = async (
         index: 0,
         element: tracker.describeElement(active),
         boundingBox: { width: rect.width, height: rect.height },
+        painted: tracker.isPainted(active),
         focused: tracker.captureSnapshot(active),
       },
     };
@@ -1493,6 +1503,7 @@ export const checkKeyboardFocusTraversal = async (
             index,
             element: tracker.describeElement(active),
             boundingBox: { width: rect.width, height: rect.height },
+            painted: tracker.isPainted(active),
             focused: tracker.captureSnapshot(active),
           },
         };
@@ -1581,6 +1592,9 @@ export const checkKeyboardFocusTraversal = async (
       reasons.push(
         `zero-sized bounding box (${stop.boundingBox.width}x${stop.boundingBox.height})`,
       );
+    }
+    if (!stop.painted) {
+      reasons.push("not painted: the control or an ancestor has opacity 0");
     }
     const baselines = [stop.unfocused, stop.cleanUnfocused].filter(
       (baseline): baseline is FocusVisualSnapshot => baseline !== undefined,
