@@ -687,7 +687,8 @@ export const readConfiguredPorts = (checkoutRoot: string): number[] => {
     try {
       values = parseEnv(readFileSync(envFile, "utf8"));
     } catch (error) {
-      if (getErrnoCode(error) === "ENOENT") {
+      const code = getErrnoCode(error);
+      if (code === "ENOENT" || code === "ENOTDIR") {
         continue;
       }
       throw error;
@@ -1142,8 +1143,12 @@ export const createWorktree = async (
         }
 
         const reservedPorts = collectReservedPorts(registry, activePaths);
-        for (const port of readConfiguredPorts(primaryRepoRoot)) {
-          reservedPorts.add(port);
+        // Idle checkouts, including moved ones, start servers on whatever their `.env.local` files
+        // set now, which can differ from the ports recorded for them.
+        for (const checkoutPath of new Set([primaryRepoRoot, ...activePaths])) {
+          for (const port of readConfiguredPorts(checkoutPath)) {
+            reservedPorts.add(port);
+          }
         }
         const allocatedPorts = await allocateWorktreePorts({ reservedPorts, checkPortAvailable });
 

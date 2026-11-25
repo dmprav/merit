@@ -2267,4 +2267,27 @@ describe("worktree lifecycle in temp git repos", () => {
     expect(cleaned).toMatchObject({ branchDeleted: true, registryRemoved: true });
     expect(readWorktreeRegistry(repo).worktrees.external).toBeUndefined();
   });
+
+  test("createWorktree never assigns ports that a linked checkout's .env.local now configures, even after a move", async () => {
+    const repo = initTempRepo(false);
+    const movedParent = realpathSync(mkdtempSync(join(tmpdir(), "merit-moved-ports-")));
+    tempDirs.push(movedParent);
+    const movedPath = join(movedParent, "alpha-moved");
+    const deps = { execCommand: () => {}, checkPortAvailable: async () => true };
+
+    const alpha = await createWorktree(
+      { slug: "alpha", dbMode: "skip", doctor: false, json: true, primaryRepoRoot: repo },
+      deps,
+    );
+    git(repo, ["worktree", "move", alpha.path, movedPath]);
+    // Idle alpha now overrides its recorded dev port with the next slot's port.
+    mkdirSync(join(movedPath, "app"), { recursive: true });
+    writeFileSync(join(movedPath, "app/.env.local"), "MERIT_DEV_PORT=3110\n", "utf8");
+
+    const beta = await createWorktree(
+      { slug: "beta", dbMode: "skip", doctor: false, json: true, primaryRepoRoot: repo },
+      deps,
+    );
+    expect(beta.ports.MERIT_DEV_PORT).toBe(3120);
+  });
 });

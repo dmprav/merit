@@ -207,9 +207,9 @@ vp run worktree:clean feat-example
 `worktree:create` branches from `origin/main` (or `main` if no remote exists),
 allocates collision-free local ports (`MERIT_DEV_PORT`, `MERIT_APP_PORT`,
 `MERIT_WORKSPACE_PORT`, `MERIT_STORYBOOK_DEV_PORT`, `MERIT_STORYBOOK_PORT`),
-avoiding the defaults, any ports set in the primary checkout's `.env.local` or
-`app/.env.local`, and the ports of every registered worktree that still exists,
-including one moved with `git worktree move`, and
+avoiding the defaults, any ports set in the `.env.local` or `app/.env.local` of
+the primary checkout or any linked worktree, and the ports of every registered
+worktree that still exists, including one moved with `git worktree move`, and
 a dedicated `merit_<slug>` database on the shared Compose PostgreSQL instance,
 writes `.env.local` in the worktree, installs dependencies from the local pnpm
 store, and activates `.vite-hooks` via `vp config --no-agent`. Pass `--base`,
