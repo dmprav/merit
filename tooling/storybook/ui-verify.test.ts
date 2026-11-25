@@ -41,6 +41,23 @@ const baseStyle = (overrides: Partial<ElementStyleSnapshot> = {}): ElementStyleS
   ...overrides,
 });
 
+const pseudoBaseStyle = (overrides: Partial<ElementStyleSnapshot> = {}): ElementStyleSnapshot =>
+  baseStyle({
+    borderTopWidth: "0px",
+    borderRightWidth: "0px",
+    borderBottomWidth: "0px",
+    borderLeftWidth: "0px",
+    borderTopColor: "rgba(0, 0, 0, 0)",
+    borderRightColor: "rgba(0, 0, 0, 0)",
+    borderBottomColor: "rgba(0, 0, 0, 0)",
+    borderLeftColor: "rgba(0, 0, 0, 0)",
+    backgroundColor: "rgba(0, 0, 0, 0)",
+    backgroundImage: "none",
+    content: "none",
+    opacity: "1",
+    ...overrides,
+  });
+
 const baseSnapshot = (overrides: Partial<FocusVisualSnapshot> = {}): FocusVisualSnapshot => ({
   self: baseStyle(),
   ancestors: [],
@@ -121,6 +138,13 @@ describe("parseCliArgs", () => {
       /Protocol-relative routes are not allowed/,
     );
     expect(() => parseCliArgs(["--route", "/app\nfoo"])).toThrow(/control characters/);
+    expect(() => parseCliArgs(["--story", ","])).toThrow(/Invalid --story/);
+    expect(() => parseCliArgs(["--story", " , "])).toThrow(/Invalid --story/);
+    expect(() => parseCliArgs(["--story=,"])).toThrow(/Invalid --story/);
+    expect(() => parseCliArgs(["--container", "--update", "--story", " , "])).toThrow(
+      /Invalid --story/,
+    );
+    expect(() => parseCliArgs(["--route", " , "])).toThrow(/Invalid --route/);
     expect(() => parseCliArgs(["--container", "--route", "/demo"])).toThrow(
       /--container delegates Storybook visual baselines/,
     );
@@ -260,10 +284,75 @@ describe("detectFocusVisualChange", () => {
 
     expect(
       detectFocusVisualChange(
-        baseSnapshot({ after: baseStyle({ content: "none", opacity: "0" }) }),
-        baseSnapshot({ after: baseStyle({ content: '""', opacity: "1" }) }),
+        baseSnapshot({
+          after: pseudoBaseStyle({
+            content: "none",
+            opacity: "0",
+            backgroundColor: "rgb(15, 98, 254)",
+          }),
+        }),
+        baseSnapshot({
+          after: pseudoBaseStyle({
+            content: '""',
+            opacity: "1",
+            backgroundColor: "rgb(15, 98, 254)",
+          }),
+        }),
       ),
     ).toEqual({ changed: true, reasons: ["self::after:pseudo-indicator"] });
+
+    expect(
+      detectFocusVisualChange(
+        baseSnapshot({
+          before: pseudoBaseStyle({
+            content: '""',
+            opacity: "0",
+            borderTopWidth: "2px",
+            borderTopColor: "rgb(15, 98, 254)",
+          }),
+        }),
+        baseSnapshot({
+          before: pseudoBaseStyle({
+            content: '""',
+            opacity: "1",
+            borderTopWidth: "2px",
+            borderTopColor: "rgb(15, 98, 254)",
+          }),
+        }),
+      ),
+    ).toEqual({ changed: true, reasons: ["self::before:pseudo-indicator"] });
+  });
+
+  it("rejects invisible opacity:0 and unpainted content:'' pseudo-element focus changes", () => {
+    expect(
+      detectFocusVisualChange(
+        baseSnapshot({ after: pseudoBaseStyle({ content: "none", opacity: "0" }) }),
+        baseSnapshot({ after: pseudoBaseStyle({ content: '""', opacity: "0" }) }),
+      ),
+    ).toEqual({ changed: false, reasons: [] });
+
+    expect(
+      detectFocusVisualChange(
+        baseSnapshot({
+          after: pseudoBaseStyle({ content: "none", opacity: "1" }),
+        }),
+        baseSnapshot({
+          after: pseudoBaseStyle({
+            content: '""',
+            opacity: "0",
+            backgroundColor: "rgb(15, 98, 254)",
+            boxShadow: "rgb(15, 98, 254) 0px 0px 0px 2px",
+          }),
+        }),
+      ),
+    ).toEqual({ changed: false, reasons: [] });
+
+    expect(
+      detectFocusVisualChange(
+        baseSnapshot({ after: pseudoBaseStyle({ content: "none", opacity: "0" }) }),
+        baseSnapshot({ after: pseudoBaseStyle({ content: '""', opacity: "1" }) }),
+      ),
+    ).toEqual({ changed: false, reasons: [] });
   });
 
   it("rejects unchanged styles and transparent or zero-width outlines (including CSS Color 4 slash-alpha and hsla)", () => {

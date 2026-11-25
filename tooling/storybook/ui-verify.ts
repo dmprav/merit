@@ -132,6 +132,7 @@ const focusStopFailureSchema = z.object({
 const focusCheckResultSchema = z.object({
   stopsChecked: z.number().int().nonnegative(),
   reachedCap: z.boolean(),
+  incompleteReason: z.string().optional(),
   failures: z.array(focusStopFailureSchema),
 });
 
@@ -390,13 +391,23 @@ export const parseCliArgs = (rawArgs: readonly string[]): UiVerifyCliOptions => 
     }
     if (arg === "--story" || arg.startsWith("--story=")) {
       const { value, nextIndex } = readFlagValue(args, index, "--story");
-      stories.push(...splitStoryPatterns(value));
+      const parsedPatterns = splitStoryPatterns(value);
+      if (parsedPatterns.length === 0) {
+        throw new Error(`Invalid --story "${value}". Expected at least one non-empty pattern.`);
+      }
+      stories.push(...parsedPatterns);
       index = nextIndex;
       continue;
     }
     if (arg === "--route" || arg.startsWith("--route=")) {
       const { value, nextIndex } = readFlagValue(args, index, "--route");
-      for (const route of splitCommaValues(value)) {
+      const parsedRoutes = splitCommaValues(value);
+      if (parsedRoutes.length === 0) {
+        throw new Error(
+          `Invalid --route "${value}". Expected at least one route starting with "/".`,
+        );
+      }
+      for (const route of parsedRoutes) {
         routes.push(normalizeRoutePattern(route));
       }
       index = nextIndex;
@@ -717,11 +728,42 @@ const hasVisibleOutline = (style: ElementStyleSnapshot): boolean =>
   Number.parseFloat(style.outlineWidth) > 0 &&
   !isTransparentColor(style.outlineColor);
 
+const hasVisibleBorder = (style: ElementStyleSnapshot): boolean =>
+  (Number.parseFloat(style.borderTopWidth) > 0 && !isTransparentColor(style.borderTopColor)) ||
+  (Number.parseFloat(style.borderRightWidth) > 0 && !isTransparentColor(style.borderRightColor)) ||
+  (Number.parseFloat(style.borderBottomWidth) > 0 &&
+    !isTransparentColor(style.borderBottomColor)) ||
+  (Number.parseFloat(style.borderLeftWidth) > 0 && !isTransparentColor(style.borderLeftColor));
+
+const hasVisibleBackground = (style: ElementStyleSnapshot): boolean =>
+  (style.backgroundColor.trim() !== "" && !isTransparentColor(style.backgroundColor)) ||
+  (style.backgroundImage.trim() !== "" && style.backgroundImage.trim().toLowerCase() !== "none");
+
+const hasVisibleOpacity = (opacity: string | undefined): boolean => {
+  if (opacity === undefined || opacity === "") {
+    return true;
+  }
+  const parsed = Number.parseFloat(opacity);
+  return Number.isFinite(parsed) && parsed > 0;
+};
+
+const hasVisiblePseudoPaint = (style: ElementStyleSnapshot): boolean =>
+  hasVisibleOpacity(style.opacity) &&
+  (hasVisibleOutline(style) ||
+    hasVisibleBoxShadow(style.boxShadow) ||
+    hasVisibleBorder(style) ||
+    hasVisibleBackground(style));
+
 const compareStyleSnapshots = (
   unfocused: ElementStyleSnapshot,
   focused: ElementStyleSnapshot,
   scope: string,
 ): string[] => {
+  const isPseudo = scope.endsWith("::before") || scope.endsWith("::after");
+  if (isPseudo && (focused.content === "none" || !hasVisibleOpacity(focused.opacity))) {
+    return [];
+  }
+
   const reasons: string[] = [];
   if (
     hasVisibleOutline(focused) &&
@@ -744,12 +786,13 @@ const compareStyleSnapshots = (
     unfocused.borderRightWidth !== focused.borderRightWidth ||
     unfocused.borderBottomWidth !== focused.borderBottomWidth ||
     unfocused.borderLeftWidth !== focused.borderLeftWidth;
-  if (borderChanged) {
+  if (borderChanged && (!isPseudo || hasVisibleBorder(focused))) {
     reasons.push(`${scope}:border`);
   }
   if (
-    unfocused.backgroundColor !== focused.backgroundColor ||
-    unfocused.backgroundImage !== focused.backgroundImage
+    (unfocused.backgroundColor !== focused.backgroundColor ||
+      unfocused.backgroundImage !== focused.backgroundImage) &&
+    (!isPseudo || hasVisibleBackground(focused))
   ) {
     reasons.push(`${scope}:background`);
   }
@@ -759,11 +802,12 @@ const compareStyleSnapshots = (
   ) {
     reasons.push(`${scope}:text-decoration`);
   }
-  if (scope.endsWith("::before") || scope.endsWith("::after")) {
+  if (isPseudo) {
     if (
       focused.content !== undefined &&
       focused.content !== "none" &&
-      (focused.content !== unfocused.content || focused.opacity !== unfocused.opacity)
+      (focused.content !== unfocused.content || focused.opacity !== unfocused.opacity) &&
+      hasVisiblePseudoPaint(focused)
     ) {
       reasons.push(`${scope}:pseudo-indicator`);
     }
@@ -838,33 +882,45 @@ const waitForHttpReady = async (
   const deadline = Date.now() + timeoutMs;
   let lastError = "";
 
-  while (Date.now() < deadline) {
+  const assertChildAlive = () => {
     const spawnError = getSpawnError?.();
     if (spawnError) {
       throw new Error(
         `Server failed to start while waiting for ${url}: ${spawnError.message}\n${getLogs()}`,
       );
     }
-    if (child.exitCode !== null) {
-      throw new Error(
-        `Server exited early with code ${child.exitCode} while waiting for ${url}.\n${getLogs()}`,
-      );
+    if (child.exitCode !== null || child.signalCode !== null) {
+      const detail = child.signalCode ? `signal ${child.signalCode}` : `code ${child.exitCode}`;
+      throw new Error(`Server exited early with ${detail} while waiting for ${url}.\n${getLogs()}`);
     }
+  };
+
+  while (Date.now() < deadline) {
+    assertChildAlive();
     const remainingMs = deadline - Date.now();
     if (remainingMs <= 0) {
       break;
     }
+    let responseOk = false;
     try {
       const response = await fetch(url, {
         redirect: "manual",
         signal: AbortSignal.timeout(remainingMs),
       });
       if (response.status >= 200 && response.status < 400) {
-        return;
+        responseOk = true;
+      } else {
+        lastError = `HTTP ${response.status}`;
       }
-      lastError = `HTTP ${response.status}`;
     } catch (error) {
       lastError = error instanceof Error ? error.message : String(error);
+    }
+    if (responseOk) {
+      // Yield briefly and confirm our child is still alive so a server that exited on
+      // --strictPort collision is never mistaken for ready when another listener responded.
+      await delay(50);
+      assertChildAlive();
+      return;
     }
     const sleepMs = Math.min(250, Math.max(0, deadline - Date.now()));
     if (sleepMs > 0) {
@@ -872,12 +928,7 @@ const waitForHttpReady = async (
     }
   }
 
-  const spawnError = getSpawnError?.();
-  if (spawnError) {
-    throw new Error(
-      `Server failed to start while waiting for ${url}: ${spawnError.message}\n${getLogs()}`,
-    );
-  }
+  assertChildAlive();
 
   throw new Error(
     `Timed out after ${timeoutMs}ms waiting for ${url} (${lastError}).\n${getLogs()}`,
@@ -885,7 +936,7 @@ const waitForHttpReady = async (
 };
 
 const stopChildProcess = async (child: ChildProcess): Promise<void> => {
-  if (child.exitCode !== null || child.pid === undefined) {
+  if (child.exitCode !== null || child.signalCode !== null || child.pid === undefined) {
     return;
   }
 
@@ -1333,52 +1384,63 @@ export const checkKeyboardFocusTraversal = async (
     stops.push(initialState.initialStop);
   }
 
-  for (let step = 0; step < maxStops; step += 1) {
+  for (let step = 0; step <= maxStops; step += 1) {
+    const atCap = stops.length >= maxStops;
     await page.keyboard.press("Tab");
     await settleAnimations(page);
 
-    const outcome = await page.evaluate((previousIndex: number) => {
-      const tracker = window.__meritFocusTracker;
-      if (!tracker) {
-        return { done: true as const, previousUnfocused: undefined };
-      }
-      const active = tracker.deepActiveElement();
-      const previousEl = previousIndex >= 0 ? tracker.stops[previousIndex] : undefined;
-      let previousUnfocused: FocusVisualSnapshot | undefined;
-      if (previousEl && previousEl !== active && previousEl.isConnected) {
-        previousUnfocused = tracker.captureSnapshot(previousEl);
-      }
+    const outcome = await page.evaluate(
+      ({ previousIndex, isAtCap }: { previousIndex: number; isAtCap: boolean }) => {
+        const tracker = window.__meritFocusTracker;
+        if (!tracker) {
+          return { done: true as const, reachedCap: false as const, previousUnfocused: undefined };
+        }
+        const active = tracker.deepActiveElement();
+        const previousEl = previousIndex >= 0 ? tracker.stops[previousIndex] : undefined;
+        let previousUnfocused: FocusVisualSnapshot | undefined;
+        if (previousEl && previousEl !== active && previousEl.isConnected) {
+          previousUnfocused = tracker.captureSnapshot(previousEl);
+        }
 
-      if (!active || active === document.body || active === document.documentElement) {
-        return { done: true as const, previousUnfocused };
-      }
+        if (!active || active === document.body || active === document.documentElement) {
+          return { done: true as const, reachedCap: false as const, previousUnfocused };
+        }
 
-      const existingIndex = tracker.stops.indexOf(active);
-      if (existingIndex !== -1) {
-        // Re-visiting index 0 after Tab gives us a genuine keyboard focus snapshot if it started autofocused.
-        const refreshedFocused = existingIndex === 0 ? tracker.captureSnapshot(active) : undefined;
+        const existingIndex = tracker.stops.indexOf(active);
+        if (existingIndex !== -1) {
+          // Re-visiting index 0 after Tab gives us a genuine keyboard focus snapshot if it started autofocused.
+          const refreshedFocused =
+            existingIndex === 0 ? tracker.captureSnapshot(active) : undefined;
+          return {
+            done: true as const,
+            reachedCap: false as const,
+            cycledTo: existingIndex,
+            refreshedFocused,
+            previousUnfocused,
+          };
+        }
+
+        if (isAtCap) {
+          return { done: true as const, reachedCap: true as const, previousUnfocused };
+        }
+
+        const rect = active.getBoundingClientRect();
+        const index = tracker.stops.length;
+        tracker.stops.push(active);
         return {
-          done: true as const,
-          cycledTo: existingIndex,
-          refreshedFocused,
+          done: false as const,
+          reachedCap: false as const,
           previousUnfocused,
+          stop: {
+            index,
+            element: tracker.describeElement(active),
+            boundingBox: { width: rect.width, height: rect.height },
+            focused: tracker.captureSnapshot(active),
+          },
         };
-      }
-
-      const rect = active.getBoundingClientRect();
-      const index = tracker.stops.length;
-      tracker.stops.push(active);
-      return {
-        done: false as const,
-        previousUnfocused,
-        stop: {
-          index,
-          element: tracker.describeElement(active),
-          boundingBox: { width: rect.width, height: rect.height },
-          focused: tracker.captureSnapshot(active),
-        },
-      };
-    }, stops.length - 1);
+      },
+      { previousIndex: stops.length - 1, isAtCap: atCap },
+    );
 
     const lastStop = stops.at(-1);
     if (lastStop && outcome.previousUnfocused && !lastStop.unfocused) {
@@ -1386,17 +1448,15 @@ export const checkKeyboardFocusTraversal = async (
     }
 
     if (outcome.done) {
-      if (outcome.cycledTo === 0 && outcome.refreshedFocused && stops[0]) {
+      if (outcome.reachedCap) {
+        reachedCap = true;
+      } else if (outcome.cycledTo === 0 && outcome.refreshedFocused && stops[0]) {
         stops[0].focused = outcome.refreshedFocused;
       }
       break;
     }
 
     stops.push(outcome.stop);
-    if (stops.length >= maxStops) {
-      reachedCap = true;
-      break;
-    }
   }
 
   // Capture unfocused baseline for the final stop if focus stayed on it.
@@ -1468,6 +1528,7 @@ export const checkKeyboardFocusTraversal = async (
   return {
     stopsChecked: stops.length,
     reachedCap,
+    ...(reachedCap ? { incompleteReason: `Incomplete: >${stops.length} stops` } : {}),
     failures,
   };
 };
@@ -1482,6 +1543,7 @@ export const verifyLoadedPage = async ({
   viewport,
   fullPage,
   screenshotPath,
+  maxTabStops = MAX_TAB_STOPS,
 }: {
   page: Page;
   browserErrors: BrowserError[];
@@ -1492,6 +1554,7 @@ export const verifyLoadedPage = async ({
   viewport: ViewportName;
   fullPage: boolean;
   screenshotPath: string | null;
+  maxTabStops?: number;
 }): Promise<TargetCheckResult> => {
   const audit: PageAuditResult = await auditPage(page);
 
@@ -1507,7 +1570,7 @@ export const verifyLoadedPage = async ({
     });
   }
 
-  const focus = await checkKeyboardFocusTraversal(page);
+  const focus = await checkKeyboardFocusTraversal(page, maxTabStops);
   const errorsCopy = [...browserErrors];
 
   const passed =
@@ -1518,7 +1581,8 @@ export const verifyLoadedPage = async ({
     !audit.hasHorizontalOverflow &&
     audit.axeViolations.length === 0 &&
     errorsCopy.length === 0 &&
-    focus.failures.length === 0;
+    focus.failures.length === 0 &&
+    !focus.reachedCap;
 
   return {
     kind,
@@ -1553,6 +1617,7 @@ export const openTargetOnPage = async (
   page: Page,
   target: VerifyTarget,
   baseUrl: string,
+  { routeReadyTimeoutMs = 20_000 }: { routeReadyTimeoutMs?: number } = {},
 ): Promise<string> => {
   const url = resolveTargetUrl(target, baseUrl);
   if (target.kind === "story") {
@@ -1587,11 +1652,18 @@ export const openTargetOnPage = async (
     throw new Error(`Route "${target.route}" returned HTTP ${response.status()} at ${url}.`);
   }
   await page.waitForLoadState("networkidle", { timeout: 15_000 }).catch(() => undefined);
-  await page
-    .waitForFunction(() => document.body && document.body.innerText.trim().length > 0, undefined, {
-      timeout: 20_000,
-    })
-    .catch(() => undefined);
+  try {
+    await page.waitForFunction(
+      () => Boolean(document.body && document.body.innerText.trim().length > 0),
+      undefined,
+      { timeout: routeReadyTimeoutMs },
+    );
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `Route "${target.route}" did not render non-empty content within ${routeReadyTimeoutMs}ms at ${url}: ${detail}`,
+    );
+  }
   return url;
 };
 
@@ -1619,7 +1691,10 @@ export const summarizeResults = ({
   const axeViolations = targets.reduce((sum, item) => sum + item.axeViolations.length, 0);
   const overflowFailures = targets.filter((item) => item.hasHorizontalOverflow).length;
   const browserErrors = targets.reduce((sum, item) => sum + item.browserErrors.length, 0);
-  const focusFailures = targets.reduce((sum, item) => sum + item.focus.failures.length, 0);
+  const focusFailures = targets.reduce(
+    (sum, item) => sum + item.focus.failures.length + (item.focus.reachedCap ? 1 : 0),
+    0,
+  );
 
   const passed = error
     ? false
@@ -1698,10 +1773,16 @@ export const formatMarkdownReport = (results: UiVerifyResults): string => {
     const overflow = item.hasHorizontalOverflow
       ? `FAIL (${item.scrollWidth}>${item.innerWidth})`
       : "OK";
+    const incompleteLabel =
+      item.focus.incompleteReason ?? `Incomplete: >${item.focus.stopsChecked} stops`;
     const focusCell =
-      item.focus.failures.length > 0
-        ? `FAIL (${item.focus.failures.length}/${item.focus.stopsChecked})`
-        : `OK (${item.focus.stopsChecked})`;
+      item.focus.failures.length > 0 && item.focus.reachedCap
+        ? `FAIL (${item.focus.failures.length}/${item.focus.stopsChecked}; ${incompleteLabel})`
+        : item.focus.failures.length > 0
+          ? `FAIL (${item.focus.failures.length}/${item.focus.stopsChecked})`
+          : item.focus.reachedCap
+            ? `FAIL (${incompleteLabel})`
+            : `OK (${item.focus.stopsChecked})`;
     const screenshotCell = item.screenshot
       ? `\`${relative(results.outDir, item.screenshot).replaceAll("\\", "/")}\``
       : "—";
@@ -1748,6 +1829,13 @@ export const formatMarkdownReport = (results: UiVerifyResults): string => {
       }
       for (const err of item.browserErrors) {
         lines.push(`- **Browser ${err.type}:** ${err.message}`);
+      }
+      if (item.focus.reachedCap) {
+        const incompleteLabel =
+          item.focus.incompleteReason ?? `Incomplete: >${item.focus.stopsChecked} stops`;
+        lines.push(
+          `- **Focus traversal incomplete:** ${incompleteLabel} (keyboard focus traversal hit the ${item.focus.stopsChecked}-stop cap before completing)`,
+        );
       }
       for (const focusFail of item.focus.failures) {
         lines.push(
@@ -1809,6 +1897,8 @@ export const runTargetsInBrowser = async ({
   viewports,
   screenshotsDir,
   screenshotStems,
+  maxTabStops,
+  routeReadyTimeoutMs,
   log,
 }: {
   browser: Browser;
@@ -1817,6 +1907,8 @@ export const runTargetsInBrowser = async ({
   viewports: readonly ViewportName[];
   screenshotsDir: string;
   screenshotStems?: readonly string[];
+  maxTabStops?: number;
+  routeReadyTimeoutMs?: number;
   log: (line: string) => void;
 }): Promise<TargetCheckResult[]> => {
   const results: TargetCheckResult[] = [];
@@ -1851,7 +1943,7 @@ export const runTargetsInBrowser = async ({
         context = await browser.newContext(contextOptions);
         collectBrowserErrors(context, browserErrors);
         const page = await context.newPage();
-        resolvedUrl = await openTargetOnPage(page, target, baseUrl);
+        resolvedUrl = await openTargetOnPage(page, target, baseUrl, { routeReadyTimeoutMs });
         const checked = await verifyLoadedPage({
           page,
           browserErrors,
@@ -1862,10 +1954,14 @@ export const runTargetsInBrowser = async ({
           viewport,
           fullPage: target.fullPage,
           screenshotPath: screenshotFile,
+          maxTabStops,
         });
         results.push(checked);
+        const focusSummary = checked.focus.reachedCap
+          ? `${checked.focus.failures.length}/${checked.focus.stopsChecked} (${checked.focus.incompleteReason ?? `Incomplete: >${checked.focus.stopsChecked} stops`})`
+          : `${checked.focus.failures.length}/${checked.focus.stopsChecked}`;
         log(
-          `${checked.passed ? "PASS" : "FAIL"} [${viewport}] ${target.name} (axe:${checked.axeViolations.length} overflow:${checked.hasHorizontalOverflow ? "yes" : "no"} errors:${checked.browserErrors.length} focus:${checked.focus.failures.length}/${checked.focus.stopsChecked})`,
+          `${checked.passed ? "PASS" : "FAIL"} [${viewport}] ${target.name} (axe:${checked.axeViolations.length} overflow:${checked.hasHorizontalOverflow ? "yes" : "no"} errors:${checked.browserErrors.length} focus:${focusSummary})`,
         );
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);

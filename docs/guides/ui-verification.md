@@ -136,13 +136,16 @@ vp run ui:verify --route /demo --viewport both --json
 vp run ui:verify --route /app/alder/rounds --viewport both --json
 ```
 
-Every run starts isolated servers on ephemeral ports, checks zero WCAG 2 A/AA/2.1AA
-violations, zero horizontal overflow, zero console/page errors, and visible keyboard `Tab`
-focus changes, then writes deterministic proof artifacts to `.tmp/ui-verify/` (override with
-`--out <dir>`): `report.md`, Zod-validated `results.json`, and `screenshots/*.png`. Servers
-and ephemeral databases are torn down automatically on exit or failure. Pass `--update` to
-refresh output screenshots cleanly (or `--container --update` to refresh Linux visual
-baselines).
+Every host run (without `--container`) starts isolated servers on ephemeral ports, checks zero
+WCAG 2 A/AA/2.1AA violations, zero horizontal overflow, zero console/page errors, and visible
+keyboard `Tab` focus changes, then writes deterministic proof artifacts to `.tmp/ui-verify/`
+(override with `--out <dir>`): `report.md`, Zod-validated `results.json`, and
+`screenshots/*.png`. Servers and ephemeral databases are torn down automatically on exit or
+failure. Pass `--update` on host runs to refresh output screenshots cleanly. Running with
+`--container` (or `--container --update`) delegates pixel-exact comparison to Docker Playwright,
+writing only the delegation `report.md` and `results.json` (with `containerExitCode`) under
+`--out` rather than host `screenshots/*.png`; Linux visual baselines live in
+`tooling/storybook/snapshots/` and container diffs appear in Playwright's container output.
 
 ### Review visual changes
 

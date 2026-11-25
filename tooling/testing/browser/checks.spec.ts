@@ -57,6 +57,56 @@ test(
 );
 
 test(
+  "auditPage reports dialogsVisible as false for a persistently invisible alertdialog",
+  { tag: "@cross-browser" },
+  async ({ page }) => {
+    await page.setContent(`
+      <html lang="en">
+        <head><title>Invisible alertdialog</title><style>
+          body { background: white; color: black; }
+          [role="alertdialog"] { visibility: hidden; opacity: 0; background: white; color: black; }
+        </style></head>
+        <body>
+          <main><h1>Page</h1></main>
+          <div role="alertdialog" aria-label="Stuck alert"><p>Never shown</p></div>
+        </body>
+      </html>
+    `);
+
+    const result = await auditPage(page, 300);
+
+    expect(result.dialogsVisible).toBe(false);
+  },
+);
+
+test(
+  "auditPage and checkPage ignore intentionally closed or inert custom dialogs",
+  { tag: "@cross-browser" },
+  async ({ page }) => {
+    await page.setContent(`
+      <html lang="en">
+        <head><title>Closed custom dialogs</title><style>
+          body { background: white; color: black; }
+        </style></head>
+        <body>
+          <main><h1>Page</h1></main>
+          <div role="dialog" hidden aria-label="Hidden dialog"><p>Closed</p></div>
+          <div role="dialog" aria-hidden="true" style="display: none;" aria-label="Aria-hidden dialog"><p>Closed</p></div>
+          <div role="dialog" inert style="display: none;" aria-label="Inert dialog"><p>Closed</p></div>
+          <div role="alertdialog" data-state="closed" style="display: none;" aria-label="Closed state dialog"><p>Closed</p></div>
+        </body>
+      </html>
+    `);
+
+    const result = await auditPage(page);
+
+    expect(result.dialogsVisible).toBe(true);
+    expect(result.axeViolations).toEqual([]);
+    await checkPage(page);
+  },
+);
+
+test(
   "auditPage ignores paused finite animations without hanging",
   { tag: "@cross-browser" },
   async ({ page }) => {

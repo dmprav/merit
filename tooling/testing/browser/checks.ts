@@ -99,7 +99,20 @@ const areDialogsVisible = (page: Page): Promise<boolean> =>
   page.evaluate(() => {
     const dialogs = Array.from(
       document.querySelectorAll('dialog[open], [role="dialog"], [role="alertdialog"]'),
-    ).filter((element) => !(element.tagName === "DIALOG" && !element.hasAttribute("open")));
+    ).filter((element) => {
+      if (element.tagName === "DIALOG" && !element.hasAttribute("open")) {
+        return false;
+      }
+      if (
+        element.hasAttribute("hidden") ||
+        element.getAttribute("aria-hidden") === "true" ||
+        element.hasAttribute("inert") ||
+        element.getAttribute("data-state") === "closed"
+      ) {
+        return false;
+      }
+      return true;
+    });
     return dialogs.every((dialog) =>
       dialog.checkVisibility({ opacityProperty: true, visibilityProperty: true }),
     );

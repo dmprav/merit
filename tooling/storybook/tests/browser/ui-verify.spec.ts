@@ -410,6 +410,13 @@ test.describe("live Chromium checker failure detection", () => {
         );
         return;
       }
+      if (reqUrl.pathname === "/blank-shell") {
+        res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+        res.end(
+          `<!doctype html><html lang="en"><head>${VIEWPORT_META}<title>Blank shell</title></head><body><div id="root"></div></body></html>`,
+        );
+        return;
+      }
       const storyId = reqUrl.searchParams.get("id");
       res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
       if (storyId === "delayed-ready--story") {
@@ -507,6 +514,16 @@ test.describe("live Chromium checker failure detection", () => {
             baseUrl,
           ),
         ).rejects.toThrow(/HTTP 500/);
+
+        const blankShellPage = await httpErrorContext.newPage();
+        await expect(
+          openTargetOnPage(
+            blankShellPage,
+            { kind: "route", route: "/blank-shell", name: "/blank-shell", fullPage: true },
+            baseUrl,
+            { routeReadyTimeoutMs: 250 },
+          ),
+        ).rejects.toThrow(/did not render non-empty content/);
       } finally {
         await httpErrorContext.close();
       }
@@ -532,14 +549,21 @@ test.describe("live Chromium checker failure detection", () => {
               name: "/missing-route",
               fullPage: true,
             },
+            {
+              kind: "route",
+              route: "/blank-shell",
+              name: "/blank-shell",
+              fullPage: true,
+            },
           ],
           baseUrl,
           viewports: ["desktop"],
           screenshotsDir,
+          routeReadyTimeoutMs: 250,
           log: () => undefined,
         });
 
-        expect(targetResults).toHaveLength(2);
+        expect(targetResults).toHaveLength(3);
         expect(targetResults[0]?.passed).toBe(false);
         expect(targetResults[0]?.error).toContain("play() assertion failed: contrast");
         expect(targetResults[0]?.screenshot).toBeNull();
@@ -548,9 +572,97 @@ test.describe("live Chromium checker failure detection", () => {
         expect(targetResults[1]?.passed).toBe(false);
         expect(targetResults[1]?.error).toContain("HTTP 404");
         expect(targetResults[1]?.screenshot).toBeNull();
+
+        expect(targetResults[2]?.passed).toBe(false);
+        expect(targetResults[2]?.error).toContain("did not render non-empty content");
+        expect(targetResults[2]?.screenshot).toBeNull();
       });
     } finally {
       await new Promise<void>((resolveClose) => server.close(() => resolveClose()));
     }
+  });
+
+  test("passes when controls equal maxStops and fails with incomplete traversal details when controls exceed maxStops", async ({
+    newContext,
+  }) => {
+    const buildButtonsHtml = (count: number) => {
+      const buttons = Array.from(
+        { length: count },
+        (_, index) => `<button type="button">Action ${index + 1}</button>`,
+      ).join("");
+      return `<!doctype html><html lang="en"><head>${VIEWPORT_META}<title>Button count ${count}</title><style>
+        body { background: #fff; color: #111; font-family: sans-serif; }
+        button { padding: 8px 14px; background: #fff; color: #111; border: 1px solid #333; margin: 4px; }
+        button:focus-visible { outline: 2px solid #0f62fe; outline-offset: 2px; }
+      </style></head><body><main><h1>Controls (${count})</h1>${buttons}</main></body></html>`;
+    };
+
+    await withTempDir(async (outDir) => {
+      const context = await newContext({ viewport: { width: 1280, height: 800 } });
+
+      const exactPage = await context.newPage();
+      await exactPage.setContent(buildButtonsHtml(3));
+      const exactResult = await verifyLoadedPage({
+        page: exactPage,
+        browserErrors: [],
+        kind: "story",
+        target: "exact-cap",
+        name: "exact-cap",
+        url: "fixture://exact-cap",
+        viewport: "desktop",
+        fullPage: true,
+        screenshotPath: null,
+        maxTabStops: 3,
+      });
+      expect(exactResult.passed).toBe(true);
+      expect(exactResult.focus.stopsChecked).toBe(3);
+      expect(exactResult.focus.reachedCap).toBe(false);
+      expect(exactResult.focus.incompleteReason).toBeUndefined();
+
+      const cappedPage = await context.newPage();
+      await cappedPage.setContent(buildButtonsHtml(4));
+      const cappedResult = await verifyLoadedPage({
+        page: cappedPage,
+        browserErrors: [],
+        kind: "story",
+        target: "exceeds-cap",
+        name: "exceeds-cap",
+        url: "fixture://exceeds-cap",
+        viewport: "desktop",
+        fullPage: true,
+        screenshotPath: null,
+        maxTabStops: 3,
+      });
+      expect(cappedResult.passed).toBe(false);
+      expect(cappedResult.focus.stopsChecked).toBe(3);
+      expect(cappedResult.focus.reachedCap).toBe(true);
+      expect(cappedResult.focus.incompleteReason).toBe("Incomplete: >3 stops");
+      expect(cappedResult.focus.failures).toEqual([]);
+
+      const summary = summarizeResults({
+        mode: "storybook",
+        updated: false,
+        outDir,
+        targets: [exactResult, cappedResult],
+      });
+      expect(summary.passed).toBe(false);
+      expect(summary.summary.passed).toBe(1);
+      expect(summary.summary.failed).toBe(1);
+      expect(summary.summary.focusFailures).toBe(1);
+
+      writeProofArtifacts(outDir, summary);
+      const savedJson = uiVerifyResultsSchema.parse(
+        JSON.parse(readFileSync(join(outDir, "results.json"), "utf8")),
+      );
+      expect(savedJson.passed).toBe(false);
+      expect(savedJson.targets[1]?.passed).toBe(false);
+      expect(savedJson.targets[1]?.focus.reachedCap).toBe(true);
+      expect(savedJson.targets[1]?.focus.incompleteReason).toBe("Incomplete: >3 stops");
+
+      const markdown = readFileSync(join(outDir, "report.md"), "utf8");
+      expect(markdown).toContain("**Status:** FAIL");
+      expect(markdown).toContain("Incomplete: >3 stops");
+      expect(markdown).toContain("**Focus traversal incomplete:**");
+    });
   });
 });
