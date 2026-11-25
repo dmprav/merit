@@ -803,18 +803,28 @@ export const allocateFreePort = async (): Promise<number> =>
     });
   });
 
-const waitForHttpReady = async (
+export type ManagedProcess = {
+  child: ChildProcess;
+  getLogs: () => string;
+  getSpawnError: () => Error | undefined;
+  hasAnnouncedUrl: () => boolean;
+};
+
+/**
+ * Waits until the started child announces `announcedUrl` and that URL answers. The port is
+ * released between allocation and the child's bind, so an HTTP response alone could come from a
+ * foreign listener; Vite prints its local URL only after it binds the port itself.
+ */
+export const waitForHttpReady = async (
   url: string,
   timeoutMs: number,
-  child: ChildProcess,
-  getLogs: () => string,
-  getSpawnError?: () => Error | undefined,
+  { child, getLogs, getSpawnError, hasAnnouncedUrl }: ManagedProcess,
 ): Promise<void> => {
   const deadline = Date.now() + timeoutMs;
   let lastError = "";
 
   const assertChildAlive = () => {
-    const spawnError = getSpawnError?.();
+    const spawnError = getSpawnError();
     if (spawnError) {
       throw new Error(
         `Server failed to start while waiting for ${url}: ${spawnError.message}\n${getLogs()}`,
@@ -832,26 +842,22 @@ const waitForHttpReady = async (
     if (remainingMs <= 0) {
       break;
     }
-    let responseOk = false;
-    try {
-      const response = await fetch(url, {
-        redirect: "manual",
-        signal: AbortSignal.timeout(remainingMs),
-      });
-      if (response.status >= 200 && response.status < 400) {
-        responseOk = true;
-      } else {
+    if (!hasAnnouncedUrl()) {
+      lastError = "server has not announced its URL";
+    } else {
+      try {
+        const response = await fetch(url, {
+          redirect: "manual",
+          signal: AbortSignal.timeout(remainingMs),
+        });
+        if (response.status >= 200 && response.status < 400) {
+          assertChildAlive();
+          return;
+        }
         lastError = `HTTP ${response.status}`;
+      } catch (error) {
+        lastError = error instanceof Error ? error.message : String(error);
       }
-    } catch (error) {
-      lastError = error instanceof Error ? error.message : String(error);
-    }
-    if (responseOk) {
-      // Yield briefly and confirm our child is still alive so a server that exited on
-      // --strictPort collision is never mistaken for ready when another listener responded.
-      await delay(50);
-      assertChildAlive();
-      return;
     }
     const sleepMs = Math.min(250, Math.max(0, deadline - Date.now()));
     if (sleepMs > 0) {
@@ -906,15 +912,47 @@ type ManagedServer = {
   stop: () => Promise<void>;
 };
 
-type RegisterCleanup = (cleanup: () => Promise<void>) => () => Promise<void>;
+export type RegisterCleanup = (cleanup: () => Promise<void>) => () => Promise<void>;
 
-const spawnManagedProcess = (
+/**
+ * Registers a resource's release before awaiting its acquisition, so a signal that drains the
+ * cleanup stack mid-acquisition still waits for the resource and releases it. Rejects instead of
+ * returning the resource when that shutdown began during acquisition.
+ */
+export const acquireWithCleanup = async <T>(
+  acquisition: Promise<T>,
+  release: (resource: T) => Promise<void>,
+  registerCleanup: RegisterCleanup,
+): Promise<{ resource: T; release: () => Promise<void> }> => {
+  let releaseStarted = false;
+  const releaseOnce = registerCleanup(async () => {
+    releaseStarted = true;
+    const resource = await acquisition.then(
+      (value) => ({ value }),
+      () => undefined,
+    );
+    if (resource) {
+      await release(resource.value);
+    }
+  });
+  const resource = await acquisition;
+  if (releaseStarted) {
+    throw new Error("Cleanup started while the resource was being acquired.");
+  }
+  return { resource, release: releaseOnce };
+};
+
+// Terminal color codes, which a forced-color environment can add to server output.
+const ANSI_ESCAPE_PATTERN = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, "g");
+
+export const spawnManagedProcess = (
   command: string,
   args: readonly string[],
-  options: { cwd: string; env?: NodeJS.ProcessEnv },
-): { child: ChildProcess; getLogs: () => string; getSpawnError: () => Error | undefined } => {
+  options: { cwd: string; env?: NodeJS.ProcessEnv; announcedUrl: string },
+): ManagedProcess => {
   const outputChunks: string[] = [];
   let spawnError: Error | undefined;
+  let announced = false;
   const child = spawn(command, args, {
     cwd: options.cwd,
     env: options.env ?? process.env,
@@ -922,25 +960,34 @@ const spawnManagedProcess = (
     stdio: ["ignore", "pipe", "pipe"],
   });
 
-  child.once("error", (error) => {
-    spawnError = error;
+  child.on("error", (error) => {
+    spawnError ??= error;
     outputChunks.push(`Spawn error: ${error.message}\n`);
   });
 
-  const append = (chunk: Buffer) => {
-    outputChunks.push(chunk.toString("utf8"));
-    if (outputChunks.length > 80) {
-      outputChunks.shift();
-    }
+  const watch = (stream: NodeJS.ReadableStream | null) => {
+    let tail = "";
+    stream?.on("data", (chunk: Buffer) => {
+      const text = chunk.toString("utf8");
+      outputChunks.push(text);
+      if (outputChunks.length > 80) {
+        outputChunks.shift();
+      }
+      tail = `${tail}${text.replace(ANSI_ESCAPE_PATTERN, "")}`.slice(-1024);
+      if (tail.includes(options.announcedUrl)) {
+        announced = true;
+      }
+    });
   };
 
-  child.stdout?.on("data", append);
-  child.stderr?.on("data", append);
+  watch(child.stdout);
+  watch(child.stderr);
 
   return {
     child,
     getLogs: () => outputChunks.join("").slice(-4000),
     getSpawnError: () => spawnError,
+    hasAnnouncedUrl: () => announced,
   };
 };
 
@@ -1021,21 +1068,15 @@ const startStorybookServer = async (
   const port = await allocateFreePort();
   const baseUrl = `http://127.0.0.1:${port}`;
   log(`Starting isolated Storybook preview server on ${baseUrl}...`);
-  const { child, getLogs, getSpawnError } = spawnManagedProcess(
+  const server = spawnManagedProcess(
     "vp",
     ["preview", "--host", "127.0.0.1", "--port", String(port), "--strictPort"],
-    { cwd: storybookDir },
+    { cwd: storybookDir, announcedUrl: `${baseUrl}/` },
   );
-  const stopServer = registerCleanup(() => stopChildProcess(child));
+  const stopServer = registerCleanup(() => stopChildProcess(server.child));
 
   try {
-    await waitForHttpReady(
-      `${baseUrl}/index.json`,
-      STORYBOOK_READY_TIMEOUT_MS,
-      child,
-      getLogs,
-      getSpawnError,
-    );
+    await waitForHttpReady(`${baseUrl}/index.json`, STORYBOOK_READY_TIMEOUT_MS, server);
   } catch (error) {
     await stopServer();
     throw error;
@@ -1055,8 +1096,11 @@ const startAppServer = async (
 ): Promise<ManagedServer> => {
   loadEnvLocalFiles([join(repoRoot, "app/.env.local"), join(repoRoot, ".env.local")]);
   log(`Creating ephemeral test database for ${mode} mode...`);
-  const database = await createTestDatabase();
-  const disposeDatabase = registerCleanup(() => database.dispose());
+  const { resource: database, release: disposeDatabase } = await acquireWithCleanup(
+    createTestDatabase(),
+    (created) => created.dispose(),
+    registerCleanup,
+  );
 
   let stopServer: (() => Promise<void>) | undefined;
   try {
@@ -1109,18 +1153,13 @@ const startAppServer = async (
     const spawned = spawnManagedProcess("vp", appArgs, {
       cwd: join(repoRoot, "app"),
       env: appEnv,
+      announcedUrl: `${baseUrl}/`,
     });
     const child = spawned.child;
     stopServer = registerCleanup(() => stopChildProcess(child));
 
     const readinessPath = mode === "workspace" ? "/app" : "/";
-    await waitForHttpReady(
-      `${baseUrl}${readinessPath}`,
-      SERVER_READY_TIMEOUT_MS,
-      child,
-      spawned.getLogs,
-      spawned.getSpawnError,
-    );
+    await waitForHttpReady(`${baseUrl}${readinessPath}`, SERVER_READY_TIMEOUT_MS, spawned);
 
     const stop = stopServer;
     return {
