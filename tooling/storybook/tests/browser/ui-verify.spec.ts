@@ -274,6 +274,47 @@ test.describe("live Chromium checker failure detection", () => {
     }
   });
 
+  test("re-checks the paint of a dialog's first stop when focus cycles back to it", async ({
+    newContext,
+  }) => {
+    const context = await newContext({ viewport: { width: 1280, height: 800 } });
+    const page = await context.newPage();
+    await page.setContent(
+      `<!doctype html><html lang="en"><head>${VIEWPORT_META}<title>Fading first stop</title><style>
+        body { background: #fff; color: #111; }
+        button { padding: 8px 14px; background: #fff; color: #111; border: 1px solid #333; }
+        button:focus-visible { outline: 2px solid #0f62fe; outline-offset: 2px; }
+        .faded { opacity: 0; }
+      </style></head><body>
+        <div role="dialog" aria-modal="true" aria-label="Confirm">
+          <button id="first" type="button">First action</button>
+          <button id="second" type="button">Second action</button>
+        </div>
+        <script>
+          const first = document.getElementById("first");
+          const second = document.getElementById("second");
+          first.focus();
+          // Focusing the second control fades the first one out before the trap returns to it.
+          second.addEventListener("focus", () => first.classList.add("faded"));
+          document.addEventListener("keydown", (event) => {
+            if (event.key === "Tab") {
+              event.preventDefault();
+              (document.activeElement === first ? second : first).focus();
+            }
+          });
+        </script>
+      </body></html>`,
+    );
+    const focus = await checkKeyboardFocusTraversal(page);
+    expect(focus.stopsChecked).toBe(2);
+    expect(focus.failures).toEqual([
+      expect.objectContaining({
+        element: 'button "First action"',
+        reasons: ["not painted: the control or an ancestor has opacity 0"],
+      }),
+    ]);
+  });
+
   test("blurs non-tabbable active elements like <main tabindex='-1'> so header and sidebar controls are traversed", async ({
     newContext,
   }) => {

@@ -1509,14 +1509,22 @@ export const checkKeyboardFocusTraversal = async (
 
         const existingIndex = tracker.stops.indexOf(active);
         if (existingIndex !== -1) {
-          // Re-visiting index 0 after Tab gives us a genuine keyboard focus snapshot if it started autofocused.
-          const refreshedFocused =
-            existingIndex === 0 ? tracker.captureSnapshot(active) : undefined;
+          // Re-visiting index 0 after Tab gives us a genuine keyboard focus observation if it
+          // started autofocused; refresh its paint and bounds with its styles, which may differ now.
+          const rect = active.getBoundingClientRect();
+          const refreshed =
+            existingIndex === 0
+              ? {
+                  boundingBox: { width: rect.width, height: rect.height },
+                  painted: tracker.isPainted(active),
+                  focused: tracker.captureSnapshot(active),
+                }
+              : undefined;
           return {
             done: true as const,
             reachedCap: false as const,
             cycledTo: existingIndex,
-            refreshedFocused,
+            refreshed,
             previousUnfocused,
           };
         }
@@ -1556,8 +1564,8 @@ export const checkKeyboardFocusTraversal = async (
         incompleteReason = OPAQUE_FRAME_INCOMPLETE_REASON;
       } else if ("trackerLost" in outcome) {
         incompleteReason = TRACKER_LOST_INCOMPLETE_REASON;
-      } else if (outcome.cycledTo === 0 && outcome.refreshedFocused && stops[0]) {
-        stops[0].focused = outcome.refreshedFocused;
+      } else if (outcome.cycledTo === 0 && outcome.refreshed && stops[0]) {
+        Object.assign(stops[0], outcome.refreshed);
       }
       break;
     }
