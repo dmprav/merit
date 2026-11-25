@@ -628,15 +628,21 @@ const splitTopLevelCommas = (value: string): string[] => {
   return parts;
 };
 
-const isShadowLayerVisible = (layer: string): boolean => {
-  const colorTokens = [
-    ...layer.matchAll(/\b[a-z][a-z0-9-]*\([^)]*\)|#[0-9a-f]{3,8}\b|\btransparent\b/gi),
-  ].map((match) => match[0]);
+const SHADOW_COLOR_PATTERN = /\b[a-z][a-z0-9-]*\([^)]*\)|#[0-9a-f]{3,8}\b|\btransparent\b/gi;
 
-  if (colorTokens.length === 0) {
-    return true;
+const isShadowLayerVisible = (layer: string): boolean => {
+  const colorTokens = [...layer.matchAll(SHADOW_COLOR_PATTERN)].map((match) => match[0]);
+  if (colorTokens.length > 0 && colorTokens.every(isTransparentColor)) {
+    return false;
   }
-  return colorTokens.some((token) => !isTransparentColor(token));
+  // A layer without offset, blur, or positive spread paints nothing outside (or inside, for
+  // inset) the border box, whatever its color.
+  const [offsetX = 0, offsetY = 0, blur = 0, spread = 0] = layer
+    .replace(SHADOW_COLOR_PATTERN, " ")
+    .split(/\s+/)
+    .map((token) => Number.parseFloat(token))
+    .filter((value) => Number.isFinite(value));
+  return offsetX !== 0 || offsetY !== 0 || blur > 0 || spread > 0;
 };
 
 const hasVisibleBoxShadow = (boxShadow: string): boolean => {
@@ -1138,7 +1144,10 @@ type CapturedStop = {
   element: string;
   boundingBox: { width: number; height: number };
   focused: FocusVisualSnapshot;
+  /** Captured after Tab moves on, so the next stop may have focus. */
   unfocused?: FocusVisualSnapshot;
+  /** Captured once traversal ends and no element has focus. */
+  cleanUnfocused?: FocusVisualSnapshot;
 };
 
 type MeritFocusTracker = {
@@ -1146,7 +1155,16 @@ type MeritFocusTracker = {
   captureSnapshot: (el: Element) => FocusVisualSnapshot;
   describeElement: (el: Element) => string;
   deepActiveElement: () => Element | null;
+  isFocusable: (el: Element) => el is HTMLElement | SVGElement;
+  isOpaqueFrame: (el: Element) => boolean;
+  resetFocusToDocumentStart: () => void;
 };
+
+const OPAQUE_FRAME_INCOMPLETE_REASON =
+  "Incomplete: focus entered a cross-origin frame whose controls cannot be inspected";
+
+const isFocusTraversalIncomplete = (focus: FocusCheckResult): boolean =>
+  focus.reachedCap || focus.incompleteReason !== undefined;
 
 declare global {
   interface Window {
@@ -1184,23 +1202,66 @@ export const checkKeyboardFocusTraversal = async (
       ...(pseudo ? { content: style.content, opacity: style.opacity } : {}),
     });
 
+    const isFrame = (el: Element): el is HTMLIFrameElement =>
+      el.tagName === "IFRAME" || el.tagName === "FRAME";
+
+    const frameDocument = (el: Element): Document | null => {
+      try {
+        return isFrame(el) ? el.contentDocument : null;
+      } catch {
+        return null;
+      }
+    };
+
+    // Descends through shadow roots and same-origin frames, whose documents keep their own
+    // active element while the outer document reports only the host or frame.
     const deepActiveElement = (): Element | null => {
       let current: Element | null = document.activeElement;
-      while (current && "shadowRoot" in current && current.shadowRoot?.activeElement) {
-        current = current.shadowRoot.activeElement;
+      while (current) {
+        const shadowActive = current.shadowRoot?.activeElement;
+        if (shadowActive) {
+          current = shadowActive;
+          continue;
+        }
+        const innerDocument = frameDocument(current);
+        const frameActive = innerDocument?.activeElement;
+        if (
+          innerDocument &&
+          frameActive &&
+          frameActive !== innerDocument.body &&
+          frameActive !== innerDocument.documentElement
+        ) {
+          current = frameActive;
+          continue;
+        }
+        break;
       }
       return current;
     };
+
+    const isOpaqueFrame = (el: Element): boolean => isFrame(el) && frameDocument(el) === null;
+
+    // Frame content belongs to another realm, so check against that document's constructors.
+    const isFocusable = (el: Element): el is HTMLElement | SVGElement => {
+      const view = el.ownerDocument.defaultView;
+      return Boolean(view && (el instanceof view.HTMLElement || el instanceof view.SVGElement));
+    };
+
+    const styleOf = (el: Element, pseudo?: string): CSSStyleDeclaration =>
+      (el.ownerDocument.defaultView ?? window).getComputedStyle(el, pseudo);
 
     const captureSnapshot = (el: Element): FocusVisualSnapshot => {
       const ancestors: ElementStyleSnapshot[] = [];
       let parent = el.parentElement;
       for (
         let depth = 0;
-        depth < 3 && parent && parent !== document.body && parent !== document.documentElement;
+        depth < 3 &&
+        parent &&
+        parent !== el.ownerDocument.body &&
+        parent !== el.ownerDocument.documentElement;
         depth += 1
       ) {
-        ancestors.push(pickStyle(getComputedStyle(parent)));
+        ancestors.push(pickStyle(styleOf(parent)));
         parent = parent.parentElement;
       }
 
@@ -1214,7 +1275,7 @@ export const checkKeyboardFocusTraversal = async (
         if (!next) {
           break;
         }
-        descendants.push(pickStyle(getComputedStyle(next.node)));
+        descendants.push(pickStyle(styleOf(next.node)));
         if (next.depth < 2) {
           for (const child of Array.from(next.node.children)) {
             queue.push({ node: child, depth: next.depth + 1 });
@@ -1223,9 +1284,9 @@ export const checkKeyboardFocusTraversal = async (
       }
 
       return {
-        self: pickStyle(getComputedStyle(el)),
-        before: pickStyle(getComputedStyle(el, "::before"), true),
-        after: pickStyle(getComputedStyle(el, "::after"), true),
+        self: pickStyle(styleOf(el)),
+        before: pickStyle(styleOf(el, "::before"), true),
+        after: pickStyle(styleOf(el, "::after"), true),
         ancestors,
         descendants,
       };
@@ -1241,16 +1302,40 @@ export const checkKeyboardFocusTraversal = async (
       return label ? `${prefix} "${label}"` : prefix;
     };
 
+    const resetFocusToDocumentStart = () => {
+      const active = deepActiveElement();
+      if (active && isFocusable(active)) {
+        active.blur();
+      }
+      // Calling blur() alone leaves Chromium's sequential focus navigation starting point
+      // at the blurred element; briefly focusing document.body resets Tab order to the top.
+      if (document.body) {
+        const previousBodyTabIndex = document.body.getAttribute("tabindex");
+        document.body.setAttribute("tabindex", "-1");
+        document.body.focus({ preventScroll: true });
+        document.body.blur();
+        if (previousBodyTabIndex === null) {
+          document.body.removeAttribute("tabindex");
+        } else {
+          document.body.setAttribute("tabindex", previousBodyTabIndex);
+        }
+      }
+    };
+
     window.__meritFocusTracker = {
       stops: [],
       captureSnapshot,
       describeElement,
       deepActiveElement,
+      isFocusable,
+      isOpaqueFrame,
+      resetFocusToDocumentStart,
     };
   });
 
   const stops: CapturedStop[] = [];
   let reachedCap = false;
+  let incompleteReason: string | undefined;
 
   // Reset focus to document top when the initially focused element is non-tabbable
   // (e.g. `<main tabindex="-1">`) or sits outside an open dialog, so Tab traversal
@@ -1265,7 +1350,7 @@ export const checkKeyboardFocusTraversal = async (
       !active ||
       active === document.body ||
       active === document.documentElement ||
-      !(active instanceof HTMLElement || active instanceof SVGElement)
+      !tracker.isFocusable(active)
     ) {
       return { resetFocus: false, initialStop: null };
     }
@@ -1273,20 +1358,7 @@ export const checkKeyboardFocusTraversal = async (
       active.closest('[role="dialog"], [role="alertdialog"], dialog[open]'),
     );
     if (active.tabIndex < 0 || !isInsideOpenDialog) {
-      active.blur();
-      // Calling blur() alone leaves Chromium's sequential focus navigation starting point
-      // at the blurred element; briefly focusing document.body resets Tab order to the top.
-      if (document.body) {
-        const previousBodyTabIndex = document.body.getAttribute("tabindex");
-        document.body.setAttribute("tabindex", "-1");
-        document.body.focus({ preventScroll: true });
-        document.body.blur();
-        if (previousBodyTabIndex === null) {
-          document.body.removeAttribute("tabindex");
-        } else {
-          document.body.setAttribute("tabindex", previousBodyTabIndex);
-        }
-      }
+      tracker.resetFocusToDocumentStart();
       return { resetFocus: true, initialStop: null };
     }
     const rect = active.getBoundingClientRect();
@@ -1329,6 +1401,15 @@ export const checkKeyboardFocusTraversal = async (
 
         if (!active || active === document.body || active === document.documentElement) {
           return { done: true as const, reachedCap: false as const, previousUnfocused };
+        }
+
+        if (tracker.isOpaqueFrame(active)) {
+          return {
+            done: true as const,
+            reachedCap: false as const,
+            enteredOpaqueFrame: true,
+            previousUnfocused,
+          };
         }
 
         const existingIndex = tracker.stops.indexOf(active);
@@ -1375,6 +1456,8 @@ export const checkKeyboardFocusTraversal = async (
     if (outcome.done) {
       if (outcome.reachedCap) {
         reachedCap = true;
+      } else if ("enteredOpaqueFrame" in outcome) {
+        incompleteReason = OPAQUE_FRAME_INCOMPLETE_REASON;
       } else if (outcome.cycledTo === 0 && outcome.refreshedFocused && stops[0]) {
         stops[0].focused = outcome.refreshedFocused;
       }
@@ -1395,10 +1478,7 @@ export const checkKeyboardFocusTraversal = async (
       if (!tracker || !el || !el.isConnected) {
         return false;
       }
-      if (
-        tracker.deepActiveElement() === el &&
-        (el instanceof HTMLElement || el instanceof SVGElement)
-      ) {
+      if (tracker.deepActiveElement() === el && tracker.isFocusable(el)) {
         el.blur();
         return true;
       }
@@ -1420,6 +1500,28 @@ export const checkKeyboardFocusTraversal = async (
     }
   }
 
+  // A baseline captured after Tab can carry the next stop's focus styles, such as
+  // `button:has(+ button:focus-visible)`, so also compare each stop with nothing focused.
+  // Skip this when the page moves focus back, as modal focus containment does.
+  if (stops.length > 0) {
+    await page.evaluate(() => window.__meritFocusTracker?.resetFocusToDocumentStart());
+    await settleAnimations(page);
+    const cleanBaselines = await page.evaluate(() => {
+      const tracker = window.__meritFocusTracker;
+      const active = tracker?.deepActiveElement();
+      if (!tracker || (active && active !== document.body && active !== document.documentElement)) {
+        return null;
+      }
+      return tracker.stops.map((el) => (el.isConnected ? tracker.captureSnapshot(el) : null));
+    });
+    for (const stop of stops) {
+      const baseline = cleanBaselines?.[stop.index];
+      if (baseline) {
+        stop.cleanUnfocused = baseline;
+      }
+    }
+  }
+
   const failures: FocusStopFailure[] = [];
   for (const stop of stops) {
     const reasons: string[] = [];
@@ -1428,9 +1530,11 @@ export const checkKeyboardFocusTraversal = async (
         `zero-sized bounding box (${stop.boundingBox.width}x${stop.boundingBox.height})`,
       );
     }
-    if (stop.unfocused) {
-      const diff = detectFocusVisualChange(stop.unfocused, stop.focused);
-      if (!diff.changed) {
+    const baselines = [stop.unfocused, stop.cleanUnfocused].filter(
+      (baseline): baseline is FocusVisualSnapshot => baseline !== undefined,
+    );
+    if (baselines.length > 0) {
+      if (baselines.some((baseline) => !detectFocusVisualChange(baseline, stop.focused).changed)) {
         reasons.push("no visible focus indicator change compared to unfocused state");
       }
     } else if (
@@ -1453,7 +1557,11 @@ export const checkKeyboardFocusTraversal = async (
   return {
     stopsChecked: stops.length,
     reachedCap,
-    ...(reachedCap ? { incompleteReason: `Incomplete: >${stops.length} stops` } : {}),
+    ...(reachedCap
+      ? { incompleteReason: `Incomplete: >${stops.length} stops` }
+      : incompleteReason
+        ? { incompleteReason }
+        : {}),
     failures,
   };
 };
@@ -1507,7 +1615,7 @@ export const verifyLoadedPage = async ({
     audit.axeViolations.length === 0 &&
     errorsCopy.length === 0 &&
     focus.failures.length === 0 &&
-    !focus.reachedCap;
+    !isFocusTraversalIncomplete(focus);
 
   return {
     kind,
@@ -1617,7 +1725,8 @@ export const summarizeResults = ({
   const overflowFailures = targets.filter((item) => item.hasHorizontalOverflow).length;
   const browserErrors = targets.reduce((sum, item) => sum + item.browserErrors.length, 0);
   const focusFailures = targets.reduce(
-    (sum, item) => sum + item.focus.failures.length + (item.focus.reachedCap ? 1 : 0),
+    (sum, item) =>
+      sum + item.focus.failures.length + (isFocusTraversalIncomplete(item.focus) ? 1 : 0),
     0,
   );
 
@@ -1700,12 +1809,13 @@ export const formatMarkdownReport = (results: UiVerifyResults): string => {
       : "OK";
     const incompleteLabel =
       item.focus.incompleteReason ?? `Incomplete: >${item.focus.stopsChecked} stops`;
+    const incomplete = isFocusTraversalIncomplete(item.focus);
     const focusCell =
-      item.focus.failures.length > 0 && item.focus.reachedCap
+      item.focus.failures.length > 0 && incomplete
         ? `FAIL (${item.focus.failures.length}/${item.focus.stopsChecked}; ${incompleteLabel})`
         : item.focus.failures.length > 0
           ? `FAIL (${item.focus.failures.length}/${item.focus.stopsChecked})`
-          : item.focus.reachedCap
+          : incomplete
             ? `FAIL (${incompleteLabel})`
             : `OK (${item.focus.stopsChecked})`;
     const screenshotCell = item.screenshot
@@ -1761,6 +1871,8 @@ export const formatMarkdownReport = (results: UiVerifyResults): string => {
         lines.push(
           `- **Focus traversal incomplete:** ${incompleteLabel} (keyboard focus traversal hit the ${item.focus.stopsChecked}-stop cap before completing)`,
         );
+      } else if (item.focus.incompleteReason) {
+        lines.push(`- **Focus traversal incomplete:** ${item.focus.incompleteReason}`);
       }
       for (const focusFail of item.focus.failures) {
         lines.push(
@@ -1882,7 +1994,7 @@ export const runTargetsInBrowser = async ({
           maxTabStops,
         });
         results.push(checked);
-        const focusSummary = checked.focus.reachedCap
+        const focusSummary = isFocusTraversalIncomplete(checked.focus)
           ? `${checked.focus.failures.length}/${checked.focus.stopsChecked} (${checked.focus.incompleteReason ?? `Incomplete: >${checked.focus.stopsChecked} stops`})`
           : `${checked.focus.failures.length}/${checked.focus.stopsChecked}`;
         log(

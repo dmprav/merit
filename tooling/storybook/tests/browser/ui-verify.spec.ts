@@ -665,4 +665,73 @@ test.describe("live Chromium checker failure detection", () => {
       expect(markdown).toContain("**Focus traversal incomplete:**");
     });
   });
+
+  test("compares each stop with nothing focused so a neighbor's focus rule is not its indicator", async ({
+    newContext,
+  }) => {
+    const context = await newContext({ viewport: { width: 1280, height: 800 } });
+    const page = await context.newPage();
+    await page.setContent(
+      `<!doctype html><html lang="en"><head>${VIEWPORT_META}<title>Neighbor focus</title><style>
+        body { background: #fff; color: #111; }
+        button { padding: 8px 14px; background: #fff; color: #111; border: 2px solid #555; outline: none; }
+        .second:focus-visible { outline: 2px solid #0f62fe; outline-offset: 2px; }
+        button:has(+ button:focus-visible) { border-color: #b00020; }
+      </style></head><body><main><h1>Neighbor focus</h1>
+        <button class="first" type="button">First</button><button class="second" type="button">Second</button>
+      </main></body></html>`,
+    );
+    const focus = await checkKeyboardFocusTraversal(page);
+    expect(focus.stopsChecked).toBe(2);
+    expect(focus.failures).toHaveLength(1);
+    expect(focus.failures[0]?.element).toContain("First");
+    expect(focus.failures[0]?.reasons).toEqual([
+      "no visible focus indicator change compared to unfocused state",
+    ]);
+  });
+
+  test("traverses controls inside same-origin frames and reports cross-origin frames as incomplete", async ({
+    newContext,
+  }) => {
+    const frameDocument = `<!doctype html><html lang='en'><head><title>Inner</title><style>
+      body { background: #fff; color: #111; }
+      button { padding: 8px 14px; background: #fff; color: #111; border: 1px solid #333; }
+      button:focus-visible { outline: 2px solid #0f62fe; outline-offset: 2px; }
+    </style></head><body><button type='button'>Inner one</button><button type='button'>Inner two</button></body></html>`;
+
+    const pageWithFrame = (sandbox: string) =>
+      `<!doctype html><html lang="en"><head>${VIEWPORT_META}<title>Framed controls</title><style>
+        body { background: #fff; color: #111; }
+      </style></head><body><main><h1>Framed controls</h1>
+        <iframe title="Embedded controls" ${sandbox} srcdoc="${frameDocument}"></iframe>
+      </main></body></html>`;
+
+    const context = await newContext({ viewport: { width: 1280, height: 800 } });
+
+    const sameOrigin = await context.newPage();
+    await sameOrigin.setContent(pageWithFrame(""));
+    await sameOrigin.frameLocator("iframe").getByRole("button", { name: "Inner two" }).waitFor();
+    const traversed = await checkKeyboardFocusTraversal(sameOrigin);
+    expect(traversed.stopsChecked).toBe(2);
+    expect(traversed.incompleteReason).toBeUndefined();
+    expect(traversed.failures).toEqual([]);
+
+    const crossOrigin = await context.newPage();
+    await crossOrigin.setContent(pageWithFrame('sandbox="allow-scripts"'));
+    await crossOrigin.frameLocator("iframe").getByRole("button", { name: "Inner two" }).waitFor();
+    const opaque = await verifyLoadedPage({
+      page: crossOrigin,
+      browserErrors: [],
+      kind: "story",
+      target: "cross-origin-frame",
+      name: "cross-origin-frame",
+      url: "fixture://cross-origin-frame",
+      viewport: "desktop",
+      fullPage: true,
+      screenshotPath: null,
+    });
+    expect(opaque.focus.reachedCap).toBe(false);
+    expect(opaque.focus.incompleteReason).toContain("cross-origin frame");
+    expect(opaque.passed).toBe(false);
+  });
 });

@@ -429,6 +429,11 @@ describe("detectFocusVisualChange", () => {
       "hsla(210, 100%, 50%, 0) 0px 0px 0px 2px",
       "0px 0px 0px 2px transparent",
       "rgba(0, 0, 0, 0) 0px 0px 0px 2px, rgb(0 0 0 / 0) 0px 0px 0px 4px",
+      // Opaque layers that paint nothing: no offset, no blur, and no positive spread.
+      "rgb(255, 0, 0) 0px 0px 0px 0px",
+      "rgb(255, 0, 0) 0px 0px 0px -2px",
+      "rgb(255, 0, 0) 0px 0px 0px 0px inset",
+      "rgb(255, 0, 0) 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 4px",
     ]) {
       expect(
         detectFocusVisualChange(
@@ -444,6 +449,9 @@ describe("detectFocusVisualChange", () => {
       "rgba(15, 98, 254, 0.4) 0px 0px 0px 2px",
       "rgb(15 98 254 / 0.5) 0 0 0 2px",
       "rgba(0, 0, 0, 0) 0px 0px 0px 2px, rgb(15, 98, 254) 0px 0px 0px 4px",
+      "rgb(15, 98, 254) 0px 2px 0px 0px",
+      "rgb(15, 98, 254) 0px 0px 4px 0px",
+      "rgb(15, 98, 254) 0px 0px 0px 2px inset",
     ]) {
       expect(
         detectFocusVisualChange(
