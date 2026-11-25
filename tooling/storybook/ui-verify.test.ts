@@ -514,6 +514,10 @@ describe("container delegation and proof reporting", () => {
     expect(
       buildContainerDelegationArgs(parseCliArgs(["--container", "--story", "focus-prod"])),
     ).toEqual(["--grep", "control focus appearance in product|focus-prod"]);
+
+    expect(
+      buildContainerDelegationArgs(parseCliArgs(["--container", "--story", "constructor"])),
+    ).toEqual(["--grep", "constructor"]);
   });
 
   it("escapes pipes in report target names while keeping the original name in results", () => {

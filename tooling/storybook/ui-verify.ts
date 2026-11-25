@@ -570,7 +570,11 @@ export const buildContainerDelegationArgs = (options: UiVerifyCliOptions): strin
   }
   if (options.stories.length > 0) {
     const bodies = options.stories.flatMap((story) => {
-      const mappedFocusPattern = CONTAINER_FOCUS_STORY_PATTERNS[story.toLowerCase()];
+      const alias = story.toLowerCase();
+      // Own-property lookup, so inherited names such as `constructor` stay substring filters.
+      const mappedFocusPattern = Object.hasOwn(CONTAINER_FOCUS_STORY_PATTERNS, alias)
+        ? CONTAINER_FOCUS_STORY_PATTERNS[alias]
+        : undefined;
       if (mappedFocusPattern) {
         return [escapeRegex(mappedFocusPattern)];
       }
