@@ -1,12 +1,12 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   closeSync,
   constants as fsConstants,
-  fstatSync,
+  linkSync,
+  lstatSync,
   mkdirSync,
   openSync,
   readFileSync,
-  statSync,
   unlinkSync,
   writeFileSync,
 } from "node:fs";
@@ -19,12 +19,17 @@ const DEFAULT_LOCK_STALE_MS = 30_000;
 const DEFAULT_LOCK_INITIAL_DELAY_MS = 25;
 const DEFAULT_LOCK_MAX_DELAY_MS = 250;
 const LOCK_WRITE_GRACE_MS = 1_000;
+// A reclaim marker is itself a lock, so a dead reclaimer's marker is reclaimed one level deeper.
+const MAX_RECLAIM_DEPTH = 3;
 
 const lockMetadataSchema = z.object({
   pid: z.number().int().positive(),
   token: z.string().min(1),
   createdAt: z.number().int().nonnegative(),
+  startTime: z.string().min(1).optional(),
 });
+
+type LockOwner = Pick<z.infer<typeof lockMetadataSchema>, "pid" | "startTime">;
 
 export type FileLockOptions = {
   label?: string;
@@ -33,8 +38,20 @@ export type FileLockOptions = {
   initialDelayMs?: number;
   maxDelayMs?: number;
   isProcessAlive?: (pid: number) => boolean;
+  readProcessStartTime?: (pid: number) => string | undefined;
   nowMs?: () => number;
   writeMetadata?: (fd: number, payload: string) => void;
+  /** Test seam: runs after a lock is judged stale and before its reclaim marker is taken. */
+  onStaleLock?: (details: { lockPath: string; markerPath: string }) => void;
+};
+
+type ReclaimContext = {
+  staleMs: number;
+  publishedPath: string;
+  payload: string;
+  isOwnerAlive: (owner: LockOwner) => boolean;
+  nowMs: () => number;
+  onStaleLock?: FileLockOptions["onStaleLock"];
 };
 
 export const getErrnoCode = (error: unknown): string | undefined => {
@@ -57,54 +74,149 @@ export const isProcessAlive = (pid: number): boolean => {
   }
 };
 
-const tryClearStaleLock = (
-  lockPath: string,
-  staleMs: number,
-  checkProcessAlive: (pid: number) => boolean,
-  nowMs: () => number,
-): boolean => {
-  let raw: string;
-  let mtimeMs: number;
+const readOptionalFile = (path: string): string | undefined => {
   try {
-    const stat = statSync(lockPath);
-    mtimeMs = stat.mtimeMs;
+    return readFileSync(path, "utf8");
+  } catch {
+    return undefined;
+  }
+};
+
+/**
+ * Identifies a process instance by boot ID and kernel start time so a reused PID is not mistaken
+ * for the lock owner. Returns undefined where `/proc` is unavailable, falling back to PID liveness.
+ */
+const readProcessStartTime = (pid: number): string | undefined => {
+  const stat = readOptionalFile(`/proc/${pid}/stat`);
+  if (stat === undefined) {
+    return undefined;
+  }
+  // Field 22 (starttime); fields after the parenthesized command name start at field 3.
+  const startTicks = stat
+    .slice(stat.lastIndexOf(")") + 2)
+    .split(" ")
+    .at(19);
+  if (!startTicks) {
+    return undefined;
+  }
+  const bootId = readOptionalFile("/proc/sys/kernel/random/boot_id")?.trim();
+  return bootId ? `${bootId}:${startTicks}` : startTicks;
+};
+
+const sameFile = (
+  left: { dev: number; ino: number },
+  right: { dev: number; ino: number },
+): boolean => left.dev === right.dev && left.ino === right.ino;
+
+const isStaleLockContent = (
+  raw: string,
+  ageMs: number,
+  context: Pick<ReclaimContext, "staleMs" | "isOwnerAlive">,
+): boolean => {
+  let parsed: ReturnType<typeof lockMetadataSchema.safeParse> | undefined;
+  try {
+    parsed = raw.trim().length > 0 ? lockMetadataSchema.safeParse(JSON.parse(raw)) : undefined;
+  } catch {
+    parsed = undefined;
+  }
+  if (parsed?.success) {
+    // Never expire valid lock metadata solely by age while its owner process is still alive.
+    return !context.isOwnerAlive(parsed.data);
+  }
+  // Locks are published complete, so unreadable content is foreign or damaged; allow a short grace.
+  return ageMs >= Math.min(context.staleMs, LOCK_WRITE_GRACE_MS);
+};
+
+const tryPublish = (sourcePath: string, targetPath: string): boolean => {
+  try {
+    linkSync(sourcePath, targetPath);
+    return true;
+  } catch (error) {
+    if (getErrnoCode(error) === "EEXIST") {
+      return false;
+    }
+    throw error;
+  }
+};
+
+const releaseIfOwned = (path: string, payload: string): void => {
+  if (readOptionalFile(path) === payload) {
+    try {
+      unlinkSync(path);
+    } catch {
+      // Already removed.
+    }
+  }
+};
+
+/**
+ * Removes a stale lock without ever removing a replacement. Reclaimers of one stale file first
+ * publish an exclusive marker keyed by that file's identity; while the stale file occupies the
+ * path no one can create a new lock, so the marker holder's re-check and unlink are race-free.
+ */
+const tryReclaimStaleLock = (lockPath: string, context: ReclaimContext, depth = 0): boolean => {
+  let inspected: { dev: number; ino: number; mtimeMs: number };
+  let raw: string;
+  try {
+    inspected = lstatSync(lockPath);
     raw = readFileSync(lockPath, "utf8");
   } catch {
     return false;
   }
-
-  const ageMs = nowMs() - mtimeMs;
-  const corruptGraceMs = Math.min(staleMs, LOCK_WRITE_GRACE_MS);
-  let stale = false;
-  if (raw.trim().length > 0) {
-    try {
-      const parsed = lockMetadataSchema.safeParse(JSON.parse(raw));
-      if (parsed.success) {
-        // Never expire valid lock metadata solely by age while its owner process is still alive.
-        stale = !checkProcessAlive(parsed.data.pid);
-      } else {
-        stale = ageMs >= corruptGraceMs;
-      }
-    } catch {
-      stale = ageMs >= corruptGraceMs;
-    }
-  } else {
-    stale = ageMs >= corruptGraceMs;
-  }
-
-  if (!stale) {
+  if (!isStaleLockContent(raw, context.nowMs() - inspected.mtimeMs, context)) {
     return false;
   }
 
-  try {
-    if (readFileSync(lockPath, "utf8") === raw) {
-      unlinkSync(lockPath);
-      return true;
+  const identity = createHash("sha256")
+    .update(`${inspected.dev}:${inspected.ino}:${raw}`)
+    .digest("hex")
+    .slice(0, 32);
+  const markerPath = `${lockPath}.reclaim-${identity}`;
+  context.onStaleLock?.({ lockPath, markerPath });
+
+  if (!tryPublish(context.publishedPath, markerPath)) {
+    if (depth < MAX_RECLAIM_DEPTH) {
+      tryReclaimStaleLock(markerPath, context, depth + 1);
     }
-  } catch {
-    // Another process already removed or replaced it.
+    return false;
   }
-  return false;
+  try {
+    const current = lstatSync(lockPath);
+    if (!sameFile(current, inspected) || readFileSync(lockPath, "utf8") !== raw) {
+      return false;
+    }
+    unlinkSync(lockPath);
+    return true;
+  } catch {
+    // The stale lock is already gone; retry acquisition.
+    return false;
+  } finally {
+    releaseIfOwned(markerPath, context.payload);
+  }
+};
+
+const writePrivateFile = (
+  path: string,
+  payload: string,
+  writeMetadata: (fd: number, payload: string) => void,
+): void => {
+  const fd = openSync(path, fsConstants.O_CREAT | fsConstants.O_EXCL | fsConstants.O_WRONLY, 0o600);
+  let closeAttempted = false;
+  try {
+    writeMetadata(fd, payload);
+    // A failed close still releases the descriptor, so never retry it.
+    closeAttempted = true;
+    closeSync(fd);
+  } catch (error) {
+    if (!closeAttempted) {
+      try {
+        closeSync(fd);
+      } catch {
+        // Best-effort close on failed acquisition.
+      }
+    }
+    throw error;
+  }
 };
 
 const sleep = (ms: number): Promise<void> =>
@@ -112,6 +224,10 @@ const sleep = (ms: number): Promise<void> =>
     setTimeout(resolveSleep, ms);
   });
 
+/**
+ * Runs `operation` while holding an exclusive lockfile. The lock is written to a private temporary
+ * file and published with an atomic hard link, so contenders never observe partial metadata.
+ */
 export const withFileLock = async <T>(
   lockPath: string,
   operation: () => Promise<T> | T,
@@ -119,10 +235,10 @@ export const withFileLock = async <T>(
 ): Promise<T> => {
   const label = options.label ?? "file";
   const timeoutMs = options.timeoutMs ?? DEFAULT_LOCK_TIMEOUT_MS;
-  const staleMs = options.staleMs ?? DEFAULT_LOCK_STALE_MS;
   const initialDelayMs = options.initialDelayMs ?? DEFAULT_LOCK_INITIAL_DELAY_MS;
   const maxDelayMs = options.maxDelayMs ?? DEFAULT_LOCK_MAX_DELAY_MS;
   const checkProcessAlive = options.isProcessAlive ?? isProcessAlive;
+  const readStartTime = options.readProcessStartTime ?? readProcessStartTime;
   const nowMs = options.nowMs ?? Date.now;
   const writeMetadata =
     options.writeMetadata ??
@@ -133,24 +249,35 @@ export const withFileLock = async <T>(
   mkdirSync(dirname(lockPath), { recursive: true });
 
   const token = randomUUID();
-  const payload = `${JSON.stringify({ pid: process.pid, token, createdAt: nowMs() })}\n`;
+  const metadata = lockMetadataSchema.parse({
+    pid: process.pid,
+    token,
+    createdAt: nowMs(),
+    startTime: readStartTime(process.pid),
+  });
+  const payload = `${JSON.stringify(metadata)}\n`;
+  const publishedPath = `${lockPath}.${token}.tmp`;
+  const context: ReclaimContext = {
+    staleMs: options.staleMs ?? DEFAULT_LOCK_STALE_MS,
+    publishedPath,
+    payload,
+    isOwnerAlive: (owner) => {
+      if (!checkProcessAlive(owner.pid)) {
+        return false;
+      }
+      const currentStartTime = owner.startTime ? readStartTime(owner.pid) : undefined;
+      return currentStartTime === undefined || currentStartTime === owner.startTime;
+    },
+    nowMs,
+    onStaleLock: options.onStaleLock,
+  };
+
   const deadline = nowMs() + timeoutMs;
   let delayMs = initialDelayMs;
-  let acquired = false;
-
-  while (!acquired) {
-    let fd: number;
-    try {
-      fd = openSync(
-        lockPath,
-        fsConstants.O_CREAT | fsConstants.O_EXCL | fsConstants.O_WRONLY,
-        0o600,
-      );
-    } catch (error) {
-      if (getErrnoCode(error) !== "EEXIST") {
-        throw error;
-      }
-      if (tryClearStaleLock(lockPath, staleMs, checkProcessAlive, nowMs)) {
+  try {
+    writePrivateFile(publishedPath, payload, writeMetadata);
+    while (!tryPublish(publishedPath, lockPath)) {
+      if (tryReclaimStaleLock(lockPath, context)) {
         continue;
       }
       const remainingMs = deadline - nowMs();
@@ -161,49 +288,18 @@ export const withFileLock = async <T>(
       }
       await sleep(Math.min(delayMs, remainingMs));
       delayMs = Math.min(delayMs * 2, maxDelayMs);
-      continue;
     }
-
-    let fdClosed = false;
-    let createdStat: ReturnType<typeof fstatSync> | undefined;
+  } finally {
     try {
-      createdStat = fstatSync(fd);
-      writeMetadata(fd, payload);
-      closeSync(fd);
-      fdClosed = true;
-    } catch (error) {
-      if (!fdClosed) {
-        try {
-          closeSync(fd);
-        } catch {
-          // Best-effort close on failed acquisition.
-        }
-      }
-      try {
-        const currentStat = statSync(lockPath);
-        if (
-          !createdStat ||
-          (currentStat.dev === createdStat.dev && currentStat.ino === createdStat.ino)
-        ) {
-          unlinkSync(lockPath);
-        }
-      } catch {
-        // Lock file was already removed.
-      }
-      throw error;
+      unlinkSync(publishedPath);
+    } catch {
+      // Never created or already removed.
     }
-    acquired = true;
   }
 
   try {
     return await operation();
   } finally {
-    try {
-      if (readFileSync(lockPath, "utf8") === payload) {
-        unlinkSync(lockPath);
-      }
-    } catch {
-      // Lock file already removed.
-    }
+    releaseIfOwned(lockPath, payload);
   }
 };
