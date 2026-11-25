@@ -20,7 +20,7 @@ export const settleAnimations = (page: Page, timeoutMs = SETTLE_ANIMATIONS_TIMEO
       .getAnimations()
       .filter(
         (animation) =>
-          animation.playState === "running" &&
+          animation.playState !== "paused" &&
           animation.timeline === document.timeline &&
           animation.effect?.getTiming().iterations !== Infinity,
       )
