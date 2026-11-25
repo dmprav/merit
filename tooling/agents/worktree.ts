@@ -1632,32 +1632,33 @@ export const cleanWorktree = async (
     }
     execGit(root, ["worktree", "prune"]);
 
+    const assertCleanClaim = (refusedAction: string) => {
+      const latestRegistry = readWorktreeRegistry(root);
+      if (
+        !matchesCleanClaim(latestRegistry.worktrees[slug], {
+          claimedRecord,
+          cleanToken,
+          normalizedPath,
+          databaseName,
+        })
+      ) {
+        throw new Error(
+          `Worktree "${slug}" registry record no longer matches this cleanup claim; refusing to ${refusedAction}.`,
+        );
+      }
+    };
+
     let databaseDropped = false;
     if (await checkPostgres()) {
-      const assertCleanClaim = () => {
-        const latestRegistry = readWorktreeRegistry(root);
-        if (
-          !matchesCleanClaim(latestRegistry.worktrees[slug], {
-            claimedRecord,
-            cleanToken,
-            normalizedPath,
-            databaseName,
-          })
-        ) {
-          throw new Error(
-            `Worktree "${slug}" registry record no longer matches this cleanup claim; refusing to drop database "${databaseName}".`,
-          );
-        }
-      };
-
+      const refusedDrop = `drop database "${databaseName}"`;
       if (claimedRecord) {
-        await withWorktreeRegistryLock(root, assertCleanClaim, deps.lockOptions);
+        await withWorktreeRegistryLock(root, () => assertCleanClaim(refusedDrop), deps.lockOptions);
         await dropDb(databaseName);
       } else {
         await withWorktreeRegistryLock(
           root,
           async () => {
-            assertCleanClaim();
+            assertCleanClaim(refusedDrop);
             await dropDb(databaseName);
           },
           deps.lockOptions,
@@ -1671,21 +1672,31 @@ export const cleanWorktree = async (
     }
 
     let branchDeleted = false;
-    const primaryBranch = currentBranchName(root, execGit);
-    const checkedOutBranches = new Set(
-      getActiveGitWorktrees(root, execGit)
-        .map((entry) => entry.branch)
-        .filter((entryBranch): entryBranch is string => Boolean(entryBranch)),
-    );
-    if (
-      !options.keepBranch &&
-      !PROTECTED_BRANCH_NAMES.has(branch) &&
-      branch !== primaryBranch &&
-      !checkedOutBranches.has(branch) &&
-      gitRefExists(root, `refs/heads/${branch}`, execGit)
-    ) {
-      execGit(root, ["branch", "-D", branch]);
-      branchDeleted = true;
+    if (!options.keepBranch && !PROTECTED_BRANCH_NAMES.has(branch)) {
+      // A same-slug create holds this lock from `git branch` until it records its claim, so checking
+      // the registry under the lock keeps this cleanup from deleting that create's new branch.
+      branchDeleted = await withWorktreeRegistryLock(
+        root,
+        () => {
+          assertCleanClaim(`delete branch "${branch}"`);
+          const primaryBranch = currentBranchName(root, execGit);
+          const checkedOutBranches = new Set(
+            getActiveGitWorktrees(root, execGit)
+              .map((entry) => entry.branch)
+              .filter((entryBranch): entryBranch is string => Boolean(entryBranch)),
+          );
+          if (
+            branch === primaryBranch ||
+            checkedOutBranches.has(branch) ||
+            !gitRefExists(root, `refs/heads/${branch}`, execGit)
+          ) {
+            return false;
+          }
+          execGit(root, ["branch", "-D", branch]);
+          return true;
+        },
+        deps.lockOptions,
+      );
     }
 
     const registryRemoved = claimedRecord

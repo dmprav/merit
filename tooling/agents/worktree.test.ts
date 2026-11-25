@@ -2290,4 +2290,42 @@ describe("worktree lifecycle in temp git repos", () => {
     );
     expect(beta.ports.MERIT_DEV_PORT).toBe(3120);
   });
+
+  test("cleanWorktree re-checks the registry under the lock before deleting an unrecorded slug's branch", async () => {
+    const repo = initTempRepo(false);
+    const branch = "worktree/alpha";
+
+    await expect(
+      cleanWorktree(
+        { slug: "alpha", keepBranch: false, json: true, primaryRepoRoot: repo },
+        {
+          // A same-slug create finishes its locked section after clean's first lock.
+          isPostgresReachable: async () => {
+            git(repo, ["branch", branch, "main"]);
+            writeWorktreeRegistry(repo, {
+              version: 1,
+              worktrees: {
+                alpha: {
+                  slug: "alpha",
+                  path: join(repo, ".tmp/worktrees/alpha"),
+                  branch,
+                  baseRef: "main",
+                  databaseName: "merit_alpha",
+                  databaseUrl: buildLocalDatabaseUrl("merit_alpha"),
+                  databaseCreated: false,
+                  ports: WORKTREE_PORT_BASES,
+                  createdAt: new Date().toISOString(),
+                  status: "creating",
+                  ownerPid: process.pid,
+                },
+              },
+            });
+            return false;
+          },
+        },
+      ),
+    ).rejects.toThrow(/refusing to delete branch "worktree\/alpha"/);
+    expect(git(repo, ["branch", "--list", branch])).toContain(branch);
+    expect(readWorktreeRegistry(repo).worktrees.alpha?.status).toBe("creating");
+  });
 });
