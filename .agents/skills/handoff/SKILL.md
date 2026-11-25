@@ -181,11 +181,13 @@ local `.tmp/handoffs/<slug>.md` and `.tmp/ledgers/<slug>.tsv` do not exist yet):
 3. Resume from the verified SHA, not the branch tip. Run
    `git fetch origin <branch>`; if `origin/<branch>` no longer equals the
    recorded SHA (the `HEAD` SHA, or a patch's base SHA), escalate as above and
-   stop instead of using the new tip. Otherwise attach the proposal branch to
-   that SHA with `git checkout -B <branch> <sha>` in a clean worktree, so
-   `git branch --show-current` names the branch for `open-pr --head`. For a
-   patch, run `git apply --check <patch>` there and apply it only if that check
-   passes.
+   stop instead of using the new tip. Otherwise put the proposal branch on that
+   SHA in a clean worktree without moving existing work: if no local `<branch>`
+   exists, create it with `git switch -c <branch> <sha>`; if it exists, switch
+   to it only when `git rev-parse <branch>` equals the SHA, and otherwise
+   escalate as above and stop (never reset it). `git branch --show-current` then
+   names the branch for `open-pr --head`. For a patch, run
+   `git apply --check <patch>` there and apply it only if that check passes.
 4. No local ledger links the previous run, so start one with an explicit
    `resume`/`start` entry. Use your new `--run-id`, and record the issue comment
    and the handoff's last `run_id` as evidence:
