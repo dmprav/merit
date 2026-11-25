@@ -56,8 +56,19 @@ const posthogImports = {
   regex: "^posthog-js($|/)",
   message: "PostHog belongs in foundation/analytics. Use @merit/analytics instead.",
 };
+const temporalImports = {
+  regex: "^@temporalio/(client|worker|proto)($|/)",
+  message:
+    "Temporal connections, clients, workers, and codecs belong in foundation/workflows. Use @merit/workflows instead.",
+};
+const workflowModuleImports = {
+  group: ["**", "!@temporalio/workflow", "!./**", "!../**", "!@merit/**"],
+  message:
+    "Workflow code is deterministic and sandboxed. It may import only @temporalio/workflow and pure code.",
+};
 const restrictedImports = [
   dateImports,
+  temporalImports,
   telemetryImports,
   posthogImports,
   reactAriaImports,
@@ -105,6 +116,10 @@ export const imports = {
     {
       files: ["**/foundation/telemetry/**"],
       rules: importRules(allowImports(telemetryImports, processImports)),
+    },
+    {
+      files: ["**/foundation/workflows/**"],
+      rules: importRules(allowImports(temporalImports, processImports)),
     },
     {
       files: ["**/foundation/analytics/**"],
@@ -239,6 +254,13 @@ export const imports = {
     {
       files: ["**/foundation/telemetry/src/**"],
       rules: forbidImports(`^(${frameworks}|${serverLibraries})`, allowImports(telemetryImports)),
+    },
+    {
+      files: ["**/foundation/workflows/src/**"],
+      rules: forbidImports(
+        "^(@tanstack/|@clerk/|@modelcontextprotocol/|react($|/|-)|i18next($|/)|drizzle-orm(/|$)|pg$)",
+        allowImports(temporalImports),
+      ),
     },
     {
       files: ["**/foundation/ui/src/**"],
@@ -412,6 +434,11 @@ export const imports = {
     {
       files: ["**/foundation/dates/**"],
       rules: forbidImports(`^(${frameworks}|${serverLibraries})`, allowImports(dateImports)),
+    },
+    {
+      // Last, so it replaces the rules of the source area the workflow module sits in.
+      files: ["**/*.workflow.ts"],
+      rules: importRules([...restrictedImports, workflowModuleImports]),
     },
   ],
 } satisfies NonNullable<UserConfig["lint"]>;

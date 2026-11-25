@@ -33,7 +33,7 @@ satisfies the required PR gate while its inputs remain unchanged.
 Targeted checks can defer discovery of unrelated regressions to that milestone.
 All existing suites and coverage thresholds remain part of full verification.
 
-For a full run, start PostgreSQL and Mailpit with `vp run services:start`
+For a full run, start the Compose services (PostgreSQL, Mailpit, file storage, and Temporal) with `vp run services:start`
 ([local setup](development.md#start-and-seed-postgresql) explains how it starts
 Docker in agent environments).
 `vp run ready` checks documentation links and their regression
@@ -296,7 +296,9 @@ Integration tests create and remove isolated PostgreSQL databases. Set
 `TEST_DATABASE_URL` for another test server; use a dedicated development server
 where the test role may create databases.
 
-Build the application before running integration tests. They substitute identities to
+Workflow integration tests run against the Compose Temporal service, on task queues and
+workflow IDs of their own; start it with `vp run services:start`. No test downloads a
+Temporal server. Build the application before running integration tests. They substitute identities to
 exercise persisted operations and access; browser workspace checks use local mode
 with an isolated test database. See the [database](testing.md#database-fixtures) and
 [browser fixture guidance](testing.md#browser-fixtures) when adding tests.

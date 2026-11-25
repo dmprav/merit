@@ -85,11 +85,41 @@ digest, so the mirror cannot change what runs. The
 can run database, workspace, and email checks themselves.
 
 Compose also starts [Mailpit](organizations.md#try-the-complete-flow-locally) for
-local invitation emails and SeaweedFS for
-[private file storage](../../foundation/storage/README.md#configure-a-bucket).
+local invitation emails, SeaweedFS for
+[private file storage](../../foundation/storage/README.md#configure-a-bucket), and a
+[Temporal](#run-background-work-locally) development server.
 The seed creates example workspaces for Alder and Birch. Repeating it preserves
 existing content, review work, memberships, and revoked permissions. If you have a database from before the current
 schema baseline, see [local database recovery](#local-database-recovery).
+
+### Run background work locally
+
+Merit runs background work as [Temporal](../decisions/0016-temporal-background-work.md)
+workflows. Compose starts the Temporal development server, which accepts connections on
+`127.0.0.1:7233` and serves its web UI at [127.0.0.1:8233](http://127.0.0.1:8233). It keeps
+workflow history in a named volume across restarts; `vp run db:reset` deletes that volume
+with the others. The development server is a local tool, not a deployment.
+
+`vp run dev`, `vp run dev:workspace`, and `vp run @merit/app#preview` start the
+[application worker](../../app/src/worker/main.ts) as a separate Node.js process beside the
+web server; there is no in-process fallback. The worker reruns when its files change in
+development, retries connecting with backoff when Temporal is not running, and logs each
+attempt without credentials. The web server is unaffected either way. If the worker stops,
+for example from an invalid setting, the command says so and keeps the web server running.
+Run the worker alone with `vp run @merit/app#worker`.
+
+Both processes read `app/.env.local`. The defaults need no configuration:
+
+| Setting                | Local default             | Purpose                                                   |
+| ---------------------- | ------------------------- | --------------------------------------------------------- |
+| `TEMPORAL_ADDRESS`     | `127.0.0.1:7233`          | Temporal frontend (`host:port`).                          |
+| `TEMPORAL_NAMESPACE`   | `default`                 | Namespace for workflows and task queues.                  |
+| `TEMPORAL_API_KEY`     | Unset                     | Hosted-service credential; setting it enables TLS.        |
+| `TEMPORAL_PAYLOAD_KEY` | Published development key | Base64 AES-256 key for every payload; not secret locally. |
+
+The Temporal UI shows ciphertext for payloads because the worker and client encrypt them;
+see the [workflows package](../../foundation/workflows/README.md) for the codec, workflow
+conventions, and test helpers.
 
 ### Work locally without Clerk
 
@@ -252,7 +282,7 @@ desktop Chromium; include other supported browsers when the changed behavior
 requires them.
 
 At the full verification milestones defined by that policy, run the workspace
-checks with PostgreSQL and Mailpit running. Install the browsers once, and again
+checks with the Compose services (PostgreSQL, Mailpit, storage, and Temporal) running. Install the browsers once, and again
 after upgrading Playwright:
 
 ```sh

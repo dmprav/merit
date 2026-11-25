@@ -363,7 +363,7 @@ jobs:
         with:
           download-build: "true"
 
-      - name: Start PostgreSQL and Mailpit
+      - name: Start Compose services (PostgreSQL, Mailpit, storage, Temporal)
         run: docker compose up -d --wait
 
       - name: Run database integration tests

@@ -218,6 +218,8 @@ const check = async (files: Record<string, string>, message?: string, viaVp = fa
       ["@tanstack/react-router", "interfaces/product"],
       ["react-aria-components", "foundation/ui"],
       ["posthog-js", "foundation/analytics"],
+      ["@temporalio/workflow", "app"],
+      ["@temporalio/client", "foundation/workflows"],
     ]) {
       const dependencyDirectory = fileURLToPath(
         new URL(`../../../${owner}/node_modules/${dependency}`, import.meta.url),
@@ -1641,6 +1643,71 @@ describe.concurrent("architecture rules", () => {
         "interfaces/product/src/probe.ts": 'export { posthog } from "posthog-js";',
       },
       "PostHog belongs in foundation/analytics",
+    );
+  });
+
+  describe("workflow modules", () => {
+    const workflow = "app/src/worker/probe.workflow.ts";
+    const sandboxMessage = "Workflow code is deterministic and sandboxed";
+    const sibling = {
+      "app/src/worker/helper.workflow.ts": "export const helper = 1;",
+      "app/src/worker/activities.ts": "export const activity = async () => 1;",
+    };
+
+    test("permits the workflow API, sibling workflows, activity types, and pure code", async () => {
+      await check({
+        ...sibling,
+        [workflow]: [
+          'import { proxyActivities } from "@temporalio/workflow";',
+          'import { helper } from "./helper.workflow.ts";',
+          'import type * as activities from "./activities.ts";',
+          'import type { Value } from "@merit/contacts/domain";',
+          'import { value } from "@merit/contacts/domain";',
+          "export const run = () => [proxyActivities<typeof activities>({}), helper, value] as const;",
+          "export type Kept = Value;",
+        ].join("\n"),
+      });
+    });
+
+    test.each([
+      ["node:fs", 'export { readFileSync } from "node:fs";'],
+      ["a Node.js built-in without a prefix", 'export { readFileSync } from "fs";'],
+      ["an npm package", 'export { z } from "zod";'],
+      ["the database", 'export { drizzle } from "drizzle-orm";'],
+      ["process", 'export { env } from "node:process";'],
+    ])("rejects %s", async (_name, source) => {
+      await check({ [workflow]: source }, sandboxMessage);
+    });
+
+    test.each([
+      ["a capability server entry", 'export { server } from "@merit/contacts/server";'],
+      ["a non-workflow module's values", 'export { activity } from "./activities.ts";'],
+    ])("rejects %s", async (_name, source) => {
+      await check({ ...sibling, [workflow]: source }, sandboxMessage);
+    });
+
+    test("applies the same rule inside a capability's server source", async () => {
+      await check(
+        {
+          "capabilities/contacts/business/src/server/probe.workflow.ts":
+            'export { readFileSync } from "node:fs";',
+        },
+        sandboxMessage,
+      );
+    });
+
+    test("does not restrict ordinary server files", async () => {
+      await check({ "app/src/worker/main.ts": 'export { readFileSync } from "node:fs";' });
+    });
+  });
+
+  test("isolates Temporal connections, clients, and workers inside foundation/workflows", async () => {
+    await check({
+      "foundation/workflows/src/probe.ts": 'export { Client } from "@temporalio/client";',
+    });
+    await check(
+      { "app/src/worker/probe.ts": 'export { Client } from "@temporalio/client";' },
+      "belong in foundation/workflows",
     );
   });
 });

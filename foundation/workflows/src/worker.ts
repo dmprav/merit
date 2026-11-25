@@ -1,0 +1,116 @@
+import { setTimeout as delay } from "node:timers/promises";
+
+import {
+  DefaultLogger,
+  NativeConnection,
+  Runtime,
+  Worker,
+  type WorkerOptions,
+} from "@temporalio/worker";
+
+import type { TemporalConfig } from "./config.ts";
+import { connectionOptions } from "./connection.ts";
+import { createDataConverter } from "./payload-codec.ts";
+
+export type WorkerLogger = {
+  info(message: string): void;
+  warn(message: string): void;
+  error(message: string): void;
+};
+
+/** Workflow code is bundled from a source file, or supplied as an already built bundle. */
+export type WorkflowSource = { workflowsPath: string } | { workflowBundle: { code: string } };
+
+export type WorkerSettings = {
+  config: TemporalConfig;
+  taskQueue: string;
+  workflows: WorkflowSource;
+  activities?: WorkerOptions["activities"];
+};
+
+const messageLimit = 200;
+
+/** A short, single-line description that is safe to log: never includes connection options. */
+export const describeError = (error: unknown) =>
+  (error instanceof Error ? error.message : "unknown error")
+    .replaceAll(/\s+/gu, " ")
+    .slice(0, messageLimit);
+
+const connect = (config: TemporalConfig) => NativeConnection.connect(connectionOptions(config));
+
+/** Create a worker over an open connection. The caller owns the connection. */
+export const createWorker = (connection: NativeConnection, settings: WorkerSettings) =>
+  Worker.create({
+    connection,
+    namespace: settings.config.namespace,
+    taskQueue: settings.taskQueue,
+    dataConverter: createDataConverter(settings.config.payloadKey),
+    ...settings.workflows,
+    ...(settings.activities === undefined ? {} : { activities: settings.activities }),
+  });
+
+/** Keep the SDK's bundler output and state changes out of the console; warnings and errors remain. */
+export const quietRuntime = () => {
+  try {
+    Runtime.install({ logger: new DefaultLogger("WARN") });
+  } catch {
+    // The runtime is installed once per process; keep its first configuration.
+  }
+};
+
+export type RunOptions = {
+  logger: WorkerLogger;
+  /** Stops the worker after it finishes work in flight. */
+  signal?: AbortSignal;
+  /** Backoff between connection attempts, doubling from `initialMs` to `maxMs`. */
+  backoff?: { initialMs: number; maxMs: number };
+};
+
+/**
+ * Connect to Temporal, retrying with backoff while it is unreachable, then poll until
+ * the signal aborts. Connection failures are logged without credentials and never throw,
+ * so starting the worker before Temporal is ready is not an error. Failures to build the
+ * worker, such as invalid workflow code, are not transient and reject.
+ */
+export const runWorker = async (settings: WorkerSettings, options: RunOptions) => {
+  const { logger, signal } = options;
+  quietRuntime();
+  const { initialMs, maxMs } = options.backoff ?? { initialMs: 1000, maxMs: 30_000 };
+  let wait = initialMs;
+  let connection: NativeConnection | undefined;
+  while (!signal?.aborted) {
+    try {
+      connection = await connect(settings.config);
+      break;
+    } catch (error) {
+      logger.warn(
+        `Temporal at ${settings.config.address} is unreachable (${describeError(error)}). Retrying in ${Math.round(wait / 1000)}s.`,
+      );
+      await delay(wait, undefined, signal ? { signal } : undefined).catch(() => undefined);
+      wait = Math.min(wait * 2, maxMs);
+    }
+  }
+  if (!connection) {
+    return;
+  }
+  try {
+    const worker = await createWorker(connection, settings);
+
+    const stop = () => worker.shutdown();
+
+    signal?.addEventListener("abort", stop, { once: true });
+    if (signal?.aborted) {
+      stop();
+    }
+    logger.info(
+      `Worker polling task queue ${settings.taskQueue} in namespace ${settings.config.namespace}.`,
+    );
+    try {
+      await worker.run();
+    } finally {
+      signal?.removeEventListener("abort", stop);
+    }
+  } finally {
+    await connection.close();
+  }
+};

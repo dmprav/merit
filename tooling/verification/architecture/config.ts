@@ -73,6 +73,7 @@ const pureBusiness = {
   ...category("pure", ["test"]),
 };
 const serverImplementation = category("server", ["pure"]);
+const workflowModule = category("workflow");
 const infrastructure = category("{server,browser}", ["pure"]);
 
 // Upstream and sibling capabilities stay independent of downstream capabilities.
@@ -342,6 +343,19 @@ const policies = [
     [category("{test,tooling}"), { element: { type: "tooling" } }],
     "Production code cannot depend on tests or tooling.",
   ),
+  // Workflow code replays deterministically in a sandbox: no Node.js, database, or server entries.
+  forbid(
+    workflowModule,
+    { module: { origin: ["external", "core"] } },
+    "Workflow code is deterministic and sandboxed. It may import only @temporalio/workflow and pure code.",
+    { source: "!@temporalio/workflow" },
+  ),
+  forbid(
+    workflowModule,
+    { module: { origin: "local" }, file: { categories: { noneOf: ["pure", "workflow"] } } },
+    "Workflow code is deterministic and sandboxed. It may import only @temporalio/workflow and pure code.",
+    { kind: "value" },
+  ),
   forbid(
     { element: { type: "!tooling" }, file: { categories: { noneOf: ["tooling"] } } },
     { module: { origin: "local" }, element: { path: "!{{ from.element.path }}" } },
@@ -414,8 +428,12 @@ export default defineConfig({
             "foundation/db/src/**",
             "foundation/auth/src/**",
             "foundation/telemetry/src/**",
+            "foundation/workflows/src/**",
+            "app/src/worker/**",
             "**/*.server.ts",
           ],
+          // Workflow modules run in Temporal's deterministic sandbox, not in Node.js.
+          workflow: ["**/*.workflow.ts"],
           browser: [
             "app/src/shell/**",
             "app/src/router.tsx",
