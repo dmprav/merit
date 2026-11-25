@@ -44,11 +44,25 @@ import {
 
 const tempDirs: string[] = [];
 
-const isolatedGitEnv = (): NodeJS.ProcessEnv => ({
-  ...process.env,
-  GIT_CONFIG_GLOBAL: "/dev/null",
-  GIT_CONFIG_NOSYSTEM: "1",
-});
+// Variables that make Git ignore `cwd` and use another repository, index, or object store, such as
+// the `GIT_DIR` and `GIT_INDEX_FILE` a Git hook exports.
+const GIT_REPOSITORY_ENV_VARS = execFileSync("git", ["rev-parse", "--local-env-vars"], {
+  encoding: "utf8",
+})
+  .split("\n")
+  .filter(Boolean);
+
+const isolatedGitEnv = (): NodeJS.ProcessEnv => {
+  const env: NodeJS.ProcessEnv = {
+    ...process.env,
+    GIT_CONFIG_GLOBAL: "/dev/null",
+    GIT_CONFIG_NOSYSTEM: "1",
+  };
+  for (const name of GIT_REPOSITORY_ENV_VARS) {
+    delete env[name];
+  }
+  return env;
+};
 
 const git = (cwd: string, args: readonly string[]) =>
   execFileSync("git", ["-c", "commit.gpgsign=false", ...args], {
@@ -95,6 +109,10 @@ const initTempRepo = (withOriginMain = false) => {
 beforeEach(() => {
   vi.stubEnv("GIT_CONFIG_GLOBAL", "/dev/null");
   vi.stubEnv("GIT_CONFIG_NOSYSTEM", "1");
+  // createWorktree and cleanWorktree run Git with the inherited environment.
+  for (const name of GIT_REPOSITORY_ENV_VARS) {
+    vi.stubEnv(name, undefined);
+  }
 });
 
 afterEach(() => {
@@ -106,6 +124,21 @@ afterEach(() => {
 });
 
 describe("worktree helpers", () => {
+  test("fixture Git commands ignore inherited repository selectors", async () => {
+    const decoy = realpathSync(mkdtempSync(join(tmpdir(), "merit-worktree-decoy-")));
+    tempDirs.push(decoy);
+    execFileSync("git", ["init", "-q", "-b", "main", decoy], { env: isolatedGitEnv() });
+    const decoyConfig = readFileSync(join(decoy, ".git/config"), "utf8");
+    vi.stubEnv("GIT_DIR", join(decoy, ".git"));
+    vi.stubEnv("GIT_INDEX_FILE", join(decoy, ".git/index"));
+
+    const repo = initTempRepo(false);
+
+    expect(git(repo, ["config", "user.name"])).toBe("Test");
+    expect(readFileSync(join(decoy, ".git/config"), "utf8")).toBe(decoyConfig);
+    expect(existsSync(join(decoy, ".git/index"))).toBe(false);
+  });
+
   test("validates slugs and builds safe Postgres database names", () => {
     expect(validateWorktreeSlug("a")).toBe("a");
     expect(validateWorktreeSlug("feat-auth-2")).toBe("feat-auth-2");
