@@ -110,19 +110,18 @@ describe("parseCliArgs", () => {
     });
   });
 
-  it("preserves commas inside /regex/ literals while splitting comma-separated --story patterns", () => {
-    expect(parseCliArgs(["--story", "/^components-button.{1,30}$/"]).stories).toEqual([
-      "/^components-button.{1,30}$/",
-    ]);
-    expect(parseCliArgs(["--story", "/^components-button.{1,30}$/i,dialog"]).stories).toEqual([
-      "/^components-button.{1,30}$/i",
-      "dialog",
-    ]);
-    expect(parseCliArgs(["--story", "button,/foo[,/]bar{1,2}/,text-field"]).stories).toEqual([
+  it("splits comma-separated --story patterns and rejects /regex/ filters", () => {
+    expect(parseCliArgs(["--story", "button, components-*,text-field"]).stories).toEqual([
       "button",
-      "/foo[,/]bar{1,2}/",
+      "components-*",
       "text-field",
     ]);
+    expect(() => parseCliArgs(["--story", "/Button/i"])).toThrow(
+      /\/regex\/ filters are not supported/,
+    );
+    expect(() => parseCliArgs(["--story", "dialog,/^components-button/"])).toThrow(
+      /Invalid --story "\/\^components-button\/"/,
+    );
   });
 
   it("rejects invalid flags, modes, viewports, routes, and container+route combinations", () => {
@@ -200,14 +199,14 @@ describe("filterStoryTargets and sanitizeTargetName", () => {
     ).toBe(false);
   });
 
-  it("supports substring, glob, regex, and curated theme filters while ignoring docs entries", () => {
+  it("supports substring, glob, and curated theme filters while ignoring docs entries", () => {
     expect(filterStoryTargets(["focus-site"], sampleIndex).map((t) => t.name)).toEqual([
       "focus-site",
     ]);
     expect(filterStoryTargets(["components-button*"], sampleIndex).map((t) => t.id)).toEqual([
       "components-button--overview",
     ]);
-    expect(filterStoryTargets(["/merit-ai-conversation/"], sampleIndex).map((t) => t.id)).toEqual([
+    expect(filterStoryTargets(["merit-ai-conversation"], sampleIndex).map((t) => t.id)).toEqual([
       "features-merit-ai-conversation--default",
     ]);
     expect(
@@ -480,16 +479,10 @@ describe("container delegation and proof reporting", () => {
     ).toEqual(["--grep", "control focus appearance in"]);
 
     expect(
-      buildContainerDelegationArgs(parseCliArgs(["--container", "--story", "/Button/i"])),
-    ).toEqual(["--grep", "/Button/i"]);
-
-    expect(
-      buildContainerDelegationArgs(parseCliArgs(["--container", "--story", "/Button/"])),
-    ).toEqual(["--grep", "/Button/"]);
-
-    expect(
-      buildContainerDelegationArgs(parseCliArgs(["--container", "--story", "/Button/i,dialog"])),
-    ).toEqual(["--grep", "/Button|dialog/i"]);
+      buildContainerDelegationArgs(
+        parseCliArgs(["--container", "--story", "components-button*,dialog.open"]),
+      ),
+    ).toEqual(["--grep", "components-button.*|dialog\\.open"]);
 
     expect(buildContainerDelegationArgs(parseCliArgs(["--container"]))).toEqual([]);
   });

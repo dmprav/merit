@@ -258,7 +258,7 @@ const VIEWPORT_ONLY_STORY_IDS = new Set(["patterns-form-dialog--with-context"]);
 const USAGE = `Usage: vp run ui:verify [options]
 
 Options:
-  --story <pattern>            Filter Storybook story IDs (substring, glob, or /regex/; repeatable or comma-separated)
+  --story <pattern>            Filter Storybook story IDs (substring or glob; repeatable or comma-separated)
   --route <path>               Verify live app route(s) (e.g. /demo, /app/alder/rounds; repeatable or comma-separated)
   --mode demo|workspace        App server mode for --route (auto-inferred when omitted)
   --viewport desktop|mobile|both
@@ -274,53 +274,6 @@ const splitCommaValues = (raw: string): string[] =>
     .split(",")
     .map((part) => part.trim())
     .filter((part) => part.length > 0);
-
-const splitStoryPatterns = (raw: string): string[] => {
-  const parts: string[] = [];
-  let current = "";
-  let inRegex = false;
-  let inCharClass = false;
-  let escaped = false;
-
-  for (let index = 0; index < raw.length; index += 1) {
-    const ch = raw[index] ?? "";
-    if (inRegex) {
-      current += ch;
-      if (escaped) {
-        escaped = false;
-      } else if (ch === "\\") {
-        escaped = true;
-      } else if (ch === "[") {
-        inCharClass = true;
-      } else if (ch === "]" && inCharClass) {
-        inCharClass = false;
-      } else if (ch === "/" && !inCharClass) {
-        inRegex = false;
-      }
-      continue;
-    }
-
-    if (ch === ",") {
-      const trimmed = current.trim();
-      if (trimmed.length > 0) {
-        parts.push(trimmed);
-      }
-      current = "";
-      continue;
-    }
-
-    if (ch === "/" && current.trim().length === 0) {
-      inRegex = true;
-    }
-    current += ch;
-  }
-
-  const trimmed = current.trim();
-  if (trimmed.length > 0) {
-    parts.push(trimmed);
-  }
-  return parts;
-};
 
 const readFlagValue = (
   args: readonly string[],
@@ -391,9 +344,15 @@ export const parseCliArgs = (rawArgs: readonly string[]): UiVerifyCliOptions => 
     }
     if (arg === "--story" || arg.startsWith("--story=")) {
       const { value, nextIndex } = readFlagValue(args, index, "--story");
-      const parsedPatterns = splitStoryPatterns(value);
+      const parsedPatterns = splitCommaValues(value);
       if (parsedPatterns.length === 0) {
         throw new Error(`Invalid --story "${value}". Expected at least one non-empty pattern.`);
+      }
+      const regexPattern = parsedPatterns.find((pattern) => pattern.startsWith("/"));
+      if (regexPattern) {
+        throw new Error(
+          `Invalid --story "${regexPattern}". Use a substring or glob (* and ?); /regex/ filters are not supported.`,
+        );
       }
       stories.push(...parsedPatterns);
       index = nextIndex;
@@ -484,12 +443,6 @@ export const resolveViewports = (viewport: ViewportOption): ViewportName[] =>
 const escapeRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const compileStoryMatcher = (pattern: string): ((candidate: string) => boolean) => {
-  const regexLiteral = /^\/(.+)\/([gimsuy]*)$/.exec(pattern);
-  if (regexLiteral?.[1]) {
-    const flags = (regexLiteral[2] ?? "").replace(/[gy]/g, "");
-    const regex = new RegExp(regexLiteral[1], flags);
-    return (candidate) => regex.test(candidate);
-  }
   if (pattern.includes("*") || pattern.includes("?")) {
     const regexBody = pattern
       .split("")
@@ -616,48 +569,20 @@ export const buildContainerDelegationArgs = (options: UiVerifyCliOptions): strin
     args.push("--project", "mobile");
   }
   if (options.stories.length > 0) {
-    const parsedStories = options.stories.map((story) => {
+    const bodies = options.stories.map((story) => {
       const mappedFocusPattern = CONTAINER_FOCUS_STORY_PATTERNS[story.toLowerCase()];
       if (mappedFocusPattern) {
-        return {
-          body: escapeRegex(mappedFocusPattern),
-          isRegexLiteral: false,
-          caseInsensitive: true,
-        };
+        return escapeRegex(mappedFocusPattern);
       }
-      const regexLiteral = /^\/(.+)\/([gimsuy]*)$/.exec(story);
-      if (regexLiteral?.[1]) {
-        const flags = regexLiteral[2] ?? "";
-        return {
-          body: regexLiteral[1],
-          isRegexLiteral: true,
-          caseInsensitive: flags.includes("i"),
-        };
-      }
-      return {
-        body: story
-          .split("")
-          .map((char) => (char === "*" ? ".*" : char === "?" ? "." : escapeRegex(char)))
-          .join(""),
-        isRegexLiteral: false,
-        caseInsensitive: true,
-      };
+      return story
+        .split("")
+        .map((char) => (char === "*" ? ".*" : char === "?" ? "." : escapeRegex(char)))
+        .join("");
     });
 
-    const hasRegexLiteral = parsedStories.some((item) => item.isRegexLiteral);
-    const anyCaseInsensitive = parsedStories.some((item) => item.caseInsensitive);
-    const joinedBody =
-      parsedStories.length === 1
-        ? (parsedStories[0]?.body ?? "")
-        : parsedStories
-            .map((item) => (item.body.includes("|") ? `(?:${item.body})` : item.body))
-            .join("|");
-
-    // Playwright CLI's forceRegExp accepts `/pattern/[gi]*` (preserving case sensitivity or `i`),
-    // while bare patterns compile with `"gi"`.
-    const pattern = hasRegexLiteral
-      ? `/${joinedBody}/${anyCaseInsensitive ? "i" : ""}`
-      : joinedBody;
+    // Playwright CLI compiles a bare --grep pattern case-insensitively, so escaped
+    // substrings and glob bodies can be joined into one alternation.
+    const pattern = bodies.join("|");
     args.push("--grep", pattern);
   }
   return args;

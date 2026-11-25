@@ -128,7 +128,7 @@ maps and persona workflows):
 # Curated Storybook sweep (desktop 1440x1000 + mobile 390x844, Postgres-free)
 vp run ui:verify
 
-# Targeted stories (substring, glob, or /regex/)
+# Targeted stories (substring or glob, e.g. components-button*)
 vp run ui:verify --story components-button--overview,patterns-form-dialog--with-context
 
 # Live app routes (isolated ephemeral database + app server; one mode per run)

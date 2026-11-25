@@ -17,8 +17,8 @@ Choose the smallest surface that proves the changed behavior:
   ephemeral port, runs the curated visual targets across desktop (`1440x1000`) and mobile
   (`390x844`), and tears down the server automatically.
 - **Targeted stories:** `vp run ui:verify --story <pattern>` filters `index.json` by
-  substring, glob (`components-button*`), or regex (`/dialog--with/`). Pass `--story`
-  multiple times or comma-separated.
+  substring or glob (`components-button*`, `*--with-context`). Pass `--story` multiple
+  times or comma-separated.
 - **Live app routes:** Start local services first (`vp run services:start`), then run
   `vp run ui:verify --route <path>`. `ui:verify` provisions an ephemeral PostgreSQL database,
   applies migrations, seeds example workspaces when in `workspace` mode, launches an isolated
