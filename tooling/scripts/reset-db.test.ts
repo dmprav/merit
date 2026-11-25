@@ -67,7 +67,7 @@ it("recreates the Compose database before migrating and seeding, ignoring remote
   ]);
 });
 
-it("uses Compose volume reset for the default merit database and ignores protected or query-override URLs", () => {
+it("uses Compose volume reset for the default merit database and protected names, but rejects local query-override URLs", () => {
   expect(resolveResetTarget({ DATABASE_URL: DEFAULT_COMPOSE_DATABASE_URL })).toEqual({
     mode: "compose",
     databaseUrl: DEFAULT_COMPOSE_DATABASE_URL,
@@ -76,22 +76,23 @@ it("uses Compose volume reset for the default merit database and ignores protect
     mode: "compose",
     databaseUrl: DEFAULT_COMPOSE_DATABASE_URL,
   });
-  expect(
-    resolveResetTarget({
-      DATABASE_URL: `${buildLocalDatabaseUrl("merit_alpha")}?host=remote.invalid`,
-    }),
-  ).toEqual({
-    mode: "compose",
-    databaseUrl: DEFAULT_COMPOSE_DATABASE_URL,
-  });
-  expect(
-    resolveResetTarget({
-      DATABASE_URL: `${buildLocalDatabaseUrl("merit_alpha")}?port=5432`,
-    }),
-  ).toEqual({
-    mode: "compose",
-    databaseUrl: DEFAULT_COMPOSE_DATABASE_URL,
-  });
+  // A local URL whose query parameters redirect the connection must never fall through to the
+  // Compose volume reset, even in the primary checkout.
+  for (const query of ["host=remote.invalid", "port=5432", "PORT=5432", "hostaddr=10.0.0.1"]) {
+    for (const databaseName of ["merit_alpha", "merit"]) {
+      expect(
+        () =>
+          resolveResetTarget({ DATABASE_URL: `${buildLocalDatabaseUrl(databaseName)}?${query}` }),
+        `${databaseName}?${query}`,
+      ).toThrow(/overrides its connection with host, hostaddr, port, or user query parameters/);
+    }
+  }
+  const otherLocalPort = new URL(buildLocalDatabaseUrl("merit_alpha"));
+  otherLocalPort.port = "5432";
+  otherLocalPort.searchParams.set("port", "55432");
+  expect(() => resolveResetTarget({ DATABASE_URL: otherLocalPort.href })).toThrow(
+    /overrides its connection/,
+  );
   expect(resolveResetTarget({})).toEqual({
     mode: "compose",
     databaseUrl: DEFAULT_COMPOSE_DATABASE_URL,
@@ -150,7 +151,6 @@ it("detects linked git worktrees and refuses Compose volume reset when DATABASE_
 
   for (const env of [
     { DATABASE_URL: "postgres://example:example@remote.invalid/production" },
-    { DATABASE_URL: `${buildLocalDatabaseUrl("merit_alpha")}?port=5432` },
     { DATABASE_URL: DEFAULT_COMPOSE_DATABASE_URL },
     {},
   ]) {
@@ -158,8 +158,46 @@ it("detects linked git worktrees and refuses Compose volume reset when DATABASE_
       /Refusing to run Compose volume reset from a linked worktree/,
     );
   }
+  await expect(
+    resetLocalDatabase({
+      cwd: linkedDir,
+      env: { DATABASE_URL: `${buildLocalDatabaseUrl("merit_alpha")}?port=5432` },
+      exec,
+      recreate,
+    }),
+  ).rejects.toThrow(/overrides its connection/);
   expect(exec).not.toHaveBeenCalled();
   expect(recreate).not.toHaveBeenCalled();
+});
+
+it("refuses a linked-worktree reset when an exported DATABASE_URL overrides the worktree's .env.local database", async () => {
+  const exec = vi.fn();
+  const recreate = vi.fn(async () => {});
+  const worktreeDatabaseUrl = buildLocalDatabaseUrl("merit_alpha");
+
+  await expect(
+    resetLocalDatabase({
+      cwd: repoUrl,
+      env: { DATABASE_URL: buildLocalDatabaseUrl("merit_beta") },
+      isLinkedWorktree: true,
+      worktreeDatabaseUrl,
+      exec,
+      recreate,
+    }),
+  ).rejects.toThrow(/exported DATABASE_URL overrides the database in this worktree's \.env\.local/);
+  expect(recreate).not.toHaveBeenCalled();
+  expect(exec).not.toHaveBeenCalled();
+
+  const result = await resetLocalDatabase({
+    cwd: repoUrl,
+    env: { DATABASE_URL: worktreeDatabaseUrl },
+    isLinkedWorktree: true,
+    worktreeDatabaseUrl,
+    exec,
+    recreate,
+  });
+  expect(result).toMatchObject({ mode: "worktree", database: { databaseName: "merit_alpha" } });
+  expect(recreate).toHaveBeenCalledOnce();
 });
 
 it.each([1, 2, 3, 4])(
@@ -256,7 +294,10 @@ it("executes runCli when invoked directly as a child process with stubbed execut
 
   if (isLinkedGitWorktree(repoUrl)) {
     expect(result.status).not.toBe(0);
-    expect(result.stderr).toMatch(/Refusing to run Compose volume reset from a linked worktree/);
+    // Either no worktree database is configured, or the exported URL overrides `.env.local`.
+    expect(result.stderr).toMatch(
+      /Refusing to (run Compose volume reset|reset) from a linked worktree/,
+    );
     return;
   }
 

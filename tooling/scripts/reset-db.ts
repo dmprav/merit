@@ -1,11 +1,13 @@
 import { execFileSync, type ExecFileSyncOptions } from "node:child_process";
-import { statSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { parseEnv } from "node:util";
 
 import { loadRepoEnvLocal } from "../env.ts";
 import {
   DEFAULT_COMPOSE_DATABASE_URL,
+  hasLocalConnectionOverride,
   parseLocalComposeDatabase,
   recreateLocalDatabase,
   type LocalComposeDatabase,
@@ -26,8 +28,25 @@ export const isLinkedGitWorktree = (repoRoot: URL | string): boolean => {
 
 export const resolveResetTarget = (
   env: NodeJS.ProcessEnv,
-  { isLinkedWorktree = false }: { isLinkedWorktree?: boolean } = {},
+  {
+    isLinkedWorktree = false,
+    worktreeDatabaseUrl,
+  }: { isLinkedWorktree?: boolean; worktreeDatabaseUrl?: string } = {},
 ): ResetTarget => {
+  if (hasLocalConnectionOverride(env.DATABASE_URL)) {
+    throw new Error(
+      "Refusing to reset: DATABASE_URL targets local PostgreSQL but overrides its connection with host, hostaddr, port, or user query parameters. Remove those parameters so the reset target is unambiguous.",
+    );
+  }
+  if (
+    isLinkedWorktree &&
+    worktreeDatabaseUrl?.trim() &&
+    env.DATABASE_URL?.trim() !== worktreeDatabaseUrl.trim()
+  ) {
+    throw new Error(
+      "Refusing to reset from a linked worktree: an exported DATABASE_URL overrides the database in this worktree's .env.local. Unset DATABASE_URL in your shell and retry.",
+    );
+  }
   const local = parseLocalComposeDatabase(env.DATABASE_URL);
   if (local && !local.isProtected) {
     return { mode: "worktree", database: local };
@@ -47,6 +66,7 @@ export const resetLocalDatabase = async ({
   cwd = new URL("../../", import.meta.url),
   env = process.env,
   isLinkedWorktree = isLinkedGitWorktree(cwd),
+  worktreeDatabaseUrl,
   exec = (command: string, args: readonly string[], options: ExecFileSyncOptions) => {
     execFileSync(command, args, options);
   },
@@ -55,10 +75,11 @@ export const resetLocalDatabase = async ({
   cwd?: URL | string;
   env?: NodeJS.ProcessEnv;
   isLinkedWorktree?: boolean;
+  worktreeDatabaseUrl?: string;
   exec?: (command: string, args: readonly string[], options: ExecFileSyncOptions) => void;
   recreate?: (databaseName: string, adminUrl: string) => Promise<void>;
 } = {}): Promise<ResetTarget> => {
-  const target = resolveResetTarget(env, { isLinkedWorktree });
+  const target = resolveResetTarget(env, { isLinkedWorktree, worktreeDatabaseUrl });
 
   if (target.mode === "worktree") {
     const { database } = target;
@@ -91,10 +112,19 @@ export const resetLocalDatabase = async ({
   return target;
 };
 
+const readEnvLocalDatabaseUrl = (repoRoot: string): string | undefined => {
+  const envFile = resolve(repoRoot, ".env.local");
+  return existsSync(envFile) ? parseEnv(readFileSync(envFile, "utf8")).DATABASE_URL : undefined;
+};
+
 const runCli = async () => {
   const repoRoot = resolve(fileURLToPath(new URL("../../", import.meta.url)));
   loadRepoEnvLocal(repoRoot);
-  await resetLocalDatabase({ cwd: new URL("../../", import.meta.url), env: process.env });
+  await resetLocalDatabase({
+    cwd: new URL("../../", import.meta.url),
+    env: process.env,
+    worktreeDatabaseUrl: readEnvLocalDatabaseUrl(repoRoot),
+  });
 };
 
 const entryPath = process.argv[1];

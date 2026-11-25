@@ -58,6 +58,20 @@ const hasForbiddenConnectionParam = (url: URL): boolean =>
   );
 
 /**
+ * Reports whether a `DATABASE_URL` addresses loopback PostgreSQL but overrides where `pg` connects
+ * with query parameters (`host`, `hostaddr`, `port`, `user`), so its real target is ambiguous.
+ */
+export const hasLocalConnectionOverride = (connectionString: string | undefined): boolean => {
+  const parsed = connectionString?.trim() ? URL.parse(connectionString.trim()) : null;
+  return Boolean(
+    parsed &&
+    (parsed.protocol === "postgres:" || parsed.protocol === "postgresql:") &&
+    LOCAL_COMPOSE_HOSTS.has(parsed.hostname) &&
+    hasForbiddenConnectionParam(parsed),
+  );
+};
+
+/**
  * Parses a `DATABASE_URL` targeting the local loopback Compose Postgres (`127.0.0.1:55432` or `localhost:55432`).
  * Returns `null` for remote URLs, query-string connection overrides (`host`, `hostaddr`, `port`, `user`),
  * non-Compose ports, or malformed values.
