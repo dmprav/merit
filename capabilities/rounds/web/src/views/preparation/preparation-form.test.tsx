@@ -58,16 +58,12 @@ it("rejects a third decimal typed or pasted into the round budget and shows the 
 
   await user.type(amount, "12.345");
   expect(amount).toHaveValue("12.34");
-  expect(screen.getByRole("status")).toHaveTextContent(
-    "Amount unchanged. Use up to two decimal places.",
-  );
+  expect(amount).toHaveAccessibleDescription(/Amount unchanged\. Use up to two decimal places\./);
 
   await user.clear(amount);
   await user.paste("99.999");
   expect(amount).toHaveValue("");
-  expect(screen.getByRole("status")).toHaveTextContent(
-    "Amount unchanged. Use up to two decimal places.",
-  );
+  expect(amount).toHaveAccessibleDescription(/Amount unchanged\. Use up to two decimal places\./);
 
   await user.paste("1,250.50");
   expect(amount).toHaveValue("1250.50");
