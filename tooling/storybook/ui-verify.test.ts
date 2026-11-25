@@ -362,6 +362,31 @@ describe("detectFocusVisualChange", () => {
     ).toEqual({ changed: false, reasons: [] });
   });
 
+  it("counts a text-decoration thickness change only while a decoration line is painted", () => {
+    expect(
+      detectFocusVisualChange(
+        baseSnapshot(),
+        baseSnapshot({ self: baseStyle({ textDecorationThickness: "3px" }) }),
+      ),
+    ).toEqual({ changed: false, reasons: [] });
+
+    expect(
+      detectFocusVisualChange(
+        baseSnapshot(),
+        baseSnapshot({ self: baseStyle({ textDecorationLine: "underline" }) }),
+      ),
+    ).toEqual({ changed: true, reasons: ["self:text-decoration"] });
+
+    expect(
+      detectFocusVisualChange(
+        baseSnapshot({ self: baseStyle({ textDecorationLine: "underline" }) }),
+        baseSnapshot({
+          self: baseStyle({ textDecorationLine: "underline", textDecorationThickness: "3px" }),
+        }),
+      ),
+    ).toEqual({ changed: true, reasons: ["self:text-decoration"] });
+  });
+
   it("rejects unchanged styles and transparent or zero-width outlines (including CSS Color 4 slash-alpha and hsla)", () => {
     expect(detectFocusVisualChange(baseSnapshot(), baseSnapshot())).toEqual({
       changed: false,

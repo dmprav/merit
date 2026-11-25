@@ -738,9 +738,11 @@ const compareStyleSnapshots = (
   ) {
     reasons.push(`${scope}:background`);
   }
+  // A thickness change paints nothing unless a decoration line is drawn.
   if (
     unfocused.textDecorationLine !== focused.textDecorationLine ||
-    unfocused.textDecorationThickness !== focused.textDecorationThickness
+    (unfocused.textDecorationThickness !== focused.textDecorationThickness &&
+      focused.textDecorationLine !== "none")
   ) {
     reasons.push(`${scope}:text-decoration`);
   }
