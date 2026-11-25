@@ -1779,7 +1779,8 @@ export const openTargetOnPage = async (
       `Route "${target.route}" did not render non-empty content within ${routeReadyTimeoutMs}ms at ${url}: ${detail}`,
     );
   }
-  return url;
+  // A redirect, such as to sign-in, means the checks below describe this page, not the request.
+  return page.url();
 };
 
 export const summarizeResults = ({
@@ -1839,6 +1840,20 @@ export const summarizeResults = ({
     containerExitCode,
     targets,
   });
+};
+
+/** The page a route check audited when a redirect moved it away from the requested route. */
+const redirectedRouteUrl = (item: TargetCheckResult): string | undefined => {
+  if (item.kind !== "route" || !URL.canParse(item.url)) {
+    return undefined;
+  }
+  const audited = new URL(item.url);
+  if (new URL(item.target, audited).href === audited.href) {
+    return undefined;
+  }
+  return audited.origin === new URL(item.target, audited).origin
+    ? `${audited.pathname}${audited.search}${audited.hash}`
+    : audited.href;
 };
 
 export const formatMarkdownReport = (results: UiVerifyResults): string => {
@@ -1903,8 +1918,10 @@ export const formatMarkdownReport = (results: UiVerifyResults): string => {
     const screenshotCell = item.screenshot
       ? `\`${relative(results.outDir, item.screenshot).replaceAll("\\", "/")}\``
       : "—";
+    const redirect = redirectedRouteUrl(item);
+    const targetCell = `\`${item.name.replaceAll("|", "\\|")}\`${redirect ? ` → \`${redirect.replaceAll("|", "\\|")}\`` : ""}`;
     lines.push(
-      `| \`${item.name.replaceAll("|", "\\|")}\` | ${item.viewport} | ${status} | ${item.axeViolations.length} | ${overflow} | ${item.browserErrors.length} | ${focusCell} | ${screenshotCell} |`,
+      `| ${targetCell} | ${item.viewport} | ${status} | ${item.axeViolations.length} | ${overflow} | ${item.browserErrors.length} | ${focusCell} | ${screenshotCell} |`,
     );
   }
 

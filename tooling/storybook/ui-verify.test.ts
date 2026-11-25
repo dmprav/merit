@@ -584,6 +584,46 @@ describe("container delegation and proof reporting", () => {
     );
   });
 
+  it("shows the audited page next to a route that redirected", () => {
+    const routeResult = (target: string, url: string) => ({
+      kind: "route" as const,
+      target,
+      name: target,
+      url,
+      viewport: "desktop" as const,
+      passed: true,
+      screenshot: null,
+      viteErrorOverlayCount: 0,
+      bodyVisible: true,
+      dialogsVisible: true,
+      enteringOrExitingCount: 0,
+      scrollWidth: 100,
+      innerWidth: 100,
+      hasHorizontalOverflow: false,
+      axeViolations: [],
+      browserErrors: [],
+      focus: { stopsChecked: 1, reachedCap: false, failures: [] },
+    });
+
+    const report = formatMarkdownReport(
+      summarizeResults({
+        mode: "app",
+        appMode: "workspace",
+        updated: false,
+        outDir: "/tmp/out",
+        generatedAt: "2026-01-01T00:00:00.000Z",
+        targets: [
+          routeResult("/app/rounds", "http://127.0.0.1:1/app/sign-in?redirect=%2Fapp%2Frounds"),
+          routeResult("/demo", "http://127.0.0.1:1/demo"),
+        ],
+      }),
+    );
+    expect(report).toContain(
+      "| `/app/rounds` → `/app/sign-in?redirect=%2Fapp%2Frounds` | desktop | PASS |",
+    );
+    expect(report).toContain("| `/demo` | desktop | PASS |");
+  });
+
   it("keeps other targets' screenshots and reports a failed --update cleanup instead of leaving a stale PASS", async () => {
     const tempDir = mkdtempSync(join(tmpdir(), "merit-ui-verify-update-"));
     const outDir = join(tempDir, "out");

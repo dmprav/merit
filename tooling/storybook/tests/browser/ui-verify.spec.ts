@@ -438,6 +438,18 @@ test.describe("live Chromium checker failure detection", () => {
         );
         return;
       }
+      if (reqUrl.pathname === "/protected-route") {
+        res.writeHead(302, { location: "/sign-in" });
+        res.end();
+        return;
+      }
+      if (reqUrl.pathname === "/sign-in") {
+        res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+        res.end(
+          `<!doctype html><html lang="en"><head>${VIEWPORT_META}<title>Sign in</title></head><body><main><h1>Sign in</h1></main></body></html>`,
+        );
+        return;
+      }
       if (reqUrl.pathname === "/blank-shell") {
         res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
         res.end(
@@ -520,6 +532,15 @@ test.describe("live Chromium checker failure detection", () => {
           baseUrl,
         ),
       ).rejects.toThrow(/play\(\) assertion failed: contrast/);
+
+      const redirectedPage = await context.newPage();
+      expect(
+        await openTargetOnPage(
+          redirectedPage,
+          { kind: "route", route: "/protected-route", name: "/protected-route", fullPage: true },
+          baseUrl,
+        ),
+      ).toBe(`${baseUrl}/sign-in`);
 
       // Raw context isolates Chromium's automatic "Failed to load resource: 404/500" console
       // errors when verifying HTTP error status rejection.
