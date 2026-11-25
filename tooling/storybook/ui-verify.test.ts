@@ -605,9 +605,29 @@ describe("container delegation and proof reporting", () => {
       buildContainerDelegationArgs(
         parseCliArgs(["--container", "--story", "components-button*,dialog.open"]),
       ),
-    ).toEqual(["--grep", "components-button.*|dialog\\.open"]);
+    ).toEqual(["--grep", "appearance: components-button.*$|dialog\\.open"]);
 
     expect(buildContainerDelegationArgs(parseCliArgs(["--container"]))).toEqual([]);
+  });
+
+  it("anchors a glob filter so container mode selects only the visual tests the host glob selects", () => {
+    const [, pattern = ""] = buildContainerDelegationArgs(
+      parseCliArgs([
+        "--container",
+        "--update",
+        "--story",
+        "patterns-application-shell--workspace-switche?",
+      ]),
+    ).slice(-2);
+    // Playwright matches a bare --grep case-insensitively against the full test title.
+    const grep = new RegExp(pattern, "i");
+
+    const title = (storyId: string) => `desktop visual.spec.ts appearance: ${storyId}`;
+
+    expect(grep.test(title("patterns-application-shell--workspace-switcher"))).toBe(true);
+    expect(grep.test(title("patterns-application-shell--workspace-switcher-long-name"))).toBe(
+      false,
+    );
   });
 
   it("maps substring and glob filters that select curated focus aliases to their container tests", () => {
@@ -615,7 +635,7 @@ describe("container delegation and proof reporting", () => {
       buildContainerDelegationArgs(parseCliArgs(["--container", "--story", "focus-*"])),
     ).toEqual([
       "--grep",
-      "control focus appearance in product|control focus appearance in site|focus-.*",
+      "control focus appearance in product|control focus appearance in site|appearance: focus-.*$",
     ]);
 
     expect(

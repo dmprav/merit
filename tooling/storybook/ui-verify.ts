@@ -600,11 +600,16 @@ export const buildContainerDelegationArgs = (options: UiVerifyCliOptions): strin
       const aliasBodies = Object.entries(CONTAINER_FOCUS_STORY_PATTERNS)
         .filter(([alias]) => matches(alias))
         .map(([, aliasPattern]) => escapeRegex(aliasPattern));
-      const storyBody = story
+      if (!story.includes("*") && !story.includes("?")) {
+        return [...aliasBodies, escapeRegex(story)];
+      }
+      // The host anchors a glob to the whole story ID, so anchor it to the ID that ends each
+      // `appearance: <story-id>` title; unanchored, `...switche?` also selects `...switcher-long-name`.
+      const globBody = story
         .split("")
         .map((char) => (char === "*" ? ".*" : char === "?" ? "." : escapeRegex(char)))
         .join("");
-      return [...aliasBodies, storyBody];
+      return [...aliasBodies, `appearance: ${globBody}$`];
     });
 
     // Playwright CLI compiles a bare --grep pattern case-insensitively, so escaped
