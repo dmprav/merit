@@ -569,20 +569,27 @@ export const buildContainerDelegationArgs = (options: UiVerifyCliOptions): strin
     args.push("--project", "mobile");
   }
   if (options.stories.length > 0) {
-    const bodies = options.stories.map((story) => {
+    const bodies = options.stories.flatMap((story) => {
       const mappedFocusPattern = CONTAINER_FOCUS_STORY_PATTERNS[story.toLowerCase()];
       if (mappedFocusPattern) {
-        return escapeRegex(mappedFocusPattern);
+        return [escapeRegex(mappedFocusPattern)];
       }
-      return story
+      // Curated aliases name host targets, not container test titles, so a substring or glob
+      // that selects an alias on the host must also select that alias's container test.
+      const matches = compileStoryMatcher(story);
+      const aliasBodies = Object.entries(CONTAINER_FOCUS_STORY_PATTERNS)
+        .filter(([alias]) => matches(alias))
+        .map(([, aliasPattern]) => escapeRegex(aliasPattern));
+      const storyBody = story
         .split("")
         .map((char) => (char === "*" ? ".*" : char === "?" ? "." : escapeRegex(char)))
         .join("");
+      return [...aliasBodies, storyBody];
     });
 
     // Playwright CLI compiles a bare --grep pattern case-insensitively, so escaped
     // substrings and glob bodies can be joined into one alternation.
-    const pattern = bodies.join("|");
+    const pattern = [...new Set(bodies)].join("|");
     args.push("--grep", pattern);
   }
   return args;

@@ -503,6 +503,19 @@ describe("container delegation and proof reporting", () => {
     expect(buildContainerDelegationArgs(parseCliArgs(["--container"]))).toEqual([]);
   });
 
+  it("maps substring and glob filters that select curated focus aliases to their container tests", () => {
+    expect(
+      buildContainerDelegationArgs(parseCliArgs(["--container", "--story", "focus-*"])),
+    ).toEqual([
+      "--grep",
+      "control focus appearance in product|control focus appearance in site|focus-.*",
+    ]);
+
+    expect(
+      buildContainerDelegationArgs(parseCliArgs(["--container", "--story", "focus-prod"])),
+    ).toEqual(["--grep", "control focus appearance in product|focus-prod"]);
+  });
+
   it("escapes pipes in report target names while keeping the original name in results", () => {
     const results = summarizeResults({
       mode: "app",
