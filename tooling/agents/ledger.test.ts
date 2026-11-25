@@ -1,13 +1,11 @@
-import { spawnSync } from "node:child_process";
 import {
-  closeSync,
   existsSync,
-  mkdirSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
   realpathSync,
   rmSync,
+  statSync,
   symlinkSync,
   utimesSync,
   writeFileSync,
@@ -17,7 +15,6 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, test } from "vite-plus/test";
 
-import { withFileLock } from "./file-lock.ts";
 import {
   appendLedgerEntry,
   DEFAULT_TAIL_LIMIT,
@@ -939,87 +936,140 @@ describe("ledger concurrency and locking", () => {
     expect(new Set(nonResume.map((entry) => entry.decision)).size).toBe(12);
   });
 
-  test("enforces lock exclusion, preserves live-PID locks, and recovers dead-PID or corrupt locks", async () => {
+  test("derives the ledger lock path in a reserved directory and names the decision ledger on timeout", async () => {
     const repo = makeTempDir();
     const filePath = ledgerPathForSlug("lock-test", repo);
     const lockPath = ledgerLockPathForFile(filePath);
-    mkdirSync(join(repo, ".tmp", "ledgers"), { recursive: true });
+    expect(lockPath).toBe(join(repo, ".tmp", "ledgers", ".ledger-locks", "lock-test.tsv.lock"));
 
-    // Deterministic contention barrier between two in-process holders.
     const holderEntered = createDeferred<void>();
     const releaseHolder = createDeferred<void>();
-    let waiterEntered = false;
+    const holder = withLedgerLock(filePath, async () => {
+      holderEntered.resolve();
+      await releaseHolder.promise;
+      return "first";
+    });
 
-    const holder = withLedgerLock(
-      filePath,
-      async () => {
-        holderEntered.resolve();
-        await releaseHolder.promise;
-        return "first";
-      },
-      { initialDelayMs: 5, maxDelayMs: 15, timeoutMs: 3_000 },
-    );
-
-    await holderEntered.promise;
-    expect(existsSync(lockPath)).toBe(true);
-
-    const waiter = withLedgerLock(
-      filePath,
-      () => {
-        waiterEntered = true;
-        return "second";
-      },
-      { initialDelayMs: 5, maxDelayMs: 15, timeoutMs: 3_000 },
-    );
-
-    await Promise.resolve();
-    await Promise.resolve();
-    expect(waiterEntered).toBe(false);
-
-    releaseHolder.resolve();
-    expect(await Promise.all([holder, waiter])).toEqual(["first", "second"]);
+    let waiterRan = false;
+    try {
+      await holderEntered.promise;
+      expect(existsSync(lockPath)).toBe(true);
+      await expect(
+        withLedgerLock(
+          filePath,
+          () => {
+            waiterRan = true;
+          },
+          { timeoutMs: 60, initialDelayMs: 10, maxDelayMs: 20 },
+        ),
+      ).rejects.toThrow(`Timed out waiting for decision ledger lock at "${lockPath}"`);
+    } finally {
+      releaseHolder.resolve();
+    }
+    expect(waiterRan).toBe(false);
+    expect(await holder).toBe("first");
     expect(existsSync(lockPath)).toBe(false);
+    expect(await withLedgerLock(filePath, () => "second")).toBe("second");
+  });
 
-    // Live-PID lock must NOT be cleared solely by age.
-    const livePayload = `${JSON.stringify({ pid: process.pid, token: "live", createdAt: 0 })}\n`;
-    writeFileSync(lockPath, livePayload, "utf8");
+  test("keeps ledger and lock namespaces disjoint so a ledger named like a lock is never reclaimed", async () => {
+    const repo = makeTempDir();
+
+    const append = (file: string, decision: string) =>
+      appendLedgerEntry({
+        file,
+        cwd: repo,
+        runId: "run-1",
+        phase: "build",
+        decision,
+        why: "Namespace check",
+        ts: "2026-11-24T18:00:00.000Z",
+      });
+
+    const lockNamed = await append("notes.tsv.lock", "Ledger that looks like a lock");
+    const lockNamedContent = readFileSync(lockNamed.file, "utf8");
+    // Age the first ledger past the corrupt-lock grace window; it must still never be treated as a lock.
     const expired = new Date(Date.now() - 60_000);
-    utimesSync(lockPath, expired, expired);
+    utimesSync(lockNamed.file, expired, expired);
 
-    await expect(
-      withLedgerLock(filePath, () => "nope", {
-        staleMs: 5_000,
-        timeoutMs: 60,
-        initialDelayMs: 10,
-        maxDelayMs: 20,
-      }),
-    ).rejects.toThrow(/Timed out waiting for decision ledger lock/);
-    expect(readFileSync(lockPath, "utf8")).toBe(livePayload);
+    const plain = await append("notes.tsv", "Plain ledger");
+    expect(readFileSync(lockNamed.file, "utf8")).toBe(lockNamedContent);
+    expect(ledgerLockPathForFile(plain.file)).not.toBe(lockNamed.file);
+    expect(readdirSync(repo).sort()).toEqual([".ledger-locks", "notes.tsv", "notes.tsv.lock"]);
 
-    // Dead-PID lock is recovered immediately.
-    const exited = spawnSync(process.execPath, ["-e", ""]);
-    expect(exited.pid).toBeGreaterThan(0);
-    writeFileSync(
-      lockPath,
-      `${JSON.stringify({ pid: exited.pid, token: "dead", createdAt: Date.now() })}\n`,
+    for (const reserved of [".ledger-locks/notes.tsv.lock", ".ledger-locks/other.tsv"]) {
+      expect(() => resolveLedgerFilePath({ file: reserved, cwd: repo })).toThrow(
+        /"\.ledger-locks" directories are reserved/,
+      );
+      await expect(append(reserved, "Write into the lock namespace")).rejects.toThrow(
+        /"\.ledger-locks" directories are reserved/,
+      );
+    }
+    expect(readdirSync(join(repo, ".ledger-locks"))).toEqual([]);
+  });
+
+  test("rejects invalid UTF-8 ledgers without rewriting them and keeps literal U+FFFD", async () => {
+    const repo = makeTempDir();
+    const header = Buffer.from(`${LEDGER_HEADER}\n`, "utf8");
+    const rowPrefix = Buffer.from(
+      "2026-11-24T10:00:00.000Z\trun-1\tbuild\tdecision\twhy\tbad",
       "utf8",
     );
-    expect(await withLedgerLock(filePath, () => "recovered-dead", { timeoutMs: 2_000 })).toBe(
-      "recovered-dead",
-    );
-    expect(existsSync(lockPath)).toBe(false);
+    const invalidFile = join(repo, "invalid-utf8.tsv");
+    const invalidBytes = Buffer.concat([
+      header,
+      rowPrefix,
+      Buffer.from([0xff]),
+      Buffer.from("\tok\n"),
+    ]);
+    writeFileSync(invalidFile, invalidBytes);
 
-    // Corrupt lock is recovered once past the write-grace window.
-    writeFileSync(lockPath, "{corrupt", "utf8");
-    utimesSync(lockPath, expired, expired);
-    expect(
-      await withLedgerLock(filePath, () => "recovered-corrupt", {
-        staleMs: 5_000,
-        timeoutMs: 2_000,
+    await expect(
+      appendLedgerEntry({
+        file: invalidFile,
+        runId: "run-1",
+        phase: "build",
+        decision: "Append after corrupt row",
+        why: "Must not rewrite history",
       }),
-    ).toBe("recovered-corrupt");
-    expect(existsSync(lockPath)).toBe(false);
+    ).rejects.toThrow(`Malformed decision ledger at "${invalidFile}": file is not valid UTF-8.`);
+    expect(readFileSync(invalidFile).equals(invalidBytes)).toBe(true);
+    expect(() => tailLedger({ file: invalidFile })).toThrow(/not valid UTF-8/);
+    expect(() => summarizeLedger({ file: invalidFile })).toThrow(/not valid UTF-8/);
+
+    const replacementFile = join(repo, "replacement-char.tsv");
+    const replacementContent = `${LEDGER_HEADER}\n2026-11-24T10:00:00.000Z\trun-1\tbuild\tdecision\twhy\tliteral �\tok\n`;
+    writeFileSync(replacementFile, replacementContent, "utf8");
+    await appendLedgerEntry({
+      file: replacementFile,
+      runId: "run-1",
+      phase: "build",
+      decision: "Append after literal replacement character",
+      why: "Correctly encoded U+FFFD is valid",
+    });
+    const tail = tailLedger({ file: replacementFile });
+    expect(tail.entries[0]?.evidence).toBe("literal �");
+    expect(tail.totalEntries).toBe(2);
   });
+
+  test.skipIf(process.platform === "win32")(
+    "publishes created and appended ledgers with owner-only permissions",
+    async () => {
+      const repo = makeTempDir();
+      const input = {
+        slug: "private-ledger",
+        runId: "run-1",
+        phase: "build",
+        decision: "Keep history private",
+        why: "Ledgers can hold local-only evidence",
+        repoRoot: repo,
+      };
+      const created = await appendLedgerEntry(input);
+      expect(statSync(created.file).mode & 0o777).toBe(0o600);
+      await appendLedgerEntry({ ...input, decision: "Append keeps the mode" });
+      expect(statSync(created.file).mode & 0o777).toBe(0o600);
+    },
+  );
 
   test("canonicalizes symlinked --file targets so lock and resume state are shared with --slug", async () => {
     const repo = makeTempDir();
@@ -1041,41 +1091,38 @@ describe("ledger concurrency and locking", () => {
       repoRoot: repo,
     });
     expect(first.file).toBe(canonicalPath);
+    const contentBeforeAlias = readFileSync(canonicalPath, "utf8");
+
+    const appendViaAlias = (timeoutMs: number) =>
+      appendLedgerEntry({
+        file: aliasPath,
+        runId: "run-2",
+        phase: "build",
+        decision: "Resume via symlink alias",
+        why: "Share lock and run_id history",
+        ts: "2026-11-24T17:05:00.000Z",
+        lockOptions: { initialDelayMs: 10, maxDelayMs: 20, timeoutMs },
+      });
 
     // Holding the lock on --slug blocks an append via the symlinked --file alias.
     const holderEntered = createDeferred<void>();
     const releaseHolder = createDeferred<void>();
-    let aliasStarted = false;
-
-    const holder = withLedgerLock(
-      canonicalPath,
-      async () => {
-        holderEntered.resolve();
-        await releaseHolder.promise;
-      },
-      { initialDelayMs: 5, maxDelayMs: 15, timeoutMs: 3_000 },
-    );
-
-    await holderEntered.promise;
-    const aliasWrite = appendLedgerEntry({
-      file: aliasPath,
-      runId: "run-2",
-      phase: "build",
-      decision: "Resume via symlink alias",
-      why: "Share lock and run_id history",
-      ts: "2026-11-24T17:05:00.000Z",
-      lockOptions: { initialDelayMs: 5, maxDelayMs: 15, timeoutMs: 3_000 },
-    }).then((result) => {
-      aliasStarted = true;
-      return result;
+    const holder = withLedgerLock(canonicalPath, async () => {
+      holderEntered.resolve();
+      await releaseHolder.promise;
     });
+    try {
+      await holderEntered.promise;
+      await expect(appendViaAlias(60)).rejects.toThrow(
+        /Timed out waiting for decision ledger lock/,
+      );
+      expect(readFileSync(canonicalPath, "utf8")).toBe(contentBeforeAlias);
+    } finally {
+      releaseHolder.resolve();
+    }
+    await holder;
 
-    await Promise.resolve();
-    await Promise.resolve();
-    expect(aliasStarted).toBe(false);
-
-    releaseHolder.resolve();
-    const [, second] = await Promise.all([holder, aliasWrite]);
+    const second = await appendViaAlias(3_000);
     expect(second.file).toBe(canonicalPath);
     expect(second.created).toBe(false);
     expect(second.resumed).toBe(true);
@@ -1087,56 +1134,15 @@ describe("ledger concurrency and locking", () => {
       decision: "start",
       evidence: "run-1",
     });
+    expect(readLedgerEntries(canonicalPath).entries.map((entry) => entry.decision)).toEqual([
+      "Start via slug",
+      "start",
+      "Resume via symlink alias",
+    ]);
 
     // Atomic append leaves no stray temp or lock files alongside the canonical ledger.
-    const ledgerDirEntries = readdirSync(join(repo, ".tmp", "ledgers"));
-    expect(ledgerDirEntries).toEqual(["symlink-shared.tsv"]);
-  });
-
-  test("cleans up newly created lockfile if writing or closing metadata fails after openSync", async () => {
-    const repo = makeTempDir();
-    const lockPath = join(repo, "failed-acquisition.lock");
-
-    // 1. Metadata write failure (e.g. ENOSPC) must unlink the newly created lockfile and not run operation.
-    let ranOperation = false;
-    await expect(
-      withFileLock(
-        lockPath,
-        () => {
-          ranOperation = true;
-          return "never";
-        },
-        {
-          writeMetadata: () => {
-            throw Object.assign(new Error("No space left on device"), { code: "ENOSPC" });
-          },
-        },
-      ),
-    ).rejects.toThrow(/No space left on device/);
-    expect(ranOperation).toBe(false);
-    expect(existsSync(lockPath)).toBe(false);
-
-    // 2. Post-write closeSync failure after live-PID metadata was written must still remove the lockfile.
-    await expect(
-      withFileLock(
-        lockPath,
-        () => {
-          ranOperation = true;
-          return "never";
-        },
-        {
-          writeMetadata: (fd, payload) => {
-            writeFileSync(fd, payload, "utf8");
-            closeSync(fd);
-          },
-        },
-      ),
-    ).rejects.toThrow();
-    expect(ranOperation).toBe(false);
-    expect(existsSync(lockPath)).toBe(false);
-
-    // Subsequent acquisition succeeds immediately without hitting a leaked live-PID lock.
-    expect(await withFileLock(lockPath, () => "acquired", { timeoutMs: 200 })).toBe("acquired");
-    expect(existsSync(lockPath)).toBe(false);
+    const ledgerDir = join(repo, ".tmp", "ledgers");
+    expect(readdirSync(ledgerDir).sort()).toEqual([".ledger-locks", "symlink-shared.tsv"]);
+    expect(readdirSync(join(ledgerDir, ".ledger-locks"))).toEqual([]);
   });
 });

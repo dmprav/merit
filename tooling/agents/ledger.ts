@@ -10,7 +10,7 @@ import {
   unlinkSync,
   writeFileSync,
 } from "node:fs";
-import { basename, dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { z } from "zod";
@@ -44,6 +44,9 @@ const POSITIVE_INT_PATTERN = /^\d+$/;
 
 const DEFAULT_LEDGER_LOCK_INITIAL_DELAY_MS = 15;
 const DEFAULT_LEDGER_LOCK_MAX_DELAY_MS = 150;
+// Ledger paths may never enter this directory, so a lock path cannot name another ledger.
+const LEDGER_LOCK_DIRECTORY = ".ledger-locks";
+const strictUtf8Decoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
 
 const KNOWN_CLI_FLAGS = new Set([
   "--slug",
@@ -334,6 +337,15 @@ const canonicalizeLedgerPath = (targetPath: string, depth = 0): string => {
 export const ledgerPathForSlug = (slug: string, repoRoot = DEFAULT_REPO_ROOT): string =>
   join(repoRoot, ".tmp", "ledgers", `${validateLedgerSlug(slug)}.tsv`);
 
+const rejectReservedLockPath = (filePath: string, rawFile: string): string => {
+  if (filePath.split(sep).includes(LEDGER_LOCK_DIRECTORY)) {
+    throw new Error(
+      `Invalid ledger file path "${rawFile}": "${LEDGER_LOCK_DIRECTORY}" directories are reserved for ledger locks.`,
+    );
+  }
+  return filePath;
+};
+
 export const resolveLedgerFilePath = ({
   slug,
   file,
@@ -351,7 +363,7 @@ export const resolveLedgerFilePath = ({
     if (!trimmed || trimmed.includes("\0")) {
       throw new Error(`Invalid ledger file path "${file}".`);
     }
-    return canonicalizeLedgerPath(resolve(cwd, trimmed));
+    return rejectReservedLockPath(canonicalizeLedgerPath(resolve(cwd, trimmed)), file);
   }
   if (!validatedSlug) {
     throw new Error("Missing --slug <slug> (or --file <path>).");
@@ -359,7 +371,8 @@ export const resolveLedgerFilePath = ({
   return canonicalizeLedgerPath(join(repoRoot, ".tmp", "ledgers", `${validatedSlug}.tsv`));
 };
 
-export const ledgerLockPathForFile = (filePath: string): string => `${filePath}.lock`;
+export const ledgerLockPathForFile = (filePath: string): string =>
+  join(dirname(filePath), LEDGER_LOCK_DIRECTORY, `${basename(filePath)}.lock`);
 
 const replaceControlCharsWithSpace = (value: string): string => {
   let result = "";
@@ -480,7 +493,8 @@ export const withLedgerLock = async <T>(
 const writeFileAtomically = (filePath: string, content: string): void => {
   const tempPath = `${filePath}.${process.pid}.${randomUUID()}.tmp`;
   try {
-    writeFileSync(tempPath, content, "utf8");
+    // Owner-only like the lockfile; the unique temp path guarantees the mode applies on creation.
+    writeFileSync(tempPath, content, { encoding: "utf8", mode: 0o600, flag: "wx" });
     renameSync(tempPath, filePath);
   } catch (error) {
     try {
@@ -489,6 +503,17 @@ const writeFileAtomically = (filePath: string, content: string): void => {
       // Temp file was never created or already moved/removed.
     }
     throw error;
+  }
+};
+
+/** Decodes ledger bytes strictly so invalid UTF-8 is reported instead of rewritten as U+FFFD. */
+const decodeLedgerBytes = (bytes: Uint8Array, filePath: string): string => {
+  try {
+    return strictUtf8Decoder.decode(bytes);
+  } catch (error) {
+    throw new Error(`Malformed decision ledger at "${filePath}": file is not valid UTF-8.`, {
+      cause: error,
+    });
   }
 };
 
@@ -533,7 +558,7 @@ export const appendLedgerEntry = async (input: LedgerLogInput): Promise<LedgerLo
         });
       }
 
-      const existingRaw = readFileSync(filePath, "utf8");
+      const existingRaw = decodeLedgerBytes(readFileSync(filePath), filePath);
       const existingEntries = parseLedgerTsv(existingRaw, filePath);
       const previousRunId = existingEntries.at(-1)?.run_id ?? null;
       const runChanged = previousRunId !== null && previousRunId !== entry.run_id;
@@ -573,9 +598,9 @@ export const appendLedgerEntry = async (input: LedgerLogInput): Promise<LedgerLo
 export const readLedgerEntries = (
   filePath: string,
 ): { exists: boolean; entries: LedgerEntry[] } => {
-  let raw: string;
+  let bytes: Buffer;
   try {
-    raw = readFileSync(filePath, "utf8");
+    bytes = readFileSync(filePath);
   } catch (error) {
     if (getErrnoCode(error) === "ENOENT") {
       return { exists: false, entries: [] };
@@ -585,7 +610,7 @@ export const readLedgerEntries = (
       cause: error,
     });
   }
-  return { exists: true, entries: parseLedgerTsv(raw, filePath) };
+  return { exists: true, entries: parseLedgerTsv(decodeLedgerBytes(bytes, filePath), filePath) };
 };
 
 export const tailLedger = ({
