@@ -18,6 +18,7 @@ import {
 import { createServer } from "node:net";
 import { basename, dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { parseEnv } from "node:util";
 
 import { z } from "zod";
 
@@ -181,7 +182,6 @@ export type WorktreeDeps = {
   isPostgresReachable?: () => Promise<boolean>;
   ensureDatabase?: (databaseName: string) => Promise<{ created: boolean }>;
   dropDatabase?: (databaseName: string) => Promise<void>;
-  removeDirectory?: (targetPath: string) => void;
   now?: () => Date;
   lockOptions?: RegistryLockOptions;
 };
@@ -655,11 +655,14 @@ export const collectReservedPorts = (
 ): Set<number> => {
   const reserved = new Set<number>(Object.values(DEFAULT_PORTS));
   for (const record of Object.values(registry.worktrees)) {
+    // A checkout moved with `git worktree move` keeps its Git metadata and token, and its
+    // `.env.local` still uses the recorded ports.
     if (
       activeWorktreePaths &&
       record.status !== "cleaning" &&
       record.status !== "creating" &&
-      !activeWorktreePaths.has(canonicalPath(record.path))
+      !activeWorktreePaths.has(canonicalPath(record.path)) &&
+      !holdsCheckoutToken(record)
     ) {
       continue;
     }
@@ -668,6 +671,35 @@ export const collectReservedPorts = (
     }
   }
   return reserved;
+};
+
+/**
+ * Reads the ports a checkout's idle servers will use from the `.env.local` files they load
+ * (`app/.env.local` and the root `.env.local`), so new worktrees never claim them.
+ */
+export const readConfiguredPorts = (checkoutRoot: string): number[] => {
+  const ports: number[] = [];
+  for (const envFile of [
+    join(checkoutRoot, "app", ".env.local"),
+    join(checkoutRoot, ".env.local"),
+  ]) {
+    let values: Record<string, string | undefined>;
+    try {
+      values = parseEnv(readFileSync(envFile, "utf8"));
+    } catch (error) {
+      if (getErrnoCode(error) === "ENOENT") {
+        continue;
+      }
+      throw error;
+    }
+    for (const key of WORKTREE_PORT_KEYS) {
+      const port = Number(values[key]);
+      if (Number.isInteger(port) && port > 0 && port <= 65535) {
+        ports.push(port);
+      }
+    }
+  }
+  return ports;
 };
 
 export const allocateWorktreePorts = async ({
@@ -877,6 +909,32 @@ const readCheckoutToken = (gitDir: string): string | null => {
   }
 };
 
+type CheckoutIdentity = Pick<WorktreeRecord, "gitDir" | "checkoutToken" | "partialRemoval">;
+
+/** Reports whether the Git metadata recorded for a checkout still carries the token written at create. */
+const holdsCheckoutToken = (identity: CheckoutIdentity | undefined): boolean =>
+  Boolean(
+    identity?.gitDir &&
+    identity.checkoutToken &&
+    readCheckoutToken(identity.gitDir) === identity.checkoutToken,
+  );
+
+/**
+ * Returns where the registered checkout lives now, following the back-link Git keeps in its
+ * metadata, or `null` when that metadata no longer belongs to the registered checkout.
+ */
+const currentCheckoutPath = (identity: CheckoutIdentity | undefined): string | null => {
+  if (!identity?.gitDir || !holdsCheckoutToken(identity)) {
+    return null;
+  }
+  try {
+    const backLink = readFileSync(join(identity.gitDir, "gitdir"), "utf8").trim();
+    return dirname(canonicalPath(resolve(identity.gitDir, backLink)));
+  } catch {
+    return null;
+  }
+};
+
 /**
  * Proves that a checkout left behind by a failed `git worktree add` belongs to this attempt: its
  * Git metadata must point back at `worktreePath` and check out the branch this attempt created.
@@ -901,15 +959,22 @@ const gitMetadataNamesNewCheckout = (
 const isClaimOwnerAlive = (record: WorktreeRecord): boolean =>
   record.ownerPid !== undefined && isProcessAlive(record.ownerPid);
 
-type CheckoutIdentity = Pick<WorktreeRecord, "gitDir" | "checkoutToken" | "partialRemoval">;
-
 const assertCheckoutIdentity = (
   worktreePath: string,
   normalizedPath: string,
   identity: CheckoutIdentity | undefined,
 ): void => {
   const expectedGitDir = identity?.gitDir ? canonicalPath(identity.gitDir) : undefined;
-  if (!expectedGitDir || !existsSync(worktreePath)) {
+  if (!expectedGitDir) {
+    return;
+  }
+  const movedPath = currentCheckoutPath(identity);
+  if (movedPath && movedPath !== normalizedPath && existsSync(movedPath)) {
+    throw new Error(
+      `Refusing to clean "${normalizedPath}": its registered checkout was moved to "${movedPath}" and still uses this worktree's database and branch. Move it back with \`git worktree move "${movedPath}" "${normalizedPath}"\` and retry.`,
+    );
+  }
+  if (!existsSync(worktreePath)) {
     return;
   }
   // Residue of a removal this tool started: allow it only while no checkout metadata reappears.
@@ -993,8 +1058,6 @@ export const createWorktree = async (
     deps.ensureDatabase ?? ((name) => ensureLocalDatabase(name, undefined, primaryRepoRoot));
   const dropDb =
     deps.dropDatabase ?? ((name) => dropLocalDatabase(name, undefined, primaryRepoRoot));
-  const removeDir =
-    deps.removeDirectory ?? ((targetPath) => rmSync(targetPath, { recursive: true, force: true }));
   const invokeCwd = options.cwd ? resolve(options.cwd) : primaryRepoRoot;
   const targetDir = options.dir
     ? resolve(invokeCwd, options.dir)
@@ -1029,7 +1092,7 @@ export const createWorktree = async (
   }
 
   let targetExistedBefore = false;
-  let branchExistedBefore = false;
+  let branchCreated = false;
   let worktreeAddAttempted = false;
   let worktreeAdded = false;
   let createdGitDir: string | undefined;
@@ -1072,14 +1135,16 @@ export const createWorktree = async (
             `Target directory "${targetDir}" already exists. Choose a different --dir or clean it up first.`,
           );
         }
-        branchExistedBefore = gitRefExists(primaryRepoRoot, `refs/heads/${branch}`, execGit);
-        if (branchExistedBefore) {
+        if (gitRefExists(primaryRepoRoot, `refs/heads/${branch}`, execGit)) {
           throw new Error(
             `Branch "${branch}" already exists. Choose a different --branch or delete the existing branch first.`,
           );
         }
 
         const reservedPorts = collectReservedPorts(registry, activePaths);
+        for (const port of readConfiguredPorts(primaryRepoRoot)) {
+          reservedPorts.add(port);
+        }
         const allocatedPorts = await allocateWorktreePorts({ reservedPorts, checkPortAvailable });
 
         // Re-check after async port probes in case an external process created an overlapping
@@ -1093,16 +1158,19 @@ export const createWorktree = async (
             `Target directory "${targetDir}" already exists. Choose a different --dir or clean it up first.`,
           );
         }
-        branchExistedBefore = gitRefExists(primaryRepoRoot, `refs/heads/${branch}`, execGit);
-        if (branchExistedBefore) {
+        if (gitRefExists(primaryRepoRoot, `refs/heads/${branch}`, execGit)) {
           throw new Error(
             `Branch "${branch}" already exists. Choose a different --branch or delete the existing branch first.`,
           );
         }
 
         mkdirSync(dirname(targetDir), { recursive: true });
+        // Create the branch on its own first: `git branch` refuses an existing name, so its success
+        // proves this attempt owns the branch that rollback may delete.
+        execGit(primaryRepoRoot, ["branch", branch, baseRef]);
+        branchCreated = true;
         worktreeAddAttempted = true;
-        execGit(primaryRepoRoot, ["worktree", "add", "-b", branch, targetDir, baseRef]);
+        execGit(primaryRepoRoot, ["worktree", "add", targetDir, branch]);
         worktreeAdded = true;
 
         resolvedTargetDir = canonicalPath(targetDir);
@@ -1260,15 +1328,10 @@ export const createWorktree = async (
           checkoutPreserved = !ownedCheckout;
         }
         if (ownedCheckout) {
+          // Let Git remove its own checkout; if Git refuses (for example, a locked worktree), keep
+          // the checkout and its registry record instead of deleting the directory recursively.
           try {
-            try {
-              execGit(primaryRepoRoot, ["worktree", "remove", "--force", cleanupDir]);
-            } catch {
-              removeDir(cleanupDir);
-            }
-            if (existsSync(cleanupDir)) {
-              removeDir(cleanupDir);
-            }
+            execGit(primaryRepoRoot, ["worktree", "remove", "--force", cleanupDir]);
           } catch (removeError) {
             checkoutRemovalError = removeError;
           }
@@ -1281,16 +1344,18 @@ export const createWorktree = async (
           // Best-effort rollback.
         }
       }
-      if (
-        !checkoutRemains &&
-        !branchExistedBefore &&
-        gitRefExists(primaryRepoRoot, `refs/heads/${branch}`, execGit)
-      ) {
-        try {
-          execGit(primaryRepoRoot, ["branch", "-D", branch]);
-        } catch {
-          // Best-effort rollback.
-        }
+    }
+    // A branch that appeared after the last check may belong to another job, so delete only the
+    // branch this attempt's own `git branch` created.
+    if (
+      branchCreated &&
+      !checkoutRemains &&
+      gitRefExists(primaryRepoRoot, `refs/heads/${branch}`, execGit)
+    ) {
+      try {
+        execGit(primaryRepoRoot, ["branch", "-D", branch]);
+      } catch {
+        // Best-effort rollback.
       }
     }
     if (registryReserved) {
@@ -1547,6 +1612,11 @@ export const cleanWorktree = async (
       }
     } else if (existsSync(worktreePath)) {
       if (!isOwnedDirectory()) {
+        if (identity?.partialRemoval) {
+          throw new Error(
+            `Refusing to delete "${normalizedPath}" recursively: it is what remains of an interrupted removal of worktree "${slug}" outside ".tmp/worktrees/". Check that it holds nothing you need, delete it yourself, and rerun \`vp run worktree:clean ${slug}\`.`,
+          );
+        }
         throw new Error(
           `Refusing to remove directory "${normalizedPath}": it is not a recognized Git worktree for this repository and is outside ".tmp/worktrees/".`,
         );

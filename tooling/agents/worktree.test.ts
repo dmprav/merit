@@ -478,7 +478,7 @@ describe("worktree lifecycle in temp git repos", () => {
     expect(created.baseRef).toBe("main");
   });
 
-  test("refuses to drop protected databases or delete main during clean even if metadata is tampered with", async () => {
+  test("refuses to drop a protected database during clean even if metadata is tampered with", async () => {
     const repo = initTempRepo(false);
     const dropDatabase = vi.fn();
 
@@ -506,18 +506,41 @@ describe("worktree lifecycle in temp git repos", () => {
       ),
     ).rejects.toThrow(/protected database "merit"/);
     expect(dropDatabase).not.toHaveBeenCalled();
+  });
 
-    // Even with a valid non-protected DB name, branch "main" is never deleted.
-    const registry = readWorktreeRegistry(repo);
-    registry.worktrees.tampered!.databaseName = "merit_tampered";
-    writeWorktreeRegistry(repo, registry);
+  test("never deletes a protected branch name during clean, even when no checkout uses it", async () => {
+    const repo = initTempRepo(false);
+    // `master` is neither the primary branch nor checked out anywhere, so only the protected-name
+    // rule keeps it.
+    git(repo, ["branch", "master", "main"]);
+
+    writeWorktreeRegistry(repo, {
+      version: 1,
+      worktrees: {
+        tampered: {
+          slug: "tampered",
+          path: join(repo, ".tmp/worktrees/tampered"),
+          branch: "master",
+          baseRef: "main",
+          databaseName: "merit_tampered",
+          databaseUrl: buildLocalDatabaseUrl("merit_tampered"),
+          databaseCreated: false,
+          ports: WORKTREE_PORT_BASES,
+          createdAt: "2026-11-24T00:00:00.000Z",
+        },
+      },
+    });
 
     const cleaned = await cleanWorktree(
       { slug: "tampered", keepBranch: false, json: true, primaryRepoRoot: repo },
-      { isPostgresReachable: async () => true, dropDatabase },
+      { isPostgresReachable: async () => false },
     );
-    expect(cleaned.branchDeleted).toBe(false);
-    expect(git(repo, ["branch", "--list", "main"])).toContain("main");
+    expect(cleaned).toMatchObject({
+      branch: "master",
+      branchDeleted: false,
+      registryRemoved: true,
+    });
+    expect(git(repo, ["branch", "--list", "master"])).toContain("master");
   });
 
   test("serializes concurrent createWorktree calls via deterministic lock contention barrier", async () => {
@@ -1528,16 +1551,10 @@ describe("worktree lifecycle in temp git repos", () => {
     expect(readWorktreeRegistry(repo).worktrees["late-overlap"]).toBeUndefined();
   });
 
-  test("createWorktree rollback preserves original error, drops DB, and retains registry record when checkout removal fails", async () => {
+  test("createWorktree rollback preserves original error, drops DB, and keeps a checkout and registry record that Git refuses to remove", async () => {
     const repo = initTempRepo(false);
     const droppedDbs: string[] = [];
-
-    const realGit = (dir: string, args: readonly string[]) =>
-      execFileSync("git", ["-c", "commit.gpgsign=false", ...args], {
-        cwd: dir,
-        encoding: "utf8",
-        env: isolatedGitEnv(),
-      });
+    const expectedPath = join(repo, ".tmp/worktrees/stuck-checkout");
 
     await expect(
       createWorktree(
@@ -1550,14 +1567,11 @@ describe("worktree lifecycle in temp git repos", () => {
           primaryRepoRoot: repo,
         },
         {
-          execGit: (dir, args) => {
-            if (args[0] === "worktree" && args[1] === "remove") {
-              throw new Error("git worktree remove permission denied");
-            }
-            return realGit(dir, args);
-          },
           execCommand: (_command, args) => {
             if (args.includes("--doctor")) {
+              // Someone locks the checkout during bootstrap, so Git refuses `worktree remove --force`.
+              writeFileSync(join(expectedPath, "work.txt"), "keep me\n", "utf8");
+              git(repo, ["worktree", "lock", expectedPath]);
               throw new Error("doctor check failed");
             }
           },
@@ -1567,18 +1581,13 @@ describe("worktree lifecycle in temp git repos", () => {
           dropDatabase: async (name) => {
             droppedDbs.push(name);
           },
-          removeDirectory: () => {
-            throw new Error("EACCES: directory not writable");
-          },
         },
       ),
-    ).rejects.toThrow(
-      /doctor check failed.*rollback could not remove checkout.*EACCES: directory not writable/,
-    );
+    ).rejects.toThrow(/doctor check failed.*rollback could not remove checkout.*locked/s);
 
-    const expectedPath = join(repo, ".tmp/worktrees/stuck-checkout");
     expect(droppedDbs).toEqual(["merit_stuck_checkout"]);
-    expect(existsSync(expectedPath)).toBe(true);
+    expect(readFileSync(join(expectedPath, "work.txt"), "utf8")).toBe("keep me\n");
+    expect(existsSync(join(expectedPath, ".git"))).toBe(true);
 
     const retained = readWorktreeRegistry(repo).worktrees["stuck-checkout"];
     expect(retained).toMatchObject({
@@ -1589,8 +1598,10 @@ describe("worktree lifecycle in temp git repos", () => {
       status: "cleaning",
     });
     expect(retained?.gitDir).toBeTruthy();
+    expect(retained?.partialRemoval).toBeUndefined();
 
-    // Once directory removal succeeds, worktree:clean removes the remaining checkout, branch, and record.
+    // Once the operator unlocks it, worktree:clean removes the remaining checkout, branch, and record.
+    git(repo, ["worktree", "unlock", expectedPath]);
     const cleaned = await cleanWorktree(
       { slug: "stuck-checkout", keepBranch: false, json: true, primaryRepoRoot: repo },
       { isPostgresReachable: async () => false },
@@ -1716,7 +1727,7 @@ describe("worktree lifecycle in temp git repos", () => {
         { slug: "alpha", keepBranch: false, json: true, primaryRepoRoot: repo },
         { isPostgresReachable: async () => true, dropDatabase },
       ),
-    ).rejects.toThrow(/checkout identity mismatch/);
+    ).rejects.toThrow(/registered checkout was moved to ".*alpha-moved"/);
 
     expect(dropDatabase).not.toHaveBeenCalled();
     expect(existsSync(join(alpha.path, "replacement-marker.txt"))).toBe(true);
@@ -1751,7 +1762,9 @@ describe("worktree lifecycle in temp git repos", () => {
         {
           execGit: (dir, args) => {
             if (args[0] === "worktree" && args[1] === "remove") {
-              throw new Error("git worktree remove interrupted");
+              // Simulate Git deleting the checkout `.git` before failing on a remaining file.
+              rmSync(join(args[3] ?? "", ".git"), { force: true });
+              throw new Error("EACCES: partial directory removal failed");
             }
             return realGit(dir, args);
           },
@@ -1765,11 +1778,6 @@ describe("worktree lifecycle in temp git repos", () => {
           ensureDatabase: async () => ({ created: true }),
           dropDatabase: async (name) => {
             droppedDbs.push(name);
-          },
-          removeDirectory: (targetPath) => {
-            // Simulate partial removal that deleted .git before failing on a remaining file.
-            rmSync(join(targetPath, ".git"), { force: true });
-            throw new Error("EACCES: partial directory removal failed");
           },
         },
       ),
@@ -2094,5 +2102,169 @@ describe("worktree lifecycle in temp git repos", () => {
     expect(git(repo, ["worktree", "list", "--porcelain"])).toContain(targetDir);
     expect(git(repo, ["branch", "--list", "feat/other-job"])).toContain("feat/other-job");
     expect(readWorktreeRegistry(repo).worktrees.contested).toBeUndefined();
+  });
+
+  test("createWorktree never assigns ports the primary checkout's .env.local files configure", async () => {
+    const repo = initTempRepo(false);
+    mkdirSync(join(repo, "app"), { recursive: true });
+    writeFileSync(join(repo, "app/.env.local"), "MERIT_DEV_PORT=3100\n", "utf8");
+    writeFileSync(join(repo, ".env.local"), "MERIT_STORYBOOK_PORT=6117\n", "utf8");
+
+    const created = await createWorktree(
+      { slug: "alpha", dbMode: "skip", doctor: false, json: true, primaryRepoRoot: repo },
+      { execCommand: () => {}, checkPortAvailable: async () => true },
+    );
+
+    expect(created.ports).toEqual({
+      MERIT_DEV_PORT: 3120,
+      MERIT_APP_PORT: 3121,
+      MERIT_WORKSPACE_PORT: 3122,
+      MERIT_STORYBOOK_DEV_PORT: 6126,
+      MERIT_STORYBOOK_PORT: 6127,
+    });
+  });
+
+  test("a checkout moved with git worktree move keeps its ports and refuses cleanup until moved back", async () => {
+    const repo = initTempRepo(false);
+    const movedParent = realpathSync(mkdtempSync(join(tmpdir(), "merit-moved-only-")));
+    tempDirs.push(movedParent);
+    const movedPath = join(movedParent, "alpha-moved");
+    const deps = { execCommand: () => {}, checkPortAvailable: async () => true };
+
+    const alpha = await createWorktree(
+      { slug: "alpha", dbMode: "skip", doctor: false, json: true, primaryRepoRoot: repo },
+      deps,
+    );
+    git(repo, ["worktree", "move", alpha.path, movedPath]);
+
+    // The moved checkout's `.env.local` still uses alpha's ports, so beta must not receive them.
+    const beta = await createWorktree(
+      { slug: "beta", dbMode: "skip", doctor: false, json: true, primaryRepoRoot: repo },
+      deps,
+    );
+    expect(Object.values(beta.ports)).not.toContain(alpha.ports.MERIT_DEV_PORT);
+
+    const dropDatabase = vi.fn(async () => {});
+    await expect(
+      cleanWorktree(
+        { slug: "alpha", keepBranch: false, json: true, primaryRepoRoot: repo },
+        { isPostgresReachable: async () => true, dropDatabase },
+      ),
+    ).rejects.toThrow(/registered checkout was moved to ".*alpha-moved".*git worktree move/);
+    expect(dropDatabase).not.toHaveBeenCalled();
+    expect(existsSync(movedPath)).toBe(true);
+    expect(readWorktreeRegistry(repo).worktrees.alpha?.status).toBe("active");
+
+    git(repo, ["worktree", "move", movedPath, alpha.path]);
+    const cleaned = await cleanWorktree(
+      { slug: "alpha", keepBranch: false, json: true, primaryRepoRoot: repo },
+      { isPostgresReachable: async () => true, dropDatabase },
+    );
+    expect(cleaned).toMatchObject({ worktreeRemoved: true, registryRemoved: true });
+    expect(dropDatabase).toHaveBeenCalledExactlyOnceWith("merit_alpha");
+  });
+
+  test("createWorktree rollback keeps a branch that another job created after the last branch check", async () => {
+    const repo = initTempRepo(false);
+    let raced = false;
+
+    const realGit = (dir: string, args: readonly string[]) =>
+      execFileSync("git", ["-c", "commit.gpgsign=false", ...args], {
+        cwd: dir,
+        encoding: "utf8",
+        env: isolatedGitEnv(),
+      });
+
+    await expect(
+      createWorktree(
+        {
+          slug: "raced-branch",
+          branch: "feat/raced",
+          dbMode: "skip",
+          doctor: false,
+          json: true,
+          primaryRepoRoot: repo,
+        },
+        {
+          execGit: (dir, args) => {
+            // Another job creates the branch just before this attempt does.
+            const createsBranch =
+              (args[0] === "worktree" && args[1] === "add") ||
+              (args[0] === "branch" && args[1] === "feat/raced");
+            if (!raced && createsBranch) {
+              raced = true;
+              realGit(repo, ["branch", "feat/raced", "main"]);
+            }
+            return realGit(dir, args);
+          },
+          execCommand: () => {},
+          checkPortAvailable: async () => true,
+        },
+      ),
+    ).rejects.toThrow(/already exists/);
+
+    expect(git(repo, ["branch", "--list", "feat/raced"])).toContain("feat/raced");
+    expect(existsSync(join(repo, ".tmp/worktrees/raced-branch"))).toBe(false);
+    expect(readWorktreeRegistry(repo).worktrees["raced-branch"]).toBeUndefined();
+  });
+
+  test("cleanWorktree tells the operator how to recover residue of an interrupted removal outside .tmp/worktrees", async () => {
+    const repo = initTempRepo(false);
+    const customParent = realpathSync(mkdtempSync(join(tmpdir(), "merit-external-residue-")));
+    tempDirs.push(customParent);
+    const created = await createWorktree(
+      {
+        slug: "external",
+        dir: join(customParent, "external"),
+        dbMode: "skip",
+        doctor: false,
+        json: true,
+        primaryRepoRoot: repo,
+      },
+      { execCommand: () => {}, checkPortAvailable: async () => true },
+    );
+    writeFileSync(join(created.path, "work.txt"), "uncommitted\n", "utf8");
+
+    const realGit = (dir: string, args: readonly string[]) =>
+      execFileSync("git", ["-c", "commit.gpgsign=false", ...args], {
+        cwd: dir,
+        encoding: "utf8",
+        env: isolatedGitEnv(),
+      });
+
+    await expect(
+      cleanWorktree(
+        { slug: "external", keepBranch: false, json: true, primaryRepoRoot: repo },
+        {
+          execGit: (dir, args) => {
+            if (args[0] === "worktree" && args[1] === "remove") {
+              rmSync(join(created.path, ".git"), { force: true });
+              throw new Error("git worktree remove: failed to delete remaining files");
+            }
+            return realGit(dir, args);
+          },
+          isPostgresReachable: async () => false,
+        },
+      ),
+    ).rejects.toThrow(/failed to delete remaining files/);
+    expect(readWorktreeRegistry(repo).worktrees.external?.partialRemoval).toBe(true);
+
+    await expect(
+      cleanWorktree(
+        { slug: "external", keepBranch: false, json: true, primaryRepoRoot: repo },
+        { isPostgresReachable: async () => false },
+      ),
+    ).rejects.toThrow(
+      /interrupted removal of worktree "external".*delete it yourself, and rerun `vp run worktree:clean external`/,
+    );
+    expect(readFileSync(join(created.path, "work.txt"), "utf8")).toBe("uncommitted\n");
+
+    rmSync(created.path, { recursive: true, force: true });
+    const cleaned = await cleanWorktree(
+      { slug: "external", keepBranch: false, json: true, primaryRepoRoot: repo },
+      { isPostgresReachable: async () => false },
+    );
+    expect(cleaned).toMatchObject({ branchDeleted: true, registryRemoved: true });
+    expect(readWorktreeRegistry(repo).worktrees.external).toBeUndefined();
   });
 });
