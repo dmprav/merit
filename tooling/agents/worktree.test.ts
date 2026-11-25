@@ -2352,4 +2352,27 @@ describe("worktree lifecycle in temp git repos", () => {
       }),
     ]);
   });
+
+  test("cleanWorktree refuses an unrecorded slug whose default path holds a registered checkout moved there", async () => {
+    const repo = initTempRepo(false);
+    const alphaDefaultPath = join(repo, ".tmp/worktrees/alpha");
+
+    const beta = await createWorktree(
+      { slug: "beta", dbMode: "skip", doctor: false, json: true, primaryRepoRoot: repo },
+      { execCommand: () => {}, checkPortAvailable: async () => true },
+    );
+    git(repo, ["worktree", "move", beta.path, alphaDefaultPath]);
+    writeFileSync(join(alphaDefaultPath, "beta-work.txt"), "uncommitted\n", "utf8");
+
+    const dropDatabase = vi.fn(async () => {});
+    await expect(
+      cleanWorktree(
+        { slug: "alpha", keepBranch: false, json: true, primaryRepoRoot: repo },
+        { isPostgresReachable: async () => true, dropDatabase },
+      ),
+    ).rejects.toThrow(/overlaps registered worktree "beta"/);
+    expect(dropDatabase).not.toHaveBeenCalled();
+    expect(readFileSync(join(alphaDefaultPath, "beta-work.txt"), "utf8")).toBe("uncommitted\n");
+    expect(readWorktreeRegistry(repo).worktrees.beta?.status).toBe("active");
+  });
 });

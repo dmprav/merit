@@ -1535,11 +1535,16 @@ export const cleanWorktree = async (
             if (otherRecord.slug === slug) {
               continue;
             }
-            const otherCanonicalPath = canonicalPath(otherRecord.path);
-            if (pathsOverlap(canonicalWorktreePath, otherCanonicalPath)) {
-              throw new Error(
-                `Refusing to clean unrecorded worktree "${slug}": default path "${canonicalWorktreePath}" overlaps registered worktree "${otherRecord.slug}" at "${otherCanonicalPath}". Run \`vp run worktree:clean ${otherRecord.slug}\` instead.`,
-              );
+            // A sibling moved with `git worktree move` may now sit at this slug's default path.
+            for (const otherCanonicalPath of new Set([
+              canonicalPath(otherRecord.path),
+              currentCheckoutPath(otherRecord) ?? canonicalPath(otherRecord.path),
+            ])) {
+              if (pathsOverlap(canonicalWorktreePath, otherCanonicalPath)) {
+                throw new Error(
+                  `Refusing to clean unrecorded worktree "${slug}": default path "${canonicalWorktreePath}" overlaps registered worktree "${otherRecord.slug}" at "${otherCanonicalPath}". Run \`vp run worktree:clean ${otherRecord.slug}\` instead.`,
+                );
+              }
             }
           }
         }
