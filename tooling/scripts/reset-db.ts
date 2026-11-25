@@ -8,6 +8,7 @@ import { loadRepoEnvLocal } from "../env.ts";
 import {
   DEFAULT_COMPOSE_DATABASE_URL,
   hasLocalConnectionOverride,
+  hasUnsupportedLocalDatabaseName,
   parseLocalComposeDatabase,
   recreateLocalDatabase,
   type LocalComposeDatabase,
@@ -38,6 +39,11 @@ export const resolveResetTarget = (
       "Refusing to reset: DATABASE_URL targets local PostgreSQL but overrides its connection with host, hostaddr, port, or user query parameters. Remove those parameters so the reset target is unambiguous.",
     );
   }
+  if (hasUnsupportedLocalDatabaseName(env.DATABASE_URL)) {
+    throw new Error(
+      "Refusing to reset: DATABASE_URL targets the local Compose PostgreSQL but its database name is not a lowercase identifier (letters, digits, and underscores after a single leading slash). Fix the database name so the reset target is unambiguous.",
+    );
+  }
   if (
     isLinkedWorktree &&
     worktreeDatabaseUrl?.trim() &&
@@ -49,6 +55,12 @@ export const resolveResetTarget = (
   }
   const local = parseLocalComposeDatabase(env.DATABASE_URL);
   if (local && !local.isProtected) {
+    // Without this checkout's own target, an inherited DATABASE_URL may name a sibling's database.
+    if (isLinkedWorktree && !worktreeDatabaseUrl?.trim()) {
+      throw new Error(
+        "Refusing to reset from a linked worktree: this worktree's .env.local does not set DATABASE_URL, so the exported DATABASE_URL may belong to another checkout. Restore this worktree's .env.local and retry.",
+      );
+    }
     return { mode: "worktree", database: local };
   }
   if (isLinkedWorktree) {

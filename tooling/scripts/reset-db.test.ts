@@ -102,15 +102,27 @@ it("uses Compose volume reset for the default merit database and protected names
 it.each(["127.0.0.1", "localhost"] as const)(
   "drops, recreates, migrates, and seeds only the targeted worktree database on %s:55432 without touching Compose volumes",
   async (host) => {
-    const exec = vi.fn();
-    const recreate = vi.fn(async () => {});
+    const effects: string[] = [];
+    const exec = vi.fn((command: string, args: readonly string[]) => {
+      effects.push([command, ...args].join(" "));
+    });
+    const recreate = vi.fn(async (databaseName: string) => {
+      await Promise.resolve();
+      effects.push(`recreated ${databaseName}`);
+    });
     const base = new URL(DEFAULT_COMPOSE_DATABASE_URL);
     base.hostname = host;
     const worktreeUrl = buildLocalDatabaseUrl("merit_feature_x", base.href);
     const expectedAdminUrl = buildLocalDatabaseUrl("postgres", base.href);
     const env = { ...process.env, DATABASE_URL: worktreeUrl };
 
-    const result = await resetLocalDatabase({ cwd: repoUrl, env, exec, recreate });
+    const result = await resetLocalDatabase({
+      cwd: repoUrl,
+      env,
+      isLinkedWorktree: false,
+      exec,
+      recreate,
+    });
 
     expect(result).toEqual({
       mode: "worktree",
@@ -123,6 +135,12 @@ it.each(["127.0.0.1", "localhost"] as const)(
       },
     });
     expect(recreate).toHaveBeenCalledExactlyOnceWith("merit_feature_x", expectedAdminUrl);
+    // Migration needs the recreated database, so recreation must finish before it starts.
+    expect(effects).toEqual([
+      "recreated merit_feature_x",
+      "vp run @merit/db#db:migrate",
+      "vp run @merit/app#db:seed",
+    ]);
 
     const options = {
       cwd: repoUrl,
@@ -136,6 +154,58 @@ it.each(["127.0.0.1", "localhost"] as const)(
     ]);
   },
 );
+
+it("treats any letter case of localhost as the same loopback host when selecting the reset path", () => {
+  const upperHostUrl = "postgres://merit:merit@LOCALHOST:55432/merit_alpha";
+  expect(resolveResetTarget({ DATABASE_URL: upperHostUrl })).toEqual({
+    mode: "worktree",
+    database: {
+      databaseName: "merit_alpha",
+      url: buildLocalDatabaseUrl("merit_alpha", "postgres://merit:merit@localhost:55432/merit"),
+      adminUrl: buildLocalDatabaseUrl("postgres", "postgres://merit:merit@localhost:55432/merit"),
+      isDefault: false,
+      isProtected: false,
+    },
+  });
+  expect(() => resolveResetTarget({ DATABASE_URL: `${upperHostUrl}?port=5432` })).toThrow(
+    /overrides its connection/,
+  );
+  expect(() =>
+    resolveResetTarget({ DATABASE_URL: "postgres://merit:merit@LocalHost:55432/merit?host=x" }),
+  ).toThrow(/overrides its connection/);
+});
+
+it("refuses a local Compose URL whose database name pg would read differently instead of resetting volumes", async () => {
+  // `pg` keeps the second slash, so this URL names the database "/merit_alpha", not "merit_alpha".
+  const doubleSlashUrl = buildLocalDatabaseUrl("merit_alpha").replace(
+    "/merit_alpha",
+    "//merit_alpha",
+  );
+  expect(parseLocalComposeDatabase(doubleSlashUrl)).toBeNull();
+
+  const exec = vi.fn();
+  const recreate = vi.fn(async () => {});
+  for (const databaseUrl of [
+    doubleSlashUrl,
+    buildLocalDatabaseUrl("merit_alpha").replace("merit_alpha", "Merit_Alpha"),
+  ]) {
+    for (const isLinkedWorktree of [false, true]) {
+      await expect(
+        resetLocalDatabase({
+          cwd: repoUrl,
+          env: { DATABASE_URL: databaseUrl },
+          isLinkedWorktree,
+          worktreeDatabaseUrl: databaseUrl,
+          exec,
+          recreate,
+        }),
+        `${databaseUrl} linked=${isLinkedWorktree}`,
+      ).rejects.toThrow(/database name is not a lowercase identifier/);
+    }
+  }
+  expect(exec).not.toHaveBeenCalled();
+  expect(recreate).not.toHaveBeenCalled();
+});
 
 it("detects linked git worktrees and refuses Compose volume reset when DATABASE_URL is invalid", async () => {
   const primaryDir = makeTempDir("merit-primary-");
@@ -200,6 +270,26 @@ it("refuses a linked-worktree reset when an exported DATABASE_URL overrides the 
   expect(recreate).toHaveBeenCalledOnce();
 });
 
+it("refuses a linked-worktree reset when the worktree's .env.local supplies no DATABASE_URL", async () => {
+  const exec = vi.fn();
+  const recreate = vi.fn(async () => {});
+
+  for (const worktreeDatabaseUrl of [undefined, "", "  "]) {
+    await expect(
+      resetLocalDatabase({
+        cwd: repoUrl,
+        env: { DATABASE_URL: buildLocalDatabaseUrl("merit_beta") },
+        isLinkedWorktree: true,
+        worktreeDatabaseUrl,
+        exec,
+        recreate,
+      }),
+    ).rejects.toThrow(/this worktree's \.env\.local does not set DATABASE_URL/);
+  }
+  expect(recreate).not.toHaveBeenCalled();
+  expect(exec).not.toHaveBeenCalled();
+});
+
 it.each([1, 2, 3, 4])(
   "stops and reports failure when Compose reset step %i fails",
   async (step) => {
@@ -234,6 +324,7 @@ it("stops before migrating or seeding when worktree database recreation fails", 
     resetLocalDatabase({
       cwd: repoUrl,
       env: { DATABASE_URL: buildLocalDatabaseUrl("merit_alpha") },
+      isLinkedWorktree: false,
       exec,
       recreate,
     }),

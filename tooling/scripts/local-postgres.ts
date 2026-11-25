@@ -58,53 +58,79 @@ const hasForbiddenConnectionParam = (url: URL): boolean =>
   );
 
 /**
+ * Parses a loopback PostgreSQL URL. `postgres:` is not a WHATWG special scheme, so `URL` keeps the
+ * host's letter case; lowercase it so `LOCALHOST` and `localhost` select the same reset path.
+ */
+const parseLoopbackPostgresUrl = (
+  connectionString: string | undefined,
+): { url: URL; hostname: string } | null => {
+  const url = connectionString?.trim() ? URL.parse(connectionString.trim()) : null;
+  if (!url || (url.protocol !== "postgres:" && url.protocol !== "postgresql:")) {
+    return null;
+  }
+  const hostname = url.hostname.toLowerCase();
+  return LOCAL_COMPOSE_HOSTS.has(hostname) ? { url, hostname } : null;
+};
+
+/**
  * Reports whether a `DATABASE_URL` addresses loopback PostgreSQL but overrides where `pg` connects
  * with query parameters (`host`, `hostaddr`, `port`, `user`), so its real target is ambiguous.
  */
 export const hasLocalConnectionOverride = (connectionString: string | undefined): boolean => {
-  const parsed = connectionString?.trim() ? URL.parse(connectionString.trim()) : null;
-  return Boolean(
-    parsed &&
-    (parsed.protocol === "postgres:" || parsed.protocol === "postgresql:") &&
-    LOCAL_COMPOSE_HOSTS.has(parsed.hostname) &&
-    hasForbiddenConnectionParam(parsed),
-  );
+  const loopback = parseLoopbackPostgresUrl(connectionString);
+  return Boolean(loopback && hasForbiddenConnectionParam(loopback.url));
+};
+
+// `pg` drops only the first slash of the path, so `//merit_alpha` names the database `/merit_alpha`.
+const readDatabaseName = (url: URL): string | null => {
+  try {
+    return decodeURIComponent(url.pathname.replace(/^\//, ""));
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Reports whether a `DATABASE_URL` addresses the local Compose PostgreSQL but names a database this
+ * tooling cannot address safely (not a lowercase identifier), so no reset path may target it.
+ */
+export const hasUnsupportedLocalDatabaseName = (connectionString: string | undefined): boolean => {
+  const loopback = parseLoopbackPostgresUrl(connectionString);
+  if (
+    !loopback ||
+    hasForbiddenConnectionParam(loopback.url) ||
+    loopback.url.port !== LOCAL_COMPOSE_PORT
+  ) {
+    return false;
+  }
+  const databaseName = readDatabaseName(loopback.url);
+  return databaseName !== "" && (databaseName === null || !VALID_DATABASE_NAME.test(databaseName));
 };
 
 /**
  * Parses a `DATABASE_URL` targeting the local loopback Compose Postgres (`127.0.0.1:55432` or `localhost:55432`).
  * Returns `null` for remote URLs, query-string connection overrides (`host`, `hostaddr`, `port`, `user`),
- * non-Compose ports, or malformed values.
+ * non-Compose ports, unsupported database names, or malformed values.
  */
 export const parseLocalComposeDatabase = (
   connectionString: string | undefined,
 ): LocalComposeDatabase | null => {
-  if (!connectionString?.trim()) {
-    return null;
-  }
-  const parsed = URL.parse(connectionString.trim());
+  const loopback = parseLoopbackPostgresUrl(connectionString);
   if (
-    !parsed ||
-    (parsed.protocol !== "postgres:" && parsed.protocol !== "postgresql:") ||
-    hasForbiddenConnectionParam(parsed) ||
-    !LOCAL_COMPOSE_HOSTS.has(parsed.hostname) ||
-    parsed.port !== LOCAL_COMPOSE_PORT
+    !loopback ||
+    hasForbiddenConnectionParam(loopback.url) ||
+    loopback.url.port !== LOCAL_COMPOSE_PORT
   ) {
     return null;
   }
 
-  let databaseName: string;
-  try {
-    databaseName = decodeURIComponent(parsed.pathname.replace(/^\/+/, ""));
-  } catch {
-    return null;
-  }
-  if (!VALID_DATABASE_NAME.test(databaseName)) {
+  const databaseName = readDatabaseName(loopback.url);
+  if (databaseName === null || !VALID_DATABASE_NAME.test(databaseName)) {
     return null;
   }
 
   const base = new URL(DEFAULT_COMPOSE_DATABASE_URL);
-  base.hostname = parsed.hostname;
+  base.hostname = loopback.hostname;
   const targetUrl = new URL(base.href);
   targetUrl.pathname = `/${databaseName}`;
   const adminUrl = new URL(base.href);
