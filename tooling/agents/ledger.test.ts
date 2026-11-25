@@ -11,7 +11,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, dirname, join } from "node:path";
 
 import { afterEach, describe, expect, test } from "vite-plus/test";
 
@@ -940,7 +940,8 @@ describe("ledger concurrency and locking", () => {
     const repo = makeTempDir();
     const filePath = ledgerPathForSlug("lock-test", repo);
     const lockPath = ledgerLockPathForFile(filePath);
-    expect(lockPath).toBe(join(repo, ".tmp", "ledgers", ".ledger-locks", "lock-test.tsv.lock"));
+    expect(dirname(lockPath)).toBe(join(repo, ".tmp", "ledgers", ".ledger-locks"));
+    expect(basename(lockPath)).toMatch(/^lock-test\.tsv-[0-9a-f]{16}\.lock$/);
 
     const holderEntered = createDeferred<void>();
     const releaseHolder = createDeferred<void>();
@@ -1006,6 +1007,24 @@ describe("ledger concurrency and locking", () => {
       );
     }
     expect(readdirSync(join(repo, ".ledger-locks"))).toEqual([]);
+  });
+
+  test("locks and stages a ledger whose filename is near the 255-byte filesystem limit", async () => {
+    const repo = makeTempDir();
+    const longName = `${"a".repeat(236)}.tsv`;
+    const result = await appendLedgerEntry({
+      file: longName,
+      cwd: repo,
+      runId: "run-1",
+      phase: "build",
+      decision: "Long ledger name",
+      why: "Lock and staging names stay bounded",
+      ts: "2026-11-24T18:00:00.000Z",
+    });
+    expect(basename(result.file)).toBe(longName);
+    expect(basename(ledgerLockPathForFile(result.file)).length).toBeLessThan(80);
+    expect(readFileSync(result.file, "utf8")).toContain("Long ledger name");
+    expect(readdirSync(repo).sort()).toEqual([".ledger-locks", longName]);
   });
 
   test("rejects invalid UTF-8 ledgers without rewriting them and keeps literal U+FFFD", async () => {

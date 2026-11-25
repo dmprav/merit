@@ -83,6 +83,15 @@ const readOptionalFile = (path: string): string | undefined => {
 };
 
 /**
+ * Combines boot ID and start ticks into one identity. A partial identity is never returned:
+ * comparing `boot:ticks` against bare `ticks` would misclassify a live owner as a reused PID.
+ */
+export const combineProcessIdentity = (
+  bootId: string | undefined,
+  startTicks: string | undefined,
+): string | undefined => (bootId && startTicks ? `${bootId}:${startTicks}` : undefined);
+
+/**
  * Identifies a process instance by boot ID and kernel start time so a reused PID is not mistaken
  * for the lock owner. Returns undefined where `/proc` is unavailable, falling back to PID liveness.
  */
@@ -99,8 +108,10 @@ const readProcessStartTime = (pid: number): string | undefined => {
   if (!startTicks) {
     return undefined;
   }
-  const bootId = readOptionalFile("/proc/sys/kernel/random/boot_id")?.trim();
-  return bootId ? `${bootId}:${startTicks}` : startTicks;
+  return combineProcessIdentity(
+    readOptionalFile("/proc/sys/kernel/random/boot_id")?.trim(),
+    startTicks,
+  );
 };
 
 const sameFile = (

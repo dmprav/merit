@@ -16,7 +16,7 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, test } from "vite-plus/test";
 
-import { type FileLockOptions, withFileLock } from "./file-lock.ts";
+import { combineProcessIdentity, type FileLockOptions, withFileLock } from "./file-lock.ts";
 
 const tempDirs: string[] = [];
 
@@ -46,10 +46,8 @@ afterEach(() => {
 });
 
 describe("withFileLock stale-lock policy", () => {
-  test("preserves live-PID locks regardless of age and recovers dead-PID or corrupt locks", async () => {
-    const { dir, lockPath } = makeLockPath();
-
-    // A valid lock owned by a live PID must never be expired solely by age.
+  test("preserves a live-PID lock regardless of age", async () => {
+    const { lockPath } = makeLockPath();
     const livePayload = lockPayload(process.pid, "live", { createdAt: 0 });
     writeFileSync(lockPath, livePayload, "utf8");
     utimesSync(lockPath, expired(), expired());
@@ -57,15 +55,19 @@ describe("withFileLock stale-lock policy", () => {
       withFileLock(lockPath, () => "nope", { ...quickTimeout, label: "test", staleMs: 5_000 }),
     ).rejects.toThrow(`Timed out waiting for test lock at "${lockPath}"`);
     expect(readFileSync(lockPath, "utf8")).toBe(livePayload);
+  });
 
-    // A valid lock owned by a dead PID is recovered immediately even with a fresh mtime.
+  test("recovers a dead-PID lock immediately even with a fresh mtime", async () => {
+    const { lockPath } = makeLockPath();
     writeFileSync(lockPath, lockPayload(exitedPid(), "dead"), "utf8");
     expect(await withFileLock(lockPath, () => "recovered-dead", { timeoutMs: 2_000 })).toBe(
       "recovered-dead",
     );
     expect(existsSync(lockPath)).toBe(false);
+  });
 
-    // A corrupt lock is recovered once past the grace window, but not while it is fresh.
+  test("recovers a corrupt lock only after the grace window", async () => {
+    const { dir, lockPath } = makeLockPath();
     writeFileSync(lockPath, "{corrupt", "utf8");
     await expect(withFileLock(lockPath, () => "too-soon", quickTimeout)).rejects.toThrow(
       /Timed out/,
@@ -75,6 +77,13 @@ describe("withFileLock stale-lock policy", () => {
       await withFileLock(lockPath, () => "recovered-corrupt", { staleMs: 5_000, timeoutMs: 2_000 }),
     ).toBe("recovered-corrupt");
     expect(readdirSync(dir)).toEqual([]);
+  });
+
+  test("never builds a partial process identity when the boot ID or start time is unreadable", () => {
+    expect(combineProcessIdentity("boot-a", "200")).toBe("boot-a:200");
+    expect(combineProcessIdentity(undefined, "200")).toBeUndefined();
+    expect(combineProcessIdentity("", "200")).toBeUndefined();
+    expect(combineProcessIdentity("boot-a", undefined)).toBeUndefined();
   });
 
   test("treats a live PID with a different process start time as a reused PID", async () => {

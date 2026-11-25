@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   existsSync,
   lstatSync,
@@ -371,8 +371,17 @@ export const resolveLedgerFilePath = ({
   return canonicalizeLedgerPath(join(repoRoot, ".tmp", "ledgers", `${validatedSlug}.tsv`));
 };
 
-export const ledgerLockPathForFile = (filePath: string): string =>
-  join(dirname(filePath), LEDGER_LOCK_DIRECTORY, `${basename(filePath)}.lock`);
+const LEDGER_LOCK_NAME_PREFIX_LENGTH = 48;
+
+/**
+ * Lock basenames stay bounded (a readable prefix plus a hash of the canonical ledger path), so a
+ * ledger whose own name is near the filesystem limit can still be locked and staged.
+ */
+export const ledgerLockPathForFile = (filePath: string): string => {
+  const prefix = basename(filePath).slice(0, LEDGER_LOCK_NAME_PREFIX_LENGTH);
+  const digest = createHash("sha256").update(filePath).digest("hex").slice(0, 16);
+  return join(dirname(filePath), LEDGER_LOCK_DIRECTORY, `${prefix}-${digest}.lock`);
+};
 
 const replaceControlCharsWithSpace = (value: string): string => {
   let result = "";
@@ -491,7 +500,8 @@ export const withLedgerLock = async <T>(
   });
 
 const writeFileAtomically = (filePath: string, content: string): void => {
-  const tempPath = `${filePath}.${process.pid}.${randomUUID()}.tmp`;
+  // Short fixed-length basename in the destination directory so the final rename stays atomic.
+  const tempPath = join(dirname(filePath), `.ledger-${randomUUID()}.tmp`);
   try {
     // Owner-only like the lockfile; the unique temp path guarantees the mode applies on creation.
     writeFileSync(tempPath, content, { encoding: "utf8", mode: 0o600, flag: "wx" });
