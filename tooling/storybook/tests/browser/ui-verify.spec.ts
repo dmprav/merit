@@ -542,9 +542,21 @@ test.describe("live Chromium checker failure detection", () => {
         ),
       ).toBe(`${baseUrl}/sign-in`);
 
-      // Raw context isolates Chromium's automatic "Failed to load resource: 404/500" console
-      // errors when verifying HTTP error status rejection.
+      const blankShellPage = await context.newPage();
+      await expect(
+        openTargetOnPage(
+          blankShellPage,
+          { kind: "route", route: "/blank-shell", name: "/blank-shell", fullPage: true },
+          baseUrl,
+          { routeReadyTimeoutMs: 250 },
+        ),
+      ).rejects.toThrow(/did not render non-empty content/);
+
+      // Chromium logs "Failed to load resource" for HTTP error documents, so collect this
+      // context's errors here and allow only those diagnostics.
       const httpErrorContext = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+      const httpErrors: BrowserError[] = [];
+      collectBrowserErrors(httpErrorContext, httpErrors);
       try {
         const notFoundPage = await httpErrorContext.newPage();
         await expect(
@@ -563,19 +575,20 @@ test.describe("live Chromium checker failure detection", () => {
             baseUrl,
           ),
         ).rejects.toThrow(/HTTP 500/);
-
-        const blankShellPage = await httpErrorContext.newPage();
-        await expect(
-          openTargetOnPage(
-            blankShellPage,
-            { kind: "route", route: "/blank-shell", name: "/blank-shell", fullPage: true },
-            baseUrl,
-            { routeReadyTimeoutMs: 250 },
-          ),
-        ).rejects.toThrow(/did not render non-empty content/);
       } finally {
         await httpErrorContext.close();
       }
+      expect(httpErrors.map(({ type, message }) => ({ type, message }))).toEqual([
+        {
+          type: "console",
+          message: "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        },
+        {
+          type: "console",
+          message:
+            "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+        },
+      ]);
 
       await withTempDir(async (outDir) => {
         const screenshotsDir = join(outDir, "screenshots");

@@ -88,13 +88,15 @@ test(
         <head><title>Closed custom dialogs</title><style>
           body { background: white; color: black; }
           .closed-by-css { display: none; }
+          /* Keep a layout box, so only the closing attribute excludes these dialogs. */
+          .transparent { opacity: 0; }
         </style></head>
         <body>
           <main><h1>Page</h1></main>
           <div role="dialog" hidden aria-label="Hidden dialog"><p>Closed</p></div>
-          <div role="dialog" aria-hidden="true" style="display: none;" aria-label="Aria-hidden dialog"><p>Closed</p></div>
-          <div role="dialog" inert style="display: none;" aria-label="Inert dialog"><p>Closed</p></div>
-          <div role="alertdialog" data-state="closed" style="display: none;" aria-label="Closed state dialog"><p>Closed</p></div>
+          <div role="dialog" aria-hidden="true" class="transparent" aria-label="Aria-hidden dialog"><p>Closed</p></div>
+          <div role="dialog" inert class="transparent" aria-label="Inert dialog"><p>Closed</p></div>
+          <div role="alertdialog" data-state="closed" class="transparent" aria-label="Closed state dialog"><p>Closed</p></div>
           <div role="dialog" class="closed-by-css" aria-label="CSS-closed dialog"><p>Closed</p></div>
           <div style="display: none;"><div role="dialog" aria-label="Inside closed panel"><p>Closed</p></div></div>
         </body>
