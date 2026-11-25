@@ -1,6 +1,6 @@
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { dirname, join, relative, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
@@ -1589,19 +1589,24 @@ export const verifyLoadedPage = async ({
   screenshotPath: string | null;
   maxTabStops?: number;
 }): Promise<TargetCheckResult> => {
-  const audit: PageAuditResult = await auditPage(page);
-
-  if (screenshotPath) {
-    mkdirSync(dirname(screenshotPath), { recursive: true });
-    if (fullPage) {
-      await page.evaluate(() => window.scrollTo(0, 0));
-    }
-    await page.screenshot({
-      path: screenshotPath,
-      fullPage,
-      animations: "disabled",
-    });
-  }
+  // Capture once the page settles but before measuring: disabling animations fast-forwards them
+  // and can fire end handlers that change layout, so the verdict must describe the screenshot.
+  const audit: PageAuditResult = await auditPage(page, undefined, {
+    beforeMeasure: async () => {
+      if (!screenshotPath) {
+        return;
+      }
+      mkdirSync(dirname(screenshotPath), { recursive: true });
+      if (fullPage) {
+        await page.evaluate(() => window.scrollTo(0, 0));
+      }
+      await page.screenshot({
+        path: screenshotPath,
+        fullPage,
+        animations: "disabled",
+      });
+    },
+  });
 
   const focus = await checkKeyboardFocusTraversal(page, maxTabStops);
   const errorsCopy = [...browserErrors];
@@ -1822,7 +1827,7 @@ export const formatMarkdownReport = (results: UiVerifyResults): string => {
       ? `\`${relative(results.outDir, item.screenshot).replaceAll("\\", "/")}\``
       : "—";
     lines.push(
-      `| \`${item.name}\` | ${item.viewport} | ${status} | ${item.axeViolations.length} | ${overflow} | ${item.browserErrors.length} | ${focusCell} | ${screenshotCell} |`,
+      `| \`${item.name.replaceAll("|", "\\|")}\` | ${item.viewport} | ${status} | ${item.axeViolations.length} | ${overflow} | ${item.browserErrors.length} | ${focusCell} | ${screenshotCell} |`,
     );
   }
 
@@ -1918,6 +1923,53 @@ const storybookIndexSchema = z.object({
     .optional(),
 });
 
+const OUTPUT_LOCK_FILE = ".ui-verify.lock";
+
+const isProcessAlive = (pid: number): boolean => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return error instanceof Error && "code" in error && error.code === "EPERM";
+  }
+};
+
+/**
+ * Gives this run exclusive use of `outDir` until the returned release runs, so concurrent runs
+ * cannot delete or replace each other's screenshots before their reports are published. A lock
+ * whose owning process has exited is taken over.
+ */
+export const acquireOutputLock = (outDir: string): (() => void) => {
+  mkdirSync(outDir, { recursive: true });
+  const lockPath = join(outDir, OUTPUT_LOCK_FILE);
+  const owner = String(process.pid);
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      writeFileSync(lockPath, `${owner}\n`, { encoding: "utf8", flag: "wx" });
+      return () => {
+        if (existsSync(lockPath) && readFileSync(lockPath, "utf8").trim() === owner) {
+          rmSync(lockPath, { force: true });
+        }
+      };
+    } catch (error) {
+      if (!(error instanceof Error && "code" in error && error.code === "EEXIST")) {
+        throw error;
+      }
+    }
+    const ownerPid = Number.parseInt(readFileSync(lockPath, "utf8"), 10);
+    if (Number.isInteger(ownerPid) && ownerPid > 0 && isProcessAlive(ownerPid)) {
+      throw new Error(
+        `Another ui:verify run (pid ${ownerPid}) is writing to "${outDir}". Wait for it to finish or pass a different --out directory.`,
+      );
+    }
+    rmSync(lockPath, { force: true });
+  }
+  throw new Error(`Could not lock "${outDir}" for ui:verify output.`);
+};
+
+const screenshotFileFor = (screenshotsDir: string, stem: string, viewport: ViewportName) =>
+  join(screenshotsDir, `${stem}-${viewport}.png`);
+
 const readStorybookIndex = (repoRoot: string): StorybookIndexEntry[] => {
   const indexPath = join(repoRoot, "tooling/storybook/dist/index.json");
   if (!existsSync(indexPath)) {
@@ -1969,7 +2021,7 @@ export const runTargetsInBrowser = async ({
       let context: BrowserContext | undefined;
       const browserErrors: BrowserError[] = [];
       const stem = stems[targetIndex] ?? sanitizeTargetName(target.name);
-      const screenshotFile = join(screenshotsDir, `${stem}-${viewport}.png`);
+      const screenshotFile = screenshotFileFor(screenshotsDir, stem, viewport);
       const targetId = target.kind === "story" ? target.id : target.route;
       let resolvedUrl = resolveTargetUrl(target, baseUrl);
       let screenshotCleaned = false;
@@ -2062,6 +2114,7 @@ export const runUiVerify = async (
 ): Promise<UiVerifyResults> => {
   const outDir = resolve(repoRoot, options.outDir);
   const screenshotsDir = join(outDir, "screenshots");
+  const releaseOutput = acquireOutputLock(outDir);
 
   if (options.container) {
     try {
@@ -2090,17 +2143,10 @@ export const runUiVerify = async (
       });
       writeProofArtifacts(outDir, results);
       return results;
+    } finally {
+      releaseOutput();
     }
   }
-
-  if (options.update && existsSync(screenshotsDir)) {
-    for (const file of readdirSync(screenshotsDir)) {
-      if (file.endsWith(".png")) {
-        rmSync(join(screenshotsDir, file), { force: true });
-      }
-    }
-  }
-  mkdirSync(screenshotsDir, { recursive: true });
 
   const runStorybook = options.stories.length > 0 || options.routes.length === 0;
   const runApp = options.routes.length > 0;
@@ -2128,6 +2174,9 @@ export const runUiVerify = async (
     cleanups.push(idempotent);
     return idempotent;
   };
+
+  // Registered first so it runs last, after the report is written or servers are stopped.
+  registerCleanup(async () => releaseOutput());
 
   const runCleanups = (): Promise<void> => {
     if (cleanupPromise) {
@@ -2178,7 +2227,6 @@ export const runUiVerify = async (
       } else {
         storyTargets = [...DEFAULT_STORYBOOK_TARGETS];
       }
-      storybookServer = await startStorybookServer(repoRoot, log, registerCleanup);
     }
 
     let appServer: ManagedServer | undefined;
@@ -2189,6 +2237,27 @@ export const runUiVerify = async (
       fullPage: true,
     }));
 
+    const combinedStems = buildUniqueTargetStems([
+      ...storyTargets.map((target) => target.name),
+      ...routeTargets.map((target) => target.name),
+    ]);
+    const storyStems = combinedStems.slice(0, storyTargets.length);
+    const routeStems = combinedStems.slice(storyTargets.length);
+
+    // --update clears only this run's targets and viewports up front, so an aborted run leaves
+    // none of their old screenshots behind while other targets' evidence stays.
+    if (options.update) {
+      for (const stem of combinedStems) {
+        for (const viewport of viewports) {
+          rmSync(screenshotFileFor(screenshotsDir, stem, viewport), { force: true });
+        }
+      }
+    }
+    mkdirSync(screenshotsDir, { recursive: true });
+
+    if (runStorybook) {
+      storybookServer = await startStorybookServer(repoRoot, log, registerCleanup);
+    }
     if (runApp && appMode) {
       appServer = await startAppServer(repoRoot, appMode, log, registerCleanup);
     }
@@ -2196,13 +2265,6 @@ export const runUiVerify = async (
     browser = await chromium.launch({ headless: true });
     const launchedBrowser = browser;
     registerCleanup(() => launchedBrowser.close());
-
-    const combinedStems = buildUniqueTargetStems([
-      ...storyTargets.map((target) => target.name),
-      ...routeTargets.map((target) => target.name),
-    ]);
-    const storyStems = combinedStems.slice(0, storyTargets.length);
-    const routeStems = combinedStems.slice(storyTargets.length);
 
     if (storybookServer && storyTargets.length > 0) {
       const storyChecks = await runTargetsInBrowser({

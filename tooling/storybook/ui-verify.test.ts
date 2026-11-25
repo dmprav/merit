@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -6,15 +6,18 @@ import { describe, expect, it } from "vite-plus/test";
 
 import {
   DEFAULT_STORYBOOK_TARGETS,
+  acquireOutputLock,
   allocateFreePort,
   buildContainerDelegationArgs,
   buildUniqueTargetStems,
   detectFocusVisualChange,
   filterStoryTargets,
+  formatMarkdownReport,
   inferAppMode,
   parseCliArgs,
   runUiVerify,
   sanitizeTargetName,
+  summarizeResults,
   uiVerifyResultsSchema,
   type ElementStyleSnapshot,
   type FocusVisualSnapshot,
@@ -493,6 +496,137 @@ describe("container delegation and proof reporting", () => {
     ).toEqual(["--grep", "components-button.*|dialog\\.open"]);
 
     expect(buildContainerDelegationArgs(parseCliArgs(["--container"]))).toEqual([]);
+  });
+
+  it("escapes pipes in report target names while keeping the original name in results", () => {
+    const results = summarizeResults({
+      mode: "app",
+      appMode: "demo",
+      updated: false,
+      outDir: "/tmp/out",
+      generatedAt: "2026-01-01T00:00:00.000Z",
+      targets: [
+        {
+          kind: "route",
+          target: "/demo?q=a|b",
+          name: "/demo?q=a|b",
+          url: "http://127.0.0.1:1/demo?q=a|b",
+          viewport: "desktop",
+          passed: true,
+          screenshot: "/tmp/out/screenshots/route-demo-q-a-b-desktop.png",
+          viteErrorOverlayCount: 0,
+          bodyVisible: true,
+          dialogsVisible: true,
+          enteringOrExitingCount: 0,
+          scrollWidth: 100,
+          innerWidth: 100,
+          hasHorizontalOverflow: false,
+          axeViolations: [],
+          browserErrors: [],
+          focus: { stopsChecked: 1, reachedCap: false, failures: [] },
+        },
+      ],
+    });
+
+    expect(results.targets[0]?.name).toBe("/demo?q=a|b");
+    const row = formatMarkdownReport(results)
+      .split("\n")
+      .find((line) => line.startsWith("| `/demo"));
+    expect(row).toBe(
+      "| `/demo?q=a\\|b` | desktop | PASS | 0 | OK | 0 | OK (1) | `screenshots/route-demo-q-a-b-desktop.png` |",
+    );
+  });
+
+  it("keeps other targets' screenshots and reports a failed --update cleanup instead of leaving a stale PASS", async () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "merit-ui-verify-update-"));
+    const outDir = join(tempDir, "out");
+    const screenshotsDir = join(outDir, "screenshots");
+    const previousPrebuilt = process.env.MERIT_STORYBOOK_PREBUILT;
+    try {
+      mkdirSync(join(tempDir, "tooling/storybook/dist"), { recursive: true });
+      writeFileSync(
+        join(tempDir, "tooling/storybook/dist/index.json"),
+        JSON.stringify({
+          entries: {
+            "components-button--overview": {
+              id: "components-button--overview",
+              title: "Components/Button",
+              name: "Overview",
+              type: "story",
+            },
+          },
+        }),
+        "utf8",
+      );
+      mkdirSync(screenshotsDir, { recursive: true });
+      writeFileSync(join(outDir, "results.json"), JSON.stringify({ passed: true }), "utf8");
+      writeFileSync(join(outDir, "report.md"), "# Stale PASS\n", "utf8");
+      writeFileSync(join(screenshotsDir, "components-button--overview-mobile.png"), "mobile");
+      writeFileSync(join(screenshotsDir, "other-story-desktop.png"), "other");
+      // A directory where the selected screenshot belongs makes the cleanup fail.
+      mkdirSync(join(screenshotsDir, "components-button--overview-desktop.png"));
+
+      process.env.MERIT_STORYBOOK_PREBUILT = "1";
+      const results = await runUiVerify(
+        parseCliArgs([
+          "--update",
+          "--viewport",
+          "desktop",
+          "--story",
+          "components-button--overview",
+          "--out",
+          outDir,
+        ]),
+        { repoRoot: tempDir, log: () => undefined },
+      );
+
+      expect(results.passed).toBe(false);
+      expect(results.error).toContain("components-button--overview-desktop.png");
+      const savedJson = uiVerifyResultsSchema.parse(
+        JSON.parse(readFileSync(join(outDir, "results.json"), "utf8")),
+      );
+      expect(savedJson.passed).toBe(false);
+      expect(readFileSync(join(outDir, "report.md"), "utf8")).toContain("**Status:** FAIL");
+      expect(existsSync(join(screenshotsDir, "components-button--overview-mobile.png"))).toBe(true);
+      expect(existsSync(join(screenshotsDir, "other-story-desktop.png"))).toBe(true);
+      expect(existsSync(join(outDir, ".ui-verify.lock"))).toBe(false);
+    } finally {
+      if (previousPrebuilt === undefined) {
+        delete process.env.MERIT_STORYBOOK_PREBUILT;
+      } else {
+        process.env.MERIT_STORYBOOK_PREBUILT = previousPrebuilt;
+      }
+      rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses an output directory another live run holds and takes over a stale lock", async () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "merit-ui-verify-lock-"));
+    try {
+      const release = acquireOutputLock(tempDir);
+      expect(() => acquireOutputLock(tempDir)).toThrow(/Another ui:verify run/);
+      writeFileSync(join(tempDir, "results.json"), "other run", "utf8");
+      await expect(
+        runUiVerify(parseCliArgs(["--container", "--out", tempDir]), {
+          repoRoot: tempDir,
+          runContainer: () => 0,
+          log: () => undefined,
+        }),
+      ).rejects.toThrow(/Another ui:verify run/);
+      expect(readFileSync(join(tempDir, "results.json"), "utf8")).toBe("other run");
+      release();
+      expect(existsSync(join(tempDir, ".ui-verify.lock"))).toBe(false);
+
+      // No process can have this pid, so the lock is stale.
+      writeFileSync(join(tempDir, ".ui-verify.lock"), "2147483646\n", "utf8");
+      const releaseStale = acquireOutputLock(tempDir);
+      expect(readFileSync(join(tempDir, ".ui-verify.lock"), "utf8").trim()).toBe(
+        String(process.pid),
+      );
+      releaseStale();
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
   });
 
   it("writes failed results.json and report.md when route validation fails inside runUiVerify", async () => {

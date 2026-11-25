@@ -734,4 +734,35 @@ test.describe("live Chromium checker failure detection", () => {
     expect(opaque.focus.incompleteReason).toContain("cross-origin frame");
     expect(opaque.passed).toBe(false);
   });
+
+  test("measures the page state the screenshot shows after animations are fast-forwarded", async ({
+    newContext,
+  }) => {
+    await withTempDir(async (outDir) => {
+      const result = await runFixture(
+        newContext,
+        outDir,
+        "overflow-after-capture",
+        `<!doctype html><html lang="en"><head>${VIEWPORT_META}<title>Overflow after capture</title><style>
+          body { background: #fff; color: #111; }
+          h1 { animation: nudge 10s linear paused; }
+          @keyframes nudge { from { transform: translateX(0); } to { transform: translateX(1px); } }
+          .wide { width: 3000px; height: 20px; }
+        </style></head><body><main><h1>Overflow after capture</h1></main>
+        <script>
+          document.querySelector("h1").addEventListener("animationend", () => {
+            const wide = document.createElement("div");
+            wide.className = "wide";
+            document.querySelector("main").append(wide);
+          });
+        </script></body></html>`,
+      );
+
+      expect(existsSync(join(outDir, "screenshots", "overflow-after-capture-desktop.png"))).toBe(
+        true,
+      );
+      expect(result.hasHorizontalOverflow).toBe(true);
+      expect(result.passed).toBe(false);
+    });
+  });
 });
