@@ -1,7 +1,9 @@
+import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import type { Browser, BrowserContext } from "@playwright/test";
 
@@ -951,5 +953,45 @@ test.describe("live Chromium checker failure detection", () => {
       expect(screenshotWidth).toBeGreaterThan(result.innerWidth);
       expect(result.passed).toBe(false);
     });
+  });
+});
+
+test("lets the CLI finish its Ctrl+C cleanup before the process exits", async () => {
+  await withTempDir(async (dir) => {
+    const script = join(dir, "sigint.mjs");
+    const uiVerifyUrl = new URL("../../ui-verify.ts", import.meta.url).href;
+    // The child stands in for the CLI: its SIGINT handler needs time to stop servers.
+    writeFileSync(
+      script,
+      `import { launchVerificationBrowser } from ${JSON.stringify(uiVerifyUrl)};
+      const browser = await launchVerificationBrowser();
+      process.on("SIGINT", () => {
+        setTimeout(async () => {
+          await browser.close();
+          process.stdout.write("cleanup finished\\n");
+          process.exit(130);
+        }, 1500);
+      });
+      process.stdout.write("ready\\n");`,
+    );
+    const { NODE_OPTIONS: _nodeOptions, PWTEST_UNDER_TEST: _underTest, ...env } = process.env;
+    const child = spawn(process.execPath, [script], {
+      cwd: fileURLToPath(new URL("../..", import.meta.url)),
+      env,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    let output = "";
+    child.stdout.on("data", (chunk: Buffer) => {
+      output += chunk.toString("utf8");
+      if (output.includes("ready")) {
+        child.kill("SIGINT");
+      }
+    });
+    child.stderr.on("data", (chunk: Buffer) => {
+      output += chunk.toString("utf8");
+    });
+    const exitCode = await new Promise<number | null>((resolve) => child.on("exit", resolve));
+    expect(output).toContain("cleanup finished");
+    expect(exitCode).toBe(130);
   });
 });

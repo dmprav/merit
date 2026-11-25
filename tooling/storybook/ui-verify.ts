@@ -2166,6 +2166,13 @@ const readStorybookIndex = (repoRoot: string): StorybookIndexEntry[] => {
   return Object.values(parsed.entries ?? parsed.stories ?? {});
 };
 
+/**
+ * Leaves Ctrl+C to the CLI. Playwright's own SIGINT handler exits once Chromium closes, before
+ * the CLI's handler finishes stopping servers and dropping databases.
+ */
+export const launchVerificationBrowser = () =>
+  chromium.launch({ headless: true, handleSIGINT: false });
+
 export const runTargetsInBrowser = async ({
   browser,
   targets,
@@ -2449,7 +2456,7 @@ export const runUiVerify = async (
       appServer = await startAppServer(repoRoot, appMode, log, registerCleanup);
     }
 
-    browser = await chromium.launch({ headless: true });
+    browser = await launchVerificationBrowser();
     const launchedBrowser = browser;
     registerCleanup(() => launchedBrowser.close());
 
