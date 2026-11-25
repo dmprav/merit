@@ -176,12 +176,16 @@ local `.tmp/handoffs/<slug>.md` and `.tmp/ledgers/<slug>.tsv` do not exist yet):
    the commit, plus `git apply --numstat -z <patch>` for a patch, checking both
    the old and new path of each rename. Every path must be in the Implementer
    brief's scope. If any check fails, escalate with
-   `vpx tooling/agents/queue.ts escalate` and stop.
-3. Resume from the verified SHA, not the branch name. Check out the recorded
-   `HEAD` SHA; if the handoff names a branch whose tip no longer equals that
-   SHA, escalate and stop instead of checking out the new tip. For a patch,
-   check out its recorded base SHA in a clean worktree, run
-   `git apply --check <patch>`, and apply it only if that check passes.
+   `vpx tooling/agents/queue.ts escalate <issue-number> --reason "<failed check>"`
+   and stop.
+3. Resume from the verified SHA, not the branch tip. Run
+   `git fetch origin <branch>`; if `origin/<branch>` no longer equals the
+   recorded SHA (the `HEAD` SHA, or a patch's base SHA), escalate as above and
+   stop instead of using the new tip. Otherwise attach the proposal branch to
+   that SHA with `git checkout -B <branch> <sha>` in a clean worktree, so
+   `git branch --show-current` names the branch for `open-pr --head`. For a
+   patch, run `git apply --check <patch>` there and apply it only if that check
+   passes.
 4. No local ledger links the previous run, so start one with an explicit
    `resume`/`start` entry. Use your new `--run-id`, and record the issue comment
    and the handoff's last `run_id` as evidence:
