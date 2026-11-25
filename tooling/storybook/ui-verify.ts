@@ -1,8 +1,9 @@
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   existsSync,
   fstatSync,
+  linkSync,
   mkdirSync,
   openSync,
   closeSync,
@@ -2111,8 +2112,12 @@ export const acquireOutputLock = (outDir: string): (() => void) => {
     );
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
+    // Write the record under a private name, then link it into place: linking fails if the lock
+    // exists, and another run never sees the lock before its PID is in it.
+    const record = `${lockPath}.${owner}.${randomUUID()}`;
+    writeFileSync(record, `${owner}\n`, { encoding: "utf8", flag: "wx" });
     try {
-      writeFileSync(lockPath, `${owner}\n`, { encoding: "utf8", flag: "wx" });
+      linkSync(record, lockPath);
       return () => {
         if (existsSync(lockPath) && readFileSync(lockPath, "utf8").trim() === owner) {
           rmSync(lockPath, { force: true });
@@ -2122,13 +2127,21 @@ export const acquireOutputLock = (outDir: string): (() => void) => {
       if (!hasErrorCode(error, "EEXIST")) {
         throw error;
       }
+    } finally {
+      rmSync(record, { force: true });
     }
     const stale = readOutputLock(lockPath);
     if (!stale) {
       continue;
     }
     const ownerPid = Number.parseInt(stale.content, 10);
-    if (Number.isInteger(ownerPid) && ownerPid > 0 && isProcessAlive(ownerPid)) {
+    // A record without a PID may be a run that is still writing it, so it is never stale.
+    if (!(Number.isInteger(ownerPid) && ownerPid > 0)) {
+      throw new Error(
+        `The ui:verify lock "${lockPath}" names no owning run. If no run is writing to "${outDir}", delete the lock and retry.`,
+      );
+    }
+    if (isProcessAlive(ownerPid)) {
       throw busy(ownerPid);
     }
     // Rename is atomic, so only this run holds whatever file it moved. Delete it only when it is

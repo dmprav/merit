@@ -1,4 +1,12 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import type * as fs from "node:fs";
 import { createServer, type Server } from "node:http";
 import { tmpdir } from "node:os";
@@ -839,6 +847,26 @@ describe("container delegation and proof reporting", () => {
       expect(existsSync(`${lockPath}.${process.pid}`)).toBe(false);
     } finally {
       fsRace.run = undefined;
+      rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("never takes over a lock whose owner has not written its PID yet", () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "merit-ui-verify-lock-"));
+    try {
+      const lockPath = join(tempDir, ".ui-verify.lock");
+      // An empty record is what a run that creates the lock and then writes its PID leaves for
+      // the moment in between.
+      writeFileSync(lockPath, "", "utf8");
+      expect(() => acquireOutputLock(tempDir)).toThrow(/names no owning run/);
+      expect(readFileSync(lockPath, "utf8")).toBe("");
+
+      rmSync(lockPath);
+      const release = acquireOutputLock(tempDir);
+      expect(readFileSync(lockPath, "utf8")).toBe(`${process.pid}\n`);
+      release();
+      expect(readdirSync(tempDir)).toEqual([]);
+    } finally {
       rmSync(tempDir, { recursive: true, force: true });
     }
   });
