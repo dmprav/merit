@@ -154,6 +154,8 @@ const targetCheckResultSchema = z.object({
   target: z.string(),
   name: z.string(),
   url: z.string(),
+  /** The URL the check requested; `url` differs from it when the target redirected. */
+  requestedUrl: z.string().optional(),
   viewport: z.enum(["desktop", "mobile"]),
   passed: z.boolean(),
   screenshot: z.string().nullable(),
@@ -1884,10 +1886,12 @@ const redirectedRouteUrl = (item: TargetCheckResult): string | undefined => {
     return undefined;
   }
   const audited = new URL(item.url);
-  if (new URL(item.target, audited).href === audited.href) {
+  // Resolving the bare route against the audited page would give it the destination's origin.
+  const requested = new URL(item.requestedUrl ?? item.target, audited);
+  if (requested.href === audited.href) {
     return undefined;
   }
-  return audited.origin === new URL(item.target, audited).origin
+  return audited.origin === requested.origin
     ? `${audited.pathname}${audited.search}${audited.hash}`
     : audited.href;
 };
@@ -2230,7 +2234,8 @@ export const runTargetsInBrowser = async ({
       const stem = stems[targetIndex] ?? sanitizeTargetName(target.name);
       const screenshotFile = screenshotFileFor(screenshotsDir, stem, viewport);
       const targetId = target.kind === "story" ? target.id : target.route;
-      let resolvedUrl = resolveTargetUrl(target, baseUrl);
+      const requestedUrl = resolveTargetUrl(target, baseUrl);
+      let resolvedUrl = requestedUrl;
       let screenshotCleaned = false;
 
       try {
@@ -2252,7 +2257,7 @@ export const runTargetsInBrowser = async ({
           screenshotPath: screenshotFile,
           maxTabStops,
         });
-        results.push(checked);
+        results.push({ ...checked, requestedUrl });
         const focusSummary = isFocusTraversalIncomplete(checked.focus)
           ? `${checked.focus.failures.length}/${checked.focus.stopsChecked} (${checked.focus.incompleteReason ?? `Incomplete: >${checked.focus.stopsChecked} stops`})`
           : `${checked.focus.failures.length}/${checked.focus.stopsChecked}`;
@@ -2266,6 +2271,7 @@ export const runTargetsInBrowser = async ({
           target: targetId,
           name: target.name,
           url: resolvedUrl,
+          requestedUrl,
           viewport,
           passed: false,
           screenshot: screenshotCleaned && existsSync(screenshotFile) ? screenshotFile : null,

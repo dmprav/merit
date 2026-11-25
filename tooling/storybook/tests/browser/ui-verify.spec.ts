@@ -710,6 +710,12 @@ test.describe("live Chromium checker failure detection", () => {
               name: "/blank-shell",
               fullPage: true,
             },
+            {
+              kind: "route",
+              route: "/protected-route",
+              name: "/protected-route",
+              fullPage: true,
+            },
           ],
           baseUrl,
           viewports: ["desktop"],
@@ -718,7 +724,7 @@ test.describe("live Chromium checker failure detection", () => {
           log: () => undefined,
         });
 
-        expect(targetResults).toHaveLength(3);
+        expect(targetResults).toHaveLength(4);
         expect(targetResults[0]?.passed).toBe(false);
         expect(targetResults[0]?.error).toContain("play() assertion failed: contrast");
         expect(targetResults[0]?.screenshot).toBeNull();
@@ -731,6 +737,11 @@ test.describe("live Chromium checker failure detection", () => {
         expect(targetResults[2]?.passed).toBe(false);
         expect(targetResults[2]?.error).toContain("did not render non-empty content");
         expect(targetResults[2]?.screenshot).toBeNull();
+
+        // A redirected route keeps the URL it requested beside the page it audited.
+        expect(targetResults[1]?.requestedUrl).toBe(`${baseUrl}/missing-route`);
+        expect(targetResults[3]?.requestedUrl).toBe(`${baseUrl}/protected-route`);
+        expect(targetResults[3]?.url).toBe(`${baseUrl}/sign-in`);
       });
     } finally {
       await new Promise<void>((resolveClose) => server.close(() => resolveClose()));

@@ -667,11 +667,12 @@ describe("container delegation and proof reporting", () => {
   });
 
   it("shows the audited page next to a route that redirected", () => {
-    const routeResult = (target: string, url: string) => ({
+    const routeResult = (target: string, url: string, requestedUrl?: string) => ({
       kind: "route" as const,
       target,
       name: target,
       url,
+      ...(requestedUrl ? { requestedUrl } : {}),
       viewport: "desktop" as const,
       passed: true,
       screenshot: null,
@@ -697,9 +698,19 @@ describe("container delegation and proof reporting", () => {
         targets: [
           routeResult("/app/rounds", "http://127.0.0.1:1/app/sign-in?redirect=%2Fapp%2Frounds"),
           routeResult("/demo", "http://127.0.0.1:1/demo"),
+          routeResult(
+            "/sign-in",
+            "https://accounts.example.test/sign-in",
+            "http://127.0.0.1:1/sign-in",
+          ),
+          routeResult("/home", "http://127.0.0.1:1/home", "http://127.0.0.1:1/home"),
         ],
       }),
     );
+    expect(report).toContain(
+      "| `/sign-in` → `https://accounts.example.test/sign-in` | desktop | PASS |",
+    );
+    expect(report).toContain("| `/home` | desktop | PASS |");
     expect(report).toContain(
       "| `/app/rounds` → `/app/sign-in?redirect=%2Fapp%2Frounds` | desktop | PASS |",
     );
