@@ -1149,6 +1149,7 @@ export const createWorktree = async (
     }
     let checkoutRemovalError: unknown;
     let checkoutRemains = false;
+    let checkoutDotGitRemoved = false;
     if (worktreeAdded || worktreeAddAttempted) {
       const cleanupDir = existsSync(resolvedTargetDir)
         ? canonicalPath(resolvedTargetDir)
@@ -1179,6 +1180,7 @@ export const createWorktree = async (
             checkoutRemovalError = removeError;
           }
           checkoutRemains = existsSync(cleanupDir);
+          checkoutDotGitRemoved = checkoutRemains && !existsSync(join(cleanupDir, ".git"));
         }
         try {
           execGit(primaryRepoRoot, ["worktree", "prune"]);
@@ -1211,8 +1213,9 @@ export const createWorktree = async (
               canonicalPath(current.path) === resolvedTargetDir
             ) {
               if (checkoutRemains) {
+                const { gitDir: _clearedGitDir, ...withoutGitDir } = current;
                 latestRegistry.worktrees[slug] = {
-                  ...current,
+                  ...(checkoutDotGitRemoved ? withoutGitDir : current),
                   databaseCreated: databaseCreated && !databaseDroppedInRollback,
                   status: "cleaning",
                 };
@@ -1346,6 +1349,20 @@ export const cleanWorktree = async (
           throw new Error(
             `Refusing to remove primary repository root or ancestor directory "${canonicalWorktreePath}".`,
           );
+        }
+
+        if (!record) {
+          for (const otherRecord of Object.values(registry.worktrees)) {
+            if (otherRecord.slug === slug) {
+              continue;
+            }
+            const otherCanonicalPath = canonicalPath(otherRecord.path);
+            if (pathsOverlap(canonicalWorktreePath, otherCanonicalPath)) {
+              throw new Error(
+                `Refusing to clean unrecorded worktree "${slug}": default path "${canonicalWorktreePath}" overlaps registered worktree "${otherRecord.slug}" at "${otherCanonicalPath}". Run \`vp run worktree:clean ${otherRecord.slug}\` instead.`,
+              );
+            }
+          }
         }
 
         const resolvedExpectedGitDir = record?.gitDir ? canonicalPath(record.gitDir) : undefined;

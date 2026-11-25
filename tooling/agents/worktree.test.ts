@@ -1725,4 +1725,149 @@ describe("worktree lifecycle in temp git repos", () => {
     expect(git(repo, ["branch", "--list", "worktree/alpha"])).toContain("worktree/alpha");
     expect(readWorktreeRegistry(repo).worktrees.alpha?.status).toBe("active");
   });
+
+  test("createWorktree clears gitDir on retained cleaning record when partial rollback removes .git so retry cleanWorktree succeeds", async () => {
+    const repo = initTempRepo(false);
+    const droppedDbs: string[] = [];
+
+    const realGit = (dir: string, args: readonly string[]) =>
+      execFileSync("git", ["-c", "commit.gpgsign=false", ...args], {
+        cwd: dir,
+        encoding: "utf8",
+        env: isolatedGitEnv(),
+      });
+
+    await expect(
+      createWorktree(
+        {
+          slug: "partial-rollback",
+          branch: "feat/partial-rollback",
+          dbMode: "required",
+          doctor: true,
+          json: true,
+          primaryRepoRoot: repo,
+        },
+        {
+          execGit: (dir, args) => {
+            if (args[0] === "worktree" && args[1] === "remove") {
+              throw new Error("git worktree remove interrupted");
+            }
+            return realGit(dir, args);
+          },
+          execCommand: (_command, args) => {
+            if (args.includes("--doctor")) {
+              throw new Error("doctor check failed");
+            }
+          },
+          checkPortAvailable: async () => true,
+          isPostgresReachable: async () => true,
+          ensureDatabase: async () => ({ created: true }),
+          dropDatabase: async (name) => {
+            droppedDbs.push(name);
+          },
+          removeDirectory: (targetPath) => {
+            // Simulate partial removal that deleted .git before failing on a remaining file.
+            rmSync(join(targetPath, ".git"), { force: true });
+            throw new Error("EACCES: partial directory removal failed");
+          },
+        },
+      ),
+    ).rejects.toThrow(
+      /doctor check failed.*rollback could not remove checkout.*EACCES: partial directory removal failed/,
+    );
+
+    const expectedPath = join(repo, ".tmp/worktrees/partial-rollback");
+    expect(droppedDbs).toEqual(["merit_partial_rollback"]);
+    expect(existsSync(expectedPath)).toBe(true);
+    expect(existsSync(join(expectedPath, ".git"))).toBe(false);
+
+    const retained = readWorktreeRegistry(repo).worktrees["partial-rollback"];
+    expect(retained).toMatchObject({
+      slug: "partial-rollback",
+      path: expectedPath,
+      branch: "feat/partial-rollback",
+      databaseCreated: false,
+      status: "cleaning",
+    });
+    expect(retained?.gitDir).toBeUndefined();
+
+    // Retry cleanWorktree must succeed without failing assertCheckoutIdentity on the missing .git file.
+    const cleaned = await cleanWorktree(
+      { slug: "partial-rollback", keepBranch: false, json: true, primaryRepoRoot: repo },
+      { isPostgresReachable: async () => false },
+    );
+    expect(cleaned).toMatchObject({
+      slug: "partial-rollback",
+      worktreeRemoved: true,
+      branchDeleted: true,
+      registryRemoved: true,
+    });
+    expect(existsSync(expectedPath)).toBe(false);
+    expect(git(repo, ["branch", "--list", "feat/partial-rollback"])).toBe("");
+    expect(readWorktreeRegistry(repo).worktrees["partial-rollback"]).toBeUndefined();
+  });
+
+  test("cleanWorktree refuses unrecorded slug cleanup when its default path matches or overlaps another registered slug", async () => {
+    const repo = initTempRepo(false);
+    const alphaDefaultPath = join(repo, ".tmp/worktrees/alpha");
+    const nestedUnderDeltaPath = join(repo, ".tmp/worktrees/delta/nested");
+
+    const beta = await createWorktree(
+      {
+        slug: "beta",
+        dir: alphaDefaultPath,
+        dbMode: "skip",
+        doctor: false,
+        json: true,
+        primaryRepoRoot: repo,
+      },
+      {
+        execCommand: () => {},
+        checkPortAvailable: async () => true,
+      },
+    );
+    writeFileSync(join(beta.path, "beta-marker.txt"), "owned by beta\n", "utf8");
+
+    const gamma = await createWorktree(
+      {
+        slug: "gamma",
+        dir: nestedUnderDeltaPath,
+        dbMode: "skip",
+        doctor: false,
+        json: true,
+        primaryRepoRoot: repo,
+      },
+      {
+        execCommand: () => {},
+        checkPortAvailable: async () => true,
+      },
+    );
+    writeFileSync(join(gamma.path, "gamma-marker.txt"), "owned by gamma\n", "utf8");
+
+    const dropDatabase = vi.fn();
+
+    // Exact path collision: unrecorded "alpha" defaults to beta's custom path.
+    await expect(
+      cleanWorktree(
+        { slug: "alpha", keepBranch: false, json: true, primaryRepoRoot: repo },
+        { isPostgresReachable: async () => true, dropDatabase },
+      ),
+    ).rejects.toThrow(/overlaps registered worktree "beta"/);
+
+    // Ancestor/nested path overlap: unrecorded "delta" contains gamma's custom path.
+    await expect(
+      cleanWorktree(
+        { slug: "delta", keepBranch: false, json: true, primaryRepoRoot: repo },
+        { isPostgresReachable: async () => true, dropDatabase },
+      ),
+    ).rejects.toThrow(/overlaps registered worktree "gamma"/);
+
+    expect(dropDatabase).not.toHaveBeenCalled();
+    expect(readFileSync(join(beta.path, "beta-marker.txt"), "utf8")).toBe("owned by beta\n");
+    expect(readFileSync(join(gamma.path, "gamma-marker.txt"), "utf8")).toBe("owned by gamma\n");
+    expect(git(repo, ["branch", "--list", "worktree/beta"])).toContain("worktree/beta");
+    expect(git(repo, ["branch", "--list", "worktree/gamma"])).toContain("worktree/gamma");
+    expect(readWorktreeRegistry(repo).worktrees.beta?.status).toBe("active");
+    expect(readWorktreeRegistry(repo).worktrees.gamma?.status).toBe("active");
+  });
 });

@@ -75,11 +75,12 @@ that assumption directly.
    when a feature branch introduced it—without uncommitted changes; `--base`
    resolves against the primary repository, so pass a branch name or full commit
    SHA from `git rev-parse HEAD` run in the diagnosed checkout rather than
-   literal `HEAD` from a linked worktree; copy only the reproduction test into
-   the worktree, not the fix, run the check, then run
-   `vp run worktree:clean <slug>`) or set aside only the non-test changes, run
-   the reproduction, and see the assertion fail on the wrong value before
-   restoring the fix. Use `vp run worktree:list` to inspect active worktrees.
+   literal `HEAD` from a linked worktree; copy the reproduction test and any new
+   test-only fixtures or helpers it imports (not the production fix) into the
+   worktree, run the check, then run `vp run worktree:clean <slug>`) or set
+   aside only the non-test changes, run the reproduction, and see the assertion
+   fail on the wrong value before restoring the fix. Use `vp run worktree:list`
+   to inspect active worktrees.
    This is the [focused mutation check](../../../docs/guides/testing.md#focused-mutation-checks)
    applied to the fix itself.
 3. Search for the tag (`git grep -n 'DEBUG-a4f2'`) and remove every instrumented
