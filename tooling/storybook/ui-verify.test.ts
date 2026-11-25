@@ -1,9 +1,10 @@
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import type * as fs from "node:fs";
 import { createServer, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it, vi } from "vite-plus/test";
 
 import {
   DEFAULT_STORYBOOK_TARGETS,
@@ -27,6 +28,36 @@ import {
   type FocusVisualSnapshot,
   type RegisterCleanup,
 } from "./ui-verify.ts";
+
+// Lets a test run another process's step just before ui-verify moves or removes a given path.
+const fsRace = vi.hoisted(() => ({
+  path: undefined as string | undefined,
+  run: undefined as (() => void) | undefined,
+}));
+
+vi.mock("node:fs", async (importOriginal) => {
+  const actual = await importOriginal<typeof fs>();
+
+  const beforeTouching = (path: unknown) => {
+    if (fsRace.run && path === fsRace.path) {
+      const run = fsRace.run;
+      fsRace.run = undefined;
+      run();
+    }
+  };
+
+  return {
+    ...actual,
+    renameSync: (...args: Parameters<typeof actual.renameSync>) => {
+      beforeTouching(args[0]);
+      return actual.renameSync(...args);
+    },
+    rmSync: (...args: Parameters<typeof actual.rmSync>) => {
+      beforeTouching(args[0]);
+      return actual.rmSync(...args);
+    },
+  };
+});
 
 const baseStyle = (overrides: Partial<ElementStyleSnapshot> = {}): ElementStyleSnapshot => ({
   outlineStyle: "none",
@@ -751,7 +782,20 @@ describe("container delegation and proof reporting", () => {
         String(process.pid),
       );
       releaseStale();
+
+      // Another run replaces the stale lock after this run checked it but before it takes over.
+      const lockPath = join(tempDir, ".ui-verify.lock");
+      writeFileSync(lockPath, "2147483646\n", "utf8");
+      fsRace.path = lockPath;
+      fsRace.run = () => {
+        rmSync(lockPath);
+        writeFileSync(lockPath, "1\n", { encoding: "utf8", flag: "wx" });
+      };
+      expect(() => acquireOutputLock(tempDir)).toThrow(/Another ui:verify run \(pid 1\)/);
+      expect(readFileSync(lockPath, "utf8")).toBe("1\n");
+      expect(existsSync(`${lockPath}.${process.pid}`)).toBe(false);
     } finally {
+      fsRace.run = undefined;
       rmSync(tempDir, { recursive: true, force: true });
     }
   });

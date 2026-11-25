@@ -1,6 +1,16 @@
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  fstatSync,
+  mkdirSync,
+  openSync,
+  closeSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { createServer } from "node:net";
 import { dirname, join, relative, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
@@ -2028,6 +2038,29 @@ const storybookIndexSchema = z.object({
 
 const OUTPUT_LOCK_FILE = ".ui-verify.lock";
 
+const hasErrorCode = (error: unknown, code: string): boolean =>
+  error instanceof Error && "code" in error && error.code === code;
+
+type OutputLockFile = { content: string; inode: number };
+
+/** Reads a lock file's content and inode together, or returns undefined when it is gone. */
+const readOutputLock = (lockPath: string): OutputLockFile | undefined => {
+  let fd: number;
+  try {
+    fd = openSync(lockPath, "r");
+  } catch (error) {
+    if (hasErrorCode(error, "ENOENT")) {
+      return undefined;
+    }
+    throw error;
+  }
+  try {
+    return { content: readFileSync(fd, "utf8"), inode: fstatSync(fd).ino };
+  } finally {
+    closeSync(fd);
+  }
+};
+
 const isProcessAlive = (pid: number): boolean => {
   try {
     process.kill(pid, 0);
@@ -2040,12 +2073,19 @@ const isProcessAlive = (pid: number): boolean => {
 /**
  * Gives this run exclusive use of `outDir` until the returned release runs, so concurrent runs
  * cannot delete or replace each other's screenshots before their reports are published. A lock
- * whose owning process has exited is taken over.
+ * whose owning process has exited is taken over by moving that exact file aside first, so a run
+ * that loses the takeover race cannot delete the lock the winner created.
  */
 export const acquireOutputLock = (outDir: string): (() => void) => {
   mkdirSync(outDir, { recursive: true });
   const lockPath = join(outDir, OUTPUT_LOCK_FILE);
   const owner = String(process.pid);
+
+  const busy = (pid: number) =>
+    new Error(
+      `Another ui:verify run (pid ${pid}) is writing to "${outDir}". Wait for it to finish or pass a different --out directory.`,
+    );
+
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
       writeFileSync(lockPath, `${owner}\n`, { encoding: "utf8", flag: "wx" });
@@ -2055,17 +2095,37 @@ export const acquireOutputLock = (outDir: string): (() => void) => {
         }
       };
     } catch (error) {
-      if (!(error instanceof Error && "code" in error && error.code === "EEXIST")) {
+      if (!hasErrorCode(error, "EEXIST")) {
         throw error;
       }
     }
-    const ownerPid = Number.parseInt(readFileSync(lockPath, "utf8"), 10);
-    if (Number.isInteger(ownerPid) && ownerPid > 0 && isProcessAlive(ownerPid)) {
-      throw new Error(
-        `Another ui:verify run (pid ${ownerPid}) is writing to "${outDir}". Wait for it to finish or pass a different --out directory.`,
-      );
+    const stale = readOutputLock(lockPath);
+    if (!stale) {
+      continue;
     }
-    rmSync(lockPath, { force: true });
+    const ownerPid = Number.parseInt(stale.content, 10);
+    if (Number.isInteger(ownerPid) && ownerPid > 0 && isProcessAlive(ownerPid)) {
+      throw busy(ownerPid);
+    }
+    // Rename is atomic, so only this run holds whatever file it moved. Delete it only when it is
+    // the stale lock checked above (a freed inode can be reused, so compare content too), and
+    // otherwise put the newer run's lock back.
+    const claimPath = `${lockPath}.${owner}`;
+    try {
+      renameSync(lockPath, claimPath);
+    } catch (error) {
+      if (hasErrorCode(error, "ENOENT")) {
+        continue;
+      }
+      throw error;
+    }
+    const claimed = readOutputLock(claimPath);
+    if (!claimed || (claimed.inode === stale.inode && claimed.content === stale.content)) {
+      rmSync(claimPath, { force: true });
+      continue;
+    }
+    renameSync(claimPath, lockPath);
+    throw busy(Number.parseInt(claimed.content, 10));
   }
   throw new Error(`Could not lock "${outDir}" for ui:verify output.`);
 };
