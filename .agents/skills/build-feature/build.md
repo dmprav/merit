@@ -65,9 +65,9 @@ idle initial renders:
 vp run ui:verify --story <story-id>,<precedent-story-id> --out <dir>
 # Or verify a changed route and its precedent in the same app mode:
 vp run ui:verify --route <changed-route>,<precedent-route> --out <dir>
-# When routes use different modes (demo vs workspace), capture each into its own --out dir:
-vp run ui:verify --route <changed-route> --out <dir>/changed
-vp run ui:verify --route <precedent-route> --out <dir>/precedent
+# When routes use different modes, capture each with its mode into its own --out dir:
+vp run ui:verify --route <changed-route> --mode <demo|workspace> --out <dir>/changed
+vp run ui:verify --route <precedent-route> --mode <demo|workspace> --out <dir>/precedent
 ```
 
 Inspect `<dir>/report.md` and every captured pair under `<dir>/screenshots/` (for split runs,
