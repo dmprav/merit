@@ -344,6 +344,56 @@ test.describe("live Chromium checker failure detection", () => {
     expect(focus.failures[0]?.element).toContain("Earlier broken button");
   });
 
+  test("waits for the first rendering update so a pending autofocus cannot refocus a later button after the reset", async ({
+    newContext,
+  }) => {
+    const context = await newContext({ viewport: { width: 1280, height: 800 } });
+    const page = await context.newPage();
+
+    // A render-blocking script holds the first rendering update, where Chromium applies pending
+    // `autofocus`, until the checker has started. The finite animation keeps a checker that resets
+    // focus before that update waiting until the autofocus lands, as a slow CI frame can.
+    let releaseRenderBlock = () => {};
+
+    const renderBlockReleased = new Promise<void>((resolve) => {
+      releaseRenderBlock = resolve;
+    });
+    await page.route("http://ui-verify.test/**", async (route) => {
+      if (route.request().url().endsWith("/render-block.js")) {
+        await renderBlockReleased;
+        await route.fulfill({ contentType: "text/javascript", body: "" });
+        return;
+      }
+      await route.fulfill({
+        contentType: "text/html",
+        body: `<!doctype html><html lang="en"><head>${VIEWPORT_META}<title>Pending autofocus</title>
+          <script async blocking="render" src="/render-block.js"></script><style>
+          body { background: #fff; color: #111; }
+          @keyframes settle { from { opacity: 0.99; } to { opacity: 1; } }
+          h1 { animation: settle 400ms linear; }
+          button { padding: 8px 14px; background: #fff; color: #111; border: 1px solid #333; }
+          .broken, .broken:focus, .broken:focus-visible { outline: none; box-shadow: none; }
+          .ok:focus-visible { outline: 2px solid #0f62fe; outline-offset: 2px; }
+        </style></head><body><main>
+          <h1>Pending autofocus</h1>
+          <button class="broken" type="button">Earlier broken button</button>
+          <button id="later" class="ok" type="button" autofocus>Later focused button</button>
+          <script>document.getElementById("later").focus();</script>
+        </main></body></html>`,
+      });
+    });
+    await page.goto("http://ui-verify.test/", { waitUntil: "domcontentloaded" });
+
+    const traversal = checkKeyboardFocusTraversal(page);
+    setTimeout(releaseRenderBlock, 500);
+    const focus = await traversal;
+    expect(focus.incompleteReason).toBeUndefined();
+    expect(focus.stopsChecked).toBe(2);
+    expect(focus.failures.map((failure) => failure.element)).toEqual([
+      'button "Earlier broken button"',
+    ]);
+  });
+
   test("settles focus-blur CSS transitions on a single focus-trapped control (HTML and SVG)", async ({
     newContext,
   }) => {

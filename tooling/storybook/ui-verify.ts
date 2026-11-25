@@ -33,6 +33,8 @@ import { createTestDatabase } from "@merit/test-support/test-database";
 const REPO_ROOT = resolve(fileURLToPath(new URL("../../", import.meta.url)));
 const DEFAULT_OUT_DIR = ".tmp/ui-verify";
 const MAX_TAB_STOPS = 40;
+// Bounds the wait for the page's next rendering update, which never comes while rendering is blocked.
+const FOCUS_RENDER_UPDATE_TIMEOUT_MS = 5_000;
 const SERVER_READY_TIMEOUT_MS = 120_000;
 const STORYBOOK_READY_TIMEOUT_MS = 60_000;
 const PROCESS_EXIT_GRACE_MS = 5_000;
@@ -1249,7 +1251,7 @@ export const checkKeyboardFocusTraversal = async (
   page: Page,
   maxStops = MAX_TAB_STOPS,
 ): Promise<FocusCheckResult> => {
-  await page.evaluate(() => {
+  await page.evaluate(async (renderUpdateTimeoutMs: number) => {
     const pickStyle = (style: CSSStyleDeclaration, pseudo = false): ElementStyleSnapshot => ({
       outlineStyle: style.outlineStyle,
       outlineWidth: style.outlineWidth,
@@ -1406,7 +1408,18 @@ export const checkKeyboardFocusTraversal = async (
       isPainted,
       resetFocusToDocumentStart,
     };
-  });
+
+    // Chromium applies a pending `autofocus` in the next rendering update, but only while nothing
+    // has focus. Reading the initial focus before that update lets the reset below hand focus
+    // back to the autofocused control, so wait for one; animation frame callbacks run after it.
+    await new Promise<void>((resolve) => {
+      const timer = setTimeout(resolve, renderUpdateTimeoutMs);
+      requestAnimationFrame(() => {
+        clearTimeout(timer);
+        resolve();
+      });
+    });
+  }, FOCUS_RENDER_UPDATE_TIMEOUT_MS);
 
   const stops: CapturedStop[] = [];
   let reachedCap = false;
