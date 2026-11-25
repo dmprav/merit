@@ -139,8 +139,11 @@ When handing off or pausing work on an `agent:ready` GitHub issue (see
   - If another run will resume under the same ownership window, renew the claim
     first if approaching 90 minutes:
     `vpx tooling/agents/queue.ts claim <issue-number> --renew <runId>`
-  - Post the compacted handoff summary as an issue comment via REST:
-    `gh api repos/<owner>/<repo>/issues/<issue-number>/comments -X POST -F body=@.tmp/handoffs/<slug>.md`
+  - Post the compacted handoff summary as an issue comment via REST. For an
+    issue handoff the slug must be `issue-<issue-number>`, so the document's
+    title is `# Handoff: issue-<issue-number>`, which is what the resume step
+    selects:
+    `gh api repos/<owner>/<repo>/issues/<issue-number>/comments -X POST -F body=@.tmp/handoffs/issue-<issue-number>.md`
   - If blocked on an unsettled product, protected-path, or coverage-policy
     decision, do **not** hand off silently — escalate via:
     `vpx tooling/agents/queue.ts escalate <issue-number> --reason "<concise blocker from handoff>"`
