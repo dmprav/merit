@@ -393,6 +393,48 @@ describe("detectFocusVisualChange", () => {
     ).toEqual({ changed: false, reasons: [] });
   });
 
+  it("counts a border change only on a side that paints before or after focus", () => {
+    const noBorder = {
+      borderTopWidth: "0px",
+      borderRightWidth: "0px",
+      borderBottomWidth: "0px",
+      borderLeftWidth: "0px",
+    };
+    expect(
+      detectFocusVisualChange(
+        baseSnapshot({ self: baseStyle(noBorder) }),
+        baseSnapshot({ self: baseStyle({ ...noBorder, borderTopColor: "rgb(15, 98, 254)" }) }),
+      ),
+    ).toEqual({ changed: false, reasons: [] });
+
+    expect(
+      detectFocusVisualChange(
+        baseSnapshot({ self: baseStyle({ ...noBorder, borderTopWidth: "2px" }) }),
+        baseSnapshot({
+          self: baseStyle({
+            ...noBorder,
+            borderTopWidth: "2px",
+            borderLeftColor: "rgb(15, 98, 254)",
+          }),
+        }),
+      ),
+    ).toEqual({ changed: false, reasons: [] });
+
+    expect(
+      detectFocusVisualChange(
+        baseSnapshot(),
+        baseSnapshot({ self: baseStyle({ borderTopColor: "rgb(15, 98, 254)" }) }),
+      ),
+    ).toEqual({ changed: true, reasons: ["self:border"] });
+
+    expect(
+      detectFocusVisualChange(
+        baseSnapshot({ self: baseStyle(noBorder) }),
+        baseSnapshot({ self: baseStyle({ ...noBorder, borderBottomWidth: "2px" }) }),
+      ),
+    ).toEqual({ changed: true, reasons: ["self:border"] });
+  });
+
   it("counts a text-decoration thickness change only while a decoration line is painted", () => {
     expect(
       detectFocusVisualChange(

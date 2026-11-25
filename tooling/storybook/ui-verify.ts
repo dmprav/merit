@@ -683,12 +683,16 @@ const hasVisibleOutline = (style: ElementStyleSnapshot): boolean =>
   Number.parseFloat(style.outlineWidth) > 0 &&
   !isTransparentColor(style.outlineColor);
 
+const BORDER_SIDES = ["Top", "Right", "Bottom", "Left"] as const;
+
+type BorderSide = (typeof BORDER_SIDES)[number];
+
+const borderSidePaints = (style: ElementStyleSnapshot, side: BorderSide): boolean =>
+  Number.parseFloat(style[`border${side}Width`]) > 0 &&
+  !isTransparentColor(style[`border${side}Color`]);
+
 const hasVisibleBorder = (style: ElementStyleSnapshot): boolean =>
-  (Number.parseFloat(style.borderTopWidth) > 0 && !isTransparentColor(style.borderTopColor)) ||
-  (Number.parseFloat(style.borderRightWidth) > 0 && !isTransparentColor(style.borderRightColor)) ||
-  (Number.parseFloat(style.borderBottomWidth) > 0 &&
-    !isTransparentColor(style.borderBottomColor)) ||
-  (Number.parseFloat(style.borderLeftWidth) > 0 && !isTransparentColor(style.borderLeftColor));
+  BORDER_SIDES.some((side) => borderSidePaints(style, side));
 
 const hasVisibleBackground = (style: ElementStyleSnapshot): boolean =>
   (style.backgroundColor.trim() !== "" && !isTransparentColor(style.backgroundColor)) ||
@@ -732,15 +736,14 @@ const compareStyleSnapshots = (
   if (focused.boxShadow !== unfocused.boxShadow && hasVisibleBoxShadow(focused.boxShadow)) {
     reasons.push(`${scope}:box-shadow`);
   }
-  const borderChanged =
-    unfocused.borderTopColor !== focused.borderTopColor ||
-    unfocused.borderRightColor !== focused.borderRightColor ||
-    unfocused.borderBottomColor !== focused.borderBottomColor ||
-    unfocused.borderLeftColor !== focused.borderLeftColor ||
-    unfocused.borderTopWidth !== focused.borderTopWidth ||
-    unfocused.borderRightWidth !== focused.borderRightWidth ||
-    unfocused.borderBottomWidth !== focused.borderBottomWidth ||
-    unfocused.borderLeftWidth !== focused.borderLeftWidth;
+  // A side's change shows only when that side paints before or after it; a zero-width or
+  // transparent border can change color without drawing anything.
+  const borderChanged = BORDER_SIDES.some(
+    (side) =>
+      (unfocused[`border${side}Color`] !== focused[`border${side}Color`] ||
+        unfocused[`border${side}Width`] !== focused[`border${side}Width`]) &&
+      (borderSidePaints(unfocused, side) || borderSidePaints(focused, side)),
+  );
   if (borderChanged && (!isPseudo || hasVisibleBorder(focused))) {
     reasons.push(`${scope}:border`);
   }
