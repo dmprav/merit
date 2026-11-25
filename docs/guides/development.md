@@ -259,7 +259,9 @@ If Git removed a custom `--dir` checkout's `.git` but not its files,
 itself: check it, delete it, and rerun `vp run worktree:clean <slug>`. If
 PostgreSQL is stopped when running `worktree:clean`, the database drop is skipped; start services with
 `vp run services:start` and rerun `vp run worktree:clean <slug>` before reusing
-the slug.
+the slug. If the first run used `--keep-branch`, pass it again: the retry no
+longer has the registry record and otherwise deletes the default
+`worktree/<slug>` branch.
 
 ## Schema changes
 
