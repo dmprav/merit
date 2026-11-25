@@ -900,10 +900,14 @@ test.describe("live Chromium checker failure detection", () => {
         </script></body></html>`,
       );
 
-      expect(existsSync(join(outDir, "screenshots", "overflow-after-capture-desktop.png"))).toBe(
-        true,
+      const screenshot = readFileSync(
+        join(outDir, "screenshots", "overflow-after-capture-desktop.png"),
       );
+      // A PNG stores its width in the IHDR chunk right after the 8-byte signature and chunk header.
+      const screenshotWidth = screenshot.readUInt32BE(16);
       expect(result.hasHorizontalOverflow).toBe(true);
+      expect(screenshotWidth).toBe(result.scrollWidth);
+      expect(screenshotWidth).toBeGreaterThan(result.innerWidth);
       expect(result.passed).toBe(false);
     });
   });
