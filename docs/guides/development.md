@@ -219,9 +219,18 @@ migrate, and seed its database—`db:migrate` connects to the target database an
 does not create it. When the database was created during `worktree:create`, run
 `vp run db:reset` or `vp run @merit/db#db:migrate` followed by
 `vp run @merit/app#db:seed` inside the worktree to initialize its schema and
-seed data. `worktree:clean` idempotently removes the worktree, drops its
-dedicated database (refusing to touch `merit` or `postgres`), prunes stale
-worktrees, and deletes the worktree branch unless `--keep-branch` is passed.
+seed data. Before running `vp run db:reset` inside a worktree, unset any
+exported shell `DATABASE_URL` because it takes precedence over `.env.local`.
+
+`worktree:clean` idempotently force-removes the checkout directory, prunes stale
+worktrees, drops its dedicated database (refusing to touch `merit` or
+`postgres`), and deletes the worktree branch with `git branch -D` unless
+`--keep-branch` is passed. Force-removing the checkout discards uncommitted
+changes and `git branch -D` discards unmerged commits (`--keep-branch` preserves
+the branch, not uncommitted files). If PostgreSQL is stopped when running
+`worktree:clean`, the database drop is skipped; start services with
+`vp run services:start` and rerun `vp run worktree:clean <slug>` before reusing
+the slug.
 
 ## Schema changes
 

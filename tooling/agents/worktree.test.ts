@@ -928,7 +928,10 @@ describe("worktree lifecycle in temp git repos", () => {
     const markerDir = realpathSync(mkdtempSync(join(tmpdir(), "merit-hook-marker-")));
     tempDirs.push(markerDir);
     const markerFile = join(markerDir, "post-checkout-ran.txt");
-    const hookPath = join(repo, ".git", "hooks", "post-checkout");
+    const hooksDir = join(repo, ".git", "hooks");
+    mkdirSync(hooksDir, { recursive: true });
+    git(repo, ["config", "core.hooksPath", hooksDir]);
+    const hookPath = join(hooksDir, "post-checkout");
     writeFileSync(
       hookPath,
       `#!/usr/bin/env sh\nprintf 'hook-ran\\n' > '${markerFile.replaceAll("'", "'\\''")}'\nexit 1\n`,
@@ -1484,5 +1487,242 @@ describe("worktree lifecycle in temp git repos", () => {
       ),
     ).rejects.toThrow(/no longer matches this cleanup claim/);
     expect(readWorktreeRegistry(repo).worktrees["claim-end"]?.cleanToken).toBe("end-foreign-token");
+  });
+
+  test("createWorktree refreshes active Git worktrees after port probes and rejects newly overlapping worktrees", async () => {
+    const repo = initTempRepo(false);
+    const customParent = realpathSync(mkdtempSync(join(tmpdir(), "merit-probe-overlap-")));
+    tempDirs.push(customParent);
+    const externalWorktreeDir = join(customParent, "group", "external-wt");
+    const nestedTargetDir = join(externalWorktreeDir, "nested");
+
+    let addedExternalDuringProbe = false;
+    await expect(
+      createWorktree(
+        {
+          slug: "late-overlap",
+          dir: nestedTargetDir,
+          dbMode: "skip",
+          doctor: false,
+          json: true,
+          primaryRepoRoot: repo,
+        },
+        {
+          execCommand: () => {},
+          checkPortAvailable: async () => {
+            if (!addedExternalDuringProbe) {
+              addedExternalDuringProbe = true;
+              mkdirSync(dirname(externalWorktreeDir), { recursive: true });
+              git(repo, ["worktree", "add", "-b", "feat/external-wt", externalWorktreeDir, "main"]);
+            }
+            return true;
+          },
+        },
+      ),
+    ).rejects.toThrow(/overlaps existing worktree/);
+
+    expect(existsSync(externalWorktreeDir)).toBe(true);
+    expect(existsSync(nestedTargetDir)).toBe(false);
+    expect(git(repo, ["branch", "--list", "worktree/late-overlap"])).toBe("");
+    expect(readWorktreeRegistry(repo).worktrees["late-overlap"]).toBeUndefined();
+  });
+
+  test("createWorktree rollback preserves original error, drops DB, and retains registry record when checkout removal fails", async () => {
+    const repo = initTempRepo(false);
+    const droppedDbs: string[] = [];
+
+    const realGit = (dir: string, args: readonly string[]) =>
+      execFileSync("git", ["-c", "commit.gpgsign=false", ...args], {
+        cwd: dir,
+        encoding: "utf8",
+        env: isolatedGitEnv(),
+      });
+
+    await expect(
+      createWorktree(
+        {
+          slug: "stuck-checkout",
+          branch: "feat/stuck-branch",
+          dbMode: "required",
+          doctor: true,
+          json: true,
+          primaryRepoRoot: repo,
+        },
+        {
+          execGit: (dir, args) => {
+            if (args[0] === "worktree" && args[1] === "remove") {
+              throw new Error("git worktree remove permission denied");
+            }
+            return realGit(dir, args);
+          },
+          execCommand: (_command, args) => {
+            if (args.includes("--doctor")) {
+              throw new Error("doctor check failed");
+            }
+          },
+          checkPortAvailable: async () => true,
+          isPostgresReachable: async () => true,
+          ensureDatabase: async () => ({ created: true }),
+          dropDatabase: async (name) => {
+            droppedDbs.push(name);
+          },
+          removeDirectory: () => {
+            throw new Error("EACCES: directory not writable");
+          },
+        },
+      ),
+    ).rejects.toThrow(
+      /doctor check failed.*rollback could not remove checkout.*EACCES: directory not writable/,
+    );
+
+    const expectedPath = join(repo, ".tmp/worktrees/stuck-checkout");
+    expect(droppedDbs).toEqual(["merit_stuck_checkout"]);
+    expect(existsSync(expectedPath)).toBe(true);
+
+    const retained = readWorktreeRegistry(repo).worktrees["stuck-checkout"];
+    expect(retained).toMatchObject({
+      slug: "stuck-checkout",
+      path: expectedPath,
+      branch: "feat/stuck-branch",
+      databaseCreated: false,
+      status: "cleaning",
+    });
+    expect(retained?.gitDir).toBeTruthy();
+
+    // Once directory removal succeeds, worktree:clean removes the remaining checkout, branch, and record.
+    const cleaned = await cleanWorktree(
+      { slug: "stuck-checkout", keepBranch: false, json: true, primaryRepoRoot: repo },
+      { isPostgresReachable: async () => false },
+    );
+    expect(cleaned).toMatchObject({
+      slug: "stuck-checkout",
+      worktreeRemoved: true,
+      branchDeleted: true,
+      registryRemoved: true,
+    });
+    expect(existsSync(expectedPath)).toBe(false);
+    expect(git(repo, ["branch", "--list", "feat/stuck-branch"])).toBe("");
+    expect(readWorktreeRegistry(repo).worktrees["stuck-checkout"]).toBeUndefined();
+  });
+
+  test("cleanWorktree holds the registry lock across unrecorded DB drop so concurrent same-slug create cannot interleave", async () => {
+    const repo = initTempRepo(false);
+    const events: string[] = [];
+    const dropStarted = createDeferred<void>();
+    const releaseDrop = createDeferred<void>();
+    const createReadyForLock = createDeferred<void>();
+    let createEnteredCriticalSection = false;
+
+    const lockOptions = { initialDelayMs: 5, maxDelayMs: 15, timeoutMs: 5_000 };
+
+    const cleanPromise = cleanWorktree(
+      { slug: "unrecorded-race", keepBranch: false, json: true, primaryRepoRoot: repo },
+      {
+        isPostgresReachable: async () => true,
+        dropDatabase: async (name) => {
+          events.push(`drop:start:${name}`);
+          dropStarted.resolve();
+          await releaseDrop.promise;
+          events.push(`drop:end:${name}`);
+        },
+        lockOptions,
+      },
+    );
+
+    await dropStarted.promise;
+    expect(existsSync(registryLockPathForRepo(repo))).toBe(true);
+
+    const createPromise = createWorktree(
+      {
+        slug: "unrecorded-race",
+        dbMode: "required",
+        doctor: false,
+        json: true,
+        primaryRepoRoot: repo,
+      },
+      {
+        execCommand: () => {},
+        checkPortAvailable: async () => {
+          createEnteredCriticalSection = true;
+          return true;
+        },
+        isPostgresReachable: async () => {
+          createReadyForLock.resolve();
+          return true;
+        },
+        ensureDatabase: async (name) => {
+          events.push(`create:db:${name}`);
+          return { created: true };
+        },
+        lockOptions,
+      },
+    );
+
+    await createReadyForLock.promise;
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(createEnteredCriticalSection).toBe(false);
+
+    releaseDrop.resolve();
+    const [cleanResult, createResult] = await Promise.all([cleanPromise, createPromise]);
+
+    expect(createEnteredCriticalSection).toBe(true);
+    expect(cleanResult).toMatchObject({
+      slug: "unrecorded-race",
+      databaseDropped: true,
+      registryRemoved: false,
+    });
+    expect(createResult.databaseCreated).toBe(true);
+    expect(events).toEqual([
+      "drop:start:merit_unrecorded_race",
+      "drop:end:merit_unrecorded_race",
+      "create:db:merit_unrecorded_race",
+    ]);
+    expect(readWorktreeRegistry(repo).worktrees["unrecorded-race"]?.status).toBe("active");
+  });
+
+  test("cleanWorktree refuses cleanup and preserves a replacement checkout when another worktree occupies the recorded path", async () => {
+    const repo = initTempRepo(false);
+    const movedParent = realpathSync(mkdtempSync(join(tmpdir(), "merit-moved-wt-")));
+    tempDirs.push(movedParent);
+    const movedAlphaPath = join(movedParent, "alpha-moved");
+
+    const alpha = await createWorktree(
+      {
+        slug: "alpha",
+        dbMode: "skip",
+        doctor: false,
+        json: true,
+        primaryRepoRoot: repo,
+      },
+      {
+        execCommand: () => {},
+        checkPortAvailable: async () => true,
+      },
+    );
+
+    const recordedAlpha = readWorktreeRegistry(repo).worktrees.alpha;
+    expect(recordedAlpha?.gitDir).toBeTruthy();
+
+    // Move alpha away and create a different linked worktree at alpha's old path.
+    git(repo, ["worktree", "move", alpha.path, movedAlphaPath]);
+    git(repo, ["worktree", "add", "-b", "feat/replacement", alpha.path, "main"]);
+    writeFileSync(join(alpha.path, "replacement-marker.txt"), "preserve me\n", "utf8");
+
+    const dropDatabase = vi.fn();
+    await expect(
+      cleanWorktree(
+        { slug: "alpha", keepBranch: false, json: true, primaryRepoRoot: repo },
+        { isPostgresReachable: async () => true, dropDatabase },
+      ),
+    ).rejects.toThrow(/checkout identity mismatch/);
+
+    expect(dropDatabase).not.toHaveBeenCalled();
+    expect(existsSync(join(alpha.path, "replacement-marker.txt"))).toBe(true);
+    expect(readFileSync(join(alpha.path, "replacement-marker.txt"), "utf8")).toBe("preserve me\n");
+    expect(existsSync(movedAlphaPath)).toBe(true);
+    expect(git(repo, ["branch", "--list", "feat/replacement"])).toContain("feat/replacement");
+    expect(git(repo, ["branch", "--list", "worktree/alpha"])).toContain("worktree/alpha");
+    expect(readWorktreeRegistry(repo).worktrees.alpha?.status).toBe("active");
   });
 });

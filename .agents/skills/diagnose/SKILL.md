@@ -72,8 +72,11 @@ that assumption directly.
 2. Confirm it fails without the fix: either test in an isolated worktree
    (`vp run worktree:create <slug> --base <rev>` checks out the committed
    revision `<rev>` containing the regression—not always `origin/main`, such as
-   when a feature branch introduced it—without uncommitted changes; copy only
-   the reproduction test into the worktree, not the fix, run the check, then run
+   when a feature branch introduced it—without uncommitted changes; `--base`
+   resolves against the primary repository, so pass a branch name or full commit
+   SHA from `git rev-parse HEAD` run in the diagnosed checkout rather than
+   literal `HEAD` from a linked worktree; copy only the reproduction test into
+   the worktree, not the fix, run the check, then run
    `vp run worktree:clean <slug>`) or set aside only the non-test changes, run
    the reproduction, and see the assertion fail on the wrong value before
    restoring the fix. Use `vp run worktree:list` to inspect active worktrees.
