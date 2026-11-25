@@ -2328,4 +2328,28 @@ describe("worktree lifecycle in temp git repos", () => {
     expect(git(repo, ["branch", "--list", branch])).toContain(branch);
     expect(readWorktreeRegistry(repo).worktrees.alpha?.status).toBe("creating");
   });
+
+  test("listWorktrees follows a moved checkout by its token and ignores another checkout at its old path", async () => {
+    const repo = initTempRepo(false);
+    const movedParent = realpathSync(mkdtempSync(join(tmpdir(), "merit-moved-list-")));
+    tempDirs.push(movedParent);
+    const movedPath = join(movedParent, "alpha-moved");
+
+    const alpha = await createWorktree(
+      { slug: "alpha", dbMode: "skip", doctor: false, json: true, primaryRepoRoot: repo },
+      { execCommand: () => {}, checkPortAvailable: async () => true },
+    );
+    git(repo, ["worktree", "move", alpha.path, movedPath]);
+    git(repo, ["worktree", "add", "-b", "feat/other", alpha.path, "main"]);
+
+    expect(listWorktrees({ primaryRepoRoot: repo })).toEqual([
+      expect.objectContaining({
+        slug: "alpha",
+        path: movedPath,
+        branch: "worktree/alpha",
+        databaseName: "merit_alpha",
+        ports: alpha.ports,
+      }),
+    ]);
+  });
 });

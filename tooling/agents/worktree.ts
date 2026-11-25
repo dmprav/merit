@@ -1431,26 +1431,31 @@ export const listWorktrees = (
   const activeByPath = new Map(gitWorktrees.map((entry) => [canonicalPath(entry.path), entry]));
 
   return Object.values(registry.worktrees)
-    .filter((record) => {
+    .flatMap((record) => {
       if (record.status === "cleaning" || record.status === "creating") {
-        return false;
+        return [];
       }
-      const normalized = canonicalPath(record.path);
-      return activeByPath.has(normalized) && existsSync(normalized);
+      // Follow a checkout moved with `git worktree move` through its token, and never attribute
+      // another checkout at the recorded path to this record.
+      const checkoutPath = record.checkoutToken
+        ? currentCheckoutPath(record)
+        : canonicalPath(record.path);
+      const gitEntry = checkoutPath ? activeByPath.get(checkoutPath) : undefined;
+      if (!checkoutPath || !gitEntry || !existsSync(checkoutPath)) {
+        return [];
+      }
+      return [
+        {
+          slug: record.slug,
+          path: checkoutPath,
+          branch: gitEntry.branch ?? record.branch,
+          databaseName: record.databaseName,
+          databaseUrl: record.databaseUrl,
+          ports: record.ports,
+        },
+      ];
     })
-    .sort((left, right) => left.slug.localeCompare(right.slug))
-    .map((record) => {
-      const normalized = canonicalPath(record.path);
-      const gitEntry = activeByPath.get(normalized);
-      return {
-        slug: record.slug,
-        path: normalized,
-        branch: gitEntry?.branch ?? record.branch,
-        databaseName: record.databaseName,
-        databaseUrl: record.databaseUrl,
-        ports: record.ports,
-      };
-    });
+    .sort((left, right) => left.slug.localeCompare(right.slug));
 };
 
 const matchesCleanClaim = (
