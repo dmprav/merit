@@ -204,10 +204,11 @@ test("create, prepare, reconcile and delete an empty funding round", async ({
 
   await page.getByRole("button", { name: /^Edit budget:/ }).click();
   dialog = page.getByRole("dialog", { name: "Edit budget" });
-  await dialog.getByRole("textbox", { name: "Round budget" }).fill("100.123");
+  const budget = dialog.getByRole("textbox", { name: "Round budget" });
+  await budget.fill("100.123");
 
-  await expect(dialog.getByRole("status")).toContainText("Use up to two decimal places");
-  await expect(dialog.getByRole("textbox", { name: "Round budget" })).toHaveValue("");
+  await expect(budget).toHaveAccessibleDescription(/Use up to two decimal places/);
+  await expect(budget).toHaveValue("");
 
   await dialog.getByRole("textbox", { name: "Round budget" }).fill("0");
   await dialog.getByRole("button", { name: "Update budget", exact: true }).click();
