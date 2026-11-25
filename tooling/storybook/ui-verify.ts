@@ -154,6 +154,7 @@ const targetCheckResultSchema = z.object({
   axeViolations: z.array(axeViolationSchema),
   browserErrors: z.array(browserErrorSchema),
   focus: focusCheckResultSchema,
+  /** Set when the target failed before its audit; audit and focus fields are then placeholders. */
   error: z.string().optional(),
 });
 
@@ -1899,16 +1900,22 @@ export const formatMarkdownReport = (results: UiVerifyResults): string => {
     "| --- | --- | --- | ---: | --- | ---: | --- | --- |",
   );
 
+  const NOT_CHECKED = "not checked";
   for (const item of results.targets) {
     const status = item.passed ? "PASS" : "FAIL";
-    const overflow = item.hasHorizontalOverflow
-      ? `FAIL (${item.scrollWidth}>${item.innerWidth})`
-      : "OK";
+    // A target that failed before its audit has placeholder measurements, not results.
+    const audited = item.error === undefined;
+    const overflow = !audited
+      ? NOT_CHECKED
+      : item.hasHorizontalOverflow
+        ? `FAIL (${item.scrollWidth}>${item.innerWidth})`
+        : "OK";
     const incompleteLabel =
       item.focus.incompleteReason ?? `Incomplete: >${item.focus.stopsChecked} stops`;
     const incomplete = isFocusTraversalIncomplete(item.focus);
-    const focusCell =
-      item.focus.failures.length > 0 && incomplete
+    const focusCell = !audited
+      ? NOT_CHECKED
+      : item.focus.failures.length > 0 && incomplete
         ? `FAIL (${item.focus.failures.length}/${item.focus.stopsChecked}; ${incompleteLabel})`
         : item.focus.failures.length > 0
           ? `FAIL (${item.focus.failures.length}/${item.focus.stopsChecked})`
@@ -1921,7 +1928,7 @@ export const formatMarkdownReport = (results: UiVerifyResults): string => {
     const redirect = redirectedRouteUrl(item);
     const targetCell = `\`${item.name.replaceAll("|", "\\|")}\`${redirect ? ` → \`${redirect.replaceAll("|", "\\|")}\`` : ""}`;
     lines.push(
-      `| ${targetCell} | ${item.viewport} | ${status} | ${item.axeViolations.length} | ${overflow} | ${item.browserErrors.length} | ${focusCell} | ${screenshotCell} |`,
+      `| ${targetCell} | ${item.viewport} | ${status} | ${audited ? item.axeViolations.length : NOT_CHECKED} | ${overflow} | ${item.browserErrors.length} | ${focusCell} | ${screenshotCell} |`,
     );
   }
 
@@ -1930,36 +1937,38 @@ export const formatMarkdownReport = (results: UiVerifyResults): string => {
     lines.push("", "## Failures", "");
     for (const item of failedTargets) {
       lines.push(`### \`${item.name}\` (${item.viewport})`, "");
+      // A target that failed before its audit has placeholder measurements, so omit them.
       if (item.error) {
         lines.push(`- **Runtime error:** ${item.error}`);
-      }
-      if (item.viteErrorOverlayCount > 0) {
-        lines.push(`- **Vite error overlay:** ${item.viteErrorOverlayCount} detected`);
-      }
-      if (!item.bodyVisible) {
-        lines.push("- **Body visibility:** document body was not visible");
-      }
-      if (!item.dialogsVisible) {
-        lines.push("- **Dialog visibility:** an open dialog remained transparent");
-      }
-      if (item.enteringOrExitingCount > 0) {
-        lines.push(
-          `- **Unsettled transitions:** ${item.enteringOrExitingCount} element(s) still marked entering/exiting`,
-        );
-      }
-      if (item.hasHorizontalOverflow) {
-        lines.push(
-          `- **Horizontal overflow:** \`scrollWidth=${item.scrollWidth}\` > \`innerWidth=${item.innerWidth}\``,
-        );
-      }
-      for (const violation of item.axeViolations) {
-        const targets = violation.nodes
-          .slice(0, 3)
-          .map((node) => node.target.join(" "))
-          .join(", ");
-        lines.push(
-          `- **Axe [${violation.impact ?? "unknown"}] \`${violation.id}\`:** ${violation.help}${targets ? ` (${targets})` : ""}`,
-        );
+      } else {
+        if (item.viteErrorOverlayCount > 0) {
+          lines.push(`- **Vite error overlay:** ${item.viteErrorOverlayCount} detected`);
+        }
+        if (!item.bodyVisible) {
+          lines.push("- **Body visibility:** document body was not visible");
+        }
+        if (!item.dialogsVisible) {
+          lines.push("- **Dialog visibility:** an open dialog remained transparent");
+        }
+        if (item.enteringOrExitingCount > 0) {
+          lines.push(
+            `- **Unsettled transitions:** ${item.enteringOrExitingCount} element(s) still marked entering/exiting`,
+          );
+        }
+        if (item.hasHorizontalOverflow) {
+          lines.push(
+            `- **Horizontal overflow:** \`scrollWidth=${item.scrollWidth}\` > \`innerWidth=${item.innerWidth}\``,
+          );
+        }
+        for (const violation of item.axeViolations) {
+          const targets = violation.nodes
+            .slice(0, 3)
+            .map((node) => node.target.join(" "))
+            .join(", ");
+          lines.push(
+            `- **Axe [${violation.impact ?? "unknown"}] \`${violation.id}\`:** ${violation.help}${targets ? ` (${targets})` : ""}`,
+          );
+        }
       }
       for (const err of item.browserErrors) {
         lines.push(`- **Browser ${err.type}:** ${err.message}`);

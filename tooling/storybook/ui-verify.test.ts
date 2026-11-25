@@ -624,6 +624,46 @@ describe("container delegation and proof reporting", () => {
     expect(report).toContain("| `/demo` | desktop | PASS |");
   });
 
+  it("reports checks a target never reached as not checked instead of passed or failed", () => {
+    const report = formatMarkdownReport(
+      summarizeResults({
+        mode: "app",
+        appMode: "demo",
+        updated: false,
+        outDir: "/tmp/out",
+        generatedAt: "2026-01-01T00:00:00.000Z",
+        targets: [
+          {
+            kind: "route",
+            target: "/missing",
+            name: "/missing",
+            url: "http://127.0.0.1:1/missing",
+            viewport: "desktop",
+            passed: false,
+            screenshot: null,
+            viteErrorOverlayCount: 0,
+            bodyVisible: false,
+            dialogsVisible: false,
+            enteringOrExitingCount: 0,
+            scrollWidth: 0,
+            innerWidth: 0,
+            hasHorizontalOverflow: false,
+            axeViolations: [],
+            browserErrors: [],
+            focus: { stopsChecked: 0, reachedCap: false, failures: [] },
+            error: 'Route "/missing" returned HTTP 404 at http://127.0.0.1:1/missing.',
+          },
+        ],
+      }),
+    );
+    expect(report).toContain(
+      "| `/missing` | desktop | FAIL | not checked | not checked | 0 | not checked | — |",
+    );
+    expect(report).toContain("- **Runtime error:** Route");
+    expect(report).not.toContain("Body visibility");
+    expect(report).not.toContain("Dialog visibility");
+  });
+
   it("keeps other targets' screenshots and reports a failed --update cleanup instead of leaving a stale PASS", async () => {
     const tempDir = mkdtempSync(join(tmpdir(), "merit-ui-verify-update-"));
     const outDir = join(tempDir, "out");

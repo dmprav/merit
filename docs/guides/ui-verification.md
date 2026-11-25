@@ -146,6 +146,8 @@ focus that enters a cross-origin frame or navigates to a new document fails as i
 (override with `--out <dir>`): `report.md`, Zod-validated `results.json`, and
 `screenshots/*.png`. A route that redirects, such as to sign-in, is checked where it lands:
 `results.json` records that page as `url`, and `report.md` shows it after the requested route.
+When a target fails before its checks run, such as on an HTTP error, `results.json` records the
+`error` and `report.md` marks its axe, overflow, and focus checks as not checked.
 Servers and ephemeral databases are torn down automatically on exit or
 failure. Pass `--update` on host runs to delete the selected targets' previous screenshots for
 the selected viewports before checking; screenshots of other targets and viewports stay. A run
