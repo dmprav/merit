@@ -27,14 +27,12 @@ export const createTestDatabase = async () => {
   const client = new Client({ connectionString: url.href, connectionTimeoutMillis: 5000 });
 
   const role = name + "_runtime";
-  let runtimeCreated = false;
 
   const migrate = () => migrateDatabase(client);
 
   const createRuntimeConnection = async () => {
     const password = randomUUID();
     await client.query(`CREATE ROLE "${role}" LOGIN NOBYPASSRLS PASSWORD '${password}'`);
-    runtimeCreated = true;
     await grantRuntimePrivileges(client, role);
     const runtime = new URL(url);
     runtime.username = role;
@@ -45,10 +43,10 @@ export const createTestDatabase = async () => {
   const dispose = async () => {
     try {
       await client.end();
+      // FORCE ends this database's sessions, so an interrupted CREATE ROLE has committed or rolled
+      // back by now; drop the role even when its creation was never acknowledged.
       await admin.query(`DROP DATABASE "${name}" WITH (FORCE)`);
-      if (runtimeCreated) {
-        await admin.query(`DROP ROLE "${role}"`);
-      }
+      await admin.query(`DROP ROLE IF EXISTS "${role}"`);
     } finally {
       await admin.end();
     }

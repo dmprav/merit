@@ -8,6 +8,7 @@ export default defineConfig({
       "../capabilities/*/business/tests/**/*.integration.ts",
       "../capabilities/access/tests/**/*.integration.ts",
       "../foundation/auth/tests/**/*.integration.ts",
+      "../tooling/testing/database/**/*.integration.ts",
     ],
     testTimeout: 10000,
     hookTimeout: 15000,
