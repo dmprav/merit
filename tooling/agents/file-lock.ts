@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import {
   closeSync,
   constants as fsConstants,
+  fstatSync,
   mkdirSync,
   openSync,
   readFileSync,
@@ -33,6 +34,7 @@ export type FileLockOptions = {
   maxDelayMs?: number;
   isProcessAlive?: (pid: number) => boolean;
   nowMs?: () => number;
+  writeMetadata?: (fd: number, payload: string) => void;
 };
 
 export const getErrnoCode = (error: unknown): string | undefined => {
@@ -122,6 +124,11 @@ export const withFileLock = async <T>(
   const maxDelayMs = options.maxDelayMs ?? DEFAULT_LOCK_MAX_DELAY_MS;
   const checkProcessAlive = options.isProcessAlive ?? isProcessAlive;
   const nowMs = options.nowMs ?? Date.now;
+  const writeMetadata =
+    options.writeMetadata ??
+    ((fd: number, metadata: string) => {
+      writeFileSync(fd, metadata, "utf8");
+    });
 
   mkdirSync(dirname(lockPath), { recursive: true });
 
@@ -132,18 +139,13 @@ export const withFileLock = async <T>(
   let acquired = false;
 
   while (!acquired) {
+    let fd: number;
     try {
-      const fd = openSync(
+      fd = openSync(
         lockPath,
         fsConstants.O_CREAT | fsConstants.O_EXCL | fsConstants.O_WRONLY,
         0o600,
       );
-      try {
-        writeFileSync(fd, payload, "utf8");
-      } finally {
-        closeSync(fd);
-      }
-      acquired = true;
     } catch (error) {
       if (getErrnoCode(error) !== "EEXIST") {
         throw error;
@@ -159,7 +161,38 @@ export const withFileLock = async <T>(
       }
       await sleep(Math.min(delayMs, remainingMs));
       delayMs = Math.min(delayMs * 2, maxDelayMs);
+      continue;
     }
+
+    let fdClosed = false;
+    let createdStat: ReturnType<typeof fstatSync> | undefined;
+    try {
+      createdStat = fstatSync(fd);
+      writeMetadata(fd, payload);
+      closeSync(fd);
+      fdClosed = true;
+    } catch (error) {
+      if (!fdClosed) {
+        try {
+          closeSync(fd);
+        } catch {
+          // Best-effort close on failed acquisition.
+        }
+      }
+      try {
+        const currentStat = statSync(lockPath);
+        if (
+          !createdStat ||
+          (currentStat.dev === createdStat.dev && currentStat.ino === createdStat.ino)
+        ) {
+          unlinkSync(lockPath);
+        }
+      } catch {
+        // Lock file was already removed.
+      }
+      throw error;
+    }
+    acquired = true;
   }
 
   try {

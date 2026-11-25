@@ -133,8 +133,8 @@ lines, run one more fresh reviewer round. **Stop after two rounds**; carry any
 non-blocking follow-up to the PR's **Follow-ups** section, or escalate if
 blocking. Record multi-round review triage rulings with
 `vp run agent:ledger -- log --slug issue-<issue-number> --run-id <runId> --phase review ...`
-so `vp run agent:ledger -- summary` informs `verifications/<pr-number>.md` and
-any [handoff](../handoff/SKILL.md).
+so `vp run agent:ledger -- summary --slug issue-<issue-number>` informs
+`verifications/<pr-number>.md` and any [handoff](../handoff/SKILL.md).
 
 If subagents are unavailable in the current environment, reread the full diff
 from disk against [review.md](../build-feature/review.md) and note explicitly in

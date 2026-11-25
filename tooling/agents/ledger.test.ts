@@ -1,11 +1,14 @@
 import { spawnSync } from "node:child_process";
 import {
+  closeSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   realpathSync,
   rmSync,
+  symlinkSync,
   utimesSync,
   writeFileSync,
 } from "node:fs";
@@ -14,6 +17,7 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, test } from "vite-plus/test";
 
+import { withFileLock } from "./file-lock.ts";
 import {
   appendLedgerEntry,
   DEFAULT_TAIL_LIMIT,
@@ -43,6 +47,7 @@ import {
   summarizeLedger,
   SUMMARY_LATEST_LIMIT,
   tailLedger,
+  validateLedgerRunId,
   validateLedgerSlug,
   withLedgerLock,
 } from "./ledger.ts";
@@ -210,6 +215,56 @@ describe("ledger helpers", () => {
         "--result=ok",
       ]),
     ).toThrow(/--evidence requires a value/);
+    expect(() =>
+      parseLogArgs([
+        "--slug",
+        "feat-one",
+        "--run-id",
+        "r1",
+        "--phase",
+        "build",
+        "--decision",
+        "x",
+        "--why",
+        "y",
+        "--evidence",
+        "--reslut=ok",
+      ]),
+    ).toThrow(/--evidence requires a value/);
+    expect(() =>
+      parseLogArgs([
+        "--slug",
+        "feat-one",
+        "--run-id",
+        "r1",
+        "--phase",
+        "build",
+        "--decision",
+        "x",
+        "--why",
+        "y",
+        "--evidence",
+        "--unknown-flag",
+      ]),
+    ).toThrow(/--evidence requires a value/);
+    expect(
+      parseLogArgs([
+        "--slug",
+        "feat-one",
+        "--run-id",
+        "r1",
+        "--phase",
+        "build",
+        "--decision",
+        "-remove dead branch",
+        "--why",
+        "y",
+        "--evidence=--reslut=ok",
+      ]),
+    ).toMatchObject({
+      decision: "-remove dead branch",
+      evidence: "--reslut=ok",
+    });
     expect(() => parseLogArgs(["--slug", "feat-one", "--bogus", "1"])).toThrow(/Unknown argument/);
     expect(() => parseLogArgs(["--slug", "feat-one", "--json=true"])).toThrow(
       /--json does not accept a value/,
@@ -239,6 +294,58 @@ describe("ledger helpers", () => {
       json: true,
     });
     expect(() => parseSummaryArgs([])).toThrow(/Missing --slug/);
+  });
+
+  test("validates run_id strictly as a canonical non-whitespace token", async () => {
+    const repo = makeTempDir();
+
+    for (const valid of ["run-1", "run_2", "session:1", "issue-247/r1"]) {
+      expect(validateLedgerRunId(valid), valid).toBe(valid);
+    }
+
+    for (const invalid of [
+      "",
+      " run-1",
+      "run-1 ",
+      "review 2",
+      "review  2",
+      "review\t2",
+      "review\n2",
+      "run\x001",
+      "-run",
+      "=run",
+    ]) {
+      expect(() => validateLedgerRunId(invalid), JSON.stringify(invalid)).toThrow(
+        /Invalid --run-id/,
+      );
+      expect(
+        () =>
+          parseLogArgs([
+            "--slug",
+            "feat-one",
+            "--run-id",
+            invalid,
+            "--phase",
+            "build",
+            "--decision",
+            "d",
+            "--why",
+            "w",
+          ]),
+        JSON.stringify(invalid),
+      ).toThrow(/Invalid --run-id/);
+      await expect(
+        appendLedgerEntry({
+          slug: "feat-one",
+          runId: invalid,
+          phase: "build",
+          decision: "d",
+          why: "w",
+          repoRoot: repo,
+        }),
+      ).rejects.toThrow(/Invalid --run-id/);
+    }
+    expect(existsSync(join(repo, ".tmp"))).toBe(false);
   });
 });
 
@@ -514,6 +621,13 @@ describe("ledger lifecycle, resume markers, and validation", () => {
         field: "phase",
         messagePattern: /control characters/,
       },
+      {
+        name: "whitespace-run-id.tsv",
+        badRow:
+          "2026-11-24T10:05:00.000Z\treview  2\tbuild\tvalid decision\tvalid why\tevidence\tok",
+        field: "run_id",
+        messagePattern: /without whitespace/,
+      },
     ];
 
     for (const testCase of cases) {
@@ -652,11 +766,63 @@ describe("ledger lifecycle, resume markers, and validation", () => {
     expect(formattedSummary).toContain("- [verify] Decision 6 — Reason 6");
   });
 
+  test("preserves __proto__ labels as own enumerable properties in summary counts and JSON", async () => {
+    const repo = makeTempDir();
+
+    await appendLedgerEntry({
+      slug: "proto-test",
+      runId: "run-1",
+      phase: "__proto__",
+      decision: "Handle reserved JS property keys safely",
+      why: "Object.fromEntries avoids mutating Object.prototype",
+      result: "__proto__",
+      ts: "2026-11-24T14:00:00.000Z",
+      repoRoot: repo,
+    });
+    await appendLedgerEntry({
+      slug: "proto-test",
+      runId: "run-1",
+      phase: "verify",
+      decision: "Confirm normal keys sort alongside __proto__",
+      why: "Keep deterministic output",
+      result: "ok",
+      ts: "2026-11-24T14:05:00.000Z",
+      repoRoot: repo,
+    });
+
+    const summary = summarizeLedger({ slug: "proto-test", repoRoot: repo });
+    expect(Object.hasOwn(summary.phaseCounts, "__proto__")).toBe(true);
+    expect(Object.hasOwn(summary.resultCounts, "__proto__")).toBe(true);
+    expect(Object.entries(summary.phaseCounts)).toEqual([
+      ["__proto__", 1],
+      ["verify", 1],
+    ]);
+    expect(Object.entries(summary.resultCounts)).toEqual([
+      ["__proto__", 1],
+      ["ok", 1],
+    ]);
+
+    const summaryJson = await executeLedgerCli(["summary", "--slug", "proto-test", "--json"], {
+      repoRoot: repo,
+    });
+    expect(summaryJson).toContain('"__proto__": 1');
+    const reparsed = ledgerSummarySchema.parse(JSON.parse(summaryJson));
+    expect(Object.hasOwn(reparsed.phaseCounts, "__proto__")).toBe(true);
+    expect(Object.hasOwn(reparsed.resultCounts, "__proto__")).toBe(true);
+
+    const formatted = formatSummaryOutput(summary);
+    expect(formatted).toContain("phases:  __proto__=1, verify=1");
+    expect(formatted).toContain("results: __proto__=1, ok=1");
+  });
+
   test("executes CLI log, tail, summary, and help commands in both text and --json modes", async () => {
     const repo = makeTempDir();
 
     const helpText = await executeLedgerCli(["--help"], { repoRoot: repo });
     expect(helpText).toContain("Usage: vp run agent:ledger");
+    expect(helpText).toMatch(/log\s+\(--slug <slug> \| --file <path>\)/);
+    expect(helpText).toMatch(/tail\s+\(--slug <slug> \| --file <path>\)/);
+    expect(helpText).toMatch(/summary\s+\(--slug <slug> \| --file <path>\)/);
 
     const logJson = await executeLedgerCli(
       [
@@ -852,6 +1018,125 @@ describe("ledger concurrency and locking", () => {
         timeoutMs: 2_000,
       }),
     ).toBe("recovered-corrupt");
+    expect(existsSync(lockPath)).toBe(false);
+  });
+
+  test("canonicalizes symlinked --file targets so lock and resume state are shared with --slug", async () => {
+    const repo = makeTempDir();
+    const canonicalPath = ledgerPathForSlug("symlink-shared", repo);
+    const aliasPath = join(repo, "alias.tsv");
+    symlinkSync(canonicalPath, aliasPath);
+
+    // Even before the target file exists, dangling symlink resolves to the same canonical ledger path.
+    expect(resolveLedgerFilePath({ file: aliasPath, cwd: repo })).toBe(canonicalPath);
+    expect(resolveLedgerFilePath({ slug: "symlink-shared", repoRoot: repo })).toBe(canonicalPath);
+
+    const first = await appendLedgerEntry({
+      slug: "symlink-shared",
+      runId: "run-1",
+      phase: "plan",
+      decision: "Start via slug",
+      why: "Create canonical ledger",
+      ts: "2026-11-24T17:00:00.000Z",
+      repoRoot: repo,
+    });
+    expect(first.file).toBe(canonicalPath);
+
+    // Holding the lock on --slug blocks an append via the symlinked --file alias.
+    const holderEntered = createDeferred<void>();
+    const releaseHolder = createDeferred<void>();
+    let aliasStarted = false;
+
+    const holder = withLedgerLock(
+      canonicalPath,
+      async () => {
+        holderEntered.resolve();
+        await releaseHolder.promise;
+      },
+      { initialDelayMs: 5, maxDelayMs: 15, timeoutMs: 3_000 },
+    );
+
+    await holderEntered.promise;
+    const aliasWrite = appendLedgerEntry({
+      file: aliasPath,
+      runId: "run-2",
+      phase: "build",
+      decision: "Resume via symlink alias",
+      why: "Share lock and run_id history",
+      ts: "2026-11-24T17:05:00.000Z",
+      lockOptions: { initialDelayMs: 5, maxDelayMs: 15, timeoutMs: 3_000 },
+    }).then((result) => {
+      aliasStarted = true;
+      return result;
+    });
+
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(aliasStarted).toBe(false);
+
+    releaseHolder.resolve();
+    const [, second] = await Promise.all([holder, aliasWrite]);
+    expect(second.file).toBe(canonicalPath);
+    expect(second.created).toBe(false);
+    expect(second.resumed).toBe(true);
+    expect(second.previousRunId).toBe("run-1");
+    expect(second.appended).toHaveLength(2);
+    expect(second.appended[0]).toMatchObject({
+      run_id: "run-2",
+      phase: "resume",
+      decision: "start",
+      evidence: "run-1",
+    });
+
+    // Atomic append leaves no stray temp or lock files alongside the canonical ledger.
+    const ledgerDirEntries = readdirSync(join(repo, ".tmp", "ledgers"));
+    expect(ledgerDirEntries).toEqual(["symlink-shared.tsv"]);
+  });
+
+  test("cleans up newly created lockfile if writing or closing metadata fails after openSync", async () => {
+    const repo = makeTempDir();
+    const lockPath = join(repo, "failed-acquisition.lock");
+
+    // 1. Metadata write failure (e.g. ENOSPC) must unlink the newly created lockfile and not run operation.
+    let ranOperation = false;
+    await expect(
+      withFileLock(
+        lockPath,
+        () => {
+          ranOperation = true;
+          return "never";
+        },
+        {
+          writeMetadata: () => {
+            throw Object.assign(new Error("No space left on device"), { code: "ENOSPC" });
+          },
+        },
+      ),
+    ).rejects.toThrow(/No space left on device/);
+    expect(ranOperation).toBe(false);
+    expect(existsSync(lockPath)).toBe(false);
+
+    // 2. Post-write closeSync failure after live-PID metadata was written must still remove the lockfile.
+    await expect(
+      withFileLock(
+        lockPath,
+        () => {
+          ranOperation = true;
+          return "never";
+        },
+        {
+          writeMetadata: (fd, payload) => {
+            writeFileSync(fd, payload, "utf8");
+            closeSync(fd);
+          },
+        },
+      ),
+    ).rejects.toThrow();
+    expect(ranOperation).toBe(false);
+    expect(existsSync(lockPath)).toBe(false);
+
+    // Subsequent acquisition succeeds immediately without hitting a leaked live-PID lock.
+    expect(await withFileLock(lockPath, () => "acquired", { timeoutMs: 200 })).toBe("acquired");
     expect(existsSync(lockPath)).toBe(false);
   });
 });

@@ -17,16 +17,8 @@ Follow [AGENTS.md](../../../AGENTS.md). Pair this skill with
 
 ## 1. Compact the decision ledger
 
-Inspect and summarize the task's local decision ledger before writing the
-handoff note:
-
-```sh
-vp run agent:ledger -- summary --slug <slug>
-vp run agent:ledger -- tail --slug <slug> --limit 10
-```
-
-If important rulings or dead ends from the current session have not been logged
-yet, record them first so the next run inherits a complete timeline:
+First, record any unlogged rulings, dead ends, or the pause checkpoint from the
+current session so the next run inherits a complete timeline:
 
 ```sh
 vp run agent:ledger -- log \
@@ -37,6 +29,15 @@ vp run agent:ledger -- log \
   --why "<context limit or transfer reason>" \
   --evidence "<commit or check output>" \
   --result handed-off
+```
+
+Then inspect and summarize the task's local decision ledger before writing the
+handoff note (if you log any additional rulings afterward, re-run both commands
+so the compacted handoff always includes the final rulings):
+
+```sh
+vp run agent:ledger -- summary --slug <slug>
+vp run agent:ledger -- tail --slug <slug> --limit 10
 ```
 
 ## 2. Capture repository, worktree, and verification state
@@ -53,8 +54,13 @@ vp run worktree:list
 Record:
 
 - current branch, base branch, and `HEAD` SHA;
-- whether changes are committed, staged, or unstaged (commit clean checkpoints
-  or note exact modified files if intentionally uncommitted);
+- whether changes are committed, staged, or unstaged:
+  - when resuming in the same local checkout/worktree, commit clean checkpoints
+    or note exact modified files if intentionally uncommitted;
+  - when handing work to a different checkout or worktree, preserve uncommitted
+    changes in a recoverable checkpoint (a pushed/reachable WIP commit on the
+    branch or an explicitly transferred patch) rather than only listing
+    modified file paths in the handoff document;
 - active worktree slug, path, and ports from `vp run worktree:list` (when
   working in an isolated worktree);
 - exact verification commands run with pass/fail outcomes, and which required
@@ -117,6 +123,9 @@ When handing off or pausing work on an `agent:ready` GitHub issue (see
 - **Keep raw TSV ledgers local:** never paste raw `.tmp/ledgers/<slug>.tsv`
   contents or commit `.tmp/` artifacts. Post only the compacted Markdown
   handoff summary.
+- **Review the outgoing body:** read `.tmp/handoffs/<slug>.md` in full before
+  posting and remove any credentials, tokens, or local-only secrets from
+  verification commands, evidence, and decision bullets.
 - **Use GitHub REST only** (never `gh issue` or `gh api graphql`, which cloud
   sessions block with HTTP 403):
   - If another run will resume under the same ownership window, renew the claim
@@ -130,7 +139,8 @@ When handing off or pausing work on an `agent:ready` GitHub issue (see
 
 ## 5. Resume in the next session
 
-When starting from a handoff:
+When resuming in the same local checkout (where `.tmp/handoffs/<slug>.md` and
+`.tmp/ledgers/<slug>.tsv` exist):
 
 1. Read `.tmp/handoffs/<slug>.md` and run
    `vp run agent:ledger -- summary --slug <slug>` and
@@ -140,3 +150,22 @@ When starting from a handoff:
 3. Choose a new `--run-id` for the new session. Your first
    `vp run agent:ledger -- log` call with that `run_id` automatically appends a
    `resume` / `start` marker linking back to the previous `run_id`.
+
+When resuming from a GitHub issue-comment handoff in a fresh checkout (where
+local `.tmp/handoffs/<slug>.md` and `.tmp/ledgers/<slug>.tsv` do not exist yet):
+
+1. Treat the latest handoff issue comment as the handoff document and check out
+   the branch/WIP commit (or apply the transferred patch) recorded there.
+2. Start a new local ledger for `<slug>` with an initial `resume`/`start` entry
+   using your new `--run-id` and referencing the issue comment URL:
+
+   ```sh
+   vp run agent:ledger -- log \
+     --slug <slug> \
+     --run-id <new-run-id> \
+     --phase resume \
+     --decision start \
+     --why "Resumed from issue handoff in fresh checkout" \
+     --evidence "<issue-comment-url>" \
+     --result started
+   ```

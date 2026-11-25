@@ -1,13 +1,16 @@
 import { randomUUID } from "node:crypto";
 import {
-  appendFileSync,
   existsSync,
+  lstatSync,
   mkdirSync,
   readFileSync,
+  readlinkSync,
+  realpathSync,
   renameSync,
+  unlinkSync,
   writeFileSync,
 } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { z } from "zod";
@@ -33,6 +36,9 @@ export const LEDGER_HEADER = LEDGER_COLUMNS.join("\t");
 
 const DEFAULT_REPO_ROOT = resolve(fileURLToPath(new URL("../../", import.meta.url)));
 const FORMULA_PREFIX_PATTERN = /^[=+\-@"]/;
+const NON_WHITESPACE_TOKEN_PATTERN = /^\S+$/;
+const LONG_OPTION_TOKEN_PATTERN = /^--[a-z0-9]/i;
+const MAX_SYMLINK_HOPS = 40;
 const isoTimestampSchema = z.union([z.iso.datetime({ offset: true }), z.iso.date()]);
 const POSITIVE_INT_PATTERN = /^\d+$/;
 
@@ -102,9 +108,33 @@ const ledgerTimestampSchema = z.string().superRefine((value, ctx) => {
   }
 });
 
+const ledgerRunIdSchema = z.string().superRefine((value, ctx) => {
+  if (hasControlChars(value)) {
+    ctx.addIssue({ code: "custom", message: "must not contain control characters" });
+    return;
+  }
+  if (value.length === 0) {
+    ctx.addIssue({ code: "custom", message: "must be non-empty" });
+    return;
+  }
+  if (!NON_WHITESPACE_TOKEN_PATTERN.test(value)) {
+    ctx.addIssue({
+      code: "custom",
+      message: "must be a single token without whitespace",
+    });
+    return;
+  }
+  if (FORMULA_PREFIX_PATTERN.test(value)) {
+    ctx.addIssue({
+      code: "custom",
+      message: 'must not start with a spreadsheet formula character (=, +, -, @, ")',
+    });
+  }
+});
+
 export const ledgerEntrySchema = z.object({
   ts: ledgerTimestampSchema,
-  run_id: requiredLedgerCellSchema,
+  run_id: ledgerRunIdSchema,
   phase: requiredLedgerCellSchema,
   decision: requiredLedgerCellSchema,
   why: requiredLedgerCellSchema,
@@ -143,13 +173,34 @@ export const ledgerRunSummarySchema = z.object({
 
 export type LedgerRunSummary = z.infer<typeof ledgerRunSummarySchema>;
 
+const positiveCountSchema = z.number().int().positive();
+
+const countRecordSchema = z
+  .custom<Record<string, number>>(
+    (value) => typeof value === "object" && value !== null && !Array.isArray(value),
+    "Expected a count record object",
+  )
+  .superRefine((record, ctx) => {
+    for (const [key, count] of Object.entries(record)) {
+      const parsed = positiveCountSchema.safeParse(count);
+      if (!parsed.success) {
+        ctx.addIssue({
+          code: "custom",
+          path: [key],
+          message: parsed.error.issues[0]?.message ?? "Expected a positive integer count",
+        });
+      }
+    }
+  })
+  .transform((record) => Object.fromEntries(Object.entries(record)));
+
 export const ledgerSummarySchema = z.object({
   file: z.string().min(1),
   exists: z.boolean(),
   totalEntries: z.number().int().nonnegative(),
   runs: z.array(ledgerRunSummarySchema),
-  phaseCounts: z.record(z.string(), z.number().int().positive()),
-  resultCounts: z.record(z.string(), z.number().int().positive()),
+  phaseCounts: countRecordSchema,
+  resultCounts: countRecordSchema,
   latestEntries: z.array(ledgerEntrySchema),
   decisions: z.array(z.string().min(1)),
 });
@@ -212,6 +263,74 @@ export const validateLedgerSlug = (slug: string): string => {
   return slug;
 };
 
+export const validateLedgerRunId = (runId: string): string => {
+  const parsed = ledgerRunIdSchema.safeParse(runId);
+  if (!parsed.success) {
+    const detail = parsed.error.issues[0]?.message ?? "invalid run_id";
+    throw new Error(
+      `Invalid --run-id "${runId}": ${detail}. Use a single non-empty token without whitespace (e.g. "run-1", "run_2", "session:1").`,
+    );
+  }
+  return parsed.data;
+};
+
+const canonicalizeLedgerPath = (targetPath: string, depth = 0): string => {
+  const absolute = resolve(targetPath);
+  try {
+    return realpathSync(absolute);
+  } catch (error) {
+    if (getErrnoCode(error) !== "ENOENT") {
+      return absolute;
+    }
+  }
+
+  // Follow a dangling symlink directly at targetPath (e.g. an alias to a not-yet-created ledger).
+  if (depth < MAX_SYMLINK_HOPS) {
+    try {
+      if (lstatSync(absolute).isSymbolicLink()) {
+        const linkTarget = readlinkSync(absolute);
+        return canonicalizeLedgerPath(resolve(dirname(absolute), linkTarget), depth + 1);
+      }
+    } catch {
+      // Fall through to ancestor canonicalization.
+    }
+  }
+
+  // Walk up to the nearest existing ancestor and canonicalize it, keeping non-existent trailing segments.
+  const trailingSegments: string[] = [];
+  let current = absolute;
+  while (true) {
+    const parent = dirname(current);
+    if (parent === current) {
+      return absolute;
+    }
+    trailingSegments.push(basename(current));
+    current = parent;
+    try {
+      const realAncestor = realpathSync(current);
+      return join(realAncestor, ...trailingSegments.reverse());
+    } catch (error) {
+      if (getErrnoCode(error) !== "ENOENT") {
+        return absolute;
+      }
+      if (depth < MAX_SYMLINK_HOPS) {
+        try {
+          if (lstatSync(current).isSymbolicLink()) {
+            const linkTarget = readlinkSync(current);
+            const resolvedTarget = join(
+              resolve(dirname(current), linkTarget),
+              ...trailingSegments.reverse(),
+            );
+            return canonicalizeLedgerPath(resolvedTarget, depth + 1);
+          }
+        } catch {
+          // Continue walking up.
+        }
+      }
+    }
+  }
+};
+
 export const ledgerPathForSlug = (slug: string, repoRoot = DEFAULT_REPO_ROOT): string =>
   join(repoRoot, ".tmp", "ledgers", `${validateLedgerSlug(slug)}.tsv`);
 
@@ -232,12 +351,12 @@ export const resolveLedgerFilePath = ({
     if (!trimmed || trimmed.includes("\0")) {
       throw new Error(`Invalid ledger file path "${file}".`);
     }
-    return resolve(cwd, trimmed);
+    return canonicalizeLedgerPath(resolve(cwd, trimmed));
   }
   if (!validatedSlug) {
     throw new Error("Missing --slug <slug> (or --file <path>).");
   }
-  return join(repoRoot, ".tmp", "ledgers", `${validatedSlug}.tsv`);
+  return canonicalizeLedgerPath(join(repoRoot, ".tmp", "ledgers", `${validatedSlug}.tsv`));
 };
 
 export const ledgerLockPathForFile = (filePath: string): string => `${filePath}.lock`;
@@ -350,13 +469,28 @@ export const withLedgerLock = async <T>(
   operation: () => Promise<T> | T,
   options: LedgerLockOptions = {},
 ): Promise<T> =>
-  withFileLock(ledgerLockPathForFile(filePath), operation, {
+  withFileLock(ledgerLockPathForFile(canonicalizeLedgerPath(filePath)), operation, {
     label: "decision ledger",
     timeoutMs: options.timeoutMs,
     staleMs: options.staleMs,
     initialDelayMs: options.initialDelayMs ?? DEFAULT_LEDGER_LOCK_INITIAL_DELAY_MS,
     maxDelayMs: options.maxDelayMs ?? DEFAULT_LEDGER_LOCK_MAX_DELAY_MS,
   });
+
+const writeFileAtomically = (filePath: string, content: string): void => {
+  const tempPath = `${filePath}.${process.pid}.${randomUUID()}.tmp`;
+  try {
+    writeFileSync(tempPath, content, "utf8");
+    renameSync(tempPath, filePath);
+  } catch (error) {
+    try {
+      unlinkSync(tempPath);
+    } catch {
+      // Temp file was never created or already moved/removed.
+    }
+    throw error;
+  }
+};
 
 const isResumeStartRow = (entry: LedgerEntry): boolean =>
   entry.phase.toLowerCase() === "resume" && entry.decision.toLowerCase() === "start";
@@ -375,7 +509,7 @@ export const appendLedgerEntry = async (input: LedgerLogInput): Promise<LedgerLo
       : (input.now?.() ?? new Date()).toISOString();
   const entry: LedgerEntry = ledgerEntrySchema.parse({
     ts,
-    run_id: requireSanitizedCell("run_id", input.runId),
+    run_id: validateLedgerRunId(input.runId),
     phase: requireSanitizedCell("phase", input.phase),
     decision: requireSanitizedCell("decision", input.decision),
     why: requireSanitizedCell("why", input.why),
@@ -389,9 +523,7 @@ export const appendLedgerEntry = async (input: LedgerLogInput): Promise<LedgerLo
       mkdirSync(dirname(filePath), { recursive: true });
 
       if (!existsSync(filePath)) {
-        const tempPath = `${filePath}.${process.pid}.${randomUUID()}.tmp`;
-        writeFileSync(tempPath, `${LEDGER_HEADER}\n${formatLedgerRow(entry)}\n`, "utf8");
-        renameSync(tempPath, filePath);
+        writeFileAtomically(filePath, `${LEDGER_HEADER}\n${formatLedgerRow(entry)}\n`);
         return ledgerLogResultSchema.parse({
           file: filePath,
           created: true,
@@ -424,7 +556,7 @@ export const appendLedgerEntry = async (input: LedgerLogInput): Promise<LedgerLo
 
       const leadingNewline = existingRaw.endsWith("\n") ? "" : "\n";
       const serialized = `${leadingNewline}${toAppend.map(formatLedgerRow).join("\n")}\n`;
-      appendFileSync(filePath, serialized, "utf8");
+      writeFileAtomically(filePath, `${existingRaw}${serialized}`);
 
       return ledgerLogResultSchema.parse({
         file: filePath,
@@ -483,16 +615,12 @@ export const tailLedger = ({
   });
 };
 
-const toSortedCountRecord = (counts: Map<string, number>): Record<string, number> => {
-  const sorted: Record<string, number> = {};
-  for (const key of [...counts.keys()].sort()) {
-    const count = counts.get(key);
-    if (count !== undefined && count > 0) {
-      sorted[key] = count;
-    }
-  }
-  return sorted;
-};
+const toSortedCountRecord = (counts: Map<string, number>): Record<string, number> =>
+  Object.fromEntries(
+    [...counts.entries()]
+      .filter(([, count]) => count > 0)
+      .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0)),
+  );
 
 const formatDecisionBullet = (entry: LedgerEntry): string => {
   const parts = [`[${entry.phase}] ${entry.decision} — ${entry.why}`];
@@ -584,6 +712,11 @@ const readOptionValue = (
   if (value === undefined || KNOWN_CLI_FLAGS.has(splitFlagToken(value).flag)) {
     throw new Error(`${flag} requires a value.`);
   }
+  if (LONG_OPTION_TOKEN_PATTERN.test(value)) {
+    throw new Error(
+      `${flag} requires a value (got option-like token "${value}"; use ${flag}=${value} to pass it literally).`,
+    );
+  }
   return { value, nextIndex: index + 1 };
 };
 
@@ -648,7 +781,7 @@ export const parseLogArgs = (rawArgs: readonly string[]): LedgerLogCliOptions =>
     }
 
     throw new Error(
-      `Unknown argument "${token}". Usage: agent:ledger log --slug <slug> [--file <path>] --run-id <id> --phase <phase> --decision <decision> --why <why> [--evidence <evidence>] [--result <result>] [--ts <iso>] [--json]`,
+      `Unknown argument "${token}". Usage: agent:ledger log (--slug <slug> | --file <path>) --run-id <id> --phase <phase> --decision <decision> --why <why> [--evidence <evidence>] [--result <result>] [--ts <iso>] [--json]`,
     );
   }
 
@@ -658,9 +791,10 @@ export const parseLogArgs = (rawArgs: readonly string[]): LedgerLogCliOptions =>
   if (slug !== undefined) {
     validateLedgerSlug(slug);
   }
-  if (!runId) {
+  if (runId === undefined) {
     throw new Error("Missing required option --run-id <id>.");
   }
+  validateLedgerRunId(runId);
   if (!phase) {
     throw new Error("Missing required option --phase <phase>.");
   }
@@ -714,7 +848,7 @@ export const parseTailArgs = (rawArgs: readonly string[]): LedgerTailCliOptions 
     }
 
     throw new Error(
-      `Unknown argument "${token}". Usage: agent:ledger tail --slug <slug> [--file <path>] [--limit <n>] [--json]`,
+      `Unknown argument "${token}". Usage: agent:ledger tail (--slug <slug> | --file <path>) [--limit <n>] [--json]`,
     );
   }
 
@@ -758,7 +892,7 @@ export const parseSummaryArgs = (rawArgs: readonly string[]): LedgerSummaryCliOp
     }
 
     throw new Error(
-      `Unknown argument "${token}". Usage: agent:ledger summary --slug <slug> [--file <path>] [--json]`,
+      `Unknown argument "${token}". Usage: agent:ledger summary (--slug <slug> | --file <path>) [--json]`,
     );
   }
 
@@ -850,9 +984,9 @@ const USAGE_TEXT = [
   "Usage: vp run agent:ledger -- <command> [options]",
   "",
   "Commands:",
-  "  log      --slug <slug> [--file <path>] --run-id <id> --phase <phase> --decision <decision> --why <why> [--evidence <evidence>] [--result <result>] [--ts <iso>] [--json]",
-  "  tail     --slug <slug> [--file <path>] [--limit <n>] [--json]",
-  "  summary  --slug <slug> [--file <path>] [--json]",
+  "  log      (--slug <slug> | --file <path>) --run-id <id> --phase <phase> --decision <decision> --why <why> [--evidence <evidence>] [--result <result>] [--ts <iso>] [--json]",
+  "  tail     (--slug <slug> | --file <path>) [--limit <n>] [--json]",
+  "  summary  (--slug <slug> | --file <path>) [--json]",
 ].join("\n");
 
 export const executeLedgerCli = async (
