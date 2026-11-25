@@ -2280,6 +2280,57 @@ export const runTargetsInBrowser = async ({
   return results;
 };
 
+/**
+ * Releases resources in reverse registration order. A resource registered while the drain runs,
+ * such as a server whose spawn was already under way, starts releasing at once, and the drain
+ * waits for it too, so the process never exits with that release unfinished.
+ */
+export const createCleanupStack = (): {
+  registerCleanup: RegisterCleanup;
+  runCleanups: () => Promise<void>;
+} => {
+  const cleanups: Array<() => Promise<void>> = [];
+  const lateCleanups: Array<Promise<void>> = [];
+  let cleaningUp = false;
+  let cleanupPromise: Promise<void> | undefined;
+
+  const registerCleanup: RegisterCleanup = (cleanup) => {
+    let pending: Promise<void> | undefined;
+
+    const idempotent = () => {
+      pending ??= cleanup();
+      return pending;
+    };
+
+    if (cleaningUp) {
+      lateCleanups.push(idempotent().catch(() => undefined));
+      return idempotent;
+    }
+    cleanups.push(idempotent);
+    return idempotent;
+  };
+
+  const runCleanups = (): Promise<void> => {
+    if (cleanupPromise) {
+      return cleanupPromise;
+    }
+    cleaningUp = true;
+    cleanupPromise = (async () => {
+      while (cleanups.length > 0 || lateCleanups.length > 0) {
+        const cleanup = cleanups.pop();
+        if (cleanup) {
+          await cleanup().catch(() => undefined);
+        } else {
+          await lateCleanups.shift();
+        }
+      }
+    })();
+    return cleanupPromise;
+  };
+
+  return { registerCleanup, runCleanups };
+};
+
 export const runUiVerify = async (
   options: UiVerifyCliOptions,
   {
@@ -2349,44 +2400,10 @@ export const runUiVerify = async (
   const viewports = resolveViewports(options.viewport);
   let appMode: AppMode | undefined;
 
-  const cleanups: Array<() => Promise<void>> = [];
-  let cleaningUp = false;
-  let cleanupPromise: Promise<void> | undefined;
-
-  const registerCleanup: RegisterCleanup = (cleanup) => {
-    let pending: Promise<void> | undefined;
-
-    const idempotent = () => {
-      pending ??= cleanup();
-      return pending;
-    };
-
-    if (cleaningUp) {
-      void idempotent().catch(() => undefined);
-      return idempotent;
-    }
-    cleanups.push(idempotent);
-    return idempotent;
-  };
+  const { registerCleanup, runCleanups } = createCleanupStack();
 
   // Registered first so it runs last, after the report is written or servers are stopped.
   registerCleanup(async () => releaseOutput());
-
-  const runCleanups = (): Promise<void> => {
-    if (cleanupPromise) {
-      return cleanupPromise;
-    }
-    cleaningUp = true;
-    cleanupPromise = (async () => {
-      while (cleanups.length > 0) {
-        const cleanup = cleanups.pop();
-        if (cleanup) {
-          await cleanup().catch(() => undefined);
-        }
-      }
-    })();
-    return cleanupPromise;
-  };
 
   const onSignal = (signal: NodeJS.Signals) => {
     log(`Received ${signal}; tearing down isolated ui:verify servers...`);

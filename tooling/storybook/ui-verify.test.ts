@@ -13,6 +13,7 @@ import {
   allocateFreePort,
   buildContainerDelegationArgs,
   buildUniqueTargetStems,
+  createCleanupStack,
   detectFocusVisualChange,
   filterStoryTargets,
   formatMarkdownReport,
@@ -1088,5 +1089,34 @@ describe("server startup and cleanup", () => {
     await release();
     await Promise.all(cleanups.map((cleanup) => cleanup()));
     expect(released).toEqual(["test_db"]);
+  });
+});
+
+describe("createCleanupStack", () => {
+  it("waits for a release registered while the drain runs before the drain settles", async () => {
+    const { registerCleanup, runCleanups } = createCleanupStack();
+    const events: string[] = [];
+
+    let finishLateStop = () => {};
+
+    registerCleanup(async () => {
+      events.push("first release");
+      // A server whose spawn was already under way registers its stop during the drain.
+      registerCleanup(async () => {
+        events.push("late stop started");
+        await new Promise<void>((resolve) => {
+          finishLateStop = resolve;
+        });
+        events.push("late stop finished");
+      });
+    });
+
+    const drained = runCleanups().then(() => events.push("drained"));
+    await vi.waitFor(() => expect(events).toContain("late stop started"));
+    await Promise.resolve();
+    expect(events).not.toContain("drained");
+    finishLateStop();
+    await drained;
+    expect(events).toEqual(["first release", "late stop started", "late stop finished", "drained"]);
   });
 });
