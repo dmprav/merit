@@ -97,32 +97,52 @@ const runAxeAudit = async (page: Page): Promise<AxeViolationSummary[]> => {
 
 const areDialogsVisible = (page: Page): Promise<boolean> =>
   page.evaluate(() => {
-    const dialogs = Array.from(
-      document.querySelectorAll('dialog[open], [role="dialog"], [role="alertdialog"]'),
-    ).filter((element) => {
-      if (element.tagName === "DIALOG" && !element.hasAttribute("open")) {
-        return false;
+    const dialogSelector = 'dialog[open], [role="dialog"], [role="alertdialog"]';
+    const dialogs: Element[] = [];
+
+    // Mirror Playwright locators, which pierce open shadow roots.
+    const collect = (root: Document | ShadowRoot) => {
+      for (const element of Array.from(root.querySelectorAll("*"))) {
+        if (element.matches(dialogSelector)) {
+          dialogs.push(element);
+        }
+        if (element.shadowRoot) {
+          collect(element.shadowRoot);
+        }
       }
-      if (
-        element.hasAttribute("hidden") ||
-        element.getAttribute("aria-hidden") === "true" ||
-        element.hasAttribute("inert") ||
-        element.getAttribute("data-state") === "closed"
-      ) {
-        return false;
-      }
-      return true;
-    });
-    return dialogs.every((dialog) =>
-      dialog.checkVisibility({ opacityProperty: true, visibilityProperty: true }),
-    );
+    };
+
+    collect(document);
+
+    return dialogs
+      .filter((element) => {
+        if (element.tagName === "DIALOG") {
+          return element.hasAttribute("open");
+        }
+        // A custom dialog that is closed through attributes or CSS renders no box; a mounted
+        // dialog that is still transparent during its entrance does.
+        return !(
+          element.hasAttribute("hidden") ||
+          element.getAttribute("aria-hidden") === "true" ||
+          element.hasAttribute("inert") ||
+          element.getAttribute("data-state") === "closed" ||
+          !element.checkVisibility()
+        );
+      })
+      .every((dialog) =>
+        dialog.checkVisibility({ opacityProperty: true, visibilityProperty: true }),
+      );
   });
 
 /**
  * Runs Merit's standard page health, layout overflow, and WCAG 2 A/AA/2.1AA checks without
  * relying on Playwright Test's assertion runner, returning structured results for CLI tooling.
  */
-export const auditPage = async (page: Page, timeoutMs = 10_000): Promise<PageAuditResult> => {
+export const auditPage = async (
+  page: Page,
+  timeoutMs = 10_000,
+  { beforeMeasure }: { beforeMeasure?: () => Promise<void> } = {},
+): Promise<PageAuditResult> => {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const visible = await areDialogsVisible(page).catch(() => false);
@@ -134,13 +154,15 @@ export const auditPage = async (page: Page, timeoutMs = 10_000): Promise<PageAud
 
   await settleAnimations(page);
 
-  await page
-    .waitForFunction(
-      () => document.querySelectorAll("[data-entering], [data-exiting]").length === 0,
-      undefined,
-      { timeout: timeoutMs },
-    )
+  const transitionMarkers = page.locator("[data-entering], [data-exiting]");
+  await transitionMarkers
+    .first()
+    .waitFor({ state: "detached", timeout: timeoutMs })
     .catch(() => undefined);
+
+  // Callers capture evidence here, such as a screenshot that fast-forwards animations, so the
+  // measurements below describe the state that evidence shows.
+  await beforeMeasure?.();
 
   const viteErrorOverlayCount = await page.locator("vite-error-overlay").count();
   const bodyVisible = await page
@@ -148,7 +170,7 @@ export const auditPage = async (page: Page, timeoutMs = 10_000): Promise<PageAud
     .isVisible()
     .catch(() => false);
   const dialogsVisible = await areDialogsVisible(page);
-  const enteringOrExitingCount = await page.locator("[data-entering], [data-exiting]").count();
+  const enteringOrExitingCount = await transitionMarkers.count();
   const { scrollWidth, innerWidth } = await measureHorizontalOverflow(page);
   const axeViolations = await runAxeAudit(page);
 

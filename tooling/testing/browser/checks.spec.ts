@@ -87,6 +87,7 @@ test(
       <html lang="en">
         <head><title>Closed custom dialogs</title><style>
           body { background: white; color: black; }
+          .closed-by-css { display: none; }
         </style></head>
         <body>
           <main><h1>Page</h1></main>
@@ -94,6 +95,8 @@ test(
           <div role="dialog" aria-hidden="true" style="display: none;" aria-label="Aria-hidden dialog"><p>Closed</p></div>
           <div role="dialog" inert style="display: none;" aria-label="Inert dialog"><p>Closed</p></div>
           <div role="alertdialog" data-state="closed" style="display: none;" aria-label="Closed state dialog"><p>Closed</p></div>
+          <div role="dialog" class="closed-by-css" aria-label="CSS-closed dialog"><p>Closed</p></div>
+          <div style="display: none;"><div role="dialog" aria-label="Inside closed panel"><p>Closed</p></div></div>
         </body>
       </html>
     `);
@@ -103,6 +106,53 @@ test(
     expect(result.dialogsVisible).toBe(true);
     expect(result.axeViolations).toEqual([]);
     await checkPage(page);
+  },
+);
+
+test(
+  "auditPage finds invisible open dialogs inside open shadow roots",
+  { tag: "@cross-browser" },
+  async ({ page }) => {
+    await page.setContent(`
+      <html lang="en">
+        <head><title>Shadow dialog</title><style>body { background: white; color: black; }</style></head>
+        <body>
+          <main><h1>Page</h1><div id="host"></div></main>
+          <script>
+            document.getElementById("host").attachShadow({ mode: "open" }).innerHTML =
+              '<dialog open aria-label="Shadow notice" style="visibility: hidden"><p>Hidden</p></dialog>';
+          </script>
+        </body>
+      </html>
+    `);
+
+    const result = await auditPage(page, 300);
+
+    expect(result.dialogsVisible).toBe(false);
+  },
+);
+
+test(
+  "auditPage waits for shadow-root transition markers that clear without an animation",
+  { tag: "@cross-browser" },
+  async ({ page }) => {
+    await page.setContent(`
+      <html lang="en">
+        <head><title>Shadow marker</title><style>body { background: white; color: black; }</style></head>
+        <body>
+          <main><h1>Page</h1><div id="host"></div></main>
+          <script>
+            const root = document.getElementById("host").attachShadow({ mode: "open" });
+            root.innerHTML = '<p data-entering="">Entering</p>';
+            setTimeout(() => root.querySelector("p").removeAttribute("data-entering"), 300);
+          </script>
+        </body>
+      </html>
+    `);
+
+    const result = await auditPage(page);
+
+    expect(result.enteringOrExitingCount).toBe(0);
   },
 );
 
