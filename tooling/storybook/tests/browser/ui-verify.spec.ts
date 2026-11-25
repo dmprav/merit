@@ -763,6 +763,36 @@ test.describe("live Chromium checker failure detection", () => {
     expect(opaque.passed).toBe(false);
   });
 
+  test("reports traversal as incomplete when the document loses its focus tracker", async ({
+    newContext,
+  }) => {
+    const context = await newContext({ viewport: { width: 1280, height: 800 } });
+    const page = await context.newPage();
+    // Deleting the tracker stands in for a focus handler whose navigation commits a new document
+    // before the next stop is read; that document has no tracker and its controls go unchecked.
+    await page.setContent(
+      `<!doctype html><html lang="en"><head>${VIEWPORT_META}<title>Replaced document</title><style>
+        body { background: #fff; color: #111; }
+        button { padding: 8px 14px; background: #fff; color: #111; border: 1px solid #333; }
+        button:focus-visible { outline: 2px solid #0f62fe; outline-offset: 2px; }
+      </style></head><body><main><h1>Replaced document</h1>
+        <button type="button">First control</button>
+        <button type="button" id="leave">Leave page</button>
+        <button type="button">Never checked</button>
+      </main>
+      <script>
+        document.getElementById("leave").addEventListener("focus", () => {
+          delete window.__meritFocusTracker;
+        });
+      </script></body></html>`,
+    );
+    const focus = await checkKeyboardFocusTraversal(page);
+    expect(focus.stopsChecked).toBe(1);
+    expect(focus.incompleteReason).toBe(
+      "Incomplete: the page navigated to a new document during focus traversal",
+    );
+  });
+
   test("measures the page state the screenshot shows after animations are fast-forwarded", async ({
     newContext,
   }) => {

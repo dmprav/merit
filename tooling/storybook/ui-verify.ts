@@ -1218,6 +1218,9 @@ type MeritFocusTracker = {
 const OPAQUE_FRAME_INCOMPLETE_REASON =
   "Incomplete: focus entered a cross-origin frame whose controls cannot be inspected";
 
+const TRACKER_LOST_INCOMPLETE_REASON =
+  "Incomplete: the page navigated to a new document during focus traversal";
+
 const isFocusTraversalIncomplete = (focus: FocusCheckResult): boolean =>
   focus.reachedCap || focus.incompleteReason !== undefined;
 
@@ -1452,7 +1455,13 @@ export const checkKeyboardFocusTraversal = async (
       ({ previousIndex, isAtCap }: { previousIndex: number; isAtCap: boolean }) => {
         const tracker = window.__meritFocusTracker;
         if (!tracker) {
-          return { done: true as const, reachedCap: false as const, previousUnfocused: undefined };
+          // A focus handler replaced the document, so its controls were never checked.
+          return {
+            done: true as const,
+            reachedCap: false as const,
+            trackerLost: true,
+            previousUnfocused: undefined,
+          };
         }
         const active = tracker.deepActiveElement();
         const previousEl = previousIndex >= 0 ? tracker.stops[previousIndex] : undefined;
@@ -1521,6 +1530,8 @@ export const checkKeyboardFocusTraversal = async (
         reachedCap = true;
       } else if ("enteredOpaqueFrame" in outcome) {
         incompleteReason = OPAQUE_FRAME_INCOMPLETE_REASON;
+      } else if ("trackerLost" in outcome) {
+        incompleteReason = TRACKER_LOST_INCOMPLETE_REASON;
       } else if (outcome.cycledTo === 0 && outcome.refreshedFocused && stops[0]) {
         stops[0].focused = outcome.refreshedFocused;
       }

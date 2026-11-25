@@ -142,7 +142,7 @@ Every host run (without `--container`) starts isolated servers on ephemeral port
 WCAG 2 A/AA/2.1AA violations, zero horizontal overflow, zero console/page errors, and visible
 keyboard `Tab` focus changes (each stop must be painted, with no `opacity: 0` on it or an
 ancestor, and must differ from the page with nothing focused and with the next stop focused;
-focus that enters a cross-origin frame fails as incomplete), then writes deterministic proof artifacts to `.tmp/ui-verify/`
+focus that enters a cross-origin frame or navigates to a new document fails as incomplete), then writes deterministic proof artifacts to `.tmp/ui-verify/`
 (override with `--out <dir>`): `report.md`, Zod-validated `results.json`, and
 `screenshots/*.png`. Servers and ephemeral databases are torn down automatically on exit or
 failure. Pass `--update` on host runs to delete the selected targets' previous screenshots for
