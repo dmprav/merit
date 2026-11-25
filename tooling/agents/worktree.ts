@@ -4,6 +4,7 @@ import {
   closeSync,
   constants as fsConstants,
   existsSync,
+  lstatSync,
   mkdirSync,
   openSync,
   readFileSync,
@@ -52,6 +53,9 @@ export const WORKTREE_PORT_BASES = {
 export const WORKTREE_PORT_STRIDE = 10;
 const PROTECTED_BRANCH_NAMES = new Set(["main", "master"]);
 const MAX_PORT_SLOTS = 200;
+// Written into the checkout's `.git/worktrees/<id>/` directory. Git deletes that directory with the
+// checkout, so a later checkout that reuses the same path and id never carries this token.
+const CHECKOUT_TOKEN_FILE = "merit-checkout-token";
 
 export const worktreePortsSchema = z.object({
   MERIT_DEV_PORT: z.number().int().min(1024).max(65535),
@@ -77,6 +81,7 @@ export const worktreeRecordSchema = z.object({
   slug: z.string().min(1),
   path: z.string().min(1),
   gitDir: z.string().optional(),
+  checkoutToken: z.string().optional(),
   branch: z.string().min(1),
   baseRef: z.string().min(1),
   databaseName: z.string().min(1),
@@ -86,6 +91,8 @@ export const worktreeRecordSchema = z.object({
   createdAt: z.string().min(10),
   status: z.enum(["creating", "active", "cleaning"]).optional(),
   cleanToken: z.string().optional(),
+  ownerPid: z.number().int().positive().optional(),
+  partialRemoval: z.boolean().optional(),
 });
 
 export type WorktreeRecord = z.infer<typeof worktreeRecordSchema>;
@@ -853,12 +860,60 @@ const hasOwnedWorktreeGitFile = (worktreePath: string, commonGitDir: string): bo
   return isInsideDirectory(referencedGitDir, join(commonGitDir, "worktrees"));
 };
 
+const pathEntryExists = (targetPath: string): boolean => {
+  try {
+    lstatSync(targetPath);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const readCheckoutToken = (gitDir: string): string | null => {
+  try {
+    return readFileSync(join(gitDir, CHECKOUT_TOKEN_FILE), "utf8").trim() || null;
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Proves that a checkout left behind by a failed `git worktree add` belongs to this attempt: its
+ * Git metadata must point back at `worktreePath` and check out the branch this attempt created.
+ */
+const gitMetadataNamesNewCheckout = (
+  gitDir: string,
+  worktreePath: string,
+  branch: string,
+): boolean => {
+  try {
+    const head = readFileSync(join(gitDir, "HEAD"), "utf8").trim();
+    const backLink = readFileSync(join(gitDir, "gitdir"), "utf8").trim();
+    return (
+      head === `ref: refs/heads/${branch}` &&
+      canonicalPath(resolve(gitDir, backLink)) === canonicalPath(join(worktreePath, ".git"))
+    );
+  } catch {
+    return false;
+  }
+};
+
+const isClaimOwnerAlive = (record: WorktreeRecord): boolean =>
+  record.ownerPid !== undefined && isProcessAlive(record.ownerPid);
+
+type CheckoutIdentity = Pick<WorktreeRecord, "gitDir" | "checkoutToken" | "partialRemoval">;
+
 const assertCheckoutIdentity = (
   worktreePath: string,
   normalizedPath: string,
-  expectedGitDir: string | undefined,
+  identity: CheckoutIdentity | undefined,
 ): void => {
+  const expectedGitDir = identity?.gitDir ? canonicalPath(identity.gitDir) : undefined;
   if (!expectedGitDir || !existsSync(worktreePath)) {
+    return;
+  }
+  // Residue of a removal this tool started: allow it only while no checkout metadata reappears.
+  if (identity?.partialRemoval && !pathEntryExists(join(worktreePath, ".git"))) {
     return;
   }
   const actualGitDir = readWorktreeGitDir(worktreePath);
@@ -869,6 +924,27 @@ const assertCheckoutIdentity = (
     throw new Error(
       `Refusing to remove "${normalizedPath}": checkout identity mismatch (expected gitdir "${expectedGitDir}", found ${foundDescription}).`,
     );
+  }
+  // Git may reuse the same `.git/worktrees/<id>` for a new checkout at this path, so a live
+  // metadata directory must also carry the token written when this worktree was created.
+  if (identity?.checkoutToken && existsSync(actualGitDir)) {
+    const actualToken = readCheckoutToken(actualGitDir);
+    if (actualToken !== identity.checkoutToken) {
+      throw new Error(
+        `Refusing to remove "${normalizedPath}": checkout identity mismatch (gitdir "${actualGitDir}" belongs to a different checkout than the one worktree:create registered).`,
+      );
+    }
+  }
+};
+
+const assertNoNestedWorktrees = (normalizedPath: string, otherPaths: Iterable<string>): void => {
+  for (const otherPath of otherPaths) {
+    const otherCanonicalPath = canonicalPath(otherPath);
+    if (isInsideDirectory(otherCanonicalPath, normalizedPath)) {
+      throw new Error(
+        `Refusing to remove "${normalizedPath}": it contains another worktree at "${otherCanonicalPath}". Move or remove that worktree first.`,
+      );
+    }
   }
 };
 
@@ -957,6 +1033,7 @@ export const createWorktree = async (
   let worktreeAddAttempted = false;
   let worktreeAdded = false;
   let createdGitDir: string | undefined;
+  const checkoutToken = randomUUID();
   let registryReserved = false;
   let databaseCreated = false;
   let resolvedTargetDir = canonicalTargetDir;
@@ -977,7 +1054,9 @@ export const createWorktree = async (
           }
           if (existingRecord.status === "creating") {
             throw new Error(
-              `Worktree "${slug}" is currently being created at ${existingRecord.path}. Wait for creation to finish.`,
+              isClaimOwnerAlive(existingRecord)
+                ? `Worktree "${slug}" is currently being created at ${existingRecord.path} by process ${existingRecord.ownerPid}. Wait for creation to finish.`
+                : `Creating worktree "${slug}" at ${existingRecord.path} was interrupted. Run \`vp run worktree:clean ${slug}\` to remove its partial state first.`,
             );
           }
           throw new Error(
@@ -1028,10 +1107,13 @@ export const createWorktree = async (
 
         resolvedTargetDir = canonicalPath(targetDir);
         createdGitDir = readWorktreeGitDir(resolvedTargetDir) ?? undefined;
+        if (createdGitDir) {
+          writeFileSync(join(createdGitDir, CHECKOUT_TOKEN_FILE), `${checkoutToken}\n`, "utf8");
+        }
         registry.worktrees[slug] = {
           slug,
           path: resolvedTargetDir,
-          ...(createdGitDir ? { gitDir: createdGitDir } : {}),
+          ...(createdGitDir ? { gitDir: createdGitDir, checkoutToken } : {}),
           branch,
           baseRef,
           databaseName,
@@ -1040,6 +1122,7 @@ export const createWorktree = async (
           ports: allocatedPorts,
           createdAt: now().toISOString(),
           status: "creating",
+          ownerPid: process.pid,
         };
         writeWorktreeRegistry(primaryRepoRoot, registry);
         registryReserved = true;
@@ -1116,8 +1199,9 @@ export const createWorktree = async (
           current.status === "creating" &&
           canonicalPath(current.path) === resolvedTargetDir
         ) {
+          const { ownerPid: _releasedOwner, ...withoutOwner } = current;
           updatedRegistry.worktrees[slug] = {
-            ...current,
+            ...withoutOwner,
             databaseCreated,
             status: "active",
           };
@@ -1150,6 +1234,7 @@ export const createWorktree = async (
     let checkoutRemovalError: unknown;
     let checkoutRemains = false;
     let checkoutDotGitRemoved = false;
+    let checkoutPreserved = false;
     if (worktreeAdded || worktreeAddAttempted) {
       const cleanupDir = existsSync(resolvedTargetDir)
         ? canonicalPath(resolvedTargetDir)
@@ -1159,12 +1244,20 @@ export const createWorktree = async (
         if (existsSync(cleanupDir)) {
           try {
             const commonGitDir = resolveCommonGitDir(primaryRepoRoot, execGit);
+            const actualGitDir = readWorktreeGitDir(cleanupDir);
+            // The directory's earlier absence does not prove ownership: another process can fill it
+            // before `git worktree add` runs. Only Git metadata tied to this attempt does.
             ownedCheckout =
+              actualGitDir !== null &&
               hasOwnedWorktreeGitFile(cleanupDir, commonGitDir) &&
-              (!createdGitDir || readWorktreeGitDir(cleanupDir) === createdGitDir);
+              (createdGitDir
+                ? actualGitDir === createdGitDir &&
+                  readCheckoutToken(actualGitDir) === checkoutToken
+                : gitMetadataNamesNewCheckout(actualGitDir, cleanupDir, branch));
           } catch {
             ownedCheckout = false;
           }
+          checkoutPreserved = !ownedCheckout;
         }
         if (ownedCheckout) {
           try {
@@ -1213,9 +1306,11 @@ export const createWorktree = async (
               canonicalPath(current.path) === resolvedTargetDir
             ) {
               if (checkoutRemains) {
-                const { gitDir: _clearedGitDir, ...withoutGitDir } = current;
+                // Keep the recorded identity so a retried clean still rejects a replacement checkout.
+                const { ownerPid: _releasedOwner, ...withoutOwner } = current;
                 latestRegistry.worktrees[slug] = {
-                  ...(checkoutDotGitRemoved ? withoutGitDir : current),
+                  ...withoutOwner,
+                  ...(checkoutDotGitRemoved ? { partialRemoval: true } : {}),
                   databaseCreated: databaseCreated && !databaseDroppedInRollback,
                   status: "cleaning",
                 };
@@ -1241,6 +1336,13 @@ export const createWorktree = async (
         : "directory still exists after removal";
       throw new Error(
         `${originalMessage} (rollback could not remove checkout at "${resolvedTargetDir}": ${removalDetail})`,
+        { cause: error },
+      );
+    }
+    if (checkoutPreserved) {
+      const originalMessage = error instanceof Error ? error.message : String(error);
+      throw new Error(
+        `${originalMessage} (rollback preserved "${resolvedTargetDir}" because its Git metadata does not show that this attempt created it)`,
         { cause: error },
       );
     }
@@ -1319,24 +1421,26 @@ export const cleanWorktree = async (
   const dropDb = deps.dropDatabase ?? ((name) => dropLocalDatabase(name, undefined, root));
   const cleanToken = randomUUID();
 
-  const { worktreePath, normalizedPath, expectedGitDir, branch, databaseName, claimedRecord } =
+  const { worktreePath, normalizedPath, identity, branch, databaseName, claimedRecord } =
     await withWorktreeRegistryLock(
       root,
       () => {
         const registry = readWorktreeRegistry(root);
         const record = registry.worktrees[slug];
-        if (record?.status === "creating") {
+        // A claim whose owner process has exited (for example, a killed create) no longer blocks cleanup.
+        if (record?.status === "creating" && isClaimOwnerAlive(record)) {
           throw new Error(
-            `Worktree "${slug}" is currently being created. Wait for creation to finish before cleaning.`,
+            `Worktree "${slug}" is currently being created by process ${record.ownerPid}. Wait for creation to finish before cleaning.`,
           );
         }
         if (
           record?.status === "cleaning" &&
           record.cleanToken &&
-          record.cleanToken !== cleanToken
+          record.cleanToken !== cleanToken &&
+          isClaimOwnerAlive(record)
         ) {
           throw new Error(
-            `Worktree "${slug}" is already being cleaned by another operation. Wait for it to finish.`,
+            `Worktree "${slug}" is already being cleaned by another operation (process ${record.ownerPid}). Wait for it to finish.`,
           );
         }
 
@@ -1365,8 +1469,15 @@ export const cleanWorktree = async (
           }
         }
 
-        const resolvedExpectedGitDir = record?.gitDir ? canonicalPath(record.gitDir) : undefined;
-        assertCheckoutIdentity(resolvedWorktreePath, canonicalWorktreePath, resolvedExpectedGitDir);
+        assertNoNestedWorktrees(canonicalWorktreePath, [
+          ...Object.values(registry.worktrees)
+            .filter((otherRecord) => otherRecord.slug !== slug)
+            .map((otherRecord) => otherRecord.path),
+          ...getActiveGitWorktrees(root, execGit)
+            .filter((entry) => !entry.prunable && canonicalPath(entry.path) !== root)
+            .map((entry) => entry.path),
+        ]);
+        assertCheckoutIdentity(resolvedWorktreePath, canonicalWorktreePath, record);
 
         const resolvedBranch = record?.branch ?? `worktree/${slug}`;
         const resolvedDatabaseName = record?.databaseName ?? databaseNameForSlug(slug);
@@ -1374,7 +1485,12 @@ export const cleanWorktree = async (
 
         let claimed = false;
         if (record) {
-          registry.worktrees[slug] = { ...record, status: "cleaning", cleanToken };
+          registry.worktrees[slug] = {
+            ...record,
+            status: "cleaning",
+            cleanToken,
+            ownerPid: process.pid,
+          };
           writeWorktreeRegistry(root, registry);
           claimed = true;
         }
@@ -1382,7 +1498,7 @@ export const cleanWorktree = async (
         return {
           worktreePath: resolvedWorktreePath,
           normalizedPath: canonicalWorktreePath,
-          expectedGitDir: resolvedExpectedGitDir,
+          identity: record,
           branch: resolvedBranch,
           databaseName: resolvedDatabaseName,
           claimedRecord: claimed,
@@ -1391,6 +1507,7 @@ export const cleanWorktree = async (
       deps.lockOptions,
     );
 
+  let removalAttempted = false;
   try {
     // Preload pg from primaryRepoRoot before removing worktreePath so cleaning from inside the
     // worktree being deleted still drops its database cleanly.
@@ -1411,28 +1528,30 @@ export const cleanWorktree = async (
       isInsideDirectory(normalizedPath, managedWorktreesRoot) ||
       hasOwnedWorktreeGitFile(worktreePath, commonGitDir);
 
-    assertCheckoutIdentity(worktreePath, normalizedPath, expectedGitDir);
+    assertCheckoutIdentity(worktreePath, normalizedPath, identity);
+    assertNoNestedWorktrees(
+      normalizedPath,
+      gitWorktrees
+        .filter((entry) => !entry.prunable && canonicalPath(entry.path) !== root)
+        .map((entry) => entry.path),
+    );
 
-    let worktreeRemoved = false;
-    if (gitEntry) {
+    // A prunable entry has lost its checkout `.git`; `git worktree prune` below clears its metadata.
+    let worktreeRemoved = Boolean(gitEntry);
+    if (gitEntry && !gitEntry.prunable) {
       if (existsSync(worktreePath)) {
-        try {
-          execGit(root, ["worktree", "remove", "--force", worktreePath]);
-        } catch (gitError) {
-          const lockedError = gitEntry.locked || /\blocked\b/i.test(describeExecError(gitError));
-          if (lockedError || !isOwnedDirectory()) {
-            throw gitError;
-          }
-          rmSync(worktreePath, { recursive: true, force: true });
-        }
+        // Let Git remove its own checkout; if Git refuses (for example, a locked worktree) or
+        // fails, surface the error instead of deleting the directory recursively.
+        removalAttempted = true;
+        execGit(root, ["worktree", "remove", "--force", worktreePath]);
       }
-      worktreeRemoved = true;
     } else if (existsSync(worktreePath)) {
       if (!isOwnedDirectory()) {
         throw new Error(
           `Refusing to remove directory "${normalizedPath}": it is not a recognized Git worktree for this repository and is outside ".tmp/worktrees/".`,
         );
       }
+      removalAttempted = true;
       rmSync(worktreePath, { recursive: true, force: true });
       worktreeRemoved = true;
     }
@@ -1542,8 +1661,16 @@ export const cleanWorktree = async (
             const latestRegistry = readWorktreeRegistry(root);
             const current = latestRegistry.worktrees[slug];
             if (current && current.status === "cleaning" && current.cleanToken === cleanToken) {
-              const { cleanToken: _cleared, ...rest } = current;
-              latestRegistry.worktrees[slug] = rest;
+              const { cleanToken: _cleared, ownerPid: _releasedOwner, ...rest } = current;
+              // Git deletes a checkout's metadata even when removing its files fails, so record
+              // the residue explicitly for the retry instead of dropping its identity.
+              const partialRemoval =
+                removalAttempted &&
+                existsSync(worktreePath) &&
+                !pathEntryExists(join(worktreePath, ".git"));
+              latestRegistry.worktrees[slug] = partialRemoval
+                ? { ...rest, partialRemoval: true }
+                : rest;
               writeWorktreeRegistry(root, latestRegistry);
             }
           },

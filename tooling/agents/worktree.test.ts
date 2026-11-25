@@ -6,6 +6,7 @@ import {
   mkdtempSync,
   readFileSync,
   realpathSync,
+  renameSync,
   rmSync,
   utimesSync,
   writeFileSync,
@@ -1726,7 +1727,7 @@ describe("worktree lifecycle in temp git repos", () => {
     expect(readWorktreeRegistry(repo).worktrees.alpha?.status).toBe("active");
   });
 
-  test("createWorktree clears gitDir on retained cleaning record when partial rollback removes .git so retry cleanWorktree succeeds", async () => {
+  test("createWorktree records partial removal with its identity so retry cleanWorktree removes residue but rejects a replacement checkout", async () => {
     const repo = initTempRepo(false);
     const droppedDbs: string[] = [];
 
@@ -1788,10 +1789,36 @@ describe("worktree lifecycle in temp git repos", () => {
       branch: "feat/partial-rollback",
       databaseCreated: false,
       status: "cleaning",
+      partialRemoval: true,
     });
-    expect(retained?.gitDir).toBeUndefined();
+    expect(retained?.gitDir).toBeTruthy();
+    expect(retained?.checkoutToken).toBeTruthy();
+    expect(retained?.ownerPid).toBeUndefined();
 
-    // Retry cleanWorktree must succeed without failing assertCheckoutIdentity on the missing .git file.
+    // A replacement checkout at the residue path reuses the pruned `.git/worktrees/<id>` name, but
+    // lacks this worktree's checkout token, so cleanup must refuse it.
+    const residueSnapshot = realpathSync(mkdtempSync(join(tmpdir(), "merit-residue-")));
+    tempDirs.push(residueSnapshot);
+    rmSync(residueSnapshot, { recursive: true, force: true });
+    renameSync(expectedPath, residueSnapshot);
+    git(repo, ["worktree", "add", "-b", "feat/replacement", expectedPath, "main"]);
+    expect(readWorktreeRegistry(repo).worktrees["partial-rollback"]?.gitDir).toBe(
+      realpathSync(join(repo, ".git/worktrees/partial-rollback")),
+    );
+    writeFileSync(join(expectedPath, "replacement-marker.txt"), "preserve me\n", "utf8");
+    await expect(
+      cleanWorktree(
+        { slug: "partial-rollback", keepBranch: false, json: true, primaryRepoRoot: repo },
+        { isPostgresReachable: async () => false },
+      ),
+    ).rejects.toThrow(/belongs to a different checkout/);
+    expect(readFileSync(join(expectedPath, "replacement-marker.txt"), "utf8")).toBe(
+      "preserve me\n",
+    );
+    git(repo, ["worktree", "remove", "--force", expectedPath]);
+    renameSync(residueSnapshot, expectedPath);
+
+    // With only the residue left (no `.git`), retrying cleanWorktree removes it.
     const cleaned = await cleanWorktree(
       { slug: "partial-rollback", keepBranch: false, json: true, primaryRepoRoot: repo },
       { isPostgresReachable: async () => false },
@@ -1869,5 +1896,203 @@ describe("worktree lifecycle in temp git repos", () => {
     expect(git(repo, ["branch", "--list", "worktree/gamma"])).toContain("worktree/gamma");
     expect(readWorktreeRegistry(repo).worktrees.beta?.status).toBe("active");
     expect(readWorktreeRegistry(repo).worktrees.gamma?.status).toBe("active");
+  });
+
+  test("cleanWorktree rejects a replacement checkout that reuses the recorded path and Git metadata name", async () => {
+    const repo = initTempRepo(false);
+    const alpha = await createWorktree(
+      { slug: "alpha", dbMode: "skip", doctor: false, json: true, primaryRepoRoot: repo },
+      { execCommand: () => {}, checkPortAvailable: async () => true },
+    );
+    const recordedAlpha = readWorktreeRegistry(repo).worktrees.alpha;
+    expect(recordedAlpha?.checkoutToken).toBeTruthy();
+
+    // Removing alpha with Git frees `.git/worktrees/alpha`, so the replacement reuses that name.
+    git(repo, ["worktree", "remove", "--force", alpha.path]);
+    git(repo, ["worktree", "add", "-b", "feat/replacement", alpha.path, "main"]);
+    expect(realpathSync(join(repo, ".git/worktrees/alpha"))).toBe(recordedAlpha?.gitDir);
+    writeFileSync(join(alpha.path, "replacement-marker.txt"), "preserve me\n", "utf8");
+
+    const dropDatabase = vi.fn();
+    await expect(
+      cleanWorktree(
+        { slug: "alpha", keepBranch: false, json: true, primaryRepoRoot: repo },
+        { isPostgresReachable: async () => true, dropDatabase },
+      ),
+    ).rejects.toThrow(/belongs to a different checkout/);
+    expect(dropDatabase).not.toHaveBeenCalled();
+    expect(readFileSync(join(alpha.path, "replacement-marker.txt"), "utf8")).toBe("preserve me\n");
+    expect(git(repo, ["branch", "--list", "feat/replacement"])).toContain("feat/replacement");
+  });
+
+  test("cleanWorktree surfaces Git removal failures without deleting the checkout and recovers residue after Git drops its metadata", async () => {
+    const repo = initTempRepo(false);
+    const created = await createWorktree(
+      { slug: "git-fails", dbMode: "skip", doctor: false, json: true, primaryRepoRoot: repo },
+      { execCommand: () => {}, checkPortAvailable: async () => true },
+    );
+    writeFileSync(join(created.path, "work.txt"), "uncommitted\n", "utf8");
+
+    const realGit = (dir: string, args: readonly string[]) =>
+      execFileSync("git", ["-c", "commit.gpgsign=false", ...args], {
+        cwd: dir,
+        encoding: "utf8",
+        env: isolatedGitEnv(),
+      });
+
+    const dropDatabase = vi.fn();
+
+    // Git refuses for a reason other than a lock: nothing may be deleted recursively.
+    await expect(
+      cleanWorktree(
+        { slug: "git-fails", keepBranch: false, json: true, primaryRepoRoot: repo },
+        {
+          execGit: (dir, args) => {
+            if (args[0] === "worktree" && args[1] === "remove") {
+              throw new Error("git worktree remove: permission denied");
+            }
+            return realGit(dir, args);
+          },
+          isPostgresReachable: async () => true,
+          dropDatabase,
+        },
+      ),
+    ).rejects.toThrow(/permission denied/);
+    expect(readFileSync(join(created.path, "work.txt"), "utf8")).toBe("uncommitted\n");
+    expect(dropDatabase).not.toHaveBeenCalled();
+    const afterRefusal = readWorktreeRegistry(repo).worktrees["git-fails"];
+    expect(afterRefusal).toMatchObject({ status: "cleaning" });
+    expect(afterRefusal?.partialRemoval).toBeUndefined();
+    expect(afterRefusal?.cleanToken).toBeUndefined();
+
+    // Git removes the checkout `.git` and then fails on the remaining files.
+    await expect(
+      cleanWorktree(
+        { slug: "git-fails", keepBranch: false, json: true, primaryRepoRoot: repo },
+        {
+          execGit: (dir, args) => {
+            if (args[0] === "worktree" && args[1] === "remove") {
+              rmSync(join(created.path, ".git"), { force: true });
+              throw new Error("git worktree remove: failed to delete remaining files");
+            }
+            return realGit(dir, args);
+          },
+          isPostgresReachable: async () => true,
+          dropDatabase,
+        },
+      ),
+    ).rejects.toThrow(/failed to delete remaining files/);
+    expect(existsSync(join(created.path, "work.txt"))).toBe(true);
+    expect(readWorktreeRegistry(repo).worktrees["git-fails"]).toMatchObject({
+      status: "cleaning",
+      partialRemoval: true,
+    });
+
+    const cleaned = await cleanWorktree(
+      { slug: "git-fails", keepBranch: false, json: true, primaryRepoRoot: repo },
+      { isPostgresReachable: async () => true, dropDatabase },
+    );
+    expect(cleaned).toMatchObject({ worktreeRemoved: true, registryRemoved: true });
+    expect(existsSync(created.path)).toBe(false);
+    expect(dropDatabase).toHaveBeenCalledExactlyOnceWith("merit_git_fails");
+  });
+
+  test("cleanWorktree refuses to remove a checkout that contains another Git worktree", async () => {
+    const repo = initTempRepo(false);
+    const alpha = await createWorktree(
+      { slug: "alpha", dbMode: "skip", doctor: false, json: true, primaryRepoRoot: repo },
+      { execCommand: () => {}, checkPortAvailable: async () => true },
+    );
+    const nestedPath = join(alpha.path, "nested-raw");
+    git(repo, ["worktree", "add", "-b", "feat/nested-raw", nestedPath, "main"]);
+    writeFileSync(join(nestedPath, "nested-marker.txt"), "preserve me\n", "utf8");
+
+    const dropDatabase = vi.fn();
+    await expect(
+      cleanWorktree(
+        { slug: "alpha", keepBranch: false, json: true, primaryRepoRoot: repo },
+        { isPostgresReachable: async () => true, dropDatabase },
+      ),
+    ).rejects.toThrow(/contains another worktree/);
+    expect(dropDatabase).not.toHaveBeenCalled();
+    expect(readFileSync(join(nestedPath, "nested-marker.txt"), "utf8")).toBe("preserve me\n");
+    expect(readWorktreeRegistry(repo).worktrees.alpha?.status).toBe("active");
+  });
+
+  test("an interrupted create whose owner process exited does not block worktree:clean", async () => {
+    const repo = initTempRepo(false);
+    await createWorktree(
+      { slug: "killed", dbMode: "skip", doctor: false, json: true, primaryRepoRoot: repo },
+      { execCommand: () => {}, checkPortAvailable: async () => true },
+    );
+    const exitedPid = spawnSync(process.execPath, ["-e", ""]).pid;
+    const registry = readWorktreeRegistry(repo);
+    registry.worktrees.killed = {
+      ...registry.worktrees.killed!,
+      status: "creating",
+      ownerPid: exitedPid,
+    };
+    writeWorktreeRegistry(repo, registry);
+
+    expect(listWorktrees({ primaryRepoRoot: repo })).toEqual([]);
+    await expect(
+      createWorktree(
+        { slug: "killed", dbMode: "skip", doctor: false, json: true, primaryRepoRoot: repo },
+        { execCommand: () => {}, checkPortAvailable: async () => true },
+      ),
+    ).rejects.toThrow(/was interrupted.*worktree:clean killed/);
+
+    const cleaned = await cleanWorktree(
+      { slug: "killed", keepBranch: false, json: true, primaryRepoRoot: repo },
+      { isPostgresReachable: async () => false },
+    );
+    expect(cleaned).toMatchObject({ worktreeRemoved: true, registryRemoved: true });
+    expect(readWorktreeRegistry(repo).worktrees.killed).toBeUndefined();
+  });
+
+  test("createWorktree rollback preserves another linked checkout that took the target before git worktree add", async () => {
+    const repo = initTempRepo(false);
+    const customParent = realpathSync(mkdtempSync(join(tmpdir(), "merit-add-race-")));
+    tempDirs.push(customParent);
+    const targetDir = join(customParent, "contested");
+
+    const realGit = (dir: string, args: readonly string[]) =>
+      execFileSync("git", ["-c", "commit.gpgsign=false", ...args], {
+        cwd: dir,
+        encoding: "utf8",
+        env: isolatedGitEnv(),
+      });
+
+    let raced = false;
+
+    await expect(
+      createWorktree(
+        {
+          slug: "contested",
+          dir: targetDir,
+          dbMode: "skip",
+          doctor: false,
+          json: true,
+          primaryRepoRoot: repo,
+        },
+        {
+          execGit: (dir, args) => {
+            if (!raced && args[0] === "worktree" && args[1] === "add") {
+              raced = true;
+              realGit(repo, ["worktree", "add", "-b", "feat/other-job", targetDir, "main"]);
+              writeFileSync(join(targetDir, "other-job.txt"), "keep me\n", "utf8");
+            }
+            return realGit(dir, args);
+          },
+          execCommand: () => {},
+          checkPortAvailable: async () => true,
+        },
+      ),
+    ).rejects.toThrow(/rollback preserved .*contested/);
+
+    expect(readFileSync(join(targetDir, "other-job.txt"), "utf8")).toBe("keep me\n");
+    expect(git(repo, ["worktree", "list", "--porcelain"])).toContain(targetDir);
+    expect(git(repo, ["branch", "--list", "feat/other-job"])).toContain("feat/other-job");
+    expect(readWorktreeRegistry(repo).worktrees.contested).toBeUndefined();
   });
 });

@@ -233,7 +233,13 @@ worktrees, drops its dedicated database (refusing to touch `merit` or
 `postgres`), and deletes the worktree branch with `git branch -D` unless
 `--keep-branch` is passed. Force-removing the checkout discards uncommitted
 changes and `git branch -D` discards unmerged commits (`--keep-branch` preserves
-the branch, not uncommitted files). If PostgreSQL is stopped when running
+the branch, not uncommitted files). `worktree:create` stores a per-checkout
+token in the worktree's Git metadata, and `worktree:clean` refuses to remove a
+directory that no longer holds that checkout (for example, after
+`git worktree move` or a replacement checkout at the same path), that contains
+another worktree, or that Git refuses to remove, such as a locked worktree. If a
+`worktree:create` process exits before finishing, `worktree:clean <slug>`
+removes what it left behind. If PostgreSQL is stopped when running
 `worktree:clean`, the database drop is skipped; start services with
 `vp run services:start` and rerun `vp run worktree:clean <slug>` before reusing
 the slug.
