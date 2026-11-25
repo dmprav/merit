@@ -219,7 +219,14 @@ PostgreSQL is not running; start services with `vp run services:start` and pass
 `--with-db` when a database is required. If database creation was skipped, run
 `vp run db:reset` inside the worktree once Compose is running to create,
 migrate, and seed its database—`db:migrate` connects to the target database and
-does not create it. `db:reset` drops `merit_<slug>` first if it already exists,
+does not create it. An exported shell `DATABASE_URL` takes precedence over
+`.env.local` for `db:reset`, `db:migrate`, and `db:seed`, so before running any
+of them check `echo "$DATABASE_URL"`, run `unset DATABASE_URL` if it is set,
+and confirm the worktree's `.env.local` names its own `merit_<slug>` database on
+`127.0.0.1:55432`; inside a worktree, `db:reset` refuses to run while an
+exported value differs from the worktree's `.env.local` database or while
+`.env.local` sets no `DATABASE_URL`, but `db:migrate` and `db:seed` do not
+check. `db:reset` drops `merit_<slug>` first if it already exists,
 such as one left by an earlier worktree with the same slug, which deletes its
 data. If that database holds data you need and was created from the current
 schema baseline, keep it and run `vp run @merit/db#db:migrate` followed by
@@ -230,10 +237,7 @@ separately, for example with `pg_dump`, before creating a fresh database.
 When the database was created during `worktree:create`, run
 `vp run db:reset` or `vp run @merit/db#db:migrate` followed by
 `vp run @merit/app#db:seed` inside the worktree to initialize its schema and
-seed data. An exported shell `DATABASE_URL` takes precedence over `.env.local`,
-so check `echo "$DATABASE_URL"` and unset it before resetting; inside a
-worktree, `db:reset` refuses to run while an exported value differs from the
-worktree's `.env.local` database or while `.env.local` sets no `DATABASE_URL`.
+seed data, after the same `DATABASE_URL` check.
 
 `worktree:clean` idempotently force-removes the checkout directory, prunes stale
 worktrees, drops its dedicated database (refusing to touch `merit` or
