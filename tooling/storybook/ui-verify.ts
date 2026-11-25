@@ -35,7 +35,7 @@ const REPO_ROOT = resolve(fileURLToPath(new URL("../../", import.meta.url)));
 const DEFAULT_OUT_DIR = ".tmp/ui-verify";
 const MAX_TAB_STOPS = 40;
 // Bounds the wait for the page's next rendering update, which never comes while rendering is blocked.
-const FOCUS_RENDER_UPDATE_TIMEOUT_MS = 5_000;
+const RENDER_UPDATE_TIMEOUT_MS = 5_000;
 const SERVER_READY_TIMEOUT_MS = 120_000;
 const STORYBOOK_READY_TIMEOUT_MS = 60_000;
 const PROCESS_EXIT_GRACE_MS = 5_000;
@@ -1430,7 +1430,7 @@ export const checkKeyboardFocusTraversal = async (
         resolve();
       });
     });
-  }, FOCUS_RENDER_UPDATE_TIMEOUT_MS);
+  }, RENDER_UPDATE_TIMEOUT_MS);
 
   const stops: CapturedStop[] = [];
   let reachedCap = false;
@@ -1686,6 +1686,36 @@ export const checkKeyboardFocusTraversal = async (
   };
 };
 
+// Playwright's `animations: "disabled"` finishes finite animations, but their end events fire in
+// a later rendering update, after a full-page capture may already have sized the page. Finishing
+// them first and waiting for that update lets end handlers change layout before the capture.
+const finishFiniteAnimations = (page: Page) =>
+  page.evaluate(async (renderUpdateTimeoutMs: number) => {
+    let finishedAny = false;
+    for (const animation of document.getAnimations()) {
+      if (animation.effect?.getComputedTiming().endTime === Infinity) {
+        continue;
+      }
+      try {
+        animation.finish();
+        finishedAny = true;
+      } catch {
+        // A zero playback rate cannot finish; the capture's own animation handling covers it.
+      }
+    }
+    if (!finishedAny) {
+      return;
+    }
+    // Animation events are dispatched in the rendering update, before its frame callbacks run.
+    await new Promise<void>((resolve) => {
+      const timer = setTimeout(resolve, renderUpdateTimeoutMs);
+      requestAnimationFrame(() => {
+        clearTimeout(timer);
+        resolve();
+      });
+    });
+  }, RENDER_UPDATE_TIMEOUT_MS);
+
 export const verifyLoadedPage = async ({
   page,
   browserErrors,
@@ -1717,6 +1747,7 @@ export const verifyLoadedPage = async ({
         return;
       }
       mkdirSync(dirname(screenshotPath), { recursive: true });
+      await finishFiniteAnimations(page);
       if (fullPage) {
         await page.evaluate(() => window.scrollTo(0, 0));
       }
