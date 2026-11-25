@@ -70,8 +70,9 @@ vp run ui:verify --route <changed-route> --out <dir>/changed
 vp run ui:verify --route <precedent-route> --out <dir>/precedent
 ```
 
-Inspect `<dir>/report.md` and every captured pair under `<dir>/screenshots/`, and correct
-every difference the brief does not explain before reporting. Screenshots you did not inspect
+Inspect `<dir>/report.md` and every captured pair under `<dir>/screenshots/` (for split runs,
+both `<dir>/changed/report.md` and `<dir>/precedent/report.md`, pairing screenshots across their
+`screenshots/` folders), and correct every difference the brief does not explain before reporting. Screenshots you did not inspect
 do not count as verification.
 
 ## Report
