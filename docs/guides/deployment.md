@@ -44,7 +44,7 @@ whether Temporal is hosted or self-managed, is still open.
 - **A Temporal service** reachable from both the web server and the worker. Set
   `TEMPORAL_ADDRESS` (`host:port` of the frontend) and `TEMPORAL_NAMESPACE` for the namespace
   that holds Merit's workflows. A hosted service also needs `TEMPORAL_API_KEY`, which turns on
-  TLS. Neither address nor namespace has a deployed default.
+  TLS. A deployment must set the address, which has no deployed default; the namespace defaults to `default`.
 - **A payload key.** Set `TEMPORAL_PAYLOAD_KEY` to a base64-encoded 32-byte key
   (`openssl rand -base64 32`) in the web server and worker environments. They must share it.
   The development key is public, so a deployment without its own key refuses to start. Keep

@@ -1,7 +1,7 @@
 import { Client, Connection } from "@temporalio/client";
 
 import type { TemporalConfig } from "./config.ts";
-import { createDataConverter } from "./payload-codec.ts";
+import { createClientDataConverter } from "./payload-codec.ts";
 
 export const connectionOptions = ({ address, tls, apiKey }: TemporalConfig) => ({
   address,
@@ -17,7 +17,7 @@ export const createWorkflowClient = (config: TemporalConfig) =>
   new Client({
     connection: Connection.lazy(connectionOptions(config)),
     namespace: config.namespace,
-    dataConverter: createDataConverter(config.payloadKey),
+    dataConverter: createClientDataConverter(config.payloadKey),
   });
 
 export type WorkflowClient = ReturnType<typeof createWorkflowClient>;

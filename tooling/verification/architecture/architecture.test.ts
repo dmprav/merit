@@ -1710,4 +1710,14 @@ describe.concurrent("architecture rules", () => {
       "belong in foundation/workflows",
     );
   });
+
+  test.each(["foundation/workflows/src/probe.ts", "app/src/worker/probe.ts"])(
+    "forbids the Temporal test server package in %s",
+    async (path) => {
+      await check(
+        { [path]: 'export { TestWorkflowEnvironment } from "@temporalio/testing";' },
+        "downloads an unpinned Temporal server",
+      );
+    },
+  );
 });

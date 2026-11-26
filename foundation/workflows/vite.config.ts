@@ -17,8 +17,7 @@ export default defineConfig({
     coverage: {
       ...coverageDefaults,
       include: ["src/**/*.ts"],
-      // Test helpers are fixtures; the app worker integration test exercises them against Temporal.
-      exclude: ["**/*.test.ts", "src/testing/**"],
+      exclude: ["**/*.test.ts"],
     },
   },
 });

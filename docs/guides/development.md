@@ -103,10 +103,18 @@ with the others. The development server is a local tool, not a deployment.
 `vp run dev`, `vp run dev:workspace`, and `vp run @merit/app#preview` start the
 [application worker](../../app/src/worker/main.ts) as a separate Node.js process beside the
 web server; there is no in-process fallback. The worker reruns when its files change in
-development, retries connecting with backoff when Temporal is not running, and logs each
-attempt without credentials. The web server is unaffected either way. If the worker stops,
-for example from an invalid setting, the command says so and keeps the web server running.
-Run the worker alone with `vp run @merit/app#worker`.
+development when a file it imports, a `*.workflow.ts` module, or `app/.env.local` changes,
+retries connecting with backoff when Temporal is not running, and logs each attempt without
+credentials. The worker does not read the terminal, so Vite's keyboard shortcuts reach Vite.
+The web server is unaffected either way. If the worker stops, for example from an invalid
+setting or a namespace that does not exist, the command says so and keeps the web server
+running: the development watcher prints that the worker exited and reruns it on the next
+change, such as a fix in `app/.env.local`, and preview prints that it stopped. Press Ctrl+C once to stop everything after work in flight finishes, and again to
+force the worker to exit. Run the worker alone with `vp run @merit/app#worker`.
+
+Every worker started this way polls the fixed `merit` task queue on the one Compose server.
+Once web code starts workflows, a dev worker from another worktree can pick up your work,
+running its code against its checkout. Stop other worktrees' workers while you work on workflows.
 
 Both processes read `app/.env.local`. The defaults need no configuration:
 

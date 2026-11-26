@@ -30,11 +30,15 @@ Workflow inputs and activity results carry record identifiers only; activities r
 everything else from PostgreSQL under current permissions. The one exception, the raw
 organization-invitation token, travels only inside an encrypted payload.
 
-`createDataConverter` applies a codec to every payload the client and worker exchange
-with the server. Each payload, metadata included, is encrypted with AES-256-GCM under a
-fresh nonce, so the server and its history store only the `binary/encrypted` encoding.
-The codec rejects payloads that are not encrypted. The Temporal UI therefore shows
-ciphertext. Rotating the key makes history written under the old key unreadable; plan
+`createDataConverter` (worker) and `createClientDataConverter` (client) apply a codec to
+every payload the client and worker exchange with the server. Each payload, metadata
+included, is encrypted with AES-256-GCM under a fresh nonce, so the server and its history
+store only the `binary/encrypted` encoding. The codec rejects payloads that are not
+encrypted. Failures are covered too: the failure converter moves error messages and stack
+traces into encoded attributes, which the codec then encrypts, so history keeps only
+"Encoded failure" in plaintext. The worker names the converter by path
+(`failureConverterPath`) because workflow code converts failures inside its sandbox. The
+Temporal UI therefore shows ciphertext. Rotating the key makes history written under the old key unreadable; plan
 a key-identifier scheme before the first rotation.
 
 ## Start workflows
@@ -67,7 +71,8 @@ connection you own.
 
 The application worker is [`app/src/worker/main.ts`](../../app/src/worker/main.ts). It
 registers one workflow, `workerHealth`, which proves the path from client to worker,
-activity, and result. Run it with `vp run @merit/app#worker`, or let
+activity, and result. The process exits once the worker stops, with a non-zero code when
+the worker failed. Run it with `vp run @merit/app#worker`, or let
 [`vp run dev`](../../docs/guides/development.md#start-and-seed-postgresql) start it.
 
 ## Test against the Compose server
@@ -79,8 +84,10 @@ Tests never download a Temporal server. Start the Compose service with
 - `startTestWorker(config, { workflows, activities })` runs a worker on a unique task queue
   and returns a client and `stop()`;
 - `uniqueName(prefix)` makes workflow IDs that cannot collide;
-- `readStoredPayloads` returns the payloads exactly as the server stored them, and
-  `createClientWithPayloadKey` builds a client with another key to prove they are unreadable.
+- `readStoredPayloads` and `readStoredFailures` return the payloads and failures exactly as
+  the server stored them, `storedHistoryIncludes` searches the stored history for a probe
+  string, and `createClientWithPayloadKey` builds a client with another key to prove they
+  are unreadable. Close that client's `connection` when the test ends.
 
 Put tests that need Temporal in the integration suite, as the
 [worker integration test](../../app/tests/worker.integration.ts) does. Unit tests cover

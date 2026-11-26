@@ -1,7 +1,13 @@
 import { defaultPayloadConverter, type Payload } from "@temporalio/common";
 import { describe, expect, it } from "vite-plus/test";
 
-import { createPayloadCodec, encryptedEncoding } from "./payload-codec.ts";
+import { failureConverter } from "./failure-converter.ts";
+import {
+  createClientDataConverter,
+  createDataConverter,
+  createPayloadCodec,
+  encryptedEncoding,
+} from "./payload-codec.ts";
 
 const key = new Uint8Array(32).fill(3);
 const text = new TextDecoder();
@@ -71,5 +77,28 @@ describe("payload codec", () => {
 
   it("requires a 32-byte key", () => {
     expect(() => createPayloadCodec(new Uint8Array(16))).toThrow("32 bytes");
+  });
+});
+
+describe("failure conversion", () => {
+  it("moves the message and stack trace into encoded attributes", () => {
+    const failure = failureConverter.errorToFailure(
+      new Error("recipient@example.test"),
+      defaultPayloadConverter,
+    );
+
+    expect(failure.message).toBe("Encoded failure");
+    expect(failure.stackTrace).toBe("");
+    expect(failure.encodedAttributes).toBeDefined();
+  });
+
+  it("uses the same converter for the client and, by path, the worker", () => {
+    const worker = createDataConverter(key);
+    const client = createClientDataConverter(key);
+
+    expect(worker.failureConverterPath).toMatch(/failure-converter\.ts$/u);
+    expect(worker.payloadCodecs).toHaveLength(1);
+    expect(client.payloadCodecs).toHaveLength(1);
+    expect(Reflect.get(client, "failureConverter")).toBe(failureConverter);
   });
 });

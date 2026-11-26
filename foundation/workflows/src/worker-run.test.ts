@@ -125,14 +125,25 @@ describe("creating a worker", () => {
 
     await createWorker(connection as never, { ...settings, activities });
 
-    expect(sdk.create).toHaveBeenCalledWith({
-      connection,
-      namespace: "default",
-      taskQueue: "queue",
-      dataConverter: { payloadCodecs: [expect.anything()] },
-      workflowsPath: "/workflows.ts",
-      activities,
-    });
+    expect(sdk.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        connection,
+        namespace: "default",
+        taskQueue: "queue",
+        workflowsPath: "/workflows.ts",
+        activities,
+      }),
+    );
+  });
+
+  it("encrypts payloads and failure details", async () => {
+    await createWorker(connection as never, settings);
+
+    const { dataConverter } = sdk.create.mock.calls[0]![0] as {
+      dataConverter: { payloadCodecs: unknown[]; failureConverterPath: string };
+    };
+    expect(dataConverter.payloadCodecs).toHaveLength(1);
+    expect(dataConverter.failureConverterPath).toMatch(/failure-converter\.ts$/u);
   });
 
   it("omits activities when there are none", async () => {

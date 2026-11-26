@@ -1,6 +1,11 @@
 export { readTemporalConfig, type TemporalConfig } from "./config.ts";
 export { connectionOptions, createWorkflowClient, type WorkflowClient } from "./connection.ts";
-export { createDataConverter, createPayloadCodec, encryptedEncoding } from "./payload-codec.ts";
+export {
+  createClientDataConverter,
+  createDataConverter,
+  createPayloadCodec,
+  encryptedEncoding,
+} from "./payload-codec.ts";
 export {
   createWorker,
   describeError,

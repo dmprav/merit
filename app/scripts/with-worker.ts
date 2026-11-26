@@ -12,8 +12,19 @@ if (!command) {
   throw new Error("Usage: with-worker.ts [--watch] <command> [args...]");
 }
 
-const worker = spawn("vpx", [...(watch ? ["--watch"] : []), "src/worker/main.ts"], {
-  stdio: "inherit",
+// The watcher also reruns when a workflow module changes (the SDK's bundler reads those, so
+// the import graph misses them) or when `.env.local` does (read at startup, not imported).
+// The worker never reads the terminal, so Vite's keyboard shortcuts reach Vite alone.
+const watcher = [
+  "--watch",
+  "--no-rerun-on-enter",
+  "--include",
+  "src/**/*.workflow.ts",
+  "--include",
+  ".env.local",
+];
+const worker = spawn("vpx", [...(watch ? watcher : []), "src/worker/main.ts"], {
+  stdio: ["ignore", "inherit", "inherit"],
   env: { ...process.env, MERIT_LOCAL_WORKER: "1" },
 });
 worker.on("error", (error) => console.error(`[worker] Could not start: ${error.message}`));

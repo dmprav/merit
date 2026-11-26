@@ -5,9 +5,11 @@ import { afterAll, beforeAll, expect, it } from "vite-plus/test";
 import { encryptedEncoding } from "@merit/workflows";
 import {
   createClientWithPayloadKey,
+  readStoredFailures,
   readStoredPayloads,
   readTestTemporalConfig,
   startTestWorker,
+  storedHistoryIncludes,
   uniqueName,
   type TestWorker,
 } from "@merit/workflows/testing";
@@ -21,15 +23,37 @@ const workflowsPath = fileURLToPath(
   new URL("../src/worker/workflows.workflow.ts", import.meta.url),
 );
 
+const failingWorkflowsPath = fileURLToPath(
+  new URL("./fixtures/failing.workflow.ts", import.meta.url),
+);
+
 let worker: TestWorker;
+let failingWorker: TestWorker;
+const extraClients: ReturnType<typeof createClientWithPayloadKey>[] = [];
 
 beforeAll(async () => {
   worker = await startTestWorker(config, { workflows: { workflowsPath }, activities });
-}, 30_000);
+  failingWorker = await startTestWorker(config, {
+    workflows: { workflowsPath: failingWorkflowsPath },
+    activities: {
+      failWithMessage: async (message: string) => {
+        throw new Error(message);
+      },
+    },
+  });
+}, 60_000);
 
 afterAll(async () => {
   await worker.stop();
+  await failingWorker.stop();
+  await Promise.all(extraClients.map((client) => client.connection.close()));
 });
+
+const clientWithPayloadKey = (key: Uint8Array | undefined) => {
+  const client = createClientWithPayloadKey(config, key);
+  extraClients.push(client);
+  return client;
+};
 
 const start = async () => {
   const workflowId = uniqueName("worker-health");
@@ -66,8 +90,8 @@ it("stores only encrypted payloads in workflow history", async () => {
 
 it("cannot read a result without the payload key", async () => {
   const { workflowId, probeId } = await start();
-  const withoutCodec = createClientWithPayloadKey(config, undefined);
-  const withWrongKey = createClientWithPayloadKey(config, new Uint8Array(32).fill(9));
+  const withoutCodec = clientWithPayloadKey(undefined);
+  const withWrongKey = clientWithPayloadKey(new Uint8Array(32).fill(9));
 
   await expect(withoutCodec.workflow.getHandle(workflowId).result()).rejects.toThrow();
   await expect(withWrongKey.workflow.getHandle(workflowId).result()).rejects.toThrow();
@@ -75,4 +99,37 @@ it("cannot read a result without the payload key", async () => {
     probeId,
     status: "ok",
   });
+});
+
+it("stores failure messages and stack traces encrypted", async () => {
+  const workflowId = uniqueName("worker-failure");
+  const probe = `failure-probe-${uniqueName("text")}`;
+
+  const outcome = await failingWorker.client.workflow
+    .execute("failingProbe", {
+      taskQueue: failingWorker.taskQueue,
+      workflowId,
+      args: [{ message: probe }],
+      workflowExecutionTimeout: "30 seconds",
+    })
+    .then(
+      () => undefined,
+      (error: unknown) => error,
+    );
+
+  // The client decrypts the failure, so its caller still sees the message.
+  expect(outcome).toBeInstanceOf(Error);
+  expect(JSON.stringify(outcome, Object.getOwnPropertyNames(outcome))).toContain(probe);
+
+  expect(
+    await storedHistoryIncludes(failingWorker.client, workflowId, config.namespace, probe),
+  ).toBe(false);
+  const failures = await readStoredFailures(failingWorker.client, workflowId, config.namespace);
+  expect(failures.length).toBeGreaterThan(0);
+  for (const failure of failures) {
+    expect(failure.message).toBe("Encoded failure");
+    expect(new TextDecoder().decode(failure.encodedAttributes?.metadata?.encoding)).toBe(
+      encryptedEncoding,
+    );
+  }
 });

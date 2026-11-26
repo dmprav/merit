@@ -6,7 +6,7 @@
   "type": "module",
   "exports": {
     ".": "./src/workflows.server.ts",
-    "./testing": "./src/testing/index.ts"
+    "./testing": "./testing/index.ts"
   },
   "dependencies": {
     "@temporalio/client": "catalog:",

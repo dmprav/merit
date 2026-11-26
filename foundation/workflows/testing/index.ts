@@ -2,12 +2,13 @@ import { randomUUID } from "node:crypto";
 
 import { Client, Connection } from "@temporalio/client";
 import type { Payload } from "@temporalio/common";
+import proto from "@temporalio/proto";
 import { NativeConnection } from "@temporalio/worker";
 
-import { readTemporalConfig, type TemporalConfig } from "../config.ts";
-import { connectionOptions, createWorkflowClient } from "../connection.ts";
-import { createDataConverter } from "../payload-codec.ts";
-import { createWorker, quietRuntime, type WorkerSettings } from "../worker.ts";
+import { readTemporalConfig, type TemporalConfig } from "../src/config.ts";
+import { connectionOptions, createWorkflowClient } from "../src/connection.ts";
+import { createClientDataConverter } from "../src/payload-codec.ts";
+import { createWorker, quietRuntime, type WorkerSettings } from "../src/worker.ts";
 
 /**
  * Settings for the Compose Temporal service, for tests that need a real server.
@@ -45,13 +46,15 @@ export const startTestWorker = async (
     },
   );
   const running = worker.run();
+  const client = createWorkflowClient(config);
   return {
-    client: createWorkflowClient(config),
+    client,
     taskQueue,
     async stop() {
       worker.shutdown();
       await running;
       await connection.close();
+      await client.connection.close();
     },
   };
 };
@@ -76,11 +79,9 @@ const collectPayloads = (value: unknown, found: Payload[]) => {
   return found;
 };
 
-/**
- * Every payload the server stored for a workflow, exactly as stored: the history is read
- * without the data converter, so encrypted payloads stay encrypted.
- */
-export const readStoredPayloads = async (
+const { temporal } = proto;
+
+const readStoredHistory = async (
   client: TestWorker["client"],
   workflowId: string,
   namespace: string,
@@ -89,8 +90,61 @@ export const readStoredPayloads = async (
     namespace,
     execution: { workflowId },
   });
-  return collectPayloads(history?.events ?? [], []);
+  return history;
 };
+
+/**
+ * Whether the stored history contains `text` anywhere, in any field of any event, as the
+ * server holds it. Use it to prove that a value never left the process in plaintext.
+ */
+export const storedHistoryIncludes = async (
+  client: TestWorker["client"],
+  workflowId: string,
+  namespace: string,
+  text: string,
+) => {
+  const history = await readStoredHistory(client, workflowId, namespace);
+  const bytes = temporal.api.history.v1.History.encode(history ?? {}).finish();
+  return Buffer.from(bytes).includes(text);
+};
+
+type StoredFailure = { message?: string | null; encodedAttributes?: Payload | null };
+
+const isStoredFailure = (value: unknown): value is StoredFailure =>
+  typeof value === "object" && value !== null;
+
+const collectFailures = (value: unknown, found: StoredFailure[]) => {
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      collectFailures(item, found);
+    }
+  } else if (value && typeof value === "object") {
+    for (const [name, child] of Object.entries(value)) {
+      if ((name === "failure" || name === "cause") && isStoredFailure(child)) {
+        found.push(child);
+      }
+      collectFailures(child, found);
+    }
+  }
+  return found;
+};
+
+/** Every failure the server stored for a workflow, with its message and encoded attributes as stored. */
+export const readStoredFailures = async (
+  client: TestWorker["client"],
+  workflowId: string,
+  namespace: string,
+) => collectFailures((await readStoredHistory(client, workflowId, namespace))?.events ?? [], []);
+
+/**
+ * Every payload the server stored for a workflow, exactly as stored: the history is read
+ * without the data converter, so encrypted payloads stay encrypted.
+ */
+export const readStoredPayloads = async (
+  client: TestWorker["client"],
+  workflowId: string,
+  namespace: string,
+) => collectPayloads((await readStoredHistory(client, workflowId, namespace))?.events ?? [], []);
 
 /**
  * A client that decodes with another key, or with none when `payloadKey` is undefined, to
@@ -103,5 +157,5 @@ export const createClientWithPayloadKey = (
   new Client({
     connection: Connection.lazy(connectionOptions(config)),
     namespace: config.namespace,
-    ...(payloadKey === undefined ? {} : { dataConverter: createDataConverter(payloadKey) }),
+    ...(payloadKey === undefined ? {} : { dataConverter: createClientDataConverter(payloadKey) }),
   });

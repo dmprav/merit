@@ -1,7 +1,16 @@
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
+import { fileURLToPath } from "node:url";
 
-import type { DataConverter, Payload, PayloadCodec } from "@temporalio/common";
+import {
+  defaultPayloadConverter,
+  type DataConverter,
+  type LoadedDataConverter,
+  type Payload,
+  type PayloadCodec,
+} from "@temporalio/common";
 import proto from "@temporalio/proto";
+
+import { failureConverter } from "./failure-converter.ts";
 
 // The protobuf module is CommonJS, so Node cannot take its named exports directly.
 const { temporal } = proto;
@@ -55,7 +64,27 @@ export const createPayloadCodec = (key: Uint8Array): PayloadCodec => {
   };
 };
 
-/** The data converter shared by the client and worker: default JSON conversion, then encryption. */
+const failureConverterPath = fileURLToPath(new URL("./failure-converter.ts", import.meta.url));
+
+/**
+ * The data converter for a worker: default JSON conversion, failure messages and stack
+ * traces moved into encoded attributes, then encryption of every payload. The failure
+ * converter is a path because workflow code converts failures inside its sandbox.
+ */
 export const createDataConverter = (key: Uint8Array): DataConverter => ({
   payloadCodecs: [createPayloadCodec(key)],
+  failureConverterPath,
 });
+
+/**
+ * The same conversion for a client, with the failure converter supplied as a loaded
+ * instance, so a client never has to load a module by path.
+ */
+export const createClientDataConverter = (key: Uint8Array): DataConverter => {
+  const loaded: LoadedDataConverter = {
+    payloadConverter: defaultPayloadConverter,
+    failureConverter,
+    payloadCodecs: [createPayloadCodec(key)],
+  };
+  return loaded;
+};

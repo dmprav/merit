@@ -26,7 +26,7 @@ export default defineConfig(browserConfig, {
   workers: 1,
   use: { baseURL: "http://127.0.0.1:3002" },
   webServer: {
-    command: "../node_modules/.bin/vp run @merit/app#dev:workspace --port 3002",
+    command: "../node_modules/.bin/vp dev --mode local-workspace --port 3002",
     cwd: host,
     url: "http://127.0.0.1:3002/app",
     reuseExistingServer: false,

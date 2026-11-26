@@ -2,7 +2,8 @@ import { existsSync } from "node:fs";
 import { env } from "node:process";
 import { fileURLToPath } from "node:url";
 
-import { readTemporalConfig, runWorker, type WorkerLogger } from "@merit/workflows";
+import { reportError } from "@merit/telemetry/errors";
+import { describeError, readTemporalConfig, runWorker, type WorkerLogger } from "@merit/workflows";
 
 import * as activities from "./activities.ts";
 import { taskQueue } from "./task-queue.ts";
@@ -20,13 +21,25 @@ if (existsSync(localEnvironment)) {
 }
 
 const stop = new AbortController();
+const received = new Set<string>();
+const exitCodes = { SIGINT: 130, SIGTERM: 143 } as const;
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
-  process.once(signal, () => {
-    logger.info("Stopping after work in flight finishes.");
-    stop.abort();
+  process.on(signal, () => {
+    // The same signal again, such as a second Ctrl+C, stops waiting for work in flight.
+    if (received.has(signal)) {
+      logger.warn("Stopping now.");
+      process.exit(exitCodes[signal]);
+    }
+    // A different signal while stopping, such as the dev runner's SIGTERM after Ctrl+C, adds nothing.
+    if (received.size === 0) {
+      logger.info("Stopping after work in flight finishes.");
+      stop.abort();
+    }
+    received.add(signal);
   });
 }
 
+let exitCode = 0;
 try {
   // The development and preview commands set MERIT_LOCAL_WORKER; a deployed worker must not.
   const config = readTemporalConfig(env, { local: env.MERIT_LOCAL_WORKER === "1" });
@@ -42,6 +55,9 @@ try {
     { logger, signal: stop.signal },
   );
 } catch (error) {
-  logger.error(`The worker stopped: ${error instanceof Error ? error.message : "unknown error"}`);
-  process.exitCode = 1;
+  logger.error(`The worker stopped: ${describeError(error)}`);
+  reportError(error, { surface: "server", operation: "worker.run" });
+  exitCode = 1;
 }
+// The SDK's native runtime keeps the process alive after the worker is done, so end it here.
+process.exit(exitCode);

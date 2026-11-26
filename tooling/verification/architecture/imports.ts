@@ -61,6 +61,11 @@ const temporalImports = {
   message:
     "Temporal connections, clients, workers, and codecs belong in foundation/workflows. Use @merit/workflows instead.",
 };
+const temporalTestingImports = {
+  regex: "^@temporalio/testing($|/)",
+  message:
+    "@temporalio/testing downloads an unpinned Temporal server. Test against the Compose service with @merit/workflows/testing.",
+};
 const workflowModuleImports = {
   group: ["**", "!@temporalio/workflow", "!./**", "!../**", "!@merit/**"],
   message:
@@ -69,6 +74,7 @@ const workflowModuleImports = {
 const restrictedImports = [
   dateImports,
   temporalImports,
+  temporalTestingImports,
   telemetryImports,
   posthogImports,
   reactAriaImports,
