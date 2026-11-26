@@ -14,6 +14,7 @@ import {
   PopoverDialog,
   SidePanel as SidePanelFrame,
 } from "./dialog";
+import storyStyles from "./dialog.stories.module.css";
 
 const PopoverExample = (args: ComponentProps<typeof ModalDialog>) => {
   const [open, setOpen] = useState(false);
@@ -255,9 +256,11 @@ const PickerWithNotesExample = () => {
       trigger={<Button variant="secondary">Request review</Button>}
     >
       <div>
-        <Text as="p" variant="caption">
-          Choose a reviewer to record a request. No message is sent.
-        </Text>
+        <div className={storyStyles.pickerNote}>
+          <Text as="p" variant="caption">
+            Choose a reviewer to record a request. No message is sent.
+          </Text>
+        </div>
         <ChoiceList
           label="Reviewer"
           searchLabel="Find a reviewer"
