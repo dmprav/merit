@@ -98,15 +98,27 @@ export const checkReactCompiler = async ({
   };
 };
 
+type CheckOutput = { log: (line: string) => void; error: (line: string) => void };
+
+/**
+ * Prints a check result the way the CLI reports it, diagnostics and failures on stderr, and returns
+ * the exit code: 1 when the check failed, 0 otherwise.
+ */
+export const reportReactCompilerResult = (
+  { ok, diagnostics, summary }: ReactCompilerCheckResult,
+  output: CheckOutput,
+): number => {
+  for (const diagnostic of diagnostics) {
+    output.error(diagnostic);
+  }
+  if (ok) {
+    output.log(summary);
+    return 0;
+  }
+  output.error(summary);
+  return 1;
+};
+
 if (import.meta.main) {
-  const result = await checkReactCompiler();
-  for (const diagnostic of result.diagnostics) {
-    console.error(diagnostic);
-  }
-  if (result.ok) {
-    console.log(result.summary);
-  } else {
-    console.error(result.summary);
-    process.exitCode = 1;
-  }
+  process.exitCode = reportReactCompilerResult(await checkReactCompiler(), console);
 }

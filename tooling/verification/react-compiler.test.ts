@@ -6,7 +6,7 @@ import { expect, it } from "vite-plus/test";
 
 import { REPO_ROOT } from "../paths.ts";
 import { runProcess } from "../testing/process";
-import { checkReactCompiler } from "./react-compiler.ts";
+import { checkReactCompiler, reportReactCompilerResult } from "./react-compiler.ts";
 
 const script = join(REPO_ROOT, "tooling/verification/react-compiler.ts");
 
@@ -60,6 +60,20 @@ it("fails with diagnostics when a component triggers a compiler bailout", async 
         "Hooks must be the same function on every render",
       );
       expect(result.summary).toBe("fail: React Compiler reported 1 diagnostic(s).");
+
+      // The CLI reports this result on stderr and exits nonzero, so the check gate fails.
+      const stdout: string[] = [];
+      const stderr: string[] = [];
+      const exitCode = reportReactCompilerResult(result, {
+        log: (line) => stdout.push(line),
+        error: (line) => stderr.push(line),
+      });
+
+      expect(exitCode).toBe(1);
+      expect(stdout).toEqual([]);
+      expect(stderr.join("\n")).toContain("app/src/bailout.tsx");
+      expect(stderr.join("\n")).toContain("Hooks must be the same function on every render");
+      expect(stderr.at(-1)).toBe("fail: React Compiler reported 1 diagnostic(s).");
     },
   );
 });
