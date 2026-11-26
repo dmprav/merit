@@ -118,7 +118,8 @@ export const WithdrawFundedApplication: Story = {
     const body = within(canvasElement.ownerDocument.body);
     await userEvent.click(await canvas.findByRole("button", { name: "Application actions" }));
     await userEvent.click(body.getByRole("menuitem", { name: "Withdraw application" }));
-    const dialog = within(body.getByRole("dialog"));
+    // The closing menu fades out beside the opening dialog, so find the dialog by its name.
+    const dialog = within(await body.findByRole("dialog", { name: /^Withdraw application/ }));
 
     // The dialog fades in, so wait for its explanation to be shown.
     await waitFor(() => expect(dialog.getByText(/has committed funding/)).toBeVisible());
