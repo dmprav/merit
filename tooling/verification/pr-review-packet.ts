@@ -1,18 +1,19 @@
 import { execFileSync } from "node:child_process";
 import { appendFileSync, existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { z } from "zod";
 
-import { normalizeRepoPath, readFlagValue } from "../cli.ts";
-import { findProtectedPaths, parseNameStatusZ } from "./agent-policy.ts";
+import { normalizeRepoPath, parseCliArgs, parseWholeNumber } from "../cli.ts";
+import { REPO_ROOT } from "../paths.ts";
+import { findProtectedPaths } from "./agent-policy.ts";
 import { classifyChangedPaths, type MatchedMechanism } from "./architecture/mechanisms.ts";
 import { prScreenshotManifestSchema, type PrScreenshot } from "./pr-screenshots.ts";
 import {
   EXEMPT_AUTHORS,
   extractRecordSections,
   isNoneSection,
+  parseNameStatusZ,
   recordPath,
   type ChangedFile,
 } from "./verification-record.ts";
@@ -102,6 +103,8 @@ const isCiOrCoverageConfigPath = (path: string) =>
   /(?:^|\/)vite\.config\.ts$/u.test(path) ||
   /(?:^|\/)vitest[^/]*\.ts$/u.test(path);
 
+const numstatCount = (raw = "0") => (raw === "-" ? 0 : Number.parseInt(raw, 10) || 0);
+
 /** Parses `git diff --numstat -z` output, including rename entries. */
 export const parseNumstatZ = (raw: string): NumstatEntry[] => {
   const tokens = raw.split("\0");
@@ -114,26 +117,18 @@ export const parseNumstatZ = (raw: string): NumstatEntry[] => {
     if (!token) {
       continue;
     }
-    const parts = token.split("\t");
-    const addRaw = parts[0] ?? "0";
-    const delRaw = parts[1] ?? "0";
-    const additions = addRaw === "-" ? 0 : Number.parseInt(addRaw, 10) || 0;
-    const deletions = delRaw === "-" ? 0 : Number.parseInt(delRaw, 10) || 0;
-    const inlinePath = parts[2] ?? "";
-
-    if (inlinePath) {
-      entries.push({ path: normalizeRepoPath(inlinePath), additions, deletions });
-      continue;
-    }
-
+    // Only the two counts are tab-separated; a path read with -z may itself contain tabs.
+    const [addRaw, delRaw, ...pathParts] = token.split("\t");
+    const inlinePath = pathParts.join("\t");
     // Rename/copy entries place old and new paths in the following two NUL-delimited tokens.
-    const oldPath = tokens[index] ?? "";
-    const newPath = tokens[index + 1] ?? "";
-    index += 2;
-    if (newPath) {
-      entries.push({ path: normalizeRepoPath(newPath), additions, deletions });
-    } else if (oldPath) {
-      entries.push({ path: normalizeRepoPath(oldPath), additions, deletions });
+    const path = inlinePath || tokens[index + 1] || tokens[index] || "";
+    index += inlinePath ? 0 : 2;
+    if (path) {
+      entries.push({
+        path: normalizeRepoPath(path),
+        additions: numstatCount(addRaw),
+        deletions: numstatCount(delRaw),
+      });
     }
   }
 
@@ -195,6 +190,71 @@ export const summarizeDiffSize = (entries: readonly NumstatEntry[]): DiffSizeSum
   return summary;
 };
 
+type SqlPiece = { kind: "literal" | "comment" | "char"; text: string };
+
+/** End of the single-quoted literal opening at `index`, past doubled quotes; unterminated runs to the end. */
+const singleQuotedEnd = (sql: string, index: number): number => {
+  let end = index + 1;
+  while (end < sql.length) {
+    if (sql[end] === "'" && sql[end + 1] === "'") {
+      end += 2;
+    } else if (sql[end] === "'") {
+      return end + 1;
+    } else {
+      end += 1;
+    }
+  }
+  return sql.length;
+};
+
+/** End of a single-quoted or dollar-quoted (`$$`, `$tag$`) literal opening at `index`, or -1. */
+const quotedLiteralEnd = (sql: string, index: number): number => {
+  if (sql[index] === "'") {
+    return singleQuotedEnd(sql, index);
+  }
+  const tag = sql[index] === "$" ? /^\$[A-Za-z_0-9]*\$/u.exec(sql.slice(index))?.[0] : undefined;
+  if (!tag) {
+    return -1;
+  }
+  const close = sql.indexOf(tag, index + tag.length);
+  return close === -1 ? sql.length : close + tag.length;
+};
+
+/** End of a `--` or `/* *\/` comment opening at `index`, or -1; an unterminated comment ends the text. */
+const commentEnd = (sql: string, index: number): number => {
+  if (sql.startsWith("--", index)) {
+    const newline = sql.indexOf("\n", index);
+    return newline === -1 ? sql.length : newline + 1;
+  }
+  if (sql.startsWith("/*", index)) {
+    const end = sql.indexOf("*/", index + 2);
+    return end === -1 ? sql.length : end + 2;
+  }
+  return -1;
+};
+
+/** Breaks SQL into quoted literals, optionally comments, and single characters of code. */
+const readSqlPieces = (sql: string, { comments }: { comments: boolean }): SqlPiece[] => {
+  const pieces: SqlPiece[] = [];
+  let index = 0;
+  while (index < sql.length) {
+    const commentStop = comments ? commentEnd(sql, index) : -1;
+    const literalStop = commentStop === -1 ? quotedLiteralEnd(sql, index) : -1;
+    const end = Math.max(commentStop, literalStop, index + 1);
+    const kind = commentStop !== -1 ? "comment" : literalStop !== -1 ? "literal" : "char";
+    pieces.push({ kind, text: sql.slice(index, end) });
+    index = end;
+  }
+  return pieces;
+};
+
+const pushTrimmed = (statements: string[], statement: string) => {
+  const trimmed = statement.trim();
+  if (trimmed) {
+    statements.push(trimmed);
+  }
+};
+
 /**
  * Splits SQL text into top-level statements while respecting comments, single-quoted
  * strings, and PostgreSQL dollar-quoted function bodies (`$$` or `$tag$`).
@@ -202,91 +262,15 @@ export const summarizeDiffSize = (entries: readonly NumstatEntry[]): DiffSizeSum
 export const splitSqlStatements = (sqlText: string): string[] => {
   const statements: string[] = [];
   let current = "";
-  let index = 0;
-  let inSingleQuote = false;
-  let dollarTag: string | null = null;
-
-  while (index < sqlText.length) {
-    const ch = sqlText[index] ?? "";
-    const next = sqlText[index + 1] ?? "";
-
-    if (dollarTag) {
-      if (sqlText.startsWith(dollarTag, index)) {
-        current += dollarTag;
-        index += dollarTag.length;
-        dollarTag = null;
-      } else {
-        current += ch;
-        index += 1;
-      }
-      continue;
-    }
-
-    if (inSingleQuote) {
-      current += ch;
-      index += 1;
-      if (ch === "'" && next === "'") {
-        current += next;
-        index += 1;
-      } else if (ch === "'") {
-        inSingleQuote = false;
-      }
-      continue;
-    }
-
-    if (ch === "-" && next === "-") {
-      const newline = sqlText.indexOf("\n", index);
-      if (newline === -1) {
-        break;
-      }
-      index = newline + 1;
-      continue;
-    }
-
-    if (ch === "/" && next === "*") {
-      const end = sqlText.indexOf("*/", index + 2);
-      if (end === -1) {
-        break;
-      }
-      index = end + 2;
-      continue;
-    }
-
-    if (ch === "'") {
-      inSingleQuote = true;
-      current += ch;
-      index += 1;
-      continue;
-    }
-
-    if (ch === "$") {
-      const tagMatch = /^\$[A-Za-z_0-9]*\$/u.exec(sqlText.slice(index));
-      if (tagMatch?.[0]) {
-        dollarTag = tagMatch[0];
-        current += dollarTag;
-        index += dollarTag.length;
-        continue;
-      }
-    }
-
-    if (ch === ";") {
-      const trimmed = current.trim();
-      if (trimmed) {
-        statements.push(trimmed);
-      }
+  for (const piece of readSqlPieces(sqlText, { comments: true })) {
+    if (piece.kind === "char" && piece.text === ";") {
+      pushTrimmed(statements, current);
       current = "";
-      index += 1;
-      continue;
+    } else if (piece.kind !== "comment") {
+      current += piece.text;
     }
-
-    current += ch;
-    index += 1;
   }
-
-  const tail = current.trim();
-  if (tail) {
-    statements.push(tail);
-  }
+  pushTrimmed(statements, current);
   return statements;
 };
 
@@ -298,204 +282,119 @@ const normalizeSqlSummary = (statement: string) => statement.replace(/\s+/gu, " 
  */
 const normalizeSqlForComparison = (statement: string): string => {
   let out = "";
-  let index = 0;
-  let inSingleQuote = false;
-  let dollarTag: string | null = null;
   let pendingSpace = false;
-
-  while (index < statement.length) {
-    const ch = statement[index] ?? "";
-    const next = statement[index + 1] ?? "";
-
-    if (dollarTag) {
-      if (statement.startsWith(dollarTag, index)) {
-        out += dollarTag;
-        index += dollarTag.length;
-        dollarTag = null;
-      } else {
-        out += ch;
-        index += 1;
-      }
-      continue;
-    }
-
-    if (inSingleQuote) {
-      out += ch;
-      index += 1;
-      if (ch === "'" && next === "'") {
-        out += next;
-        index += 1;
-      } else if (ch === "'") {
-        inSingleQuote = false;
-      }
-      continue;
-    }
-
-    if (/\s/u.test(ch)) {
+  for (const piece of readSqlPieces(statement, { comments: false })) {
+    if (piece.kind === "char" && /\s/u.test(piece.text)) {
       pendingSpace = out.length > 0;
-      index += 1;
       continue;
     }
-
-    if (pendingSpace) {
-      out += " ";
-      pendingSpace = false;
-    }
-
-    if (ch === "'") {
-      inSingleQuote = true;
-      out += ch;
-      index += 1;
-      continue;
-    }
-
-    if (ch === "$") {
-      const tagMatch = /^\$[A-Za-z_0-9]*\$/u.exec(statement.slice(index));
-      if (tagMatch?.[0]) {
-        dollarTag = tagMatch[0];
-        out += dollarTag;
-        index += dollarTag.length;
-        continue;
-      }
-    }
-
-    out += ch;
-    index += 1;
+    out += pendingSpace ? ` ${piece.text}` : piece.text;
+    pendingSpace = false;
   }
-
   return out.trim();
 };
+
+const unquote = (name = "") => name.replaceAll('"', "");
+
+const onClause = (target: string | undefined) => (target ? ` ON ${unquote(target)}` : "");
+
+/** DDL statement shapes the packet reports, tried in order; the first match names the change. */
+const DDL_MATCHERS: ReadonlyArray<{
+  kind: SqlDdlChange["kind"];
+  pattern: RegExp;
+  summarize: (match: RegExpExecArray) => string;
+}> = [
+  {
+    kind: "table",
+    pattern: /^(CREATE|ALTER|DROP)\s+TABLE\s+(?:IF\s+(?:NOT\s+)?EXISTS\s+)?([^\s(]+)/iu,
+    summarize: ([, verb = "", name]) => `${verb.toUpperCase()} TABLE ${unquote(name)}`,
+  },
+  {
+    kind: "index",
+    pattern:
+      /^(CREATE(?:\s+UNIQUE)?|DROP)\s+INDEX\s+(?:CONCURRENTLY\s+)?(?:IF\s+(?:NOT\s+)?EXISTS\s+)?([^\s]+)(?:\s+ON\s+([^\s(]+))?/iu,
+    summarize: ([, verb = "", name, table]) =>
+      `${verb.toUpperCase()} INDEX ${unquote(name)}${onClause(table)}`,
+  },
+  {
+    kind: "function",
+    pattern:
+      /^(CREATE(?:\s+OR\s+REPLACE)?|DROP)\s+FUNCTION\s+(?:IF\s+EXISTS\s+)?([^\s(]+\([^)]*\))/iu,
+    summarize: ([, verb = "", signature]) => `${verb.toUpperCase()} FUNCTION ${unquote(signature)}`,
+  },
+  {
+    kind: "policy",
+    pattern: /^(CREATE|ALTER|DROP)\s+POLICY\s+(?:IF\s+EXISTS\s+)?([^\s]+)\s+ON\s+([^\s(]+)/iu,
+    summarize: ([, verb = "", name, table]) =>
+      `${verb.toUpperCase()} POLICY ${unquote(name)} ON ${unquote(table)}`,
+  },
+  {
+    kind: "trigger",
+    pattern:
+      /^(CREATE|DROP)\s+TRIGGER\s+(?:IF\s+EXISTS\s+)?([^\s]+)(?:[\s\S]*?\bON\s+([^\s(]+))?/iu,
+    summarize: ([, verb = "", name, table]) =>
+      `${verb.toUpperCase()} TRIGGER ${unquote(name)}${onClause(table)}`,
+  },
+  {
+    kind: "grant",
+    pattern: /^(GRANT|REVOKE)\s+(.+)$/iu,
+    summarize: ([, verb = "", detail = ""]) =>
+      `${verb.toUpperCase()} ${detail.length > 100 ? `${detail.slice(0, 97)}...` : detail}`,
+  },
+];
 
 const classifySqlStatement = (
   statement: string,
   action: "added" | "removed",
 ): SqlDdlChange | null => {
   const flat = normalizeSqlSummary(statement);
-  const securityDefiner = /\bSECURITY\s+DEFINER\b/iu.test(flat);
-
-  const tableMatch =
-    /^(CREATE|ALTER|DROP)\s+TABLE\s+(?:IF\s+(?:NOT\s+)?EXISTS\s+)?([^\s(]+)/iu.exec(flat);
-  if (tableMatch?.[1] && tableMatch[2]) {
-    return {
-      action,
-      kind: "table",
-      summary: `${tableMatch[1].toUpperCase()} TABLE ${tableMatch[2].replaceAll('"', "")}`,
-      securityDefiner: false,
-    };
+  for (const { kind, pattern, summarize } of DDL_MATCHERS) {
+    const match = pattern.exec(flat);
+    if (match) {
+      const securityDefiner = kind === "function" && /\bSECURITY\s+DEFINER\b/iu.test(flat);
+      return { action, kind, summary: summarize(match), securityDefiner };
+    }
   }
-
-  const indexMatch =
-    /^(CREATE(?:\s+UNIQUE)?|DROP)\s+INDEX\s+(?:CONCURRENTLY\s+)?(?:IF\s+(?:NOT\s+)?EXISTS\s+)?([^\s]+)(?:\s+ON\s+([^\s(]+))?/iu.exec(
-      flat,
-    );
-  if (indexMatch?.[1] && indexMatch[2]) {
-    const onClause = indexMatch[3] ? ` ON ${indexMatch[3].replaceAll('"', "")}` : "";
-    return {
-      action,
-      kind: "index",
-      summary: `${indexMatch[1].toUpperCase()} INDEX ${indexMatch[2].replaceAll('"', "")}${onClause}`,
-      securityDefiner: false,
-    };
-  }
-
-  const fnMatch =
-    /^(CREATE(?:\s+OR\s+REPLACE)?|DROP)\s+FUNCTION\s+(?:IF\s+EXISTS\s+)?([^\s(]+\([^)]*\))/iu.exec(
-      flat,
-    );
-  if (fnMatch?.[1] && fnMatch[2]) {
-    return {
-      action,
-      kind: "function",
-      summary: `${fnMatch[1].toUpperCase()} FUNCTION ${fnMatch[2].replaceAll('"', "")}`,
-      securityDefiner,
-    };
-  }
-
-  const policyMatch =
-    /^(CREATE|ALTER|DROP)\s+POLICY\s+(?:IF\s+EXISTS\s+)?([^\s]+)\s+ON\s+([^\s(]+)/iu.exec(flat);
-  if (policyMatch?.[1] && policyMatch[2] && policyMatch[3]) {
-    return {
-      action,
-      kind: "policy",
-      summary: `${policyMatch[1].toUpperCase()} POLICY ${policyMatch[2].replaceAll('"', "")} ON ${policyMatch[3].replaceAll('"', "")}`,
-      securityDefiner: false,
-    };
-  }
-
-  const triggerMatch =
-    /^(CREATE|DROP)\s+TRIGGER\s+(?:IF\s+EXISTS\s+)?([^\s]+)(?:[\s\S]*?\bON\s+([^\s(]+))?/iu.exec(
-      flat,
-    );
-  if (triggerMatch?.[1] && triggerMatch[2]) {
-    const onClause = triggerMatch[3] ? ` ON ${triggerMatch[3].replaceAll('"', "")}` : "";
-    return {
-      action,
-      kind: "trigger",
-      summary: `${triggerMatch[1].toUpperCase()} TRIGGER ${triggerMatch[2].replaceAll('"', "")}${onClause}`,
-      securityDefiner: false,
-    };
-  }
-
-  const grantMatch = /^(GRANT|REVOKE)\s+(.+)$/iu.exec(flat);
-  if (grantMatch?.[1] && grantMatch[2]) {
-    const detail = grantMatch[2].length > 100 ? `${grantMatch[2].slice(0, 97)}...` : grantMatch[2];
-    return {
-      action,
-      kind: "grant",
-      summary: `${grantMatch[1].toUpperCase()} ${detail}`,
-      securityDefiner: false,
-    };
-  }
-
   return null;
+};
+
+/** Counts statements by their comparison form, so repeated statements match one for one. */
+const countByComparisonKey = (statements: readonly string[]): Map<string, number> => {
+  const counts = new Map<string, number>();
+  for (const statement of statements) {
+    const key = normalizeSqlForComparison(statement);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return counts;
+};
+
+/** Classifies the statements that have no remaining equal statement on the other side. */
+const unmatchedDdl = (
+  statements: readonly string[],
+  counterpart: readonly string[],
+  action: "added" | "removed",
+): SqlDdlChange[] => {
+  const remaining = countByComparisonKey(counterpart);
+  const changes: SqlDdlChange[] = [];
+  for (const statement of statements) {
+    const key = normalizeSqlForComparison(statement);
+    const count = remaining.get(key) ?? 0;
+    remaining.set(key, count - 1);
+    const classified = count > 0 ? null : classifySqlStatement(statement, action);
+    if (classified) {
+      changes.push(classified);
+    }
+  }
+  return changes;
 };
 
 /**
  * Compares combined base vs. head SQL so squashed migrations report only actual DDL changes.
  */
 export const extractSqlDdlDelta = (baseSql: string, headSql: string): SqlDdlChange[] => {
-  const baseCounts = new Map<string, number>();
-  for (const stmt of splitSqlStatements(baseSql)) {
-    const key = normalizeSqlForComparison(stmt);
-    baseCounts.set(key, (baseCounts.get(key) ?? 0) + 1);
-  }
-
-  const headStatements = splitSqlStatements(headSql);
-  const headCounts = new Map<string, number>();
-  for (const stmt of headStatements) {
-    const key = normalizeSqlForComparison(stmt);
-    headCounts.set(key, (headCounts.get(key) ?? 0) + 1);
-  }
-
-  const changes: SqlDdlChange[] = [];
-
-  for (const stmt of headStatements) {
-    const key = normalizeSqlForComparison(stmt);
-    const remaining = baseCounts.get(key) ?? 0;
-    if (remaining > 0) {
-      baseCounts.set(key, remaining - 1);
-      continue;
-    }
-    const classified = classifySqlStatement(stmt, "added");
-    if (classified) {
-      changes.push(classified);
-    }
-  }
-
-  for (const stmt of splitSqlStatements(baseSql)) {
-    const key = normalizeSqlForComparison(stmt);
-    const remaining = headCounts.get(key) ?? 0;
-    if (remaining > 0) {
-      headCounts.set(key, remaining - 1);
-      continue;
-    }
-    const classified = classifySqlStatement(stmt, "removed");
-    if (classified) {
-      changes.push(classified);
-    }
-  }
-
-  return changes;
+  const base = splitSqlStatements(baseSql);
+  const head = splitSqlStatements(headSql);
+  return [...unmatchedDdl(head, base, "added"), ...unmatchedDdl(base, head, "removed")];
 };
 
 const SUPPRESSION_PATTERNS: ReadonlyArray<{ label: string; regex: RegExp }> = [
@@ -565,50 +464,52 @@ const formatCappedList = (items: readonly string[], limit = MAX_LIST_ITEMS): str
 const formatSizeBucket = (label: string, bucket: DiffSizeBucket) =>
   `**${label}:** \`+${bucket.additions}/-${bucket.deletions}\` (${bucket.files} ${bucket.files === 1 ? "file" : "files"})`;
 
+const MIGRATIONS_DIRECTORY = "foundation/db/database/migrations/";
+
+const MAX_DDL_LINES = 20;
+
+/** Lists changed SQL migrations, or nothing when no `.sql` migration changed. */
+const migrationLines = (dbFiles: readonly ChangedFile[]): string[] => {
+  const summary = dbFiles
+    .filter((file) => file.path.startsWith(MIGRATIONS_DIRECTORY) && file.path.endsWith(".sql"))
+    .map((file) => `${file.status} \`${file.path.replace(MIGRATIONS_DIRECTORY, "")}\``);
+  return summary.length > 0 ? [`- **Migrations:** ${summary.join(", ")}`] : [];
+};
+
+const ddlLines = (ddlChanges: readonly SqlDdlChange[]): string[] => {
+  if (ddlChanges.length === 0) {
+    return ["- No net SQL DDL changes detected."];
+  }
+  const lines = ddlChanges.slice(0, MAX_DDL_LINES).map((change) => {
+    const prefix = change.action === "added" ? "+" : "-";
+    const badge = change.securityDefiner ? " **[SECURITY DEFINER]**" : "";
+    return `- \`${prefix}\` \`${change.summary}\`${badge}`;
+  });
+  if (ddlChanges.length > MAX_DDL_LINES) {
+    lines.push(`- _+${ddlChanges.length - MAX_DDL_LINES} more DDL statements_`);
+  }
+  return lines;
+};
+
 const renderDbSection = (input: ReviewPacketInput): string[] => {
   const dbFiles = input.changedFiles.filter((file) => isDbPath(file.path));
   if (dbFiles.length === 0) {
     return [];
   }
 
-  const migrationFiles = dbFiles.filter((file) =>
-    file.path.startsWith("foundation/db/database/migrations/"),
-  );
   const schemaTsFiles = dbFiles.filter((file) => file.path.endsWith(".ts"));
   const ddlChanges = [
     ...extractSqlDdlDelta(input.baseMigrationSql, input.headMigrationSql),
     ...extractSqlDdlDelta(input.baseRuntimeGrantsSql ?? "", input.headRuntimeGrantsSql ?? ""),
   ];
 
-  const lines = ["### DB & Schema Delta"];
-  if (migrationFiles.length > 0) {
-    const summary = migrationFiles
-      .filter((file) => file.path.endsWith(".sql"))
-      .map(
-        (file) =>
-          `${file.status} \`${file.path.replace("foundation/db/database/migrations/", "")}\``,
-      );
-    if (summary.length > 0) {
-      lines.push(`- **Migrations:** ${summary.join(", ")}`);
-    }
-  }
+  const lines = ["### DB & Schema Delta", ...migrationLines(dbFiles)];
   if (schemaTsFiles.length > 0) {
     lines.push(
       `- **Schema modules:** ${formatCappedList([...new Set(schemaTsFiles.map((f) => f.path))].sort())}`,
     );
   }
-  if (ddlChanges.length > 0) {
-    for (const change of ddlChanges.slice(0, 20)) {
-      const prefix = change.action === "added" ? "+" : "-";
-      const badge = change.securityDefiner ? " **[SECURITY DEFINER]**" : "";
-      lines.push(`- \`${prefix}\` \`${change.summary}\`${badge}`);
-    }
-    if (ddlChanges.length > 20) {
-      lines.push(`- _+${ddlChanges.length - 20} more DDL statements_`);
-    }
-  } else {
-    lines.push("- No net SQL DDL changes detected.");
-  }
+  lines.push(...ddlLines(ddlChanges));
   return lines;
 };
 
@@ -684,56 +585,58 @@ const formatRecordSectionLines = (heading: string, body: string): string[] => {
   return [`- **${heading}:**`, ...rawLines.map((line) => `  ${line}`)];
 };
 
-const renderVerificationIntegritySection = (
-  changedFiles: readonly ChangedFile[],
-  addedLines: readonly AddedDiffLine[],
-  recordSections: Map<string, string>,
-): string[] => {
-  const paths = [...new Set(changedFiles.map((file) => file.path))];
-  const protectedPaths = findProtectedPaths(paths);
-  const ciOrCoveragePaths = paths.filter(isCiOrCoverageConfigPath).sort();
-  const deletedTests = changedFiles
-    .filter((file) => file.status === "deleted" && isTestPath(file.path))
-    .map((file) => file.path)
-    .sort();
+const isCodeOrHealthConfigPath = (path: string) =>
+  /\.[cm]?[jt]sx?$/u.test(path) || path === ".fallowrc.jsonc";
 
+/** Finds added suppressions in code and skipped or focused tests in test files. */
+const scanAddedLines = (addedLines: readonly AddedDiffLine[]) => {
   const suppressions: string[] = [];
   const testWeakenings: string[] = [];
   for (const entry of addedLines) {
     if (entry.path === "tooling/verification/pr-review-packet.ts") {
       continue;
     }
+    const location = `${entry.path}:${entry.line}`;
     if (isTestPath(entry.path)) {
       if (TEST_WEAKENING_PATTERN.test(entry.text)) {
-        testWeakenings.push(`${entry.path}:${entry.line}`);
+        testWeakenings.push(location);
       }
-      continue;
-    }
-    if (/\.[cm]?[jt]sx?$/u.test(entry.path) || entry.path === ".fallowrc.jsonc") {
-      for (const pattern of SUPPRESSION_PATTERNS) {
-        if (pattern.regex.test(entry.text)) {
-          suppressions.push(`${pattern.label} at ${entry.path}:${entry.line}`);
-        }
-      }
+    } else if (isCodeOrHealthConfigPath(entry.path)) {
+      suppressions.push(
+        ...SUPPRESSION_PATTERNS.filter(({ regex }) => regex.test(entry.text)).map(
+          ({ label }) => `${label} at ${location}`,
+        ),
+      );
     }
   }
+  return { suppressions, testWeakenings };
+};
 
-  const bullets: string[] = [];
-  if (protectedPaths.length > 0) {
-    bullets.push(`- **Protected paths touched:** ${formatCappedList(protectedPaths)}`);
-  }
-  if (ciOrCoveragePaths.length > 0) {
-    bullets.push(`- **CI / coverage / health config:** ${formatCappedList(ciOrCoveragePaths)}`);
-  }
-  if (suppressions.length > 0) {
-    bullets.push(`- **Added suppressions / overrides:** ${formatCappedList(suppressions)}`);
-  }
-  if (deletedTests.length > 0) {
-    bullets.push(`- **Deleted test files:** ${formatCappedList(deletedTests)}`);
-  }
-  if (testWeakenings.length > 0) {
-    bullets.push(`- **Added skipped/focused tests:** ${formatCappedList(testWeakenings)}`);
-  }
+/** Renders a bullet per non-empty list, in the given order. */
+const listBullets = (rows: ReadonlyArray<readonly [string, readonly string[]]>): string[] =>
+  rows
+    .filter(([, items]) => items.length > 0)
+    .map(([label, items]) => `- **${label}:** ${formatCappedList(items)}`);
+
+const renderVerificationIntegritySection = (
+  changedFiles: readonly ChangedFile[],
+  addedLines: readonly AddedDiffLine[],
+  recordSections: Map<string, string>,
+): string[] => {
+  const paths = [...new Set(changedFiles.map((file) => file.path))];
+  const deletedTests = changedFiles
+    .filter((file) => file.status === "deleted" && isTestPath(file.path))
+    .map((file) => file.path)
+    .sort();
+  const { suppressions, testWeakenings } = scanAddedLines(addedLines);
+
+  const bullets = listBullets([
+    ["Protected paths touched", findProtectedPaths(paths)],
+    ["CI / coverage / health config", paths.filter(isCiOrCoverageConfigPath).sort()],
+    ["Added suppressions / overrides", suppressions],
+    ["Deleted test files", deletedTests],
+    ["Added skipped/focused tests", testWeakenings],
+  ]);
 
   for (const heading of ["Could not verify", "Did not verify", "Dismissed review findings"]) {
     const body = recordSections.get(heading);
@@ -976,7 +879,7 @@ const readVerificationRecord = (
   headRef: string,
   prNumber: number | undefined,
 ): { content?: string; path?: string } => {
-  if (!prNumber || !Number.isInteger(prNumber) || prNumber <= 0) {
+  if (!prNumber) {
     return {};
   }
   const path = recordPath(prNumber);
@@ -990,97 +893,147 @@ const readVerificationRecord = (
   return content ? { content, path } : {};
 };
 
-const runCli = async () => {
-  const args = process.argv.slice(2);
-  const repoRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
-  const author = readFlagValue(args, "--author") ?? process.env.PR_AUTHOR ?? "";
-  if (author && EXEMPT_AUTHORS.has(author)) {
-    if (process.env.GITHUB_OUTPUT) {
-      appendFileSync(process.env.GITHUB_OUTPUT, "has_ui_changes=false\n");
-    }
-    process.stdout.write(`Skipping Review Packet for exempt author ${author}.\n`);
-    return;
-  }
+const REVIEW_PACKET_USAGE =
+  "Usage: pr-review-packet.ts [--base <ref>] [--head <ref>] [--pr <number>] [--author <login>] [--screenshots-manifest <path>] [--post]";
 
-  const baseRef = readFlagValue(args, "--base") ?? process.env.PR_BASE_SHA ?? "origin/main";
-  const headRef = readFlagValue(args, "--head") ?? process.env.PR_HEAD_SHA ?? "HEAD";
-  const prRaw = readFlagValue(args, "--pr") ?? process.env.PR_NUMBER;
-  const prNumber = prRaw ? Number.parseInt(prRaw, 10) : undefined;
-  const screenshotsManifestFlag = readFlagValue(args, "--screenshots-manifest");
-  const shouldPost = args.includes("--post");
+export type ReviewPacketCliOptions = {
+  author: string;
+  baseRef: string;
+  headRef: string;
+  prNumber: number | undefined;
+  screenshotsManifest: string | undefined;
+  post: boolean;
+};
 
-  const mergeBase = gitRead(repoRoot, ["merge-base", baseRef, headRef]).trim();
-  const range = `${mergeBase}...${headRef}`;
-  const changedFiles = parseNameStatusZ(
-    gitRead(repoRoot, ["diff", "--name-status", "--find-renames", "-z", range]),
-  );
-  const numstat = parseNumstatZ(gitRead(repoRoot, ["diff", "--numstat", "-z", range]));
-  const addedLines = parseAddedDiffLines(gitRead(repoRoot, ["diff", "-U0", range]));
-  const hasDbChanges = changedFiles.some((file) => isDbPath(file.path));
-  const hasUiChanges = changedFiles.some(
-    (file) => file.status !== "deleted" && (isUiProdPath(file.path) || isStoryPath(file.path)),
-  );
-  if (process.env.GITHUB_OUTPUT) {
-    appendFileSync(
-      process.env.GITHUB_OUTPUT,
-      `has_ui_changes=${hasUiChanges ? "true" : "false"}\n`,
-    );
-  }
-
-  const baseMigrationSql = hasDbChanges ? readCombinedMigrationSql(repoRoot, mergeBase) : "";
-  const headMigrationSql = hasDbChanges ? readCombinedMigrationSql(repoRoot, headRef) : "";
-  const baseRuntimeGrantsSql = hasDbChanges
-    ? readGitFileOrEmpty(repoRoot, mergeBase, "foundation/db/database/runtime-grants.sql")
-    : "";
-  const headRuntimeGrantsSql = hasDbChanges
-    ? readGitFileOrEmpty(repoRoot, headRef, "foundation/db/database/runtime-grants.sql")
-    : "";
-  const record = readVerificationRecord(repoRoot, headRef, prNumber);
-
-  let screenshots: PrScreenshot[] = [];
-  let omittedScreenshotCount = 0;
-  if (screenshotsManifestFlag) {
-    const manifestPath = resolve(repoRoot, screenshotsManifestFlag);
-    if (existsSync(manifestPath)) {
-      const parsed = prScreenshotManifestSchema.parse(
-        JSON.parse(readFileSync(manifestPath, "utf8")),
-      );
-      screenshots = parsed.screenshots;
-      omittedScreenshotCount = parsed.omittedCount;
-    }
-  }
-
-  const markdown = renderReviewPacket({
-    changedFiles,
-    numstat,
-    addedLines,
-    baseMigrationSql,
-    headMigrationSql,
-    baseRuntimeGrantsSql,
-    headRuntimeGrantsSql,
-    recordContent: record.content,
-    recordFilePath: record.path,
-    screenshots,
-    omittedScreenshotCount,
+/**
+ * Reads the packet's flags strictly, falling back to the pull request environment CI sets;
+ * a malformed `--pr` or `PR_NUMBER` is an error rather than a missing record.
+ */
+export const parseReviewPacketArgs = (
+  args: readonly string[],
+  env: NodeJS.ProcessEnv = process.env,
+): ReviewPacketCliOptions => {
+  const { values } = parseCliArgs(args, {
+    options: {
+      author: { type: "string" },
+      base: { type: "string" },
+      head: { type: "string" },
+      pr: { type: "string" },
+      "screenshots-manifest": { type: "string" },
+      post: { type: "boolean" },
+    },
+    usage: REVIEW_PACKET_USAGE,
   });
+  const prRaw = values.pr ?? env.PR_NUMBER;
+  return {
+    author: values.author ?? env.PR_AUTHOR ?? "",
+    baseRef: values.base ?? env.PR_BASE_SHA ?? "origin/main",
+    headRef: values.head ?? env.PR_HEAD_SHA ?? "HEAD",
+    prNumber: prRaw ? parseWholeNumber(prRaw, values.pr ? "--pr" : "PR_NUMBER") : undefined,
+    screenshotsManifest: values["screenshots-manifest"],
+    post: values.post ?? false,
+  };
+};
 
-  if (process.env.GITHUB_STEP_SUMMARY) {
-    appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${markdown}\n`);
+/** Dependency bots get no packet; CI still needs `has_ui_changes` to skip the screenshot job. */
+const skipsExemptAuthor = (author: string): boolean => {
+  if (!author || !EXEMPT_AUTHORS.has(author)) {
+    return false;
   }
-
-  if (!shouldPost) {
-    process.stdout.write(markdown);
-    return;
+  if (process.env.GITHUB_OUTPUT) {
+    appendFileSync(process.env.GITHUB_OUTPUT, "has_ui_changes=false\n");
   }
+  process.stdout.write(`Skipping Review Packet for exempt author ${author}.\n`);
+  return true;
+};
 
+const RUNTIME_GRANTS_PATH = "foundation/db/database/runtime-grants.sql";
+
+/** Reads the pull request's diff against the merge base of its base and head. */
+const readPullRequestDiff = (baseRef: string, headRef: string) => {
+  const mergeBase = gitRead(REPO_ROOT, ["merge-base", baseRef, headRef]).trim();
+  const range = `${mergeBase}...${headRef}`;
+  return {
+    mergeBase,
+    changedFiles: parseNameStatusZ(
+      gitRead(REPO_ROOT, ["diff", "--name-status", "--find-renames", "-z", range]),
+    ),
+    numstat: parseNumstatZ(gitRead(REPO_ROOT, ["diff", "--numstat", "-z", range])),
+    addedLines: parseAddedDiffLines(gitRead(REPO_ROOT, ["diff", "-U0", range])),
+  };
+};
+
+/** Reads base and head SQL only when database files changed, since the packet compares them then. */
+const readDatabaseSql = (hasDbChanges: boolean, mergeBase: string, headRef: string) =>
+  hasDbChanges
+    ? {
+        baseMigrationSql: readCombinedMigrationSql(REPO_ROOT, mergeBase),
+        headMigrationSql: readCombinedMigrationSql(REPO_ROOT, headRef),
+        baseRuntimeGrantsSql: readGitFileOrEmpty(REPO_ROOT, mergeBase, RUNTIME_GRANTS_PATH),
+        headRuntimeGrantsSql: readGitFileOrEmpty(REPO_ROOT, headRef, RUNTIME_GRANTS_PATH),
+      }
+    : {
+        baseMigrationSql: "",
+        headMigrationSql: "",
+        baseRuntimeGrantsSql: "",
+        headRuntimeGrantsSql: "",
+      };
+
+/** Reads published screenshots from the manifest `pr-screenshots.ts publish` wrote, when it exists. */
+const readScreenshotManifest = (manifestFlag: string | undefined) => {
+  const manifestPath = manifestFlag ? resolve(REPO_ROOT, manifestFlag) : undefined;
+  if (!manifestPath || !existsSync(manifestPath)) {
+    return { screenshots: [], omittedScreenshotCount: 0 };
+  }
+  const parsed = prScreenshotManifestSchema.parse(JSON.parse(readFileSync(manifestPath, "utf8")));
+  return { screenshots: parsed.screenshots, omittedScreenshotCount: parsed.omittedCount };
+};
+
+const appendGitHubFile = (name: "GITHUB_OUTPUT" | "GITHUB_STEP_SUMMARY", text: string) => {
+  const file = process.env[name];
+  if (file) {
+    appendFileSync(file, text);
+  }
+};
+
+const postReviewPacket = async (prNumber: number | undefined, markdown: string) => {
   const repo = process.env.GITHUB_REPOSITORY;
   const token = process.env.GH_TOKEN ?? process.env.GITHUB_TOKEN;
-  if (!repo || !token || !prNumber || !Number.isInteger(prNumber)) {
+  if (!repo || !token || !prNumber) {
     throw new Error("Posting requires GITHUB_REPOSITORY, GH_TOKEN, and PR_NUMBER.");
   }
-
   const result = await upsertReviewPacketComment({ repo, prNumber, token, body: markdown });
   process.stdout.write(`Review Packet comment ${result.action} on ${repo}#${prNumber}.\n`);
+};
+
+const runCli = async () => {
+  const options = parseReviewPacketArgs(process.argv.slice(2));
+  if (skipsExemptAuthor(options.author)) {
+    return;
+  }
+
+  const diff = readPullRequestDiff(options.baseRef, options.headRef);
+  const hasUiChanges = diff.changedFiles.some(
+    (file) => file.status !== "deleted" && (isUiProdPath(file.path) || isStoryPath(file.path)),
+  );
+  appendGitHubFile("GITHUB_OUTPUT", `has_ui_changes=${hasUiChanges ? "true" : "false"}\n`);
+
+  const hasDbChanges = diff.changedFiles.some((file) => isDbPath(file.path));
+  const record = readVerificationRecord(REPO_ROOT, options.headRef, options.prNumber);
+  const markdown = renderReviewPacket({
+    ...diff,
+    ...readDatabaseSql(hasDbChanges, diff.mergeBase, options.headRef),
+    recordContent: record.content,
+    recordFilePath: record.path,
+    ...readScreenshotManifest(options.screenshotsManifest),
+  });
+  appendGitHubFile("GITHUB_STEP_SUMMARY", `${markdown}\n`);
+
+  if (options.post) {
+    await postReviewPacket(options.prNumber, markdown);
+  } else {
+    process.stdout.write(markdown);
+  }
 };
 
 if (import.meta.main) {

@@ -241,4 +241,8 @@ test("rejects --scan-vitest without a report name instead of using the flag as t
   expect(() => parseCiSummaryArgs(["Package tests", "--scan-vitest"])).toThrow(
     "--scan-vitest requires a value.",
   );
+  expect(() => parseCiSummaryArgs(["Package", "tests"])).toThrow('Unexpected argument "tests"');
+  expect(() => parseCiSummaryArgs(["Package tests", "--scan-vitst", "r.json"])).toThrow(
+    "Unknown option '--scan-vitst'",
+  );
 });

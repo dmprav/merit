@@ -16,7 +16,13 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, test } from "vite-plus/test";
 
-import { combineProcessIdentity, type FileLockOptions, withFileLock } from "./file-lock.ts";
+import {
+  acquireFileLock,
+  combineProcessIdentity,
+  FileLockBusyError,
+  type FileLockOptions,
+  withFileLock,
+} from "./file-lock.ts";
 
 const tempDirs: string[] = [];
 
@@ -62,6 +68,25 @@ describe("withFileLock stale-lock policy", () => {
     writeFileSync(lockPath, lockPayload(exitedPid(), "dead"), "utf8");
     expect(await withFileLock(lockPath, () => "recovered-dead", { timeoutMs: 2_000 })).toBe(
       "recovered-dead",
+    );
+    expect(existsSync(lockPath)).toBe(false);
+  });
+
+  test("treats an earlier ui:verify lock that names only a live PID as held", async () => {
+    const { lockPath } = makeLockPath();
+    writeFileSync(lockPath, `${process.pid}\n`, "utf8");
+    utimesSync(lockPath, expired(), expired());
+    await expect(
+      acquireFileLock(lockPath, { label: "test", timeoutMs: 0, staleMs: 5_000 }),
+    ).rejects.toMatchObject({ holderPid: process.pid });
+    expect(readFileSync(lockPath, "utf8")).toBe(`${process.pid}\n`);
+  });
+
+  test("recovers an earlier ui:verify lock whose PID has exited", async () => {
+    const { lockPath } = makeLockPath();
+    writeFileSync(lockPath, `${exitedPid()}\n`, "utf8");
+    expect(await withFileLock(lockPath, () => "recovered-legacy", { timeoutMs: 2_000 })).toBe(
+      "recovered-legacy",
     );
     expect(existsSync(lockPath)).toBe(false);
   });
@@ -208,6 +233,83 @@ describe("withFileLock races", () => {
     ).toBe("recovered");
     expect(plantedMarker).toBe(true);
     expect(readdirSync(dir)).toEqual([]);
+  });
+});
+
+describe("acquireFileLock without waiting", () => {
+  test("fails at once with the holder's pid while a live process holds the lock", async () => {
+    const { lockPath } = makeLockPath();
+    const release = await acquireFileLock(lockPath, { timeoutMs: 0 });
+
+    // Nothing in this attempt sleeps, so the rejection settles before any timer fires.
+    let timerFired = false;
+    const timer = setTimeout(() => {
+      timerFired = true;
+    }, 0);
+    const failure = await acquireFileLock(lockPath, { label: "test", timeoutMs: 0 }).catch(
+      (error: unknown) => error,
+    );
+    clearTimeout(timer);
+
+    expect(timerFired).toBe(false);
+    expect(failure).toBeInstanceOf(FileLockBusyError);
+    expect(failure).toMatchObject({ lockPath, holderPid: process.pid });
+    expect(String(failure)).toContain(`test lock at "${lockPath}" is held by pid ${process.pid}`);
+
+    release();
+    expect(existsSync(lockPath)).toBe(false);
+  });
+
+  test("takes the lock when its holder releases it between the failed publish and the inspection", async () => {
+    const { lockPath } = makeLockPath();
+    const releaseHolder = await acquireFileLock(lockPath, { timeoutMs: 0 });
+    let heldChecks = 0;
+
+    const release = await acquireFileLock(lockPath, {
+      timeoutMs: 0,
+      onLockHeld: () => {
+        heldChecks += 1;
+        releaseHolder();
+      },
+    });
+
+    expect(heldChecks).toBe(1);
+    expect(readFileSync(lockPath, "utf8")).toContain(`"pid":${process.pid}`);
+    release();
+    expect(existsSync(lockPath)).toBe(false);
+  });
+
+  test("names the holder it inspected even when that holder releases before the failure is reported", async () => {
+    const { lockPath } = makeLockPath();
+    writeFileSync(lockPath, lockPayload(424_242, "live"), "utf8");
+
+    const failure = await acquireFileLock(lockPath, {
+      label: "test",
+      timeoutMs: 0,
+      isProcessAlive: () => {
+        unlinkSync(lockPath);
+        return true;
+      },
+    }).catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(FileLockBusyError);
+    expect(failure).toMatchObject({ lockPath, holderPid: 424_242 });
+    expect(String(failure)).toContain("is held by pid 424242");
+  });
+
+  test("reclaims a stale lock in its single attempt and releases only its own lock", async () => {
+    const { dir, lockPath } = makeLockPath();
+    writeFileSync(lockPath, lockPayload(exitedPid(), "dead"), "utf8");
+
+    const release = await acquireFileLock(lockPath, { timeoutMs: 0 });
+    expect(readFileSync(lockPath, "utf8")).toContain(`"pid":${process.pid}`);
+
+    // A replacement written after this holder lost the lock stays when it releases.
+    const replacement = lockPayload(process.pid, "replacement");
+    writeFileSync(lockPath, replacement, "utf8");
+    release();
+    expect(readFileSync(lockPath, "utf8")).toBe(replacement);
+    expect(readdirSync(dir)).toEqual(["resource.lock"]);
   });
 });
 

@@ -10,12 +10,12 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { expect, it } from "vite-plus/test";
 import { z } from "zod";
 
-const root = fileURLToPath(new URL("../../", import.meta.url));
+import { REPO_ROOT } from "../paths.ts";
+
 const documents = {
   "README.md": `# Start
 
@@ -81,14 +81,14 @@ const checkDocs = (overrides: Record<string, string> = {}) => {
     const result = spawnSync(
       process.execPath,
       [
-        join(root, "node_modules/remark-cli/cli.js"),
+        join(REPO_ROOT, "node_modules/remark-cli/cli.js"),
         ".",
         "--rc-path",
-        join(root, ".remarkrc.mjs"),
+        join(REPO_ROOT, ".remarkrc.mjs"),
         "--ext",
         "md,mdx",
         "--ignore-path",
-        join(root, ".gitignore"),
+        join(REPO_ROOT, ".gitignore"),
         "--ignore-path-resolve-from",
         "cwd",
         "--frail",
@@ -131,7 +131,7 @@ it.each([
 });
 
 it("keeps AGENTS.md within its concise routing-map budget", () => {
-  const contents = readFileSync(join(root, "AGENTS.md"), "utf8");
+  const contents = readFileSync(join(REPO_ROOT, "AGENTS.md"), "utf8");
   const lines = contents.trimEnd().split(/\r?\n/);
 
   expect(lines.length).toBeLessThanOrEqual(50);
@@ -139,7 +139,7 @@ it("keeps AGENTS.md within its concise routing-map budget", () => {
 });
 
 it("keeps review.md within its concise universal rubric budget", () => {
-  const contents = readFileSync(join(root, ".agents/skills/build-feature/review.md"), "utf8");
+  const contents = readFileSync(join(REPO_ROOT, ".agents/skills/build-feature/review.md"), "utf8");
   const lines = contents.trimEnd().split(/\r?\n/);
 
   expect(lines.length).toBeLessThanOrEqual(95);
@@ -265,12 +265,12 @@ const parseToneInstructions = (yamlText: string) => {
 
 it("keeps Greptile and CodeRabbit review guide lists valid and aligned", () => {
   const greptileConfig = greptileFilesSchema.parse(
-    JSON.parse(readFileSync(join(root, ".greptile/files.json"), "utf8")),
+    JSON.parse(readFileSync(join(REPO_ROOT, ".greptile/files.json"), "utf8")),
   );
   const greptilePaths = greptileConfig.files.map((entry) => entry.path);
   expect(new Set(greptilePaths).size).toBe(greptilePaths.length);
 
-  const coderabbitYaml = readFileSync(join(root, ".coderabbit.yaml"), "utf8");
+  const coderabbitYaml = readFileSync(join(REPO_ROOT, ".coderabbit.yaml"), "utf8");
   const toneInstructions = parseToneInstructions(coderabbitYaml);
   expect(toneInstructions.length).toBeGreaterThan(0);
   expect(toneInstructions.length).toBeLessThanOrEqual(250);
@@ -284,7 +284,7 @@ it("keeps Greptile and CodeRabbit review guide lists valid and aligned", () => {
 
   const coderabbitByPath = new Map(coderabbitEntries.map((entry) => [entry.files, entry]));
   for (const entry of greptileConfig.files) {
-    const fullPath = join(root, entry.path);
+    const fullPath = join(REPO_ROOT, entry.path);
     expect(existsSync(fullPath) && statSync(fullPath).isFile(), `missing file: ${entry.path}`).toBe(
       true,
     );

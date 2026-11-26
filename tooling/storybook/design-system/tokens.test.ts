@@ -23,28 +23,28 @@ const fixtureMeta = (variables: TokenMeta["variables"]): TokenMeta => ({
 });
 
 test("classifies every custom property tokens.css declares", () => {
-  expect(() => buildTokens(tokensCss, tokenMeta, {})).not.toThrow();
+  expect(() => buildTokens(tokensCss, tokenMeta)).not.toThrow();
 });
 
 test("rejects a custom property the classification does not list", () => {
   const css = ":root { --surface: #ffffff; --new-accent: #123456; }";
   const meta = fixtureMeta({ surface: { family: "color", usage: "Cards." } });
 
-  expect(() => buildTokens(css, meta, {})).toThrow("Classify --new-accent");
+  expect(() => buildTokens(css, meta)).toThrow("Classify --new-accent");
 });
 
 test("reads a final declaration that has no semicolon", () => {
   const css = ":root { --surface: #ffffff; --new-accent: #123456 }";
   const meta = fixtureMeta({ surface: { family: "color", usage: "Cards." } });
 
-  expect(() => buildTokens(css, meta, {})).toThrow("Classify --new-accent");
+  expect(() => buildTokens(css, meta)).toThrow("Classify --new-accent");
 });
 
 test("rejects a theme override of a family that holds one value", () => {
   const css = ":root { --space-1: 0.25rem; } [data-product-theme] { --space-1: 0.5rem; }";
   const meta = fixtureMeta({ "space-1": { family: "spacing", usage: "Tight gaps." } });
 
-  expect(() => buildTokens(css, meta, {})).toThrow("--space-1 changes in the product theme");
+  expect(() => buildTokens(css, meta)).toThrow("--space-1 changes in the product theme");
 });
 
 test("resolves a theme's aliases against that theme before comparing", () => {
@@ -57,10 +57,10 @@ test("resolves a theme's aliases against that theme before comparing", () => {
     unit: { family: "css", reason: "Base step." },
   });
 
-  expect(buildTokens(unchanged, meta, {}).spacing.tokens).toEqual([
+  expect(buildTokens(unchanged, meta).spacing.tokens).toEqual([
     { name: "space-1", value: "0.25rem", usage: "Tight gaps." },
   ]);
-  expect(() => buildTokens(inherited, meta, {})).toThrow("--space-1 changes in the product theme");
+  expect(() => buildTokens(inherited, meta)).toThrow("--space-1 changes in the product theme");
 });
 
 test("rejects a token declared only in a theme override", () => {
@@ -70,14 +70,14 @@ test("rejects a token declared only in a theme override", () => {
     accent: { family: "color", usage: "Highlights." },
   });
 
-  expect(() => buildTokens(css, meta, {})).toThrow("--accent is declared only in a theme override");
+  expect(() => buildTokens(css, meta)).toThrow("--accent is declared only in a theme override");
 });
 
 test("rejects a font family classification type.families does not export", () => {
   const css = ":root { --font-mono: monospace; }";
   const meta = fixtureMeta({ "font-mono": { family: "type-family", key: "mono" } });
 
-  expect(() => buildTokens(css, meta, {})).toThrow('does not map "mono"');
+  expect(() => buildTokens(css, meta)).toThrow('does not map "mono"');
 });
 
 test("rejects a classification for a property tokens.css no longer declares", () => {
@@ -86,7 +86,7 @@ test("rejects a classification for a property tokens.css no longer declares", ()
     retired: { family: "color", usage: "Gone." },
   });
 
-  expect(() => buildTokens(":root { --surface: #ffffff; }", meta, {})).toThrow("retired");
+  expect(() => buildTokens(":root { --surface: #ffffff; }", meta)).toThrow("retired");
 });
 
 test("keeps theme overrides per theme, aliases references, and collapses shared colors", () => {
@@ -100,7 +100,7 @@ test("keeps theme overrides per theme, aliases references, and collapses shared 
     focus: { family: "color", usage: "Focus ring." },
   });
 
-  expect(buildTokens(css, meta, {}).color.tokens).toEqual([
+  expect(buildTokens(css, meta).color.tokens).toEqual([
     { name: "surface", value: "#ffffff", usage: "Cards." },
     { name: "background", value: { site: "#f8f8f5", product: "#ffffff" }, usage: "Page." },
     { name: "focus", value: "{surface}", usage: "Focus ring." },
@@ -111,7 +111,7 @@ test("refuses a color the design-system format cannot hold", () => {
   const css = ":root { --overlay: color-mix(in srgb, black 30%, transparent); }";
   const meta = fixtureMeta({ overlay: { family: "color", usage: "Modal backdrop." } });
 
-  expect(() => buildTokens(css, meta, {})).toThrow('classify it as "css"');
+  expect(() => buildTokens(css, meta)).toThrow('classify it as "css"');
 });
 
 test("resolves type sizes through the variables they reference", () => {
@@ -129,7 +129,7 @@ test("resolves type sizes through the variables they reference", () => {
     },
   };
 
-  expect(buildTokens(css, meta, {}).type.groups[0]?.styles).toEqual([
+  expect(buildTokens(css, meta).type.groups[0]?.styles).toEqual([
     { name: "control", fontSize: "0.875rem" },
   ]);
 });

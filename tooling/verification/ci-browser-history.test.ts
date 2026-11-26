@@ -1,6 +1,6 @@
 import { expect, test, vi } from "vite-plus/test";
 
-import { browserFailures } from "./ci-browser-history";
+import { browserFailures, parseHistoryArgs } from "./ci-browser-history";
 
 test("counts first failures and explicit passes of the same browser test on later attempts", () => {
   const job = { id: 1, name: "browser-storybook (5/5)", run_attempt: 1, conclusion: "failure" };
@@ -97,3 +97,13 @@ test.each(["gh: Bad credentials (HTTP 401)", "gh: Forbidden (HTTP 403)", "connec
     ).toThrow(error);
   },
 );
+
+test("reads an optional whole-number run count", () => {
+  expect(parseHistoryArgs([])).toBe(100);
+  expect(parseHistoryArgs(["--", "30"])).toBe(30);
+  expect(() => parseHistoryArgs(["30abc"])).toThrow(
+    '[run-count] must be a whole number of at least 1 (got "30abc").',
+  );
+  expect(() => parseHistoryArgs(["30", "40"])).toThrow('Unexpected argument "40".');
+  expect(() => parseHistoryArgs(["--limit", "30"])).toThrow("Unknown option '--limit'");
+});

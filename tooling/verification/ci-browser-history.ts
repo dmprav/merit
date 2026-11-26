@@ -3,6 +3,8 @@ import { stripVTControlCharacters } from "node:util";
 
 import { z } from "zod";
 
+import { parseCliArgs, parseWholeNumber } from "../cli.ts";
+
 const runsSchema = z.array(
   z.object({ databaseId: z.number(), attempt: z.number(), conclusion: z.string() }),
 );
@@ -84,12 +86,24 @@ export const browserFailures = (runId: number, jobs: Job[], readLog: (id: number
 const gh = (...args: string[]) =>
   execFileSync("gh", args, { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
 
+const HISTORY_USAGE = "Usage: ci-browser-history.ts [run-count]";
+
+/** Reads the optional number of Verify runs to inspect (default 100). */
+export const parseHistoryArgs = (args: readonly string[]): number => {
+  const { positionals } = parseCliArgs(args, {
+    options: {},
+    usage: HISTORY_USAGE,
+    allowPositionals: true,
+  });
+  const [raw, extra] = positionals;
+  if (extra !== undefined) {
+    throw new Error(`Unexpected argument "${extra}".\n${HISTORY_USAGE}`);
+  }
+  return raw === undefined ? 100 : parseWholeNumber(raw, "[run-count]");
+};
+
 const reportHistory = () => {
-  const limit = z.coerce
-    .number()
-    .int()
-    .positive()
-    .parse(process.argv[2] ?? 100);
+  const limit = parseHistoryArgs(process.argv.slice(2));
   const runs = runsSchema.parse(
     JSON.parse(
       gh(

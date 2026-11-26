@@ -1,16 +1,15 @@
 import { existsSync, readdirSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import { fileURLToPath } from "node:url";
 
 import { loadConfigFromFile } from "vite-plus";
 import { assert, expect, test } from "vite-plus/test";
 
-const repoRoot = fileURLToPath(new URL("../..", import.meta.url));
+import { REPO_ROOT } from "../paths.ts";
 
 const loadTasks = async () => {
   const loaded = await loadConfigFromFile(
     { command: "serve", mode: "test" },
-    `${repoRoot}/vite.config.ts`,
+    `${REPO_ROOT}/vite.config.ts`,
   );
   const tasks = loaded?.config.run?.tasks;
   assert(tasks);
@@ -22,9 +21,9 @@ test("retired CI shortcuts and deferred workflow are removed", async () => {
   expect(tasks["ready:ci"]).toBeUndefined();
   expect(tasks["ready:tests:ci"]).toBeUndefined();
   expect(tasks["ready:runtime:ci"]).toBeUndefined();
-  expect(existsSync(`${repoRoot}/.github/workflows/deferred.yml`)).toBe(false);
+  expect(existsSync(`${REPO_ROOT}/.github/workflows/deferred.yml`)).toBe(false);
 
-  const browserConfig = await readFile(`${repoRoot}/tooling/testing/browser/config.ts`, "utf8");
+  const browserConfig = await readFile(`${REPO_ROOT}/tooling/testing/browser/config.ts`, "utf8");
   expect(browserConfig).not.toContain("MERIT_BROWSER_RETRIES");
   // One CI retry labels flaky tests; failing on them keeps the gate as strict as no retries.
   expect(browserConfig).toContain("retries: process.env.CI ? 1 : 0");
@@ -44,8 +43,8 @@ test("CI verify workflow covers every ready stage and sharded browser suite", as
   const tasks = await loadTasks();
   const ready = tasks.ready;
   assert(ready && typeof ready === "object" && !Array.isArray(ready) && ready.dependsOn);
-  const workflow = await readFile(`${repoRoot}/.github/workflows/verify.yml`, "utf8");
-  const ruleset = JSON.parse(await readFile(`${repoRoot}/.github/rulesets/main.json`, "utf8")) as {
+  const workflow = await readFile(`${REPO_ROOT}/.github/workflows/verify.yml`, "utf8");
+  const ruleset = JSON.parse(await readFile(`${REPO_ROOT}/.github/rulesets/main.json`, "utf8")) as {
     rules: Array<{
       type: string;
       parameters?: { required_status_checks?: Array<{ context: string }> };
@@ -102,17 +101,17 @@ test("CI verify workflow covers every ready stage and sharded browser suite", as
 
   // External actions and container images must remain pinned by digest/SHA,
   // across every workflow and local composite action.
-  const workflowFiles = readdirSync(`${repoRoot}/.github/workflows`)
+  const workflowFiles = readdirSync(`${REPO_ROOT}/.github/workflows`)
     .filter((name) => name.endsWith(".yml") || name.endsWith(".yaml"))
     .sort();
   expect(workflowFiles).toContain("verify.yml");
   expect(workflowFiles).toContain("prune-verifications.yml");
   expect(workflowFiles).toContain("review-packet.yml");
   const workflowContents = await Promise.all(
-    workflowFiles.map((name) => readFile(`${repoRoot}/.github/workflows/${name}`, "utf8")),
+    workflowFiles.map((name) => readFile(`${REPO_ROOT}/.github/workflows/${name}`, "utf8")),
   );
   const reviewPacketWorkflow = await readFile(
-    `${repoRoot}/.github/workflows/review-packet.yml`,
+    `${REPO_ROOT}/.github/workflows/review-packet.yml`,
     "utf8",
   );
   expect(
@@ -139,7 +138,7 @@ test("CI verify workflow covers every ready stage and sharded browser suite", as
     screenshotsJob.indexOf("Set up workspace"),
   );
   const pruneWorkflow = await readFile(
-    `${repoRoot}/.github/workflows/prune-verifications.yml`,
+    `${REPO_ROOT}/.github/workflows/prune-verifications.yml`,
     "utf8",
   );
   const pruneLines = pruneWorkflow.split(/\r?\n/).map((line) => line.replace(/#.*$/, "").trimEnd());
@@ -181,11 +180,11 @@ test("CI verify workflow covers every ready stage and sharded browser suite", as
   expect(checkoutWith.get("persist-credentials")).toBe("false");
   expect(checkoutWith.get("fetch-depth")).toBe("0");
   const setupWorkspaceAction = await readFile(
-    `${repoRoot}/.github/actions/setup-workspace/action.yml`,
+    `${REPO_ROOT}/.github/actions/setup-workspace/action.yml`,
     "utf8",
   );
   const forwardPortsAction = await readFile(
-    `${repoRoot}/.github/actions/forward-service-ports/action.yml`,
+    `${REPO_ROOT}/.github/actions/forward-service-ports/action.yml`,
     "utf8",
   );
   const actionFiles = [...workflowContents, setupWorkspaceAction, forwardPortsAction];
@@ -193,7 +192,7 @@ test("CI verify workflow covers every ready stage and sharded browser suite", as
     for (const [, ref] of contents.matchAll(/^[ \t]+(?:-\s+)?uses:[ \t]+["']?([^"'\s#]+)["']?/gm)) {
       assert(ref);
       if (ref.startsWith("./.github/actions/")) {
-        expect(existsSync(`${repoRoot}/${ref.slice(2)}/action.yml`)).toBe(true);
+        expect(existsSync(`${REPO_ROOT}/${ref.slice(2)}/action.yml`)).toBe(true);
       } else if (ref.startsWith("docker://")) {
         expect(ref).toMatch(/@sha256:[0-9a-f]{64}$/);
       } else {
@@ -212,7 +211,7 @@ test("CI verify workflow covers every ready stage and sharded browser suite", as
   const storybookImage = /browser-storybook:[\s\S]*?^\s+container:\s+(\S+)/m.exec(workflow)?.[1];
   assert(storybookImage);
   const visualContainerScript = await readFile(
-    `${repoRoot}/tooling/storybook/run-visual-container.ts`,
+    `${REPO_ROOT}/tooling/storybook/run-visual-container.ts`,
     "utf8",
   );
   expect(visualContainerScript).toContain(storybookImage);
@@ -229,17 +228,23 @@ test("CI verify workflow covers every ready stage and sharded browser suite", as
   expect(neededJobs).toEqual(jobIds.filter((id) => id !== "verify"));
 });
 
-const readUploadPaths = async () => {
-  const workflow = await readFile(`${repoRoot}/.github/workflows/verify.yml`, "utf8");
-  return [...workflow.matchAll(/^\s+path:\s*(?:\|\r?\n((?:\s{12}.*\r?\n)+)|(.+))/gm)]
+const UPLOAD_PATHS = /^\s+path:\s*(?:\|\r?\n((?:\s{12}.*\r?\n)+)|(.+))/gm;
+
+const readWorkflow = () => readFile(`${REPO_ROOT}/.github/workflows/verify.yml`, "utf8");
+
+const uploadPathsIn = (text: string) =>
+  [...text.matchAll(UPLOAD_PATHS)]
     .flatMap(([, block, single]) => (block ?? single ?? "").split(/\r?\n/))
     .map((path) => path.trim().replace(/^"|"$/g, ""))
     .filter(Boolean);
-};
+
+/** The lines of one top-level job, up to the next job key. */
+const jobBlock = (workflow: string, job: string) =>
+  workflow.split(new RegExp(`^  ${job}:\\r?$`, "m"))[1]?.split(/^  [a-z0-9-]+:\r?$/m)[0] ?? "";
 
 test("CI uploads package Vitest reports from each workspace package without walking node_modules", async () => {
-  const uploadPaths = await readUploadPaths();
-  const workspace = await readFile(`${repoRoot}/pnpm-workspace.yaml`, "utf8");
+  const uploadPaths = uploadPathsIn(await readWorkflow());
+  const workspace = await readFile(`${REPO_ROOT}/pnpm-workspace.yaml`, "utf8");
 
   // upload-artifact reads the whole tree for a `**` pattern, including node_modules, and hangs.
   expect(uploadPaths.filter((path) => path.startsWith("**"))).toEqual([]);
@@ -252,22 +257,24 @@ test("CI uploads package Vitest reports from each workspace package without walk
   expect(reportPaths).toEqual(packageGlobs.map((glob) => `${glob}/.vitest-report.json`));
 });
 
-test("CI uploads every Playwright suite's output directory as failure evidence", async () => {
-  const uploadPaths = await readUploadPaths();
+test("CI uploads every Playwright suite's output directory from the job that runs it", async () => {
+  const workflow = await readWorkflow();
   // Browser jobs set TMPDIR to the runner's temporary directory, so each suite's traces and
   // screenshots land in `${{ runner.temp }}/<directory>`. A suffixed directory needs a glob.
-  const uploadedDirectories = uploadPaths
-    .filter((path) => path.startsWith("${{ runner.temp }}/"))
-    .map((path) => path.slice("${{ runner.temp }}/".length));
-  const outputSources = [
-    "tooling/testing/browser/config.ts",
-    "tooling/storybook/playwright.config.ts",
-    "app/tests/browser/workspace.playwright.config.ts",
-    "app/tests/demo-browser.ts",
-  ];
+  const outputSources = {
+    "browser-tooling": "tooling/testing/browser/config.ts",
+    "browser-storybook": "tooling/storybook/playwright.config.ts",
+    "browser-workspace": "app/tests/browser/workspace.playwright.config.ts",
+    "browser-demo": "app/tests/demo-browser.ts",
+  };
 
-  for (const source of outputSources) {
-    const text = await readFile(`${repoRoot}/${source}`, "utf8");
+  for (const [job, source] of Object.entries(outputSources)) {
+    const block = jobBlock(workflow, job);
+    expect(block, `verify.yml has a ${job} job`).not.toBe("");
+    const uploadedDirectories = uploadPathsIn(block)
+      .filter((path) => path.startsWith("${{ runner.temp }}/"))
+      .map((path) => path.slice("${{ runner.temp }}/".length));
+    const text = await readFile(`${REPO_ROOT}/${source}`, "utf8");
     const [, quote, prefix] = text.match(/join\(tmpdir\(\),\s*(["`])([^"`$]+)/) ?? [];
     assert(prefix, `${source} writes Playwright output under tmpdir()`);
     const suffixed = quote === "`" && text.includes(`${prefix}\${`);
@@ -276,6 +283,6 @@ test("CI uploads every Playwright suite's output directory as failure evidence",
         ? prefix.startsWith(directory.slice(0, -1))
         : !suffixed && directory === prefix,
     );
-    expect(covered, `${source} output (${prefix}${suffixed ? "…" : ""}) is uploaded`).toBe(true);
+    expect(covered, `${job} uploads ${source} output (${prefix}${suffixed ? "…" : ""})`).toBe(true);
   }
 });
