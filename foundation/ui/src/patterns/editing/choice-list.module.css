@@ -1,12 +1,12 @@
 .picker {
-  display: grid;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
+/* The shared popover scroller sets the height and padding; this is the one scroll container. */
 .list {
-  max-height: 18rem;
-  overflow: auto;
-  outline: none;
-  padding-block: var(--space-1);
+  flex: 0 1 auto;
 }
 
 .empty {

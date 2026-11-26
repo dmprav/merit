@@ -1,40 +1,39 @@
 .popover {
-  z-index: 40;
   width: min(22.5rem, calc(100vw - 32px));
-  overflow-y: auto;
-  border: 1px solid var(--border-raised);
-  border-radius: var(--panel-radius);
-  background: var(--surface);
-  color: var(--foreground);
-  /* Popovers render outside the application shell, so they set the body text size themselves. */
-  font-size: var(--text-body);
-  --motion-duration: var(--motion-fast);
-  box-shadow: var(--popover-shadow);
 }
 
 .dialog {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
   outline: none;
 }
 
 .popover[data-appearance="picker"] {
   width: min(20rem, calc(100vw - 32px));
+  overflow-y: auto;
   scroll-padding-block: var(--space-3);
 }
 
+/* Dividers inside the picker bleed through this padding to run edge to edge. */
 .popover[data-appearance="picker"] .dialog {
-  --popover-inset: var(--space-3);
-  padding: var(--popover-inset);
+  --popover-gutter: var(--space-3);
+  --popover-inset: 0px;
+  padding: var(--popover-gutter);
 }
 
-/* List content, such as a choice list, runs to the picker's edges like a menu. */
+/*
+ * List content, such as a choice list, has no padding of its own: its scroller carries the inset,
+ * so the scrollbar sits at the picker's edge and the list is the only scroll container.
+ */
+.popover[data-appearance="picker"]:has([data-list-content]) {
+  overflow-y: hidden;
+}
+
 .popover[data-appearance="picker"] .dialog:has([data-list-content]) {
+  --popover-gutter: 0px;
   --popover-inset: var(--space-1);
-}
-
-.popover[data-appearance="reference"] {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
+  padding: 0;
 }
 
 .popover[data-appearance="reference"] .dialog {
@@ -44,23 +43,5 @@
 @media (pointer: coarse) {
   .popover[data-appearance="picker"] {
     width: min(22rem, calc(100vw - 32px));
-  }
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .popover[data-appearance="reference"][data-entering]:not([data-exiting]) {
-    animation: popover-in var(--motion-fast) ease-out;
-  }
-}
-
-@keyframes popover-in {
-  from {
-    opacity: 0;
-    transform: translateY(3px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
   }
 }

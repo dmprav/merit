@@ -73,6 +73,18 @@ whether it opens on hover or on press. Every scrolling region shares one scrollb
 platform overlays scrollbars, they stay overlaid and reserve no gutter. Components never
 style their own.
 
+## Popovers
+
+Every popover (select list, action menu, shell context popover, picker, calendar,
+reference popover, tooltip) shares one raised surface from `popover.module.css`: the
+`--border-raised` edge, `--popover-radius`, `--popover-shadow`, and a fade in and out with
+no movement, which reduced-motion preferences skip. Each sits 6px from its trigger, set by
+the constants in `popover.ts`, not by a number in the component. A list that scrolls
+inside a popover uses the shared scroller: the surface has no padding, so the scroller's
+padding keeps rows clear of its scrollbar, and the list is cut partway through a row so it
+visibly continues. A divider inside a popover runs edge to edge. Components choose these by
+class; stylelint rejects a popover that restyles its own shadow.
+
 ## Interaction cues
 
 **Keep focus visible alongside the control's existing state.** Tab through the

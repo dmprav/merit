@@ -112,21 +112,8 @@ button.contextTrigger {
 }
 
 .contextPopover {
-  z-index: 50;
   width: max(16rem, var(--trigger-width));
   max-width: calc(100vw - 32px);
-  max-height: var(--available-height);
-  overflow-y: auto;
-  padding: var(--space-1);
-  border: 1px solid var(--border);
-  border-radius: var(--control-radius);
-  background: var(--surface);
-  color: var(--foreground);
-  box-shadow: var(--popover-shadow);
-}
-
-.contextDialog {
-  outline: none;
 }
 
 .contextLinks {

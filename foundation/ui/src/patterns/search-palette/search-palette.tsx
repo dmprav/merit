@@ -1,6 +1,7 @@
 import {
   useEffectEvent,
   useEffect,
+  useState,
   type ComponentProps,
   type ReactElement,
   type ReactNode,
@@ -21,6 +22,7 @@ import { useTranslation } from "react-i18next";
 import { ButtonBase } from "../../components/button/button-base";
 import { ModalFrame, type ModalFrameProps } from "../../components/dialog/modal-frame";
 import { IconBase } from "../../components/icon/icon-base";
+import rowStyles from "../../foundations/list-row.module.css";
 import scrollStyles from "../../foundations/scroll-area.module.css";
 import { StatusMessage } from "../status-message/status-message";
 import styles from "./search-palette.module.css";
@@ -117,7 +119,7 @@ const SearchItem = ({
           item.onAction?.();
         }
       }}
-      className={styles.option}
+      className={`${rowStyles.row} ${styles.option}`}
     >
       {item.icon && <IconBase name={item.icon} className={styles.rowIcon} />}
       <span className={styles.content}>
@@ -238,8 +240,17 @@ export const SearchPalette = ({
   onEscape,
 }: SearchPaletteProps) => {
   const pending = busy || undefined;
+  // The top match is highlighted as results arrive; the keyboard bar waits for the first key press
+  // that moves it, and starts over with each new set of results.
+  const [navigated, setNavigated] = useState<{ resultsId: string | number | undefined } | null>(
+    null,
+  );
+  const hasNavigated = navigated !== null && navigated.resultsId === resultsId;
 
   const onKeyDown = (event: KeyboardEvent) => {
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      setNavigated({ resultsId });
+    }
     if (onEscape && event.key === "Escape" && !event.nativeEvent.isComposing) {
       event.stopPropagation();
       onEscape();
@@ -250,6 +261,7 @@ export const SearchPalette = ({
     <div
       className={styles.palette}
       data-busy={pending}
+      data-navigated={hasNavigated || undefined}
       aria-busy={pending}
       onKeyDownCapture={onKeyDown}
     >

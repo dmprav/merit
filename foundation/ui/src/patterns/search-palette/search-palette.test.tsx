@@ -161,6 +161,20 @@ describe("search palette", () => {
     expect(open).toHaveBeenLastCalledWith("a1", { meta: false });
   });
 
+  it("marks the palette as navigated only once a key moves the highlight, per result set", async () => {
+    const user = userEvent.setup();
+    const view = render(<Palette groups={groups} resultsId={1} />);
+    const root = view.container.firstElementChild!;
+    await user.click(screen.getByRole("searchbox"));
+
+    expect(root).not.toHaveAttribute("data-navigated");
+    await user.keyboard("{ArrowDown}");
+    expect(root).toHaveAttribute("data-navigated", "true");
+
+    view.rerender(<Palette groups={[...groups].reverse()} resultsId={2} />);
+    expect(root).not.toHaveAttribute("data-navigated");
+  });
+
   it("steps from the highlighted top match to the next row with Down", async () => {
     const user = userEvent.setup();
     render(<Palette groups={groups} resultsId={1} />);

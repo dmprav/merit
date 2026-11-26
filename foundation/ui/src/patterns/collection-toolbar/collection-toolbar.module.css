@@ -19,18 +19,24 @@
 }
 
 .filters {
-  display: grid;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
+/* The criteria are the panel's one scroller, so a long set scrolls and the reset stays in view. */
 .criteria {
   display: grid;
+  flex: 0 1 auto;
   gap: 2px;
-  padding-block: var(--space-1);
 }
 
 .reset {
+  /* Run edge to edge across the panel, whatever its padding, so the divider spans it. */
+  margin-inline: calc(-1 * var(--popover-gutter, 0px));
   border-top: 1px solid var(--border);
-  padding-top: var(--space-1);
+  padding: var(--popover-inset, 0px);
+  padding-inline: calc(var(--popover-gutter, 0px) + var(--popover-inset, 0px));
 }
 
 .summary {

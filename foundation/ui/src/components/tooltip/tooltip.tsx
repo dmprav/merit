@@ -8,6 +8,7 @@ import {
   type TooltipProps as AriaTooltipProps,
 } from "react-aria-components/Tooltip";
 
+import { popoverOffset, popoverSurface } from "../../foundations/popover";
 import styles from "./tooltip.module.css";
 
 type TooltipProps = {
@@ -89,7 +90,11 @@ export const Tooltip = ({
   <TooltipTrigger delay={350} closeDelay={150} isDisabled={isDisabled}>
     {customTrigger ? <Focusable>{children}</Focusable> : children}
     <TooltipOverlayGuard />
-    <AriaTooltip className={styles.tooltip} placement={placement} offset={6}>
+    <AriaTooltip
+      className={`${popoverSurface} ${styles.tooltip}`}
+      placement={placement}
+      offset={popoverOffset}
+    >
       {content}
     </AriaTooltip>
   </TooltipTrigger>

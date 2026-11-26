@@ -110,6 +110,22 @@ export default {
       },
     },
     {
+      // A popover takes its surface from foundations/popover.module.css instead of restyling it.
+      // The toast and the search palette box are not popovers; they borrow its shadow.
+      files: ["foundation/ui/src/**/*.css"],
+      ignoreFiles: [
+        "foundation/ui/src/foundations/popover.module.css",
+        "foundation/ui/src/patterns/toast/toast.module.css",
+        "foundation/ui/src/patterns/search-palette/search-palette.module.css",
+      ],
+      rules: {
+        "declaration-property-value-disallowed-list": [
+          { "box-shadow": [/--popover-shadow/] },
+          { message: "Use the shared popover surface from foundations/popover.module.css" },
+        ],
+      },
+    },
+    {
       files: ["foundation/ui/src/foundations/tokens.css"],
       rules: { "color-no-hex": null, "color-named": null, "function-disallowed-list": null },
     },

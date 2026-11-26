@@ -113,6 +113,10 @@
       "family": "radius",
       "usage": "Panels and dialogs."
     },
+    "popover-radius": {
+      "family": "radius",
+      "usage": "Corners of every popover: menus, select lists, pickers, calendars, reference popovers, tooltips."
+    },
     "space-1": {
       "family": "spacing",
       "usage": "Label to field, badge gap, tight stacks."
