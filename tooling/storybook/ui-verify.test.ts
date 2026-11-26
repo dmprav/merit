@@ -49,6 +49,38 @@ describe("watchProcessSignals", () => {
     }
   });
 
+  it("keeps listening during teardown and ignores later signals, exiting with the first one's code", async () => {
+    const exits: unknown[] = [];
+    vi.spyOn(process, "exit").mockImplementation((code) => {
+      exits.push(code);
+      return undefined as never;
+    });
+    const before = { SIGINT: process.listeners("SIGINT"), SIGTERM: process.listeners("SIGTERM") };
+    const torndown: NodeJS.Signals[] = [];
+
+    let finishTeardown = () => {};
+
+    const stop = watchProcessSignals(async (received) => {
+      torndown.push(received);
+      await new Promise<void>((resolve) => {
+        finishTeardown = resolve;
+      });
+    });
+    try {
+      addedListener("SIGINT", before.SIGINT)("SIGINT");
+      // A second Ctrl+C or a SIGTERM while teardown runs must still be caught, so Node does not
+      // exit before teardown finishes.
+      addedListener("SIGINT", before.SIGINT)("SIGINT");
+      addedListener("SIGTERM", before.SIGTERM)("SIGTERM");
+      expect(torndown).toEqual(["SIGINT"]);
+
+      finishTeardown();
+      await vi.waitFor(() => expect(exits).toEqual([130]));
+    } finally {
+      stop();
+    }
+  });
+
   it("stops listening for both signals once stopped", () => {
     const before = {
       SIGINT: process.listenerCount("SIGINT"),

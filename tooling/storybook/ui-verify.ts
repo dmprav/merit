@@ -11,16 +11,25 @@ const INTERRUPT_EXIT_CODES = { SIGINT: 130, SIGTERM: 143 } as const;
 
 const INTERRUPT_SIGNALS = ["SIGINT", "SIGTERM"] as const;
 
-/** Tears the run down on Ctrl+C or SIGTERM, then exits with the signal's conventional code. */
+/**
+ * Tears the run down on Ctrl+C or SIGTERM, then exits with the first signal's conventional code.
+ * Both listeners stay installed until then, so a repeated signal cannot end the process before
+ * teardown finishes; it is ignored instead.
+ */
 export const watchProcessSignals: WatchInterrupts = (teardown) => {
+  let shuttingDown = false;
   const listeners = INTERRUPT_SIGNALS.map((signal) => {
     const onSignal = () => {
+      if (shuttingDown) {
+        return;
+      }
+      shuttingDown = true;
       void teardown(signal).finally(() => {
         process.exit(INTERRUPT_EXIT_CODES[signal]);
       });
     };
 
-    process.once(signal, onSignal);
+    process.on(signal, onSignal);
     return { signal, onSignal };
   });
   return () => {
