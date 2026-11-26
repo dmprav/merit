@@ -38,9 +38,13 @@ catalogTest(
       await verifyReply(reply);
     }
     await expect(async () => verifyReply("Done.")).rejects.toThrow("recorded amount");
-    await expect(async () =>
-      verifyReply("I recorded the decision to fund Lanterns with €24,502.50."),
-    ).rejects.toThrow("recorded amount");
+    for (const reply of [
+      "I recorded the decision to fund Lanterns with €24,502.50.",
+      "I recorded the decision to fund Lanterns with €-2,450.25.",
+      "I recorded the decision to fund Lanterns with −2,450.25 EUR.",
+    ]) {
+      await expect(async () => verifyReply(reply)).rejects.toThrow("recorded amount");
+    }
     for (const reply of [
       "I saved your recommendation of €2,450.25 for Lanterns.",
       "I saved your recommendation of €2,450.25. This is not a decision.",
