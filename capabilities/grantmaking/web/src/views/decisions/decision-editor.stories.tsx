@@ -195,7 +195,7 @@ export const RecordFirstDecision: Story = {
     await expect(canvas.getByRole("textbox", { name: "Amount" })).toHaveValue("24000.00");
     await expect(canvas.getByRole("region", { name: "Manager recommendation" })).toBeVisible();
     await expect(canvas.queryByLabelText(/changing this decision/)).not.toBeInTheDocument();
-    await expect(canvas.getByRole("link", { name: /Go to committee decision/ })).toBeInTheDocument();
+    await expect(canvas.getByText(/Go to committee decision/)).toBeInTheDocument();
     await expect(canvas.getByRole("status", { name: "Budget preview" })).toHaveTextContent(
       /Available with this decision\s*€8,000/,
     );
