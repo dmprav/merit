@@ -22,6 +22,10 @@ const meta = {
     description: "We couldn’t load your workspace. Please try again.",
     actions: <Button>Try again</Button>,
   },
+  argTypes: {
+    actions: { control: false },
+    illustration: { control: false },
+  },
 } satisfies Meta<typeof StateMessage>;
 
 export default meta;
@@ -78,6 +82,7 @@ export const LongContent: Story = {
 
 /** The compact size inside a dialog or search box, in its neutral and failure tones. */
 export const Compact: Story = {
+  parameters: { controls: { disable: true } },
   render: () => (
     <div className={styles.comparison}>
       <StateMessage

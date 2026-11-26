@@ -34,13 +34,35 @@ const EditablePreview = (args: PreviewProps) => {
   const application = round.applications.find((item) => item.id === args.application.id)!;
   const [tab, setTab] = useState<"evidence" | "reviews">("reviews");
   const [draft, setDraft] = useState<RecommendationDraft | undefined>(args.draft);
+  const [conflict, setConflict] = useState(args.conflict ?? null);
+  const [draftReset, setDraftReset] = useState(0);
 
   return (
     <ApplicationContainedPreview locationKey={application.title}>
       <RecommendationEditor
         {...args}
         draft={draft}
+        conflict={conflict}
+        draftReset={draftReset}
         onDraftChange={setDraft}
+        onKeepDraft={
+          conflict
+            ? () => {
+                args.onKeepDraft?.();
+                setConflict(null);
+              }
+            : args.onKeepDraft
+        }
+        onLoadLatest={
+          conflict
+            ? () => {
+                args.onLoadLatest?.();
+                setConflict(null);
+                setDraft(undefined);
+                setDraftReset((count) => count + 1);
+              }
+            : args.onLoadLatest
+        }
         application={application}
         round={round}
         onSave={async (value) => {
@@ -78,7 +100,7 @@ const meta = {
       </GrantmakingMessagesProvider>
     ),
   ],
-  parameters: { layout: "fullscreen" },
+  parameters: { layout: "fullscreen", controls: { disable: true } },
   component: EditablePreview,
   render: (args) => <EditablePreview {...args} />,
   argTypes: {
@@ -115,9 +137,16 @@ export const ResumeEditing: Story = {
     await expect(canvas.getByLabelText(/Reasoning/)).toHaveValue("Confirm the delivery dates.");
   },
 };
+
+const failOnceSave = fn<PreviewProps["onSave"]>();
+
 export const SaveFailure: Story = {
   args: {
-    onSave: fn<PreviewProps["onSave"]>(() => ({ status: "unavailable" })),
+    onSave: failOnceSave,
+  },
+  beforeEach: () => {
+    failOnceSave.mockReset();
+    failOnceSave.mockResolvedValueOnce({ status: "unavailable" }).mockResolvedValue(null);
   },
   play: async ({ canvas, userEvent }) => {
     await userEvent.click(canvas.getByRole("button", { name: /Edit recommendation for/ }));
@@ -178,12 +207,12 @@ export const BudgetPreview: Story = {
   },
 };
 
-const noRecommendationRound = getExampleRound();
-const noRecommendationApplication = noRecommendationRound.applications[2];
-if (!noRecommendationApplication) {
-  throw new Error("Expected the Workshop Saturdays example");
-}
-noRecommendationApplication.managerRecommendation = null;
+const noRecommendationRound = {
+  ...getExampleRound(),
+  applications: getExampleRound().applications.map((application) =>
+    application.id === "A3" ? { ...application, managerRecommendation: null } : application,
+  ),
+};
 export const NoRecommendation: Story = {
   args: { round: encodeRoundOverview(noRecommendationRound), application: { id: "A3" } },
   play: async ({ canvas }) => {
@@ -228,5 +257,20 @@ export const DeferDuringPreparation: Story = {
     );
 
     await expect(recommendation.getByText("Defer", { exact: true })).toBeVisible();
+  },
+};
+
+export const ConcurrentChanges: Story = {
+  args: {
+    conflict: "record_changed",
+    draft: { position: "Fund", amount: "20000", reasoning: "Confirm the delivery dates." },
+  },
+  play: async ({ canvas, userEvent }) => {
+    await userEvent.click(
+      canvas.getByRole("button", { name: /Resume editing recommendation for/ }),
+    );
+    await expect(canvas.getByText("Recommendation changed while you were editing")).toBeVisible();
+    await userEvent.click(canvas.getByRole("button", { name: "View latest" }));
+    await expect(canvas.getByText("Latest saved recommendation")).toBeVisible();
   },
 };

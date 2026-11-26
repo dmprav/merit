@@ -13,7 +13,9 @@
     "./scope": "./src/server/persistence/projections.ts",
     "./participation-schema": "./src/server/persistence/reviewer-schema.ts",
     "./server/demo": "./src/server/demo.ts",
-    "./readers": "./src/server/persistence/reviewer-records.ts"
+    "./readers": "./src/server/persistence/reviewer-records.ts",
+    "./server/workflow": "./src/server/reviewer-message.workflow.ts",
+    "./testing": "./src/server/testing.ts"
   },
   "dependencies": {
     "@merit/access": "workspace:*",
@@ -26,6 +28,8 @@
     "@merit/money": "workspace:*",
     "@merit/organizations": "workspace:*",
     "@merit/rounds": "workspace:*",
+    "@merit/workflows": "workspace:*",
+    "@temporalio/workflow": "catalog:",
     "drizzle-orm": "catalog:",
     "zod": "catalog:"
   },

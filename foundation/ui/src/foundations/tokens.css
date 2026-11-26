@@ -82,6 +82,8 @@
   --avatar-compact-size: 24px;
   --avatar-regular-size: 28px;
   --target-touch: 2.75rem;
+  /* How far a quiet button's text sits inside its edge: padding plus border. */
+  --button-quiet-inset: calc(var(--space-2) + 3px);
 
   /* Motion and elevation */
   --motion-fast: 120ms;

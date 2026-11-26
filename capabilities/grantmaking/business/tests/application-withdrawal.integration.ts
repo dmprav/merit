@@ -9,8 +9,9 @@ import { encodeMoney, fromMinorUnits } from "@merit/money";
 import { actor } from "@merit/organizations/testing/workspace";
 import { saveFundingRecommendation } from "@merit/recommendations/server";
 import { reviewRevisionSchema, type ReviewChange } from "@merit/reviews/domain";
-import { createReviewerService, saveApplicationReview } from "@merit/reviews/server";
+import { saveApplicationReview } from "@merit/reviews/server";
 import { isCurrentAssessment } from "@merit/reviews/server/integrations";
+import { createInlineReviewerService } from "@merit/reviews/testing";
 import { criteriaVersionSchema } from "@merit/rounds/domain";
 
 import {
@@ -90,7 +91,7 @@ const it = roundTest.extend("scenario", async ({ db, database, rounds }) => {
       applicationWork,
     );
 
-  const service = createReviewerService({
+  const service = createInlineReviewerService({
     database: async (operation) => operation(db),
     send: async () => {},
     reviewerUrl: (slug, id) => `https://merit.test/app/${slug}/work/${id}`,

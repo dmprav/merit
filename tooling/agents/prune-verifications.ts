@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { parseArgs } from "node:util";
 
 export const SCOUT_STATE_ISSUE_NUMBER = 219;
 export const SCOUT_STATE_ISSUE_TITLE = "chore: agent scout state";
@@ -8,7 +9,6 @@ export const RETENTION_DAYS = 30;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const STATE_MARKER_PATTERN = /<!--\s*merit-scout-state:\s*(\{[\s\S]*?\})\s*-->/;
 const VERIFICATION_FILE_PATTERN = /^verifications\/(\d+)\.md$/;
-const POSITIVE_INT_PATTERN = /^\d+$/;
 
 export type VerificationRecordEntry = {
   path: string;
@@ -25,46 +25,43 @@ export type PruneCliOptions = {
 const isPlainRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
+const PRUNE_USAGE =
+  "Usage: prune-verifications.ts [--paths] [--retention-days <days>] [--ref <revision>]";
+
+// This file runs before dependencies are installed, so it uses `util.parseArgs` directly.
+const readPruneFlags = (args: readonly string[]) => {
+  try {
+    return parseArgs({
+      args: args[0] === "--" ? args.slice(1) : [...args],
+      options: {
+        paths: { type: "boolean" },
+        "retention-days": { type: "string" },
+        ref: { type: "string" },
+      },
+      strict: true,
+    }).values;
+  } catch (error) {
+    throw new Error(`${error instanceof Error ? error.message : String(error)}\n${PRUNE_USAGE}`, {
+      cause: error,
+    });
+  }
+};
+
 /** Strictly validates CLI flags so typos or invalid retention values fail fast instead of failing open. */
 export const parsePruneCliArgs = (args: readonly string[]): PruneCliOptions => {
-  let pathsOnly = false;
-  let retentionDays = RETENTION_DAYS;
-  let ref = "HEAD";
-
-  for (let index = 0; index < args.length; index += 1) {
-    const arg = args[index];
-    if (arg === "--paths") {
-      pathsOnly = true;
-      continue;
-    }
-    if (arg === "--retention-days") {
-      const value = args[index + 1];
-      if (!value || !POSITIVE_INT_PATTERN.test(value)) {
-        throw new Error("--retention-days must be a positive integer.");
-      }
-      const parsed = Number.parseInt(value, 10);
-      if (!Number.isSafeInteger(parsed) || parsed <= 0) {
-        throw new Error("--retention-days must be a positive integer.");
-      }
-      retentionDays = parsed;
-      index += 1;
-      continue;
-    }
-    if (arg === "--ref") {
-      const value = args[index + 1];
-      if (!value || value.startsWith("-")) {
-        throw new Error("--ref must be a non-empty git revision.");
-      }
-      ref = value;
-      index += 1;
-      continue;
-    }
-    throw new Error(
-      `Unknown argument "${arg ?? ""}". Expected --paths, --retention-days, or --ref.`,
-    );
+  const values = readPruneFlags(args);
+  const rawDays = values["retention-days"];
+  const retentionDays = rawDays === undefined ? RETENTION_DAYS : Number(rawDays);
+  if (
+    rawDays !== undefined &&
+    (!/^[1-9]\d*$/.test(rawDays) || !Number.isSafeInteger(retentionDays))
+  ) {
+    throw new Error(`--retention-days must be a positive integer (got "${rawDays}").`);
   }
-
-  return { pathsOnly, retentionDays, ref };
+  if (values.ref === "") {
+    throw new Error("--ref must be a non-empty git revision.");
+  }
+  return { pathsOnly: values.paths ?? false, retentionDays, ref: values.ref ?? "HEAD" };
 };
 
 /** Extracts `verification-flakes.lastPrNumber` from issue #219, failing closed to `null`. */

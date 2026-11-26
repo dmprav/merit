@@ -1,17 +1,10 @@
-import {
-  createContext,
-  useContext,
-  useLayoutEffect,
-  useRef,
-  type FocusEvent,
-  type ReactNode,
-} from "react";
+import { createContext, useContext, type FocusEvent, type ReactNode } from "react";
 
-import scrollStyles from "../../foundations/scroll-area.module.css";
 import styles from "./dialog-content.module.css";
+import { FrameBody, FrameContent, FrameFooter } from "./frame";
 
 const unframed = { framed: false };
-/** Framed dialogs give their content gutters and a tinted footer; nested content starts unframed. */
+/** Framed surfaces give their content the frame's gutters; nested content starts unframed. */
 export const DialogFrameContext = createContext<{ framed: boolean; title?: string }>(unframed);
 
 /**
@@ -47,83 +40,6 @@ const revealFocusedControl = (event: FocusEvent<HTMLDivElement>) => {
   }
 };
 
-const useDialogOverflow = ({
-  children,
-  feedback,
-  footer,
-}: Pick<DialogContentProps, "children" | "feedback" | "footer">) => {
-  const contentRef = useRef<HTMLDivElement>(null);
-
-  useLayoutEffect(() => {
-    const content = contentRef.current;
-    const dialog = content?.closest<HTMLElement>("[data-modal-dialog]");
-    const header = dialog?.querySelector<HTMLElement>(":scope > [data-dialog-header]");
-    const body = content?.querySelector<HTMLElement>(":scope > [data-dialog-body]");
-    if (
-      !content ||
-      !dialog ||
-      !header ||
-      !body ||
-      dialog.querySelector("[data-dialog-content]") !== content ||
-      typeof ResizeObserver === "undefined"
-    ) {
-      return;
-    }
-    const actions = content.querySelector<HTMLElement>(":scope > [data-dialog-footer]");
-    const feedbackArea = content.querySelector<HTMLElement>(":scope > [data-dialog-feedback]");
-
-    const measure = () => {
-      const frameStyle = getComputedStyle(dialog);
-      const headerStyle = getComputedStyle(header);
-      const available =
-        Number.parseFloat(frameStyle.maxHeight) -
-        Number.parseFloat(frameStyle.paddingTop) -
-        Number.parseFloat(frameStyle.paddingBottom);
-      const readingSpace = Math.min(
-        body.scrollHeight,
-        4 * Number.parseFloat(getComputedStyle(document.documentElement).fontSize),
-      );
-      const required =
-        header.offsetHeight +
-        Number.parseFloat(headerStyle.marginTop) +
-        Number.parseFloat(headerStyle.marginBottom) +
-        (actions?.offsetHeight ?? 0) +
-        (feedbackArea?.offsetHeight ?? 0) +
-        readingSpace;
-      // Let the whole task scroll when a persistent heading and actions would crowd out its fields.
-      const scrollContent = required > available;
-      if (dialog.hasAttribute("data-scroll-content") !== scrollContent) {
-        dialog.toggleAttribute("data-scroll-content", scrollContent);
-        if (!scrollContent) {
-          dialog.scrollTop = 0;
-        }
-        const focused = document.activeElement;
-        if (focused instanceof HTMLElement && dialog.contains(focused)) {
-          focused.scrollIntoView({ block: "nearest" });
-        }
-      }
-    };
-
-    let frame = 0;
-    const observer = new ResizeObserver(() => {
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(measure);
-    });
-    for (const element of [dialog, header, body, body.firstElementChild, feedbackArea, actions]) {
-      if (element) {
-        observer.observe(element);
-      }
-    }
-    measure();
-    return () => {
-      observer.disconnect();
-      cancelAnimationFrame(frame);
-    };
-  }, [children, feedback, footer]);
-
-  return contentRef;
-};
-
 export const DialogContent = ({
   label,
   children,
@@ -133,42 +49,25 @@ export const DialogContent = ({
   role = "region",
 }: DialogContentProps) => {
   const frame = useContext(DialogFrameContext);
-  const contentRef = useDialogOverflow({ children, feedback, footer });
 
   return (
-    <div
-      ref={contentRef}
-      className={styles.content}
-      data-framed={frame.framed || undefined}
-      data-dialog-content
-      onFocus={revealFocusedControl}
-    >
+    <FrameContent framed={frame.framed} data-dialog-content onFocus={revealFocusedControl}>
       <DialogFrameContext value={unframed}>
-        <div
-          className={`${styles.body}`}
+        <FrameBody
+          framed={frame.framed}
+          reading={reading}
           data-dialog-body
-          data-reading={reading || undefined}
           tabIndex={0}
           role={role}
           aria-label={label ?? frame.title}
         >
           {children}
-        </div>
-        {feedback && (
-          <div className={styles.feedback} data-dialog-feedback>
-            {feedback}
-          </div>
-        )}
-        {footer && (
-          <div
-            className={`${styles.footer} ${frame.framed ? scrollStyles.dividerUntilEnd : ""}`}
-            data-dialog-footer
-          >
-            {footer}
-          </div>
-        )}
+        </FrameBody>
+        <FrameFooter framed={frame.framed} feedback={feedback}>
+          {footer}
+        </FrameFooter>
       </DialogFrameContext>
-    </div>
+    </FrameContent>
   );
 };
 

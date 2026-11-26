@@ -267,7 +267,7 @@ export const configureIntake = (state: Parameters<typeof fixture>[0] = "incomple
     if (data.expectedRevision !== page.intake.revision) {
       return { status: "conflict" };
     }
-    const recorder = { userId: "dana", name: "Dana Reed", recordedAt: new Date().toISOString() };
+    const recorder = { userId: "dana", name: "Dana Reed", recordedAt };
     const { application, round: context } = decodeApplicationDetail(page);
     const changed = prepareIntakeChange(
       application,

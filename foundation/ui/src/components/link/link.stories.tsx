@@ -11,16 +11,9 @@ import localStyles from "./link.stories.module.css";
 
 const meta = {
   title: "Components/Link",
-  parameters: {
-    docs: {
-      description: {
-        component:
-          "Use Link for destinations: native anchors directly, and router links through an adapter such as TanStack Router's createLink. The default inline variant underlines links within prose; standalone suits separate destinations with optional icons and 44px touch targets. Use primary, secondary, or quiet to match adjacent buttons, or size large for prominent site entry points. Links share Button's hover, press, and focus treatments. Keep labels specific to their destination and announce when a link opens a new tab.",
-      },
-    },
-  },
-  render: () => <Link href="#evidence">View supporting evidence</Link>,
-} satisfies Meta;
+  component: Link,
+  args: { href: "#evidence", children: "View supporting evidence" },
+} satisfies Meta<typeof Link>;
 
 export default meta;
 

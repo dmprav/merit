@@ -33,7 +33,7 @@ satisfies the required PR gate while its inputs remain unchanged.
 Targeted checks can defer discovery of unrelated regressions to that milestone.
 All existing suites and coverage thresholds remain part of full verification.
 
-For a full run, start PostgreSQL and Mailpit with `vp run services:start`
+For a full run, start the Compose services (PostgreSQL, Mailpit, file storage, and Temporal) with `vp run services:start`
 ([local setup](development.md#start-and-seed-postgresql) explains how it starts
 Docker in agent environments).
 `vp run ready` checks documentation links and their regression
@@ -139,6 +139,10 @@ that only remove records, need none.
 ```md
 # Verification record
 
+## Behavioral decisions
+
+- Retries failed reviewer messages for 15 minutes before marking them failed.
+
 ## Checks run
 
 - `vp run @merit/reviews#test`: passed.
@@ -156,16 +160,23 @@ None.
 - <Finding and who raised it>: <the guide, brief, or precedent that answers it>.
 ```
 
-| Section                   | Contains                                                                             |
-| ------------------------- | ------------------------------------------------------------------------------------ |
-| Checks run                | Checks you ran for this change and their results. CI reports its own checks.         |
-| Could not verify          | Checks the change needed that the environment prevented, with what blocked each one. |
-| Did not verify            | Checks the change needed that you chose not to run, with the reason.                 |
-| Dismissed review findings | Reviewer and automated review findings you did not act on, each with its reason.     |
+| Section                   | Contains                                                                                                          |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Behavioral decisions      | Defaults, timeouts, fallbacks, state transitions, permission rules, or tradeoffs chosen; surfaced on the PR card. |
+| Checks run                | Checks you ran for this change and their results. CI reports its own checks.                                      |
+| Could not verify          | Checks the change needed that the environment prevented, with what blocked each one.                              |
+| Did not verify            | Checks the change needed that you chose not to run, with the reason.                                              |
+| Dismissed review findings | Reviewer and automated review findings you did not act on, each with its reason.                                  |
 
 Write "None." in a section with nothing to report. Record facts about this change
 in the past tense. Advice for future work belongs in the pull request's
 **Follow-ups**, where it can become an issue or a guide change.
+
+The [Review Packet workflow](../../.github/workflows/review-packet.yml) posts one
+sticky comment on same-repo pull requests surfacing non-empty **Behavioral
+decisions**, DB/schema DDL deltas, contract/auth/mechanism touches, UI touches,
+and advisory verification-integrity flags so reviewers do not need to scroll full
+diffs for high-risk changes.
 
 The `verification-flakes` lens in the
 [maintenance scout](../../.agents/tasks/scout.md#verification-flakes) reads new
@@ -307,7 +318,9 @@ Integration tests create and remove isolated PostgreSQL databases. Set
 where the test role may create databases and roles, because tests that connect as
 the runtime role create one.
 
-Build the application before running integration tests. They substitute identities to
+Workflow integration tests run against the Compose Temporal service, on task queues and
+workflow IDs of their own; start it with `vp run services:start`. No test downloads a
+Temporal server. Build the application before running integration tests. They substitute identities to
 exercise persisted operations and access; browser workspace checks use local mode
 with an isolated test database. See the [database](testing.md#database-fixtures) and
 [browser fixture guidance](testing.md#browser-fixtures) when adding tests.

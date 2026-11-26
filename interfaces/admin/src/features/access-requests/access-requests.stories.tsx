@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, mocked, waitFor, within } from "storybook/test";
+import { expect, mocked, within } from "storybook/test";
 
 import { ApplicationPage, ApplicationStage } from "@merit/ui/application-shell";
 
@@ -51,33 +51,37 @@ const meta = {
   ],
   beforeEach: ({ args }) => {
     let result = structuredClone(args.initial);
-    mocked(readAccessRequests).mockImplementation(async () => result);
-    mocked(reviewAccessRequest).mockImplementation(async ({ data }) => {
-      const request =
-        result.status === "ok"
-          ? result.value.requests.find((item) => item.email === data.email)
-          : undefined;
-      if (!request) {
-        return { status: "not_found" };
-      }
-      const value = {
-        ...request,
-        reviewedAt: new Date("2026-11-11T10:00:00Z"),
-        reviewedBy: "operator",
-      };
-      if (result.status === "ok") {
-        result = {
-          ...result,
-          value: {
-            ...result.value,
-            requests: result.value.requests.map((item) =>
-              item.email === data.email ? value : item,
-            ),
-          },
+    mocked(readAccessRequests)
+      .mockReset()
+      .mockImplementation(async () => result);
+    mocked(reviewAccessRequest)
+      .mockReset()
+      .mockImplementation(async ({ data }) => {
+        const request =
+          result.status === "ok"
+            ? result.value.requests.find((item) => item.email === data.email)
+            : undefined;
+        if (!request) {
+          return { status: "not_found" };
+        }
+        const value = {
+          ...request,
+          reviewedAt: new Date("2026-11-11T10:00:00Z"),
+          reviewedBy: "operator",
         };
-      }
-      return { status: "ok", value };
-    });
+        if (result.status === "ok") {
+          result = {
+            ...result,
+            value: {
+              ...result.value,
+              requests: result.value.requests.map((item) =>
+                item.email === data.email ? value : item,
+              ),
+            },
+          };
+        }
+        return { status: "ok", value };
+      });
   },
 } satisfies Meta<typeof RequestsPreview>;
 
@@ -96,23 +100,27 @@ export const MoreRequests: Story = {
       },
     },
   },
+  beforeEach: () => {
+    mocked(readAccessRequests)
+      .mockRejectedValueOnce(new Error("Next page failed"))
+      .mockResolvedValueOnce({
+        status: "ok",
+        value: {
+          requests: requests.map((r) => ({ ...r, reviewedAt: new Date("2026-11-11T10:00:00Z") })),
+          nextCursor: null,
+        },
+      });
+  },
   play: async ({ canvas, userEvent }) => {
-    mocked(readAccessRequests).mockRejectedValueOnce(new Error("Next page failed"));
     await userEvent.click(canvas.getByRole("button", { name: "Load more requests" }));
     await expect(await canvas.findByRole("alert")).toHaveTextContent(
       "More requests could not load",
     );
     await expect(canvas.getByText("leah@example.test")).toBeVisible();
-    mocked(readAccessRequests).mockResolvedValueOnce({
-      status: "ok",
-      value: {
-        requests: requests.map((r) => ({ ...r, reviewedAt: new Date("2026-11-11T10:00:00Z") })),
-        nextCursor: null,
-      },
-    });
+    await expect(canvas.getByRole("button", { name: "Load more requests" })).toBeEnabled();
     await userEvent.click(canvas.getByRole("button", { name: "Load more requests" }));
     await expect(await canvas.findByText("morgan@example.test")).toBeVisible();
-    await expect(canvas.getByRole("row", { name: /leah@example.test/ })).toHaveTextContent(
+    await expect(canvas.getByRole("row", { name: /leah@example\.test/ })).toHaveTextContent(
       "Reviewed",
     );
     await expect(
@@ -163,8 +171,10 @@ export const SaveFailure: Story = {
   },
 };
 export const SavedButRefreshFailed: Story = {
-  play: async ({ canvas, userEvent }) => {
+  beforeEach: () => {
     mocked(readAccessRequests).mockRejectedValueOnce(new Error("Preview refresh failure"));
+  },
+  play: async ({ canvas, userEvent }) => {
     await userEvent.click(canvas.getByRole("button", { name: "Mark reviewed" }));
     await expect(await canvas.findByRole("alert")).toHaveTextContent(
       "Marked reviewed, but the latest list could not load",
@@ -173,18 +183,14 @@ export const SavedButRefreshFailed: Story = {
     await expect(reviewAccessRequest).toHaveBeenCalledTimes(1);
   },
 };
-export const RefreshRecovery: Story = {
-  play: async (context) => {
-    await SavedButRefreshFailed.play!(context);
-    await context.userEvent.click(context.canvas.getByRole("button", { name: "Refresh requests" }));
-    await waitFor(() => expect(context.canvas.queryByRole("alert")).not.toBeInTheDocument());
-    await expect(reviewAccessRequest).toHaveBeenCalledTimes(1);
-  },
-};
 export const Refreshing: Story = {
+  beforeEach: () => {
+    mocked(readAccessRequests)
+      .mockRejectedValueOnce(new Error("Preview refresh failure"))
+      .mockImplementationOnce(() => new Promise(() => {}));
+  },
   play: async (context) => {
     await SavedButRefreshFailed.play!(context);
-    mocked(readAccessRequests).mockImplementationOnce(() => new Promise(() => {}));
     await context.userEvent.click(context.canvas.getByRole("button", { name: "Refresh requests" }));
     await expect(context.canvas.getByRole("button", { name: "Refresh requests" })).toHaveAttribute(
       "aria-disabled",

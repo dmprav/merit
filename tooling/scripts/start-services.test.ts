@@ -3,6 +3,8 @@ import { existsSync, writeFileSync } from "node:fs";
 
 import { afterEach, beforeEach, expect, it, vi } from "vite-plus/test";
 
+import { REPO_ROOT } from "../paths.ts";
+
 vi.mock("node:child_process", () => ({ execFileSync: vi.fn(), spawn: vi.fn() }));
 vi.mock("node:fs", () => ({
   existsSync: vi.fn(),
@@ -15,7 +17,7 @@ vi.mock("node:timers/promises", () => ({ setTimeout: vi.fn(async () => {}) }));
 const composeUp = [
   "docker",
   ["compose", "--file", "compose.yaml", "up", "-d", "--wait"],
-  { cwd: new URL("../../", import.meta.url), stdio: "inherit" },
+  { cwd: REPO_ROOT, stdio: "inherit" },
 ];
 
 /** Fails `docker info` until it has been called `readyAfter` times. */
@@ -52,6 +54,9 @@ it("starts the Compose services with an already running daemon", async () => {
   expect(spawn).not.toHaveBeenCalled();
   expect(writeFileSync).not.toHaveBeenCalled();
   expect(vi.mocked(execFileSync).mock.calls.at(-1)).toEqual(composeUp);
+  expect(console.log).toHaveBeenCalledWith(
+    "PostgreSQL, Mailpit, file storage, and Temporal are running.",
+  );
 });
 
 it("starts the daemon with a registry mirror before starting the Compose services", async () => {

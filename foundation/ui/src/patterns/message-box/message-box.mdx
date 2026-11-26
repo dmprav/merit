@@ -1,4 +1,4 @@
-import { Canvas, Meta } from "@storybook/addon-docs/blocks";
+import { ArgTypes, Canvas, Meta } from "@storybook/addon-docs/blocks";
 import * as MessageBox from "./message-box.stories";
 
 <Meta of={MessageBox} />
@@ -7,7 +7,7 @@ import * as MessageBox from "./message-box.stories";
 
 Use `MessageBox` where a person composes a message to send, such as a question to an
 assistant. It is not a form field: Enter sends, so a draft is never saved or validated.
-Use [TextField](?path=/docs/components-fields--docs) for text that belongs to a record.
+Use [TextField](?path=/docs/components-text-field--docs) for text that belongs to a record.
 
 The caller owns the text. Pass `value` and `onChange`, send with `onSend`, and clear the
 text there. Supply every string, including the placeholder, and keep the label meaningful
@@ -53,3 +53,7 @@ technology.
 Place the box at the bottom of a panel such as the
 [application shell's companion panel](?path=/docs/patterns-application-shell--docs). Keys the box
 does not use, including Escape, reach the surrounding panel.
+
+## API
+
+<ArgTypes of={MessageBox} />

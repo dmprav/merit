@@ -89,6 +89,11 @@ const icons = {
 
 export type IconName = keyof typeof icons;
 
+/** Every icon name in definition order, for catalog previews. */
+export const iconNames: readonly IconName[] = Object.keys(icons).filter(
+  (key): key is IconName => key in icons,
+);
+
 /**
  * The shared glyph for modules inside this package. className places or animates the glyph within
  * the control that owns it; size, stroke, and color stay shared. Features use Icon.

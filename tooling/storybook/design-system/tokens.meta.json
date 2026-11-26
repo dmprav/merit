@@ -237,6 +237,10 @@
       "family": "css",
       "reason": "Changes in the product theme, which slims buttons to 1.75rem for dense work."
     },
+    "button-quiet-inset": {
+      "family": "css",
+      "reason": "A calc() of space-2 and the quiet button's border; outdents a leading quiet button so its text meets the content edge."
+    },
     "bar-height": {
       "family": "size",
       "usage": "The application top bar, and the headers of panels beside it that line up with it."

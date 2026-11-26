@@ -37,14 +37,8 @@ const meta = {
   title: "Features/Applications/Review an assigned application",
   component: ReviewerPreview,
   tags: ["!autodocs"],
-  parameters: { layout: "fullscreen" },
+  parameters: { layout: "fullscreen", controls: { disable: true } },
   args: { initial: reviewerPage(), scenario: "ordinary" },
-  argTypes: {
-    initial: { control: false },
-    scenario: { control: false },
-    session: { control: false },
-    reference: { control: false },
-  },
 } satisfies Meta<typeof ReviewerPreview>;
 
 export default meta;

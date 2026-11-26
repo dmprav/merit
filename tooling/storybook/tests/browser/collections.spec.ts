@@ -191,12 +191,18 @@ test(
     await expect(page.locator("#storybook-root")).toHaveAttribute("data-story-ready", "true");
     const initialPosition = await page.evaluate(() => window.scrollY);
     await page.getByRole("button", { name: "Filter", exact: true }).click();
+    const panel = page.getByRole("dialog", { name: "Filter applications" });
+    // On touch screens React Aria keeps a panel that focuses a text field transparent until the
+    // on-screen keyboard opens, or for 600ms when none does. Clicking through it makes Playwright
+    // retry and scroll the locked page itself, so open the criterion as soon as the panel shows.
+    await expect
+      .poll(() => panel.evaluate((node) => node.checkVisibility({ opacityProperty: true })))
+      .toBe(true);
     const participation = page.getByRole("button", { name: "Participation Any" });
     await participation.click();
     await page.keyboard.press("Escape");
     await expect(participation).toBeFocused();
     expect(await page.evaluate(() => window.scrollY)).toBe(initialPosition);
-    const panel = page.getByRole("dialog", { name: "Filter applications" });
     const search = panel.getByRole("searchbox", { name: "Search applications" });
     await expect(search).toBeInViewport({ ratio: 1 });
     expect((await panel.boundingBox())!.y).toBeGreaterThanOrEqual(0);

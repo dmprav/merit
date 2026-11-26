@@ -104,10 +104,6 @@ export const lint = defineConfig({
         },
       },
       {
-        files: ["tooling/**"],
-        rules: { "max-lines-per-function": "off" },
-      },
-      {
         files: [
           "{interfaces,foundation}/**/*.{ts,tsx}",
           "capabilities/*/web/**/*.{ts,tsx}",

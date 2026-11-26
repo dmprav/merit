@@ -6,13 +6,24 @@ import { lintSource } from "@secretlint/core";
 import { loadFormatter } from "@secretlint/formatter";
 import type { SecretLintCoreResult } from "@secretlint/types";
 
+import { parseCliArgs } from "../cli.ts";
 import { config } from "./secrets.config.ts";
 
-const mode = process.argv[2] ?? "files";
+const SCAN_MODES = ["files", "staged", "history"] as const;
 
-if (process.argv.length > 3 || !["files", "staged", "history"].includes(mode)) {
-  throw new Error("Expected secrets.ts [files|staged|history].");
-}
+type ScanMode = (typeof SCAN_MODES)[number];
+
+const USAGE = "Usage: secrets.ts [files|staged|history]";
+
+const parseScanMode = (args: readonly string[]): ScanMode => {
+  const { positionals } = parseCliArgs(args, { options: {}, usage: USAGE, allowPositionals: true });
+  const [mode = "files", extra] = positionals;
+  const scanMode = SCAN_MODES.find((candidate) => candidate === mode);
+  if (scanMode === undefined || extra !== undefined) {
+    throw new Error(`Expected secrets.ts [files|staged|history].\n${USAGE}`);
+  }
+  return scanMode;
+};
 
 type Source = { path: string; label: string; content: Buffer };
 
@@ -116,45 +127,52 @@ const historyFiles = function (): Generator<Source> {
   return readBlobs(blobs, ({ sha, path }) => `${path} (blob ${sha.slice(0, 12)})`);
 };
 
-const sources =
-  mode === "staged" ? stagedFiles() : mode === "history" ? historyFiles() : workingFiles();
-const findings: SecretLintCoreResult[] = [];
-let scanned = 0;
+const main = async () => {
+  const mode = parseScanMode(process.argv.slice(2));
+  const sources =
+    mode === "staged" ? stagedFiles() : mode === "history" ? historyFiles() : workingFiles();
+  const findings: SecretLintCoreResult[] = [];
+  let scanned = 0;
 
-for (const source of sources) {
-  // Binary content cannot be decoded as text; Git uses the same NUL-byte heuristic.
-  if (source.content.subarray(0, 8000).includes(0)) {
-    continue;
+  for (const source of sources) {
+    // Binary content cannot be decoded as text; Git uses the same NUL-byte heuristic.
+    if (source.content.subarray(0, 8000).includes(0)) {
+      continue;
+    }
+    scanned += 1;
+
+    const result = await lintSource({
+      source: {
+        content: source.content.toString("utf8"),
+        filePath: source.label,
+        ext: extname(source.path),
+        contentType: "text",
+      },
+      options: { config, maskSecrets: true, noPhysicFilePath: mode !== "files" },
+    });
+
+    if (result.messages.length > 0) {
+      findings.push(result);
+    }
   }
-  scanned += 1;
 
-  const result = await lintSource({
-    source: {
-      content: source.content.toString("utf8"),
-      filePath: source.label,
-      ext: extname(source.path),
-      contentType: "text",
-    },
-    options: { config, maskSecrets: true, noPhysicFilePath: mode !== "files" },
-  });
+  if (findings.length > 0) {
+    const { format } = await loadFormatter({ formatterName: "stylish", color: false });
+    console.error(format(findings));
 
-  if (result.messages.length > 0) {
-    findings.push(result);
-  }
-}
-
-if (findings.length > 0) {
-  const { format } = await loadFormatter({ formatterName: "stylish", color: false });
-  console.error(format(findings));
-
-  if (mode === "history") {
-    console.error(
-      "Find the commits that contain a blob with `git log --all --find-object=<blob>`.",
+    if (mode === "history") {
+      console.error(
+        "Find the commits that contain a blob with `git log --all --find-object=<blob>`.",
+      );
+    }
+    process.exitCode = 1;
+  } else {
+    console.log(
+      `Secretlint found no secrets in ${scanned} ${mode === "history" ? "file versions" : "files"}.`,
     );
   }
-  process.exitCode = 1;
-} else {
-  console.log(
-    `Secretlint found no secrets in ${scanned} ${mode === "history" ? "file versions" : "files"}.`,
-  );
+};
+
+if (import.meta.main) {
+  await main();
 }

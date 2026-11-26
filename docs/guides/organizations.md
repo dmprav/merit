@@ -62,7 +62,8 @@ Revoke and resend before acceptance to check obsolete links. Wait one minute bef
 sending to the same recipient again; the [sending limits](../workflows/manage-team.md#invite-and-join)
 also apply locally and after failed delivery. To test sender failure,
 stop Mailpit with `docker compose stop mailpit`, create an organization, and check
-that its details show the sending failure. Start Mailpit again with
+that its details show unconfirmed sending while the worker retries, then the sending
+failure after about fifteen minutes. Start Mailpit again with
 `docker compose up -d mailpit`, then send another invitation from those details.
 Creation and sending have independent outcomes, so recovery does not create a
 second organization.
@@ -112,8 +113,8 @@ membership. Restart the server after changing operator IDs to apply the new perm
 Do not put operator settings or email secrets in `VITE_` variables.
 
 Resend receives the same plain-text and HTML invitation content as Mailpit, with
-an idempotency key for each invitation. The app stores a token hash; it does not
-store or log the plaintext invitation link. Invitation URLs and emails are
+an idempotency key for each invitation. The app stores a verification hash and an encrypted
+token until Temporal accepts delivery work. The plaintext invitation link stays out of storage and logs. Invitation URLs and emails are
 sensitive, so configure infrastructure logs and email access accordingly.
 
 Publish using the [deployment guide](deployment.md). Verify an operator can create

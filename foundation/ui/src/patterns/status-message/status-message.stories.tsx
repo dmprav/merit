@@ -3,8 +3,8 @@ import { useState } from "react";
 import { expect, waitFor } from "storybook/test";
 
 import { Button } from "../../components/button/button";
+import { Inline, Reading, Stack } from "../../components/layout/layout";
 import { StatusMessage } from "./status-message";
-import styles from "./status-message.stories.module.css";
 
 const meta = {
   title: "Patterns/Status message",
@@ -22,11 +22,15 @@ const Example = ({ message }: { message: string | null }) => {
   const [event, setEvent] = useState(0);
 
   return (
-    <div className={styles.example}>
-      <p>Use a screen reader to hear the message. Repeat the event to announce it again.</p>
-      <Button onPress={() => setEvent((value) => value + 1)}>Repeat event</Button>
-      <StatusMessage message={message} eventId={event} />
-    </div>
+    <Reading prose={false}>
+      <Stack gap={4}>
+        <p>Use a screen reader to hear the message. Repeat the event to announce it again.</p>
+        <Inline>
+          <Button onPress={() => setEvent((value) => value + 1)}>Repeat event</Button>
+        </Inline>
+        <StatusMessage message={message} eventId={event} />
+      </Stack>
+    </Reading>
   );
 };
 

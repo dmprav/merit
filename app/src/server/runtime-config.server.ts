@@ -1,8 +1,14 @@
 import { env } from "node:process";
 
+import { readPayloadKey } from "@merit/workflows/client";
+
 const localPreview = () => env.MERIT_LOCAL_PREVIEW === "1";
 
-const localDefaults = () => import.meta.env.DEV || localPreview();
+// The worker runs in Node.js without Vite, so it has no `import.meta.env`; its start-up command
+// sets MERIT_LOCAL_WORKER only for development and preview.
+const viteDevelopment = () => (import.meta as { env?: { DEV?: boolean } }).env?.DEV === true;
+
+const localDefaults = () => viteDevelopment() || localPreview() || env.MERIT_LOCAL_WORKER === "1";
 
 const isLoopback = (hostname: string) => ["localhost", "127.0.0.1", "[::1]"].includes(hostname);
 
@@ -41,3 +47,6 @@ export const readDatabaseUrl = () => {
   }
   return url;
 };
+
+export const readInvitationKey = () =>
+  readPayloadKey(env.TEMPORAL_PAYLOAD_KEY, { local: localDefaults() });

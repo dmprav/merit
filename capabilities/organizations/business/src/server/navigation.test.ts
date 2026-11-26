@@ -9,12 +9,12 @@ it("discovers operator navigation using the same current policy as administratio
     throw new Error("Navigation must not read tenant data");
   });
   const service = createOrganizationService({
+    invitationKey: () => new Uint8Array(32),
     revokeReviewAccess: async () => {},
     database,
     isOperator: async () => authorized,
     verifiedEmails: async () => [],
-    sendInvitation: async () => {},
-    invitationUrl: (token) => new URL(`/invitations/${token}`, "https://merit.example").href,
+    start: async () => true,
   });
 
   expect(await service.canAdminister(actor)).toBe(true);

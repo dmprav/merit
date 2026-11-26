@@ -1,7 +1,8 @@
 import type { Actor } from "@merit/auth";
 import type { Transaction } from "@merit/db";
 
-import { hashToken } from "../invitation-token";
+import type { Dependencies } from "../dependencies";
+import { hashToken, sealInvitationToken } from "../invitation-token";
 import {
   insertInvitation,
   canInviteToOrganization,
@@ -31,6 +32,7 @@ export const issueInvitation = async (
   tx: Transaction,
   request: InvitationRequest,
   actor: Actor,
+  invitationKey: Dependencies["invitationKey"],
 ) => {
   if (!(await canInviteToOrganization(tx, request.organizationId))) {
     fail("forbidden");
@@ -48,7 +50,14 @@ export const issueInvitation = async (
   }
 
   const invitation = await prepareInvitation(request, actor);
-  const inserted = await insertInvitation(tx, invitation.record);
+  const inserted = await insertInvitation(tx, {
+    ...invitation.record,
+    dispatchCiphertext: sealInvitationToken(
+      invitationKey(),
+      invitation.record.id,
+      invitation.token,
+    ),
+  });
   if (inserted.rowCount !== 1) {
     fail("invalid_input");
   }

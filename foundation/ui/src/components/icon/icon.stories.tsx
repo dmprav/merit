@@ -1,13 +1,17 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
 import { Button } from "../button/button";
+import { Inline } from "../layout/layout";
 import { Icon, LoadingIcon } from "./icon";
+import { iconNames } from "./icon-base";
 import localStyles from "./icon.stories.module.css";
 
 const meta = {
   title: "Components/Icon",
   component: Icon,
+  subcomponents: { LoadingIcon },
   args: { name: "home" },
+  argTypes: { name: { control: "select", options: iconNames } },
 } satisfies Meta<typeof Icon>;
 
 export default meta;
@@ -15,31 +19,10 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Catalog: Story = {
+  parameters: { controls: { disable: true } },
   render: () => (
     <ul className={localStyles.icons}>
-      {(
-        [
-          "warning",
-          "info",
-          "clock",
-          "pin",
-          "pinned",
-          "home",
-          "layers",
-          "round",
-          "contacts",
-          "team",
-          "left",
-          "right",
-          "down",
-          "check",
-          "arrow",
-          "forward",
-          "edit",
-          "loading",
-          "close",
-        ] as const
-      ).map((name) => (
+      {iconNames.map((name) => (
         <li key={name} className={localStyles.icon}>
           <Icon name={name} />
           <span>{name}</span>
@@ -49,14 +32,17 @@ export const Catalog: Story = {
   ),
 };
 
+export const Playground: Story = {};
+
 export const InControls: Story = {
+  parameters: { controls: { disable: true } },
   render: () => (
-    <div className={localStyles.actions}>
+    <Inline gap={3}>
       <Button variant="secondary">
         <Icon name="edit" />
         Edit recommendation
       </Button>
-      <Button variant="quiet" aria-label="Next application">
+      <Button variant="quiet" iconOnly aria-label="Next application">
         <Icon name="right" />
       </Button>
       <Button variant="secondary" isDisabled>
@@ -64,12 +50,13 @@ export const InControls: Story = {
         Edit recommendation
       </Button>
       <Button isPending>Saving…</Button>
-    </div>
+    </Inline>
   ),
 };
 
 export const Loading: Story = {
   parameters: {
+    controls: { disable: true },
     docs: {
       description: {
         story:
@@ -78,9 +65,9 @@ export const Loading: Story = {
     },
   },
   render: () => (
-    <p className={localStyles.actions}>
+    <Inline gap={3}>
       <LoadingIcon />
-      Reading the submission
-    </p>
+      <span>Reading the submission</span>
+    </Inline>
   ),
 };

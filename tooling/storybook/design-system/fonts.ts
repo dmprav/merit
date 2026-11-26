@@ -2,7 +2,9 @@ import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import path from "node:path";
 
-const uiSource = path.resolve(import.meta.dirname, "../../../foundation/ui/src");
+import { REPO_ROOT } from "../../paths.ts";
+
+const uiSource = path.join(REPO_ROOT, "foundation/ui/src");
 const requireFromUi = createRequire(path.join(uiSource, "../package.json"));
 
 export type FontFace = {

@@ -1,19 +1,28 @@
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { execFileSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 
-import { describe, expect, test } from "vite-plus/test";
+import { afterEach, describe, expect, test, vi } from "vite-plus/test";
 
+import { REPO_ROOT } from "../paths.ts";
 import {
   checkRecordContent,
   checkVerificationRecord,
-  parseNameStatus,
+  extractRecordSections,
+  isNoneSection,
+  parseNameStatusZ,
+  parsePrNumber,
+  readChangedFiles,
   RECORD_DIRECTORY,
   type ChangedFile,
 } from "./verification-record.ts";
 
-const repoRoot = fileURLToPath(new URL("../..", import.meta.url));
-
 const completeRecord = `# Verification record
+
+## Behavioral decisions
+
+- Retries failed deliveries for 15 minutes before marking them failed.
 
 ## Checks run
 
@@ -39,6 +48,53 @@ const check = (changedFiles: ChangedFile[], records: Record<string, string> = {}
     changedFiles,
     readRecord: (path) => records[path],
   });
+
+/** Commits `files` in a scratch repository and returns the repository and its diff range. */
+const scratchDiff = (files: Record<string, string>) => {
+  const dir = mkdtempSync(join(tmpdir(), "merit-verification-record-"));
+  // A git hook running these tests exports GIT_* variables that would point at the outer repository.
+  const env = Object.fromEntries(
+    Object.entries(process.env).filter(([name]) => !name.startsWith("GIT_")),
+  );
+  const config = [
+    ["core.hooksPath", "/dev/null"],
+    ["commit.gpgsign", "false"],
+    ["core.quotePath", "true"],
+    ["user.name", "Test"],
+    ["user.email", "test@example.test"],
+  ].flatMap(([key, value]) => ["-c", `${key}=${value}`]);
+
+  const git = (...args: string[]) =>
+    execFileSync("git", [...config, ...args], { cwd: dir, encoding: "utf8", env });
+
+  git("init", "-q", "-b", "main");
+  git("commit", "-q", "--allow-empty", "-m", "init");
+  for (const [path, content] of Object.entries(files)) {
+    mkdirSync(dirname(join(dir, path)), { recursive: true });
+    writeFileSync(join(dir, path), content);
+  }
+  git("add", ".");
+  git("commit", "-q", "-m", "change");
+  return { dir, range: "HEAD~1...HEAD" };
+};
+
+/**
+ * Reads the scratch repository's changes as `git` would on any machine: without the GIT_*
+ * variables a hook exports for the outer repository, and with paths quoted, as is git's default.
+ */
+const readScratchChanges = (dir: string, range: string): ChangedFile[] => {
+  for (const name of Object.keys(process.env).filter((key) => key.startsWith("GIT_"))) {
+    vi.stubEnv(name, undefined);
+  }
+  vi.stubEnv("GIT_CONFIG_COUNT", "1");
+  vi.stubEnv("GIT_CONFIG_KEY_0", "core.quotePath");
+  vi.stubEnv("GIT_CONFIG_VALUE_0", "true");
+  return readChangedFiles(dir, range);
+};
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 const codeChange: ChangedFile = { status: "modified", path: "foundation/ui/src/index.ts" };
 
@@ -101,7 +157,9 @@ describe("verification record", () => {
 
     const reordered = completeRecord.replace("## Did not verify", "## Lessons");
     expect(checkRecordContent("r.md", reordered)).toEqual([
-      expect.stringContaining('Found: "## Checks run", "## Could not verify", "## Lessons"'),
+      expect.stringContaining(
+        'Found: "## Behavioral decisions", "## Checks run", "## Could not verify", "## Lessons"',
+      ),
     ]);
 
     const emptySection = completeRecord.replace(
@@ -147,10 +205,40 @@ describe("verification record", () => {
     expect(checkRecordContent("r.md", inline)).toEqual([]);
   });
 
-  test("parses git name-status output, splitting renames", () => {
+  test("extracts visible section bodies and identifies None sections", () => {
+    const sections = extractRecordSections(completeRecord);
+    expect(sections.get("Behavioral decisions")).toBe(
+      "- Retries failed deliveries for 15 minutes before marking them failed.",
+    );
+    expect(sections.get("Did not verify")).toBe("None.");
+
+    expect(isNoneSection(undefined)).toBe(true);
+    expect(isNoneSection("")).toBe(true);
+    expect(isNoneSection("None.")).toBe(true);
+    expect(isNoneSection("- none")).toBe(true);
+    expect(isNoneSection("- Retries failed deliveries.")).toBe(false);
+  });
+
+  test("parses NUL-delimited git name-status output, splitting renames", () => {
     expect(
-      parseNameStatus(
-        "A\tverifications/42.md\nM\tdocs/README.md\nD\told.ts\nR087\tverifications/41.md\tverifications/42.md\n",
+      parseNameStatusZ(
+        [
+          "A",
+          "verifications/42.md",
+          "M",
+          "docs/README.md",
+          "D",
+          "old.ts",
+          "R087",
+          "verifications/41.md",
+          "verifications/42.md",
+          "C075",
+          "docs/a.md",
+          "docs/a copy.md",
+          "T",
+          "link",
+          "",
+        ].join("\0"),
       ),
     ).toEqual([
       { status: "added", path: "verifications/42.md" },
@@ -158,13 +246,52 @@ describe("verification record", () => {
       { status: "deleted", path: "old.ts" },
       { status: "deleted", path: "verifications/41.md" },
       { status: "added", path: "verifications/42.md" },
+      { status: "added", path: "docs/a copy.md" },
+      { status: "modified", path: "link" },
     ]);
+  });
+
+  test("accepts only a positive integer pull request number", () => {
+    expect(parsePrNumber("42")).toBe(42);
+    for (const value of ["", "abc", "0", "-3", "4.2", "042", " 42", "1e3", "99999999999999999"]) {
+      expect(() => parsePrNumber(value), value).toThrow(
+        `PR_NUMBER must be a positive integer; received "${value}".`,
+      );
+    }
+  });
+
+  test("rejects another record whose path git would quote", () => {
+    const { dir, range } = scratchDiff({
+      "foundation/ui/src/index.ts": "export {};\n",
+      "verifications/42.md": completeRecord,
+      "verifications/é.md": completeRecord,
+    });
+    try {
+      const changedFiles = readScratchChanges(dir, range);
+      expect(check(changedFiles, { "verifications/42.md": completeRecord })).toEqual({
+        exempt: null,
+        errors: [
+          "verifications/é.md: a pull request may add or change only its own record, verifications/42.md. Move this record there.",
+        ],
+      });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("imports only Node built-ins so CI can run it before installing dependencies", () => {
+    const source = readFileSync(new URL("./verification-record.ts", import.meta.url), "utf8");
+    const specifiers = [...source.matchAll(/^import [^;]*? from "([^"]+)";$/gms)].map(
+      ([, specifier]) => specifier,
+    );
+    expect(specifiers.length).toBeGreaterThan(0);
+    expect(specifiers.filter((specifier) => !specifier?.startsWith("node:"))).toEqual([]);
   });
 
   test("keeps records out of repository search", () => {
     // Ripgrep-based search reads .ignore, so agents searching for guidance skip
     // records while git, formatting, and secret scanning still include them.
-    const ignored = readFileSync(`${repoRoot}/.ignore`, "utf8").split(/\r?\n/);
+    const ignored = readFileSync(`${REPO_ROOT}/.ignore`, "utf8").split(/\r?\n/);
     expect(ignored).toContain(`${RECORD_DIRECTORY}/`);
   });
 });

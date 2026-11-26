@@ -4,7 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout } from "node:timers/promises";
 
-const cwd = new URL("../../", import.meta.url);
+import { REPO_ROOT } from "../paths.ts";
+
+const cwd = REPO_ROOT;
 const daemonConfig = "/etc/docker/daemon.json";
 // Docker Hub rate-limits anonymous pulls from shared egress addresses. Compose
 // pins every image by digest, so the mirror cannot change what runs.
@@ -52,4 +54,4 @@ execFileSync("docker", ["compose", "--file", "compose.yaml", "up", "-d", "--wait
   cwd,
   stdio: "inherit",
 });
-console.log("PostgreSQL, Mailpit, and file storage are running.");
+console.log("PostgreSQL, Mailpit, file storage, and Temporal are running.");

@@ -116,17 +116,9 @@ export const NoEarlierSnapshot: Story = { args: { scenario: "empty" } };
 
 export const RecordedEvents: Story = {
   args: { scenario: "audit" },
-  play: async ({ canvas, userEvent }) => {
+  play: async ({ canvas }) => {
     await expect(canvas.getAllByRole("listitem")).toHaveLength(2);
-    await userEvent.click(canvas.getAllByRole("button", { name: "View recorded change" })[0]!);
-    await expect(canvas.getByRole("heading", { name: "Project purpose and access" })).toBeVisible();
-    await expect(
-      canvas.queryByRole("region", { name: /^Previous material/ }),
-    ).not.toBeInTheDocument();
-    await userEvent.click(canvas.getByRole("tab", { name: "Full record" }));
-    await expect(canvas.getByRole("region", { name: /^Previous material/ })).toBeVisible();
-    await expect(canvas.getByRole("region", { name: /^Recorded material/ })).toBeVisible();
-    await expect(canvas.queryByRole("list")).not.toBeInTheDocument();
+    await expect(canvas.getAllByRole("button", { name: "View recorded change" })).toHaveLength(2);
   },
 };
 
@@ -140,6 +132,17 @@ export const RecordedChange: Story = {
     await expect(
       canvas.queryByRole("region", { name: /^Previous material/ }),
     ).not.toBeInTheDocument();
+  },
+};
+
+export const RecordedChangeFullRecord: Story = {
+  args: { scenario: "audit" },
+  play: async ({ canvas, userEvent }) => {
+    await userEvent.click(canvas.getAllByRole("button", { name: "View recorded change" })[0]!);
+    await userEvent.click(canvas.getByRole("tab", { name: "Full record" }));
+    await expect(canvas.getByRole("region", { name: /^Previous material/ })).toBeVisible();
+    await expect(canvas.getByRole("region", { name: /^Recorded material/ })).toBeVisible();
+    await expect(canvas.queryByRole("list")).not.toBeInTheDocument();
   },
 };
 

@@ -35,7 +35,10 @@ Invitations expire after seven days. Resending extends the invitation for the sa
 person and assignment. The assignment URL is not a bearer credential: the server
 checks the signed-in member and current access on every operation. Reviewer invitations
 have a one-minute per-recipient cooldown within the organization and limits of 20
-per hour and 100 per day. Sending failure does not erase the assignment; its status
+per hour and 100 per day. Inviting a reviewer returns once the first delivery attempt
+finishes, or after about five seconds. An email that cannot be sent is retried automatically
+for about fifteen minutes and shows as pending meanwhile. After that it shows as failed, and a
+manager can resend the invitation. Sending failure does not erase the assignment; its status
 is visible to managers. Sender acceptance does not prove delivery to the inbox.
 
 ## Read, draft, and submit
@@ -74,8 +77,9 @@ Merit emails the requesting manager about submissions and amendments. It queues
 at most one submission email per assignment per minute and at most 100 per hour
 and 500 per day across the workspace. Invitations have a separate allowance.
 When a limit is reached, Merit skips that email entirely. The manager can read
-every submitted version in the application. If delivery of a queued email fails,
-a manager can retry it from the assignment.
+every submitted version in the application. A queued email that fails is retried
+automatically for about fifteen minutes; if it still fails, a manager can retry it from the
+assignment. Merit stops retrying an invitation that was withdrawn, accepted, or has expired.
 
 ## Handle conflicts and access changes
 

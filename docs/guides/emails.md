@@ -61,12 +61,42 @@ and defaults.
   invitation URL to organizations, and composes the renderer with the selected sender. Mailpit and Resend have separate adapters and configuration;
   production sends through Resend with the invitation's idempotency key.
 
+Reviewer invitations and submission notices are sent by the [worker](../../app/src/worker/main.ts),
+not inside the request. After the message commits, the web server starts the
+`reviewer-message:<messageId>` workflow, which Reviews owns, and the request waits about five seconds
+for the first outcome. Each attempt rereads the assignment and the message and sends with a
+10-second timeout and the message ID as the provider's idempotency key. A failed attempt is retried with
+backoff for about fifteen minutes while the message stays pending, then recorded as failed. If a
+manager retries a failed submission notice (which resets it to pending) while that run is still
+open, the run delivers it again before it closes. Reconciliation restarts any pending message whose
+run has closed, listing only messages whose acting member is still active with a membership in an
+active workspace; each run rereads the message, so one already sent is never sent twice. Merit AI
+starts the same workflow for an approved invitation and then only reads the message's status; it
+never starts one for a message already recorded as sent or failed. A workflow sends only a message
+that is still pending, so the only way to deliver a failed message again is to reset it to pending
+first, as the manager's notice retry and the assistant's own retry action do.
+The worker reads the same sender settings as the web server (`EMAIL_FROM`, `RESEND_API_KEY`, and
+Mailpit locally) and `APP_ORIGIN` for links. Only identifiers reach Temporal; the rendered email is built from
+Postgres inside the activity.
+
+Organization invitation emails follow the same path. After the invitation commits, the web server
+starts the `organization-invitation:<invitationId>` workflow, which Organizations owns, and the
+request waits about five seconds for the first outcome. Its activity rereads the invitation before
+every attempt and stops once it is revoked, accepted, or expired. The raw invitation token is the one
+sensitive field in the workflow input, which the payload codec encrypts.
+Postgres commits the token hash and a separately encrypted token together. Worker startup and the
+periodic reconciliation schedule use the latter to recover a lost handoff. Temporal's confirmation
+clears the encrypted token from the invitation. Resend creates a new invitation with its own workflow. The workflow
+reads and records under the invitation's token-hash scope, as invitation delivery always has, so
+the inviter's own access can change while it runs; a late failure never overwrites a recorded send.
+Temporal keeps workflow history, including that encrypted token, for the namespace's retention period.
+
 Sending failures leave the saved invitation available for recovery. Application diagnostics
 distinguish rendering, sender configuration, network requests, and provider rejection.
 They include only fixed messages, provider names, and HTTP status codes, never
-recipients, invitation links, message content, credentials, or raw errors. A separate
-diagnostic reports failure to record the delivery outcome; the invitation then remains
-delivery-unconfirmed. Sender configuration is checked when sending, so missing email
+recipients, invitation links, message content, credentials, or raw errors. If the outcome
+cannot be recorded even after the recording activity's retries, the workflow fails in Temporal;
+the invitation then remains delivery-unconfirmed. Sender configuration is checked when sending, so missing email
 credentials do not prevent unrelated requests from running.
 
 ## Verify a change

@@ -363,7 +363,7 @@ jobs:
         with:
           download-build: "true"
 
-      - name: Start PostgreSQL and Mailpit
+      - name: Start Compose services (PostgreSQL, Mailpit, storage, Temporal)
         run: docker compose up -d --wait
 
       - name: Run database integration tests
@@ -517,7 +517,7 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
           path: |
-            ${{ runner.temp }}/merit-storybook-results
+            ${{ runner.temp }}/merit-storybook-results-*
             /tmp/ci-reports
 
   browser-demo:
@@ -591,22 +591,9 @@ jobs:
   browser-workspace:
     needs: [changes, build, static-checks]
     if: needs.changes.outputs.full_run == 'true' || needs.changes.outputs.run_app == 'true'
+    # Compose on the runner starts the Temporal dev server with its arguments, which service
+    # containers cannot take; the tests still run inside the pinned Playwright image.
     runs-on: ubuntu-24.04
-    container: mcr.microsoft.com/playwright:v1.64.1-noble@sha256:2f05f8a734509a7b3f26a912639488ee08f58a7b292d14d62271bcff9038768f
-    services:
-      postgres:
-        image: postgres:17-alpine@sha256:f9cf3e1f0066f0eb0c48707d864f0ac5941e9ff454a072077d97a4d278d07d73
-        env:
-          POSTGRES_USER: merit
-          POSTGRES_PASSWORD: merit
-          POSTGRES_DB: merit
-        options: >-
-          --health-cmd "pg_isready -U merit -d merit"
-          --health-interval 2s
-          --health-timeout 5s
-          --health-retries 10
-      mailpit:
-        image: axllent/mailpit:v1.30.4@sha256:5a49a77c5bdbe7c5474450b4f46348d09949df3695257729c93a30369382d4f6
     timeout-minutes: 15
     strategy:
       fail-fast: false
@@ -626,25 +613,36 @@ jobs:
         with:
           download-build: "true"
 
-      - name: Forward loopback service ports to service containers
-        uses: ./.github/actions/forward-service-ports
-        with:
-          forwards: "55432:postgres:5432,8025:mailpit:8025"
+      - name: Start Compose services (PostgreSQL, Mailpit, Temporal)
+        run: docker compose up -d --wait postgres mailpit temporal
 
-      - name: Run persisted workspace browser tests
+      - name: Run persisted workspace browser tests in the pinned Playwright image
         env:
-          HOME: /root
-          TMPDIR: ${{ runner.temp }}
-          MERIT_CI_REPORT_DIR: /tmp/ci-reports
+          PLAYWRIGHT_IMAGE: mcr.microsoft.com/playwright:v1.64.1-noble@sha256:2f05f8a734509a7b3f26a912639488ee08f58a7b292d14d62271bcff9038768f
         run: |
-          mkdir -p "$MERIT_CI_REPORT_DIR"
-          vp run --no-cache @merit/app#test:workspace:all --shard=${{ matrix.shard }}
+          mkdir -p /tmp/ci-reports "$RUNNER_TEMP/home"
+          # The image supplies browsers and their system libraries; the pinned Node.js and the
+          # installed workspace come from the runner, and Compose services stay on loopback.
+          node_bin="$(dirname "$(node -p process.execPath)")"
+          node_root="$(dirname "$node_bin")"
+          docker run --rm --network host --ipc host --user "$(id -u):$(id -g)" \
+            -e CI -e HOME="$RUNNER_TEMP/home" -e TMPDIR="$RUNNER_TEMP" \
+            -e MERIT_CI_REPORT_DIR=/tmp/ci-reports \
+            -e PATH="$GITHUB_WORKSPACE/node_modules/.bin:$node_bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
+            -v "$GITHUB_WORKSPACE:$GITHUB_WORKSPACE" -v "$RUNNER_TEMP:$RUNNER_TEMP" \
+            -v /tmp/ci-reports:/tmp/ci-reports -v "$node_root:$node_root:ro" \
+            -w "$GITHUB_WORKSPACE" "$PLAYWRIGHT_IMAGE" \
+            vp run --no-cache @merit/app#test:workspace:all --shard=${{ matrix.shard }}
 
       - name: Publish test summary
         if: always()
         env:
           MERIT_CI_REPORT_DIR: /tmp/ci-reports
         run: vp run --no-cache ci:summary "Workspace browser (${{ matrix.shard }})"
+
+      - name: Collect service logs
+        if: failure()
+        run: docker compose logs --no-color > "$RUNNER_TEMP/services.log" 2>&1
 
       - name: Upload failure evidence
         if: failure()
@@ -655,8 +653,12 @@ jobs:
           if-no-files-found: ignore
           path: |
             ${{ runner.temp }}/merit-workspace-browser-*
+            ${{ runner.temp }}/services.log
             /tmp/ci-reports
-            /tmp/proxy.log
+
+      - name: Stop test services
+        if: always()
+        run: docker compose down --volumes
 
   verify:
     if: always()

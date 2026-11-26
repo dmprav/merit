@@ -1,4 +1,3 @@
-import { spawn } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
@@ -8,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, test } from "vite-plus/test";
 import { z } from "zod";
 
+import { runProcess } from "../../testing/process";
 import architectureConfig from "./config";
 
 const config = fileURLToPath(new URL("./config.ts", import.meta.url));
@@ -157,43 +157,14 @@ const collaborationFiles = {
   ),
 };
 
-// runLinter kills the linter after linterTimeout. Vitest's 5 s default is too short on 2-vCPU
+// runProcess kills the linter after linterTimeout. Vitest's 5 s default is too short on 2-vCPU
 // agents, where concurrent oxlint runs compete for CPU, so each test gets that budget per check()
 // plus a margin for check()'s fixture setup, which runs before the kill timer starts. A hung
-// linter then fails with runLinter's "Timed out running …" error and output, not a Vitest timeout.
+// linter then fails with runProcess's "timed out" error and output, not a Vitest timeout.
 const linterTimeout = 15_000;
 const checkSetupMargin = 5_000;
 
 const checkTimeout = (checks = 1) => checks * (linterTimeout + checkSetupMargin);
-
-const runLinter = (args: string[], cwd: string) =>
-  new Promise<{ status: number | null; stdout: string; stderr: string }>((resolve, reject) => {
-    const child = spawn(process.execPath, args, { cwd, stdio: ["ignore", "pipe", "pipe"] });
-    let stdout = "";
-    let stderr = "";
-    const timer = setTimeout(() => {
-      child.kill("SIGKILL");
-      reject(new Error(`Timed out running ${args.join(" ")}:\n${stderr}${stdout}`));
-    }, linterTimeout);
-
-    child.stdout.setEncoding("utf8");
-    child.stderr.setEncoding("utf8");
-    child.stdout.on("data", (chunk: string) => {
-      stdout += chunk;
-    });
-    child.stderr.on("data", (chunk: string) => {
-      stderr += chunk;
-    });
-    child.on("error", (error) => {
-      clearTimeout(timer);
-      reject(error);
-    });
-    child.on("close", (status, signal) => {
-      clearTimeout(timer);
-      expect(signal).toBeNull();
-      resolve({ status, stdout, stderr });
-    });
-  });
 
 const check = async (files: Record<string, string>, message?: string, viaVp = false) => {
   const root = mkdtempSync(join(tmpdir(), "merit-boundaries-"));
@@ -227,6 +198,8 @@ const check = async (files: Record<string, string>, message?: string, viaVp = fa
       ["@tanstack/react-router", "interfaces/product"],
       ["react-aria-components", "foundation/ui"],
       ["posthog-js", "foundation/analytics"],
+      ["@temporalio/workflow", "app"],
+      ["@temporalio/client", "foundation/workflows"],
     ]) {
       const dependencyDirectory = fileURLToPath(
         new URL(`../../../${owner}/node_modules/${dependency}`, import.meta.url),
@@ -262,7 +235,10 @@ const check = async (files: Record<string, string>, message?: string, viaVp = fa
       args = [oxlint, "--config", oxlintConfig, "--format", "json", "."];
     }
 
-    const result = await runLinter(args, root);
+    const result = await runProcess(process.execPath, args, {
+      cwd: root,
+      timeoutMs: linterTimeout,
+    });
     const report = resultSchema.parse(JSON.parse(result.stdout));
     expect(result.status, result.stderr + result.stdout).toBe(message ? 1 : 0);
     if (message) {
@@ -1667,5 +1643,105 @@ describe.concurrent("architecture rules", { timeout: checkTimeout() }, () => {
       );
     },
     checkTimeout(2),
+  );
+
+  describe("workflow modules", () => {
+    const workflow = "app/src/worker/probe.workflow.ts";
+    const sandboxMessage = "Workflow code is deterministic and sandboxed";
+    const sibling = {
+      "app/src/worker/helper.workflow.ts": "export const helper = 1;",
+      "app/src/worker/activities.ts": "export const activity = async () => 1;",
+    };
+
+    test(
+      "permits the workflow API, sibling workflows, activity types, and pure code",
+      async () => {
+        await check({
+          ...sibling,
+          [workflow]: [
+            'import { proxyActivities } from "@temporalio/workflow";',
+            'import { helper } from "./helper.workflow.ts";',
+            'import type * as activities from "./activities.ts";',
+            'import type { Value } from "@merit/contacts/domain";',
+            'import { value } from "@merit/contacts/domain";',
+            "export const run = () => [proxyActivities<typeof activities>({}), helper, value] as const;",
+            "export type Kept = Value;",
+          ].join("\n"),
+        });
+      },
+      checkTimeout(),
+    );
+
+    test.each([
+      ["node:fs", 'export { readFileSync } from "node:fs";'],
+      ["a Node.js built-in without a prefix", 'export { readFileSync } from "fs";'],
+      ["an npm package", 'export { z } from "zod";'],
+      ["the database", 'export { drizzle } from "drizzle-orm";'],
+      ["process", 'export { env } from "node:process";'],
+    ])(
+      "rejects %s",
+      async (_name, source) => {
+        await check({ [workflow]: source }, sandboxMessage);
+      },
+      checkTimeout(),
+    );
+
+    test.each([
+      ["a capability server entry", 'export { server } from "@merit/contacts/server";'],
+      ["a non-workflow module's values", 'export { activity } from "./activities.ts";'],
+    ])(
+      "rejects %s",
+      async (_name, source) => {
+        await check({ ...sibling, [workflow]: source }, sandboxMessage);
+      },
+      checkTimeout(),
+    );
+
+    test(
+      "applies the same rule inside a capability's server source",
+      async () => {
+        await check(
+          {
+            "capabilities/contacts/business/src/server/probe.workflow.ts":
+              'export { readFileSync } from "node:fs";',
+          },
+          sandboxMessage,
+        );
+      },
+      checkTimeout(),
+    );
+
+    test(
+      "does not restrict ordinary server files",
+      async () => {
+        await check({ "app/src/worker/main.ts": 'export { readFileSync } from "node:fs";' });
+      },
+      checkTimeout(),
+    );
+  });
+
+  test(
+    "isolates Temporal connections, clients, and workers inside foundation/workflows",
+    async () => {
+      await check({
+        "foundation/workflows/src/probe.ts": 'export { Client } from "@temporalio/client";',
+      });
+      await check(
+        { "app/src/worker/probe.ts": 'export { Client } from "@temporalio/client";' },
+        "belong in foundation/workflows",
+      );
+    },
+    checkTimeout(2),
+  );
+
+  test.each(["foundation/workflows/src/probe.ts", "app/src/worker/probe.ts"])(
+    "forbids the Temporal test server package in %s",
+    async (path) => {
+      await check(
+        { [path]: 'export { TestWorkflowEnvironment } from "@temporalio/testing";' },
+        "downloads an unpinned Temporal server",
+      );
+    },
+    checkTimeout(),
   );
 });

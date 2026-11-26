@@ -74,16 +74,11 @@
   grid-column: 1 / -1;
 }
 
-/* Panes that scroll publish their end padding so the actions can reach the pane's edge. */
-.form[data-sticky-actions] > .footer {
-  position: sticky;
-  bottom: calc(-1 * var(--pane-padding-block-end, 0px));
-  z-index: 2;
-  padding-block: var(--space-3);
-  border-top: 1px solid var(--border);
-  background: var(--surface);
-}
-
 .form[data-sticky-actions] > .fields :is(input, textarea, button) {
   scroll-margin-bottom: 5rem;
+}
+
+/* A leading quiet button, such as Discard, starts its text at the gutter. */
+.leading:has(> button:first-child, > .status:empty + button) {
+  margin-inline-start: calc(-1 * var(--button-quiet-inset));
 }

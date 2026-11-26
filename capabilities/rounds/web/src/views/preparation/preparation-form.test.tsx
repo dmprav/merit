@@ -143,3 +143,56 @@ it("keeps the budget read-only while its own submission is pending", async () =>
 
   await waitFor(() => expect(amount).toHaveAttribute("readonly"));
 });
+
+const renderSection = (
+  initial: PreparationDraft,
+  onSave: (draft: PreparationDraft) => Promise<string | null>,
+) => {
+  render(<BudgetExample round={savedRound} initial={initial} onSave={onSave} />);
+  return { user: userEvent.setup() };
+};
+
+it("reorders criteria and moves focus to the moved title field", async () => {
+  const { user } = renderSection(
+    preparationDraft("criteria", savedRound, 0),
+    vi.fn().mockResolvedValue(null),
+  );
+  const before = screen
+    .getAllByRole("textbox", { name: "Title" })
+    .map((input) => (input as HTMLInputElement).value);
+
+  await user.click(screen.getByRole("button", { name: "Move up criterion 2" }));
+
+  const titles = screen.getAllByRole("textbox", { name: "Title" });
+  expect(titles[0]).toHaveValue(before[1]);
+  expect(titles[0]).toHaveFocus();
+});
+
+it("removes a criterion and moves focus to the remaining first title", async () => {
+  const { user } = renderSection(
+    preparationDraft("criteria", savedRound, 0),
+    vi.fn().mockResolvedValue(null),
+  );
+  const count = screen.getAllByRole("group").length;
+
+  await user.click(screen.getByRole("button", { name: "Remove criterion 1" }));
+
+  expect(screen.getAllByRole("group")).toHaveLength(count - 1);
+  expect(screen.getAllByRole("textbox", { name: "Title" })[0]).toHaveFocus();
+});
+
+it("reports a save failure and preserves the edited purpose", async () => {
+  const { user } = renderSection(
+    preparationDraft("purpose", savedRound, 0),
+    vi.fn().mockResolvedValue("We couldn’t save this round. Your draft is still here. Try again."),
+  );
+  const purpose = screen.getByRole("textbox", { name: "Purpose" });
+  await user.clear(purpose);
+  await user.type(purpose, "Build community connections.");
+  await user.click(screen.getByRole("button", { name: "Save changes" }));
+
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "We couldn’t save this round. Your draft is still here. Try again.",
+  );
+  expect(purpose).toHaveValue("Build community connections.");
+});

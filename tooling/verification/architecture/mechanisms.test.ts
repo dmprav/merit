@@ -2,11 +2,16 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { expect, it } from "vite-plus/test";
 
-import { classifyChangedPaths, formatMechanismReport, validateMechanismMap } from "./mechanisms";
+import { REPO_ROOT } from "../../paths.ts";
+import {
+  classifyChangedPaths,
+  formatMechanismReport,
+  parseMechanismArgs,
+  validateMechanismMap,
+} from "./mechanisms";
 import {
   MAX_INVARIANT_LENGTH,
   MAX_INVARIANTS_PER_MECHANISM,
@@ -14,8 +19,6 @@ import {
   MECHANISMS,
   type Mechanism,
 } from "./mechanisms.config";
-
-const repoRoot = fileURLToPath(new URL("../../..", import.meta.url));
 
 const withTempRepo = (files: Record<string, string>, run: (dir: string) => void) => {
   const dir = mkdtempSync(join(tmpdir(), "merit-mechanisms-"));
@@ -43,18 +46,55 @@ const sampleMechanism = (overrides: Partial<Mechanism> = {}): Mechanism => ({
 });
 
 it("validates the repository mechanism map against files, anchors, and active decisions", () => {
-  expect(validateMechanismMap(MECHANISMS, repoRoot)).toEqual([]);
+  expect(validateMechanismMap(MECHANISMS, REPO_ROOT)).toEqual([]);
 });
 
 it("passes the CLI --check command on the repository", () => {
   const result = spawnSync("vpx", ["tooling/verification/architecture/mechanisms.ts", "--check"], {
-    cwd: repoRoot,
+    cwd: REPO_ROOT,
     encoding: "utf8",
     timeout: 20_000,
   });
 
   expect(result.status, result.stdout + result.stderr).toBe(0);
   expect(result.stdout).toContain("mechanisms ok");
+});
+
+it("parses one explicit CLI mode", () => {
+  expect(parseMechanismArgs(["--check"])).toEqual({ mode: "check" });
+  expect(parseMechanismArgs(["--paths", "a.ts", "b.ts", "--json"])).toEqual({
+    mode: "paths",
+    paths: ["a.ts", "b.ts"],
+    json: true,
+  });
+  expect(parseMechanismArgs(["--base", "origin/main"])).toEqual({
+    mode: "diff",
+    base: "origin/main",
+    head: "HEAD",
+    json: false,
+  });
+  expect(parseMechanismArgs(["--base=main", "--head", "feature", "--json"])).toEqual({
+    mode: "diff",
+    base: "main",
+    head: "feature",
+    json: true,
+  });
+});
+
+it.each([
+  { args: [], error: "Choose exactly one of --check, --paths, or --base." },
+  {
+    args: ["--check", "--paths", "a.ts"],
+    error: "Choose exactly one of --check, --paths, or --base.",
+  },
+  { args: ["--head", "feature"], error: "--head requires --base." },
+  { args: ["--paths"], error: "--paths requires at least one path." },
+  { args: ["--base", "main", "extra"], error: 'Unexpected argument "extra"' },
+  { args: ["--check", "--json"], error: "--json applies to --paths or --base." },
+  { args: ["--base"], error: "--base requires a value." },
+  { args: ["--chek"], error: "Unknown option '--chek'" },
+])("rejects mechanisms CLI arguments $args", ({ args, error }) => {
+  expect(() => parseMechanismArgs(args)).toThrow(error);
 });
 
 it("rejects empty wildcard patterns, missing anchors, superseded decisions, oversized summaries, and invalid invariants", () => {

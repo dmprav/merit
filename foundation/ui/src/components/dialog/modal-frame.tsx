@@ -3,6 +3,7 @@ import { Dialog, DialogTrigger } from "react-aria-components/Dialog";
 import { Modal, ModalOverlay, type ModalOverlayProps } from "react-aria-components/Modal";
 
 import motion from "../../foundations/motion.module.css";
+import { frameRoot, type FramePlacement } from "./frame";
 import styles from "./modal-frame.module.css";
 
 export type ModalFrameProps = Omit<ModalOverlayProps, "children" | "className" | "style"> & {
@@ -28,6 +29,20 @@ export const RetainedDialogContent = ({
   return isOpen ? children : content;
 };
 
+/** The dialog element's props: the shared frame anatomy for titled frames, otherwise a plain class. */
+const dialogProps = (
+  frame: Extract<FramePlacement, "center" | "end"> | undefined,
+  className: string | undefined,
+  scrollsWhole: boolean,
+) => {
+  const dialogClassName = `${styles.dialog} ${className ?? ""}`;
+  return {
+    ...(frame ? frameRoot(frame, dialogClassName) : { className: dialogClassName }),
+    "data-frame-scrolls": scrollsWhole || undefined,
+    "data-modal-dialog": frame,
+  };
+};
+
 /**
  * Shared modal behavior for every modal frame: backdrop, focus containment, dismissal,
  * retained exit content, and entrance motion. Each frame owns its own surface and layout.
@@ -42,14 +57,17 @@ export const ModalFrame = ({
   isKeyboardDismissDisabled,
   classNames,
   frame,
+  scrollsWhole = false,
   "aria-label": ariaLabel,
   "aria-describedby": descriptionId,
   children,
   ...props
 }: ModalFrameProps & {
   classNames: { overlay?: string; modal?: string; dialog?: string };
-  /** Frames whose content takes part in the whole-surface scrolling fallback. */
-  frame?: "center" | "end";
+  /** Titled frames take the shared frame anatomy, including the short-viewport scrolling fallback. */
+  frame?: Extract<FramePlacement, "center" | "end">;
+  /** The whole frame scrolls below 30rem of viewport height; leave off where the footer must stay in view. */
+  scrollsWhole?: boolean;
   /** Names a frame without a visible heading. */
   "aria-label"?: string;
   children: (close: () => void) => ReactNode;
@@ -74,10 +92,9 @@ export const ModalFrame = ({
         <RetainedDialogContent isOpen={state.isOpen}>
           <Modal className={classNames.modal}>
             <Dialog
-              className={`${styles.dialog} ${classNames.dialog ?? ""}`}
+              {...dialogProps(frame, classNames.dialog, scrollsWhole)}
               aria-label={ariaLabel}
               aria-describedby={descriptionId}
-              data-modal-dialog={frame}
             >
               {({ close }) => children(close)}
             </Dialog>

@@ -1,15 +1,23 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState, type ReactNode } from "react";
+import { fn } from "storybook/test";
 
 import { MessagesProvider } from "@merit/i18n";
 import { Button } from "@merit/ui/button";
 import { Inline, Reading, Stack } from "@merit/ui/layout";
+import { TextField } from "@merit/ui/text-field";
 
-import { ConflictBanner, RetainedDraftNotice } from "./conflict-banner";
+import { ConflictBanner, RetainedDraftNotice, SavedValue } from "./conflict-banner";
 
 const meta = {
-  title: "Patterns/Conflict Recovery",
+  title: "Patterns/Conflict recovery",
   component: ConflictBanner,
+  subcomponents: { RetainedDraftNotice, SavedValue },
+  argTypes: {
+    keepMine: { control: false },
+    useSaved: { control: false },
+    latest: { control: false },
+  },
   decorators: [
     (Story) => (
       <MessagesProvider messages={{}}>
@@ -83,8 +91,8 @@ export const SaveConflict: Story = {
     title: "This round changed while you were editing",
     message: "Review the latest saved wording or save your edits over it.",
     attribution: "Updated by Alex, 2m ago",
-    keepMine: { label: "Save my changes over latest", onPress: () => {} },
-    useSaved: { label: "Discard & load latest", onPress: () => {} },
+    keepMine: { label: "Save my changes over latest", onPress: fn() },
+    useSaved: { label: "Discard & load latest", onPress: fn() },
   },
   render: (args) => (
     <InteractiveExample
@@ -97,8 +105,24 @@ export const SaveConflict: Story = {
           title={args.title}
           message={args.message}
           attribution={args.attribution}
-          keepMine={{ label: "Save my changes over latest", onPress: () => resolve("kept") }}
-          useSaved={{ label: "Discard & load latest", onPress: () => resolve("loaded") }}
+          keepMine={
+            args.keepMine && {
+              label: args.keepMine.label,
+              onPress: () => {
+                args.keepMine?.onPress();
+                resolve("kept");
+              },
+            }
+          }
+          useSaved={
+            args.useSaved && {
+              label: args.useSaved.label,
+              onPress: () => {
+                args.useSaved?.onPress();
+                resolve("loaded");
+              },
+            }
+          }
           latest={{
             toggleLabel: "View latest",
             hideLabel: "Hide latest",
@@ -115,8 +139,8 @@ export const BasisShift: Story = {
   args: {
     title: "Submission updated to version 2",
     message: "The application material changed while you were drafting this recommendation.",
-    keepMine: { label: "Reaffirm draft for v2", onPress: () => {} },
-    useSaved: { label: "Discard & load saved", onPress: () => {} },
+    keepMine: { label: "Reaffirm draft for v2", onPress: fn() },
+    useSaved: { label: "Discard & load saved", onPress: fn() },
   },
   render: (args) => (
     <InteractiveExample
@@ -128,14 +152,41 @@ export const BasisShift: Story = {
         <ConflictBanner
           title={args.title}
           message={args.message}
-          keepMine={{ label: "Reaffirm draft for v2", onPress: () => resolve("kept") }}
-          useSaved={{ label: "Discard & load saved", onPress: () => resolve("loaded") }}
+          keepMine={
+            args.keepMine && {
+              label: args.keepMine.label,
+              onPress: () => {
+                args.keepMine?.onPress();
+                resolve("kept");
+              },
+            }
+          }
+          useSaved={
+            args.useSaved && {
+              label: args.useSaved.label,
+              onPress: () => {
+                args.useSaved?.onPress();
+                resolve("loaded");
+              },
+            }
+          }
         />
       )}
     />
   ),
 };
 
+export const SavedFieldComparison: StoryObj = {
+  parameters: { controls: { disable: true } },
+  render: () => (
+    <Stack gap={3}>
+      <TextField label="Project title" defaultValue="Workshop Saturdays (revised)" />
+      <SavedValue label="Latest saved value">Workshop Saturdays</SavedValue>
+    </Stack>
+  ),
+};
+
 export const RetainedDraft: StoryObj = {
+  parameters: { controls: { disable: true } },
   render: () => <RetainedDraftExample />,
 };

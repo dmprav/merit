@@ -9,13 +9,13 @@ fixtures, and coverage policy. Run commands from the repository root.
 
 Keep tooling with the responsibility it supports:
 
-| Location               | Owns                                                                                                                 |
-| ---------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `tooling/verification` | Repository checks and their regression tests; architecture policy and its resolver live together in `architecture/`. |
-| `tooling/testing`      | The `@merit/test-support` package, with explicit database, component setup, and browser exports.                     |
-| `tooling/storybook`    | Preview configuration, story execution, browser suites grouped by behavior, and visual baselines.                    |
-| `tooling/agents`       | Stateless maintenance CLIs (`scout.ts`, `proposal.ts`, `queue.ts`) and their unit tests.                             |
-| `tooling/scripts`      | Repository operations such as resetting the local Compose database.                                                  |
+| Location               | Owns                                                                                                                                                                                                                                                         |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `tooling/verification` | Repository checks and their regression tests; architecture policy and its resolver live together in `architecture/`.                                                                                                                                         |
+| `tooling/testing`      | The `@merit/test-support` package, with explicit database, component setup, and browser exports.                                                                                                                                                             |
+| `tooling/storybook`    | Preview configuration, story execution, browser suites grouped by behavior, and visual baselines.                                                                                                                                                            |
+| `tooling/agents`       | Maintenance CLIs (`scout.ts`, `proposal.ts`, `queue.ts`, `worktree.ts`), the REST-only GitHub clients (`github.ts`), and their unit tests; a CLI that outgrows one file keeps its modules and their tests in a folder of the same name, such as `worktree/`. |
+| `tooling/scripts`      | Repository operations such as resetting the local Compose database.                                                                                                                                                                                          |
 
 The root [Vite configuration](../../vite.config.ts) owns command orchestration
 and imports ordinary [lint policy](../../tooling/verification/lint.ts). Architecture
@@ -24,9 +24,16 @@ Keep conventional tool configuration files at the repository root. Application s
 scripts remain with the application, and migrations remain with the database
 package. Shared compiler options stay in `tooling/react-compiler.ts`, and
 argument and path helpers shared by tooling CLIs stay in [`tooling/cli.ts`](../../tooling/cli.ts).
+Find the repository root with `REPO_ROOT` from [`tooling/paths.ts`](../../tooling/paths.ts)
+rather than counting `..` segments from each script.
+Parse a CLI's arguments with `parseCliArgs` from `cli.ts`, a strict `util.parseArgs` wrapper:
+declare every option, and unknown flags, missing values, and unexpected positionals
+fail with the command's usage before any side effect. Read issue numbers, counts,
+and other integers with `parseWholeNumber`, which rejects text such as `12abc`.
 Start a CLI with `if (import.meta.main)` rather than comparing `process.argv[1]`
-with the module path. Scripts that CI runs before installing dependencies import only
-Node built-ins, so they keep local copies of these helpers.
+with the module path, and keep argument validation inside that entry point rather
+than at import time. Scripts that CI runs before installing dependencies import only
+Node built-ins, so they call `util.parseArgs` directly and keep local copies of these helpers.
 Capability web, product, and app Vitest configurations use
 [`webTestConfig`](../../tooling/testing/web-config.ts); business configurations use
 [`businessTestConfig`](../../tooling/verification/business-test-config.ts). Package
@@ -103,6 +110,18 @@ Records are data about one change, not guidance for later work. The root
 coding agents use to find guidance, while Git, formatting, the documentation check,
 and secret scanning still include the records. The regression tests assert that
 entry remains.
+
+The separate [Review Packet workflow](../../.github/workflows/review-packet.yml)
+runs [`pr-review-packet.ts`](../../tooling/verification/pr-review-packet.ts) on
+same-repo pull requests with `pull-requests: write` while keeping `verify.yml`
+read-only. When UI or Storybook files change, its `ui-screenshots` job uses
+[`pr-screenshots.ts`](../../tooling/verification/pr-screenshots.ts) and
+`ui:verify --viewport desktop` to capture affected desktop stories, publish them
+to a single squashed orphan commit on `ci/pr-screenshots`, and embed them inline
+in the same sticky comment; `cleanup-screenshots` removes `pr-<number>/` when
+the pull request closes. Run
+`vp run ci:review-packet -- --base origin/main --head HEAD --pr <number>` to
+preview the sticky comment locally, and run `vp run test:ci` after changing it.
 
 ## Check architecture enforcement
 
@@ -207,5 +226,6 @@ next candidates for tooling.
 | Documentation links, headings, agent budgets, review-config alignment | `vp run check:docs`, `vp run test:docs`, `vp run test:ci` ([verification record](../../tooling/verification/verification-record.ts))     |
 | Secret scanning and dependency advisories                             | `vp run check:security` ([secrets config](../../tooling/verification/secrets.config.ts))                                                 |
 | Applied migrations & destructive git guards                           | [Claude harness hooks](../../.claude/settings.json) & `vp run test:hooks`                                                                |
+| Agent CLIs reach GitHub only via REST `gh api`, never GraphQL         | `vp run test:agents` ([GitHub client tests](../../tooling/agents/github.test.ts))                                                        |
 | Autonomous `agent:pr` protected-path & migration policy               | `node tooling/verification/agent-policy.ts` ([CI check](../../tooling/verification/agent-policy.ts)) & `vp run test:ci`                  |
 | Single-behavior tests, UI parity, benchmarks                          | Prose/review ([testing](testing.md), [UI verification](ui-verification.md), [verification](verification.md))                             |
