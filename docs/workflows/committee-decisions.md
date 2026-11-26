@@ -54,7 +54,8 @@ earlier versions. Readers need current access to view any published version.
 
 [Recording committee decisions](record-decisions.md) is implemented: the decision, its
 amount and conditions, the body that made it, and the manager who recorded it are kept
-as versions that count against the round budget. This design no longer promises that a
+as versions. Only each application's current decision counts against the round budget;
+earlier versions remain history and do not count. This design no longer promises that a
 decision links to a published committee brief.
 
 Before implementing publication, define who must

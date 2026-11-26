@@ -197,7 +197,8 @@ is required only for a later change, a clear, or an amount set after a clear. Th
 additional web-confirmation step. Ask for suggestions when no save is
 intended; client conversations are outside Merit's verification boundary. Saving a
 recommendation does not commit funding. To record what a committee decided, use
-`record_committee_decision`, which commits funding against the round budget; see
+`record_committee_decision`; a Fund or Fund with conditions decision commits its amount
+against the round budget, while Defer and Decline commit nothing. See
 [recording committee decisions](../workflows/record-decisions.md#in-mcp). Publishing a working intake revision makes that correction or revision current;
 public publication is not implemented in either interface.
 
