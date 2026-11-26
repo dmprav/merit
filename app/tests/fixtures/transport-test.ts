@@ -40,6 +40,7 @@ export const createTransport = (
     rounds,
     applications,
     recommendations,
+    decisions,
     reviews,
     contacts,
     organizations: team,
@@ -87,6 +88,7 @@ export const createTransport = (
     reviews,
     reviewer,
     recommendations,
+    decisions,
     grantmaking,
     contacts,
     organizations: {

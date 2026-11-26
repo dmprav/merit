@@ -41,6 +41,7 @@ it("projects a round view application into the overview record the workspace lis
     requested: { minorUnits: "2400000", currency: "EUR" },
     reviews: { current: 0, outdated: 1, unknown: 1, outstanding: 1 },
     criteriaChanged: false,
+    decision: null,
     recommendation: {
       position: "Fund",
       allocation: { minorUnits: "2000000", currency: "EUR" },

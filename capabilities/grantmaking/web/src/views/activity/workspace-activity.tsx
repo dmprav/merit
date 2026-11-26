@@ -58,6 +58,8 @@ const actionLabelEntries = [
   ["assessment.recorded", "activity.actions.assessmentRecorded"],
   ["assessment.submitted", "activity.actions.assessmentSubmitted"],
   ["recommendation.recorded", "activity.actions.recommendationSaved"],
+  ["decision.recorded", "activity.actions.decisionRecorded"],
+  ["decision.amended", "activity.actions.decisionAmended"],
 ] as const;
 
 const actionLabels: ReadonlyMap<string, (typeof actionLabelEntries)[number][1]> = new Map(

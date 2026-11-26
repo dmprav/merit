@@ -104,7 +104,8 @@ export const intakeMessages = {
     withdraw: "Withdraw application",
     withdrawFor: "Withdraw application: {{title}}",
     reinstateFor: "Reinstate application: {{title}}",
-    withdrawDescription: "The application, its material, reviews, and recommendation are kept.",
+    withdrawDescription:
+      "The application, its material, reviews, recommendation, and committee decision are kept.",
     withdrawClosesReviews_one:
       "{{count}} outstanding review request will close, and its reviewer’s access will end.",
     withdrawClosesReviews_other:
@@ -128,7 +129,11 @@ export const intakeMessages = {
       "Delete “{{title}}” and its preparation details? Its audit history will be retained.",
     discardDescription:
       "Discard the shared working revision? The current application and earlier versions will be kept.",
-    inUse: "Only applications never marked ready and without recorded judgments can be deleted.",
+    inUse:
+      "Only applications never marked ready and without recorded judgments or committee decisions can be deleted.",
+    close: "Close",
+    hasCommitment:
+      "This application has committed funding. Record a new decision version, such as Decline, with an explanation before withdrawing it.",
     deleted: "This application was deleted. Start a new creation to continue.",
     history: "Application history",
     unrecordedHistory: "Earlier intake history was not recorded for this application.",

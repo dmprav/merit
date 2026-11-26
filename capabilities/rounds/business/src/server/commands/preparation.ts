@@ -1,5 +1,6 @@
 import { type Actor } from "@merit/auth";
 import { allocatePublicId, type Database } from "@merit/db";
+import { encodeMoney } from "@merit/money";
 import type { WorkspaceChangeObserver } from "@merit/organizations/domain";
 import { lockGrantWorkspace } from "@merit/organizations/locks";
 import { writeObservedWorkspace, writeWorkspace } from "@merit/organizations/transactions";
@@ -13,8 +14,13 @@ import {
   type EditRoundRequest,
   type DeleteRoundRequest,
 } from "../../api/commands/preparation";
-import { newPreparedRound, prepareRoundChange, withRoundManager } from "../../domain/preparation";
-import type { RoundApplications } from "../grant-work";
+import {
+  budgetBelowCommitments,
+  newPreparedRound,
+  prepareRoundChange,
+  withRoundManager,
+} from "../../domain/preparation";
+import type { RoundApplications, RoundCommitments } from "../grant-work";
 import {
   lockPreparationRound,
   lockPreparationRoundAccess,
@@ -70,7 +76,12 @@ export const createFundingRound = async (
   });
 };
 
-export const editFundingRound = async (db: Database, actor: Actor, input: EditRoundRequest) => {
+export const editFundingRound = async (
+  db: Database,
+  actor: Actor,
+  input: EditRoundRequest,
+  roundCommitments: RoundCommitments,
+) => {
   const parsed = editRoundRequestSchema.safeParse(input);
   if (!parsed.success) {
     return { status: "invalid", error: "invalid_round" } as const;
@@ -91,6 +102,18 @@ export const editFundingRound = async (db: Database, actor: Actor, input: EditRo
     const result = prepareRoundChange(row.round, request.change, budgetPreviouslySet);
     if (!result.ok) {
       return { status: "invalid", error: result.error } as const;
+    }
+
+    // Decisions commit under this round lock, so the total cannot grow before this change commits.
+    if (request.change.section === "budget" && result.changed) {
+      const committed = await roundCommitments(tx, row.organizationId, row.id);
+      if (budgetBelowCommitments(result.round.budget, committed)) {
+        return {
+          status: "invalid",
+          error: "budget_below_commitments",
+          committed: encodeMoney(committed),
+        } as const;
+      }
     }
 
     let updated = result.round;

@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { publicIdSchema } from "@merit/db/identifiers";
+import { decisionOutcomes } from "@merit/decisions/domain";
 import { moneyDataSchema } from "@merit/money";
 import { recommendationSchema } from "@merit/recommendations/domain";
 
@@ -31,6 +32,8 @@ export const applicationOverviewSchema = z.object({
       allocation: moneyDataSchema,
     })
     .nullable(),
+  /** The committee's current decision, kept apart from the manager's recommendation. */
+  decision: z.object({ outcome: z.enum(decisionOutcomes) }).nullable(),
 });
 
 export type ApplicationOverview = z.infer<typeof applicationOverviewSchema>;

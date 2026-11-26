@@ -23,3 +23,23 @@ export const euroAmounts = (reply: string) => {
     return { cents, start: match.index, end: match.index + match[0].length };
   });
 };
+
+/**
+ * Every complete number in a reply as cents, with its sign, so "€24,502.50" is never read as
+ * 2,450.25 and "€-2,450.25" or "-€2,450.25" is never read as a positive amount.
+ */
+export const numberAmounts = (reply: string) =>
+  Array.from(
+    reply.matchAll(
+      /(?:(?<![\w.,])[-\u2212]\s?€?\s?|(?<![\d.,\-\u2212])(?<![-\u2212]\s?€\s?))\d+(?:[,.]\d+|[ \u00a0\u202f]\d{3}(?!\d))*/g,
+    ),
+    ([token]) => {
+      const compact = token.replace(/[\s\u00a0\u202f€]/g, "").replace("\u2212", "-");
+      const split = /^(.*)[,.](\d{1,2})$/.exec(compact);
+      const value = split
+        ? `${(split[1] ?? "").replace(/[,.]/g, "")}.${split[2]}`
+        : compact.replace(/[,.]/g, "");
+      const amount = parseMoney(value);
+      return amount.ok ? encodeMoney(amount.value).minorUnits : undefined;
+    },
+  );

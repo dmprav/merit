@@ -115,7 +115,8 @@ const contentEvidence = (input: Record<string, unknown>, result: Result, cite: C
   if (
     section === "intake_change" ||
     section === "preparation_change" ||
-    section === "recommendation_change"
+    section === "recommendation_change" ||
+    section === "decision_change"
   ) {
     version = input.revision;
   }

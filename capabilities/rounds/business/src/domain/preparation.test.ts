@@ -4,6 +4,7 @@ import { fromMinorUnits } from "@merit/money";
 
 import type { FundingRound } from "./model";
 import {
+  budgetBelowCommitments,
   budgetChangeRequirements,
   newPreparedRound,
   prepareRoundChange,
@@ -432,4 +433,20 @@ describe("round change limits", () => {
   ])("rejects fields that do not belong to $section change", ({ change }) => {
     expect(roundChangeSchema.safeParse(change).success).toBe(false);
   });
+});
+
+describe("budget and committed funding", () => {
+  it.each([
+    { budget: fromMinorUnits(6000000n), committed: fromMinorUnits(5200000n), below: false },
+    { budget: fromMinorUnits(5200000n), committed: fromMinorUnits(5200000n), below: false },
+    { budget: fromMinorUnits(5199999n), committed: fromMinorUnits(5200000n), below: true },
+    { budget: null, committed: fromMinorUnits(1n), below: true },
+    { budget: null, committed: fromMinorUnits(0n), below: false },
+    { budget: fromMinorUnits(0n), committed: fromMinorUnits(0n), below: false },
+  ])(
+    "reports whether a budget of $budget is below commitments of $committed: $below",
+    ({ budget, committed, below }) => {
+      expect(budgetBelowCommitments(budget, committed)).toBe(below);
+    },
+  );
 });

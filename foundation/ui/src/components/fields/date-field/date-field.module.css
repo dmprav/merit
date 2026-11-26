@@ -2,6 +2,12 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* The calendar button shares the group, so the group still shows focus when Tab leaves the input;
+   the input needs a cue of its own. */
+.controls .input[data-focused] {
+  background: color-mix(in srgb, var(--field-focus) 5%, transparent);
+}
+
 .trigger[data-icon-only] {
   min-height: calc(var(--control-height-small) - 2px);
   border-radius: calc(var(--control-radius) - 1px);

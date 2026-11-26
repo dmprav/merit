@@ -329,7 +329,7 @@ describe("persisted recommendations", () => {
         await tx.execute(sql.raw(`GRANT USAGE ON SCHEMA public TO ${role}`));
         await tx.execute(
           sql.raw(
-            `GRANT SELECT ON app_users, memberships, organizations, funding_rounds, application_cases, material_versions, material_drafts, criteria_versions, contacts, review_states, review_requests, assessments, assessment_versions, recommendation_versions TO ${role}`,
+            `GRANT SELECT ON app_users, memberships, organizations, funding_rounds, application_cases, material_versions, material_drafts, criteria_versions, contacts, review_states, review_requests, assessments, assessment_versions, recommendation_versions, committee_decision_versions TO ${role}`,
           ),
         );
         await tx.execute(sql.raw(`GRANT UPDATE (id) ON application_cases TO ${role}`));

@@ -1,5 +1,6 @@
 import type { TFunction } from "i18next";
 
+import { decodeMoney, type Money } from "@merit/money";
 import type { PreparationSaveError } from "@merit/rounds/api";
 
 import type { PreparationProblem } from "../../controllers/preparation/use-round-preparation";
@@ -7,6 +8,7 @@ import type { PreparationProblem } from "../../controllers/preparation/use-round
 export const preparationError = (
   t: TFunction<"roundPreparation">,
   failure: PreparationProblem | null,
+  money: (value: Money) => string,
   action: "save" | "delete" = "save",
 ): string | null => {
   if (!failure) {
@@ -28,9 +30,12 @@ export const preparationError = (
         budget_reason_required: "preparation.reasonRequired",
         manager_unavailable: "preparation.managerUnavailable",
         round_not_empty: "preparation.notEmpty",
+        budget_below_commitments: "preparation.budgetBelowCommitments",
         invalid_round: "preparation.saveError",
       } as const satisfies Record<PreparationSaveError, string>;
-      return t(errors[failure.error]);
+      return t(errors[failure.error], {
+        committed: failure.committed ? money(decodeMoney(failure.committed)) : "",
+      });
     }
   }
 };

@@ -13,6 +13,7 @@
     "@merit/auth": "workspace:*",
     "@merit/contacts": "workspace:*",
     "@merit/db": "workspace:*",
+    "@merit/decisions": "workspace:*",
     "@merit/drafts": "workspace:*",
     "@merit/emails": "workspace:*",
     "@merit/forms": "workspace:*",

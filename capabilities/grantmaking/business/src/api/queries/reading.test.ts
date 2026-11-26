@@ -21,6 +21,7 @@ describe("contact application summaries", () => {
     intakeRevision: 0,
     reviewRevision: 0,
     recommendationRevision: 0,
+    decisionRevision: 0,
     intakeStatus: "in_preparation",
     withdrawn: false,
     requested: null,

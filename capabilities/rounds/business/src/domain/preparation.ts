@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { calendarDateSchema } from "@merit/dates";
-import { compare, parseMoney, isNegative, type Money } from "@merit/money";
+import { compare, parseMoney, isNegative, isZero, type Money } from "@merit/money";
 
 import type { FundingRound } from "./model";
 import { criteriaVersionSchema } from "./versions";
@@ -107,6 +107,10 @@ export const budgetChangeRequirements = (
 
   return { changed, reasonRequired: changed && (current !== null || previouslySet) };
 };
+
+/** A round's budget may not fall below its committed funding, nor be removed while any is committed. */
+export const budgetBelowCommitments = (budget: Money | null, committed: Money) =>
+  !isZero(committed) && (budget === null || compare(budget, committed) < 0);
 
 const prepareBudgetChange = (
   round: FundingRound,

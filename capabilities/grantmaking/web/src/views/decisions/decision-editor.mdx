@@ -1,0 +1,40 @@
+import { Canvas, Meta } from "@storybook/addon-docs/blocks";
+import * as Decision from "./decision-editor.stories";
+
+<Meta of={Decision} />
+
+# Record and read a committee decision
+
+A committee decides outside Merit. The manager records what it decided so the
+round can account for committed funding, and so the decision stays apart from
+the recommendation that proposed it. Show the outcome, the amount, the reason,
+the body that decided and when, then who recorded it and when. Those are
+different facts: the committee decided, a person recorded.
+
+<Canvas of={Decision.SummaryWithHistory} story={{ inline: false, height: "620px" }} />
+
+## Keep the proposal beside the decision
+
+The first decision starts from the manager's recommendation, and the editor
+shows that recommendation for comparison. A decision needs no recommendation and
+never changes one. Say so when none exists.
+
+<Canvas of={Decision.RecordFirstDecision} story={{ inline: false, height: "620px" }} />
+
+## Show what saving would commit
+
+Place the budget effect beside the amount. Funding and conditional funding count
+in full; a deferral or decline reserves nothing. Show the excess before saving, and
+say plainly when the round has no budget, because Merit will not record funding
+that the budget cannot hold.
+
+<Canvas of={Decision.OverBudget} story={{ inline: false, height: "620px" }} />
+
+## Ask why a decision changed
+
+Every outcome can change, including a final one, and each change is a new version.
+Ask for the explanation once a decision exists and keep it with the version it
+explains. If someone else changed the decision first, keep the draft and offer to
+reaffirm it against the latest version or discard it.
+
+<Canvas of={Decision.AmendWithExplanation} story={{ inline: false, height: "620px" }} />

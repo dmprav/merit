@@ -6,6 +6,8 @@ import {
 } from "@merit/applications/server/integrations";
 import { createContactService } from "@merit/contacts/server";
 import type { Database } from "@merit/db";
+import { createDecisionsService } from "@merit/decisions/server";
+import { applicationDecisionWork, roundCommitments } from "@merit/decisions/server/integrations";
 import { renderReviewerEmail } from "@merit/emails/reviewer";
 import { createGrantmakingService, createNavigationService } from "@merit/grantmaking/server";
 import type { InvitationMessage } from "@merit/organizations/api";
@@ -77,6 +79,46 @@ export const reviewerMessageDelivery = ({
     sendEmail({ id: message.id, to: message.to, ...(await renderReviewerEmail(message)) }),
 });
 
+type Observe = (event: GrantOutcome["event"]) => WorkspaceChangeObserver | undefined;
+
+/** The services that carry grant work through its lifecycle, from rounds to committee decisions. */
+const createGrantWorkServices = (database: Dependencies["database"], observe: Observe) => ({
+  grantmaking: instrumentService("grantmaking", createGrantmakingService({ database })),
+  rounds: instrumentService(
+    "rounds",
+    createRoundsService({
+      database,
+      roundHasApplications,
+      roundCommitments,
+      onCreated: observe("round_created"),
+    }),
+  ),
+  applications: instrumentService(
+    "applications",
+    createApplicationsService({
+      database,
+      onCreated: observe("application_recorded"),
+      work: {
+        reviews: applicationReviewWork,
+        recommendations: applicationRecommendationWork,
+        decisions: applicationDecisionWork,
+      },
+    }),
+  ),
+  recommendations: instrumentService(
+    "recommendations",
+    createRecommendationsService({
+      database,
+      isCurrentAssessment,
+      onSaved: observe("funding_recommendation_saved"),
+    }),
+  ),
+  decisions: instrumentService(
+    "decisions",
+    createDecisionsService({ database, onSaved: observe("committee_decision_recorded") }),
+  ),
+});
+
 /** What the delivery activities, which run in the worker, need to send an organization invitation. */
 export const organizationInvitationDelivery = ({
   database,
@@ -109,30 +151,10 @@ export const createApplicationServices = ({
   deliveryWait,
   deferReviewerDelivery,
 }: Dependencies) => {
-  const observe = (event: GrantOutcome["event"]): WorkspaceChangeObserver | undefined =>
+  const observe: Observe = (event) =>
     analytics && ((workspace) => analytics.captureGrantOutcome({ event, ...workspace }));
 
-  const grantmaking = instrumentService("grantmaking", createGrantmakingService({ database }));
-  const rounds = instrumentService(
-    "rounds",
-    createRoundsService({ database, roundHasApplications, onCreated: observe("round_created") }),
-  );
-  const applications = instrumentService(
-    "applications",
-    createApplicationsService({
-      database,
-      onCreated: observe("application_recorded"),
-      work: { reviews: applicationReviewWork, recommendations: applicationRecommendationWork },
-    }),
-  );
-  const recommendations = instrumentService(
-    "recommendations",
-    createRecommendationsService({
-      database,
-      isCurrentAssessment,
-      onSaved: observe("funding_recommendation_saved"),
-    }),
-  );
+  const grantWork = createGrantWorkServices(database, observe);
   const reviews = instrumentService("reviews", createReviewService({ database }));
 
   const navigation = instrumentService("navigation", createNavigationService({ database }));
@@ -169,10 +191,7 @@ export const createApplicationServices = ({
   );
 
   return {
-    grantmaking,
-    rounds,
-    applications,
-    recommendations,
+    ...grantWork,
     reviews,
     reviewer,
     navigation,

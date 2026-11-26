@@ -38,6 +38,7 @@
     "./link": "./src/components/link/link.tsx",
     "./page-header": "./src/patterns/page-header/page-header.tsx",
     "./editor-loading": "./src/patterns/editing/editor-loading.tsx",
+    "./editor-focus": "./src/patterns/editing/editor-focus.ts",
     "./state-message": "./src/patterns/state-message/state-message.tsx",
     "./section-header": "./src/patterns/section-header/section-header.tsx",
     "./panel-section": "./src/patterns/panel-section/panel-section.tsx",

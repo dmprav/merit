@@ -24,7 +24,7 @@ export const createManagerReviewTools = (actor: Actor, reviews: ReviewService) =
     ],
     [
       "record_assessment",
-      "Record an external reviewer’s assessment and its actual evidence bases. Merit cannot record a final committee award. When asked to enter that decision, explain the limit and stop; neither an assessment nor a recommendation is a substitute. Use EUR minor units for a stated amount and null for an unstated amount. Unknown bases stay unknown. Attach observations with criterionId from the round criteria history when known; otherwise use null. Retain received labels and notes for removed criteria. Reuse id on retry.",
+      "Record an external reviewer’s assessment and its actual evidence bases. A committee’s final decision is not an assessment or a recommendation; record it with record_committee_decision. Use EUR minor units for a stated amount and null for an unstated amount. Unknown bases stay unknown. Attach observations with criterionId from the round criteria history when known; otherwise use null. Retain received labels and notes for removed criteria. Reuse id on retry.",
       reviewChanges.record,
     ],
     [

@@ -5,19 +5,22 @@ type DatabaseAccess = <T>(operation: (db: Database) => Promise<T>) => Promise<T>
 
 import type { RoundsService } from "../api/service";
 import { createFundingRound, editFundingRound, deleteFundingRound } from "./commands/preparation";
-import type { RoundApplications } from "./grant-work";
+import type { RoundApplications, RoundCommitments } from "./grant-work";
 
 export const createRoundsService = ({
   database,
   onCreated,
   roundHasApplications,
+  roundCommitments,
 }: {
   database: DatabaseAccess;
   onCreated?: WorkspaceChangeObserver;
   roundHasApplications: RoundApplications;
+  roundCommitments: RoundCommitments;
 }): RoundsService => ({
   createRound: (actor, input) => database((db) => createFundingRound(db, actor, input, onCreated)),
-  editRound: (actor, input) => database((db) => editFundingRound(db, actor, input)),
+  editRound: (actor, input) =>
+    database((db) => editFundingRound(db, actor, input, roundCommitments)),
   deleteRound: (actor, input) =>
     database((db) => deleteFundingRound(db, actor, input, roundHasApplications)),
 });

@@ -19,6 +19,7 @@ import { Text } from "@merit/ui/text";
 
 import type { ApplicationList } from "../../contracts/application-list";
 import { ApplicationCollection } from "./application-collection";
+import { ApplicationDecisionStatus } from "./application-decision-status";
 import { ApplicationRecommendationStatus } from "./application-recommendation-status";
 import localStyles from "./funding-round-view.module.css";
 
@@ -181,6 +182,16 @@ const RoundBudget = ({ round }: { round: RoundPage }) => {
                 <StatusIndicatorSpace />
               )}
             </DescriptionListItem>
+            <DescriptionListItem label={t("budget.committed")}>
+              {money(round.totals.committed)}
+              <StatusIndicatorSpace />
+            </DescriptionListItem>
+            <DescriptionListItem label={t("budget.available")}>
+              {round.totals.available === null
+                ? t("preparation.budgetUnset")
+                : money(round.totals.available)}
+              <StatusIndicatorSpace />
+            </DescriptionListItem>
             <DescriptionListItem label={t("applications.reviewStatus")}>
               <ReviewSummary reviews={round.totals.reviews} reserveIndicatorSpace />
             </DescriptionListItem>
@@ -202,7 +213,7 @@ const useApplicationColumns = ({
       id: "application",
       header: t("applications.application"),
       sort: true,
-      layout: { width: "28%", primary: true },
+      layout: { width: "26%", primary: true },
       cell: (application) => (
         <Stack gap={1}>
           <Text as="div" variant="emphasis">
@@ -222,7 +233,7 @@ const useApplicationColumns = ({
     {
       id: "reviews",
       header: t("applications.reviewStatus"),
-      layout: { width: "22%" },
+      layout: { width: "18%" },
       cell: (application) => {
         return (
           <ReviewSummary
@@ -239,7 +250,7 @@ const useApplicationColumns = ({
     {
       id: "recommendation",
       header: t("applications.recommendation"),
-      layout: { width: "24%" },
+      layout: { width: "17%" },
       cell: (application) => (
         <div className={localStyles.recommendation}>
           <ApplicationRecommendationStatus recommendation={application.recommendation} />
@@ -247,9 +258,19 @@ const useApplicationColumns = ({
       ),
     },
     {
+      id: "decision",
+      header: t("applications.decision"),
+      layout: { width: "14%" },
+      cell: (application) => (
+        <div className={localStyles.recommendation}>
+          <ApplicationDecisionStatus decision={application.decision} />
+        </div>
+      ),
+    },
+    {
       id: "requested",
       header: t("applications.requested"),
-      layout: { width: "13%", align: "end" },
+      layout: { width: "12%", align: "end" },
       sort: true,
       cell: (application) =>
         application.requested === null ? (
