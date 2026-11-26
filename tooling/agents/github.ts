@@ -124,7 +124,7 @@ export type RestPullReviewComment = {
   body: string;
 };
 
-export type RestIssue = {
+type RestIssue = {
   number: number;
   state: string;
   title: string;
@@ -134,7 +134,7 @@ export type RestIssue = {
   isPullRequest: boolean;
 };
 
-export type RestPull = {
+type RestPull = {
   number: number;
   title: string;
   body: string;
@@ -146,13 +146,13 @@ export type RestPull = {
   headSha: string;
 };
 
-export type RestWorkflowRun = {
+type RestWorkflowRun = {
   id: number;
   attempt: number;
   conclusion: string | null;
 };
 
-export type RestOpenedPull = {
+type RestOpenedPull = {
   number: number;
   url: string;
   headRefName: string;
