@@ -123,6 +123,22 @@ describe("createCleanupStack", () => {
     expect(events).toEqual(["late stop finished", "output lock released"]);
   });
 
+  it("logs a release that throws before returning a promise and still runs the releases after it", async () => {
+    const lines: string[] = [];
+    const { registerCleanup, runCleanups } = createCleanupStack((line) => lines.push(line));
+    const events: string[] = [];
+    registerCleanup(async () => {
+      events.push("output lock");
+    });
+    registerCleanup(() => {
+      throw new Error("stop failed");
+    });
+
+    await runCleanups();
+    expect(lines).toEqual(["Cleanup failed: stop failed"]);
+    expect(events).toEqual(["output lock"]);
+  });
+
   it("logs a failed release and still runs the releases after it", async () => {
     const lines: string[] = [];
     const { registerCleanup, runCleanups } = createCleanupStack((line) => lines.push(line));

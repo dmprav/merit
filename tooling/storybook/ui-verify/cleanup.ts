@@ -12,6 +12,15 @@ export type RunContext = {
   registerCleanup: RegisterCleanup;
 };
 
+/** Starts a release at once, turning a throw before it returns a promise into a rejection. */
+const startRelease = (cleanup: () => Promise<void>): Promise<void> => {
+  try {
+    return cleanup();
+  } catch (error) {
+    return Promise.reject(error);
+  }
+};
+
 /**
  * Releases resources in reverse registration order. A resource registered while the drain runs,
  * such as a server whose spawn was already under way, starts releasing at once, and the drain
@@ -38,7 +47,7 @@ export const createCleanupStack = (
     let pending: Promise<void> | undefined;
 
     const idempotent = () => {
-      pending ??= cleanup();
+      pending ??= startRelease(cleanup);
       return pending;
     };
 
