@@ -517,7 +517,7 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
           path: |
-            ${{ runner.temp }}/merit-storybook-results
+            ${{ runner.temp }}/merit-storybook-results-*
             /tmp/ci-reports
 
   browser-demo:

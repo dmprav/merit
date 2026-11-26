@@ -229,15 +229,19 @@ test("CI verify workflow covers every ready stage and sharded browser suite", as
   expect(neededJobs).toEqual(jobIds.filter((id) => id !== "verify"));
 });
 
-test("CI uploads package Vitest reports from each workspace package without walking node_modules", async () => {
+const readUploadPaths = async () => {
   const workflow = await readFile(`${repoRoot}/.github/workflows/verify.yml`, "utf8");
-  const workspace = await readFile(`${repoRoot}/pnpm-workspace.yaml`, "utf8");
-
-  // upload-artifact reads the whole tree for a `**` pattern, including node_modules, and hangs.
-  const uploadPaths = [...workflow.matchAll(/^\s+path:\s*(?:\|\r?\n((?:\s{12}.*\r?\n)+)|(.+))/gm)]
+  return [...workflow.matchAll(/^\s+path:\s*(?:\|\r?\n((?:\s{12}.*\r?\n)+)|(.+))/gm)]
     .flatMap(([, block, single]) => (block ?? single ?? "").split(/\r?\n/))
     .map((path) => path.trim().replace(/^"|"$/g, ""))
     .filter(Boolean);
+};
+
+test("CI uploads package Vitest reports from each workspace package without walking node_modules", async () => {
+  const uploadPaths = await readUploadPaths();
+  const workspace = await readFile(`${repoRoot}/pnpm-workspace.yaml`, "utf8");
+
+  // upload-artifact reads the whole tree for a `**` pattern, including node_modules, and hangs.
   expect(uploadPaths.filter((path) => path.startsWith("**"))).toEqual([]);
 
   const packagesBlock = workspace.match(/^packages:\r?\n((?: {2}- .*\r?\n)+)/m)?.[1] ?? "";
@@ -246,4 +250,32 @@ test("CI uploads package Vitest reports from each workspace package without walk
     .filter((glob): glob is string => glob !== undefined);
   const reportPaths = uploadPaths.filter((path) => path.endsWith("/.vitest-report.json"));
   expect(reportPaths).toEqual(packageGlobs.map((glob) => `${glob}/.vitest-report.json`));
+});
+
+test("CI uploads every Playwright suite's output directory as failure evidence", async () => {
+  const uploadPaths = await readUploadPaths();
+  // Browser jobs set TMPDIR to the runner's temporary directory, so each suite's traces and
+  // screenshots land in `${{ runner.temp }}/<directory>`. A suffixed directory needs a glob.
+  const uploadedDirectories = uploadPaths
+    .filter((path) => path.startsWith("${{ runner.temp }}/"))
+    .map((path) => path.slice("${{ runner.temp }}/".length));
+  const outputSources = [
+    "tooling/testing/browser/config.ts",
+    "tooling/storybook/playwright.config.ts",
+    "app/tests/browser/workspace.playwright.config.ts",
+    "app/tests/demo-browser.ts",
+  ];
+
+  for (const source of outputSources) {
+    const text = await readFile(`${repoRoot}/${source}`, "utf8");
+    const [, quote, prefix] = text.match(/join\(tmpdir\(\),\s*(["`])([^"`$]+)/) ?? [];
+    assert(prefix, `${source} writes Playwright output under tmpdir()`);
+    const suffixed = quote === "`" && text.includes(`${prefix}\${`);
+    const covered = uploadedDirectories.some((directory) =>
+      directory.endsWith("*")
+        ? prefix.startsWith(directory.slice(0, -1))
+        : !suffixed && directory === prefix,
+    );
+    expect(covered, `${source} output (${prefix}${suffixed ? "…" : ""}) is uploaded`).toBe(true);
+  }
 });
