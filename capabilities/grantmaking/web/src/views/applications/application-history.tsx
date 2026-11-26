@@ -362,7 +362,6 @@ const ComparisonSection = ({
           heading={afterHeading}
           showHeading={renamed}
           value={afterValue}
-          recorded
         />
       </div>
     </section>
@@ -374,19 +373,16 @@ const ComparedValue = ({
   heading,
   showHeading,
   value,
-  recorded = false,
 }: {
   label: string;
   heading?: string;
   showHeading: boolean;
   value: string;
-  /** Marks the recorded side of the comparison by its caption. */
-  recorded?: boolean;
 }) => (
   <Stack gap={3}>
     <Divider />
     <div>
-      <Text variant={recorded ? "emphasis" : "caption"}>{label}</Text>
+      <Text variant="caption">{label}</Text>
       {showHeading && heading && (
         <Reading as="p">
           <strong>{heading}</strong>
