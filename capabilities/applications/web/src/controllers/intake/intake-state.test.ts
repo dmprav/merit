@@ -229,6 +229,21 @@ it("offers revision actions according to the submission lifecycle", () => {
   ]);
 });
 
+it("hides deletion once the application has a committee decision", () => {
+  const preparing = makeApplication();
+
+  expect(
+    intakeMenuActions(preparing, null, false, { hasDecision: false, hasCommitment: false }),
+  ).toEqual(["withdraw", "delete"]);
+  // A deferral or decline still allows withdrawal; the server checks commitments when it runs.
+  expect(
+    intakeMenuActions(preparing, null, false, { hasDecision: true, hasCommitment: false }),
+  ).toEqual(["withdraw"]);
+  expect(
+    intakeMenuActions(preparing, null, false, { hasDecision: true, hasCommitment: true }),
+  ).toEqual(["withdraw"]);
+});
+
 it("offers no actions and no edits while withdrawn", () => {
   const withdrawn = makeApplication({
     intakeStatus: "ready",

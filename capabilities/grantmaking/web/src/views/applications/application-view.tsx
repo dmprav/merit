@@ -143,7 +143,9 @@ const ApplicationLayout = (props: ApplicationLayoutProps) => {
       header={<ApplicationHeader {...props} />}
       toWorkLabel={t(
         editor
-          ? "workspace.toEditor"
+          ? props.editorTitle
+            ? "workspace.toDecisionEditor"
+            : "workspace.toEditor"
           : review.active
             ? "workspace.toReviewTask"
             : "workspace.toOverview",

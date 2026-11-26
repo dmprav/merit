@@ -6,7 +6,7 @@ import { encodeRoundOverview, decodeRoundView } from "@merit/grantmaking/api";
 import type { FundingRoundOverviewData } from "@merit/grantmaking/api";
 import { roundView, updateRecommendation } from "@merit/grantmaking/api";
 import { getExampleRound } from "@merit/grantmaking/examples";
-import { fromMinorUnits } from "@merit/money";
+import { fromMinorUnits, subtract } from "@merit/money";
 import { emptyReviews } from "@merit/reviews/domain";
 import { ApplicationPage, ApplicationStage } from "@merit/ui/application-shell";
 
@@ -25,10 +25,32 @@ if (!overBudget.ok) {
 
 const FundingRoundPreview = ({
   round,
+  committedEuros,
   ...props
 }: Omit<ComponentProps<typeof FundingRoundView>, "round"> & {
   round: FundingRoundOverviewData;
-}) => <FundingRoundView {...props} round={decodeRoundView(round)} />;
+  /** Funding the round's decisions commit, in whole euros; the overview derives none from records. */
+  committedEuros?: number;
+}) => {
+  const view = decodeRoundView(round);
+  if (committedEuros === undefined) {
+    return <FundingRoundView {...props} round={view} />;
+  }
+  const committed = fromMinorUnits(BigInt(committedEuros) * 100n);
+  return (
+    <FundingRoundView
+      {...props}
+      round={{
+        ...view,
+        totals: {
+          ...view.totals,
+          committed,
+          available: view.budget === null ? null : subtract(view.budget, committed),
+        },
+      }}
+    />
+  );
+};
 
 const meta = {
   title: "Features/Funding rounds/Overview",
@@ -66,6 +88,8 @@ export const Decisions: Story = {
   args: {
     section: "applications",
     decisions: { A1: { outcome: "Fund" }, A2: { outcome: "Fund with conditions" } },
+    // €24,000 awarded and €28,000 awarded with conditions leave €8,000 of the €60,000 budget.
+    committedEuros: 52000,
   },
   play: async ({ canvas }) => {
     const funded = within(canvas.getByRole("row", { name: /Neighbour Table/ }));
@@ -75,7 +99,8 @@ export const Decisions: Story = {
     ).toBeVisible();
     const summary = within(canvas.getByRole("region", { name: "Round summary" }));
     await expect(summary.getByText("Committed")).toBeVisible();
-    await expect(summary.getByText("Available")).toBeVisible();
+    await expect(summary.getByText("Committed").closest("div")).toHaveTextContent("€52,000");
+    await expect(summary.getByText("Available").closest("div")).toHaveTextContent("€8,000");
   },
 };
 export const Empty: Story = {

@@ -470,9 +470,9 @@ export const exampleDecisions: Record<string, Decision> = {
     reason:
       "The committee funded the full request and asked for simple reporting on repeat attendance.",
     decidedBy: "Funding committee",
-    decisionDate: "2027-01-18",
+    decisionDate: "2027-01-21",
     recorder: { name: "Dana Reed" },
-    recordedAt: "2027-01-18T12:00:00.000Z",
+    recordedAt: "2027-01-21T14:00:00.000Z",
     applicationVersion: 1,
   },
 };

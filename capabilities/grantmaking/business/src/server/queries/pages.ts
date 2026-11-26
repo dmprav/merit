@@ -2,6 +2,7 @@ import type { IntakeState } from "@merit/applications/api";
 import { workingRevisionSchema, materialVersionSchema } from "@merit/applications/domain";
 import type { Actor } from "@merit/auth";
 import type { Database } from "@merit/db";
+import { commitsFunding } from "@merit/decisions/domain";
 import { fromMinorUnits, subtract } from "@merit/money";
 import { workspaceSlugSchema } from "@merit/organizations/api";
 import { readWorkspace } from "@merit/organizations/transactions";
@@ -132,6 +133,12 @@ export const getFundingApplicationPage = async (
         workingRevision:
           row.workingRevision === null ? null : workingRevisionSchema.parse(row.workingRevision),
         history: history.entries,
+        decisions: {
+          hasDecision: row.decision.versions.length > 0,
+          hasCommitment: row.decision.versions[0]
+            ? commitsFunding(row.decision.versions[0].decision.outcome)
+            : false,
+        },
       } satisfies IntakeState,
       application: applicationView(
         decodeApplication(row.application),

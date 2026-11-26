@@ -15,6 +15,9 @@ import { GrantmakingMessagesProvider } from "../../messages";
 import { ApplicationContainedPreview } from "../../testing/application-preview";
 import { ApplicationView } from "../applications/application-view";
 
+/** A date the form accepts, since a decision cannot be dated after today. */
+const yesterday = () => new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+
 const recorder = { userId: "dana", name: "Dana Reed", provenance: { interface: "web" } } as const;
 
 const firstDecision: Decision = {
@@ -23,9 +26,9 @@ const firstDecision: Decision = {
   conditions: "",
   reason: "The committee funded the full request and asked for simple reporting.",
   decidedBy: "Funding committee",
-  decisionDate: "2026-01-18",
+  decisionDate: "2027-01-21",
   recorder,
-  recordedAt: "2026-01-18T12:00:00.000Z",
+  recordedAt: "2027-01-21T14:00:00.000Z",
   applicationVersion: 1,
 };
 
@@ -35,10 +38,10 @@ const amendedDecision: Decision = {
   amount: fromMinorUnits(2000000n),
   conditions: "Confirm the dates with the community hall in writing.",
   reason: "A later meeting reduced the award until the venue is confirmed.",
-  decisionDate: "2026-02-08",
+  decisionDate: "2027-02-04",
   changeExplanation: "The venue could not confirm all 24 dates.",
   recorder: { ...recorder, provenance: { interface: "mcp", clientId: "Claude" } },
-  recordedAt: "2026-02-09T09:30:00.000Z",
+  recordedAt: "2027-02-05T09:30:00.000Z",
 };
 
 type EncodedVersion = { revision: number; decision: ReturnType<typeof encodeDecision> };
@@ -192,6 +195,7 @@ export const RecordFirstDecision: Story = {
     await expect(canvas.getByRole("textbox", { name: "Amount" })).toHaveValue("24000.00");
     await expect(canvas.getByRole("region", { name: "Manager recommendation" })).toBeVisible();
     await expect(canvas.queryByLabelText(/changing this decision/)).not.toBeInTheDocument();
+    await expect(canvas.getByRole("link", { name: /Go to committee decision/ })).toBeInTheDocument();
     await expect(canvas.getByRole("status", { name: "Budget preview" })).toHaveTextContent(
       /Available with this decision\s*€8,000/,
     );
@@ -234,6 +238,10 @@ export const OverBudget: Story = {
       /Over budget with this decision\s*€1,000/,
     );
 
+    // The example round is dated ahead of today, and a decision cannot be.
+    const date = canvas.getByRole("textbox", { name: /Decision date/ });
+    await userEvent.clear(date);
+    await userEvent.type(date, yesterday());
     await userEvent.type(canvas.getByLabelText(/changing this decision/), "Raised after review.");
     await userEvent.click(canvas.getByRole("button", { name: "Save decision" }));
     await expect(await canvas.findByRole("alert")).toHaveTextContent(
@@ -261,7 +269,7 @@ export const NoBudget: Story = {
     ).toBeVisible();
     await userEvent.type(canvas.getByLabelText(/Reason/), "Funded in full.");
     await userEvent.type(canvas.getByLabelText(/Decided by/), "Funding committee");
-    await userEvent.type(canvas.getByRole("textbox", { name: /Decision date/ }), "2026-01-18");
+    await userEvent.type(canvas.getByRole("textbox", { name: /Decision date/ }), yesterday());
     await userEvent.click(canvas.getByRole("button", { name: "Save decision" }));
     await expect(await canvas.findByRole("alert")).toHaveTextContent(
       "This round has no budget. Set a budget before recording funding.",
@@ -282,7 +290,7 @@ export const ConflictRecovery: Story = {
       conditions: "",
       reason: "My unsaved reason.",
       decidedBy: "Funding committee",
-      decisionDate: "2026-01-18",
+      decisionDate: "2027-01-21",
       changeExplanation: "My unsaved explanation.",
     },
   },

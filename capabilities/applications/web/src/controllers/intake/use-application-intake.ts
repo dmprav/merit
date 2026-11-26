@@ -93,6 +93,7 @@ export const useApplicationIntake = ({
       application,
       intake.workingRevision,
       editing.changed("title"),
+      intake.decisions,
     ).filter((action) => editing.ready || (action !== "delete" && action !== "discard_revision")),
     canOpen: (target: IntakeSection) =>
       !isWithdrawn(application) &&
