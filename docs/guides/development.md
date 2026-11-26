@@ -335,16 +335,18 @@ may be consolidated into a fresh baseline; existing local databases then need
 the handwritten SQL for public IDs, deferred foreign keys, content checks, the
 outstanding-review index, the audit organization foreign key, and immutability
 triggers. Keep the search extensions and indexes, workspace row-security policies
-and helpers, and reviewer delivery function with its restricted privileges.
+and helpers, the reviewer delivery, retry, and pending-message functions, the
+assistant conversation functions and access triggers, all with their restricted
+privileges.
 Once deployed, keep applied migrations unchanged and add a migration for each change.
 `vp run @merit/db#db:check` checks migration metadata.
 
 ## Local database recovery
 
 The current pre-deployment baseline,
-[`0000_initial.sql`](../../foundation/db/database/migrations/0000_initial.sql),
+[`0000_baseline.sql`](../../foundation/db/database/migrations/0000_baseline.sql),
 creates the complete schema in one migration. Recreate all databases initialized
-before this baseline, including those whose first migration had the same name.
+before this baseline, including those migrated from the earlier `0000_initial.sql`.
 The baseline has no upgrade or backfill path for prototype data; rerunning
 migrations or the seed preserves existing work and does not upgrade it.
 
