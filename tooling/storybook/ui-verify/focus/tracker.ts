@@ -189,12 +189,15 @@ const defineFocusLocator = () => {
   };
 };
 
-/** Runs in the page: combines snapshot capture and the focus locator into the focus tracker. */
-const defineFocusTracker = () => {
+/**
+ * Runs in the page: combines snapshot capture and the focus locator into the focus tracker, and
+ * reports false when either is missing because the document was replaced after it was installed.
+ */
+const defineFocusTracker = (): boolean => {
   const capture = window.__meritSnapshotCapture;
   const locator = window.__meritFocusLocator;
   if (!capture || !locator) {
-    throw new Error("Install snapshot capture and the focus locator before the focus tracker.");
+    return false;
   }
 
   const describeElement = (el: Element): string => {
@@ -227,18 +230,23 @@ const defineFocusTracker = () => {
   };
   delete window.__meritSnapshotCapture;
   delete window.__meritFocusLocator;
+  return true;
 };
 
 /**
- * Installs the in-page focus tracker that traversal reads each Tab stop through. A page that
- * replaces its document during traversal loses the tracker, which traversal reports.
+ * Installs the in-page focus tracker that traversal reads each Tab stop through, returning false
+ * when the page replaced its document during installation. A page that replaces its document
+ * later, during traversal, loses the tracker, which traversal reports.
  */
-export const installFocusTracker = async (page: Page): Promise<void> => {
+export const installFocusTracker = async (page: Page): Promise<boolean> => {
   await page.evaluate(defineSnapshotCapture, SNAPSHOT_LIMITS);
   await page.evaluate(defineFocusLocator);
-  await page.evaluate(defineFocusTracker);
+  if (!(await page.evaluate(defineFocusTracker))) {
+    return false;
+  }
   // Chromium applies a pending `autofocus` in the next rendering update, but only while nothing
   // has focus. Reading the initial focus before that update lets the reset that follows hand
   // focus back to the autofocused control, so wait for one.
   await waitForRenderUpdate(page);
+  return true;
 };

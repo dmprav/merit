@@ -18,7 +18,10 @@ export const checkKeyboardFocusTraversal = async (
   page: Page,
   maxStops = MAX_TAB_STOPS,
 ): Promise<FocusCheckResult> => {
-  await installFocusTracker(page);
+  if (!(await installFocusTracker(page))) {
+    // The page navigated before traversal began, so none of its controls were checked.
+    return { stopsChecked: 0, traversal: { complete: false, reason: "trackerLost" }, failures: [] };
+  }
   const { stops, traversal } = await traverseTabStops(page, maxStops);
   await captureFinalBaseline(page, stops);
   await captureUnfocusedBaselines(page, stops);
