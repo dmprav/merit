@@ -5,6 +5,7 @@ import { describe, expect, test, vi } from "vite-plus/test";
 
 import { createWorktree } from "./create.ts";
 import { type ExecCommand } from "./deps.ts";
+import { canonicalPath } from "./paths.ts";
 import {
   readWorktreeRegistry,
   registryLockPathForRepo,
@@ -611,6 +612,7 @@ describe("a checkout rollback cannot remove", () => {
 describe("a checkout rollback removes partially", () => {
   /** Fails `--doctor`, then has Git delete the checkout's `.git` before failing on its files. */
   const createWithPartialRollback = async (repo: string, dropped: string[] = []) => {
+    const checkoutPath = join(repo, ".tmp/worktrees/partial-rollback");
     const failure = createIn(
       repo,
       {
@@ -622,7 +624,12 @@ describe("a checkout rollback removes partially", () => {
       {
         execGit: gitWith((args) => {
           if (isGitCommand(args, "worktree", "remove")) {
-            rmSync(join(args[3] ?? "", ".git"), { force: true });
+            // Remove only the fixture checkout's metadata, never a path read from the arguments.
+            const target = args.at(-1);
+            if (target === undefined || canonicalPath(target) !== canonicalPath(checkoutPath)) {
+              throw new Error(`Unexpected worktree remove target: ${target ?? "(none)"}`);
+            }
+            rmSync(join(checkoutPath, ".git"), { force: true });
             throw new Error("EACCES: partial directory removal failed");
           }
         }),
@@ -633,7 +640,7 @@ describe("a checkout rollback removes partially", () => {
     await expect(failure).rejects.toThrow(
       /doctor check failed.*rollback could not remove checkout.*EACCES: partial directory removal failed/,
     );
-    return join(repo, ".tmp/worktrees/partial-rollback");
+    return checkoutPath;
   };
 
   test("records the residue with the checkout's identity for worktree:clean", async () => {
