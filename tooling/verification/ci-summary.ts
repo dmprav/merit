@@ -3,6 +3,8 @@ import { basename, join, relative } from "node:path";
 
 import { z } from "zod";
 
+import { readFlagValue } from "../cli.ts";
+
 const playwrightErrorSchema = z.object({ message: z.string().optional() });
 
 const playwrightResultSchema = z.object({
@@ -345,25 +347,23 @@ export const collectCiSummaries = (options: {
   return summaries;
 };
 
+export type CiSummaryOptions = { title: string; scanVitestFilename?: string };
+
+/** Reads `[title] [--scan-vitest <report-file>]`, in either order. */
+export const parseCiSummaryArgs = (args: readonly string[]): CiSummaryOptions => {
+  const scanVitestFilename = readFlagValue(args, "--scan-vitest");
+  const flagIndex = args.indexOf("--scan-vitest");
+  const positional = args.filter(
+    (_, index) => flagIndex === -1 || (index !== flagIndex && index !== flagIndex + 1),
+  );
+  return {
+    title: positional[0] ?? "Verification",
+    ...(scanVitestFilename !== null ? { scanVitestFilename } : {}),
+  };
+};
+
 const runCli = () => {
-  const args = process.argv.slice(2);
-  let scanVitestFilename: string | undefined;
-  const positional: string[] = [];
-
-  for (let index = 0; index < args.length; index += 1) {
-    const arg = args[index];
-    if (arg === undefined) {
-      continue;
-    }
-    if (arg === "--scan-vitest" && args[index + 1]) {
-      scanVitestFilename = args[index + 1];
-      index += 1;
-    } else {
-      positional.push(arg);
-    }
-  }
-
-  const title = positional[0] ?? "Verification";
+  const { title, scanVitestFilename } = parseCiSummaryArgs(process.argv.slice(2));
   const summaries = collectCiSummaries({
     reportDir: process.env.MERIT_CI_REPORT_DIR,
     scanVitestFilename,
