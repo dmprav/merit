@@ -162,7 +162,8 @@ export const ledgerSummarySchema = z.object({
   phaseCounts: countRecordSchema,
   resultCounts: countRecordSchema,
   latestEntries: z.array(ledgerEntrySchema),
-  decisions: z.array(z.string().min(1)),
+  /** Every entry except automatic resume/start markers, in ledger order. */
+  decisions: z.array(ledgerEntrySchema),
 });
 
 export type LedgerSummary = z.infer<typeof ledgerSummarySchema>;
@@ -597,22 +598,34 @@ export const tailLedger = ({
   });
 };
 
-const toSortedCountRecord = (counts: Map<string, number>): Record<string, number> =>
-  Object.fromEntries(
-    [...counts.entries()]
-      .filter(([, count]) => count > 0)
-      .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0)),
+/** Counts each distinct value, keyed in sorted order. */
+const countValues = (values: readonly string[]): Record<string, number> => {
+  const counts = new Map<string, number>();
+  for (const value of values) {
+    counts.set(value, (counts.get(value) ?? 0) + 1);
+  }
+  return Object.fromEntries(
+    [...counts.entries()].sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0)),
   );
+};
 
-const formatDecisionBullet = (entry: LedgerEntry): string => {
-  const parts = [`[${entry.phase}] ${entry.decision} — ${entry.why}`];
-  if (entry.result) {
-    parts.push(`(${entry.result})`);
+const summarizeRuns = (entries: readonly LedgerEntry[]): LedgerRunSummary[] => {
+  const runsById = new Map<string, LedgerRunSummary>();
+  for (const entry of entries) {
+    const run = runsById.get(entry.run_id);
+    if (run) {
+      run.entryCount += 1;
+      run.lastTs = entry.ts;
+    } else {
+      runsById.set(entry.run_id, {
+        run_id: entry.run_id,
+        entryCount: 1,
+        firstTs: entry.ts,
+        lastTs: entry.ts,
+      });
+    }
   }
-  if (entry.evidence) {
-    parts.push(`[evidence: ${entry.evidence}]`);
-  }
-  return parts.join(" ");
+  return [...runsById.values()];
 };
 
 export const summarizeLedger = ({
@@ -628,45 +641,15 @@ export const summarizeLedger = ({
 }): LedgerSummary => {
   const filePath = resolveLedgerFilePath({ slug, file, repoRoot, cwd });
   const { exists, entries } = readLedgerEntries(filePath);
-
-  const runsById = new Map<string, LedgerRunSummary>();
-  const phaseCountsMap = new Map<string, number>();
-  const resultCountsMap = new Map<string, number>();
-  const decisions: string[] = [];
-
-  for (const entry of entries) {
-    const existingRun = runsById.get(entry.run_id);
-    if (existingRun) {
-      existingRun.entryCount += 1;
-      existingRun.lastTs = entry.ts;
-    } else {
-      runsById.set(entry.run_id, {
-        run_id: entry.run_id,
-        entryCount: 1,
-        firstTs: entry.ts,
-        lastTs: entry.ts,
-      });
-    }
-
-    phaseCountsMap.set(entry.phase, (phaseCountsMap.get(entry.phase) ?? 0) + 1);
-    if (entry.result) {
-      resultCountsMap.set(entry.result, (resultCountsMap.get(entry.result) ?? 0) + 1);
-    }
-
-    if (!isResumeStartRow(entry)) {
-      decisions.push(formatDecisionBullet(entry));
-    }
-  }
-
   return ledgerSummarySchema.parse({
     file: filePath,
     exists,
     totalEntries: entries.length,
-    runs: [...runsById.values()],
-    phaseCounts: toSortedCountRecord(phaseCountsMap),
-    resultCounts: toSortedCountRecord(resultCountsMap),
+    runs: summarizeRuns(entries),
+    phaseCounts: countValues(entries.map((entry) => entry.phase)),
+    resultCounts: countValues(entries.flatMap((entry) => (entry.result ? [entry.result] : []))),
     latestEntries: entries.slice(-SUMMARY_LATEST_LIMIT),
-    decisions,
+    decisions: entries.filter((entry) => !isResumeStartRow(entry)),
   });
 };
 
@@ -789,6 +772,17 @@ export const formatTailOutput = (result: LedgerTailResult): string => {
   return [header, ...result.entries.map((entry) => `  ${formatEntryLine(entry)}`)].join("\n");
 };
 
+const formatDecisionBullet = (entry: LedgerEntry): string => {
+  const parts = [`[${entry.phase}] ${entry.decision} — ${entry.why}`];
+  if (entry.result) {
+    parts.push(`(${entry.result})`);
+  }
+  if (entry.evidence) {
+    parts.push(`[evidence: ${entry.evidence}]`);
+  }
+  return parts.join(" ");
+};
+
 export const formatSummaryOutput = (summary: LedgerSummary): string => {
   if (!summary.exists) {
     return `No decision ledger found at "${summary.file}".`;
@@ -816,8 +810,8 @@ export const formatSummaryOutput = (summary: LedgerSummary): string => {
 
   if (summary.decisions.length > 0) {
     lines.push("  decisions:");
-    for (const bullet of summary.decisions) {
-      lines.push(`    - ${bullet}`);
+    for (const entry of summary.decisions) {
+      lines.push(`    - ${formatDecisionBullet(entry)}`);
     }
   } else {
     lines.push("  decisions: none");

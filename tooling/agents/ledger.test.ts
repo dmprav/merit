@@ -480,10 +480,12 @@ describe("ledger lifecycle, resume markers, and validation", () => {
     });
 
     const summary = summarizeLedger({ slug: "auth-migration", repoRoot: repo });
-    expect(summary.decisions.some((line) => line.includes("Picked up from handoff artifact"))).toBe(
+    expect(summary.decisions.some((entry) => entry.why === "Picked up from handoff artifact")).toBe(
       false,
     );
-    expect(summary.decisions.some((line) => line.includes("[build] start"))).toBe(true);
+    expect(
+      summary.decisions.some((entry) => entry.phase === "build" && entry.decision === "start"),
+    ).toBe(true);
 
     const all = readLedgerEntries(first.file);
     expect(all.exists).toBe(true);
@@ -760,13 +762,17 @@ describe("ledger lifecycle, resume markers, and validation", () => {
     expect(summary.resultCounts).toEqual({ done: 2, pass: 3, started: 1 });
     expect(summary.latestEntries).toHaveLength(SUMMARY_LATEST_LIMIT);
     expect(summary.decisions).toHaveLength(6); // Excludes synthetic resume/start marker
-    expect(summary.decisions[0]).toBe("[build] Decision 1 — Reason 1");
-    expect(summary.decisions[5]).toBe("[verify] Decision 6 — Reason 6 (pass) [evidence: check-6]");
+    expect(summary.decisions[0]).toMatchObject({ phase: "build", decision: "Decision 1" });
+    expect(summary.decisions[5]).toMatchObject({ phase: "verify", decision: "Decision 6" });
 
     const formattedSummary = formatSummaryOutput(summary);
     expect(formattedSummary).toContain("runs (2): run-a");
     expect(formattedSummary).toContain("phases:  build=3, resume=1, verify=3");
-    expect(formattedSummary).toContain("- [verify] Decision 6 — Reason 6");
+    expect(formattedSummary).toContain("\n    - [build] Decision 1 — Reason 1\n");
+    expect(formattedSummary).toContain(
+      "\n    - [verify] Decision 6 — Reason 6 (pass) [evidence: check-6]",
+    );
+    expect(formattedSummary).not.toContain("[resume]");
   });
 
   test("preserves __proto__ labels as own enumerable properties in summary counts and JSON", async () => {
