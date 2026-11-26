@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 
 import { afterEach, beforeEach, expect, it, vi } from "vite-plus/test";
 
+import { REPO_ROOT } from "../paths.ts";
 import {
   assertSafeManagedDatabaseName,
   buildLocalDatabaseUrl,
@@ -16,7 +17,6 @@ import {
 } from "./local-postgres.ts";
 import { isLinkedGitWorktree, resetLocalDatabase, resolveResetTarget } from "./reset-db.ts";
 
-const repoUrl = new URL("../../", import.meta.url);
 const tempDirs: string[] = [];
 
 const makeTempDir = (prefix: string) => {
@@ -45,7 +45,7 @@ it("recreates the Compose database before migrating and seeding, ignoring remote
   };
 
   const result = await resetLocalDatabase({
-    cwd: repoUrl,
+    cwd: REPO_ROOT,
     env,
     isLinkedWorktree: false,
     exec,
@@ -56,7 +56,7 @@ it("recreates the Compose database before migrating and seeding, ignoring remote
   expect(recreate).not.toHaveBeenCalled();
 
   const options = {
-    cwd: repoUrl,
+    cwd: REPO_ROOT,
     env: { ...env, DATABASE_URL: DEFAULT_COMPOSE_DATABASE_URL },
     stdio: "inherit",
   };
@@ -119,7 +119,7 @@ it.each(["127.0.0.1", "localhost"] as const)(
     const env = { ...process.env, DATABASE_URL: worktreeUrl };
 
     const result = await resetLocalDatabase({
-      cwd: repoUrl,
+      cwd: REPO_ROOT,
       env,
       isLinkedWorktree: false,
       exec,
@@ -145,7 +145,7 @@ it.each(["127.0.0.1", "localhost"] as const)(
     ]);
 
     const options = {
-      cwd: repoUrl,
+      cwd: REPO_ROOT,
       env: { ...env, DATABASE_URL: worktreeUrl },
       stdio: "inherit",
     };
@@ -194,7 +194,7 @@ it("refuses a local Compose URL whose database name pg would read differently in
     for (const isLinkedWorktree of [false, true]) {
       await expect(
         resetLocalDatabase({
-          cwd: repoUrl,
+          cwd: REPO_ROOT,
           env: { DATABASE_URL: databaseUrl },
           isLinkedWorktree,
           worktreeDatabaseUrl: databaseUrl,
@@ -249,7 +249,7 @@ it("refuses a linked-worktree reset when an exported DATABASE_URL overrides the 
 
   await expect(
     resetLocalDatabase({
-      cwd: repoUrl,
+      cwd: REPO_ROOT,
       env: { DATABASE_URL: buildLocalDatabaseUrl("merit_beta") },
       isLinkedWorktree: true,
       worktreeDatabaseUrl,
@@ -261,7 +261,7 @@ it("refuses a linked-worktree reset when an exported DATABASE_URL overrides the 
   expect(exec).not.toHaveBeenCalled();
 
   const result = await resetLocalDatabase({
-    cwd: repoUrl,
+    cwd: REPO_ROOT,
     env: { DATABASE_URL: worktreeDatabaseUrl },
     isLinkedWorktree: true,
     worktreeDatabaseUrl,
@@ -279,7 +279,7 @@ it("refuses a linked-worktree reset when the worktree's .env.local supplies no D
   for (const worktreeDatabaseUrl of [undefined, "", "  "]) {
     await expect(
       resetLocalDatabase({
-        cwd: repoUrl,
+        cwd: REPO_ROOT,
         env: { DATABASE_URL: buildLocalDatabaseUrl("merit_beta") },
         isLinkedWorktree: true,
         worktreeDatabaseUrl,
@@ -304,7 +304,7 @@ it.each([1, 2, 3, 4])(
 
     await expect(
       resetLocalDatabase({
-        cwd: repoUrl,
+        cwd: REPO_ROOT,
         env: {},
         isLinkedWorktree: false,
         exec,
@@ -324,7 +324,7 @@ it("stops before migrating or seeding when worktree database recreation fails", 
 
   await expect(
     resetLocalDatabase({
-      cwd: repoUrl,
+      cwd: REPO_ROOT,
       env: { DATABASE_URL: buildLocalDatabaseUrl("merit_alpha") },
       isLinkedWorktree: false,
       exec,
@@ -385,7 +385,7 @@ it("executes runCli when invoked directly as a child process with stubbed execut
     },
   });
 
-  if (isLinkedGitWorktree(repoUrl)) {
+  if (isLinkedGitWorktree(REPO_ROOT)) {
     expect(result.status).not.toBe(0);
     // Either no worktree database is configured, or the exported URL overrides `.env.local`.
     expect(result.stderr).toMatch(

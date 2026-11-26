@@ -4,7 +4,6 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node
 import { createServer } from "node:net";
 import { dirname, join, relative, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import { fileURLToPath } from "node:url";
 
 import { chromium, type Browser, type BrowserContext, type Page } from "@playwright/test";
 import { z } from "zod";
@@ -22,9 +21,9 @@ import { createTestDatabase } from "@merit/test-support/test-database";
 
 import { acquireFileLock, FileLockBusyError } from "../agents/file-lock.ts";
 import { errorMessage, parseCliArgs } from "../cli.ts";
+import { REPO_ROOT } from "../paths.ts";
 import { VISUAL_TARGETS } from "./visual-targets.ts";
 
-const REPO_ROOT = resolve(fileURLToPath(new URL("../../", import.meta.url)));
 const DEFAULT_OUT_DIR = ".tmp/ui-verify";
 const MAX_TAB_STOPS = 40;
 // Bounds the wait for the page's next rendering update, which never comes while rendering is blocked.

@@ -24,7 +24,9 @@ Keep conventional tool configuration files at the repository root. Application s
 scripts remain with the application, and migrations remain with the database
 package. Shared compiler options stay in `tooling/react-compiler.ts`, and
 argument and path helpers shared by tooling CLIs stay in [`tooling/cli.ts`](../../tooling/cli.ts).
-Parse a CLI's arguments with its `parseCliArgs`, a strict `util.parseArgs` wrapper:
+Find the repository root with `REPO_ROOT` from [`tooling/paths.ts`](../../tooling/paths.ts)
+rather than counting `..` segments from each script.
+Parse a CLI's arguments with `parseCliArgs` from `cli.ts`, a strict `util.parseArgs` wrapper:
 declare every option, and unknown flags, missing values, and unexpected positionals
 fail with the command's usage before any side effect. Read issue numbers, counts,
 and other integers with `parseWholeNumber`, which rejects text such as `12abc`.

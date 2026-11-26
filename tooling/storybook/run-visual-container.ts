@@ -1,10 +1,11 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import { cpSync, existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 
-const root = resolve(import.meta.dirname, "../..");
-const snapshotsDir = join(root, "tooling/storybook/snapshots");
+import { REPO_ROOT } from "../paths.ts";
+
+const snapshotsDir = join(REPO_ROOT, "tooling/storybook/snapshots");
 const playwrightImage =
   "mcr.microsoft.com/playwright:v1.64.1-noble@sha256:2f05f8a734509a7b3f26a912639488ee08f58a7b292d14d62271bcff9038768f";
 const volumeName = "merit-playwright-linux-work";
@@ -20,7 +21,7 @@ const ensureDockerReady = () => {
 };
 
 const readExpectedPnpm = (): string => {
-  const pkgPath = join(root, "package.json");
+  const pkgPath = join(REPO_ROOT, "package.json");
   const version = execFileSync(
     process.execPath,
     [
@@ -152,7 +153,7 @@ const main = () => {
       "--rm",
       "--ipc=host",
       "-v",
-      `${root}:/src:ro`,
+      `${REPO_ROOT}:/src:ro`,
       "-v",
       `${volumeName}:/work`,
       "-v",

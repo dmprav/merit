@@ -1,9 +1,9 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { transform } from "oxc-transform-react";
 
+import { REPO_ROOT } from "../paths.ts";
 import { reactCompilerOptions } from "../react-compiler.ts";
 
 export interface ReactCompilerCheckOptions {
@@ -19,7 +19,6 @@ export interface ReactCompilerCheckResult {
   summary: string;
 }
 
-const defaultRepoRoot = fileURLToPath(new URL("../../", import.meta.url));
 const roots = ["app/src", "interfaces", "capabilities", "foundation"];
 const skippedDirs = new Set(["node_modules", "dist", ".git"]);
 
@@ -55,7 +54,7 @@ const discoverFiles = (repoRoot: string) => {
 };
 
 export const checkReactCompiler = async ({
-  repoRoot = defaultRepoRoot,
+  repoRoot = REPO_ROOT,
   files = discoverFiles(repoRoot),
 }: ReactCompilerCheckOptions = {}): Promise<ReactCompilerCheckResult> => {
   if (files.length === 0) {

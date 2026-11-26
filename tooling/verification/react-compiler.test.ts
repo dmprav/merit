@@ -2,14 +2,13 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { expect, it } from "vite-plus/test";
 
+import { REPO_ROOT } from "../paths.ts";
 import { checkReactCompiler } from "./react-compiler.ts";
 
-const repoRoot = fileURLToPath(new URL("../../", import.meta.url));
-const script = join(repoRoot, "tooling/verification/react-compiler.ts");
+const script = join(REPO_ROOT, "tooling/verification/react-compiler.ts");
 
 const withFixture = async (
   files: Record<string, string>,

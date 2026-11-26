@@ -11,11 +11,11 @@ import {
   writeFileSync,
 } from "node:fs";
 import { basename, dirname, join, resolve, sep } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { z } from "zod";
 
 import { errorMessage, parseCliArgs, parseWholeNumber, stripLeadingSeparator } from "../cli.ts";
+import { REPO_ROOT } from "../paths.ts";
 import { type FileLockOptions, getErrnoCode, withFileLock } from "./file-lock.ts";
 
 export const LEDGER_SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -35,7 +35,6 @@ export const LEDGER_COLUMNS = [
 
 export const LEDGER_HEADER = LEDGER_COLUMNS.join("\t");
 
-const DEFAULT_REPO_ROOT = resolve(fileURLToPath(new URL("../../", import.meta.url)));
 const FORMULA_PREFIX_PATTERN = /^[=+\-@"]/;
 const NON_WHITESPACE_TOKEN_PATTERN = /^\S+$/;
 const MAX_SYMLINK_HOPS = 40;
@@ -317,7 +316,7 @@ const canonicalizeLedgerPath = (targetPath: string, depth = 0): string => {
   }
 };
 
-export const ledgerPathForSlug = (slug: string, repoRoot = DEFAULT_REPO_ROOT): string =>
+export const ledgerPathForSlug = (slug: string, repoRoot = REPO_ROOT): string =>
   join(repoRoot, ".tmp", "ledgers", `${validateLedgerSlug(slug)}.tsv`);
 
 const rejectReservedLockPath = (filePath: string, rawFile: string): string => {
@@ -332,7 +331,7 @@ const rejectReservedLockPath = (filePath: string, rawFile: string): string => {
 export const resolveLedgerFilePath = ({
   slug,
   file,
-  repoRoot = DEFAULT_REPO_ROOT,
+  repoRoot = REPO_ROOT,
   cwd = process.cwd(),
 }: {
   slug?: string;
@@ -610,7 +609,7 @@ export const tailLedger = ({
   slug,
   file,
   limit = DEFAULT_TAIL_LIMIT,
-  repoRoot = DEFAULT_REPO_ROOT,
+  repoRoot = REPO_ROOT,
   cwd = process.cwd(),
 }: {
   slug?: string;
@@ -654,7 +653,7 @@ const formatDecisionBullet = (entry: LedgerEntry): string => {
 export const summarizeLedger = ({
   slug,
   file,
-  repoRoot = DEFAULT_REPO_ROOT,
+  repoRoot = REPO_ROOT,
   cwd = process.cwd(),
 }: {
   slug?: string;
@@ -929,7 +928,7 @@ export const executeLedgerCli = async (
 
 const runCli = async () => {
   const output = await executeLedgerCli(process.argv.slice(2), {
-    repoRoot: DEFAULT_REPO_ROOT,
+    repoRoot: REPO_ROOT,
     cwd: process.cwd(),
   });
   console.log(output);

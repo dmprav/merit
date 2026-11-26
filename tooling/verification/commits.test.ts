@@ -1,17 +1,16 @@
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { expect, it } from "vite-plus/test";
 
+import { REPO_ROOT } from "../paths.ts";
 import { runProcess, type ProcessResult } from "../testing/process";
 
-const root = fileURLToPath(new URL("../../", import.meta.url));
-const commitlint = join(root, "node_modules/.bin/commitlint");
+const commitlint = join(REPO_ROOT, "node_modules/.bin/commitlint");
 
 const runCommand = (command: string, args: string[], env?: NodeJS.ProcessEnv) =>
-  runProcess(command, args, { cwd: root, timeoutMs: 15_000, env });
+  runProcess(command, args, { cwd: REPO_ROOT, timeoutMs: 15_000, env });
 
 const checkWith = async (message: string, runner: (path: string) => Promise<ProcessResult>) => {
   const directory = mkdtempSync(join(tmpdir(), "merit-commits-"));
@@ -27,9 +26,9 @@ const checkWith = async (message: string, runner: (path: string) => Promise<Proc
 
 const checkHook = (message: string) =>
   checkWith(message, (path) =>
-    runCommand("sh", [join(root, ".vite-hooks/commit-msg"), path], {
+    runCommand("sh", [join(REPO_ROOT, ".vite-hooks/commit-msg"), path], {
       ...process.env,
-      PATH: `${join(root, "node_modules/.bin")}:${process.env.PATH}`,
+      PATH: `${join(REPO_ROOT, "node_modules/.bin")}:${process.env.PATH}`,
     }),
   );
 

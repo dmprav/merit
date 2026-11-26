@@ -1,12 +1,11 @@
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { z } from "zod";
 
 import { parseCliArgs, parseWholeNumber, stripLeadingSeparator } from "../cli.ts";
+import { REPO_ROOT } from "../paths.ts";
 import {
   extractLinkedIssueNumbers,
   TRUSTED_AUTHOR_ASSOCIATIONS,
@@ -1041,17 +1040,16 @@ const applyQueueOrder = (repoRoot: string, repo: RepoIdentity, order: QueueWorkO
 };
 
 const runCli = () => {
-  const repoRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
   const parsed = parseQueueArgs(process.argv.slice(2));
-  const repo = getRepoIdentity(repoRoot);
+  const repo = getRepoIdentity(REPO_ROOT);
 
   if (parsed.command === "next") {
     const order = selectNextWork({
-      openAgentPrs: fetchOpenAgentPrs(repoRoot, repo),
-      readyIssues: fetchReadyIssues(repoRoot, repo),
+      openAgentPrs: fetchOpenAgentPrs(REPO_ROOT, repo),
+      readyIssues: fetchReadyIssues(REPO_ROOT, repo),
     });
     if (parsed.apply) {
-      applyQueueOrder(repoRoot, repo, order);
+      applyQueueOrder(REPO_ROOT, repo, order);
     }
     console.log(JSON.stringify(order, null, 2));
     return;
@@ -1060,9 +1058,9 @@ const runCli = () => {
   if (parsed.command === "issue") {
     const { issueNumber } = parsed;
     const issue = restIssueItemSchema.parse(
-      ghApiJson(repoRoot, [`repos/${repo.owner}/${repo.name}/issues/${issueNumber}`]),
+      ghApiJson(REPO_ROOT, [`repos/${repo.owner}/${repo.name}/issues/${issueNumber}`]),
     );
-    const comments = issue.comments > 0 ? fetchIssueComments(repoRoot, repo, issueNumber) : [];
+    const comments = issue.comments > 0 ? fetchIssueComments(REPO_ROOT, repo, issueNumber) : [];
     console.log(
       JSON.stringify(
         {
@@ -1084,7 +1082,7 @@ const runCli = () => {
     const { issueNumber, renewRunId } = parsed;
     const now = Date.now();
     const existingOwner = findEarliestActiveClaimRunId(
-      fetchIssueComments(repoRoot, repo, issueNumber),
+      fetchIssueComments(REPO_ROOT, repo, issueNumber),
       now,
     );
     if (renewRunId !== undefined) {
@@ -1106,10 +1104,10 @@ const runCli = () => {
       claimedAt: new Date(now).toISOString(),
       expiresAt: new Date(now + CLAIM_TTL_MS).toISOString(),
     });
-    postIssueComment(repoRoot, repo, issueNumber, formatClaimComment(claim));
+    postIssueComment(REPO_ROOT, repo, issueNumber, formatClaimComment(claim));
 
     const winnerAfterWrite = findEarliestActiveClaimRunId(
-      fetchIssueComments(repoRoot, repo, issueNumber),
+      fetchIssueComments(REPO_ROOT, repo, issueNumber),
       Date.now(),
     );
     if (winnerAfterWrite !== claim.runId) {
@@ -1134,14 +1132,14 @@ const runCli = () => {
     const existingPrs = z
       .array(restCreatedPrSchema)
       .parse(
-        ghApiJson(repoRoot, [
+        ghApiJson(REPO_ROOT, [
           `repos/${repo.owner}/${repo.name}/pulls?state=open&head=${encodeURIComponent(`${repo.owner}:${head}`)}&base=${encodeURIComponent(base)}&per_page=10`,
         ]),
       );
     const pr =
       existingPrs[0] ??
       restCreatedPrSchema.parse(
-        ghApiJson(repoRoot, [
+        ghApiJson(REPO_ROOT, [
           `repos/${repo.owner}/${repo.name}/pulls`,
           "-X",
           "POST",
@@ -1156,7 +1154,7 @@ const runCli = () => {
         ]),
       );
     try {
-      addIssueLabels(repoRoot, repo, pr.number, ["agent:pr"]);
+      addIssueLabels(REPO_ROOT, repo, pr.number, ["agent:pr"]);
     } catch (error) {
       console.error(
         JSON.stringify({
@@ -1181,15 +1179,15 @@ const runCli = () => {
 
   if (parsed.command === "escalate") {
     const { targetNumber, reason } = parsed;
-    addIssueLabels(repoRoot, repo, targetNumber, ["agent:needs-human"]);
-    postIssueComment(repoRoot, repo, targetNumber, `Escalating to human: ${reason}`);
+    addIssueLabels(REPO_ROOT, repo, targetNumber, ["agent:needs-human"]);
+    postIssueComment(REPO_ROOT, repo, targetNumber, `Escalating to human: ${reason}`);
     console.log(JSON.stringify({ status: "escalated", number: targetNumber }));
     return;
   }
 
   if (parsed.command === "record-shepherd") {
     const { prNumber, ifUninitialized, ...updates } = parsed;
-    const comments = fetchIssueComments(repoRoot, repo, prNumber);
+    const comments = fetchIssueComments(REPO_ROOT, repo, prNumber);
     const previous = parseAgentPrState(comments);
     if (ifUninitialized && hasAgentPrState(comments)) {
       console.log(JSON.stringify({ status: "already_initialized", prNumber, state: previous }));
@@ -1201,18 +1199,18 @@ const runCli = () => {
       ...(updates.sha ? { lastHeadSha: updates.sha } : {}),
       ...(updates.issueNumber !== undefined ? { issueNumber: updates.issueNumber } : {}),
     });
-    postIssueComment(repoRoot, repo, prNumber, formatAgentPrStateComment(state));
+    postIssueComment(REPO_ROOT, repo, prNumber, formatAgentPrStateComment(state));
     console.log(JSON.stringify({ status: "recorded", prNumber, state }));
     return;
   }
 
   if (parsed.command === "threads") {
-    console.log(JSON.stringify(fetchUnaddressedThreads(repoRoot, repo, parsed.prNumber), null, 2));
+    console.log(JSON.stringify(fetchUnaddressedThreads(REPO_ROOT, repo, parsed.prNumber), null, 2));
     return;
   }
 
   const { prNumber, commentId, body } = parsed;
-  ghApiJson(repoRoot, [
+  ghApiJson(REPO_ROOT, [
     `repos/${repo.owner}/${repo.name}/pulls/${prNumber}/comments/${commentId}/replies`,
     "-X",
     "POST",

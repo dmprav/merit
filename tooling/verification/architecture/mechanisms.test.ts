@@ -2,10 +2,10 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { expect, it } from "vite-plus/test";
 
+import { REPO_ROOT } from "../../paths.ts";
 import {
   classifyChangedPaths,
   formatMechanismReport,
@@ -19,8 +19,6 @@ import {
   MECHANISMS,
   type Mechanism,
 } from "./mechanisms.config";
-
-const repoRoot = fileURLToPath(new URL("../../..", import.meta.url));
 
 const withTempRepo = (files: Record<string, string>, run: (dir: string) => void) => {
   const dir = mkdtempSync(join(tmpdir(), "merit-mechanisms-"));
@@ -48,12 +46,12 @@ const sampleMechanism = (overrides: Partial<Mechanism> = {}): Mechanism => ({
 });
 
 it("validates the repository mechanism map against files, anchors, and active decisions", () => {
-  expect(validateMechanismMap(MECHANISMS, repoRoot)).toEqual([]);
+  expect(validateMechanismMap(MECHANISMS, REPO_ROOT)).toEqual([]);
 });
 
 it("passes the CLI --check command on the repository", () => {
   const result = spawnSync("vpx", ["tooling/verification/architecture/mechanisms.ts", "--check"], {
-    cwd: repoRoot,
+    cwd: REPO_ROOT,
     encoding: "utf8",
     timeout: 20_000,
   });

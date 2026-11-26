@@ -1,11 +1,11 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { matchesGlob, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { z } from "zod";
 
 import { errorMessage, normalizeRepoPath, parseCliArgs, parseWholeNumber } from "../cli.ts";
+import { REPO_ROOT } from "../paths.ts";
 import { parseProposalMarker, TRUSTED_AUTHOR_ASSOCIATIONS } from "../verification/agent-policy.ts";
 import { classifyChangedPaths } from "../verification/architecture/mechanisms.ts";
 import { MAX_OPEN_PROPOSALS, runScoutGh, SCOUT_LENSES, type ScoutLens } from "./proposal.ts";
@@ -1583,15 +1583,14 @@ const runAdvanceCommand = (
 };
 
 const runCli = () => {
-  const repoRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
   const [command, ...rest] = process.argv.slice(2);
 
   if (command === "context") {
-    runContextCommand(repoRoot, parseContextArgs(rest));
+    runContextCommand(REPO_ROOT, parseContextArgs(rest));
     return;
   }
   if (command === "advance") {
-    runAdvanceCommand(repoRoot, parseAdvanceArgs(rest));
+    runAdvanceCommand(REPO_ROOT, parseAdvanceArgs(rest));
     return;
   }
   throw new Error(`Unknown scout command "${command ?? ""}". Expected "context" or "advance".`);

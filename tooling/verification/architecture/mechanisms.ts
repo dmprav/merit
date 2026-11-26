@@ -1,9 +1,9 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, globSync, readFileSync, statSync } from "node:fs";
-import { join, matchesGlob, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join, matchesGlob } from "node:path";
 
 import { normalizeRepoPath, parseCliArgs } from "../../cli.ts";
+import { REPO_ROOT } from "../../paths.ts";
 import {
   MAX_INVARIANT_LENGTH,
   MAX_INVARIANTS_PER_MECHANISM,
@@ -329,10 +329,9 @@ const runCheck = (repoRoot: string) => {
 };
 
 const runCli = () => {
-  const repoRoot = resolve(fileURLToPath(new URL("../../..", import.meta.url)));
   const command = parseMechanismArgs(process.argv.slice(2));
   if (command.mode === "check") {
-    runCheck(repoRoot);
+    runCheck(REPO_ROOT);
     return;
   }
 
@@ -340,7 +339,7 @@ const runCli = () => {
     command.mode === "paths"
       ? command.paths
       : execFileSync("git", ["diff", "--name-only", `${command.base}...${command.head}`], {
-          cwd: repoRoot,
+          cwd: REPO_ROOT,
           encoding: "utf8",
         })
           .split(/\r?\n/)

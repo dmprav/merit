@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { parseEnv } from "node:util";
 
 import { loadRepoEnvLocal } from "../env.ts";
+import { REPO_ROOT } from "../paths.ts";
 import {
   DEFAULT_COMPOSE_DATABASE_URL,
   hasLocalConnectionOverride,
@@ -75,7 +76,7 @@ export const resolveResetTarget = (
 };
 
 export const resetLocalDatabase = async ({
-  cwd = new URL("../../", import.meta.url),
+  cwd = REPO_ROOT,
   env = process.env,
   isLinkedWorktree = isLinkedGitWorktree(cwd),
   worktreeDatabaseUrl,
@@ -130,12 +131,11 @@ const readEnvLocalDatabaseUrl = (repoRoot: string): string | undefined => {
 };
 
 const runCli = async () => {
-  const repoRoot = resolve(fileURLToPath(new URL("../../", import.meta.url)));
-  loadRepoEnvLocal(repoRoot);
+  loadRepoEnvLocal(REPO_ROOT);
   await resetLocalDatabase({
-    cwd: new URL("../../", import.meta.url),
+    cwd: REPO_ROOT,
     env: process.env,
-    worktreeDatabaseUrl: readEnvLocalDatabaseUrl(repoRoot),
+    worktreeDatabaseUrl: readEnvLocalDatabaseUrl(REPO_ROOT),
   });
 };
 

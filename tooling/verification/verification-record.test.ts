@@ -2,10 +2,10 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { describe, expect, test } from "vite-plus/test";
 
+import { REPO_ROOT } from "../paths.ts";
 import {
   checkRecordContent,
   checkVerificationRecord,
@@ -15,8 +15,6 @@ import {
   RECORD_DIRECTORY,
   type ChangedFile,
 } from "./verification-record.ts";
-
-const repoRoot = fileURLToPath(new URL("../..", import.meta.url));
 
 const completeRecord = `# Verification record
 
@@ -253,7 +251,7 @@ describe("verification record", () => {
   test("keeps records out of repository search", () => {
     // Ripgrep-based search reads .ignore, so agents searching for guidance skip
     // records while git, formatting, and secret scanning still include them.
-    const ignored = readFileSync(`${repoRoot}/.ignore`, "utf8").split(/\r?\n/);
+    const ignored = readFileSync(`${REPO_ROOT}/.ignore`, "utf8").split(/\r?\n/);
     expect(ignored).toContain(`${RECORD_DIRECTORY}/`);
   });
 });

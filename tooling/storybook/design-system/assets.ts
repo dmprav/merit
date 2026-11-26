@@ -7,7 +7,9 @@ import type { LucideProps } from "lucide-react";
 import { createElement, type ComponentType } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
-const uiSource = path.resolve(import.meta.dirname, "../../../foundation/ui/src");
+import { REPO_ROOT } from "../../paths.ts";
+
+const uiSource = path.join(REPO_ROOT, "foundation/ui/src");
 const requireFromUi = createRequire(path.join(uiSource, "../package.json"));
 
 /** Maps each Icon name to its Lucide module, as icon-base.tsx declares them. */

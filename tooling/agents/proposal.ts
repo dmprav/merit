@@ -1,11 +1,10 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { z } from "zod";
 
 import { normalizeRepoPath, parseCliArgs } from "../cli.ts";
+import { REPO_ROOT } from "../paths.ts";
 import {
   ALLOW_PROTECTED_LABEL,
   findProtectedPaths,
@@ -456,7 +455,6 @@ export const parseProposalArgs = (args: readonly string[]): ProposalCliOptions =
 };
 
 const runCli = () => {
-  const repoRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
   const { file: filePath, dryRun, tier2Only } = parseProposalArgs(process.argv.slice(2));
 
   const rawInput = filePath ? readFileSync(filePath, "utf8") : readFileSync(0, "utf8");
@@ -498,7 +496,7 @@ const runCli = () => {
   }
 
   if (classification.targetLabel === "agent:proposed") {
-    const openProposedCount = countOpenProposedIssues(repoRoot);
+    const openProposedCount = countOpenProposedIssues(REPO_ROOT);
     if (isProposalCapReached(openProposedCount)) {
       console.log(
         JSON.stringify({
@@ -511,7 +509,7 @@ const runCli = () => {
     }
   }
 
-  const existingIssues = listExistingIssues(repoRoot);
+  const existingIssues = listExistingIssues(REPO_ROOT);
   const dup = findDuplicateProposal(proposal, existingIssues);
   if (dup.duplicate) {
     console.log(
@@ -528,7 +526,7 @@ const runCli = () => {
   for (const label of labels) {
     ghArgs.push("--label", label);
   }
-  const url = runScoutGh(repoRoot, ghArgs).trim();
+  const url = runScoutGh(REPO_ROOT, ghArgs).trim();
   console.log(
     JSON.stringify({
       status: "created",

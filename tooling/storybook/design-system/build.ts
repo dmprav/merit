@@ -2,21 +2,21 @@ import { execFileSync } from "node:child_process";
 import { cp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
+import { REPO_ROOT } from "../../paths.ts";
 import { buildIcons, buildMark } from "./assets";
 import { buildDeclarations, buildLibrary } from "./bundle";
 import { collectFonts } from "./fonts";
 import { buildTokens, cssOnlyProperties, parseTokenMeta } from "./tokens";
 
 const here = import.meta.dirname;
-const root = path.resolve(here, "../../..");
-const foundations = path.join(root, "foundation/ui/src/foundations");
+const foundations = path.join(REPO_ROOT, "foundation/ui/src/foundations");
 const output = path.resolve(process.argv[2] ?? path.join(here, "dist"));
 const project = path.join(output, "project");
 const components = path.join(project, "components");
 const cards = path.join(here, "content/cards");
 
 const git = (...args: string[]) =>
-  execFileSync("git", args, { cwd: root, encoding: "utf8" }).trim();
+  execFileSync("git", args, { cwd: REPO_ROOT, encoding: "utf8" }).trim();
 
 /** Card folders in catalog order: components, then patterns, each alphabetical. */
 const cardNames = async () => {
