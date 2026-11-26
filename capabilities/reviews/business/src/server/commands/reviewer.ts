@@ -24,6 +24,7 @@ import {
   decideInvitation,
   decideManagerAction,
   decideParticipation,
+  decideReviewerWork,
   emptyReviewerDraft,
   isInvitationExpired,
   resumptionProblem,
@@ -259,6 +260,17 @@ export const respondToReview = async (
   });
 };
 
+/** The decision the reviewer read reports, from facts read inside the write's transaction. */
+const currentReviewerWork = async (
+  tx: Transaction,
+  record: { assignment: { id: string; caseId: string } },
+  userId: string,
+) =>
+  decideReviewerWork({
+    permitted: await permittedReviewerWork(tx, record.assignment.id, userId),
+    withdrawn: await readCaseWithdrawn(tx, record.assignment.caseId),
+  });
+
 export const saveReviewerDraft = async (
   db: Database,
   actor: Actor,
@@ -272,15 +284,14 @@ export const saveReviewerDraft = async (
   const scope = assignmentScope(actor.userId, request.assignmentId, request.workspaceSlug);
   return writeScoped(db, scope, async (tx) => {
     const record = await lockReviewerAssignment(tx, request.assignmentId);
-    if (
-      !record ||
-      !(await lockActiveReviewer(tx, actor.userId)) ||
-      !(await permittedReviewerWork(tx, request.assignmentId, actor.userId))
-    ) {
+    if (!record || !(await lockActiveReviewer(tx, actor.userId))) {
       return { status: "not_found" };
     }
-    if (await readCaseWithdrawn(tx, record.assignment.caseId)) {
-      return { status: "invalid", error: "application_withdrawn" };
+    const work = await currentReviewerWork(tx, record, actor.userId);
+    if (!work.available) {
+      return work.reason === "application_withdrawn"
+        ? { status: "invalid", error: "application_withdrawn" }
+        : { status: "not_found" };
     }
     const draft = await readPrivateReviewerDraft(tx, request.assignmentId);
     if (!draft) {
@@ -324,18 +335,19 @@ export const submitReviewerAssessment = async (
   return writeObservedWorkspace(db, actor, request, onCommitted, async (tx, changed) => {
     const record = await lockReviewerAssignment(tx, request.assignmentId);
     const user = await lockActiveReviewer(tx, actor.userId);
-    if (
-      !record ||
-      !user ||
-      !(await permittedReviewerWork(tx, request.assignmentId, actor.userId))
-    ) {
+    if (!record || !user) {
       return { status: "not_found" };
     }
+    const work = await currentReviewerWork(tx, record, actor.userId);
+    if (!work.available && work.reason === "action_unavailable") {
+      return { status: "not_found" };
+    }
+    // A confirmed submission is replayed even if the application was withdrawn since.
     const receipt = await reviewerReceipt(tx, request.assignmentId, request.commandId);
     if (receipt) {
       return { status: "ok", value: { revision: receipt.resultRevision } };
     }
-    if (await readCaseWithdrawn(tx, record.assignment.caseId)) {
+    if (!work.available) {
       return { status: "invalid", error: "application_withdrawn" };
     }
     const assignment = record.assignment;

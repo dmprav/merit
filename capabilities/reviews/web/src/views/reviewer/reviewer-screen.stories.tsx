@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { expect, within } from "storybook/test";
+import { within } from "storybook/test";
 
 import type { ReviewerPage } from "@merit/reviews/api";
 
@@ -172,13 +172,6 @@ withdrawnApplication.work = { available: false, reason: "application_withdrawn" 
 /** A withdrawn application keeps the submitted assessment readable and offers no change to it. */
 export const WithdrawnApplication: Story = {
   args: { initial: withdrawnApplication, session: { amending: true } },
-  play: async ({ canvas }) => {
-    await canvas.findByText(/This application was withdrawn/);
-    await expect(canvas.getByRole("region", { name: "Your assessment" })).toBeVisible();
-    await expect(canvas.queryByRole("button", { name: "Resume amendment" })).toBeNull();
-    await expect(canvas.queryByRole("button", { name: "More actions" })).toBeNull();
-    await expect(canvas.queryByRole("textbox", { name: /Overall reasoning/ })).toBeNull();
-  },
 };
 
 export const AccessEnded: Story = {

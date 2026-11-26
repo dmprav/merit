@@ -16,6 +16,7 @@ import { Disclosure } from "@merit/ui/disclosure";
 import { Divider } from "@merit/ui/divider";
 import { Icon } from "@merit/ui/icon";
 import { Inline, Reading, Stack } from "@merit/ui/layout";
+import { Link } from "@merit/ui/link";
 import { MoneyField } from "@merit/ui/money-field";
 import { Notice } from "@merit/ui/notice";
 import { WorkPane } from "@merit/ui/reference-workspace";
@@ -74,18 +75,34 @@ export const ReviewerAssessment = ({ work }: { work: ReviewerWork }) => {
       }
     >
       <SubmissionConfirmation page={page} />
-      {/* Access that ends removes the material, so only withdrawal explains itself here. */}
-      {!page.work.available && page.work.reason === "application_withdrawn" && (
-        <Notice tone="neutral">{t("withdrawnReadOnly")}</Notice>
-      )}
       <div ref={form}>
         <Stack gap={5}>
+          <WithdrawnNotice page={page} />
           {writing ? <ReviewerDraftForm work={work} /> : <SubmittedAssessment work={work} />}
           <EarlierVersions page={page} />
           <RetainedDraft work={work} />
         </Stack>
       </div>
     </WorkPane>
+  );
+};
+
+/** Access that ends removes the material, so only withdrawal explains itself in this pane. */
+const WithdrawnNotice = ({ page }: { page: ReviewerPage }) => {
+  const { t } = useTranslation("reviewer");
+  if (page.work.available || page.work.reason !== "application_withdrawn") {
+    return null;
+  }
+  const { managerEmail, managerName } = page.assignment;
+  return (
+    <Notice
+      tone="neutral"
+      actions={
+        <Link href={`mailto:${managerEmail}`}>{t("contactManager", { name: managerName })}</Link>
+      }
+    >
+      {t("withdrawnReadOnly")}
+    </Notice>
   );
 };
 

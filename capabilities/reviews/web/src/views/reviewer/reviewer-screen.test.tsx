@@ -280,6 +280,10 @@ it("keeps a submitted assessment readable but offers no change after withdrawal"
 
   const assessment = within(screen.getByRole("region", { name: "Your assessment" }));
   expect(assessment.getByText(/^This application was withdrawn/)).toBeVisible();
+  expect(assessment.getByRole("link", { name: "Contact Dana Reed" })).toHaveAttribute(
+    "href",
+    "mailto:dana@example.test",
+  );
   expect(assessment.getByText(/^The free venue/)).toBeVisible();
   expect(screen.getByRole("region", { name: "Application material" })).toBeVisible();
   expect(screen.queryByRole("button", { name: "Amend assessment" })).not.toBeInTheDocument();

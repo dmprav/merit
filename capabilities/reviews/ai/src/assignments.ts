@@ -62,7 +62,7 @@ export const reviewerPageSchema = z.object({
     .nullable(),
   assessment: reviewStateSchema.shape.assessments.element.nullable(),
   work: reviewerWorkSchema.describe(
-    "Whether save_reviewer_draft and submit_reviewer_assessment can succeed now. When available is false, reason says why: action_unavailable until the assignment is accepted or while access is paused or ended, application_withdrawn while the application is withdrawn. Writes check again when they commit.",
+    "Whether save_reviewer_draft and submit_reviewer_assessment can succeed now. When available is false, reason says why: action_unavailable until the assignment is accepted or while access is paused or ended; application_withdrawn while the application is withdrawn, which also refuses every respond_to_review action. Writes check again when they commit.",
   ),
 });
 export const reviewerRevisionSchema = z.object({
