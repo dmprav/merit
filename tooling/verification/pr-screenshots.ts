@@ -276,8 +276,34 @@ const copyOtherPrDirs = (sourceDir: string, targetDir: string, excludeDirName: s
 };
 
 /**
+ * Inspects whether `branch` exists on `remoteUrl` using `git ls-remote`.
+ * Throws on transport/auth errors instead of misclassifying them as a missing branch.
+ */
+const inspectRemoteBranchSha = (
+  cwd: string,
+  remoteUrl: string,
+  branch: string,
+  extraEnv?: Readonly<Record<string, string>>,
+): string | null => {
+  const output = runGit(cwd, ["ls-remote", "--heads", remoteUrl, `refs/heads/${branch}`], extraEnv);
+  const firstLine = output
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find(Boolean);
+  if (!firstLine) {
+    return null;
+  }
+  const sha = firstLine.split(/\s+/u)[0] ?? "";
+  if (!/^[0-9a-f]{40}$/iu.test(sha)) {
+    throw new Error(`Unexpected ls-remote output for ${branch}: ${firstLine}`);
+  }
+  return sha;
+};
+
+/**
  * Publishes `pr-<prNumber>/*.png` to a single squashed orphan commit on `branch`
  * so PNG history never accumulates across pushes while preserving other open PRs' directories.
+ * Uses `--force-with-lease` against the observed remote SHA so concurrent PR jobs retry cleanly.
  */
 export const publishScreenshotsToOrphanBranch = ({
   remoteUrl,
@@ -293,6 +319,7 @@ export const publishScreenshotsToOrphanBranch = ({
   token?: string;
 }): { commitSha: string } => {
   const prDirName = `pr-${prNumber}`;
+  let lastError: unknown;
 
   for (let attempt = 1; attempt <= MAX_PUSH_RETRIES; attempt += 1) {
     const workDir = mkdtempSync(join(tmpdir(), "merit-pr-shots-"));
@@ -302,8 +329,10 @@ export const publishScreenshotsToOrphanBranch = ({
       const authEnv = createGitAuthEnv(workDir, token);
       runGit(workDir, ["init", "--quiet", existingDir]);
       runGit(existingDir, ["remote", "add", "origin", remoteUrl]);
-      const hadBranch = tryGit(existingDir, ["fetch", "--depth=1", "origin", branch], authEnv);
-      if (hadBranch) {
+
+      const remoteSha = inspectRemoteBranchSha(existingDir, remoteUrl, branch, authEnv);
+      if (remoteSha) {
+        runGit(existingDir, ["fetch", "--depth=1", "origin", remoteSha], authEnv);
         runGit(existingDir, ["checkout", "--quiet", "FETCH_HEAD"]);
       }
 
@@ -312,7 +341,7 @@ export const publishScreenshotsToOrphanBranch = ({
       runGit(nextDir, ["remote", "add", "origin", remoteUrl]);
       runGit(nextDir, ["checkout", "--quiet", "--orphan", branch]);
 
-      if (hadBranch) {
+      if (remoteSha) {
         copyOtherPrDirs(existingDir, nextDir, prDirName);
       }
 
@@ -325,25 +354,33 @@ export const publishScreenshotsToOrphanBranch = ({
       runGit(nextDir, ["add", "."]);
       runGit(nextDir, ["commit", "--quiet", "-m", `chore(ci): update PR #${prNumber} screenshots`]);
       const commitSha = runGit(nextDir, ["rev-parse", "HEAD"]).trim();
-      if (tryGit(nextDir, ["push", "--force", "origin", `HEAD:refs/heads/${branch}`], authEnv)) {
+      const lease = `refs/heads/${branch}:${remoteSha ?? ""}`;
+      if (
+        tryGit(
+          nextDir,
+          ["push", `--force-with-lease=${lease}`, "origin", `HEAD:refs/heads/${branch}`],
+          authEnv,
+        )
+      ) {
         return { commitSha };
       }
-      if (attempt === MAX_PUSH_RETRIES) {
-        throw new Error(
-          `Failed to push screenshots to ${branch} after ${MAX_PUSH_RETRIES} attempts.`,
-        );
-      }
+      lastError = new Error(`Leased push rejected for ${branch} (attempt ${attempt}).`);
+    } catch (error) {
+      lastError = error;
     } finally {
       rmSync(workDir, { recursive: true, force: true });
     }
   }
 
-  throw new Error(`Failed to push screenshots to ${branch}.`);
+  throw new Error(
+    `Failed to push screenshots to ${branch} after ${MAX_PUSH_RETRIES} attempts: ${lastError instanceof Error ? lastError.message : String(lastError)}`,
+  );
 };
 
 /**
  * Removes `pr-<prNumber>/` from the squashed orphan screenshot branch when a PR closes,
  * deleting the branch entirely if no open PR screenshot directories remain.
+ * Uses `--force-with-lease` against the observed remote SHA so concurrent publishes are never clobbered.
  */
 export const cleanupPrScreenshotsFromOrphanBranch = ({
   remoteUrl,
@@ -357,6 +394,7 @@ export const cleanupPrScreenshotsFromOrphanBranch = ({
   token?: string;
 }): { action: "noop" | "updated" | "deleted" } => {
   const prDirName = `pr-${prNumber}`;
+  let lastError: unknown;
 
   for (let attempt = 1; attempt <= MAX_PUSH_RETRIES; attempt += 1) {
     const workDir = mkdtempSync(join(tmpdir(), "merit-pr-shots-clean-"));
@@ -366,9 +404,12 @@ export const cleanupPrScreenshotsFromOrphanBranch = ({
       const authEnv = createGitAuthEnv(workDir, token);
       runGit(workDir, ["init", "--quiet", existingDir]);
       runGit(existingDir, ["remote", "add", "origin", remoteUrl]);
-      if (!tryGit(existingDir, ["fetch", "--depth=1", "origin", branch], authEnv)) {
+
+      const remoteSha = inspectRemoteBranchSha(existingDir, remoteUrl, branch, authEnv);
+      if (!remoteSha) {
         return { action: "noop" };
       }
+      runGit(existingDir, ["fetch", "--depth=1", "origin", remoteSha], authEnv);
       runGit(existingDir, ["checkout", "--quiet", "FETCH_HEAD"]);
 
       if (!existsSync(join(existingDir, prDirName))) {
@@ -381,9 +422,16 @@ export const cleanupPrScreenshotsFromOrphanBranch = ({
       runGit(nextDir, ["checkout", "--quiet", "--orphan", branch]);
       copyOtherPrDirs(existingDir, nextDir, prDirName);
 
+      const lease = `refs/heads/${branch}:${remoteSha}`;
       const remaining = readdirSync(nextDir).filter((name) => name.startsWith("pr-"));
       if (remaining.length === 0) {
-        if (tryGit(nextDir, ["push", "origin", "--delete", branch], authEnv)) {
+        if (
+          tryGit(
+            nextDir,
+            ["push", `--force-with-lease=${lease}`, "origin", `:refs/heads/${branch}`],
+            authEnv,
+          )
+        ) {
           return { action: "deleted" };
         }
       } else {
@@ -394,20 +442,27 @@ export const cleanupPrScreenshotsFromOrphanBranch = ({
           "-m",
           `chore(ci): remove PR #${prNumber} screenshots`,
         ]);
-        if (tryGit(nextDir, ["push", "--force", "origin", `HEAD:refs/heads/${branch}`], authEnv)) {
+        if (
+          tryGit(
+            nextDir,
+            ["push", `--force-with-lease=${lease}`, "origin", `HEAD:refs/heads/${branch}`],
+            authEnv,
+          )
+        ) {
           return { action: "updated" };
         }
       }
-
-      if (attempt === MAX_PUSH_RETRIES) {
-        throw new Error(`Failed to clean screenshots for PR #${prNumber} on ${branch}.`);
-      }
+      lastError = new Error(`Leased cleanup push rejected for ${branch} (attempt ${attempt}).`);
+    } catch (error) {
+      lastError = error;
     } finally {
       rmSync(workDir, { recursive: true, force: true });
     }
   }
 
-  return { action: "noop" };
+  throw new Error(
+    `Failed to clean screenshots for PR #${prNumber} on ${branch}: ${lastError instanceof Error ? lastError.message : String(lastError)}`,
+  );
 };
 
 const resolveRemoteUrl = (repoRoot: string): string => {
@@ -450,6 +505,42 @@ const runSelectCli = (repoRoot: string, args: readonly string[]) => {
   );
 };
 
+/**
+ * Filters `ui:verify` targets to desktop story screenshots whose exact `target` ID
+ * appears in `selectedStoryIds` (when supplied), preventing substring matches from
+ * exceeding the screenshot cap.
+ */
+export const filterSelectedDesktopTargets = <
+  T extends {
+    kind: "story" | "route";
+    target: string;
+    viewport: "desktop" | "mobile";
+    screenshot: string | null;
+  },
+>(
+  targets: readonly T[],
+  selectedStoryIds?: readonly string[],
+): T[] => {
+  const allowed =
+    selectedStoryIds && selectedStoryIds.length > 0 ? new Set(selectedStoryIds) : null;
+  const filtered = targets.filter(
+    (item) =>
+      item.kind === "story" &&
+      item.viewport === "desktop" &&
+      Boolean(item.screenshot) &&
+      (!allowed || allowed.has(item.target)),
+  );
+  if (!selectedStoryIds || selectedStoryIds.length === 0) {
+    return filtered;
+  }
+  const order = new Map(selectedStoryIds.map((id, idx) => [id, idx]));
+  return [...filtered].sort(
+    (a, b) =>
+      (order.get(a.target) ?? Number.MAX_SAFE_INTEGER) -
+      (order.get(b.target) ?? Number.MAX_SAFE_INTEGER),
+  );
+};
+
 const runPublishCli = (repoRoot: string, args: readonly string[]) => {
   const prRaw = readFlagValue(args, "--pr") ?? process.env.PR_NUMBER;
   const prNumber = prRaw ? Number.parseInt(prRaw, 10) : Number.NaN;
@@ -461,6 +552,13 @@ const runPublishCli = (repoRoot: string, args: readonly string[]) => {
   );
   const outManifest = resolve(repoRoot, readFlagValue(args, "--out-manifest") ?? "");
   const omittedCount = Number.parseInt(readFlagValue(args, "--omitted") ?? "0", 10) || 0;
+  const storyIdsRaw = readFlagValue(args, "--story-ids");
+  const selectedStoryIds = storyIdsRaw
+    ? storyIdsRaw
+        .split(",")
+        .map((id) => id.trim())
+        .filter(Boolean)
+    : undefined;
 
   if (!Number.isInteger(prNumber) || prNumber <= 0 || !repo || !outManifest) {
     throw new Error(
@@ -481,8 +579,8 @@ const runPublishCli = (repoRoot: string, args: readonly string[]) => {
     sourcePath: string;
   }> = [];
 
-  for (const target of results.targets) {
-    if (target.kind !== "story" || target.viewport !== "desktop" || !target.screenshot) {
+  for (const target of filterSelectedDesktopTargets(results.targets, selectedStoryIds)) {
+    if (!target.screenshot) {
       continue;
     }
     const sourcePath = resolve(resultsDir, target.screenshot);

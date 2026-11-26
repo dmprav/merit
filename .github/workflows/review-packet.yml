@@ -99,6 +99,7 @@ jobs:
           manifest="$out_dir/manifest.json"
           vpx tooling/verification/pr-screenshots.ts publish \
             --results "$out_dir/results.json" \
+            --story-ids "$story_ids" \
             --omitted "$omitted" \
             --out-manifest "$manifest"
           vpx tooling/verification/pr-review-packet.ts --post --screenshots-manifest "$manifest"

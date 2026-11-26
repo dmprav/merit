@@ -8,6 +8,7 @@ import { describe, expect, test } from "vite-plus/test";
 import {
   buildScreenshotRawUrl,
   cleanupPrScreenshotsFromOrphanBranch,
+  filterSelectedDesktopTargets,
   publishScreenshotsToOrphanBranch,
   resolveStoryImportPath,
   SCREENSHOT_BRANCH,
@@ -170,6 +171,68 @@ describe("pr-screenshots", () => {
         encoding: "utf8",
       }).trim();
       expect(refs).toBe("");
+    } finally {
+      rmSync(temp, { recursive: true, force: true });
+    }
+  });
+
+  test("filters captured desktop targets to exact selected story IDs in selection order", () => {
+    const targets = [
+      {
+        kind: "story" as const,
+        target: "components-button--default-disabled",
+        viewport: "desktop" as const,
+        screenshot: "screenshots/disabled.png",
+      },
+      {
+        kind: "story" as const,
+        target: "components-button--default",
+        viewport: "desktop" as const,
+        screenshot: "screenshots/default.png",
+      },
+      {
+        kind: "story" as const,
+        target: "components-dialog--open",
+        viewport: "desktop" as const,
+        screenshot: "screenshots/dialog.png",
+      },
+      {
+        kind: "story" as const,
+        target: "components-dialog--open",
+        viewport: "mobile" as const,
+        screenshot: "screenshots/dialog-mobile.png",
+      },
+    ];
+
+    expect(
+      filterSelectedDesktopTargets(targets, [
+        "components-dialog--open",
+        "components-button--default",
+      ]).map((t) => t.target),
+    ).toEqual(["components-dialog--open", "components-button--default"]);
+  });
+
+  test("fails loudly on unreachable remotes instead of misclassifying as a missing branch", () => {
+    const temp = mkdtempSync(join(tmpdir(), "merit-shots-err-"));
+    try {
+      const shot = join(temp, "a.png");
+      writeFileSync(shot, "png-a");
+      const missingRemote = join(temp, "does-not-exist.git");
+
+      expect(() =>
+        publishScreenshotsToOrphanBranch({
+          remoteUrl: missingRemote,
+          prNumber: 10,
+          files: [{ filename: "a.png", sourcePath: shot }],
+        }),
+      ).toThrow(/Failed to push screenshots/);
+
+      expect(() =>
+        cleanupPrScreenshotsFromOrphanBranch({
+          remoteUrl: missingRemote,
+          prNumber: 10,
+        }),
+      ).toThrow(/Failed to clean screenshots/);
     } finally {
       rmSync(temp, { recursive: true, force: true });
     }
