@@ -94,10 +94,11 @@ Choose checks for the part you changed:
 | Check persisted workspace navigation without Clerk                  | `vp run @merit/app#test:workspace`                                    |
 
 Visual comparisons and baseline updates are valid only inside the pinned Playwright image
-(`vp run test:browser:stories:container`, or CI). Host `vp run test:browser:stories` still runs
-`visual.spec.ts`, but its failures there are expected on any OS and are not signal: every other
-test in that run must pass, and the container row checks visual changes. Do not skip a baseline
-for a new story because the host run diffs; see
+(`vp run test:browser:stories:container`, or CI). Every host run that includes the Storybook
+browser suite, such as `vp run test:browser:stories`, `test:browser`, the `:all` variants, and
+`ready`, also runs `visual.spec.ts`; its failures there are expected on any OS and are not
+signal. Every other test in that run must pass; check visual changes with the container row.
+Do not skip a baseline for a new story because the host run diffs; see
 [Review visual changes](ui-verification.md#review-visual-changes).
 
 The application owns the browser compilation: `app/tsconfig.json` includes
@@ -232,12 +233,12 @@ Exercise the base behavior as well as any optional enhancement or fallback.
 The shared [browser projects](../../tooling/testing/browser/config.ts) retain the complete
 matrix for Storybook, the public application, and persisted workspaces:
 
-| Projects            | Coverage                                                                             |
-| ------------------- | ------------------------------------------------------------------------------------ |
-| `desktop`           | Full suites in desktop Chromium, including visual baselines; the short-loop default. |
-| `mobile`            | Full suites in mobile Chromium, including visual baselines.                          |
-| `firefox`, `webkit` | Representative `@cross-browser` checks at desktop width.                             |
-| `webkit-mobile`     | The same representative checks with a narrow, touch viewport.                        |
+| Projects            | Coverage                                                                                               |
+| ------------------- | ------------------------------------------------------------------------------------------------------ |
+| `desktop`           | Full suites in desktop Chromium; visual baselines only in the container or CI; the short-loop default. |
+| `mobile`            | Full suites in mobile Chromium; visual baselines only in the container or CI.                          |
+| `firefox`, `webkit` | Representative `@cross-browser` checks at desktop width.                                               |
+| `webkit-mobile`     | The same representative checks with a narrow, touch viewport.                                          |
 
 The selected checks cover navigation, drafts, saving and reloading, conflicting
 edits, access recovery, responsive tables, enlarged text, confirmation retry, and

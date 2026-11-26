@@ -74,6 +74,10 @@ Choose checks for the behavior you changed:
 | Deterministic UI sweep, a11y, focus, and screenshots    | `vp run ui:verify`                                  |
 | Storybook configuration or packaging                    | `vp run @merit/storybook#build`                     |
 
+`visual.spec.ts` failures in a host `vp run test:browser:stories` run are expected and are not
+signal; every other test must pass. Check visual changes with the container row, per
+[Review visual changes](#review-visual-changes).
+
 Run the suite belonging to the changed code. Capability component tests and
 product integration tests cover different boundaries; the product command does
 not run capability suites. Omit `--project ui` when pure controllers, command
@@ -114,7 +118,8 @@ directories under the operating system's temporary directory.
 The [Storybook configuration](../../tooling/storybook/playwright.config.ts)
 and [application configuration](../../app/tests/browser/playwright.config.ts) use the
 shared [browser projects](verification.md#browser-compatibility). Chromium runs the
-full suites and visual baselines; the `:all` commands also run representative
+full suites, and visual baselines are compared only in the pinned container or CI (see
+[Review visual changes](#review-visual-changes)); the `:all` commands also run representative
 `@cross-browser` checks in Firefox and desktop and mobile WebKit. Story test-addon
 runs remain in Chromium.
 
