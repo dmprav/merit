@@ -18,7 +18,7 @@ import { MAX_TAB_STOPS } from "./focus/traversal.ts";
 import { waitForRenderUpdate } from "./render-update.ts";
 import {
   describeFocus,
-  describeIncompleteTraversal,
+  type AuditedTargetResult,
   type FocusCheckResult,
   type TargetCheckResult,
 } from "./results.ts";
@@ -173,7 +173,7 @@ const auditPassed = (
   audit.axeViolations.length === 0 &&
   browserErrors.length === 0 &&
   focus.failures.length === 0 &&
-  describeIncompleteTraversal(focus) === undefined;
+  focus.traversal.complete;
 
 /** Checks a page that already shows `target`, capturing it to `screenshotPath` when one is given. */
 export const verifyLoadedPage = async ({
@@ -193,7 +193,7 @@ export const verifyLoadedPage = async ({
   browserErrors: BrowserError[];
   screenshotPath: string | null;
   maxTabStops?: number;
-}): Promise<TargetCheckResult> => {
+}): Promise<AuditedTargetResult> => {
   // Capture once the page settles but before measuring: disabling animations fast-forwards them
   // and can fire end handlers that change layout, so the verdict must describe the screenshot.
   const audit = await auditPage(page, undefined, {
@@ -212,6 +212,7 @@ export const verifyLoadedPage = async ({
     name: target.name,
     url,
     viewport,
+    status: "audited",
     passed: auditPassed(audit, errorsCopy, focus),
     screenshot: screenshotPath,
     viteErrorOverlayCount: audit.viteErrorOverlayCount,
@@ -227,7 +228,7 @@ export const verifyLoadedPage = async ({
   };
 };
 
-const describeAudited = (result: TargetCheckResult): string => {
+const describeAudited = (result: AuditedTargetResult): string => {
   const focus = describeFocus(result.focus);
   return `${result.passed ? "PASS" : "FAIL"} [${result.viewport}] ${result.name} (axe:${result.axeViolations.length} overflow:${result.hasHorizontalOverflow ? "yes" : "no"} errors:${result.browserErrors.length} focus:${focus.verdict} (${focus.label}))`;
 };
@@ -283,20 +284,11 @@ const checkTarget = async (
       url: resolvedUrl,
       requestedUrl,
       viewport,
+      status: "errored",
       passed: false,
       // A screenshot captured before the failure survives; a stale one was removed first.
       screenshot: screenshotCleaned && existsSync(screenshotFile) ? screenshotFile : null,
-      // The audit never ran, so its fields are placeholders.
-      viteErrorOverlayCount: 0,
-      bodyVisible: false,
-      dialogsVisible: false,
-      enteringOrExitingCount: 0,
-      scrollWidth: 0,
-      innerWidth: 0,
-      hasHorizontalOverflow: false,
-      axeViolations: [],
       browserErrors,
-      focus: { stopsChecked: 0, reachedCap: false, failures: [] },
       error: message,
     };
   } finally {

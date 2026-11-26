@@ -9,7 +9,7 @@ const summarize = (targets: Parameters<typeof summarizeResults>[0]["targets"]) =
 describe("describeIncompleteTraversal", () => {
   it("describes nothing for a complete traversal", () => {
     expect(
-      describeIncompleteTraversal({ stopsChecked: 3, reachedCap: false, failures: [] }),
+      describeIncompleteTraversal({ stopsChecked: 3, traversal: { complete: true }, failures: [] }),
     ).toBeUndefined();
   });
 
@@ -17,7 +17,7 @@ describe("describeIncompleteTraversal", () => {
     expect(
       describeIncompleteTraversal({
         stopsChecked: 3,
-        reachedCap: true,
+        traversal: { complete: false, reason: "cap" },
         failures: [],
       }),
     ).toBe("Incomplete: >3 stops");
@@ -27,9 +27,7 @@ describe("describeIncompleteTraversal", () => {
     expect(
       describeIncompleteTraversal({
         stopsChecked: 1,
-        reachedCap: false,
-        incompleteReason:
-          "Incomplete: focus entered a cross-origin frame whose controls cannot be inspected",
+        traversal: { complete: false, reason: "opaqueFrame" },
         failures: [],
       }),
     ).toBe("Incomplete: focus entered a cross-origin frame whose controls cannot be inspected");
@@ -39,8 +37,7 @@ describe("describeIncompleteTraversal", () => {
     expect(
       describeIncompleteTraversal({
         stopsChecked: 1,
-        reachedCap: false,
-        incompleteReason: "Incomplete: the page navigated to a new document during focus traversal",
+        traversal: { complete: false, reason: "trackerLost" },
         failures: [],
       }),
     ).toBe("Incomplete: the page navigated to a new document during focus traversal");
@@ -49,17 +46,16 @@ describe("describeIncompleteTraversal", () => {
 
 describe("describeFocus", () => {
   it("passes with the number of stops checked", () => {
-    expect(describeFocus({ stopsChecked: 4, reachedCap: false, failures: [] })).toEqual({
-      verdict: "OK",
-      label: "4",
-    });
+    expect(describeFocus({ stopsChecked: 4, traversal: { complete: true }, failures: [] })).toEqual(
+      { verdict: "OK", label: "4" },
+    );
   });
 
   it("fails with the failed stops out of those checked", () => {
     expect(
       describeFocus({
         stopsChecked: 4,
-        reachedCap: false,
+        traversal: { complete: true },
         failures: [focusFailure(1)],
       }),
     ).toEqual({ verdict: "FAIL", label: "1/4" });
@@ -69,8 +65,7 @@ describe("describeFocus", () => {
     expect(
       describeFocus({
         stopsChecked: 3,
-        reachedCap: true,
-        incompleteReason: "Incomplete: >3 stops",
+        traversal: { complete: false, reason: "cap" },
         failures: [],
       }),
     ).toEqual({ verdict: "FAIL", label: "Incomplete: >3 stops" });
@@ -80,8 +75,7 @@ describe("describeFocus", () => {
     expect(
       describeFocus({
         stopsChecked: 3,
-        reachedCap: true,
-        incompleteReason: "Incomplete: >3 stops",
+        traversal: { complete: false, reason: "cap" },
         failures: [focusFailure(0), focusFailure(2)],
       }),
     ).toEqual({ verdict: "FAIL", label: "2/3; Incomplete: >3 stops" });
@@ -125,8 +119,7 @@ describe("summarizeResults", () => {
         passed: false,
         focus: {
           stopsChecked: 3,
-          reachedCap: true,
-          incompleteReason: "Incomplete: >3 stops",
+          traversal: { complete: false, reason: "cap" },
           failures: [focusFailure(0), focusFailure(1)],
         },
       }),

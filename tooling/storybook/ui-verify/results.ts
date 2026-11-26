@@ -32,14 +32,25 @@ const focusStopFailureSchema = z.object({
   }),
 });
 
+/**
+ * Whether Tab traversal reached every stop. It stops short at the stop cap, when focus enters a
+ * cross-origin frame whose controls cannot be inspected, or when the page replaces its document.
+ */
+const focusTraversalSchema = z.discriminatedUnion("complete", [
+  z.object({ complete: z.literal(true) }),
+  z.object({
+    complete: z.literal(false),
+    reason: z.enum(["cap", "opaqueFrame", "trackerLost"]),
+  }),
+]);
+
 const focusCheckResultSchema = z.object({
   stopsChecked: z.number().int().nonnegative(),
-  reachedCap: z.boolean(),
-  incompleteReason: z.string().optional(),
+  traversal: focusTraversalSchema,
   failures: z.array(focusStopFailureSchema),
 });
 
-const targetCheckResultSchema = z.object({
+const targetIdentity = {
   kind: z.enum(["story", "route"]),
   target: z.string(),
   name: z.string(),
@@ -47,6 +58,11 @@ const targetCheckResultSchema = z.object({
   /** The URL the check requested; `url` differs from it when the target redirected. */
   requestedUrl: z.string().optional(),
   viewport: z.enum(["desktop", "mobile"]),
+};
+
+const auditedTargetSchema = z.object({
+  ...targetIdentity,
+  status: z.literal("audited"),
   passed: z.boolean(),
   screenshot: z.string().nullable(),
   viteErrorOverlayCount: z.number().int().nonnegative(),
@@ -59,11 +75,25 @@ const targetCheckResultSchema = z.object({
   axeViolations: z.array(axeViolationSchema),
   browserErrors: z.array(browserErrorSchema),
   focus: focusCheckResultSchema,
-  /** Set when the target failed before its audit; audit and focus fields are then placeholders. */
-  error: z.string().optional(),
 });
 
-const RESULTS_SCHEMA_VERSION = 1;
+/** A target that failed before its checks ran, so it has no audit or focus results. */
+const erroredTargetSchema = z.object({
+  ...targetIdentity,
+  status: z.literal("errored"),
+  passed: z.literal(false),
+  /** A screenshot the target captured before it failed. */
+  screenshot: z.string().nullable(),
+  browserErrors: z.array(browserErrorSchema),
+  error: z.string(),
+});
+
+const targetCheckResultSchema = z.discriminatedUnion("status", [
+  auditedTargetSchema,
+  erroredTargetSchema,
+]);
+
+const RESULTS_SCHEMA_VERSION = 2;
 
 export const uiVerifyResultsSchema = z.object({
   version: z.literal(RESULTS_SCHEMA_VERSION),
@@ -89,7 +119,13 @@ export const uiVerifyResultsSchema = z.object({
 
 export type FocusStopFailure = z.infer<typeof focusStopFailureSchema>;
 
+export type FocusTraversal = z.infer<typeof focusTraversalSchema>;
+
 export type FocusCheckResult = z.infer<typeof focusCheckResultSchema>;
+
+export type AuditedTargetResult = z.infer<typeof auditedTargetSchema>;
+
+export type ErroredTargetResult = z.infer<typeof erroredTargetSchema>;
 
 export type TargetCheckResult = z.infer<typeof targetCheckResultSchema>;
 
@@ -97,21 +133,18 @@ export type UiVerifyResults = z.infer<typeof uiVerifyResultsSchema>;
 
 export type RunMode = UiVerifyResults["mode"];
 
-/** Why traversal stopped short before it reached the stop cap. */
-export const INCOMPLETE_TRAVERSAL_REASONS = {
-  opaqueFrame: "Incomplete: focus entered a cross-origin frame whose controls cannot be inspected",
-  trackerLost: "Incomplete: the page navigated to a new document during focus traversal",
+const INCOMPLETE_TRAVERSAL_LABELS = {
+  cap: (stopsChecked: number) => `Incomplete: >${stopsChecked} stops`,
+  opaqueFrame: () =>
+    "Incomplete: focus entered a cross-origin frame whose controls cannot be inspected",
+  trackerLost: () => "Incomplete: the page navigated to a new document during focus traversal",
 } as const;
 
-export const capReachedLabel = (stopsChecked: number) => `Incomplete: >${stopsChecked} stops`;
-
 /** Why Tab traversal stopped short, or undefined when it reached every stop. */
-export const describeIncompleteTraversal = (focus: FocusCheckResult): string | undefined => {
-  if (!focus.reachedCap && focus.incompleteReason === undefined) {
-    return undefined;
-  }
-  return focus.incompleteReason ?? capReachedLabel(focus.stopsChecked);
-};
+export const describeIncompleteTraversal = (focus: FocusCheckResult): string | undefined =>
+  focus.traversal.complete
+    ? undefined
+    : INCOMPLETE_TRAVERSAL_LABELS[focus.traversal.reason](focus.stopsChecked);
 
 /**
  * The focus check's outcome: `OK` with the stops checked, or `FAIL` with the failed stops out of
@@ -131,18 +164,19 @@ export const describeFocus = (
 
 /** Failed stops, plus one for a traversal that stopped short. */
 const focusFailureCount = (focus: FocusCheckResult): number =>
-  focus.failures.length + (describeIncompleteTraversal(focus) === undefined ? 0 : 1);
+  focus.failures.length + (focus.traversal.complete ? 0 : 1);
 
 const summarizeTargets = (targets: readonly TargetCheckResult[]): UiVerifyResults["summary"] => {
+  const audited = targets.filter((item) => item.status === "audited");
   const passed = targets.filter((item) => item.passed).length;
   return {
     total: targets.length,
     passed,
     failed: targets.length - passed,
-    axeViolations: targets.reduce((sum, item) => sum + item.axeViolations.length, 0),
-    overflowFailures: targets.filter((item) => item.hasHorizontalOverflow).length,
+    axeViolations: audited.reduce((sum, item) => sum + item.axeViolations.length, 0),
+    overflowFailures: audited.filter((item) => item.hasHorizontalOverflow).length,
     browserErrors: targets.reduce((sum, item) => sum + item.browserErrors.length, 0),
-    focusFailures: targets.reduce((sum, item) => sum + focusFailureCount(item.focus), 0),
+    focusFailures: audited.reduce((sum, item) => sum + focusFailureCount(item.focus), 0),
   };
 };
 

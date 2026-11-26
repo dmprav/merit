@@ -2,16 +2,12 @@ import type { Page } from "@playwright/test";
 
 import { settleAnimations } from "@merit/test-support/browser";
 
+import type { FocusTraversal } from "../results.ts";
 import type { CapturedStop } from "./judge.ts";
 import type { FocusVisualSnapshot } from "./style-diff.ts";
 import type { FocusedObservation } from "./tracker.ts";
 
 export const MAX_TAB_STOPS = 40;
-
-/** Whether Tab traversal reached every stop, or why it stopped short. */
-export type FocusTraversal =
-  | { complete: true }
-  | { complete: false; reason: "cap" | "opaqueFrame" | "trackerLost" };
 
 type ObservedStop = Pick<CapturedStop, "index" | "element"> & FocusedObservation;
 

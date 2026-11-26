@@ -1,15 +1,16 @@
-import type { FocusCheckResult, TargetCheckResult } from "./results.ts";
+import type { AuditedTargetResult, ErroredTargetResult, FocusCheckResult } from "./results.ts";
 
 /** A desktop route check that passed every audit with one focus stop. */
 export const auditedRoute = (
   route: string,
-  overrides: Partial<TargetCheckResult> = {},
-): TargetCheckResult => ({
+  overrides: Partial<AuditedTargetResult> = {},
+): AuditedTargetResult => ({
   kind: "route",
   target: route,
   name: route,
   url: `http://127.0.0.1:1${route}`,
   viewport: "desktop",
+  status: "audited",
   passed: true,
   screenshot: null,
   viteErrorOverlayCount: 0,
@@ -21,29 +22,21 @@ export const auditedRoute = (
   hasHorizontalOverflow: false,
   axeViolations: [],
   browserErrors: [],
-  focus: { stopsChecked: 1, reachedCap: false, failures: [] },
+  focus: { stopsChecked: 1, traversal: { complete: true }, failures: [] },
   ...overrides,
 });
 
-/** A desktop route check that failed before its audit, so its audit fields are placeholders. */
-export const erroredRoute = (route: string, error: string): TargetCheckResult => ({
+/** A desktop route check that failed before its audit. */
+export const erroredRoute = (route: string, error: string): ErroredTargetResult => ({
   kind: "route",
   target: route,
   name: route,
   url: `http://127.0.0.1:1${route}`,
   viewport: "desktop",
+  status: "errored",
   passed: false,
   screenshot: null,
-  viteErrorOverlayCount: 0,
-  bodyVisible: false,
-  dialogsVisible: false,
-  enteringOrExitingCount: 0,
-  scrollWidth: 0,
-  innerWidth: 0,
-  hasHorizontalOverflow: false,
-  axeViolations: [],
   browserErrors: [],
-  focus: { stopsChecked: 0, reachedCap: false, failures: [] },
   error,
 });
 

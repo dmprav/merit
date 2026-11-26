@@ -5,6 +5,7 @@ import {
   describeFocus,
   describeIncompleteTraversal,
   uiVerifyResultsSchema,
+  type AuditedTargetResult,
   type TargetCheckResult,
   type UiVerifyResults,
 } from "./results.ts";
@@ -65,8 +66,7 @@ const formatSummary = ({ summary }: UiVerifyResults): string[] => [
 
 /** The axe, overflow, and focus cells, which a target that failed before its checks lacks. */
 const checkCells = (item: TargetCheckResult): [string, string, string] => {
-  // A target that failed before its audit has placeholder measurements, not results.
-  if (item.error !== undefined) {
+  if (item.status === "errored") {
     return [NOT_CHECKED, NOT_CHECKED, NOT_CHECKED];
   }
   const overflow = item.hasHorizontalOverflow
@@ -94,7 +94,7 @@ const formatTargets = (results: UiVerifyResults): string[] => [
   ...results.targets.map((item) => formatTargetRow(item, results.outDir)),
 ];
 
-const formatPageFindings = (item: TargetCheckResult): string[] => [
+const formatPageFindings = (item: AuditedTargetResult): string[] => [
   ...(item.viteErrorOverlayCount > 0
     ? [`- **Vite error overlay:** ${item.viteErrorOverlayCount} detected`]
     : []),
@@ -112,7 +112,7 @@ const formatPageFindings = (item: TargetCheckResult): string[] => [
     : []),
 ];
 
-const formatAxeFindings = (item: TargetCheckResult): string[] =>
+const formatAxeFindings = (item: AuditedTargetResult): string[] =>
   item.axeViolations.map((violation) => {
     const nodes = violation.nodes
       .slice(0, AXE_NODES_SHOWN)
@@ -121,11 +121,13 @@ const formatAxeFindings = (item: TargetCheckResult): string[] =>
     return `- **Axe [${violation.impact ?? "unknown"}] \`${violation.id}\`:** ${violation.help}${nodes ? ` (${nodes})` : ""}`;
   });
 
-const formatFocusFindings = (item: TargetCheckResult): string[] => {
+const formatFocusFindings = (item: AuditedTargetResult): string[] => {
   const incomplete = describeIncompleteTraversal(item.focus);
-  const capDetail = item.focus.reachedCap
-    ? ` (keyboard focus traversal hit the ${item.focus.stopsChecked}-stop cap before completing)`
-    : "";
+  const traversal = item.focus.traversal;
+  const capDetail =
+    !traversal.complete && traversal.reason === "cap"
+      ? ` (keyboard focus traversal hit the ${item.focus.stopsChecked}-stop cap before completing)`
+      : "";
   return [
     ...(incomplete ? [`- **Focus traversal incomplete:** ${incomplete}${capDetail}`] : []),
     ...item.focus.failures.map(
@@ -140,7 +142,7 @@ const formatFailure = (item: TargetCheckResult): string[] => {
     (err) => `- **Browser ${err.type}:** ${err.message}`,
   );
   const findings =
-    item.error !== undefined
+    item.status === "errored"
       ? [`- **Runtime error:** ${item.error}`, ...browserErrors]
       : [
           ...formatPageFindings(item),

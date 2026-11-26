@@ -12,7 +12,11 @@ import { collectBrowserErrors, expect, test, type BrowserError } from "@merit/te
 import { openTargetOnPage, runTargetsInBrowser, verifyLoadedPage } from "../../ui-verify/audit.ts";
 import { checkKeyboardFocusTraversal } from "../../ui-verify/focus/check.ts";
 import { writeProofArtifacts } from "../../ui-verify/report.ts";
-import { summarizeResults, uiVerifyResultsSchema } from "../../ui-verify/results.ts";
+import {
+  describeIncompleteTraversal,
+  summarizeResults,
+  uiVerifyResultsSchema,
+} from "../../ui-verify/results.ts";
 
 const VIEWPORT_META = '<meta name="viewport" content="width=device-width, initial-scale=1">';
 
@@ -437,7 +441,7 @@ test.describe("live Chromium checker failure detection", () => {
     await page.waitForFunction(() => "__traversalStarted" in window, undefined, { polling: 20 });
     releaseRenderBlock();
     const focus = await traversal;
-    expect(focus.incompleteReason).toBeUndefined();
+    expect(focus.traversal).toEqual({ complete: true });
     expect(focus.stopsChecked).toBe(2);
     expect(focus.failures.map((failure) => failure.element)).toEqual([
       'button "Earlier broken button"',
@@ -733,16 +737,25 @@ test.describe("live Chromium checker failure detection", () => {
 
         expect(targetResults).toHaveLength(4);
         expect(targetResults[0]?.passed).toBe(false);
-        expect(targetResults[0]?.error).toContain("play() assertion failed: contrast");
+        expect(targetResults[0]).toMatchObject({
+          status: "errored",
+          error: expect.stringContaining("play() assertion failed: contrast"),
+        });
         expect(targetResults[0]?.screenshot).toBeNull();
         expect(existsSync(stalePath)).toBe(false);
 
         expect(targetResults[1]?.passed).toBe(false);
-        expect(targetResults[1]?.error).toContain("HTTP 404");
+        expect(targetResults[1]).toMatchObject({
+          status: "errored",
+          error: expect.stringContaining("HTTP 404"),
+        });
         expect(targetResults[1]?.screenshot).toBeNull();
 
         expect(targetResults[2]?.passed).toBe(false);
-        expect(targetResults[2]?.error).toContain("did not render non-empty content");
+        expect(targetResults[2]).toMatchObject({
+          status: "errored",
+          error: expect.stringContaining("did not render non-empty content"),
+        });
         expect(targetResults[2]?.screenshot).toBeNull();
 
         // A redirected route keeps the URL it requested beside the page it audited.
@@ -786,8 +799,7 @@ test.describe("live Chromium checker failure detection", () => {
       });
       expect(exactResult.passed).toBe(true);
       expect(exactResult.focus.stopsChecked).toBe(3);
-      expect(exactResult.focus.reachedCap).toBe(false);
-      expect(exactResult.focus.incompleteReason).toBeUndefined();
+      expect(exactResult.focus.traversal).toEqual({ complete: true });
 
       const cappedPage = await context.newPage();
       await cappedPage.setContent(buildButtonsHtml(4));
@@ -802,8 +814,8 @@ test.describe("live Chromium checker failure detection", () => {
       });
       expect(cappedResult.passed).toBe(false);
       expect(cappedResult.focus.stopsChecked).toBe(3);
-      expect(cappedResult.focus.reachedCap).toBe(true);
-      expect(cappedResult.focus.incompleteReason).toBe("Incomplete: >3 stops");
+      expect(cappedResult.focus.traversal).toEqual({ complete: false, reason: "cap" });
+      expect(describeIncompleteTraversal(cappedResult.focus)).toBe("Incomplete: >3 stops");
       expect(cappedResult.focus.failures).toEqual([]);
 
       const summary = summarizeResults({
@@ -823,8 +835,10 @@ test.describe("live Chromium checker failure detection", () => {
       );
       expect(savedJson.passed).toBe(false);
       expect(savedJson.targets[1]?.passed).toBe(false);
-      expect(savedJson.targets[1]?.focus.reachedCap).toBe(true);
-      expect(savedJson.targets[1]?.focus.incompleteReason).toBe("Incomplete: >3 stops");
+      expect(savedJson.targets[1]).toMatchObject({
+        status: "audited",
+        focus: { traversal: { complete: false, reason: "cap" } },
+      });
 
       const markdown = readFileSync(join(outDir, "report.md"), "utf8");
       expect(markdown).toContain("**Status:** FAIL");
@@ -907,7 +921,7 @@ test.describe("live Chromium checker failure detection", () => {
     await sameOrigin.frameLocator("iframe").getByRole("button", { name: "Inner two" }).waitFor();
     const traversed = await checkKeyboardFocusTraversal(sameOrigin);
     expect(traversed.stopsChecked).toBe(2);
-    expect(traversed.incompleteReason).toBeUndefined();
+    expect(traversed.traversal).toEqual({ complete: true });
     expect(traversed.failures).toEqual([]);
 
     const crossOrigin = await context.newPage();
@@ -926,8 +940,8 @@ test.describe("live Chromium checker failure detection", () => {
       viewport: "desktop",
       screenshotPath: null,
     });
-    expect(opaque.focus.reachedCap).toBe(false);
-    expect(opaque.focus.incompleteReason).toContain("cross-origin frame");
+    expect(opaque.focus.traversal).toEqual({ complete: false, reason: "opaqueFrame" });
+    expect(describeIncompleteTraversal(opaque.focus)).toContain("cross-origin frame");
     expect(opaque.passed).toBe(false);
   });
 
@@ -956,7 +970,8 @@ test.describe("live Chromium checker failure detection", () => {
     );
     const focus = await checkKeyboardFocusTraversal(page);
     expect(focus.stopsChecked).toBe(1);
-    expect(focus.incompleteReason).toBe(
+    expect(focus.traversal).toEqual({ complete: false, reason: "trackerLost" });
+    expect(describeIncompleteTraversal(focus)).toBe(
       "Incomplete: the page navigated to a new document during focus traversal",
     );
   });

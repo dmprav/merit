@@ -100,12 +100,7 @@ describe("formatMarkdownReport", () => {
     const report = reportFor([
       auditedRoute("/long", {
         passed: false,
-        focus: {
-          stopsChecked: 3,
-          reachedCap: true,
-          incompleteReason: "Incomplete: >3 stops",
-          failures: [],
-        },
+        focus: { stopsChecked: 3, traversal: { complete: false, reason: "cap" }, failures: [] },
       }),
     ]);
     expect(rowFor(report, "/long")).toContain("| FAIL (Incomplete: >3 stops) |");
@@ -120,9 +115,7 @@ describe("formatMarkdownReport", () => {
         passed: false,
         focus: {
           stopsChecked: 1,
-          reachedCap: false,
-          incompleteReason:
-            "Incomplete: focus entered a cross-origin frame whose controls cannot be inspected",
+          traversal: { complete: false, reason: "opaqueFrame" },
           failures: [focusFailure(0)],
         },
       }),
