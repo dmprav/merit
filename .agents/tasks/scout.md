@@ -327,4 +327,7 @@ runners whose default GitHub App token lacks `issues:write` (such as Cursor
 Cloud Agents), configure a fine-grained PAT scoped to `dmprav/merit` with
 `Issues: Read and write` in the `MERIT_SCOUT_GH_TOKEN` secret — when it is set,
 the issue client passes it to `gh` as `GH_TOKEN`; otherwise `gh` keeps the
-runner's own credentials.
+runner's own credentials. Create the token from an account with push access to
+the repository: GitHub silently drops the labels of a new issue filed without
+it. When `proposal.ts` reports that an issue was created without its labels,
+apply the missing labels to that issue instead of filing the proposal again.
