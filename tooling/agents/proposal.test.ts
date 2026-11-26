@@ -1,13 +1,17 @@
 import { describe, expect, test } from "vite-plus/test";
 
+import type { IssueListItem, IssueListQuery } from "./github.ts";
 import {
   applyTier2OnlyOverride,
   classifyProposalTier,
+  fileProposal,
   findDuplicateProposal,
   isProposalCapReached,
   parseProposalArgs,
   proposalInputSchema,
   renderProposalMarkdown,
+  selectProposalLabels,
+  targetLabelForTier,
   type ProposalInput,
 } from "./proposal.ts";
 
@@ -50,7 +54,7 @@ describe("proposal", () => {
       ambiguous: false,
     });
     expect(docsResult.tier).toBe(1);
-    expect(docsResult.targetLabel).toBe("agent:ready");
+    expect(targetLabelForTier(docsResult.tier)).toBe("agent:ready");
 
     const singleSliceTestResult = classifyProposalTier({
       paths: [
@@ -60,7 +64,7 @@ describe("proposal", () => {
       ambiguous: false,
     });
     expect(singleSliceTestResult.tier).toBe(1);
-    expect(singleSliceTestResult.targetLabel).toBe("agent:ready");
+    expect(targetLabelForTier(singleSliceTestResult.tier)).toBe("agent:ready");
   });
 
   test("classifies production, multi-slice, extends-mechanism, protected, root/record docs, wildcard, or ambiguous proposals as Tier 2", () => {
@@ -84,7 +88,7 @@ describe("proposal", () => {
     ] as const) {
       const result = classifyProposalTier({ paths: [...paths], ambiguous });
       expect(result.tier, paths.join(",")).toBe(2);
-      expect(result.targetLabel, paths.join(",")).toBe("agent:proposed");
+      expect(targetLabelForTier(result.tier), paths.join(",")).toBe("agent:proposed");
     }
   });
 
@@ -99,7 +103,7 @@ describe("proposal", () => {
 
     const overridden = applyTier2OnlyOverride(base, true);
     expect(overridden.tier).toBe(2);
-    expect(overridden.targetLabel).toBe("agent:proposed");
+    expect(targetLabelForTier(overridden.tier)).toBe("agent:proposed");
 
     const markdown = renderProposalMarkdown(proposal, overridden);
     expect(markdown).toContain("`tier:2");
@@ -220,7 +224,7 @@ describe("proposal", () => {
       kind: designProposal.kind,
     });
     expect(classification.tier).toBe(2);
-    expect(classification.targetLabel).toBe("agent:proposed");
+    expect(targetLabelForTier(classification.tier)).toBe("agent:proposed");
 
     const markdown = renderProposalMarkdown(designProposal, classification);
     expect(markdown).toContain("tier:2 · design · lens:architecture");
@@ -314,5 +318,123 @@ describe("proposal arguments", () => {
 
   test("rejects --file without a path", () => {
     expect(() => parseProposalArgs(["--file", "--dry-run"])).toThrow("--file requires a value.");
+  });
+});
+
+describe("proposal labels", () => {
+  test("labels a proposal with its tier's workflow label, design, maintenance, then its extras once each", () => {
+    expect(selectProposalLabels(sampleProposal(), { tier: 1 })).toEqual([
+      "agent:ready",
+      "type:maintenance",
+    ]);
+    expect(
+      selectProposalLabels(
+        { kind: "design", extraLabels: ["area:reviews", "type:maintenance"] },
+        { tier: 2 },
+      ),
+    ).toEqual(["agent:proposed", "agent:design", "type:maintenance", "area:reviews"]);
+  });
+});
+
+const issue = (number: number, title: string, overrides: Partial<IssueListItem> = {}) => ({
+  number,
+  title,
+  state: "OPEN" as const,
+  body: "",
+  labels: [],
+  comments: [],
+  ...overrides,
+});
+
+/** Answers issue list queries from `issuesFor` and records every query and created issue. */
+const fakeIssues = (issuesFor: (query: IssueListQuery) => IssueListItem[] = () => []) => {
+  const queries: IssueListQuery[] = [];
+  const created: Array<{ title: string; body: string; labels: readonly string[] }> = [];
+  const client = {
+    listIssues: (query: IssueListQuery) => {
+      queries.push(query);
+      return issuesFor(query);
+    },
+    createIssue: (request: { title: string; body: string; labels: readonly string[] }) => {
+      created.push(request);
+      return "https://github.com/dmprav/merit/issues/400";
+    },
+  };
+  return { client, queries, created };
+};
+
+describe("fileProposal", () => {
+  test("files a Tier 1 proposal without consulting the Tier 2 cap", () => {
+    const { client, queries, created } = fakeIssues();
+    const proposal = sampleProposal();
+
+    expect(fileProposal(client, proposal, { dryRun: false, tier2Only: false })).toEqual({
+      status: "created",
+      url: "https://github.com/dmprav/merit/issues/400",
+      kind: "pr",
+      tier: 1,
+      targetLabel: "agent:ready",
+      labels: ["agent:ready", "type:maintenance"],
+    });
+    expect(queries).toEqual([
+      { state: "open" },
+      { state: "closed", label: "wontfix" },
+      { state: "closed", label: "duplicate" },
+    ]);
+    expect(created).toEqual([
+      {
+        title: proposal.title,
+        body: renderProposalMarkdown(proposal, classifyProposalTier(proposal)),
+        labels: ["agent:ready", "type:maintenance"],
+      },
+    ]);
+  });
+
+  test("renders a dry run, with the calibration override applied, without calling GitHub", () => {
+    const { client, queries, created } = fakeIssues();
+
+    const outcome = fileProposal(client, sampleProposal(), { dryRun: true, tier2Only: true });
+
+    expect(outcome).toMatchObject({
+      status: "dry_run",
+      tier: 2,
+      targetLabel: "agent:proposed",
+      labels: ["agent:proposed", "type:maintenance"],
+      reasons: ["calibration mode (--tier2-only)"],
+    });
+    expect(outcome.status === "dry_run" ? outcome.markdown : "").toContain("tier:2 · lens:tests");
+    expect(queries).toEqual([]);
+    expect(created).toEqual([]);
+  });
+
+  test("stops filing Tier 2 proposals once the open-proposal cap is reached", () => {
+    const { client, created } = fakeIssues((query) =>
+      query.label === "agent:proposed"
+        ? [1, 2, 3, 4, 5].map((number) => issue(number, `Proposal ${number}`))
+        : [],
+    );
+
+    expect(fileProposal(client, sampleProposal(), { dryRun: false, tier2Only: true })).toEqual({
+      status: "cap_reached",
+      openProposedCount: 5,
+      maxOpenProposals: 5,
+    });
+    expect(created).toEqual([]);
+  });
+
+  test("reports an existing issue with the same title instead of filing a duplicate", () => {
+    const proposal = sampleProposal();
+    const { client, created } = fakeIssues((query) =>
+      query.label === "wontfix"
+        ? [issue(88, proposal.title, { state: "CLOSED", labels: ["wontfix"] })]
+        : [],
+    );
+
+    expect(fileProposal(client, proposal, { dryRun: false, tier2Only: true })).toEqual({
+      status: "duplicate",
+      matchedIssue: 88,
+      reason: "matches existing closed issue #88 title",
+    });
+    expect(created).toEqual([]);
   });
 });

@@ -100,9 +100,10 @@ export type ProposalInput = z.output<typeof proposalInputSchema>;
 
 export type ProposalKind = ProposalInput["kind"];
 
+export type ProposalTier = 1 | 2;
+
 export type ProposalTierClassification = {
-  tier: 1 | 2;
-  targetLabel: typeof AGENT_LABELS.ready | typeof AGENT_LABELS.proposed;
+  tier: ProposalTier;
   reasons: string[];
   protectedPaths: string[];
   mechanisms: MechanismClassification;
@@ -140,6 +141,10 @@ export const isTier1DocPath = (filePath: string): boolean => {
 
 export const isProposalCapReached = (openProposedCount: number): boolean =>
   openProposedCount >= MAX_OPEN_PROPOSALS;
+
+/** Tier 1 proposals are ready for the queue; Tier 2 proposals wait for a maintainer. */
+export const targetLabelForTier = (tier: ProposalTier) =>
+  tier === 1 ? AGENT_LABELS.ready : AGENT_LABELS.proposed;
 
 export const classifyProposalTier = ({
   paths,
@@ -186,10 +191,8 @@ export const classifyProposalTier = ({
     reasons.push("changes production, config, root/record docs, or multi-slice code");
   }
 
-  const tier: 1 | 2 = reasons.length === 0 ? 1 : 2;
   return {
-    tier,
-    targetLabel: tier === 1 ? AGENT_LABELS.ready : AGENT_LABELS.proposed,
+    tier: reasons.length === 0 ? 1 : 2,
     reasons,
     protectedPaths,
     mechanisms,
@@ -207,7 +210,6 @@ export const applyTier2OnlyOverride = (
   return {
     ...classification,
     tier: 2,
-    targetLabel: AGENT_LABELS.proposed,
     reasons: [...classification.reasons, "calibration mode (--tier2-only)"],
   };
 };
@@ -374,10 +376,12 @@ export const renderProposalMarkdown = (
   ].join("\n");
 };
 
-const countOpenProposedIssues = (client: GitHubIssueCliClient): number =>
+const countOpenProposedIssues = (client: Pick<GitHubIssueCliClient, "listIssues">): number =>
   client.listIssues({ state: "open", label: AGENT_LABELS.proposed }).length;
 
-const listExistingIssues = (client: GitHubIssueCliClient): ExistingIssueSummary[] => {
+const listExistingIssues = (
+  client: Pick<GitHubIssueCliClient, "listIssues">,
+): ExistingIssueSummary[] => {
   const byNumber = new Map<number, ExistingIssueSummary>();
   for (const issue of [
     ...client.listIssues({ state: "open" }),
@@ -409,85 +413,92 @@ export const parseProposalArgs = (args: readonly string[]): ProposalCliOptions =
   };
 };
 
+/** Labels a filed proposal: its tier's workflow label, then design, maintenance, and the scout's extras. */
+export const selectProposalLabels = (
+  proposal: Pick<ProposalInput, "kind" | "extraLabels">,
+  classification: Pick<ProposalTierClassification, "tier">,
+): string[] => [
+  ...new Set([
+    targetLabelForTier(classification.tier),
+    ...(proposal.kind === "design" ? [AGENT_LABELS.design] : []),
+    AGENT_LABELS.maintenance,
+    ...proposal.extraLabels,
+  ]),
+];
+
+export type ProposalOutcome =
+  | {
+      status: "dry_run";
+      kind: ProposalKind;
+      tier: ProposalTier;
+      targetLabel: string;
+      labels: string[];
+      reasons: string[];
+      markdown: string;
+    }
+  | { status: "cap_reached"; openProposedCount: number; maxOpenProposals: number }
+  | { status: "duplicate"; matchedIssue: number; reason: string }
+  | {
+      status: "created";
+      url: string;
+      kind: ProposalKind;
+      tier: ProposalTier;
+      targetLabel: string;
+      labels: string[];
+    };
+
+/**
+ * Classifies and renders a proposal, then files it as an issue unless this is a dry run, a Tier 2
+ * proposal would exceed the open-proposal cap, or an existing issue already covers it.
+ */
+export const fileProposal = (
+  client: Pick<GitHubIssueCliClient, "listIssues" | "createIssue">,
+  proposal: ProposalInput,
+  { dryRun, tier2Only }: { dryRun: boolean; tier2Only: boolean },
+): ProposalOutcome => {
+  const classification = applyTier2OnlyOverride(
+    classifyProposalTier({
+      paths: proposal.paths,
+      ambiguous: proposal.ambiguous,
+      kind: proposal.kind,
+    }),
+    tier2Only,
+  );
+  const { tier, reasons } = classification;
+  const targetLabel = targetLabelForTier(tier);
+  const markdown = renderProposalMarkdown(proposal, classification);
+  const labels = selectProposalLabels(proposal, classification);
+
+  if (dryRun) {
+    return { status: "dry_run", kind: proposal.kind, tier, targetLabel, labels, reasons, markdown };
+  }
+
+  if (targetLabel === AGENT_LABELS.proposed) {
+    const openProposedCount = countOpenProposedIssues(client);
+    if (isProposalCapReached(openProposedCount)) {
+      return { status: "cap_reached", openProposedCount, maxOpenProposals: MAX_OPEN_PROPOSALS };
+    }
+  }
+
+  const dup = findDuplicateProposal(proposal, listExistingIssues(client));
+  if (dup.duplicate) {
+    return { status: "duplicate", matchedIssue: dup.matchedIssue.number, reason: dup.reason };
+  }
+
+  const url = client.createIssue({ title: proposal.title, body: markdown, labels });
+  return { status: "created", url, kind: proposal.kind, tier, targetLabel, labels };
+};
+
 const runCli = () => {
   const { file: filePath, dryRun, tier2Only } = parseProposalArgs(process.argv.slice(2));
 
   const rawInput = filePath ? readFileSync(filePath, "utf8") : readFileSync(0, "utf8");
   const proposal = proposalInputSchema.parse(JSON.parse(rawInput));
 
-  const baseClassification = classifyProposalTier({
-    paths: proposal.paths,
-    ambiguous: proposal.ambiguous,
-    kind: proposal.kind,
-  });
-  const classification = applyTier2OnlyOverride(baseClassification, tier2Only);
-  const markdown = renderProposalMarkdown(proposal, classification);
-  const labels = [
-    ...new Set([
-      classification.targetLabel,
-      ...(proposal.kind === "design" ? [AGENT_LABELS.design] : []),
-      AGENT_LABELS.maintenance,
-      ...proposal.extraLabels,
-    ]),
-  ];
-
-  if (dryRun) {
-    console.log(
-      JSON.stringify(
-        {
-          status: "dry_run",
-          kind: proposal.kind,
-          tier: classification.tier,
-          targetLabel: classification.targetLabel,
-          labels,
-          reasons: classification.reasons,
-          markdown,
-        },
-        null,
-        2,
-      ),
-    );
-    return;
-  }
-
   const client = createGitHubIssueCliClient({ repoRoot: REPO_ROOT });
-  if (classification.targetLabel === AGENT_LABELS.proposed) {
-    const openProposedCount = countOpenProposedIssues(client);
-    if (isProposalCapReached(openProposedCount)) {
-      console.log(
-        JSON.stringify({
-          status: "cap_reached",
-          openProposedCount,
-          maxOpenProposals: MAX_OPEN_PROPOSALS,
-        }),
-      );
-      return;
-    }
-  }
-
-  const existingIssues = listExistingIssues(client);
-  const dup = findDuplicateProposal(proposal, existingIssues);
-  if (dup.duplicate) {
-    console.log(
-      JSON.stringify({
-        status: "duplicate",
-        matchedIssue: dup.matchedIssue.number,
-        reason: dup.reason,
-      }),
-    );
-    return;
-  }
-
-  const url = client.createIssue({ title: proposal.title, body: markdown, labels });
+  const outcome = fileProposal(client, proposal, { dryRun, tier2Only });
   console.log(
-    JSON.stringify({
-      status: "created",
-      url,
-      kind: proposal.kind,
-      tier: classification.tier,
-      targetLabel: classification.targetLabel,
-      labels,
-    }),
+    outcome.status === "dry_run" ? JSON.stringify(outcome, null, 2) : JSON.stringify(outcome),
   );
 };
 
