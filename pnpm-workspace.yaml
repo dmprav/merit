@@ -33,7 +33,7 @@ catalog:
   "@tanstack/react-query-devtools": 5.107.1
   "@tanstack/react-router-ssr-query": 1.167.3
   "@tanstack/react-devtools": 0.10.15
-  "@tanstack/react-router-devtools": 1.167.3
+  "@tanstack/react-router-devtools": 1.167.4
   "@internationalized/date": 3.12.4
   storybook: 11.0.0-beta.3
   "@storybook/react-vite": 11.0.0-beta.3
