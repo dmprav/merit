@@ -33,6 +33,7 @@ import { createTestDatabase } from "@merit/test-support/test-database";
 
 import { getErrnoCode, isProcessAlive } from "../agents/file-lock.ts";
 import { errorMessage } from "../cli.ts";
+import { VISUAL_TARGETS } from "./visual-targets.ts";
 
 const REPO_ROOT = resolve(fileURLToPath(new URL("../../", import.meta.url)));
 const DEFAULT_OUT_DIR = ".tmp/ui-verify";
@@ -206,73 +207,20 @@ export type TargetCheckResult = z.infer<typeof targetCheckResultSchema>;
 
 export type UiVerifyResults = z.infer<typeof uiVerifyResultsSchema>;
 
-/** Curated default sweep matching `tooling/storybook/tests/browser/visual.spec.ts`. */
-export const DEFAULT_STORYBOOK_TARGETS: readonly StoryTarget[] = [
-  {
+/** The default sweep: the Storybook visual baseline stories. */
+export const DEFAULT_STORYBOOK_TARGETS: readonly StoryTarget[] = VISUAL_TARGETS.map(
+  ({ id, name, globals, fullPage }) => ({
     kind: "story",
-    id: "design-language--focus-comparison",
-    name: "focus-product",
-    globals: "theme:product",
-    fullPage: true,
-  },
-  {
-    kind: "story",
-    id: "design-language--focus-comparison",
-    name: "focus-site",
-    globals: "theme:site",
-    fullPage: true,
-  },
-  {
-    kind: "story",
-    id: "components-button--overview",
-    name: "components-button--overview",
-    fullPage: true,
-  },
-  {
-    kind: "story",
-    id: "patterns-form-dialog--with-context",
-    name: "patterns-form-dialog--with-context",
-    fullPage: false,
-  },
-  {
-    kind: "story",
-    id: "patterns-confirmation-dialog--failure",
-    name: "patterns-confirmation-dialog--failure",
-    fullPage: true,
-  },
-  {
-    kind: "story",
-    id: "components-text-field--states",
-    name: "components-text-field--states",
-    fullPage: true,
-  },
-  {
-    kind: "story",
-    id: "components-data-table--default",
-    name: "components-data-table--default",
-    fullPage: true,
-  },
-  {
-    kind: "story",
-    id: "features-applications-recommendation--resume-editing",
-    name: "features-applications-recommendation--resume-editing",
-    fullPage: true,
-  },
-  {
-    kind: "story",
-    id: "patterns-application-shell--workspace-switcher",
-    name: "patterns-application-shell--workspace-switcher",
-    fullPage: true,
-  },
-  {
-    kind: "story",
-    id: "patterns-application-shell--workspace-switcher-long-name",
-    name: "patterns-application-shell--workspace-switcher-long-name",
-    fullPage: true,
-  },
-];
+    id,
+    name,
+    ...(globals ? { globals } : {}),
+    fullPage,
+  }),
+);
 
-const VIEWPORT_ONLY_STORY_IDS = new Set(["patterns-form-dialog--with-context"]);
+const VIEWPORT_ONLY_STORY_IDS = new Set(
+  VISUAL_TARGETS.filter((target) => !target.fullPage).map((target) => target.id),
+);
 
 const USAGE = `Usage: vp run ui:verify [options]
 
@@ -562,12 +510,6 @@ export const buildUniqueTargetStems = (names: readonly string[]): string[] => {
   });
 };
 
-// Visual test titles for curated targets whose test is not titled `appearance: <story-id>`.
-const CONTAINER_FOCUS_TEST_TITLES: Readonly<Record<string, string>> = {
-  "focus-product": "control focus appearance in product",
-  "focus-site": "control focus appearance in site",
-};
-
 export const buildContainerDelegationArgs = (options: UiVerifyCliOptions): string[] => {
   if (options.routes.length > 0) {
     throw new Error(
@@ -589,17 +531,15 @@ export const buildContainerDelegationArgs = (options: UiVerifyCliOptions): strin
     // and select their exact titles.
     const titles = options.stories.flatMap((story) => {
       const matches = compileStoryMatcher(story);
-      const selected = DEFAULT_STORYBOOK_TARGETS.filter(
+      const selected = VISUAL_TARGETS.filter(
         (target) => matches(target.name) || matches(target.id),
       );
       if (selected.length === 0) {
         throw new Error(
-          `--story "${story}" matches no visual baseline story; container mode checks only the curated targets (${DEFAULT_STORYBOOK_TARGETS.map((target) => target.name).join(", ")}).`,
+          `--story "${story}" matches no visual baseline story; container mode checks only the curated targets (${VISUAL_TARGETS.map((target) => target.name).join(", ")}).`,
         );
       }
-      return selected.map(
-        (target) => CONTAINER_FOCUS_TEST_TITLES[target.name] ?? `appearance: ${target.id}`,
-      );
+      return selected.map((target) => target.testTitle);
     });
 
     // Anchor each title to the end of the subject, so `...switcher` leaves `...switcher-long-name`.
