@@ -1,8 +1,11 @@
 import { randomUUID } from "node:crypto";
 
+import { drizzle } from "drizzle-orm/node-postgres";
+import { Client } from "pg";
 import { assert, describe, expect } from "vite-plus/test";
 
 import { editFundingApplication } from "@merit/applications/server";
+import type { Database } from "@merit/db";
 import type { RecordDecisionRequest } from "@merit/decisions/api";
 import { recordCommitteeDecision } from "@merit/decisions/server";
 import { encodeMoney, fromMinorUnits } from "@merit/money";
@@ -645,5 +648,146 @@ describe("decision reads", () => {
     });
     assert(filtered.status === "ok");
     expect(filtered.entries.filter((entry) => entry.action.startsWith("decision."))).toEqual([]);
+  });
+});
+
+/**
+ * Holds `first` open in a transaction, starts `competing` on another connection, and returns
+ * its result once the first commits. The competitor must wait on the first transaction, so a
+ * weaker lock than the one decisions rely on fails here instead of passing by luck.
+ */
+const raceHeld = async <T>(
+  database: { connectionString: string; client: Client },
+  first: (tx: Database) => Promise<{ status: string }>,
+  competing: (connection: Database) => Promise<T>,
+) => {
+  const options = { connectionString: database.connectionString, statement_timeout: 5000 };
+  const holder = new Client(options);
+  const competitor = new Client(options);
+  await Promise.all([holder.connect(), competitor.connect()]);
+
+  const pid = async (client: Client) => {
+    const row = (await client.query<{ pid: number }>("SELECT pg_backend_pid() AS pid")).rows[0];
+    assert(row, "Could not read the backend");
+    return row.pid;
+  };
+
+  const [holderPid, competitorPid] = [await pid(holder), await pid(competitor)];
+
+  let release!: () => void;
+  let opened!: () => void;
+  const released = new Promise<void>((resolve) => (release = resolve));
+  const held = new Promise<void>((resolve) => (opened = resolve));
+  const transaction = drizzle(holder).transaction(async (tx) => {
+    expect(await first(tx)).toMatchObject({ status: "ok" });
+    opened();
+    await released;
+  });
+  const settled = transaction.catch(() => undefined);
+  try {
+    await Promise.race([held, transaction]);
+    const result = competing(drizzle(competitor));
+    const settledResult = result.catch(() => undefined);
+    await expect
+      .poll(
+        async () =>
+          (
+            await database.client.query<{ blockers: number[] }>(
+              "SELECT pg_blocking_pids($1) AS blockers",
+              [competitorPid],
+            )
+          ).rows[0]?.blockers,
+        { timeout: 2500 },
+      )
+      .toContain(holderPid);
+    release();
+    await transaction;
+    const outcome = await result;
+    await settledResult;
+    return outcome;
+  } finally {
+    release();
+    await settled;
+    await Promise.all([holder.end(), competitor.end()]);
+  }
+};
+
+describe("concurrent commitments", () => {
+  it("lets only the first of two competing funding saves in a round fit the budget", async ({
+    database,
+    scenario: s,
+  }) => {
+    const fund = (connection: Database, address: typeof s.first) =>
+      recordCommitteeDecision(connection, actor, {
+        ...address,
+        expectedRevision: 0,
+        decision: decisionOf({ amount: { minorUnits: "6000", currency: "EUR" } }),
+      });
+
+    // The second €60.00 fits the €100.00 budget only if the first, still uncommitted, is ignored.
+    const second = await raceHeld(
+      database,
+      (tx) => fund(tx, s.first),
+      (connection) => fund(connection, s.second),
+    );
+
+    expect(second).toMatchObject({ status: "invalid", error: "commitment_exceeds_budget" });
+    expect((await s.page(s.second)).decision.versions).toEqual([]);
+    expect((await s.page(s.first)).decision.versions).toHaveLength(1);
+  });
+
+  const reduceBudget = (
+    connection: Database,
+    pageInput: { workspaceSlug: string; publicId: string },
+  ) =>
+    editFundingRound(
+      connection,
+      actor,
+      {
+        workspaceSlug: pageInput.workspaceSlug,
+        publicId: pageInput.publicId,
+        expectedRevision: 0,
+        change: { section: "budget", amount: "50.00", reason: "Reduced for the test." },
+      },
+      roundCommitments,
+    );
+
+  it("refuses a budget reduction that a competing decision save has made too low", async ({
+    database,
+    rounds,
+    scenario: s,
+  }) => {
+    const reduced = await raceHeld(
+      database,
+      (tx) =>
+        recordCommitteeDecision(tx, actor, {
+          ...s.first,
+          expectedRevision: 0,
+          decision: decisionOf({ amount: { minorUnits: "6000", currency: "EUR" } }),
+        }),
+      (connection) => reduceBudget(connection, rounds.pageInput),
+    );
+
+    expect(reduced).toMatchObject({ status: "invalid", error: "budget_below_commitments" });
+  });
+
+  it("refuses a decision save that a competing budget reduction has made too large", async ({
+    database,
+    rounds,
+    scenario: s,
+  }) => {
+    const saved = await raceHeld(
+      database,
+      (tx) => reduceBudget(tx, rounds.pageInput),
+      (connection) =>
+        recordCommitteeDecision(connection, actor, {
+          ...s.first,
+          expectedRevision: 0,
+          decision: decisionOf({ amount: { minorUnits: "6000", currency: "EUR" } }),
+        }),
+    );
+
+    expect(saved).toMatchObject({ status: "invalid", error: "commitment_exceeds_budget" });
+    expect((await s.page(s.first)).decision.versions).toEqual([]);
   });
 });
