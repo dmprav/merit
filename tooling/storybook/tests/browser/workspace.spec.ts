@@ -121,13 +121,25 @@ test(
       await expect(close).toBeInViewport({ ratio: 1 });
     }
 
-    // With enlarged text, a short viewport scrolls the whole task instead of only its fields.
-    for (const [height, scrollsTask] of [
+    // With enlarged text the task scrolls as a whole: a short viewport lets the body flow with the
+    // heading and actions, and a taller one keeps the body room while the long feedback and stacked
+    // actions push the frame to scroll.
+    const body = dialog.locator("[data-frame-body]");
+    for (const [height, shortViewport] of [
       [1000, false],
       [440, true],
     ] as const) {
       await page.setViewportSize({ width: 320, height });
-      await expect(dialog).toHaveCSS("overflow-y", scrollsTask ? "auto" : "visible");
+      if (shortViewport) {
+        await expect(body).toHaveCSS("overflow-y", "visible");
+      } else {
+        const rootSize = await page.evaluate(() =>
+          Number.parseFloat(getComputedStyle(document.documentElement).fontSize),
+        );
+        await expect
+          .poll(() => body.evaluate((node) => node.getBoundingClientRect().height))
+          .toBeGreaterThanOrEqual(4 * rootSize - 1);
+      }
       await input.focus();
       await expect(input).toBeInViewport({ ratio: 1 });
       await input.press("ArrowRight");

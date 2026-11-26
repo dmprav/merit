@@ -190,16 +190,25 @@
 }
 
 /*
+ * A safety net at every height: the body keeps room for a line of content, so when enlarged text,
+ * a long title, or long feedback leave no more space, the whole frame scrolls instead of clipping
+ * the fields and actions. The body stops shrinking before the frame overflows.
+ */
+.frame[data-frame-scrolls] {
+  overflow-y: auto;
+  scroll-padding-block: var(--space-2);
+}
+
+.frame[data-frame-scrolls] .body[data-framed] {
+  min-height: 4rem;
+}
+
+/*
  * A short viewport has no room to keep a heading and actions beside a reading space, so the
  * whole centered dialog or side panel scrolls, with its header and footer flowing with the content.
  * Surfaces that promise a persistent footer, such as the assistant sheet, do not opt in.
  */
 @media (max-height: 30rem) {
-  .frame[data-frame-scrolls] {
-    overflow-y: auto;
-    scroll-padding-block: var(--space-2);
-  }
-
   .frame[data-frame-scrolls] > *,
   .frame[data-frame-scrolls] .content {
     flex: none;

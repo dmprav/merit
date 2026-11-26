@@ -255,7 +255,6 @@ test(
       document.documentElement.style.fontSize = "200%";
     });
     // Below 30rem of viewport height the whole panel scrolls, with heading and actions in the flow.
-    await expect(dialog).toHaveCSS("overflow-y", "auto");
     await expect(body).toHaveCSS("overflow-y", "visible");
     await close.focus();
     await expect(close).toBeInViewport({ ratio: 1 });
@@ -273,8 +272,10 @@ test(
     });
     await page.setViewportSize({ width: 390, height: 800 });
     // With room to spare only the body scrolls, and the heading and actions stay put.
-    await expect(dialog).not.toHaveCSS("overflow-y", "auto");
     await expect(body).toHaveCSS("overflow-y", "auto");
+    await expect
+      .poll(() => dialog.evaluate((node) => node.scrollHeight - node.clientHeight))
+      .toBeLessThanOrEqual(1);
     await expect.poll(() => dialog.evaluate((node) => node.scrollTop)).toBe(0);
     await expect(close).toBeInViewport({ ratio: 1 });
     await expect(done).toBeInViewport({ ratio: 1 });
@@ -283,6 +284,34 @@ test(
     await expect(page.getByRole("button", { name: "Open dialog" })).toBeFocused();
   },
 );
+
+test("centered dialogs scroll as a whole when enlarged text leaves the body no room", async ({
+  page,
+}) => {
+  // Above the 30rem short-viewport query, a page that enlarges its root text can still crowd the
+  // body between a wrapped heading and the actions; the body keeps room and the frame scrolls.
+  await page.setViewportSize({ width: 900, height: 600 });
+  await page.goto("/iframe.html?id=patterns-form-dialog--long-content&viewMode=story");
+  await expect(page.locator("#storybook-root")).toHaveAttribute("data-story-ready", "true");
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible();
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = "300%";
+  });
+  const body = dialog.locator("[data-frame-body]");
+  const rootSize = await page.evaluate(() =>
+    Number.parseFloat(getComputedStyle(document.documentElement).fontSize),
+  );
+  await expect
+    .poll(() => body.evaluate((node) => node.getBoundingClientRect().height))
+    .toBeGreaterThanOrEqual(4 * rootSize - 1);
+  await expect
+    .poll(() => dialog.evaluate((node) => node.scrollHeight - node.clientHeight))
+    .toBeGreaterThan(0);
+  const save = dialog.getByRole("button", { name: "Save note" });
+  await save.focus();
+  await expect(save).toBeInViewport({ ratio: 1 });
+});
 
 test("confirmation dialogs focus cancellation and contain focus", async ({ page }, testInfo) => {
   await page.goto("/iframe.html?id=patterns-confirmation-dialog--open&viewMode=story");

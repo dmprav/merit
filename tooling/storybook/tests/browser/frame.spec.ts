@@ -128,10 +128,13 @@ const measure = (root: Locator) =>
     const buttons = [
       ...node.querySelectorAll<HTMLElement>("[data-frame-footer] [data-dialog-footer] *"),
     ];
+    // The body is the scroller; any other element may only scroll once content overflows it,
+    // as the frame does when its safety net lets the whole surface scroll.
     const scrollers = [node, ...node.querySelectorAll<HTMLElement>("*")].filter(
       (element) =>
         !element.matches("textarea, input, select") &&
-        /auto|scroll/.test(getComputedStyle(element).overflowY),
+        /auto|scroll/.test(getComputedStyle(element).overflowY) &&
+        (element === body || element.scrollHeight > element.clientHeight + 1),
     );
     return {
       titleStart: title.getBoundingClientRect().left,
