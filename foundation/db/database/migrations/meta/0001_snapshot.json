@@ -185,12 +185,8 @@
           "name": "application_cases_organization_id_organizations_id_fk",
           "tableFrom": "application_cases",
           "tableTo": "organizations",
-          "columnsFrom": [
-            "organization_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["organization_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -198,14 +194,8 @@
           "name": "application_cases_organization_id_round_id_funding_rounds_organization_id_id_fk",
           "tableFrom": "application_cases",
           "tableTo": "funding_rounds",
-          "columnsFrom": [
-            "organization_id",
-            "round_id"
-          ],
-          "columnsTo": [
-            "organization_id",
-            "id"
-          ],
+          "columnsFrom": ["organization_id", "round_id"],
+          "columnsTo": ["organization_id", "id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -213,14 +203,8 @@
           "name": "application_cases_organization_id_contact_id_contacts_organization_id_id_fk",
           "tableFrom": "application_cases",
           "tableTo": "contacts",
-          "columnsFrom": [
-            "organization_id",
-            "contact_id"
-          ],
-          "columnsTo": [
-            "organization_id",
-            "id"
-          ],
+          "columnsFrom": ["organization_id", "contact_id"],
+          "columnsTo": ["organization_id", "id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -230,19 +214,12 @@
         "application_cases_owner_key": {
           "name": "application_cases_owner_key",
           "nullsNotDistinct": false,
-          "columns": [
-            "organization_id",
-            "id"
-          ]
+          "columns": ["organization_id", "id"]
         },
         "application_cases_round_position_key": {
           "name": "application_cases_round_position_key",
           "nullsNotDistinct": false,
-          "columns": [
-            "organization_id",
-            "round_id",
-            "position"
-          ]
+          "columns": ["organization_id", "round_id", "position"]
         }
       },
       "policies": {},
@@ -303,12 +280,8 @@
           "name": "application_creation_receipts_organization_id_organizations_id_fk",
           "tableFrom": "application_creation_receipts",
           "tableTo": "organizations",
-          "columnsFrom": [
-            "organization_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["organization_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -316,10 +289,7 @@
       "compositePrimaryKeys": {
         "application_creation_receipts_organization_id_request_id_pk": {
           "name": "application_creation_receipts_organization_id_request_id_pk",
-          "columns": [
-            "organization_id",
-            "request_id"
-          ]
+          "columns": ["organization_id", "request_id"]
         }
       },
       "uniqueConstraints": {},
@@ -368,12 +338,8 @@
           "name": "material_draft_answers_case_id_material_drafts_case_id_fk",
           "tableFrom": "material_draft_answers",
           "tableTo": "material_drafts",
-          "columnsFrom": [
-            "case_id"
-          ],
-          "columnsTo": [
-            "case_id"
-          ],
+          "columnsFrom": ["case_id"],
+          "columnsTo": ["case_id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -381,20 +347,14 @@
       "compositePrimaryKeys": {
         "material_draft_answers_case_id_position_pk": {
           "name": "material_draft_answers_case_id_position_pk",
-          "columns": [
-            "case_id",
-            "position"
-          ]
+          "columns": ["case_id", "position"]
         }
       },
       "uniqueConstraints": {
         "material_draft_answers_question_key": {
           "name": "material_draft_answers_question_key",
           "nullsNotDistinct": false,
-          "columns": [
-            "case_id",
-            "question_id"
-          ]
+          "columns": ["case_id", "question_id"]
         }
       },
       "policies": {},
@@ -493,12 +453,8 @@
           "name": "material_drafts_case_id_application_cases_id_fk",
           "tableFrom": "material_drafts",
           "tableTo": "application_cases",
-          "columnsFrom": [
-            "case_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["case_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -506,14 +462,8 @@
           "name": "material_drafts_case_id_base_material_version_material_versions_case_id_version_fk",
           "tableFrom": "material_drafts",
           "tableTo": "material_versions",
-          "columnsFrom": [
-            "case_id",
-            "base_material_version"
-          ],
-          "columnsTo": [
-            "case_id",
-            "version"
-          ],
+          "columnsFrom": ["case_id", "base_material_version"],
+          "columnsTo": ["case_id", "version"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -584,14 +534,8 @@
           "name": "material_version_answers_case_id_material_version_material_versions_case_id_version_fk",
           "tableFrom": "material_version_answers",
           "tableTo": "material_versions",
-          "columnsFrom": [
-            "case_id",
-            "material_version"
-          ],
-          "columnsTo": [
-            "case_id",
-            "version"
-          ],
+          "columnsFrom": ["case_id", "material_version"],
+          "columnsTo": ["case_id", "version"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -599,22 +543,14 @@
       "compositePrimaryKeys": {
         "material_version_answers_case_id_material_version_position_pk": {
           "name": "material_version_answers_case_id_material_version_position_pk",
-          "columns": [
-            "case_id",
-            "material_version",
-            "position"
-          ]
+          "columns": ["case_id", "material_version", "position"]
         }
       },
       "uniqueConstraints": {
         "material_version_answers_question_key": {
           "name": "material_version_answers_question_key",
           "nullsNotDistinct": false,
-          "columns": [
-            "case_id",
-            "material_version",
-            "question_id"
-          ]
+          "columns": ["case_id", "material_version", "question_id"]
         }
       },
       "policies": {},
@@ -667,14 +603,8 @@
           "name": "material_version_evidence_case_id_material_version_material_versions_case_id_version_fk",
           "tableFrom": "material_version_evidence",
           "tableTo": "material_versions",
-          "columnsFrom": [
-            "case_id",
-            "material_version"
-          ],
-          "columnsTo": [
-            "case_id",
-            "version"
-          ],
+          "columnsFrom": ["case_id", "material_version"],
+          "columnsTo": ["case_id", "version"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -682,11 +612,7 @@
       "compositePrimaryKeys": {
         "material_version_evidence_case_id_material_version_position_pk": {
           "name": "material_version_evidence_case_id_material_version_position_pk",
-          "columns": [
-            "case_id",
-            "material_version",
-            "position"
-          ]
+          "columns": ["case_id", "material_version", "position"]
         }
       },
       "uniqueConstraints": {},
@@ -816,12 +742,8 @@
           "name": "material_versions_case_id_application_cases_id_fk",
           "tableFrom": "material_versions",
           "tableTo": "application_cases",
-          "columnsFrom": [
-            "case_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["case_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -829,12 +751,8 @@
           "name": "material_versions_recorded_by_user_id_app_users_id_fk",
           "tableFrom": "material_versions",
           "tableTo": "app_users",
-          "columnsFrom": [
-            "recorded_by_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["recorded_by_user_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -842,10 +760,7 @@
       "compositePrimaryKeys": {
         "material_versions_case_id_version_pk": {
           "name": "material_versions_case_id_version_pk",
-          "columns": [
-            "case_id",
-            "version"
-          ]
+          "columns": ["case_id", "version"]
         }
       },
       "uniqueConstraints": {},
@@ -1199,12 +1114,8 @@
           "name": "audit_events_actor_user_id_app_users_id_fk",
           "tableFrom": "audit_events",
           "tableTo": "app_users",
-          "columnsFrom": [
-            "actor_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["actor_user_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1278,12 +1189,8 @@
           "name": "contacts_organization_id_organizations_id_fk",
           "tableFrom": "contacts",
           "tableTo": "organizations",
-          "columnsFrom": [
-            "organization_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["organization_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1293,10 +1200,7 @@
         "contacts_owner_key": {
           "name": "contacts_owner_key",
           "nullsNotDistinct": false,
-          "columns": [
-            "organization_id",
-            "id"
-          ]
+          "columns": ["organization_id", "id"]
         }
       },
       "policies": {},
@@ -1458,12 +1362,8 @@
           "name": "committee_decision_versions_case_id_application_cases_id_fk",
           "tableFrom": "committee_decision_versions",
           "tableTo": "application_cases",
-          "columnsFrom": [
-            "case_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["case_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1471,12 +1371,8 @@
           "name": "committee_decision_versions_actor_user_id_app_users_id_fk",
           "tableFrom": "committee_decision_versions",
           "tableTo": "app_users",
-          "columnsFrom": [
-            "actor_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["actor_user_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1484,14 +1380,8 @@
           "name": "committee_decision_versions_case_id_material_version_material_versions_case_id_version_fk",
           "tableFrom": "committee_decision_versions",
           "tableTo": "material_versions",
-          "columnsFrom": [
-            "case_id",
-            "material_version"
-          ],
-          "columnsTo": [
-            "case_id",
-            "version"
-          ],
+          "columnsFrom": ["case_id", "material_version"],
+          "columnsTo": ["case_id", "version"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1499,10 +1389,7 @@
       "compositePrimaryKeys": {
         "committee_decision_versions_case_id_revision_pk": {
           "name": "committee_decision_versions_case_id_revision_pk",
-          "columns": [
-            "case_id",
-            "revision"
-          ]
+          "columns": ["case_id", "revision"]
         }
       },
       "uniqueConstraints": {},
@@ -1637,12 +1524,8 @@
           "name": "grant_navigation_pins_user_id_app_users_id_fk",
           "tableFrom": "grant_navigation_pins",
           "tableTo": "app_users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1650,12 +1533,8 @@
           "name": "grant_navigation_pins_round_id_funding_rounds_id_fk",
           "tableFrom": "grant_navigation_pins",
           "tableTo": "funding_rounds",
-          "columnsFrom": [
-            "round_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["round_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1663,12 +1542,8 @@
           "name": "grant_navigation_pins_case_id_application_cases_id_fk",
           "tableFrom": "grant_navigation_pins",
           "tableTo": "application_cases",
-          "columnsFrom": [
-            "case_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["case_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1676,12 +1551,8 @@
           "name": "grant_navigation_pins_assignment_id_review_assignments_id_fk",
           "tableFrom": "grant_navigation_pins",
           "tableTo": "review_assignments",
-          "columnsFrom": [
-            "assignment_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["assignment_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1691,26 +1562,17 @@
         "grant_navigation_pins_round": {
           "name": "grant_navigation_pins_round",
           "nullsNotDistinct": false,
-          "columns": [
-            "user_id",
-            "round_id"
-          ]
+          "columns": ["user_id", "round_id"]
         },
         "grant_navigation_pins_application": {
           "name": "grant_navigation_pins_application",
           "nullsNotDistinct": false,
-          "columns": [
-            "user_id",
-            "case_id"
-          ]
+          "columns": ["user_id", "case_id"]
         },
         "grant_navigation_pins_review": {
           "name": "grant_navigation_pins_review",
           "nullsNotDistinct": false,
-          "columns": [
-            "user_id",
-            "assignment_id"
-          ]
+          "columns": ["user_id", "assignment_id"]
         }
       },
       "policies": {},
@@ -1838,12 +1700,8 @@
           "name": "access_requests_reviewed_by_app_users_id_fk",
           "tableFrom": "access_requests",
           "tableTo": "app_users",
-          "columnsFrom": [
-            "reviewed_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["reviewed_by"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1853,9 +1711,7 @@
         "access_requests_email_key": {
           "name": "access_requests_email_key",
           "nullsNotDistinct": false,
-          "columns": [
-            "email"
-          ]
+          "columns": ["email"]
         }
       },
       "policies": {},
@@ -1879,12 +1735,8 @@
           "name": "assistant_consents_organization_id_organizations_id_fk",
           "tableFrom": "assistant_consents",
           "tableTo": "organizations",
-          "columnsFrom": [
-            "organization_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["organization_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2023,12 +1875,8 @@
           "name": "assistant_conversations_organization_id_organizations_id_fk",
           "tableFrom": "assistant_conversations",
           "tableTo": "organizations",
-          "columnsFrom": [
-            "organization_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["organization_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -2036,12 +1884,8 @@
           "name": "assistant_conversations_user_id_app_users_id_fk",
           "tableFrom": "assistant_conversations",
           "tableTo": "app_users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -2206,12 +2050,8 @@
           "name": "memberships_organization_id_fkey",
           "tableFrom": "memberships",
           "tableTo": "organizations",
-          "columnsFrom": [
-            "organization_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["organization_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -2219,12 +2059,8 @@
           "name": "memberships_user_id_fkey",
           "tableFrom": "memberships",
           "tableTo": "app_users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -2232,19 +2068,14 @@
       "compositePrimaryKeys": {
         "memberships_pkey": {
           "name": "memberships_pkey",
-          "columns": [
-            "organization_id",
-            "user_id"
-          ]
+          "columns": ["organization_id", "user_id"]
         }
       },
       "uniqueConstraints": {
         "memberships_id_key": {
           "name": "memberships_id_key",
           "nullsNotDistinct": false,
-          "columns": [
-            "id"
-          ]
+          "columns": ["id"]
         }
       },
       "policies": {},
@@ -2313,9 +2144,7 @@
         "organizations_slug_key": {
           "name": "organizations_slug_key",
           "nullsNotDistinct": false,
-          "columns": [
-            "slug"
-          ]
+          "columns": ["slug"]
         }
       },
       "policies": {},
@@ -2515,12 +2344,8 @@
           "name": "organization_invitations_organization_id_organizations_id_fk",
           "tableFrom": "organization_invitations",
           "tableTo": "organizations",
-          "columnsFrom": [
-            "organization_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["organization_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -2528,12 +2353,8 @@
           "name": "organization_invitations_invited_by_app_users_id_fk",
           "tableFrom": "organization_invitations",
           "tableTo": "app_users",
-          "columnsFrom": [
-            "invited_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["invited_by"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -2541,12 +2362,8 @@
           "name": "organization_invitations_accepted_by_app_users_id_fk",
           "tableFrom": "organization_invitations",
           "tableTo": "app_users",
-          "columnsFrom": [
-            "accepted_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["accepted_by"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -2556,9 +2373,7 @@
         "organization_invitations_token_hash_unique": {
           "name": "organization_invitations_token_hash_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "token_hash"
-          ]
+          "columns": ["token_hash"]
         }
       },
       "policies": {},
@@ -2720,12 +2535,8 @@
           "name": "recommendation_versions_case_id_application_cases_id_fk",
           "tableFrom": "recommendation_versions",
           "tableTo": "application_cases",
-          "columnsFrom": [
-            "case_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["case_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -2733,12 +2544,8 @@
           "name": "recommendation_versions_actor_user_id_app_users_id_fk",
           "tableFrom": "recommendation_versions",
           "tableTo": "app_users",
-          "columnsFrom": [
-            "actor_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["actor_user_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -2746,14 +2553,8 @@
           "name": "recommendation_versions_case_id_material_version_material_versions_case_id_version_fk",
           "tableFrom": "recommendation_versions",
           "tableTo": "material_versions",
-          "columnsFrom": [
-            "case_id",
-            "material_version"
-          ],
-          "columnsTo": [
-            "case_id",
-            "version"
-          ],
+          "columnsFrom": ["case_id", "material_version"],
+          "columnsTo": ["case_id", "version"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -2761,10 +2562,7 @@
       "compositePrimaryKeys": {
         "recommendation_versions_case_id_revision_pk": {
           "name": "recommendation_versions_case_id_revision_pk",
-          "columns": [
-            "case_id",
-            "revision"
-          ]
+          "columns": ["case_id", "revision"]
         }
       },
       "uniqueConstraints": {},
@@ -3016,12 +2814,8 @@
           "name": "review_assignments_reviewer_user_id_app_users_id_fk",
           "tableFrom": "review_assignments",
           "tableTo": "app_users",
-          "columnsFrom": [
-            "reviewer_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["reviewer_user_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -3029,12 +2823,8 @@
           "name": "review_assignments_manager_user_id_app_users_id_fk",
           "tableFrom": "review_assignments",
           "tableTo": "app_users",
-          "columnsFrom": [
-            "manager_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["manager_user_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -3042,14 +2832,8 @@
           "name": "review_assignments_organization_id_case_id_application_cases_organization_id_id_fk",
           "tableFrom": "review_assignments",
           "tableTo": "application_cases",
-          "columnsFrom": [
-            "organization_id",
-            "case_id"
-          ],
-          "columnsTo": [
-            "organization_id",
-            "id"
-          ],
+          "columnsFrom": ["organization_id", "case_id"],
+          "columnsTo": ["organization_id", "id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -3057,14 +2841,8 @@
           "name": "review_assignments_case_id_request_id_review_requests_case_id_id_fk",
           "tableFrom": "review_assignments",
           "tableTo": "review_requests",
-          "columnsFrom": [
-            "case_id",
-            "request_id"
-          ],
-          "columnsTo": [
-            "case_id",
-            "id"
-          ],
+          "columnsFrom": ["case_id", "request_id"],
+          "columnsTo": ["case_id", "id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -3072,14 +2850,8 @@
           "name": "review_assignments_case_id_assessment_id_assessments_case_id_id_fk",
           "tableFrom": "review_assignments",
           "tableTo": "assessments",
-          "columnsFrom": [
-            "case_id",
-            "assessment_id"
-          ],
-          "columnsTo": [
-            "case_id",
-            "id"
-          ],
+          "columnsFrom": ["case_id", "assessment_id"],
+          "columnsTo": ["case_id", "id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -3089,10 +2861,7 @@
         "review_assignments_request_key": {
           "name": "review_assignments_request_key",
           "nullsNotDistinct": false,
-          "columns": [
-            "case_id",
-            "request_id"
-          ]
+          "columns": ["case_id", "request_id"]
         }
       },
       "policies": {},
@@ -3145,12 +2914,8 @@
           "name": "reviewer_command_receipts_assignment_id_review_assignments_id_fk",
           "tableFrom": "reviewer_command_receipts",
           "tableTo": "review_assignments",
-          "columnsFrom": [
-            "assignment_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["assignment_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -3158,10 +2923,7 @@
       "compositePrimaryKeys": {
         "reviewer_command_receipts_assignment_id_command_id_pk": {
           "name": "reviewer_command_receipts_assignment_id_command_id_pk",
-          "columns": [
-            "assignment_id",
-            "command_id"
-          ]
+          "columns": ["assignment_id", "command_id"]
         }
       },
       "uniqueConstraints": {},
@@ -3215,12 +2977,8 @@
           "name": "reviewer_draft_observations_assignment_id_reviewer_drafts_assignment_id_fk",
           "tableFrom": "reviewer_draft_observations",
           "tableTo": "reviewer_drafts",
-          "columnsFrom": [
-            "assignment_id"
-          ],
-          "columnsTo": [
-            "assignment_id"
-          ],
+          "columnsFrom": ["assignment_id"],
+          "columnsTo": ["assignment_id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -3228,10 +2986,7 @@
       "compositePrimaryKeys": {
         "reviewer_draft_observations_assignment_id_position_pk": {
           "name": "reviewer_draft_observations_assignment_id_position_pk",
-          "columns": [
-            "assignment_id",
-            "position"
-          ]
+          "columns": ["assignment_id", "position"]
         }
       },
       "uniqueConstraints": {},
@@ -3315,12 +3070,8 @@
           "name": "reviewer_drafts_assignment_id_review_assignments_id_fk",
           "tableFrom": "reviewer_drafts",
           "tableTo": "review_assignments",
-          "columnsFrom": [
-            "assignment_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["assignment_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -3440,12 +3191,8 @@
           "name": "reviewer_messages_assignment_id_review_assignments_id_fk",
           "tableFrom": "reviewer_messages",
           "tableTo": "review_assignments",
-          "columnsFrom": [
-            "assignment_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["assignment_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -3518,16 +3265,8 @@
           "name": "assessment_version_observations_case_id_assessment_id_version_assessment_versions_case_id_assessment_id_version_fk",
           "tableFrom": "assessment_version_observations",
           "tableTo": "assessment_versions",
-          "columnsFrom": [
-            "case_id",
-            "assessment_id",
-            "version"
-          ],
-          "columnsTo": [
-            "case_id",
-            "assessment_id",
-            "version"
-          ],
+          "columnsFrom": ["case_id", "assessment_id", "version"],
+          "columnsTo": ["case_id", "assessment_id", "version"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -3535,12 +3274,7 @@
       "compositePrimaryKeys": {
         "assessment_version_observations_case_id_assessment_id_version_position_pk": {
           "name": "assessment_version_observations_case_id_assessment_id_version_position_pk",
-          "columns": [
-            "case_id",
-            "assessment_id",
-            "version",
-            "position"
-          ]
+          "columns": ["case_id", "assessment_id", "version", "position"]
         }
       },
       "uniqueConstraints": {},
@@ -3776,14 +3510,8 @@
           "name": "assessment_versions_organization_id_case_id_application_cases_organization_id_id_fk",
           "tableFrom": "assessment_versions",
           "tableTo": "application_cases",
-          "columnsFrom": [
-            "organization_id",
-            "case_id"
-          ],
-          "columnsTo": [
-            "organization_id",
-            "id"
-          ],
+          "columnsFrom": ["organization_id", "case_id"],
+          "columnsTo": ["organization_id", "id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -3791,14 +3519,8 @@
           "name": "assessment_versions_organization_id_criteria_round_id_funding_rounds_organization_id_id_fk",
           "tableFrom": "assessment_versions",
           "tableTo": "funding_rounds",
-          "columnsFrom": [
-            "organization_id",
-            "criteria_round_id"
-          ],
-          "columnsTo": [
-            "organization_id",
-            "id"
-          ],
+          "columnsFrom": ["organization_id", "criteria_round_id"],
+          "columnsTo": ["organization_id", "id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -3806,14 +3528,8 @@
           "name": "assessment_versions_case_id_assessment_id_assessments_case_id_id_fk",
           "tableFrom": "assessment_versions",
           "tableTo": "assessments",
-          "columnsFrom": [
-            "case_id",
-            "assessment_id"
-          ],
-          "columnsTo": [
-            "case_id",
-            "id"
-          ],
+          "columnsFrom": ["case_id", "assessment_id"],
+          "columnsTo": ["case_id", "id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -3821,14 +3537,8 @@
           "name": "assessment_versions_case_id_material_version_material_versions_case_id_version_fk",
           "tableFrom": "assessment_versions",
           "tableTo": "material_versions",
-          "columnsFrom": [
-            "case_id",
-            "material_version"
-          ],
-          "columnsTo": [
-            "case_id",
-            "version"
-          ],
+          "columnsFrom": ["case_id", "material_version"],
+          "columnsTo": ["case_id", "version"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -3836,14 +3546,8 @@
           "name": "assessment_versions_criteria_round_id_criteria_version_criteria_versions_round_id_version_fk",
           "tableFrom": "assessment_versions",
           "tableTo": "criteria_versions",
-          "columnsFrom": [
-            "criteria_round_id",
-            "criteria_version"
-          ],
-          "columnsTo": [
-            "round_id",
-            "version"
-          ],
+          "columnsFrom": ["criteria_round_id", "criteria_version"],
+          "columnsTo": ["round_id", "version"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -3851,11 +3555,7 @@
       "compositePrimaryKeys": {
         "assessment_versions_case_id_assessment_id_version_pk": {
           "name": "assessment_versions_case_id_assessment_id_version_pk",
-          "columns": [
-            "case_id",
-            "assessment_id",
-            "version"
-          ]
+          "columns": ["case_id", "assessment_id", "version"]
         }
       },
       "uniqueConstraints": {},
@@ -4044,12 +3744,8 @@
           "name": "assessments_author_user_id_app_users_id_fk",
           "tableFrom": "assessments",
           "tableTo": "app_users",
-          "columnsFrom": [
-            "author_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["author_user_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -4057,14 +3753,8 @@
           "name": "assessments_organization_id_case_id_application_cases_organization_id_id_fk",
           "tableFrom": "assessments",
           "tableTo": "application_cases",
-          "columnsFrom": [
-            "organization_id",
-            "case_id"
-          ],
-          "columnsTo": [
-            "organization_id",
-            "id"
-          ],
+          "columnsFrom": ["organization_id", "case_id"],
+          "columnsTo": ["organization_id", "id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -4072,14 +3762,8 @@
           "name": "assessments_organization_id_contact_id_contacts_organization_id_id_fk",
           "tableFrom": "assessments",
           "tableTo": "contacts",
-          "columnsFrom": [
-            "organization_id",
-            "contact_id"
-          ],
-          "columnsTo": [
-            "organization_id",
-            "id"
-          ],
+          "columnsFrom": ["organization_id", "contact_id"],
+          "columnsTo": ["organization_id", "id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -4087,14 +3771,8 @@
           "name": "assessments_case_id_request_id_review_requests_case_id_id_fk",
           "tableFrom": "assessments",
           "tableTo": "review_requests",
-          "columnsFrom": [
-            "case_id",
-            "request_id"
-          ],
-          "columnsTo": [
-            "case_id",
-            "id"
-          ],
+          "columnsFrom": ["case_id", "request_id"],
+          "columnsTo": ["case_id", "id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -4102,20 +3780,14 @@
       "compositePrimaryKeys": {
         "assessments_case_id_id_pk": {
           "name": "assessments_case_id_id_pk",
-          "columns": [
-            "case_id",
-            "id"
-          ]
+          "columns": ["case_id", "id"]
         }
       },
       "uniqueConstraints": {
         "assessments_request_key": {
           "name": "assessments_request_key",
           "nullsNotDistinct": false,
-          "columns": [
-            "case_id",
-            "request_id"
-          ]
+          "columns": ["case_id", "request_id"]
         }
       },
       "policies": {},
@@ -4370,14 +4042,8 @@
           "name": "review_requests_organization_id_criteria_round_id_funding_rounds_organization_id_id_fk",
           "tableFrom": "review_requests",
           "tableTo": "funding_rounds",
-          "columnsFrom": [
-            "organization_id",
-            "criteria_round_id"
-          ],
-          "columnsTo": [
-            "organization_id",
-            "id"
-          ],
+          "columnsFrom": ["organization_id", "criteria_round_id"],
+          "columnsTo": ["organization_id", "id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -4385,14 +4051,8 @@
           "name": "review_requests_organization_id_case_id_application_cases_organization_id_id_fk",
           "tableFrom": "review_requests",
           "tableTo": "application_cases",
-          "columnsFrom": [
-            "organization_id",
-            "case_id"
-          ],
-          "columnsTo": [
-            "organization_id",
-            "id"
-          ],
+          "columnsFrom": ["organization_id", "case_id"],
+          "columnsTo": ["organization_id", "id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -4400,14 +4060,8 @@
           "name": "review_requests_organization_id_contact_id_contacts_organization_id_id_fk",
           "tableFrom": "review_requests",
           "tableTo": "contacts",
-          "columnsFrom": [
-            "organization_id",
-            "contact_id"
-          ],
-          "columnsTo": [
-            "organization_id",
-            "id"
-          ],
+          "columnsFrom": ["organization_id", "contact_id"],
+          "columnsTo": ["organization_id", "id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -4415,14 +4069,8 @@
           "name": "review_requests_case_id_material_version_material_versions_case_id_version_fk",
           "tableFrom": "review_requests",
           "tableTo": "material_versions",
-          "columnsFrom": [
-            "case_id",
-            "material_version"
-          ],
-          "columnsTo": [
-            "case_id",
-            "version"
-          ],
+          "columnsFrom": ["case_id", "material_version"],
+          "columnsTo": ["case_id", "version"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -4430,14 +4078,8 @@
           "name": "review_requests_criteria_round_id_criteria_version_criteria_versions_round_id_version_fk",
           "tableFrom": "review_requests",
           "tableTo": "criteria_versions",
-          "columnsFrom": [
-            "criteria_round_id",
-            "criteria_version"
-          ],
-          "columnsTo": [
-            "round_id",
-            "version"
-          ],
+          "columnsFrom": ["criteria_round_id", "criteria_version"],
+          "columnsTo": ["round_id", "version"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -4445,10 +4087,7 @@
       "compositePrimaryKeys": {
         "review_requests_case_id_id_pk": {
           "name": "review_requests_case_id_id_pk",
-          "columns": [
-            "case_id",
-            "id"
-          ]
+          "columns": ["case_id", "id"]
         }
       },
       "uniqueConstraints": {},
@@ -4509,12 +4148,8 @@
           "name": "review_states_case_id_application_cases_id_fk",
           "tableFrom": "review_states",
           "tableTo": "application_cases",
-          "columnsFrom": [
-            "case_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["case_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -4577,14 +4212,8 @@
           "name": "criteria_version_items_round_id_version_criteria_versions_round_id_version_fk",
           "tableFrom": "criteria_version_items",
           "tableTo": "criteria_versions",
-          "columnsFrom": [
-            "round_id",
-            "version"
-          ],
-          "columnsTo": [
-            "round_id",
-            "version"
-          ],
+          "columnsFrom": ["round_id", "version"],
+          "columnsTo": ["round_id", "version"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -4592,22 +4221,14 @@
       "compositePrimaryKeys": {
         "criteria_version_items_round_id_version_position_pk": {
           "name": "criteria_version_items_round_id_version_position_pk",
-          "columns": [
-            "round_id",
-            "version",
-            "position"
-          ]
+          "columns": ["round_id", "version", "position"]
         }
       },
       "uniqueConstraints": {
         "criteria_version_items_criterion_key": {
           "name": "criteria_version_items_criterion_key",
           "nullsNotDistinct": false,
-          "columns": [
-            "round_id",
-            "version",
-            "criterion_id"
-          ]
+          "columns": ["round_id", "version", "criterion_id"]
         }
       },
       "policies": {},
@@ -4653,12 +4274,8 @@
           "name": "criteria_versions_round_id_funding_rounds_id_fk",
           "tableFrom": "criteria_versions",
           "tableTo": "funding_rounds",
-          "columnsFrom": [
-            "round_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["round_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -4666,10 +4283,7 @@
       "compositePrimaryKeys": {
         "criteria_versions_round_id_version_pk": {
           "name": "criteria_versions_round_id_version_pk",
-          "columns": [
-            "round_id",
-            "version"
-          ]
+          "columns": ["round_id", "version"]
         }
       },
       "uniqueConstraints": {},
@@ -4819,12 +4433,8 @@
           "name": "funding_rounds_organization_id_organizations_id_fk",
           "tableFrom": "funding_rounds",
           "tableTo": "organizations",
-          "columnsFrom": [
-            "organization_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["organization_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -4832,12 +4442,8 @@
           "name": "funding_rounds_manager_user_id_app_users_id_fk",
           "tableFrom": "funding_rounds",
           "tableTo": "app_users",
-          "columnsFrom": [
-            "manager_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["manager_user_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -4847,10 +4453,7 @@
         "funding_rounds_owner_key": {
           "name": "funding_rounds_owner_key",
           "nullsNotDistinct": false,
-          "columns": [
-            "organization_id",
-            "id"
-          ]
+          "columns": ["organization_id", "id"]
         }
       },
       "policies": {},
@@ -4907,12 +4510,8 @@
           "name": "round_creation_receipts_organization_id_organizations_id_fk",
           "tableFrom": "round_creation_receipts",
           "tableTo": "organizations",
-          "columnsFrom": [
-            "organization_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["organization_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -4920,10 +4519,7 @@
       "compositePrimaryKeys": {
         "round_creation_receipts_organization_id_request_id_pk": {
           "name": "round_creation_receipts_organization_id_request_id_pk",
-          "columns": [
-            "organization_id",
-            "request_id"
-          ]
+          "columns": ["organization_id", "request_id"]
         }
       },
       "uniqueConstraints": {},
@@ -4968,9 +4564,7 @@
         "app_users_clerk_user_id_key": {
           "name": "app_users_clerk_user_id_key",
           "nullsNotDistinct": false,
-          "columns": [
-            "clerk_user_id"
-          ]
+          "columns": ["clerk_user_id"]
         }
       },
       "policies": {},
@@ -5037,12 +4631,8 @@
           "name": "guest_sessions_user_id_app_users_id_fk",
           "tableFrom": "guest_sessions",
           "tableTo": "app_users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }

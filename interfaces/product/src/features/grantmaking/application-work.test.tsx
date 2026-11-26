@@ -10,6 +10,7 @@ import { applicationView, roundView } from "@merit/grantmaking/api";
 import { makeReviewedApplication, makeRound } from "@merit/grantmaking/testing/fixtures";
 import { fromMinorUnits } from "@merit/money";
 import { createQueryClient } from "@merit/query";
+import { reviewRevisionSchema } from "@merit/reviews/domain";
 
 import { WebMessagesProvider } from "../../app/messages";
 import { ApplicationWork } from "./application-work";
@@ -231,7 +232,11 @@ it("offers deletion only until the application has a committee decision", async 
         ...base.application,
         intakeStatus: "in_preparation",
         managerRecommendation: null,
-        reviews: { revision: 0, requests: [], assessments: [] },
+        reviews: {
+          revision: reviewRevisionSchema.parse(0),
+          requests: [],
+          assessments: [],
+        },
         assessments: [],
       },
     },
