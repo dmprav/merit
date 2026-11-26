@@ -1,15 +1,17 @@
 import { randomUUID } from "node:crypto";
 
+import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Client } from "pg";
 import { assert, describe, expect } from "vite-plus/test";
 
-import { editFundingApplication } from "@merit/applications/server";
-import type { Database } from "@merit/db";
+import { createFundingApplication, editFundingApplication } from "@merit/applications/server";
+import { withDatabase, type Database } from "@merit/db";
 import type { RecordDecisionRequest } from "@merit/decisions/api";
 import { recordCommitteeDecision } from "@merit/decisions/server";
-import { encodeMoney, fromMinorUnits } from "@merit/money";
+import { encodeMoney } from "@merit/money";
 import { actor } from "@merit/organizations/testing/workspace";
+import { readWorkspace } from "@merit/organizations/transactions";
 import { createFundingRound, editFundingRound } from "@merit/rounds/server";
 
 import {
@@ -153,6 +155,29 @@ describe("committee decisions", () => {
     expect(encodeMoney(after.round.totals.proposed).minorUnits).toBe("0");
   });
 
+  it("leaves a saved manager recommendation and the round's proposed total unchanged", async ({
+    rounds,
+    scenario: s,
+  }) => {
+    const address = await rounds.createApplication("Recommended application");
+    await rounds.recommendApplication(address, "3000");
+    const before = await s.page(address);
+    assert(before.application.managerRecommendation !== null);
+    expect(encodeMoney(before.round.totals.proposed).minorUnits).toBe("3000");
+
+    expect(await s.record(address, {})).toMatchObject({ status: "ok" });
+
+    const after = await s.page(address);
+    expect(after.application.managerRecommendation).toEqual(
+      before.application.managerRecommendation,
+    );
+    expect(after.recommendationVersion).toBe(before.recommendationVersion);
+    expect(encodeMoney(after.round.totals.proposed)).toEqual(
+      encodeMoney(before.round.totals.proposed),
+    );
+    expect(encodeMoney(after.round.totals.committed).minorUnits).toBe("5000");
+  });
+
   it("enforces the outcome, amount, and conditions rules", async ({ scenario: s }) => {
     const invalid = (error: string) => ({ status: "invalid", error });
 
@@ -264,13 +289,11 @@ describe("committee decisions", () => {
 
   it("rejects funding when the round has no budget", async ({ scenario: s }) => {
     expect(await s.budget("")).toMatchObject({ status: "ok" });
-    expect(await s.record(s.first, {})).toEqual({
-      status: "invalid",
-      error: "budget_required",
-      budget: null,
-      committed: fromMinorUnits(5000n),
-      excess: null,
-    });
+    const result = await s.record(s.first, {});
+    assert(result.status === "invalid" && result.error === "budget_required");
+    expect(result.budget).toBeNull();
+    expect(result.excess).toBeNull();
+    expect(encodeMoney(result.committed)).toEqual({ minorUnits: "5000", currency: "EUR" });
   });
 
   it("refuses a round budget below the committed total and allows one that covers it", async ({
@@ -357,11 +380,31 @@ describe("committee decisions", () => {
     expect((await s.page(s.first)).decision.revision).toBe(1);
   });
 
-  it("denies other workspaces and non-managers", async ({ scenario: s }) => {
+  it("denies other workspaces and non-members", async ({ scenario: s }) => {
     expect(await s.record(s.first, {}, 0, { userId: "birch-manager" })).toEqual({
       status: "not_found",
     });
     expect(await s.record(s.first, {}, 0, { userId: "nobody" })).toEqual({ status: "not_found" });
+  });
+
+  it("denies an active member of the workspace who is not a manager", async ({
+    database,
+    scenario: s,
+  }) => {
+    await database.client.query(
+      "INSERT INTO app_users (id, clerk_user_id, name) VALUES ('alder-member', 'seed_member', 'Alder member')",
+    );
+    await database.client.query(
+      "INSERT INTO memberships (user_id, organization_id, role, administration, email) VALUES ('alder-member', 'alder', 'member', 'none', 'member@example.test')",
+    );
+
+    const denied = await s.record(s.first, {}, 0, { userId: "alder-member" });
+
+    expect(denied.status).not.toBe("ok");
+    expect((await s.page(s.first)).decision.versions).toEqual([]);
+    expect((await database.client.query("SELECT 1 FROM committee_decision_versions")).rows).toEqual(
+      [],
+    );
   });
 
   it("records MCP provenance for the recorder", async ({ database, scenario: s }) => {
@@ -381,6 +424,18 @@ describe("committee decisions", () => {
         )
       ).rows,
     ).toEqual([{ provenance_interface: "mcp", provenance_client_id: "claude" }]);
+  });
+
+  it("stores the recording time that the save returns", async ({ database, scenario: s }) => {
+    const saved = await s.record(s.first, {});
+    assert(saved.status === "ok");
+
+    const { rows } = await database.client.query<{ recorded_at: Date }>(
+      "SELECT recorded_at FROM committee_decision_versions",
+    );
+    expect(rows.map((row) => row.recorded_at.toISOString())).toEqual([
+      saved.decision.decision.recordedAt,
+    ]);
   });
 
   it("keeps saved versions immutable", async ({ database, scenario: s }) => {
@@ -405,6 +460,8 @@ describe("committee decisions", () => {
     ["a later version without an explanation", { revision: 2 }],
     ["a later version with a blank explanation", { revision: 2, change_explanation: " " }],
     ["a client-less MCP recorder", { provenance_interface: "mcp" }],
+    ["a client without an interface", { provenance_client_id: "claude" }],
+    ["a funded amount that is not a number", { outcome: "Fund", amount_minor_units: "NaN" }],
     ["an unknown outcome", { outcome: "Approve" }],
     ["another currency", { amount_currency: "USD" }],
     ["a revision of zero", { revision: 0 }],
@@ -443,6 +500,66 @@ describe("committee decisions", () => {
       "SELECT relrowsecurity AS rowsecurity FROM pg_class WHERE relname = 'committee_decision_versions'",
     );
     expect(rows).toEqual([{ rowsecurity: true }]);
+  });
+
+  it("shows a workspace transaction only its own workspace's decisions", async ({
+    database,
+    db,
+    scenario: s,
+  }) => {
+    // Dana manages both workspaces, so only the transaction's workspace separates their rows.
+    await database.client.query(
+      "INSERT INTO memberships (user_id, organization_id, role) VALUES ('dana', 'birch', 'program_manager')",
+    );
+    const round = await createFundingRound(db, actor, {
+      workspaceSlug: "birch",
+      requestId: randomUUID(),
+      title: "Birch round",
+      budget: "100.00",
+    });
+    assert(round.status === "ok");
+    const created = await createFundingApplication(db, actor, {
+      workspaceSlug: "birch",
+      publicId: round.publicId,
+      requestId: randomUUID(),
+      title: "Birch application",
+      applicant: "Community group",
+      requested: "80.00",
+      answers: [
+        {
+          questionId: "0e03fcf9-a422-5c35-9ac4-27be275d2f3e",
+          question: "Purpose",
+          response: "Weekly community activities.",
+        },
+      ],
+    });
+    assert(created.status === "ok");
+    const birch = { workspaceSlug: "birch", publicId: created.publicId };
+    const ready = await editFundingApplication(
+      db,
+      actor,
+      { ...birch, expectedRevision: 0, change: { action: "mark_ready" } },
+      applicationWork,
+    );
+    assert(ready.status === "ok");
+    expect(await s.record(birch, {})).toMatchObject({ status: "ok" });
+    expect(await s.record(s.first, {})).toMatchObject({ status: "ok" });
+
+    const runtimeUrl = await database.createRuntimeConnection();
+
+    const visible = async (slug: string) =>
+      withDatabase(runtimeUrl, (runtime) =>
+        readWorkspace(runtime, actor.userId, slug, async (tx) =>
+          (
+            await tx.execute<{ case_id: string }>(
+              sql`select case_id from committee_decision_versions`,
+            )
+          ).rows.map((row) => row.case_id),
+        ),
+      );
+
+    expect(await visible("alder")).toEqual([s.first.publicId]);
+    expect(await visible("birch")).toEqual([birch.publicId]);
   });
 
   it("leaves nothing saved when the audit event fails", async ({ database, scenario: s }) => {
@@ -514,15 +631,30 @@ describe("decisions and application lifecycle", () => {
     ).toMatchObject({ status: "ok" });
   });
 
-  it("excludes withdrawn applications from the committed total", async ({ scenario: s }) => {
-    expect(await s.record(s.first, {})).toMatchObject({ status: "ok" });
-    const second = await s.record(s.second, {
-      outcome: "Defer",
-      amount: { minorUnits: "0", currency: "EUR" },
-    });
-    expect(second).toMatchObject({ status: "ok" });
+  it("releases a commitment when a Fund decision is superseded by a decline", async ({
+    scenario: s,
+  }) => {
+    const funded = await s.record(s.first, {});
+    assert(funded.status === "ok");
+    expect(encodeMoney(funded.totals.committed).minorUnits).toBe("5000");
+    expect(encodeMoney(funded.totals.available!).minorUnits).toBe("5000");
+
+    const declined = await s.record(
+      s.first,
+      {
+        outcome: "Decline",
+        amount: { minorUnits: "0", currency: "EUR" },
+        changeExplanation: "The applicant cannot proceed.",
+      },
+      1,
+    );
+    assert(declined.status === "ok");
+    expect(encodeMoney(declined.totals.committed).minorUnits).toBe("0");
+    expect(encodeMoney(declined.totals.available!).minorUnits).toBe("10000");
+
     const page = await s.roundPage();
-    expect(encodeMoney(page.round.totals.committed).minorUnits).toBe("5000");
+    expect(encodeMoney(page.round.totals.committed).minorUnits).toBe("0");
+    expect(encodeMoney(page.round.totals.available!).minorUnits).toBe("10000");
   });
 
   it("rejects deleting an application that has any decision", async ({ scenario: s }) => {
@@ -664,16 +796,40 @@ const raceHeld = async <T>(
   const options = { connectionString: database.connectionString, statement_timeout: 5000 };
   const holder = new Client(options);
   const competitor = new Client(options);
-  await Promise.all([holder.connect(), competitor.connect()]);
+  try {
+    await Promise.all([holder.connect(), competitor.connect()]);
 
-  const pid = async (client: Client) => {
-    const row = (await client.query<{ pid: number }>("SELECT pg_backend_pid() AS pid")).rows[0];
-    assert(row, "Could not read the backend");
-    return row.pid;
-  };
+    const pid = async (client: Client) => {
+      const row = (await client.query<{ pid: number }>("SELECT pg_backend_pid() AS pid")).rows[0];
+      assert(row, "Could not read the backend");
+      return row.pid;
+    };
 
-  const [holderPid, competitorPid] = [await pid(holder), await pid(competitor)];
+    const [holderPid, competitorPid] = [await pid(holder), await pid(competitor)];
+    return await holdAndRace({
+      database,
+      holder,
+      competitor,
+      holderPid,
+      competitorPid,
+      first,
+      competing,
+    });
+  } finally {
+    await Promise.all([holder.end(), competitor.end()]);
+  }
+};
 
+const holdAndRace = async <T>(input: {
+  database: { client: Client };
+  holder: Client;
+  competitor: Client;
+  holderPid: number;
+  competitorPid: number;
+  first: (tx: Database) => Promise<{ status: string }>;
+  competing: (connection: Database) => Promise<T>;
+}) => {
+  const { database, holder, competitor, holderPid, competitorPid, first, competing } = input;
   let release!: () => void;
   let opened!: () => void;
   const released = new Promise<void>((resolve) => (release = resolve));
@@ -708,7 +864,6 @@ const raceHeld = async <T>(
   } finally {
     release();
     await settled;
-    await Promise.all([holder.end(), competitor.end()]);
   }
 };
 

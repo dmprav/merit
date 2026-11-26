@@ -4,6 +4,7 @@ import { type Scenario, type ScenarioContext, successfulCalls } from "../scenari
 import { content, lanterns, seedContact, workspace } from "./application-fixture";
 import { checked } from "./client";
 import * as controls from "./grant-controls";
+import { numberAmounts } from "./reply-amounts";
 
 const recommendationsFor = async (ctx: ScenarioContext, applicationId: string) =>
   (
@@ -20,6 +21,11 @@ const decisionsFor = async (ctx: ScenarioContext, applicationId: string) =>
       [applicationId],
     )
   ).rows;
+
+/** An affirmative statement within one sentence that a decision was recorded. */
+const recordedDecision =
+  /\b(?:recorded|saved|logged|entered|made)\b[^.\n]{0,60}\bdecision\b|\bdecision\b[^.\n]{0,40}\b(?:recorded|saved|logged|entered)\b/i;
+const deniedDecision = /\b(?:not|never|isn't|n't)\b[^.\n]{0,30}\bdecision\b/i;
 
 export const recordDecision = async (ctx: ScenarioContext): Promise<Scenario> => {
   const app = await lanterns(ctx, "3500");
@@ -38,10 +44,9 @@ export const recordDecision = async (ctx: ScenarioContext): Promise<Scenario> =>
   return {
     control: controls.recordDecision,
     verifyReply(reply) {
-      expect(reply.replace(/[, .\u00a0\u202f]/g, ""), "State the recorded amount").toMatch(
-        /245025|245025/,
-      );
-      expect(reply.toLowerCase(), "Call it a decision, not a recommendation").toMatch(/decision/);
+      expect(numberAmounts(reply), "State the recorded amount").toContain("245025");
+      expect(reply, "Call it a decision, not a recommendation").toMatch(recordedDecision);
+      expect(reply, "Call it a decision, not a recommendation").not.toMatch(deniedDecision);
     },
     async verifyEffects() {
       expect(await decisionsFor(ctx, app.address.applicationId)).toMatchObject([

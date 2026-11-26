@@ -23,3 +23,18 @@ export const euroAmounts = (reply: string) => {
     return { cents, start: match.index, end: match.index + match[0].length };
   });
 };
+
+/** Every complete number in a reply as cents, so "€24,502.50" is never read as 2,450.25. */
+export const numberAmounts = (reply: string) =>
+  Array.from(
+    reply.matchAll(/(?<![\d.,])\d+(?:[,.]\d+|[ \u00a0\u202f]\d{3}(?!\d))*/g),
+    ([token]) => {
+      const compact = token.replace(/[ \u00a0\u202f]/g, "");
+      const split = /^(.*)[,.](\d{1,2})$/.exec(compact);
+      const value = split
+        ? `${(split[1] ?? "").replace(/[,.]/g, "")}.${split[2]}`
+        : compact.replace(/[,.]/g, "");
+      const amount = parseMoney(value);
+      return amount.ok ? encodeMoney(amount.value).minorUnits : undefined;
+    },
+  );

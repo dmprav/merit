@@ -1,4 +1,5 @@
 import { act, renderHook } from "@testing-library/react";
+import { useState, type ReactNode } from "react";
 import { expect, it, vi } from "vite-plus/test";
 
 import { fromMinorUnits } from "@merit/money";
@@ -38,24 +39,41 @@ const setup = ({
   const save = vi.fn<DecisionData["save"]>();
   const setDraft = vi.fn();
   const resolveConflict = vi.fn(async () => {});
+
+  // Applying draft changes lets a test assert the draft, conflict, and baseline that result.
+  const Provider = ({ children }: { children: ReactNode }) => {
+    const [stored, setStored] = useState(drafts);
+    return (
+      <DraftContext
+        value={{
+          ready: true,
+          drafts: stored,
+          conflicts,
+          resolveConflict,
+          setDraft: (
+            key: string,
+            value: DecisionDraft | undefined,
+            nextBaseline: typeof baseline,
+          ) => {
+            setDraft(key, value, nextBaseline);
+            setStored((current) => {
+              const { [key]: _removed, ...rest } = current;
+              return value === undefined
+                ? rest
+                : { ...rest, [key]: { value, baseline: nextBaseline } };
+            });
+          },
+          clearDrafts: vi.fn(),
+        }}
+      >
+        {children}
+      </DraftContext>
+    );
+  };
+
   const hook = renderHook(
     () => useDecision("application", { revision, versions: [], disabled: false, save }),
-    {
-      wrapper: ({ children }) => (
-        <DraftContext
-          value={{
-            ready: true,
-            drafts,
-            conflicts,
-            resolveConflict,
-            setDraft,
-            clearDrafts: vi.fn(),
-          }}
-        >
-          {children}
-        </DraftContext>
-      ),
-    },
+    { wrapper: Provider },
   );
   return { ...hook, save, setDraft, resolveConflict };
 };
@@ -122,17 +140,17 @@ it("reports a conflict raised by another tab's stored draft", () => {
   expect(result.current.conflict).toBe("record_changed");
 });
 
-it("lets a person reaffirm the draft against the latest decision", () => {
-  const { result, setDraft } = setup({ revision: 3 });
+it("lets a person reaffirm the draft against the latest decision", async () => {
+  const { result, save } = setup({ revision: 3 });
+  save.mockResolvedValue({ status: "ok", recorded: true });
+  expect(result.current.conflict).toBe("record_changed");
 
   act(() => result.current.keepDraft());
 
-  expect(setDraft).toHaveBeenCalledExactlyOnceWith(
-    "application",
-    draft,
-    { expectedRevision: 3 },
-    true,
-  );
+  expect(result.current.conflict).toBeNull();
+  expect(result.current.draft).toEqual(draft);
+  await act(async () => result.current.save(decision));
+  expect(save).toHaveBeenCalledExactlyOnceWith(decision, { expectedRevision: 3 });
 });
 
 it("resolves another tab's stored conflict by keeping or loading it", async () => {
@@ -145,18 +163,17 @@ it("resolves another tab's stored conflict by keeping or loading it", async () =
   expect(result.current.draftReset).toBe(1);
 });
 
-it("discards the draft and loads the latest decision", () => {
-  const { result, setDraft } = setup({ revision: 3 });
+it("discards the draft and loads the latest decision", async () => {
+  const { result, save } = setup({ revision: 3 });
+  save.mockResolvedValue({ status: "ok", recorded: true });
 
   act(() => result.current.loadLatest());
 
-  expect(setDraft).toHaveBeenCalledExactlyOnceWith(
-    "application",
-    undefined,
-    { expectedRevision: 3 },
-    true,
-  );
+  expect(result.current.draft).toBeUndefined();
+  expect(result.current.conflict).toBeNull();
   expect(result.current.draftReset).toBe(1);
+  await act(async () => result.current.save(decision));
+  expect(save).toHaveBeenCalledExactlyOnceWith(decision, { expectedRevision: 3 });
 });
 
 it("does nothing to keep a draft that no longer exists", () => {
