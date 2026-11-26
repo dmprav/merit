@@ -292,7 +292,7 @@ describe("repository identity", () => {
     expect(resolveRepoIdentity(repoDir, {})).toEqual({ owner: "fork-owner", name: "merit" });
   });
 
-  test("reads GH_REPO as OWNER/REPO, HOST/OWNER/REPO, or a GitHub URL and rejects anything else", () => {
+  test("reads GH_REPO as OWNER/REPO, github.com/OWNER/REPO, or a GitHub URL and rejects anything else", () => {
     for (const spec of [
       "dmprav/merit",
       "github.com/dmprav/merit.git",
@@ -303,6 +303,21 @@ describe("repository identity", () => {
     for (const spec of ["https://only-one", "not a repo", "a/b/c/d", "invalid-spec"]) {
       expect(() => resolveRepoIdentity("/nonexistent", { GH_REPO: spec })).toThrow(
         /Invalid GH_REPO/,
+      );
+    }
+  });
+
+  test("rejects a GH_REPO on another host instead of sending its requests to github.com", () => {
+    expect(resolveRepoIdentity("/nonexistent", { GH_REPO: "GitHub.com/dmprav/merit" })).toEqual(
+      repo,
+    );
+    for (const spec of [
+      "git.example.com/dmprav/merit",
+      "https://git.example.com/dmprav/merit.git",
+      "git@git.example.com:dmprav/merit.git",
+    ]) {
+      expect(() => resolveRepoIdentity("/nonexistent", { GH_REPO: spec })).toThrow(
+        /Invalid GH_REPO .*only github\.com repositories are supported/,
       );
     }
   });

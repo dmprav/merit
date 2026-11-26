@@ -84,7 +84,11 @@ export const parseGitHubRemote = (remoteUrl: string): RepoIdentity | null => {
   return null;
 };
 
-/** Parses `[HOST/]OWNER/REPO` (the documented `GH_REPO` format) or a GitHub remote URL. */
+/**
+ * Parses `[github.com/]OWNER/REPO` (the `GH_REPO` format) or a github.com remote URL. Requests carry
+ * no host, so `gh` sends them to github.com; a spec naming another host is rejected rather than
+ * silently pointed at a same-named github.com repository.
+ */
 const parseGitHubRepoSpec = (spec: string): RepoIdentity | null => {
   const trimmed = spec.trim().replace(/\.git$/, "");
   const fromRemote = parseGitHubRemote(trimmed);
@@ -95,8 +99,9 @@ const parseGitHubRepoSpec = (spec: string): RepoIdentity | null => {
   const isRepoPath =
     (segments.length === 2 || segments.length === 3) &&
     segments.every((segment) => segment.length > 0 && !/[\s:]/.test(segment));
+  const onGitHubDotCom = segments.length === 2 || segments[0]?.toLowerCase() === "github.com";
   const [owner, name] = segments.slice(-2);
-  return isRepoPath && owner && name ? { owner, name } : null;
+  return isRepoPath && onGitHubDotCom && owner && name ? { owner, name } : null;
 };
 
 const repoFromOrigin = (repoRoot: string): RepoIdentity => {
@@ -123,7 +128,9 @@ export const resolveRepoIdentity = (
   if (ghRepo) {
     const parsed = parseGitHubRepoSpec(ghRepo);
     if (!parsed) {
-      throw new Error(`Invalid GH_REPO "${ghRepo}"; expected [HOST/]OWNER/REPO.`);
+      throw new Error(
+        `Invalid GH_REPO "${ghRepo}"; expected [github.com/]OWNER/REPO (only github.com repositories are supported).`,
+      );
     }
     return parsed;
   }
