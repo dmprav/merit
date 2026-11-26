@@ -16,7 +16,13 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, test } from "vite-plus/test";
 
-import { combineProcessIdentity, type FileLockOptions, withFileLock } from "./file-lock.ts";
+import {
+  acquireFileLock,
+  combineProcessIdentity,
+  FileLockBusyError,
+  type FileLockOptions,
+  withFileLock,
+} from "./file-lock.ts";
 
 const tempDirs: string[] = [];
 
@@ -208,6 +214,46 @@ describe("withFileLock races", () => {
     ).toBe("recovered");
     expect(plantedMarker).toBe(true);
     expect(readdirSync(dir)).toEqual([]);
+  });
+});
+
+describe("acquireFileLock without waiting", () => {
+  test("fails at once with the holder's pid while a live process holds the lock", async () => {
+    const { lockPath } = makeLockPath();
+    const release = await acquireFileLock(lockPath, { timeoutMs: 0 });
+
+    // Nothing in this attempt sleeps, so the rejection settles before any timer fires.
+    let timerFired = false;
+    const timer = setTimeout(() => {
+      timerFired = true;
+    }, 0);
+    const failure = await acquireFileLock(lockPath, { label: "test", timeoutMs: 0 }).catch(
+      (error: unknown) => error,
+    );
+    clearTimeout(timer);
+
+    expect(timerFired).toBe(false);
+    expect(failure).toBeInstanceOf(FileLockBusyError);
+    expect(failure).toMatchObject({ lockPath, holderPid: process.pid });
+    expect(String(failure)).toContain(`test lock at "${lockPath}" is held by pid ${process.pid}`);
+
+    release();
+    expect(existsSync(lockPath)).toBe(false);
+  });
+
+  test("reclaims a stale lock in its single attempt and releases only its own lock", async () => {
+    const { dir, lockPath } = makeLockPath();
+    writeFileSync(lockPath, lockPayload(exitedPid(), "dead"), "utf8");
+
+    const release = await acquireFileLock(lockPath, { timeoutMs: 0 });
+    expect(readFileSync(lockPath, "utf8")).toContain(`"pid":${process.pid}`);
+
+    // A replacement written after this holder lost the lock stays when it releases.
+    const replacement = lockPayload(process.pid, "replacement");
+    writeFileSync(lockPath, replacement, "utf8");
+    release();
+    expect(readFileSync(lockPath, "utf8")).toBe(replacement);
+    expect(readdirSync(dir)).toEqual(["resource.lock"]);
   });
 });
 

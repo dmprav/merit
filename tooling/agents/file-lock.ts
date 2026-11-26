@@ -29,10 +29,13 @@ const lockMetadataSchema = z.object({
   startTime: z.string().min(1).optional(),
 });
 
-type LockOwner = Pick<z.infer<typeof lockMetadataSchema>, "pid" | "startTime">;
+type LockMetadata = z.infer<typeof lockMetadataSchema>;
+
+type LockOwner = Pick<LockMetadata, "pid" | "startTime">;
 
 export type FileLockOptions = {
   label?: string;
+  /** How long to wait for a held lock; 0 makes one attempt, including stale-lock reclaim. */
   timeoutMs?: number;
   staleMs?: number;
   initialDelayMs?: number;
@@ -53,6 +56,20 @@ type ReclaimContext = {
   nowMs: () => number;
   onStaleLock?: FileLockOptions["onStaleLock"];
 };
+
+/** Thrown when another live process still holds the lock once the timeout has elapsed. */
+export class FileLockBusyError extends Error {
+  readonly lockPath: string;
+  /** The holder's PID, when its lock metadata is readable. */
+  readonly holderPid: number | undefined;
+
+  constructor(message: string, lockPath: string, holderPid: number | undefined) {
+    super(message);
+    this.name = "FileLockBusyError";
+    this.lockPath = lockPath;
+    this.holderPid = holderPid;
+  }
+}
 
 export const getErrnoCode = (error: unknown): string | undefined => {
   if (typeof error === "object" && error !== null && "code" in error) {
@@ -119,20 +136,24 @@ const sameFile = (
   right: { dev: number; ino: number },
 ): boolean => left.dev === right.dev && left.ino === right.ino;
 
+const parseLockMetadata = (raw: string): LockMetadata | undefined => {
+  try {
+    const parsed = lockMetadataSchema.safeParse(JSON.parse(raw));
+    return parsed.success ? parsed.data : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
 const isStaleLockContent = (
   raw: string,
   ageMs: number,
   context: Pick<ReclaimContext, "staleMs" | "isOwnerAlive">,
 ): boolean => {
-  let parsed: ReturnType<typeof lockMetadataSchema.safeParse> | undefined;
-  try {
-    parsed = raw.trim().length > 0 ? lockMetadataSchema.safeParse(JSON.parse(raw)) : undefined;
-  } catch {
-    parsed = undefined;
-  }
-  if (parsed?.success) {
+  const metadata = parseLockMetadata(raw);
+  if (metadata) {
     // Never expire valid lock metadata solely by age while its owner process is still alive.
-    return !context.isOwnerAlive(parsed.data);
+    return !context.isOwnerAlive(metadata);
   }
   // Locks are published complete, so unreadable content is foreign or damaged; allow a short grace.
   return ageMs >= Math.min(context.staleMs, LOCK_WRITE_GRACE_MS);
@@ -235,15 +256,27 @@ const sleep = (ms: number): Promise<void> =>
     setTimeout(resolveSleep, ms);
   });
 
+const busyError = (lockPath: string, label: string, timeoutMs: number): FileLockBusyError => {
+  const raw = readOptionalFile(lockPath);
+  const holderPid = raw === undefined ? undefined : parseLockMetadata(raw)?.pid;
+  const message =
+    timeoutMs > 0
+      ? `Timed out waiting for ${label} lock at "${lockPath}" after ${timeoutMs}ms.`
+      : `The ${label} lock at "${lockPath}" is held${holderPid ? ` by pid ${holderPid}` : ""}.`;
+  return new FileLockBusyError(message, lockPath, holderPid);
+};
+
 /**
- * Runs `operation` while holding an exclusive lockfile. The lock is written to a private temporary
- * file and published with an atomic hard link, so contenders never observe partial metadata.
+ * Takes an exclusive lockfile and returns its release, which removes the lock only while this
+ * holder still owns it. The lock is written to a private temporary file and published with an
+ * atomic hard link, so contenders never observe partial metadata. A lock whose owner process has
+ * exited is reclaimed; a live holder is waited for until `timeoutMs`, then reported with
+ * `FileLockBusyError`.
  */
-export const withFileLock = async <T>(
+export const acquireFileLock = async (
   lockPath: string,
-  operation: () => Promise<T> | T,
   options: FileLockOptions = {},
-): Promise<T> => {
+): Promise<() => void> => {
   const label = options.label ?? "file";
   const timeoutMs = options.timeoutMs ?? DEFAULT_LOCK_TIMEOUT_MS;
   const initialDelayMs = options.initialDelayMs ?? DEFAULT_LOCK_INITIAL_DELAY_MS;
@@ -293,9 +326,7 @@ export const withFileLock = async <T>(
       }
       const remainingMs = deadline - nowMs();
       if (remainingMs <= 0) {
-        throw new Error(
-          `Timed out waiting for ${label} lock at "${lockPath}" after ${timeoutMs}ms.`,
-        );
+        throw busyError(lockPath, label, timeoutMs);
       }
       await sleep(Math.min(delayMs, remainingMs));
       delayMs = Math.min(delayMs * 2, maxDelayMs);
@@ -308,9 +339,21 @@ export const withFileLock = async <T>(
     }
   }
 
+  return () => {
+    releaseIfOwned(lockPath, payload);
+  };
+};
+
+/** Runs `operation` while holding an exclusive lockfile, releasing it however `operation` ends. */
+export const withFileLock = async <T>(
+  lockPath: string,
+  operation: () => Promise<T> | T,
+  options: FileLockOptions = {},
+): Promise<T> => {
+  const release = await acquireFileLock(lockPath, options);
   try {
     return await operation();
   } finally {
-    releaseIfOwned(lockPath, payload);
+    release();
   }
 };
