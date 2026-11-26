@@ -147,7 +147,7 @@ export default defineConfig({
       "test:hooks": { command: "vp test tooling/verification/hooks.test.ts", cache: false },
       "test:agents": {
         command:
-          "vp test tooling/cli.test.ts tooling/agents/proposal.test.ts tooling/agents/scout.test.ts tooling/agents/queue.test.ts tooling/agents/file-lock.test.ts tooling/agents/ledger.test.ts tooling/agents/prune-verifications.test.ts tooling/agents/worktree.test.ts tooling/storybook/ui-verify.test.ts",
+          "vp test tooling/cli.test.ts tooling/agents/github-rest.test.ts tooling/agents/proposal.test.ts tooling/agents/scout.test.ts tooling/agents/queue.test.ts tooling/agents/file-lock.test.ts tooling/agents/ledger.test.ts tooling/agents/prune-verifications.test.ts tooling/agents/worktree.test.ts tooling/storybook/ui-verify.test.ts",
         cache: false,
       },
       "test:ci": {

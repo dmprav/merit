@@ -14,7 +14,13 @@ import {
   classifyChangedPaths,
   type MechanismClassification,
 } from "../verification/architecture/mechanisms.ts";
-import { getRepoIdentity, ghApiJson, listRestIssues, type RepoIdentity } from "./github-rest.ts";
+import {
+  getRepoIdentity,
+  ghApiJson,
+  listRestIssues,
+  restLabelSchema,
+  type RepoIdentity,
+} from "./github-rest.ts";
 
 export const SCOUT_LENSES = [
   "docs",
@@ -376,7 +382,17 @@ export const renderProposalMarkdown = (
 
 const restCreatedIssueSchema = z.object({
   html_url: z.string(),
+  labels: z.array(restLabelSchema).default([]),
 });
+
+/** Returns any requested labels missing from GitHub's created-issue response (case-insensitive). */
+export const findMissingAppliedLabels = (
+  requestedLabels: readonly string[],
+  appliedLabels: readonly { name: string }[],
+): string[] => {
+  const applied = new Set(appliedLabels.map((label) => label.name.toLowerCase()));
+  return requestedLabels.filter((label) => !applied.has(label.toLowerCase()));
+};
 
 export const SCOUT_GH_TOKEN_ENV = "MERIT_SCOUT_GH_TOKEN";
 
@@ -516,6 +532,12 @@ const runCli = () => {
       resolveScoutGhEnv(),
     ),
   );
+  const missingLabels = findMissingAppliedLabels(labels, created.labels);
+  if (missingLabels.length > 0) {
+    throw new Error(
+      `Issue created at ${created.html_url}, but GitHub did not apply requested label(s): ${missingLabels.join(", ")}. Check token permissions and apply the missing labels manually.`,
+    );
+  }
   console.log(
     JSON.stringify({
       status: "created",

@@ -28,6 +28,8 @@ export const restIssueItemSchema = z.object({
 
 type RestIssueItem = z.output<typeof restIssueItemSchema>;
 
+const GH_API_MAX_BUFFER_BYTES = 32 * 1024 * 1024;
+
 /** Parses GitHub owner/repo from HTTPS, SSH, or cloud-proxy git remote URLs without invoking GraphQL. */
 export const parseGitHubRemote = (remoteUrl: string): RepoIdentity | null => {
   const trimmed = remoteUrl.trim().replace(/\.git$/, "");
@@ -46,9 +48,44 @@ export const parseGitHubRemote = (remoteUrl: string): RepoIdentity | null => {
   return null;
 };
 
-export const getRepoIdentity = (repoRoot: string): RepoIdentity => {
-  const envRepo = process.env.GITHUB_REPOSITORY;
-  if (envRepo && /^[^/]+\/[^/]+$/.test(envRepo)) {
+/** Parses `[HOST/]OWNER/REPO` (the documented `GH_REPO` format) or a GitHub remote URL. */
+export const parseGitHubRepoSpec = (spec: string): RepoIdentity | null => {
+  const trimmed = spec.trim().replace(/\.git$/, "");
+  if (!trimmed) {
+    return null;
+  }
+  const fromRemote = parseGitHubRemote(trimmed);
+  if (fromRemote) {
+    return fromRemote;
+  }
+  const segments = trimmed.split("/");
+  if (
+    (segments.length === 2 || segments.length === 3) &&
+    segments.every((segment) => segment.length > 0 && !/[\s:]/.test(segment))
+  ) {
+    const owner = segments.at(-2);
+    const name = segments.at(-1);
+    if (owner && name) {
+      return { owner, name };
+    }
+  }
+  return null;
+};
+
+export const getRepoIdentity = (
+  repoRoot: string,
+  env: NodeJS.ProcessEnv = process.env,
+): RepoIdentity => {
+  const ghRepo = env.GH_REPO?.trim();
+  if (ghRepo) {
+    const parsedGhRepo = parseGitHubRepoSpec(ghRepo);
+    if (!parsedGhRepo) {
+      throw new Error(`Invalid GH_REPO "${ghRepo}"; expected [HOST/]OWNER/REPO.`);
+    }
+    return parsedGhRepo;
+  }
+  const envRepo = env.GITHUB_REPOSITORY?.trim();
+  if (envRepo && /^[^/\s]+\/[^/\s]+$/.test(envRepo)) {
     const [owner, name] = envRepo.split("/");
     if (owner && name) {
       return { owner, name };
@@ -73,6 +110,7 @@ export const ghApiJson = (
   const raw = execFileSync("gh", ["api", ...args], {
     cwd: repoRoot,
     encoding: "utf8",
+    maxBuffer: GH_API_MAX_BUFFER_BYTES,
     ...(env ? { env } : {}),
   });
   return raw.trim() ? JSON.parse(raw) : null;

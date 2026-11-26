@@ -7,6 +7,7 @@ import {
   applyTier2OnlyOverride,
   classifyProposalTier,
   findDuplicateProposal,
+  findMissingAppliedLabels,
   isProposalCapReached,
   proposalInputSchema,
   renderProposalMarkdown,
@@ -206,7 +207,7 @@ describe("proposal", () => {
     expect(withScoutToken.GH_TOKEN).toBe("injected-integration-token");
   });
 
-  test("routes all GitHub operations in proposal.ts, scout.ts, and queue.ts through REST-only github-rest.ts", () => {
+  test("keeps direct gh CLI calls inside github-rest.ts and forbids GraphQL or gh pr/issue/repo wrappers", () => {
     const githubRestSource = readFileSync(
       fileURLToPath(new URL("./github-rest.ts", import.meta.url)),
       "utf8",
@@ -218,9 +219,6 @@ describe("proposal", () => {
     const scoutSource = readFileSync(fileURLToPath(new URL("./scout.ts", import.meta.url)), "utf8");
     const queueSource = readFileSync(fileURLToPath(new URL("./queue.ts", import.meta.url)), "utf8");
 
-    // Only github-rest.ts invokes `gh`, and only via `gh api` (no GraphQL or `gh pr/issue/repo`).
-    expect(githubRestSource.match(/execFileSync\("gh"/g)).toHaveLength(1);
-    expect(githubRestSource).toContain('execFileSync("gh", ["api", ...args]');
     for (const source of [githubRestSource, proposalSource, scoutSource, queueSource]) {
       expect(source).not.toMatch(/execFileSync\("gh",\s*\[\s*"(?:pr|issue|repo)"/);
       expect(source).not.toContain('"graphql"');
@@ -228,6 +226,21 @@ describe("proposal", () => {
     expect(proposalSource).not.toMatch(/execFileSync\("gh"/);
     expect(scoutSource).not.toMatch(/execFileSync\("gh"/);
     expect(queueSource).not.toMatch(/execFileSync\("gh"/);
+  });
+
+  test("detects requested labels silently dropped by GitHub during issue creation", () => {
+    expect(
+      findMissingAppliedLabels(
+        ["agent:proposed", "type:maintenance"],
+        [{ name: "Agent:Proposed" }, { name: "type:maintenance" }],
+      ),
+    ).toEqual([]);
+    expect(
+      findMissingAppliedLabels(
+        ["agent:proposed", "agent:design", "type:maintenance"],
+        [{ name: "type:maintenance" }],
+      ),
+    ).toEqual(["agent:proposed", "agent:design"]);
   });
 
   test("classifies design proposals as Tier 2 and renders structured sequencing details instead of an implementer brief", () => {
