@@ -44,3 +44,17 @@ export const AcrossStackGaps: Story = {
     </Stack>
   ),
 };
+
+/** A wrapper between the Stack and the rule hides the Stack's gap, so the rule keeps its spacing. */
+export const InsideWrapper: Story = {
+  parameters: { controls: { disable: true } },
+  render: () => (
+    <Stack gap={3}>
+      <section aria-label="Wrapped">
+        <p>Above the rule in a wrapper.</p>
+        <Divider />
+        <p>Below the rule in a wrapper.</p>
+      </section>
+    </Stack>
+  ),
+};

@@ -1,3 +1,10 @@
+/* Only a Stack's direct children see its gap; a wrapper's descendants fall back to none. */
+@property --parent-stack-gap {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
 .stack,
 .inline {
   gap: var(--layout-gap);
