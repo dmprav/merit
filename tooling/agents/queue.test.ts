@@ -810,9 +810,24 @@ describe("queue arguments", () => {
     { args: ["claim", "130", "131"], error: /Usage: queue\.ts claim/ },
     { args: ["claim"], error: /Usage: queue\.ts claim/ },
     { args: ["escalate", "221"], error: /Usage: queue\.ts escalate/ },
+    { args: ["open-pr", "--title", "T", "--head", "b"], error: /Usage: queue\.ts open-pr/ },
+    {
+      args: ["open-pr", "--title", "T", "--head", "b", "--body-file", "pr.md", "--body", "x"],
+      error: /Usage: queue\.ts open-pr/,
+    },
     { args: ["unknown"], error: /Unknown queue command "unknown"/ },
   ])("rejects $args", ({ args, error }) => {
     expect(() => parseQueueArgs(args)).toThrow(error);
+  });
+
+  test("accepts an explicitly empty inline pull request body", () => {
+    expect(parseQueueArgs(["open-pr", "--title", "T", "--head", "b", "--body="])).toEqual({
+      command: "open-pr",
+      title: "T",
+      head: "b",
+      base: "main",
+      body: "",
+    });
   });
 });
 

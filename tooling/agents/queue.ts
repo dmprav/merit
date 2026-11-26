@@ -707,7 +707,10 @@ const parseOpenPrArgs = (args: readonly string[]): QueueCommand => {
     },
     usage: OPEN_PR_USAGE,
   });
-  if (!values.title || !values.head) {
+  const bodyFile = values["body-file"];
+  // Exactly one body source: an explicit `--body=` may be empty, but a missing body may not.
+  const hasOneBodySource = (bodyFile === undefined) !== (values.body === undefined);
+  if (!values.title || !values.head || !hasOneBodySource || bodyFile === "") {
     throw new Error(OPEN_PR_USAGE);
   }
   return {
@@ -715,7 +718,7 @@ const parseOpenPrArgs = (args: readonly string[]): QueueCommand => {
     title: values.title,
     head: values.head,
     base: values.base ?? "main",
-    ...(values["body-file"] ? { bodyFile: values["body-file"] } : {}),
+    ...(bodyFile === undefined ? {} : { bodyFile }),
     body: values.body ?? "",
   };
 };
