@@ -1,15 +1,36 @@
+/*
+ * A centered dialog that fits sits with its top at `--frame-top`. A taller one moves up: the two
+ * spacers around it shrink together, so it never ends closer to the bottom edge than it starts
+ * from the top, and neither falls below the margin.
+ */
 .centeredOverlay {
   --frame-top: min(20vh, 12rem);
+  --frame-margin: var(--space-4);
   display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding: var(--frame-top) var(--space-4) var(--space-4);
+  flex-direction: column;
+  align-items: center;
+  padding-inline: var(--frame-margin);
+}
+
+.centeredOverlay::before,
+.centeredOverlay::after {
+  content: "";
+  min-height: var(--frame-margin);
+}
+
+.centeredOverlay::before {
+  flex: 0 1 var(--frame-top);
+}
+
+.centeredOverlay::after {
+  flex: 1 1 var(--frame-top);
 }
 
 .centered {
+  flex: none;
   width: 100%;
   max-width: 42rem;
-  max-height: calc(100dvh - var(--frame-top) - 2rem);
+  max-height: calc(100dvh - 2 * var(--frame-margin));
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: var(--panel-radius);
@@ -42,97 +63,24 @@
   box-shadow: var(--dialog-shadow);
 }
 
-.dialog {
-  --dialog-gutter: var(--space-6);
-  --dialog-body-gap: var(--space-3);
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  /* The header divider follows the scrolling body below it. */
-  timeline-scope: --dialog-body;
-  --edge-timeline: --dialog-body;
+.centeredDialog {
+  max-height: calc(100dvh - 2 * var(--frame-margin) - 2px);
 }
 
-.dialog[data-modal-dialog="center"] {
-  max-height: calc(100dvh - var(--frame-top) - 2rem - 2px);
-}
-
-.dialog[data-modal-dialog="end"] {
+.sidePanelDialog {
   height: 100%;
   max-height: 100dvh;
 }
 
-/* Let the whole task scroll when a persistent heading and actions would crowd out its fields. */
-.dialog[data-scroll-content] {
-  overflow-y: auto;
-  scroll-padding-block: var(--space-2);
-}
-
-.dialog[data-scroll-content] > *,
-.dialog[data-scroll-content] [data-dialog-content] {
-  flex: none;
-}
-
-.dialog[data-scroll-content] [data-dialog-body] {
-  overflow: visible;
-}
-
-.header {
-  display: flex;
-  flex-shrink: 0;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-3);
-  /* The heading opens the dialog's surface; a divider appears only once the body scrolls under it. */
-  padding: var(--space-4) var(--space-4) 0 var(--dialog-gutter);
-}
-
-.heading {
-  display: flex;
-  flex: 1;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-1) var(--space-3);
-  min-width: 0;
-  min-height: var(--control-height-small);
-}
-
-.title {
-  min-width: 0;
-  /* A step above the body, so the task's name leads the dialog rather than blending into fields. */
-  font-size: var(--text-reading);
-  line-height: 1.4;
-  font-weight: var(--weight-heading);
-  overflow-wrap: anywhere;
-}
-
-.context {
-  flex: 1 1 12rem;
-  min-width: 0;
-  color: var(--muted);
-  font-size: var(--text-caption);
-  overflow-wrap: anywhere;
-}
-
-.close {
-  flex-shrink: 0;
-  margin-inline-end: -0.375rem;
-}
-
 @media (max-width: 600px) {
   .centeredOverlay {
-    --frame-top: 0px;
-    align-items: center;
-    padding: var(--space-3);
+    /* Without room for a leading gap, the dialog centers between its margins. */
+    --frame-top: 50dvh;
   }
 
   .sidePanel {
     max-width: none;
     border: 0;
-  }
-
-  .dialog {
-    --dialog-gutter: var(--space-5);
   }
 }
 
@@ -154,25 +102,4 @@
   to {
     transform: translateX(0);
   }
-}
-
-/*
- * A side panel is a tall surface beside the page, so its header is a fixed bar the height of the
- * application's top bar, ruled off from the content, rather than a title that floats away.
- */
-.dialog[data-modal-dialog="end"] > [data-dialog-header] {
-  /* The rule is part of the bar; only the scroll shade appears below it. */
-  box-shadow: 0 10px 12px -12px var(--edge-shade);
-  align-items: center;
-  min-height: var(--bar-height);
-  padding-block: var(--space-2);
-  border-block-end: 1px solid var(--border);
-}
-
-.dialog[data-modal-dialog="end"] > [data-dialog-header] .heading {
-  min-height: 0;
-}
-
-.dialog[data-modal-dialog="end"] [data-framed] > [data-dialog-body] {
-  padding-top: var(--space-5);
 }

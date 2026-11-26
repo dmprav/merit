@@ -38,62 +38,7 @@
 }
 
 .popover[data-appearance="reference"] .dialog {
-  --dialog-gutter: var(--space-4);
-  --dialog-body-gap: var(--space-4);
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  timeline-scope: --dialog-body;
-  --edge-timeline: --dialog-body;
-}
-
-.header {
-  display: flex;
-  flex-shrink: 0;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-3);
-  padding: var(--space-1) var(--space-2) var(--space-1) var(--dialog-gutter);
-}
-
-.title {
-  min-width: 0;
-  /* Center the first line on the small close control; longer titles wrap below it. */
-  padding-block: calc((var(--control-height-small) - 1lh) / 2);
-  font-size: var(--text-body);
-  line-height: 1.4;
-  font-weight: var(--weight-heading);
-  overflow-wrap: anywhere;
-}
-
-.headerActions {
-  display: flex;
-  flex-shrink: 0;
-  align-items: center;
-  gap: var(--space-1);
-}
-
-.footer {
-  flex-shrink: 0;
-  padding: var(--space-3) var(--dialog-gutter);
-  border-top: 1px solid var(--border);
-}
-
-/* Let utility content scroll with the guide when space is too small for both. */
-.popover[data-appearance="reference"][data-has-footer] {
-  overflow-y: auto;
-}
-
-.popover[data-has-footer] .dialog {
-  flex-shrink: 0;
-}
-
-/* The whole popover scrolls under its sticky header, so the divider stays. */
-.popover[data-has-footer] .header {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  border-bottom: 1px solid var(--border);
+  flex: 1;
 }
 
 @media (pointer: coarse) {

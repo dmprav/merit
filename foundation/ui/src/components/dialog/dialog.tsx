@@ -1,18 +1,16 @@
 import { useSyncExternalStore, type ReactNode } from "react";
-import { Dialog, DialogTrigger, Heading } from "react-aria-components/Dialog";
+import { Dialog, DialogTrigger } from "react-aria-components/Dialog";
 import { Popover, type PopoverProps } from "react-aria-components/Popover";
-import { useTranslation } from "react-i18next";
 
 import motion from "../../foundations/motion.module.css";
-import scrollStyles from "../../foundations/scroll-area.module.css";
-import { ButtonBase } from "../button/button-base";
-import { Icon } from "../icon/icon";
 import { DialogContent, DialogFrameContext } from "./dialog-content";
 import styles from "./dialog.module.css";
+import { FrameHeader, frameRoot } from "./frame";
 import { FramedDialog, type FramedDialogProps } from "./framed-dialog";
 import { RetainedDialogContent } from "./modal-frame";
 
 export { DialogContent, DialogSection } from "./dialog-content";
+export { FrameFooter } from "./frame";
 
 /** A centered dialog for a bounded task: a short form, a decision, or reference reading. */
 export const ModalDialog = (props: FramedDialogProps) => <FramedDialog {...props} frame="center" />;
@@ -67,7 +65,6 @@ const FloatingDialog = ({
   appearance: "reference" | "picker";
   children: ReactNode | ((props: { close: () => void }) => ReactNode);
 }) => {
-  const { t } = useTranslation("common");
   const compact = useSyncExternalStore(subscribeViewport, isCompactViewport, () => false);
   const picker = appearance === "picker";
 
@@ -85,7 +82,6 @@ const FloatingDialog = ({
         // Pickers can open nested overlays before their entrance finishes, so they only fade.
         className={`${styles.popover} ${motion.fadeOut} ${picker ? motion.fadeIn : ""}`}
         data-appearance={appearance}
-        data-has-footer={footer ? true : undefined}
         placement={compact ? "bottom end" : (placement ?? "right bottom")}
         offset={8}
         containerPadding={16}
@@ -98,20 +94,11 @@ const FloatingDialog = ({
       >
         {({ isExiting }) => (
           <RetainedDialogContent isOpen={!isExiting}>
-            <Dialog className={styles.dialog} aria-label={picker ? title : undefined}>
+            <Dialog
+              {...(picker ? { className: styles.dialog } : frameRoot("popover", styles.dialog))}
+              aria-label={picker ? title : undefined}
+            >
               {({ close }) => {
-                const closeButton = (
-                  <ButtonBase
-                    slot={null}
-                    variant="quiet"
-                    iconOnly
-                    aria-label={closeLabel ?? t("closeDialog")}
-                    onPress={close}
-                    isDisabled={isDismissDisabled}
-                  >
-                    <Icon name="close" />
-                  </ButtonBase>
-                );
                 const content = typeof children === "function" ? children({ close }) : children;
 
                 return (
@@ -120,19 +107,14 @@ const FloatingDialog = ({
                       content
                     ) : (
                       <>
-                        <div
-                          className={`${styles.header} ${footer ? "" : scrollStyles.dividerAfterStart}`}
-                        >
-                          <Heading slot="title" className={styles.title}>
-                            {title}
-                          </Heading>
-                          <div className={styles.headerActions}>
-                            {headerActions}
-                            {closeButton}
-                          </div>
-                        </div>
-                        <DialogContent>{content}</DialogContent>
-                        {footer && <div className={styles.footer}>{footer}</div>}
+                        <FrameHeader
+                          title={title}
+                          closeLabel={closeLabel}
+                          isDismissDisabled={isDismissDisabled}
+                          close={close}
+                          actions={headerActions}
+                        />
+                        <DialogContent footer={footer}>{content}</DialogContent>
                       </>
                     )}
                   </DialogFrameContext>

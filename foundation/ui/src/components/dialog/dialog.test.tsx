@@ -1,10 +1,10 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it, vi } from "vite-plus/test";
 
 import { Button } from "../button/button";
-import { DialogContent, ModalDialog, SidePanel } from "./dialog";
+import { DialogContent, ModalDialog, PopoverDialog, SidePanel } from "./dialog";
 
 it.each([
   { context: "Neighbourhood grants", contextLabel: "Round", contextCount: 1, labelCount: 1 },
@@ -170,4 +170,61 @@ describe.each([true, false])("controlled dialog with trigger %s", (withTrigger) 
       expect(screen.getByText("Dialog is open.")).toBeInTheDocument();
     },
   );
+});
+
+it("frames a centered dialog with one header, one scrolling body, and a footer with feedback above actions", () => {
+  render(
+    <ModalDialog title="Record application" trigger={null} defaultOpen>
+      <DialogContent feedback={<p>Could not save.</p>} footer={<button>Save</button>}>
+        <p>Details</p>
+      </DialogContent>
+    </ModalDialog>,
+  );
+  const dialog = screen.getByRole("dialog", { name: "Record application" });
+  const footer = dialog.querySelector("[data-frame-footer]");
+
+  expect(dialog).toHaveAttribute("data-frame", "center");
+  expect(dialog.querySelectorAll("[data-dialog-header]")).toHaveLength(1);
+  expect(dialog.querySelectorAll("[data-frame-body]")).toHaveLength(1);
+  expect(within(dialog).getByText("Details").closest("[data-frame-footer]")).toBeNull();
+  expect(footer).toContainElement(within(dialog).getByText("Could not save."));
+  expect(within(dialog).getByText("Could not save.").closest("[data-dialog-feedback]")).toBe(
+    footer?.firstElementChild,
+  );
+  expect(footer?.lastElementChild).toContainElement(
+    within(dialog).getByRole("button", { name: "Save" }),
+  );
+  // Short viewports scroll with a stylesheet query, not a measured attribute.
+  expect(dialog).not.toHaveAttribute("data-scroll-content");
+});
+
+it("frames a reference popover with the same header and a footer inside the body's frame", async () => {
+  vi.stubGlobal("matchMedia", () => ({
+    matches: false,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  }));
+  const user = userEvent.setup();
+  render(
+    <PopoverDialog
+      title="Scoring guide"
+      closeLabel="Close guide"
+      trigger={<Button>Open guide</Button>}
+      footer={<button>Copy link</button>}
+    >
+      <p>Guide text</p>
+    </PopoverDialog>,
+  );
+  await user.click(screen.getByRole("button", { name: "Open guide" }));
+  const dialog = screen.getByRole("dialog", { name: "Scoring guide" });
+
+  expect(dialog).toHaveAttribute("data-frame", "popover");
+  expect(
+    within(dialog).getByRole("heading", { name: "Scoring guide" }).closest("[data-dialog-header]"),
+  ).not.toBeNull();
+  expect(
+    within(dialog).getByRole("button", { name: "Copy link" }).closest("[data-frame-footer]"),
+  ).not.toBeNull();
+  expect(dialog.querySelectorAll("[data-frame-body]")).toHaveLength(1);
+  vi.unstubAllGlobals();
 });

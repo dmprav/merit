@@ -11,15 +11,15 @@ import {
   type ReactNode,
 } from "react";
 
+import { FrameBody, FrameFooter, FrameHeader, frameRoot } from "../../components/dialog/frame";
 import framedStyles from "../../components/dialog/framed-dialog.module.css";
-import { FramedHeader } from "../../components/dialog/framed-header";
 import { ModalFrame } from "../../components/dialog/modal-frame";
 import styles from "./companion-panel.module.css";
 
 const pushQuery = "(min-width: 1400px)";
 
 /** Resizing is limited to these widths, in CSS pixels. */
-const companionWidthLimits = { min: 400, max: 560, default: 416 } as const;
+const companionWidthLimits = { min: 400, max: 560, default: 448 } as const;
 const keyboardStep = 16;
 /** A press that moves less than this many pixels is a click, not a drag. */
 const clickSlop = 3;
@@ -43,7 +43,7 @@ export type ApplicationCompanion = {
   closeLabel: string;
   /** Names the separator that resizes the panel. */
   resizeLabel: string;
-  /** The width when the panel first appears, from 400 to 560 pixels. The shell does not save it. */
+  /** The width when the panel first appears, from 400 to 560 pixels, 448 by default. The shell does not save it. */
   width?: number;
   /** Receives each width the person commits by resizing. */
   onWidthChange?: (width: number) => void;
@@ -253,10 +253,10 @@ const PanelBody = ({
   children,
 }: Pick<ApplicationCompanion, "footer" | "children"> & { label: string }) => (
   <>
-    <div role="region" aria-label={label} tabIndex={0} className={styles.body}>
+    <FrameBody role="region" aria-label={label} tabIndex={0}>
       {children}
-    </div>
-    {footer && <div className={styles.footer}>{footer}</div>}
+    </FrameBody>
+    <FrameFooter>{footer}</FrameFooter>
   </>
 );
 
@@ -290,16 +290,16 @@ const CompanionSheet = ({
       }
     }}
     classNames={{
-      overlay: `${framedStyles.sidePanelOverlay} ${styles.sheetOverlay}`,
-      modal: `${framedStyles.sidePanel} ${styles.sheet}`,
-      dialog: framedStyles.dialog,
+      overlay: framedStyles.sidePanelOverlay,
+      modal: framedStyles.sidePanel,
+      dialog: framedStyles.sidePanelDialog,
     }}
     frame="end"
   >
     {(close) => (
       <>
         <ReturnFocusWhenSheetUnmounts opener={opener} />
-        <FramedHeader title={label} closeLabel={closeLabel} close={close} />
+        <FrameHeader title={label} closeLabel={closeLabel} close={close} />
         <PanelBody label={label} footer={footer}>
           {children}
         </PanelBody>
@@ -365,7 +365,7 @@ export const CompanionPanel = ({
       id={panelId}
       aria-labelledby={titleId}
       tabIndex={-1}
-      className={styles.panel}
+      {...frameRoot("companion", styles.panel)}
       // The shell opens the panel's column with it.
       data-companion-panel=""
       data-opening={opening}
@@ -378,7 +378,7 @@ export const CompanionPanel = ({
         onResize={setWidth}
         onCommit={(committed) => onWidthChange?.(committed)}
       />
-      <FramedHeader title={label} titleId={titleId} closeLabel={closeLabel} close={onClose} />
+      <FrameHeader title={label} titleId={titleId} closeLabel={closeLabel} close={onClose} />
       <PanelBody label={label} {...content} />
     </aside>
   ) : (
