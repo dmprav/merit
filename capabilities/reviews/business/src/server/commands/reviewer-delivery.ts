@@ -68,6 +68,8 @@ export type ReviewerDeliveryDependencies = {
   wait?: OutcomeWait;
   /** A caller committing other state with the grant saves this ticket before delivering. */
   deferDelivery?: (delivery: ReviewerDelivery) => void;
+  /** Reports a failed outcome read after the commit; the request still answers. */
+  onOutcomeError?: () => void;
 };
 
 /** The records a delivery decision reads, under the acting member's current access. */
@@ -153,13 +155,16 @@ export const deliverReviewerMessage = async (
   const settled = (status: Status) =>
     message.status === "failed" ? status === "sent" : status !== "pending";
 
+  // The message is committed and the workflow delivers it: a failing read must not fail the request.
   const outcome = await waitForOutcome(async () => {
     const latest = await readDelivery(dependencies.database, userId, id, kind, workspaceSlug);
     if (!deliverable(latest, kind) || latest.message?.id !== message.id) {
       return "unavailable" as const;
     }
     return settled(latest.message.status) ? latest.message.status : undefined;
-  }, dependencies.wait);
+  }, dependencies.wait).catch(() => {
+    dependencies.onOutcomeError?.();
+  });
   return outcome ?? (message.status === "failed" ? "failed" : "pending");
 };
 

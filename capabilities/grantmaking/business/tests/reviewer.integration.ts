@@ -12,7 +12,11 @@ import { actor } from "@merit/organizations/testing/workspace";
 import { assignmentScope, writeScoped } from "@merit/organizations/transactions";
 import type { ReviewerMessage } from "@merit/reviews/api";
 import { reviewRevisionSchema } from "@merit/reviews/domain";
-import { listPendingReviewerMessageWork, saveApplicationReview } from "@merit/reviews/server";
+import {
+  createReviewerService,
+  listPendingReviewerMessageWork,
+  saveApplicationReview,
+} from "@merit/reviews/server";
 import { revokeMembershipReviews } from "@merit/reviews/server/integrations";
 import { createInlineReviewerService } from "@merit/reviews/testing";
 import { criteriaVersionSchema } from "@merit/rounds/domain";
@@ -1514,4 +1518,41 @@ it("lists a pending submission notice under the submitting reviewer", async ({
     work[0]?.messageId,
   );
   expect(page).toEqual([]);
+});
+
+it("keeps a committed reviewer message and answers when its outcome cannot be read", async ({
+  runtimeUrl,
+  database,
+  reviewerScenario: s,
+}) => {
+  await database.client.query("UPDATE reviewer_messages SET status = 'pending' WHERE id = $1", [
+    s.invitation.commandId,
+  ]);
+  let readsFail = false;
+  let reported = 0;
+  const service = createReviewerService({
+    database: (operation) =>
+      readsFail ? Promise.reject(new Error("database down")) : withDatabase(runtimeUrl, operation),
+    // The workflow starts after the commit; from here on the request's outcome reads fail.
+    start: async () => {
+      readsFail = true;
+      return true;
+    },
+    wait: { timeoutMs: 50, intervalMs: 1 },
+    onOutcomeError: () => {
+      reported += 1;
+      readsFail = false;
+    },
+  });
+
+  expect(await service.invite(actor, s.invitation)).toMatchObject({
+    status: "ok",
+    value: { id: s.assignmentId },
+  });
+  expect(reported).toBe(1);
+  const message = await database.client.query<{ status: string }>(
+    "SELECT status FROM reviewer_messages WHERE id = $1",
+    [s.invitation.commandId],
+  );
+  expect(message.rows[0]?.status).toBe("pending");
 });

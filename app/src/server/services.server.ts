@@ -87,11 +87,14 @@ export const organizationInvitationDelivery = ({
 });
 
 /** Telemetry sees the operation only: the cause of a failed read can carry record details. */
-const reportInvitationOutcomeError = () =>
+const reportOutcomeError = (operation: string) => () =>
   reportError(new Error("A delivery outcome could not be read."), {
     surface: "server",
-    operation: "organization-invitation.outcome",
+    operation,
   });
+
+const reportInvitationOutcomeError = reportOutcomeError("organization-invitation.outcome");
+const reportReviewerOutcomeError = reportOutcomeError("reviewer-message.outcome");
 
 export const createApplicationServices = ({
   database,
@@ -137,6 +140,7 @@ export const createApplicationServices = ({
       start: startReviewerMessage,
       wait: deliveryWait,
       deferDelivery: deferReviewerDelivery,
+      onOutcomeError: reportReviewerOutcomeError,
       onSubmitted: observe("assessment_submitted"),
     }),
   );
