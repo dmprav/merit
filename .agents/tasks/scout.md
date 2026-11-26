@@ -307,7 +307,9 @@ Run **one** recurring scheduled task **2–3 times daily** passing `--lens auto`
 with a strong reasoning model. [scout.ts](../../tooling/agents/scout.ts)
 prioritizes high-leverage engineering lenses and selects the most overdue lens
 from `#219` cursors (~17 runs/week total), exiting `idle` if every lens is
-still fresh:
+still fresh. Each lens declares its interval, priority, rotation, telemetry, and
+verification reading in `LENS_POLICIES` in
+[lenses.ts](../../tooling/agents/scout/lenses.ts):
 
 | Lens                             | Target interval |
 | -------------------------------- | --------------- |
