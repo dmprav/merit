@@ -240,6 +240,49 @@ export const Picker: Story = {
   },
 };
 
+const reviewers = Array.from({ length: 14 }, (_, index) => ({
+  id: `reviewer-${index}`,
+  label: `Reviewer ${index + 1}`,
+}));
+
+const PickerWithNotesExample = () => {
+  const [reviewer, setReviewer] = useState<string | null>(null);
+  return (
+    <PickerPopover
+      title="Request a review"
+      placement="bottom start"
+      isOpen
+      trigger={<Button variant="secondary">Request review</Button>}
+    >
+      <div>
+        <Text as="p" variant="caption">
+          Choose a reviewer to record a request. No message is sent.
+        </Text>
+        <ChoiceList
+          label="Reviewer"
+          searchLabel="Find a reviewer"
+          emptyLabel="No matching reviewer"
+          items={reviewers}
+          selectedKey={reviewer}
+          onChoose={setReviewer}
+          actions={[{ id: "add", label: "Add reviewer", icon: "add", onAction: () => undefined }]}
+        />
+      </div>
+    </PickerPopover>
+  );
+};
+
+/** A long list with a note above it: the picker is the one scroller, with its scrollbar at the edge. */
+export const PickerWithNotes: Story = {
+  render: () => <PickerWithNotesExample />,
+  play: async ({ canvasElement }) => {
+    const dialog = await within(canvasElement.ownerDocument.body).findByRole("dialog", {
+      name: "Request a review",
+    });
+    await waitFor(() => expect(within(dialog).getByRole("textbox")).toHaveFocus());
+  },
+};
+
 /** Tab moves through the close control, the scrollable body, and actions without leaving. */
 export const KeyboardFocusContained: Story = {
   args: { children: guidanceWithActions },

@@ -221,7 +221,38 @@ test("a picker with notes around its choice list keeps every control reachable",
   const end = await scrollToEnd(root);
 
   expect(end.lowest).toBeLessThanOrEqual(end.innerBottom + 0.5);
-  expect(await measureScroller(root).then((scroll) => scroll.count)).toBeGreaterThanOrEqual(1);
+});
+
+test("a long list with notes around it scrolls as one picker, not twice", async ({
+  page,
+}, testInfo) => {
+  desktopOnly(testInfo);
+  await open(page, "components-dialog--picker-with-notes", 420);
+  const root = surface(page);
+  const scroll = await measureScroller(root);
+
+  // The one scroll container is the picker itself, so its scrollbar is at the surface edge.
+  expect(scroll.count).toBe(1);
+  expect(scroll.overflows).toBe(true);
+  const end = await scrollToEnd(root);
+  expect(end.lowest).toBeLessThanOrEqual(end.innerBottom + 0.5);
+});
+
+test("a list picker spaces its first and last rows equally", async ({ page }, testInfo) => {
+  desktopOnly(testInfo);
+  await open(page, "components-dialog--picker");
+  const gaps = await surface(page).evaluate((node) => {
+    const options = [...node.querySelectorAll<HTMLElement>('[role="option"]')];
+    const search = node.querySelector<HTMLElement>("input")!.parentElement!;
+    const box = node.getBoundingClientRect();
+    const border = Number.parseFloat(getComputedStyle(node).borderBottomWidth);
+    return {
+      above: options[0]!.getBoundingClientRect().top - search.getBoundingClientRect().bottom,
+      below: box.bottom - border - options.at(-1)!.getBoundingClientRect().bottom,
+    };
+  });
+
+  expect(gaps.above).toBeCloseTo(gaps.below, 0);
 });
 
 test("notes around a choice list line up with its rows", async ({ page }, testInfo) => {

@@ -68,6 +68,8 @@
 }
 
 .field {
+  /* stylelint-disable-next-line property-no-unknown -- CSS Modules shares the popover focus bar. */
+  composes: focusBar from "../../foundations/popover.module.css";
   display: flex;
   flex-shrink: 0;
   align-items: center;
@@ -76,11 +78,6 @@
   /* The dialog's small close control sits over the end of this row. */
   padding-inline: var(--space-4) var(--search-close-reserve, var(--space-4));
   border-bottom: 1px solid var(--border);
-}
-
-/* The shared focus bar along the divider, as in a picker's search. */
-.field:focus-within {
-  box-shadow: inset 0 -2px var(--focus);
 }
 
 .icon {
@@ -167,6 +164,8 @@
 
 /* The shared list row, taller for a title with a detail line and a destination link. */
 .option {
+  /* stylelint-disable-next-line property-no-unknown -- CSS Modules builds the option on the shared row, emitted before this rule. */
+  composes: row from "../../foundations/list-row.module.css";
   min-height: var(--target-touch);
   gap: var(--space-3);
   padding-block: var(--space-2);
@@ -320,7 +319,5 @@
   /* The field is the box's only text control; forced colors restore an explicit indicator. */
   .field:focus-within {
     border-bottom-color: Highlight;
-    outline: 2px solid Highlight;
-    outline-offset: -2px;
   }
 }

@@ -75,7 +75,7 @@ export const ChoiceList = ({
           }
         }}
         disabledKeys={items.filter((item) => isDisabled || item.isDisabled).map((item) => item.id)}
-        className={`${popoverScroller} ${styles.list}`}
+        className={popoverScroller}
         items={shown}
         renderEmptyState={() => <span className={styles.empty}>{emptyLabel}</span>}
       >

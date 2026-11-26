@@ -173,6 +173,9 @@ describe("search palette", () => {
 
     view.rerender(<Palette groups={[...groups].reverse()} resultsId={2} />);
     expect(root).not.toHaveAttribute("data-navigated");
+    // End, like the other keys the list handles, moves the highlight too.
+    await user.keyboard("{End}");
+    expect(root).toHaveAttribute("data-navigated", "true");
   });
 
   it("steps from the highlighted top match to the next row with Down", async () => {
