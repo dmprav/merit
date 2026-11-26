@@ -18,29 +18,86 @@ import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vite-plus/test";
 
 import { buildLocalDatabaseUrl, DEFAULT_COMPOSE_DATABASE_URL } from "../scripts/local-postgres.ts";
+import { cleanWorktree as cleanWorktreeWith } from "./worktree/clean.ts";
+import { parseCleanArgs, parseCreateArgs, parseListArgs } from "./worktree/cli.ts";
+import { createWorktree as createWorktreeWith, type DatabaseMode } from "./worktree/create.ts";
+import { type ExecCommand } from "./worktree/deps.ts";
+import { formatWorktreeEnvFile } from "./worktree/env-file.ts";
+import {
+  defaultExecGit,
+  type ExecGit,
+  parseGitWorktreePorcelain,
+  resolvePrimaryRepoRoot,
+} from "./worktree/git.ts";
+import { listWorktrees as listWorktreesWith } from "./worktree/list.ts";
+import { databaseNameForSlug, validateWorktreeSlug } from "./worktree/naming.ts";
 import {
   allocateWorktreePorts,
-  cleanWorktree,
-  collectReservedPorts,
-  createWorktree,
-  databaseNameForSlug,
   DEFAULT_PORTS,
-  formatWorktreeEnvFile,
   isPortAvailable,
-  listWorktrees,
-  parseCleanArgs,
-  parseCreateArgs,
-  parseGitWorktreePorcelain,
-  parseListArgs,
+  WORKTREE_PORT_BASES,
+} from "./worktree/ports.ts";
+import {
   readWorktreeRegistry,
+  type RegistryLockOptions,
   registryLockPathForRepo,
   registryPathForRepo,
-  resolvePrimaryRepoRoot,
-  validateWorktreeSlug,
   withWorktreeRegistryLock,
-  WORKTREE_PORT_BASES,
   writeWorktreeRegistry,
-} from "./worktree.ts";
+} from "./worktree/registry.ts";
+import { collectReservedPorts } from "./worktree/reserved-ports.ts";
+
+// Adapts the earlier option and dependency shapes to the split modules.
+type LegacyDeps = {
+  execGit?: ExecGit;
+  execCommand?: ExecCommand;
+  checkPortAvailable?: (port: number) => Promise<boolean>;
+  isPostgresReachable?: () => Promise<boolean>;
+  ensureDatabase?: (databaseName: string) => Promise<{ created: boolean }>;
+  dropDatabase?: (databaseName: string) => Promise<void>;
+  lockOptions?: RegistryLockOptions;
+};
+
+const toDeps = (deps: LegacyDeps) => ({
+  execGit: deps.execGit ?? defaultExecGit,
+  execCommand: deps.execCommand ?? (() => {}),
+  checkPortAvailable: deps.checkPortAvailable ?? (async () => true),
+  database: {
+    isReachable: deps.isPostgresReachable ?? (async () => false),
+    ensure: deps.ensureDatabase ?? (async () => ({ created: true })),
+    drop: deps.dropDatabase ?? (async () => {}),
+  },
+  now: () => new Date(),
+  lockOptions: deps.lockOptions,
+});
+
+const createWorktree = async (
+  {
+    json,
+    ...options
+  }: {
+    slug: string;
+    base?: string;
+    branch?: string;
+    dir?: string;
+    dbMode: DatabaseMode;
+    doctor: boolean;
+    json: boolean;
+    primaryRepoRoot: string;
+  },
+  deps: LegacyDeps = {},
+) => (await createWorktreeWith({ ...options, quiet: json }, toDeps(deps))).result;
+
+const cleanWorktree = async (
+  {
+    json: _json,
+    ...options
+  }: { slug: string; keepBranch: boolean; json: boolean; primaryRepoRoot: string },
+  deps: LegacyDeps = {},
+) => (await cleanWorktreeWith(options, toDeps(deps))).result;
+
+const listWorktrees = (options: { primaryRepoRoot: string }) =>
+  listWorktreesWith(options, { execGit: defaultExecGit });
 
 const tempDirs: string[] = [];
 
