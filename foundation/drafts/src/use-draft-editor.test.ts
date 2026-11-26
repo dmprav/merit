@@ -63,6 +63,29 @@ it("drops an untouched draft on close, keeps an edited one, and drops it on disc
   expect(edited.onDraftChange).toHaveBeenCalledWith(undefined);
 });
 
+it("does not clear writing entered after the editor reopened while closing", async () => {
+  let finishClose!: () => void;
+
+  const onClose = () => new Promise<void>((resolve) => (finishClose = resolve));
+
+  const { view, onDraftChange } = setup({ onClose });
+  view.rerender({ draft: { text: "saved" } });
+
+  let closing!: Promise<void>;
+  act(() => {
+    closing = view.result.current.close(true);
+  });
+  act(() => view.result.current.open());
+  view.rerender({ draft: { text: "new writing" } });
+  onDraftChange.mockClear();
+  await act(async () => {
+    finishClose();
+    await closing;
+  });
+
+  expect(onDraftChange).not.toHaveBeenCalledWith(undefined);
+});
+
 it("reports a save that throws as unavailable and a refusal as is", async () => {
   const { view, onSave } = setup();
   onSave.mockImplementationOnce(() => {

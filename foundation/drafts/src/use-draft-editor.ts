@@ -1,4 +1,4 @@
-import { useLayoutEffect, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 
 type Unavailable = { status: "unavailable" };
 
@@ -24,6 +24,9 @@ export const useDraftEditor = <Draft, Input, Failure>({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  // The latest draft, so cleanup after an awaited close sees writing entered since.
+  const latestDraft = useRef(draft);
+  latestDraft.current = draft;
 
   useLayoutEffect(() => {
     if (isOpen && ready && !draft) {
@@ -32,9 +35,13 @@ export const useDraftEditor = <Draft, Input, Failure>({
   }, [isOpen, ready, draft, onDraftChange, initialDraft]);
 
   const close = async (discard = false) => {
+    const closing = JSON.stringify(draft);
     setIsOpen(false);
     await onClose();
-    if (ready && (discard || JSON.stringify(draft) === JSON.stringify(initialDraft))) {
+    // A draft written after the editor reopened while onClose was pending is not this close's to clear.
+    const current = JSON.stringify(latestDraft.current);
+    const unchanged = current === closing;
+    if (ready && unchanged && (discard || current === JSON.stringify(initialDraft))) {
       onDraftChange(undefined);
     }
   };
