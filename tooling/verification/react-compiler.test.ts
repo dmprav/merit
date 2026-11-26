@@ -1,4 +1,3 @@
-import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -6,6 +5,7 @@ import { dirname, join } from "node:path";
 import { expect, it } from "vite-plus/test";
 
 import { REPO_ROOT } from "../paths.ts";
+import { runProcess } from "../testing/process";
 import { checkReactCompiler } from "./react-compiler.ts";
 
 const script = join(REPO_ROOT, "tooling/verification/react-compiler.ts");
@@ -76,11 +76,13 @@ it("fails when it finds no files to check", async () => {
 });
 
 // Compiles every component in the checkout in a child process, which outlasts the default timeout.
+// The child's own timeout stays below the test's, so a stalled child is killed and the fixture
+// is still removed.
 it("checks the repository from any working directory", async () => {
-  await withFixture({}, (dir) => {
-    const result = spawnSync("pnpm", ["exec", "vpx", script], {
+  await withFixture({}, async (dir) => {
+    const result = await runProcess("pnpm", ["exec", "vpx", script], {
       cwd: dir,
-      encoding: "utf8",
+      timeoutMs: 25_000,
       env: { ...process.env, MERIT_TASK_CACHE: "off" },
     });
 
