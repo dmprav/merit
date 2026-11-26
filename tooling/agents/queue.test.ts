@@ -1,19 +1,26 @@
 import { describe, expect, test } from "vite-plus/test";
 
+import type { IssueCommentRecord } from "../verification/agent-policy.ts";
+import type { GitHubRestClient } from "./github.ts";
 import {
   ADDRESSED_THREAD_MARKER,
+  CLAIM_TTL_MS,
+  claimIssue,
   extractUnaddressedReviewThreads,
   findEarliestActiveClaimRunId,
   formatAddressedReplyBody,
   formatAgentPrStateComment,
   formatClaimComment,
   hasActiveClaim,
+  hasAgentPrState,
   mergeAgentPrState,
   normalizeRestChecks,
   normalizeStatusCheckRollup,
+  openAgentPr,
   parseAgentPrState,
   parseQueueArgs,
   parseRecordShepherdArgs,
+  runQueueCommand,
   selectNextWork,
   type OpenAgentPr,
   type ReadyIssueCandidate,
@@ -702,5 +709,284 @@ describe("queue arguments", () => {
     { args: ["unknown"], error: /Unknown queue command "unknown"/ },
   ])("rejects $args", ({ args, error }) => {
     expect(() => parseQueueArgs(args)).toThrow(error);
+  });
+});
+
+describe("trusted state markers", () => {
+  test("skips markers with malformed JSON or invalid state, and markers from untrusted authors", () => {
+    const valid = formatAgentPrStateComment({ shepherdRounds: 1, flakeReruns: 0 });
+    const comments = [
+      { authorAssociation: "OWNER", body: "<!-- merit-agent: {not json} -->" },
+      { authorAssociation: "OWNER", body: '<!-- merit-agent: {"shepherdRounds":-1} -->' },
+      { authorAssociation: "CONTRIBUTOR", body: valid },
+    ];
+    expect(hasAgentPrState(comments)).toBe(false);
+    expect(parseAgentPrState(comments)).toEqual({ shepherdRounds: 0, flakeReruns: 0 });
+
+    const withValid = [...comments, { authorAssociation: "MEMBER", body: valid }];
+    expect(hasAgentPrState(withValid)).toBe(true);
+    expect(parseAgentPrState(withValid)).toEqual({ shepherdRounds: 1, flakeReruns: 0 });
+  });
+});
+
+const NOW = Date.UTC(2026, 10, 22, 12, 0, 0);
+
+const claimComment = (runId: string, claimedAtMs: number): IssueCommentRecord => ({
+  authorAssociation: "MEMBER",
+  body: formatClaimComment({
+    runId,
+    claimedAt: new Date(claimedAtMs).toISOString(),
+    expiresAt: new Date(claimedAtMs + CLAIM_TTL_MS).toISOString(),
+  }),
+});
+
+/** An issue's comment thread where `onPost` can add a rival run's comment as this run writes. */
+const fakeIssueThread = (
+  initial: IssueCommentRecord[] = [],
+  onPost: (comments: IssueCommentRecord[]) => void = () => {},
+) => {
+  const comments = [...initial];
+  const posted: string[] = [];
+  const client = {
+    listIssueComments: () => [...comments],
+    postIssueComment: (_number: number, body: string) => {
+      posted.push(body);
+      onPost(comments);
+      comments.push({ authorAssociation: "MEMBER", body });
+    },
+  };
+  return { client, posted };
+};
+
+const claimOptions = { now: () => NOW, newRunId: () => "run-new" };
+
+describe("claimIssue", () => {
+  test("claims an unclaimed issue for a new run for the claim TTL", () => {
+    const { client, posted } = fakeIssueThread([claimComment("run-expired", NOW - CLAIM_TTL_MS)]);
+
+    const outcome = claimIssue(client, 130, claimOptions);
+
+    expect(outcome).toEqual({
+      status: "claimed",
+      issueNumber: 130,
+      claim: {
+        runId: "run-new",
+        claimedAt: new Date(NOW).toISOString(),
+        expiresAt: new Date(NOW + CLAIM_TTL_MS).toISOString(),
+      },
+    });
+    expect(posted).toEqual([outcome.status === "claimed" ? formatClaimComment(outcome.claim) : ""]);
+  });
+
+  test("leaves an issue another run holds without writing a claim", () => {
+    const { client, posted } = fakeIssueThread([claimComment("run-other", NOW - 60_000)]);
+
+    expect(claimIssue(client, 130, claimOptions)).toEqual({
+      status: "already_claimed",
+      issueNumber: 130,
+      winningRunId: "run-other",
+    });
+    expect(posted).toEqual([]);
+  });
+
+  test("renews this run's own claim, but reports a lost race when another run holds the issue", () => {
+    const own = fakeIssueThread([claimComment("run-mine", NOW - 60_000)]);
+    expect(claimIssue(own.client, 130, { ...claimOptions, renewRunId: "run-mine" })).toMatchObject({
+      status: "renewed",
+      claim: { runId: "run-mine", claimedAt: new Date(NOW).toISOString() },
+    });
+
+    const taken = fakeIssueThread([claimComment("run-other", NOW - 60_000)]);
+    expect(claimIssue(taken.client, 130, { ...claimOptions, renewRunId: "run-mine" })).toEqual({
+      status: "lost_race",
+      issueNumber: 130,
+      winningRunId: "run-other",
+    });
+    expect(taken.posted).toEqual([]);
+  });
+
+  test("reports a lost race when a rival's earlier claim lands while this run writes its own", () => {
+    const { client, posted } = fakeIssueThread([], (comments) => {
+      comments.push(claimComment("run-rival", NOW - 1000));
+    });
+
+    const outcome = claimIssue(client, 130, claimOptions);
+
+    expect(outcome).toMatchObject({
+      status: "lost_race",
+      issueNumber: 130,
+      claim: { runId: "run-new" },
+      winningRunId: "run-rival",
+    });
+    expect(posted).toHaveLength(1);
+  });
+});
+
+const fakePullClient = ({
+  existing = null,
+  failLabel = false,
+}: {
+  existing?: { number: number; url: string; headRefName: string } | null;
+  failLabel?: boolean;
+} = {}) => {
+  const created: Array<{ title: string; head: string; base: string; body: string }> = [];
+  const labeled: Array<{ number: number; labels: readonly string[] }> = [];
+  const client = {
+    findOpenPull: () => existing,
+    createPull: (pull: { title: string; head: string; base: string; body: string }) => {
+      created.push(pull);
+      return { number: 301, url: "https://github.com/pr/301", headRefName: pull.head };
+    },
+    addLabels: (number: number, labels: readonly string[]) => {
+      if (failLabel) {
+        throw new Error("label failed");
+      }
+      labeled.push({ number, labels });
+    },
+  };
+  return { client, created, labeled };
+};
+
+const pullRequest = { title: "fix: guard", head: "claude/issue-130", base: "main", body: "B" };
+
+describe("openAgentPr", () => {
+  test("creates and labels a pull request when none is open for the branch", () => {
+    const { client, created, labeled } = fakePullClient();
+
+    expect(openAgentPr(client, pullRequest, () => {})).toEqual({
+      status: "created",
+      number: 301,
+      url: "https://github.com/pr/301",
+      headRefName: "claude/issue-130",
+    });
+    expect(created).toEqual([pullRequest]);
+    expect(labeled).toEqual([{ number: 301, labels: ["agent:pr"] }]);
+  });
+
+  test("reuses and labels the open pull request for the branch instead of opening another", () => {
+    const existing = { number: 299, url: "https://github.com/pr/299", headRefName: "b" };
+    const { client, created, labeled } = fakePullClient({ existing });
+
+    expect(openAgentPr(client, pullRequest, () => {})).toEqual({ status: "reused", ...existing });
+    expect(created).toEqual([]);
+    expect(labeled).toEqual([{ number: 299, labels: ["agent:pr"] }]);
+  });
+
+  test("reports an unlabeled pull request before rethrowing the labeling failure", () => {
+    const warnings: string[] = [];
+    const { client } = fakePullClient({ failLabel: true });
+
+    expect(() => openAgentPr(client, pullRequest, (line) => warnings.push(line))).toThrow(
+      "label failed",
+    );
+    expect(warnings.map((line): unknown => JSON.parse(line))).toEqual([
+      {
+        status: "created_unlabeled",
+        number: 301,
+        url: "https://github.com/pr/301",
+        headRefName: "claude/issue-130",
+      },
+    ]);
+  });
+});
+
+describe("runQueueCommand", () => {
+  const deps = (client: Partial<GitHubRestClient>) => ({
+    // Each test supplies only the operations its command uses; any other call fails the test.
+    client: new Proxy(client, {
+      get: (target, name) => {
+        const operation: unknown = Reflect.get(target, name);
+        if (typeof operation !== "function") {
+          throw new Error(`unexpected GitHub call: ${String(name)}`);
+        }
+        return operation;
+      },
+    }) as GitHubRestClient,
+    now: () => NOW,
+    newRunId: () => "run-new",
+    readFile: (path: string) => `contents of ${path}`,
+    warn: () => {},
+  });
+
+  test("escalates by labeling and commenting, printing one JSON line", () => {
+    const calls: string[] = [];
+    const output = runQueueCommand(
+      parseQueueArgs(["escalate", "221", "--reason", "CI is red"]),
+      deps({
+        addLabels: (number, labels) => {
+          calls.push(`label ${number} ${labels.join(",")}`);
+        },
+        postIssueComment: (number, body) => {
+          calls.push(`comment ${number} ${body}`);
+        },
+      }),
+    );
+
+    expect(output).toBe('{"status":"escalated","number":221}');
+    expect(calls).toEqual([
+      "label 221 agent:needs-human",
+      "comment 221 Escalating to human: CI is red",
+    ]);
+  });
+
+  test("opens a pull request from --body-file and prints unaddressed threads as indented JSON", () => {
+    const { client, created } = fakePullClient();
+    expect(
+      runQueueCommand(
+        parseQueueArgs(["open-pr", "--title", "T", "--head", "b", "--body-file", "pr.md"]),
+        deps(client),
+      ),
+    ).toBe('{"status":"created","number":301,"url":"https://github.com/pr/301","headRefName":"b"}');
+    expect(created).toEqual([{ title: "T", head: "b", base: "main", body: "contents of pr.md" }]);
+
+    expect(
+      runQueueCommand(parseQueueArgs(["threads", "221"]), deps({ listReviewComments: () => [] })),
+    ).toBe("[]");
+    expect(
+      runQueueCommand(
+        parseQueueArgs(["record-shepherd", "221", "--round", "1", "--if-uninitialized"]),
+        deps({
+          listIssueComments: () => [
+            {
+              authorAssociation: "OWNER",
+              body: formatAgentPrStateComment({ shepherdRounds: 0, flakeReruns: 0 }),
+            },
+          ],
+        }),
+      ),
+    ).toBe(
+      '{"status":"already_initialized","prNumber":221,"state":{"shepherdRounds":0,"flakeReruns":0}}',
+    );
+  });
+
+  test("prints the issue command's document indented for agents to read", () => {
+    const output = runQueueCommand(
+      parseQueueArgs(["issue", "130"]),
+      deps({
+        getIssue: () => ({
+          number: 130,
+          state: "open",
+          title: "T",
+          body: "B",
+          labels: ["agent:ready"],
+          commentCount: 0,
+          isPullRequest: false,
+        }),
+      }),
+    );
+    expect(output).toBe(
+      JSON.stringify(
+        {
+          number: 130,
+          state: "OPEN",
+          title: "T",
+          body: "B",
+          labels: ["agent:ready"],
+          comments: [],
+        },
+        null,
+        2,
+      ),
+    );
   });
 });

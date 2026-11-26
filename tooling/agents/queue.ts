@@ -135,15 +135,33 @@ export type QueueWorkOrder =
       openAgentPrCount: number;
     };
 
-export const parseClaimMarker = (commentBody: string): ClaimMarker | null => {
-  const match = CLAIM_MARKER_PATTERN.exec(commentBody);
-  if (!match?.[1]) {
-    return null;
-  }
-  try {
-    return claimMarkerSchema.parse(JSON.parse(match[1]));
-  } catch {
-    return null;
+/**
+ * Yields each valid `pattern` marker, in comment order, from comments written by trusted repository
+ * authors. Markers from other commenters, or whose JSON does not satisfy `schema`, are skipped.
+ */
+const trustedMarkers = function* <T extends z.ZodType>(
+  comments: readonly IssueCommentRecord[],
+  pattern: RegExp,
+  schema: T,
+): Generator<z.output<T>> {
+  for (const comment of comments) {
+    if (!TRUSTED_AUTHOR_ASSOCIATIONS.has(comment.authorAssociation)) {
+      continue;
+    }
+    const raw = pattern.exec(comment.body)?.[1];
+    if (!raw) {
+      continue;
+    }
+    let json: unknown;
+    try {
+      json = JSON.parse(raw);
+    } catch {
+      continue;
+    }
+    const parsed = schema.safeParse(json);
+    if (parsed.success) {
+      yield parsed.data;
+    }
   }
 };
 
@@ -164,14 +182,7 @@ export const findEarliestActiveClaimRunId = (
   nowMs: number,
 ): string | null => {
   const latestExpiryByRunId = new Map<string, number>();
-  for (const comment of comments) {
-    if (!TRUSTED_AUTHOR_ASSOCIATIONS.has(comment.authorAssociation)) {
-      continue;
-    }
-    const marker = parseClaimMarker(comment.body);
-    if (!marker) {
-      continue;
-    }
+  for (const marker of trustedMarkers(comments, CLAIM_MARKER_PATTERN, claimMarkerSchema)) {
     const claimedMs = Date.parse(marker.claimedAt);
     const expiresMs = Date.parse(marker.expiresAt);
     if (Number.isNaN(claimedMs) || Number.isNaN(expiresMs)) {
@@ -210,44 +221,15 @@ export const isStaleDraftPr = (pr: OpenAgentPr, nowMs: number): boolean => {
 };
 
 /** Returns true when a PR has at least one valid `merit-agent` state comment from a trusted writer. */
-export const hasAgentPrState = (comments: readonly IssueCommentRecord[]): boolean => {
-  for (const comment of comments) {
-    if (!TRUSTED_AUTHOR_ASSOCIATIONS.has(comment.authorAssociation)) {
-      continue;
-    }
-    const match = AGENT_PR_MARKER_PATTERN.exec(comment.body);
-    if (!match?.[1]) {
-      continue;
-    }
-    try {
-      agentPrStateSchema.parse(JSON.parse(match[1]));
-      return true;
-    } catch {
-      continue;
-    }
-  }
-  return false;
-};
+export const hasAgentPrState = (comments: readonly IssueCommentRecord[]): boolean =>
+  !trustedMarkers(comments, AGENT_PR_MARKER_PATTERN, agentPrStateSchema).next().done;
 
 /** Parses the latest agent state comment authored by a trusted repository writer. */
-export const parseAgentPrState = (comments: readonly IssueCommentRecord[]): AgentPrState => {
-  let latest: AgentPrState = { shepherdRounds: 0, flakeReruns: 0 };
-  for (const comment of comments) {
-    if (!TRUSTED_AUTHOR_ASSOCIATIONS.has(comment.authorAssociation)) {
-      continue;
-    }
-    const match = AGENT_PR_MARKER_PATTERN.exec(comment.body);
-    if (!match?.[1]) {
-      continue;
-    }
-    try {
-      latest = agentPrStateSchema.parse(JSON.parse(match[1]));
-    } catch {
-      continue;
-    }
-  }
-  return latest;
-};
+export const parseAgentPrState = (comments: readonly IssueCommentRecord[]): AgentPrState =>
+  [...trustedMarkers(comments, AGENT_PR_MARKER_PATTERN, agentPrStateSchema)].at(-1) ?? {
+    shepherdRounds: 0,
+    flakeReruns: 0,
+  };
 
 export const mergeAgentPrState = (
   previous: AgentPrState,
@@ -629,22 +611,22 @@ export const parseRecordShepherdArgs = (args: readonly string[]): RecordShepherd
   };
 };
 
-export type QueueCommand =
-  | { command: "next"; apply: boolean }
-  | { command: "issue"; issueNumber: number }
-  | { command: "claim"; issueNumber: number; renewRunId?: string }
-  | {
-      command: "open-pr";
-      title: string;
-      head: string;
-      base: string;
-      bodyFile?: string;
-      body: string;
-    }
-  | { command: "escalate"; targetNumber: number; reason: string }
-  | ({ command: "record-shepherd" } & RecordShepherdOptions)
-  | { command: "threads"; prNumber: number }
-  | { command: "reply-thread"; prNumber: number; commentId: number; body: string };
+type QueueCommandOptions = {
+  next: { apply: boolean };
+  issue: { issueNumber: number };
+  claim: { issueNumber: number; renewRunId?: string };
+  "open-pr": { title: string; head: string; base: string; bodyFile?: string; body: string };
+  escalate: { targetNumber: number; reason: string };
+  "record-shepherd": RecordShepherdOptions;
+  threads: { prNumber: number };
+  "reply-thread": { prNumber: number; commentId: number; body: string };
+};
+
+export type QueueCommandName = keyof QueueCommandOptions;
+
+type QueueCommandOf<C extends QueueCommandName> = { command: C } & QueueCommandOptions[C];
+
+export type QueueCommand = { [C in QueueCommandName]: QueueCommandOf<C> }[QueueCommandName];
 
 const ISSUE_USAGE = "Usage: queue.ts issue <issue-number>";
 const CLAIM_USAGE = "Usage: queue.ts claim <issue-number> [--renew <runId>]";
@@ -774,10 +756,109 @@ export const parseQueueArgs = (args: readonly string[]): QueueCommand => {
   }
 };
 
+/** The GitHub operations and side effects a queue command may use. */
+export type QueueDeps = {
+  client: GitHubRestClient;
+  now: () => number;
+  newRunId: () => string;
+  readFile: (path: string) => string;
+  /** Writes a diagnostic line to standard error. */
+  warn: (line: string) => void;
+};
+
+export type ClaimOutcome =
+  | { status: "claimed" | "renewed"; issueNumber: number; claim: ClaimMarker }
+  | { status: "already_claimed"; issueNumber: number; winningRunId: string }
+  | { status: "lost_race"; issueNumber: number; winningRunId: string }
+  | { status: "lost_race"; issueNumber: number; claim: ClaimMarker; winningRunId: string | null };
+
+/**
+ * Claims an issue for this run, or renews `renewRunId`'s claim. GitHub cannot write a comment
+ * conditionally, so the claim is posted and the comments re-read: when another run's earlier claim
+ * is active after the write, this run lost the race and must not implement the issue.
+ */
+export const claimIssue = (
+  client: Pick<GitHubRestClient, "listIssueComments" | "postIssueComment">,
+  issueNumber: number,
+  { renewRunId, now, newRunId }: { renewRunId?: string; now: () => number; newRunId: () => string },
+): ClaimOutcome => {
+  const claimedAt = now();
+  const existingOwner = findEarliestActiveClaimRunId(
+    client.listIssueComments(issueNumber),
+    claimedAt,
+  );
+  if (existingOwner !== null && renewRunId === undefined) {
+    return { status: "already_claimed", issueNumber, winningRunId: existingOwner };
+  }
+  if (existingOwner !== null && existingOwner !== renewRunId) {
+    return { status: "lost_race", issueNumber, winningRunId: existingOwner };
+  }
+
+  const claim = claimMarkerSchema.parse({
+    runId: renewRunId ?? newRunId(),
+    claimedAt: new Date(claimedAt).toISOString(),
+    expiresAt: new Date(claimedAt + CLAIM_TTL_MS).toISOString(),
+  });
+  client.postIssueComment(issueNumber, formatClaimComment(claim));
+
+  const winnerAfterWrite = findEarliestActiveClaimRunId(
+    client.listIssueComments(issueNumber),
+    now(),
+  );
+  if (winnerAfterWrite !== claim.runId) {
+    return { status: "lost_race", issueNumber, claim, winningRunId: winnerAfterWrite };
+  }
+  return { status: renewRunId !== undefined ? "renewed" : "claimed", issueNumber, claim };
+};
+
+export type OpenPrOutcome = {
+  status: "reused" | "created";
+  number: number;
+  url: string;
+  headRefName: string;
+};
+
+/**
+ * Reuses the open pull request from `head` into `base`, or creates one, then labels it `agent:pr`.
+ * A pull request left unlabeled is reported through `warn` before the labeling error is rethrown,
+ * because the queue would otherwise never see it.
+ */
+export const openAgentPr = (
+  client: Pick<GitHubRestClient, "findOpenPull" | "createPull" | "addLabels">,
+  pull: { title: string; head: string; base: string; body: string },
+  warn: (line: string) => void,
+): OpenPrOutcome => {
+  const existingPr = client.findOpenPull(pull);
+  const pr = existingPr ?? client.createPull(pull);
+  try {
+    client.addLabels(pr.number, [AGENT_LABELS.pr]);
+  } catch (error) {
+    warn(
+      JSON.stringify({
+        status: "created_unlabeled",
+        number: pr.number,
+        url: pr.url,
+        headRefName: pr.headRefName,
+      }),
+    );
+    throw error;
+  }
+  return {
+    status: existingPr ? "reused" : "created",
+    number: pr.number,
+    url: pr.url,
+    headRefName: pr.headRefName,
+  };
+};
+
+const escalate = (client: GitHubRestClient, number: number, reason: string) => {
+  client.addLabels(number, [AGENT_LABELS.needsHuman]);
+  client.postIssueComment(number, `Escalating to human: ${reason}`);
+};
+
 const applyQueueOrder = (client: GitHubRestClient, order: QueueWorkOrder) => {
   if (order.kind === "escalate") {
-    client.addLabels(order.prNumber, [AGENT_LABELS.needsHuman]);
-    client.postIssueComment(order.prNumber, `Escalating to human: ${order.reason}`);
+    escalate(client, order.prNumber, order.reason);
     return;
   }
   if (order.kind === "rerun_flake") {
@@ -790,152 +871,110 @@ const applyQueueOrder = (client: GitHubRestClient, order: QueueWorkOrder) => {
   }
 };
 
-const runCli = () => {
-  const parsed = parseQueueArgs(process.argv.slice(2));
-  const client = createGitHubRestClient({ repoRoot: REPO_ROOT });
+const readIssue = (client: GitHubRestClient, issueNumber: number) => {
+  const issue = client.getIssue(issueNumber);
+  return {
+    number: issue.number,
+    state: issue.state.toUpperCase(),
+    title: issue.title,
+    body: issue.body,
+    labels: issue.labels,
+    comments: issue.commentCount > 0 ? client.listIssueComments(issueNumber) : [],
+  };
+};
 
-  if (parsed.command === "next") {
-    const order = selectNextWork({
-      openAgentPrs: fetchOpenAgentPrs(client),
-      readyIssues: fetchReadyIssues(client),
-    });
-    if (parsed.apply) {
-      applyQueueOrder(client, order);
-    }
-    console.log(JSON.stringify(order, null, 2));
-    return;
+const recordShepherd = (
+  client: GitHubRestClient,
+  { prNumber, ifUninitialized, round, sha, issueNumber, flakeReruns }: RecordShepherdOptions,
+) => {
+  const comments = client.listIssueComments(prNumber);
+  const previous = parseAgentPrState(comments);
+  if (ifUninitialized && hasAgentPrState(comments)) {
+    return { status: "already_initialized", prNumber, state: previous };
   }
+  const state = mergeAgentPrState(previous, {
+    shepherdRounds: round,
+    ...(flakeReruns !== undefined ? { flakeReruns } : {}),
+    ...(sha ? { lastHeadSha: sha } : {}),
+    ...(issueNumber !== undefined ? { issueNumber } : {}),
+  });
+  client.postIssueComment(prNumber, formatAgentPrStateComment(state));
+  return { status: "recorded", prNumber, state };
+};
 
-  if (parsed.command === "issue") {
-    const { issueNumber } = parsed;
-    const issue = client.getIssue(issueNumber);
-    const comments = issue.commentCount > 0 ? client.listIssueComments(issueNumber) : [];
-    console.log(
-      JSON.stringify(
-        {
-          number: issue.number,
-          state: issue.state.toUpperCase(),
-          title: issue.title,
-          body: issue.body,
-          labels: issue.labels,
-          comments,
-        },
-        null,
-        2,
-      ),
-    );
-    return;
-  }
+type QueueCommandHandler<C extends QueueCommandName> = {
+  /** Prints the result as indented JSON for agents to read, rather than one line for logs. */
+  pretty?: true;
+  run: (command: QueueCommandOf<C>, deps: QueueDeps) => unknown;
+};
 
-  if (parsed.command === "claim") {
-    const { issueNumber, renewRunId } = parsed;
-    const now = Date.now();
-    const existingOwner = findEarliestActiveClaimRunId(client.listIssueComments(issueNumber), now);
-    if (renewRunId !== undefined) {
-      if (existingOwner !== null && existingOwner !== renewRunId) {
-        console.log(
-          JSON.stringify({ status: "lost_race", issueNumber, winningRunId: existingOwner }),
-        );
-        return;
+const QUEUE_COMMANDS: { [C in QueueCommandName]: QueueCommandHandler<C> } = {
+  next: {
+    pretty: true,
+    run: ({ apply }, { client, now }) => {
+      const order = selectNextWork({
+        openAgentPrs: fetchOpenAgentPrs(client),
+        readyIssues: fetchReadyIssues(client),
+        nowMs: now(),
+      });
+      if (apply) {
+        applyQueueOrder(client, order);
       }
-    } else if (existingOwner !== null) {
-      console.log(
-        JSON.stringify({ status: "already_claimed", issueNumber, winningRunId: existingOwner }),
-      );
-      return;
-    }
-
-    const claim = claimMarkerSchema.parse({
-      runId: renewRunId ?? randomUUID(),
-      claimedAt: new Date(now).toISOString(),
-      expiresAt: new Date(now + CLAIM_TTL_MS).toISOString(),
-    });
-    client.postIssueComment(issueNumber, formatClaimComment(claim));
-
-    const winnerAfterWrite = findEarliestActiveClaimRunId(
-      client.listIssueComments(issueNumber),
-      Date.now(),
-    );
-    if (winnerAfterWrite !== claim.runId) {
-      console.log(
-        JSON.stringify({ status: "lost_race", issueNumber, claim, winningRunId: winnerAfterWrite }),
-      );
-      return;
-    }
-    console.log(
-      JSON.stringify({
-        status: renewRunId !== undefined ? "renewed" : "claimed",
-        issueNumber,
-        claim,
+      return order;
+    },
+  },
+  issue: { pretty: true, run: ({ issueNumber }, { client }) => readIssue(client, issueNumber) },
+  claim: {
+    run: ({ issueNumber, renewRunId }, { client, now, newRunId }) =>
+      claimIssue(client, issueNumber, {
+        ...(renewRunId !== undefined ? { renewRunId } : {}),
+        now,
+        newRunId,
       }),
-    );
-    return;
-  }
+  },
+  "open-pr": {
+    run: ({ title, head, base, bodyFile, body }, { client, readFile, warn }) =>
+      openAgentPr(client, { title, head, base, body: bodyFile ? readFile(bodyFile) : body }, warn),
+  },
+  escalate: {
+    run: ({ targetNumber, reason }, { client }) => {
+      escalate(client, targetNumber, reason);
+      return { status: "escalated", number: targetNumber };
+    },
+  },
+  "record-shepherd": { run: (options, { client }) => recordShepherd(client, options) },
+  threads: {
+    pretty: true,
+    run: ({ prNumber }, { client }) => fetchUnaddressedThreads(client, prNumber),
+  },
+  "reply-thread": {
+    run: ({ prNumber, commentId, body }, { client }) => {
+      client.replyToReviewComment(prNumber, commentId, formatAddressedReplyBody(body));
+      return { status: "replied", prNumber, commentId };
+    },
+  },
+};
 
-  if (parsed.command === "open-pr") {
-    const { title, head, base } = parsed;
-    const body = parsed.bodyFile ? readFileSync(parsed.bodyFile, "utf8") : parsed.body;
-    const existingPr = client.findOpenPull({ head, base });
-    const pr = existingPr ?? client.createPull({ title, head, base, body });
-    try {
-      client.addLabels(pr.number, [AGENT_LABELS.pr]);
-    } catch (error) {
-      console.error(
-        JSON.stringify({
-          status: "created_unlabeled",
-          number: pr.number,
-          url: pr.url,
-          headRefName: pr.headRefName,
-        }),
-      );
-      throw error;
-    }
-    console.log(
-      JSON.stringify({
-        status: existingPr ? "reused" : "created",
-        number: pr.number,
-        url: pr.url,
-        headRefName: pr.headRefName,
-      }),
-    );
-    return;
-  }
+/** Runs a parsed queue command and returns the JSON line or document it prints. */
+export const runQueueCommand = <C extends QueueCommandName>(
+  command: QueueCommandOf<C>,
+  deps: QueueDeps,
+): string => {
+  const handler: QueueCommandHandler<C> = QUEUE_COMMANDS[command.command];
+  const result = handler.run(command, deps);
+  return handler.pretty ? JSON.stringify(result, null, 2) : JSON.stringify(result);
+};
 
-  if (parsed.command === "escalate") {
-    const { targetNumber, reason } = parsed;
-    client.addLabels(targetNumber, [AGENT_LABELS.needsHuman]);
-    client.postIssueComment(targetNumber, `Escalating to human: ${reason}`);
-    console.log(JSON.stringify({ status: "escalated", number: targetNumber }));
-    return;
-  }
-
-  if (parsed.command === "record-shepherd") {
-    const { prNumber, ifUninitialized, ...updates } = parsed;
-    const comments = client.listIssueComments(prNumber);
-    const previous = parseAgentPrState(comments);
-    if (ifUninitialized && hasAgentPrState(comments)) {
-      console.log(JSON.stringify({ status: "already_initialized", prNumber, state: previous }));
-      return;
-    }
-    const state = mergeAgentPrState(previous, {
-      shepherdRounds: updates.round,
-      ...(updates.flakeReruns !== undefined ? { flakeReruns: updates.flakeReruns } : {}),
-      ...(updates.sha ? { lastHeadSha: updates.sha } : {}),
-      ...(updates.issueNumber !== undefined ? { issueNumber: updates.issueNumber } : {}),
-    });
-    client.postIssueComment(prNumber, formatAgentPrStateComment(state));
-    console.log(JSON.stringify({ status: "recorded", prNumber, state }));
-    return;
-  }
-
-  if (parsed.command === "threads") {
-    console.log(JSON.stringify(fetchUnaddressedThreads(client, parsed.prNumber), null, 2));
-    return;
-  }
-
-  const { prNumber, commentId, body } = parsed;
-  client.replyToReviewComment(prNumber, commentId, formatAddressedReplyBody(body));
-  console.log(JSON.stringify({ status: "replied", prNumber, commentId }));
+const runCli = () => {
+  const command = parseQueueArgs(process.argv.slice(2));
+  const output = runQueueCommand(command, {
+    client: createGitHubRestClient({ repoRoot: REPO_ROOT }),
+    now: Date.now,
+    newRunId: randomUUID,
+    readFile: (path) => readFileSync(path, "utf8"),
+    warn: console.error,
+  });
+  console.log(output);
 };
 
 if (import.meta.main) {
