@@ -1,5 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import type * as NodeModule from "node:module";
 import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -10,6 +11,7 @@ import {
   assertSafeManagedDatabaseName,
   buildLocalDatabaseUrl,
   DEFAULT_COMPOSE_DATABASE_URL,
+  loadPgClient,
   parseLocalComposeDatabase,
 } from "./local-postgres.ts";
 import { isLinkedGitWorktree, resetLocalDatabase, resolveResetTarget } from "./reset-db.ts";
@@ -400,4 +402,58 @@ it("executes runCli when invoked directly as a child process with stubbed execut
     `vp|run @merit/db#db:migrate|${DEFAULT_COMPOSE_DATABASE_URL}`,
     `vp|run @merit/app#db:seed|${DEFAULT_COMPOSE_DATABASE_URL}`,
   ]);
+});
+
+/** Creates a checkout whose foundation/db resolves `pg` to the given CommonJS module source. */
+const makeRepoWithPg = (prefix: string, pgSource: string) => {
+  const repoRoot = makeTempDir(prefix);
+  const pgDir = join(repoRoot, "foundation/db/node_modules/pg");
+  mkdirSync(pgDir, { recursive: true });
+  writeFileSync(join(repoRoot, "foundation/db/package.json"), JSON.stringify({ name: "db" }));
+  writeFileSync(join(pgDir, "package.json"), JSON.stringify({ name: "pg", main: "index.js" }));
+  writeFileSync(join(pgDir, "index.js"), pgSource);
+  return repoRoot;
+};
+
+it("loads pg from the repository's foundation/db and falls back to this checkout's", () => {
+  const repoRoot = makeRepoWithPg(
+    "merit-pg-repo-",
+    "module.exports = { Client: class RepoClient {} };\n",
+  );
+  const withoutDb = makeTempDir("merit-pg-no-db-");
+
+  expect(loadPgClient(repoRoot).name).toBe("RepoClient");
+  expect(loadPgClient(withoutDb)).toBe(loadPgClient());
+  expect(loadPgClient().name).toBe("Client");
+});
+
+it("throws instead of returning a Client loaded for another repository when pg cannot load", async () => {
+  // Make this checkout's own pg unavailable, so only the repository candidates can load it.
+  vi.resetModules();
+  vi.doMock("node:module", async (importOriginal) => {
+    const { createRequire } = await importOriginal<typeof NodeModule>();
+    // local-postgres.ts uses only createRequire; it receives this checkout's candidate as a URL.
+    return {
+      createRequire: (candidate: string | URL) =>
+        candidate instanceof URL
+          ? () => {
+              throw new Error("default pg is unavailable");
+            }
+          : createRequire(candidate),
+    };
+  });
+  try {
+    const { loadPgClient: loadIsolatedPgClient } = await import("./local-postgres.ts");
+    const loaded = makeRepoWithPg(
+      "merit-pg-loaded-",
+      "module.exports = { Client: class LoadedClient {} };\n",
+    );
+    const broken = makeRepoWithPg("merit-pg-broken-", 'throw new Error("broken pg");\n');
+
+    expect(loadIsolatedPgClient(loaded).name).toBe("LoadedClient");
+    expect(() => loadIsolatedPgClient(broken)).toThrow("default pg is unavailable");
+  } finally {
+    vi.doUnmock("node:module");
+    vi.resetModules();
+  }
 });
