@@ -1,5 +1,3 @@
-import { setTimeout as delay } from "node:timers/promises";
-
 export type OutcomeWait = {
   /** How long a request waits for the first outcome. */
   timeoutMs: number;
@@ -11,6 +9,8 @@ export type OutcomeWait = {
 export const defaultOutcomeWait: OutcomeWait = { timeoutMs: 5000, intervalMs: 100 };
 
 const expired = Symbol("expired");
+
+const pause = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 /**
  * One read, held to the time left. With none left (a wait of zero) the read still runs once and
@@ -45,15 +45,20 @@ export const waitForOutcome = async <T>(
   { timeoutMs, intervalMs }: OutcomeWait = defaultOutcomeWait,
 ): Promise<T | undefined> => {
   const deadline = Date.now() + timeoutMs;
+  // The one read a caller that asked not to wait still gets; every later read needs time left.
+  let value = await readWithin(read, timeoutMs);
   for (;;) {
-    const value = await readWithin(read, deadline - Date.now());
     if (value !== undefined && value !== expired) {
       return value;
     }
-    const remaining = deadline - Date.now();
-    if (value === expired || remaining <= 0) {
+    if (value === expired || deadline - Date.now() <= 0) {
       return undefined;
     }
-    await delay(Math.min(intervalMs, remaining));
+    await pause(Math.min(intervalMs, deadline - Date.now()));
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) {
+      return undefined;
+    }
+    value = await readWithin(read, remaining);
   }
 };
