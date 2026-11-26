@@ -44,6 +44,7 @@ catalogTest(
       "I recorded the decision to fund Lanterns with −2,450.25 EUR.",
       "I recorded the decision to fund Lanterns with **−2,450.25 EUR**.",
       "I recorded the decision to fund Lanterns with *€-2,450.25*.",
+      "Decision recorded: Fund, -€2,450.25.",
     ]) {
       await expect(async () => verifyReply(reply)).rejects.toThrow("recorded amount");
     }
