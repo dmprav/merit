@@ -34,6 +34,7 @@ catalogTest(
       "I recorded the committee's decision to fund Lanterns with €2,450.25.",
       "Decision recorded: Fund, 2450.25 EUR.",
       "The funding decision was saved for € 2 450,25.",
+      "This is not a recommendation; the decision was recorded for €2,450.25.",
     ]) {
       await verifyReply(reply);
     }
@@ -51,6 +52,8 @@ catalogTest(
     for (const reply of [
       "I saved your recommendation of €2,450.25 for Lanterns.",
       "I saved your recommendation of €2,450.25. This is not a decision.",
+      "The decision was not recorded: €2,450.25.",
+      "The decision wasn't saved for €2,450.25.",
     ]) {
       await expect(async () => verifyReply(reply)).rejects.toThrow("decision");
     }

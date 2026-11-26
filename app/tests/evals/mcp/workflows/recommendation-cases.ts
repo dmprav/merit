@@ -25,7 +25,10 @@ const decisionsFor = async (ctx: ScenarioContext, applicationId: string) =>
 /** An affirmative statement within one sentence that a decision was recorded. */
 const recordedDecision =
   /\b(?:recorded|saved|logged|entered|made)\b[^.\n]{0,60}\bdecision\b|\bdecision\b[^.\n]{0,40}\b(?:recorded|saved|logged|entered)\b/i;
-const deniedDecision = /\b(?:not|never|isn't|n't)\b[^.\n]{0,30}\bdecision\b/i;
+// A denial counts only when it negates the decision itself, so "not a recommendation; the
+// decision was recorded" passes and "the decision was not recorded" does not.
+const deniedDecision =
+  /(?:\bnot\b|\bnever\b|n't\b)\s+(?:(?:a|an|the|any|your|be)\s+)*(?:(?:funding|committee|final)\s+)?decision\b|\bdecision\b[^.;\n]{0,40}(?:\bnot\b|\bnever\b|n't\b)[^.;\n]{0,20}\b(?:recorded|saved|logged|entered|made)\b/i;
 
 export const recordDecision = async (ctx: ScenarioContext): Promise<Scenario> => {
   const app = await lanterns(ctx, "3500");
