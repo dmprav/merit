@@ -894,7 +894,7 @@ test.describe("live Chromium checker failure detection", () => {
     expect(focus.failures).toHaveLength(1);
     expect(focus.failures[0]?.element).toContain("Removed on blur");
     expect(focus.failures[0]?.reasons).toEqual([
-      "no unfocused baseline: the control left the document after losing focus, so its focus indicator could not be compared",
+      "no unfocused baseline: the control left the document or kept taking focus back, so its focus indicator could not be compared",
     ]);
   });
 

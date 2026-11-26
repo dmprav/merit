@@ -18,7 +18,7 @@ export type CapturedStop = {
 export const NOT_PAINTED_REASON = "not painted: the control or an ancestor has opacity 0";
 
 export const NO_BASELINE_REASON =
-  "no unfocused baseline: the control left the document after losing focus, so its focus indicator could not be compared";
+  "no unfocused baseline: the control left the document or kept taking focus back, so its focus indicator could not be compared";
 
 export const NO_INDICATOR_REASON = "no visible focus indicator change compared to unfocused state";
 
@@ -32,8 +32,9 @@ const indicatorReasons = (stop: CapturedStop): string[] => {
   const baselines = [stop.unfocused, stop.cleanUnfocused].filter(
     (baseline): baseline is FocusVisualSnapshot => baseline !== undefined,
   );
-  // Both baselines are skipped only for a control that left the document, and its focused
-  // styles alone cannot show that they differ from its unfocused state.
+  // Both baselines are skipped only for a control that left the document or took focus back
+  // each time it lost it, and its focused styles alone cannot show that they differ from its
+  // unfocused state.
   if (baselines.length === 0) {
     return [NO_BASELINE_REASON];
   }

@@ -182,11 +182,16 @@ const blurStopIfFocused = (index: number): boolean => {
   return true;
 };
 
-/** Runs in the page: the stop's current styles, unless it left the document. */
-const snapshotStop = (index: number): FocusVisualSnapshot | undefined => {
+/**
+ * Runs in the page: the stop's current styles, unless it left the document or has focus again,
+ * as when its blur handler takes focus back, so its styles are not an unfocused baseline.
+ */
+const snapshotUnfocusedStop = (index: number): FocusVisualSnapshot | undefined => {
   const tracker = window.__meritFocusTracker;
   const el = tracker?.stops[index];
-  return tracker && el?.isConnected ? tracker.captureSnapshot(el) : undefined;
+  return tracker && el?.isConnected && tracker.deepActiveElement() !== el
+    ? tracker.captureSnapshot(el)
+    : undefined;
 };
 
 /** Captures the last stop's unfocused baseline when focus stayed on it, as a focus trap does. */
@@ -199,7 +204,7 @@ export const captureFinalBaseline = async (page: Page, stops: readonly CapturedS
   if (await page.evaluate(blurStopIfFocused, finalStop.index)) {
     await settleAnimations(page);
   }
-  const finalUnfocused = await page.evaluate(snapshotStop, finalStop.index);
+  const finalUnfocused = await page.evaluate(snapshotUnfocusedStop, finalStop.index);
   if (finalUnfocused) {
     finalStop.unfocused = finalUnfocused;
   }
