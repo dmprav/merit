@@ -37,6 +37,9 @@ const readExpectedPnpm = (): string => {
   return version;
 };
 
+// Parallel Playwright workers in the container when the caller names none.
+const DEFAULT_CONTAINER_WORKERS = 2;
+
 const valueFlags = new Set([
   "-c",
   "--config",
@@ -86,7 +89,7 @@ const buildPlaywrightArgs = (rawArgs: string[]) => {
     playwrightArgs: [
       ...(hasSpec ? [] : ["tests/browser/visual.spec.ts"]),
       ...(hasProject ? [] : ["--project", "desktop", "--project", "mobile"]),
-      ...(hasWorkers ? [] : ["--workers", "2"]),
+      ...(hasWorkers ? [] : ["--workers", String(DEFAULT_CONTAINER_WORKERS)]),
       ...args,
     ],
   };
