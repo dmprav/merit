@@ -15,6 +15,7 @@ import { fileURLToPath } from "node:url";
 
 import { z } from "zod";
 
+import { errorMessage, stripLeadingSeparator } from "../cli.ts";
 import { type FileLockOptions, getErrnoCode, withFileLock } from "./file-lock.ts";
 
 export const LEDGER_SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -615,7 +616,7 @@ export const readLedgerEntries = (
     if (getErrnoCode(error) === "ENOENT") {
       return { exists: false, entries: [] };
     }
-    const detail = error instanceof Error ? error.message : String(error);
+    const detail = errorMessage(error);
     throw new Error(`Failed to read decision ledger at "${filePath}": ${detail}`, {
       cause: error,
     });
@@ -722,9 +723,6 @@ export const summarizeLedger = ({
     decisions,
   });
 };
-
-const stripLeadingSeparator = (args: readonly string[]): string[] =>
-  args[0] === "--" ? args.slice(1) : [...args];
 
 const splitFlagToken = (token: string): { flag: string; inlineValue?: string } => {
   const eqIndex = token.indexOf("=");
@@ -1088,7 +1086,6 @@ const runCli = async () => {
   console.log(output);
 };
 
-const entryPath = process.argv[1];
-if (entryPath && resolve(entryPath) === fileURLToPath(import.meta.url)) {
+if (import.meta.main) {
   await runCli();
 }

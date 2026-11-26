@@ -3,6 +3,7 @@ import { existsSync, globSync, readFileSync, statSync } from "node:fs";
 import { join, matchesGlob, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { normalizeRepoPath } from "../../cli.ts";
 import {
   MAX_INVARIANT_LENGTH,
   MAX_INVARIANTS_PER_MECHANISM,
@@ -25,8 +26,6 @@ export type MechanismClassification = {
   paths: string[];
   matched: MatchedMechanism[];
 };
-
-const normalizePath = (value: string) => value.replaceAll("\\", "/").replace(/^\.\//, "");
 
 /** Converts a Markdown heading to the GitHub/remark anchor slug used in doc links. */
 const slugifyHeading = (heading: string) =>
@@ -95,7 +94,7 @@ const checkDocReference = (repoRoot: string, ref: string): string | null => {
 };
 
 const checkGlobPattern = (repoRoot: string, pattern: string): string | null => {
-  const normalized = normalizePath(pattern);
+  const normalized = normalizeRepoPath(pattern);
   const matches = globSync(normalized, { cwd: repoRoot });
   if (matches.length === 0) {
     return `pattern matches no files on disk: ${pattern}`;
@@ -192,7 +191,7 @@ export const validateMechanismMap = (
 };
 
 const matchesPathOrDir = (inputPath: string, pattern: string) => {
-  const normalized = normalizePath(inputPath);
+  const normalized = normalizeRepoPath(inputPath);
   if (matchesGlob(normalized, pattern)) {
     return true;
   }
@@ -207,7 +206,7 @@ export const classifyChangedPaths = ({
   paths: readonly string[];
   mechanisms?: readonly Mechanism[];
 }): MechanismClassification => {
-  const normalizedPaths = paths.map(normalizePath).filter(Boolean);
+  const normalizedPaths = paths.map(normalizeRepoPath).filter(Boolean);
   const matched: MatchedMechanism[] = [];
 
   for (const mechanism of mechanisms) {
@@ -324,7 +323,6 @@ const runCli = () => {
   console.log(formatMechanismReport(classification));
 };
 
-const entryPath = process.argv[1];
-if (entryPath && resolve(entryPath) === fileURLToPath(import.meta.url)) {
+if (import.meta.main) {
   runCli();
 }

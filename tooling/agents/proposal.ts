@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 
 import { z } from "zod";
 
+import { normalizeRepoPath, readFlagValue } from "../cli.ts";
 import {
   ALLOW_PROTECTED_LABEL,
   findProtectedPaths,
@@ -122,10 +123,8 @@ export type DuplicateCheckResult =
   | { duplicate: true; matchedIssue: ExistingIssueSummary; reason: string }
   | { duplicate: false };
 
-const normalizePath = (value: string) => value.replaceAll("\\", "/").replace(/^\.\//, "");
-
 export const sliceForPath = (filePath: string): string => {
-  const normalized = normalizePath(filePath);
+  const normalized = normalizeRepoPath(filePath);
   const parts = normalized.split("/");
   if (
     (parts[0] === "capabilities" || parts[0] === "foundation" || parts[0] === "interfaces") &&
@@ -137,7 +136,7 @@ export const sliceForPath = (filePath: string): string => {
 };
 
 export const isTier1DocPath = (filePath: string): boolean => {
-  const normalized = normalizePath(filePath);
+  const normalized = normalizeRepoPath(filePath);
   return !GLOB_CHAR_PATTERN.test(normalized) && TIER1_DOC_PATTERN.test(normalized);
 };
 
@@ -153,7 +152,7 @@ export const classifyProposalTier = ({
   ambiguous: boolean;
   kind?: ProposalKind;
 }): ProposalTierClassification => {
-  const normalizedPaths = [...new Set(paths.map(normalizePath))];
+  const normalizedPaths = [...new Set(paths.map(normalizeRepoPath))];
   const protectedPaths = findProtectedPaths(normalizedPaths);
   const mechanisms = classifyChangedPaths({ paths: normalizedPaths });
   const slices = [...new Set(normalizedPaths.map(sliceForPath))].sort();
@@ -244,7 +243,7 @@ export const findDuplicateProposal = (
 ): DuplicateCheckResult => {
   const normalizedTitle = proposal.title.trim().toLowerCase();
   const titleTokens = tokenize(proposal.title);
-  const proposalPaths = new Set(proposal.paths.map(normalizePath));
+  const proposalPaths = new Set(proposal.paths.map(normalizeRepoPath));
 
   for (const issue of existingIssues) {
     const isRelevant =
@@ -264,7 +263,7 @@ export const findDuplicateProposal = (
 
     const similarity = jaccard(titleTokens, tokenize(issue.title));
     const markerMeta = issue.body ? parseProposalMarker(issue.body) : null;
-    const existingPaths = (markerMeta?.paths ?? []).map(normalizePath);
+    const existingPaths = (markerMeta?.paths ?? []).map(normalizeRepoPath);
     const sharedPathCount = existingPaths.filter((filePath) => proposalPaths.has(filePath)).length;
     const sharesPath = sharedPathCount > 0;
     if (similarity >= 0.6 && (sharesPath || existingPaths.length === 0)) {
@@ -294,7 +293,7 @@ export const renderProposalMarkdown = (
   proposal: ProposalInput,
   classification: ProposalTierClassification,
 ): string => {
-  const normalizedPaths = [...new Set(proposal.paths.map(normalizePath))];
+  const normalizedPaths = [...new Set(proposal.paths.map(normalizeRepoPath))];
   const mechanismSummary =
     classification.mechanisms.matched.length > 0
       ? classification.mechanisms.matched.map((entry) => entry.mechanism.id).join(", ")
@@ -436,14 +435,6 @@ const listExistingIssues = (repoRoot: string): ExistingIssueSummary[] => {
   return [...byNumber.values()];
 };
 
-const readFlagValue = (args: readonly string[], flag: string): string | null => {
-  const index = args.indexOf(flag);
-  if (index === -1) {
-    return null;
-  }
-  return args[index + 1] ?? null;
-};
-
 const runCli = () => {
   const repoRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
   const args = process.argv.slice(2);
@@ -533,7 +524,6 @@ const runCli = () => {
   );
 };
 
-const entryPath = process.argv[1];
-if (entryPath && resolve(entryPath) === fileURLToPath(import.meta.url)) {
+if (import.meta.main) {
   runCli();
 }

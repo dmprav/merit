@@ -22,7 +22,11 @@ and imports ordinary [lint policy](../../tooling/verification/lint.ts). Architec
 configuration owns dependency, external-library, and I/O restrictions together.
 Keep conventional tool configuration files at the repository root. Application seed and cleanup
 scripts remain with the application, and migrations remain with the database
-package. Shared compiler options stay in `tooling/react-compiler.ts`.
+package. Shared compiler options stay in `tooling/react-compiler.ts`, and
+argument and path helpers shared by tooling CLIs stay in [`tooling/cli.ts`](../../tooling/cli.ts).
+Start a CLI with `if (import.meta.main)` rather than comparing `process.argv[1]`
+with the module path. Scripts that CI runs before installing dependencies import only
+Node built-ins, so they keep local copies of these helpers.
 Capability web, product, and app Vitest configurations use
 [`webTestConfig`](../../tooling/testing/web-config.ts); business configurations use
 [`businessTestConfig`](../../tooling/verification/business-test-config.ts). Package

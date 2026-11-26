@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import {
   existsSync,
   mkdirSync,
@@ -11,11 +12,11 @@ import type * as fs from "node:fs";
 import { createServer, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { describe, expect, it, vi } from "vite-plus/test";
 
 import {
-  DEFAULT_STORYBOOK_TARGETS,
   acquireOutputLock,
   acquireWithCleanup,
   allocateFreePort,
@@ -37,6 +38,42 @@ import {
   type FocusVisualSnapshot,
   type RegisterCleanup,
 } from "./ui-verify.ts";
+import { VISUAL_TARGETS } from "./visual-targets.ts";
+
+type ListedSuite = { specs?: { title: string }[]; suites?: ListedSuite[] };
+
+/** Titles of the tests tests/browser/visual.spec.ts registers, as Playwright itself lists them. */
+const listVisualSpecTitles = (): string[] => {
+  const storybookDir = fileURLToPath(new URL(".", import.meta.url));
+  const vp = fileURLToPath(new URL("../../node_modules/.bin/vp", import.meta.url));
+  const report = JSON.parse(
+    execFileSync(
+      vp,
+      [
+        "exec",
+        "playwright",
+        "test",
+        "--list",
+        "--project",
+        "desktop",
+        "--reporter=json",
+        "tests/browser/visual.spec.ts",
+      ],
+      { cwd: storybookDir, encoding: "utf8" },
+    ),
+  ) as { suites: ListedSuite[] };
+
+  const titles = (suite: ListedSuite): string[] => [
+    ...(suite.specs ?? []).map((spec) => spec.title),
+    ...(suite.suites ?? []).flatMap(titles),
+  ];
+
+  return report.suites.flatMap(titles);
+};
+
+let listedVisualSpecTitles: string[] | undefined;
+
+const visualSpecTitles = () => (listedVisualSpecTitles ??= listVisualSpecTitles());
 
 // Lets a test run another process's step just before ui-verify moves or removes a given path.
 const fsRace = vi.hoisted(() => ({
@@ -236,15 +273,18 @@ describe("filterStoryTargets and sanitizeTargetName", () => {
     },
   ];
 
-  it("returns curated visual targets matching visual.spec.ts by default", () => {
+  it("returns the visual baseline stories by default", () => {
     const targets = filterStoryTargets([], sampleIndex);
-    expect(targets).toHaveLength(10);
     expect(targets.map((target) => target.name)).toEqual(
-      DEFAULT_STORYBOOK_TARGETS.map((target) => target.name),
+      VISUAL_TARGETS.map((target) => target.name),
     );
     expect(
       targets.find((target) => target.id === "patterns-form-dialog--with-context")?.fullPage,
     ).toBe(false);
+  });
+
+  it("checks by default exactly the stories visual.spec.ts captures", () => {
+    expect(visualSpecTitles()).toEqual(VISUAL_TARGETS.map((target) => target.testTitle));
   });
 
   it("supports substring, glob, and curated theme filters while ignoring docs entries", () => {
@@ -622,22 +662,13 @@ describe("detectFocusVisualChange", () => {
 });
 
 describe("container delegation and proof reporting", () => {
-  // Mirrors the test titles in tests/browser/visual.spec.ts.
-  const visualTestTitles = [
-    "control focus appearance in product",
-    "control focus appearance in site",
-    ...DEFAULT_STORYBOOK_TARGETS.filter((target) => !target.name.startsWith("focus-")).map(
-      (target) => `appearance: ${target.id}`,
-    ),
-  ];
-
   // Playwright matches a bare --grep case-insensitively against the project name, the file
   // name, and the test title joined with spaces.
   const containerSelection = (cliArgs: string[]) => {
     const args = buildContainerDelegationArgs(parseCliArgs(["--container", ...cliArgs]));
     const grepIndex = args.indexOf("--grep");
     const grep = grepIndex === -1 ? undefined : new RegExp(args[grepIndex + 1] ?? "", "i");
-    return visualTestTitles.filter((title) =>
+    return visualSpecTitles().filter((title) =>
       ["desktop", "mobile"].some(
         (project) => grep?.test(` ${project} visual.spec.ts ${title}`) ?? true,
       ),

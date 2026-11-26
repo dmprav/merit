@@ -31,6 +31,10 @@ import { desktopViewport, mobileOptions } from "@merit/test-support/browser/conf
 import { loadEnvLocalFiles } from "@merit/test-support/env";
 import { createTestDatabase } from "@merit/test-support/test-database";
 
+import { getErrnoCode, isProcessAlive } from "../agents/file-lock.ts";
+import { errorMessage, stripLeadingSeparator } from "../cli.ts";
+import { VISUAL_TARGETS } from "./visual-targets.ts";
+
 const REPO_ROOT = resolve(fileURLToPath(new URL("../../", import.meta.url)));
 const DEFAULT_OUT_DIR = ".tmp/ui-verify";
 const MAX_TAB_STOPS = 40;
@@ -203,73 +207,20 @@ export type TargetCheckResult = z.infer<typeof targetCheckResultSchema>;
 
 export type UiVerifyResults = z.infer<typeof uiVerifyResultsSchema>;
 
-/** Curated default sweep matching `tooling/storybook/tests/browser/visual.spec.ts`. */
-export const DEFAULT_STORYBOOK_TARGETS: readonly StoryTarget[] = [
-  {
+/** The default sweep: the Storybook visual baseline stories. */
+const DEFAULT_STORYBOOK_TARGETS: readonly StoryTarget[] = VISUAL_TARGETS.map(
+  ({ id, name, globals, fullPage }) => ({
     kind: "story",
-    id: "design-language--focus-comparison",
-    name: "focus-product",
-    globals: "theme:product",
-    fullPage: true,
-  },
-  {
-    kind: "story",
-    id: "design-language--focus-comparison",
-    name: "focus-site",
-    globals: "theme:site",
-    fullPage: true,
-  },
-  {
-    kind: "story",
-    id: "components-button--overview",
-    name: "components-button--overview",
-    fullPage: true,
-  },
-  {
-    kind: "story",
-    id: "patterns-form-dialog--with-context",
-    name: "patterns-form-dialog--with-context",
-    fullPage: false,
-  },
-  {
-    kind: "story",
-    id: "patterns-confirmation-dialog--failure",
-    name: "patterns-confirmation-dialog--failure",
-    fullPage: true,
-  },
-  {
-    kind: "story",
-    id: "components-text-field--states",
-    name: "components-text-field--states",
-    fullPage: true,
-  },
-  {
-    kind: "story",
-    id: "components-data-table--default",
-    name: "components-data-table--default",
-    fullPage: true,
-  },
-  {
-    kind: "story",
-    id: "features-applications-recommendation--resume-editing",
-    name: "features-applications-recommendation--resume-editing",
-    fullPage: true,
-  },
-  {
-    kind: "story",
-    id: "patterns-application-shell--workspace-switcher",
-    name: "patterns-application-shell--workspace-switcher",
-    fullPage: true,
-  },
-  {
-    kind: "story",
-    id: "patterns-application-shell--workspace-switcher-long-name",
-    name: "patterns-application-shell--workspace-switcher-long-name",
-    fullPage: true,
-  },
-];
+    id,
+    name,
+    ...(globals ? { globals } : {}),
+    fullPage,
+  }),
+);
 
-const VIEWPORT_ONLY_STORY_IDS = new Set(["patterns-form-dialog--with-context"]);
+const VIEWPORT_ONLY_STORY_IDS = new Set(
+  VISUAL_TARGETS.filter((target) => !target.fullPage).map((target) => target.id),
+);
 
 const USAGE = `Usage: vp run ui:verify [options]
 
@@ -341,7 +292,7 @@ export const normalizeRoutePattern = (raw: string): string => {
 };
 
 export const parseCliArgs = (rawArgs: readonly string[]): UiVerifyCliOptions => {
-  const args = rawArgs[0] === "--" ? rawArgs.slice(1) : [...rawArgs];
+  const args = stripLeadingSeparator(rawArgs);
   const stories: string[] = [];
   const routes: string[] = [];
   let mode: AppMode | undefined;
@@ -559,12 +510,6 @@ export const buildUniqueTargetStems = (names: readonly string[]): string[] => {
   });
 };
 
-// Visual test titles for curated targets whose test is not titled `appearance: <story-id>`.
-const CONTAINER_FOCUS_TEST_TITLES: Readonly<Record<string, string>> = {
-  "focus-product": "control focus appearance in product",
-  "focus-site": "control focus appearance in site",
-};
-
 export const buildContainerDelegationArgs = (options: UiVerifyCliOptions): string[] => {
   if (options.routes.length > 0) {
     throw new Error(
@@ -586,17 +531,15 @@ export const buildContainerDelegationArgs = (options: UiVerifyCliOptions): strin
     // and select their exact titles.
     const titles = options.stories.flatMap((story) => {
       const matches = compileStoryMatcher(story);
-      const selected = DEFAULT_STORYBOOK_TARGETS.filter(
+      const selected = VISUAL_TARGETS.filter(
         (target) => matches(target.name) || matches(target.id),
       );
       if (selected.length === 0) {
         throw new Error(
-          `--story "${story}" matches no visual baseline story; container mode checks only the curated targets (${DEFAULT_STORYBOOK_TARGETS.map((target) => target.name).join(", ")}).`,
+          `--story "${story}" matches no visual baseline story; container mode checks only the curated targets (${VISUAL_TARGETS.map((target) => target.name).join(", ")}).`,
         );
       }
-      return selected.map(
-        (target) => CONTAINER_FOCUS_TEST_TITLES[target.name] ?? `appearance: ${target.id}`,
-      );
+      return selected.map((target) => target.testTitle);
     });
 
     // Anchor each title to the end of the subject, so `...switcher` leaves `...switcher-long-name`.
@@ -887,7 +830,7 @@ export const waitForHttpReady = async (
         }
         lastError = `HTTP ${response.status}`;
       } catch (error) {
-        lastError = error instanceof Error ? error.message : String(error);
+        lastError = errorMessage(error);
       }
     }
     const sleepMs = Math.min(250, Math.max(0, deadline - Date.now()));
@@ -1843,7 +1786,7 @@ export const openTargetOnPage = async (
       { timeout: routeReadyTimeoutMs },
     );
   } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
+    const detail = errorMessage(error);
     throw new Error(
       `Route "${target.route}" did not render non-empty content within ${routeReadyTimeoutMs}ms at ${url}: ${detail}`,
     );
@@ -2098,9 +2041,6 @@ const storybookIndexSchema = z.object({
 
 const OUTPUT_LOCK_FILE = ".ui-verify.lock";
 
-const hasErrorCode = (error: unknown, code: string): boolean =>
-  error instanceof Error && "code" in error && error.code === code;
-
 type OutputLockFile = { content: string; inode: number };
 
 /** Reads a lock file's content and inode together, or returns undefined when it is gone. */
@@ -2109,7 +2049,7 @@ const readOutputLock = (lockPath: string): OutputLockFile | undefined => {
   try {
     fd = openSync(lockPath, "r");
   } catch (error) {
-    if (hasErrorCode(error, "ENOENT")) {
+    if (getErrnoCode(error) === "ENOENT") {
       return undefined;
     }
     throw error;
@@ -2118,15 +2058,6 @@ const readOutputLock = (lockPath: string): OutputLockFile | undefined => {
     return { content: readFileSync(fd, "utf8"), inode: fstatSync(fd).ino };
   } finally {
     closeSync(fd);
-  }
-};
-
-const isProcessAlive = (pid: number): boolean => {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error) {
-    return error instanceof Error && "code" in error && error.code === "EPERM";
   }
 };
 
@@ -2159,7 +2090,7 @@ export const acquireOutputLock = (outDir: string): (() => void) => {
         }
       };
     } catch (error) {
-      if (!hasErrorCode(error, "EEXIST")) {
+      if (getErrnoCode(error) !== "EEXIST") {
         throw error;
       }
     } finally {
@@ -2186,7 +2117,7 @@ export const acquireOutputLock = (outDir: string): (() => void) => {
     try {
       renameSync(lockPath, claimPath);
     } catch (error) {
-      if (hasErrorCode(error, "ENOENT")) {
+      if (getErrnoCode(error) === "ENOENT") {
         continue;
       }
       throw error;
@@ -2296,7 +2227,7 @@ export const runTargetsInBrowser = async ({
           `${checked.passed ? "PASS" : "FAIL"} [${viewport}] ${target.name} (axe:${checked.axeViolations.length} overflow:${checked.hasHorizontalOverflow ? "yes" : "no"} errors:${checked.browserErrors.length} focus:${focusSummary})`,
         );
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
+        const message = errorMessage(error);
         results.push({
           kind: target.kind,
           target: targetId,
@@ -2426,7 +2357,7 @@ export const runUiVerify = async (
       writeProofArtifacts(outDir, results);
       return results;
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = errorMessage(error);
       log(`FAIL: ${message}`);
       const results = summarizeResults({
         mode: "container",
@@ -2563,7 +2494,7 @@ export const runUiVerify = async (
     writeProofArtifacts(outDir, results);
     return results;
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = errorMessage(error);
     log(`FAIL: ${message}`);
     const results = summarizeResults({
       mode,
@@ -2607,7 +2538,6 @@ const main = async () => {
   }
 };
 
-const entryPath = process.argv[1];
-if (entryPath && resolve(entryPath) === fileURLToPath(import.meta.url)) {
+if (import.meta.main) {
   await main();
 }

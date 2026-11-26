@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 
 import { z } from "zod";
 
+import { errorMessage, normalizeRepoPath, readFlagValue, readIntegerFlag } from "../cli.ts";
 import { parseProposalMarker, TRUSTED_AUTHOR_ASSOCIATIONS } from "../verification/agent-policy.ts";
 import { classifyChangedPaths } from "../verification/architecture/mechanisms.ts";
 import { MAX_OPEN_PROPOSALS, runScoutGh, SCOUT_LENSES, type ScoutLens } from "./proposal.ts";
@@ -476,8 +477,6 @@ export const resolveRotationTarget = (
   }
   return { target: pickNextRotationItem(listPackageSlices(trackedFiles), lastTarget), axis: null };
 };
-
-const normalizeRepoPath = (value: string) => value.replaceAll("\\", "/").replace(/^\.\//, "");
 
 const NON_PRODUCTION_PATH_PATTERN =
   /(?:^|\/)(?:testing|__tests__|fixtures)\/|\.(?:test|spec|integration|stories|story-fixtures)\.tsx?$|(?:^|\/)vite\.config\.ts$/;
@@ -1015,7 +1014,7 @@ const collectStructuralTelemetry = ({
     hotspots = health.hotspots;
     thresholdOverrides = health.thresholdOverrides;
   } catch (error) {
-    fallowErrors.push(`health: ${error instanceof Error ? error.message : String(error)}`);
+    fallowErrors.push(`health: ${errorMessage(error)}`);
   }
 
   try {
@@ -1031,7 +1030,7 @@ const collectStructuralTelemetry = ({
     ]);
     cloneGroups = summarizeFallowDupes({ rawDupes, pathPatterns, trackedPathsByIssue });
   } catch (error) {
-    fallowErrors.push(`dupes: ${error instanceof Error ? error.message : String(error)}`);
+    fallowErrors.push(`dupes: ${errorMessage(error)}`);
   }
 
   if (axis?.id === "interface-transport-and-routing") {
@@ -1045,7 +1044,7 @@ const collectStructuralTelemetry = ({
       ]);
       entryWeights = summarizeEntryWeights({ rawEntryWeight, trackedPathsByIssue });
     } catch (error) {
-      fallowErrors.push(`entry-weight: ${error instanceof Error ? error.message : String(error)}`);
+      fallowErrors.push(`entry-weight: ${errorMessage(error)}`);
     }
   }
 
@@ -1230,14 +1229,6 @@ const isCommitAncestor = (repoRoot: string, sha: string, ref: string): boolean =
   } catch {
     return false;
   }
-};
-
-const readFlagValue = (args: readonly string[], flag: string): string | null => {
-  const index = args.indexOf(flag);
-  if (index === -1) {
-    return null;
-  }
-  return args[index + 1] ?? null;
 };
 
 export const parseContextLensFlag = (args: readonly string[]): ScoutLens | "auto" => {
@@ -1450,13 +1441,27 @@ const runContextCommand = (repoRoot: string, requestedLens: ScoutLens | "auto") 
   console.log(JSON.stringify(context, null, 2));
 };
 
-const runAdvanceCommand = (repoRoot: string, lens: ScoutLens, args: readonly string[]) => {
+export type AdvanceOptions = { commitSha: string; target?: string; prNumber?: number };
+
+/** Validates `advance` arguments before the state issue is read or rewritten. */
+export const parseAdvanceArgs = (args: readonly string[]): AdvanceOptions => {
   const commitSha = readFlagValue(args, "--commit");
   if (!commitSha) {
     throw new Error(
       'Missing required --commit <scanTipSha> flag. Pass the scanTipSha emitted by "scout.ts context".',
     );
   }
+  const target = readFlagValue(args, "--target")?.trim();
+  const prNumber = readIntegerFlag(args, "--pr", 1);
+  return {
+    commitSha,
+    ...(target ? { target } : {}),
+    ...(prNumber !== null ? { prNumber } : {}),
+  };
+};
+
+const runAdvanceCommand = (repoRoot: string, lens: ScoutLens, args: readonly string[]) => {
+  const { commitSha, target, prNumber } = parseAdvanceArgs(args);
   const stateIssue = fetchScoutStateIssue(repoRoot);
   const state = parseScoutState(stateIssue.body);
   const resolvedSha = execFileSync("git", ["rev-parse", "--verify", `${commitSha}^{commit}`], {
@@ -1467,10 +1472,8 @@ const runAdvanceCommand = (repoRoot: string, lens: ScoutLens, args: readonly str
     cwd: repoRoot,
     encoding: "utf8",
   }).trim();
-  const prRaw = readFlagValue(args, "--pr");
-  const lastPrNumber = prRaw ? Number.parseInt(prRaw, 10) : state[lens]?.lastPrNumber;
-  const targetRaw = readFlagValue(args, "--target")?.trim();
-  const lastRotationTarget = targetRaw || state[lens]?.lastRotationTarget;
+  const lastPrNumber = prNumber ?? state[lens]?.lastPrNumber;
+  const lastRotationTarget = target ?? state[lens]?.lastRotationTarget;
 
   const nextCursor = lensCursorSchema.parse({
     lastCommitSha: resolvedSha,
@@ -1501,7 +1504,6 @@ const runCli = () => {
   throw new Error(`Unknown scout command "${command ?? ""}". Expected "context" or "advance".`);
 };
 
-const entryPath = process.argv[1];
-if (entryPath && resolve(entryPath) === fileURLToPath(import.meta.url)) {
+if (import.meta.main) {
   runCli();
 }

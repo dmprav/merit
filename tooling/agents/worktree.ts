@@ -13,11 +13,11 @@ import {
 } from "node:fs";
 import { createServer } from "node:net";
 import { basename, dirname, join, resolve, sep } from "node:path";
-import { fileURLToPath } from "node:url";
 import { parseEnv } from "node:util";
 
 import { z } from "zod";
 
+import { errorMessage, stripLeadingSeparator } from "../cli.ts";
 import {
   assertSafeManagedDatabaseName,
   buildLocalDatabaseUrl,
@@ -196,9 +196,6 @@ export const databaseNameForSlug = (slug: string): string => {
   assertSafeManagedDatabaseName(name);
   return name;
 };
-
-const stripLeadingSeparator = (args: readonly string[]): string[] =>
-  args[0] === "--" ? args.slice(1) : [...args];
 
 export const parseCreateArgs = (rawArgs: readonly string[]): CreateCliOptions => {
   const args = stripLeadingSeparator(rawArgs);
@@ -456,7 +453,7 @@ export const readWorktreeRegistry = (primaryRepoRoot: string): WorktreeRegistry 
     if (getErrnoCode(error) === "ENOENT") {
       return { version: 1, worktrees: {} };
     }
-    const detail = error instanceof Error ? error.message : String(error);
+    const detail = errorMessage(error);
     throw new Error(`Failed to read worktree registry at "${path}": ${detail}`, { cause: error });
   }
 
@@ -464,7 +461,7 @@ export const readWorktreeRegistry = (primaryRepoRoot: string): WorktreeRegistry 
     const raw = JSON.parse(text) as unknown;
     return worktreeRegistrySchema.parse(raw);
   } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
+    const detail = errorMessage(error);
     throw new Error(
       `Corrupt or invalid worktree registry at "${path}": ${detail}. Repair or remove it after verifying active worktrees.`,
       { cause: error },
@@ -1263,7 +1260,7 @@ export const createWorktree = async (
       }
     }
     if (checkoutRemovalError || checkoutRemains) {
-      const originalMessage = error instanceof Error ? error.message : String(error);
+      const originalMessage = errorMessage(error);
       const removalDetail = checkoutRemovalError
         ? describeExecError(checkoutRemovalError) ||
           (typeof checkoutRemovalError === "string"
@@ -1276,7 +1273,7 @@ export const createWorktree = async (
       );
     }
     if (checkoutPreserved) {
-      const originalMessage = error instanceof Error ? error.message : String(error);
+      const originalMessage = errorMessage(error);
       throw new Error(
         `${originalMessage} (rollback preserved "${resolvedTargetDir}" because its Git metadata does not show that this attempt created it)`,
         { cause: error },
@@ -1713,7 +1710,6 @@ const runCli = async () => {
   );
 };
 
-const entryPath = process.argv[1];
-if (entryPath && resolve(entryPath) === fileURLToPath(import.meta.url)) {
+if (import.meta.main) {
   await runCli();
 }

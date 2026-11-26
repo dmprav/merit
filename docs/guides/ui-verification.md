@@ -163,7 +163,9 @@ writing only the delegation `report.md` and `results.json` (with `containerExitC
 
 The [visual suite](../../tooling/storybook/tests/browser/visual.spec.ts) compares a small set of
 focus, dialog, field, table, recommendation, and open workspace-switcher screenshots.
-Baselines live in `tooling/storybook/snapshots` and standardize on Linux snapshots
+[`visual-targets.ts`](../../tooling/storybook/visual-targets.ts) lists those stories once;
+the suite registers a test for each, and `ui:verify` checks the same stories by default.
+Add or remove a baseline there. Baselines live in `tooling/storybook/snapshots` and standardize on Linux snapshots
 matching the Ubuntu 24.04 PR workflow. Run visual comparisons and baseline updates
 inside the pinned Playwright container so macOS and Linux development environments
 produce identical pixels:
