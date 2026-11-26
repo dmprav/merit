@@ -7,6 +7,8 @@ import {
   decisionLimits,
   decisionOutcomes,
   previewCommitment,
+  type DecisionContent,
+  type DecisionOutcome,
   type DecisionVersion,
 } from "@merit/decisions/domain";
 import {
@@ -23,7 +25,7 @@ import {
 import type { ApplicationRoundContext } from "@merit/grantmaking/api";
 import type { ApplicationView as Application } from "@merit/grantmaking/api";
 import { useFormat } from "@merit/i18n/format";
-import { fromMinorUnits } from "@merit/money";
+import { fromMinorUnits, type Money } from "@merit/money";
 import { parseMoneyInput } from "@merit/money/input";
 import { Button } from "@merit/ui/button";
 import { DescriptionList, DescriptionListItem } from "@merit/ui/description-list";
@@ -542,6 +544,27 @@ const BudgetFigure = ({
   </DescriptionList>
 );
 
+/** The committed and available figures a draft would leave, or the excess it would cause. */
+const budgetPreview = (
+  round: { budget: Money | null; committed: Money },
+  current: DecisionContent | null,
+  outcome: DecisionOutcome,
+  amount: string,
+) => {
+  const next = commitsFunding(outcome) ? parseMoneyInput(amount) : zero;
+  if (next === null) {
+    return { committed: null, available: null, excess: null, noBudget: false };
+  }
+  const preview = previewCommitment(round, current, { outcome, amount: next });
+  if (preview.ok) {
+    return { ...preview.totals, excess: null, noBudget: false };
+  }
+  const committed = "committed" in preview ? preview.committed : null;
+  const excess =
+    preview.error === "commitment_exceeds_budget" && "excess" in preview ? preview.excess : null;
+  return { committed, available: null, excess, noBudget: preview.error === "budget_required" };
+};
+
 const DecisionBudget = ({
   form,
   round,
@@ -569,24 +592,12 @@ const DecisionBudget = ({
         )}
         <form.Subscribe selector={(state) => [state.values.outcome, state.values.amount] as const}>
           {([outcome, amount]) => {
-            const next = commitsFunding(outcome) ? parseMoneyInput(amount) : zero;
-            const preview =
-              next === null
-                ? null
-                : previewCommitment(
-                    { budget: round.budget, committed: round.totals.committed },
-                    current,
-                    { outcome, amount: next },
-                  );
-            const failure = preview && !preview.ok ? preview : null;
-            const noBudget = failure?.error === "budget_required";
-            const over = failure?.error === "commitment_exceeds_budget";
-            const committed = preview?.ok
-              ? preview.totals.committed
-              : failure && "committed" in failure
-                ? failure.committed
-                : null;
-            const available = preview?.ok ? preview.totals.available : null;
+            const { committed, available, excess, noBudget } = budgetPreview(
+              { budget: round.budget, committed: round.totals.committed },
+              current,
+              outcome,
+              amount,
+            );
 
             return (
               <div role="status" aria-label={t("budget.preview")}>
@@ -595,8 +606,8 @@ const DecisionBudget = ({
                     label={t("budget.committedAfter")}
                     amount={committed === null ? "—" : money(committed)}
                   />
-                  {over && failure && "excess" in failure && failure.excess ? (
-                    <BudgetFigure label={t("budget.over")} amount={money(failure.excess)} isOver />
+                  {excess ? (
+                    <BudgetFigure label={t("budget.over")} amount={money(excess)} isOver />
                   ) : (
                     <BudgetFigure
                       label={t("budget.availableAfter")}

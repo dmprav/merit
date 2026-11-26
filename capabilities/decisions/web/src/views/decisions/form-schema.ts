@@ -23,6 +23,48 @@ const draftAmount = (draft: Draft) =>
     ? parseMoneyInput(draft.amount)
     : fromMinorUnits(0n);
 
+type DraftIssue = { path: string; message: string };
+
+/** Missing or malformed inputs the decision rules cannot judge, reported once each. */
+const draftIssues = (t: TFunction<"committeeDecisions">, draft: Draft): DraftIssue[] => {
+  const issues: DraftIssue[] = [];
+  if (draftAmount(draft) === null) {
+    issues.push({
+      path: "amount",
+      message: t(draft.amount.trim() ? "validation.amountFormat" : "validation.amountRequired"),
+    });
+  }
+  if (!draft.decisionDate) {
+    issues.push({ path: "decisionDate", message: t("validation.decisionDateRequired") });
+  }
+  return issues;
+};
+
+/**
+ * The draft as decision content. A missing value is reported once by `draftIssues`, so a
+ * placeholder stands in for it and the rest of the draft is still checked in the same pass.
+ */
+const draftContent = (draft: Draft, amending: boolean) => ({
+  outcome: draft.outcome,
+  amount: draftAmount(draft) ?? fromMinorUnits(1n),
+  conditions: draft.outcome === "Fund with conditions" ? draft.conditions : "",
+  reason: draft.reason,
+  decidedBy: draft.decidedBy,
+  decisionDate: draft.decisionDate || "1970-01-01",
+  ...(amending && draft.changeExplanation.trim()
+    ? { changeExplanation: draft.changeExplanation }
+    : {}),
+});
+
+const unchangedContent = (current: DecisionContent) => ({
+  outcome: current.outcome,
+  amount: current.amount,
+  conditions: current.conditions,
+  reason: current.reason,
+  decidedBy: current.decidedBy,
+  decisionDate: current.decisionDate,
+});
+
 /**
  * The editable draft as a decision. Once a decision exists, a change to it needs an explanation
  * and an unchanged save needs none; the unused fields of an outcome are ignored, not rejected.
@@ -42,56 +84,26 @@ export const decisionFormSchema = (
       changeExplanation: z.string(),
     })
     .transform((draft, context) => {
-      const amount = draftAmount(draft);
-      let complete = true;
-
-      const reject = (path: string, message: string) => {
-        complete = false;
-        context.addIssue({ code: "custom", path: path ? [path] : [], message });
-      };
-
-      if (amount === null) {
-        reject(
-          "amount",
-          t(draft.amount.trim() ? "validation.amountFormat" : "validation.amountRequired"),
-        );
-      }
-      if (!draft.decisionDate) {
-        reject("decisionDate", t("validation.decisionDateRequired"));
-      }
-      // A missing value is reported once, so the rest of the draft is still checked in the same pass.
+      const issues = draftIssues(t, draft);
       const parsed = prepareDecision(
         current,
-        {
-          outcome: draft.outcome,
-          amount: amount ?? fromMinorUnits(1n),
-          conditions: draft.outcome === "Fund with conditions" ? draft.conditions : "",
-          reason: draft.reason,
-          decidedBy: draft.decidedBy,
-          decisionDate: draft.decisionDate || "1970-01-01",
-          ...(current && draft.changeExplanation.trim()
-            ? { changeExplanation: draft.changeExplanation }
-            : {}),
-        },
+        draftContent(draft, current !== null),
         new Date().toISOString(),
       );
       if (!parsed.ok) {
-        for (const issue of parsed.issues) {
-          reject(issue.field ?? "", decisionError(t, issue.code));
-        }
+        issues.push(
+          ...parsed.issues.map((issue) => ({
+            path: issue.field ?? "",
+            message: decisionError(t, issue.code),
+          })),
+        );
       }
-      if (!complete || !parsed.ok) {
+      for (const { path, message } of issues) {
+        context.addIssue({ code: "custom", path: path ? [path] : [], message });
+      }
+      if (issues.length > 0 || !parsed.ok) {
         return z.NEVER;
       }
       // An unchanged save records nothing, so it carries the content it leaves in place.
-      return parsed.unchanged
-        ? {
-            outcome: parsed.current.outcome,
-            amount: parsed.current.amount,
-            conditions: parsed.current.conditions,
-            reason: parsed.current.reason,
-            decidedBy: parsed.current.decidedBy,
-            decisionDate: parsed.current.decisionDate,
-          }
-        : parsed.decision;
+      return parsed.unchanged ? unchangedContent(parsed.current) : parsed.decision;
     });
