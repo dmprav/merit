@@ -20,10 +20,14 @@ export const frameRoot = (placement: FramePlacement, className?: string) => ({
   "data-frame": placement,
 });
 
-/** The header bar. Its edge appears once the body scrolls under it. */
-export const FrameBar = ({ children }: { children: ReactNode }) => (
+/**
+ * The header bar. Its edge appears once the body scrolls under it. `actions` are the trailing
+ * controls, outdented so a close glyph ends at the gutter.
+ */
+export const FrameBar = ({ children, actions }: { children: ReactNode; actions?: ReactNode }) => (
   <div className={`${styles.header} ${scrollStyles.dividerAfterStart}`} data-dialog-header>
     {children}
+    {actions && <div className={styles.actions}>{actions}</div>}
   </div>
 );
 
@@ -79,11 +83,6 @@ export const FrameTitle = ({
   </div>
 );
 
-/** Trailing controls in the header bar, ending at the close control. */
-const FrameActions = ({ children }: { children: ReactNode }) => (
-  <div className={styles.actions}>{children}</div>
-);
-
 /** The header of a dialog, side panel, popover, or companion: title, optional context, and close. */
 export const FrameHeader = ({
   title,
@@ -109,7 +108,23 @@ export const FrameHeader = ({
   const { t } = useTranslation("common");
 
   return (
-    <FrameBar>
+    <FrameBar
+      actions={
+        <>
+          {actions}
+          <ButtonBase
+            slot={null}
+            variant="quiet"
+            iconOnly
+            aria-label={closeLabel ?? t("closeDialog")}
+            isDisabled={isDismissDisabled}
+            onPress={close}
+          >
+            <IconBase name="close" />
+          </ButtonBase>
+        </>
+      }
+    >
       <FrameTitle
         title={title}
         plain={titleId !== undefined}
@@ -117,19 +132,6 @@ export const FrameHeader = ({
         context={context}
         contextLabel={contextLabel}
       />
-      <FrameActions>
-        {actions}
-        <ButtonBase
-          slot={null}
-          variant="quiet"
-          iconOnly
-          aria-label={closeLabel ?? t("closeDialog")}
-          isDisabled={isDismissDisabled}
-          onPress={close}
-        >
-          <IconBase name="close" />
-        </ButtonBase>
-      </FrameActions>
     </FrameBar>
   );
 };

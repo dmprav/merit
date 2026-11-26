@@ -137,7 +137,7 @@ const ReviewWorkspaceFrame = ({
   const { t } = useTranslation("reviews");
   return (
     <ReferenceWorkspace after={feedback}>
-      <ReferencePane label={t("title")}>{content()}</ReferencePane>
+      <ReferencePane label={t("reference")}>{content()}</ReferencePane>
       <WorkPane
         label={t("reviewTask")}
         title={active && editorTitle}

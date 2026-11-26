@@ -85,6 +85,22 @@ it("shows a header bar on every pane, with the label as the work pane's title wh
   ).not.toBeNull();
 });
 
+it("titles a reference pane without a toolbar with its label", () => {
+  render(
+    <ReferenceWorkspace>
+      <ReferencePane label="Reviewer list">
+        <p>Reading</p>
+      </ReferencePane>
+    </ReferenceWorkspace>,
+  );
+
+  expect(
+    screen
+      .getByRole("heading", { name: "Reviewer list", level: 2 })
+      .closest("[data-dialog-header]"),
+  ).not.toBeNull();
+});
+
 it("restores each reference's scroll position and focuses the viewport only when asked", async () => {
   render(<Example />);
   const viewport = screen.getByRole("group", { name: "Reference" });

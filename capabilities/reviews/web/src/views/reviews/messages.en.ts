@@ -35,6 +35,7 @@ export const en = {
   assessmentTitle: "Assessment",
   manageReviews: "Manage reviews",
   reviewTask: "Review task",
+  reference: "Reference",
   allAssessments: "All assessments",
   reviewState: "Review state",
   contextChanged: "Version {{before}} → Version {{after}}",

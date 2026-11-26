@@ -27,7 +27,8 @@ short screens stack the panes and link between them.
   criteria. Keep the switcher in the same place when reading and editing, with
   the same labels for the same destinations. Keep each choice mounted with
   `hidden` so reading positions and unfinished input survive switching.
-- Both panes use the same [frame anatomy](?path=/docs/components-dialog--docs) as dialogs: a
+- Both panes always render a header bar. `ReferencePane` shows its `toolbar`, or its `label` as the
+  title when there is none, so do not repeat the label as a heading in the content. Both panes use the same [frame anatomy](?path=/docs/components-dialog--docs) as dialogs: a
   header bar, one scrolling body, and a footer. The bars share one height, so their rules line up
   across the split, and both bodies start at the same distance below them. Pane headers keep
   their rule at rest because they continue the application top bar's line; footers show their edge

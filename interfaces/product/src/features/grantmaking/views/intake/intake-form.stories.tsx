@@ -21,7 +21,6 @@ import { Button } from "@merit/ui/button";
 import { Reading } from "@merit/ui/layout";
 import { PageHeader } from "@merit/ui/page-header";
 import { ReferencePane, ReferenceWorkspace, WorkPane } from "@merit/ui/reference-workspace";
-import { SectionHeader } from "@merit/ui/section-header";
 
 import { StoryEnvironment } from "../../../../../tests/storybook";
 import { readContacts } from "../../../contacts/data/server/contacts.functions";
@@ -127,7 +126,6 @@ const IntakeSession = ({
 
   const editor = (
     <section>
-      <SectionHeader title={label} />
       {intake.section ? (
         <IntakeForm editor={{ ...intake.editor, latest }} onClose={intake.close} />
       ) : (
@@ -143,7 +141,6 @@ const IntakeSession = ({
           <>
             <ReferencePane label={label}>{editor}</ReferencePane>
             <WorkPane label="Application details">
-              <SectionHeader title="Application details" />
               <ApplicationDetails application={application} />
             </WorkPane>
           </>

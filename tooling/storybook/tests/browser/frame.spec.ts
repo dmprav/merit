@@ -13,6 +13,10 @@ type Placement = {
   /** The docked companion and workspace panes keep a header rule at rest. */
   ruled: boolean;
   index?: number;
+  /** The header's height with a one-line title, where the placement fixes it. */
+  bar?: number;
+  /** False where the story's body is too short to scroll. */
+  scrolls?: boolean;
 };
 
 const placements: Placement[] = [
@@ -44,6 +48,18 @@ const placements: Placement[] = [
     ruled: false,
   },
   {
+    name: "reference popover with a footer",
+    story: "features-demo-guidance--open",
+    frame: "popover",
+    viewport: { width: 1440, height: 800 },
+    close: true,
+    footer: true,
+    ruled: false,
+    // A small control with `--space-2` above and below it.
+    bar: 48,
+    scrolls: false,
+  },
+  {
     name: "docked companion panel",
     story: "patterns-application-shell--assistant-panel-scrolling",
     frame: "companion",
@@ -70,6 +86,7 @@ const placements: Placement[] = [
     footer: false,
     ruled: true,
     index: 0,
+    bar: 56,
   },
   {
     name: "work pane",
@@ -80,6 +97,19 @@ const placements: Placement[] = [
     footer: true,
     ruled: true,
     index: 1,
+    bar: 56,
+  },
+  {
+    name: "work pane with a close control",
+    story: "features-applications-manage-reviews--recording-assessment",
+    frame: "pane",
+    viewport: { width: 1440, height: 1000 },
+    close: true,
+    footer: true,
+    ruled: true,
+    index: 1,
+    bar: 56,
+    scrolls: false,
   },
 ];
 
@@ -119,6 +149,7 @@ const measure = (root: Locator) =>
       scrollerIsBody: scrollers[0] === body,
       scrollable: body.scrollHeight > body.clientHeight,
       headerRule: px(headerStyle.borderBottomWidth),
+      headerHeight: header.getBoundingClientRect().height,
     };
   });
 
@@ -158,8 +189,15 @@ test.describe("titled surfaces share one frame", () => {
       expect(frame.scrollers).toBe(1);
       expect(frame.scrollerIsBody).toBe(true);
       expect(frame.headerRule > 0).toBe(placement.ruled);
+      if (placement.bar) {
+        expect(frame.headerHeight).toBeCloseTo(placement.bar, 0);
+      }
     });
 
+    // Some stories have too little content to scroll, so only the anatomy applies.
+    if (placement.scrolls === false) {
+      continue;
+    }
     test(`${placement.name} shows its header edge only once the body scrolls`, async ({
       page,
     }, testInfo) => {

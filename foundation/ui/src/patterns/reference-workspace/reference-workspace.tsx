@@ -89,7 +89,7 @@ export const ReferencePane = ({
   children,
 }: {
   label: string;
-  /** Persistent controls above the scrolling content, such as a `ReferenceSwitcher`. */
+  /** Persistent controls in the header bar, such as a `ReferenceSwitcher`; the bar shows `label` without them. */
   toolbar?: ReactNode;
   viewportRef?: Ref<HTMLDivElement>;
   children: ReactNode;
@@ -106,7 +106,7 @@ export const ReferencePane = ({
   return (
     <ReadingViewportContext value={viewport}>
       <div {...frameRoot("pane", styles.reference)} id={`${id}-reference`}>
-        {toolbar && <FrameBar>{toolbar}</FrameBar>}
+        <FrameBar>{toolbar ?? <FrameTitle plain title={label} />}</FrameBar>
         <FrameBody
           ref={viewport}
           data-reading-viewport
@@ -161,9 +161,8 @@ export const WorkPane = ({
             <Icon name="ascending" />
           </a>
         )}
-        <FrameBar>
+        <FrameBar actions={titleActions}>
           <FrameTitle plain title={title || label} titleRef={titleRef} focusable meta={titleMeta} />
-          {titleActions}
         </FrameBar>
         {fill ? (
           // The child, such as a `Form`, supplies the frame's body and footer through `DialogContent`.

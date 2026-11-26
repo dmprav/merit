@@ -80,5 +80,5 @@
 
 /* A leading quiet button, such as Discard, starts its text at the gutter. */
 .leading:has(> button:first-child, > .status:empty + button) {
-  margin-inline-start: calc(-1 * (var(--space-2) + 3px));
+  margin-inline-start: calc(-1 * var(--button-quiet-inset));
 }

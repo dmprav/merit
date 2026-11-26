@@ -94,6 +94,12 @@ panes use the page inset, and the reference popover uses `--space-4`.
 A centered dialog that fits sits a fifth of the viewport below the top, up to 12rem. A taller one
 moves up so it never ends closer to the bottom edge than it starts from the top.
 
+`FrameFooter` is the footer part on its own, for the rare surface whose body scrolls around it
+rather than inside `DialogContent`. It takes `feedback` (shown above the actions), `children` (the
+actions), `sticky` (stay in view at the end of a scrolling pane, as `Form` does with
+`stickyActions`) and `framed` (default; uses the frame's gutters). Dialogs, popovers and the
+assistant panel need no direct use of it.
+
 ## Keep content and actions reachable
 
 `DialogContent` owns the scrollable body and keeps outcome feedback and actions

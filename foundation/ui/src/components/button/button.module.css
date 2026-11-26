@@ -118,7 +118,7 @@
 .button[data-variant="quiet"][data-alignment="start"] {
   /* Keep the action's own width in a vertical flow, such as a Stack. */
   justify-self: start;
-  margin-inline-start: calc(-1 * (var(--space-2) + 3px));
+  margin-inline-start: calc(-1 * var(--button-quiet-inset));
 }
 
 .button[data-alignment="fill"] {

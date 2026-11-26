@@ -20,7 +20,8 @@
 
 .frame[data-frame="popover"] {
   --frame-gutter: var(--space-4);
-  --frame-bar: var(--control-height-small);
+  /* A control with block padding above and below it. */
+  --frame-bar: calc(var(--control-height-small) + 2 * var(--space-2));
   --frame-body-top: var(--space-3);
 }
 
