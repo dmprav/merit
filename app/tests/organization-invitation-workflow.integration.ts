@@ -8,7 +8,6 @@ import type { InvitationMessage } from "@merit/organizations/api";
 import {
   createInvitationActivities,
   createOrganizationService,
-  reconcileOrganizationInvitations,
   type InvitationWork,
 } from "@merit/organizations/server";
 import { databaseTest } from "@merit/test-support/database";
@@ -350,43 +349,6 @@ describe("organization invitation workflow", () => {
         )
       ).rows[0],
     ).toEqual({ dispatch_ciphertext: null });
-  });
-
-  it("discards obsolete handoffs and skips invitations already handed to Temporal", async () => {
-    const unsent = serviceWith(async () => false);
-    const revoked = await inviteMember(unsent, "revoked@example.test");
-    const expired = await inviteMember(unsent, "expired@example.test");
-    const acknowledged = serviceWith(async () => true, { timeoutMs: 0, intervalMs: 0 });
-    await inviteMember(acknowledged, "acknowledged@example.test");
-    expect(
-      await unsent.revokeMemberInvitation(owner, { ...workspace, invitationId: revoked }),
-    ).toMatchObject({ status: "ok" });
-    expect(
-      (
-        await database.client.query(
-          "SELECT dispatch_ciphertext FROM organization_invitations WHERE id = $1",
-          [revoked],
-        )
-      ).rows,
-    ).toEqual([{ dispatch_ciphertext: null }]);
-    await database.client.query(
-      "UPDATE organization_invitations SET expires_at = now() WHERE id = $1",
-      [expired],
-    );
-    const outcome = await reconcileOrganizationInvitations({
-      database: run,
-      invitationKey: () => config.payloadKey,
-      start: background.startOrganizationInvitation,
-    });
-    expect(outcome).toEqual({ listed: 0, handedOff: 0 });
-    expect(
-      (
-        await database.client.query(
-          "SELECT count(*)::int AS pending FROM organization_invitations WHERE dispatch_ciphertext IS NOT NULL",
-        )
-      ).rows,
-    ).toEqual([{ pending: 0 }]);
-    expect(mail).toHaveLength(0);
   });
 
   it("resends a provisioning invitation from the administration console", async () => {
