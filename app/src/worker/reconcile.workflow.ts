@@ -19,12 +19,18 @@ export const reconcile = async () => {
     reviewerMessages: activities.reconcileReviewerMessages,
     conversations: activities.reconcileConversations,
   };
-  const results: Record<string, "ok" | "failed"> = {};
-  for (const [name, run] of Object.entries(reconcilers)) {
-    results[name] = await run().then(
-      () => "ok" as const,
-      () => "failed" as const,
-    );
-  }
-  return results;
+  // The reconcilers are independent, so they run at once; each result is kept by name.
+  const results = await Promise.all(
+    Object.entries(reconcilers).map(
+      async ([name, run]) =>
+        [
+          name,
+          await run().then(
+            () => "ok" as const,
+            () => "failed" as const,
+          ),
+        ] as const,
+    ),
+  );
+  return Object.fromEntries(results) as Record<string, "ok" | "failed">;
 };

@@ -70,15 +70,26 @@ export const createWorker = (connection: NativeConnection, settings: WorkerSetti
       : { shutdownForceTime: settings.shutdownForceTime }),
   });
 
-/** A worker that is not running cannot shut down; stopping the others must still happen. */
+/** Ask every worker to stop after its work in flight. A worker that is not running is skipped. */
 const shutdownAll = (workers: Worker[]) => {
   for (const worker of workers) {
     try {
       worker.shutdown();
     } catch {
-      // Already stopped or never started.
+      // Already stopping or stopped, or never started: the SDK only shuts down a running worker.
     }
   }
+};
+
+/**
+ * Release workers that were created but never polled. The SDK shuts down only a running worker,
+ * and keeps the connection referenced until its worker has stopped, so such a worker is started
+ * first, then told to stop, and awaited. Its own failures are not the caller's concern.
+ */
+const release = async (workers: Worker[]) => {
+  const runs = workers.map((worker) => worker.run());
+  shutdownAll(workers);
+  await Promise.allSettled(runs);
 };
 
 /** Create the worker of the main queue and one activity-only worker per further queue. */
@@ -101,18 +112,24 @@ export const createWorkers = async (connection: NativeConnection, settings: Work
       );
     }
   } catch (error) {
-    shutdownAll(workers);
+    await release(workers);
     throw error;
   }
   return workers;
 };
 
-/** Poll every worker until all stop. One failing stops the others, then rejects. */
+/**
+ * Poll every worker until all stop. Polling starts when this is called, so a shutdown requested
+ * right after it reaches every worker. One failing stops the others and waits until they have
+ * stopped, so the connection they share can close, then rejects with the first failure.
+ */
 export const runWorkers = async (workers: Worker[]) => {
+  const runs = workers.map((worker) => worker.run());
   try {
-    await Promise.all(workers.map((worker) => worker.run()));
+    await Promise.all(runs);
   } catch (error) {
     shutdownAll(workers);
+    await Promise.allSettled(runs);
     throw error;
   }
 };
@@ -149,11 +166,36 @@ export type RunOptions = {
   /** Backoff between connection attempts, doubling from `initialMs` to `maxMs`. */
   backoff?: { initialMs: number; maxMs: number };
   /**
-   * Runs once the worker has connected, before it polls, for work that needs a reachable
-   * server, such as ensuring a Schedule. A rejection is logged as a warning and does not stop
-   * the worker; the next start tries again.
+   * Start-up work that needs a reachable server, such as ensuring a Schedule. It runs beside
+   * polling and is retried with the same backoff until it succeeds or the worker stops, so a
+   * failure never leaves the work undone until the next process start. Each failure is logged as
+   * a warning and does not stop the worker.
    */
   onConnected?: () => Promise<void>;
+};
+
+/** Run start-up work until it succeeds, pausing with doubling backoff, or until stopped. */
+const retryStartup = async (
+  work: () => Promise<void>,
+  {
+    logger,
+    backoff: { initialMs, maxMs },
+    signal,
+  }: { logger: WorkerLogger; backoff: { initialMs: number; maxMs: number }; signal: AbortSignal },
+) => {
+  let wait = initialMs;
+  while (!signal.aborted) {
+    try {
+      await work();
+      return;
+    } catch (error) {
+      logger.warn(
+        `Worker start-up work failed (${describeError(error)}). Retrying in ${Math.round(wait / 1000)}s.`,
+      );
+      await delay(wait, undefined, { signal }).catch(() => undefined);
+      wait = Math.min(wait * 2, maxMs);
+    }
+  }
 };
 
 /**
@@ -185,9 +227,7 @@ export const runWorker = async (settings: WorkerSettings, options: RunOptions) =
   }
   try {
     const workers = await createWorkers(connection, settings);
-    await options.onConnected?.().catch((error: unknown) => {
-      logger.warn(`Worker start-up work failed (${describeError(error)}).`);
-    });
+    const running = runWorkers(workers);
 
     const stop = () => shutdownAll(workers);
 
@@ -195,14 +235,24 @@ export const runWorker = async (settings: WorkerSettings, options: RunOptions) =
     if (signal?.aborted) {
       stop();
     }
+    const startup = new AbortController();
+    const startingUp = options.onConnected
+      ? retryStartup(options.onConnected, {
+          logger,
+          backoff: { initialMs, maxMs },
+          signal: signal ? AbortSignal.any([signal, startup.signal]) : startup.signal,
+        })
+      : undefined;
     const queues = [settings.taskQueue, ...(settings.activityQueues ?? []).map((q) => q.taskQueue)];
     logger.info(
       `Worker polling task queue ${queues.join(", ")} in namespace ${settings.config.namespace}.`,
     );
     try {
-      await runWorkers(workers);
+      await running;
     } finally {
       signal?.removeEventListener("abort", stop);
+      startup.abort();
+      await startingUp;
     }
   } finally {
     await connection.close();

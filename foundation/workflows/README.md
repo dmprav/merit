@@ -63,14 +63,19 @@ taskQueue, report })` returns `start(request)`, the one way to start after commi
   be running and never starts one: `"signaled"`, `"absent"` when nothing runs under the ID, or
   `"failed"` (reported by operation name only);
 - it never throws. A start that fails or takes longer than five seconds is passed to `report`
-  by its operation name only, and answers `"failed"`. The commit stands and reconciliation starts
-  the work later. `client` is a function, so missing settings fail there, reported, not at startup.
+  by its operation name only, and answers `"failed"`. The commit stands, and reconciliation starts
+  the work later where a reconciler exists (reviewer messages and Merit AI turns). A start without
+  a reconciler, such as an organization invitation, is not recovered automatically: the caller
+  directs the person to its recovery path, the administrator's resend
+  ([see below](#reconcile-committed-work)). `client` is a function, so missing settings fail
+  there, reported, not at startup.
 
 ## Wait briefly for the first outcome
 
 `waitForOutcome(read, { timeoutMs, intervalMs })` polls Postgres, not Temporal, so a request can
 answer with what the work did in its first seconds. `read` returns `undefined` while unfinished;
-the wait returns `undefined` when it ends, and the caller reports `pending`. The defaults are
+the wait returns `undefined` when it ends, even in the middle of a slow read, and the caller reports
+`pending`. A read that fails rejects, so the caller decides how to contain it. The defaults are
 five seconds and 100 ms; services take them as dependencies so tests inject short ones.
 
 ## Reconcile committed work
@@ -103,7 +108,8 @@ path as `workflows.workflowsPath`.
 
 `runWorker(settings, { logger, signal })` polls the main queue and any `activityQueues`: further
 queues that run activities only, each with its own `maxConcurrentActivities`. Merit AI's turn
-activities use one, so at most four turns run at once whatever else the worker does. Long
+activities use one, so each worker process runs at most four turns at once whatever else it does;
+the cap is per process, not shared across workers. Long
 activities wrap their work in `withHeartbeat`, which reports that the process is alive; with a
 heartbeat timeout on the activity, a worker that dies is noticed within seconds instead of at the
 activity's start-to-close timeout. The work receives the activity's cancellation signal:
@@ -148,7 +154,10 @@ tests, and end every test's work before stopping its worker.
 a short fixed message, and identifiers (workflow type and ID, activity type, task queue, attempt,
 duration). Failure messages, stack traces and task tokens are never printed, because a failure can
 carry what the encrypted history protects. `runWorker` accepts `onConnected` for start-up work that
-needs a reachable server, such as `ensureSchedule`.
+needs a reachable server, such as `ensureSchedule`. It runs beside polling and is retried with
+backoff until it succeeds or the worker stops, so a Schedule that could not be created at start
+is created once Temporal answers. When the worker stops, shutdown waits for every worker of the
+process to finish before the connection closes, and a failing worker's error is the one reported.
 
 ## Telemetry
 

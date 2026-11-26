@@ -23,15 +23,33 @@ const settings = { config, taskQueue: "queue", workflows: { workflowsPath: "/wor
 const backoff = { initialMs: 1, maxMs: 2 };
 
 const connection = { close: vi.fn(async () => {}) };
-const worker = { run: vi.fn(async () => {}), shutdown: vi.fn() };
+
+// The SDK shuts down only a running worker: `run()` enters that state before it returns.
+const sdkWorker = (run: () => Promise<void> = async () => {}) => {
+  const state = { running: false };
+  return {
+    state,
+    run: vi.fn(() => {
+      state.running = true;
+      return run();
+    }),
+    shutdown: vi.fn(() => {
+      if (!state.running) {
+        throw new Error("Not running. Current state: INITIALIZED");
+      }
+    }),
+  };
+};
+
+let worker = sdkWorker();
 
 const logger = () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() });
 
 beforeEach(() => {
   vi.resetAllMocks();
+  worker = sdkWorker();
   sdk.connect.mockResolvedValue(connection as never);
-  sdk.create.mockResolvedValue(worker as never);
-  worker.run.mockResolvedValue(undefined);
+  sdk.create.mockImplementation(async () => worker as never);
   connection.close.mockResolvedValue(undefined);
 });
 
@@ -97,7 +115,7 @@ describe("connecting", () => {
 describe("running", () => {
   it("drains the worker when the signal aborts", async () => {
     const abort = new AbortController();
-    worker.run.mockImplementation(async () => {
+    worker = sdkWorker(async () => {
       abort.abort();
     });
 
@@ -113,10 +131,19 @@ describe("running", () => {
       abort.abort();
       return worker as never;
     });
+    worker.run.mockImplementation(() => {
+      worker.state.running = true;
+      return new Promise<void>((resolve) => {
+        worker.shutdown.mockImplementation(() => resolve());
+      });
+    });
 
     await runWorker(settings, { logger: logger(), signal: abort.signal });
 
+    // It started polling before it asked to stop, and it stopped: the run did not go on forever.
+    expect(worker.run).toHaveBeenCalledOnce();
     expect(worker.shutdown).toHaveBeenCalledOnce();
+    expect(connection.close).toHaveBeenCalledOnce();
   });
 
   it("closes the connection and rejects when the worker cannot be built", async () => {
@@ -168,28 +195,60 @@ it("describes errors on one short line", () => {
 });
 
 describe("start-up work", () => {
-  it("runs once the worker is connected and before it polls", async () => {
-    const order: string[] = [];
-    const onConnected = vi.fn(async () => void order.push("connected"));
-    worker.run.mockImplementation(async () => void order.push("polling"));
+  it("runs beside polling once the worker is connected", async () => {
+    const onConnected = vi.fn(async () => {});
 
-    await runWorker(settings, { logger: logger(), onConnected });
+    await runWorker(settings, { logger: logger(), onConnected, backoff });
 
-    expect(order).toEqual(["connected", "polling"]);
+    expect(onConnected).toHaveBeenCalledOnce();
+    expect(worker.run).toHaveBeenCalledOnce();
   });
 
-  it("warns without failure details and still polls when it fails", async () => {
+  it("warns without failure details, keeps polling and retries until it succeeds", async () => {
     const log = logger();
+    const onConnected = vi
+      .fn<() => Promise<void>>()
+      .mockRejectedValueOnce(new Error("jo@example.test\nstack"))
+      .mockRejectedValueOnce(new Error("again"))
+      .mockResolvedValue(undefined);
 
-    await runWorker(settings, {
-      logger: log,
-      onConnected: async () => {
-        throw new Error("jo@example.test\nstack");
-      },
+    let finish = () => {};
+
+    worker = sdkWorker(() => new Promise<void>((resolve) => (finish = resolve)));
+
+    const done = runWorker(settings, { logger: log, onConnected, backoff });
+    await vi.waitFor(() => expect(onConnected).toHaveBeenCalledTimes(3));
+    finish();
+    await done;
+
+    expect(log.warn).toHaveBeenCalledWith(
+      "Worker start-up work failed (jo@example.test stack). Retrying in 0s.",
+    );
+    expect(worker.run).toHaveBeenCalledOnce();
+  });
+
+  it("stops retrying when the worker is told to stop", async () => {
+    const abort = new AbortController();
+    const onConnected = vi.fn(async () => {
+      throw new Error("down");
     });
 
-    expect(log.warn).toHaveBeenCalledWith("Worker start-up work failed (jo@example.test stack).");
-    expect(worker.run).toHaveBeenCalledOnce();
+    let finish = () => {};
+
+    worker = sdkWorker(() => new Promise<void>((resolve) => (finish = resolve)));
+
+    const done = runWorker(settings, {
+      logger: logger(),
+      signal: abort.signal,
+      onConnected,
+      backoff: { initialMs: 60_000, maxMs: 60_000 },
+    });
+    await vi.waitFor(() => expect(onConnected).toHaveBeenCalledOnce());
+    abort.abort();
+    finish();
+    await done;
+
+    expect(onConnected).toHaveBeenCalledOnce();
   });
 });
 
@@ -225,23 +284,43 @@ describe("further activity queues", () => {
     ]);
   });
 
-  it("shuts the created workers down when a later one cannot be built", async () => {
-    sdk.create.mockResolvedValueOnce(worker as never).mockRejectedValueOnce(new Error("invalid"));
+  it("stops the created workers when a later one cannot be built, started first so they can", async () => {
+    let stopped = false;
+    worker = sdkWorker(
+      () =>
+        new Promise<void>((resolve) => {
+          worker.shutdown.mockImplementation(() => {
+            stopped = true;
+            resolve();
+          });
+        }),
+    );
+    sdk.create
+      .mockImplementationOnce(async () => worker as never)
+      .mockRejectedValueOnce(new Error("invalid"));
 
     await expect(
       createWorkers(connection as never, { ...settings, activityQueues: [queue] }),
     ).rejects.toThrow("invalid");
+    expect(worker.run).toHaveBeenCalledOnce();
     expect(worker.shutdown).toHaveBeenCalledOnce();
+    // The rejection waited for the worker to stop, so the connection can close.
+    expect(stopped).toBe(true);
   });
 
   it("announces every queue and stops them all when one worker fails", async () => {
     const log = logger();
-    const failing = {
-      run: vi.fn(async () => Promise.reject(new Error("crashed"))),
-      shutdown: vi.fn(),
-    };
-    sdk.create.mockResolvedValueOnce(worker as never).mockResolvedValueOnce(failing as never);
-    worker.run.mockImplementation(() => new Promise(() => {}));
+    const failing = sdkWorker(() => Promise.reject(new Error("crashed")));
+    sdk.create
+      .mockImplementationOnce(async () => worker as never)
+      .mockImplementationOnce(async () => failing as never);
+    // The sibling drains on request: its run settles once it is told to stop.
+    worker.run.mockImplementation(() => {
+      worker.state.running = true;
+      return new Promise<void>((resolve) => {
+        worker.shutdown.mockImplementation(() => resolve());
+      });
+    });
 
     await expect(
       runWorker({ ...settings, activityQueues: [queue] }, { logger: log }),
@@ -253,15 +332,36 @@ describe("further activity queues", () => {
     expect(worker.shutdown).toHaveBeenCalled();
   });
 
+  it("waits for a sibling to finish draining before rejecting with the failure", async () => {
+    const events: string[] = [];
+    const failing = sdkWorker(() => Promise.reject(new Error("crashed")));
+    const draining = sdkWorker(
+      () =>
+        new Promise<void>((resolve) => {
+          draining.shutdown.mockImplementation(() => {
+            events.push("shutdown requested");
+            setTimeout(() => {
+              events.push("sibling drained");
+              resolve();
+            }, 5);
+          });
+        }),
+    );
+
+    const failure = runWorkers([failing, draining] as never).catch((error: unknown) => {
+      events.push(`rejected: ${(error as Error).message}`);
+    });
+    await failure;
+
+    expect(events).toEqual(["shutdown requested", "sibling drained", "rejected: crashed"]);
+  });
+
   it("tolerates a worker that already stopped", async () => {
-    worker.shutdown.mockImplementation(() => {
+    const crashed = sdkWorker(() => Promise.reject(new Error("crashed")));
+    crashed.shutdown.mockImplementation(() => {
       throw new Error("Not running");
     });
-    sdk.create.mockResolvedValue({
-      run: async () => Promise.reject(new Error("crashed")),
-      shutdown: worker.shutdown,
-    } as never);
 
-    await expect(runWorkers([(await sdk.create()) as never])).rejects.toThrow("crashed");
+    await expect(runWorkers([crashed as never])).rejects.toThrow("crashed");
   });
 });

@@ -92,17 +92,38 @@ const collectPayloads = (value: unknown, found: Payload[]) => {
 
 const { temporal } = proto;
 
-const readStoredHistory = async (
-  client: TestWorker["client"],
-  workflowId: string,
-  namespace: string,
-) => {
-  const { history } = await client.workflowService.getWorkflowExecutionHistory({
-    namespace,
-    execution: { workflowId },
-  });
-  return history;
+type HistoryEvent = proto.temporal.api.history.v1.IHistoryEvent;
+
+type HistoryPage = {
+  history?: { events?: HistoryEvent[] | null } | null;
+  nextPageToken?: Uint8Array | null;
 };
+
+/**
+ * Every event of a history: the server returns it in pages, so each page token is followed and
+ * the events are combined. Reading one page would miss what a later page holds.
+ */
+export const readAllHistoryPages = async (
+  fetchPage: (token?: Uint8Array) => Promise<HistoryPage>,
+) => {
+  const events: HistoryEvent[] = [];
+  let token: Uint8Array | undefined;
+  do {
+    const page = await fetchPage(token);
+    events.push(...(page.history?.events ?? []));
+    token = page.nextPageToken?.length ? page.nextPageToken : undefined;
+  } while (token);
+  return { events };
+};
+
+const readStoredHistory = (client: TestWorker["client"], workflowId: string, namespace: string) =>
+  readAllHistoryPages((nextPageToken) =>
+    client.workflowService.getWorkflowExecutionHistory({
+      namespace,
+      execution: { workflowId },
+      ...(nextPageToken ? { nextPageToken } : {}),
+    }),
+  );
 
 /**
  * Whether the stored history contains `text` anywhere, in any field of any event, as the
@@ -115,7 +136,7 @@ export const storedHistoryIncludes = async (
   text: string,
 ) => {
   const history = await readStoredHistory(client, workflowId, namespace);
-  const bytes = temporal.api.history.v1.History.encode(history ?? {}).finish();
+  const bytes = temporal.api.history.v1.History.encode(history).finish();
   return Buffer.from(bytes).includes(text);
 };
 
@@ -145,7 +166,7 @@ export const readStoredFailures = async (
   client: TestWorker["client"],
   workflowId: string,
   namespace: string,
-) => collectFailures((await readStoredHistory(client, workflowId, namespace))?.events ?? [], []);
+) => collectFailures((await readStoredHistory(client, workflowId, namespace)).events ?? [], []);
 
 /**
  * Every payload the server stored for a workflow, exactly as stored: the history is read
@@ -155,7 +176,7 @@ export const readStoredPayloads = async (
   client: TestWorker["client"],
   workflowId: string,
   namespace: string,
-) => collectPayloads((await readStoredHistory(client, workflowId, namespace))?.events ?? [], []);
+) => collectPayloads((await readStoredHistory(client, workflowId, namespace)).events ?? [], []);
 
 /**
  * A client that decodes with another key, or with none when `payloadKey` is undefined, to
