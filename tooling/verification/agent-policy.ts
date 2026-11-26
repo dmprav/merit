@@ -133,35 +133,38 @@ const isNarrowApprovedPattern = (pattern: string): boolean => {
   return firstSegment.length > 0 && !/[*?{}[\]]/.test(firstSegment);
 };
 
-const parseLastPathsMarker = (markdown: string, pattern: RegExp): ProposalMarkerData | null => {
-  const visible = stripFencedCodeBlocks(markdown);
-  let lastValid: ProposalMarkerData | null = null;
-  for (const match of visible.matchAll(pattern)) {
-    const raw = match[1];
-    if (!raw) {
-      continue;
-    }
-    try {
-      const parsed: unknown = JSON.parse(raw);
-      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-        continue;
-      }
-      const rawPaths = "paths" in parsed && Array.isArray(parsed.paths) ? parsed.paths : [];
-      const paths = rawPaths
-        .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
-        .map(normalizePath);
-      const lens = "lens" in parsed && typeof parsed.lens === "string" ? parsed.lens : undefined;
-      const kind = "kind" in parsed && typeof parsed.kind === "string" ? parsed.kind : undefined;
-      lastValid = {
-        paths,
-        ...(lens ? { lens } : {}),
-        ...(kind ? { kind } : {}),
-      };
-    } catch {
-      continue;
-    }
+/** Reads a marker's JSON payload, or null when it is not valid JSON or not a plain object. */
+const parseMarkerObject = (raw: string): object | null => {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return null;
   }
-  return lastValid;
+  return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null;
+};
+
+/** Keeps a marker's non-blank string paths, normalized, and its string `lens` and `kind`. */
+const toPathsMarkerData = (marker: object): ProposalMarkerData => {
+  const rawPaths: unknown[] = "paths" in marker && Array.isArray(marker.paths) ? marker.paths : [];
+  const paths = rawPaths
+    .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+    .map(normalizePath);
+  const lens = "lens" in marker && typeof marker.lens === "string" ? marker.lens : undefined;
+  const kind = "kind" in marker && typeof marker.kind === "string" ? marker.kind : undefined;
+  return {
+    paths,
+    ...(lens ? { lens } : {}),
+    ...(kind ? { kind } : {}),
+  };
+};
+
+const parseLastPathsMarker = (markdown: string, pattern: RegExp): ProposalMarkerData | null => {
+  const markers = [...stripFencedCodeBlocks(markdown).matchAll(pattern)].flatMap((match) => {
+    const marker = match[1] ? parseMarkerObject(match[1]) : null;
+    return marker ? [toPathsMarkerData(marker)] : [];
+  });
+  return markers.at(-1) ?? null;
 };
 
 /** Parses the last `<!-- merit-proposal: {...} -->` marker outside fenced code blocks. */
