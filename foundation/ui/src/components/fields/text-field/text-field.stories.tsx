@@ -28,6 +28,7 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = { args: { placeholder: "Alex Morgan" } };
 export const Prefix: Story = {
   parameters: {
+    controls: { disable: true },
     docs: {
       description: {
         story:
@@ -73,6 +74,7 @@ export const Prefix: Story = {
 };
 export const States: Story = {
   parameters: {
+    controls: { disable: true },
     docs: {
       description: {
         story: `Required editable fields show a quiet “Required” label; error styling marks
@@ -131,6 +133,7 @@ export const ReadOnlyFocused: Story = {
 };
 
 export const Multiline: Story = {
+  parameters: { controls: { disable: true } },
   render: () => (
     <div className={styles.examples}>
       {[
@@ -151,9 +154,13 @@ export const Multiline: Story = {
   ),
 };
 
-export const Validation: Story = { render: () => <ValidatedForm /> };
+export const Validation: Story = {
+  parameters: { controls: { disable: true } },
+  render: () => <ValidatedForm />,
+};
 
 export const LongContent: Story = {
+  parameters: { controls: { disable: true } },
   render: () => (
     <div className={localStyles.fields}>
       <TextField

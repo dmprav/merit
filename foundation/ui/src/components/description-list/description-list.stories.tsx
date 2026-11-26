@@ -19,7 +19,9 @@ const within = (className: string | undefined) => [
 const meta = {
   title: "Components/Description list",
   component: DescriptionList,
+  subcomponents: { DescriptionListItem },
   args: { children: null },
+  argTypes: { children: { control: false } },
   render: ({ layout }) => (
     <DescriptionList layout={layout}>
       <DescriptionListItem label="Status">

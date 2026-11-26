@@ -3,8 +3,8 @@ import { test, expect, checkPage } from "@merit/test-support/browser";
 for (const id of [
   "features-funding-rounds-list--multiple-rounds",
   "features-funding-rounds-overview--applications",
-  "features-team-members--long-and-missing-identity",
-  "features-team-invitations--delivery-states",
+  "features-team-manage-team--long-and-missing-identity",
+  "features-team-manage-team--delivery-states",
   "features-administration-organizations--populated",
 ]) {
   test(`shared table labels in ${id}`, async ({ page }, testInfo) => {

@@ -100,9 +100,10 @@ export const Narrow: Story = {
 };
 
 export const Alignment: Story = {
+  args: { gap: 6 },
   render: (args) => (
     <div className={styles.preview}>
-      <Stack {...args} gap={6}>
+      <Stack {...args}>
         <Inline
           gap={3}
           align="start"

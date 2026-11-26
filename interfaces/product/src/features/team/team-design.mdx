@@ -6,9 +6,9 @@ import * as Team from "./team-view.stories";
 # Team: accepted design patterns
 
 Use these states as the reference for restrained team management UI. They apply
-[Merit's experience principles](../../../../../docs/foundations/experience.md)
+Merit's experience principles (`docs/foundations/experience.md`)
 and the shared [design language](?path=/docs/design-language--docs).
-The owning [workflow](../../../../../docs/workflows/manage-team.md) defines authority,
+The owning workflow (`docs/workflows/manage-team.md`) defines authority,
 commitment, and recovery; this page explains presentation choices.
 
 ## Choose emphasis by the task
@@ -22,7 +22,7 @@ warning just because the editor uses one.
 
 Keep the count and effect visible after the fields so the administrator knows
 what Save will do. “Saving revokes 1 invitation. Recipients will need a new
-invitation to join” gives them the scope and the remedy. The
+invitation to join.” gives them the scope and the remedy. The
 [many-invitation state](?path=/story/features-team-manage-team--many-affected-invitations)
 keeps the same compact structure.
 
@@ -47,23 +47,23 @@ is a different result: state that the save succeeded and offer to refresh.
 
 <Canvas of={Team.InvitationFailure} story={{ inline: false, height: "620px" }} />
 
-[Inspect removal failure](?path=/story/features-team-manage-team--removal-failure)
-, [Inspect removal in progress](?path=/story/features-team-manage-team--removing)
+[Inspect removal failure](?path=/story/features-team-manage-team--removal-failure),
+[Inspect removal in progress](?path=/story/features-team-manage-team--removing)
 
 ## Read a member or invitation row
 
 A member's identity, assigned permissions, and ability to sign in answer different
-questions. Give a [disabled account](?path=/story/features-team-members--disabled-account)
+questions. Give a [disabled account](?path=/story/features-team-manage-team--disabled-account)
 its own neutral Account value. Show an actionable consequence, such as work that
 needs reassigning, where someone can resolve it. The
-[long and missing identity example](?path=/story/features-team-members--long-and-missing-identity)
+[long and missing identity example](?path=/story/features-team-manage-team--long-and-missing-identity)
 uses synthetic records to show how the identity column handles incomplete data.
 
 For an invitation, lead with the state that determines the next action. An expired
 invitation needs a new link. For an unexpired invitation, failed or unconfirmed
 sending takes precedence over waiting for acceptance. “Awaiting acceptance”
 means sending succeeded and the invitation is still open. It makes no claim
-about inbox delivery. [Compare delivery states](?path=/story/features-team-invitations--delivery-states).
+about inbox delivery. [Compare delivery states](?path=/story/features-team-manage-team--delivery-states).
 
 ## Change someone's access
 
@@ -72,6 +72,9 @@ change. Explain available roles inside the picker, where the administrator is
 choosing between them. [Owner access](?path=/story/features-team-manage-team--owner-access)
 and [role choices](?path=/story/features-team-manage-team--role-choices) show how
 the shared [fields](?path=/docs/components-fields--docs) work in this context.
+When changing or removing a reviewer, state the effect on their review
+assignments directly: [review access loss](?path=/story/features-team-manage-team--review-access-loss)
+and [reviewer removal](?path=/story/features-team-manage-team--reviewer-removal).
 
 An unfinished edit belongs to that member. Keep **Resume editing access** in the
 same row menu that opened the editor so the administrator can find it again.

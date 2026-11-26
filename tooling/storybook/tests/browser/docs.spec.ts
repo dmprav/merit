@@ -7,14 +7,22 @@ for (const [id, title] of [
   ["components-layout-primitives", "Layout primitives"],
   ["components-fields", "Label fields and explain validation"],
   ["patterns-application-shell", "Frame an application"],
+  ["patterns-collection-toolbar", "Find work within a collection"],
+  ["patterns-conversation", "Show a conversation"],
   ["patterns-feedback", "Explain outcomes and recovery"],
+  ["patterns-message-box", "Write a message"],
+  ["patterns-panel-section", "Arrange a side panel's sections"],
   ["patterns-person-identity", "Identify people consistently"],
+  ["patterns-reference-workspace", "Work beside reference material"],
+  ["patterns-status-indicator", "Explain a status qualification"],
   ["components-dialog", "Frame a focused task"],
   ["patterns-form-dialog", "Create and edit in a dialog"],
   ["patterns-confirmation-dialog", "Confirm a consequential action"],
   ["patterns-editing", "Edit and resume work"],
   ["components-date-field", "Enter a calendar date"],
   ["components-tooltip", "Tooltip"],
+  ["features-applications-recommendation", "Read and edit a funding recommendation"],
+  ["features-team-design-guidance", "Team: accepted design patterns"],
 ]) {
   test(`documentation: ${title}`, async ({ page }) => {
     await page.goto(`/iframe.html?id=${id}--docs&viewMode=docs`);

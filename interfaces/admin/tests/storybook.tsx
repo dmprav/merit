@@ -27,19 +27,23 @@ export const StoryEnvironment = ({
   const [environment] = useState(() => {
     const client = createQueryClient();
     const root = createRootRoute();
-    const product = createRoute({ getParentRoute: () => root, id: "_product" });
+    const administration = createRoute({ getParentRoute: () => root, id: "_administration" });
     const page = createRoute({
-      getParentRoute: () => product,
+      getParentRoute: () => administration,
       path: path.split("?")[0]!,
       component: StoryContent,
     });
     const fallback = createRoute({
       getParentRoute: () => root,
       path: "/$",
-      component: () => <p>Destination reached. Remount the story to start again.</p>,
+      component: () => (
+        <main style={{ padding: "var(--space-6)" }}>
+          <p>Destination reached. Remount the story to start again.</p>
+        </main>
+      ),
     });
     const router = createRouter({
-      routeTree: root.addChildren([product.addChildren([page]), fallback]),
+      routeTree: root.addChildren([administration.addChildren([page]), fallback]),
       history: createMemoryHistory({ initialEntries: [path] }),
     });
 

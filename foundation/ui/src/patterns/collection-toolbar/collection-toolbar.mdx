@@ -1,4 +1,4 @@
-import { Canvas, Meta } from "@storybook/addon-docs/blocks";
+import { ArgTypes, Canvas, Meta } from "@storybook/addon-docs/blocks";
 import * as Toolbar from "./collection-toolbar.stories";
 
 <Meta of={Toolbar} />
@@ -20,7 +20,7 @@ combine them without an extra Add action. Unselected criteria remain visible wit
 an unrestricted value such as **Any**.
 
 Optional search belongs above the criteria in the same panel and uses the shared
-[search field](?path=/docs/components-fields--docs). Provide localized labels that
+[search field](?path=/docs/components-search-field--docs). Provide localized labels that
 name the view being searched; the toolbar keeps queries in feature-owned state
 without storing them or writing them to the URL.
 
@@ -28,3 +28,7 @@ without storing them or writing them to the URL.
 <Canvas of={Toolbar.Panel} />
 <Canvas of={Toolbar.WithoutSearch} />
 <Canvas of={Toolbar.LongValues} />
+
+## API
+
+<ArgTypes of={Toolbar} />

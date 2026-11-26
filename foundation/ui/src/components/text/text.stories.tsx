@@ -14,14 +14,6 @@ const meta = {
       options: ["supporting", "caption", "missing", "emphasis", "attention"],
     },
   },
-  parameters: {
-    docs: {
-      description: {
-        component:
-          "Text gives a run of copy one of five roles; everything else inherits. Headings, labels, attribution, and status belong to SectionHeader, DescriptionList, Attribution, and Notice.",
-      },
-    },
-  },
 } satisfies Meta<typeof Text>;
 
 export default meta;

@@ -1,6 +1,5 @@
-import { Canvas, Meta } from "@storybook/addon-docs/blocks";
+import { ArgTypes, Canvas, Meta } from "@storybook/addon-docs/blocks";
 import * as Editing from "./editing.stories";
-import * as PropertyButtons from "./property-button.stories";
 
 <Meta of={Editing} />
 
@@ -8,7 +7,7 @@ import * as PropertyButtons from "./property-button.stories";
 
 Choose the interaction by the scope of the change and the reference material the
 person needs. This pattern defines editing behavior across Merit, applying the
-[experience principles](../../../../../docs/foundations/experience.md#make-editing-predictable).
+experience principles (`docs/foundations/experience.md#make-editing-predictable`).
 Workflows own business prerequisites and their specific conflict resolution.
 
 ## Save, close, or discard
@@ -39,11 +38,11 @@ It owns wrapping, typography, spacing, and the visible cue. Use `PersonIdentity`
 inside it for a person and `draftLabel` for retained unsaved changes. Keep these
 controls aligned with other property values; feature CSS arranges their container.
 
-<Canvas of={PropertyButtons.Person} />
-<Canvas of={PropertyButtons.LongName} />
+<Canvas of={Editing.PropertyButtonPerson} />
+<Canvas of={Editing.PropertyButtonLongName} />
 
 Use `InlineName` for a short name and `DateChoice` for a calendar date. `DateChoice`
-composes the shared [date field](../../components/fields/date-field/date-field.mdx) and calendar,
+composes the shared [date field](?path=/docs/components-date-field--docs) and calendar,
 keeping an unsuccessful choice visible for retry. Typed values
 have inline check (**Save**) and × (**Cancel**) icon controls, accessible names,
 and tooltips. Enter saves and Escape cancels; neither blur nor an undisclosed
@@ -115,8 +114,8 @@ While a draft is being restored, keep the editor title and Close action availabl
 The person can leave the editor and continue reading saved work. If local storage
 is unavailable, keep the writing in memory and explain that closing the tab risks
 losing it. When another tab holds a newer local draft, preserve both copies and
-explain which one the person can save or discard here. The
-[drafts package](../../../../drafts/README.md) describes how to connect the store
+explain which one the person can save or discard here. The drafts package
+(`foundation/drafts/README.md`) describes how to connect the store
 and handle these outcomes.
 
 When the saved record or its evidence has changed, keep the draft visible and
@@ -128,3 +127,7 @@ records. If access ends while someone is writing, give them a way to copy their
 draft. A successful save followed by a failed refresh calls for refreshing the
 view. The [feedback pattern](?path=/docs/patterns-feedback--docs) shows the
 different recovery actions.
+
+## API
+
+<ArgTypes of={Editing} />

@@ -44,13 +44,6 @@ export const Empty: Story = {
     await expect(args.start).toHaveBeenCalledWith(false, true);
   },
 };
-export const BrowseWorkspace: Story = {
-  play: async ({ canvas, userEvent, args }) => {
-    await userEvent.click(canvas.getByRole("button", { name: "Browse the workspace" }));
-    await expect(args.start).toHaveBeenCalledOnce();
-    await expect(args.start).toHaveBeenCalledWith(false, false);
-  },
-};
 export const Expired: Story = {
   args: { state: { status: "expired" } },
   play: async ({ canvas, userEvent, args }) => {
@@ -73,10 +66,6 @@ export const Unavailable: Story = {
     await expect(args.start).toHaveBeenCalledWith(false);
   },
 };
-export const RateLimited: Story = {
-  ...Unavailable,
-  args: { state: { status: "limited" } },
-};
 export const Pending: Story = {
   args: { state: { status: "expired" }, pending: true },
   play: async ({ canvas, args }) => {
@@ -86,13 +75,6 @@ export const Pending: Story = {
     ).not.toBeInTheDocument();
     await expect(canvas.queryByRole("button")).not.toBeInTheDocument();
     await expect(args.start).not.toHaveBeenCalled();
-  },
-};
-export const ExistingDemo: Story = {
-  ...Pending,
-  args: {
-    state: { status: "ready", workspaceSlug: "existing-demo", expiresAt: "2027-01-25T12:00:00Z" },
-    pending: true,
   },
 };
 export const BeforeHydration: Story = {

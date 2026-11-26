@@ -39,89 +39,107 @@ const meta = {
   ],
   beforeEach: ({ args }) => {
     let team = structuredClone(args.initial);
-    mocked(readTeam).mockImplementation(async () => ({ status: "ok", value: team }));
-    mocked(inviteMember).mockImplementation(async ({ data }) => {
-      team = {
-        ...team,
-        invitations: [
-          ...team.invitations,
-          {
-            id: "new",
-            email: data.email,
-            administration: data.administration,
-            role: data.role,
-            invitedBy: team.subject.userId,
-            delivery: "sent",
-            expiresAt: new Date("2099-11-16T10:00:00Z"),
+    mocked(readTeam)
+      .mockReset()
+      .mockImplementation(async () => ({ status: "ok", value: team }));
+    mocked(inviteMember)
+      .mockReset()
+      .mockImplementation(async ({ data }) => {
+        team = {
+          ...team,
+          invitations: [
+            ...team.invitations,
+            {
+              id: data.requestId,
+              email: data.email,
+              administration: data.administration,
+              role: data.role,
+              invitedBy: team.subject.userId,
+              delivery: "sent",
+              expiresAt: new Date("2099-11-16T10:00:00Z"),
+            },
+          ],
+        };
+
+        return { status: "ok", value: { invitationId: data.requestId } };
+      });
+    mocked(changeMember)
+      .mockReset()
+      .mockImplementation(async ({ data }) => {
+        team = {
+          ...team,
+          members: team.members.map((member) =>
+            member.userId === data.userId
+              ? {
+                  ...member,
+                  administration: data.administration,
+                  role: data.role,
+                  version: member.version + 1,
+                }
+              : member,
+          ),
+          invitations:
+            data.administration === "none"
+              ? team.invitations.filter((invitation) => invitation.invitedBy !== data.userId)
+              : team.invitations,
+        };
+
+        return {
+          status: "ok",
+          value: {
+            userId: data.userId,
+            membershipId: data.expectedMembershipId,
+            membershipVersion: data.expectedMembershipVersion + 1,
+            removed: false,
           },
-        ],
-      };
+        };
+      });
+    mocked(removeMember)
+      .mockReset()
+      .mockImplementation(async ({ data }) => {
+        team = {
+          ...team,
+          members: team.members.filter((member) => member.userId !== data.userId),
+          invitations: team.invitations.filter(
+            (invitation) => invitation.invitedBy !== data.userId,
+          ),
+        };
+        return {
+          status: "ok",
+          value: {
+            userId: data.userId,
+            membershipId: data.expectedMembershipId,
+            membershipVersion: null,
+            removed: true,
+          },
+        };
+      });
+    mocked(revokeMemberInvitation)
+      .mockReset()
+      .mockImplementation(async ({ data }) => {
+        team = {
+          ...team,
+          invitations: team.invitations.filter((invitation) => invitation.id !== data.invitationId),
+        };
+        return { status: "ok", value: { invitationId: data.invitationId } };
+      });
+    mocked(resendMemberInvitation)
+      .mockReset()
+      .mockImplementation(async ({ data }) => {
+        team = {
+          ...team,
+          invitations: team.invitations.map((invitation) =>
+            invitation.id === data.invitationId
+              ? { ...invitation, delivery: "sent", expiresAt: new Date("2099-11-16T10:00:00Z") }
+              : invitation,
+          ),
+        };
 
-      return { status: "ok", value: { invitationId: data.requestId } };
-    });
-    mocked(changeMember).mockImplementation(async ({ data }) => {
-      team = {
-        ...team,
-        members: team.members.map((member) =>
-          member.userId === data.userId
-            ? {
-                ...member,
-                administration: data.administration,
-                role: data.role,
-                version: member.version + 1,
-              }
-            : member,
-        ),
-      };
-
-      return {
-        status: "ok",
-        value: {
-          userId: data.userId,
-          membershipId: data.expectedMembershipId,
-          membershipVersion: data.expectedMembershipVersion + 1,
-          removed: false,
-        },
-      };
-    });
-    mocked(removeMember).mockImplementation(async ({ data }) => {
-      team = {
-        ...team,
-        members: team.members.filter((member) => member.userId !== data.userId),
-        invitations: team.invitations.filter((invitation) => invitation.invitedBy !== data.userId),
-      };
-      return {
-        status: "ok",
-        value: {
-          userId: data.userId,
-          membershipId: data.expectedMembershipId,
-          membershipVersion: null,
-          removed: true,
-        },
-      };
-    });
-    mocked(revokeMemberInvitation).mockImplementation(async ({ data }) => {
-      team = {
-        ...team,
-        invitations: team.invitations.filter((invitation) => invitation.id !== data.invitationId),
-      };
-      return { status: "ok", value: { invitationId: data.invitationId } };
-    });
-    mocked(resendMemberInvitation).mockImplementation(async ({ data }) => {
-      team = {
-        ...team,
-        invitations: team.invitations.map((invitation) =>
-          invitation.id === data.invitationId
-            ? { ...invitation, delivery: "sent", expiresAt: new Date("2099-11-16T10:00:00Z") }
-            : invitation,
-        ),
-      };
-
-      return {
-        status: "ok",
-        value: { invitationId: data.invitationId, replacesInvitationId: data.invitationId },
-      };
-    });
+        return {
+          status: "ok",
+          value: { invitationId: data.invitationId, replacesInvitationId: data.invitationId },
+        };
+      });
   },
 } satisfies Meta<typeof TeamView>;
 
@@ -146,12 +164,135 @@ export const OwnerAccess: Story = {
     await expect(responsibility).toHaveFocus();
   },
 };
+export const DisabledAccount: Story = {
+  args: {
+    initial: {
+      ...teamFixture,
+      members: teamFixture.members.map((member, index) =>
+        index === 1 ? { ...member, active: false } : member,
+      ),
+    },
+  },
+  play: async ({ canvas }) => {
+    const row = canvas.getByRole("row", { name: /Morgan Lee/ });
+    const cells = within(row).getAllByRole("cell");
+    await expect(cells[0]).not.toHaveTextContent("Account disabled");
+    await expect(cells[3]).toHaveTextContent("Account disabled");
+  },
+};
+export const LongAndMissingIdentity: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Boundary case for nullable identity data. Normal invitation acceptance records an email; this fixture deliberately omits both name and email to exercise the fallback.",
+      },
+    },
+  },
+  args: {
+    initial: {
+      ...teamFixture,
+      members: [
+        {
+          ...teamFixture.members[0]!,
+          name: "Alexandria Montgomery-Worthington",
+          email: "alexandria.montgomery-worthington@community-partnerships.example.org",
+        },
+        { ...teamFixture.members[1]!, name: null, email: null },
+      ],
+    },
+  },
+};
 export const Invitations: Story = {
   play: async ({ canvas, userEvent }) => {
     await expect(canvas.getByRole("table", { name: "Members" })).toBeVisible();
     await userEvent.click(canvas.getByRole("tab", { name: /Invitations/ }));
     await expect(canvas.queryByRole("table", { name: "Members" })).not.toBeInTheDocument();
     await expect(canvas.getByRole("table", { name: "Invitations" })).toBeVisible();
+  },
+};
+const baseInvitation = teamFixture.invitations[0]!;
+export const DeliveryStates: Story = {
+  args: {
+    initial: {
+      ...teamFixture,
+      invitations: [
+        { ...baseInvitation, id: "sent", delivery: "sent" },
+        {
+          ...baseInvitation,
+          id: "unconfirmed",
+          email: "pending@example.test",
+          delivery: "pending",
+        },
+        {
+          ...baseInvitation,
+          id: "failed",
+          email: "alexandria.montgomery-worthington@community-partnerships.example.org",
+          delivery: "failed",
+        },
+        {
+          ...baseInvitation,
+          id: "expired",
+          email: "morgan@example.test",
+          expiresAt: new Date("2020-01-01"),
+          delivery: "pending",
+        },
+      ],
+    },
+  },
+  play: async (context) => {
+    await Invitations.play!(context);
+    const { canvas } = context;
+    await expect(canvas.getByText("Awaiting acceptance", { exact: true })).toBeVisible();
+    await expect(canvas.getByText("Sending unconfirmed", { exact: true })).toBeVisible();
+    await expect(canvas.getByText("Email sending failed", { exact: true })).toBeVisible();
+    await expect(canvas.getByText("Expired", { exact: true })).toBeVisible();
+  },
+};
+export const FailedAndExpired: Story = {
+  args: {
+    initial: {
+      ...teamFixture,
+      invitations: [{ ...baseInvitation, delivery: "failed", expiresAt: new Date("2020-01-01") }],
+    },
+  },
+  play: async (context) => {
+    await Invitations.play!(context);
+    const { canvas } = context;
+    await expect(canvas.queryByText("Email sending failed")).not.toBeInTheDocument();
+    await expect(canvas.getByText("Expired", { exact: true })).toBeVisible();
+    await expect(canvas.queryByText("Awaiting acceptance")).not.toBeInTheDocument();
+    await expect(canvas.getByRole("button", { name: /Actions for invitation/ })).toBeVisible();
+  },
+};
+export const SendingUnconfirmed: Story = {
+  args: {
+    initial: {
+      ...teamFixture,
+      invitations: [{ ...baseInvitation, delivery: "pending" }],
+    },
+  },
+  play: async (context) => {
+    await Invitations.play!(context);
+    const { canvas } = context;
+    await expect(canvas.getByText("Sending unconfirmed")).toBeVisible();
+    await expect(canvas.queryByText("Awaiting acceptance")).not.toBeInTheDocument();
+  },
+};
+export const RestrictedAdministration: Story = {
+  args: {
+    initial: {
+      ...teamFixture,
+      subject: { ...teamFixture.subject, administration: "administrator" },
+      invitations: [{ ...baseInvitation, administration: "administrator" }],
+    },
+  },
+  play: async (context) => {
+    await Invitations.play!(context);
+    const { canvas } = context;
+    await expect(
+      canvas.queryByRole("button", { name: /Actions for invitation/ }),
+    ).not.toBeInTheDocument();
   },
 };
 export const EmptyInvitations: Story = {
@@ -181,7 +322,7 @@ export const InviteMember: Story = {
     );
   },
 };
-export const AdministratorInviting: Story = {
+export const InviteReviewer: Story = {
   args: {
     initial: {
       ...teamFixture,
@@ -193,10 +334,6 @@ export const AdministratorInviting: Story = {
       },
     },
   },
-  play: InviteMember.play,
-};
-export const InviteReviewer: Story = {
-  ...AdministratorInviting,
   play: async (context) => {
     await InviteMember.play!(context);
     const body = within(context.canvasElement.ownerDocument.body);
@@ -292,7 +429,7 @@ export const ManyAffectedInvitations: Story = {
 
 export const StaleAccess: Story = {
   beforeEach: () => {
-    mocked(changeMember).mockResolvedValue({ status: "conflict" });
+    mocked(changeMember).mockResolvedValueOnce({ status: "conflict" });
   },
   play: async (context) => {
     await EditingAccess.play!(context);

@@ -106,7 +106,7 @@ test.describe("Merit AI conversation scrolling", () => {
   const threadOf = (page: Page) => page.getByRole("log", { name: "Conversation with Merit AI" });
 
   test("follows an answer as it streams, and when the viewport shortens", async ({ page }) => {
-    await open(page, "features-merit-ai-conversation--follows-streaming-to-the-end");
+    await open(page, "features-merit-ai-conversation--long-streaming-answer");
     const scroller = panelOf(page);
 
     const last = threadOf(page).getByText(/Paragraph 12\./);
@@ -121,7 +121,7 @@ test.describe("Merit AI conversation scrolling", () => {
   });
 
   test("leaves the scroll where the person put it until they ask again", async ({ page }) => {
-    await open(page, "features-merit-ai-conversation--leaves-the-scroll-where-the-person-put-it");
+    await open(page, "features-merit-ai-conversation--long-streaming-answer");
     const scroller = panelOf(page);
 
     await expect.poll(() => hasOverflow(scroller, 100)).toBe(true);
@@ -143,7 +143,7 @@ test.describe("Merit AI conversation scrolling", () => {
   });
 
   test("follows what appears when a run settles", async ({ page }) => {
-    await open(page, "features-merit-ai-conversation--follows-what-appears-when-the-run-settles");
+    await open(page, "features-merit-ai-conversation--multi-turn-with-suggestions");
     const scroller = panelOf(page);
 
     const suggestion = page.getByRole("button", { name: /Draft a question to the applicant/ });
