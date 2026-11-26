@@ -11,7 +11,7 @@ import {
   SCOUT_STATE_ISSUE_TITLE as PRUNE_STATE_ISSUE_TITLE,
   selectPrunableVerifications,
 } from "./prune-verifications.ts";
-import { SCOUT_STATE_ISSUE_NUMBER, SCOUT_STATE_ISSUE_TITLE } from "./scout.ts";
+import { SCOUT_STATE_ISSUE_NUMBER, SCOUT_STATE_ISSUE_TITLE } from "./scout/state.ts";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
