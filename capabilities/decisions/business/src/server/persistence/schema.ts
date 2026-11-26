@@ -51,7 +51,7 @@ export const committeeDecisionVersions = pgTable(
     enumCheck("committee_decision_outcome_check", t.outcome, outcomes),
     check(
       "committee_decision_amount_check",
-      sql`${t.amountMinorUnits} >= 0 AND ${t.amountCurrency} = 'EUR' AND ((${t.outcome} IN ('Defer', 'Decline') AND ${t.amountMinorUnits} = 0) OR (${t.outcome} IN ('Fund', 'Fund with conditions') AND ${t.amountMinorUnits} > 0))`,
+      sql`${t.amountMinorUnits} >= 0 AND ${t.amountMinorUnits} <> 'NaN' AND ${t.amountCurrency} = 'EUR' AND ((${t.outcome} IN ('Defer', 'Decline') AND ${t.amountMinorUnits} = 0) OR (${t.outcome} IN ('Fund', 'Fund with conditions') AND ${t.amountMinorUnits} > 0))`,
     ),
     check(
       "committee_decision_conditions_check",
@@ -65,7 +65,7 @@ export const committeeDecisionVersions = pgTable(
     ),
     check(
       "committee_decision_provenance_check",
-      sql`(${t.provenanceInterface} IS NULL AND ${t.provenanceClientId} IS NULL) OR (${t.provenanceInterface} = 'web' AND ${t.provenanceClientId} IS NULL) OR (${t.provenanceInterface} = 'mcp' AND ${t.provenanceClientId} IS NOT NULL AND length(${t.provenanceClientId}) > 0)`,
+      sql`((${t.provenanceInterface} IS NULL AND ${t.provenanceClientId} IS NULL) OR (${t.provenanceInterface} = 'web' AND ${t.provenanceClientId} IS NULL) OR (${t.provenanceInterface} = 'mcp' AND ${t.provenanceClientId} IS NOT NULL AND length(${t.provenanceClientId}) > 0)) IS TRUE`,
     ),
   ],
 );

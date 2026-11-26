@@ -1405,7 +1405,7 @@
         },
         "committee_decision_amount_check": {
           "name": "committee_decision_amount_check",
-          "value": "\"committee_decision_versions\".\"amount_minor_units\" >= 0 AND \"committee_decision_versions\".\"amount_currency\" = 'EUR' AND ((\"committee_decision_versions\".\"outcome\" IN ('Defer', 'Decline') AND \"committee_decision_versions\".\"amount_minor_units\" = 0) OR (\"committee_decision_versions\".\"outcome\" IN ('Fund', 'Fund with conditions') AND \"committee_decision_versions\".\"amount_minor_units\" > 0))"
+          "value": "\"committee_decision_versions\".\"amount_minor_units\" >= 0 AND \"committee_decision_versions\".\"amount_minor_units\" <> 'NaN' AND \"committee_decision_versions\".\"amount_currency\" = 'EUR' AND ((\"committee_decision_versions\".\"outcome\" IN ('Defer', 'Decline') AND \"committee_decision_versions\".\"amount_minor_units\" = 0) OR (\"committee_decision_versions\".\"outcome\" IN ('Fund', 'Fund with conditions') AND \"committee_decision_versions\".\"amount_minor_units\" > 0))"
         },
         "committee_decision_conditions_check": {
           "name": "committee_decision_conditions_check",
@@ -1425,7 +1425,7 @@
         },
         "committee_decision_provenance_check": {
           "name": "committee_decision_provenance_check",
-          "value": "(\"committee_decision_versions\".\"provenance_interface\" IS NULL AND \"committee_decision_versions\".\"provenance_client_id\" IS NULL) OR (\"committee_decision_versions\".\"provenance_interface\" = 'web' AND \"committee_decision_versions\".\"provenance_client_id\" IS NULL) OR (\"committee_decision_versions\".\"provenance_interface\" = 'mcp' AND \"committee_decision_versions\".\"provenance_client_id\" IS NOT NULL AND length(\"committee_decision_versions\".\"provenance_client_id\") > 0)"
+          "value": "((\"committee_decision_versions\".\"provenance_interface\" IS NULL AND \"committee_decision_versions\".\"provenance_client_id\" IS NULL) OR (\"committee_decision_versions\".\"provenance_interface\" = 'web' AND \"committee_decision_versions\".\"provenance_client_id\" IS NULL) OR (\"committee_decision_versions\".\"provenance_interface\" = 'mcp' AND \"committee_decision_versions\".\"provenance_client_id\" IS NOT NULL AND length(\"committee_decision_versions\".\"provenance_client_id\") > 0)) IS TRUE"
         }
       },
       "isRLSEnabled": false

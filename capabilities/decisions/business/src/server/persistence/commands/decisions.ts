@@ -16,7 +16,7 @@ import {
   decodeDecision,
 } from "../../../domain/encoding";
 import { encodeDecision } from "../../../domain/encoding";
-import { readDecisionStatesMap, readRoundCommitments } from "../projections";
+import { readDecisionHead, readRoundCommitments } from "../projections";
 import { committeeDecisionVersions } from "../schema";
 
 export const readDecisionState = async (
@@ -58,16 +58,14 @@ export const readDecisionState = async (
     return null;
   }
 
-  const [states, commitments] = await Promise.all([
-    readDecisionStatesMap(db, [publicId]),
+  const [head, commitments] = await Promise.all([
+    readDecisionHead(db, publicId),
     readRoundCommitments(db, organizationId, row.roundId),
   ]);
-  const state = states.get(publicId);
   const requestedData = requestedMoneyData(row.requestedMinorUnits, row.requestedCurrency);
-  const head = state?.versions[0];
 
   return {
-    decisionRevision: state?.revision ?? 0,
+    decisionRevision: head?.revision ?? 0,
     title: row.title,
     roundId: row.roundId,
     application: {
@@ -98,6 +96,7 @@ export const decisionColumns = (
     decidedBy: content.decidedBy,
     decisionDate: content.decisionDate,
     changeExplanation: content.changeExplanation ?? null,
+    recordedAt: new Date(content.recordedAt),
     applicationVersion: content.applicationVersion,
     actorUserId: recorder.userId,
     actorName: content.recorder.name,

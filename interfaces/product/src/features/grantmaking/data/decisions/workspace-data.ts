@@ -25,6 +25,11 @@ export const workspaceDecisionData = (
         if (cached.status !== "ok") {
           return cached;
         }
+        // A refresh or another tab may already hold this revision or a newer one.
+        const head = cached.decision.versions[0];
+        if (head && saved.decision.revision <= head.revision) {
+          return cached;
+        }
         const versions = saved.recorded
           ? [saved.decision, ...cached.decision.versions]
           : cached.decision.versions;

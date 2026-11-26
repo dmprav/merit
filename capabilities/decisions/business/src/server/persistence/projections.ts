@@ -70,6 +70,17 @@ export const readDecisionStatesMap = async (db: Database, caseIds: string[]) => 
   return result;
 };
 
+/** The case's current version only; the save path never needs the history. */
+export const readDecisionHead = async (db: Database, caseId: string) => {
+  const [row] = await db
+    .select()
+    .from(committeeDecisionVersions)
+    .where(eq(committeeDecisionVersions.caseId, caseId))
+    .orderBy(desc(committeeDecisionVersions.revision))
+    .limit(1);
+  return row ? { revision: row.revision, decision: assembleDecisionRecord(row) } : undefined;
+};
+
 export const readDecisionChange = async (db: Database, caseId: string, revision: number) => {
   const [version] = await db
     .select()
