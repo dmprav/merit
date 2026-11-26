@@ -17,6 +17,9 @@ const application: NavigationPin = {
   workspaceSlug: "alder",
 };
 
+const onRetryPins = fn();
+const onChangePins = fn(async () => true);
+
 const PinsPreview = ({ pins }: { pins: NavigationPin[] }) => (
   <StoryEnvironment path="/app/alder/applications/neighbour-table-000000000001">
     <NavigationPinsContext
@@ -25,8 +28,8 @@ const PinsPreview = ({ pins }: { pins: NavigationPin[] }) => (
         loading: false,
         unavailable: false,
         busy: false,
-        retry: fn(),
-        change: fn(async () => true),
+        retry: onRetryPins,
+        change: onChangePins,
       }}
     >
       <AppShell
@@ -64,7 +67,7 @@ const meta = {
   title: "Features/Workspace/Pins",
   component: PinsPreview,
   tags: ["!autodocs"],
-  parameters: { layout: "fullscreen" },
+  parameters: { layout: "fullscreen", controls: { disable: true } },
   args: { pins: [application] },
 } satisfies Meta<typeof PinsPreview>;
 

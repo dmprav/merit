@@ -1,4 +1,4 @@
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, ne } from "drizzle-orm";
 
 import { type Actor } from "@merit/auth";
 import { appUsers } from "@merit/auth/schema";
@@ -66,12 +66,18 @@ export const revokeProvisioningInvitations = (tx: Transaction, id: string) =>
       ),
     );
 
+/** A sent invitation stays sent: a late failure, such as a retried activity, cannot overwrite it. */
 export const recordDelivery = (db: Transaction, id: string, delivery: "sent" | "failed") =>
   db
     .update(invitations)
     .set({ delivery })
     .where(
-      and(eq(invitations.id, id), isNull(invitations.revokedAt), isNull(invitations.acceptedAt)),
+      and(
+        eq(invitations.id, id),
+        isNull(invitations.revokedAt),
+        isNull(invitations.acceptedAt),
+        delivery === "failed" ? ne(invitations.delivery, "sent") : undefined,
+      ),
     );
 
 export const lockUser = async (tx: Transaction, actor: string) => {

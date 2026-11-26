@@ -30,11 +30,6 @@
   margin-top: var(--space-4);
 }
 
-.row {
-  display: flex;
-  gap: var(--space-3);
-}
-
 .narrow {
   max-width: 16rem;
 }

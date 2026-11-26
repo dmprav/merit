@@ -28,7 +28,8 @@ export default defineConfig(browserConfig, {
   workers: 1,
   use: { baseURL: workspaceOrigin },
   webServer: {
-    command: `../node_modules/.bin/vp run @merit/app#dev:workspace --port ${workspacePort}`,
+    // The worker runs beside the web server, as in development, so background work is delivered.
+    command: `../node_modules/.bin/vpx scripts/with-worker.ts ../node_modules/.bin/vp dev --mode local-workspace --port ${workspacePort}`,
     cwd: host,
     url: `${workspaceOrigin}/app`,
     reuseExistingServer: false,

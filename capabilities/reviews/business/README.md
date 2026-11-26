@@ -26,7 +26,7 @@ cancellations, reviewer participation transitions, and assessments are recorded 
 [Audit](../../audit/business/README.md); private drafts and email delivery attempts
 are not audited.
 
-An [AI review](../../../docs/decisions/0016-ai-review.md) is a separate immutable
+An [AI review](../../../docs/decisions/0017-ai-review.md) is a separate immutable
 record (`ai_reviews` with its sections, items, citations and questions), never an
 assessment, so it joins no review summary, status or budget total. The
 [run command](src/server/commands/ai-reviews.ts) checks `work_on_grants` through
@@ -50,6 +50,29 @@ draft text remains available for correction.
 `review_states` owns the review concurrency revision. Requests, assessments and
 reviewer submission advance this revision under the case lock; assignment and
 private-draft revisions retain their independent meanings.
+
+Reviewer invitation and submission emails are delivered by the `reviewer-message:<messageId>`
+[workflow](src/server/reviewer-message.workflow.ts), started after the message commits. Its
+[activities](src/server/commands/reviewer-delivery.ts) recheck the message, the assignment and the
+member's access before every attempt, send with the message ID as the provider's idempotency key,
+and record the outcome through `merit_finish_reviewer_message` with the message's delivery token.
+The message stays `pending` during about fifteen minutes of automatic retries, then becomes
+`failed`; resend queues a newer message with its own workflow. `retry_notification` resets the
+failed message to `pending` with a fresh delivery token through `merit_retry_reviewer_message`, in
+the command's transaction, then runs its workflow again under the same ID; a run still open when
+the retry happens delivers it again before it closes, and reconciliation restarts any pending
+message whose run has closed. The assistant's retry of a failed invitation it saved uses the same
+function, in its own transaction. The function revives only the newest message of its kind in a
+workspace the member can access, and an invitation only while its assignment is still invited and
+unexpired. A workflow sends only a message that is still `pending`. Requests wait briefly for the
+first outcome by polling Postgres.
+A privileged `merit_pending_reviewer_messages` function lists, across workspaces, identifiers
+of the newest unfinished message per kind and assignment whose acting member is active with a
+membership in an active workspace, so reconciliation can start missing workflows. An invitation
+acts for the requesting manager. A submission notice, which goes to that manager, acts for the
+submitting reviewer while they remain an active member and otherwise for the manager, so a
+reviewer who left cannot strand it. `@merit/reviews/testing` supplies an inline stand-in for the
+workflow in business tests.
 
 `/api` is browser-safe. `/server` exports the manager and reviewer service factories
 and authorized operations. Approved composition reads use `/schema`, `/scope`,

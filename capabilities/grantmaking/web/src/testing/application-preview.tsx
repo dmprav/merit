@@ -8,14 +8,17 @@ import { ApplicationPage, ApplicationStage } from "@merit/ui/application-shell";
  */
 export const ApplicationContainedPreview = ({
   locationKey,
+  width,
   children,
 }: {
   locationKey: string;
+  width?: "standard" | "full";
   children: ReactNode;
 }) => (
   <ApplicationStage>
     <ApplicationPage
       contained
+      width={width}
       locationKey={locationKey}
       breadcrumb={null}
       breadcrumbLabel="Breadcrumb"

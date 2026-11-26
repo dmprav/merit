@@ -19,13 +19,16 @@ import { hashToken } from "../invitation-token";
 import { markAccessRequestReviewed } from "../persistence/commands/access-requests";
 import { fail } from "../result";
 import { requestWorkspaceAccess } from "./access-requests";
-import { createDelivery } from "./delivery";
+import { deliverInvitation } from "./delivery";
+import type { IssuedInvitation } from "./issue-invitation";
 import * as provisioning from "./provisioning";
 import * as team from "./team";
 
 const createProvisioningCommands = (dependencies: Dependencies) => {
   const { run } = createExecution(dependencies);
-  const deliver = createDelivery(dependencies);
+
+  const deliver = (invitation: IssuedInvitation) => deliverInvitation(dependencies, invitation);
+
   return {
     create: (
       actor: Actor,
@@ -41,7 +44,7 @@ const createProvisioningCommands = (dependencies: Dependencies) => {
           provisioning.createOrganization(db, parsed.data, actor),
         );
         if (result.invitation) {
-          await deliver(result.invitation, parsed.data.name);
+          await deliver(result.invitation);
         }
         return { organizationId: result.organizationId };
       }),
@@ -70,7 +73,7 @@ const createProvisioningCommands = (dependencies: Dependencies) => {
         const result = await dependencies.database((db) =>
           provisioning.replaceInvitation(db, parsed.data.organizationId, actor, parsed.data.email),
         );
-        await deliver(result.invitation, result.organization.name);
+        await deliver(result.invitation);
         return null;
       }),
 
@@ -109,7 +112,9 @@ const createProvisioningCommands = (dependencies: Dependencies) => {
 
 const createTeamCommands = (dependencies: Dependencies) => {
   const { run } = createExecution(dependencies);
-  const deliver = createDelivery(dependencies);
+
+  const deliver = (invitation: IssuedInvitation) => deliverInvitation(dependencies, invitation);
+
   return {
     inviteMember: (actor: Actor, input: z.infer<typeof inviteMemberInput>) =>
       run(actor, false, async () => {
@@ -122,7 +127,7 @@ const createTeamCommands = (dependencies: Dependencies) => {
           team.inviteMember(db, actor, parsed.data),
         );
         if (result.invitation) {
-          await deliver(result.invitation, result.organization.name);
+          await deliver(result.invitation);
         }
         return { invitationId: parsed.data.requestId };
       }),
@@ -137,7 +142,7 @@ const createTeamCommands = (dependencies: Dependencies) => {
         const result = await dependencies.database((db) =>
           team.resendTeamInvitation(db, parsed.data.workspaceSlug, actor, parsed.data.invitationId),
         );
-        await deliver(result.invitation, result.organization.name);
+        await deliver(result.invitation);
         return {
           invitationId: result.invitation.record.id,
           replacesInvitationId: parsed.data.invitationId,

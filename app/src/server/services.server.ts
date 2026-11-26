@@ -8,15 +8,20 @@ import { createContactService } from "@merit/contacts/server";
 import type { Database } from "@merit/db";
 import { renderReviewerEmail } from "@merit/emails/reviewer";
 import { createGrantmakingService, createNavigationService } from "@merit/grantmaking/server";
+import type { InvitationMessage } from "@merit/organizations/api";
 import type { WorkspaceChangeObserver } from "@merit/organizations/domain";
-import { createOrganizationService } from "@merit/organizations/server";
+import { createOrganizationService, type InvitationWork } from "@merit/organizations/server";
 import { productLinks } from "@merit/product/links";
 import { createRecommendationsService } from "@merit/recommendations/server";
 import { applicationRecommendationWork } from "@merit/recommendations/server/integrations";
 import type { ReviewerMessage } from "@merit/reviews/api";
 import type { AiReviewer } from "@merit/reviews/domain";
 import { createReviewService } from "@merit/reviews/server";
-import { createReviewerService, type ReviewerDelivery } from "@merit/reviews/server";
+import {
+  createReviewerService,
+  type ReviewerDelivery,
+  type ReviewerMessageWork,
+} from "@merit/reviews/server";
 import {
   applicationReviewWork,
   contactReviewWork,
@@ -25,6 +30,8 @@ import {
 } from "@merit/reviews/server/integrations";
 import { createRoundsService } from "@merit/rounds/server";
 import { instrumentService } from "@merit/telemetry";
+import { reportError } from "@merit/telemetry/errors";
+import type { OutcomeWait } from "@merit/workflows/outcome";
 
 import type { EmailSender } from "./email-delivery.server";
 import type { OrganizationIdentity } from "./identity.server";
@@ -34,19 +41,34 @@ type Dependencies = {
   database: <T>(operation: (db: Database) => Promise<T>) => Promise<T>;
   analytics?: ServerAnalytics;
   identity: OrganizationIdentity;
-  invitationOrigin: string;
   networkAddress?: string;
-  sendEmail: EmailSender;
+  /**
+   * Starts a reviewer message's delivery workflow after its record commits. It never rejects
+   * and answers whether the work runs or ran.
+   */
+  startReviewerMessage: (work: ReviewerMessageWork) => Promise<boolean>;
+  /** Starts an organization invitation's delivery workflow after it commits; it never rejects. */
+  startOrganizationInvitation: (work: InvitationWork) => Promise<boolean>;
+  /** How long a request waits for the first delivery outcome. */
+  deliveryWait?: OutcomeWait;
   deferReviewerDelivery?: (delivery: ReviewerDelivery) => void;
   /** Absent when no model provider is configured on this server. */
   aiReviewer?: AiReviewer;
 };
 
-export const reviewerDelivery = ({
+/** What the delivery activities, which run in the worker, need to send an email. */
+type DeliveryDependencies = Pick<Dependencies, "database"> & {
+  /** The origin of the links in emails, which only the worker needs. */
+  invitationOrigin: string;
+  sendEmail: EmailSender;
+};
+
+/** What the delivery activities, which run in the worker, need to send a reviewer message. */
+export const reviewerMessageDelivery = ({
   database,
   invitationOrigin,
   sendEmail,
-}: Pick<Dependencies, "database" | "invitationOrigin" | "sendEmail">) => ({
+}: DeliveryDependencies) => ({
   database,
   reviewerUrl: (slug: string, id: string) =>
     new URL(productLinks.review(slug, id), invitationOrigin).href,
@@ -56,11 +78,32 @@ export const reviewerDelivery = ({
     sendEmail({ id: message.id, to: message.to, ...(await renderReviewerEmail(message)) }),
 });
 
+/** What the delivery activities, which run in the worker, need to send an organization invitation. */
+export const organizationInvitationDelivery = ({
+  database,
+  invitationOrigin,
+  sendEmail,
+}: DeliveryDependencies) => ({
+  database,
+  invitationUrl: (token: string) => new URL(productLinks.invitation(token), invitationOrigin).href,
+  sendInvitation: (message: InvitationMessage) => sendInvitationEmail(message, sendEmail),
+});
+
+/** Telemetry sees the operation only: the cause of a failed read can carry record details. */
+const reportOutcomeError = (operation: string) => () =>
+  reportError(new Error("A delivery outcome could not be read."), {
+    surface: "server",
+    operation,
+  });
+
+const reportInvitationOutcomeError = reportOutcomeError("organization-invitation.outcome");
+const reportReviewerOutcomeError = reportOutcomeError("reviewer-message.outcome");
+
 type Observe = (event: GrantOutcome["event"]) => WorkspaceChangeObserver | undefined;
 
 /** Manager review commands, AI reviews and reviewer participation share one review capability. */
 const createReviewServices = (
-  { database, invitationOrigin, sendEmail, deferReviewerDelivery, aiReviewer }: Dependencies,
+  { database, startReviewerMessage, deliveryWait, deferReviewerDelivery, aiReviewer }: Dependencies,
   observe: Observe,
 ) => ({
   reviews: instrumentService(
@@ -74,23 +117,33 @@ const createReviewServices = (
   reviewer: instrumentService(
     "reviewer",
     createReviewerService({
-      ...reviewerDelivery({ database, invitationOrigin, sendEmail }),
+      database,
+      start: startReviewerMessage,
+      wait: deliveryWait,
       deferDelivery: deferReviewerDelivery,
+      onOutcomeError: reportReviewerOutcomeError,
       onSubmitted: observe("assessment_submitted"),
     }),
   ),
 });
 
 export const createApplicationServices = (dependencies: Dependencies) => {
-  const { database, analytics, identity, invitationOrigin, networkAddress, sendEmail } =
-    dependencies;
+  const {
+    database,
+    analytics,
+    identity,
+    networkAddress,
+    startOrganizationInvitation,
+    deliveryWait,
+    aiReviewer,
+  } = dependencies;
 
   const observe: Observe = (event) =>
     analytics && ((workspace) => analytics.captureGrantOutcome({ event, ...workspace }));
 
   const grantmaking = instrumentService(
     "grantmaking",
-    createGrantmakingService({ database, aiReviewProvider: dependencies.aiReviewer }),
+    createGrantmakingService({ database, aiReviewProvider: aiReviewer }),
   );
   const rounds = instrumentService(
     "rounds",
@@ -127,8 +180,9 @@ export const createApplicationServices = (dependencies: Dependencies) => {
       database,
       ...identity,
       networkAddress,
-      invitationUrl: (token) => new URL(productLinks.invitation(token), invitationOrigin).href,
-      sendInvitation: (message) => sendInvitationEmail(message, sendEmail),
+      start: startOrganizationInvitation,
+      wait: deliveryWait,
+      onOutcomeError: reportInvitationOutcomeError,
     }),
   );
 

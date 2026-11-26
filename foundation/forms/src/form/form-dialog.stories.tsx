@@ -20,12 +20,14 @@ const FormDialogExample = ({
   withPopups = false,
   outcome = "success",
   preparing = false,
+  status,
 }: {
   context?: string;
   long?: boolean;
   withPopups?: boolean;
   outcome?: "success" | "pending" | "failure";
   preparing?: boolean;
+  status?: string;
 }) => {
   const [open, setOpen] = useState(true);
   const [saved, setSaved] = useState(false);
@@ -76,6 +78,7 @@ const FormDialogExample = ({
                 submission={submission}
                 onCancel={() => setOpen(false)}
                 cancelLabel="Close"
+                status={status}
                 discard={{
                   label: "Discard draft",
                   onPress: () => {
@@ -122,12 +125,38 @@ const FormDialogExample = ({
   );
 };
 
+type FormDialogStoryArgs = React.ComponentProps<typeof FormDialog> & {
+  long?: boolean;
+  withPopups?: boolean;
+  outcome?: "success" | "pending" | "failure";
+  preparing?: boolean;
+  status?: string;
+};
+
 const meta = {
   title: "Patterns/Form dialog",
-  component: FormDialogExample,
+  component: FormDialog,
+  subcomponents: { Form, FormActions },
   tags: ["!autodocs"],
   parameters: { layout: "fullscreen" },
-} satisfies Meta<typeof FormDialogExample>;
+  args: { title: "Write a note", children: null },
+  argTypes: {
+    title: { control: false },
+    children: { control: false },
+    trigger: { control: false },
+    outcome: { control: "radio", options: ["success", "pending", "failure"] },
+  },
+  render: ({ context, long, withPopups, outcome, preparing, status }) => (
+    <FormDialogExample
+      context={context}
+      long={long}
+      withPopups={withPopups}
+      outcome={outcome}
+      preparing={preparing}
+      status={status}
+    />
+  ),
+} satisfies Meta<FormDialogStoryArgs>;
 
 export default meta;
 
@@ -142,6 +171,13 @@ export const LongContext: Story = {
 };
 export const LongContent: Story = { args: { long: true } };
 export const PopupFields: Story = { args: { withPopups: true, outcome: "pending" } };
+export const WithDraftStatus: Story = {
+  args: { context: "Community grants", status: "Draft saved" },
+  play: async ({ canvasElement }) => {
+    const dialog = within(within(canvasElement.ownerDocument.body).getByRole("dialog"));
+    await expect(dialog.getByRole("status")).toHaveTextContent("Draft saved");
+  },
+};
 export const RequiredTitle: Story = {
   play: async ({ canvasElement, userEvent }) => {
     const dialog = within(within(canvasElement.ownerDocument.body).getByRole("dialog"));

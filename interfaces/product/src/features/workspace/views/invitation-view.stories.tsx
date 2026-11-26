@@ -89,17 +89,6 @@ export const AdministratorWithoutGrantAccess: Story = {
     },
   },
 };
-export const Reviewer: Story = {
-  args: {
-    result: {
-      ...invitation,
-      value: { ...invitation.value, administration: "none", role: "reviewer" },
-    },
-  },
-};
-export const ProgramManager: Story = {
-  args: { result: { ...invitation, value: { ...invitation.value, administration: "none" } } },
-};
 export const AlreadyAccepted: Story = {
   args: { result: { ...invitation, value: { ...invitation.value, accepted: true } } },
 };
@@ -108,7 +97,4 @@ export const AcceptanceFailure: Story = {
   args: { error: "The invitation could not be accepted. Please try again." },
 };
 export const SignedOut: Story = { args: { result: { status: "signed_out" } } };
-export const WrongAccount: Story = { args: { result: { status: "wrong_account" } } };
 export const Expired: Story = { args: { result: { status: "expired" } } };
-export const Revoked: Story = { args: { result: { status: "revoked" } } };
-export const Unavailable: Story = { args: { result: { status: "unavailable" } } };

@@ -51,8 +51,10 @@ another submission. After creation, open the organization's details page.
 
 The details page distinguishes three outcomes: the organization exists, the email
 sender accepted the invitation email, and the owner joined. Email acceptance
-by the sender does not establish inbox delivery. If sending fails or its outcome
-cannot be recorded, the organization remains available and the operator can resend.
+by the sender does not establish inbox delivery. Merit sends the email in the background after
+creation and tries again automatically for about fifteen minutes, so a slow sender shows
+unconfirmed sending before it shows success or failure. If sending fails, never started, or its
+outcome cannot be recorded, the organization remains available and the operator can resend.
 
 Successful changes receive action-specific feedback. If an invitation change is
 saved but its status cannot be refreshed, the existing details stay visible with

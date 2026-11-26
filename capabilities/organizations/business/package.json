@@ -15,6 +15,8 @@
     "./testing/workspace": "./tests/workspace-test.ts",
     "./api": "./src/api/index.ts",
     "./server/assistant": "./src/server/assistant.ts",
+    "./server/workflow": "./src/server/organization-invitation.workflow.ts",
+    "./server/testing": "./src/server/testing.ts",
     "./server/demo": "./src/server/demo.ts"
   },
   "dependencies": {
@@ -22,6 +24,8 @@
     "@merit/audit": "workspace:*",
     "@merit/auth": "workspace:*",
     "@merit/db": "workspace:*",
+    "@merit/workflows": "workspace:*",
+    "@temporalio/workflow": "catalog:",
     "drizzle-orm": "catalog:",
     "zod": "catalog:"
   },

@@ -25,6 +25,7 @@ const meta = {
   title: "Components/Tabs",
   component: Tabs,
   args: { label: "Application sections", items, ...scrollLabels, onSelectionChange: fn() },
+  argTypes: { items: { control: false } },
 } satisfies Meta<typeof Tabs>;
 
 export default meta;
@@ -219,6 +220,7 @@ const ControlledTabs = () => {
 };
 
 export const Controlled: Story = {
+  parameters: { controls: { disable: true } },
   render: () => <ControlledTabs />,
   play: async ({ canvas, userEvent }) => {
     await expect(canvas.getByRole("tabpanel", { name: "Reviews" })).toBeVisible();

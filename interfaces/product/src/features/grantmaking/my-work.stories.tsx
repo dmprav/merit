@@ -42,12 +42,14 @@ const meta = {
   title: "Features/Workspace/My work",
   component: MyWorkPreview,
   tags: ["!autodocs"],
-  parameters: { layout: "fullscreen" },
+  parameters: { layout: "fullscreen", controls: { disable: true } },
   beforeEach: ({ args }) => {
-    mocked(listReviewerAssignments).mockResolvedValue({
-      status: "ok",
-      value: args.empty ? [] : workAssignments,
-    });
+    mocked(listReviewerAssignments)
+      .mockReset()
+      .mockResolvedValue({
+        status: "ok",
+        value: args.empty ? [] : workAssignments,
+      });
   },
 } satisfies Meta<typeof MyWorkPreview>;
 

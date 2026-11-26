@@ -5,22 +5,15 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1795248053271,
-      "tag": "0000_initial",
+      "when": 1795697942190,
+      "tag": "0000_baseline",
       "breakpoints": true
     },
     {
       "idx": 1,
       "version": "7",
-      "when": 1795446230669,
-      "tag": "0001_assistant_conversations",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1795719693128,
-      "tag": "0002_ai_reviews",
+      "when": 1795720293202,
+      "tag": "0001_ai_reviews",
       "breakpoints": true
     }
   ]

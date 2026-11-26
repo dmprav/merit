@@ -152,7 +152,11 @@ export default defineConfig({
       },
       "test:ci": {
         command:
-          "vp test tooling/verification/ci.test.ts tooling/verification/ci-changes.test.ts tooling/verification/ci-summary.test.ts tooling/verification/ci-browser-history.test.ts tooling/verification/verification-record.test.ts tooling/verification/agent-policy.test.ts",
+          "vp test tooling/verification/ci.test.ts tooling/verification/ci-changes.test.ts tooling/verification/ci-summary.test.ts tooling/verification/ci-browser-history.test.ts tooling/verification/verification-record.test.ts tooling/verification/agent-policy.test.ts tooling/verification/pr-review-packet.test.ts tooling/verification/pr-screenshots.test.ts",
+        cache: false,
+      },
+      "ci:review-packet": {
+        command: "vpx tooling/verification/pr-review-packet.ts",
         cache: false,
       },
       "ci:browser-history": {
@@ -203,7 +207,7 @@ export default defineConfig({
       "test:docs": { command: "vp test tooling/verification/docs.test.ts", cache: false },
       "test:design-system": {
         command:
-          "vp test tooling/storybook/design-system/tokens.test.ts tooling/storybook/design-system/fonts.test.ts tooling/storybook/design-system/bundle.test.ts",
+          "vp test tooling/storybook/catalog.test.ts tooling/storybook/design-system/tokens.test.ts tooling/storybook/design-system/fonts.test.ts tooling/storybook/design-system/bundle.test.ts",
         cache: false,
       },
       "test:react-compiler": {

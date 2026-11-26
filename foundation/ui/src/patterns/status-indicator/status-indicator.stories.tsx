@@ -1,11 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, waitFor, within } from "storybook/test";
 
-import { StatusIndicator } from "./status-indicator";
+import { StatusIndicator, StatusIndicatorSpace } from "./status-indicator";
 
 const meta = {
   title: "Patterns/Status indicator",
   component: StatusIndicator,
+  subcomponents: { StatusIndicatorSpace },
   tags: ["!autodocs"],
   args: {
     label: "Earlier recommendation",

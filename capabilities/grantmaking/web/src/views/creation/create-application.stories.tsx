@@ -7,7 +7,7 @@ const meta = {
   title: "Features/Applications/Create",
   tags: ["!autodocs"],
   component: ComposerPreview,
-  parameters: { layout: "fullscreen" },
+  parameters: { layout: "fullscreen", controls: { disable: true } },
   args: { application: true },
   play: async ({ canvas, canvasElement, userEvent }) => {
     await userEvent.click(canvas.getByRole("button", { name: "Add application" }));

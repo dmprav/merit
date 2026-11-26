@@ -8,19 +8,25 @@ import { createDatabasePool, createRequestDatabase } from "@merit/db";
 import { mcpResourceMetadata } from "@merit/mcp";
 import { reportError } from "@merit/telemetry/errors";
 import { traceServerRequest } from "@merit/telemetry/server";
+import {
+  createWorkflowClient,
+  readTemporalConfig,
+  type WorkflowClient,
+} from "@merit/workflows/client";
 
 import { readAnalyticsConfig } from "./analytics-config";
 import type { ApplicationRequestContext } from "./request-context";
 import { createOpenAiReviewer } from "./server/ai-reviewer.server";
 import { createAssistantHost } from "./server/assistant/host.server";
 import { handleAssistantHttp } from "./server/assistant/http.server";
+import { createBackgroundWork } from "./server/background-work.server";
 import { createDemoServices, demoCookie } from "./server/demo.server";
-import { createEmailSender } from "./server/email-delivery.server";
 import { applySecurityHeaders, createDocumentPolicy } from "./server/http-headers.server";
 import { createWebIdentity } from "./server/identity.server";
 import { handleMcp } from "./server/mcp.server";
 import { readAppOrigin, readDatabaseUrl } from "./server/runtime-config.server";
 import { createApplicationServices } from "./server/services.server";
+import { readWorkSettings } from "./worker/task-queue";
 
 const origin = readAppOrigin();
 const database = createDatabasePool(readDatabaseUrl());
@@ -37,24 +43,43 @@ const clerkConfig = {
 const publicHttps = new URL(origin).protocol === "https:";
 const documentPolicy = createDocumentPolicy(clerkConfig.issuer, readAnalyticsConfig());
 
-const sendEmail = createEmailSender({
-  from: env.EMAIL_FROM ?? (import.meta.env.DEV ? "invitations@merit.local" : ""),
-  resendKey: env.RESEND_API_KEY ?? "",
-  mailpitUrl: import.meta.env.DEV ? (env.MAILPIT_URL ?? "http://127.0.0.1:8025") : undefined,
+// Created on first use, so a missing Temporal setting is a reported start failure, not a crash
+// that keeps requests from committing.
+let workflowClient: WorkflowClient | undefined;
+const queues = readWorkSettings(env);
+const {
+  startReviewerMessage,
+  startOrganizationInvitation,
+  wakeAssistantConversation,
+  cancelAssistantTurn,
+} = createBackgroundWork({
+  taskQueue: queues.taskQueue,
+  turnTaskQueue: queues.turnTaskQueue,
+  client: () =>
+    (workflowClient ??= createWorkflowClient(
+      readTemporalConfig(env, {
+        local: Boolean(import.meta.env.DEV) || env.MERIT_LOCAL_PREVIEW === "1",
+      }),
+    )),
 });
 
 const modelProvider = { apiKey: env.OPENAI_API_KEY ?? "", model: env.MERIT_AI_MODEL ?? "" };
 const aiReviewer = createOpenAiReviewer(modelProvider);
 
-// Detached turns check out connections from the process pool after their HTTP request ends.
+// Requests wake a conversation's workflow; the worker process runs its turns.
 const assistant = createAssistantHost(
-  { database, analytics, sendEmail, invitationOrigin: origin, aiReviewer },
+  {
+    database,
+    analytics,
+    startReviewerMessage,
+    startOrganizationInvitation,
+    wakeConversation: wakeAssistantConversation,
+    cancelConversation: cancelAssistantTurn,
+    invitationOrigin: origin,
+    aiReviewer,
+  },
   modelProvider,
 );
-assistant.start();
-if (import.meta.hot) {
-  import.meta.hot.dispose(assistant.close);
-}
 
 // TanStack's Vite adapter supplies the socket peer on the request.
 const peerAddress = (request: Request) =>
@@ -84,9 +109,9 @@ export default createServerEntry({
               analytics,
               aiReviewer,
               database: requestDatabase.run,
-              invitationOrigin: import.meta.env.DEV ? url.origin : origin,
               networkAddress: import.meta.env.DEV ? "local" : peerAddress(request),
-              sendEmail,
+              startReviewerMessage,
+              startOrganizationInvitation,
             };
             if (url.pathname === "/mcp/workspace") {
               return await handleMcp(request, clerkConfig, dependencies);

@@ -188,8 +188,10 @@ retries. Version checks prevent duplicate edits from being applied again; a retr
 may return a conflict after the original save succeeded. After a lost response,
 read the current state before deciding whether another save is needed. Successful
 mutations identify the affected record; edits return the resulting revision where
-applicable. Review invitations send email after commit. Inspect delivery status
-and use resend to recover a failed email. Review requests only track work.
+applicable. Review invitations send email after commit, and a request returns its delivery
+status after at most a few seconds: `pending` while automatic retries continue for about fifteen
+minutes, then `failed`. Inspect delivery status and use resend to recover a failed email. Review
+requests only track work.
 
 Requested edits save directly. The first budget amount saves without a reason; a reason
 is required only for a later change, a clear, or an amount set after a clear. There is no

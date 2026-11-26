@@ -1,0 +1,63 @@
+<!-- @dsCard group="Patterns" height=300 -->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>MessageBox — preview</title>
+  </head>
+  <body>
+    <div id="root" style="padding: 16px"></div>
+    <script>
+      var M = window.Merit,
+        h = React.createElement;
+      function noop() {}
+      var base = {
+        label: "Message",
+        isLabelHidden: true,
+        placeholder: "Ask about this round…",
+        sendLabel: "Send",
+        stopLabel: "Stop",
+        onChange: noop,
+        onSend: noop,
+        onStop: noop,
+      };
+      ReactDOM.createRoot(document.getElementById("root")).render(
+        h(
+          M.Provider,
+          null,
+          h(
+            "div",
+            { style: { maxWidth: 440 } },
+            h(
+              M.Stack,
+              { gap: 4 },
+              h(
+                M.MessageBox,
+                Object.assign({}, base, {
+                  value: "Which applications still need a second review?",
+                  chips: [
+                    {
+                      id: "a1",
+                      label: "Riverside Youth Arts",
+                      removeLabel: "Remove Riverside Youth Arts",
+                      onRemove: noop,
+                    },
+                  ],
+                  description: "Enter to send. Shift+Enter for a new line.",
+                }),
+              ),
+              h(
+                M.MessageBox,
+                Object.assign({}, base, {
+                  value: "",
+                  isBusy: true,
+                  description: "Busy: Stop replaces Send while an answer is arriving.",
+                }),
+              ),
+            ),
+          ),
+        ),
+      );
+    </script>
+  </body>
+</html>
