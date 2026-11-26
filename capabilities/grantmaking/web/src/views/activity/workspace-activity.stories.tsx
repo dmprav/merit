@@ -47,7 +47,7 @@ const entry = (index: number, overrides: Partial<ActivityEntry> = {}): ActivityE
 };
 
 const recent: ActivityEntry[] = [
-  entry(0, { action: "decision.recorded", record: neighbour }),
+  entry(0, { action: "decision.recorded", record: workshop }),
   entry(1, { action: "recommendation.recorded" }),
   entry(2, { action: "assessment.submitted", actor: "Sam Morgan", record: neighbour }),
   entry(30, {

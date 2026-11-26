@@ -69,7 +69,7 @@ export const Decisions: Story = {
   },
   play: async ({ canvas }) => {
     const funded = within(canvas.getByRole("row", { name: /Neighbour Table/ }));
-    await expect(funded.getByText("Fund", { exact: true })).toBeVisible();
+    await expect(funded.getAllByText("Fund", { exact: true })[0]).toBeVisible();
     await expect(
       within(canvas.getByRole("row", { name: /Workshop Saturdays/ })).getByText("No decision"),
     ).toBeVisible();

@@ -4,11 +4,12 @@ import { expect, fn, within } from "storybook/test";
 
 import type { DecisionDraft, DecisionFailure } from "@merit/decisions-web/contracts";
 import { DecisionEditor } from "@merit/decisions-web/decisions";
-import type { Decision, DecisionVersion } from "@merit/decisions/domain";
+import { encodeDecision } from "@merit/decisions/api";
+import { commitmentOf, decodeDecision, type Decision } from "@merit/decisions/domain";
 import { decodeRoundView, encodeRoundOverview } from "@merit/grantmaking/api";
 import type { FundingRoundOverviewData, RoundView } from "@merit/grantmaking/api";
 import { getExampleRound } from "@merit/grantmaking/examples";
-import { encodeMoney, fromMinorUnits } from "@merit/money";
+import { add, fromMinorUnits, subtract } from "@merit/money";
 
 import { GrantmakingMessagesProvider } from "../../messages";
 import { ApplicationContainedPreview } from "../../testing/application-preview";
@@ -22,9 +23,9 @@ const firstDecision: Decision = {
   conditions: "",
   reason: "The committee funded the full request and asked for simple reporting.",
   decidedBy: "Funding committee",
-  decisionDate: "2027-01-18",
+  decisionDate: "2026-01-18",
   recorder,
-  recordedAt: "2027-01-18T12:00:00.000Z",
+  recordedAt: "2026-01-18T12:00:00.000Z",
   applicationVersion: 1,
 };
 
@@ -34,18 +35,23 @@ const amendedDecision: Decision = {
   amount: fromMinorUnits(2000000n),
   conditions: "Confirm the dates with the community hall in writing.",
   reason: "A later meeting reduced the award until the venue is confirmed.",
-  decisionDate: "2027-02-08",
+  decisionDate: "2026-02-08",
   changeExplanation: "The venue could not confirm all 24 dates.",
   recorder: { ...recorder, provenance: { interface: "mcp", clientId: "Claude" } },
-  recordedAt: "2027-02-09T09:30:00.000Z",
+  recordedAt: "2026-02-09T09:30:00.000Z",
 };
 
-const twoVersions: readonly DecisionVersion[] = [
-  { revision: 2, decision: amendedDecision },
-  { revision: 1, decision: firstDecision },
-];
+type EncodedVersion = { revision: number; decision: ReturnType<typeof encodeDecision> };
 
-const oneVersion: readonly DecisionVersion[] = [{ revision: 1, decision: firstDecision }];
+// Story arguments are cloned, which money values do not survive, so they carry encoded versions.
+const version = (revision: number, decision: Decision): EncodedVersion => ({
+  revision,
+  decision: encodeDecision(decision),
+});
+
+const twoVersions = [version(2, amendedDecision), version(1, firstDecision)];
+
+const oneVersion = [version(1, firstDecision)];
 
 type PreviewProps = Omit<
   ComponentProps<typeof DecisionEditor>,
@@ -53,43 +59,42 @@ type PreviewProps = Omit<
 > & {
   round: FundingRoundOverviewData;
   application: { id: string };
-  versions: readonly DecisionVersion[];
-  /** Funding committed by this round's other applications, in euros. */
-  committedElsewhere?: bigint;
+  versions: readonly EncodedVersion[];
   withBudget?: boolean;
   onSave: (value: { outcome: string; reason: string }) => DecisionFailure | null;
 };
 
+/** Funding the round's other applications have committed: €28,000, leaving room for €8,000 more. */
+const committedElsewhere = fromMinorUnits(2800000n);
+
 /** The round as the application page reports it: committed funding comes from decisions. */
-const withCommitments = (round: RoundView, committed: bigint, withBudget: boolean) => {
+const withCommitments = (round: RoundView, current: Decision | undefined, withBudget: boolean) => {
   const budget = withBudget ? round.budget : null;
-  const total = fromMinorUnits(committed);
+  const committed = withBudget ? add(committedElsewhere, commitmentOf(current ?? null)) : zero;
   return {
     ...round,
     budget,
     totals: {
       ...round.totals,
-      committed: total,
-      available:
-        budget === null ? null : fromMinorUnits(BigInt(encodeMoney(budget).minorUnits) - committed),
+      committed,
+      available: budget === null ? null : subtract(budget, committed),
     },
   };
 };
 
+const zero = fromMinorUnits(0n);
+
 const EditablePreview = ({
-  committedElsewhere = 2800000n,
   withBudget = true,
-  versions,
+  versions: encodedVersions,
   ...args
 }: PreviewProps) => {
+  const versions = encodedVersions.map((saved) => ({
+    revision: saved.revision,
+    decision: decodeDecision(saved.decision),
+  }));
   const base = decodeRoundView(args.round);
-  const current = versions[0]?.decision;
-  const committed =
-    committedElsewhere +
-    (current && (current.outcome === "Fund" || current.outcome === "Fund with conditions")
-      ? BigInt(encodeMoney(current.amount).minorUnits)
-      : 0n);
-  const round = withCommitments(base, committed, withBudget);
+  const round = withCommitments(base, versions[0]?.decision, withBudget);
   const application = base.applications.find((item) => item.id === args.application.id)!;
   const [tab, setTab] = useState<"evidence" | "reviews">("reviews");
   const [draft, setDraft] = useState<DecisionDraft | undefined>(args.draft);
@@ -103,7 +108,8 @@ const EditablePreview = ({
         onDraftChange={setDraft}
         application={application}
         round={round}
-        onSave={async (value) => args.onSave(value)}
+        // The action log serializes arguments, which money values refuse; log only the plain fields.
+        onSave={async (value) => args.onSave({ outcome: value.outcome, reason: value.reason })}
       >
         {({ editor, action, closeAction }) => (
           <ApplicationView
@@ -170,7 +176,7 @@ export const SummaryWithHistory: Story = {
   args: { versions: twoVersions },
   play: async ({ canvas, userEvent }) => {
     const section = within(canvas.getByRole("region", { name: "Committee decision" }));
-    await expect(section.getByText("Funded with conditions")).toBeVisible();
+    await expect(section.getAllByText("Funded with conditions")[0]).toBeVisible();
     await userEvent.click(section.getByRole("button", { name: /Version history/ }));
     await expect(section.getByText("The venue could not confirm all 24 dates.")).toBeVisible();
     await expect(section.getByText("Version 1")).toBeVisible();
@@ -187,7 +193,7 @@ export const RecordFirstDecision: Story = {
     await expect(canvas.getByRole("region", { name: "Manager recommendation" })).toBeVisible();
     await expect(canvas.queryByLabelText(/changing this decision/)).not.toBeInTheDocument();
     await expect(canvas.getByRole("status", { name: "Budget preview" })).toHaveTextContent(
-      /Available with this decision\s*€6,000/,
+      /Available with this decision\s*€8,000/,
     );
   },
 };
@@ -240,7 +246,6 @@ export const OverBudget: Story = {
 export const NoBudget: Story = {
   args: {
     withBudget: false,
-    committedElsewhere: 0n,
     onSave: fn<PreviewProps["onSave"]>(() => ({
       status: "invalid",
       error: "budget_required",
@@ -256,7 +261,7 @@ export const NoBudget: Story = {
     ).toBeVisible();
     await userEvent.type(canvas.getByLabelText(/Reason/), "Funded in full.");
     await userEvent.type(canvas.getByLabelText(/Decided by/), "Funding committee");
-    await userEvent.type(canvas.getByRole("textbox", { name: /Decision date/ }), "2027-01-18");
+    await userEvent.type(canvas.getByRole("textbox", { name: /Decision date/ }), "2026-01-18");
     await userEvent.click(canvas.getByRole("button", { name: "Save decision" }));
     await expect(await canvas.findByRole("alert")).toHaveTextContent(
       "This round has no budget. Set a budget before recording funding.",
@@ -277,7 +282,7 @@ export const ConflictRecovery: Story = {
       conditions: "",
       reason: "My unsaved reason.",
       decidedBy: "Funding committee",
-      decisionDate: "2027-01-18",
+      decisionDate: "2026-01-18",
       changeExplanation: "My unsaved explanation.",
     },
   },
@@ -307,22 +312,19 @@ export const WithdrawnReadOnly: Story = {
   args: {
     round: encodeRoundOverview(withdrawnRound),
     versions: [
-      {
-        revision: 2,
-        decision: {
-          ...amendedDecision,
-          outcome: "Decline",
-          amount: fromMinorUnits(0n),
-          conditions: "",
-          reason: "The applicant can no longer deliver the project.",
-          changeExplanation: "The applicant asked to withdraw.",
-        },
-      },
-      { revision: 1, decision: firstDecision },
+      version(2, {
+        ...amendedDecision,
+        outcome: "Decline",
+        amount: fromMinorUnits(0n),
+        conditions: "",
+        reason: "The applicant can no longer deliver the project.",
+        changeExplanation: "The applicant asked to withdraw.",
+      }),
+      version(1, firstDecision),
     ],
   },
   play: async ({ canvas }) => {
-    await expect(canvas.getByText("Declined")).toBeVisible();
+    await expect(canvas.getAllByText("Declined")[0]).toBeVisible();
     await expect(
       canvas.queryByRole("button", { name: /Change decision for/ }),
     ).not.toBeInTheDocument();
