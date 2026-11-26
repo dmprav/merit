@@ -237,65 +237,119 @@ const jaccard = (left: Set<string>, right: Set<string>): number => {
   return union === 0 ? 0 : intersection / union;
 };
 
+/** Title token similarity at which two proposals touching the same files are duplicates. */
+const DUPLICATE_TITLE_SIMILARITY = 0.6;
+/** Title token similarity at which heavily overlapping file sets mark a duplicate. */
+const RELATED_TITLE_SIMILARITY = 0.25;
+/** Share of the smaller file set that two proposals must have in common to overlap heavily. */
+const DUPLICATE_PATH_OVERLAP = 0.7;
+
+type ProposalFingerprint = {
+  normalizedTitle: string;
+  titleTokens: Set<string>;
+  paths: Set<string>;
+  lens?: ScoutLens;
+};
+
+/** Open issues, and closed issues rejected as won't-fix or duplicate, block a matching proposal. */
+const blocksMatchingProposals = (issue: ExistingIssueSummary) =>
+  issue.state === "OPEN" ||
+  issue.labels.some((label) => label === AGENT_LABELS.wontfix || label === AGENT_LABELS.duplicate);
+
+/** Explains why `issue` duplicates the proposal, or returns null when it does not. */
+const duplicateReason = (
+  proposal: ProposalFingerprint,
+  issue: ExistingIssueSummary,
+): string | null => {
+  if (issue.title.trim().toLowerCase() === proposal.normalizedTitle) {
+    return `matches existing ${issue.state.toLowerCase()} issue #${issue.number} title`;
+  }
+
+  const similarity = jaccard(proposal.titleTokens, tokenize(issue.title));
+  const markerMeta = issue.body ? parseProposalMarker(issue.body) : null;
+  const existingPaths = (markerMeta?.paths ?? []).map(normalizeRepoPath);
+  const sharedPathCount = existingPaths.filter((filePath) => proposal.paths.has(filePath)).length;
+  const pathsCompatible = sharedPathCount > 0 || existingPaths.length === 0;
+  if (similarity >= DUPLICATE_TITLE_SIMILARITY && pathsCompatible) {
+    return `high title similarity (${similarity.toFixed(2)}) with #${issue.number}`;
+  }
+
+  const minPathCount = Math.min(proposal.paths.size, existingPaths.length);
+  const pathOverlap = minPathCount > 0 ? sharedPathCount / minPathCount : 0;
+  const sameLens = !proposal.lens || !markerMeta?.lens || markerMeta.lens === proposal.lens;
+  if (sameLens && pathOverlap >= DUPLICATE_PATH_OVERLAP && similarity >= RELATED_TITLE_SIMILARITY) {
+    return `high path overlap (${Math.round(pathOverlap * 100)}%) and related title (${similarity.toFixed(2)}) with #${issue.number}`;
+  }
+  return null;
+};
+
 export const findDuplicateProposal = (
   proposal: Pick<ProposalInput, "title" | "paths"> & { lens?: ScoutLens },
   existingIssues: readonly ExistingIssueSummary[],
 ): DuplicateCheckResult => {
-  const normalizedTitle = proposal.title.trim().toLowerCase();
-  const titleTokens = tokenize(proposal.title);
-  const proposalPaths = new Set(proposal.paths.map(normalizeRepoPath));
-
-  for (const issue of existingIssues) {
-    const isRelevant =
-      issue.state === "OPEN" ||
-      issue.labels.some(
-        (label) => label === AGENT_LABELS.wontfix || label === AGENT_LABELS.duplicate,
-      );
-    if (!isRelevant) {
-      continue;
-    }
-
-    if (issue.title.trim().toLowerCase() === normalizedTitle) {
-      return {
-        duplicate: true,
-        matchedIssue: issue,
-        reason: `matches existing ${issue.state.toLowerCase()} issue #${issue.number} title`,
-      };
-    }
-
-    const similarity = jaccard(titleTokens, tokenize(issue.title));
-    const markerMeta = issue.body ? parseProposalMarker(issue.body) : null;
-    const existingPaths = (markerMeta?.paths ?? []).map(normalizeRepoPath);
-    const sharedPathCount = existingPaths.filter((filePath) => proposalPaths.has(filePath)).length;
-    const sharesPath = sharedPathCount > 0;
-    if (similarity >= 0.6 && (sharesPath || existingPaths.length === 0)) {
-      return {
-        duplicate: true,
-        matchedIssue: issue,
-        reason: `high title similarity (${similarity.toFixed(2)}) with #${issue.number}`,
-      };
-    }
-
-    const minPathCount = Math.min(proposalPaths.size, existingPaths.length);
-    const pathOverlap = minPathCount > 0 ? sharedPathCount / minPathCount : 0;
-    const sameLens = !proposal.lens || !markerMeta?.lens || markerMeta.lens === proposal.lens;
-    if (sameLens && pathOverlap >= 0.7 && similarity >= 0.25) {
-      return {
-        duplicate: true,
-        matchedIssue: issue,
-        reason: `high path overlap (${Math.round(pathOverlap * 100)}%) and related title (${similarity.toFixed(2)}) with #${issue.number}`,
-      };
+  const fingerprint: ProposalFingerprint = {
+    normalizedTitle: proposal.title.trim().toLowerCase(),
+    titleTokens: tokenize(proposal.title),
+    paths: new Set(proposal.paths.map(normalizeRepoPath)),
+    ...(proposal.lens ? { lens: proposal.lens } : {}),
+  };
+  for (const issue of existingIssues.filter(blocksMatchingProposals)) {
+    const reason = duplicateReason(fingerprint, issue);
+    if (reason !== null) {
+      return { duplicate: true, matchedIssue: issue, reason };
     }
   }
-
   return { duplicate: false };
 };
 
-export const renderProposalMarkdown = (
+const renderBullets = (items: readonly string[]) =>
+  items.length > 0 ? items.map((item) => `- ${item}`).join("\n") : "- None.";
+
+const renderDetails = (summary: string, body: readonly string[]) => [
+  "<details>",
+  `<summary>${summary}</summary>`,
+  "",
+  ...body,
+  "</details>",
+];
+
+const renderDesignDetails = (
+  design: Extract<ProposalInput, { kind: "design" }>["design"],
+): string[] =>
+  renderDetails("Architecture design & sequencing (not auto-executed)", [
+    "**Options:**",
+    renderBullets(design.options),
+    "",
+    `**Recommendation:** ${design.recommendation}`,
+    "",
+    "**PR sequence:**",
+    ...design.prSequence.map((step, index) => `${index + 1}. ${step}`),
+    "",
+    "**Open questions:**",
+    renderBullets(design.openQuestions),
+    "",
+  ]);
+
+const renderBriefDetails = (brief: Extract<ProposalInput, { kind: "pr" }>["brief"]): string[] =>
+  renderDetails(
+    "Implementer brief (for builder & reviewer)",
+    (
+      [
+        ["Behavior", brief.behavior],
+        ["Out of scope", brief.outOfScope],
+        ["Precedents", brief.precedents],
+        ["Plan", brief.plan],
+        ["Verification", brief.verification],
+      ] as const
+    ).flatMap(([heading, items]) => [`**${heading}:**`, renderBullets(items), ""]),
+  );
+
+/** Summarizes the proposal's tier, kind, lens, size, slices, mechanisms, and protected paths on one line. */
+const renderBlastRadius = (
   proposal: ProposalInput,
   classification: ProposalTierClassification,
+  fileCount: number,
 ): string => {
-  const normalizedPaths = [...new Set(proposal.paths.map(normalizeRepoPath))];
   const mechanismSummary =
     classification.mechanisms.matched.length > 0
       ? classification.mechanisms.matched.map((entry) => entry.mechanism.id).join(", ")
@@ -305,8 +359,14 @@ export const renderProposalMarkdown = (
       ? ` · protected (needs \`${AGENT_LABELS.allowProtected}\`): ${classification.protectedPaths.join(", ")}`
       : "";
   const kindBadge = proposal.kind === "design" ? " · design" : "";
-  const blastRadius = `tier:${classification.tier}${kindBadge} · lens:${proposal.lens} · ~${normalizedPaths.length} file(s) · slices: ${classification.slices.join(", ")} · mechanisms: ${mechanismSummary}${protectedNote}`;
+  return `tier:${classification.tier}${kindBadge} · lens:${proposal.lens} · ~${fileCount} file(s) · slices: ${classification.slices.join(", ")} · mechanisms: ${mechanismSummary}${protectedNote}`;
+};
 
+export const renderProposalMarkdown = (
+  proposal: ProposalInput,
+  classification: ProposalTierClassification,
+): string => {
+  const normalizedPaths = [...new Set(proposal.paths.map(normalizeRepoPath))];
   const metadata = JSON.stringify({
     kind: proposal.kind,
     lens: proposal.lens,
@@ -314,53 +374,9 @@ export const renderProposalMarkdown = (
     paths: normalizedPaths,
   });
 
-  const renderBullets = (items: readonly string[]) =>
-    items.length > 0 ? items.map((item) => `- ${item}`).join("\n") : "- None.";
-
-  const detailsLines =
-    proposal.kind === "design"
-      ? [
-          "<details>",
-          "<summary>Architecture design & sequencing (not auto-executed)</summary>",
-          "",
-          "**Options:**",
-          renderBullets(proposal.design.options),
-          "",
-          `**Recommendation:** ${proposal.design.recommendation}`,
-          "",
-          "**PR sequence:**",
-          ...proposal.design.prSequence.map((step, index) => `${index + 1}. ${step}`),
-          "",
-          "**Open questions:**",
-          renderBullets(proposal.design.openQuestions),
-          "",
-          "</details>",
-        ]
-      : [
-          "<details>",
-          "<summary>Implementer brief (for builder & reviewer)</summary>",
-          "",
-          "**Behavior:**",
-          renderBullets(proposal.brief.behavior),
-          "",
-          "**Out of scope:**",
-          renderBullets(proposal.brief.outOfScope),
-          "",
-          "**Precedents:**",
-          renderBullets(proposal.brief.precedents),
-          "",
-          "**Plan:**",
-          renderBullets(proposal.brief.plan),
-          "",
-          "**Verification:**",
-          renderBullets(proposal.brief.verification),
-          "",
-          "</details>",
-        ];
-
   return [
     `**${proposal.title}**`,
-    `\`${blastRadius}\``,
+    `\`${renderBlastRadius(proposal, classification, normalizedPaths.length)}\``,
     "",
     `**Why:** ${proposal.why}`,
     `**Evidence:** ${proposal.evidence}`,
@@ -369,7 +385,9 @@ export const renderProposalMarkdown = (
     `**Decision / catch:** ${proposal.decision}`,
     `**Why NOT:** ${proposal.whyNot}`,
     "",
-    ...detailsLines,
+    ...(proposal.kind === "design"
+      ? renderDesignDetails(proposal.design)
+      : renderBriefDetails(proposal.brief)),
     "",
     `<!-- merit-proposal: ${metadata} -->`,
     "",
