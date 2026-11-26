@@ -1,4 +1,3 @@
-import { spawn } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -6,45 +5,15 @@ import { fileURLToPath } from "node:url";
 
 import { expect, it } from "vite-plus/test";
 
+import { runProcess, type ProcessResult } from "../testing/process";
+
 const root = fileURLToPath(new URL("../../", import.meta.url));
 const commitlint = join(root, "node_modules/.bin/commitlint");
 
 const runCommand = (command: string, args: string[], env?: NodeJS.ProcessEnv) =>
-  new Promise<{ status: number | null; output: string }>((resolve, reject) => {
-    const child = spawn(command, args, {
-      cwd: root,
-      env: env ?? process.env,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-    let output = "";
-    const timer = setTimeout(() => {
-      child.kill("SIGKILL");
-      reject(new Error(`Timed out running ${command} ${args.join(" ")}:\n${output}`));
-    }, 15_000);
+  runProcess(command, args, { cwd: root, timeoutMs: 15_000, env });
 
-    child.stdout.setEncoding("utf8");
-    child.stderr.setEncoding("utf8");
-    child.stdout.on("data", (chunk: string) => {
-      output += chunk;
-    });
-    child.stderr.on("data", (chunk: string) => {
-      output += chunk;
-    });
-    child.on("error", (error) => {
-      clearTimeout(timer);
-      reject(error);
-    });
-    child.on("close", (status, signal) => {
-      clearTimeout(timer);
-      expect(signal).toBeNull();
-      resolve({ status, output });
-    });
-  });
-
-const checkWith = async (
-  message: string,
-  runner: (path: string) => Promise<{ status: number | null; output: string }>,
-) => {
+const checkWith = async (message: string, runner: (path: string) => Promise<ProcessResult>) => {
   const directory = mkdtempSync(join(tmpdir(), "merit-commits-"));
   const path = join(directory, "commit message.txt");
 

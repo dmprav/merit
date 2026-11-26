@@ -1,4 +1,3 @@
-import { spawn } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
@@ -8,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, test } from "vite-plus/test";
 import { z } from "zod";
 
+import { runProcess } from "../../testing/process";
 import architectureConfig from "./config";
 
 const config = fileURLToPath(new URL("./config.ts", import.meta.url));
@@ -157,35 +157,6 @@ const collaborationFiles = {
   ),
 };
 
-const runLinter = (args: string[], cwd: string) =>
-  new Promise<{ status: number | null; stdout: string; stderr: string }>((resolve, reject) => {
-    const child = spawn(process.execPath, args, { cwd, stdio: ["ignore", "pipe", "pipe"] });
-    let stdout = "";
-    let stderr = "";
-    const timer = setTimeout(() => {
-      child.kill("SIGKILL");
-      reject(new Error(`Timed out running ${args.join(" ")}:\n${stderr}${stdout}`));
-    }, 15_000);
-
-    child.stdout.setEncoding("utf8");
-    child.stderr.setEncoding("utf8");
-    child.stdout.on("data", (chunk: string) => {
-      stdout += chunk;
-    });
-    child.stderr.on("data", (chunk: string) => {
-      stderr += chunk;
-    });
-    child.on("error", (error) => {
-      clearTimeout(timer);
-      reject(error);
-    });
-    child.on("close", (status, signal) => {
-      clearTimeout(timer);
-      expect(signal).toBeNull();
-      resolve({ status, stdout, stderr });
-    });
-  });
-
 const check = async (files: Record<string, string>, message?: string, viaVp = false) => {
   const root = mkdtempSync(join(tmpdir(), "merit-boundaries-"));
   const contents: Record<string, string> = {
@@ -253,7 +224,7 @@ const check = async (files: Record<string, string>, message?: string, viaVp = fa
       args = [oxlint, "--config", oxlintConfig, "--format", "json", "."];
     }
 
-    const result = await runLinter(args, root);
+    const result = await runProcess(process.execPath, args, { cwd: root, timeoutMs: 15_000 });
     const report = resultSchema.parse(JSON.parse(result.stdout));
     expect(result.status, result.stderr + result.stdout).toBe(message ? 1 : 0);
     if (message) {
