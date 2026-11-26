@@ -113,8 +113,8 @@ membership. Restart the server after changing operator IDs to apply the new perm
 Do not put operator settings or email secrets in `VITE_` variables.
 
 Resend receives the same plain-text and HTML invitation content as Mailpit, with
-an idempotency key for each invitation. The app stores a token hash; it does not
-store or log the plaintext invitation link. Invitation URLs and emails are
+an idempotency key for each invitation. The app stores a verification hash and an encrypted
+token until Temporal accepts delivery work. The plaintext invitation link stays out of storage and logs. Invitation URLs and emails are
 sensitive, so configure infrastructure logs and email access accordingly.
 
 Publish using the [deployment guide](deployment.md). Verify an operator can create

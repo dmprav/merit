@@ -22,6 +22,7 @@ export const invitations = pgTable(
     role: text({ enum: ["member", "program_manager", "reviewer"] })
       .notNull()
       .default("program_manager"),
+    dispatchCiphertext: text("dispatch_ciphertext"),
     tokenHash: text("token_hash").notNull().unique(),
     invitedBy: text("invited_by")
       .notNull()
@@ -36,6 +37,9 @@ export const invitations = pgTable(
       .default("pending"),
   },
   (table) => [
+    index("organization_invitations_dispatch_idx")
+      .on(table.id)
+      .where(sql`${table.dispatchCiphertext} IS NOT NULL`),
     index("organization_invitations_organization_idx").on(table.organizationId),
     index("organization_invitations_invited_by_idx").on(table.invitedBy),
     index("organization_invitations_accepted_by_idx").on(table.acceptedBy),

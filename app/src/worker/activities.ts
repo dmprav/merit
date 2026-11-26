@@ -1,6 +1,7 @@
 import type { Database } from "@merit/db";
 import {
   createInvitationActivities,
+  reconcileOrganizationInvitations,
   type InvitationActivityDependencies,
 } from "@merit/organizations/server";
 import {
@@ -27,6 +28,10 @@ export type WorkerActivityDependencies = {
   invitations: InvitationActivityDependencies;
   /** Starts a reviewer message's workflow unless one ran or runs; the outcome says which. */
   reconcileReviewerMessage: (work: ReviewerMessageWork) => Promise<StartOutcome>;
+  invitationDispatch: Pick<
+    Parameters<typeof reconcileOrganizationInvitations>[0],
+    "invitationKey" | "start"
+  >;
   assistant: {
     /** False when no model is configured: nothing is started. */
     configured: boolean;
@@ -116,6 +121,12 @@ export const createActivities = (dependencies: WorkerActivityDependencies) => {
       "organizationInvitation.fail",
       invitations.failOrganizationInvitation,
     ),
+    reconcileOrganizationInvitations: reported("reconcile.organizationInvitations", () =>
+      reconcileOrganizationInvitations({
+        database: dependencies.database,
+        ...dependencies.invitationDispatch,
+      }),
+    ),
     reconcileReviewerMessages: reported("reconcile.reviewerMessages", () =>
       reconcileReviewerMessages(dependencies),
     ),
@@ -130,5 +141,5 @@ export type Activities = ReturnType<typeof createActivities>;
 /** The reconcilers the reconcile workflow runs. */
 export type ReconcileActivities = Pick<
   Activities,
-  "reconcileReviewerMessages" | "reconcileConversations"
+  "reconcileReviewerMessages" | "reconcileConversations" | "reconcileOrganizationInvitations"
 >;

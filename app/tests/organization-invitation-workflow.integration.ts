@@ -8,6 +8,7 @@ import type { InvitationMessage } from "@merit/organizations/api";
 import {
   createInvitationActivities,
   createOrganizationService,
+  reconcileOrganizationInvitations,
   type InvitationWork,
 } from "@merit/organizations/server";
 import { databaseTest } from "@merit/test-support/database";
@@ -59,6 +60,7 @@ const tokenOf = (message: InvitationMessage | undefined) => message?.url.split("
 
 const serviceWith = (start = background.startOrganizationInvitation, deliveryWait = wait) =>
   createOrganizationService({
+    invitationKey: () => config.payloadKey,
     revokeReviewAccess: async () => {},
     database: run,
     isOperator: async (actor) => actor.userId === "operator",
@@ -123,6 +125,10 @@ beforeAll(async () => {
       invitationUrl,
     },
     assistant: { configured: false, running: async () => [], wake: async () => true },
+    invitationDispatch: {
+      invitationKey: () => config.payloadKey,
+      start: (work) => background.startOrganizationInvitation(work),
+    },
     reconcileReviewerMessage: async () => "exists",
   });
   worker = await startTestWorker(config, { workflows: { workflowsPath }, activities });
@@ -298,7 +304,7 @@ describe("organization invitation workflow", () => {
     expect(await delivery(id)).toBe("pending");
   });
 
-  it("leaves a lost start pending for the administrator to resend", async () => {
+  it("recovers an unconfirmed start with the original token even when scans overlap", async () => {
     const lost = createBackgroundWork({
       client: () => {
         throw new Error("Temporal is unreachable");
@@ -306,22 +312,84 @@ describe("organization invitation workflow", () => {
     });
     const started = Date.now();
     const id = await inviteMember(serviceWith(lost.startOrganizationInvitation));
-
-    // The commit stands and the request answers at once, without waiting for work that never started.
     expect(Date.now() - started).toBeLessThan(wait.timeoutMs);
     expect(await delivery(id)).toBe("pending");
     expect(mail).toHaveLength(0);
 
-    // Nothing reconciles invitations, because only the token hash is stored; resending delivers.
+    const [work] = works;
+    assert(work);
+    const { rows } = await database.client.query<{
+      dispatch_ciphertext: string;
+      token_hash: string;
+    }>("SELECT dispatch_ciphertext, token_hash FROM organization_invitations WHERE id = $1", [id]);
+    const pending = rows[0];
+    assert(pending?.dispatch_ciphertext);
+    expect(pending.token_hash).not.toBe(work.token);
+    expect(
+      Buffer.from(pending.dispatch_ciphertext, "base64").includes(Buffer.from(work.token)),
+    ).toBe(false);
+
+    const reconcile = () =>
+      worker.client.workflow.execute("reconcile", {
+        taskQueue: worker.taskQueue,
+        workflowId: randomUUID(),
+        workflowExecutionTimeout: "30 seconds",
+      });
+
+    for (const outcome of await Promise.all([reconcile(), reconcile()])) {
+      expect(outcome).toMatchObject({ organizationInvitations: "ok" });
+    }
+    expect(await closed(id)).toBe("sent");
+    expect(mail).toHaveLength(1);
+    expect(tokenOf(mail[0]) === work.token).toBe(true);
+    expect(
+      (
+        await database.client.query(
+          "SELECT dispatch_ciphertext FROM organization_invitations WHERE id = $1",
+          [id],
+        )
+      ).rows[0],
+    ).toEqual({ dispatch_ciphertext: null });
+  });
+
+  it("discards obsolete handoffs and skips invitations issued before durable dispatch", async () => {
+    const unsent = serviceWith(async () => false);
+    const revoked = await inviteMember(unsent, "revoked@example.test");
+    const expired = await inviteMember(unsent, "expired@example.test");
+    const legacy = await inviteMember(unsent, "legacy@example.test");
+    expect(
+      await unsent.revokeMemberInvitation(owner, { ...workspace, invitationId: revoked }),
+    ).toMatchObject({ status: "ok" });
+    expect(
+      (
+        await database.client.query(
+          "SELECT dispatch_ciphertext FROM organization_invitations WHERE id = $1",
+          [revoked],
+        )
+      ).rows,
+    ).toEqual([{ dispatch_ciphertext: null }]);
     await database.client.query(
-      "UPDATE organization_invitations SET created_at = now() - interval '2 minutes'",
+      "UPDATE organization_invitations SET expires_at = now() WHERE id = $1",
+      [expired],
     );
-    const resent = await serviceWith().resendMemberInvitation(owner, {
-      ...workspace,
-      invitationId: id,
+    await database.client.query(
+      "UPDATE organization_invitations SET dispatch_ciphertext = NULL WHERE id = $1",
+      [legacy],
+    );
+    const outcome = await reconcileOrganizationInvitations({
+      database: run,
+      invitationKey: () => config.payloadKey,
+      start: background.startOrganizationInvitation,
     });
-    assert(resent.status === "ok");
-    expect(await delivery(resent.value.invitationId)).toBe("sent");
+    expect(outcome).toEqual({ listed: 0, handedOff: 0 });
+    expect(
+      (
+        await database.client.query(
+          "SELECT count(*)::int AS pending FROM organization_invitations WHERE dispatch_ciphertext IS NOT NULL",
+        )
+      ).rows,
+    ).toEqual([{ pending: 0 }]);
+    expect(mail).toHaveLength(0);
   });
 
   it("resends a provisioning invitation from the administration console", async () => {

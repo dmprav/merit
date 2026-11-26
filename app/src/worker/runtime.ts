@@ -37,6 +37,9 @@ export const createWorkerRuntime = (
     taskQueue: queues.taskQueue,
     turnTaskQueue: queues.turnTaskQueue,
   });
+
+  const invitationKey = () => config.payloadKey;
+
   const invitationOrigin = readAppOrigin();
   // Turns run here, so this process owns what a turn's grant changes report and deliver.
   const assistant = createAssistantRuntime(
@@ -47,6 +50,7 @@ export const createWorkerRuntime = (
         host: env.VITE_POSTHOG_HOST,
       }),
       startReviewerMessage: background.startReviewerMessage,
+      invitationKey,
       startOrganizationInvitation: background.startOrganizationInvitation,
       invitationOrigin,
     },
@@ -69,6 +73,7 @@ export const createWorkerRuntime = (
       invitationOrigin: readAppOrigin(),
       sendEmail,
     }),
+    invitationDispatch: { invitationKey, start: background.startOrganizationInvitation },
     reconcileReviewerMessage: background.reconcileReviewerMessage,
   });
   const activityQueues = [
