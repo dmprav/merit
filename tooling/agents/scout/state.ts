@@ -8,7 +8,7 @@ export const SCOUT_STATE_ISSUE_TITLE = "chore: agent scout state";
 const STATE_MARKER_PATTERN = /<!--\s*merit-scout-state:\s*(\{[\s\S]*?\})\s*-->/;
 const STATE_MARKER_PREFIX_PATTERN = /<!--\s*merit-scout-state:/;
 
-export const lensCursorSchema = z.object({
+const lensCursorSchema = z.object({
   lastCommitSha: z.string().min(7).optional(),
   lastCommitDate: z.string().min(10).optional(),
   lastPrNumber: z.number().int().positive().optional(),
@@ -63,7 +63,7 @@ export const parseScoutState = (issueBody: string): ScoutStateRead => {
   return { kind: "parsed", state };
 };
 
-export const describeCorruptScoutState = (issueNumber: number, error: string): string =>
+const describeCorruptScoutState = (issueNumber: number, error: string): string =>
   `Scout state marker in issue #${issueNumber} is corrupt (${error}). ` +
   `Repair the "<!-- merit-scout-state: {...} -->" marker with \`gh issue edit ${issueNumber}\` ` +
   "so it holds one JSON object of lens cursors, or delete the marker to reset every lens.";
