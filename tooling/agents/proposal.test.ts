@@ -319,6 +319,14 @@ describe("proposal arguments", () => {
   test("rejects --file without a path", () => {
     expect(() => parseProposalArgs(["--file", "--dry-run"])).toThrow("--file requires a value.");
   });
+
+  // An empty path must not fall back to reading a different proposal from stdin.
+  test.each([[["--file="]], [["--file", "finding.json", "--file="]]])(
+    "rejects an empty --file path in %j",
+    (args) => {
+      expect(() => parseProposalArgs(args)).toThrow("--file requires a value.");
+    },
+  );
 });
 
 describe("proposal labels", () => {

@@ -424,6 +424,10 @@ export const parseProposalArgs = (args: readonly string[]): ProposalCliOptions =
     usage:
       "Usage: proposal.ts [--file <proposal.json>] [--dry-run] [--tier2-only] (reads stdin without --file)",
   });
+  // Only an absent --file reads stdin; an empty one would silently read a different proposal.
+  if (values.file === "") {
+    throw new Error("--file requires a value.");
+  }
   return {
     ...(values.file !== undefined ? { file: values.file } : {}),
     dryRun: values["dry-run"] ?? false,
