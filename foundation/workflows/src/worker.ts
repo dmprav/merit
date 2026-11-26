@@ -11,6 +11,7 @@ import {
 import type { TemporalConfig } from "./config.ts";
 import { connectionOptions } from "./connection.ts";
 import { createDataConverter } from "./payload-codec.ts";
+import { writeSafeLogEntry } from "./runtime-logger.ts";
 
 export type WorkerLogger = {
   info(message: string): void;
@@ -49,10 +50,14 @@ export const createWorker = (connection: NativeConnection, settings: WorkerSetti
     ...(settings.activities === undefined ? {} : { activities: settings.activities }),
   });
 
-/** Keep the SDK's bundler output and state changes out of the console; warnings and errors remain. */
+/**
+ * Keep the SDK's bundler output and state changes out of the console. Warnings and errors
+ * remain, with their level, workflow or activity type and identifiers, but never failure
+ * text or stack traces: those can carry what the encrypted history protects.
+ */
 export const quietRuntime = () => {
   try {
-    Runtime.install({ logger: new DefaultLogger("WARN") });
+    Runtime.install({ logger: new DefaultLogger("WARN", writeSafeLogEntry) });
   } catch {
     // The runtime is installed once per process; keep its first configuration.
   }
@@ -64,6 +69,12 @@ export type RunOptions = {
   signal?: AbortSignal;
   /** Backoff between connection attempts, doubling from `initialMs` to `maxMs`. */
   backoff?: { initialMs: number; maxMs: number };
+  /**
+   * Runs once the worker has connected, before it polls, for work that needs a reachable
+   * server, such as ensuring a Schedule. A rejection is logged as a warning and does not stop
+   * the worker; the next start tries again.
+   */
+  onConnected?: () => Promise<void>;
 };
 
 /**
@@ -95,6 +106,9 @@ export const runWorker = async (settings: WorkerSettings, options: RunOptions) =
   }
   try {
     const worker = await createWorker(connection, settings);
+    await options.onConnected?.().catch((error: unknown) => {
+      logger.warn(`Worker start-up work failed (${describeError(error)}).`);
+    });
 
     const stop = () => worker.shutdown();
 

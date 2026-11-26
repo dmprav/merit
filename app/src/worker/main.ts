@@ -3,10 +3,20 @@ import { env } from "node:process";
 import { fileURLToPath } from "node:url";
 
 import { reportError } from "@merit/telemetry/errors";
-import { describeError, readTemporalConfig, runWorker, type WorkerLogger } from "@merit/workflows";
+import {
+  createWorkflowClient,
+  describeError,
+  ensureSchedule,
+  readTemporalConfig,
+  runWorker,
+  type WorkerLogger,
+} from "@merit/workflows";
 
 import * as activities from "./activities.ts";
+import { reconcileScheduleId } from "./reconcile.workflow.ts";
 import { taskQueue } from "./task-queue.ts";
+
+const reconcileEvery = 60_000;
 
 const logger: WorkerLogger = {
   info: (message) => console.log(`[worker] ${message}`),
@@ -43,6 +53,7 @@ let exitCode = 0;
 try {
   // The development and preview commands set MERIT_LOCAL_WORKER; a deployed worker must not.
   const config = readTemporalConfig(env, { local: env.MERIT_LOCAL_WORKER === "1" });
+  const client = createWorkflowClient(config);
   await runWorker(
     {
       config,
@@ -52,7 +63,19 @@ try {
       },
       activities,
     },
-    { logger, signal: stop.signal },
+    {
+      logger,
+      signal: stop.signal,
+      // Idempotent: every worker start leaves exactly one reconciliation Schedule.
+      onConnected: () =>
+        ensureSchedule(client, {
+          scheduleId: reconcileScheduleId,
+          workflowType: "reconcile",
+          taskQueue,
+          everyMs: reconcileEvery,
+          workflowId: reconcileScheduleId,
+        }),
+    },
   );
 } catch (error) {
   logger.error(`The worker stopped: ${describeError(error)}`);

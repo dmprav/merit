@@ -156,3 +156,29 @@ describe("creating a worker", () => {
 it("describes errors on one short line", () => {
   expect(describeError(new Error("a".repeat(500)))).toHaveLength(200);
 });
+
+describe("start-up work", () => {
+  it("runs once the worker is connected and before it polls", async () => {
+    const order: string[] = [];
+    const onConnected = vi.fn(async () => void order.push("connected"));
+    worker.run.mockImplementation(async () => void order.push("polling"));
+
+    await runWorker(settings, { logger: logger(), onConnected });
+
+    expect(order).toEqual(["connected", "polling"]);
+  });
+
+  it("warns without failure details and still polls when it fails", async () => {
+    const log = logger();
+
+    await runWorker(settings, {
+      logger: log,
+      onConnected: async () => {
+        throw new Error("jo@example.test\nstack");
+      },
+    });
+
+    expect(log.warn).toHaveBeenCalledWith("Worker start-up work failed (jo@example.test stack).");
+    expect(worker.run).toHaveBeenCalledOnce();
+  });
+});

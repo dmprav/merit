@@ -49,6 +49,35 @@ change commits, with an ID derived from the committed record so that starting tw
 cannot duplicate the work. A failed start reports the outage to its caller; the commit
 stands.
 
+Application code reaches this through `@merit/workflows/client`, which never loads the
+worker's native module (the web server bundle must not). `createWorkflowStarter({ client,
+taskQueue, report })` returns `start(request)`, the one way to start after commit:
+
+- the ID is the caller's, derived from the record; a run that already exists is a no-op
+  (`"exists"`), and `signal` turns the call into signal-with-start for a long-lived workflow;
+- by default a completed run of the same ID is left alone and a failed one may run again, so a
+  reconciler never repeats finished work; `closed: "restart"` lets a request run it again;
+- it never throws. A start that fails or takes longer than five seconds is passed to `report`
+  by its operation name only, and answers `"failed"`. The commit stands and reconciliation starts
+  the work later. `client` is a function, so missing settings fail there, reported, not at startup.
+
+## Wait briefly for the first outcome
+
+`waitForOutcome(read, { timeoutMs, intervalMs })` polls Postgres, not Temporal, so a request can
+answer with what the work did in its first seconds. `read` returns `undefined` while unfinished;
+the wait returns `undefined` when it ends, and the caller reports `pending`. The defaults are
+five seconds and 100 ms; services take them as dependencies so tests inject short ones.
+
+## Reconcile committed work
+
+`ensureSchedule(client, settings)` creates a Schedule or updates the existing one in place,
+keeping its paused state, so every worker start can call it. The application worker ensures
+`merit-reconcile`, which runs the `reconcile` workflow every minute. The workflow runs a list of
+reconcilers, one activity each, that list committed unfinished work in Postgres and start the
+workflows that are missing. Add a reconciler to
+[`reconcile.workflow.ts`](../../app/src/worker/reconcile.workflow.ts) and its activity to
+[`activities.ts`](../../app/src/worker/activities.ts).
+
 ## Write workflow modules
 
 Workflow code replays deterministically inside Temporal's sandbox. Name each workflow
@@ -70,8 +99,8 @@ invalid workflow code, rejects instead of retrying. `createWorker` builds a work
 connection you own.
 
 The application worker is [`app/src/worker/main.ts`](../../app/src/worker/main.ts). It
-registers one workflow, `workerHealth`, which proves the path from client to worker,
-activity, and result. The process exits once the worker stops, with a non-zero code when
+registers `workerHealth`, which proves the path from client to worker, activity, and result;
+and `reconcile`. Each capability adds the workflows for the work it owns. The process exits once the worker stops, with a non-zero code when
 the worker failed. Run it with `vp run @merit/app#worker`, or let
 [`vp run dev`](../../docs/guides/development.md#start-and-seed-postgresql) start it.
 
@@ -93,6 +122,14 @@ Put tests that need Temporal in the integration suite, as the
 [worker integration test](../../app/tests/worker.integration.ts) does. Unit tests cover
 configuration, the codec, and worker orchestration without a server. Use short timeouts in
 tests, and end every test's work before stopping its worker.
+
+## Worker logs
+
+`quietRuntime` installs the SDK Runtime logger once per process with a format that keeps the level,
+a short fixed message, and identifiers (workflow type and ID, activity type, task queue, attempt,
+duration). Failure messages, stack traces and task tokens are never printed, because a failure can
+carry what the encrypted history protects. `runWorker` accepts `onConnected` for start-up work that
+needs a reachable server, such as `ensureSchedule`.
 
 ## Telemetry
 

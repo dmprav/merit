@@ -113,8 +113,15 @@ change, such as a fix in `app/.env.local`, and preview prints that it stopped. P
 force the worker to exit. Run the worker alone with `vp run @merit/app#worker`.
 
 Every worker started this way polls the fixed `merit` task queue on the one Compose server.
-Once web code starts workflows, a dev worker from another worktree can pick up your work,
-running its code against its checkout. Stop other worktrees' workers while you work on workflows.
+A dev worker from another worktree can pick up your work, running its code against its
+checkout. Stop other worktrees' workers while you work on workflows.
+
+Each worker start ensures one Temporal Schedule, `merit-reconcile`, which runs the `reconcile`
+workflow every minute. Its activities list committed unfinished work in Postgres and start the workflow of anything that has none. This is how
+work recovers when Temporal was unreachable at commit, or the process stopped between commit and
+start. Starting a workflow that already ran is a no-op. The Schedule shows in the Temporal UI; pausing
+it pauses recovery only. A new kind of work joins reconciliation by adding a reconciler to the
+[reconcile workflow](../../app/src/worker/reconcile.workflow.ts).
 
 Both processes read `app/.env.local`. The defaults need no configuration:
 

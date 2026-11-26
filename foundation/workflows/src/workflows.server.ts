@@ -1,5 +1,5 @@
-export { readTemporalConfig, type TemporalConfig } from "./config.ts";
-export { connectionOptions, createWorkflowClient, type WorkflowClient } from "./connection.ts";
+export * from "./client.ts";
+export { connectionOptions } from "./connection.ts";
 export {
   createClientDataConverter,
   createDataConverter,

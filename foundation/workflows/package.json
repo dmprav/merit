@@ -6,6 +6,8 @@
   "type": "module",
   "exports": {
     ".": "./src/workflows.server.ts",
+    "./client": "./src/client.ts",
+    "./outcome": "./src/outcome.ts",
     "./testing": "./testing/index.ts"
   },
   "dependencies": {
