@@ -622,16 +622,62 @@ const useWithdrawalDate = () => {
   };
 };
 
+/** A funded decision blocks withdrawal, so explain the next step instead of offering the form. */
+const WithdrawBlockedDialog = ({
+  application,
+  isOpen,
+  onClose,
+}: Pick<ReasonDialogProps, "application" | "isOpen" | "onClose">) => {
+  const { t } = useTranslation("applicationIntake");
+
+  return (
+    <ModalDialog
+      title={t("intake.withdrawFor", { title: application.title })}
+      isOpen={isOpen}
+      onOpenChange={(open) => !open && onClose()}
+    >
+      {({ close }) => (
+        <DialogContent
+          footer={
+            <Inline justify="end">
+              <Button variant="secondary" autoFocus onPress={close}>
+                {t("intake.close")}
+              </Button>
+            </Inline>
+          }
+        >
+          <p>{t("intake.hasCommitment")}</p>
+        </DialogContent>
+      )}
+    </ModalDialog>
+  );
+};
+
 const WithdrawDialog = ({
   application,
   outstandingReviews,
   hasCommitment,
+  ...props
+}: ReasonDialogProps & { outstandingReviews: number; hasCommitment: boolean }) =>
+  hasCommitment ? (
+    <WithdrawBlockedDialog
+      application={application}
+      isOpen={props.isOpen}
+      onClose={props.onClose}
+    />
+  ) : (
+    <WithdrawForm application={application} outstandingReviews={outstandingReviews} {...props} />
+  );
+
+const WithdrawForm = ({
+  application,
+  outstandingReviews,
   pending,
   error,
   onClose,
   onConfirm,
   isOpen,
-}: ReasonDialogProps & { outstandingReviews: number; hasCommitment: boolean }) => {
+}: ReasonDialogProps & { outstandingReviews: number }) => {
   const { t } = useTranslation(["applicationIntake", "common"]);
   const date = useWithdrawalDate();
   const reason = useReason();
@@ -652,9 +698,7 @@ const WithdrawDialog = ({
       isOpen={isOpen}
       onOpenChange={(open) => !open && onClose()}
       isPending={pending}
-      // A funded decision blocks withdrawal; say so before the form is filled in.
-      isConfirmDisabled={hasCommitment}
-      error={hasCommitment ? t("intake.hasCommitment") : error}
+      error={error}
       onConfirm={() => {
         // Check both fields so every problem shows at once.
         const valid = [date.check(), reason.check()].every(Boolean);

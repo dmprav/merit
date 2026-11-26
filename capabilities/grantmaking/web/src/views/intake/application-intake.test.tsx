@@ -684,17 +684,19 @@ it("states how many outstanding review requests will close", async () => {
   );
 });
 
-it("explains a committed decision up front and withholds withdrawal", async () => {
+it("explains a committed decision without offering withdrawal", async () => {
   const { user, calls } = renderIntake(undefined, undefined, undefined, undefined, undefined, {
     hasDecision: true,
     hasCommitment: true,
   });
   const dialog = within(await openWithdrawal(user));
 
-  expect(dialog.getByRole("alert")).toHaveTextContent(/has committed funding/);
-  expect(dialog.getByRole("button", { name: "Withdraw application" })).toBeDisabled();
-  await user.type(dialog.getByRole("textbox", { name: /Reason/ }), "Stepped back");
-  await user.click(dialog.getByRole("button", { name: "Withdraw application" }));
+  expect(dialog.getByText(/has committed funding/)).toBeVisible();
+  expect(dialog.queryByRole("alert")).not.toBeInTheDocument();
+  expect(dialog.queryByRole("textbox")).not.toBeInTheDocument();
+  expect(dialog.queryByRole("button", { name: "Withdraw application" })).not.toBeInTheDocument();
+  await user.click(dialog.getByRole("button", { name: "Close" }));
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   expect(calls).not.toHaveBeenCalled();
 });
 

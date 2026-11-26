@@ -25,8 +25,6 @@ type ConfirmationDialogProps = {
   onConfirm: () => void;
   trigger?: ReactNode;
   isPending?: boolean;
-  /** Withholds confirmation while the consequences shown make it impossible; explain why in the body or error. */
-  isConfirmDisabled?: boolean;
   error?: string | null;
 };
 
@@ -50,7 +48,6 @@ export const ConfirmationDialog = ({
   onConfirm,
   trigger = null,
   isPending = false,
-  isConfirmDisabled = false,
   error,
 }: ConfirmationDialogProps) => {
   const descriptionId = useId();
@@ -90,7 +87,6 @@ export const ConfirmationDialog = ({
               label={confirmLabel}
               pendingLabel={pendingLabel}
               pending={isPending}
-              disabled={isConfirmDisabled}
               onConfirm={onConfirm}
             />
           </Inline>
@@ -112,14 +108,12 @@ const ConfirmAction = ({
   label,
   pendingLabel,
   pending,
-  disabled,
   onConfirm,
 }: {
   intent: "default" | "destructive";
   label: string;
   pendingLabel?: string;
   pending: boolean;
-  disabled: boolean;
   onConfirm: () => void;
 }) => {
   const pendingMessage = pending ? (pendingLabel ?? label) : null;
@@ -129,7 +123,6 @@ const ConfirmAction = ({
         variant={intent === "destructive" ? "destructive" : "primary"}
         aria-busy={pending}
         aria-disabled={pending}
-        isDisabled={disabled}
         onPress={pending ? undefined : onConfirm}
       >
         {pendingMessage ?? label}

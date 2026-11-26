@@ -204,8 +204,8 @@ person or verified client and the server clock.
 An application whose current committee decision is Fund or Fund with conditions cannot be
 withdrawn: the server rejects it with `application_has_commitment`, so a new decision
 version, such as Decline with an explanation, must be [recorded](record-decisions.md) first.
-The withdrawal dialog states this up front and withholds its confirmation action, so no
-date or reason is entered for a withdrawal that cannot be recorded.
+The withdrawal dialog explains this and offers only **Close**, so no date or reason is
+entered for a withdrawal that cannot be recorded.
 A current Defer or Decline does not block withdrawal; the decision stays readable but
 cannot change until the application is reinstated.
 

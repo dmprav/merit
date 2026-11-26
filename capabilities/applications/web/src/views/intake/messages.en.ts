@@ -131,6 +131,7 @@ export const intakeMessages = {
       "Discard the shared working revision? The current application and earlier versions will be kept.",
     inUse:
       "Only applications never marked ready and without recorded judgments or committee decisions can be deleted.",
+    close: "Close",
     hasCommitment:
       "This application has committed funding. Record a new decision version, such as Decline, with an explanation before withdrawing it.",
     deleted: "This application was deleted. Start a new creation to continue.",

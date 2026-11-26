@@ -142,8 +142,10 @@ export const WithdrawFundedApplication: Story = {
     await userEvent.click(body.getByRole("menuitem", { name: "Withdraw application" }));
     const dialog = within(body.getByRole("dialog"));
 
-    await expect(await dialog.findByRole("alert")).toHaveTextContent(/has committed funding/);
-    await expect(dialog.getByRole("button", { name: "Withdraw application" })).toBeDisabled();
+    // The dialog fades in, so wait for its explanation to be shown.
+    await waitFor(() => expect(dialog.getByText(/has committed funding/)).toBeVisible());
+    await expect(dialog.queryByRole("textbox")).not.toBeInTheDocument();
+    await expect(dialog.getByRole("button", { name: "Close" })).toBeVisible();
   },
 };
 
