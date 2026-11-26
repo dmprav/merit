@@ -254,7 +254,9 @@ test(
     await page.evaluate(() => {
       document.documentElement.style.fontSize = "200%";
     });
-    await expect(dialog).toHaveAttribute("data-scroll-content");
+    // Below 30rem of viewport height the whole panel scrolls, with heading and actions in the flow.
+    await expect(dialog).toHaveCSS("overflow-y", "auto");
+    await expect(body).toHaveCSS("overflow-y", "visible");
     await close.focus();
     await expect(close).toBeInViewport({ ratio: 1 });
     await body.focus();
@@ -269,7 +271,10 @@ test(
     await page.evaluate(() => {
       document.documentElement.style.fontSize = "100%";
     });
-    await expect(dialog).not.toHaveAttribute("data-scroll-content");
+    await page.setViewportSize({ width: 390, height: 800 });
+    // With room to spare only the body scrolls, and the heading and actions stay put.
+    await expect(dialog).not.toHaveCSS("overflow-y", "auto");
+    await expect(body).toHaveCSS("overflow-y", "auto");
     await expect.poll(() => dialog.evaluate((node) => node.scrollTop)).toBe(0);
     await expect(close).toBeInViewport({ ratio: 1 });
     await expect(done).toBeInViewport({ ratio: 1 });

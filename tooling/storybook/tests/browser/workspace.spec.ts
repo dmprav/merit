@@ -121,19 +121,13 @@ test(
       await expect(close).toBeInViewport({ ratio: 1 });
     }
 
-    // With enlarged text, narrow layouts scroll the whole task instead of only its fields.
-    for (const [width, scrollsTask] of [
-      [900, false],
-      [320, true],
+    // With enlarged text, a short viewport scrolls the whole task instead of only its fields.
+    for (const [height, scrollsTask] of [
+      [1000, false],
+      [440, true],
     ] as const) {
-      await page.setViewportSize({ width, height: 1000 });
-      // The dialog changes its scrolling in a later frame; focusing before then reveals the
-      // field in the outgoing layout.
-      if (scrollsTask) {
-        await expect(dialog).toHaveAttribute("data-scroll-content");
-      } else {
-        await expect(dialog).not.toHaveAttribute("data-scroll-content");
-      }
+      await page.setViewportSize({ width: 320, height });
+      await expect(dialog).toHaveCSS("overflow-y", scrollsTask ? "auto" : "visible");
       await input.focus();
       await expect(input).toBeInViewport({ ratio: 1 });
       await input.press("ArrowRight");
@@ -328,7 +322,8 @@ test(
   "contact application side panel bounds a long list and keeps the close action reachable",
   { tag: "@cross-browser" },
   async ({ page }) => {
-    await page.setViewportSize({ width: page.viewportSize()!.width, height: 360 });
+    // Above 30rem of height only the list scrolls; shorter viewports scroll the whole panel.
+    await page.setViewportSize({ width: page.viewportSize()!.width, height: 520 });
     await page.goto(
       "/iframe.html?id=features-contacts-directory--many-applications&viewMode=story",
     );

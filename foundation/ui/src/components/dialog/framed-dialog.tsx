@@ -1,8 +1,8 @@
 import type { DialogProps } from "react-aria-components/Dialog";
 
 import { DialogFrameContext } from "./dialog-content";
+import { FrameHeader } from "./frame";
 import styles from "./framed-dialog.module.css";
-import { FramedHeader } from "./framed-header";
 import { ModalFrame, type ModalFrameProps } from "./modal-frame";
 
 export type FramedDialogProps = Pick<
@@ -27,7 +27,7 @@ export type FramedDialogProps = Pick<
 
 /**
  * The titled frame shared by centered dialogs and side panels: a header with optional
- * context, then `DialogContent` with its gutters and footer.
+ * context, then `DialogContent` with its gutters and footer. The frame anatomy lives in `frame`.
  */
 export const FramedDialog = ({
   frame,
@@ -54,12 +54,12 @@ export const FramedDialog = ({
         frame === "end"
           ? styles.sidePanel
           : `${styles.centered} ${width === "narrow" ? (styles.narrow ?? "") : ""}`,
-      dialog: styles.dialog,
+      dialog: frame === "end" ? styles.sidePanelDialog : styles.centeredDialog,
     }}
   >
     {(close) => (
       <DialogFrameContext value={{ framed: true, title }}>
-        <FramedHeader
+        <FrameHeader
           title={title}
           context={context}
           contextLabel={contextLabel}

@@ -3,6 +3,7 @@ import { Dialog, DialogTrigger } from "react-aria-components/Dialog";
 import { Modal, ModalOverlay, type ModalOverlayProps } from "react-aria-components/Modal";
 
 import motion from "../../foundations/motion.module.css";
+import { frameRoot, type FramePlacement } from "./frame";
 import styles from "./modal-frame.module.css";
 
 export type ModalFrameProps = Omit<ModalOverlayProps, "children" | "className" | "style"> & {
@@ -48,8 +49,8 @@ export const ModalFrame = ({
   ...props
 }: ModalFrameProps & {
   classNames: { overlay?: string; modal?: string; dialog?: string };
-  /** Frames whose content takes part in the whole-surface scrolling fallback. */
-  frame?: "center" | "end";
+  /** Titled frames take the shared frame anatomy, including the short-viewport scrolling fallback. */
+  frame?: Extract<FramePlacement, "center" | "end">;
   /** Names a frame without a visible heading. */
   "aria-label"?: string;
   children: (close: () => void) => ReactNode;
@@ -60,6 +61,8 @@ export const ModalFrame = ({
     }
   };
 
+  const dialogClassName = `${styles.dialog} ${classNames.dialog ?? ""}`;
+  const root = frame ? frameRoot(frame, dialogClassName) : { className: dialogClassName };
   const overlayState =
     trigger == null ? { isOpen, defaultOpen, onOpenChange: handleOpenChange } : {};
   const overlay = (
@@ -74,7 +77,7 @@ export const ModalFrame = ({
         <RetainedDialogContent isOpen={state.isOpen}>
           <Modal className={classNames.modal}>
             <Dialog
-              className={`${styles.dialog} ${classNames.dialog ?? ""}`}
+              {...root}
               aria-label={ariaLabel}
               aria-describedby={descriptionId}
               data-modal-dialog={frame}

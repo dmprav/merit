@@ -14,6 +14,14 @@ import {
 
 import { ActionMenu } from "../../components/action-menu/action-menu";
 import { Button } from "../../components/button/button";
+import { DialogFrameContext } from "../../components/dialog/dialog-content";
+import {
+  FrameBar,
+  FrameBody,
+  FrameFooter,
+  FrameTitle,
+  frameRoot,
+} from "../../components/dialog/frame";
 import { Icon } from "../../components/icon/icon";
 import styles from "./reference-workspace.module.css";
 
@@ -97,10 +105,9 @@ export const ReferencePane = ({
   }, []);
   return (
     <ReadingViewportContext value={viewport}>
-      <div className={styles.reference} id={`${id}-reference`}>
-        {toolbar && <div className={styles.toolbar}>{toolbar}</div>}
-        <div
-          className={styles.content}
+      <div {...frameRoot("pane", styles.reference)} id={`${id}-reference`}>
+        {toolbar && <FrameBar>{toolbar}</FrameBar>}
+        <FrameBody
           ref={viewport}
           data-reading-viewport
           tabIndex={0}
@@ -108,16 +115,16 @@ export const ReferencePane = ({
           aria-label={label}
         >
           {children}
-        </div>
+        </FrameBody>
       </div>
     </ReadingViewportContext>
   );
 };
 
 /**
- * The working side. A `title` adds a pane header with optional `titleActions`.
- * Use `fill` when the child owns its scrolling and actions, such as a `Form`;
- * otherwise the pane scrolls and an optional `footer` keeps actions in reach.
+ * The working side. Its header shows `title`, or the pane's `label` when there is none,
+ * with optional `titleActions`. Use `fill` when the child owns its scrolling and actions,
+ * such as a `Form`; otherwise the pane scrolls and an optional `footer` keeps actions in reach.
  */
 export const WorkPane = ({
   label,
@@ -133,6 +140,7 @@ export const WorkPane = ({
   label: string;
   /** Use `section` when the work is the page's main task rather than supporting it. */
   as?: "aside" | "section";
+  /** Defaults to `label`. */
   title?: ReactNode;
   titleRef?: Ref<HTMLHeadingElement>;
   /** Compact status beside the title, such as a due-date badge and a control that explains it. */
@@ -146,36 +154,36 @@ export const WorkPane = ({
   const viewport = useRef<HTMLDivElement>(null);
   return (
     <ReadingViewportContext value={viewport}>
-      <Element id={`${id}-work`} className={styles.work} aria-label={label}>
+      <Element {...frameRoot("pane", styles.work)} id={`${id}-work`} aria-label={label}>
         {toReferenceLabel && (
           <a className={styles.jump} href={`${"#"}${id}-reference`}>
             {toReferenceLabel}
             <Icon name="ascending" />
           </a>
         )}
-        {title && (
-          <div className={styles.toolbar} data-title>
-            <div className={styles.title}>
-              <h2 ref={titleRef} tabIndex={-1}>
-                {title}
-              </h2>
-              {titleMeta}
-            </div>
-            {titleActions}
+        <FrameBar>
+          <FrameTitle plain title={title || label} titleRef={titleRef} focusable meta={titleMeta} />
+          {titleActions}
+        </FrameBar>
+        {fill ? (
+          // The child, such as a `Form`, supplies the frame's body and footer through `DialogContent`.
+          <div ref={viewport} data-reading-viewport className={styles.fill}>
+            <DialogFrameContext value={{ framed: true, title: label }}>
+              {children}
+            </DialogFrameContext>
           </div>
+        ) : (
+          <FrameBody
+            ref={viewport}
+            data-reading-viewport
+            tabIndex={0}
+            role="group"
+            aria-label={label}
+          >
+            {children}
+          </FrameBody>
         )}
-        <div
-          ref={viewport}
-          data-reading-viewport
-          className={styles.content}
-          data-fill={fill || undefined}
-          tabIndex={fill ? undefined : 0}
-          role="group"
-          aria-label={label}
-        >
-          {children}
-        </div>
-        {footer && <div className={styles.footer}>{footer}</div>}
+        <FrameFooter>{footer && <div className={styles.footerRow}>{footer}</div>}</FrameFooter>
       </Element>
     </ReadingViewportContext>
   );

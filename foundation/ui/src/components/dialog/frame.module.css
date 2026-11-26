@@ -1,0 +1,215 @@
+/*
+ * The one anatomy shared by every titled surface: a header bar, a body that is the only part that
+ * scrolls, and a footer area for feedback and actions. Each placement sets its own gutter, bar,
+ * and body padding here, so surfaces cannot drift apart. The scroll-linked edges come from
+ * `scroll-area.module.css`: the header edge appears once the body scrolls under it, the footer
+ * edge while content continues below it.
+ */
+.frame {
+  --frame-gutter: var(--space-6);
+  --frame-bar: var(--bar-height);
+  --frame-body-top: var(--space-5);
+  --frame-body-bottom: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  /* The header edge follows the body that scrolls below it. */
+  timeline-scope: --frame-body;
+  --edge-timeline: --frame-body;
+}
+
+.frame[data-frame="popover"] {
+  --frame-gutter: var(--space-4);
+  --frame-bar: var(--control-height-small);
+  --frame-body-top: var(--space-3);
+}
+
+.frame[data-frame="pane"] {
+  --frame-gutter: var(--pane-inset);
+}
+
+@media (max-width: 600px) {
+  .frame:is([data-frame="center"], [data-frame="end"], [data-frame="companion"]) {
+    --frame-gutter: var(--space-5);
+  }
+}
+
+.header {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--frame-bar);
+  padding: var(--space-2) var(--frame-gutter);
+  background: var(--surface);
+}
+
+/* The docked companion and workspace panes continue the shell's top-bar line, so their rule stays. */
+.frame:is([data-frame="companion"], [data-frame="pane"]) > .header {
+  border-block-end: 1px solid var(--border);
+  box-shadow: 0 10px 12px -12px var(--edge-shade);
+}
+
+.heading {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  min-width: 0;
+}
+
+.title {
+  min-width: 0;
+  font-size: var(--text-body);
+  line-height: 1.4;
+  font-weight: var(--weight-heading);
+  overflow-wrap: anywhere;
+}
+
+.title:focus {
+  outline: none;
+  color: var(--action);
+}
+
+.context {
+  flex: 1 1 12rem;
+  min-width: 0;
+  color: var(--muted);
+  font-size: var(--text-caption);
+  overflow-wrap: anywhere;
+}
+
+/* The close glyph ends at the gutter: the button's own inset beside the 1rem icon is outdented. */
+.actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: var(--space-1);
+  margin-inline-end: calc((1rem - var(--button-height)) / 2);
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+
+/* Nested content has no header, so it scopes its own footer edge to its body. */
+.content:not([data-framed]) {
+  timeline-scope: --frame-body;
+  --edge-timeline: --frame-body;
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scroll-padding-block: var(--space-2);
+  overscroll-behavior-y: contain;
+  /* Positioned descendants, such as visually hidden live regions, stay inside the body. */
+  position: relative;
+  /* The frame's header and footer edges follow how far this body has scrolled. */
+  scroll-timeline: --frame-body block;
+  /* Leave room for system focus indicators in forced-colors mode. */
+  margin-inline: calc(-1 * var(--control-focus-width));
+  padding: var(--control-focus-width) var(--control-focus-width) var(--space-4);
+}
+
+.body[data-framed] {
+  margin: 0;
+  padding: var(--frame-body-top) var(--frame-gutter) var(--frame-body-bottom);
+}
+
+.body:focus-visible {
+  outline: none;
+  box-shadow: inset 2px 0 var(--focus);
+}
+
+.frame[data-frame="pane"] .body:focus-visible {
+  outline: 1px solid var(--action);
+  outline-offset: -1px;
+  box-shadow: none;
+}
+
+.body:only-child:not([data-framed]) {
+  padding-bottom: var(--control-focus-width);
+}
+
+.body[data-reading] {
+  font-size: var(--text-reading);
+  line-height: var(--leading-reading);
+}
+
+/* Line length belongs to the prose, so the scrollbar stays at the frame's edge. */
+.body[data-reading] > * {
+  max-width: var(--measure-reading);
+}
+
+/* A state that replaces the whole body, such as preparing an editor, sits in a stable space. */
+.body:has(> [data-body-state]:only-child) {
+  display: grid;
+  place-items: center;
+  min-height: 10rem;
+}
+
+/* Feedback sits above the actions, inside the fixed footer area. */
+.footer {
+  flex-shrink: 0;
+  min-width: 0;
+  margin-top: auto;
+  padding: var(--space-4) 0 0;
+  background: var(--surface);
+}
+
+.footer[data-framed] {
+  padding: var(--space-4) var(--frame-gutter);
+}
+
+.feedback {
+  min-width: 0;
+  padding-bottom: var(--space-3);
+}
+
+.footerActions {
+  min-width: 0;
+}
+
+/*
+ * A form's actions stay in view at the bottom of a pane that scrolls. The body publishes its
+ * end padding so the footer can reach the pane's edge, and fields scrolled into view stay above it.
+ */
+.footer[data-sticky] {
+  position: sticky;
+  bottom: calc(-1 * var(--frame-sticky-inset, 0px));
+  z-index: 2;
+  margin-inline: calc(-1 * var(--frame-gutter));
+}
+
+/*
+ * A short viewport has no room to keep a heading and actions beside a reading space, so the
+ * whole centered dialog or side panel scrolls, with its header and footer flowing with the content.
+ */
+@media (max-height: 30rem) {
+  .frame:is([data-frame="center"], [data-frame="end"]) {
+    overflow-y: auto;
+    scroll-padding-block: var(--space-2);
+  }
+
+  .frame:is([data-frame="center"], [data-frame="end"]) > *,
+  .frame:is([data-frame="center"], [data-frame="end"]) .content {
+    flex: none;
+  }
+
+  .frame:is([data-frame="center"], [data-frame="end"]) .body {
+    overflow: visible;
+  }
+}
+
+@media (forced-colors: active) {
+  .title:focus {
+    outline: 2px solid Highlight;
+  }
+}

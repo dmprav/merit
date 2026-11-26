@@ -7,7 +7,7 @@ import {
 } from "react";
 
 import { Button } from "@merit/ui/button";
-import { DialogContent, ModalDialog } from "@merit/ui/dialog";
+import { DialogContent, FrameFooter, ModalDialog } from "@merit/ui/dialog";
 import { Notice } from "@merit/ui/notice";
 import { Text } from "@merit/ui/text";
 
@@ -46,6 +46,48 @@ export const FormDialog = ({
   </ModalDialog>
 );
 
+/** Places the fields, feedback, and actions in the frame the form sits in. */
+const FormLayout = ({
+  label,
+  scrollFields,
+  stickyActions,
+  feedback,
+  footer,
+  children,
+}: {
+  label: string;
+  scrollFields: boolean;
+  stickyActions: boolean;
+  feedback: ReactNode;
+  footer: ReactNode;
+  children: ReactNode;
+}) => {
+  if (scrollFields) {
+    return (
+      <DialogContent label={label} role="group" feedback={feedback} footer={footer}>
+        {children}
+      </DialogContent>
+    );
+  }
+  if (stickyActions) {
+    return (
+      <>
+        {children}
+        <FrameFooter sticky feedback={feedback}>
+          {footer}
+        </FrameFooter>
+      </>
+    );
+  }
+  return (
+    <>
+      {children}
+      {feedback && <div className={localStyles.feedback}>{feedback}</div>}
+      {footer}
+    </>
+  );
+};
+
 /**
  * Names the form, announces save errors, and disables its fields and their popups while saving.
  * After validation, focuses the first enabled invalid control. Failed saves restore
@@ -68,8 +110,8 @@ export const Form = ({
   /** inline puts a single field's actions beside it, such as renaming in place. */
   layout?: "stacked" | "inline";
   /**
-   * Keep the actions in view at the bottom of a long form that scrolls with its pane. Fields
-   * scrolled into view stay above them.
+   * Keep the actions, save status, and any save error in the frame footer, in view at the
+   * bottom of a long form that scrolls with its pane. Fields scrolled into view stay above them.
    */
   stickyActions?: boolean;
   /** Scroll fields within a bounded parent while keeping errors and actions visible. */
@@ -122,7 +164,7 @@ export const Form = ({
   const footer = (
     <fieldset
       disabled={submission.isSubmitting}
-      className={`${localStyles.footer} ${scrollFields ? "" : localStyles.inlineFooter}`}
+      className={`${localStyles.footer} ${scrollFields || stickyActions ? "" : localStyles.inlineFooter}`}
     >
       {actions}
     </fieldset>
@@ -147,17 +189,15 @@ export const Form = ({
           onKeyDownCapture={handleKeyDown}
           onSubmit={handleSubmit}
         >
-          {scrollFields ? (
-            <DialogContent label={label} role="group" feedback={feedback} footer={footer}>
-              {fields}
-            </DialogContent>
-          ) : (
-            <>
-              {fields}
-              {feedback && <div className={localStyles.feedback}>{feedback}</div>}
-              {footer}
-            </>
-          )}
+          <FormLayout
+            label={label}
+            scrollFields={scrollFields}
+            stickyActions={stickyActions}
+            feedback={feedback}
+            footer={footer}
+          >
+            {fields}
+          </FormLayout>
         </form>
       </FormDialogContext>
     </FormPendingContext>

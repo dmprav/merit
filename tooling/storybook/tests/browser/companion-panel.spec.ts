@@ -22,7 +22,7 @@ test.describe("companion panel layout", () => {
     const bounds = (await panel.boundingBox())!;
     const main = (await page.locator("#main").boundingBox())!;
 
-    expect(bounds.width).toBe(416);
+    expect(bounds.width).toBe(448);
     expect(bounds.x + bounds.width).toBe(1440);
     expect(bounds.y).toBe(0);
     expect(bounds.height).toBe(160);
@@ -56,7 +56,7 @@ test.describe("companion panel layout", () => {
   });
 
   for (const [width, sheetWidth] of [
-    [1280, 400],
+    [1280, 448],
     [390, 390],
   ] as const) {
     test(`opens a ${sheetWidth} pixel modal sheet at ${width} pixels`, async ({ page }) => {

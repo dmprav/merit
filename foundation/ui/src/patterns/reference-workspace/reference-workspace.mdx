@@ -27,7 +27,13 @@ short screens stack the panes and link between them.
   criteria. Keep the switcher in the same place when reading and editing, with
   the same labels for the same destinations. Keep each choice mounted with
   `hidden` so reading positions and unfinished input survive switching.
-- `WorkPane` holds the task. A `title` gives it a pane header for state actions,
+- Both panes use the same [frame anatomy](?path=/docs/components-dialog--docs) as dialogs: a
+  header bar, one scrolling body, and a footer. The bars share one height, so their rules line up
+  across the split, and both bodies start at the same distance below them. Pane headers keep
+  their rule at rest because they continue the application top bar's line; footers show their edge
+  only while content continues below.
+- `WorkPane` holds the task. Its header is always present: it shows the `title`, or the
+  pane's `label` when there is none, and holds state actions,
   such as closing an editor or starting an amendment. `titleMeta` keeps compact
   facts about the task beside the title, such as a due-date `Badge` and an info
   control whose popover explains who asked and who can read the work. `footer` keeps status and
