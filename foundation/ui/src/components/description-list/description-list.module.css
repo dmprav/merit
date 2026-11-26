@@ -21,11 +21,9 @@
 .value {
   margin: 0;
   min-width: 0;
-  min-height: var(--control-height-small);
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  justify-content: center;
 }
 
 .list[data-layout="rows"] {
@@ -35,7 +33,7 @@
 
 .list[data-layout="rows"] .item {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr);
+  grid-template-columns: minmax(7.5rem, 8.5rem) minmax(0, 1fr);
   align-items: center;
   gap: var(--space-3);
 }
@@ -56,15 +54,17 @@
   gap: var(--space-3) var(--space-5);
 }
 
+/* Items share the value column, so every value ends at one edge, with or without a trailing icon. */
 .list[data-layout="figures"] {
-  gap: var(--space-1);
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-1) var(--space-3);
 }
 
 .list[data-layout="figures"] .item {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
   align-items: center;
-  gap: var(--space-3);
 }
 
 .list[data-layout="figures"] .label {
@@ -74,6 +74,7 @@
 .list[data-layout="figures"] .value {
   flex-direction: row;
   align-items: center;
+  justify-content: flex-end;
   gap: var(--space-1);
   min-height: var(--space-6);
   font-variant-numeric: tabular-nums;

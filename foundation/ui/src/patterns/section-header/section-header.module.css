@@ -27,8 +27,17 @@
   font-weight: var(--weight-heading);
 }
 
+.header[data-level="3"] .title {
+  font-size: var(--text-subsection);
+}
+
+:is(.header[data-level="4"], .header[data-level="5"]) .title {
+  font-size: var(--text-body);
+}
+
+/* A pane's summary headings read as headings, apart from the muted labels beneath them. */
 .header[data-emphasis="quiet"] .title {
-  color: var(--muted);
+  color: var(--foreground);
   font-size: var(--text-detail);
   font-weight: var(--weight-medium);
 }

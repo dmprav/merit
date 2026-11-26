@@ -46,6 +46,23 @@ keep its compact controls while leaving room for touch targets, longer translati
 and enlarged text. The [page composition guide](?path=/docs/patterns-page-composition--docs)
 applies these choices to whole screens.
 
+## Heading scale
+
+**Give each heading level its own step, never smaller than the text it introduces.**
+Headings use `--weight-heading` and step down with the level:
+
+| Level                | Size                               | Product size |
+| -------------------- | ---------------------------------- | ------------ |
+| Page title           | `--text-page`                      | 24px         |
+| Section (level 2)    | `--text-section`                   | 17px         |
+| Subsection (level 3) | `--text-subsection`                | 15px         |
+| Levels 4 and 5       | `--text-body`                      | 13px         |
+| Quiet pane heading   | `--text-detail`, `--weight-medium` | 13px         |
+
+Set the level through `SectionHeader`'s `level` and keep the DOM levels sequential, rather than
+skipping one for its look. Separate consecutive sections with `--space-section` (28px), through
+`Stack gap="section"` or `PanelSections`; the space under a section heading stays `--space-3`.
+
 ## Typeface
 
 **Use one typeface and let size and weight carry the hierarchy.** Merit sets all

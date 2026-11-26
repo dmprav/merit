@@ -38,6 +38,8 @@
   --space-6: 1.5rem;
   --space-7: 1.75rem;
   --space-8: 2rem;
+  /* Between consecutive sections, whatever container holds them. */
+  --space-section: var(--space-7);
 
   /* Page frame */
   --measure-page: 75rem;
@@ -53,7 +55,9 @@
   --text-reading: 0.9375rem;
   --leading-reading: 1.7;
   --measure-reading: 65ch;
-  --text-section: 0.875rem;
+  /* Headings step down page, section, subsection, then body text: each level larger than the text it introduces. */
+  --text-section: 1.0625rem;
+  --text-subsection: var(--text-reading);
   --text-page: 1.5rem;
   --text-page-compact: 1.375rem;
   --text-display: clamp(1.875rem, 4vw, 2.5rem);

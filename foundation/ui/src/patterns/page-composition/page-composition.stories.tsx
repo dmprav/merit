@@ -91,6 +91,13 @@ export const SectionHeaders: Story = {
           Keep qualified counts outside the heading so their meaning stays clear.
         </p>
       </section>
+      <section className={styles.section} aria-labelledby="criteria-title">
+        <SectionHeader id="criteria-title" title="Assessment criteria" />
+        <SectionHeader level={3} title="Community need" />
+        <p className={styles.description}>How clearly the proposal shows who it serves.</p>
+        <SectionHeader level={4} title="Evidence" />
+        <p className={styles.description}>Survey results and letters of support.</p>
+      </section>
       <section
         className={`${styles.section} ${styles.narrow}`}
         aria-labelledby="recommendation-title"
@@ -144,7 +151,7 @@ const renderPageLayout = ({
         </>
       }
     />
-    <Stack gap={7}>
+    <Stack gap="section">
       <section aria-labelledby="purpose">
         <SectionHeader id="purpose" title="Purpose" />
         <Reading as="p">

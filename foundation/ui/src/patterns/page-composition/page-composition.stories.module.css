@@ -12,7 +12,7 @@
 }
 
 .section + .section {
-  margin-top: var(--space-6);
+  margin-top: var(--space-section);
 }
 
 .narrow {
@@ -37,7 +37,7 @@
 }
 
 .reading section {
-  margin-top: var(--space-7);
+  margin-top: var(--space-section);
 }
 
 .reading blockquote {
