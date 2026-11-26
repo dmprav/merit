@@ -1048,7 +1048,7 @@ describe("runQueueCommand", () => {
     ]);
   });
 
-  test("opens a pull request from --body-file and prints unaddressed threads as indented JSON", () => {
+  test("opens a pull request with the body read from --body-file", () => {
     const { client, created } = fakePullClient();
     expect(
       runQueueCommand(
@@ -1057,10 +1057,15 @@ describe("runQueueCommand", () => {
       ),
     ).toBe('{"status":"created","number":301,"url":"https://github.com/pr/301","headRefName":"b"}');
     expect(created).toEqual([{ title: "T", head: "b", base: "main", body: "contents of pr.md" }]);
+  });
 
+  test("prints a pull request without unaddressed threads as an empty list", () => {
     expect(
       runQueueCommand(parseQueueArgs(["threads", "221"]), deps({ listReviewComments: () => [] })),
     ).toBe("[]");
+  });
+
+  test("leaves already initialized shepherd state alone with --if-uninitialized", () => {
     expect(
       runQueueCommand(
         parseQueueArgs(["record-shepherd", "221", "--round", "1", "--if-uninitialized"]),
