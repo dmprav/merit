@@ -80,6 +80,49 @@ describe("advancing scout state", () => {
     ).toEqual({ kind: "parsed", state: { docs: docsCursor, tests: testsCursor } });
   });
 
+  test("keeps sibling entries it cannot validate, such as a short SHA or an unknown lens", () => {
+    const shortShaDocs = { lastCommitSha: "abc", lastRunAt: "2026-11-22T00:00:00Z" };
+    const renamedLens = { lastCommitSha: "abcdef12", lastRunAt: "2026-11-21T00:00:00Z" };
+    const issueBody = `State store.\n\n<!-- merit-scout-state: ${JSON.stringify({
+      docs: shortShaDocs,
+      documentation: renamedLens,
+    })} -->`;
+
+    const { body } = advanceScoutStateBody({
+      issueNumber: 219,
+      issueBody,
+      lens: "tests",
+      nextCursor,
+    });
+
+    expect(body).toBe(
+      `State store.\n\n<!-- merit-scout-state: ${JSON.stringify({
+        docs: shortShaDocs,
+        documentation: renamedLens,
+        tests: testsCursor,
+      })} -->`,
+    );
+    expect(parseScoutState(body)).toEqual({ kind: "parsed", state: { tests: testsCursor } });
+  });
+
+  test("replaces the advanced lens's own invalid cursor and passes it on as no previous cursor", () => {
+    const issueBody = `<!-- merit-scout-state: ${JSON.stringify({ tests: { lastCommitSha: "abc" } })} -->`;
+    const previous: unknown[] = [];
+
+    const { body } = advanceScoutStateBody({
+      issueNumber: 219,
+      issueBody,
+      lens: "tests",
+      nextCursor: (cursor) => {
+        previous.push(cursor);
+        return testsCursor;
+      },
+    });
+
+    expect(previous).toEqual([undefined]);
+    expect(body).toBe(`<!-- merit-scout-state: ${JSON.stringify({ tests: testsCursor })} -->`);
+  });
+
   test.each([
     {
       name: "a trailing comma inside the marker JSON",

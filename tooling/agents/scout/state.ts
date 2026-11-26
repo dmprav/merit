@@ -27,13 +27,15 @@ export type ScoutStateRead =
   | { kind: "parsed"; state: ScoutState }
   | { kind: "corrupt"; error: string };
 
-/**
- * Reads the state marker from the state issue body. A marker that is missing reads as `absent`; one
- * that is present but unreadable reads as `corrupt` so callers never mistake it for empty state.
- * Lens cursors inside a readable marker are parsed independently, so one corrupt entry is dropped
- * without wiping sibling lenses.
- */
-export const parseScoutState = (issueBody: string): ScoutStateRead => {
+type MarkerEntries = Record<string, unknown>;
+
+type MarkerRead =
+  | { kind: "absent" }
+  | { kind: "parsed"; entries: MarkerEntries }
+  | { kind: "corrupt"; error: string };
+
+/** Reads the marker's JSON object as it is stored, before any lens cursor is validated. */
+const readMarker = (issueBody: string): MarkerRead => {
   const match = STATE_MARKER_PATTERN.exec(issueBody);
   if (!match?.[1]) {
     return STATE_MARKER_PREFIX_PATTERN.test(issueBody)
@@ -52,8 +54,22 @@ export const parseScoutState = (issueBody: string): ScoutStateRead => {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
     return { kind: "corrupt", error: "the marker JSON is not an object" };
   }
+  return { kind: "parsed", entries: { ...raw } };
+};
+
+/**
+ * Reads the state marker from the state issue body. A marker that is missing reads as `absent`; one
+ * that is present but unreadable reads as `corrupt` so callers never mistake it for empty state.
+ * Lens cursors inside a readable marker are parsed independently, so one corrupt entry is dropped
+ * without wiping sibling lenses.
+ */
+export const parseScoutState = (issueBody: string): ScoutStateRead => {
+  const read = readMarker(issueBody);
+  if (read.kind !== "parsed") {
+    return read;
+  }
   const state: ScoutState = {};
-  for (const [key, value] of Object.entries(raw)) {
+  for (const [key, value] of Object.entries(read.entries)) {
     const lensResult = lensNameSchema.safeParse(key);
     const cursorResult = lensCursorSchema.safeParse(value);
     if (lensResult.success && cursorResult.success) {
@@ -82,7 +98,10 @@ export const scoutStateForReading = (
   return read.kind === "parsed" ? read.state : {};
 };
 
-export const formatScoutStateBody = (existingBody: string, state: ScoutState): string => {
+export const formatScoutStateBody = (
+  existingBody: string,
+  state: ScoutState | MarkerEntries,
+): string => {
   const marker = `<!-- merit-scout-state: ${JSON.stringify(state)} -->`;
   if (STATE_MARKER_PATTERN.test(existingBody)) {
     return existingBody.replace(STATE_MARKER_PATTERN, marker);
@@ -92,9 +111,10 @@ export const formatScoutStateBody = (existingBody: string, state: ScoutState): s
 };
 
 /**
- * Computes the state issue body that records the next cursor for `lens`, keeping every sibling lens
- * cursor. Refuses before computing the cursor when the marker is corrupt, because rewriting it would
- * erase the cursors it still holds.
+ * Computes the state issue body that records the next cursor for `lens`, keeping every sibling entry
+ * exactly as stored, including ones lens selection ignores because they fail validation or name an
+ * unknown lens. Refuses before computing the cursor when the marker is corrupt, because rewriting it
+ * would erase the cursors it still holds.
  */
 export const advanceScoutStateBody = ({
   issueNumber,
@@ -107,15 +127,16 @@ export const advanceScoutStateBody = ({
   lens: ScoutLens;
   nextCursor: (previous: LensCursor | undefined) => LensCursor;
 }): { body: string; cursor: LensCursor } => {
-  const read = parseScoutState(issueBody);
+  const read = readMarker(issueBody);
   if (read.kind === "corrupt") {
     throw new Error(
       `Refusing to advance: ${describeCorruptScoutState(issueNumber, read.error)} Then rerun advance.`,
     );
   }
-  const state = read.kind === "parsed" ? read.state : {};
-  const cursor = nextCursor(state[lens]);
-  return { body: formatScoutStateBody(issueBody, { ...state, [lens]: cursor }), cursor };
+  const entries = read.kind === "parsed" ? read.entries : {};
+  const previous = lensCursorSchema.safeParse(entries[lens]);
+  const cursor = nextCursor(previous.success ? previous.data : undefined);
+  return { body: formatScoutStateBody(issueBody, { ...entries, [lens]: cursor }), cursor };
 };
 
 /**
