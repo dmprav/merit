@@ -958,6 +958,32 @@ describe("container delegation and proof reporting", () => {
     }
   });
 
+  it("keeps its Ctrl+C handler installed until teardown finishes", async () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "merit-ui-verify-signal-"));
+    const outDir = join(tempDir, "out");
+    const listenersBefore = process.listenerCount("SIGINT");
+    let listenersDuringTeardown: number | undefined;
+    try {
+      // Releasing the output lock is the last teardown step.
+      fsRace.path = join(outDir, ".ui-verify.lock");
+      fsRace.run = () => {
+        listenersDuringTeardown = process.listenerCount("SIGINT");
+      };
+      const results = await runUiVerify(
+        { ...parseCliArgs(["--out", outDir]), routes: ["//evil.test/app"] },
+        { repoRoot: tempDir, log: () => undefined },
+      );
+
+      expect(results.error).toMatch(/Protocol-relative routes are not allowed/);
+
+      expect(listenersDuringTeardown).toBe(listenersBefore + 1);
+      expect(process.listenerCount("SIGINT")).toBe(listenersBefore);
+    } finally {
+      fsRace.run = undefined;
+      rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
   it("writes failed results.json and report.md when route validation fails inside runUiVerify", async () => {
     const tempDir = mkdtempSync(join(tmpdir(), "merit-ui-verify-route-fail-"));
     const outDir = join(tempDir, "out");

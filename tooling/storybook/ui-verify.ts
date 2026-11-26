@@ -2576,9 +2576,10 @@ export const runUiVerify = async (
     writeProofArtifacts(outDir, results);
     return results;
   } finally {
+    // An interrupt during teardown, such as while the database is dropped, waits for it to finish.
+    await runCleanups();
     process.off("SIGINT", onSignal);
     process.off("SIGTERM", onSignal);
-    await runCleanups();
   }
 };
 
