@@ -559,6 +559,28 @@ it("keeps settling an unconfirmed delivery after the new turn completes", async 
   expect(await ctx.turns.advance(...address)).toBe("finished");
 });
 
+it("advances the new turn from the saved chat when settling a stopped delivery only saved a read error", async () => {
+  const ctx = await fixture();
+  ctx.model.mockResolvedValueOnce(calls("invite", "only")).mockResolvedValueOnce(answer("Done."));
+  ctx.catalog.execute.mockImplementation(async () => ({
+    ...ok,
+    delivery: { kind: "invitation", assignmentId: "A", messageId: "only" },
+  }));
+  ctx.catalog.deliver.mockResolvedValueOnce("pending").mockRejectedValue(new Error("down"));
+  await ctx.run();
+  const group = (await ctx.open())?.groups[0];
+  assert.isDefined(group);
+  await ctx.turns.approve(...address, { previewId: group.id });
+  await ctx.run();
+  await ctx.turns.stop(...address);
+  await ctx.turns.start(...address, { message: "Anything else?" });
+
+  // The failed read writes its count, and the same step still runs the new turn.
+  expect(await ctx.turns.advance(...address)).toBe("progressed");
+  expect((await ctx.open())?.status).toBe("completed");
+  expect(ctx.model).toHaveBeenCalledTimes(2);
+});
+
 it("records a failed delivery after Stop so the invitation can be retried from the chat", async () => {
   const ctx = await fixture();
   ctx.model.mockResolvedValueOnce(calls("invite", "only"));

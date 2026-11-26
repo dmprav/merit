@@ -115,18 +115,19 @@ const record = async (
   if (outcome === "pending") {
     if (attempt.errors) {
       await saveErrors(access, row, attempt.id, 0);
+      return "saved";
     }
-    return false;
+    return "unchanged";
   }
   if (outcome !== "error") {
-    return recordDelivery(access, attempt.id, outcome);
+    return (await recordDelivery(access, attempt.id, outcome)) ? "recorded" : "unchanged";
   }
   const errors = (attempt.errors ?? 0) + 1;
   if (errors >= failedReadLimit) {
-    return recordDelivery(access, attempt.id, "failed");
+    return (await recordDelivery(access, attempt.id, "failed")) ? "recorded" : "unchanged";
   }
   await saveErrors(access, row, attempt.id, errors);
-  return false;
+  return "saved";
 };
 
 /**
@@ -136,7 +137,7 @@ const record = async (
 export const settleStopped = async (access: Access, row: Stored) => {
   const action = unsettledDelivery(conversationState.parse(row.state));
   if (!action?.delivery || !action.deliveryAttempt) {
-    return false;
+    return "unchanged";
   }
   return record(access, row, action.deliveryAttempt, await ask(access, action.delivery));
 };
@@ -151,7 +152,9 @@ export const deliverNext = async (access: Access, row: Stored) => {
   const next = nextAction(conversationState.parse(row.state));
   const existing = next?.action.deliveryAttempt;
   if (existing && next.action.delivery) {
-    return record(access, row, existing, await ask(access, next.action.delivery));
+    return (
+      (await record(access, row, existing, await ask(access, next.action.delivery))) === "recorded"
+    );
   }
   const id = randomUUID();
   const claimed = await access.locked(row, (state) => {
@@ -179,5 +182,5 @@ export const deliverNext = async (access: Access, row: Stored) => {
   if (!dispatched || !sent.outcome) {
     return false;
   }
-  return record(access, dispatched, { id }, await sent.outcome);
+  return (await record(access, dispatched, { id }, await sent.outcome)) === "recorded";
 };

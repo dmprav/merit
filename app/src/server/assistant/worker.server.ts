@@ -111,7 +111,7 @@ export const advanceTurn = async (
   model: AssistantModel,
   cancellation?: AbortSignal,
 ): Promise<TurnStep> => {
-  const row = await access.read();
+  let row = await access.read();
   if (!row || !(await access.consent())) {
     return "finished";
   }
@@ -119,8 +119,16 @@ export const advanceTurn = async (
   // an approval or a finished answer must not strand it. Asking only reads the message and
   // records its outcome on that action; it never resumes the action or changes the status.
   const unsettled = Boolean(unsettledDelivery(conversationState.parse(row.state)));
-  if (unsettled && (await settleStopped(access, row))) {
+  const settlement = unsettled ? await settleStopped(access, row) : "unchanged";
+  if (settlement === "recorded") {
     return "progressed";
+  }
+  if (settlement === "saved") {
+    // The read-error count was written, so the row read above is stale; step needs the new revision.
+    row = await access.read();
+    if (!row) {
+      return "finished";
+    }
   }
   if (row.status !== "running") {
     // Stop ends all work except recording how an email already sent settles. No model call, no
