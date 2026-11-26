@@ -20,8 +20,10 @@ import {
   parseAgentPrState,
   parseQueueArgs,
   parseRecordShepherdArgs,
+  pickNextIssue,
   runQueueCommand,
   selectNextWork,
+  triagePr,
   type OpenAgentPr,
   type ReadyIssueCandidate,
 } from "./queue.ts";
@@ -33,6 +35,7 @@ const basePr = (overrides: Partial<OpenAgentPr> = {}): OpenAgentPr => ({
   headRefName: "claude/issue-120",
   headSha: "1234567890",
   isDraft: false,
+  stateInitialized: true,
   labels: ["agent:pr"],
   checks: [
     { name: "verify", status: "COMPLETED", conclusion: "SUCCESS" },
@@ -580,6 +583,107 @@ describe("queue", () => {
       flakeReruns: 1,
       lastHeadSha: "abcdef2",
     });
+  });
+});
+
+describe("triagePr", () => {
+  const now = Date.UTC(2026, 10, 22, 12, 0, 0);
+
+  const hoursAgo = (hours: number) => new Date(now - hours * 60 * 60 * 1000).toISOString();
+
+  const failing = [
+    { name: "verify", status: "COMPLETED", conclusion: "FAILURE" },
+    { name: "package-tests", status: "COMPLETED", conclusion: "FAILURE" },
+  ];
+  const thread = { id: "T1", path: "a.ts", line: 3, author: "coderabbitai", body: "Fix" };
+
+  test("needs nothing from a green PR, a fresh draft, or a PR handed to a human", () => {
+    expect(triagePr(basePr(), now)).toBe("skip");
+    expect(triagePr(basePr({ isDraft: true, updatedAt: hoursAgo(1) }), now)).toBe("skip");
+    expect(
+      triagePr(basePr({ labels: ["agent:pr", "agent:needs-human"], checks: failing }), now),
+    ).toBe("skip");
+  });
+
+  test("waits while checks run even when threads are open", () => {
+    expect(
+      triagePr(
+        basePr({
+          checks: [{ name: "verify", status: "QUEUED", conclusion: null }],
+          unresolvedThreads: [thread],
+        }),
+        now,
+      ),
+    ).toBe("waiting");
+  });
+
+  test("escalates stranded drafts and uninitialized PRs with the claim TTL in the reason", () => {
+    expect(triagePr(basePr({ isDraft: true, updatedAt: hoursAgo(3) }), now)).toMatchObject({
+      kind: "escalate",
+      reason: "Draft agent PR was not marked ready within 2 hours; needs human check or cleanup.",
+      failedChecks: [],
+      unresolvedThreadCount: 0,
+    });
+    expect(
+      triagePr(basePr({ stateInitialized: false, createdAt: hoursAgo(3), checks: failing }), now),
+    ).toMatchObject({
+      kind: "escalate",
+      reason:
+        "Agent PR was not initialized with initial state within 2 hours; needs human check or cleanup.",
+    });
+  });
+
+  test("does not rerun browser failures as flakes while review threads are open", () => {
+    expect(
+      triagePr(
+        basePr({
+          checks: [
+            { name: "verify", status: "COMPLETED", conclusion: "FAILURE" },
+            { name: "browser-demo (1/3)", status: "COMPLETED", conclusion: "FAILURE" },
+          ],
+          unresolvedThreads: [thread],
+          failedVerifyRun: { databaseId: 9001, attempt: 1 },
+        }),
+        now,
+      ),
+    ).toMatchObject({ kind: "shepherd", failedChecks: ["verify", "browser-demo (1/3)"] });
+  });
+
+  test("shepherds the recorded issue, else the first linked issue, else none", () => {
+    const shepherd = (overrides: Partial<OpenAgentPr>) =>
+      triagePr(basePr({ checks: failing, ...overrides }), now);
+
+    expect(
+      shepherd({ state: { issueNumber: 7, shepherdRounds: 1, flakeReruns: 0 } }),
+    ).toMatchObject({ kind: "shepherd", issueNumber: 7, nextRound: 2 });
+    expect(shepherd({ body: "Closes #120" })).toMatchObject({ issueNumber: 120, nextRound: 1 });
+    expect(shepherd({ body: "No linked issue" })).toMatchObject({ issueNumber: null });
+    expect(
+      shepherd({
+        unresolvedThreads: [thread],
+        state: { shepherdRounds: 2, flakeReruns: 0 },
+      }),
+    ).toEqual({
+      kind: "escalate",
+      prNumber: 220,
+      headRefName: "claude/issue-120",
+      reason: "Reached max 2 shepherd rounds.",
+      failedChecks: ["verify", "package-tests"],
+      unresolvedThreadCount: 1,
+    });
+  });
+});
+
+describe("pickNextIssue", () => {
+  test("skips issues whose number an open PR records in its state", () => {
+    expect(
+      pickNextIssue(
+        [baseIssue({ number: 131 }), baseIssue({ number: 130 })],
+        [basePr({ body: "", state: { issueNumber: 130, shepherdRounds: 0, flakeReruns: 0 } })],
+        Date.now(),
+      )?.number,
+    ).toBe(131);
+    expect(pickNextIssue([], [], Date.now())).toBeUndefined();
   });
 });
 

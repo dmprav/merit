@@ -78,7 +78,8 @@ export type OpenAgentPr = {
   headRefName: string;
   headSha: string;
   isDraft: boolean;
-  stateInitialized?: boolean;
+  /** Whether a trusted `merit-agent` state comment has been recorded on the PR. */
+  stateInitialized: boolean;
   createdAt?: string;
   updatedAt?: string;
   labels: string[];
@@ -208,7 +209,7 @@ export const hasActiveClaim = (comments: readonly IssueCommentRecord[], nowMs: n
 
 /** Returns true when a draft or uninitialized `agent:pr` has been stranded longer than `CLAIM_TTL_MS`. */
 export const isStaleDraftPr = (pr: OpenAgentPr, nowMs: number): boolean => {
-  const pendingInit = pr.isDraft || pr.stateInitialized === false;
+  const pendingInit = pr.isDraft || !pr.stateInitialized;
   if (!pendingInit || pr.labels.includes(AGENT_LABELS.needsHuman)) {
     return false;
   }
@@ -299,65 +300,86 @@ export const normalizeRestChecks = ({
   return normalizeStatusCheckRollup(entries);
 };
 
-/** Extracts PR inline review threads whose latest comment is not a trusted `<!-- merit-addressed -->` reply. */
-export const extractUnaddressedReviewThreads = (
+/** Groups PR review comments into threads keyed by their root comment, each in comment order. */
+const groupReviewThreads = (
   comments: readonly RestPullReviewComment[],
-): ReviewThreadSummary[] => {
+): RestPullReviewComment[][] => {
   const threadsByRootId = new Map<number, RestPullReviewComment[]>();
-  const sorted = [...comments].sort((a, b) => a.id - b.id);
-  for (const comment of sorted) {
+  for (const comment of [...comments].sort((a, b) => a.id - b.id)) {
     const rootId = comment.in_reply_to_id ?? comment.id;
     const thread = threadsByRootId.get(rootId) ?? [];
     thread.push(comment);
     threadsByRootId.set(rootId, thread);
   }
-
-  const unaddressed: ReviewThreadSummary[] = [];
-  for (const thread of threadsByRootId.values()) {
-    const root = thread[0];
-    if (!root) {
-      continue;
-    }
-    let lastAddressedIndex = -1;
-    for (let index = 0; index < thread.length; index += 1) {
-      const comment = thread[index];
-      if (
-        comment &&
-        TRUSTED_AUTHOR_ASSOCIATIONS.has(comment.author_association) &&
-        comment.body.includes(ADDRESSED_THREAD_MARKER)
-      ) {
-        lastAddressedIndex = index;
-      }
-    }
-    if (lastAddressedIndex === thread.length - 1) {
-      continue;
-    }
-    const followUps = lastAddressedIndex >= 0 ? thread.slice(lastAddressedIndex + 1) : [];
-    const body =
-      followUps.length > 0
-        ? [
-            root.body,
-            ...followUps.map(
-              (comment) => `Follow-up (${comment.user?.login ?? "unknown"}): ${comment.body}`,
-            ),
-          ].join("\n\n---\n\n")
-        : root.body;
-    unaddressed.push({
-      id: String(root.id),
-      path: root.path,
-      line: root.line ?? root.original_line ?? null,
-      author: root.user?.login ?? "unknown",
-      body,
-    });
-  }
-  return unaddressed;
+  return [...threadsByRootId.values()];
 };
+
+const isTrustedAddressedReply = (comment: RestPullReviewComment) =>
+  TRUSTED_AUTHOR_ASSOCIATIONS.has(comment.author_association) &&
+  comment.body.includes(ADDRESSED_THREAD_MARKER);
+
+const reviewAuthor = (comment: RestPullReviewComment) => comment.user?.login ?? "unknown";
+
+/**
+ * Summarizes a thread whose latest comment is not a trusted addressed reply, or returns null.
+ * Comments after the last addressed reply are appended to the root as follow-ups.
+ */
+const summarizeUnaddressedThread = (
+  thread: readonly RestPullReviewComment[],
+): ReviewThreadSummary | null => {
+  const root = thread[0];
+  if (!root) {
+    return null;
+  }
+  const lastAddressedIndex = thread.findLastIndex(isTrustedAddressedReply);
+  if (lastAddressedIndex === thread.length - 1) {
+    return null;
+  }
+  const followUps = lastAddressedIndex >= 0 ? thread.slice(lastAddressedIndex + 1) : [];
+  return {
+    id: String(root.id),
+    path: root.path,
+    line: root.line ?? root.original_line ?? null,
+    author: reviewAuthor(root),
+    body: [
+      root.body,
+      ...followUps.map((comment) => `Follow-up (${reviewAuthor(comment)}): ${comment.body}`),
+    ].join("\n\n---\n\n"),
+  };
+};
+
+/** Extracts PR inline review threads whose latest comment is not a trusted `<!-- merit-addressed -->` reply. */
+export const extractUnaddressedReviewThreads = (
+  comments: readonly RestPullReviewComment[],
+): ReviewThreadSummary[] =>
+  groupReviewThreads(comments)
+    .map(summarizeUnaddressedThread)
+    .filter((summary) => summary !== null);
+
+/** The aggregate CI check that must complete before the queue acts on a pull request. */
+const VERIFY_CHECK_NAME = "verify";
+/** Browser test jobs, whose failures alone may be flakes worth one automatic rerun. */
+const BROWSER_CHECK_PREFIX = "browser-";
+const ISSUE_BRANCH_PREFIX = "claude/issue-";
+/** Automatic flake reruns the queue records for one pull request before it shepherds instead. */
+const MAX_FLAKE_RERUNS = 1;
+/** A verify run GitHub has already re-attempted is not rerun again as a flake. */
+const MAX_RERUNNABLE_RUN_ATTEMPT = 1;
+const CLAIM_TTL_HOURS = CLAIM_TTL_MS / (60 * 60 * 1000);
 
 const isPassingConclusion = (conclusion: string | null) =>
   conclusion === "SUCCESS" || conclusion === "SKIPPED" || conclusion === "NEUTRAL";
 
-export const inspectPrChecks = (checks: readonly PrCheckStatus[]) => {
-  const verifyCheck = checks.find((check) => check.name === "verify");
+export type PrCheckInspection = {
+  /** No checks reported yet, verify is missing, or any check has not completed. */
+  hasPending: boolean;
+  failedChecks: string[];
+  /** Every failure other than the verify aggregate is a browser job, and there is at least one. */
+  onlyBrowserFailures: boolean;
+};
+
+export const inspectPrChecks = (checks: readonly PrCheckStatus[]): PrCheckInspection => {
+  const verifyCheck = checks.find((check) => check.name === VERIFY_CHECK_NAME);
   const hasPending =
     checks.length === 0 ||
     !verifyCheck ||
@@ -366,14 +388,123 @@ export const inspectPrChecks = (checks: readonly PrCheckStatus[]) => {
   const failedChecks = checks
     .filter((check) => check.status === "COMPLETED" && !isPassingConclusion(check.conclusion))
     .map((check) => check.name);
-  const nonAggregatorFailures = failedChecks.filter((name) => name !== "verify");
+  const nonAggregatorFailures = failedChecks.filter((name) => name !== VERIFY_CHECK_NAME);
   const onlyBrowserFailures =
     nonAggregatorFailures.length > 0 &&
-    nonAggregatorFailures.every((name) => name.startsWith("browser-"));
+    nonAggregatorFailures.every((name) => name.startsWith(BROWSER_CHECK_PREFIX));
 
   return { hasPending, failedChecks, onlyBrowserFailures };
 };
 
+/** What one open agent PR needs: a work order, a wait for running checks, or nothing from the queue. */
+export type PrTriage = QueueWorkOrder | "waiting" | "skip";
+
+const escalateStrandedPr = (pr: OpenAgentPr): QueueWorkOrder => ({
+  kind: "escalate",
+  prNumber: pr.number,
+  headRefName: pr.headRefName,
+  reason: pr.isDraft
+    ? `Draft agent PR was not marked ready within ${CLAIM_TTL_HOURS} hours; needs human check or cleanup.`
+    : `Agent PR was not initialized with initial state within ${CLAIM_TTL_HOURS} hours; needs human check or cleanup.`,
+  failedChecks: [],
+  unresolvedThreadCount: 0,
+});
+
+/** Returns the failed verify run to rerun when browser-only failures may be a first-attempt flake. */
+const rerunnableFlakeRun = (pr: OpenAgentPr): FailedVerifyRun | null => {
+  const run = pr.failedVerifyRun;
+  const rerunnable =
+    run != null &&
+    run.attempt <= MAX_RERUNNABLE_RUN_ATTEMPT &&
+    pr.state.flakeReruns < MAX_FLAKE_RERUNS &&
+    pr.unresolvedThreads.length === 0;
+  return rerunnable ? run : null;
+};
+
+const shepherdOrder = (pr: OpenAgentPr, failedChecks: string[]): QueueWorkOrder => {
+  if (pr.state.shepherdRounds >= MAX_SHEPHERD_ROUNDS) {
+    return {
+      kind: "escalate",
+      prNumber: pr.number,
+      headRefName: pr.headRefName,
+      reason: `Reached max ${MAX_SHEPHERD_ROUNDS} shepherd rounds.`,
+      failedChecks,
+      unresolvedThreadCount: pr.unresolvedThreads.length,
+    };
+  }
+  return {
+    kind: "shepherd",
+    prNumber: pr.number,
+    headRefName: pr.headRefName,
+    headSha: pr.headSha,
+    issueNumber: pr.state.issueNumber ?? extractLinkedIssueNumbers(pr.body)[0] ?? null,
+    nextRound: pr.state.shepherdRounds + 1,
+    failedChecks,
+    unresolvedThreads: pr.unresolvedThreads,
+  };
+};
+
+/**
+ * Decides what one open agent PR needs. PRs handed to a human, fresh drafts or uninitialized PRs,
+ * and green PRs without open threads need nothing; stranded ones escalate. Browser-only failures
+ * get one flake rerun before other failures or open threads are shepherded.
+ */
+export const triagePr = (pr: OpenAgentPr, nowMs: number): PrTriage => {
+  if (pr.labels.includes(AGENT_LABELS.needsHuman)) {
+    return "skip";
+  }
+  if (pr.isDraft || !pr.stateInitialized) {
+    return isStaleDraftPr(pr, nowMs) ? escalateStrandedPr(pr) : "skip";
+  }
+  const { hasPending, failedChecks, onlyBrowserFailures } = inspectPrChecks(pr.checks);
+  if (hasPending) {
+    return "waiting";
+  }
+  const flakeRun = onlyBrowserFailures ? rerunnableFlakeRun(pr) : null;
+  if (flakeRun) {
+    return {
+      kind: "rerun_flake",
+      prNumber: pr.number,
+      runId: flakeRun.databaseId,
+      headRefName: pr.headRefName,
+      headSha: pr.headSha,
+      failedChecks,
+      state: pr.state,
+    };
+  }
+  if (failedChecks.length === 0 && pr.unresolvedThreads.length === 0) {
+    return "skip";
+  }
+  return shepherdOrder(pr, failedChecks);
+};
+
+const linkedIssueNumbers = (prs: readonly OpenAgentPr[]): Set<number> =>
+  new Set(
+    prs.flatMap((pr) => [
+      ...(pr.state.issueNumber ? [pr.state.issueNumber] : []),
+      ...extractLinkedIssueNumbers(pr.body),
+    ]),
+  );
+
+/** Picks the lowest-numbered ready issue that no open agent PR covers and no active claim holds. */
+export const pickNextIssue = (
+  readyIssues: readonly ReadyIssueCandidate[],
+  openAgentPrs: readonly OpenAgentPr[],
+  nowMs: number,
+): ReadyIssueCandidate | undefined => {
+  const covered = linkedIssueNumbers(openAgentPrs);
+  return readyIssues
+    .toSorted((a, b) => a.number - b.number)
+    .find(
+      (issue) =>
+        !issue.labels.includes(AGENT_LABELS.needsHuman) &&
+        !issue.labels.includes(AGENT_LABELS.design) &&
+        !covered.has(issue.number) &&
+        !hasActiveClaim(issue.comments, nowMs),
+    );
+};
+
+/** Chooses the queue's next action: the first PR needing work, else a new issue within the WIP cap. */
 export const selectNextWork = ({
   openAgentPrs,
   readyIssues,
@@ -383,123 +514,35 @@ export const selectNextWork = ({
   readyIssues: readonly ReadyIssueCandidate[];
   nowMs?: number;
 }): QueueWorkOrder => {
-  const sortedPrs = [...openAgentPrs].sort((a, b) => a.number - b.number);
-  let waitingForChecks = false;
-
-  for (const pr of sortedPrs) {
-    if (pr.labels.includes(AGENT_LABELS.needsHuman)) {
-      continue;
-    }
-    if (pr.isDraft || pr.stateInitialized === false) {
-      if (isStaleDraftPr(pr, nowMs)) {
-        return {
-          kind: "escalate",
-          prNumber: pr.number,
-          headRefName: pr.headRefName,
-          reason: pr.isDraft
-            ? "Draft agent PR was not marked ready within 2 hours; needs human check or cleanup."
-            : "Agent PR was not initialized with initial state within 2 hours; needs human check or cleanup.",
-          failedChecks: [],
-          unresolvedThreadCount: 0,
-        };
-      }
-      continue;
-    }
-    const { hasPending, failedChecks, onlyBrowserFailures } = inspectPrChecks(pr.checks);
-    if (hasPending) {
-      waitingForChecks = true;
-      continue;
-    }
-
-    const canRerunFlake =
-      onlyBrowserFailures &&
-      pr.unresolvedThreads.length === 0 &&
-      pr.state.flakeReruns < 1 &&
-      pr.failedVerifyRun != null &&
-      pr.failedVerifyRun.attempt <= 1;
-
-    if (canRerunFlake && pr.failedVerifyRun) {
-      return {
-        kind: "rerun_flake",
-        prNumber: pr.number,
-        runId: pr.failedVerifyRun.databaseId,
-        headRefName: pr.headRefName,
-        headSha: pr.headSha,
-        failedChecks,
-        state: pr.state,
-      };
-    }
-
-    if (failedChecks.length === 0 && pr.unresolvedThreads.length === 0) {
-      continue;
-    }
-
-    if (pr.state.shepherdRounds >= MAX_SHEPHERD_ROUNDS) {
-      return {
-        kind: "escalate",
-        prNumber: pr.number,
-        headRefName: pr.headRefName,
-        reason: `Reached max ${MAX_SHEPHERD_ROUNDS} shepherd rounds.`,
-        failedChecks,
-        unresolvedThreadCount: pr.unresolvedThreads.length,
-      };
-    }
-
-    const linkedIssues = extractLinkedIssueNumbers(pr.body);
-    return {
-      kind: "shepherd",
-      prNumber: pr.number,
-      headRefName: pr.headRefName,
-      headSha: pr.headSha,
-      issueNumber: pr.state.issueNumber ?? linkedIssues[0] ?? null,
-      nextRound: pr.state.shepherdRounds + 1,
-      failedChecks,
-      unresolvedThreads: pr.unresolvedThreads,
-    };
+  const triages = openAgentPrs
+    .toSorted((a, b) => a.number - b.number)
+    .map((pr) => triagePr(pr, nowMs));
+  const prOrder = triages.find((triage) => typeof triage === "object");
+  if (prOrder) {
+    return prOrder;
   }
-
-  if (sortedPrs.length >= MAX_OPEN_AGENT_PRS) {
+  const openAgentPrCount = openAgentPrs.length;
+  const waitingForChecks = triages.includes("waiting");
+  if (openAgentPrCount >= MAX_OPEN_AGENT_PRS) {
     return {
       kind: "idle",
       reason: waitingForChecks ? "waiting_for_checks" : "wip_limit_reached",
-      openAgentPrCount: sortedPrs.length,
+      openAgentPrCount,
     };
   }
-
-  const linkedIssueNumbers = new Set<number>();
-  for (const pr of sortedPrs) {
-    if (pr.state.issueNumber) {
-      linkedIssueNumbers.add(pr.state.issueNumber);
-    }
-    for (const num of extractLinkedIssueNumbers(pr.body)) {
-      linkedIssueNumbers.add(num);
-    }
-  }
-
-  const eligibleIssues = [...readyIssues]
-    .sort((a, b) => a.number - b.number)
-    .filter(
-      (issue) =>
-        !issue.labels.includes(AGENT_LABELS.needsHuman) &&
-        !issue.labels.includes(AGENT_LABELS.design) &&
-        !linkedIssueNumbers.has(issue.number) &&
-        !hasActiveClaim(issue.comments, nowMs),
-    );
-
-  const nextIssue = eligibleIssues[0];
+  const nextIssue = pickNextIssue(readyIssues, openAgentPrs, nowMs);
   if (nextIssue) {
     return {
       kind: "implement",
       issueNumber: nextIssue.number,
       title: nextIssue.title,
-      branchSuggestion: `claude/issue-${nextIssue.number}`,
+      branchSuggestion: `${ISSUE_BRANCH_PREFIX}${nextIssue.number}`,
     };
   }
-
   return {
     kind: "idle",
     reason: waitingForChecks ? "waiting_for_checks" : "no_work",
-    openAgentPrCount: sortedPrs.length,
+    openAgentPrCount,
   };
 };
 
