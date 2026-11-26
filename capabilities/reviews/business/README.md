@@ -53,8 +53,11 @@ unexpired. A workflow sends only a message that is still `pending`. Requests wai
 first outcome by polling Postgres.
 A privileged `merit_pending_reviewer_messages` function lists, across workspaces, identifiers
 of the newest unfinished message per kind and assignment whose acting member is active with a
-membership in an active workspace, so reconciliation can start missing
-workflows. `/server/testing` supplies an inline stand-in for the workflow in business tests.
+membership in an active workspace, so reconciliation can start missing workflows. An invitation
+acts for the requesting manager. A submission notice, which goes to that manager, acts for the
+submitting reviewer while they remain an active member and otherwise for the manager, so a
+reviewer who left cannot strand it. `@merit/reviews/testing` supplies an inline stand-in for the
+workflow in business tests.
 
 `/api` is browser-safe. `/server` exports the manager and reviewer service factories
 and authorized operations. Approved composition reads use `/schema`, `/scope`,

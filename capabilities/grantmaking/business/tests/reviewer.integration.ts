@@ -1411,6 +1411,81 @@ it("lists unfinished reviewer messages across workspaces for reconciliation, new
   expect(await pending()).toEqual([]);
 });
 
+it("lists a pending message only while its actor could still deliver it", async ({
+  db,
+  database,
+  reviewerScenario: s,
+}) => {
+  const listed = async () =>
+    (await listPendingReviewerMessageWork((operation) => operation(db), 100)).map(
+      ({ messageId }) => messageId,
+    );
+
+  const invitationId = s.invitation.commandId;
+  await database.client.query("UPDATE reviewer_messages SET status = 'pending' WHERE id = $1", [
+    invitationId,
+  ]);
+  expect(await listed()).toEqual([invitationId]);
+
+  await database.client.query("UPDATE app_users SET active = false WHERE id = $1", [actor.userId]);
+  expect(await listed()).toEqual([]);
+  await database.client.query("UPDATE app_users SET active = true WHERE id = $1", [actor.userId]);
+  expect(await listed()).toEqual([invitationId]);
+
+  // The acting manager must still belong to the workspace.
+  await database.client.query(
+    "CREATE TEMP TABLE removed AS SELECT * FROM memberships WHERE organization_id = 'alder' AND user_id = $1",
+    [actor.userId],
+  );
+  await database.client.query(
+    "DELETE FROM memberships WHERE organization_id = 'alder' AND user_id = $1",
+    [actor.userId],
+  );
+  expect(await listed()).toEqual([]);
+  await database.client.query("INSERT INTO memberships SELECT * FROM removed");
+  await database.client.query("DROP TABLE removed");
+  expect(await listed()).toEqual([invitationId]);
+
+  await database.client.query(
+    "UPDATE organizations SET kind = 'demo', demo_expires_at = now() - interval '1 hour', demo_seed_version = 1 WHERE id = 'alder'",
+  );
+  expect(await listed()).toEqual([]);
+});
+
+it("lists a pending submission notice for the manager once the reviewer cannot act", async ({
+  db,
+  database,
+  reviewerScenario: s,
+}) => {
+  await s.respond("accept");
+  await s.save();
+  expect(await s.submit()).toMatchObject({ status: "ok" });
+  await database.client.query(
+    "UPDATE reviewer_messages SET status = 'pending' WHERE assignment_id = $1 AND kind = 'submission'",
+    [s.assignmentId],
+  );
+
+  const actors = async () =>
+    (await listPendingReviewerMessageWork((operation) => operation(db), 100)).map(
+      ({ userId }) => userId,
+    );
+
+  expect(await actors()).toEqual([sam.userId]);
+
+  // The notice goes to the requesting manager, who can deliver it without the reviewer.
+  await database.client.query("UPDATE app_users SET active = false WHERE id = $1", [sam.userId]);
+  expect(await actors()).toEqual([actor.userId]);
+  await database.client.query("UPDATE app_users SET active = true WHERE id = $1", [sam.userId]);
+  expect(await actors()).toEqual([sam.userId]);
+
+  // With neither the reviewer nor the manager able to act, nobody is left to deliver it.
+  await database.client.query("UPDATE app_users SET active = false WHERE id IN ($1, $2)", [
+    sam.userId,
+    actor.userId,
+  ]);
+  expect(await actors()).toEqual([]);
+});
+
 it("lists a pending submission notice under the submitting reviewer", async ({
   db,
   database,

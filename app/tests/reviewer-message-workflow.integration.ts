@@ -14,7 +14,6 @@ import { reviewRevisionSchema } from "@merit/reviews/domain";
 import {
   createReviewerService,
   deliverCommittedReviewerMessage,
-  listPendingReviewerMessageWork,
   saveApplicationReview,
   type ReviewerDelivery,
 } from "@merit/reviews/server";
@@ -574,50 +573,6 @@ it("restarts a pending message whose earlier run completed, by reconciliation", 
   expect(await closed(noticeId)).toBe("sent");
   expect(await s.status(noticeId)).toBe("sent");
   expect(s.mail.map(({ id }) => id)).toEqual([noticeId]);
-});
-
-it("lists a pending message only while its actor could still deliver it", async ({
-  scenario: s,
-}) => {
-  s.behavior.fail = true;
-  const impatient = createReviewerService({
-    database: s.run,
-    start: async () => false,
-    wait: { timeoutMs: 0, intervalMs: 0 },
-  });
-  const invited = await impatient.invite(actor, s.invitation);
-  assert(invited.status === "ok");
-
-  const listed = async () =>
-    (await listPendingReviewerMessageWork(s.run, 100)).map(({ messageId }) => messageId);
-
-  expect(await listed()).toEqual([s.invitation.commandId]);
-
-  await s.database.client.query("UPDATE app_users SET active = false WHERE id = $1", [
-    actor.userId,
-  ]);
-  expect(await listed()).toEqual([]);
-  await s.database.client.query("UPDATE app_users SET active = true WHERE id = $1", [actor.userId]);
-  expect(await listed()).toEqual([s.invitation.commandId]);
-
-  // The acting manager must still belong to the workspace.
-  await s.database.client.query(
-    "CREATE TEMP TABLE removed AS SELECT * FROM memberships WHERE organization_id = 'alder' AND user_id = $1",
-    [actor.userId],
-  );
-  await s.database.client.query(
-    "DELETE FROM memberships WHERE organization_id = 'alder' AND user_id = $1",
-    [actor.userId],
-  );
-  expect(await listed()).toEqual([]);
-  await s.database.client.query("INSERT INTO memberships SELECT * FROM removed");
-  await s.database.client.query("DROP TABLE removed");
-  expect(await listed()).toEqual([s.invitation.commandId]);
-
-  await s.database.client.query(
-    "UPDATE organizations SET kind = 'demo', demo_expires_at = now() - interval '1 hour', demo_seed_version = 1 WHERE id = 'alder'",
-  );
-  expect(await listed()).toEqual([]);
 });
 
 /** Ask where the assistant's saved message stands until it settles, as its later steps do. */

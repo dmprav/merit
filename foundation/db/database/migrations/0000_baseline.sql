@@ -966,6 +966,9 @@ WHEN (OLD.active AND NOT NEW.active) EXECUTE FUNCTION merit_invalidate_disabled_
 -- only while delivery could proceed: an active acting user with a membership in a workspace that
 -- is still active, and for an invitation, an assignment still invited and unexpired. Reading,
 -- sending and recording an outcome always open a new transaction scoped to the returned user.
+-- An invitation is delivered for the requesting manager. A submission notice goes to that manager
+-- too, and is delivered for the submitting reviewer while the reviewer is still an active member,
+-- else for the manager: the notice does not depend on the reviewer's continued access.
 CREATE FUNCTION merit_pending_reviewer_messages(batch_size integer, after_id uuid)
 RETURNS TABLE ("messageId" uuid, "assignmentId" uuid, kind text, "userId" text)
 LANGUAGE sql STABLE STRICT SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
@@ -974,8 +977,11 @@ LANGUAGE sql STABLE STRICT SECURITY DEFINER SET search_path = pg_catalog, pg_tem
   JOIN public.review_assignments a ON a.id = m.assignment_id
   JOIN public.organizations o ON o.id = a.organization_id
   CROSS JOIN LATERAL (
-    SELECT CASE WHEN m.kind = 'submission' THEN coalesce(a.reviewer_user_id, a.manager_user_id)
-      ELSE a.manager_user_id END AS user_id) actor
+    SELECT CASE WHEN m.kind = 'submission' AND EXISTS (
+        SELECT 1 FROM public.app_users r
+        JOIN public.memberships rm ON rm.user_id = r.id AND rm.organization_id = a.organization_id
+        WHERE r.id = a.reviewer_user_id AND r.active)
+      THEN a.reviewer_user_id ELSE a.manager_user_id END AS user_id) actor
   JOIN public.app_users u ON u.id = actor.user_id AND u.active
   WHERE m.status = 'pending' AND m.id > after_id
     AND public.merit_workspace_active(o.kind, o.demo_expires_at)
