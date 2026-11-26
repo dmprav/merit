@@ -11,7 +11,12 @@ import {
   type RunOutcome,
   type RunReport,
 } from "./output.ts";
-import type { RunMode, TargetCheckResult, UiVerifyResults } from "./results.ts";
+import {
+  summarizeResults,
+  type RunMode,
+  type TargetCheckResult,
+  type UiVerifyResults,
+} from "./results.ts";
 import {
   buildStorybookIfNeeded,
   startAppServer,
@@ -227,8 +232,10 @@ export const runUiVerify = async (
   const { registerCleanup, runCleanups } = createCleanupStack(log);
   // Registered first so it runs last, after the report is written and servers are stopped.
   registerCleanup(async () => releaseOutput());
+  let interrupted = false;
   const stopWatching = (report.mode === "container" ? ignoreInterrupts : watchInterrupts)(
     async (signal) => {
+      interrupted = true;
       log(`Received ${signal}; tearing down isolated ui:verify servers...`);
       await runCleanups();
     },
@@ -241,7 +248,11 @@ export const runUiVerify = async (
       { repoRoot, log, registerCleanup },
       runContainer,
     );
-    return publishResults(report, outcome);
+    // Interrupt teardown releases the output directory, which a later run may then own, so an
+    // interrupted run reports its results without writing them there.
+    return interrupted
+      ? summarizeResults({ ...report, ...outcome })
+      : publishResults(report, outcome);
   } finally {
     // An interrupt during teardown, such as while the database is dropped, waits for it to finish.
     await runCleanups();

@@ -128,6 +128,9 @@ describe("runUiVerify output lock", () => {
 
     expect(results.error).toMatch(/Cleanup started/);
     expect(observations.map(({ step }) => step)).not.toContain("targets checked");
+    // Teardown released the directory, so a later run may own it: this run must not write there.
+    expect(observations.map(({ step }) => step)).not.toContain("results published");
+    expect(existsSync(join(observedOutDir, "results.json"))).toBe(false);
     expect(observations.find(({ step }) => step === "browser closed")?.locked).toBe(true);
     expect(existsSync(join(observedOutDir, ".ui-verify.lock"))).toBe(false);
   });
