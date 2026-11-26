@@ -395,7 +395,9 @@ test.describe("live Chromium checker failure detection", () => {
 
     // A render-blocking script holds the first rendering update, where Chromium applies pending
     // `autofocus`, until the checker has started. The finite animation keeps a checker that resets
-    // focus before that update waiting until the autofocus lands, as a slow CI frame can.
+    // focus before that update waiting until the autofocus lands, as a slow CI frame can. The
+    // explicit focus() stands in for the focus the reset clears: with nothing focused, the checker
+    // skips the reset and this page cannot tell whether it waits for the update.
     let releaseRenderBlock = () => {};
 
     const renderBlockReleased = new Promise<void>((resolve) => {
@@ -410,6 +412,17 @@ test.describe("live Chromium checker failure detection", () => {
       await route.fulfill({
         contentType: "text/html",
         body: `<!doctype html><html lang="en"><head>${VIEWPORT_META}<title>Pending autofocus</title>
+          <script>
+            // The checker has started once it waits for a rendering update or resets focus.
+            const requestFrame = window.requestAnimationFrame.bind(window);
+            window.requestAnimationFrame = (callback) => {
+              window.__traversalStarted = true;
+              return requestFrame(callback);
+            };
+            document.addEventListener("focusin", (event) => {
+              if (event.target === document.body) window.__traversalStarted = true;
+            });
+          </script>
           <script async blocking="render" src="/render-block.js"></script><style>
           body { background: #fff; color: #111; }
           @keyframes settle { from { opacity: 0.99; } to { opacity: 1; } }
@@ -428,7 +441,9 @@ test.describe("live Chromium checker failure detection", () => {
     await page.goto("http://ui-verify.test/", { waitUntil: "domcontentloaded" });
 
     const traversal = checkKeyboardFocusTraversal(page);
-    setTimeout(releaseRenderBlock, 500);
+    // Interval polling runs while rendering is blocked; animation frame polling would not.
+    await page.waitForFunction(() => "__traversalStarted" in window, undefined, { polling: 20 });
+    releaseRenderBlock();
     const focus = await traversal;
     expect(focus.incompleteReason).toBeUndefined();
     expect(focus.stopsChecked).toBe(2);
