@@ -227,7 +227,7 @@ test("an idle work pane has no task actions", async ({ page }, testInfo) => {
   desktopOnly(testInfo);
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto(
-    "/iframe.html?id=features-applications-manage-reviews--assessment-details&viewMode=story",
+    "/iframe.html?id=features-applications-manage-reviews--assessment-history&viewMode=story",
   );
   await expect(page.locator("#storybook-root")).toHaveAttribute("data-story-ready", "true");
 
